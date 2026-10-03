@@ -51,19 +51,13 @@ describe('GithubRegistryBackend', () => {
         return manifest;
       },
     };
-    const backend = await GithubRegistryBackend.create({
-      id: 'official',
-      owner: 'acme',
-      repo: 'registry',
-      trust: 'official',
-      client,
-    });
-    expect(readArgs).toEqual(['acme', 'registry', 'main', 'registry/index.json']);
+    const backend = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client }, { trust: 'official' });
+    expect(readArgs).toEqual([{ owner: 'acme', repo: 'registry', ref: 'main', path: 'registry/index.json' }]);
     expect(backend.kind).toBe('github');
     expect(backend.trust).toBe('official');
     expect(backend.ref).toBe('main');
     expect(backend.manifestPath).toBe('registry/index.json');
-    await expect(backend.resolve('vendor/example')).resolves.toMatchObject({ source: manifest.entries[0]?.source });
+    await expect(backend.resolve({ name: 'vendor/example' })).resolves.toMatchObject({ source: manifest.entries[0]?.source });
   });
 
   it('defaults trust to restricted when no explicit trust is configured (SEC-RB-005 / CR-009)', async () => {
@@ -87,7 +81,7 @@ describe('GithubRegistryBackend', () => {
               issuer: 'https://token.actions.githubusercontent.com',
               certificate: SELF_SIGNED_CA_CERT_PEM,
               signedAt: '2026-08-01T00:00:00Z',
-              signature: sign('sha256', Buffer.from(canonicalRegistrySigningPayload(manifest.entries[0]!), 'utf8'), SELF_SIGNED_CA_KEY_PEM).toString('base64'),
+              signature: sign('sha256', Buffer.from(canonicalRegistrySigningPayload({ entry: manifest.entries[0]! }), 'utf8'), SELF_SIGNED_CA_KEY_PEM).toString('base64'),
             },
           ],
         },
@@ -96,11 +90,11 @@ describe('GithubRegistryBackend', () => {
     const client: GithubRegistryClient = { async readManifest() { return signedManifest; } };
 
     const withoutTrustRoot = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client });
-    await expect(withoutTrustRoot.resolve('vendor/example')).resolves.toMatchObject({ verified: false });
+    await expect(withoutTrustRoot.resolve({ name: 'vendor/example' })).resolves.toMatchObject({ verified: false });
 
     const trustRoot: RegistryTrustRoot = { githubOidc: { caCertificates: [SELF_SIGNED_CA_CERT_PEM] } };
-    const withTrustRoot = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client, trustRoot });
-    await expect(withTrustRoot.resolve('vendor/example')).resolves.toMatchObject({
+    const withTrustRoot = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client }, { trustRoot });
+    await expect(withTrustRoot.resolve({ name: 'vendor/example' })).resolves.toMatchObject({
       verified: true,
       verifiedIssuer: 'https://token.actions.githubusercontent.com',
     });
@@ -108,14 +102,7 @@ describe('GithubRegistryBackend', () => {
 
   it('honors an explicit ref/manifestPath', async () => {
     const client: GithubRegistryClient = { async readManifest() { return manifest; } };
-    const backend = await GithubRegistryBackend.create({
-      id: 'official',
-      owner: 'acme',
-      repo: 'registry',
-      ref: 'release',
-      manifestPath: 'custom/path.json',
-      client,
-    });
+    const backend = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client }, { ref: 'release', manifestPath: 'custom/path.json' });
     expect(backend.ref).toBe('release');
     expect(backend.manifestPath).toBe('custom/path.json');
   });
@@ -136,7 +123,7 @@ describe('GithubRegistryBackend', () => {
       async createPublishPullRequest() { throw new Error('should not be called for a dry run'); },
     };
     const backend = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client });
-    const outcome = await backend.publish?.({ entry: manifest.entries[0]!, dryRun: true });
+    const outcome = await backend.publish?.({ entry: manifest.entries[0]! }, { dryRun: true });
     expect(outcome).toMatchObject({ ok: true, dryRun: true, warnings: [] });
   });
 
@@ -156,7 +143,7 @@ describe('GithubRegistryBackend', () => {
       },
     };
     const backend = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client });
-    const outcome = await backend.publish?.({ entry: manifest.entries[0]!, changelog: 'Initial release' });
+    const outcome = await backend.publish?.({ entry: manifest.entries[0]! }, { changelog: 'Initial release' });
     expect(outcome).toMatchObject({ ok: true, dryRun: false, pullRequestUrl: 'https://github.com/acme/registry/pull/1' });
     expect(mutationFiles).toEqual(['entries/vendor/example/entry.json', 'entries/vendor/example/versions/1.1.0.json']);
     expect(mutationBody).toContain('Publish vendor/example@1.1.0');
@@ -206,7 +193,7 @@ describe('GithubRegistryBackend', () => {
   it('yank returns a dry-run outcome with a warning when the client has no mutation capability', async () => {
     const client: GithubRegistryClient = { async readManifest() { return manifest; } };
     const backend = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client });
-    const outcome = await backend.yank?.('vendor/example', '1.1.0', 'security issue');
+    const outcome = await backend.yank?.({ name: 'vendor/example', version: '1.1.0', reason: 'security issue' });
     expect(outcome).toMatchObject({ ok: true, dryRun: true, name: 'vendor/example', version: '1.1.0', reason: 'security issue' });
     expect(outcome?.warnings).toEqual(['github mutation client unavailable; emitted dry-run yank only']);
   });
@@ -224,7 +211,7 @@ describe('GithubRegistryBackend', () => {
       },
     };
     const backend = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client });
-    const outcome = await backend.yank?.('vendor/example', '1.1.0', 'security issue');
+    const outcome = await backend.yank?.({ name: 'vendor/example', version: '1.1.0', reason: 'security issue' });
     expect(mutationPath).toBe('entries/vendor/example/versions/1.1.0.json');
     expect(outcome).toMatchObject({ ok: true, dryRun: false, pullRequestUrl: 'https://github.com/acme/registry/pull/4' });
   });
@@ -255,17 +242,17 @@ describe('GithubRegistryBackend', () => {
 
     it('yank rejects a path-traversal name', async () => {
       const backend = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client });
-      await expect(backend.yank?.('../../etc/passwd', '1.0.0', 'reason')).rejects.toThrow(/invalid registry entry name/i);
+      await expect(backend.yank?.({ name: '../../etc/passwd', version: '1.0.0', reason: 'reason' })).rejects.toThrow(/invalid registry entry name/i);
     });
 
     it('yank rejects a version containing whitespace', async () => {
       const backend = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client });
-      await expect(backend.yank?.('vendor/example', '1.0.0 ', 'reason')).rejects.toThrow(/invalid version/i);
+      await expect(backend.yank?.({ name: 'vendor/example', version: '1.0.0 ', reason: 'reason' })).rejects.toThrow(/invalid version/i);
     });
 
     it('yank rejects a reason containing control characters', async () => {
       const backend = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client });
-      await expect(backend.yank?.('vendor/example', '1.0.0', 'reason\u0000injected')).rejects.toThrow(
+      await expect(backend.yank?.({ name: 'vendor/example', version: '1.0.0', reason: 'reason\u0000injected' })).rejects.toThrow(
         /control characters/i,
       );
     });
@@ -289,8 +276,8 @@ describe('GithubRegistryBackend', () => {
         },
       };
       const backend = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client });
-      await expect(backend.list()).resolves.toEqual([]);
-      const report = await backend.doctor();
+      await expect(backend.list({})).resolves.toEqual([]);
+      const report = await backend.doctor({});
       expect(report).toMatchObject({ ok: false, entriesChecked: 0 });
       expect(report.issues).toEqual([expect.objectContaining({ code: 'malformed-manifest' })]);
     });

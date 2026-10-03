@@ -1,3 +1,34 @@
+## Unreleased
+
+### Fixes
+
+- Keep packed session-store test fixtures within daemon's source root, use the SQLite driver's zero-argument close API, and declare PostgreSQL test types with `@types/pg`.
+
+- Align parser feeds, event sinks, run streams, attachment matchers and OAuth cache construction with current dependency APIs.
+- Omit absent optional arguments under strict TypeScript checking; restore lifecycle event input, terminal options and the delegated `tool_result` discriminant.
+- Compile tests alongside source and update test fixtures to current callback and argument contracts without removing assertions.
+
+## 0.5.0 — 2026-10-02
+
+### BREAKING
+
+- Daemon HTTP route packs and read-only tools now belong to this package. Run services use concept subpaths, optional HTTP peers and canonical core contracts.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+### BREAKING — HTTP and run coordination ownership
+
+- Add optional `./http` with route packs moved from HTTP kit, plus `./read-only-tools`.
+- Remove delegated policy facades; use real policy exports with host messages and core IDs.
+- Run coordination modules use concept paths. Surface exchanges take core Clock/IdGenerator;
+  the Node credential adapter uses core token comparison. Database-lane object APIs reconciled.
+- HTTP kit and Express are optional HTTP peers; chat is test-only.
+
+- BREAKING: All three session-store factories and SQLite event logs accept optional core `Clock` through `{ clock }` instead of `{ now }`, preserving system-time defaults.
+
+## 0.4.0 (unpublished release candidate)
+
+- Session-id adapters and the SQLite event log move to dedicated store subpaths; all database connections are injected.
+
 # @jini-ai/daemon
 
 ## 0.2.1
@@ -77,3 +108,12 @@
   - @jini-ai/core@0.1.1
   - @jini-ai/platform@0.1.1
   - @jini-ai/agent-runtime@0.2.0
+
+## Unreleased — C2 concern ownership
+
+- Add audit, held surface-exchange, session-coordination, live-run credential and ownership subpaths; convert daemon calls to required/optional object arguments and inject host ports.
+- Make watchdog cancellation permanent and agent permission defaults restricted, with explicit bypass and invalid-mode rejection.
+
+- Added isolated SQLite event-log and rich legacy session entries with host injection.
+- Added neutral session-id port, in-memory store and shared-kernel SQLite/PGlite/Postgres adapters.
+- Preserved durable cursor validation, default cap 2000, dedupe/restart/media semantics.

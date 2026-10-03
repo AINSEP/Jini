@@ -7,11 +7,12 @@ import { selectVisibleEntryFields, validateFieldsAgainstSchema } from "../field-
  * @file `validateFieldsAgainstSchema`'s envelope-shape-first ordering and
  * `selectVisibleEntryFields`'s orphaned-field read tolerance.
  *
- * Covers: AC-22 (unrecognized field rejected), AC-23 (missing required field rejected), AC-24
- * (orphaned key silently omitted on read), AC-39/AC-40 (validate-only route reuses identical
- * logic, writes no row — asserted here at the pure-function level since C-411 is explicitly
- * reused identically by create/update/validate-only), AC-49 (kind-conformance violation), AC-50
- * (malformed/unwrapped envelope rejected before any per-field check), EC-08.
+ * Covers: (unrecognized field rejected), (missing required field rejected), 
+ * (orphaned key silently omitted on read), (validate-only route reuses identical
+ * logic, writes no row — asserted here at the pure-function level since is explicitly
+ * reused identically by create/update/validate-only), (kind-conformance violation), 
+ * (malformed/unwrapped envelope rejected before any per-field check),.
+ * See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
  */
 
 function schema() {

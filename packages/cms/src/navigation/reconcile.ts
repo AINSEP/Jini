@@ -1,4 +1,5 @@
-import type { ClockPort, UUID } from "../core/ports.js";
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
+import type { Clock, UUID } from "@jini-ai/core/primitives";
 import type { MenuRepoPort } from "./repo.memory.js";
 import type { NavLocationBindingRepoPort } from "./ports.js";
 import type { NavLocationBindingRow } from "./types.js";
@@ -35,7 +36,7 @@ import type { NavLocationBindingRow } from "./types.js";
 export interface RebuildNavLocationBindingsDeps {
   menuRepo: MenuRepoPort;
   bindingRepo: NavLocationBindingRepoPort;
-  clock: ClockPort;
+  clock: Clock;
   workspaceId: UUID;
 }
 
@@ -62,7 +63,7 @@ export async function rebuildNavLocationBindings(
   deps: RebuildNavLocationBindingsDeps
 ): Promise<RebuildNavLocationBindingsResult> {
   const menus = await deps.menuRepo.list({ workspaceId: deps.workspaceId });
-  const boundAt = deps.clock.nowIso();
+  const boundAt = kernelNowIso({ clock: deps.clock });
 
   const byLocation = new Map<string, NavLocationBindingRow>();
   for (const menu of menus) {

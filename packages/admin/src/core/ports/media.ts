@@ -42,25 +42,26 @@ export interface AdminMedia {
 }
 
 export interface AdminMediaPort {
-  listMedia(): Promise<readonly AdminMedia[]>;
+  listMedia(requiredArgs: Record<string, never>): Promise<readonly AdminMedia[]>;
   /** Synchronous URL builder, not a request — see the file header. */
-  mediaOriginalUrl(id: string): string;
+  mediaOriginalUrl(requiredArgs: { id: string }): string;
   uploadMedia(
     input: { filename: string; contentType: string; dataBase64: string },
     options?: { alt?: string; caption?: string; credit?: string },
   ): Promise<AdminMedia>;
   updateMedia(
-    id: string,
-    patch: { title?: string; alt?: string; caption?: string; credit?: string },
+    requiredArgs: { id: string },
+    optionalArgs?: { title?: string; alt?: string; caption?: string; credit?: string },
   ): Promise<AdminMedia>;
-  /** Soft delete — reversible via `deleteMedia`'s counterpart trash state. Safe to offer as an
-   *  undoable action in a panel. */
-  trashMedia(id: string): Promise<AdminMedia>;
+  /** Soft delete — retains the asset in trash rather than purging its row and blob. This port
+   *  declares no restore operation, so a panel may offer undo only when the host supplies a
+   *  separate restore capability; trash state alone does not make an undo control work. */
+  trashMedia(requiredArgs: { id: string }): Promise<AdminMedia>;
   /**
    * Hard purge. Irreversible — see the file header. Expect a conflict-class rejection (with a
    * referencing-entities list on the error body, per `../transport/errors.ts`'s "`body` is kept
    * raw" decision) when the asset is still trashed-but-referenced elsewhere, and a not-found-class
    * rejection when it has not been trashed first.
    */
-  deleteMedia(id: string): Promise<{ purged: boolean }>;
+  deleteMedia(requiredArgs: { id: string }): Promise<{ purged: boolean }>;
 }

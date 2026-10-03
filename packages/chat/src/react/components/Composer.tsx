@@ -189,8 +189,8 @@ export function Composer({
   const resolvedPlaceholder = placeholder ?? t('Send a message…');
   const discoveryGroups = slots?.discoveryGroups ?? [];
   const hasDiscoveryItems = discoveryGroups.some((group) => group.items.length > 0);
-  const slashQuery = parseComposerSlashQuery(composer.draft);
-  const slashMatches = slashQuery === null ? [] : filterComposerDiscovery(discoveryGroups, slashQuery);
+  const slashQuery = parseComposerSlashQuery({ draft: composer.draft });
+  const slashMatches = slashQuery === null ? [] : filterComposerDiscovery({ groups: discoveryGroups, query: slashQuery });
   const slashOpen = slashMatches.length > 0 && dismissedSlashDraft !== composer.draft;
   /**
    * A bare "/" intentionally matches every item (`matchesFuzzyCommand`'s own doc) so the palette
@@ -263,12 +263,12 @@ export function Composer({
 
     function update() {
       const rect = composerRoot!.getBoundingClientRect();
-      if (discoveryMenuOpen) setDiscoveryMenuPosition(composerDiscoveryMenuPosition(rect));
-      if (slashOpen) setSlashMenuPosition(composerSlashMenuPosition(rect));
+      if (discoveryMenuOpen) setDiscoveryMenuPosition(composerDiscoveryMenuPosition({ composerRect: rect }));
+      if (slashOpen) setSlashMenuPosition(composerSlashMenuPosition({ composerRect: rect }));
       // Shares the discovery menu's own anchor math (same left inset off `.jini-composer`) rather
       // than measuring the working-dir button's own rect — one less measurement to keep in sync,
       // and the two popovers already never open at once (each is gated on its own trigger).
-      if (workdirOpen) setWorkdirPosition(composerDiscoveryMenuPosition(rect));
+      if (workdirOpen) setWorkdirPosition(composerDiscoveryMenuPosition({ composerRect: rect }));
     }
 
     update();
@@ -324,7 +324,7 @@ export function Composer({
   function selectSlashItem(index: number) {
     const match = slashMatches[index];
     if (!match) return;
-    const resolution = resolveComposerSlashInvocation(composer.draft, match.item);
+    const resolution = resolveComposerSlashInvocation({ draft: composer.draft, item: match.item });
     if (!resolution) return;
 
     if (resolution.type === 'complete') {
@@ -338,7 +338,7 @@ export function Composer({
 
     let expectedDraft = composer.draft;
     if (!match.item.command) {
-      expectedDraft = replaceComposerSlashTrigger(composer.draft, match.item.insertText ?? match.item.label);
+      expectedDraft = replaceComposerSlashTrigger({ draft: composer.draft, insertText: match.item.insertText ?? match.item.label });
       composer.setDraft(expectedDraft);
     }
     setDismissedSlashDraft(null);
@@ -347,7 +347,7 @@ export function Composer({
   }
 
   function selectPlusItem(item: ComposerDiscoveryItem) {
-    const expectedDraft = item.insertText ? appendComposerDiscovery(composer.draft, item.insertText) : composer.draft;
+    const expectedDraft = item.insertText ? appendComposerDiscovery({ draft: composer.draft, insertText: item.insertText }) : composer.draft;
     if (item.insertText) composer.setDraft(expectedDraft);
     setDiscoveryMenuOpen(false);
     notifyDiscovery(item, 'plus', expectedDraft);
@@ -374,7 +374,7 @@ export function Composer({
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.nativeEvent.isComposing) return;
     if (slashOpen) {
-      const action = resolveComposerSlashKeyAction(event.key, event.shiftKey);
+      const action = resolveComposerSlashKeyAction({ key: event.key, shiftKey: event.shiftKey });
       if (action.type !== 'none') {
         event.preventDefault();
         if (action.type === 'move') {

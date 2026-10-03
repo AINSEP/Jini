@@ -1,11 +1,12 @@
 /**
- * @module agui/events
+ * @module gen-ui/events
  *
- * The AG-UI wire event shapes `./encoder.ts` produces. AG-UI (Agent-User Interaction
- * Protocol) is CopilotKit's open, external wire protocol for streaming an agent's run over SSE to
- * a UI client — see https://github.com/ag-ui-protocol/ag-ui. This module is a near-verbatim port
+ * The custom gen-ui wire event shapes `./encoder.ts` produces. AG-UI (Agent-User Interaction
+ * Protocol) is CopilotKit's separate, external wire protocol for streaming an agent's run over SSE to
+ * a UI client — see https://github.com/ag-ui-protocol/ag-ui. These six `kind` values belong to
+ * Jini's own protocol, not the external AG-UI event vocabulary. This module is a near-verbatim port
  * of a 312-line adapter that encoded a product's own run-event stream into this shape; the types
- * themselves are unchanged in kind, only de-branded (see `source-map.md` for the full
+ * themselves are unchanged in kind, only de-branded (see `archived provenance ledger` for the full
  * field-mapping table and provenance).
  *
  * Folded in 2026-07-26 from the standalone `@jini-ai/agui` package (plan §3a) into this `src/gen-ui/`

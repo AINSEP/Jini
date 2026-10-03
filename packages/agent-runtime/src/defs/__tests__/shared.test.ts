@@ -82,14 +82,14 @@ describe('clampCodexReasoning', () => {
 
 describe('parseLineSeparatedModels', () => {
   it('returns just the default option for empty/nullish stdout', () => {
-    expect(parseLineSeparatedModels('')).toEqual([DEFAULT_MODEL_OPTION]);
-    expect(parseLineSeparatedModels(null as unknown as string)).toEqual([DEFAULT_MODEL_OPTION]);
-    expect(parseLineSeparatedModels(undefined as unknown as string)).toEqual([DEFAULT_MODEL_OPTION]);
+    expect(parseLineSeparatedModels({ stdout: '' })).toEqual([DEFAULT_MODEL_OPTION]);
+    expect(parseLineSeparatedModels({ stdout: null as unknown as string })).toEqual([DEFAULT_MODEL_OPTION]);
+    expect(parseLineSeparatedModels({ stdout: undefined as unknown as string })).toEqual([DEFAULT_MODEL_OPTION]);
   });
 
   it('parses one id per line, trims whitespace, skips blank lines and comment lines', () => {
     const stdout = 'anthropic/claude-sonnet-4-5\n# a comment\n\n  openai/gpt-5  \n';
-    expect(parseLineSeparatedModels(stdout)).toEqual([
+    expect(parseLineSeparatedModels({ stdout: stdout })).toEqual([
       DEFAULT_MODEL_OPTION,
       { id: 'anthropic/claude-sonnet-4-5', label: 'anthropic/claude-sonnet-4-5' },
       { id: 'openai/gpt-5', label: 'openai/gpt-5' },
@@ -98,7 +98,7 @@ describe('parseLineSeparatedModels', () => {
 
   it('de-dupes repeated ids while preserving first-seen order', () => {
     const stdout = 'a/b\nc/d\na/b';
-    expect(parseLineSeparatedModels(stdout)).toEqual([
+    expect(parseLineSeparatedModels({ stdout: stdout })).toEqual([
       DEFAULT_MODEL_OPTION,
       { id: 'a/b', label: 'a/b' },
       { id: 'c/d', label: 'c/d' },
@@ -133,8 +133,8 @@ describe('buildClaudeMcpConfigArgs', () => {
   it('gives both claude-mcp-json defs byte-identical MCP argv for the same staged path', () => {
     const runtimeContext = { mcpJsonPath: '/work/proj/.mcp.json' };
     const mcpArgvOf = (args: string[]): string[] => args.slice(args.indexOf('--strict-mcp-config'));
-    const claudeArgs = claudeAgentDef.buildArgs('hi', [], [], {}, runtimeContext);
-    const codebuddyArgs = codebuddyAgentDef.buildArgs('hi', [], [], {}, runtimeContext);
+    const claudeArgs = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: runtimeContext });
+    const codebuddyArgs = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: runtimeContext });
     expect(mcpArgvOf(claudeArgs)).toEqual(buildClaudeMcpConfigArgs(runtimeContext));
     expect(mcpArgvOf(codebuddyArgs)).toEqual(mcpArgvOf(claudeArgs));
   });

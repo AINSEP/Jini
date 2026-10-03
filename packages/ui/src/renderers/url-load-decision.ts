@@ -14,7 +14,7 @@
  * replaces that fixed list with `activeBridgeIds`, so any host-registered
  * `SrcDocBridge` (see `srcdoc/bridge.ts`) can force srcDoc mode by declaring
  * itself active, without this package knowing the bridge's name in advance.
- * See `source-map.md`.
+ * See `archived provenance ledger`.
  */
 
 export interface UrlLoadDecision {

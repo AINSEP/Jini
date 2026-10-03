@@ -1,3 +1,4 @@
+import { createNodeDiagnosticsPorts } from "../node-ports.js";
 import { mkdir, mkdtemp, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -5,6 +6,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { buildAgentCliLogSources, buildRunEventLogSources } from "../agent-logs.js";
+
+const ports = createNodeDiagnosticsPorts({});
 
 let tempDir: string;
 
@@ -28,8 +31,8 @@ async function touchAt(path: string, mtime: Date, content = "x"): Promise<void> 
 
 describe("buildRunEventLogSources", () => {
   it("returns [] when no runs dir", async () => {
-    expect(await buildRunEventLogSources(null)).toEqual([]);
-    expect(await buildRunEventLogSources(join(tempDir, "missing"))).toEqual([]);
+    expect(await buildRunEventLogSources({ runsDir: null, filesystem: ports.filesystem })).toEqual([]);
+    expect(await buildRunEventLogSources({ runsDir: join(tempDir, "missing"), filesystem: ports.filesystem })).toEqual([]);
   });
 
   it("collects the most-recent per-run events.jsonl, newest first", async () => {
@@ -41,7 +44,7 @@ describe("buildRunEventLogSources", () => {
     // A stray file directly inside runsDir (not a directory) must be skipped.
     await touch(join(runsDir, "notes.txt"));
 
-    const sources = await buildRunEventLogSources(runsDir, { maxRuns: 5 });
+    const sources = await buildRunEventLogSources({ runsDir, filesystem: ports.filesystem }, { maxRuns: 5 });
     const names = sources.map((s) => s.name);
     expect(names).toEqual(["runs/run-b/events.jsonl", "runs/run-a/events.jsonl"]);
     for (const source of sources) {
@@ -55,7 +58,7 @@ describe("buildRunEventLogSources", () => {
     for (let i = 0; i < 5; i += 1) {
       await touchAt(join(runsDir, `run-${i}`, "events.jsonl"), new Date(2026, 0, i + 1), String(i));
     }
-    const sources = await buildRunEventLogSources(runsDir, { maxRuns: 2 });
+    const sources = await buildRunEventLogSources({ runsDir, filesystem: ports.filesystem }, { maxRuns: 2 });
     expect(sources.map((source) => source.name)).toEqual([
       "runs/run-4/events.jsonl",
       "runs/run-3/events.jsonl",
@@ -68,7 +71,7 @@ describe("buildRunEventLogSources", () => {
     await touch(join(runsDir, "unsafe run", "events.jsonl"), "space");
     await touch(join(runsDir, "unsafe:run", "events.jsonl"), "colon");
 
-    const sources = await buildRunEventLogSources(runsDir, { maxRuns: 5 });
+    const sources = await buildRunEventLogSources({ runsDir, filesystem: ports.filesystem }, { maxRuns: 5 });
     expect(sources.map((source) => source.name)).toEqual([
       "runs/safe-run_1.2/events.jsonl",
     ]);
@@ -89,7 +92,7 @@ describe("buildAgentCliLogSources", () => {
     await touch(join(home, ".codex", "auth.json"), "secret");
     await touch(join(home, ".amr", "config.json"), "secret");
 
-    const sources = await buildAgentCliLogSources({ homeDir: home, dataDir });
+    const sources = await buildAgentCliLogSources({ homeDir: home, filesystem: ports.filesystem }, { dataDir });
     const names = sources.map((s) => s.name);
 
     expect(names).toContain("agent-cli-logs/claude/daemon.log");
@@ -118,7 +121,7 @@ describe("buildAgentCliLogSources", () => {
       join(overrideHome, ".local", "share", "opencode", "log", "override.log"),
     );
 
-    const sources = await buildAgentCliLogSources({ homeDir: home, dataDir, amrOpenCodeHome: overrideHome });
+    const sources = await buildAgentCliLogSources({ homeDir: home, filesystem: ports.filesystem }, { dataDir, amrOpenCodeHome: overrideHome });
     const amrNames = sources.filter((s) => s.name.startsWith("agent-cli-logs/amr/")).map((s) => s.name);
     expect(amrNames).toContain("agent-cli-logs/amr/override.log");
     expect(amrNames).not.toContain("agent-cli-logs/amr/default.log");
@@ -134,7 +137,7 @@ describe("buildAgentCliLogSources", () => {
     await touch(join(claudeDir, "cost-tracker.log"));
     await touch(join(codexHome, "log", "session.log"));
 
-    const sources = await buildAgentCliLogSources({ homeDir: home, claudeConfigDir: claudeDir, codexHome });
+    const sources = await buildAgentCliLogSources({ homeDir: home, filesystem: ports.filesystem }, { claudeConfigDir: claudeDir, codexHome });
     const names = sources.map((s) => s.name);
     expect(names).toContain("agent-cli-logs/claude/cost-tracker.log");
     expect(names).toContain("agent-cli-logs/codex/session.log");
@@ -147,12 +150,12 @@ describe("buildAgentCliLogSources", () => {
     const xdg = join(tempDir, "xdg");
     await touch(join(xdg, "opencode", "log", "session.log"));
 
-    const sources = await buildAgentCliLogSources({ homeDir: home, xdgDataHome: xdg });
+    const sources = await buildAgentCliLogSources({ homeDir: home, filesystem: ports.filesystem }, { xdgDataHome: xdg });
     expect(sources.map((s) => s.name)).toContain("agent-cli-logs/opencode/session.log");
   });
 
   it("returns [] when homeDir is empty", async () => {
-    expect(await buildAgentCliLogSources({ homeDir: "" })).toEqual([]);
+    expect(await buildAgentCliLogSources({ homeDir: "", filesystem: ports.filesystem })).toEqual([]);
   });
 
   it("skips non-.log files, unsafe-named .log files, directories named *.log, and broken .log symlinks", async () => {
@@ -170,7 +173,7 @@ describe("buildAgentCliLogSources", () => {
     // and it returns null.
     await symlink(join(claudeDir, "does-not-exist-target"), join(claudeDir, "broken.log"));
 
-    const sources = await buildAgentCliLogSources({ homeDir: home });
+    const sources = await buildAgentCliLogSources({ homeDir: home, filesystem: ports.filesystem });
     const claudeNames = sources.filter((s) => s.name.startsWith("agent-cli-logs/claude/")).map((s) => s.name);
 
     expect(claudeNames).toEqual(["agent-cli-logs/claude/daemon.log"]);

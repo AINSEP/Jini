@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { InMemoryPrincipalRepo } from "../../identity/index.js";
+import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import { DefinitionInvalidError, ValueValidationFailedError } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
 import { reconcileDefinitionDefault, registerDefinitions } from "../write-service.js";
-import type { JsonValue } from "../../core/ports.js";
+import type { JsonValue } from "@jini-ai/core/primitives";
 import type { SettingDefinitionRecord, SettingValueSchema } from "../types.js";
 
 /**
@@ -21,14 +21,14 @@ import type { SettingDefinitionRecord, SettingValueSchema } from "../types.js";
  */
 
 const NOW = "2026-07-12T00:00:00.000Z";
-const clock = { nowIso: () => NOW };
+const clock = { nowMs: () => Date.parse(NOW)};
 let idCounter = 0;
 const ids = { newId: () => `id-${++idCounter}` };
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
 
 function deps(seed: { definitions?: SettingDefinitionRecord[] } = {}) {
   const repo = new InMemorySettingsRepo(seed);
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
   return { repo, clock, ids, authorize: alwaysAllow, principals };
 }
 
@@ -42,7 +42,7 @@ async function register(
     input: {
       definitions: [
         {
-          // The namespace fence (REQ-02) pins each ownerKind to its own prefix,
+          // The namespace fence pins each ownerKind to its own prefix,. See docs/decisions/DR-003-settings-ledger-invariants.md.
           // so a non-core case cannot simply reuse `core.ns`.
           namespace: `${ownerKind}.ns`,
           key: "a",

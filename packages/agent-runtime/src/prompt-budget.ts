@@ -11,7 +11,7 @@
  * "Reduce the selected skills/design-system context…" (OD's own content
  * catalog). Replaced with the generic "selected context" phrasing so the
  * message doesn't assume a design-system-shaped host. Mechanics (byte
- * budgets, Windows quote-doubling math) are unchanged. See `source-map.md`.
+ * budgets, Windows quote-doubling math) are unchanged. See `archived provenance ledger`.
  */
 import type { RuntimeAgentDef, RuntimePromptBudgetError } from './types.js';
 
@@ -46,10 +46,7 @@ function resolveArgvPromptBudget(maxPromptArgBytes: number, platform: NodeJS.Pla
   return Math.max(maxPromptArgBytes, POSIX_ARGV_PROMPT_BUDGET);
 }
 
-export function checkPromptArgvBudget(
-  def: RuntimeAgentDef | null | undefined,
-  composed: unknown,
-  platform: NodeJS.Platform = process.platform,
+export function checkPromptArgvBudget({ def, composed }: { def: RuntimeAgentDef | null | undefined; composed: unknown }, { platform = process.platform }: { platform?: NodeJS.Platform } = {}
 ): RuntimePromptBudgetError | null {
   if (!def || typeof def.maxPromptArgBytes !== 'number') return null;
   const bytes = Buffer.byteLength(typeof composed === 'string' ? composed : '', 'utf8');
@@ -147,10 +144,7 @@ const WINDOWS_CREATE_PROCESS_HEADROOM = 256;
 // Pure: takes `resolvedBin` explicitly so a test on macOS can pass a fake
 // `C:\\…\\deepseek.cmd` path and exercise the same math the daemon would
 // run on Windows.
-export function checkWindowsCmdShimCommandLineBudget(
-  def: RuntimeAgentDef | null | undefined,
-  resolvedBin: unknown,
-  args: unknown,
+export function checkWindowsCmdShimCommandLineBudget({ def, resolvedBin, args }: { def: RuntimeAgentDef | null | undefined; resolvedBin: unknown; args: unknown }
 ): RuntimePromptBudgetError | null {
   if (!def || typeof def.maxPromptArgBytes !== 'number') return null;
   if (typeof resolvedBin !== 'string' || !/\.(bat|cmd)$/i.test(resolvedBin)) return null;
@@ -219,10 +213,7 @@ function looksLikeWindowsPath(p: string): boolean {
 // pass a fake `C:\…\deepseek.exe` and exercise the same math the daemon
 // would run on Windows. The libuv quoting math lives in
 // `quoteForWindowsDirectExe` above.
-export function checkWindowsDirectExeCommandLineBudget(
-  def: RuntimeAgentDef | null | undefined,
-  resolvedBin: unknown,
-  args: unknown,
+export function checkWindowsDirectExeCommandLineBudget({ def, resolvedBin, args }: { def: RuntimeAgentDef | null | undefined; resolvedBin: unknown; args: unknown }
 ): RuntimePromptBudgetError | null {
   if (!def || typeof def.maxPromptArgBytes !== 'number') return null;
   if (typeof resolvedBin !== 'string' || resolvedBin.length === 0) return null;

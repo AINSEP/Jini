@@ -47,9 +47,8 @@ export interface ConfirmDialogController {
 /** The signature `ConfirmDialogProps.useDialog` accepts. Any hook matching this can drive the
  *  component; it does not have to be {@link useConfirmDialog}, or even use React state at all. */
 export type UseConfirmDialog = (
-  open: boolean,
-  pending: boolean | undefined,
-  onCancel: () => void,
+  requiredArgs: { readonly open: boolean; readonly onCancel: () => void; readonly document: Pick<Document, 'activeElement'> },
+  optionalArgs?: { readonly pending?: boolean | undefined },
 ) => ConfirmDialogController;
 
 /**
@@ -104,7 +103,10 @@ export function ConfirmDialogDefaultsProvider({ children, cancelLabel }: Confirm
  * @returns The label to render.
  * @complexity O(1).
  */
-export function useConfirmDialogCancelLabel(explicit: string | undefined): string {
+export function useConfirmDialogCancelLabel(
+  _requiredArgs: Record<string, never>,
+  { explicit }: { readonly explicit?: string | undefined } = {},
+): string {
   const { cancelLabel } = useContext(ConfirmDialogDefaultsContext);
   return explicit ?? cancelLabel ?? DEFAULT_CANCEL_LABEL;
 }
@@ -122,9 +124,8 @@ export function useConfirmDialogCancelLabel(explicit: string | undefined): strin
  * @complexity O(1) per open/close transition — one `showModal`/`close` call and one focus move.
  */
 export function useConfirmDialog(
-  open: boolean,
-  pending: boolean | undefined,
-  onCancel: () => void,
+  { open, onCancel, document }: { readonly open: boolean; readonly onCancel: () => void; readonly document: Pick<Document, 'activeElement'> },
+  { pending }: { readonly pending?: boolean | undefined } = {},
 ): ConfirmDialogController {
   // `useId()`, not a string literal — a hardcoded id breaks the moment a screen mounts two
   // `ConfirmDialog`s at once (a delete-role and a delete-policy confirm on one page, both
@@ -162,7 +163,7 @@ export function useConfirmDialog(
       }
       if (triggerRef.current instanceof HTMLElement) triggerRef.current.focus();
     }
-  }, [open]);
+  }, [open, document]);
 
   function handleNativeCancel(e: SyntheticEvent<HTMLDialogElement>) {
     // Fires on Escape while a real `showModal()`-opened dialog has focus. Always prevented: the

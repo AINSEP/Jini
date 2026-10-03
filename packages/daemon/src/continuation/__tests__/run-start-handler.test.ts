@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AgentExecutor, AgentExecutorRunInput } from '../../agent-executor.js';
+import type { AgentExecutor, AgentExecutorRunInput } from '../../agent-executor/index.js';
 import { createDefaultRunStartHandler, type ResolveRunInputContext } from '../run-start-handler.js';
 
 function fakeExecutor(): { executor: AgentExecutor; calls: AgentExecutorRunInput[] } {
@@ -7,8 +7,8 @@ function fakeExecutor(): { executor: AgentExecutor; calls: AgentExecutorRunInput
   return {
     calls,
     executor: {
-      run: async (input) => {
-        calls.push(input);
+      run: async (required, optional) => {
+        calls.push({ ...required, ...optional });
       },
     },
   };

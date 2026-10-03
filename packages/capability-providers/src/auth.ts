@@ -1,6 +1,6 @@
 /**
  * `AuthProvider` — a swappable identity/session port. Speculative
- * port-design exploration (see `source-map.md`): Zana and a fleet orchestrator each
+ * port-design exploration (see `archived provenance ledger`): Zana and a fleet orchestrator each
  * independently built an explicit capability-provider layer with auth as one
  * of the swappable capabilities (Supabase/sqlite-backed) — this is the
  * engine-level shape that convergence points at, not a lift from either.
@@ -38,7 +38,7 @@ export interface AuthProvider {
   /** Exchanges valid credentials for a new session. Rejects on an unknown email or wrong password. */
   signIn(credentials: AuthCredentials): Promise<AuthSession>;
   /** Invalidates a session token. A no-op on an already-invalid/unknown token. */
-  signOut(token: string): Promise<void>;
+  signOut(required: { token: string }): Promise<void>;
   /** Resolves a session token to its user, or `null` if the token is unknown, invalidated, or expired. */
-  verifySession(token: string): Promise<AuthUser | null>;
+  verifySession(required: { token: string }): Promise<AuthUser | null>;
 }

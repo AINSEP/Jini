@@ -88,7 +88,7 @@ export function AssetGrid<TAsset extends AssetGridItem>({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   /** Message from a delete the host rejected. Rendered inline — see `runDelete`. */
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const debouncedSearch = useDebouncedValue(search, searchDebounceMs);
+  const debouncedSearch = useDebouncedValue({ value: search, delayMs: searchDebounceMs });
   const filtersActive = !!(kind || source || debouncedSearch.trim());
 
   // `dependencies` (host-supplied, or omitted to fall back to the package's

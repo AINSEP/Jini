@@ -2,7 +2,15 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    // DOM + JSX are needed for `src/react/**`'s components/hooks only — mirrors
+    // `@jini-ai/chat`'s tsconfig.json, whose comment this restates. `src/core/**` and `src/html/**`
+    // stay framework-free at runtime regardless of these lib/jsx settings being available at
+    // compile time; that boundary is enforced by `vitest.config.ts` (no jsdom outside
+    // `src/react/**`), not by withholding types here.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["@testing-library/jest-dom"]
   },
   "include": ["src"]
 }

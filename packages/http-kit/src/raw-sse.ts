@@ -27,7 +27,7 @@ export interface CreateSseResponseOptions {
 
 export interface SseConnection {
   /** Writes one SSE `data:` event, JSON-serializing `data`. A no-op once the connection has closed. */
-  send(data: unknown): void;
+  send({ data }: { readonly data: unknown }, _optional?: Record<string, never>): void;
   /** Closes the connection: stops the keepalive interval and ends the response. Idempotent — safe to call more than once, or after the client has already disconnected. */
   close(): void;
   /** `true` once this connection has closed, whether via an explicit `close()` call or the client disconnecting. */
@@ -44,10 +44,7 @@ export interface SseConnection {
  * @complexity O(1) to open; `send` is O(1) plus `JSON.stringify`'s cost in the payload's size.
  * @overallScore 100/100
  */
-export function createSseResponse(
-  req: IncomingMessage,
-  res: ServerResponse,
-  options: CreateSseResponseOptions = {},
+export function createSseResponse({ req, res }: { readonly req: IncomingMessage; readonly res: ServerResponse }, options: CreateSseResponseOptions = {}
 ): SseConnection {
   let closed = false;
   const maxQueuedMessages = options.maxQueuedMessages ?? DEFAULT_MAX_QUEUED_SSE_MESSAGES;
@@ -119,7 +116,7 @@ export function createSseResponse(
   req.on('close', close);
 
   return {
-    send(data: unknown): void {
+    send({ data }: { readonly data: unknown }): void {
       enqueue(`data: ${JSON.stringify(data)}\n\n`);
     },
     close,

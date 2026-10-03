@@ -27,7 +27,7 @@ export interface DesktopHostPathRoots {
 }
 
 export class DesktopHostPathError extends Error {
-  constructor(message: string) {
+  constructor({ message }: { message: string }) {
     super(message);
     this.name = 'DesktopHostPathError';
   }
@@ -72,20 +72,19 @@ function resolveDataRoot(namespaceRoot: string, namespace: string, dataDirOverri
     const expanded = expandHomePrefix(override);
     const isAbs = process.platform === 'win32' ? win32.isAbsolute(expanded) : isAbsolute(expanded);
     if (!isAbs) {
-      throw new DesktopHostPathError(`${dataDirOverrideEnvVar} must be an absolute path; got: ${override}`);
+      throw new DesktopHostPathError({ message: `${dataDirOverrideEnvVar} must be an absolute path; got: ${override}` });
     }
     const scopedNamespace = scopedNamespaceOf(expanded);
     if (scopedNamespace != null && scopedNamespace !== namespace) {
-      throw new DesktopHostPathError(
-        `${dataDirOverrideEnvVar} targets namespace "${scopedNamespace}" but the active namespace is "${namespace}"`,
-      );
+      throw new DesktopHostPathError({ message: `${dataDirOverrideEnvVar} targets namespace "${scopedNamespace}" but the active namespace is "${namespace}"` });
     }
     return scopedNamespace != null ? expanded : join(expanded, 'namespaces', namespace, 'data');
   }
   return join(namespaceRoot, 'data');
 }
 
-export function resolveDesktopHostPathRoots(options: ResolvePathRootsOptions): DesktopHostPathRoots {
+export function resolveDesktopHostPathRoots(requiredArgs: Pick<ResolvePathRootsOptions, 'namespace' | 'namespaceBaseRoot'>, optionalArgs: Omit<ResolvePathRootsOptions, 'namespace' | 'namespaceBaseRoot'> = {}): DesktopHostPathRoots {
+  const options = { ...optionalArgs, ...requiredArgs };
   const env = options.env ?? process.env;
   const namespaceRoot = join(options.namespaceBaseRoot, options.namespace);
   return {

@@ -17,7 +17,7 @@
  * Parse `name="value"` / `name='value'` pairs out of a tag's raw attribute
  * string (the content between the tag name and the closing `>`).
  */
-export function parseQuotedAttrs(raw: string): Record<string, string> {
+export function parseQuotedAttrs({ raw }: { raw: string }): Record<string, string> {
   const re = /(\w+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
   const out: Record<string, string> = {};
   let m: RegExpExecArray | null = re.exec(raw);

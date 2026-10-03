@@ -1,6 +1,4 @@
-export type JsonPrimitive = string | number | boolean | null;
-
-export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+import type { JsonPrimitive, JsonValue } from '@jini-ai/core/primitives';
 
 export interface BoundedJsonConstraints {
   /** Maximum nesting depth for objects and arrays, counting the root container as depth 1. */

@@ -149,7 +149,7 @@ export interface SignatureVerificationResult {
  * @param entry - The registry entry the signature is claimed to cover.
  * @returns The canonical UTF-8 string the signature must be a valid signature over.
  */
-export function canonicalRegistrySigningPayload(entry: RegistryEntry): string {
+export function canonicalRegistrySigningPayload({ entry }: { entry: RegistryEntry }): string {
   const digest = entry.integrity ?? entry.manifestDigest ?? entry.dist?.integrity ?? entry.dist?.manifestDigest ?? '';
   return `${entry.name}@${entry.version}:${digest}`;
 }
@@ -168,9 +168,8 @@ export function canonicalRegistrySigningPayload(entry: RegistryEntry): string {
  * @returns The verification outcome; check `.verified` before trusting `.issuer`/`.subject`.
  */
 export function verifyRegistrySignature(
-  entry: RegistryEntry,
-  signature: RegistrySignature,
-  trustRoot: RegistryTrustRoot | undefined,
+  { entry, signature }: { entry: RegistryEntry; signature: RegistrySignature },
+  { trustRoot }: { trustRoot?: RegistryTrustRoot | undefined } = {},
 ): SignatureVerificationResult {
   if (signature.kind !== 'github-oidc') {
     // Decision 1: recognize but don't implement cosign/minisign/custom —
@@ -245,7 +244,7 @@ export function verifyRegistrySignature(
   if (signatureBytes.length === 0) {
     return { verified: false, kind: signature.kind, reason: 'signature is empty after base64 decoding' };
   }
-  const payload = Buffer.from(canonicalRegistrySigningPayload(entry), 'utf8');
+  const payload = Buffer.from(canonicalRegistrySigningPayload({ entry }), 'utf8');
   let signatureValid: boolean;
   try {
     // `crypto.verify()` CAN throw (not just return false) for a
@@ -276,11 +275,14 @@ export function verifyRegistrySignature(
  * @param trustRoot - The backend's configured trust root, if any.
  * @returns The first verifying result, or the last failing one.
  */
-export function verifyRegistryEntrySignatures(entry: RegistryEntry, trustRoot: RegistryTrustRoot | undefined): SignatureVerificationResult {
+export function verifyRegistryEntrySignatures(
+  { entry }: { entry: RegistryEntry },
+  { trustRoot }: { trustRoot?: RegistryTrustRoot | undefined } = {},
+): SignatureVerificationResult {
   const signatures = entry.signatures ?? [];
   let last: SignatureVerificationResult = { verified: false, reason: 'entry has no signatures' };
   for (const signature of signatures) {
-    const result = verifyRegistrySignature(entry, signature, trustRoot);
+    const result = verifyRegistrySignature({ entry, signature }, { trustRoot });
     if (result.verified) return result;
     last = result;
   }

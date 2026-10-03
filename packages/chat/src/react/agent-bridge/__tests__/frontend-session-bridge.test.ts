@@ -88,43 +88,43 @@ afterEach(() => {
 
 describe('capability claims', () => {
   it('claims only the chat verbs for a surface with no page driver', () => {
-    createFrontendSessionBridge();
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     const url = FakeEventSource.opened[0] ?? '';
     expect(url).toContain('capability=chat.send_message');
     expect(url).not.toContain('capability=page.click');
   });
 
   it('claims the page verbs once a driver is wired', () => {
-    createFrontendSessionBridge({ pageDriver: createDriver() });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: createDriver() });
     expect(FakeEventSource.opened[0]).toContain('capability=page.click');
   });
 
   it('claims a product prefix so a consumer can expose verbs the engine never heard of', () => {
-    createFrontendSessionBridge({ executors: { 'cms.': async () => undefined } });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { executors: { 'cms.': async () => undefined } });
     expect(FakeEventSource.opened[0]).toContain(`capability=${encodeURIComponent('cms.')}`);
   });
 
   it('connects to a host-supplied origin when given one', () => {
-    createFrontendSessionBridge({ baseUrl: 'http://daemon.test:4317' });
+    createFrontendSessionBridge({ baseUrl: 'http://daemon.test:4317', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, {  });
     expect(FakeEventSource.opened[0]).toMatch(/^http:\/\/daemon\.test:4317\/api\/frontend-sessions\/stream\?/);
   });
 });
 
 describe('attachment', () => {
   it('resolves ready with the first attachment', async () => {
-    const bridge = createFrontendSessionBridge();
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     await expect(bridge.ready).resolves.toEqual({ sessionId: 's1', bindToken: 't1' });
   });
 
   it('reports no bind token before the daemon has attached the surface', () => {
-    expect(createFrontendSessionBridge().bindToken()).toBeUndefined();
+    expect(createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }).bindToken()).toBeUndefined();
   });
 
   it('replaces the bind token on every reattach, because a stale one binds nothing', async () => {
     // EventSource reconnects by itself. A host that captured `ready`'s token would keep sending
     // the pre-reconnect one, and every later run would fail to bind with nothing to see in the UI.
-    const bridge = createFrontendSessionBridge();
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     expect(bridge.bindToken()).toBe('t1');
 
@@ -135,7 +135,7 @@ describe('attachment', () => {
   });
 
   it('answers to the session it is currently attached as, not the one it first attached as', async () => {
-    const bridge = createFrontendSessionBridge({ pageDriver: createDriver() });
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: createDriver() });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's2', bindToken: 't2' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } });
@@ -144,7 +144,7 @@ describe('attachment', () => {
   });
 
   it('rejects ready when the daemon refuses the surface outright', async () => {
-    const bridge = createFrontendSessionBridge();
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     FakeEventSource.last?.emit({ type: 'error', message: 'capability not permitted' });
     await expect(bridge.ready).rejects.toThrow('capability not permitted');
   });
@@ -152,7 +152,7 @@ describe('attachment', () => {
   it('drops the bind token the moment the stream errors, because the daemon already has', async () => {
     // The registry deletes a session's token as soon as its connection goes; keeping it here
     // until the next `attached` frame leaves a gap where a run binds to a surface that is gone.
-    const bridge = createFrontendSessionBridge();
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.fail();
     expect(bridge.bindToken()).toBeUndefined();
@@ -160,7 +160,7 @@ describe('attachment', () => {
   });
 
   it('picks the new token up when the connection comes back', () => {
-    const bridge = createFrontendSessionBridge();
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.fail();
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's2', bindToken: 't2' });
@@ -168,7 +168,7 @@ describe('attachment', () => {
   });
 
   it('surrenders its bind token when closed, so a torn-down surface cannot strand a run', () => {
-    const bridge = createFrontendSessionBridge();
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     bridge.close();
     expect(bridge.bindToken()).toBeUndefined();
@@ -179,19 +179,19 @@ describe('attachment', () => {
 describe('routing invocations', () => {
   it('runs a page verb through the driver and answers with its result', async () => {
     const driver = createDriver();
-    const bridge = createFrontendSessionBridge({ pageDriver: driver });
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: driver });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await flush();
 
-    expect(driver.click).toHaveBeenCalledWith('save-button');
+    expect(driver.click).toHaveBeenCalledWith({ handle: 'save-button' });
     expect(postedBodies()[0]).toMatchObject({ invocationId: 'i1', ok: true, output: { clicked: 'save-button' } });
     void bridge;
   });
 
   it('hands chat verbs to the pane instead of serving them here', async () => {
     const seen: string[] = [];
-    const bridge = createFrontendSessionBridge({ pageDriver: createDriver() });
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: createDriver() });
     bridge.bridgeAccess.subscribe((action) => seen.push(action.capabilityId));
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'chat.set_draft', input: { text: 'hi' } });
@@ -204,7 +204,7 @@ describe('routing invocations', () => {
 
   it('stops delivering to a pane that unsubscribed', async () => {
     const seen: string[] = [];
-    const bridge = createFrontendSessionBridge();
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     bridge.bridgeAccess.subscribe((action) => seen.push(action.capabilityId))();
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'chat.set_draft', input: {} });
@@ -214,7 +214,7 @@ describe('routing invocations', () => {
 
   it('routes a product capability to the executor registered for its prefix', async () => {
     const cms = vi.fn(async () => ({ published: true }));
-    createFrontendSessionBridge({ executors: { 'cms.': cms } });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { executors: { 'cms.': cms } });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'cms.publish', input: { id: 7 } });
     await flush();
@@ -224,7 +224,7 @@ describe('routing invocations', () => {
   });
 
   it('refuses by name when nothing on the page serves the capability', async () => {
-    createFrontendSessionBridge();
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'cms.publish', input: {} });
     await flush();
@@ -232,7 +232,7 @@ describe('routing invocations', () => {
   });
 
   it('reports a refusal from the executor rather than swallowing it', async () => {
-    const bridge = createFrontendSessionBridge({ pageDriver: createDriver() });
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: createDriver() });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: {} });
     await flush();
@@ -246,16 +246,16 @@ describe('routing invocations', () => {
 
   it('defaults a missing input to an empty object rather than failing on the frame', async () => {
     const driver = createDriver();
-    createFrontendSessionBridge({ pageDriver: driver });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: driver });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.find_elements' });
     await flush();
-    expect(driver.findElements).toHaveBeenCalledWith({});
+    expect(driver.findElements).toHaveBeenCalledWith({}, {});
   });
 
   it('announces every invocation before running it, which is what a user sees as an activity trail', async () => {
     const onInvocation = vi.fn();
-    createFrontendSessionBridge({ pageDriver: createDriver(), onInvocation });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: createDriver(), onInvocation });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await flush();
@@ -267,7 +267,7 @@ describe('replay suppression', () => {
   it('never runs the same invocation twice, because a button is not idempotent', async () => {
     // The daemon redelivers when an answer never arrived. The click already happened.
     const driver = createDriver();
-    createFrontendSessionBridge({ pageDriver: driver });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: driver });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     const frame = { type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } };
     FakeEventSource.last?.emit(frame);
@@ -281,7 +281,7 @@ describe('replay suppression', () => {
 
   it('does not announce a redelivery as a fresh action', async () => {
     const onInvocation = vi.fn();
-    createFrontendSessionBridge({ pageDriver: createDriver(), onInvocation });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: createDriver(), onInvocation });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     const frame = { type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } };
     FakeEventSource.last?.emit(frame);
@@ -292,7 +292,7 @@ describe('replay suppression', () => {
 
   it('forgets the oldest ids rather than growing without bound on a long-lived tab', async () => {
     const driver = createDriver();
-    createFrontendSessionBridge({ pageDriver: driver });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: driver });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     for (let index = 0; index < 300; index += 1) {
       FakeEventSource.last?.emit({ type: 'invocation', invocationId: `i${index}`, capabilityId: 'page.click', input: { handle: 'save-button' } });
@@ -313,7 +313,7 @@ describe('replay suppression', () => {
 describe('malformed and unexpected frames', () => {
   it('reports unparseable data instead of throwing inside the event listener', () => {
     const onError = vi.fn();
-    createFrontendSessionBridge({ onError });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { onError });
     FakeEventSource.last?.emit('not json');
     expect(onError).toHaveBeenCalledOnce();
   });
@@ -324,14 +324,14 @@ describe('malformed and unexpected frames', () => {
     // outside any catch, bypassing onError entirely. `null` is not "unparseable"; it parses fine
     // and is simply not the object shape every frame handler after it assumes.
     const onError = vi.fn();
-    createFrontendSessionBridge({ onError });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { onError });
     expect(() => FakeEventSource.last?.emit('null')).not.toThrow();
     expect(onError).toHaveBeenCalledOnce();
   });
 
   it('ignores a frame type this build has never heard of, so the daemon can grow its vocabulary', async () => {
     const onError = vi.fn();
-    createFrontendSessionBridge({ pageDriver: createDriver(), onError });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: createDriver(), onError });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'heartbeat', at: 1 });
     await flush();
@@ -346,7 +346,7 @@ describe('malformed and unexpected frames', () => {
     // via onError instead, and neither may reach the driver.
     const driver = createDriver();
     const onError = vi.fn();
-    createFrontendSessionBridge({ pageDriver: driver, onError });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: driver, onError });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', capabilityId: 'page.click', input: { handle: 'a' } });
     await flush();
@@ -358,27 +358,27 @@ describe('malformed and unexpected frames', () => {
 
   it('reports a stream error to the host', () => {
     const onError = vi.fn();
-    createFrontendSessionBridge({ onError });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { onError });
     FakeEventSource.last?.fail();
     expect(onError).toHaveBeenCalledOnce();
   });
 
   it('tolerates a stream error with no host listener at all', () => {
-    createFrontendSessionBridge();
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     expect(() => FakeEventSource.last?.fail()).not.toThrow();
   });
 });
 
 describe('answering the daemon', () => {
   it('refuses to answer before the surface has attached, rather than posting to no session', async () => {
-    const bridge = createFrontendSessionBridge();
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     await expect(bridge.bridgeAccess.respondSuccess('i1', {})).rejects.toThrow(/not attached yet/);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('reports the status when the daemon rejects an answer', async () => {
     fetchMock.mockResolvedValueOnce({ ok: false, status: 410 });
-    const bridge = createFrontendSessionBridge();
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     await expect(bridge.bridgeAccess.respondError('i1', 'nope')).rejects.toThrow(/answering "i1" failed: 410/);
   });
@@ -386,7 +386,7 @@ describe('answering the daemon', () => {
   it('routes a failed answer to onError rather than leaving an unhandled rejection', async () => {
     const onError = vi.fn();
     fetchMock.mockRejectedValue(new Error('offline'));
-    createFrontendSessionBridge({ pageDriver: createDriver(), onError });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: createDriver(), onError });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await flush();
@@ -395,14 +395,14 @@ describe('answering the daemon', () => {
 
   it('swallows a failed answer when the host registered no error sink', async () => {
     fetchMock.mockRejectedValue(new Error('offline'));
-    createFrontendSessionBridge({ pageDriver: createDriver() });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: createDriver() });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await expect(flush()).resolves.toBeUndefined();
   });
 
   it('describes a non-Error throw rather than posting "[object Object]"', async () => {
-    createFrontendSessionBridge({ executors: { 'cms.': async () => { throw 'plain string blew up'; } } });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { executors: { 'cms.': async () => { throw 'plain string blew up'; } } });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'cms.publish', input: {} });
     await flush();
@@ -411,7 +411,7 @@ describe('answering the daemon', () => {
 
   it('swallows a failed refusal post when the host registered no error sink', async () => {
     fetchMock.mockRejectedValue(new Error('offline'));
-    createFrontendSessionBridge({ pageDriver: createDriver() });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: createDriver() });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: {} });
     await expect(flush()).resolves.toBeUndefined();
@@ -420,7 +420,7 @@ describe('answering the daemon', () => {
   it('reports a driver refusal even when posting that refusal also fails', async () => {
     const onError = vi.fn();
     fetchMock.mockRejectedValue(new Error('offline'));
-    createFrontendSessionBridge({ pageDriver: createDriver(), onError });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: createDriver(), onError });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: {} });
     await flush();
@@ -429,7 +429,7 @@ describe('answering the daemon', () => {
 
   it('drops chat listeners on close, so a stale pane cannot keep receiving actions', async () => {
     const seen: string[] = [];
-    const bridge = createFrontendSessionBridge();
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     bridge.bridgeAccess.subscribe((action) => seen.push(action.capabilityId));
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     bridge.close();
@@ -437,4 +437,28 @@ describe('answering the daemon', () => {
     await flush();
     expect(seen).toEqual([]);
   });
+});
+
+// REGRESSION: fails if createFrontendSessionBridge ignores its injected fetch when request is omitted.
+it('posts a response through native fetch with the quick deadline', async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(null, { status: 200 }));
+  const timeout = vi.spyOn(AbortSignal, 'timeout');
+  const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch });
+  FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
+  await bridge.bridgeAccess.respondSuccess('i1', { ok: true });
+  expect(fetch).toHaveBeenCalledWith('/api/frontend-sessions/s1/responses', expect.objectContaining({ method: 'POST', signal: expect.any(AbortSignal) }));
+  expect(timeout).toHaveBeenCalledWith(15_000);
+  bridge.close();
+});
+
+// PARITY
+it('lets a host request implementation override the native fetch default', async () => {
+  const request = vi.fn(async () => new Response(null, { status: 200 }));
+  const fetch = vi.fn<typeof globalThis.fetch>();
+  const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), request, fetch });
+  FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
+  await bridge.bridgeAccess.respondSuccess('i1', {});
+  expect(request).toHaveBeenCalledWith(expect.objectContaining({ timeoutMs: 15_000 }));
+  expect(fetch).not.toHaveBeenCalled();
+  bridge.close();
 });

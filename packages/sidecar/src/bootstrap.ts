@@ -11,6 +11,8 @@
 import { resolveAppIpcPath, resolveSidecarBase } from "./paths.js";
 import type {
   BootstrapSidecarRuntimeOptions,
+  BootstrapSidecarRuntimeOptionsOptionalArgs,
+  SidecarLaunchEnvRequestOptionalArgs,
   SidecarLaunchEnvRequest,
   SidecarRuntimeContext,
   SidecarStampShape,
@@ -24,13 +26,12 @@ import type {
 export function createSidecarLaunchEnv<TStamp extends SidecarStampShape>({
   base,
   contract,
-  extraEnv = process.env,
   stamp,
-}: SidecarLaunchEnvRequest<TStamp>): NodeJS.ProcessEnv {
-  const normalizedStamp = contract.normalizeStamp(stamp);
+}: SidecarLaunchEnvRequest<TStamp>, { extraEnv = process.env }: SidecarLaunchEnvRequestOptionalArgs = {}): NodeJS.ProcessEnv {
+  const normalizedStamp = contract.normalizeStamp({ input: stamp });
   return {
     ...extraEnv,
-    [contract.env.base]: resolveSidecarBase({ base, contract, env: extraEnv, source: normalizedStamp.source }),
+    [contract.env.base]: resolveSidecarBase({ contract, source: normalizedStamp.source }, { base, env: extraEnv }),
     [contract.env.ipcPath]: normalizedStamp.ipc,
     [contract.env.namespace]: normalizedStamp.namespace,
     [contract.env.source]: normalizedStamp.source,
@@ -55,24 +56,18 @@ function assertMatchingEnv(env: NodeJS.ProcessEnv, key: string, expected: string
  * @returns The resolved {@link SidecarRuntimeContext}.
  */
 export function bootstrapSidecarRuntime<TStamp extends SidecarStampShape>(
-  stampInput: unknown,
-  env: NodeJS.ProcessEnv,
-  options: BootstrapSidecarRuntimeOptions<TStamp>,
+  { stampInput, env, app, contract }: BootstrapSidecarRuntimeOptions<TStamp> & { stampInput: unknown; env: NodeJS.ProcessEnv },
+  optionalArgs: BootstrapSidecarRuntimeOptionsOptionalArgs = {},
 ): SidecarRuntimeContext<TStamp> {
-  const stamp = options.contract.normalizeStamp(stampInput);
-  const expectedApp = options.contract.normalizeApp(options.app);
+  const options = { app, contract, ...optionalArgs };
+  const stamp = options.contract.normalizeStamp({ input: stampInput });
+  const expectedApp = options.contract.normalizeApp({ app: options.app });
   if (stamp.app !== expectedApp) {
     throw new Error(`sidecar stamp app mismatch: expected ${expectedApp}, received ${stamp.app}`);
   }
 
-  const base = resolveSidecarBase({
-    base: options.base ?? null,
-    contract: options.contract,
-    env,
-    ...(options.projectRoot === undefined ? {} : { projectRoot: options.projectRoot }),
-    source: stamp.source,
-  });
-  const ipc = resolveAppIpcPath({ app: stamp.app, contract: options.contract, env, namespace: stamp.namespace });
+  const base = resolveSidecarBase({ contract: options.contract, source: stamp.source }, { base: options.base ?? null, env, ...(options.projectRoot === undefined ? {} : { projectRoot: options.projectRoot }) });
+  const ipc = resolveAppIpcPath({ app: stamp.app, contract: options.contract, namespace: stamp.namespace }, { env });
   if (stamp.ipc !== ipc) {
     throw new Error(`sidecar ipc path mismatch: expected ${ipc}, received ${stamp.ipc}`);
   }

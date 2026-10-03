@@ -3,7 +3,7 @@
  * `/v1/images/generations` + `/v1/images/edits` endpoint. Ported
  * near-verbatim from Open Design's `apps/daemon/src/media/index.ts`
  * `renderCustomOpenAIImage`/`customImageOverridesOpenAIModel` — see
- * `source-map.md`.
+ * `archived provenance ledger`.
  *
  * 2026-07-21: migrated onto the generic vendor-adapter dispatch engine
  * (`vendor-adapter.ts`/`vendor-registry.ts`). External behavior is
@@ -40,7 +40,7 @@ interface CustomImageMeta {
 }
 
 const customImageAdapter: VendorAdapter<CustomImageMeta> = {
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<CustomImageMeta> {
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<CustomImageMeta> {
     const baseUrl = (credentials.baseUrl || '').trim();
     if (!baseUrl) {
       throw new Error('Custom Image API base URL required — configure an OpenAI-compatible /v1/images/generations or /v1/images/edits endpoint');
@@ -81,9 +81,9 @@ const customImageAdapter: VendorAdapter<CustomImageMeta> = {
     };
   },
 
-  async parseResponse(resp: Response, ctx: RenderContext, request: VendorRequest<CustomImageMeta>): Promise<RenderResult> {
+  async parseResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<CustomImageMeta> }): Promise<RenderResult> {
     const data = await parseOpenAICompatibleJson(resp, 'custom image');
-    const bytes = await bytesFromOpenAICompatibleData(data, 'custom image', ctx.requestInit);
+    const bytes = await bytesFromOpenAICompatibleData({ data, providerTag: 'custom image' }, ctx);
     return {
       bytes,
       providerNote: `custom-image/${request.meta.wireModel} · ${request.meta.size} · ${bytes.length} bytes`,
@@ -92,14 +92,15 @@ const customImageAdapter: VendorAdapter<CustomImageMeta> = {
   },
 };
 
-mediaVendorRegistry.register('custom-image', 'image', customImageAdapter);
+mediaVendorRegistry.register({ providerId: 'custom-image', routeKey: 'image', adapter: customImageAdapter });
 
-export async function renderCustomOpenAIImage(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(customImageAdapter, ctx, credentials);
+export async function renderCustomOpenAIImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: customImageAdapter, ctx: ctx, credentials: credentials });
 }
 
 /** Whether the caller's `custom-image` credentials should override an `openai`-provider request (same model configured on both). */
-export function customImageOverridesOpenAIModel(ctx: RenderContext, credentials: ProviderCredentials | null): credentials is ProviderCredentials {
+export function customImageOverridesOpenAIModel(required: { ctx: RenderContext; credentials: ProviderCredentials | null }): required is { ctx: RenderContext; credentials: ProviderCredentials } {
+  const { ctx, credentials } = required;
   const baseUrl = credentials?.baseUrl?.trim();
   const model = credentials?.model?.trim();
   if (!baseUrl || !model) return false;

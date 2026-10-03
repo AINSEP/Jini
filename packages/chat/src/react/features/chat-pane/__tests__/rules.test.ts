@@ -40,45 +40,45 @@ const agents: ChatPaneAgent[] = [
 
 describe('chat-pane selection rules', () => {
   it('uses explicit default options before first-listed fallbacks', () => {
-    expect(defaultChatPaneSelection(agents[0]!)).toEqual({
+    expect(defaultChatPaneSelection({ agent: agents[0]! })).toEqual({
       agentId: 'codex',
       model: 'default',
       reasoning: 'default',
     });
-    expect(defaultChatPaneSelection(agents[1]!)).toEqual({
+    expect(defaultChatPaneSelection({ agent: agents[1]! })).toEqual({
       agentId: 'claude',
       model: 'sonnet',
     });
-    expect(defaultChatPaneSelection({
+    expect(defaultChatPaneSelection({ agent: {
       id: 'reasoning-only',
       name: 'Reasoning only',
       reasoningOptions: [{ id: 'high', label: 'High' }],
-    })).toEqual({
+    } })).toEqual({
       agentId: 'reasoning-only',
       reasoning: 'high',
     });
   });
 
   it('resolves an absent or unavailable selection to the first available agent', () => {
-    expect(resolveChatPaneSelection(agents, { agentId: '' })).toEqual({
+    expect(resolveChatPaneSelection({ agents: agents, requested: { agentId: '' } })).toEqual({
       agentId: 'codex',
       model: 'default',
       reasoning: 'default',
     });
-    expect(resolveChatPaneSelection(agents, { agentId: 'missing' })).toEqual({
+    expect(resolveChatPaneSelection({ agents: agents, requested: { agentId: 'missing' } })).toEqual({
       agentId: 'codex',
       model: 'default',
       reasoning: 'default',
     });
-    expect(resolveChatPaneSelection([], { agentId: 'codex' })).toEqual({ agentId: '' });
+    expect(resolveChatPaneSelection({ agents: [], requested: { agentId: 'codex' } })).toEqual({ agentId: '' });
   });
 
   it('preserves valid explicit model/reasoning choices for an available agent', () => {
-    expect(resolveChatPaneSelection(agents, {
+    expect(resolveChatPaneSelection({ agents: agents, requested: {
       agentId: 'codex',
       model: 'gpt-5.6-terra',
       reasoning: 'high',
-    })).toEqual({
+    } })).toEqual({
       agentId: 'codex',
       model: 'gpt-5.6-terra',
       reasoning: 'high',
@@ -86,34 +86,34 @@ describe('chat-pane selection rules', () => {
   });
 
   it('rejects stale catalog values unless custom models are explicitly supported', () => {
-    expect(resolveChatPaneSelection(agents, {
+    expect(resolveChatPaneSelection({ agents: agents, requested: {
       agentId: 'codex',
       model: 'forged-model',
       reasoning: 'forged-reasoning',
-    })).toEqual({
+    } })).toEqual({
       agentId: 'codex',
       model: 'default',
       reasoning: 'default',
     });
-    expect(resolveChatPaneSelection([
+    expect(resolveChatPaneSelection({ agents: [
       {
         id: 'custom',
         name: 'Custom runtime',
         supportsCustomModel: true,
         models: [{ id: 'default', label: 'Default' }],
       },
-    ], {
+    ], requested: {
       agentId: 'custom',
       model: 'host/custom-model',
       reasoning: 'forged',
-    })).toEqual({
+    } })).toEqual({
       agentId: 'custom',
       model: 'host/custom-model',
     });
   });
 
   it('orders available agents first and then sorts names', () => {
-    expect(orderChatPaneAgents(agents).map((agent) => agent.id)).toEqual([
+    expect(orderChatPaneAgents({ agents: agents }).map((agent) => agent.id)).toEqual([
       'claude',
       'codex',
       'missing',
@@ -240,7 +240,7 @@ describe('chat-pane selection rules', () => {
 
   describe('isChatPaneQueueableBlocker', () => {
     it('is true only for the streaming blocker', () => {
-      expect(isChatPaneQueueableBlocker('streaming')).toBe(true);
+      expect(isChatPaneQueueableBlocker({ blocker: 'streaming' })).toBe(true);
     });
 
     it('is false for null (nothing to queue behind) and every other named blocker', () => {
@@ -252,9 +252,9 @@ describe('chat-pane selection rules', () => {
         'working-directory-invalid',
         'working-directory-error',
       ];
-      expect(isChatPaneQueueableBlocker(null)).toBe(false);
+      expect(isChatPaneQueueableBlocker({ blocker: null })).toBe(false);
       for (const blocker of otherBlockers) {
-        expect(isChatPaneQueueableBlocker(blocker)).toBe(false);
+        expect(isChatPaneQueueableBlocker({ blocker: blocker })).toBe(false);
       }
     });
   });

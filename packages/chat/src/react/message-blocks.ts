@@ -76,10 +76,8 @@ export type MessageBlock<Row> =
  * @complexity O(n + m) in the event and row counts.
  */
 export function interleaveMessageBlocks<Row extends { id: string }>(
-  events: readonly AgentEvent[] | undefined,
-  content: string,
-  rows: readonly Row[],
-  slotOf: (ev: { readonly name: string; readonly data: unknown }) => string = (ev) => ev.name,
+  { events, content, rows }: { events: readonly AgentEvent[] | undefined; content: string; rows: readonly Row[] },
+  { slotOf = (ev) => ev.name }: { slotOf?: (ev: { readonly name: string; readonly data: unknown }) => string } = {},
 ): MessageBlock<Row>[] | null {
   if (!events || events.length === 0) return null;
   const hasExtEvent = events.some((ev) => ev.kind === 'ext');
@@ -89,7 +87,7 @@ export function interleaveMessageBlocks<Row extends { id: string }>(
   // was built from. Anything else and the offsets below are fiction.
   // Both producers' shapes count: today's (a paragraph break between steps, see
   // `assistantContentFromEvents`) and the old plain concatenation older saved rows carry.
-  if (content !== assistantContentFromEvents(events) && content !== legacyAssistantContentFromEvents(events)) return null;
+  if (content !== assistantContentFromEvents({ events }) && content !== legacyAssistantContentFromEvents({ events: events })) return null;
 
   const rowById = new Map(rows.map((row) => [row.id, row]));
   const blocks: MessageBlock<Row>[] = [];

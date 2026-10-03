@@ -58,7 +58,7 @@ describe('resolveAgentLaunch when realpathSync/closeSync fail', () => {
     chmodSync(binPath, 0o755);
 
     const def = makeDef({ id: 'codex', bin: 'codex' });
-    const result = resolveAgentLaunch(def, { CODEX_BIN: binPath });
+    const result = resolveAgentLaunch({ def: def }, { configuredEnv: { CODEX_BIN: binPath } });
 
     // No native binary present, wrapper looks like a node wrapper (content
     // read via the still-real openSync/readSync succeeds even though

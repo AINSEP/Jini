@@ -18,7 +18,7 @@ export interface AttachmentPreviewModalProps {
 
 export function AttachmentPreviewModal({ attachment, onClose }: AttachmentPreviewModalProps) {
   const t = useT();
-  const c = useAttachmentPreviewModal(attachment, onClose);
+  const c = useAttachmentPreviewModal({ attachment: attachment, onClose: onClose });
 
   return (
     <dialog
@@ -73,7 +73,7 @@ export function AttachmentPreviewModal({ attachment, onClose }: AttachmentPrevie
             </div>
             <div className="jini-attachment-preview-meta-row">
               <span className="jini-attachment-preview-meta-label">{t('Type')}</span>
-              <span>{looksLikeImageAttachment(attachment) ? t('Image') : t('File')}</span>
+              <span>{looksLikeImageAttachment({ attachment: attachment }) ? t('Image') : t('File')}</span>
             </div>
             {c.sizeLabel ? (
               <div className="jini-attachment-preview-meta-row">

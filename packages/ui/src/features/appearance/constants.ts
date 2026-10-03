@@ -1,3 +1,4 @@
+import { defaultAdminTheme } from '../../theme/default.js';
 import type { SettingsThemeChoice } from './types.js';
 
 export interface ThemeOption {
@@ -18,7 +19,7 @@ export const THEME_OPTIONS: ThemeOption[] = [
 
 /** Neutral default accent — hosts are expected to override via their own
  *  config/branding; this only guarantees the CSS vars are always set. */
-export const DEFAULT_ACCENT_COLOR = '#2563eb';
+export const DEFAULT_ACCENT_COLOR = defaultAdminTheme.light.primary;
 
 export const ACCENT_SWATCHES = [
   DEFAULT_ACCENT_COLOR,

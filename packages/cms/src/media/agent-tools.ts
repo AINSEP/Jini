@@ -1,3 +1,4 @@
+import type { AgentToolDefinition, AgentToolSideEffect, AgentToolActorClassRule } from "@jini-ai/core";
 /**
  * @file The Media agent-tool catalog — this domain's instance of the per-domain
  * `agent-tools.ts` convention Forms/Identity already use.
@@ -42,7 +43,7 @@
  * shared by every host (see this file's own module doc above), but a host can now override
  * `uploadMedia`'s cap per-call via `MediaToolDeps.maxUploadBytes` (`tool-registrations.ts`). Stating
  * `DEFAULT_MAX_UPLOAD_BYTES` (10 MiB) here would be an outright lie for a host that raised its own
- * cap (e.g. Tovu's 50 MiB) — the model would be told a wrong, lower number than what the tool
+ * cap (e.g. a host's 50 MiB) — the model would be told a wrong, lower number than what the tool
  * actually accepts. The description and schema below therefore describe the cap generically instead
  * of stating a figure; the size-rejection error itself (`uploadMedia`'s `MediaValidationError`,
  * `media-service.ts`) states the ACTUAL configured limit in MB, which is the one place that can be
@@ -52,22 +53,14 @@
 import { MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES } from "./html-attributes.js";
 import { DEFAULT_ALLOWED_MIME_TYPES } from "./media-service.js";
 
-export type AgentToolSideEffect = "none" | "mutates-durable-state" | "mints-token";
 
-export type AgentToolActorClassRule = "confirmer-must-equal-own-delegatedBy" | "user-only" | "none";
 
-export interface AgentToolDefinition {
-  name: string;
-  description: string;
-  sideEffects: AgentToolSideEffect;
-  authorization: { permission: string };
-  actorClassRule?: AgentToolActorClassRule;
-  /**
+
+
+/**
    * JSON Schema for this tool's `input`, published to the model via `ToolDescriptor.inputSchema`
    * (a host's tool-registration layer refuses to wire any tool lacking one).
    */
-  inputSchema?: Readonly<Record<string, unknown>>;
-}
 
 const MEDIA_ID_SCHEMA = {
   type: "string",

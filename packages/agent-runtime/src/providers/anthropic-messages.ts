@@ -1,3 +1,4 @@
+import { redactSecrets } from '@jini-ai/core';
 /**
  * @module providers/anthropic-messages
  *
@@ -74,7 +75,7 @@
  *    for the integration-level regression proof.
  */
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
-import { defaultDnsLookup, pinnedFetch, redactSecrets, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
+import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
 import { decodeSseStream } from './sse-decode.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 
@@ -216,12 +217,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function anthropicRequestUrl(baseUrl: string | undefined): string {
+export function anthropicRequestUrl({ baseUrl }: { baseUrl: string | undefined }): string {
   const base = (baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL).replace(/\/+$/, '');
   return `${base}/v1/messages`;
 }
 
-export function anthropicHeaders(options: AnthropicTurnOptions): Record<string, string> {
+export function anthropicHeaders(requiredArgs: Pick<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent">, optionalArgs: Omit<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent"> = {}): Record<string, string> {
+  const options: AnthropicTurnOptions = { ...optionalArgs, ...requiredArgs };
   return {
     'content-type': 'application/json',
     'x-api-key': options.apiKey,
@@ -230,7 +232,7 @@ export function anthropicHeaders(options: AnthropicTurnOptions): Record<string, 
   };
 }
 
-export function anthropicRequestBody(options: AnthropicTurnOptions, messages: readonly AnthropicMessageParam[]): Record<string, unknown> {
+export function anthropicRequestBody({ options, messages }: { options: AnthropicTurnOptions; messages: readonly AnthropicMessageParam[] }): Record<string, unknown> {
   return {
     model: options.model,
     max_tokens: options.maxTokens,
@@ -242,7 +244,7 @@ export function anthropicRequestBody(options: AnthropicTurnOptions, messages: re
   };
 }
 
-export function extractAnthropicErrorDetail(rawText: string): string {
+export function extractAnthropicErrorDetail({ rawText }: { rawText: string }): string {
   try {
     const parsed: unknown = JSON.parse(rawText);
     if (isRecord(parsed) && isRecord(parsed.error) && typeof parsed.error.message === 'string') {
@@ -282,7 +284,7 @@ const MAX_IMAGE_BASE64_CHARS = Math.ceil((10 * 1024 * 1024 * 4) / 3);
  * @complexity O(1) — reads `data.length`, never decodes or parses the base64 payload.
  * @overallScore 100
  */
-export function invalidToolResultContentBlockReason(block: AnthropicToolResultContentBlock): string | null {
+export function invalidToolResultContentBlockReason({ block }: { block: AnthropicToolResultContentBlock }): string | null {
   if (block.type === 'text') return null;
   if (block.source.type === 'url') return null;
   if (!ANTHROPIC_ALLOWED_IMAGE_MEDIA_TYPES.has(block.source.media_type)) {
@@ -312,10 +314,10 @@ export function invalidToolResultContentBlockReason(block: AnthropicToolResultCo
  * `invalidToolResultContentBlockReason`).
  * @overallScore 100
  */
-export function guardToolResult(result: AnthropicToolResult): AnthropicToolResult {
+export function guardToolResult({ result }: { result: AnthropicToolResult }): AnthropicToolResult {
   if (typeof result.content === 'string') return result;
   for (const block of result.content) {
-    const reason = invalidToolResultContentBlockReason(block);
+    const reason = invalidToolResultContentBlockReason({ block: block });
     if (reason) {
       return { content: `[rejected tool result] ${reason}`, isError: true };
     }
@@ -348,7 +350,7 @@ export interface AnthropicStreamState {
 }
 
 /** Parses one SSE frame's data as a JSON object, or `null` for a malformed/empty keep-alive frame or a non-object payload — both are tolerated by the caller as "nothing to do this frame". */
-export function parseAnthropicSseData(raw: string): Record<string, unknown> | null {
+export function parseAnthropicSseData({ raw }: { raw: string }): Record<string, unknown> | null {
   let data: unknown;
   try {
     data = JSON.parse(raw);
@@ -358,7 +360,7 @@ export function parseAnthropicSseData(raw: string): Record<string, unknown> | nu
   return isRecord(data) ? data : null;
 }
 
-export function handleContentBlockStart(state: AnthropicStreamState, data: Record<string, unknown>): void {
+export function handleContentBlockStart({ state, data }: { state: AnthropicStreamState; data: Record<string, unknown> }): void {
   if (!isRecord(data.content_block) || typeof data.index !== 'number') return;
   const block = data.content_block;
   if (block.type === 'text') {
@@ -375,11 +377,7 @@ export function handleContentBlockStart(state: AnthropicStreamState, data: Recor
  * `'break'` once the guard flags contamination (the caller ends the turn immediately), otherwise
  * `'continue'`.
  */
-export function handleAnthropicTextDelta(
-  state: AnthropicStreamState,
-  index: number,
-  text: string,
-  onEvent: (event: AnthropicTurnEvent) => void,
+export function handleAnthropicTextDelta({ state, index, text, onEvent }: { state: AnthropicStreamState; index: number; text: string; onEvent: (event: AnthropicTurnEvent) => void }
 ): 'continue' | 'break' {
   const blockState = state.blocks.get(index);
   if (blockState) blockState.text += text;
@@ -388,7 +386,7 @@ export function handleAnthropicTextDelta(
   // delta in the same request can never reach this point already contaminated. (`feedText` itself
   // is still safe to call unconditionally regardless — it early-returns `''` once contaminated,
   // per its own doc.)
-  const safe = state.guard.feedText(text);
+  const safe = state.guard.feedText({ text: text });
   if (safe.length > 0) {
     state.fullText += safe;
     onEvent({ type: 'text_delta', delta: safe });
@@ -399,30 +397,27 @@ export function handleAnthropicTextDelta(
   return 'break';
 }
 
-export function handleAnthropicInputJsonDelta(state: AnthropicStreamState, index: number, partialJson: string): void {
+export function handleAnthropicInputJsonDelta({ state, index, partialJson }: { state: AnthropicStreamState; index: number; partialJson: string }): void {
   const blockState = state.blocks.get(index);
   if (!blockState) return;
   blockState.inputJson += partialJson;
 }
 
-export function handleContentBlockDelta(
-  state: AnthropicStreamState,
-  data: Record<string, unknown>,
-  onEvent: (event: AnthropicTurnEvent) => void,
+export function handleContentBlockDelta({ state, data, onEvent }: { state: AnthropicStreamState; data: Record<string, unknown>; onEvent: (event: AnthropicTurnEvent) => void }
 ): 'continue' | 'break' {
   if (!isRecord(data.delta) || typeof data.index !== 'number') return 'continue';
   const { delta, index } = data as { delta: Record<string, unknown>; index: number };
   if (delta.type === 'text_delta' && typeof delta.text === 'string') {
-    return handleAnthropicTextDelta(state, index, delta.text, onEvent);
+    return handleAnthropicTextDelta({ state: state, index: index, text: delta.text, onEvent: onEvent });
   }
   if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
-    handleAnthropicInputJsonDelta(state, index, delta.partial_json);
+    handleAnthropicInputJsonDelta({ state: state, index: index, partialJson: delta.partial_json });
   }
   return 'continue';
 }
 
 /** Parses one tool_use block's accumulated `input_json_delta` text, falling back to `{}` for empty or malformed JSON — mirrors OpenAI's identical fallback for `tool_calls[].function.arguments` in `openai-chat.ts`. */
-export function parseAccumulatedToolInputJson(inputJson: string): unknown {
+export function parseAccumulatedToolInputJson({ inputJson }: { inputJson: string }): unknown {
   if (!inputJson.trim()) return {};
   try {
     return JSON.parse(inputJson);
@@ -431,25 +426,19 @@ export function parseAccumulatedToolInputJson(inputJson: string): unknown {
   }
 }
 
-export function handleContentBlockStop(
-  state: AnthropicStreamState,
-  data: Record<string, unknown>,
-  onEvent: (event: AnthropicTurnEvent) => void,
+export function handleContentBlockStop({ state, data, onEvent }: { state: AnthropicStreamState; data: Record<string, unknown>; onEvent: (event: AnthropicTurnEvent) => void }
 ): void {
   if (typeof data.index !== 'number') return;
   const blockState = state.blocks.get(data.index);
   if (blockState?.type === 'tool_use' && blockState.toolId && blockState.toolName) {
-    const call = { id: blockState.toolId, name: blockState.toolName, input: parseAccumulatedToolInputJson(blockState.inputJson) };
+    const call = { id: blockState.toolId, name: blockState.toolName, input: parseAccumulatedToolInputJson({ inputJson: blockState.inputJson }) };
     state.toolCalls.push(call);
     onEvent({ type: 'tool_use', id: call.id, name: call.name, input: call.input });
   }
   state.blocks.delete(data.index);
 }
 
-export function handleMessageDelta(
-  state: AnthropicStreamState,
-  data: Record<string, unknown>,
-  onEvent: (event: AnthropicTurnEvent) => void,
+export function handleMessageDelta({ state, data, onEvent }: { state: AnthropicStreamState; data: Record<string, unknown>; onEvent: (event: AnthropicTurnEvent) => void }
 ): void {
   if (isRecord(data.delta) && typeof data.delta.stop_reason === 'string') {
     state.stopReason = data.delta.stop_reason;
@@ -460,18 +449,15 @@ export function handleMessageDelta(
   }
 }
 
-export function handleAnthropicErrorFrame(
-  data: Record<string, unknown>,
-  onEvent: (event: AnthropicTurnEvent) => void,
-  apiKey: string,
+export function handleAnthropicErrorFrame({ data, onEvent, apiKey }: { data: Record<string, unknown>; onEvent: (event: AnthropicTurnEvent) => void; apiKey: string }
 ): void {
   const errorDetail = isRecord(data.error) && typeof data.error.message === 'string' ? data.error.message : 'upstream error';
   const errorType = isRecord(data.error) && typeof data.error.type === 'string' ? data.error.type : undefined;
-  onEvent({ type: 'error', message: redactSecrets(errorDetail, [apiKey]), ...(errorType ? { code: errorType } : {}) });
+  onEvent({ type: 'error', message: redactSecrets({ input: errorDetail }, { exactSecrets: [apiKey] }), ...(errorType ? { code: errorType } : {}) });
 }
 
 /** The SSE event's dispatch key: `data.type` when present (every real Anthropic frame carries one), else the record's `event:` line, else `''` — a key that intentionally matches no entry in {@link ANTHROPIC_FRAME_HANDLERS} (`message_start`/`message_stop`/`ping`/future event types fall through as no-ops, same as before this frame was a lookup table). */
-export function anthropicFrameKind(data: Record<string, unknown>, frameEvent: string | null): string {
+export function anthropicFrameKind({ data, frameEvent }: { data: Record<string, unknown>; frameEvent: string | null }): string {
   if (typeof data.type === 'string') return data.type;
   return frameEvent ?? '';
 }
@@ -488,21 +474,21 @@ type AnthropicFrameHandler = (
 /** One entry per SSE event kind this adapter reacts to. Replaces a sequential if-chain over `kind` — every branch below is now a single object-key lookup instead of N nesting-penalized `if` statements (see `runSingleAnthropicRequest`'s doc for the resulting flat loop). */
 const ANTHROPIC_FRAME_HANDLERS: Record<string, AnthropicFrameHandler> = {
   content_block_start: (state, data) => {
-    handleContentBlockStart(state, data);
+    handleContentBlockStart({ state: state, data: data });
     return { action: 'continue' };
   },
   content_block_delta: (state, data, onEvent) =>
-    handleContentBlockDelta(state, data, onEvent) === 'break' ? { action: 'end', reason: 'contaminated' } : { action: 'continue' },
+    handleContentBlockDelta({ state: state, data: data, onEvent: onEvent }) === 'break' ? { action: 'end', reason: 'contaminated' } : { action: 'continue' },
   content_block_stop: (state, data, onEvent) => {
-    handleContentBlockStop(state, data, onEvent);
+    handleContentBlockStop({ state: state, data: data, onEvent: onEvent });
     return { action: 'continue' };
   },
   message_delta: (state, data, onEvent) => {
-    handleMessageDelta(state, data, onEvent);
+    handleMessageDelta({ state: state, data: data, onEvent: onEvent });
     return { action: 'continue' };
   },
   error: (_state, data, onEvent, apiKey) => {
-    handleAnthropicErrorFrame(data, onEvent, apiKey);
+    handleAnthropicErrorFrame({ data: data, onEvent: onEvent, apiKey: apiKey });
     return { action: 'end', reason: 'error' };
   },
 };
@@ -523,7 +509,7 @@ async function openAnthropicResponseStream(
 
   // DNS-resolving, not merely textual — see the identical note in `openai-chat.ts`. A literal
   // private IP was already rejected; a hostname resolving to one was not.
-  const baseUrlCheck = await validateBaseUrlResolved(options.baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL, options.dnsLookup ?? defaultDnsLookup);
+  const baseUrlCheck = await validateBaseUrlResolved({ baseUrl: options.baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL, lookup: options.dnsLookup ?? defaultDnsLookup });
   if (baseUrlCheck.error) {
     onEvent({ type: 'error', message: baseUrlCheck.error });
     emitEnd('error');
@@ -532,20 +518,17 @@ async function openAnthropicResponseStream(
 
   let response: { ok: boolean; status: number; body: AsyncIterable<Uint8Array | string> | null; text(): Promise<string> };
   try {
-    response = await (options.fetchImpl ?? pinnedFetch)(
-      anthropicRequestUrl(options.baseUrl),
-      {
+    response = await (options.fetchImpl ?? pinnedFetch)({ url: anthropicRequestUrl({ baseUrl: options.baseUrl }), init: {
         method: 'POST',
-        headers: anthropicHeaders(options),
-        body: JSON.stringify(anthropicRequestBody(options, messages)),
+        headers: (({ apiKey, model, messages, maxTokens, onEvent, ...optionalArgs }: Parameters<typeof anthropicHeaders>[0] & NonNullable<Parameters<typeof anthropicHeaders>[1]>) => anthropicHeaders({ apiKey, model, messages, maxTokens, onEvent }, optionalArgs))(options),
+        body: JSON.stringify(anthropicRequestBody({ options: options, messages: messages })),
         redirect: 'error',
         ...(options.signal ? { signal: options.signal } : {}),
-      },
-      baseUrlCheck.pinnedAddress,
+      }, pinnedAddress: baseUrlCheck.pinnedAddress }
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    onEvent({ type: 'error', message: redactSecrets(message, [options.apiKey]) });
+    onEvent({ type: 'error', message: redactSecrets({ input: message }, { exactSecrets: [options.apiKey] }) });
     emitEnd('error');
     return null;
   }
@@ -554,7 +537,7 @@ async function openAnthropicResponseStream(
     const rawText = await response.text();
     onEvent({
       type: 'error',
-      message: redactSecrets(extractAnthropicErrorDetail(rawText), [options.apiKey]),
+      message: redactSecrets({ input: extractAnthropicErrorDetail({ rawText: rawText }) }, { exactSecrets: [options.apiKey] }),
       code: String(response.status),
     });
     emitEnd('error');
@@ -585,7 +568,7 @@ async function runSingleAnthropicRequest(
   onEvent({ type: 'status', label: 'requesting' });
 
   const state: AnthropicStreamState = {
-    guard: createRoleMarkerGuard('anthropic-turn'),
+    guard: createRoleMarkerGuard({ messageId: 'anthropic-turn' }),
     blocks: new Map(),
     toolCalls: [],
     fullText: '',
@@ -593,17 +576,17 @@ async function runSingleAnthropicRequest(
     usage: null,
   };
 
-  for await (const frame of decodeSseStream(body)) {
+  for await (const frame of decodeSseStream({ source: body })) {
     // No `isEnded()` re-check at the top of this loop: every `emitEnd(...)` call site below is
     // immediately followed by `break`, so `ended` can never be true when a new iteration starts
     // — traced across all six call sites in this function and its handlers (the four pre-stream
     // early returns inside `openAnthropicResponseStream` plus the two in-loop
     // contamination/error branches below). Verified, not assumed; see
     // `__tests__/anthropic-messages.test.ts`'s duplicate-end-event regression case.
-    const data = parseAnthropicSseData(frame.data);
+    const data = parseAnthropicSseData({ raw: frame.data });
     if (!data) continue; // malformed/empty keep-alive frame, or a non-object payload
 
-    const handler = ANTHROPIC_FRAME_HANDLERS[anthropicFrameKind(data, frame.event)];
+    const handler = ANTHROPIC_FRAME_HANDLERS[anthropicFrameKind({ data: data, frameEvent: frame.event })];
     if (!handler) continue; // `message_start`, `message_stop`, `ping`, or a future event type — nothing to do
 
     const outcome = handler(state, data, onEvent, options.apiKey);
@@ -634,13 +617,13 @@ async function runSingleAnthropicRequest(
  * "stop" conditions (no/empty tool_use, no executor, turn ceiling reached) are exercised as plain
  * value-in/value-out assertions rather than through the full request/event-emission machinery.
  */
-export function anthropicLoopExitReason(outcome: SingleRequestOutcome, toolTurns: number, maxToolTurns: number): AnthropicTurnEndReason | null {
+export function anthropicLoopExitReason({ outcome, toolTurns, maxToolTurns }: { outcome: SingleRequestOutcome; toolTurns: number; maxToolTurns: number }): AnthropicTurnEndReason | null {
   if (outcome.stopReason !== 'tool_use' || outcome.toolCalls.length === 0) return 'stop';
   if (toolTurns >= maxToolTurns) return 'max_tool_turns';
   return null;
 }
 
-export function buildAnthropicAssistantContent(text: string, toolCalls: readonly AnthropicToolCall[]): AnthropicContentBlockParam[] {
+export function buildAnthropicAssistantContent({ text, toolCalls }: { text: string; toolCalls: readonly AnthropicToolCall[] }): AnthropicContentBlockParam[] {
   return [
     ...(text ? [{ type: 'text', text } as const] : []),
     ...toolCalls.map((call) => ({ type: 'tool_use', id: call.id, name: call.name, input: call.input }) as const),
@@ -648,15 +631,12 @@ export function buildAnthropicAssistantContent(text: string, toolCalls: readonly
 }
 
 /** Runs every pending tool call in order and reduces the results into the `tool_result` blocks the next request's `user` message carries. Emits one `tool_result` event per call as it goes. */
-export async function executeAnthropicToolCalls(
-  executeTool: AnthropicToolExecutor,
-  calls: readonly AnthropicToolCall[],
-  onEvent: (event: AnthropicTurnEvent) => void,
+export async function executeAnthropicToolCalls({ executeTool, calls, onEvent }: { executeTool: AnthropicToolExecutor; calls: readonly AnthropicToolCall[]; onEvent: (event: AnthropicTurnEvent) => void }
 ): Promise<AnthropicToolResultBlockParam[]> {
   const toolResultBlocks: AnthropicToolResultBlockParam[] = [];
   for (const call of calls) {
     const rawResult = await executeTool(call);
-    const result = guardToolResult(rawResult);
+    const result = guardToolResult({ result: rawResult });
     onEvent({ type: 'tool_result', toolUseId: call.id, content: result.content, isError: result.isError ?? false });
     toolResultBlocks.push({
       type: 'tool_result',
@@ -668,7 +648,8 @@ export async function executeAnthropicToolCalls(
   return toolResultBlocks;
 }
 
-export async function runAnthropicToolTurn(options: AnthropicTurnOptions): Promise<AnthropicTurnResult> {
+export async function runAnthropicToolTurn(requiredArgs: Pick<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent">, optionalArgs: Omit<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent"> = {}): Promise<AnthropicTurnResult> {
+  const options: AnthropicTurnOptions = { ...optionalArgs, ...requiredArgs };
   const maxToolTurns = options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;
   const executeTool = options.executeTool;
 
@@ -684,7 +665,7 @@ export async function runAnthropicToolTurn(options: AnthropicTurnOptions): Promi
     lastStopReason = outcome.stopReason;
     if (endGuard.hasEnded()) break;
 
-    const exitReason = anthropicLoopExitReason(outcome, toolTurns, maxToolTurns);
+    const exitReason = anthropicLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns });
     if (exitReason) {
       emitEnd(exitReason);
       break;
@@ -698,8 +679,8 @@ export async function runAnthropicToolTurn(options: AnthropicTurnOptions): Promi
     }
     toolTurns += 1;
 
-    const assistantContent = buildAnthropicAssistantContent(outcome.text, outcome.toolCalls);
-    const toolResultBlocks = await executeAnthropicToolCalls(executeTool, outcome.toolCalls, options.onEvent);
+    const assistantContent = buildAnthropicAssistantContent({ text: outcome.text, toolCalls: outcome.toolCalls });
+    const toolResultBlocks = await executeAnthropicToolCalls({ executeTool: executeTool, calls: outcome.toolCalls, onEvent: options.onEvent });
 
     messages = [
       ...messages,

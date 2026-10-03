@@ -14,16 +14,17 @@ import type { ContentTypeRecord } from "../types.js";
 import { registerContentType } from "../write-service.js";
 
 /**
- * @file CIC U-002 — fixed definition-time guard order (C-401; REQ-24, AC-38), plus
- * REQ-01/02/03/04/05/07/08's registration-path behavior.
+ * @file fixed definition-time guard order, plus
+ * 's registration-path behavior.
  *
- * Binding constraint U-002-B1: the five guards (key grammar -> reserved-key -> field-name grammar
+ * Binding constraint : the five guards (key grammar -> reserved-key -> field-name grammar
  * -> field-kind -> queryable-cap) evaluate in that exact order, and evaluation stops at the first
  * failure — never collected, never reordered.
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 
 const NOW = "2026-07-15T00:00:00.000Z";
-const clock = { nowIso: () => NOW };
+const clock = { nowMs: () => Date.parse(NOW)};
 let idCounter = 0;
 const ids = { newId: () => `ct-${++idCounter}` };
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
@@ -41,7 +42,7 @@ function fakeRepo() {
       revisions.push(rev);
     },
     findByKey: async () => null,
-    transaction: async <T>(fn: () => Promise<T>) => fn(),
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn(),
   };
 }
 
@@ -238,7 +239,7 @@ function statefulFakeRepo() {
       revisions.push(rev);
     },
     findByKey: async () => stored,
-    transaction: async <T>(fn: () => Promise<T>) => fn(),
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn(),
   };
 }
 
@@ -308,7 +309,7 @@ test("S9/row 15's sibling: registering a key that was tombstoned is rejected nam
     assert.ok(reRegistered.error instanceof ContentTypeAlreadyExistsError);
     assert.equal(
       reRegistered.error.message,
-      "content type 'recipe' was permanently deleted; its key can't be reused (INV-06)"
+      "content type 'recipe' was permanently deleted; its key can't be reused"
     );
   }
   assert.equal(repo.getStored().status, "tombstone");
@@ -324,7 +325,7 @@ test("S9/row 7: the in-transaction re-check closes the race — a row saved betw
     save: async (row: ContentTypeRecord) => { saves.push(row); },
     appendRevision: async () => undefined,
     findByKey: async () => (++findByKeyCalls === 1 ? null : winner),
-    transaction: async <T>(fn: () => Promise<T>) => fn(),
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn(),
   };
   const indexProvisioner = fakeIndexProvisioner();
 

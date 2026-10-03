@@ -5,8 +5,8 @@
  * Turns a `BootOptions` request into a real `@e2b/code-interpreter` `Sandbox` and wraps it into
  * a `SandboxSession` via `wrap-e2b-sandbox.ts`. This is the only file in `./e2b` that imports
  * the SDK itself — everything else depends on the narrow `E2bSandboxHandle` port, which is why
- * only this file needs a real API key or network access to exercise, and why it carries no
- * dedicated unit test of its own (see the package README's test-coverage note).
+ * only live SDK integration needs a real API key or network access. The dedicated
+ * `__tests__/provider.test.ts` exercises provider translation and failures with a mocked SDK.
  *
  * Architectural role:
  * The adapter's public entry point. `@e2b/code-interpreter` is an optional peer dependency of
@@ -15,8 +15,10 @@
  */
 import { Sandbox } from '@e2b/code-interpreter';
 
+import { SandboxOperationError } from '../core/errors.js';
 import type { BootOptions, SandboxProviderPort, SandboxSession } from '../core/ports.js';
-import type { E2bSandboxHandle } from './e2b-sandbox-handle.js';
+import { categorizeE2bError } from './categorize-e2b-error.js';
+import type { E2bCommandHandle, E2bCommandResult, E2bRunOptions, E2bSandboxHandle } from './e2b-sandbox-handle.js';
 import { wrapE2bSandbox } from './wrap-e2b-sandbox.js';
 
 const DEFAULT_PROJECT_ROOT = '/home/user/app';
@@ -41,9 +43,8 @@ export interface E2bProviderConfig {
 }
 
 /**
- * Adapts a real `Sandbox` into `E2bSandboxHandle`. `commands` and `getHost`/`kill` are passed
- * through directly — a real `Sandbox` already satisfies those parts of the interface
- * structurally. `files` is wrapped with one explicit function per member instead, because
+ * Adapts a real `Sandbox` into the object-argument `E2bSandboxHandle` port.
+ * SDK positional arguments are translated only at this boundary. `files` is wrapped with one explicit function per member instead, because
  * TypeScript's assignability check between E2B's overloaded `write` (a single-file form plus a
  * batch form) and this interface's batch-only signature doesn't reliably resolve to the
  * matching overload — seen directly as a real, reproducible compile error, not a
@@ -56,34 +57,59 @@ export interface E2bProviderConfig {
  * can exercise the translation directly against a fake `Sandbox`-shaped object, rather than only
  * indirectly through `boot`'s mocked-out `Sandbox.create` call.
  */
-export function toE2bHandle(sandbox: Sandbox): E2bSandboxHandle {
+export function toE2bHandle({ sandbox }: { sandbox: Sandbox }): E2bSandboxHandle {
+  function run(requiredArgs: { command: string }, optionalArgs?: Omit<E2bRunOptions, 'background'>): Promise<E2bCommandResult>;
+  function run(requiredArgs: { command: string; background: true }, optionalArgs?: Omit<E2bRunOptions, 'background'>): Promise<E2bCommandHandle>;
+  // Return the port union explicitly so overload compatibility does not require SDK-only members.
+  function run(requiredArgs: { command: string; background?: true }, optionalArgs: Omit<E2bRunOptions, 'background'> = {}): Promise<E2bCommandResult | E2bCommandHandle> {
+    const { onStdout, onStderr, ...settings } = optionalArgs;
+    const sdkOptions = {
+      ...settings,
+      ...(onStdout === undefined ? {} : { onStdout: (data: string) => onStdout({ data }) }),
+      ...(onStderr === undefined ? {} : { onStderr: (data: string) => onStderr({ data }) }),
+    };
+    return requiredArgs.background === true
+      ? sandbox.commands.run(requiredArgs.command, { ...sdkOptions, background: true })
+      : sandbox.commands.run(requiredArgs.command, sdkOptions);
+  }
   return {
-    commands: sandbox.commands,
+    commands: { run },
     files: {
-      write: (files) => sandbox.files.write([...files]),
-      read: (path, opts) => sandbox.files.read(path, opts),
-      list: (path, opts) => sandbox.files.list(path, opts),
-      watchDir: (path, onEvent, opts) => sandbox.files.watchDir(path, onEvent, opts),
+      write: ({ files }) => sandbox.files.write([...files]),
+      read: ({ path, format }) => sandbox.files.read(path, { format }),
+      list: ({ path }, opts) => sandbox.files.list(path, opts),
+      watchDir: ({ path, onEvent }, opts) => sandbox.files.watchDir(path, onEvent, opts),
     },
-    getHost: (port) => sandbox.getHost(port),
+    getHost: ({ port }) => sandbox.getHost(port),
     kill: () => sandbox.kill(),
   };
 }
 
-export function createE2bSandboxProvider(config: E2bProviderConfig = {}): SandboxProviderPort {
+export function createE2bSandboxProvider(_requiredArgs: Record<string, never>, config: E2bProviderConfig & {
+  createSandbox?: (requiredArgs: { options: { apiKey?: string; timeoutMs?: number; template?: string } }) => Promise<Sandbox>;
+  fetchImpl?: typeof fetch;
+} = {}): SandboxProviderPort {
   return {
-    async boot(options?: BootOptions): Promise<SandboxSession> {
-      const sandbox = await Sandbox.create({
+    async boot(_requiredArgs: Record<string, never>, options?: BootOptions): Promise<SandboxSession> {
+      const createOptions = {
         ...(config.apiKey !== undefined ? { apiKey: config.apiKey } : {}),
         ...(config.timeoutMs !== undefined ? { timeoutMs: config.timeoutMs } : {}),
         ...(options?.template !== undefined ? { template: options.template } : {}),
-      });
+      };
+      let sandbox: Sandbox;
+      try {
+        sandbox = config.createSandbox
+          ? await config.createSandbox({ options: createOptions })
+          : await Sandbox.create(createOptions);
+      } catch (error) {
+        throw new SandboxOperationError({ category: categorizeE2bError({ error }), message: 'Failed to create the sandbox' }, { cause: error });
+      }
 
-      return wrapE2bSandbox(toE2bHandle(sandbox), {
+      return wrapE2bSandbox({ handle: toE2bHandle({ sandbox }), config: {
         projectRoot: config.projectRoot ?? DEFAULT_PROJECT_ROOT,
         previewPort: config.previewPort ?? DEFAULT_PREVIEW_PORT,
         previewCheckTimeoutMs: config.previewCheckTimeoutMs ?? DEFAULT_PREVIEW_CHECK_TIMEOUT_MS,
-      });
+      } }, config.fetchImpl === undefined ? {} : { fetchImpl: config.fetchImpl });
     },
   };
 }

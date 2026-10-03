@@ -23,8 +23,10 @@
  * itself doesn't also scroll vertically.
  */
 export function scrollTabsWithWheel(
-  tabBar: Pick<HTMLDivElement, 'clientWidth' | 'scrollLeft' | 'scrollWidth'>,
-  event: Pick<globalThis.WheelEvent, 'ctrlKey' | 'deltaMode' | 'deltaX' | 'deltaY' | 'preventDefault'>,
+  { tabBar, event }: {
+    tabBar: Pick<HTMLDivElement, 'clientWidth' | 'scrollLeft' | 'scrollWidth'>;
+    event: Pick<globalThis.WheelEvent, 'ctrlKey' | 'deltaMode' | 'deltaX' | 'deltaY' | 'preventDefault'>;
+  },
 ): void {
   if (event.ctrlKey) return;
   if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;

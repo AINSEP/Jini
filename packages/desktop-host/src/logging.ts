@@ -13,12 +13,7 @@
  * package should not hardcode that a caller's error taxonomy matches OD's.
  */
 import { appendFileSync } from 'node:fs';
-
-export interface HostLogger {
-  error(message: string, meta?: Record<string, unknown>): void;
-  info(message: string, meta?: Record<string, unknown>): void;
-  warn(message: string, meta?: Record<string, unknown>): void;
-}
+import type { Logger } from '@jini-ai/core/primitives';
 
 type LogLevel = 'error' | 'info' | 'warn';
 
@@ -51,34 +46,34 @@ function serializeMessage(level: LogLevel, message: string, meta?: Record<string
   }
 }
 
-export type LogAppend = (path: string, data: string, encoding: BufferEncoding) => void;
+export type LogAppend = (args: { path: string; data: string; encoding: BufferEncoding }) => void;
 
-export function appendLogLine(logPath: string, line: string, append: LogAppend = appendFileSync): boolean {
+export function appendLogLine({ logPath, line }: { logPath: string; line: string }, { append = ({ path, data, encoding }) => appendFileSync(path, data, encoding) }: { append?: LogAppend } = {}): boolean {
   try {
-    append(logPath, line, 'utf8');
+    append({ path: logPath, data: line, encoding: 'utf8' });
     return true;
   } catch {
     return false;
   }
 }
 
-export function createFileLogger(logPath: string, options: { echoToConsole?: boolean } = {}): HostLogger {
+export function createFileLogger({ logPath }: { logPath: string }, options: { echoToConsole?: boolean; append?: LogAppend } = {}): Logger {
   const echo = options.echoToConsole ?? true;
   const write = (level: LogLevel, message: string, meta?: Record<string, unknown>) => {
-    appendLogLine(logPath, serializeMessage(level, message, meta));
+    appendLogLine({ logPath, line: serializeMessage(level, message, meta) }, options.append === undefined ? {} : { append: options.append });
   };
-  const logger: HostLogger = {
-    error(message, meta) {
-      write('error', message, meta);
-      if (echo) console.error(message, meta ?? '');
+  const logger: Logger = {
+    error({ message }, { meta, error } = {}) {
+      write('error', message, error === undefined ? meta : { ...meta, error });
+      if (echo) console.error(message, error === undefined ? meta ?? '' : { ...meta, error });
     },
-    info(message, meta) {
-      write('info', message, meta);
-      if (echo) console.info(message, meta ?? '');
+    info({ message }, { meta, error } = {}) {
+      write('info', message, error === undefined ? meta : { ...meta, error });
+      if (echo) console.info(message, error === undefined ? meta ?? '' : { ...meta, error });
     },
-    warn(message, meta) {
-      write('warn', message, meta);
-      if (echo) console.warn(message, meta ?? '');
+    warn({ message }, { meta, error } = {}) {
+      write('warn', message, error === undefined ? meta : { ...meta, error });
+      if (echo) console.warn(message, error === undefined ? meta ?? '' : { ...meta, error });
     },
   };
   return logger;
@@ -90,7 +85,7 @@ export function createFileLogger(logPath: string, options: { echoToConsole?: boo
  * kernel set the outbound socket's IP_TOS byte, which has no functional
  * effect on the request. `code` is authoritative when present.
  */
-export function isHarmlessSocketOptionError(value: unknown): boolean {
+export function isHarmlessSocketOptionError({ value }: { value: unknown }): boolean {
   if (!(value instanceof Error)) return false;
   const message = typeof value.message === 'string' ? value.message : '';
   if (!message || !message.includes('setTypeOfService')) return false;
@@ -100,7 +95,7 @@ export function isHarmlessSocketOptionError(value: unknown): boolean {
 }
 
 export interface InstallFatalExceptionHandlersOptions {
-  isHarmless?: (error: unknown) => boolean;
+  isHarmless?: (args: { value: unknown }) => boolean;
 }
 
 /**
@@ -111,18 +106,16 @@ export interface InstallFatalExceptionHandlersOptions {
  * Node's default crash path (and Electron's native error dialog) take
  * over. Returns a function that uninstalls both handlers.
  */
-export function installFatalExceptionHandlers(
-  logger: HostLogger,
-  options: InstallFatalExceptionHandlersOptions = {},
+export function installFatalExceptionHandlers({ logger }: { logger: Logger }, options: InstallFatalExceptionHandlersOptions = {}
 ): () => void {
   const isHarmless = options.isHarmless ?? isHarmlessSocketOptionError;
 
   const onUncaughtException = (error: unknown): void => {
-    if (isHarmless(error)) {
-      logger.warn('swallowed harmless uncaught exception', { error });
+    if (isHarmless({ value: error })) {
+      logger.warn({ message: 'swallowed harmless uncaught exception' }, { meta: { error } });
       return;
     }
-    logger.error('fatal uncaught exception', { error });
+    logger.error({ message: 'fatal uncaught exception' }, { meta: { error } });
     process.removeListener('uncaughtException', onUncaughtException);
     setImmediate(() => {
       throw error;
@@ -130,11 +123,11 @@ export function installFatalExceptionHandlers(
   };
 
   const onUnhandledRejection = (reason: unknown): void => {
-    if (isHarmless(reason)) {
-      logger.warn('swallowed harmless unhandled rejection', { reason });
+    if (isHarmless({ value: reason })) {
+      logger.warn({ message: 'swallowed harmless unhandled rejection' }, { meta: { reason } });
       return;
     }
-    logger.error('fatal unhandled rejection', { reason });
+    logger.error({ message: 'fatal unhandled rejection' }, { meta: { reason } });
     process.removeListener('unhandledRejection', onUnhandledRejection);
     setImmediate(() => {
       throw reason;

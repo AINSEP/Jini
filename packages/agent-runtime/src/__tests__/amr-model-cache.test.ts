@@ -17,7 +17,7 @@ describe('AmrModelLoadingCache', () => {
     const fetchPreset = vi.fn(async () => preset);
     const fetchRemote = vi.fn(async () => [{ id: 'remote-1', label: 'Remote 1' }]);
 
-    const result = await cache.get('scope-a', { fetchPreset, fetchRemote });
+    const result = await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
 
     expect(result.source).toBe('preset');
     expect(result.models).toEqual(preset);
@@ -34,13 +34,13 @@ describe('AmrModelLoadingCache', () => {
     const fetchPreset = vi.fn(async () => [{ id: 'preset-1', label: 'Preset 1' }]);
     const fetchRemote = vi.fn(async () => remoteModels);
 
-    await cache.get('scope-a', { fetchPreset, fetchRemote });
+    await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     // Let the in-flight background refresh's promise settle.
     await vi.runOnlyPendingTimersAsync();
     await Promise.resolve();
     await Promise.resolve();
 
-    const second = await cache.get('scope-a', { fetchPreset, fetchRemote });
+    const second = await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     expect(second.source).toBe('remote');
     expect(second.models).toEqual(remoteModels);
     expect(second.refreshing).toBe(false);
@@ -54,7 +54,7 @@ describe('AmrModelLoadingCache', () => {
   });
 
   it('triggers a fresh background refresh once the cached remote entry goes stale by age', async () => {
-    const cache = new AmrModelLoadingCache(1000);
+    const cache = new AmrModelLoadingCache({}, { refreshIntervalMs: 1000 });
     const fetchPreset = vi.fn(async () => [{ id: 'preset-1', label: 'Preset 1' }]);
     let call = 0;
     const fetchRemote = vi.fn(async () => {
@@ -62,14 +62,14 @@ describe('AmrModelLoadingCache', () => {
       return [{ id: `remote-${call}`, label: `Remote ${call}` }];
     });
 
-    await cache.get('scope-a', { fetchPreset, fetchRemote });
+    await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     await Promise.resolve();
     await Promise.resolve();
 
     // Advance past the refresh interval so the cached entry is stale by age.
     vi.setSystemTime(2000);
 
-    const result = await cache.get('scope-a', { fetchPreset, fetchRemote });
+    const result = await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     // The stale-but-cached remote list is still returned instantly...
     expect(result.source).toBe('remote');
     expect(result.models).toEqual([{ id: 'remote-1', label: 'Remote 1' }]);
@@ -91,12 +91,12 @@ describe('AmrModelLoadingCache', () => {
     );
 
     // Kick off the cold-start refresh (still pending).
-    const first = await cache.get('scope-a', { fetchPreset, fetchRemote });
+    const first = await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     expect(first.refreshing).toBe(true);
 
     // A second call while the refresh is still in flight must not start
     // another one (fetchRemote called only once).
-    const second = await cache.get('scope-a', { fetchPreset, fetchRemote });
+    const second = await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     expect(second.source).toBe('preset');
     expect(second.refreshing).toBe(true);
     expect(fetchRemote).toHaveBeenCalledTimes(1);
@@ -113,18 +113,18 @@ describe('AmrModelLoadingCache', () => {
       throw new Error('network down');
     });
 
-    await cache.get('scope-a', { fetchPreset, fetchRemote });
+    await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     await Promise.resolve();
     await Promise.resolve();
 
-    const second = await cache.get('scope-a', { fetchPreset, fetchRemote });
+    const second = await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     expect(second.source).toBe('preset');
     expect(second.remoteError).toBe('network down');
     expect(fetchRemote).toHaveBeenCalledTimes(2);
   });
 
   it('reports remoteError on a cached remote list once a subsequent background refresh fails', async () => {
-    const cache = new AmrModelLoadingCache(1000);
+    const cache = new AmrModelLoadingCache({}, { refreshIntervalMs: 1000 });
     const fetchPreset = vi.fn(async () => [{ id: 'preset-1', label: 'Preset 1' }]);
     let call = 0;
     const fetchRemote = vi.fn(async () => {
@@ -133,19 +133,19 @@ describe('AmrModelLoadingCache', () => {
       throw new Error('refresh failed');
     });
 
-    await cache.get('scope-a', { fetchPreset, fetchRemote });
+    await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     await Promise.resolve();
     await Promise.resolve();
 
     // Advance past the refresh interval so a second (failing) refresh fires.
     vi.setSystemTime(1000);
-    await cache.get('scope-a', { fetchPreset, fetchRemote });
+    await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     await Promise.resolve();
     await Promise.resolve();
 
     // A third get() still serves the last-known-good remote list instantly,
     // now annotated with the error from the background refresh that failed.
-    const result = await cache.get('scope-a', { fetchPreset, fetchRemote });
+    const result = await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     expect(result.source).toBe('remote');
     expect(result.models).toEqual([{ id: 'remote-1', label: 'Remote 1' }]);
     expect(result.stale).toBe(true);
@@ -157,11 +157,11 @@ describe('AmrModelLoadingCache', () => {
     const fetchPreset = vi.fn(async () => [{ id: 'preset-1', label: 'Preset 1' }]);
     const fetchRemote = vi.fn(async () => []);
 
-    await cache.get('scope-a', { fetchPreset, fetchRemote });
+    await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     await Promise.resolve();
     await Promise.resolve();
 
-    const second = await cache.get('scope-a', { fetchPreset, fetchRemote });
+    const second = await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     expect(second.source).toBe('preset');
     expect(second.remoteError).toBe('AMR remote model list returned no chat models');
   });
@@ -174,11 +174,11 @@ describe('AmrModelLoadingCache', () => {
       throw 'plain string failure';
     });
 
-    await cache.get('scope-a', { fetchPreset, fetchRemote });
+    await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     await Promise.resolve();
     await Promise.resolve();
 
-    const second = await cache.get('scope-a', { fetchPreset, fetchRemote });
+    const second = await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     expect(second.remoteError).toBe('plain string failure');
   });
 
@@ -190,11 +190,11 @@ describe('AmrModelLoadingCache', () => {
       throw undefined;
     });
 
-    await cache.get('scope-a', { fetchPreset, fetchRemote });
+    await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     await Promise.resolve();
     await Promise.resolve();
 
-    const second = await cache.get('scope-a', { fetchPreset, fetchRemote });
+    const second = await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     expect(second.remoteError).toBe('unknown error');
   });
 
@@ -203,8 +203,8 @@ describe('AmrModelLoadingCache', () => {
     const fetchPreset = vi.fn(async () => [{ id: 'preset-1', label: 'Preset 1' }]);
     const fetchRemote = vi.fn(async () => [{ id: 'remote-1', label: 'Remote 1' }]);
 
-    await cache.get('scope-a', { fetchPreset, fetchRemote });
-    const otherScope = await cache.get('scope-b', { fetchPreset, fetchRemote });
+    await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
+    const otherScope = await cache.get({ cacheKey: 'scope-b', fetchers: { fetchPreset, fetchRemote } });
 
     expect(otherScope.source).toBe('preset');
     expect(fetchPreset).toHaveBeenCalledTimes(2);
@@ -215,15 +215,15 @@ describe('AmrModelLoadingCache', () => {
     const cache = new AmrModelLoadingCache();
     const fetchRemote = vi.fn(async () => [{ id: 'remote-1', label: 'Remote 1' }]);
 
-    cache.warm('scope-a', fetchRemote);
+    cache.warm({ cacheKey: 'scope-a', fetchRemote: fetchRemote });
     await Promise.resolve();
     await Promise.resolve();
 
     expect(fetchRemote).toHaveBeenCalledTimes(1);
-    const result = await cache.get('scope-a', {
+    const result = await cache.get({ cacheKey: 'scope-a', fetchers: {
       fetchPreset: async () => [{ id: 'preset-1', label: 'Preset 1' }],
       fetchRemote,
-    });
+    } });
     expect(result.source).toBe('remote');
     expect(result.models).toEqual([{ id: 'remote-1', label: 'Remote 1' }]);
   });
@@ -237,8 +237,8 @@ describe('AmrModelLoadingCache', () => {
           resolveFirst = resolve;
         }),
     );
-    cache.warm('scope-a', fetchRemote);
-    cache.warm('scope-a', fetchRemote);
+    cache.warm({ cacheKey: 'scope-a', fetchRemote: fetchRemote });
+    cache.warm({ cacheKey: 'scope-a', fetchRemote: fetchRemote });
     expect(fetchRemote).toHaveBeenCalledTimes(1);
     resolveFirst([{ id: 'remote-1', label: 'Remote 1' }]);
     await Promise.resolve();
@@ -250,13 +250,13 @@ describe('AmrModelLoadingCache', () => {
     const fetchPreset = vi.fn(async () => [{ id: 'preset-1', label: 'Preset 1' }]);
     const fetchRemote = vi.fn(async () => [{ id: 'remote-1', label: 'Remote 1' }]);
 
-    await cache.get('scope-a', { fetchPreset, fetchRemote });
+    await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     await Promise.resolve();
     await Promise.resolve();
 
     cache.resetForTests();
 
-    const result = await cache.get('scope-a', { fetchPreset, fetchRemote });
+    const result = await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     expect(result.source).toBe('preset');
     expect(fetchPreset).toHaveBeenCalledTimes(2);
   });
@@ -266,19 +266,19 @@ describe('AmrModelLoadingCache', () => {
     const fetchPreset = vi.fn(async () => [{ id: 'preset-1', label: 'Preset 1' }]);
     const fetchRemote = vi.fn(async () => [{ id: 'remote-1', label: 'Remote 1' }]);
 
-    await cache.get('scope-a', { fetchPreset, fetchRemote });
+    await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     await Promise.resolve();
     await Promise.resolve();
 
     // Just under 10 minutes: still fresh, no second refresh triggered.
     vi.setSystemTime(10 * 60_000 - 1);
-    const stillFresh = await cache.get('scope-a', { fetchPreset, fetchRemote });
+    const stillFresh = await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     expect(stillFresh.refreshing).toBe(false);
     expect(fetchRemote).toHaveBeenCalledTimes(1);
 
     // At/after 10 minutes: stale, triggers a refresh.
     vi.setSystemTime(10 * 60_000);
-    const stale = await cache.get('scope-a', { fetchPreset, fetchRemote });
+    const stale = await cache.get({ cacheKey: 'scope-a', fetchers: { fetchPreset, fetchRemote } });
     expect(stale.refreshing).toBe(true);
     expect(fetchRemote).toHaveBeenCalledTimes(2);
   });

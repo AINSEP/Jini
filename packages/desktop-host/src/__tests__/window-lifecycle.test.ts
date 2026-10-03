@@ -21,7 +21,7 @@ function fakeWindow(): WindowHandle & { closedListeners: Array<() => void>; dest
     isDestroyed() {
       return win.destroyed;
     },
-    onClosed(listener: () => void) {
+    onClosed({ listener }: { listener: () => void }) {
       win.closedListeners.push(listener);
     },
   };
@@ -31,7 +31,7 @@ function fakeWindow(): WindowHandle & { closedListeners: Array<() => void>; dest
 describe('withMainWindowTracking', () => {
   it('tracks the created window as the main window', async () => {
     const created = fakeWindow();
-    const port = withMainWindowTracking(async (_options: WindowCreateOptions) => created);
+    const port = withMainWindowTracking({ createWindowImpl: async (_options: Pick<WindowCreateOptions, 'url'>) => created });
     const handle = await port.createWindow({ url: 'https://example.test' });
     expect(handle).toBe(created);
     expect(port.getMainWindow()).toBe(created);
@@ -39,19 +39,19 @@ describe('withMainWindowTracking', () => {
 
   it('clears the tracked main window when it closes', async () => {
     const created = fakeWindow();
-    const port = withMainWindowTracking(async () => created);
+    const port = withMainWindowTracking({ createWindowImpl: async () => created });
     await port.createWindow({ url: 'https://example.test' });
     created.close();
     expect(port.getMainWindow()).toBeNull();
   });
 
   it('showMainWindow shows and focuses the tracked window, no-ops when absent or destroyed', async () => {
-    const port = withMainWindowTracking(async () => fakeWindow());
+    const port = withMainWindowTracking({ createWindowImpl: async () => fakeWindow() });
     expect(() => port.showMainWindow()).not.toThrow();
 
     const created = fakeWindow();
     const focusSpy = vi.spyOn(created, 'focus');
-    const port2 = withMainWindowTracking(async () => created);
+    const port2 = withMainWindowTracking({ createWindowImpl: async () => created });
     await port2.createWindow({ url: 'https://example.test' });
     port2.showMainWindow();
     expect(created.shown).toBe(true);

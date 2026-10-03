@@ -416,7 +416,7 @@ export function resolveSystemProxyEnv(options: ResolveSystemProxyEnvOptions = {}
     // `RegExp` construction from untrusted input. Empirically re-verified
     // this session: 200k fuzzed `stdout`/registry-value strings (control
     // characters, huge lengths, null bytes) through both parse functions,
-    // zero throws — see source-map.md's 2026-07-22 entry.
+    // zero throws — see archived provenance ledger's 2026-07-22 entry.
     return {};
   }
   return {};

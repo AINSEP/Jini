@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/agentic",
-  "version": "0.3.7",
+  "version": "0.4.0",
   "description": "Framework-free agent-control layer: page-capability vocabulary and manifests, the data-agent-* markup convention, AG-UI projection, generative-UI streams, and A2UI.",
   "license": "Apache-2.0",
   "repository": {
@@ -16,7 +16,9 @@
       ".": "universal",
       "./core": "universal",
       "./dom": "browser",
-      "./a2ui": "universal"
+      "./a2ui": "universal",
+      "./skills/install": "node",
+      "./skills/install/node": "node"
     }
   },
   "type": "module",
@@ -43,16 +45,28 @@
       "types": "./dist/core/a2ui/index.d.ts",
       "import": "./dist/core/a2ui/index.js",
       "default": "./dist/core/a2ui/index.js"
+    },
+    "./skills/install": {
+      "types": "./dist/skills/install/index.d.ts",
+      "import": "./dist/skills/install/index.js",
+      "default": "./dist/skills/install/index.js"
+    },
+    "./skills/install/node": {
+      "types": "./dist/skills/install/node-filesystem.d.ts",
+      "import": "./dist/skills/install/node-filesystem.js",
+      "default": "./dist/skills/install/node-filesystem.js"
     }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
-    "!dist/**/__tests__/**",
-    "!dist/**/*.map"
+    "!dist/**/__tests__/**"
   ],
   "publishConfig": {
     "access": "public",
@@ -66,7 +80,8 @@
   },
   "dependencies": {
     "@jini-ai/protocol": "workspace:*",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@jini-ai/core": "^0.4.0"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",

@@ -1,8 +1,13 @@
+import { defaultAdminTheme } from '../theme/default.js';
+import { renderAdminThemeVariables } from '../theme/stylesheet.js';
+import type { AdminTheme, ColorScheme } from '../theme/types.js';
 import { escapeHtmlAttribute } from './html-utils.js';
 import { buildSandboxedDocument } from './sandboxed-document.js';
 import type { SandboxedDocumentOptions } from './types.js';
 
 export interface NewTabPreviewOptions extends SandboxedDocumentOptions {
+  adminTheme?: AdminTheme;
+  colorScheme?: ColorScheme;
   /** Allow `window.showModalDialog`-style native modals (`alert`/`confirm`/`prompt`) inside the sandboxed frame. Defaults to `false`. */
   allowModals?: boolean;
 }
@@ -29,7 +34,7 @@ export function buildSandboxedPreviewPage(
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${safeTitle}</title>
-  <style>html,body,iframe{margin:0;width:100%;height:100%;border:0}body{overflow:hidden;background:#fff}</style>
+  <style>${renderAdminThemeVariables({ theme: options.adminTheme ?? defaultAdminTheme }, { ...(options.colorScheme ? { colorScheme: options.colorScheme } : {}) })}html,body,iframe{margin:0;width:100%;height:100%;border:0}body{overflow:hidden;background:var(--jini-bg)}</style>
 </head>
 <body>
   <iframe title="${safeTitle}" sandbox="${sandbox}" srcdoc="${escapeHtmlAttribute(innerDoc)}"></iframe>

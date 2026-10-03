@@ -7,7 +7,7 @@
  *
  * These tokens are exported for a future consumer to `bind()` in its own
  * composition — this package itself does not bind them anywhere, and
- * nothing else in this repo imports this package (see `source-map.md`).
+ * nothing else in this repo imports this package (see `archived provenance ledger`).
  */
 import { token } from '@jini-ai/core';
 import type { AuthProvider } from './auth.js';
@@ -16,8 +16,8 @@ import type { PaymentsProvider } from './payments.js';
 import type { RealtimeProvider } from './realtime.js';
 import type { StorageProvider } from './storage.js';
 
-export const AuthProviderToken = token<AuthProvider>('jini.capabilityProviders.auth');
-export const StorageProviderToken = token<StorageProvider>('jini.capabilityProviders.storage');
-export const PaymentsProviderToken = token<PaymentsProvider>('jini.capabilityProviders.payments');
-export const DbProviderToken = token<DbProvider>('jini.capabilityProviders.db');
-export const RealtimeProviderToken = token<RealtimeProvider>('jini.capabilityProviders.realtime');
+export const AuthProviderToken = token<AuthProvider>({ id: 'jini.capabilityProviders.auth' });
+export const StorageProviderToken = token<StorageProvider>({ id: 'jini.capabilityProviders.storage' });
+export const PaymentsProviderToken = token<PaymentsProvider>({ id: 'jini.capabilityProviders.payments' });
+export const DbProviderToken = token<DbProvider>({ id: 'jini.capabilityProviders.db' });
+export const RealtimeProviderToken = token<RealtimeProvider>({ id: 'jini.capabilityProviders.realtime' });

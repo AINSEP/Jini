@@ -55,7 +55,7 @@ export type HtmlArtifactValidationResult = { ok: true } | { ok: false; reason: s
  *
  * @complexity O(n) in `content.length` — a handful of linear regex scans.
  */
-export function validateHtmlArtifact(content: string): HtmlArtifactValidationResult {
+export function validateHtmlArtifact({ content }: { content: string }): HtmlArtifactValidationResult {
   const trimmed = content.replace(/^﻿/, '').trim();
   if (trimmed.length === 0) {
     return { ok: false, reason: 'empty content' };

@@ -1,5 +1,48 @@
 # @jini-ai/protocol
 
+## 0.4.0 — 2026-10-02
+
+### BREAKING
+
+- Import primitive JSON/time types from core/primitives; the protocol no longer redeclares or re-exports its old JSON vocabulary.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased
+
+- Depend on `@jini-ai/core` for canonical JSON primitives. Wire payloads and all Zod schemas
+  remain unchanged; error-details and run-context callers now import the shared types directly.
+- BREAKING: Remove `JsonPrimitive`/`JsonValue` declarations and re-exports from protocol.
+  Import JSON types from `@jini-ai/core/primitives` instead. No compatibility aliases.
+
+
+- Reject resolved registry verification metadata unless verified is explicitly true, and clarify
+  MCP content-array forwarding in the human-surface isolation rationale. Regression tests are
+  written, not run (owner directive).
+
+### Integration completion
+
+- Complete the previously deferred `EventLog` conversion. The earlier pending note
+  below describes the initial handoff and is superseded by this entry.
+- BREAKING: `append({ runId, event, data }, { dedupeKey? }?)`,
+  `replay({ runId, afterCursor })`, `listRunIds({})`, and `drop({ runId })` replace
+  the mixed/positional port signatures. Add root-exported `EventLogAppendOptions`.
+- The root remains the only JavaScript entry, with explicit universal runtime metadata.
+  Update usage docs and add event-log type-contract and package-wide neutrality tests.
+  No dependency or version changes; wire payloads remain unchanged.
+
+### BREAKING
+
+- Convert existing helpers to required argument objects: `createApiError({ code,
+  message }, optionalArgs)`, `createApiErrorResponse({ error })`,
+  `isTerminalRunState({ state })`, `encodeRunContextRef({ payload })`, and
+  `decodeRunContextRef({ contextRef })`. Names and wire payloads are unchanged;
+  positional compatibility adapters are not provided.
+- Convert `RegistryBackend` methods and `RegistryBackendFactory.create` to
+  required objects, splitting list/search/resolve/publish options into the second
+  object. See `API-CONVENTION.md` for migration shapes and consumer follow-ups.
+  `EventLog` conversion remains pending because its source file belongs to an
+  in-progress change by another worker.
+
 ## 0.1.2
 
 ### Patch Changes

@@ -230,15 +230,15 @@ describe('attachPiRpcSession', () => {
   it('sends an initializing status immediately with the model name', () => {
     const child = new FakeChild();
     const send = vi.fn();
-    attachPiRpcSession({ child: child as any, prompt: 'hi', model: 'gpt-4', send });
-    expect(send).toHaveBeenCalledWith('agent', { type: 'status', label: 'initializing', model: 'gpt-4' });
+    attachPiRpcSession({ child: child as any, prompt: 'hi', send }, { model: 'gpt-4' });
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'status', label: 'initializing', model: 'gpt-4' } });
   });
 
   it('sends null model when model is not a non-empty string', () => {
     const child = new FakeChild();
     const send = vi.fn();
-    attachPiRpcSession({ child: child as any, prompt: 'hi', model: '', send });
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ model: null }));
+    attachPiRpcSession({ child: child as any, prompt: 'hi', send }, { model: '' });
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ model: null }) });
   });
 
   it('sends the prompt immediately when there is no parentSession', () => {
@@ -273,7 +273,7 @@ describe('attachPiRpcSession', () => {
     fs.mkdirSync(sessionsDir, { recursive: true });
     fs.writeFileSync(path.join(sessionsDir, 'existing.jsonl'), '{}');
     const child = new FakeChild();
-    const session = attachPiRpcSession({ child: child as any, prompt: 'hi', cwd: dir, send: vi.fn() });
+    const session = attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn() }, { cwd: dir });
     // Simulate pi having written the session file during the run.
     fs.writeFileSync(path.join(sessionsDir, 'existing.jsonl'), '{"more":true}');
     emitLine(child, { type: 'agent_end' });
@@ -319,14 +319,14 @@ describe('attachPiRpcSession', () => {
     // throw here (rather than letting it propagate) stops it from being
     // absorbed instead by createJsonLineStream's own emit() try/catch,
     // which would otherwise perturb the line-stream's internal pending-json
-    // state. See source-map.md.
+    // state. See archived provenance ledger.
     const child = new FakeChild();
     const send = vi.fn();
     child.stdin!.failEndWith = new Error('already closed');
     const session = attachPiRpcSession({ child: child as any, prompt: 'hi', send });
     expect(() => emitLine(child, { type: 'agent_end' })).not.toThrow();
     expect(session.hasFatalError()).toBe(false);
-    expect(send).not.toHaveBeenCalledWith('error', expect.anything());
+    expect(send).not.toHaveBeenCalledWith({ event: 'error', payload: expect.anything() });
   });
 
   it('ignores non-record parsed lines', () => {
@@ -359,13 +359,13 @@ describe('attachPiRpcSession', () => {
   describe('parentSession resume flow', () => {
     it('sends new_session first and withholds the prompt until acknowledged', () => {
       const child = new FakeChild();
-      attachPiRpcSession({ child: child as any, prompt: 'follow up', parentSession: '/tmp/prior.jsonl', send: vi.fn() });
+      attachPiRpcSession({ child: child as any, prompt: 'follow up', send: vi.fn() }, { parentSession: '/tmp/prior.jsonl' });
       expect(lastWrite(child)).toEqual({ id: 1, type: 'new_session', parentSession: '/tmp/prior.jsonl' });
     });
 
     it('sends the prompt once the parent session response succeeds', () => {
       const child = new FakeChild();
-      attachPiRpcSession({ child: child as any, prompt: 'follow up', parentSession: '/tmp/prior.jsonl', send: vi.fn() });
+      attachPiRpcSession({ child: child as any, prompt: 'follow up', send: vi.fn() }, { parentSession: '/tmp/prior.jsonl' });
       emitLine(child, { type: 'response', id: 1, success: true });
       expect(lastWrite(child)).toEqual({ id: 2, type: 'prompt', message: 'follow up' });
     });
@@ -373,23 +373,18 @@ describe('attachPiRpcSession', () => {
     it('fails the run when the parent session response reports failure', () => {
       const child = new FakeChild();
       const send = vi.fn();
-      const session = attachPiRpcSession({
-        child: child as any,
-        prompt: 'follow up',
-        parentSession: '/tmp/prior.jsonl',
-        send,
-      });
+      const session = attachPiRpcSession({ child: child as any, prompt: 'follow up', send }, { parentSession: '/tmp/prior.jsonl' });
       emitLine(child, { type: 'response', id: 1, success: false, error: 'gone' });
       expect(session.hasFatalError()).toBe(true);
-      expect(send).toHaveBeenCalledWith('error', { message: 'parent session rejected: gone', code: 'PI_PARENT_SESSION_FAILED' });
+      expect(send).toHaveBeenCalledWith({ event: 'error', payload: { message: 'parent session rejected: gone', code: 'PI_PARENT_SESSION_FAILED' } });
     });
 
     it('uses "unknown" when the failed parent-session response has no error field', () => {
       const child = new FakeChild();
       const send = vi.fn();
-      attachPiRpcSession({ child: child as any, prompt: 'x', parentSession: '/tmp/prior.jsonl', send });
+      attachPiRpcSession({ child: child as any, prompt: 'x', send }, { parentSession: '/tmp/prior.jsonl' });
       emitLine(child, { type: 'response', id: 1, success: false });
-      expect(send).toHaveBeenCalledWith('error', expect.objectContaining({ message: 'parent session rejected: unknown' }));
+      expect(send).toHaveBeenCalledWith({ event: 'error', payload: expect.objectContaining({ message: 'parent session rejected: unknown' }) });
     });
   });
 
@@ -399,7 +394,7 @@ describe('attachPiRpcSession', () => {
     const session = attachPiRpcSession({ child: child as any, prompt: 'hi', send });
     emitLine(child, { type: 'response', id: 1, success: false, error: 'rejected!' });
     expect(session.hasFatalError()).toBe(true);
-    expect(send).toHaveBeenCalledWith('error', { message: 'prompt rejected: rejected!' });
+    expect(send).toHaveBeenCalledWith({ event: 'error', payload: { message: 'prompt rejected: rejected!' } });
   });
 
   it('uses "unknown" when the failed prompt response has no error field', () => {
@@ -407,7 +402,7 @@ describe('attachPiRpcSession', () => {
     const send = vi.fn();
     attachPiRpcSession({ child: child as any, prompt: 'hi', send });
     emitLine(child, { type: 'response', id: 1, success: false });
-    expect(send).toHaveBeenCalledWith('error', { message: 'prompt rejected: unknown' });
+    expect(send).toHaveBeenCalledWith({ event: 'error', payload: { message: 'prompt rejected: unknown' } });
   });
 
   it('ignores a successful prompt-accepted response (no fatal error, no further action)', () => {
@@ -468,7 +463,7 @@ describe('attachPiRpcSession', () => {
       const session = attachPiRpcSession({ child: child as any, prompt: 'hi', send });
       child.stdin!.emit('error', new Error('disk full'));
       expect(session.hasFatalError()).toBe(true);
-      expect(send).toHaveBeenCalledWith('error', { message: 'stdin: disk full' });
+      expect(send).toHaveBeenCalledWith({ event: 'error', payload: { message: 'stdin: disk full' } });
     });
 
     it('marks stdin closed via the close event, preventing further sendCommand writes', () => {
@@ -487,7 +482,7 @@ describe('attachPiRpcSession', () => {
     const session = attachPiRpcSession({ child: child as any, prompt: 'hi', send });
     child.emit('error', new Error('spawn failure'));
     expect(session.hasFatalError()).toBe(true);
-    expect(send).toHaveBeenCalledWith('error', { message: 'spawn failure' });
+    expect(send).toHaveBeenCalledWith({ event: 'error', payload: { message: 'spawn failure' } });
   });
 
   it('flushes the parser on stdout close', () => {
@@ -511,7 +506,7 @@ describe('attachPiRpcSession', () => {
     };
     child.stdout!.emit('data', hostileChunk as any);
     expect(session.hasFatalError()).toBe(true);
-    expect(send).toHaveBeenCalledWith('error', { message: 'parser: cannot decode' });
+    expect(send).toHaveBeenCalledWith({ event: 'error', payload: { message: 'parser: cannot decode' } });
   });
 
   describe('image forwarding', () => {
@@ -524,13 +519,7 @@ describe('attachPiRpcSession', () => {
     it('forwards a valid image under uploadRoot as base64', () => {
       const imgPath = writeImage('a.png');
       const child = new FakeChild();
-      attachPiRpcSession({
-        child: child as any,
-        prompt: 'hi',
-        send: vi.fn(),
-        imagePaths: [imgPath],
-        uploadRoot: dir,
-      });
+      attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn() }, { imagePaths: [imgPath], uploadRoot: dir });
       const written = lastWrite(child);
       expect(written.images).toHaveLength(1);
       expect(written.images[0].mimeType).toBe('image/png');
@@ -548,7 +537,7 @@ describe('attachPiRpcSession', () => {
       for (const [name, mime] of cases) {
         const imgPath = writeImage(name);
         const child = new FakeChild();
-        attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn(), imagePaths: [imgPath] });
+        attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn() }, { imagePaths: [imgPath] });
         expect(lastWrite(child).images[0].mimeType).toBe(mime);
       }
     });
@@ -558,20 +547,20 @@ describe('attachPiRpcSession', () => {
       attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn() });
       expect(lastWrite(child).images).toBeUndefined();
       const child2 = new FakeChild();
-      attachPiRpcSession({ child: child2 as any, prompt: 'hi', send: vi.fn(), imagePaths: [] });
+      attachPiRpcSession({ child: child2 as any, prompt: 'hi', send: vi.fn() }, { imagePaths: [] });
       expect(lastWrite(child2).images).toBeUndefined();
     });
 
     it('skips a non-string or empty image path entry', () => {
       const child = new FakeChild();
-      attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn(), imagePaths: ['', 42 as any] });
+      attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn() }, { imagePaths: ['', 42 as any] });
       expect(lastWrite(child).images).toBeUndefined();
     });
 
     it('skips an image with a disallowed extension', () => {
       const imgPath = writeImage('f.txt');
       const child = new FakeChild();
-      attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn(), imagePaths: [imgPath] });
+      attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn() }, { imagePaths: [imgPath] });
       expect(lastWrite(child).images).toBeUndefined();
     });
 
@@ -579,18 +568,13 @@ describe('attachPiRpcSession', () => {
       const subdir = path.join(dir, 'sub.png');
       fs.mkdirSync(subdir);
       const child = new FakeChild();
-      attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn(), imagePaths: [subdir] });
+      attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn() }, { imagePaths: [subdir] });
       expect(lastWrite(child).images).toBeUndefined();
     });
 
     it('skips a nonexistent path (realpathSync throws) rather than failing the run', () => {
       const child = new FakeChild();
-      attachPiRpcSession({
-        child: child as any,
-        prompt: 'hi',
-        send: vi.fn(),
-        imagePaths: [path.join(dir, 'does-not-exist.png')],
-      });
+      attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn() }, { imagePaths: [path.join(dir, 'does-not-exist.png')] });
       expect(lastWrite(child).images).toBeUndefined();
     });
 
@@ -599,13 +583,7 @@ describe('attachPiRpcSession', () => {
       try {
         const imgPath = writeImage.call(null, 'g.png'); // inside dir, but uploadRoot will be outsideDir
         const child = new FakeChild();
-        attachPiRpcSession({
-          child: child as any,
-          prompt: 'hi',
-          send: vi.fn(),
-          imagePaths: [imgPath],
-          uploadRoot: outsideDir,
-        });
+        attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn() }, { imagePaths: [imgPath], uploadRoot: outsideDir });
         expect(lastWrite(child).images).toBeUndefined();
       } finally {
         fs.rmSync(outsideDir, { recursive: true, force: true });
@@ -619,20 +597,14 @@ describe('attachPiRpcSession', () => {
       // (atypical) "root" to exercise the `realPath === resolvedRoot` branch.
       const imgPath = writeImage('h.png');
       const child = new FakeChild();
-      attachPiRpcSession({
-        child: child as any,
-        prompt: 'hi',
-        send: vi.fn(),
-        imagePaths: [imgPath],
-        uploadRoot: imgPath,
-      });
+      attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn() }, { imagePaths: [imgPath], uploadRoot: imgPath });
       expect(lastWrite(child).images).toHaveLength(1);
     });
 
     it('stops forwarding once MAX_IMAGE_COUNT is reached', () => {
       const paths = Array.from({ length: 12 }, (_, i) => writeImage(`img${i}.png`));
       const child = new FakeChild();
-      attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn(), imagePaths: paths });
+      attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn() }, { imagePaths: paths });
       expect(lastWrite(child).images).toHaveLength(10);
     });
 
@@ -640,7 +612,7 @@ describe('attachPiRpcSession', () => {
       const big1 = writeImage('big1.png', 15 * 1024 * 1024);
       const big2 = writeImage('big2.png', 15 * 1024 * 1024);
       const child = new FakeChild();
-      attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn(), imagePaths: [big1, big2] });
+      attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn() }, { imagePaths: [big1, big2] });
       expect(lastWrite(child).images).toHaveLength(1);
     });
 
@@ -650,7 +622,7 @@ describe('attachPiRpcSession', () => {
         throw new Error('EACCES');
       });
       const child = new FakeChild();
-      attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn(), imagePaths: [imgPath] });
+      attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn() }, { imagePaths: [imgPath] });
       expect(lastWrite(child).images).toBeUndefined();
       readSpy.mockRestore();
     });

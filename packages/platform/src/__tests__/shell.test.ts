@@ -50,7 +50,7 @@ describe("@jini-ai/platform — shell", () => {
       expect(result.stdout).toBe("it's a test with spaces");
     });
 
-    it.skipIf(isWin32)("falls back to /bin/zsh when SHELL is unset", async () => {
+    it.skipIf(isWin32)("falls back to /bin/sh when SHELL is unset", async () => {
       const previous = process.env.SHELL;
       delete process.env.SHELL;
       try {
@@ -62,7 +62,7 @@ describe("@jini-ai/platform — shell", () => {
       }
     });
 
-    it.skipIf(isWin32)("falls back to /bin/zsh when SHELL is set but blank", async () => {
+    it.skipIf(isWin32)("falls back to /bin/sh when SHELL is set but blank", async () => {
       const previous = process.env.SHELL;
       process.env.SHELL = "   ";
       try {

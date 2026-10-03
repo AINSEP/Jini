@@ -7,7 +7,7 @@
  * registration — e.g. two packs each mounting `POST /api/runs` would otherwise silently shadow
  * one another instead of failing loudly at composition time.
  *
- * Genericized from an origin daemon's route-registration guard — see `source-map.md`. The
+ * Genericized from an origin daemon's route-registration guard — see `archived provenance ledger`. The
  * origin hardcoded a fixed two-route guarded set (product routes with no meaning in the generic
  * engine); here the guarded set is an injectable `ReadonlySet<string>` that defaults to empty, so
  * installing this guard with no options is a pure inventory tap with no enforcement.
@@ -37,10 +37,7 @@ const GUARDED_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'options', 'al
  * @complexity O(1) — a single `Set` lookup.
  * @overallScore 100/100
  */
-export function guardedRouteKey(
-  method: string,
-  path: unknown,
-  guardedRouteKeys: ReadonlySet<string>,
+export function guardedRouteKey({ method, path, guardedRouteKeys }: { readonly method: string; readonly path: unknown; readonly guardedRouteKeys: ReadonlySet<string> }, _optional: Record<string, never> = {}
 ): string | null {
   if (typeof path !== 'string') return null;
   const key = `${method.toUpperCase()} ${path}`;
@@ -67,9 +64,7 @@ export interface InstallRouteRegistrationGuardOptions {
  * @complexity O(1) setup (patches 8 fixed methods); each wrapped call is O(1) beyond the wrapped original.
  * @overallScore 100/100
  */
-export function installRouteRegistrationGuard(
-  app: Express,
-  options: InstallRouteRegistrationGuardOptions = {},
+export function installRouteRegistrationGuard({ app }: { readonly app: Express }, options: InstallRouteRegistrationGuardOptions = {}
 ): void {
   const guardedRouteKeys = options.guardedRouteKeys ?? new Set<string>();
   const seen = new Set<string>();
@@ -85,7 +80,7 @@ export function installRouteRegistrationGuard(
       if (typeof path === 'string') {
         inventory.push({ method: method.toUpperCase(), path });
       }
-      const key = guardedRouteKey(method, path, guardedRouteKeys);
+      const key = guardedRouteKey({ method, path, guardedRouteKeys });
       if (key) {
         if (seen.has(key)) {
           throw new Error(`duplicate guarded route registration: ${key}`);
@@ -102,10 +97,10 @@ export function installRouteRegistrationGuard(
  *
  * @param app - An app the guard was installed on. Safe to call on an app with no guard installed
  * (returns an empty array rather than throwing).
- * @returns A fresh array copy each call — the caller can never mutate the guard's own internal inventory through the returned reference.
+ * @returns A fresh array with copied entries each call — the caller can never mutate the guard's own internal inventory through the returned reference.
  * @complexity O(n) in the number of routes registered so far.
  * @overallScore 100/100
  */
-export function getRouteRegistrationInventory(app: Express): RouteRegistration[] {
-  return [...((app as unknown as Record<symbol, RouteRegistration[] | undefined>)[routeInventorySymbol] ?? [])];
+export function getRouteRegistrationInventory({ app }: { readonly app: Express }, _optional: Record<string, never> = {}): RouteRegistration[] {
+  return ((app as unknown as Record<symbol, RouteRegistration[] | undefined>)[routeInventorySymbol] ?? []).map((entry) => ({ ...entry }));
 }

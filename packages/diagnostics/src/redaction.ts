@@ -1,3 +1,5 @@
+import { SECRET_SHAPE_PATTERNS } from "@jini-ai/core";
+
 const SENSITIVE_KEY_RE = /token|password|secret|key|dsn|authorization|cookie/i;
 
 const URL_QUERY_SECRET_RE = /([?&#])(token|password|secret|key|dsn|api[_-]?key|auth|access_token|refresh_token|id_token)(=)([^&\s#"']*)/gi;
@@ -25,30 +27,38 @@ export interface RedactionOptions {
   username?: string | undefined;
 }
 
-export function redactJsonValue(value: unknown, opts: RedactionOptions = {}): unknown {
-  if (Array.isArray(value)) return value.map((entry) => redactJsonValue(entry, opts));
+/** Returns a redacted copy; the required input value is separate from optional path policy. */
+export function redactJsonValue({ value }: { value: unknown }, opts: RedactionOptions = {}): unknown {
+  if (Array.isArray(value)) return value.map((entry) => redactJsonValue({ value: entry }, opts));
   if (value !== null && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
       if (SENSITIVE_KEY_RE.test(key) && typeof raw === "string" && raw.length > 0) {
         out[key] = REDACTED;
       } else {
-        out[key] = redactJsonValue(raw, opts);
+        out[key] = redactJsonValue({ value: raw }, opts);
       }
     }
     return out;
   }
-  if (typeof value === "string") return redactText(value, opts);
+  if (typeof value === "string") return redactText({ text: value }, opts);
   return value;
 }
 
-export function redactText(text: string, opts: RedactionOptions = {}): string {
+/** Redacts credentials while optional username policy masks that user's home paths. */
+export function redactText({ text }: { text: string }, opts: RedactionOptions = {}): string {
   // Run the HTTP auth scheme replacement first so the credential after
   // `Bearer` / `Token` / `Basic` is captured before BARE_SECRET_RE swallows
   // the `Authorization: Bearer` prefix and stops at the space.
   let out = text.replace(HTTP_AUTH_SCHEME_RE, (_match, scheme) => `${scheme} ${REDACTED}`);
   out = out.replace(URL_QUERY_SECRET_RE, (_match, sep, name, eq) => `${sep}${name}${eq}${REDACTED}`);
   out = out.replace(BARE_SECRET_RE, (_match, lead, name, sep) => `${lead}${name}${sep}${REDACTED}`);
+  // Bundle redaction shares only the credential catalog; diagnostic IDs and paths must remain
+  // readable, so the kernel's general-purpose redaction policy is deliberately not invoked.
+  for (const { pattern } of SECRET_SHAPE_PATTERNS) {
+    const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+    out = out.replace(new RegExp(pattern.source, flags), REDACTED);
+  }
   const username = opts.username;
   if (username && username.length > 1) {
     const escaped = username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -59,12 +69,13 @@ export function redactText(text: string, opts: RedactionOptions = {}): string {
   return out;
 }
 
-export function redactJsonText(text: string, opts: RedactionOptions = {}): string {
+/** Redacts valid JSON recursively and falls back to text redaction for invalid JSON. */
+export function redactJsonText({ text }: { text: string }, opts: RedactionOptions = {}): string {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
-    return redactText(text, opts);
+    return redactText({ text }, opts);
   }
-  return JSON.stringify(redactJsonValue(parsed, opts), null, 2);
+  return JSON.stringify(redactJsonValue({ value: parsed }, opts), null, 2);
 }

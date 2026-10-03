@@ -100,7 +100,8 @@ const VALID = { name: "servings", kind: "integer", required: false, queryable: t
 /**
  * The corpus. Each entry is a `fields` payload; `accepted` is the verdict BOTH artifacts must
  * reach. Grammar-invalid-but-well-typed names are deliberately `accepted: true` — the boundary
- * passes them and CIC U-002-B1 guard 3 rejects them, which is the documented division of labour.
+ * passes them and guard 3 rejects them, which is the documented division of labour.
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 const CORPUS: ReadonlyArray<{ label: string; payload: unknown; accepted: boolean }> = [
   { label: "empty array", payload: [], accepted: true },
@@ -140,7 +141,7 @@ for (const toolId of ["collections_content_type_define", "collections_content_ty
 
     for (const { label, payload, accepted } of CORPUS) {
       const schemaSaysValid = validate(schema, payload) === null;
-      const parserSaysValid = parseContentTypeFieldDefs(payload).ok;
+      const parserSaysValid = parseContentTypeFieldDefs({ value: payload }).ok;
 
       assert.equal(schemaSaysValid, accepted, `published schema disagrees with the corpus for "${label}"`);
       assert.equal(parserSaysValid, accepted, `parser disagrees with the corpus for "${label}"`);

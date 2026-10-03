@@ -11,18 +11,18 @@ export default defineConfig({
       // Covers both ported trees that now live in this package: the flat
       // `runtimes/` -> agent-runtime TypeScript source (`src/*.ts` +
       // `src/defs/*.ts`) and the `agent-protocol/` ACP + pi-rpc subprocess
-      // transport (`src/agent-protocol/**`) — see source-map.md.
+      // transport (`src/agent-protocol/**`) — see archived provenance ledger.
       include: ['src/**'],
       exclude: [
         ...coverageConfigDefaults.exclude,
         // `src/craft/*` and `src/skills/*` are the vendored, product-neutral
         // craft-knowledge docs and Skill packages ported per
-        // `source-map.md`'s "craft/" and "skills/" sections — markdown
+        // `archived provenance ledger`'s "craft/" and "skills/" sections — markdown
         // content plus a handful of example/asset scripts bundled inside
         // individual skill directories (e.g. a Remotion template's React
         // components, a web-clone skill's recon scripts). None of it is
         // `@jini-ai/agent-runtime`'s own TypeScript source (that's
-        // `src/*.ts` + `src/defs/*.ts`, documented in source-map.md's
+        // `src/*.ts` + `src/defs/*.ts`, documented in archived provenance ledger's
         // "runtimes/ -> agent-runtime TypeScript source" section) and none
         // of it is imported by this package's own code, so it has no
         // meaningful test surface here — excluded from the denominator
@@ -48,7 +48,7 @@ export default defineConfig({
       // 99.96/99.95/100/99.96 (statements/branches/functions/lines) — real
       // refactors + real tests closed every reachable gap. Two branches
       // remain uncovered on purpose, both re-derived (not merely trusted
-      // from a prior comment) and documented inline + in source-map.md's
+      // from a prior comment) and documented inline + in archived provenance ledger's
       // 2026-07-22 entry:
       //   - json-event-stream.ts's `stringifyContent` catch: every real
       //     call site's value traces back to `JSON.parse` output, which can

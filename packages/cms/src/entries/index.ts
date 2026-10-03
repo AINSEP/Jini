@@ -16,7 +16,6 @@ export type {
   EntryRecord,
   OwningContentType,
   ActorIdentityInput,
-  Result,
 } from "./types.js";
 
 export type { EntryListPort } from "./list.js";
@@ -79,8 +78,6 @@ export { InMemoryEntryRepo, toEntryOutbox } from "./repo.memory.js";
 /** The agent-tool surface for this domain (see `agent-tools.ts` for what is deliberately omitted). */
 export {
   entriesAgentToolCatalog,
-  type AgentToolDefinition as EntriesAgentToolDefinition,
-  type AgentToolSideEffect as EntriesAgentToolSideEffect,
 } from "./agent-tools.js";
 
 /**

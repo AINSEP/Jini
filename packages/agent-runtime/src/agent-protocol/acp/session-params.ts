@@ -42,7 +42,8 @@ export interface AcpSessionOptions {
  * @param options - Optional MCP server list and env-format selector.
  * @returns The `session/new` params object ready for JSON-RPC serialisation.
  */
-export function buildAcpSessionNewParams(cwd: string, { mcpServers, envFormat = 'array' }: AcpSessionOptions = {}) {
+export function buildAcpSessionNewParams({ cwd }: { cwd: string }, options: AcpSessionOptions = {}) {
+  const { mcpServers, envFormat = 'array' } = options;
   const servers = Array.isArray(mcpServers) ? mcpServers : [];
   const wantsMap = envFormat === 'map';
   return {

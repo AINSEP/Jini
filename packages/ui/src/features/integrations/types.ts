@@ -7,7 +7,7 @@
  * product's own MCP server name as a literal. Parameterized here as
  * `serverName` (a `McpIntegrationsPort`-agnostic caller argument, not a
  * config value) —
- * see `packages/ui/source-map.md` for the full provenance note and the
+ * see `packages/ui/archived provenance ledger` for the full provenance note and the
  * purity-grep result confirming zero hardcoded product-identity strings
  * remain.
  */

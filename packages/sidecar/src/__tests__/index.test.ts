@@ -120,28 +120,28 @@ const fakeContract: SidecarContractDescriptor<FakeStamp> = {
     namespace: "FAKE_NAMESPACE",
     source: "FAKE_SOURCE",
   },
-  normalizeApp(value) {
+  normalizeApp({ app: value }) {
     if (value === "api" || value === "ui") return value;
     throw new Error(`unsupported fake app: ${String(value)}`);
   },
-  normalizeNamespace(value) {
+  normalizeNamespace({ namespace: value }) {
     if (typeof value !== "string" || !/^[a-z0-9-]+$/.test(value)) {
       throw new Error("invalid fake namespace");
     }
     return value;
   },
-  normalizeSource(value) {
+  normalizeSource({ source: value }) {
     if (value === "tool" || value === "pack") return value;
     throw new Error(`unsupported fake source: ${String(value)}`);
   },
-  normalizeStamp(value) {
+  normalizeStamp({ input: value }) {
     const stamp = value as Partial<FakeStamp>;
     return {
-      app: this.normalizeApp(stamp.app),
+      app: this.normalizeApp({ app: stamp.app }),
       ipc: String(stamp.ipc),
       mode: stamp.mode === "prod" ? "prod" : "dev",
-      namespace: this.normalizeNamespace(stamp.namespace),
-      source: this.normalizeSource(stamp.source),
+      namespace: this.normalizeNamespace({ namespace: stamp.namespace }),
+      source: this.normalizeSource({ source: stamp.source }),
     };
   },
 };
@@ -153,16 +153,16 @@ function testIpcPath(root: string): string {
 
 describe("@jini-ai/sidecar — ipc-path", () => {
   it("recognizes Windows named pipes and validates absolute unix socket paths", () => {
-    expect(isWindowsNamedPipePath("\\\\.\\pipe\\my-app")).toBe(true);
-    expect(isWindowsNamedPipePath("/tmp/socket.sock")).toBe(false);
+    expect(isWindowsNamedPipePath({ value: "\\\\.\\pipe\\my-app" })).toBe(true);
+    expect(isWindowsNamedPipePath({ value: "/tmp/socket.sock" })).toBe(false);
 
-    expect(normalizeIpcPath("/tmp/socket.sock")).toBe("/tmp/socket.sock");
-    expect(normalizeIpcPath("\\\\.\\pipe\\my-app")).toBe("\\\\.\\pipe\\my-app");
-    expect(() => normalizeIpcPath("relative/socket.sock")).toThrow(/must be absolute/);
-    expect(() => normalizeIpcPath("")).toThrow(/must not be empty/);
-    expect(() => normalizeIpcPath(" /tmp/socket.sock ")).toThrow(/leading or trailing whitespace/);
-    expect(() => normalizeIpcPath(42)).toThrow(/must be a string/);
-    expect(() => normalizeIpcPath("/tmp/soc\0ket.sock")).toThrow(/must not contain null bytes/);
+    expect(normalizeIpcPath({ ipc: "/tmp/socket.sock" })).toBe("/tmp/socket.sock");
+    expect(normalizeIpcPath({ ipc: "\\\\.\\pipe\\my-app" })).toBe("\\\\.\\pipe\\my-app");
+    expect(() => normalizeIpcPath({ ipc: "relative/socket.sock" })).toThrow(/must be absolute/);
+    expect(() => normalizeIpcPath({ ipc: "" })).toThrow(/must not be empty/);
+    expect(() => normalizeIpcPath({ ipc: " /tmp/socket.sock " })).toThrow(/leading or trailing whitespace/);
+    expect(() => normalizeIpcPath({ ipc: 42 })).toThrow(/must be a string/);
+    expect(() => normalizeIpcPath({ ipc: "/tmp/soc\0ket.sock" })).toThrow(/must not contain null bytes/);
   });
 });
 
@@ -237,9 +237,9 @@ describe("@jini-ai/sidecar — path boundary uses descriptor defaults, not hardc
       FAKE_NAMESPACE: "selected",
     };
 
-    expect(resolveNamespace({ contract: fakeContract, env })).toBe("selected");
+    expect(resolveNamespace({ contract: fakeContract }, { env })).toBe("selected");
     expect(
-      resolveSidecarBase({ contract: fakeContract, env, projectRoot: "/repo/product", source: "tool" }),
+      resolveSidecarBase({ contract: fakeContract, source: "tool" }, { env, projectRoot: "/repo/product" }),
     ).toBe(resolve("/runtime/base"));
   });
 
@@ -264,17 +264,17 @@ describe("@jini-ai/sidecar — path boundary uses descriptor defaults, not hardc
   });
 
   it("resolveNamespace falls back to the contract default when neither an explicit value nor the env var is set", () => {
-    expect(resolveNamespace({ contract: fakeContract, env: {} })).toBe("default");
+    expect(resolveNamespace({ contract: fakeContract }, { env: {} })).toBe("default");
   });
 
   it("resolveProjectRoot rejects a non-string or empty/whitespace-only value", () => {
-    expect(() => resolveProjectRoot("")).toThrow(/non-empty string/);
-    expect(() => resolveProjectRoot("   ")).toThrow(/non-empty string/);
-    expect(() => resolveProjectRoot(42 as unknown as string)).toThrow(/non-empty string/);
+    expect(() => resolveProjectRoot({ projectRoot: "" })).toThrow(/non-empty string/);
+    expect(() => resolveProjectRoot({ projectRoot: "   " })).toThrow(/non-empty string/);
+    expect(() => resolveProjectRoot({ projectRoot: 42 as unknown as string })).toThrow(/non-empty string/);
   });
 
   it("resolveSidecarBase falls all the way through to the computed source runtime root when neither base nor env is set", () => {
-    expect(resolveSidecarBase({ contract: fakeContract, env: {}, projectRoot: "/repo/product", source: "tool" })).toBe(
+    expect(resolveSidecarBase({ contract: fakeContract, source: "tool" }, { env: {}, projectRoot: "/repo/product" })).toBe(
       resolve("/repo/product", ".fake-tmp", "tool"),
     );
   });
@@ -326,7 +326,7 @@ describe("@jini-ai/sidecar — bootstrap", () => {
       source: "tool",
     };
 
-    const launchEnv = createSidecarLaunchEnv({ base: "/runtime/base", contract: fakeContract, extraEnv: {}, stamp });
+    const launchEnv = createSidecarLaunchEnv({ base: "/runtime/base", contract: fakeContract, stamp }, { extraEnv: {} });
     expect(launchEnv).toEqual({
       FAKE_BASE: resolve("/runtime/base"),
       FAKE_IPC_PATH: stamp.ipc,
@@ -334,7 +334,7 @@ describe("@jini-ai/sidecar — bootstrap", () => {
       FAKE_SOURCE: stamp.source,
     });
 
-    expect(bootstrapSidecarRuntime(stamp, launchEnv, { app: "api", contract: fakeContract })).toEqual({
+    expect(bootstrapSidecarRuntime({ stampInput: stamp, env: launchEnv, app: "api", contract: fakeContract })).toEqual({
       app: "api",
       base: resolve("/runtime/base"),
       ipc: stamp.ipc,
@@ -352,7 +352,7 @@ describe("@jini-ai/sidecar — bootstrap", () => {
       namespace: "alpha",
       source: "tool",
     };
-    expect(() => bootstrapSidecarRuntime(stamp, {}, { app: "ui", contract: fakeContract })).toThrow(
+    expect(() => bootstrapSidecarRuntime({ stampInput: stamp, env: {}, app: "ui", contract: fakeContract })).toThrow(
       /sidecar stamp app mismatch/,
     );
   });
@@ -365,7 +365,7 @@ describe("@jini-ai/sidecar — bootstrap", () => {
       namespace: "alpha",
       source: "tool",
     };
-    expect(() => bootstrapSidecarRuntime(stamp, {}, { app: "api", contract: fakeContract })).toThrow(
+    expect(() => bootstrapSidecarRuntime({ stampInput: stamp, env: {}, app: "api", contract: fakeContract })).toThrow(
       /sidecar ipc path mismatch/,
     );
   });
@@ -379,7 +379,7 @@ describe("@jini-ai/sidecar — bootstrap", () => {
       source: "tool",
     };
     const conflictingEnv = { FAKE_NAMESPACE: "some-other-namespace" };
-    expect(() => bootstrapSidecarRuntime(stamp, conflictingEnv, { app: "api", contract: fakeContract })).toThrow(
+    expect(() => bootstrapSidecarRuntime({ stampInput: stamp, env: conflictingEnv, app: "api", contract: fakeContract })).toThrow(
       /sidecar env mismatch for FAKE_NAMESPACE/,
     );
   });
@@ -393,11 +393,7 @@ describe("@jini-ai/sidecar — bootstrap", () => {
       source: "tool",
     };
     const matchingEnv = { FAKE_NAMESPACE: "alpha" };
-    const runtime = bootstrapSidecarRuntime(stamp, matchingEnv, {
-      app: "api",
-      contract: fakeContract,
-      projectRoot: "/repo/product",
-    });
+    const runtime = bootstrapSidecarRuntime({ stampInput: stamp, env: matchingEnv, app: "api", contract: fakeContract }, { projectRoot: "/repo/product" });
     expect(runtime.base).toBe(resolve("/repo/product", ".fake-tmp", "tool"));
   });
 });
@@ -405,37 +401,37 @@ describe("@jini-ai/sidecar — bootstrap", () => {
 describe("@jini-ai/sidecar — port allocation", () => {
   it("allocates a dynamic port and avoids re-issuing an already-reserved one", async () => {
     const reserved = new Set<number>();
-    const first = await allocatePort({ reserved });
+    const first = await allocatePort({}, { reserved });
     expect(first.source).toBe("dynamic");
     expect(reserved.has(first.port)).toBe(true);
 
-    const second = await allocatePort({ reserved });
+    const second = await allocatePort({}, { reserved });
     expect(second.port).not.toBe(first.port);
   });
 
   it("rejects a forced port that conflicts with an already-reserved port", async () => {
     const reserved = new Set<number>();
-    const first = await allocatePort({ reserved });
-    await expect(allocatePort({ port: first.port, reserved })).rejects.toThrow(/conflicts with another managed port/);
+    const first = await allocatePort({}, { reserved });
+    await expect(allocatePort({}, { port: first.port, reserved })).rejects.toThrow(/conflicts with another managed port/);
   });
 
   it("rejects an out-of-range or non-integer forced port before attempting to bind it", async () => {
-    await expect(allocatePort({ port: 0 })).rejects.toThrow(/integer between 1 and 65535/);
-    await expect(allocatePort({ port: 70_000 })).rejects.toThrow(/integer between 1 and 65535/);
-    await expect(allocatePort({ port: 1.5 })).rejects.toThrow(/integer between 1 and 65535/);
-    await expect(allocatePort({ port: "not-a-number" })).rejects.toThrow(/integer between 1 and 65535/);
+    await expect(allocatePort({}, { port: 0 })).rejects.toThrow(/integer between 1 and 65535/);
+    await expect(allocatePort({}, { port: 70_000 })).rejects.toThrow(/integer between 1 and 65535/);
+    await expect(allocatePort({}, { port: 1.5 })).rejects.toThrow(/integer between 1 and 65535/);
+    await expect(allocatePort({}, { port: "not-a-number" })).rejects.toThrow(/integer between 1 and 65535/);
   });
 
   it("treats a null/empty forced port the same as an unspecified one (falls back to dynamic)", async () => {
-    expect((await allocatePort({ port: null })).source).toBe("dynamic");
-    expect((await allocatePort({ port: "" })).source).toBe("dynamic");
+    expect((await allocatePort({}, { port: null })).source).toBe("dynamic");
+    expect((await allocatePort({}, { port: "" })).source).toBe("dynamic");
   });
 
   it("successfully allocates and reserves a genuinely free forced port", async () => {
     // Find a free port dynamically first, release it, then force-allocate that exact number.
-    const probe = await allocatePort({});
+    const probe = await allocatePort({}, {});
     const reserved = new Set<number>();
-    const result = await allocatePort({ port: probe.port, reserved });
+    const result = await allocatePort({}, { port: probe.port, reserved });
     expect(result).toEqual({ port: probe.port, source: "forced" });
     expect(reserved.has(probe.port)).toBe(true);
   });
@@ -445,7 +441,7 @@ describe("@jini-ai/sidecar — port allocation", () => {
     const address = occupied.address();
     if (address == null || typeof address === "string") throw new Error("expected a TCP address");
     try {
-      await expect(allocatePort({ port: address.port })).rejects.toThrow(/is not available/);
+      await expect(allocatePort({}, { port: address.port })).rejects.toThrow(/is not available/);
     } finally {
       await closeServer(occupied);
     }
@@ -467,7 +463,7 @@ describe("@jini-ai/sidecar — port allocation", () => {
       return server;
     });
 
-    await expect(allocatePort({ port: 65_432 })).rejects.toThrow(/a bind failure with no \.code at all/);
+    await expect(allocatePort({}, { port: 65_432 })).rejects.toThrow(/a bind failure with no \.code at all/);
   });
 
   it("falls back to the raw error message when a forced-port bind failure's .code is explicitly null (errorCode's code==null branch)", async () => {
@@ -484,7 +480,7 @@ describe("@jini-ai/sidecar — port allocation", () => {
       return server;
     });
 
-    await expect(allocatePort({ port: 65_433 })).rejects.toThrow(/a bind failure with a null \.code/);
+    await expect(allocatePort({}, { port: 65_433 })).rejects.toThrow(/a bind failure with a null \.code/);
   });
 
   it("stringifies a non-Error bind-failure rejection (errorMessage's non-Error branch)", async () => {
@@ -500,7 +496,7 @@ describe("@jini-ai/sidecar — port allocation", () => {
       return server;
     });
 
-    await expect(allocatePort({ port: 65_434 })).rejects.toThrow(/a plain string bind failure/);
+    await expect(allocatePort({}, { port: 65_434 })).rejects.toThrow(/a plain string bind failure/);
   });
 
   it("fails to probe an ephemeral port when the OS-assigned address is unusable (probeEphemeralPort's null/string guard)", async () => {
@@ -517,7 +513,7 @@ describe("@jini-ai/sidecar — port allocation", () => {
       return server;
     });
 
-    await expect(allocatePort({})).rejects.toThrow(/failed to probe an ephemeral port/);
+    await expect(allocatePort({}, {})).rejects.toThrow(/failed to probe an ephemeral port/);
   });
 
   it("exhausts its 20-attempt dynamic-port budget when every probed port is already reserved (CR-R5: deterministic, no real OS allocation)", async () => {
@@ -528,13 +524,13 @@ describe("@jini-ai/sidecar — port allocation", () => {
     const reserved = new Set<number>(Array.from({ length: 20 }, (_, i) => 40000 + i));
     const probedHosts: string[] = [];
     let call = 0;
-    const fakeProbe = async (host: string): Promise<number> => {
+    const fakeProbe = async ({ host }: { host: string }): Promise<number> => {
       probedHosts.push(host);
       call += 1;
       return 40000 + (call - 1);
     };
 
-    await expect(allocateDynamicPort("runtime", "127.0.0.1", reserved, fakeProbe)).rejects.toThrow(
+    await expect(allocateDynamicPort({ label: "runtime", host: "127.0.0.1", reserved }, { probe: fakeProbe })).rejects.toThrow(
       /failed to allocate dynamic runtime port without conflict/,
     );
     expect(call).toBe(20);
@@ -554,7 +550,7 @@ describe("@jini-ai/sidecar — port allocation", () => {
       return 50000 + (call - 1);
     };
 
-    const result = await allocateDynamicPort("runtime", "127.0.0.1", reserved, fakeProbe);
+    const result = await allocateDynamicPort({ label: "runtime", host: "127.0.0.1", reserved }, { probe: fakeProbe });
     expect(result).toEqual({ port: 50019, source: "dynamic" });
     expect(call).toBe(20);
     expect(reserved.has(50019)).toBe(true);
@@ -566,14 +562,14 @@ describe("@jini-ai/sidecar — json-file", () => {
     const dir = await mkdtemp(join(tmpdir(), "jini-sidecar-jsonfile-"));
     try {
       const filePath = join(dir, "nested", "state.json");
-      await writeJsonFile(filePath, { runId: "run_1" });
-      expect(await readJsonFile<{ runId: string }>(filePath)).toEqual({ runId: "run_1" });
+      await writeJsonFile({ filePath, payload: { runId: "run_1" } });
+      expect(await readJsonFile<{ runId: string }>({ filePath })).toEqual({ runId: "run_1" });
 
-      await removePointerIfCurrent(filePath, "run_2");
-      expect(await readJsonFile(filePath)).toEqual({ runId: "run_1" });
+      await removePointerIfCurrent({ pointerPath: filePath, runId: "run_2" });
+      expect(await readJsonFile({ filePath })).toEqual({ runId: "run_1" });
 
-      await removePointerIfCurrent(filePath, "run_1");
-      expect(await readJsonFile(filePath)).toBeNull();
+      await removePointerIfCurrent({ pointerPath: filePath, runId: "run_1" });
+      expect(await readJsonFile({ filePath })).toBeNull();
     } finally {
       await rm(dir, { force: true, recursive: true });
     }
@@ -582,8 +578,8 @@ describe("@jini-ai/sidecar — json-file", () => {
   it("returns null for a missing or unparsable file, and removeFile is a no-op when absent", async () => {
     const dir = await mkdtemp(join(tmpdir(), "jini-sidecar-jsonfile-"));
     try {
-      expect(await readJsonFile(join(dir, "missing.json"))).toBeNull();
-      await expect(removeFile(join(dir, "missing.json"))).resolves.toBeUndefined();
+      expect(await readJsonFile({ filePath: join(dir, "missing.json") })).toBeNull();
+      await expect(removeFile({ filePath: join(dir, "missing.json") })).resolves.toBeUndefined();
     } finally {
       await rm(dir, { force: true, recursive: true });
     }
@@ -592,17 +588,17 @@ describe("@jini-ai/sidecar — json-file", () => {
 
 describe("@jini-ai/sidecar — jsonIpcError (direct — its only in-tree caller always passes a codeless SyntaxError)", () => {
   it("omits the code field for a codeless error (its real, in-tree call path)", () => {
-    expect(jsonIpcError(new SyntaxError("Unexpected token"))).toEqual({ message: "Unexpected token" });
+    expect(jsonIpcError({ error: new SyntaxError("Unexpected token") })).toEqual({ message: "Unexpected token" });
   });
 
   it("includes the code field for a Node-style errno error (generic, currently caller-less behavior)", () => {
     const err = new Error("not found") as NodeJS.ErrnoException;
     err.code = "ENOENT";
-    expect(jsonIpcError(err)).toEqual({ code: "ENOENT", message: "not found" });
+    expect(jsonIpcError({ error: err })).toEqual({ code: "ENOENT", message: "not found" });
   });
 
   it("stringifies a non-Error rejection value (errorMessage's non-Error branch)", () => {
-    expect(jsonIpcError("a plain string failure")).toEqual({ message: "a plain string failure" });
+    expect(jsonIpcError({ error: "a plain string failure" })).toEqual({ message: "a plain string failure" });
   });
 });
 
@@ -618,13 +614,10 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
       logs.push(args);
     };
 
-    const server = await createJsonIpcServer({
-      handler: async (message) => ({ seen: message?.type }),
-      socketPath,
-    });
+    const server = await createJsonIpcServer({ handler: async ({ message }) => ({ seen: message?.type }), socketPath });
 
     try {
-      await expect(requestJsonIpc(socketPath, { input: { expression: "secret()" }, type: "EVAL" })).resolves.toEqual({
+      await expect(requestJsonIpc({ socketPath, payload: { input: { expression: "secret()" }, type: "EVAL" } })).resolves.toEqual({
         seen: "EVAL",
       });
     } finally {
@@ -650,16 +643,9 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
     const socketPath = testIpcPath(root);
     const unit = "拥挤让人焦虑，留白让人信任。敢留白，是因为知道什么最重要——交付边界。";
     const big = unit.repeat(4000);
-    const server = await createJsonIpcServer({
-      handler: async (message: { html?: string }) => ({ echo: message.html }),
-      socketPath,
-    });
+    const server = await createJsonIpcServer({ handler: async ({ message }: { message: { html?: string } }) => ({ echo: message.html }), socketPath });
     try {
-      const result = await requestJsonIpc<{ echo: string }>(
-        socketPath,
-        { html: big, type: "RENDER" },
-        { timeoutMs: 10_000 },
-      );
+      const result = await requestJsonIpc<{ echo: string }>({ socketPath, payload: { html: big, type: "RENDER" } }, { timeoutMs: 10_000 });
       expect(result.echo).toBe(big);
       expect(result.echo).not.toContain("�");
     } finally {
@@ -671,12 +657,10 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
   it("rejects the client with a timeout error when the server never responds", async () => {
     const root = await mkdtemp(join(tmpdir(), "jini-sidecar-ipc-timeout-"));
     const socketPath = testIpcPath(root);
-    const server = await createJsonIpcServer({
-      handler: () => new Promise(() => undefined), // never resolves
-      socketPath,
-    });
+    const server = await createJsonIpcServer({ handler: () => new Promise(() => undefined), // never resolves
+      socketPath });
     try {
-      await expect(requestJsonIpc(socketPath, { type: "PING" }, { timeoutMs: 100 })).rejects.toThrow(
+      await expect(requestJsonIpc({ socketPath, payload: { type: "PING" } }, { timeoutMs: 100 })).rejects.toThrow(
         /IPC request timed out/,
       );
     } finally {
@@ -689,14 +673,11 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
     const root = await mkdtemp(join(tmpdir(), "jini-sidecar-ipc-err-"));
     const socketPath = testIpcPath(root);
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const server = await createJsonIpcServer({
-      handler: () => {
+    const server = await createJsonIpcServer({ handler: () => {
         throw new Error("handler exploded at /secret/internal/path");
-      },
-      socketPath,
-    });
+      }, socketPath });
     try {
-      await requestJsonIpc(socketPath, { type: "X" });
+      await requestJsonIpc({ socketPath, payload: { type: "X" } });
       expect.unreachable("expected requestJsonIpc to reject");
     } catch (err) {
       expect((err as Error).message).toBe("internal error");
@@ -716,15 +697,12 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
     const root = await mkdtemp(join(tmpdir(), "jini-sidecar-ipc-err2-"));
     const socketPath = testIpcPath(root);
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const server = await createJsonIpcServer({
-      handler: () => {
+    const server = await createJsonIpcServer({ handler: () => {
         // eslint-disable-next-line @typescript-eslint/no-throw-literal
         throw "raw string failure";
-      },
-      socketPath,
-    });
+      }, socketPath });
     try {
-      await expect(requestJsonIpc(socketPath, { type: "X" })).rejects.toThrow("internal error");
+      await expect(requestJsonIpc({ socketPath, payload: { type: "X" } })).rejects.toThrow("internal error");
     } finally {
       await server.close();
       await rm(root, { force: true, recursive: true });
@@ -737,12 +715,9 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
   it("traces a non-object input payload distinctly from an object one (message summarization)", async () => {
     const root = await mkdtemp(join(tmpdir(), "jini-sidecar-ipc-summary-"));
     const socketPath = testIpcPath(root);
-    const server = await createJsonIpcServer({
-      handler: async (message: { input?: unknown }) => ({ inputType: typeof message.input }),
-      socketPath,
-    });
+    const server = await createJsonIpcServer({ handler: async ({ message }: { message: { input?: unknown } }) => ({ inputType: typeof message.input }), socketPath });
     try {
-      await expect(requestJsonIpc(socketPath, { input: "a plain string, not an object", type: "X" })).resolves.toEqual({
+      await expect(requestJsonIpc({ socketPath, payload: { input: "a plain string, not an object", type: "X" } })).resolves.toEqual({
         inputType: "string",
       });
     } finally {
@@ -754,14 +729,11 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
   it("summarizes a whole-message payload that is not itself an object (summarizeJsonIpcMessage's message==null||non-object branch)", async () => {
     const root = await mkdtemp(join(tmpdir(), "jini-sidecar-ipc-summary-nonobj-"));
     const socketPath = testIpcPath(root);
-    const server = await createJsonIpcServer({
-      handler: async (message: unknown) => ({ receivedType: typeof message }),
-      socketPath,
-    });
+    const server = await createJsonIpcServer({ handler: async ({ message }: { message: unknown }) => ({ receivedType: typeof message }), socketPath });
     try {
       // The *whole* request payload is a bare string, not `{type, input}` —
       // summarizeJsonIpcMessage must handle this without throwing.
-      await expect(requestJsonIpc(socketPath, "just a plain string payload")).resolves.toEqual({
+      await expect(requestJsonIpc({ socketPath, payload: "just a plain string payload" })).resolves.toEqual({
         receivedType: "string",
       });
     } finally {
@@ -773,12 +745,9 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
   it("summarizes an object message whose type field is missing (summarizeJsonIpcMessage's non-string-type branch)", async () => {
     const root = await mkdtemp(join(tmpdir(), "jini-sidecar-ipc-summary-notype-"));
     const socketPath = testIpcPath(root);
-    const server = await createJsonIpcServer({
-      handler: async (message: Record<string, unknown>) => ({ keys: Object.keys(message) }),
-      socketPath,
-    });
+    const server = await createJsonIpcServer({ handler: async ({ message }: { message: Record<string, unknown> }) => ({ keys: Object.keys(message) }), socketPath });
     try {
-      await expect(requestJsonIpc(socketPath, { noTypeField: true })).resolves.toEqual({ keys: ["noTypeField"] });
+      await expect(requestJsonIpc({ socketPath, payload: { noTypeField: true } })).resolves.toEqual({ keys: ["noTypeField"] });
     } finally {
       await server.close();
       await rm(root, { force: true, recursive: true });
@@ -789,16 +758,13 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
     const root = await mkdtemp(join(tmpdir(), "jini-sidecar-ipc-code-"));
     const socketPath = testIpcPath(root);
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const server = await createJsonIpcServer({
-      handler: () => {
+    const server = await createJsonIpcServer({ handler: () => {
         const err = new Error("not found: /etc/shadow") as NodeJS.ErrnoException;
         err.code = "ENOENT";
         throw err;
-      },
-      socketPath,
-    });
+      }, socketPath });
     try {
-      await requestJsonIpc(socketPath, { type: "X" });
+      await requestJsonIpc({ socketPath, payload: { type: "X" } });
       expect.unreachable("expected requestJsonIpc to reject");
     } catch (err) {
       expect((err as Error).message).toBe("internal error");
@@ -815,7 +781,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
     const root = await mkdtemp(join(tmpdir(), "jini-sidecar-ipc-noserver-"));
     try {
       const missingSocketPath = join(root, "nobody-listening.sock");
-      await expect(requestJsonIpc(missingSocketPath, { type: "X" }, { timeoutMs: 2000 })).rejects.toThrow();
+      await expect(requestJsonIpc({ socketPath: missingSocketPath, payload: { type: "X" } }, { timeoutMs: 2000 })).rejects.toThrow();
     } finally {
       await rm(root, { force: true, recursive: true });
     }
@@ -839,7 +805,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
       return fakeSocket;
     });
 
-    await expect(requestJsonIpc("/fake/socket/path.sock", { type: "X" })).resolves.toEqual({ seen: true });
+    await expect(requestJsonIpc({ socketPath: "/fake/socket/path.sock", payload: { type: "X" } })).resolves.toEqual({ seen: true });
   });
 
   it("falls back to a generic message when the server's error response omits one (response.error?.message ?? fallback)", async () => {
@@ -856,7 +822,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
       return fakeSocket;
     });
 
-    await expect(requestJsonIpc("/fake/socket/path.sock", { type: "X" })).rejects.toMatchObject({
+    await expect(requestJsonIpc({ socketPath: "/fake/socket/path.sock", payload: { type: "X" } })).rejects.toMatchObject({
       message: "IPC request failed",
     });
   });
@@ -924,9 +890,9 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
 
       // A fresh server at the same path must detect the dead socket (connect fails
       // ECONNREFUSED/ENOENT, not a live peer), remove it, and bind cleanly in its place.
-      const server = await createJsonIpcServer({ handler: async (message) => ({ echoed: message }), socketPath });
+      const server = await createJsonIpcServer({ handler: async ({ message }) => ({ echoed: message }), socketPath });
       try {
-        await expect(requestJsonIpc(socketPath, { type: "PING" })).resolves.toEqual({ echoed: { type: "PING" } });
+        await expect(requestJsonIpc({ socketPath, payload: { type: "PING" } })).resolves.toEqual({ echoed: { type: "PING" } });
       } finally {
         await server.close();
       }
@@ -957,7 +923,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
   // staleUnixSocketExists' `if (settled) return;` guard (unlike
   // requestJsonIpc's own, tested above) was investigated for a
   // double-settle-race test here and found genuinely unreachable — see
-  // json-ipc.ts's own comment on it and source-map.md's 2026-07-22 entry for
+  // json-ipc.ts's own comment on it and archived provenance ledger's 2026-07-22 entry for
   // the empirical reasoning (both `.once()`'s self-removal-before-invoking
   // *and* `settle`'s own `removeAllListeners()` independently make a second
   // invocation of either handler impossible; attempting to force it by
@@ -1080,7 +1046,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
     });
     try {
       await expect(
-        prepareIpcPath(`\\\\.\\pipe\\jini-sidecar-test-pipe-${process.pid}`),
+        prepareIpcPath({ socketPath: `\\\\.\\pipe\\jini-sidecar-test-pipe-${process.pid}` }),
       ).resolves.toBeUndefined();
     } finally {
       // `mockImplementationOnce` above is only *consumed* if the mocked
@@ -1105,14 +1071,10 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
   it("SEC-004: rejects a frame that exceeds maxFrameBytes before any newline arrives", async () => {
     const root = await mkdtemp(join(tmpdir(), "jini-sidecar-ipc-toolarge-"));
     const socketPath = testIpcPath(root);
-    const server = await createJsonIpcServer({
-      handler: async () => "ok",
-      socketPath,
-      maxFrameBytes: 32,
-    });
+    const server = await createJsonIpcServer({ handler: async () => "ok", socketPath }, { maxFrameBytes: 32 });
     try {
       const bigPayload = { input: "a".repeat(1000), type: "X" };
-      await expect(requestJsonIpc(socketPath, bigPayload)).rejects.toThrow(/exceeds the maximum size/);
+      await expect(requestJsonIpc({ socketPath, payload: bigPayload })).rejects.toThrow(/exceeds the maximum size/);
     } finally {
       await server.close();
       await rm(root, { force: true, recursive: true });
@@ -1122,11 +1084,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
   it("SEC-004: destroys a connection that never completes a frame within idleTimeoutMs", async () => {
     const root = await mkdtemp(join(tmpdir(), "jini-sidecar-ipc-idle-"));
     const socketPath = testIpcPath(root);
-    const server = await createJsonIpcServer({
-      handler: async () => "ok",
-      socketPath,
-      idleTimeoutMs: 30,
-    });
+    const server = await createJsonIpcServer({ handler: async () => "ok", socketPath }, { idleTimeoutMs: 30 });
     try {
       const socket = createConnection(socketPath);
       await new Promise<void>((resolveClosed, rejectNotClosed) => {
@@ -1156,16 +1114,13 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
     const root = await mkdtemp(join(tmpdir(), "jini-sidecar-ipc-concurrent-"));
     const socketPath = testIpcPath(root);
     let handlerCalls = 0;
-    const server = await createJsonIpcServer({
-      handler: async (message: { seq?: number }) => {
+    const server = await createJsonIpcServer({ handler: async ({ message }: { message: { seq?: number } }) => {
         handlerCalls += 1;
         // Widens the in-flight window so the second frame (written below, shortly after
         // the first) reliably arrives while this handler call is still pending.
         await new Promise((resolveDelay) => setTimeout(resolveDelay, 20));
         return { seq: message.seq };
-      },
-      socketPath,
-    });
+      }, socketPath });
     try {
       const socket = createConnection(socketPath);
       const responseChunks: string[] = [];

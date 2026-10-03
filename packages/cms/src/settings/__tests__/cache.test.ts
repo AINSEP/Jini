@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { InMemoryPrincipalRepo } from "../../identity/index.js";
+import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import { getEffective } from "../settings.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
 import {
@@ -20,18 +20,19 @@ import type { SettingDefinitionRecord, SettingValueRecord } from "../types.js";
  * @file Per-layer + definition cache.
  *
  * Covers:
- * - AC-19: a global write to namespace N invalidates only that one
- *   `settings:global:N`-shaped cache entry — no fan-out to workspace/user
- *   layer entries cached for the same namespace.
- * - AC-20: the definition cache is workspace-qualified — two workspaces
- *   holding the same-named site-owned key never see each other's cached
- *   definition, and a cache actually exists (a stale entry survives an
- *   out-of-band repo mutation until its own invalidation path runs).
+ * - : a global write to namespace N invalidates only that one
+ * `settings:global:N`-shaped cache entry — no fan-out to workspace/user
+ * layer entries cached for the same namespace.
+ * - : the definition cache is workspace-qualified — two workspaces
+ * holding the same-named site-owned key never see each other's cached
+ * definition, and a cache actually exists (a stale entry survives an
+ * out-of-band repo mutation until its own invalidation path runs).
  * - Every write path (set/clear, the 4 definition-lifecycle ops, and
- *   purgeTenantSettings) correctly busts the cache entries it owns.
+ * purgeTenantSettings) correctly busts the cache entries it owns.
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
  */
 
-const clock = { nowIso: () => "2026-07-12T00:00:00.000Z" };
+const clock = { nowMs: () => Date.parse("2026-07-12T00:00:00.000Z")};
 let idCounter = 0;
 const ids = { newId: () => `cache-id-${++idCounter}` };
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
@@ -85,7 +86,7 @@ test("AC-19: a global write to namespace N invalidates only that namespace's glo
     workspaceValues: [value({ scope: "workspace", workspaceId: "ws-1", valueJson: "ws-initial" })],
     userValues: [value({ scope: "user", workspaceId: "ws-1", principalId: "p-1", valueJson: "u-initial" })],
   });
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
 
   // Populate 3 distinct layer-cache entries: global (via a workspace with no
   // override), workspace (ws-1), and user (ws-1, p-1).
@@ -194,7 +195,7 @@ test("AC-19 (workspace scope): a workspace-scope write invalidates only that wor
       value({ scope: "workspace", workspaceId: "ws-2", valueJson: "ws2-initial" }),
     ],
   });
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
 
   await getEffective({ repo }, { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } });
   const ws2Before = await getEffective(
@@ -235,7 +236,7 @@ test("clear() invalidates the value cache so a subsequent getEffective reflects 
     globalValues: [value({ scope: "global", valueJson: "g-fallback" })],
     workspaceValues: [value({ scope: "workspace", workspaceId: "ws-1", valueJson: "ws-initial" })],
   });
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
 
   const before = await getEffective(
     { repo },
@@ -266,7 +267,7 @@ test("AC-20: the definition cache is workspace-qualified -- two workspaces with 
     defaultValue: "paper-A",
     scopes: 1 | 2 | 4, // will be overridden below for owner-fence validity
   });
-  // site-owned defs may not declare the global bit (INV-05) -- use workspace|user only.
+  // site-owned defs may not declare the global bit -- use workspace|user only. See docs/decisions/DR-003-settings-ledger-invariants.md.
   defA.scopes = 2 | 4;
   const defB: SettingDefinitionRecord = {
     ...defA,
@@ -317,7 +318,7 @@ test("retypeDefinition invalidates the definition cache so getEffective picks up
   assert.equal(before?.value, "default");
 
   await retypeDefinition({
-    deps: { repo, clock, ids, authorize: alwaysAllow, principals: new InMemoryPrincipalRepo([]) },
+    deps: { repo, clock, ids, authorize: alwaysAllow, principals: new InMemorySettingsPrincipalLookup([]) },
     input: {
       namespace: def.namespace,
       key: def.key,
@@ -346,7 +347,7 @@ test("tombstoneDefinition invalidates the definition cache so getEffective immed
   assert.ok(before, "must resolve before tombstoning");
 
   await tombstoneDefinition({
-    deps: { repo, clock, ids, authorize: alwaysAllow, principals: new InMemoryPrincipalRepo([]) },
+    deps: { repo, clock, ids, authorize: alwaysAllow, principals: new InMemorySettingsPrincipalLookup([]) },
     input: {
       namespace: def.namespace,
       key: def.key,
@@ -367,7 +368,7 @@ test("deprecateDefinition invalidates the definition cache", async () => {
   await getEffective({ repo }, { namespace: def.namespace, key: def.key, scopeContext: {} });
 
   await deprecateDefinition({
-    deps: { repo, clock, ids, authorize: alwaysAllow, principals: new InMemoryPrincipalRepo([]) },
+    deps: { repo, clock, ids, authorize: alwaysAllow, principals: new InMemorySettingsPrincipalLookup([]) },
     input: {
       namespace: def.namespace,
       key: def.key,
@@ -392,7 +393,7 @@ test("renameDefinition invalidates the definition cache for both the old and new
   assert.equal(beforeOld?.value, "default");
 
   await renameDefinition({
-    deps: { repo, clock, ids, authorize: alwaysAllow, principals: new InMemoryPrincipalRepo([]) },
+    deps: { repo, clock, ids, authorize: alwaysAllow, principals: new InMemorySettingsPrincipalLookup([]) },
     input: {
       namespace: "core.ns",
       key: "oldKey",
@@ -477,7 +478,7 @@ test("purgeTenantSettings scoped to a principalId invalidates only that principa
 
 test("registerDefinitions bumps the namespace's definition-cache epoch (no stale not-found entry survives a fresh registration)", async () => {
   const repo = new InMemorySettingsRepo({});
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
 
   const beforeRegister = await getEffective(
     { repo },

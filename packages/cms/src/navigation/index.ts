@@ -56,7 +56,7 @@ export {
   NAVIGATION_AI_TOOLS,
 } from "./contracts.js";
 
-export { createNavMenuReadModel, type NavMenuReadModelDeps } from "./read-model.js";
+export { createNavMenuReadModel, type NavMenuReadModelDeps, type NavMenuReadModelOptions } from "./read-model.js";
 
 /**
  * `MenuRepoPort` is navigation-owned (not part of the frozen `ports.ts` ADR surface — see
@@ -131,9 +131,6 @@ export {
 /** The agent-tool surface for this domain (see `agent-tools.ts` for what is deliberately omitted). */
 export {
   menusAgentToolCatalog,
-  type AgentToolDefinition as NavigationAgentToolDefinition,
-  type AgentToolSideEffect as NavigationAgentToolSideEffect,
-  type AgentToolActorClassRule as NavigationAgentToolActorClassRule,
 } from "./agent-tools.js";
 
 /**

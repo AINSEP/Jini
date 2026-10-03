@@ -9,16 +9,24 @@
  */
 export class DefinitionInvalidError extends Error {}
 export class ScopeNotAllowedError extends Error {}
-export class SecretNotSupportedError extends Error {}
+export class SecretNotSupportedError extends Error {
+  constructor({ message }: { message: string }, optional: ErrorOptions = {}) {
+    super(message, optional);
+  }
+}
 export class ValueValidationFailedError extends Error {}
 export class RenameRetypeConflictError extends Error {}
 export class AliasDepthExceededError extends Error {}
 export class DefinitionTombstonedError extends Error {}
 export class DefinitionNotFoundError extends Error {}
-export class PurgeRequiredError extends Error {}
+export class PurgeRequiredError extends Error {
+  constructor({ message }: { message: string }, optional: ErrorOptions = {}) {
+    super(message, optional);
+  }
+}
 export class ForbiddenError extends Error {}
 
-/** REQ-13: the target `principalId` does not resolve to an active principal in the request's workspace (INV-09). */
+/** : the target `principalId` does not resolve to an active principal in the request's workspace. See docs/decisions/DR-003-settings-ledger-invariants.md. */
 export class PrincipalNotFoundError extends Error {
   constructor(
     message: string,

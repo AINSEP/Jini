@@ -2,7 +2,7 @@
  * @module @jini-ai/a2ui
  *
  * A2UI ("Agent-to-UI") v1.0 wire types + a minimal client-side interpreter — see each module's
- * own doc for detail, and `source-map.md` for provenance, verified-against-primary-source notes,
+ * own doc for detail, and `archived provenance ledger` for provenance, verified-against-primary-source notes,
  * and the honest gap list against full v1.0 spec parity.
  */
 export * from './common-types.js';

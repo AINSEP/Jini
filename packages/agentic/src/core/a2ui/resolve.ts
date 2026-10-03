@@ -34,7 +34,7 @@ export interface ResolveContext {
   readonly catalog: Catalog;
   /** Which side is *evaluating* this binding — the renderer resolving a component's own props (`'renderer'`), or something acting on the agent's behalf. A2UI's spec doesn't explicitly name a case where the agent-side evaluates a `Dynamic*` binding (that's a renderer-only concept — the agent only ever sends `callFunction` for direct RPC), but `callableFromOf` is checked against this side regardless, so a future agent-side evaluator (e.g. resolving `action.event.context` bindings before dispatch — which today happens on the renderer, see `interpreter.ts`'s `buildAction`) is covered by the same boundary without a second resolver. */
   readonly side: ResolveSide;
-  readonly itemScope?: ItemScope;
+  readonly itemScope?: ItemScope | undefined;
 }
 
 export type ResolveFailureReason =
@@ -85,12 +85,12 @@ function resolveBindingPath(path: string, ctx: ResolveContext): ResolveResult {
   const absolute = path.startsWith('/')
     ? path
     : ctx.itemScope
-      ? joinPointer(ctx.itemScope.basePath, String(ctx.itemScope.index), ...parsePointerTokens(`/${path}`))
+      ? joinPointer({ base: ctx.itemScope.basePath, tokens: [String(ctx.itemScope.index), ...parsePointerTokens({ pointer: `/${path}` })] })
       : null;
   if (absolute === null) {
     return { ok: false, reason: 'RELATIVE_PATH_OUTSIDE_LIST_CONTEXT', detail: `relative path "${path}" used outside a list-template item context` };
   }
-  const result = getAtPointer(ctx.dataModel, absolute);
+  const result = getAtPointer({ doc: ctx.dataModel, pointer: absolute });
   if (!result.found) {
     return { ok: false, reason: 'PATH_NOT_FOUND', detail: `no value at "${absolute}" in the current data model` };
   }
@@ -103,16 +103,16 @@ function resolveFunctionCall(call: FunctionCall, ctx: ResolveContext): ResolveRe
       return { ok: false, reason: 'INDEX_OUTSIDE_LIST_CONTEXT', detail: '@index used outside a list-template item context' };
     }
     const offsetArg = call.args?.offset;
-    const offsetResult = offsetArg === undefined ? { ok: true as const, value: 0 } : resolveDynamicValue(offsetArg, ctx);
+    const offsetResult = offsetArg === undefined ? { ok: true as const, value: 0 } : resolveDynamicValue({ value: offsetArg, ctx: ctx }, { itemScope: ctx.itemScope });
     if (!offsetResult.ok) return offsetResult;
     const offset = typeof offsetResult.value === 'number' ? offsetResult.value : 0;
     return { ok: true, value: ctx.itemScope.index + offset };
   }
 
-  if (!isFunctionRegistered(ctx.catalog, call.call)) {
+  if (!isFunctionRegistered({ catalog: ctx.catalog, functionName: call.call })) {
     return { ok: false, reason: 'FUNCTION_NOT_REGISTERED', detail: `function "${call.call}" is not registered in catalog "${ctx.catalog.catalogId}"` };
   }
-  const callableFrom = callableFromOf(ctx.catalog, call.call);
+  const callableFrom = callableFromOf({ catalog: ctx.catalog, functionName: call.call });
   const allowed = callableFrom === 'rendererOrAgent' || (callableFrom === 'rendererOnly' && ctx.side === 'renderer') || (callableFrom === 'agentOnly' && ctx.side === 'agent');
   if (!allowed) {
     return {
@@ -172,12 +172,13 @@ function resolveArgValue(argValue: unknown, ctx: ResolveContext): ResolveResult 
     }
     return { ok: true, value: resolvedItems };
   }
-  return resolveDynamicValue(argValue as DynamicValue, ctx);
+  return resolveDynamicValue({ value: argValue as DynamicValue, ctx: ctx }, { itemScope: ctx.itemScope });
 }
 
 /** Resolves any `Dynamic*` value (`DynamicString`/`DynamicNumber`/`DynamicBoolean`/`DynamicStringList`/`DynamicValue` all share this one shape: literal | `DataBinding` | `FunctionCall`). */
-export function resolveDynamicValue(value: unknown, ctx: ResolveContext): ResolveResult {
-  if (isDataBinding(value)) return resolveBindingPath(value.path, ctx);
-  if (isFunctionCall(value)) return resolveFunctionCall(value, ctx);
+export function resolveDynamicValue({ value, ctx }: { value: unknown; ctx: Omit<ResolveContext, 'itemScope'> }, { itemScope }: { itemScope?: ItemScope | undefined } = {}): ResolveResult {
+  const context: ResolveContext = { ...ctx, ...(itemScope === undefined ? {} : { itemScope }) };
+  if (isDataBinding(value)) return resolveBindingPath(value.path, context);
+  if (isFunctionCall(value)) return resolveFunctionCall(value, context);
   return { ok: true, value };
 }

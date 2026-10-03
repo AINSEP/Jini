@@ -133,8 +133,6 @@ export {
 /** The agent-tool catalog for this domain. */
 export {
   getSettingsAgentToolCatalog,
-  type AgentToolDefinition as SettingsAgentToolDefinition,
-  type AgentToolSideEffect as SettingsAgentToolSideEffect,
 } from "./agent-tools.js";
 
 /**
@@ -152,3 +150,7 @@ export {
 
 /** The settings-dialog chrome copy (24 generic tab labels/subtitles), shared across every host. */
 export { SETTINGS_DIALOG_DICTIONARIES, translateSettingsDialog } from "./dictionaries/index.js";
+export { AGENT_WRITE_CONFIRMATION_SETTINGS, AGENT_WRITE_DENIED_SETTINGS, findAgentWriteRule, type AgentSettingWriteRule } from "./agent-write-denylist.js";
+export type { SettingsWriteConfirmation, SettingsValueWriteToolId } from "./agent-value-write-tools.js";
+
+export type { SettingsPrincipalLookupPort } from "./principal-lookup.js";

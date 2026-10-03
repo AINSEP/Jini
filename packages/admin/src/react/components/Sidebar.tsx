@@ -1,6 +1,7 @@
 import {
   Fragment,
   createContext,
+  createElement,
   useContext,
   useEffect,
   useMemo,
@@ -8,6 +9,7 @@ import {
   useState,
   type FocusEvent,
   type MouseEvent,
+  type ReactElement,
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -23,7 +25,7 @@ import { useSidebarRail } from '../hooks/use-sidebar-rail.js';
  *
  * A sidebar's *content* and its *chrome* are two different questions, and only the first has an
  * obvious owner. The content is already host-owned: `<Sidebar.Nav>` takes the array `/core`'s
- * `buildNav(panels)` returns, so this package ships no labels, no icons, and no section list.
+ * `buildNav({ panels })` returns, so this package ships no labels, no icons, and no section list.
  *
  * The chrome is where a props-based API quietly imposes one host's product decisions on every other
  * host. An earlier draft of this component rendered a mobile header, then the nav, then a footer
@@ -37,7 +39,7 @@ import { useSidebarRail } from '../hooks/use-sidebar-rail.js';
  *
  *     <Sidebar activeId={activeId} base="/admin">
  *       <Sidebar.MobileHeader onClose={closeDrawer} />
- *       <Sidebar.Nav groups={buildNav(panels)} />
+ *       <Sidebar.Nav groups={buildNav({ panels })} />
  *       <Sidebar.Footer>
  *         <Sidebar.RailToggle />
  *         <MyLogoutButton onClick={logout} />
@@ -122,15 +124,106 @@ export function useSidebar(): SidebarContextValue {
   return value;
 }
 
+/**
+ * Shape elements `AdminNavEntry.icon` markup may use. A host draws its own glyphs as raw inner
+ * SVG (see that field's doc comment in `core/manifest/types.ts`), so this can't be a fixed set of
+ * named icons — but it also means the string reaching {@link Icon} was written by whoever owns the
+ * nav entry, which soon enough will be a descriptor rather than code. `g` is included so multi-path
+ * icons can group and transform their pieces together.
+ */
+const ICON_ALLOWED_TAGS = new Set(['path', 'circle', 'rect', 'line', 'polygon', 'polyline', 'ellipse', 'g']);
+
+/**
+ * Presentation attributes let through on an icon shape, mapped from their SVG/XML spelling to the
+ * camelCase prop name React expects. Anything not listed here — `style`, `href`/`xlink:href`, every
+ * `on*` handler — is dropped by {@link sanitizeIconNode} rather than passed through, so there is no
+ * allowlist gap to keep in sync with a separate denylist.
+ */
+const ICON_ALLOWED_ATTRS: Record<string, string> = {
+  d: 'd',
+  cx: 'cx',
+  cy: 'cy',
+  r: 'r',
+  rx: 'rx',
+  ry: 'ry',
+  x: 'x',
+  y: 'y',
+  width: 'width',
+  height: 'height',
+  x1: 'x1',
+  y1: 'y1',
+  x2: 'x2',
+  y2: 'y2',
+  points: 'points',
+  transform: 'transform',
+  fill: 'fill',
+  'fill-rule': 'fillRule',
+  opacity: 'opacity',
+  'stroke-width': 'strokeWidth',
+  'stroke-linecap': 'strokeLinecap',
+  'stroke-linejoin': 'strokeLinejoin',
+  'clip-rule': 'clipRule',
+};
+
+/**
+ * Rebuilds one parsed element as a React element, keeping only {@link ICON_ALLOWED_TAGS} /
+ * {@link ICON_ALLOWED_ATTRS}. This is what stands in for `dangerouslySetInnerHTML`: the browser's
+ * own parser does the tokenizing (far less error-prone than a hand-rolled regex over SVG/XML), and
+ * this function decides what survives the trip into React's tree — a `<script>`, a `<foreignObject>`
+ * carrying arbitrary HTML, an `<image>`/`<use>` reference, or an `onload=` attribute all fail to
+ * match anything on either allowlist and are simply not there afterward, whatever they contained.
+ */
+function sanitizeIconNode(node: Element, key: number): ReactElement | null {
+  const tag = node.tagName.toLowerCase();
+  if (!ICON_ALLOWED_TAGS.has(tag)) return null;
+
+  // `key` goes straight into the props object — `createElement` pulls it out as the element's
+  // reserved key rather than forwarding it to the DOM, the same as writing `key={key}` in JSX.
+  const props: Record<string, string | number> = { key };
+  for (const attr of Array.from(node.attributes)) {
+    const propName = ICON_ALLOWED_ATTRS[attr.name.toLowerCase()];
+    if (propName) props[propName] = attr.value;
+  }
+
+  const children = Array.from(node.children)
+    .map((child, i) => sanitizeIconNode(child, i))
+    .filter((child): child is ReactElement => child !== null);
+
+  return createElement(tag, props, children.length ? children : undefined);
+}
+
+// Reused across parses rather than constructed per render — `DOMParser` instances are stateless
+// and this runs once per icon render, but there is no reason to pay allocation cost for it twice.
+let iconMarkupParser: DOMParser | undefined;
+
+/**
+ * Parses one `AdminNavEntry.icon` string into a sanitized element list. Wrapping in a throwaway
+ * `<svg>` document (never attached to the page — this is markup parsing, not rendering) lets the
+ * browser's own XML parser validate structure for free: malformed markup surfaces as a
+ * `parsererror` node, which is treated the same as empty input — the row loses its icon, not its
+ * label or link.
+ */
+function parseIconMarkup(markup: string): ReactElement[] {
+  if (!markup) return [];
+  iconMarkupParser ??= new DOMParser();
+  const doc = iconMarkupParser.parseFromString(
+    `<svg xmlns="http://www.w3.org/2000/svg">${markup}</svg>`,
+    'image/svg+xml',
+  );
+  if (doc.getElementsByTagName('parsererror').length > 0) return [];
+  return Array.from(doc.documentElement.children)
+    .map((child, i) => sanitizeIconNode(child, i))
+    .filter((child): child is ReactElement => child !== null);
+}
+
 function Icon(props: { markup: string }) {
+  // Re-parsing on every keystroke of an unrelated state update would be wasted work for a string
+  // that, in practice, never changes after the nav manifest is built.
+  const children = useMemo(() => parseIconMarkup(props.markup), [props.markup]);
   return (
-    <svg
-      viewBox="0 0 18 18"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      dangerouslySetInnerHTML={{ __html: props.markup }}
-    />
+    <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      {children}
+    </svg>
   );
 }
 
@@ -195,8 +288,17 @@ export interface SidebarProps {
   children?: ReactNode;
 }
 
+// Read the browser storage property only inside the hooks' best-effort get/set calls: the
+// property getter itself can throw in restricted embeds, before a hook can catch the failure.
+const sidebarStorage: Pick<Storage, 'getItem' | 'setItem'> = {
+  getItem: (key) => localStorage.getItem(key),
+  setItem: (key, value) => localStorage.setItem(key, value),
+};
+
 function SidebarRoot(props: SidebarProps) {
-  const rail = useSidebarRail(props.railStorageKey, props.railDefaultCollapsed);
+  const rail = useSidebarRail({ storage: sidebarStorage, events: window }, {
+    storageKey: props.railStorageKey, defaultCollapsed: props.railDefaultCollapsed,
+  });
   const [tooltip, setTooltip] = useState<TooltipTarget | null>(null);
   const open = props.open ?? false;
   const base = props.base ?? DEFAULT_ADMIN_BASE;
@@ -297,7 +399,7 @@ function SidebarMobileHeader(props: SidebarMobileHeaderProps) {
 }
 
 export interface SidebarNavProps {
-  /** From `/core`'s `buildNav(resolvePanels(panels, context))`. */
+  /** From `/core`'s `buildNav({ panels: resolvePanels({ panels }, context) })`. */
   groups: readonly AdminNavGroup[];
   /** Label on a `soon` item's badge. @default "Soon" */
   soonLabel?: ReactNode;
@@ -319,7 +421,7 @@ export interface SidebarNavProps {
 
 function SidebarNav(props: SidebarNavProps) {
   const { activeId, base, collapsed, railTooltipProps } = useSidebar();
-  const sections = useNavSections();
+  const sections = useNavSections({ storage: sidebarStorage, events: window });
 
   return (
     <>
@@ -332,7 +434,7 @@ function SidebarNav(props: SidebarNavProps) {
          * returns intact when the rail expands — this only overrides what is rendered.
          */
         const collapsible = Boolean(group.label) && !collapsed && (props.collapsibleGroups ?? []).includes(group.label as string);
-        const open = !collapsible || sections.isOpen(group.label as string);
+        const open = !collapsible || sections.isOpen({ groupLabel: group.label as string });
         const panelId = `cms-section-${(group.label ?? `top-${gi}`).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
         return (
@@ -349,7 +451,7 @@ function SidebarNav(props: SidebarNavProps) {
               className={`cms-group cms-group-toggle${open ? '' : ' is-closed'}`}
               aria-expanded={open}
               aria-controls={panelId}
-              onClick={() => sections.toggle(group.label as string)}
+              onClick={() => sections.toggle({ groupLabel: group.label as string })}
             >
               <span>{group.label}</span>
               <svg className="cms-group-chevron" viewBox="0 0 18 18" fill="none" aria-hidden="true">
@@ -365,7 +467,7 @@ function SidebarNav(props: SidebarNavProps) {
           <div className="cms-section-items" id={panelId} hidden={!open}>
           {group.items.map((item) => {
             const active = item.id === activeId;
-            const href = adminHref(item.href, base);
+            const href = adminHref({ routePath: item.href }, { base });
             if (props.renderItem) {
               return <Fragment key={item.id}>{props.renderItem(item, { active, href, collapsed })}</Fragment>;
             }

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { InMemoryPrincipalRepo } from "../../identity/index.js";
+import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import { DefinitionInvalidError, RenameRetypeConflictError } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
 import { registerDefinitions, retypeDefinition } from "../write-service.js";
 import type { SettingDefinitionRecord } from "../types.js";
 
-const clock = { nowIso: () => "2026-07-12T00:00:00.000Z" };
+const clock = { nowMs: () => Date.parse("2026-07-12T00:00:00.000Z")};
 let idCounter = 0;
 const ids = { newId: () => `id-${++idCounter}` };
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
@@ -15,7 +15,7 @@ const NOW = "2026-07-12T00:00:00.000Z";
 
 function deps(seed: { definitions?: SettingDefinitionRecord[] } = {}) {
   const repo = new InMemorySettingsRepo(seed);
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
   return { repo, clock, ids, authorize: alwaysAllow, principals };
 }
 

@@ -43,7 +43,7 @@ export interface DelegatedToolBridge {
    * routing errors from `ToolExecutor` and are rethrown after their error
    * result is recorded.
    */
-  execute(invocation: DelegatedToolInvocation): Promise<ToolExecutionResult>;
+  execute(requiredArgs: Pick<DelegatedToolInvocation, "runId" | "toolUseId" | "toolId" | "principal" | "input">, optionalArgs?: Pick<DelegatedToolInvocation, "signal">): Promise<ToolExecutionResult>;
 }
 
 export interface CreateDelegatedToolBridgeOptions {
@@ -76,7 +76,7 @@ function errorMessage(error: unknown): string {
 }
 
 /** Converts arbitrary registered-tool output into the string-bearing run protocol. */
-export function serializeDelegatedToolOutput(output: unknown): string {
+export function serializeDelegatedToolOutput({ output }: { readonly output: unknown }): string {
   if (typeof output === 'string') return output;
   if (output === undefined) return '';
   try {
@@ -92,10 +92,10 @@ export function serializeDelegatedToolOutput(output: unknown): string {
  * gap 3's stdin-tool-result injector in `agent-executor.ts`) reports back as the tool's visible
  * output/failure reason. Exported so both real callers share one mapping rather than drifting.
  */
-export function resultContent(result: ToolExecutionResult): string {
+export function resultContent({ result }: { readonly result: ToolExecutionResult }): string {
   switch (result.status) {
     case 'completed':
-      return serializeDelegatedToolOutput(result.output);
+      return serializeDelegatedToolOutput({ output: result.output });
     case 'denied':
       return 'Tool execution denied by policy.';
     case 'confirmation-denied':
@@ -118,15 +118,16 @@ export function resultContent(result: ToolExecutionResult): string {
 export function createDelegatedToolBridge(options: CreateDelegatedToolBridgeOptions): DelegatedToolBridge {
   const { lifecycle, toolExecutor } = options;
 
-  async function execute(invocation: DelegatedToolInvocation): Promise<ToolExecutionResult> {
+  async function execute(requiredArgs: Pick<DelegatedToolInvocation, "runId" | "toolUseId" | "toolId" | "principal" | "input">, optionalArgs: Pick<DelegatedToolInvocation, "signal"> = {}): Promise<ToolExecutionResult> {
+  const invocation: DelegatedToolInvocation = { ...requiredArgs, ...optionalArgs };
     const { runId, toolUseId, toolId, principal, input } = invocation;
-    await lifecycle.emit(runId, {
+    await lifecycle.emit({ runId: runId, input: {
       event: 'agent',
       data: { type: 'tool_use', id: toolUseId, name: toolId, input },
-    });
+    } });
 
     const controller = new AbortController();
-    const unsubscribeCancel = lifecycle.onCancelRequested(runId, () => controller.abort());
+    const unsubscribeCancel = lifecycle.onCancelRequested({ runId: runId, listener: () => controller.abort() });
     const abortFromTransport = () => controller.abort();
     if (invocation.signal) {
       if (invocation.signal.aborted) controller.abort();
@@ -184,18 +185,12 @@ export function createDelegatedToolBridge(options: CreateDelegatedToolBridgeOpti
         type: emission.channel,
         ...correlationFor(emission.channel, toolUseId),
       } as unknown as RunAgentPayload;
-      await lifecycle.emit(runId, { event: 'agent', data });
+      await lifecycle.emit({ runId: runId, input: { event: 'agent', data } });
     };
 
     try {
       try {
-        const executed = await toolExecutor.execute(
-          principal,
-          run,
-          toolId,
-          input,
-          controller.signal,
-          emitSurface,
+        const executed = await toolExecutor.execute({ principal: principal, run: run, toolId: toolId, input: input }, { signal: controller.signal, emitSurface: emitSurface }
         );
         settled = true;
 
@@ -212,7 +207,7 @@ export function createDelegatedToolBridge(options: CreateDelegatedToolBridgeOpti
         // that the sibling `media` field was the only channel a caller needed — true for a UI
         // reading the run's event stream, false for `@jini-ai/mcp`'s `execute_delegated_tool`, which
         // hands the bridge's RETURN VALUE to the model with no access to that event stream at all.)
-        const { media } = extractResultMedia(executed.output);
+        const { media } = extractResultMedia({ output: executed.output });
 
         // THE MODEL/HUMAN FORK. A tool call's return value is definitionally what the model
         // receives, so a UI resource left inside it is model-visible context no matter what any
@@ -223,35 +218,35 @@ export function createDelegatedToolBridge(options: CreateDelegatedToolBridgeOpti
         // Whitelist, not blacklist: only block types known to be model-safe survive into `output`;
         // everything else is withheld and emitted for the human. See `tool-result-surfaces.ts` for
         // why that direction is load-bearing.
-        const { modelOutput, surfaces } = splitToolResultSurfaces(executed.output);
+        const { modelOutput, surfaces } = splitToolResultSurfaces({ output: executed.output });
         const result: ToolExecutionResult = surfaces.length === 0 ? executed : { ...executed, output: modelOutput };
 
         // Emitted BEFORE `tool_result` so the surface is on screen by the time the transcript shows
         // the call completing — otherwise the human is asked to confirm something not yet visible.
         for (const surface of surfaces) {
-          await lifecycle.emit(runId, {
+          await lifecycle.emit({ runId: runId, input: {
             event: 'agent',
             data: { type: MCP_UI_EVENT_TYPE, toolUseId, resource: surface },
-          });
+          } });
         }
 
-        await lifecycle.emit(runId, {
+        await lifecycle.emit({ runId: runId, input: {
           event: 'agent',
           data: {
             type: 'tool_result',
             toolUseId,
-            content: resultContent(result),
+            content: resultContent({ result }),
             ...(result.status === 'completed' ? {} : { isError: true }),
             ...(media.length > 0 ? { media } : {}),
           },
-        });
+        } });
         return result;
       } catch (error) {
         settled = true;
-        await lifecycle.emit(runId, {
+        await lifecycle.emit({ runId: runId, input: {
           event: 'agent',
           data: { type: 'tool_result', toolUseId, content: errorMessage(error), isError: true },
-        });
+        } });
         throw error;
       }
     } finally {

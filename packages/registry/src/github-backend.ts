@@ -16,6 +16,7 @@ import type {
   RegistryYankOutcome,
 } from '@jini-ai/protocol';
 import { assertValidPublishRequest, StaticRegistryBackend } from './static-backend.js';
+import type { Clock } from '@jini-ai/core/primitives';
 import type { RegistryTrustRoot } from './trust.js';
 
 /** `vendor/name` — deliberately the same shape `RegistryEntrySchema.name` requires. */
@@ -63,7 +64,7 @@ function assertNoControlChars(value: string, label: string): string {
 
 /** Read/write access to a GitHub-hosted registry manifest, injected by the host. */
 export interface GithubRegistryClient {
-  readManifest(owner: string, repo: string, ref: string, path: string): Promise<RegistryManifest>;
+  readManifest(required: { owner: string; repo: string; ref: string; path: string }): Promise<RegistryManifest>;
   createPublishPullRequest?(request: GithubPublishMutation): Promise<{ url: string }>;
 }
 
@@ -78,9 +79,7 @@ export interface GithubPublishMutation {
 }
 
 export interface GithubRegistryBackendOptions {
-  id: string;
-  owner: string;
-  repo: string;
+  clock?: Clock;
   ref?: string;
   manifestPath?: string;
   /**
@@ -91,7 +90,6 @@ export interface GithubRegistryBackendOptions {
    * the least-privileged `'restricted'` when omitted.
    */
   trust?: RegistryTrust;
-  client: GithubRegistryClient;
   /** Optional `github-oidc` signature trust root — see `StaticRegistryBackendOptions.trustRoot`'s doc comment for what configuring (or omitting) this does. */
   trustRoot?: RegistryTrustRoot | undefined;
 }
@@ -108,12 +106,12 @@ export class GithubRegistryBackend extends StaticRegistryBackend {
   // `ref`/`manifestPath` are required (not `?:`) here — the only call site,
   // `create()`, always resolves them to concrete strings before constructing,
   // so a `??` default in this constructor would be unreachable dead code.
-  private constructor(options: Omit<GithubRegistryBackendOptions, 'ref' | 'manifestPath'> & {
+  private constructor(options: GithubRegistryBackendOptions & { id: string; owner: string; repo: string; client: GithubRegistryClient } & {
     ref: string;
     manifestPath: string;
     manifest: RegistryManifest;
   }) {
-    super({ id: options.id, kind: 'github', trust: options.trust ?? 'restricted', manifest: options.manifest, trustRoot: options.trustRoot });
+    super({ id: options.id, trust: options.trust ?? 'restricted', manifest: options.manifest }, { kind: 'github', trustRoot: options.trustRoot, ...(options.clock ? { clock: options.clock } : {}) });
     this.owner = options.owner;
     this.repo = options.repo;
     this.ref = options.ref;
@@ -124,32 +122,33 @@ export class GithubRegistryBackend extends StaticRegistryBackend {
   /**
    * Read the manifest from the configured GitHub path and construct the backend.
    *
-   * @param options - Repo coordinates, optional ref/path, and the client to read/write through.
+   * @param required - Repo coordinates and the client to read/write through.
+   * @param options - Optional ref/path, trust policy, signature roots and clock.
    * @returns The constructed backend, already holding its first manifest snapshot.
    */
-  static async create(options: GithubRegistryBackendOptions): Promise<GithubRegistryBackend> {
+  static async create(required: { id: string; owner: string; repo: string; client: GithubRegistryClient }, options: GithubRegistryBackendOptions = {}): Promise<GithubRegistryBackend> {
     const ref = options.ref ?? 'main';
     const manifestPath = options.manifestPath ?? DEFAULT_MANIFEST_PATH;
-    const manifest = await options.client.readManifest(options.owner, options.repo, ref, manifestPath);
-    return new GithubRegistryBackend({ ...options, ref, manifestPath, manifest });
+    const manifest = await required.client.readManifest({ owner: required.owner, repo: required.repo, ref, path: manifestPath });
+    return new GithubRegistryBackend({ ...required, ...options, ref, manifestPath, manifest });
   }
 
-  async publish(request: RegistryPublishRequest): Promise<RegistryPublishOutcome> {
+  async publish(required: Pick<RegistryPublishRequest, 'entry'>, optional: Omit<RegistryPublishRequest, 'entry'> = {}): Promise<RegistryPublishOutcome> {
     // `publish` is a public method on a plain-string/JS-object boundary — an
     // untyped caller's `name`/`version` are used to build a file path and PR
     // branch name below, so both must be validated before that happens.
-    const [vendor, name] = assertSafeEntryName(request.entry.name);
-    const version = assertSafeVersion(request.entry.version);
+    const [vendor, name] = assertSafeEntryName(required.entry.name);
+    const version = assertSafeVersion(required.entry.version);
     // Beyond the path-safety checks above, validate the *whole* request
     // against the wire schema before any of its fields get written into the
     // published manifest content below (see CR-009/`assertValidPublishRequest`).
-    const parsed = assertValidPublishRequest(request);
+    const parsed = assertValidPublishRequest(required, optional);
     const root = `entries/${vendor}/${name}`;
     const files = [
       { path: `${root}/entry.json`, content: `${JSON.stringify(parsed.entry, null, 2)}\n` },
       {
         path: `${root}/versions/${version}.json`,
-        content: `${JSON.stringify({ ...parsed.entry, publishedAt: new Date().toISOString(), tag: parsed.tag ?? 'latest' }, null, 2)}\n`,
+        content: `${JSON.stringify({ ...parsed.entry, publishedAt: new Date(this.clock.nowMs()).toISOString(), tag: parsed.tag ?? 'latest' }, null, 2)}\n`,
       },
     ];
 
@@ -175,7 +174,7 @@ export class GithubRegistryBackend extends StaticRegistryBackend {
     return { ok: true, dryRun: false, pullRequestUrl: pr.url, changedFiles: files.map((file) => file.path), warnings: [] };
   }
 
-  async yank(name: string, version: string, reason: string): Promise<RegistryYankOutcome> {
+  async yank({ name, version, reason }: { name: string; version: string; reason: string }): Promise<RegistryYankOutcome> {
     const [vendor, entryName] = assertSafeEntryName(name);
     const safeVersion = assertSafeVersion(version);
     assertNoControlChars(reason, 'yank reason');
@@ -202,7 +201,7 @@ export class GithubRegistryBackend extends StaticRegistryBackend {
       files: [
         {
           path,
-          content: `${JSON.stringify({ name, version, yanked: true, yankedAt: new Date().toISOString(), yankReason: reason }, null, 2)}\n`,
+          content: `${JSON.stringify({ name, version, yanked: true, yankedAt: new Date(this.clock.nowMs()).toISOString(), yankReason: reason }, null, 2)}\n`,
         },
       ],
     };

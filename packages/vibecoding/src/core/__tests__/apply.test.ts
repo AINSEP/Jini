@@ -19,12 +19,12 @@ function makeTarget(options?: {
   return {
     parts,
     listParts: async () => [...parts.keys()].map((id) => ({ id })),
-    readPart: async (id) => {
+    readPart: async ({ id }) => {
       const found = parts.get(id);
       if (found === undefined) throw new Error(`no such part: ${id}`);
       return found;
     },
-    replacePart: async (id, content) => {
+    replacePart: async ({ id, content }) => {
       if (options?.failWriteOn === id) throw new Error("disk on fire");
       parts.set(id, content);
     },
@@ -32,7 +32,7 @@ function makeTarget(options?: {
       id: "snap",
       parts: Object.fromEntries(parts),
     }),
-    restore: async (snapshot) => {
+    restore: async ({ snapshot }) => {
       parts.clear();
       for (const [id, content] of Object.entries(snapshot.parts)) parts.set(id, content);
     },
@@ -44,7 +44,7 @@ describe("applyEdit", () => {
   test("commits when the host validates the change", async () => {
     const target = makeTarget({ initial: { a: "old" } });
 
-    const outcome = await applyEdit(target, { id: "a", content: "new" });
+    const outcome = await applyEdit({ target, edit: { id: "a", content: "new" } });
 
     expect(outcome).toEqual({ status: "applied", id: "a" });
     expect(target.parts.get("a")).toBe("new");
@@ -53,7 +53,7 @@ describe("applyEdit", () => {
   test("replace is an upsert — a part that did not exist is created", async () => {
     const target = makeTarget();
 
-    const outcome = await applyEdit(target, { id: "fresh", content: "hello" });
+    const outcome = await applyEdit({ target, edit: { id: "fresh", content: "hello" } });
 
     expect(outcome.status).toBe("applied");
     expect(target.parts.get("fresh")).toBe("hello");
@@ -65,7 +65,7 @@ describe("applyEdit", () => {
       validate: () => ({ ok: false, reason: "unclosed <section>" }),
     });
 
-    const outcome = await applyEdit(target, { id: "a", content: "<section>" });
+    const outcome = await applyEdit({ target, edit: { id: "a", content: "<section>" } });
 
     expect(outcome).toEqual({ status: "rejected", id: "a", reason: "unclosed <section>" });
     // The critical assertion: rejection must leave the artifact untouched.
@@ -82,7 +82,7 @@ describe("applyEdit", () => {
       },
     });
 
-    await applyEdit(target, { id: "a", content: "proposed" });
+    await applyEdit({ target, edit: { id: "a", content: "proposed" } });
 
     expect(seen).toEqual(["proposed"]);
   });
@@ -90,7 +90,7 @@ describe("applyEdit", () => {
   test("a write failure surfaces as `failed` rather than being swallowed", async () => {
     const target = makeTarget({ initial: { a: "old" }, failWriteOn: "a" });
 
-    const outcome = await applyEdit(target, { id: "a", content: "new" });
+    const outcome = await applyEdit({ target, edit: { id: "a", content: "new" } });
 
     expect(outcome.status).toBe("failed");
     if (outcome.status !== "failed") throw new Error("unreachable");
@@ -99,13 +99,42 @@ describe("applyEdit", () => {
 });
 
 describe("applyEdits", () => {
+  test.each([new Error("validator unavailable"), "validator unavailable"])(
+    "a validation exception becomes a failed outcome and later proposals still apply (%s)",
+    async (failure) => {
+      const target = makeTarget({
+        initial: { bad: "original" },
+        validate: ({ id }) => {
+          if (id === "bad") throw failure;
+          return { ok: true };
+        },
+      });
+
+      const outcomes = await applyEdits({ target, edits: [
+        { id: "bad", content: "must not land" },
+        { id: "good", content: "landed" },
+      ] });
+
+      expect(outcomes).toEqual([
+        { status: "failed", id: "bad", error: failure instanceof Error ? failure : new Error(failure) },
+        { status: "applied", id: "good" },
+      ]);
+      if (failure instanceof Error && outcomes[0]?.status === "failed") {
+        expect(outcomes[0].error).toBe(failure);
+      }
+      expect(target.parts.get("bad")).toBe("original");
+      expect(target.parts.get("good")).toBe("landed");
+      expect(correctionsFor({ outcomes })).toEqual([{ id: "bad", reason: "validator unavailable" }]);
+    },
+  );
+
   test("returns one outcome per proposal, positionally aligned", async () => {
     const target = makeTarget();
 
-    const outcomes = await applyEdits(target, [
+    const outcomes = await applyEdits({ target, edits: [
       { id: "a", content: "1" },
       { id: "b", content: "2" },
-    ]);
+    ] });
 
     expect(outcomes.map((o) => o.status)).toEqual(["applied", "applied"]);
     expect(outcomes.map((o) => o.id)).toEqual(["a", "b"]);
@@ -117,10 +146,10 @@ describe("applyEdits", () => {
         candidate.id === "bad" ? { ok: false, reason: "nope" } : { ok: true },
     });
 
-    const outcomes = await applyEdits(target, [
+    const outcomes = await applyEdits({ target, edits: [
       { id: "bad", content: "x" },
       { id: "good", content: "y" },
-    ]);
+    ] });
 
     expect(outcomes.map((o) => o.status)).toEqual(["rejected", "applied"]);
     expect(target.parts.get("good")).toBe("y");
@@ -130,10 +159,10 @@ describe("applyEdits", () => {
   test("edits apply in the given order", async () => {
     const target = makeTarget();
 
-    await applyEdits(target, [
+    await applyEdits({ target, edits: [
       { id: "a", content: "first" },
       { id: "a", content: "second" },
-    ]);
+    ] });
 
     expect(target.parts.get("a")).toBe("second");
   });
@@ -147,13 +176,13 @@ describe("correctionsFor", () => {
         candidate.id === "bad" ? { ok: false, reason: "unclosed tag" } : { ok: true },
     });
 
-    const outcomes = await applyEdits(target, [
+    const outcomes = await applyEdits({ target, edits: [
       { id: "fine", content: "ok" },
       { id: "bad", content: "x" },
       { id: "boom", content: "y" },
-    ]);
+    ] });
 
-    expect(correctionsFor(outcomes)).toEqual([
+    expect(correctionsFor({ outcomes })).toEqual([
       { id: "bad", reason: "unclosed tag" },
       { id: "boom", reason: "disk on fire" },
     ]);
@@ -161,9 +190,9 @@ describe("correctionsFor", () => {
 
   test("an all-applied batch produces no corrections", async () => {
     const target = makeTarget();
-    const outcomes = await applyEdits(target, [{ id: "a", content: "1" }]);
+    const outcomes = await applyEdits({ target, edits: [{ id: "a", content: "1" }] });
 
-    expect(correctionsFor(outcomes)).toEqual([]);
+    expect(correctionsFor({ outcomes })).toEqual([]);
   });
 });
 
@@ -172,13 +201,13 @@ describe("snapshot / restore", () => {
     const target = makeTarget({ initial: { a: "original" } });
     const snap = await target.snapshot();
 
-    await applyEdits(target, [
+    await applyEdits({ target, edits: [
       { id: "a", content: "edited" },
       { id: "added-later", content: "new part" },
-    ]);
+    ] });
     expect(target.parts.get("a")).toBe("edited");
 
-    await target.restore(snap);
+    await target.restore({ snapshot: snap });
 
     expect(target.parts.get("a")).toBe("original");
     expect(target.parts.has("added-later")).toBe(false);

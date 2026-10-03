@@ -31,7 +31,7 @@
  * `menu-service.ts`'s job) — these classes are dumb, uniqueness-enforcing
  * collections.
  */
-import type { UUID } from "../core/ports.js";
+import type { UUID } from "@jini-ai/core/primitives";
 import type { NavLocationBindingRepoPort } from "./ports.js";
 import type { NavLocationBindingRow, NavLocationKey, NavMenuEntry } from "./types.js";
 
@@ -69,7 +69,8 @@ export interface MenuRepoPort {
 export class InMemoryMenuRepo implements MenuRepoPort {
   private rows: NavMenuEntry[];
 
-  constructor(initialRows: NavMenuEntry[] = []) {
+  constructor(requiredArgs: Record<string, never>, optionalArgs: { initialRows?: NavMenuEntry[] } = {}) {
+    const { initialRows = [] } = optionalArgs;
     this.rows = [...initialRows];
   }
 
@@ -129,7 +130,8 @@ export class InMemoryMenuRepo implements MenuRepoPort {
 export class InMemoryNavLocationBindingRepo implements NavLocationBindingRepoPort {
   private rows: NavLocationBindingRow[];
 
-  constructor(initialRows: NavLocationBindingRow[] = []) {
+  constructor(requiredArgs: Record<string, never>, optionalArgs: { initialRows?: NavLocationBindingRow[] } = {}) {
+    const { initialRows = [] } = optionalArgs;
     this.rows = [...initialRows];
   }
 

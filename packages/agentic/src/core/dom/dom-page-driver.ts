@@ -246,14 +246,17 @@ export interface DomPageDriverPage {
   /** Shown to a caller by `page.find_elements`/`page.navigate`'s refusal message — see
    *  `PageSummary.label` for why this exists at all. */
   readonly label: string;
-  readonly navigate: () => void;
+  readonly navigate: (required: Record<string, never>) => void;
 }
 
-export interface DomPageDriverOptions {
+export interface DomPageDriverRequired {
   /** The subtree to expose. Never pass `document`. */
   readonly root: ParentNode & { querySelector: Element['querySelector'] };
   /** Page ids this driver may navigate to, each with its label and how to get there. */
   readonly pages: Readonly<Record<string, DomPageDriverPage>>;
+}
+
+export interface DomPageDriverOptions {
   /**
    * The id of the page currently shown, reported on every element.
    *
@@ -272,8 +275,7 @@ export interface DomPageDriverOptions {
  * @param options - The subtree, the navigable pages, and the current page id.
  * @returns A driver ready to hand to `executePageCapability`.
  */
-export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
-  const { root, pages } = options;
+export function createDomPageDriver({ root, pages }: DomPageDriverRequired, options: DomPageDriverOptions = {}): PageDriver {
   /**
    * The page a specific element belongs to — its own nearest `[data-agent-page]` ancestor, not a
    * single document-wide guess.
@@ -306,7 +308,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
    * publishes the same handle twice makes `find`'s single-match resolution ambiguous — surfaced
    * here so both callers below can refuse rather than silently pick one.
    */
-  const findAll = (handle: string): Element[] => Array.from(root.querySelectorAll(resolveHandleSelector(handle)))
+  const findAll = (handle: string): Element[] => Array.from(root.querySelectorAll(resolveHandleSelector({ handle })))
     .filter((element) => !isPrivate(element));
 
   /**
@@ -363,7 +365,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
   };
 
   return {
-    async findElements(filter: FindElementsFilter) {
+    async findElements(_required: Record<string, never>, filter: FindElementsFilter = {}) {
       const found = Array.from(root.querySelectorAll(`[${AGENT_ELEMENT_ATTRIBUTE}]`))
         .filter((element) => !isPrivate(element))
         .map((element) => describe(element, pageOf(element)))
@@ -377,18 +379,18 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       });
     },
 
-    async listPages() {
+    async listPages(_required: Record<string, never>, _optional: Record<string, never> = {}) {
       // `Object.entries`, same own-enumerable-keys-only guarantee `Object.keys` gives `navigate`'s
       // own `hasOwnProperty` check above — no risk of a `pages.label`/`pages.navigate`-shaped
       // prototype entry leaking in as a fake page id.
       return Object.entries(pages).map(([id, page]) => ({ id, label: page.label }));
     },
 
-    async describeField(handle) {
+    async describeField({ handle }: { handle: string }, _optional: Record<string, never> = {}) {
       return fieldDescriptorOf(controlOf(find(handle)));
     },
 
-    async describeState(handle) {
+    async describeState({ handle }: { handle: string }, _optional: Record<string, never> = {}) {
       // Unlike every other method here, a handle that no longer resolves is an answer rather than
       // an error: an element that a click removed is exactly what the caller is asking about. A
       // handle resolving to *more than one* element is a different situation entirely — not an
@@ -453,7 +455,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
      * would hang for the whole life of a backgrounded tab; without the frames every write would
      * report its own target unchanged, because the read would beat the render.
      */
-    async settle() {
+    async settle(_required: Record<string, never>, _optional: Record<string, never> = {}) {
       await new Promise<void>((resolve) => {
         let timer: ReturnType<typeof setTimeout> | undefined;
         // No re-entry guard: whichever side loses the race calls this again, and both of its
@@ -472,7 +474,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       });
     },
 
-    async highlight(handle, durationMs) {
+    async highlight({ handle, durationMs }: { handle: string; durationMs: number }, _optional: Record<string, never> = {}) {
       const element = find(handle);
       // Same refusal as `click()`, for the same reason: an SVG (or other non-HTMLElement) target
       // has no `.style` to draw an outline on, so silently returning here drew nothing while
@@ -499,17 +501,17 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       highlights.set(handle, { timer, restore });
     },
 
-    async scrollTo(handle) {
+    async scrollTo({ handle }: { handle: string }, _optional: Record<string, never> = {}) {
       find(handle).scrollIntoView({ behavior: 'smooth', block: 'center' });
     },
 
-    async click(handle) {
+    async click({ handle }: { handle: string }, _optional: Record<string, never> = {}) {
       const control = controlOf(find(handle));
       if (!(control instanceof HTMLElement)) throw new Error(`"${handle}" is not clickable`);
       control.click();
     },
 
-    async fill(handle, text) {
+    async fill({ handle, text }: { handle: string; text: string }, _optional: Record<string, never> = {}) {
       const control = controlOf(find(handle));
       if (isEditableRegion(control)) {
         // A contenteditable region has no `value`; its content *is* its children, and a real
@@ -534,7 +536,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       control.dispatchEvent(new Event('change', { bubbles: true }));
     },
 
-    async selectOption(handle, option, selected = true) {
+    async selectOption({ handle, option }: { handle: string; option: string }, { selected = true }: { selected?: boolean | undefined } = {}) {
       const control = controlOf(find(handle));
       if (!(control instanceof HTMLSelectElement)) {
         throw new Error(`"${handle}" is not a dropdown`);
@@ -571,8 +573,8 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
         // the same shape of problem regardless of which side authored it. `handle` needs no
         // treatment: it is already validated ASCII, length-capped by isValidElementHandle before
         // this driver is ever called.
-        const safeOption = normalizeAgentLabel(option).text;
-        const available = options.map((entry) => normalizeAgentLabel(entry.text.trim()).text)
+        const safeOption = normalizeAgentLabel({ raw: option }).text;
+        const available = options.map((entry) => normalizeAgentLabel({ raw: entry.text.trim() }).text)
           .filter((text) => text.length > 0);
         throw new Error(
           `"${safeOption}" is not an option of "${handle}". Available: ${available.length > 0 ? available.join(', ') : '(none)'}`,
@@ -590,7 +592,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
         // the control would invent a third state (no selection) that a native <select> cannot hold.
         throw new Error(
           `"${handle}" is a single-select; its choice cannot be removed, only replaced — `
-          + `select a different option instead of deselecting "${normalizeAgentLabel(option).text}"`,
+          + `select a different option instead of deselecting "${normalizeAgentLabel({ raw: option }).text}"`,
         );
       } else {
         // Same prototype-setter dance as `fill`, for the same reason: React tracks the previous
@@ -603,7 +605,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       control.dispatchEvent(new Event('change', { bubbles: true }));
     },
 
-    async navigate(page) {
+    async navigate({ page }: { page: string }, _optional: Record<string, never> = {}) {
       // `hasOwnProperty`, not `pages[page]`: a plain object literal inherits everything
       // `Object.prototype` contributes, so a bare lookup answered `navigate("constructor")` with
       // the `Object` constructor — a function the host never published, which this then called,
@@ -617,8 +619,8 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       // `PageDriver` is a public interface — a caller that reaches this method directly, bypassing
       // the executor entirely, hands `page` in unsanitized, so the same bound-and-strip treatment
       // applies here too rather than assuming the only caller is the one that already checked.
-      if (!published) throw new Error(`"${normalizeAgentLabel(page).text}" is not a published page`);
-      pages[page]!.navigate();
+      if (!published) throw new Error(`"${normalizeAgentLabel({ raw: page }).text}" is not a published page`);
+      pages[page]!.navigate({});
     },
   };
 }
@@ -670,7 +672,7 @@ function fillEditableRegion(control: HTMLElement, text: string): void {
 }
 
 /** Reads the current page's `data-agent-page`, for hosts that tag the body. */
-export function currentAgentPage(root: ParentNode): string | undefined {
+export function currentAgentPage({ root }: { root: ParentNode }, _optional: Record<string, never> = {}): string | undefined {
   const tagged = root.querySelector(`[${AGENT_PAGE_ATTRIBUTE}]`);
   return tagged?.getAttribute(AGENT_PAGE_ATTRIBUTE) ?? undefined;
 }

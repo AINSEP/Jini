@@ -84,7 +84,7 @@ describe('index barrel', () => {
     expect(typeof barrel.useLatestOperation).toBe('function');
     expect(typeof barrel.normalizeOperationError).toBe('function');
     expect(typeof barrel.definedProps).toBe('function');
-    expect(barrel.definedProps({ a: 1, b: undefined })).toEqual({ a: 1 });
+    expect(barrel.definedProps({ source: { a: 1, b: undefined } })).toEqual({ a: 1 });
   });
 
   it('re-exports the self-contained chat-pane feature', () => {

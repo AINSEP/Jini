@@ -1,11 +1,12 @@
 /**
- * @file Blob-GC protocol tests (INV-1) — `blob-gc.ts` /
+ * @file Blob-GC protocol tests — `blob-gc.ts` /
  * `blob-gc-lock.ts`. `media-service.test.ts` covers the `purgeMedia`-driven
  * happy path (tombstone -> grace-gated delete-pass -> unlink-pass end to
  * end); this file drills into the protocol's own invariants directly:
  * unreferenced detection, idempotent tombstoning, the grace gate, the
  * two-phase journal handoff, the sha256 lock's mutual exclusion, and the
  * concurrent purge-vs-upload race the lock exists to close.
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 import assert from "node:assert/strict";
 import { test } from "vitest";
@@ -34,13 +35,13 @@ function makeDeps() {
   let counter = 0;
   let currentNow = "2026-07-10T00:00:00.000Z";
   const deps = {
-    clock: { nowIso: () => currentNow },
+    clock: { nowMs: () => Date.parse(currentNow)},
     idGen: { newId: () => `id-${(counter += 1)}` },
-    mediaRepo: new InMemoryMediaRepo(),
-    blobRepo: new InMemoryAssetBlobRepo(),
-    renditionRepo: new InMemoryAssetRenditionRepo(),
+    mediaRepo: new InMemoryMediaRepo({}),
+    blobRepo: new InMemoryAssetBlobRepo({}),
+    renditionRepo: new InMemoryAssetRenditionRepo({}),
     blobStore: new InMemoryBlobStore(),
-    journalRepo: new InMemoryBlobGcJournalRepo(),
+    journalRepo: new InMemoryBlobGcJournalRepo({}),
   };
   return { deps, setNow: (iso: string) => (currentNow = iso) };
 }
@@ -75,21 +76,21 @@ test("withSha256Lock serializes calls for the same key (no interleaving)", async
   let releaseFirst!: () => void;
   const firstGate = new Promise<void>((resolve) => (releaseFirst = resolve));
 
-  const first = withSha256Lock("shared-key", async () => {
+  const first = withSha256Lock({ key: "shared-key", criticalSection: async () => {
     events.push("first-start");
     await firstGate;
     events.push("first-end");
-  });
+  } });
 
   // Give the first critical section a chance to actually start before
   // queuing the second, so this test genuinely exercises queuing rather than
   // both starting from a cold, unstarted `withSha256Lock` call.
   await Promise.resolve();
 
-  const second = withSha256Lock("shared-key", async () => {
+  const second = withSha256Lock({ key: "shared-key", criticalSection: async () => {
     events.push("second-start");
     events.push("second-end");
-  });
+  } });
 
   assert.deepEqual(events, ["first-start"]); // second must NOT have started yet
   releaseFirst();
@@ -102,15 +103,15 @@ test("withSha256Lock runs different keys fully concurrently", async () => {
   let releaseA!: () => void;
   const gateA = new Promise<void>((resolve) => (releaseA = resolve));
 
-  const a = withSha256Lock("key-a", async () => {
+  const a = withSha256Lock({ key: "key-a", criticalSection: async () => {
     events.push("a-start");
     await gateA;
     events.push("a-end");
-  });
-  const b = withSha256Lock("key-b", async () => {
+  } });
+  const b = withSha256Lock({ key: "key-b", criticalSection: async () => {
     events.push("b-start");
     events.push("b-end");
-  });
+  } });
 
   await b; // key-b's independent critical section completes without waiting on key-a
   assert.deepEqual(events, ["a-start", "b-start", "b-end"]);
@@ -121,13 +122,13 @@ test("withSha256Lock runs different keys fully concurrently", async () => {
 test("withSha256Lock does not let one key's rejection poison later calls on the same key", async () => {
   await assert.rejects(
     () =>
-      withSha256Lock("flaky-key", async () => {
+      withSha256Lock({ key: "flaky-key", criticalSection: async () => {
         throw new Error("boom");
-      }),
+      } }),
     /boom/
   );
 
-  const result = await withSha256Lock("flaky-key", async () => "ok-after-failure");
+  const result = await withSha256Lock({ key: "flaky-key", criticalSection: async () => "ok-after-failure" });
   assert.equal(result, "ok-after-failure");
 });
 

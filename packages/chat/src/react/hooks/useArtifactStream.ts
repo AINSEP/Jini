@@ -37,7 +37,7 @@ function toFile(item: Omit<ArtifactStreamItem, 'file' | 'match'>): ArtifactFile 
   return { name: item.identifier || item.title || 'artifact', kind: item.artifactType, content: item.content };
 }
 
-export function useArtifactStream(content: string, registry?: RendererRegistry): UseArtifactStreamResult {
+export function useArtifactStream({ content }: { content: string }, { registry }: { registry?: (RendererRegistry) | undefined } = {}): UseArtifactStreamResult {
   return useMemo(() => {
     const items: ArtifactStreamItem[] = [];
 
@@ -49,10 +49,10 @@ export function useArtifactStream(content: string, registry?: RendererRegistry):
     // Running it on the raw `content` would double-count a live artifact:
     // once (wrongly) as "complete" via the synthetic flush, and again (correctly)
     // as "streaming" below.
-    const { head, live } = splitStreamingArtifact(content);
+    const { head, live } = splitStreamingArtifact({ content: content });
 
     let current: { identifier: string; artifactType: string; title: string; content: string } | null = null;
-    for (const ev of parseArtifacts(head)) {
+    for (const ev of parseArtifacts({ content: head })) {
       if (ev.type === 'artifact:start') {
         current = { identifier: ev.identifier, artifactType: ev.artifactType, title: ev.title, content: '' };
       } else if (ev.type === 'artifact:chunk' && current && current.identifier === ev.identifier) {

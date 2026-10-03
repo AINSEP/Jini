@@ -62,7 +62,7 @@ function defaultInternalErrorSink(context: AdapterInternalErrorContext): void {
 export class ClientFacingError extends Error {
   readonly apiError: ApiError;
 
-  constructor(apiError: ApiError) {
+  constructor({ apiError }: { readonly apiError: ApiError }, _optional: Record<string, never> = {}) {
     super(apiError.message);
     this.name = 'ClientFacingError';
     this.apiError = apiError;
@@ -70,13 +70,14 @@ export class ClientFacingError extends Error {
 }
 
 /**
- * Identity function that pins a route spec's generic parameters at the definition site so
- * callers do not have to repeat them. The returned spec is consumed by `mountJsonRoute` (live)
+ * Combines required route fields and optional settings into a fresh spec while pinning its generic
+ * parameters at the definition site so callers do not have to repeat them. Optional settings take
+ * precedence. The returned spec is consumed by `mountJsonRoute` (live)
  * and by tests (direct invocation of `route.parse` / `route.handle`).
  */
-export function defineJsonRoute<Input, Output, Deps>(
-  spec: JsonRouteSpec<Input, Output, Deps>,
+export function defineJsonRoute<Input, Output, Deps>(requiredArgs: Omit<JsonRouteSpec<Input, Output, Deps>, 'requireSameOrigin' | 'successStatus'>, optionalArgs: Pick<JsonRouteSpec<Input, Output, Deps>, 'requireSameOrigin' | 'successStatus'> = {}
 ): JsonRouteSpec<Input, Output, Deps> {
+  const spec = { ...requiredArgs, ...optionalArgs };
   return spec;
 }
 
@@ -85,14 +86,10 @@ export function defineJsonRoute<Input, Output, Deps>(
  * about req/res; the route's parse and handle functions operate on `RouteInputContext` and
  * `Deps` respectively, so they are unit testable without Express.
  */
-export function mountJsonRoute<Input, Output, Deps>(
-  app: Express,
-  spec: JsonRouteSpec<Input, Output, Deps>,
-  deps: Deps,
-  adapter: AdapterContext,
+export function mountJsonRoute<Input, Output, Deps>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: JsonRouteSpec<Input, Output, Deps>; readonly deps: Deps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}
 ): void {
   app[spec.method](spec.path, async (req: Request, res: Response) => {
-    // The client-disconnect signal a `handle` can opt into via its 3rd param. Observed on `res`,
+    // The client-disconnect signal a `handle` can opt into via optional arguments. Observed on `res`,
     // not `req` — `sse.ts` already established why for this exact "detect a disconnect before
     // ever writing a response" shape (its own doc: safe to register "before `open` is ever
     // called"). `req`'s own `'close'` was tried first here and reverted: on a REAL socket, a
@@ -111,18 +108,18 @@ export function mountJsonRoute<Input, Output, Deps>(
     res.on?.('close', onResponseClose);
     try {
       if (spec.requireSameOrigin) {
-        const origin = guardSameOrigin(req, adapter);
+        const origin = guardSameOrigin({ req, origin: adapter });
         if (!origin.ok) {
-          sendApiError(res, statusForError(origin.error), origin.error);
+          sendApiError({ res, status: statusForError({ error: origin.error }), error: origin.error });
           return;
         }
       }
-      const parsed = spec.parse(rawInput(req));
+      const parsed = spec.parse(rawInput({ req }));
       if (!parsed.ok) {
-        sendApiError(res, statusForError(parsed.error), parsed.error);
+        sendApiError({ res, status: statusForError({ error: parsed.error }), error: parsed.error });
         return;
       }
-      const result = await spec.handle(parsed.value, deps, abortController.signal);
+      const result = await spec.handle({ input: parsed.value, deps }, { signal: abortController.signal });
       // `abortController.signal` can only have been aborted by `onResponseClose` firing while the
       // `await` above was pending — nothing here runs concurrently with it — so this unambiguously
       // means the client was already gone before any response was sent. Writing one now would be
@@ -130,16 +127,16 @@ export function mountJsonRoute<Input, Output, Deps>(
       // below as a false internal error if the socket rejects the write.
       if (abortController.signal.aborted) return;
       if (!result.ok) {
-        sendApiError(res, statusForError(result.error), result.error);
+        sendApiError({ res, status: statusForError({ error: result.error }), error: result.error });
         return;
       }
-      sendJson(res, spec.successStatus ?? 200, result.value);
+      sendJson({ res, status: spec.successStatus ?? 200, body: result.value });
     } catch (e) {
       // A route (or something it called) already classified this failure as safe to disclose —
       // see `ClientFacingError`'s own doc. Sent verbatim, at its own status; never routed to the
       // SEC-005 sink below, because nothing unanticipated happened.
       if (e instanceof ClientFacingError) {
-        sendApiError(res, statusForError(e.apiError), e.apiError);
+        sendApiError({ res, status: statusForError({ error: e.apiError }), error: e.apiError });
         return;
       }
       // SEC-005. This catch exists for exceptions no route anticipated, which makes it precisely
@@ -152,7 +149,7 @@ export function mountJsonRoute<Input, Output, Deps>(
       const correlationId = randomUUID();
       const sink = adapter.onInternalError ?? defaultInternalErrorSink;
       sink({ method: spec.method, path: spec.path, correlationId, error: e });
-      sendApiError(res, 500, createApiError('INTERNAL_ERROR', 'an internal error occurred', { requestId: correlationId }));
+      sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
     } finally {
       res.off?.('close', onResponseClose);
     }

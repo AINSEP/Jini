@@ -2,7 +2,7 @@
  * The generic vendor-adapter dispatch core — the mechanism every registered
  * media vendor's HTTP round trip runs through: validate credentials, build a
  * request, perform exactly one `fetch`, then hand the response to a
- * vendor-supplied parser. This is the piece `source-map.md`'s 2026-07-21
+ * vendor-supplied parser. This is the piece `archived provenance ledger`'s 2026-07-21
  * dispatch-engine entry flagged as missing ("the actual multi-provider REST
  * dispatch engine and durable task adapter" — each vendor was "essentially
  * its own hand-written function, not a generalized system that can register
@@ -26,7 +26,8 @@
  * `response-parsers.ts`'s `createHexEnvelopeAudioParser` for the shared,
  * reusable piece.
  */
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
+import { fetchMediaOutbound } from './outbound.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from './types.js';
 
 /**
@@ -41,7 +42,7 @@ export interface VendorRequest<Meta = undefined> {
   readonly meta: Meta;
 }
 
-export type VendorRequestBuilder<Meta = undefined> = (ctx: RenderContext, credentials: ProviderCredentials) => VendorRequest<Meta>;
+export type VendorRequestBuilder<Meta = undefined> = (required: { ctx: RenderContext; credentials: ProviderCredentials }) => VendorRequest<Meta>;
 
 /**
  * Turns a `fetch` `Response` into a `RenderResult`, or throws a
@@ -50,14 +51,11 @@ export type VendorRequestBuilder<Meta = undefined> = (ctx: RenderContext, creden
  * second request (an SSRF-guarded asset download, a Gemini-native
  * redirect) to finish parsing — see this module's doc comment.
  */
-export type VendorResponseParser<Meta = undefined> = (
-  resp: Response,
-  ctx: RenderContext,
-  request: VendorRequest<Meta>,
+export type VendorResponseParser<Meta = undefined> = (required: { resp: Response; ctx: RenderContext; request: VendorRequest<Meta> }
 ) => Promise<RenderResult>;
 
 /** Validates `credentials` before any network call, throwing a vendor-tagged `Error` when they're unusable (e.g. no API key configured). */
-export type VendorCredentialGuard = (credentials: ProviderCredentials) => void;
+export type VendorCredentialGuard = (required: { credentials: ProviderCredentials }) => void;
 
 /**
  * A fully-configured vendor: the "auth-scheme" (`requireCredential`),
@@ -80,24 +78,23 @@ export interface VendorAdapter<Meta = undefined> {
  * unlike `fetch` itself, an HTTP error status is not a rejected `Promise`,
  * so mapping a bad status into a thrown `Error` is each adapter's own job,
  * exactly like every hand-written `render*` function already did.
+ * The guarded outbound client vets and pins the peer and refuses all redirects.
+ * @complexity O(b) plus one network round trip, for b bounded request/response bytes.
  */
-export async function dispatchVendorRequest<Meta = undefined>(
-  adapter: VendorAdapter<Meta>,
-  ctx: RenderContext,
-  credentials: ProviderCredentials,
+export async function dispatchVendorRequest<Meta = undefined>({ adapter, ctx, credentials }: { adapter: VendorAdapter<Meta>; ctx: RenderContext; credentials: ProviderCredentials }
 ): Promise<RenderResult> {
-  adapter.requireCredential?.(credentials);
-  const request = adapter.buildRequest(ctx, credentials);
+  adapter.requireCredential?.({ credentials: credentials });
+  const request = adapter.buildRequest({ ctx: ctx, credentials: credentials });
   // Backstop, not an override: as of 2026-08-16 only 2 of 13 registered vendors
   // (providers/openai.ts, providers/openrouter.ts) set their own `request.init.signal`; the other
   // 11 set none at all (Finding 2 of the 2026-08-16 failure-mode audit — a stalled vendor endpoint
-  // hung this call forever, nothing to alert on). `fetchWithTimeout` combines any signal a vendor
+  // hung this call forever, nothing to alert on). The guarded client combines any signal a vendor
   // DOES already set with this one via `AbortSignal.any`, so a more specific per-vendor timeout
   // still applies unchanged; `GENERATE` (10min) matches what those two vendors already picked
   // deliberately for the same reason — media generation genuinely finishes on that order, not in
   // seconds, so anything shorter would abort a legitimately still-generating request.
-  const resp = await fetchWithTimeout(request.url, request.init, { timeoutMs: FETCH_TIMEOUT_MS.GENERATE });
-  return adapter.parseResponse(resp, ctx, request);
+  const resp = await fetchMediaOutbound({ url: request.url, timeoutMs: FETCH_TIMEOUT_MS.GENERATE }, { ...ctx, init: request.init });
+  return adapter.parseResponse({ resp: resp, ctx: ctx, request: request });
 }
 
 /**
@@ -107,8 +104,8 @@ export async function dispatchVendorRequest<Meta = undefined>(
  * `if (!credentials.apiKey) throw new Error(...)` line with only the
  * message text differing.
  */
-export function requireApiKey(message: string): VendorCredentialGuard {
-  return (credentials) => {
+export function requireApiKey({ message }: { message: string }): VendorCredentialGuard {
+  return ({ credentials }: { credentials: ProviderCredentials }) => {
     if (!credentials.apiKey) {
       throw new Error(message);
     }

@@ -14,7 +14,7 @@ describe('aiderAgentDef shape', () => {
 
 describe('aiderAgentDef.buildArgs', () => {
   it('omits --model when no options are passed at all', () => {
-    const args = aiderAgentDef.buildArgs('hello world', [], []);
+    const args = aiderAgentDef.buildArgs({ prompt: 'hello world', imagePaths: [] }, { extraAllowedDirs: [] });
     expect(args).not.toContain('--model');
     expect(args).toEqual([
       '--yes-always',
@@ -29,34 +29,34 @@ describe('aiderAgentDef.buildArgs', () => {
   });
 
   it('omits --model when options.model is the synthetic "default" sentinel', () => {
-    const args = aiderAgentDef.buildArgs('hi', [], [], { model: 'default' });
+    const args = aiderAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'default' } });
     expect(args).not.toContain('--model');
   });
 
   it('omits --model when options.model is falsy (empty string)', () => {
-    const args = aiderAgentDef.buildArgs('hi', [], [], { model: '' });
+    const args = aiderAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: '' } });
     expect(args).not.toContain('--model');
   });
 
   it('includes --model <id> when a concrete model is selected', () => {
-    const args = aiderAgentDef.buildArgs('hi', [], [], { model: 'sonnet' });
+    const args = aiderAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'sonnet' } });
     expect(args).toContain('--model');
     expect(args[args.indexOf('--model') + 1]).toBe('sonnet');
   });
 
   it('always appends --message <prompt> as the final two argv entries', () => {
-    const args = aiderAgentDef.buildArgs('the prompt text', [], [], { model: 'gpt-4o' });
+    const args = aiderAgentDef.buildArgs({ prompt: 'the prompt text', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'gpt-4o' } });
     expect(args.slice(-2)).toEqual(['--message', 'the prompt text']);
   });
 
   it('ignores imagePaths and extraAllowedDirs (unused positional args)', () => {
-    const args = aiderAgentDef.buildArgs('hi', ['/img.png'], ['/extra/dir'], { model: 'sonnet' });
+    const args = aiderAgentDef.buildArgs({ prompt: 'hi', imagePaths: ['/img.png'] }, { extraAllowedDirs: ['/extra/dir'], options: { model: 'sonnet' } });
     expect(args).not.toContain('/img.png');
     expect(args).not.toContain('/extra/dir');
   });
 
   it('omits --yes-always entirely when permissionMode is "restricted"', () => {
-    const args = aiderAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' });
+    const args = aiderAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { permissionMode: 'restricted' } });
     expect(args).not.toContain('--yes-always');
     expect(args).toEqual([
       '--no-pretty',
@@ -70,12 +70,12 @@ describe('aiderAgentDef.buildArgs', () => {
   });
 
   it('still emits --yes-always when permissionMode is explicitly "bypass"', () => {
-    const args = aiderAgentDef.buildArgs('hi', [], [], { permissionMode: 'bypass' });
+    const args = aiderAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { permissionMode: 'bypass' } });
     expect(args).toContain('--yes-always');
   });
 
   it('still adds --model and --message after omitting --yes-always in restricted mode', () => {
-    const args = aiderAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted', model: 'sonnet' });
+    const args = aiderAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { permissionMode: 'restricted', model: 'sonnet' } });
     expect(args).not.toContain('--yes-always');
     expect(args[args.indexOf('--model') + 1]).toBe('sonnet');
     expect(args.slice(-2)).toEqual(['--message', 'hi']);

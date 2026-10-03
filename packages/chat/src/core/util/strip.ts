@@ -27,7 +27,7 @@ function findUnskipped(content: string, needle: string, fromIndex: number, range
   for (;;) {
     const idx = content.indexOf(needle, from);
     if (idx === -1) return -1;
-    if (!rangeContains(ranges, idx)) return idx;
+    if (!rangeContains({ ranges: ranges, p: idx })) return idx;
     from = idx + needle.length;
   }
 }
@@ -44,7 +44,7 @@ function findRealOpen(content: string, fromIndex: number, ranges: ReadonlyArray<
   for (;;) {
     const idx = content.indexOf(OPEN, from);
     if (idx === -1) return -1;
-    if (rangeContains(ranges, idx) || !isRealArtifactOpenAt(content, idx)) {
+    if (rangeContains({ ranges: ranges, p: idx }) || !isRealArtifactOpenAt({ content: content, idx: idx })) {
       from = idx + OPEN.length;
       continue;
     }
@@ -68,8 +68,8 @@ function findRealOpen(content: string, fromIndex: number, ranges: ReadonlyArray<
  * @complexity O(n) in `content.length` — one skip-range computation plus a
  *   pair of linear scans for the open/close tags.
  */
-export function stripArtifact(content: string): string {
-  const { ranges: baseRanges, unclosedFenceStart } = computeSkipRanges(content);
+export function stripArtifact({ content }: { content: string }): string {
+  const { ranges: baseRanges, unclosedFenceStart } = computeSkipRanges({ buffer: content });
   // For complete (non-streaming) content, an unclosed fence renders as a code
   // block extending to end of input — the stripper mirrors that, otherwise a
   // literal `<artifact …>` tucked into a trailing code example (no trailing
@@ -91,7 +91,7 @@ function findSingleRecoverableHtmlFence(content: string): MarkdownFenceRange | n
   let match: RegExpExecArray | null = HTML_FENCE_RE.exec(content);
   while (match !== null) {
     const html = (match[1] || '').replace(/^﻿/, '').trim();
-    if (recoverHtmlDocumentFromMarkdownFence(match[0]) === html) {
+    if (recoverHtmlDocumentFromMarkdownFence({ sourceText: match[0] }) === html) {
       recovered = { start: match.index, end: match.index + match[0].length, html };
       count += 1;
     }
@@ -101,7 +101,7 @@ function findSingleRecoverableHtmlFence(content: string): MarkdownFenceRange | n
 }
 
 function findRecoverablePrecedingHtmlArtifact(sourceText: string): string | null {
-  const { ranges: baseRanges, unclosedFenceStart } = computeSkipRanges(sourceText);
+  const { ranges: baseRanges, unclosedFenceStart } = computeSkipRanges({ buffer: sourceText });
   const ranges: Range[] = unclosedFenceStart !== null ? [...baseRanges, [unclosedFenceStart, sourceText.length]] : baseRanges;
 
   let from = 0;
@@ -118,7 +118,7 @@ function findRecoverablePrecedingHtmlArtifact(sourceText: string): string | null
     const end = findUnskipped(sourceText, CLOSE, closeTag, ranges);
     if (end === -1) return null;
 
-    const attrs = parseQuotedAttrs(sourceText.slice(open, closeTag));
+    const attrs = parseQuotedAttrs({ raw: sourceText.slice(open, closeTag) });
     const recovered = recoverHtmlArtifactFromPrecedingDocument({
       artifactHtml: sourceText.slice(closeTag + 1, end),
       identifier: attrs['identifier'],
@@ -154,11 +154,11 @@ function stripRecoverablePrecedingHtml(content: string, sourceText: string): str
  *
  * @complexity O(n) in `content.length` (plus one bounded regex scan over `sourceText` for the fence-recovery path).
  */
-export function stripRecoveredHtmlFallbackForDisplay(content: string, sourceText = content): string {
+export function stripRecoveredHtmlFallbackForDisplay({ content }: { content: string }, { sourceText = content }: { sourceText?: (string) | undefined } = {}): string {
   const withoutPrecedingDocument = stripRecoverablePrecedingHtml(content, sourceText);
   if (withoutPrecedingDocument !== null) return withoutPrecedingDocument;
 
-  if (recoverStandaloneHtmlDocument(content)) return '';
+  if (recoverStandaloneHtmlDocument({ sourceText: content })) return '';
 
   const fence = findSingleRecoverableHtmlFence(content);
   if (!fence) return content;
@@ -207,9 +207,7 @@ function artifactBaseNameForAttrs(attrs: Record<string, string>): string {
  *
  * @complexity O(m) in `persistedFiles.length` (linear `find`s).
  */
-export function matchPersistedArtifactFile(
-  attrs: Record<string, string>,
-  persistedFiles: ReadonlyArray<PersistedArtifactFileRef>,
+export function matchPersistedArtifactFile({ attrs, persistedFiles }: { attrs: Record<string, string>; persistedFiles: ReadonlyArray<PersistedArtifactFileRef> }
 ): PersistedArtifactFileRef | null {
   const identifier = attrs['identifier'] ?? '';
   if (identifier) {
@@ -250,7 +248,7 @@ export function matchPersistedArtifactFile(
  *   consumes at least one full artifact block or the remaining tail), times
  *   O(m) for the `persistedFiles` lookup per block.
  */
-export function summarizeArtifactsForTranscript(content: string, persistedFiles: ReadonlyArray<PersistedArtifactFileRef>): string {
+export function summarizeArtifactsForTranscript({ content, persistedFiles }: { content: string; persistedFiles: ReadonlyArray<PersistedArtifactFileRef> }): string {
   if (persistedFiles.length === 0) return content;
   let result = '';
   let cursor = 0;
@@ -258,7 +256,7 @@ export function summarizeArtifactsForTranscript(content: string, persistedFiles:
   // stay valid as we consume the string left to right.
   while (cursor <= content.length) {
     const tail = content.slice(cursor);
-    const { ranges: baseRanges, unclosedFenceStart } = computeSkipRanges(tail);
+    const { ranges: baseRanges, unclosedFenceStart } = computeSkipRanges({ buffer: tail });
     const ranges: Range[] = unclosedFenceStart !== null ? [...baseRanges, [unclosedFenceStart, tail.length]] : baseRanges;
     const open = findRealOpen(tail, 0, ranges);
     if (open === -1) {
@@ -277,8 +275,8 @@ export function summarizeArtifactsForTranscript(content: string, persistedFiles:
       result += tail;
       break;
     }
-    const attrs = parseQuotedAttrs(tail.slice(open, gt));
-    const persisted = matchPersistedArtifactFile(attrs, persistedFiles);
+    const attrs = parseQuotedAttrs({ raw: tail.slice(open, gt) });
+    const persisted = matchPersistedArtifactFile({ attrs: attrs, persistedFiles: persistedFiles });
     result += persisted
       ? tail.slice(0, open) + artifactTranscriptSummary(attrs, persisted)
       : // Unconfirmed save — the transcript copy may be the only surviving
@@ -325,8 +323,8 @@ export interface StreamingArtifact {
  *
  * @complexity O(n) in `content.length`.
  */
-export function splitStreamingArtifact(content: string): { head: string; live: StreamingArtifact | null } {
-  const { ranges: baseRanges, unclosedFenceStart } = computeSkipRanges(content);
+export function splitStreamingArtifact({ content }: { content: string }): { head: string; live: StreamingArtifact | null } {
+  const { ranges: baseRanges, unclosedFenceStart } = computeSkipRanges({ buffer: content });
   const ranges: Range[] = unclosedFenceStart !== null ? [...baseRanges, [unclosedFenceStart, content.length]] : baseRanges;
   const open = findRealOpen(content, 0, ranges);
   if (open === -1) return { head: content, live: null };
@@ -342,7 +340,7 @@ export function splitStreamingArtifact(content: string): { head: string; live: S
   }
   // A matching close means the block is complete; defer to stripArtifact.
   if (findUnskipped(content, CLOSE, gt, ranges) !== -1) return { head: content, live: null };
-  const attrs = parseQuotedAttrs(content.slice(open, gt));
+  const attrs = parseQuotedAttrs({ raw: content.slice(open, gt) });
   const artifactType = attrs['type'] ?? '';
   // Only HTML/text artifacts read as code. An unknown type (attrs not fully
   // parsed, or omitted) is treated as code-eligible since the dominant case

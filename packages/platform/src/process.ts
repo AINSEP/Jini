@@ -349,7 +349,8 @@ export async function listProcessSnapshots(): Promise<ProcessSnapshot[]> {
 
 /**
  * Collect the transitive set of descendant PIDs (including the roots) from a
- * process snapshot list, returned sorted descending so children precede parents.
+ * process snapshot list, returned sorted by numeric PID descending for deterministic ordering.
+ * PID reuse and wraparound mean this does not guarantee children precede parents.
  *
  * @param processes - The full process snapshot list to walk.
  * @param rootPids - The root PIDs whose subtrees to collect (non-numbers ignored).

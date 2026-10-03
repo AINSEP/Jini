@@ -29,3 +29,7 @@ export { TabStripItem } from './react/components/TabStripItem.js';
 export type { TabStripItemProps } from './react/components/TabStripItem.js';
 export { TabStrip } from './react/components/TabStrip.js';
 export type { TabStripProps } from './react/components/TabStrip.js';
+export { TabBar } from './react/components/TabBar.js';
+export type { TabBarProps, TabBarTab } from './react/components/TabBar.js';
+export { useTabBarKeyboard, resolveTabBarKeyTarget, resolveTabBarTabIndex, tabHandleProps } from './react/components/TabBar.hooks.js';
+export type { TabBarKeyboardHandlers } from './react/components/TabBar.hooks.js';

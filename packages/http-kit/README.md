@@ -1,11 +1,10 @@
 # @jini-ai/http-kit
 
-A toolkit of composable Express route packs and a JSON-route transport for a `@jini-ai/core`
-daemon composition: request parsing, response serialization, a same-origin guard, SSE streaming,
-and a ready-to-mount set of kernel route packs (runs, agents, memory, routines, terminals, and
-more). This package does **not** open a listener itself — a host (your own Express app, or
-`@jini-ai/server`'s `createLocalNodeDaemon`, which is the one assembled preset that does bind a
-port) mounts these route-registrars onto its own `app`.
+Framework-level HTTP transport, guards and route-pack registration, with no domain.
+Request parsing, response serialization, same-origin validation, SSE and Express mounting
+are reusable primitives. The host mounts them onto its own app; the package opens no listener.
+Daemon routes and their manifest now live in `@jini-ai/daemon/http`, and tool attenuation
+lives in `@jini-ai/daemon/read-only-tools`. CMS settings live in `@jini-ai/cms/http/settings`.
 
 ## Install
 
@@ -13,95 +12,69 @@ port) mounts these route-registrars onto its own `app`.
 npm install @jini-ai/http-kit express
 ```
 
-`express` is a regular dependency (`^4.21.0`) pulled in automatically; you still need it installed
-in your own app if you're calling its types directly. `@jini-ai/agent-runtime`, `@jini-ai/core`,
-`@jini-ai/daemon`, `@jini-ai/platform`, and `@jini-ai/protocol` are also regular dependencies — no
-optional peers.
+Regular dependencies are core, platform, protocol and Express. There is no daemon,
+agent-runtime or CMS dependency.
 
-## What you get
+## Surface
 
-- **Route-spec primitives** — `JsonRouteSpec`/`InputParser`/`Handler`/`HttpMethod`/
-  `RouteInputContext`, the `Result<T, E>` envelope (`ok`/`err`), and `defineJsonRoute`/
-  `mountJsonRoute` (the Adapter — the only code here that touches Express `req`/`res` directly).
-- **Origin and auth guards** — `origin-validation`'s host/origin classifiers
-  (`isLocalSameOrigin`, `isAllowedBrowserOrigin`, `parseHostHeader`, `isPrivateIpv4`, ...),
-  `registerApiBearerAuthMiddleware`/`registerApiOriginGuardMiddleware`, and
-  `requireLocalDaemonRequest`/`validateLocalDaemonRequest` for daemon-local-only routes.
-- **Streaming** — `createSseChannel` (cursor-replayable SSE with a bounded queue) and
-  `createSseResponse` (raw, unbuffered SSE, used by the frontend-session stream).
-- **Pack composition glue** — `mountPackHttp(app, packs, daemon)` calls every composed
-  `@jini-ai/core` pack's own `http(app, services)` registrar with the services `createDaemon`
-  already resolved for it; `cancelRunsOwnedBy` and `installRouteRegistrationGuard`/
-  `getRouteRegistrationInventory` (duplicate-route detection) support that composition.
-- **Daemon lifecycle routes** — `registerDaemonStatusRoutes` (`daemonStatusRoute`,
-  `daemonShutdownRoute`) and `registerHealthRoutes` (`/health`, `/ready`, `/version` and their
-  `/api`-prefixed twins — deliberately open, unauthenticated probes).
-- **Kernel route packs, ready to mount** — one `register*Routes` function per concern: runs
-  (`registerRunRoutes`), agents (`registerAgentRoutes`), memory (`registerMemoryRoutes`),
-  routines (`registerRoutineRoutes`), terminals (`registerTerminalRoutes`), db-ops
-  (`registerDaemonDbRoutes` + tool registrations), tool catalog (`registerToolCatalogRoutes`),
-  delegated tools (`registerDelegatedToolRoutes`), remote run events
-  (`registerRemoteRunEventRoutes`), frontend sessions (`registerFrontendSessionRoutes`), active
-  context (`registerActiveContextRoutes`), host tools (`registerHostToolsRoutes`), model proxy
-  (`registerModelProxyRoutes`), connectors — auth/db/payments/storage/realtime provider seams
-  (`registerConnectorsRoutes`), research (`registerResearchRoutes`), media
-  (`registerMediaRoutes`), and xai (`registerXaiRoutes`). Each exports its own `*HttpDeps` type so
-  you inject exactly the backing services it needs.
-- **Workspace root resolution** — `resolveWorkspaceRoot`/`denyAllWorkspaceRoots`/
-  `WorkspaceRootDeniedError`.
-- **Legacy-shaped compat errors** — `createCompatApiError`/`createCompatApiErrorResponse`/
-  `sendCompatApiError`, a `(code, message, init)` call shape kept alongside the main `ApiError`
-  envelope for call sites generated against the older shape.
+- Route specs, `ok({ value })`, `err({ error })`, `defineJsonRoute` and `mountJsonRoute`.
+- Request parsing, `validationError`, `sendJson`, `sendApiError` and `statusForError`.
+- Origin and bearer guards, including core's canonical origin validation and Node token comparison.
+- Cursor-aware and raw SSE primitives, route registration inventory and `mountPackHttp`.
+- `./rate-limit`, `./middleware`, `./verified-origin` and `./observability`.
 
-## Usage
+- `rate-limit` exports `createRateLimiter({ profile, clock, store })`,
+  `createMemoryCounterStore({})`, and `resolveClientIp({ source, policy })`.
+  Await `limiter.check({ key })` and `limiter.size({})`. Each limiter owns a
+  dedicated async counter store and serializes its checks across storage awaits.
+  Window/max/burst values and proxy trust policy are supplied by the host.
+- `middleware` exports `rejectOversizedJsonBody({ maxBytes, errorResponseFactory })`.
+  Mount it after JSON parsing. The response factory receives `{ maxBytes, bodyBytes }`
+  and returns the host's error envelope; oversized bodies receive status 413.
+  The host parser still owns the limit on memory allocated while parsing.
 
-```ts
-import express from 'express';
-import {
-  defineJsonRoute,
-  mountJsonRoute,
-  registerHealthRoutes,
-  ok,
-  type AdapterContext,
-} from '@jini-ai/http-kit';
+## Replaceable seams
 
-const app = express();
-app.use(express.json());
+`JsonRouteSpec.parse` and `handle` let hosts supply custom request handling. Pack services
+are resolved by core before the HTTP registrar sees them. Duplicate-route detection catches
+collisions during mounting, rather than letting the first registration silently win.
+The Result/ApiError pipeline folds anticipated errors into one response path; unexpected
+exceptions remain redacted with host-owned diagnostic reporting.
 
-const adapter: AdapterContext = { resolvedPortRef: { current: 4000 } };
+Define packs with `definePack({ name, deps, services }, { http })` from core;
+the HTTP registrar belongs in the optional second argument. Mount the composed
+packs with `mountPackHttp({ app, packs, daemon })`.
 
-// Ready-to-mount kernel routes: GET /health, /ready, /version (+ /api-prefixed twins).
-registerHealthRoutes(app, { getVersion: () => '1.0.0' }, adapter);
+Express mounting is fixed. A switchable Fastify transport was removed on 2026-07-22 because
+no consumer used it and maintaining every route twice imposed recurring work. Its implementation
+and rationale remain on `future/fastify-transport` in `FASTIFY-TRANSPORT-PARKED.md`.
 
-// A custom route built on the same Result/JsonRouteSpec pipeline.
-const echoRoute = defineJsonRoute<{ msg: string }, { echoed: string }, void>({
-  method: 'post',
-  path: '/echo',
-  parse: (raw) => ok({ msg: String((raw.body as { msg?: unknown })?.msg ?? '') }),
-  handle: (input) => ok({ echoed: input.msg }),
-});
-mountJsonRoute(app, echoRoute, undefined, adapter);
+Settings routes and their CMS adapters now live at `@jini-ai/cms/http/settings`; this
+package has no CMS dependency. `./verified-origin`
+is a separate canonical-origin registry with required configuration evidence and
+repository ports; it does not infer trust from request headers. Its canonical-origin
+request type is `VerifiedOriginRequestContext`.
 
-app.listen(4000);
-```
+Origin guards require `env`, `allowedOriginsEnvVar`, `webPortEnvVar` and `bindHostEnvVar`
+in the required context/dependencies. The host selects these names; the guards never
+read ambient environment state. Core owns the validation functions and requires
+`{ config, env }` for configured-origin parsing. Parsing stays lenient per request;
+`assertValidAllowedOrigins({ config, env })` is strict at boot.
+Bearer gates require their environment and token variable names in argument one;
+`trustLoopbackPeers` and strict `exemptPaths` remain argument-two options.
+`timingSafeTokenMatch` binds core's injected comparison port to `node:crypto`.
+The async limiter uses core `Clock.nowMs()` and keeps non-empty-key validation.
 
-## What's swappable
+`./observability` supplies `applyRequestTracking` and
+`createRequestTrackingMiddleware` over the diagnostics-compatible
+`HttpRequestObservabilityPort`. Mount first to include refusals and unmatched
+requests; route labels are read at response completion.
 
-Every route pack takes its backing services as an injected `*HttpDeps` object (e.g.
-`HealthHttpDeps.getVersion`/`checkReadiness`, `RunHttpDeps`, `MemoryHttpDeps`) rather than reaching
-for a global — swap in whatever implementation your host provides. `JsonRouteSpec.parse`/`handle`
-are themselves the seam for a fully custom route. Fixed and not meant to be replaced: the Express
-mounting mechanics in `adapter.ts` (this package does not support a non-Express framework — a
-prior switchable Fastify transport was removed on 2026-07-22; see `source-map.md` and
-`FASTIFY-TRANSPORT-PARKED.md` on the `future/fastify-transport` branch if reviving it), and the
-`Result`/`ApiError` error-handling pipeline every route folds into.
 
-## Runtime
+See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/http-kit/API.md) for required/optional object contracts. Node runtime, ESM only.
+Apache-2.0; see the repository NOTICE.
 
-`jini.runtime: "node"` — mounts onto a real Express `app`, uses Node's `express` types throughout.
-ESM only — ships `"type": "module"` with no CommonJS `require` build.
+## Design decisions
 
-## Provenance
-
-See [source-map.md](./source-map.md) for per-file provenance and scope decisions. Apache-2.0,
-inherited from Open Design — see the repo `NOTICE`.
+- [Reject ambiguous redirect URLs before normalization](docs/decisions/DR-001-redirect-normalization.md).
+- [Background error reporting must contain its own storage failures](docs/decisions/DR-002-background-failure-containment.md).

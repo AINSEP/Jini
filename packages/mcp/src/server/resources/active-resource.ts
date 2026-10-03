@@ -13,7 +13,7 @@
  * tool is invoked by the model mid-conversation, while a resource can be
  * listed and attached to context by the user/client without any tool call.
  * This module is that second affordance for the same primitive. See
- * `source-map.md`'s 2026-07-21 addition for why the rest of OD's resource
+ * `archived provenance ledger`'s 2026-07-21 addition for why the rest of OD's resource
  * surface (`od://skills/...`, `od://design-systems/...`) was NOT ported the
  * same way (both require a Skill/DesignSystem noun this kernel doesn't have).
  *
@@ -45,8 +45,8 @@ export const activeContextResource: McpResourceDef = {
   description:
     'The resource (resourceRef) plus optional detail the caller last recorded as its current focus via POST /api/active — the same generic, product-neutral pointer the get_active_context tool proxies, exposed here as an attachable MCP resource instead of a tool call.',
   mimeType: 'application/json',
-  read: async (ctx) => {
-    const data = await getDaemonJson<ActiveContextPayload>(ctx.baseUrl, '/api/active', daemonCallOptions(ctx));
+  read: async ({ ctx }) => {
+    const data = await getDaemonJson<ActiveContextPayload>({ baseUrl: ctx.baseUrl, route: '/api/active' }, daemonCallOptions({ ctx }));
     return { text: JSON.stringify(data, null, 2) };
   },
 };

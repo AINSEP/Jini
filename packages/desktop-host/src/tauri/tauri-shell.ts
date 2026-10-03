@@ -9,22 +9,20 @@ export interface TauriShellSurfaces {
 }
 
 function notImplemented(method: string): never {
-  throw new NotImplementedError(
-    `ShellPort.${method} is not implemented by the Tauri adapter — Tauri has no recent-documents API equivalent to Electron's app.getRecentDocuments() (see shell.ts's module doc)`,
-  );
+  throw new NotImplementedError({ message: `ShellPort.${method} is not implemented by the Tauri adapter — Tauri has no recent-documents API equivalent to Electron's app.getRecentDocuments() (see shell.ts's module doc)` });
 }
 
 export function createTauriShellPort(surfaces: TauriShellSurfaces): ShellPort {
   return {
-    openExternal: (url) => surfaces.shell.openUrl(url),
-    openPath: (path) => surfaces.shell.openPath(path),
-    async dirExists(path: string): Promise<boolean> {
+    openExternal: ({ url }) => surfaces.shell.openUrl({ url }),
+    openPath: ({ path }) => surfaces.shell.openPath({ path }),
+    async dirExists({ path }: { path: string }): Promise<boolean> {
       // ShellPort.dirExists documents "never throws" — a permission error, or the path vanishing
       // between exists() and stat(), must resolve false, matching the Electron adapter.
       try {
-        const exists = await surfaces.fs.exists(path);
+        const exists = await surfaces.fs.exists({ path });
         if (!exists) return false;
-        const info = await surfaces.fs.stat(path);
+        const info = await surfaces.fs.stat({ path });
         return info.isDirectory;
       } catch {
         return false;
@@ -40,8 +38,8 @@ export function createTauriShellPort(surfaces: TauriShellSurfaces): ShellPort {
     async recentDirs(): Promise<string[]> {
       return notImplemented('recentDirs');
     },
-    async openFolderDialog(options?: OpenFolderDialogOptions): Promise<string | null> {
-      const result = await surfaces.dialog.open({
+    async openFolderDialog(_requiredArgs: Record<string, never>, options?: OpenFolderDialogOptions): Promise<string | null> {
+      const result = await surfaces.dialog.open({}, {
         directory: true,
         ...(options?.defaultPath !== undefined ? { defaultPath: options.defaultPath } : {}),
       });

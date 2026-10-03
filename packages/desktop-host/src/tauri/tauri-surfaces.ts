@@ -3,7 +3,8 @@
  * `@tauri-apps/plugin-*` shapes this package's Tauri adapter uses. Like
  * `../electron/electron-surfaces.ts`, no real `@tauri-apps/*` package is a
  * dependency here — a consumer running inside a real Tauri webview passes
- * the real plugin functions, which structurally satisfy these interfaces.
+ * object-argument bindings around the real plugin functions. Native plugin
+ * functions no longer structurally satisfy these interfaces.
  *
  * Tauri's single-instance model is fundamentally different from
  * Electron's: the `tauri-plugin-single-instance` Rust plugin enforces the
@@ -17,7 +18,7 @@
  */
 
 export interface TauriSingleInstanceApi {
-  onSecondInstance(listener: (args: string[], cwd: string) => void): () => void;
+  onSecondInstance({ listener }: { listener: (args: { args: string[]; cwd: string }) => void }): () => void;
 }
 
 export interface TauriWindowLike {
@@ -25,9 +26,11 @@ export interface TauriWindowLike {
   hide(): Promise<void>;
   setFocus(): Promise<void>;
   close(): Promise<void>;
-  navigate(url: string): Promise<void>;
+  navigate({ url }: { url: string }): Promise<void>;
   isClosed(): boolean;
-  onCloseRequested(listener: () => void): () => void;
+  onCloseRequested({ listener }: { listener: () => void }): () => void;
+  /** Bind the native destruction event; notify after closure, never for a cancelable request. */
+  onClosed?({ listener }: { listener: () => void }): () => void;
 }
 
 export interface TauriWindowCreateOptions {
@@ -38,11 +41,11 @@ export interface TauriWindowCreateOptions {
   visible?: boolean;
 }
 
-export type TauriWindowFactory = (options: TauriWindowCreateOptions) => Promise<TauriWindowLike>;
+export type TauriWindowFactory = (requiredArgs: Pick<TauriWindowCreateOptions, 'label' | 'url'>, optionalArgs?: Omit<TauriWindowCreateOptions, 'label' | 'url'>) => Promise<TauriWindowLike>;
 
 export interface TauriShellApi {
-  openUrl(url: string): Promise<void>;
-  openPath(path: string): Promise<void>;
+  openUrl({ url }: { url: string }): Promise<void>;
+  openPath({ path }: { path: string }): Promise<void>;
 }
 
 /** A `@tauri-apps/plugin-fs` `FileInfo`'s relevant subset — `isDirectory` is a plain boolean property on the real plugin's returned struct (a JSON-esque value crossing the Rust/JS boundary), not a method the way Node's `fs.Stats.isDirectory()` is. */
@@ -53,9 +56,9 @@ export interface TauriFileInfo {
 /** Structural subset of `@tauri-apps/plugin-fs` this package's `ShellPort.dirExists` backs. No real `@tauri-apps/plugin-fs` import — see module doc. */
 export interface TauriFsApi {
   /** Real plugin: `exists(path)`. */
-  exists(path: string): Promise<boolean>;
+  exists({ path }: { path: string }): Promise<boolean>;
   /** Real plugin: `stat(path)`. */
-  stat(path: string): Promise<TauriFileInfo>;
+  stat({ path }: { path: string }): Promise<TauriFileInfo>;
 }
 
 export interface TauriOpenDialogOptions {
@@ -65,16 +68,16 @@ export interface TauriOpenDialogOptions {
 
 /** Structural subset of `@tauri-apps/plugin-dialog` this package's `ShellPort.openFolderDialog` backs. Real plugin: `open(options)` resolves `null` on cancel, a single `string` for a single selection, or `string[]` when `multiple: true` is requested (this port never sets `multiple`, but the return type still reflects the plugin's real signature). */
 export interface TauriDialogApi {
-  open(options: TauriOpenDialogOptions): Promise<string | string[] | null>;
+  open(requiredArgs: Record<string, never>, optionalArgs?: TauriOpenDialogOptions): Promise<string | string[] | null>;
 }
 
 export interface TauriChildProcessLike {
   pid: number | undefined;
-  onExit(listener: (code: number | null, signal: NodeJS.Signals | null) => void): void;
-  kill(signal?: NodeJS.Signals): boolean;
-  write?(data: string): Promise<void>;
+  onExit({ listener }: { listener: (args: { code: number | null; signal: NodeJS.Signals | null }) => void }): void;
+  kill(requiredArgs: Record<string, never>, optionalArgs?: { signal?: NodeJS.Signals | undefined }): boolean;
+  write?({ data }: { data: string }): Promise<void>;
 }
 
 export interface TauriSidecarCommandApi {
-  spawnSidecar(binaryName: string, args: string[], env?: Record<string, string>): Promise<TauriChildProcessLike>;
+  spawnSidecar({ binaryName, args }: { binaryName: string; args: string[] }, optionalArgs?: { env?: Record<string, string> | undefined }): Promise<TauriChildProcessLike>;
 }

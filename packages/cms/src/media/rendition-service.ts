@@ -1,3 +1,4 @@
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 /**
  * @file Rendition resolution service — "serve-if-exists +
  * bounded generate-if-defined", the read path behind the frozen public URL
@@ -30,7 +31,7 @@
  */
 import { createHash } from "node:crypto";
 
-import type { ClockPort, IdGeneratorPort, UUID } from "../core/ports.js";
+import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
 import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRepoPort, TransformDefinitionRepoPort } from "./ports.js";
 import type { AssetRenditionRecord } from "./types.js";
 import { findMediaByIdOrSlug } from "./media-service.js";
@@ -46,8 +47,8 @@ export interface ResolveMediaRenditionDeps {
   transformRepo: TransformDefinitionRepoPort;
   blobStore: BlobStorePort;
   imageTransformer: ImageTransformerPort;
-  clock: ClockPort;
-  idGen: IdGeneratorPort;
+  clock: Clock;
+  idGen: IdGenerator;
 }
 
 export interface ResolveMediaRenditionInput {
@@ -135,7 +136,7 @@ export async function resolveMediaRendition(
   });
   if (existing) {
     const bytes = await deps.blobStore.get({ storageKey: existing.storageKey });
-    return { outcome: "ok", bytes, contentType: mimeForTransformFormat(definition.params.format) };
+    return { outcome: "ok", bytes, contentType: mimeForTransformFormat({ format: definition.params.format }) };
   }
 
   const generationAllowed =
@@ -156,7 +157,7 @@ export async function resolveMediaRendition(
   }
 
   const lockKey = `${media.source.sha256}:${input.transformName}:${input.version}`;
-  const renditionRow = await withRenditionLock(lockKey, async () => {
+  const renditionRow = await withRenditionLock({ key: lockKey, criticalSection: async () => {
     // Double-checked: another caller may have finished generating this exact rendition while we
     // were queued for the lock (single-flight) — reuse it instead of calling
     // `imageTransformer.transform` a second time.
@@ -187,12 +188,12 @@ export async function resolveMediaRendition(
       transformName: input.transformName,
       version: input.version,
       storageKey,
-      createdAt: deps.clock.nowIso(),
+      createdAt: kernelNowIso({ clock: deps.clock }),
     };
     await deps.renditionRepo.save(row);
     return row;
-  });
+  } });
 
   const bytes = await deps.blobStore.get({ storageKey: renditionRow.storageKey });
-  return { outcome: "ok", bytes, contentType: mimeForTransformFormat(definition.params.format) };
+  return { outcome: "ok", bytes, contentType: mimeForTransformFormat({ format: definition.params.format }) };
 }

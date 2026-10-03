@@ -35,7 +35,7 @@ describe('extractFacts', () => {
   it('short-circuits to an empty result without a network call when content is empty/whitespace', async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
-    const result = await extractFacts(anthropicConfig(), { content: '   ' });
+    const result = await extractFacts({ llmConfig: anthropicConfig(), content: '   ' }, {});
     expect(result).toEqual({ facts: [], raw: '' });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -48,7 +48,7 @@ describe('extractFacts', () => {
     };
     const fetchSpy = stubAnthropicJsonReply(payload);
 
-    const result = await extractFacts(anthropicConfig(), { content: 'The sky is blue today.' });
+    const result = await extractFacts({ llmConfig: anthropicConfig(), content: 'The sky is blue today.' }, {});
 
     expect(result.facts).toEqual([
       { statement: 'The sky is blue.', category: 'observation', entities: ['sky'], confidence: 0.9, sourceQuote: 'sky is blue' },
@@ -65,11 +65,7 @@ describe('extractFacts', () => {
 
   it('folds sourceLabel and suggestedCategories into the user prompt', async () => {
     const fetchSpy = stubAnthropicJsonReply({ facts: [] });
-    await extractFacts(
-      anthropicConfig(),
-      { content: 'Some content.', sourceLabel: 'chat message from 2026-07-21' },
-      { prompt: { suggestedCategories: ['preference', 'decision'] } },
-    );
+    await extractFacts({ llmConfig: anthropicConfig(), content: 'Some content.' }, { ...{ prompt: { suggestedCategories: ['preference', 'decision'] } }, sourceLabel: 'chat message from 2026-07-21' });
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(String(init.body));
     expect(body.messages[0].content).toContain('Source: chat message from 2026-07-21');
@@ -78,7 +74,7 @@ describe('extractFacts', () => {
 
   it('overrides the system prompt entirely when supplied', async () => {
     const fetchSpy = stubAnthropicJsonReply({ facts: [] });
-    await extractFacts(anthropicConfig(), { content: 'x' }, { prompt: { systemPrompt: 'Custom prompt.' } });
+    await extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, { prompt: { systemPrompt: 'Custom prompt.' } });
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(String(init.body));
     expect(body.system).toBe('Custom prompt.');
@@ -88,7 +84,7 @@ describe('extractFacts', () => {
     stubAnthropicJsonReply({
       facts: [{ category: 'no-statement' }, { statement: '   ' }, { statement: 'Real fact.' }, 'not-an-object', null],
     });
-    const result = await extractFacts(anthropicConfig(), { content: 'x' });
+    const result = await extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, {});
     expect(result.facts).toEqual([{ statement: 'Real fact.' }]);
   });
 
@@ -96,7 +92,7 @@ describe('extractFacts', () => {
     stubAnthropicJsonReply({
       facts: [{ statement: 'Fact one.', entities: ['Alice', 42, '  ', 'Bob'] }, { statement: 'Fact two.', entities: [] }],
     });
-    const result = await extractFacts(anthropicConfig(), { content: 'x' });
+    const result = await extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, {});
     expect(result.facts[0]).toEqual({ statement: 'Fact one.', entities: ['Alice', 'Bob'] });
     expect(result.facts[1]).toEqual({ statement: 'Fact two.' });
     expect(result.facts[1]).not.toHaveProperty('entities');
@@ -110,7 +106,7 @@ describe('extractFacts', () => {
         { statement: 'Not a number.', confidence: 'high' },
       ],
     });
-    const result = await extractFacts(anthropicConfig(), { content: 'x' });
+    const result = await extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, {});
     expect(result.facts[0]?.confidence).toBe(1);
     expect(result.facts[1]?.confidence).toBe(0);
     expect(result.facts[2]).not.toHaveProperty('confidence');
@@ -118,14 +114,14 @@ describe('extractFacts', () => {
 
   it('treats a non-array facts field as zero facts', async () => {
     stubAnthropicJsonReply({ facts: 'not-an-array' });
-    const result = await extractFacts(anthropicConfig(), { content: 'x' });
+    const result = await extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, {});
     expect(result.facts).toEqual([]);
   });
 
   it('caps the returned facts at the default max (20)', async () => {
     const many = Array.from({ length: 30 }, (_, i) => ({ statement: `Fact ${i}` }));
     stubAnthropicJsonReply({ facts: many });
-    const result = await extractFacts(anthropicConfig(), { content: 'x' });
+    const result = await extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, {});
     expect(result.facts).toHaveLength(DEFAULT_MAX_FACTS);
     expect(result.facts[0]).toEqual({ statement: 'Fact 0' });
     expect(result.facts[19]).toEqual({ statement: 'Fact 19' });
@@ -135,21 +131,21 @@ describe('extractFacts', () => {
     const many = Array.from({ length: 10 }, (_, i) => ({ statement: `Fact ${i}` }));
 
     stubAnthropicJsonReply({ facts: many });
-    const capped = await extractFacts(anthropicConfig(), { content: 'x' }, { prompt: { maxFacts: 3.9 } });
+    const capped = await extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, { prompt: { maxFacts: 3.9 } });
     expect(capped.facts).toHaveLength(3);
 
     stubAnthropicJsonReply({ facts: many });
-    const zero = await extractFacts(anthropicConfig(), { content: 'x' }, { prompt: { maxFacts: 0 } });
+    const zero = await extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, { prompt: { maxFacts: 0 } });
     expect(zero.facts).toHaveLength(DEFAULT_MAX_FACTS < 10 ? DEFAULT_MAX_FACTS : 10);
 
     stubAnthropicJsonReply({ facts: many });
-    const negative = await extractFacts(anthropicConfig(), { content: 'x' }, { prompt: { maxFacts: -5 } });
+    const negative = await extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, { prompt: { maxFacts: -5 } });
     expect(negative.facts).toHaveLength(10);
   });
 
   it('propagates a network/HTTP error from callLlmProvider unchanged', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: { message: 'bad request' } }, 400)));
-    await expect(extractFacts(anthropicConfig(), { content: 'x' })).rejects.toThrow(/anthropic 400/);
+    await expect(extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, {})).rejects.toThrow(/anthropic 400/);
   });
 
   it('throws when the model response is not valid JSON even after fence-stripping', async () => {
@@ -157,19 +153,37 @@ describe('extractFacts', () => {
       'fetch',
       vi.fn(async () => jsonResponse({ content: [{ type: 'text', text: 'not json at all, no braces' }] })),
     );
-    await expect(extractFacts(anthropicConfig(), { content: 'x' })).rejects.toThrow(/not valid JSON/);
+    await expect(extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, {})).rejects.toThrow(/not valid JSON/);
   });
 
   describe('extraction-log integration', () => {
+    it('rejects a JSON null response and records the shape failure instead of leaving the attempt running', async () => {
+      stubAnthropicJsonReply(null);
+      const log = createExtractionLog({});
+
+      await expect(
+        extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, { logging: { log, kind: 'note-extraction' } }),
+      ).rejects.toThrow('extract-facts: response must not be null');
+
+      expect(log.list()).toHaveLength(1);
+      expect(log.list()[0]?.phase).toBe('failed');
+      expect(log.list()[0]?.error).toBe('extract-facts: response must not be null');
+      expect(log.list()[0]).not.toHaveProperty('proposedCount');
+      expect(log.list()[0]).not.toHaveProperty('writtenCount');
+    });
+
+    it('rejects a JSON null response with the same diagnostic when logging is omitted', async () => {
+      stubAnthropicJsonReply(null);
+      await expect(extractFacts({ llmConfig: anthropicConfig(), content: 'x' })).rejects.toThrow(
+        'extract-facts: response must not be null',
+      );
+    });
+
     it('records start → provider → proposed → success on a successful call', async () => {
       stubAnthropicJsonReply({ facts: [{ statement: 'Logged fact.' }] });
-      const log = createExtractionLog();
+      const log = createExtractionLog({});
 
-      const result = await extractFacts(
-        anthropicConfig({ model: 'claude-logging-test' }),
-        { content: 'x' },
-        { logging: { log, kind: 'note-extraction' } },
-      );
+      const result = await extractFacts({ llmConfig: anthropicConfig({ model: 'claude-logging-test' }), content: 'x' }, { logging: { log, kind: 'note-extraction' } });
 
       expect(result.facts).toHaveLength(1);
       const records = log.list();
@@ -185,10 +199,10 @@ describe('extractFacts', () => {
 
     it('records a failed attempt when the LLM call itself throws', async () => {
       vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: { message: 'nope' } }, 500)));
-      const log = createExtractionLog();
+      const log = createExtractionLog({});
 
       await expect(
-        extractFacts(anthropicConfig(), { content: 'x' }, { logging: { log, kind: 'note-extraction' } }),
+        extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, { logging: { log, kind: 'note-extraction' } }),
       ).rejects.toThrow();
 
       const record = log.list()[0]!;
@@ -201,10 +215,10 @@ describe('extractFacts', () => {
         'fetch',
         vi.fn(async () => jsonResponse({ content: [{ type: 'text', text: 'nope, not json' }] })),
       );
-      const log = createExtractionLog();
+      const log = createExtractionLog({});
 
       await expect(
-        extractFacts(anthropicConfig(), { content: 'x' }, { logging: { log, kind: 'note-extraction' } }),
+        extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, { logging: { log, kind: 'note-extraction' } }),
       ).rejects.toThrow();
 
       const record = log.list()[0]!;
@@ -214,7 +228,7 @@ describe('extractFacts', () => {
     it('does not touch a log when logging options are omitted', async () => {
       stubAnthropicJsonReply({ facts: [] });
       // No log passed at all — this just proves no crash/side effect occurs; nothing to assert on.
-      await extractFacts(anthropicConfig(), { content: 'x' });
+      await extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, {});
     });
   });
 });
@@ -222,7 +236,7 @@ describe('extractFacts', () => {
 describe('factToNoteDraft', () => {
   it('uses the full statement as both name and description when short and no sourceQuote', () => {
     const fact: ExtractedFact = { statement: 'A short fact.' };
-    expect(factToNoteDraft(fact, 'reference')).toEqual({
+    expect(factToNoteDraft({ fact, type: 'reference' })).toEqual({
       name: 'A short fact.',
       description: 'A short fact.',
       type: 'reference',
@@ -231,7 +245,7 @@ describe('factToNoteDraft', () => {
 
   it('appends a Source line to description when sourceQuote is present', () => {
     const fact: ExtractedFact = { statement: 'A fact with a quote.', sourceQuote: 'quoted text' };
-    const draft = factToNoteDraft(fact, 'reference');
+    const draft = factToNoteDraft({ fact, type: 'reference' });
     expect(draft.description).toBe('A fact with a quote.\n\nSource: "quoted text"');
     expect(draft.name).toBe('A fact with a quote.');
   });
@@ -239,7 +253,7 @@ describe('factToNoteDraft', () => {
   it('truncates a long statement for name but keeps the full statement in description', () => {
     const longStatement = 'X'.repeat(120);
     const fact: ExtractedFact = { statement: longStatement };
-    const draft = factToNoteDraft(fact, 'profile');
+    const draft = factToNoteDraft({ fact, type: 'profile' });
     expect(draft.name.length).toBe(80);
     expect(draft.name.endsWith('…')).toBe(true);
     expect(draft.description).toBe(longStatement);

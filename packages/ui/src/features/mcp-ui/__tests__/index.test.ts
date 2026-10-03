@@ -10,8 +10,8 @@ describe('@jini-ai/ui/mcp-ui/surfaces barrel', () => {
     expect(mcpUi.MCP_UI_HOST_NOTIFICATIONS.toolResult).toBe('ui/notifications/tool-result');
     expect(mcpUi.JSON_RPC_ERROR_CODES.methodNotFound).toBe(-32601);
     expect(mcpUi.JINI_PAGE_ACTION_METHOD).toBe('x-jini/page-action');
-    expect(mcpUi.isJsonRpcMessage({ jsonrpc: '2.0', method: 'ping' })).toBe(true);
-    expect(mcpUi.createJsonRpcRequest(1, 'ping')).toEqual({ jsonrpc: '2.0', id: 1, method: 'ping' });
+    expect(mcpUi.isJsonRpcMessage({ value: { jsonrpc: '2.0', method: 'ping' } })).toBe(true);
+    expect(mcpUi.createJsonRpcRequest({ id: 1, method: 'ping' })).toEqual({ jsonrpc: '2.0', id: 1, method: 'ping' });
   });
 
   it('states the sandbox rule as a constant, so the reason travels with the value', () => {

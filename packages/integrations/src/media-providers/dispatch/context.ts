@@ -6,7 +6,7 @@
  * ported so far in this pass, so the only way to prove their computation is
  * correct without a real renderer to observe them through is to test this
  * function's return value directly, rather than leave them untested or
- * drop them from the type surface. See `source-map.md` for why both fields
+ * drop them from the type surface. See `archived provenance ledger` for why both fields
  * are kept despite having no current consumer.
  */
 import type { AudioKind, MediaSurface } from '../types.js';
@@ -25,11 +25,7 @@ function defaultAspectFor(surface: MediaSurface): string | undefined {
  * @param length Already clamped by the caller (video surface only).
  * @param duration Already clamped by the caller (audio surface only).
  */
-export function buildRenderContext(
-  request: MediaGenerationRequest,
-  resolvedAudioKind: AudioKind | undefined,
-  length: number | undefined,
-  duration: number | undefined,
+export function buildRenderContext({ request, resolvedAudioKind, length, duration }: { request: MediaGenerationRequest; resolvedAudioKind: AudioKind | undefined; length: number | undefined; duration: number | undefined }
 ): RenderContext {
   return {
     surface: request.surface,

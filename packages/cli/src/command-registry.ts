@@ -2,7 +2,7 @@
  * @module command-registry
  *
  * The generic dispatcher shape behind OD's `SUBCOMMAND_MAP` (see
- * `source-map.md`): look at the first non-flag `argv` token, dispatch to a
+ * `archived provenance ledger`): look at the first non-flag `argv` token, dispatch to a
  * registered handler, or report that nothing matched so the caller can fall
  * back to root help. OD's actual map (33 product command names) was not
  * ported — only the registrar pattern, which is what `@jini-ai/core`'s
@@ -10,7 +10,7 @@
  * needs a concrete `reg` type for.
  */
 
-export type CommandHandler = (args: readonly string[]) => void | Promise<void>;
+export type CommandHandler = (requiredArgs: { args: readonly string[] }) => void | Promise<void>;
 
 interface RegisteredCommand {
   name: string;
@@ -60,13 +60,15 @@ export interface CommandDispatchOptions {
  * to skip over a value-flag's value while scanning for the command name.
  */
 export class CommandRegistry {
+  constructor(_requiredArgs: Record<string, never> = {}) {}
+
   private readonly commands = new Map<string, RegisteredCommand>();
 
   /**
    * Register a command. Throws if `name` is already registered — pass
    * `{ override: true }` to intentionally replace an existing registration.
    */
-  add(name: string, handler: CommandHandler, opts: AddCommandOptions = {}): this {
+  add({ name, handler }: { name: string; handler: CommandHandler }, opts: AddCommandOptions = {}): this {
     if (this.commands.has(name) && opts.override !== true) {
       throw new Error(
         `command "${name}" is already registered; pass { override: true } to replace it intentionally`,
@@ -76,17 +78,17 @@ export class CommandRegistry {
     return this;
   }
 
-  has(name: string): boolean {
+  has({ name }: { name: string }): boolean {
     return this.commands.has(name);
   }
 
   /** The usage text registered alongside `name`, if any. */
-  usageFor(name: string): string | undefined {
+  usageFor({ name }: { name: string }): string | undefined {
     return this.commands.get(name)?.usage;
   }
 
   /** Every registered command name, insertion order. */
-  names(): string[] {
+  names(_requiredArgs: Record<string, never> = {}): string[] {
     return [...this.commands.keys()];
   }
 
@@ -103,7 +105,7 @@ export class CommandRegistry {
    * `options.valueFlags` — the set of global `--flag` names that consume the
    * next token as a value — so the scan skips over it instead.
    */
-  async dispatch(argv: readonly string[], options: CommandDispatchOptions = {}): Promise<CommandDispatchResult> {
+  async dispatch({ argv }: { argv: readonly string[] }, options: CommandDispatchOptions = {}): Promise<CommandDispatchResult> {
     const valueFlags = options.valueFlags ?? new Set<string>();
 
     let index = -1;
@@ -130,7 +132,7 @@ export class CommandRegistry {
     if (command === undefined) return { kind: 'not-found', name };
 
     const rest = [...argv.slice(0, index), ...argv.slice(index + 1)];
-    await command.handler(rest);
+    await command.handler({ args: rest });
     return { kind: 'handled' };
   }
 }

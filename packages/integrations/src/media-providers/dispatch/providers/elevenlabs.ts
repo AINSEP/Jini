@@ -2,7 +2,7 @@
  * Provider: ElevenLabs — v3 text-to-speech (`renderElevenLabsTTS`) and
  * text-to-sound-effect (`renderElevenLabsSfx`), both synchronous. Ported
  * near-verbatim from Open Design's `apps/daemon/src/media/index.ts`
- * `renderElevenLabsTTS`/`renderElevenLabsSfx` — see `source-map.md`.
+ * `renderElevenLabsTTS`/`renderElevenLabsSfx` — see `archived provenance ledger`.
  *
  * Neither endpoint returns the OpenAI-images/audio wire shape (both are
  * ElevenLabs-specific JSON-body-in, raw-audio-bytes-out POSTs), so this
@@ -93,9 +93,9 @@ interface ElevenLabsTTSMeta {
 }
 
 const elevenLabsTTSAdapter: VendorAdapter<ElevenLabsTTSMeta> = {
-  requireCredential: requireApiKey(NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<ElevenLabsTTSMeta> {
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<ElevenLabsTTSMeta> {
     const apiKey = credentials.apiKey!; // requireCredential already validated this.
     const baseUrl = (credentials.baseUrl || ELEVENLABS_DEFAULT_BASE_URL).replace(/\/$/, '');
     const wireModel = ELEVENLABS_TTS_MODEL_MAP[ctx.model] || ctx.model;
@@ -130,15 +130,15 @@ const elevenLabsTTSAdapter: VendorAdapter<ElevenLabsTTSMeta> = {
   parseResponse: createRawBytesParser<ElevenLabsTTSMeta>({
     errorTag: 'elevenlabs tts',
     zeroBytesMessage: 'elevenlabs tts returned zero bytes',
-    note: (bytes, meta) => `elevenlabs/${meta.wireModel} · ${meta.voiceId} · ${bytes.length} bytes`,
+    note: ({ bytes, meta }) => `elevenlabs/${meta.wireModel} · ${meta.voiceId} · ${bytes.length} bytes`,
     suggestedExt: '.mp3',
   }),
 };
 
-mediaVendorRegistry.register('elevenlabs', 'audio:speech', elevenLabsTTSAdapter);
+mediaVendorRegistry.register({ providerId: 'elevenlabs', routeKey: 'audio:speech', adapter: elevenLabsTTSAdapter });
 
-export async function renderElevenLabsTTS(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(elevenLabsTTSAdapter, ctx, credentials);
+export async function renderElevenLabsTTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: elevenLabsTTSAdapter, ctx: ctx, credentials: credentials });
 }
 
 interface ElevenLabsSfxMeta {
@@ -148,9 +148,9 @@ interface ElevenLabsSfxMeta {
 }
 
 const elevenLabsSfxAdapter: VendorAdapter<ElevenLabsSfxMeta> = {
-  requireCredential: requireApiKey(NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<ElevenLabsSfxMeta> {
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<ElevenLabsSfxMeta> {
     const apiKey = credentials.apiKey!; // requireCredential already validated this.
     const baseUrl = (credentials.baseUrl || ELEVENLABS_DEFAULT_BASE_URL).replace(/\/$/, '');
     const wireModel = ELEVENLABS_SFX_MODEL_MAP[ctx.model] || ctx.model;
@@ -183,13 +183,13 @@ const elevenLabsSfxAdapter: VendorAdapter<ElevenLabsSfxMeta> = {
   parseResponse: createRawBytesParser<ElevenLabsSfxMeta>({
     errorTag: 'elevenlabs sfx',
     zeroBytesMessage: 'elevenlabs sfx returned zero bytes',
-    note: (bytes, meta) => `elevenlabs/${meta.wireModel} · ${meta.durationSeconds}s${meta.loop ? ' · loop' : ''} · ${bytes.length} bytes`,
+    note: ({ bytes, meta }) => `elevenlabs/${meta.wireModel} · ${meta.durationSeconds}s${meta.loop ? ' · loop' : ''} · ${bytes.length} bytes`,
     suggestedExt: '.mp3',
   }),
 };
 
-mediaVendorRegistry.register('elevenlabs', 'audio:sfx', elevenLabsSfxAdapter);
+mediaVendorRegistry.register({ providerId: 'elevenlabs', routeKey: 'audio:sfx', adapter: elevenLabsSfxAdapter });
 
-export async function renderElevenLabsSfx(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(elevenLabsSfxAdapter, ctx, credentials);
+export async function renderElevenLabsSfx({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: elevenLabsSfxAdapter, ctx: ctx, credentials: credentials });
 }

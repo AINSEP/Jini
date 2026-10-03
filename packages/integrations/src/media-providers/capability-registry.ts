@@ -11,9 +11,9 @@ import type { ModelCapability } from './types.js';
 
 export interface CapabilityRegistry {
   /** Looks up a model by catalogue id (an aggregator prefix, if any, is stripped first — see `normalizeModelId`). */
-  get(id: string): ModelCapability | undefined;
+  get(required: { id: string }): ModelCapability | undefined;
   /** Adds/overrides capabilities (later calls win on a duplicate id). */
-  register(caps: readonly ModelCapability[]): void;
+  register(required: { caps: readonly ModelCapability[] }): void;
   /** All registered capabilities. */
   all(): ModelCapability[];
 }
@@ -24,23 +24,23 @@ export interface CapabilityRegistry {
  * package's one ported reference seed (`seed.ts`) — a different aggregator's
  * prefix is the caller's own normalization to apply before `register`/`get`.
  */
-export function normalizeModelId(id: string): string {
+export function normalizeModelId({ id }: { id: string }): string {
   return (id || '').trim().replace(/^aihubmix-/, '');
 }
 
 /** Creates a `CapabilityRegistry`, optionally pre-seeded with `seed`. */
-export function createCapabilityRegistry(seed: readonly ModelCapability[] = []): CapabilityRegistry {
+export function createCapabilityRegistry({  }: Record<string, never>, { seed = [] }: { seed?: readonly ModelCapability[] | undefined } = {}): CapabilityRegistry {
   const map = new Map<string, ModelCapability>();
-  const register = (caps: readonly ModelCapability[]): void => {
+  const register = ({ caps }: { caps: readonly ModelCapability[] }): void => {
     for (const cap of caps) {
       if (cap && typeof cap.id === 'string' && cap.id) {
-        map.set(normalizeModelId(cap.id), cap);
+        map.set(normalizeModelId({ id: cap.id }), cap);
       }
     }
   };
-  register(seed);
+  register({ caps: seed });
   return {
-    get: (id) => map.get(normalizeModelId(id)),
+    get: ({ id }: { id: string }) => map.get(normalizeModelId({ id })),
     register,
     all: () => [...map.values()],
   };

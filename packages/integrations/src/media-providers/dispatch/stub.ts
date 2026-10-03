@@ -1,3 +1,4 @@
+import type { RequiredArgs, OptionalArgs } from '../../args.js';
 /**
  * Deterministic placeholder-bytes renderer used when
  * `MediaDispatchEngineOptions.allowStubFallback` is `true` and no real
@@ -6,12 +7,12 @@
  * exercised end-to-end before every vendor integration lands. Ported
  * near-verbatim from Open Design's `apps/daemon/src/media/index.ts`
  * `renderStub`/`svgPlaceholder`/`aspectToBox`/`silentWav` — see
- * `source-map.md`.
+ * `archived provenance ledger`.
  */
 import { truncate } from './openai-compatible.js';
 import type { RenderContext, RenderResult } from './types.js';
 
-export async function renderStub(ctx: RenderContext, providerId: string, integrated: boolean): Promise<RenderResult> {
+export async function renderStub({ ctx, providerId, integrated }: { ctx: RenderContext; providerId: string; integrated: boolean }): Promise<RenderResult> {
   const note = !integrated ? `stub-${ctx.surface} · provider '${providerId}' integration pending` : `stub-${ctx.surface} · model=${ctx.model}`;
   if (ctx.surface === 'image') {
     const png = Buffer.from([
@@ -55,7 +56,8 @@ export async function renderStub(ctx: RenderContext, providerId: string, integra
 }
 
 /** Renders a labelled placeholder SVG for the image surface (an explicit opt-in alternative to the PNG placeholder). */
-export function svgPlaceholder(ctx: RenderContext): string {
+export function svgPlaceholder(required: RequiredArgs<RenderContext>, optional: OptionalArgs<RenderContext> = {}): string {
+    const ctx = { ...required, ...optional };
   const [w, h] = aspectToBox(ctx.aspect, 800);
   const safe = (s: unknown): string =>
     String(s || '')

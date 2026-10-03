@@ -13,31 +13,32 @@
 import type { StorageObjectMeta, StorageProvider, StoragePutOptions } from '../storage.js';
 
 /** Creates the in-memory reference `StorageProvider`. No persistence — state is lost on process exit. */
-export function createInMemoryStorageProvider(): StorageProvider {
+export function createInMemoryStorageProvider(_required: Record<string, never>, optional: { now?: () => number } = {}): StorageProvider {
+  const now = optional.now ?? Date.now;
   const objects = new Map<string, { data: Uint8Array; meta: StorageObjectMeta }>();
 
   return {
-    async put(key: string, data: Uint8Array, options: StoragePutOptions = {}): Promise<StorageObjectMeta> {
+    async put({ key, data }: { key: string; data: Uint8Array }, options: StoragePutOptions = {}): Promise<StorageObjectMeta> {
       const meta: StorageObjectMeta = {
         key,
         size: data.byteLength,
-        updatedAt: Date.now(),
+        updatedAt: now(),
         ...(options.contentType !== undefined ? { contentType: options.contentType } : {}),
       };
       objects.set(key, { data: data.slice(), meta });
       return meta;
     },
 
-    async get(key: string): Promise<Uint8Array | null> {
+    async get({ key }: { key: string }): Promise<Uint8Array | null> {
       const entry = objects.get(key);
       return entry ? entry.data.slice() : null;
     },
 
-    async delete(key: string): Promise<void> {
+    async delete({ key }: { key: string }): Promise<void> {
       objects.delete(key);
     },
 
-    async list(prefix = ''): Promise<StorageObjectMeta[]> {
+    async list(_required: Record<string, never>, { prefix = '' }: { prefix?: string } = {}): Promise<StorageObjectMeta[]> {
       return [...objects.values()]
         .map((entry) => entry.meta)
         .filter((meta) => meta.key.startsWith(prefix))

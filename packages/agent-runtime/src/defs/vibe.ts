@@ -1,4 +1,4 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/vibe.ts` (import path adjusted only). See `source-map.md`. */
+/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/vibe.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
@@ -7,8 +7,8 @@ export const vibeAgentDef = {
     name: 'Mistral Vibe CLI',
     bin: 'vibe-acp',
     versionArgs: ['--version'],
-    fetchModels: async (resolvedBin, env) =>
-      detectAcpModels({
+    fetchModels: async ({ resolvedBin, env }) =>
+      (({ bin, args, ...optionalArgs }: Parameters<typeof detectAcpModels>[0] & NonNullable<Parameters<typeof detectAcpModels>[1]>) => detectAcpModels({ bin, args }, optionalArgs))({
         bin: resolvedBin,
         args: [],
         env,

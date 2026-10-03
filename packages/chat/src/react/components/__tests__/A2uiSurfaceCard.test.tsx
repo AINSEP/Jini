@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createLabCatalog } from '@jini-ai/agentic/a2ui';
 import { A2uiSurfaceCard } from '../A2uiSurfaceCard.js';
 
-const CATALOG_ID = createLabCatalog().catalogId;
+const CATALOG_ID = createLabCatalog({}).catalogId;
 
 /** Wire components are flat: `{id, component, ...props}` — never `{id, component, props: {...}}`. That nested shape only exists in the interpreter's own internal `ComponentInstance` representation (see `interpreter.ts`'s `applyComponentsList`), not on the wire. */
 function createSurfaceMessage(surfaceId: string, components: unknown[]) {

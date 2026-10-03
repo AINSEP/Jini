@@ -15,7 +15,7 @@ function validatedOptionId(
   return fallback;
 }
 
-export function defaultChatPaneSelection(agent: ChatPaneAgent): ChatPaneAgentSelection {
+export function defaultChatPaneSelection({ agent }: { agent: ChatPaneAgent }): ChatPaneAgentSelection {
   const model = preferredOptionId(agent.models);
   const reasoning = preferredOptionId(agent.reasoningOptions);
   return {
@@ -25,16 +25,14 @@ export function defaultChatPaneSelection(agent: ChatPaneAgent): ChatPaneAgentSel
   };
 }
 
-export function resolveChatPaneSelection(
-  agents: readonly ChatPaneAgent[],
-  requested: ChatPaneAgentSelection,
+export function resolveChatPaneSelection({ agents, requested }: { agents: readonly ChatPaneAgent[]; requested: ChatPaneAgentSelection }
 ): ChatPaneAgentSelection {
   const requestedAgent = agents.find(
     (agent) => agent.id === requested.agentId && agent.available !== false,
   );
   const agent = requestedAgent ?? agents.find((candidate) => candidate.available !== false);
   if (!agent) return { agentId: '' };
-  const defaults = defaultChatPaneSelection(agent);
+  const defaults = defaultChatPaneSelection({ agent: agent });
   if (agent !== requestedAgent) return defaults;
   const model = requested.model
     && agent.supportsCustomModel
@@ -156,12 +154,11 @@ export function describeChatPaneSendBlocker(blocker: ChatPaneSendBlocker): strin
  * those are clear. A flush path must therefore wait for a fully `null` blocker before sending,
  * not merely for streaming to end.
  */
-export function isChatPaneQueueableBlocker(blocker: ChatPaneSendBlocker | null): boolean {
+export function isChatPaneQueueableBlocker({ blocker }: { blocker: ChatPaneSendBlocker | null }): boolean {
   return blocker === 'streaming';
 }
 
-export function orderChatPaneAgents(
-  agents: readonly ChatPaneAgent[],
+export function orderChatPaneAgents({ agents }: { agents: readonly ChatPaneAgent[] }
 ): ChatPaneAgent[] {
   return [...agents].sort((left, right) => {
     const availability =

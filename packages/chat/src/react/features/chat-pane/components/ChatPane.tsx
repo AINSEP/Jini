@@ -333,11 +333,11 @@ function resolveComposerAttachmentPicker(
 ): { attachmentPicker?: { onFiles: (files: File[]) => void; uploading: boolean; accept?: string } } {
   if (uploadAttachments === undefined) return {};
   return {
-    attachmentPicker: definedProps({
+    attachmentPicker: definedProps({ source: {
       onFiles: pane.addAttachments,
       uploading: pane.isUploadingAttachments,
       accept: attachmentAccept,
-    }),
+    } }),
   };
 }
 
@@ -448,7 +448,7 @@ function ChatPaneComposerArea({
         running={pane.conversation.isStreaming}
         onCancel={pane.conversation.cancel}
         onInterrupt={pane.interruptSend}
-        {...definedProps({ placeholder })}
+        {...definedProps({ source: { placeholder } })}
         slots={slots}
         {...resolveComposerAttachmentPicker(uploadAttachments, pane, attachmentAccept)}
         {...resolveComposerWorkingDirectory(workingDirectoryAccess, workingDirectoryControlPlacement, pane)}
@@ -518,12 +518,12 @@ export function ChatPane({
   style,
 }: ChatPaneProps) {
   const t = useT();
-  const composerPlaceholder = useChatPaneComposerPlaceholder(placeholder, placeholders);
-  const inventory = useChatPaneRuntimeInventory(definedProps({
+  const composerPlaceholder = useChatPaneComposerPlaceholder({ placeholder: placeholder, placeholders: placeholders });
+  const inventory = useChatPaneRuntimeInventory(definedProps({ source: {
     access: runtimeAccess,
     initialAgents: injectedAgents,
     pollIntervalMs: runtimeStatusPollMs,
-  }));
+  } }));
   const runtimeView = resolveRuntimeAccessView(
     runtimeAccess,
     injectedAgents,
@@ -536,7 +536,7 @@ export function ChatPane({
   // component's own `unavailable` below (so the status banner and composer agree) — see
   // `isChatPaneApiModeConfigured` for why API mode alone isn't enough.
   const apiModeConfigured = isChatPaneApiModeConfigured({ executionMode, apiModeAvailable, byokRuntime });
-  const pane = useChatPane(definedProps({
+  const pane = useChatPane(definedProps({ source: {
     transport,
     agents: runtimeView.agents,
     initialMessages,
@@ -555,7 +555,7 @@ export function ChatPane({
     onChangeWorkingDirectory,
     workingDirectoryAccess,
     apiModeConfigured,
-  }));
+  } }));
   // Mirrors `Composer.tsx`'s own `draftRef`: `composerHandle.insertText` (below) is called from
   // OUTSIDE any render, so it cannot close over `pane.composer.draft` directly — that would freeze
   // it at whatever the draft was on the render that captured it. Reassigned unconditionally every
@@ -566,7 +566,7 @@ export function ChatPane({
     if (!composerHandle) return;
     composerHandle.current = {
       insertText: (text) => {
-        pane.composer.setDraft(appendComposerDiscovery(composerDraftRef.current, text));
+        pane.composer.setDraft(appendComposerDiscovery({ draft: composerDraftRef.current, insertText: text }));
       },
     };
     return () => {
@@ -580,11 +580,11 @@ export function ChatPane({
   // No `runContext` here on purpose: agent-driven sends go through `pane.sendPrompt`, which builds
   // the context from the SAME `runContext` already handed to `useChatPane` above. A second copy
   // would be a second source of truth that could silently drift from the composer's.
-  useChatPaneAgentControl(pane, definedProps({
+  useChatPaneAgentControl({ pane: pane }, definedProps({ source: {
     enabled: agentControl?.enabled ?? false,
     bridgeAccess: agentControl?.bridgeAccess,
     webmcp: agentControl?.webmcp,
-  }));
+  } }));
   // Selection resolution only returns available agents, so absence normally means nothing usable
   // is selected — except a configured BYOK turn (`apiModeConfigured`, computed above), which calls
   // the provider directly over HTTP and never touches the CLI inventory.
@@ -600,7 +600,7 @@ export function ChatPane({
   // `composerSlots`'s type excludes both `leadingAccessories` and `footerAccessories` (see
   // `ChatPaneProps.composerSlots`'s doc), so the two explicit keys below are never overwriting a
   // caller-supplied value — they are the ONLY source for both.
-  const slots: ComposerSlots = definedProps({
+  const slots: ComposerSlots = definedProps({ source: {
     ...composerSlots,
     leadingAccessories: leadingAccessory,
     footerAccessories: (
@@ -608,16 +608,16 @@ export function ChatPane({
         agents={runtimeView.agents}
         value={pane.selection}
         onChange={pane.setSelection}
-        {...definedProps({ onRescan: runtimeView.rescanAgents })}
+        {...definedProps({ source: { onRescan: runtimeView.rescanAgents } })}
         scanning={runtimeView.scanningAgents}
         daemonOnline={runtimeView.daemonOnline}
         placement={runtimePickerPlacement}
         executionMode={executionMode}
         apiModeAvailable={apiModeAvailable}
-        {...definedProps({ onExecutionModeChange, byokRuntime, onByokModelChange })}
+        {...definedProps({ source: { onExecutionModeChange, byokRuntime, onByokModelChange } })}
       />
     ),
-  });
+  } });
 
   const { rootRef, controlsRef } = useChatPaneControlsHeight();
 

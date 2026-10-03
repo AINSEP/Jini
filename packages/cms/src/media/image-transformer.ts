@@ -51,6 +51,6 @@ export class InMemoryImageTransformer implements ImageTransformerPort {
     const output = new Uint8Array(tagBytes.length + input.bytes.length);
     output.set(tagBytes, 0);
     output.set(input.bytes, tagBytes.length);
-    return { bytes: output, contentType: mimeForTransformFormat(input.params.format) };
+    return { bytes: output, contentType: mimeForTransformFormat({ format: input.params.format }) };
   }
 }

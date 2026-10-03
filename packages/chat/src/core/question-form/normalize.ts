@@ -12,7 +12,7 @@
 import type { DirectionCard, FormOption, FormQuestion, QuestionType } from './types.js';
 import { formOptionValueForLabel } from './format.js';
 
-export function mapRawQuestion(q: unknown, index: number): FormQuestion | null {
+export function mapRawQuestion({ q, index }: { q: unknown; index: number }): FormQuestion | null {
   if (!q || typeof q !== 'object') return null;
   const qo = q as Record<string, unknown>;
   const id = typeof qo.id === 'string' && qo.id.trim().length > 0 ? qo.id.trim() : `q${index + 1}`;
@@ -130,9 +130,9 @@ function parseDefaultValue(
           : typeof question.default === 'number' || typeof question.default === 'boolean'
             ? String(question.default)
             : undefined;
-  if (typeof raw === 'string') return formOptionValueForLabel({ options }, raw);
+  if (typeof raw === 'string') return formOptionValueForLabel({ question: { options }, labelOrValue: raw });
   if (Array.isArray(raw)) {
-    return raw.filter((value): value is string => typeof value === 'string').map((value) => formOptionValueForLabel({ options }, value));
+    return raw.filter((value): value is string => typeof value === 'string').map((value) => formOptionValueForLabel({ question: { options }, labelOrValue: value }));
   }
   return undefined;
 }
@@ -162,7 +162,7 @@ const COLOR_FUNCTION = /^(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\(\s
  * rather than substituted: a silently recoloured swatch would misrepresent the agent's proposal,
  * and a card with fewer swatches is honest about what survived validation.
  */
-export function isRenderableColor(value: string): boolean {
+export function isRenderableColor({ value }: { value: string }): boolean {
   const candidate = value.trim();
   // Bounded before any regex runs: these come from model output, and the function pattern's `\s*`
   // plus a character class is the shape that makes a pathological input worth not accepting at all.
@@ -182,7 +182,7 @@ function parseDirectionCards(raw: unknown): DirectionCard[] | undefined {
     const mood = typeof e.mood === 'string' ? e.mood : '';
     const references = Array.isArray(e.references) ? e.references.filter((r): r is string => typeof r === 'string').slice(0, 6) : [];
     const palette = Array.isArray(e.palette)
-      ? e.palette.filter((p): p is string => typeof p === 'string' && isRenderableColor(p)).slice(0, 8)
+      ? e.palette.filter((p): p is string => typeof p === 'string' && isRenderableColor({ value: p })).slice(0, 8)
       : [];
     const displayFont = typeof e.displayFont === 'string' ? e.displayFont : 'Georgia, serif';
     const bodyFont = typeof e.bodyFont === 'string' ? e.bodyFont : '-apple-system, system-ui, sans-serif';

@@ -1,3 +1,5 @@
+import { defaultAdminTheme } from '../../../theme/default.js';
+
 /**
  * @module features/mcp-ui/surfaces/tokens
  *
@@ -17,10 +19,8 @@
  * alone moves the accent, its hover state, its focus ring, and its tinted background together,
  * because all four resolve through it.
  *
- * `@jini-ai/ui` has no package-wide custom-property design system to reuse (checked: its only two
- * stylesheets, `react/chat/styles/reference.css` and the Remix icon font, declare no custom
- * properties at all), so these are namespaced `--jini-mcpui-*` to stay out of the way of one if it
- * ever lands.
+ * The sandbox cannot inherit the host's CSS. These names are a document adapter of
+ * defaultAdminTheme; hosts forward their active values through the existing overrides port.
  *
  * ## Dark mode
  *
@@ -44,20 +44,20 @@
  * render in whatever the engine falls back to after a delay.
  */
 export const SURFACE_TOKENS = {
-  '--jini-mcpui-bg': '#faf9f7',
-  '--jini-mcpui-panel': '#fdfcfa',
-  '--jini-mcpui-border': '#e1e5eb',
-  '--jini-mcpui-border-strong': '#c9d0da',
-  '--jini-mcpui-text': '#1a1916',
-  '--jini-mcpui-text-strong': '#0d0c0a',
-  '--jini-mcpui-text-muted': '#74716b',
-  '--jini-mcpui-text-soft': '#989590',
-  '--jini-mcpui-text-faint': '#b3b0a8',
-  '--jini-mcpui-accent': '#c96442',
-  '--jini-mcpui-accent-strong': '#b45a3b',
+  '--jini-mcpui-bg': defaultAdminTheme.light.bg,
+  '--jini-mcpui-panel': defaultAdminTheme.light.surface,
+  '--jini-mcpui-border': defaultAdminTheme.light.border,
+  '--jini-mcpui-border-strong': defaultAdminTheme.light.border,
+  '--jini-mcpui-text': defaultAdminTheme.light.text,
+  '--jini-mcpui-text-strong': defaultAdminTheme.light.text,
+  '--jini-mcpui-text-muted': defaultAdminTheme.light.muted,
+  '--jini-mcpui-text-soft': defaultAdminTheme.light.muted,
+  '--jini-mcpui-text-faint': defaultAdminTheme.light.muted,
+  '--jini-mcpui-accent': defaultAdminTheme.light.primary,
+  '--jini-mcpui-accent-strong': defaultAdminTheme.light.primary,
   // Desaturated and earthy, in the same family as the accent rather than a saturated pure red — a
   // destructive action should read as serious, not as an alarm the eye learns to discount.
-  '--jini-mcpui-danger': '#a8443a',
+  '--jini-mcpui-danger': defaultAdminTheme.light.danger,
   '--jini-mcpui-radius-xs': '4px',
   '--jini-mcpui-radius-sm': '6px',
   '--jini-mcpui-radius-md': '8px',
@@ -65,8 +65,8 @@ export const SURFACE_TOKENS = {
   '--jini-mcpui-radius-xl': '12px',
   '--jini-mcpui-radius-pill': '999px',
   '--jini-mcpui-font':
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif",
-  '--jini-mcpui-font-mono': "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+    defaultAdminTheme.fonts.body,
+  '--jini-mcpui-font-mono': defaultAdminTheme.fonts.mono!,
 } as const;
 
 /** The token names a caller may override. */
@@ -81,18 +81,18 @@ export type SurfaceTokenName = keyof typeof SURFACE_TOKENS;
  * against exactly that omission.
  */
 export const SURFACE_TOKENS_DARK: Record<SurfaceTokenName, string> = {
-  '--jini-mcpui-bg': '#1a1917',
-  '--jini-mcpui-panel': '#222120',
-  '--jini-mcpui-border': '#333128',
-  '--jini-mcpui-border-strong': '#46433c',
-  '--jini-mcpui-text': '#e8e4dc',
-  '--jini-mcpui-text-strong': '#f2ede4',
-  '--jini-mcpui-text-muted': '#9a9690',
-  '--jini-mcpui-text-soft': '#6e6b65',
-  '--jini-mcpui-text-faint': '#4e4b46',
-  '--jini-mcpui-accent': '#d97a56',
-  '--jini-mcpui-accent-strong': '#e8896a',
-  '--jini-mcpui-danger': '#e0685f',
+  '--jini-mcpui-bg': defaultAdminTheme.dark.bg,
+  '--jini-mcpui-panel': defaultAdminTheme.dark.surface,
+  '--jini-mcpui-border': defaultAdminTheme.dark.border,
+  '--jini-mcpui-border-strong': defaultAdminTheme.dark.border,
+  '--jini-mcpui-text': defaultAdminTheme.dark.text,
+  '--jini-mcpui-text-strong': defaultAdminTheme.dark.text,
+  '--jini-mcpui-text-muted': defaultAdminTheme.dark.muted,
+  '--jini-mcpui-text-soft': defaultAdminTheme.dark.muted,
+  '--jini-mcpui-text-faint': defaultAdminTheme.dark.muted,
+  '--jini-mcpui-accent': defaultAdminTheme.dark.primary,
+  '--jini-mcpui-accent-strong': defaultAdminTheme.dark.primary,
+  '--jini-mcpui-danger': defaultAdminTheme.dark.danger,
   '--jini-mcpui-radius-xs': SURFACE_TOKENS['--jini-mcpui-radius-xs'],
   '--jini-mcpui-radius-sm': SURFACE_TOKENS['--jini-mcpui-radius-sm'],
   '--jini-mcpui-radius-md': SURFACE_TOKENS['--jini-mcpui-radius-md'],
@@ -109,10 +109,10 @@ export const SURFACE_TOKENS_DARK: Record<SurfaceTokenName, string> = {
  * which is the exact failure this indirection removes.
  */
 const DERIVED_TOKENS: Readonly<Record<string, string>> = {
-  '--jini-mcpui-accent-hover': 'color-mix(in srgb, var(--jini-mcpui-accent) 88%, #000)',
+  '--jini-mcpui-accent-hover': 'color-mix(in srgb, var(--jini-mcpui-accent) 88%, var(--jini-mcpui-text))',
   '--jini-mcpui-accent-tint': 'color-mix(in srgb, var(--jini-mcpui-accent) 10%, transparent)',
   '--jini-mcpui-accent-ring': 'color-mix(in srgb, var(--jini-mcpui-accent) 35%, transparent)',
-  '--jini-mcpui-danger-hover': 'color-mix(in srgb, var(--jini-mcpui-danger) 88%, #000)',
+  '--jini-mcpui-danger-hover': 'color-mix(in srgb, var(--jini-mcpui-danger) 88%, var(--jini-mcpui-text))',
   '--jini-mcpui-danger-tint': 'color-mix(in srgb, var(--jini-mcpui-danger) 10%, transparent)',
   '--jini-mcpui-danger-ring': 'color-mix(in srgb, var(--jini-mcpui-danger) 35%, transparent)',
   '--jini-mcpui-surface-shadow': '0 1px 2px color-mix(in srgb, var(--jini-mcpui-text) 8%, transparent)',
@@ -127,14 +127,13 @@ const DERIVED_TOKENS: Readonly<Record<string, string>> = {
  * itself is light. A drop shadow should stay dark ink at low opacity in both schemes, so this is a
  * fixed value the dark media block below applies as a second, later declaration of the same property.
  */
-const DARK_SURFACE_SHADOW = '0 1px 2px rgba(0, 0, 0, 0.32)';
+const DARK_SURFACE_SHADOW = '0 1px 2px color-mix(in srgb, var(--jini-mcpui-bg) 32%, transparent)';
 
 /**
  * Whether every generated surface is pinned to the light palette regardless of the embedding
  * browser/OS's `prefers-color-scheme`.
  *
- * True today because the host product — currently this package's only consumer — has no real
- * light/dark toggle yet (`apps/admin`'s Appearance section is a disabled "SOON" placeholder), so a
+ * True by default because without an explicit app-level theme signal, a
  * surface that honors the OS preference doesn't track any actual app theme — it tracks whatever the
  * operator's OS happens to be set to, which produces a dark card floating in an always-light admin
  * UI. Flip this to `false` once the host product has a real app-level theme signal to forward in;

@@ -16,7 +16,7 @@ describe('mergeAdjacentTextEvents', () => {
       { kind: 'text', text: ' 6 posts.' },
       { kind: 'usage', outputTokens: 12 },
     ];
-    expect(mergeAdjacentTextEvents(events)).toEqual([
+    expect(mergeAdjacentTextEvents({ events })).toEqual([
       { kind: 'status', label: 'initializing' },
       { kind: 'thinking', text: 'Need the posts.' },
       { kind: 'tool_use', id: 't1', name: 'search_tools', input: { q: 'posts' } },
@@ -38,9 +38,9 @@ describe('mergeAdjacentTextEvents', () => {
       { kind: 'thinking', text: 'hm' },
       { kind: 'text', text: 'Tail' },
     ];
-    const merged = mergeAdjacentTextEvents(events);
+    const merged = mergeAdjacentTextEvents({ events });
     expect(merged).toEqual(events);
-    expect(assistantContentFromEvents(merged)).toBe(assistantContentFromEvents(events));
+    expect(assistantContentFromEvents({ events: merged })).toBe(assistantContentFromEvents({ events }));
   });
 
   it('keeps the saved content identical and does not mutate its input', () => {
@@ -53,18 +53,18 @@ describe('mergeAdjacentTextEvents', () => {
       { kind: 'text', text: 'd' },
     ];
     const before = JSON.stringify(events);
-    const merged = mergeAdjacentTextEvents(events);
+    const merged = mergeAdjacentTextEvents({ events });
     expect(merged).toEqual([
       { kind: 'text', text: 'ab' },
       { kind: 'tool_use', id: 't', name: 'n', input: {} },
       { kind: 'text', text: 'cd' },
     ]);
     expect(JSON.stringify(events)).toBe(before);
-    expect(assistantContentFromEvents(merged)).toBe(assistantContentFromEvents(events));
+    expect(assistantContentFromEvents({ events: merged })).toBe(assistantContentFromEvents({ events }));
   });
 
   it('returns an empty list for no events', () => {
-    expect(mergeAdjacentTextEvents(undefined)).toEqual([]);
-    expect(mergeAdjacentTextEvents([])).toEqual([]);
+    expect(mergeAdjacentTextEvents({ events: undefined })).toEqual([]);
+    expect(mergeAdjacentTextEvents({ events: [] })).toEqual([]);
   });
 });

@@ -25,7 +25,7 @@ function liveModelCacheKey(agentId: string, scope?: string | null): string {
   return trimmedScope ? `${agentId}\0${trimmedScope}` : agentId;
 }
 
-export function rememberLiveModels(agentId: string, models: RuntimeModelOption[], scope?: string | null) {
+export function rememberLiveModels({ agentId, models }: { agentId: string; models: RuntimeModelOption[] }, { scope }: { scope?: string | null } = {}) {
   if (!Array.isArray(models)) return;
   const ids = models
     .map((m) => m && m.id)
@@ -35,22 +35,17 @@ export function rememberLiveModels(agentId: string, models: RuntimeModelOption[]
   liveModelOrder.set(key, ids);
 }
 
-export function getRememberedLiveModels(agentId: string, scope?: string | null): RuntimeModelOption[] {
+export function getRememberedLiveModels({ agentId }: { agentId: string }, { scope }: { scope?: string | null } = {}): RuntimeModelOption[] {
   const ids = liveModelOrder.get(liveModelCacheKey(agentId, scope)) ?? [];
   return ids.map((id) => ({ id, label: id }));
 }
 
-export function preferFreshLiveModels(
-  freshModels: RuntimeModelOption[],
-  rememberedModels: RuntimeModelOption[],
+export function preferFreshLiveModels({ freshModels, rememberedModels }: { freshModels: RuntimeModelOption[]; rememberedModels: RuntimeModelOption[] }
 ): RuntimeModelOption[] {
   return freshModels.length > 0 ? freshModels : rememberedModels;
 }
 
-export function isKnownModel(
-  def: RuntimeAgentDef,
-  modelId: string | null | undefined,
-  scope?: string | null,
+export function isKnownModel({ def, modelId }: { def: RuntimeAgentDef; modelId: string | null | undefined }, { scope }: { scope?: string | null } = {}
 ) {
   if (!modelId) return false;
   const live = liveModelCache.get(liveModelCacheKey(def.id, scope));
@@ -69,11 +64,7 @@ export function isKnownModel(
 // surfaced to the UI, then fall back to the def's first concrete fallback
 // id so the spawn layer always has a real model to forward. Defs that DO
 // list 'default' (the common case) are left untouched.
-export function resolveModelForAgent(
-  def: RuntimeAgentDef,
-  resolved: string | null,
-  env: Record<string, string | undefined> = process.env,
-  liveModelScope?: string | null,
+export function resolveModelForAgent({ def, resolved }: { def: RuntimeAgentDef; resolved: string | null }, { env = process.env, liveModelScope }: { env?: Record<string, string | undefined>; liveModelScope?: string | null } = {}
 ): string | null {
   if (resolved && resolved !== 'default') return resolved;
   // Host-process env override. Lets an operator pin a different fallback
@@ -101,7 +92,7 @@ export function resolveModelForAgent(
 // as a child-process arg — not a shell string — so injection isn't a
 // concern, but we still reject anything that could be misread as a flag
 // by a downstream CLI or that contains whitespace / control chars.
-export function sanitizeCustomModel(id: string | null | undefined) {
+export function sanitizeCustomModel({ id }: { id: string | null | undefined }) {
   if (typeof id !== 'string') return null;
   const trimmed = id.trim();
   if (trimmed.length === 0 || trimmed.length > 200) return null;

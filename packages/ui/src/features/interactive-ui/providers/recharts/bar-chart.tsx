@@ -7,7 +7,7 @@ export interface BarChartProps {
   readonly color?: string;
 }
 
-export function BarChart({ data, categoryKey, valueKey, color = '#2563eb' }: BarChartProps) {
+export function BarChart({ data, categoryKey, valueKey, color = 'var(--jini-primary)' }: BarChartProps) {
   return (
     <ResponsiveContainer width="100%" height={300}>
       <RechartsBarChart data={data as Record<string, unknown>[]}>

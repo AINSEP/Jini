@@ -1,11 +1,6 @@
-import type {
-  ClockPort,
-  DomainEvent,
-  IdGeneratorPort,
-  JsonObject,
-  OutboxPort,
-  UUID,
-} from "../ports.js";
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
+import type { Clock, IdGenerator, JsonObject, UUID } from "@jini-ai/core/primitives";
+import type { DomainEvent, OutboxPort } from "../ports.js";
 import type { ChangeSetOperation, ChangeSetRepoPort } from "./change-set.js";
 
 /**
@@ -69,20 +64,25 @@ export interface CommandMutation<TResult> {
   execute(): Promise<TResult>;
   /**
    * Read the entity's version from the execute result (the version *after* the
-   * mutation, REQ-08 / AC-02). Stamped onto the item as the revert guard input.
+   * mutation). Stamped onto the item as the revert guard input.
    * Omit for entity types without a version.
-   */
-  captureEntityVersion?(result: TResult): number | null;
+ * See docs/decisions/DR-006-mutation-audit-atomicity.md.
+ */
+  captureEntityVersion?(required: { result: TResult }, optional?: Record<string, never>): number | null;
   /**
    * Compensating rollback for the memory adapter's all-or-nothing guarantee
-   * (REQ-01 / BR-04 / EC-08 / AC-17). If the change-set record fails to persist
-   * *after* `execute()` has applied the feature mutation, the gateway calls this
+   * If version capture, record preparation or persistence fails
+   * *after* `execute` has applied the feature mutation, the gateway calls this
    * to undo the mutation — restoring the entity to its exact pre-`execute` state
    * (verbatim, including `version`) so no "mutation without a record" survives
-   * (INV-01). On the SQLite adapter (RT-004) a real transaction replaces this and
-   * `rollback` becomes a no-op/omitted. Omit only for a mutation whose record step
-   * cannot fail independently of its feature write (none in v1).
-   */
+   * On the SQLite adapter a real transaction replaces this and
+   * `rollback` may be a no-op/omitted only when a caller-owned transaction covers
+   * the feature write AND all subsequent record preparation/persistence. The gateway
+   * opens no such transaction itself. Without rollback or that outer transaction, a
+   * post-mutation failure rejects but leaves the feature mutation applied (
+   * is not guaranteed). A rollback rejection takes precedence over the original error.
+ * See docs/decisions/DR-006-mutation-audit-atomicity.md.
+ */
   rollback?(): Promise<void>;
 }
 
@@ -105,8 +105,8 @@ export type AuthorizeFn = (params: {
 
 /** Dependencies for executeCommand. */
 export interface ExecuteCommandDeps {
-  clock: ClockPort;
-  idGen: IdGeneratorPort;
+  clock: Clock;
+  idGen: IdGenerator;
   changeSets: ChangeSetRepoPort;
   /** When provided, `change-set.applied` is enqueued for async consumers. */
   outbox?: OutboxPort | undefined;
@@ -139,23 +139,25 @@ export interface ExecuteCommandOptional {}
 export class DuplicateCommandError extends Error {
   readonly changeSetId: UUID;
 
-  constructor(message: string, changeSetId: UUID) {
+  constructor(requiredArgs: { message: string; changeSetId: UUID }, optionalArgs: Record<string, never> = {}) {
+    const { message, changeSetId } = requiredArgs;
     super(message);
     this.changeSetId = changeSetId;
   }
 }
 
 /**
- * Thrown when `authorize()` denies the caller. Routes map
- * this to 403 `FORBIDDEN`. Raised before the idempotency check (INV-04) — a
+ * Thrown when `authorize` denies the caller. Routes map
+ * this to 403 `FORBIDDEN`. Raised before the idempotency check — a
  * replayed command id from a denied caller therefore never produces
- * `DuplicateCommandError` either (EC-08).
+ * `DuplicateCommandError` either.
+ * See docs/decisions/DR-006-mutation-audit-atomicity.md.
  */
 export class ForbiddenError extends Error {
   readonly permission: string;
   readonly reason: string;
 
-  constructor(message: string, permission: string, reason: string) {
+  constructor({ message, permission, reason }: { message: string; permission: string; reason: string }, _optional: Record<string, never> = {}) {
     super(message);
     this.permission = permission;
     this.reason = reason;
@@ -188,20 +190,23 @@ function isIdempotencyKeyConflict(error: unknown): boolean {
  * If execute throws, nothing is recorded; if inverse capture throws, the
  * mutation never runs.
  *
- * The feature mutation and its change-set record commit as one unit of work
- * (REQ-01): if `changeSets.insert` fails after `execute` has applied the
- * mutation, the gateway rolls the mutation back via `mutation.rollback` and
- * re-throws, so no change set and no outbox event survive (EC-08 / AC-17,
- * INV-01).
+ * With a working `mutation.rollback`, the feature mutation and its change-set
+ * record form one compensated unit of work : failures in version capture,
+ * record preparation or `changeSets.insert` after `execute` trigger rollback and
+ * rejection. When rollback is omitted, the gateway still
+ * rejects but cannot undo the applied feature mutation; a caller-owned outer
+ * transaction must supply atomicity. Record/event atomicity depends on the repo
+ * honoring its port contract.
  *
- * The `change-set.applied` event is passed as `changeSets.insert()`'s third argument, not a
- * separate `deps.outbox.enqueue()` call afterward — a durable adapter co-persists it inside the
+ * The `change-set.applied` event is passed in `changeSets.insert`'s optional object, not a
+ * separate `deps.outbox.enqueue` call afterward — a durable adapter co-persists it inside the
  * same transaction as the change-set record, so it can never land without a durable delivery
  * record (or vice versa). This still does NOT cover the domain mutation itself
- * (`mutation.execute()` stays outside any shared transaction, covered only by the compensating
+ * (`mutation.execute` stays outside any shared transaction, covered only by the compensating
  * rollback above), and it covers only this producer. See
  * `docs/decisions/change-set-outbox-transaction-boundary.md` for the full rationale, including the
- * other direct `OutboxPort.enqueue()` producers this decision deliberately leaves untouched.
+ * other direct `OutboxPort.enqueue` producers this decision deliberately leaves untouched.
+ * See docs/decisions/DR-006-mutation-audit-atomicity.md.
  */
 export async function executeCommand<TResult>(
   required: ExecuteCommandRequired<TResult>,
@@ -211,7 +216,7 @@ export async function executeCommand<TResult>(
 
   // authorize() runs BEFORE the idempotency check, so
   // a denied caller never learns whether a replayed command id previously
-  // succeeded (no DUPLICATE_COMMAND / changeSetId leak, EC-08). `permission`
+  // succeeded (no DUPLICATE_COMMAND / changeSetId leak). `permission`. See docs/decisions/DR-006-mutation-audit-atomicity.md.
   // and `authorize` are wired together or not at all (see ExecuteCommandDeps
   // doc) — partial wiring is a programming error, not a silent allow/skip.
   if (Boolean(deps.authorize) !== Boolean(command.permission)) {
@@ -229,10 +234,7 @@ export async function executeCommand<TResult>(
       entityId: mutation.entityId,
     });
     if (!authResult.allowed) {
-      throw new ForbiddenError(
-        `principal '${command.actor.id}' is not authorized for '${command.permission}' (${authResult.reason})`,
-        command.permission,
-        authResult.reason
+      throw new ForbiddenError({ message: `principal '${command.actor.id}' is not authorized for '${command.permission}' (${authResult.reason})`, permission: command.permission, reason: authResult.reason }
       );
     }
   }
@@ -243,9 +245,7 @@ export async function executeCommand<TResult>(
       idempotencyKey: command.idempotencyKey,
     });
     if (existing) {
-      throw new DuplicateCommandError(
-        `command with idempotency key '${command.idempotencyKey}' was already executed`,
-        existing.id
+      throw new DuplicateCommandError({ message: `command with idempotency key '${command.idempotencyKey}' was already executed`, changeSetId: existing.id }
       );
     }
   }
@@ -253,36 +253,39 @@ export async function executeCommand<TResult>(
   const inversePayload = await mutation.captureInverse();
   const result = await mutation.execute();
 
-  const entityVersionAtApply = mutation.captureEntityVersion?.(result) ?? undefined;
-
-  const now = deps.clock.nowIso();
-  const changeSetId = deps.idGen.newId();
-
-  // BR-04: the event rides into insert()'s third argument (see this function's doc comment) so a
-  // durable adapter co-persists it atomically with the record it belongs to. Built unconditionally
-  // (cheap, pure data) but only passed through when an outbox is actually wired.
-  const event: DomainEvent<{ changeSetId: UUID; entityType: string; entityId: UUID }> = {
-    id: deps.idGen.newId(),
-    name: "change-set.applied",
-    occurredAt: now,
-    aggregateId: changeSetId,
-    workspaceId: command.workspaceId,
-    actorId: command.actor.id,
-    changeSetId,
-    payload: {
-      changeSetId,
-      entityType: mutation.entityType,
-      entityId: mutation.entityId,
-    },
-  };
-
-  // Unit of work: the change-set record (and, when an outbox is wired, its delivery event) must
-  // land together, or the feature mutation is rolled back (REQ-01 / EC-08). On the in-memory
-  // adapter this is a compensating restore via `mutation.rollback`; the SQLite adapter does this
-  // as one real transaction and the rollback becomes a no-op for this step.
+  let insertingRecord = false;
   try {
+    const entityVersionAtApply = mutation.captureEntityVersion?.({ result }) ?? undefined;
+
+    const now = kernelNowIso({ clock: deps.clock });
+    const changeSetId = deps.idGen.newId();
+
+    // the event rides into insert's optional object (see this function's doc comment) so a. See docs/decisions/DR-006-mutation-audit-atomicity.md.
+    // durable adapter co-persists it atomically with the record it belongs to. Built unconditionally
+    // (cheap, pure data) but only passed through when an outbox is actually wired.
+    const event: DomainEvent<{ changeSetId: UUID; entityType: string; entityId: UUID }> = {
+      id: deps.idGen.newId(),
+      name: "change-set.applied",
+      occurredAt: now,
+      aggregateId: changeSetId,
+      workspaceId: command.workspaceId,
+      actorId: command.actor.id,
+      changeSetId,
+      payload: {
+        changeSetId,
+        entityType: mutation.entityType,
+        entityId: mutation.entityId,
+      },
+    };
+
+    // Unit of work: the change-set record (and, when an outbox is wired, its delivery event) must
+    // land together, or the feature mutation is rolled back. On the in-memory. See docs/decisions/DR-006-mutation-audit-atomicity.md.
+    // adapter this is a compensating restore via `mutation.rollback`; a caller-owned transaction
+    // can instead cover the feature mutation and record together (see the rollback contract).
+    const itemId = deps.idGen.newId();
+    insertingRecord = true;
     await deps.changeSets.insert(
-      {
+      { record: {
         id: changeSetId,
         workspaceId: command.workspaceId,
         actorId: command.actor.id,
@@ -293,9 +296,9 @@ export async function executeCommand<TResult>(
         createdAt: now,
         appliedAt: now,
       },
-      [
+      items: [
         {
-          id: deps.idGen.newId(),
+          id: itemId,
           changeSetId,
           entityType: mutation.entityType,
           entityId: mutation.entityId,
@@ -304,13 +307,14 @@ export async function executeCommand<TResult>(
           entityVersionAtApply,
           position: 0,
         },
-      ],
-      deps.outbox ? event : undefined
+      ] },
+      { event: deps.outbox ? event : undefined }
     );
+    return { result, changeSetId };
   } catch (recordError) {
-    // AC-17 / EC-08: the mutation applied but its record did not. Undo the
-    // mutation so INV-01 holds (no mutation without a record). We surface the
-    // original persist error; a rollback that itself throws is a harder failure
+    // the mutation applied but its record did not. Undo the. See docs/decisions/DR-006-mutation-audit-atomicity.md.
+    // mutation so holds when rollback is supplied (no mutation without a record). See docs/decisions/DR-006-mutation-audit-atomicity.md.
+    // We surface the original preparation/persist error; a rollback that itself throws is a harder failure
     // that the SQLite transaction path is designed to remove.
     await mutation.rollback?.();
 
@@ -321,20 +325,16 @@ export async function executeCommand<TResult>(
     // change set) rather than letting the raw driver error escape, so callers' existing
     // `instanceof DuplicateCommandError` handling (409) catches this race the same as the
     // already-covered non-racing replay.
-    if (command.idempotencyKey && isIdempotencyKeyConflict(recordError)) {
+    if (insertingRecord && command.idempotencyKey && isIdempotencyKeyConflict(recordError)) {
       const winner = await deps.changeSets.findByIdempotencyKey({
         workspaceId: command.workspaceId,
         idempotencyKey: command.idempotencyKey,
       });
       if (winner) {
-        throw new DuplicateCommandError(
-          `command with idempotency key '${command.idempotencyKey}' was already executed`,
-          winner.id
+        throw new DuplicateCommandError({ message: `command with idempotency key '${command.idempotencyKey}' was already executed`, changeSetId: winner.id }
         );
       }
     }
     throw recordError;
   }
-
-  return { result, changeSetId };
 }

@@ -140,7 +140,7 @@ function initializeEntryRows(entry: InitializeModelEntry): RuntimeModelOption[] 
   for (const raw of [entry.value, entry.resolvedModel]) {
     if (typeof raw !== 'string') continue;
     const id = normalizeClaudePickerModelId(raw);
-    if (id === 'default' || sanitizeCustomModel(id) !== id) continue;
+    if (id === 'default' || sanitizeCustomModel({ id: id }) !== id) continue;
     const isAlias = !id.startsWith('claude-');
     rows.push({ id, label: isAlias && displayName ? `${displayName} (alias)` : id });
   }
@@ -249,7 +249,7 @@ async function discoverClaudeCodeModels(bin: string, env: RuntimeEnv): Promise<r
     const cached = raw === null ? null : parseClaudeCodePickerCache(raw);
     if (!cached?.ok) return null;
     return cached.ids
-      .filter((id) => sanitizeCustomModel(id) === id)
+      .filter((id) => sanitizeCustomModel({ id: id }) === id)
       .map((id) => ({ id, label: id }));
   } catch {
     return null;

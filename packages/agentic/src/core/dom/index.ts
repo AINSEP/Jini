@@ -3,13 +3,14 @@
  *
  * The one `PageDriver` (see `@jini-ai/agentic`'s `page-driver.ts`) that reads and writes a real DOM
  * subtree. Split into its own entry point, compiled under its own `DOM`-lib `tsconfig.dom.json`,
- * so the rest of this package can stay provably DOM-free — see source-map.md's "The DOM split".
+ * so the rest of this package can stay provably DOM-free — see archived provenance ledger's "The DOM split".
  *
  * `@jini-ai/chat-react` is this package's one in-repo consumer today.
  */
 export {
   createDomPageDriver,
   currentAgentPage,
+  type DomPageDriverRequired,
   type DomPageDriverOptions,
   type DomPageDriverPage,
 } from './dom-page-driver.js';
@@ -22,5 +23,7 @@ export {
 export {
   getAgentModelContext,
   type AgentModelContextLike,
+  type ModelContextHostPort,
+  type AgentModelContextRegisterToolOptions,
   type AgentModelContextToolRegistration,
 } from './model-context.js';

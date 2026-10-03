@@ -26,7 +26,7 @@ const principal: Principal = { id: 'user-1' };
 const run: RunRef = { id: 'run-1' };
 
 function registryWith(...registrations: ToolRegistration[]): ToolRegistry {
-  const registry = createToolRegistry();
+  const registry = createToolRegistry({});
   for (const registration of registrations) registry.register(registration);
   return registry;
 }
@@ -37,8 +37,8 @@ function allowAll(): ToolRegistration['policy'] {
 
 describe('@jini-ai/daemon — ToolExecutor — authorization', () => {
   it('throws for an unregistered tool id', async () => {
-    const executor = createToolExecutor({ registry: createToolRegistry() });
-    await expect(executor.execute(principal, run, 'missing', {})).rejects.toThrow(/unknown tool "missing"/);
+    const executor = createToolExecutor({ registry: createToolRegistry({}) });
+    await expect(executor.execute({ principal: principal, run: run, toolId: 'missing', input: {} })).rejects.toThrow(/unknown tool "missing"/);
   });
 
   it('runs an allowed tool call end to end and records the audit trail', async () => {
@@ -49,12 +49,12 @@ describe('@jini-ai/daemon — ToolExecutor — authorization', () => {
     });
     const executor = createToolExecutor({ registry });
 
-    const result = await executor.execute(principal, run, 'echo', 'hi');
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'echo', input: 'hi' });
     expect(result.status).toBe('completed');
     expect(result.output).toBe('echo:hi');
     expect(result.truncated).toBe(false);
 
-    const audit = executor.getAuditRecord(result.executionId);
+    const audit = executor.getAuditRecord({ executionId: result.executionId });
     expect(audit?.toolId).toBe('echo');
     expect(audit?.principalId).toBe('user-1');
     expect(audit?.runId).toBe('run-1');
@@ -69,10 +69,10 @@ describe('@jini-ai/daemon — ToolExecutor — authorization', () => {
     });
     const executor = createToolExecutor({ registry });
 
-    const result = await executor.execute(principal, run, 'danger', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'danger', input: {} });
     expect(result.status).toBe('denied');
     expect(result.output).toBeUndefined();
-    const audit = executor.getAuditRecord(result.executionId);
+    const audit = executor.getAuditRecord({ executionId: result.executionId });
     expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'denied']);
   });
 
@@ -83,7 +83,7 @@ describe('@jini-ai/daemon — ToolExecutor — authorization', () => {
       policy: { authorize: async (): Promise<AuthorizationDecision> => 'allow' },
     });
     const executor = createToolExecutor({ registry });
-    const result = await executor.execute(principal, run, 'async-policy', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'async-policy', input: {} });
     expect(result.status).toBe('completed');
   });
 
@@ -94,9 +94,9 @@ describe('@jini-ai/daemon — ToolExecutor — authorization', () => {
       policy: allowAll(),
     });
     const delegate: ExecutionDelegate = { onAuthorize: () => 'deny' };
-    const executor = createToolExecutor({ registry, delegate });
+    const executor = createToolExecutor({ registry }, { delegate });
 
-    const result = await executor.execute(principal, run, 'gated', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'gated', input: {} });
     expect(result.status).toBe('denied');
   });
 
@@ -113,8 +113,8 @@ describe('@jini-ai/daemon — ToolExecutor — authorization', () => {
         return 'allow';
       },
     };
-    const executor = createToolExecutor({ registry, delegate });
-    await executor.execute(principal, run, 'danger', {});
+    const executor = createToolExecutor({ registry }, { delegate });
+    await executor.execute({ principal: principal, run: run, toolId: 'danger', input: {} });
     expect(called).toBe(false);
   });
 
@@ -133,13 +133,13 @@ describe('@jini-ai/daemon — ToolExecutor — authorization', () => {
       { descriptor: { id: 'granted' }, handler: async () => 'ok', policy: allowAll() },
       { descriptor: { id: 'ungranted' }, handler: async () => 'should not run', policy: allowAll() },
     );
-    const executor = createToolExecutor({ registry, delegate: new Gate() });
+    const executor = createToolExecutor({ registry }, { delegate: new Gate() });
 
-    await expect(executor.execute(principal, run, 'granted', {})).resolves.toMatchObject({
+    await expect(executor.execute({ principal: principal, run: run, toolId: 'granted', input: {} })).resolves.toMatchObject({
       status: 'completed',
       output: 'ok',
     });
-    await expect(executor.execute(principal, run, 'ungranted', {})).resolves.toMatchObject({
+    await expect(executor.execute({ principal: principal, run: run, toolId: 'ungranted', input: {} })).resolves.toMatchObject({
       status: 'denied',
     });
   });
@@ -165,11 +165,11 @@ describe('@jini-ai/daemon — ToolExecutor — authorization', () => {
         return 'allow';
       },
     };
-    const executor = createToolExecutor({ registry, delegate });
+    const executor = createToolExecutor({ registry }, { delegate });
 
     const caller: Principal = { id: 'user-7', roles: ['editor'] };
     const target: RunRef = { id: 'run-9' };
-    await executor.execute(caller, target, 'echo', { path: 'a.txt' });
+    await executor.execute({ principal: caller, run: target, toolId: 'echo', input: { path: 'a.txt' } });
 
     expect(seen).toHaveLength(2);
     for (const ctx of seen) {
@@ -189,11 +189,11 @@ describe('@jini-ai/daemon — ToolExecutor — confirmation', () => {
       policy: allowAll(),
     });
     const delegate: ExecutionDelegate = { onConfirm: () => 'confirm' };
-    const executor = createToolExecutor({ registry, delegate });
+    const executor = createToolExecutor({ registry }, { delegate });
 
-    const result = await executor.execute(principal, run, 'confirm-me', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'confirm-me', input: {} });
     expect(result.status).toBe('completed');
-    const audit = executor.getAuditRecord(result.executionId);
+    const audit = executor.getAuditRecord({ executionId: result.executionId });
     expect(audit?.events.map((e) => e.phase)).toEqual([
       'requested',
       'authorized',
@@ -210,11 +210,11 @@ describe('@jini-ai/daemon — ToolExecutor — confirmation', () => {
       policy: allowAll(),
     });
     const delegate: ExecutionDelegate = { onConfirm: () => 'deny' };
-    const executor = createToolExecutor({ registry, delegate });
+    const executor = createToolExecutor({ registry }, { delegate });
 
-    const result = await executor.execute(principal, run, 'confirm-me', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'confirm-me', input: {} });
     expect(result.status).toBe('confirmation-denied');
-    const audit = executor.getAuditRecord(result.executionId);
+    const audit = executor.getAuditRecord({ executionId: result.executionId });
     expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'authorized', 'confirmation-denied']);
   });
 
@@ -225,9 +225,9 @@ describe('@jini-ai/daemon — ToolExecutor — confirmation', () => {
       policy: allowAll(),
     });
     const delegate: ExecutionDelegate = { onConfirm: async (): Promise<ConfirmationDecision> => 'confirm' };
-    const executor = createToolExecutor({ registry, delegate });
+    const executor = createToolExecutor({ registry }, { delegate });
 
-    const result = await executor.execute(principal, run, 'confirm-me', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'confirm-me', input: {} });
     expect(result.status).toBe('completed');
   });
 
@@ -244,10 +244,10 @@ describe('@jini-ai/daemon — ToolExecutor — confirmation', () => {
         return undefined;
       },
     };
-    const executor = createToolExecutor({ registry, delegate });
+    const executor = createToolExecutor({ registry }, { delegate });
 
     let settled = false;
-    const resultPromise = executor.execute(principal, run, 'confirm-me', {}).then((r) => {
+    const resultPromise = executor.execute({ principal: principal, run: run, toolId: 'confirm-me', input: {} }).then((r) => {
       settled = true;
       return r;
     });
@@ -258,7 +258,7 @@ describe('@jini-ai/daemon — ToolExecutor — confirmation', () => {
     expect(settled).toBe(false);
     expect(capturedRequest?.tool.id).toBe('confirm-me');
 
-    executor.resumeConfirmation(capturedRequest!.executionId, 'confirm');
+    executor.resumeConfirmation({ executionId: capturedRequest!.executionId, decision: 'confirm' });
     const result = await resultPromise;
     expect(result.status).toBe('completed');
   });
@@ -270,28 +270,25 @@ describe('@jini-ai/daemon — ToolExecutor — confirmation', () => {
       handler: async () => 'should not run',
       policy: allowAll(),
     });
-    const executor = createToolExecutor({
-      registry,
-      delegate: {
+    const executor = createToolExecutor({ registry }, { delegate: {
         onConfirm: (request) => {
           capturedExecutionId = request.executionId;
         },
-      },
-    });
+      } });
 
-    const resultPromise = executor.execute(principal, run, 'confirm-me', {});
+    const resultPromise = executor.execute({ principal: principal, run: run, toolId: 'confirm-me', input: {} });
     // Two ticks: authorizeToolInvocation (resolve + policy.authorize) is now its own async
     // function boundary in @jini-ai/core, one more hop than a direct `await policy.authorize()`.
     await Promise.resolve();
     await Promise.resolve();
-    executor.resumeConfirmation(capturedExecutionId, 'deny');
+    executor.resumeConfirmation({ executionId: capturedExecutionId, decision: 'deny' });
     const result = await resultPromise;
     expect(result.status).toBe('confirmation-denied');
   });
 
   it('resumeConfirmation throws for an id with no pending confirmation', () => {
-    const executor = createToolExecutor({ registry: createToolRegistry() });
-    expect(() => executor.resumeConfirmation('nope', 'confirm')).toThrow(/no pending confirmation/);
+    const executor = createToolExecutor({ registry: createToolRegistry({}) });
+    expect(() => executor.resumeConfirmation({ executionId: 'nope', decision: 'confirm' })).toThrow(/no pending confirmation/);
   });
 
   it('a tool with no onConfirm delegate at all (delegate omitted entirely) is resumable via resumeConfirmation', async () => {
@@ -310,10 +307,10 @@ describe('@jini-ai/daemon — ToolExecutor — confirmation', () => {
       'fixed-execution-id' as `${string}-${string}-${string}-${string}-${string}`,
     );
 
-    const resultPromise = executor.execute(principal, run, 'confirm-me', {});
+    const resultPromise = executor.execute({ principal: principal, run: run, toolId: 'confirm-me', input: {} });
     await Promise.resolve();
     await Promise.resolve();
-    executor.resumeConfirmation('fixed-execution-id', 'confirm');
+    executor.resumeConfirmation({ executionId: 'fixed-execution-id', decision: 'confirm' });
     const result = await resultPromise;
     expect(result.status).toBe('completed');
   });
@@ -339,7 +336,7 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     });
     const executor = createToolExecutor({ registry });
 
-    const result = await executor.execute(principal, run, 'fast', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'fast', input: {} });
     expect(result.status).toBe('completed');
   });
 
@@ -351,9 +348,9 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     });
     const executor = createToolExecutor({ registry });
 
-    const result = await executor.execute(principal, run, 'slow', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'slow', input: {} });
     expect(result.status).toBe('timed-out');
-    const audit = executor.getAuditRecord(result.executionId);
+    const audit = executor.getAuditRecord({ executionId: result.executionId });
     expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'authorized', 'started', 'timed-out']);
   });
 
@@ -375,10 +372,10 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     });
     const executor = createToolExecutor({ registry });
 
-    const result = await executor.execute(principal, run, 'stubborn', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'stubborn', input: {} });
     expect(result.status).toBe('timed-out');
     expect(result.output).toBeUndefined();
-    const audit = executor.getAuditRecord(result.executionId);
+    const audit = executor.getAuditRecord({ executionId: result.executionId });
     expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'authorized', 'started', 'timed-out']);
   });
 
@@ -400,13 +397,13 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     });
     const executor = createToolExecutor({ registry });
 
-    const result = await executor.execute(principal, run, 'guarded', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'guarded', input: {} });
     expect(result.status).toBe('failed');
     expect(result.error).toBe('authorization failed');
     // The internal detail must not travel outward — this string reaches an agent as tool output.
     expect(result.error).not.toContain('10.0.0.7');
     expect(result.error).not.toContain('f00dbeef');
-    const audit = executor.getAuditRecord(result.executionId);
+    const audit = executor.getAuditRecord({ executionId: result.executionId });
     expect(audit?.events.at(-1)?.phase).toBe('failed');
   });
 
@@ -422,14 +419,14 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     });
     const executor = createToolExecutor({ registry });
 
-    const resultPromise = executor.execute(principal, run, 'cancellable', {});
+    const resultPromise = executor.execute({ principal: principal, run: run, toolId: 'cancellable', input: {} });
     await Promise.resolve();
     await Promise.resolve();
-    executor.cancel(executionId);
+    executor.cancel({ executionId: executionId });
 
     const result = await resultPromise;
     expect(result.status).toBe('cancelled');
-    const audit = executor.getAuditRecord(result.executionId);
+    const audit = executor.getAuditRecord({ executionId: result.executionId });
     expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'authorized', 'started', 'cancelled']);
   });
 
@@ -453,11 +450,11 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     const controller = new AbortController();
     controller.abort();
 
-    const result = await executor.execute(principal, run, 'cancellable', {}, controller.signal);
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'cancellable', input: {} }, { signal: controller.signal });
     expect(result.status).toBe('cancelled');
     expect(authorizeCalled).toBe(false);
     expect(handlerCalled).toBe(false);
-    const audit = executor.getAuditRecord(result.executionId);
+    const audit = executor.getAuditRecord({ executionId: result.executionId });
     expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'cancelled']);
   });
 
@@ -470,7 +467,7 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     const executor = createToolExecutor({ registry });
     const controller = new AbortController();
 
-    const resultPromise = executor.execute(principal, run, 'cancellable', {}, controller.signal);
+    const resultPromise = executor.execute({ principal: principal, run: run, toolId: 'cancellable', input: {} }, { signal: controller.signal });
     await Promise.resolve();
     await Promise.resolve();
     controller.abort();
@@ -498,7 +495,7 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     const executor = createToolExecutor({ registry });
     const controller = new AbortController();
 
-    const resultPromise = executor.execute(principal, run, 'slow-to-authorize', {}, controller.signal);
+    const resultPromise = executor.execute({ principal: principal, run: run, toolId: 'slow-to-authorize', input: {} }, { signal: controller.signal });
     await Promise.resolve();
     await Promise.resolve();
     expect(releaseAuthorize).toBeDefined();
@@ -508,7 +505,7 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     const result = await resultPromise;
     expect(result.status).toBe('cancelled');
     expect(handlerCalled).toBe(false);
-    const audit = executor.getAuditRecord(result.executionId);
+    const audit = executor.getAuditRecord({ executionId: result.executionId });
     expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'cancelled']);
   });
 
@@ -526,21 +523,18 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
       handler: async () => 'should not run',
       policy: allowAll(),
     });
-    const executor = createToolExecutor({
-      registry,
-      delegate: { onConfirm: (request) => { capturedExecutionId = request.executionId; } },
-    });
+    const executor = createToolExecutor({ registry }, { delegate: { onConfirm: (request) => { capturedExecutionId = request.executionId; } } });
 
-    const resultPromise = executor.execute(principal, run, 'confirm-me', {});
+    const resultPromise = executor.execute({ principal: principal, run: run, toolId: 'confirm-me', input: {} });
     // Two ticks: authorizeToolInvocation (resolve + policy.authorize) is now its own async
     // function boundary in @jini-ai/core, one more hop than a direct `await policy.authorize()`.
     await Promise.resolve();
     await Promise.resolve();
-    executor.cancel(capturedExecutionId);
+    executor.cancel({ executionId: capturedExecutionId });
 
     const result = await resultPromise;
     expect(result.status).toBe('cancelled');
-    const audit = executor.getAuditRecord(result.executionId);
+    const audit = executor.getAuditRecord({ executionId: result.executionId });
     expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'authorized', 'cancelled']);
   });
 
@@ -560,13 +554,10 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
       handler: async () => 'should not run',
       policy: allowAll(),
     });
-    const executor = createToolExecutor({
-      registry,
-      delegate: { onConfirm: (request) => { capturedExecutionId = request.executionId; } },
-    });
+    const executor = createToolExecutor({ registry }, { delegate: { onConfirm: (request) => { capturedExecutionId = request.executionId; } } });
     const controller = new AbortController();
 
-    const resultPromise = executor.execute(principal, run, 'confirm-me', {}, controller.signal);
+    const resultPromise = executor.execute({ principal: principal, run: run, toolId: 'confirm-me', input: {} }, { signal: controller.signal });
     await Promise.resolve();
     await Promise.resolve();
     expect(capturedExecutionId).not.toBe('');
@@ -580,7 +571,7 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     expect(raced.settled).toBe(true);
     if (raced.settled) {
       expect(raced.result.status).toBe('cancelled');
-      const audit = executor.getAuditRecord(raced.result.executionId);
+      const audit = executor.getAuditRecord({ executionId: raced.result.executionId });
       expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'authorized', 'cancelled']);
     }
   });
@@ -588,9 +579,9 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
   it('cancel() is a no-op for an unknown or already-terminal execution id', async () => {
     const registry = registryWith({ descriptor: { id: 'echo' }, handler: async () => 'ok', policy: allowAll() });
     const executor = createToolExecutor({ registry });
-    const result = await executor.execute(principal, run, 'echo', {});
-    expect(() => executor.cancel(result.executionId)).not.toThrow();
-    expect(() => executor.cancel('never-existed')).not.toThrow();
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'echo', input: {} });
+    expect(() => executor.cancel({ executionId: result.executionId })).not.toThrow();
+    expect(() => executor.cancel({ executionId: 'never-existed' })).not.toThrow();
   });
 
   it('reports a plain failure when the handler throws for a reason other than timeout/cancellation', async () => {
@@ -602,11 +593,11 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
       policy: allowAll(),
     });
     const executor = createToolExecutor({ registry });
-    const result = await executor.execute(principal, run, 'flaky', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'flaky', input: {} });
     expect(result.status).toBe('failed');
     expect(result.error).toBe('boom');
     expect(result.errorKind).toBe('internal');
-    const audit = executor.getAuditRecord(result.executionId);
+    const audit = executor.getAuditRecord({ executionId: result.executionId });
     expect(audit?.events.at(-1)).toMatchObject({ phase: 'failed', detail: 'boom' });
   });
 
@@ -614,12 +605,12 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     const registry = registryWith({
       descriptor: { id: 'picky' },
       handler: async () => {
-        throw new ToolInputError("'themeId' (non-empty string) is required");
+        throw new ToolInputError({ message: "'themeId' (non-empty string) is required" });
       },
       policy: allowAll(),
     });
     const executor = createToolExecutor({ registry });
-    const result = await executor.execute(principal, run, 'picky', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'picky', input: {} });
     expect(result.status).toBe('failed');
     expect(result.error).toBe("'themeId' (non-empty string) is required");
     expect(result.errorKind).toBe('validation');
@@ -635,7 +626,7 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
       policy: allowAll(),
     });
     const executor = createToolExecutor({ registry });
-    const result = await executor.execute(principal, run, 'flaky-string', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'flaky-string', input: {} });
     expect(result.status).toBe('failed');
     expect(result.error).toBe('raw string failure');
   });
@@ -647,7 +638,7 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
       policy: allowAll(),
     });
     const executor = createToolExecutor({ registry });
-    const result = await executor.execute(principal, run, 'chatty', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'chatty', input: {} });
     expect(result.status).toBe('completed');
     expect(result.truncated).toBe(true);
     expect(result.output).toBe('this ');
@@ -666,7 +657,7 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
       policy: allowAll(),
     });
     const executor = createToolExecutor({ registry });
-    const result = await executor.execute(principal, run, 'multibyte', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'multibyte', input: {} });
 
     expect(result.truncated).toBe(true);
     const output = result.output as string;
@@ -684,7 +675,7 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
       policy: allowAll(),
     });
     const executor = createToolExecutor({ registry });
-    const result = await executor.execute(principal, run, 'quiet', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'quiet', input: {} });
     expect(result.truncated).toBe(false);
     expect(result.output).toBe('short');
   });
@@ -696,22 +687,22 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
       policy: allowAll(),
     });
     const executor = createToolExecutor({ registry });
-    const result = await executor.execute(principal, run, 'structured', {});
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'structured', input: {} });
     expect(result.truncated).toBe(false);
     expect(result.output).toEqual({ ok: true, big: 'x'.repeat(50) });
   });
 
   it('getAuditRecord returns null for an unknown execution id', () => {
-    const executor = createToolExecutor({ registry: createToolRegistry() });
-    expect(executor.getAuditRecord('never-existed')).toBeNull();
+    const executor = createToolExecutor({ registry: createToolRegistry({}) });
+    expect(executor.getAuditRecord({ executionId: 'never-existed' })).toBeNull();
   });
 
   it('honors an injected clock for audit timestamps', async () => {
     let clock = 1000;
     const registry = registryWith({ descriptor: { id: 'echo' }, handler: async () => 'ok', policy: allowAll() });
-    const executor = createToolExecutor({ registry, now: () => clock++ });
-    const result = await executor.execute(principal, run, 'echo', {});
-    const audit = executor.getAuditRecord(result.executionId);
+    const executor = createToolExecutor({ registry }, { now: () => clock++ });
+    const result = await executor.execute({ principal: principal, run: run, toolId: 'echo', input: {} });
+    const audit = executor.getAuditRecord({ executionId: result.executionId });
     expect(audit?.events.map((e) => e.at)).toEqual([1000, 1001, 1002, 1003]);
   });
 });

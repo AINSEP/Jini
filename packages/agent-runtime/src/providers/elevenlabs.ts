@@ -9,14 +9,14 @@
  * De-branded: the origin resolved the API key/base URL via OD's own
  * `resolveProviderConfig` (`../media/config.js`, a product-owned
  * settings-store reader entirely out of this package's scope) and threw a
- * hardcoded product-prefixed env-var hint (see `source-map.md` for the
+ * hardcoded product-prefixed env-var hint (see `archived provenance ledger` for the
  * exact original string). Both are replaced by an
  * injected {@link ElevenLabsCredentialResolver} port — a host supplies its
  * own settings-store/env lookup; this package only knows how to call the
  * ElevenLabs wire API once it has a key.
  */
 import { createHash } from 'node:crypto';
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
+import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 
 const ELEVENLABS_DEFAULT_BASE_URL = 'https://api.elevenlabs.io';
 const ELEVENLABS_DEFAULT_VOICE_LIMIT = 100;
@@ -39,7 +39,7 @@ export interface ElevenLabsCredentials {
 }
 
 /** Host-supplied credential lookup — replaces OD's product-owned settings-store reader. */
-export type ElevenLabsCredentialResolver = (workspaceKey: string) => Promise<ElevenLabsCredentials>;
+export type ElevenLabsCredentialResolver = (requiredArgs: { workspaceKey: string }) => Promise<ElevenLabsCredentials>;
 
 /** Thrown when {@link ElevenLabsCredentialResolver} resolves no API key. */
 export class ElevenLabsCredentialMissingError extends Error {
@@ -132,15 +132,12 @@ function cloneVoiceOptions(voices: ElevenLabsVoiceOption[]): ElevenLabsVoiceOpti
  * result for {@link ELEVENLABS_VOICE_CACHE_TTL_MS}. Throws
  * {@link ElevenLabsCredentialMissingError} when no API key is configured.
  */
-export async function listElevenLabsVoiceOptions(
-  workspaceKey: string,
-  resolveCredentials: ElevenLabsCredentialResolver,
-  options: {
+export async function listElevenLabsVoiceOptions({ workspaceKey, resolveCredentials }: { workspaceKey: string; resolveCredentials: ElevenLabsCredentialResolver }, options: {
     limit?: number;
     requestInit?: Pick<RequestInit, 'dispatcher'>;
-  } = {},
+  } = {}
 ): Promise<ElevenLabsVoiceOption[]> {
-  const credentials = await resolveCredentials(workspaceKey);
+  const credentials = await resolveCredentials({ workspaceKey });
   if (!credentials.apiKey) {
     throw new ElevenLabsCredentialMissingError();
   }

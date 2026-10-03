@@ -2,7 +2,7 @@
  * Provider: MiniMax — Speech-02 family text-to-speech (synchronous,
  * `POST /t2a_v2`). Ported near-verbatim from Open Design's
  * `apps/daemon/src/media/index.ts` `renderMinimaxTTS` — see
- * `source-map.md`.
+ * `archived provenance ledger`.
  *
  * 2026-07-21: migrated onto the generic vendor-adapter dispatch engine
  * (`vendor-adapter.ts`/`vendor-registry.ts`) — `renderMinimaxTTS`'s
@@ -52,9 +52,9 @@ const MINIMAX_TTS_MODEL_MAP: Record<string, string> = {
 const NO_CREDENTIAL_MESSAGE = 'no MiniMax credential — configure an API key or set MINIMAX_API_KEY.';
 
 const minimaxTTSAdapter: VendorAdapter<HexEnvelopeAudioMeta> = {
-  requireCredential: requireApiKey(NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<HexEnvelopeAudioMeta> {
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<HexEnvelopeAudioMeta> {
     // Safe: `requireCredential` above already validated this is set before
     // `dispatchVendorRequest` ever calls `buildRequest`.
     const apiKey = credentials.apiKey!;
@@ -101,8 +101,8 @@ const minimaxTTSAdapter: VendorAdapter<HexEnvelopeAudioMeta> = {
   parseResponse: createHexEnvelopeAudioParser<HexEnvelopeAudioMeta>({ errorTag: 'minimax tts', providerId: 'minimax' }),
 };
 
-mediaVendorRegistry.register('minimax', 'audio:speech', minimaxTTSAdapter);
+mediaVendorRegistry.register({ providerId: 'minimax', routeKey: 'audio:speech', adapter: minimaxTTSAdapter });
 
-export async function renderMinimaxTTS(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(minimaxTTSAdapter, ctx, credentials);
+export async function renderMinimaxTTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: minimaxTTSAdapter, ctx: ctx, credentials: credentials });
 }

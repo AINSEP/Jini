@@ -31,7 +31,7 @@ const FIELDS: Record<string, FieldDescriptor | null> = {
 /** A driver that records calls and never touches a DOM — the point of the port. */
 function createFakeDriver(overrides: Partial<PageDriver> = {}) {
   const driver: PageDriver = {
-    findElements: vi.fn(async (filter) => {
+    findElements: vi.fn(async (_required, filter = {}) => {
       const query = filter.query?.toLowerCase();
       return ELEMENTS.filter((element) => {
         if (filter.role !== undefined && element.role !== filter.role) return false;
@@ -44,7 +44,7 @@ function createFakeDriver(overrides: Partial<PageDriver> = {}) {
       { id: 'sunday-list', label: 'Sunday List' },
       { id: 'notes', label: 'Notes' },
     ]),
-    describeField: vi.fn(async (handle: string) => FIELDS[handle] ?? null),
+    describeField: vi.fn(async ({ handle }: { handle: string }) => FIELDS[handle] ?? null),
     highlight: vi.fn(async () => undefined),
     scrollTo: vi.fn(async () => undefined),
     click: vi.fn(async () => undefined),
@@ -63,7 +63,7 @@ beforeEach(() => {
 
 describe('executePageCapability — dispatch', () => {
   it('refuses an id that is not in the manifest', async () => {
-    await expect(executePageCapability(driver, 'page.evaluate', {})).rejects.toThrow(
+    await expect(executePageCapability({ driver, capabilityId: 'page.evaluate', input: {} })).rejects.toThrow(
       /unknown page capability: page\.evaluate/,
     );
     // Nothing may reach the page on an unknown id.
@@ -72,7 +72,7 @@ describe('executePageCapability — dispatch', () => {
   });
 
   it('refuses a chat capability routed to the page executor', async () => {
-    await expect(executePageCapability(driver, 'chat.send_message', { prompt: 'hi' }))
+    await expect(executePageCapability({ driver, capabilityId: 'chat.send_message', input: { prompt: 'hi' } }))
       .rejects.toThrow(/unknown page capability/);
   });
 });
@@ -82,32 +82,32 @@ describe('executePageCapability — schema enforcement', () => {
     // The manifests have always advertised additionalProperties:false; nothing enforced it, so a
     // misspelled argument became a missing one with no signal.
     await expect(
-      executePageCapability(driver, 'page.highlight', { handle: 'add-task-button', bogus: 1 }),
+      executePageCapability({ driver, capabilityId: 'page.highlight', input: { handle: 'add-task-button', bogus: 1 } }),
     ).rejects.toThrow(/unknown argument: bogus/);
     expect(driver.highlight).not.toHaveBeenCalled();
   });
 
   it('lists several unknown arguments, sorted', async () => {
     await expect(
-      executePageCapability(driver, 'page.click', { handle: 'add-task-button', zeta: 1, alpha: 2 }),
+      executePageCapability({ driver, capabilityId: 'page.click', input: { handle: 'add-task-button', zeta: 1, alpha: 2 } }),
     ).rejects.toThrow(/unknown arguments: alpha, zeta/);
   });
 
   it('rejects a missing required argument', async () => {
-    await expect(executePageCapability(driver, 'page.click', {})).rejects.toThrow(/"handle" is required/);
-    await expect(executePageCapability(driver, 'page.fill', { handle: 'new-task-input' }))
+    await expect(executePageCapability({ driver, capabilityId: 'page.click', input: {} })).rejects.toThrow(/"handle" is required/);
+    await expect(executePageCapability({ driver, capabilityId: 'page.fill', input: { handle: 'new-task-input' } }))
       .rejects.toThrow(/"text" is required/);
   });
 
   it('embeds the capability\'s input schema in every validation-error message, so a caller can self-correct in the same turn instead of a separate describe_tool round trip', async () => {
-    await expect(executePageCapability(driver, 'page.fill', { handle: 'new-task-input' }))
+    await expect(executePageCapability({ driver, capabilityId: 'page.fill', input: { handle: 'new-task-input' } }))
       .rejects.toThrow(/Expected input: \{"type":"object".*"required":\["handle","text"\]/);
   });
 
   it('the embedded schema is the exact capability inputSchema, not a hand-summarized approximation', async () => {
     let message = '';
     try {
-      await executePageCapability(driver, 'page.click', {});
+      await executePageCapability({ driver, capabilityId: 'page.click', input: {} });
     } catch (error) {
       message = error instanceof Error ? error.message : String(error);
     }
@@ -117,31 +117,31 @@ describe('executePageCapability — schema enforcement', () => {
 
   it('embeds the schema on an unknown-argument refusal too, not only on missing/wrong-type', async () => {
     await expect(
-      executePageCapability(driver, 'page.highlight', { handle: 'add-task-button', bogus: 1 }),
+      executePageCapability({ driver, capabilityId: 'page.highlight', input: { handle: 'add-task-button', bogus: 1 } }),
     ).rejects.toThrow(/Expected input: \{"type":"object"/);
   });
 
   it('rejects an argument of the wrong type', async () => {
-    await expect(executePageCapability(driver, 'page.click', { handle: 42 }))
+    await expect(executePageCapability({ driver, capabilityId: 'page.click', input: { handle: 42 } }))
       .rejects.toThrow(/"handle" must be a string, received number/);
     await expect(
-      executePageCapability(driver, 'page.highlight', { handle: 'add-task-button', durationMs: 'soon' }),
+      executePageCapability({ driver, capabilityId: 'page.highlight', input: { handle: 'add-task-button', durationMs: 'soon' } }),
     ).rejects.toThrow(/"durationMs" must be a number, received string/);
   });
 
   it('rejects a value outside a declared enum', async () => {
-    await expect(executePageCapability(driver, 'page.find_elements', { role: 'admin' }))
+    await expect(executePageCapability({ driver, capabilityId: 'page.find_elements', input: { role: 'admin' } }))
       .rejects.toThrow(/"role" must be one of: button, checkbox/);
   });
 
   it('prefixes errors with the capability id so a caller knows what failed', async () => {
-    await expect(executePageCapability(driver, 'page.click', {})).rejects.toThrow(/^page\.click: /);
+    await expect(executePageCapability({ driver, capabilityId: 'page.click', input: {} })).rejects.toThrow(/^page\.click: /);
   });
 });
 
 describe('page.find_elements', () => {
   it('returns every published element with pages and an untrusted-content label', async () => {
-    const result = await executePageCapability(driver, 'page.find_elements', {}) as {
+    const result = await executePageCapability({ driver, capabilityId: 'page.find_elements', input: {} }) as {
       elements: unknown[];
       pages: { id: string; label: string }[];
       untrustedFields: string[];
@@ -156,24 +156,24 @@ describe('page.find_elements', () => {
   });
 
   it('passes a role filter through to the driver', async () => {
-    const result = await executePageCapability(driver, 'page.find_elements', { role: 'checkbox' }) as {
+    const result = await executePageCapability({ driver, capabilityId: 'page.find_elements', input: { role: 'checkbox' } }) as {
       elements: { handle: string }[];
     };
     expect(result.elements.map((element) => element.handle)).toEqual(['task-water-plants']);
-    expect(driver.findElements).toHaveBeenCalledWith({ role: 'checkbox' });
+    expect(driver.findElements).toHaveBeenCalledWith({}, { role: 'checkbox' });
   });
 
   it('passes a query filter through to the driver', async () => {
-    const result = await executePageCapability(driver, 'page.find_elements', { query: 'water' }) as {
+    const result = await executePageCapability({ driver, capabilityId: 'page.find_elements', input: { query: 'water' } }) as {
       elements: { handle: string }[];
     };
     expect(result.elements.map((element) => element.handle)).toEqual(['task-water-plants']);
-    expect(driver.findElements).toHaveBeenCalledWith({ query: 'water' });
+    expect(driver.findElements).toHaveBeenCalledWith({}, { query: 'water' });
   });
 
   it('omits absent filters rather than passing undefined', async () => {
-    await executePageCapability(driver, 'page.find_elements', {});
-    expect(driver.findElements).toHaveBeenCalledWith({});
+    await executePageCapability({ driver, capabilityId: 'page.find_elements', input: {} });
+    expect(driver.findElements).toHaveBeenCalledWith({}, {});
   });
 
   it('normalizes page-authored labels before returning them', async () => {
@@ -188,7 +188,7 @@ describe('page.find_elements', () => {
         page: 'sunday-list',
       }]),
     });
-    const result = await executePageCapability(hostile, 'page.find_elements', {}) as {
+    const result = await executePageCapability({ driver: hostile, capabilityId: 'page.find_elements', input: {} }) as {
       elements: { label: string; labelTruncated: boolean }[];
     };
     const label = result.elements[0]!;
@@ -200,23 +200,23 @@ describe('page.find_elements', () => {
 
 describe('page.highlight', () => {
   it('applies the default duration when none is given', async () => {
-    const result = await executePageCapability(driver, 'page.highlight', { handle: 'add-task-button' });
+    const result = await executePageCapability({ driver, capabilityId: 'page.highlight', input: { handle: 'add-task-button' } });
     expect(result).toEqual({ highlighted: 'add-task-button', durationMs: DEFAULT_HIGHLIGHT_MS });
-    expect(driver.highlight).toHaveBeenCalledWith('add-task-button', DEFAULT_HIGHLIGHT_MS);
+    expect(driver.highlight).toHaveBeenCalledWith({ handle: 'add-task-button', durationMs: DEFAULT_HIGHLIGHT_MS });
   });
 
   it('honours a duration within the cap', async () => {
-    await executePageCapability(driver, 'page.highlight', { handle: 'add-task-button', durationMs: 500 });
-    expect(driver.highlight).toHaveBeenCalledWith('add-task-button', 500);
+    await executePageCapability({ driver, capabilityId: 'page.highlight', input: { handle: 'add-task-button', durationMs: 500 } });
+    expect(driver.highlight).toHaveBeenCalledWith({ handle: 'add-task-button', durationMs: 500 });
   });
 
   it('clamps an excessive duration instead of leaving a permanent mark', async () => {
     // highlight is classified `read` precisely because it is transient; an unbounded duration
     // would quietly make it a change of appearance.
-    const result = await executePageCapability(driver, 'page.highlight', {
+    const result = await executePageCapability({ driver, capabilityId: 'page.highlight', input: {
       handle: 'add-task-button',
       durationMs: 10_000_000,
-    });
+    } });
     expect(result).toEqual({ highlighted: 'add-task-button', durationMs: MAX_HIGHLIGHT_MS });
   });
 
@@ -225,8 +225,8 @@ describe('page.highlight', () => {
     // non-finite request is a caller bug, and defaulting is the conservative reading.
     for (const durationMs of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
       vi.mocked(driver.highlight).mockClear();
-      await executePageCapability(driver, 'page.highlight', { handle: 'add-task-button', durationMs });
-      const [, applied] = vi.mocked(driver.highlight).mock.calls[0]!;
+      await executePageCapability({ driver, capabilityId: 'page.highlight', input: { handle: 'add-task-button', durationMs } });
+      const [{ durationMs: applied }] = vi.mocked(driver.highlight).mock.calls[0]!;
       expect(applied).toBe(DEFAULT_HIGHLIGHT_MS);
     }
   });
@@ -234,22 +234,22 @@ describe('page.highlight', () => {
 
 describe('page.scroll_to and page.click', () => {
   it('scrolls to a handle', async () => {
-    expect(await executePageCapability(driver, 'page.scroll_to', { handle: 'add-task-button' }))
+    expect(await executePageCapability({ driver, capabilityId: 'page.scroll_to', input: { handle: 'add-task-button' } }))
       .toEqual({ scrolledTo: 'add-task-button' });
-    expect(driver.scrollTo).toHaveBeenCalledWith('add-task-button');
+    expect(driver.scrollTo).toHaveBeenCalledWith({ handle: 'add-task-button' });
   });
 
   it('clicks a handle', async () => {
-    expect(await executePageCapability(driver, 'page.click', { handle: 'add-task-button' }))
+    expect(await executePageCapability({ driver, capabilityId: 'page.click', input: { handle: 'add-task-button' } }))
       .toEqual({ clicked: 'add-task-button' });
-    expect(driver.click).toHaveBeenCalledWith('add-task-button');
+    expect(driver.click).toHaveBeenCalledWith({ handle: 'add-task-button' });
   });
 
   it('propagates a driver failure rather than reporting success', async () => {
     const failing = createFakeDriver({
       click: vi.fn(async () => { throw new Error('no element published as "gone"'); }),
     });
-    await expect(executePageCapability(failing, 'page.click', { handle: 'gone' }))
+    await expect(executePageCapability({ driver: failing, capabilityId: 'page.click', input: { handle: 'gone' } }))
       .rejects.toThrow(/no element published as "gone"/);
   });
 });
@@ -257,7 +257,7 @@ describe('page.scroll_to and page.click', () => {
 describe('handle validation', () => {
   it('refuses anything that could escape the attribute selector, before touching the page', async () => {
     for (const handle of ['a"],script', "a']", 'a b', '*', 'a:hover', 'UPPER', '-leading', 'a\\']) {
-      await expect(executePageCapability(driver, 'page.click', { handle }))
+      await expect(executePageCapability({ driver, capabilityId: 'page.click', input: { handle } }))
         .rejects.toThrow(/must be a published element handle/);
     }
     // The refusal is policy, not something a driver is trusted to re-implement.
@@ -266,97 +266,97 @@ describe('handle validation', () => {
 
   it('applies to every element-addressed verb', async () => {
     for (const id of ['page.highlight', 'page.scroll_to', 'page.click']) {
-      await expect(executePageCapability(driver, id, { handle: 'bad selector' }))
+      await expect(executePageCapability({ driver, capabilityId: id, input: { handle: 'bad selector' } }))
         .rejects.toThrow(/must be a published element handle/);
     }
-    await expect(executePageCapability(driver, 'page.fill', { handle: 'bad selector', text: 'x' }))
+    await expect(executePageCapability({ driver, capabilityId: 'page.fill', input: { handle: 'bad selector', text: 'x' } }))
       .rejects.toThrow(/must be a published element handle/);
   });
 });
 
 describe('page.fill', () => {
   it('fills an ordinary text field', async () => {
-    expect(await executePageCapability(driver, 'page.fill', { handle: 'new-task-input', text: 'buy milk' }))
+    expect(await executePageCapability({ driver, capabilityId: 'page.fill', input: { handle: 'new-task-input', text: 'buy milk' } }))
       .toEqual({ filled: 'new-task-input' });
-    expect(driver.fill).toHaveBeenCalledWith('new-task-input', 'buy milk');
+    expect(driver.fill).toHaveBeenCalledWith({ handle: 'new-task-input', text: 'buy milk' });
   });
 
   it('refuses a credential field even though it carries a valid handle', async () => {
     // Tagging a password box does not make it fillable — this is the case a pure allowlist misses.
     await expect(
-      executePageCapability(driver, 'page.fill', { handle: 'account-password', text: 'hunter2' }),
+      executePageCapability({ driver, capabilityId: 'page.fill', input: { handle: 'account-password', text: 'hunter2' } }),
     ).rejects.toThrow(/refusing to fill "account-password": this field type can never be filled/);
     expect(driver.fill).not.toHaveBeenCalled();
   });
 
   it('refuses a handle that does not resolve to a field', async () => {
-    await expect(executePageCapability(driver, 'page.fill', { handle: 'add-task-button', text: 'x' }))
+    await expect(executePageCapability({ driver, capabilityId: 'page.fill', input: { handle: 'add-task-button', text: 'x' } }))
       .rejects.toThrow(/"add-task-button" is not a fillable field/);
     expect(driver.fill).not.toHaveBeenCalled();
   });
 
   it('asks the page what the field is before writing to it', async () => {
-    await executePageCapability(driver, 'page.fill', { handle: 'new-task-input', text: 'x' });
-    expect(driver.describeField).toHaveBeenCalledWith('new-task-input');
+    await executePageCapability({ driver, capabilityId: 'page.fill', input: { handle: 'new-task-input', text: 'x' } });
+    expect(driver.describeField).toHaveBeenCalledWith({ handle: 'new-task-input' });
   });
 
   it('allows an empty string, which is how a field is cleared', async () => {
-    await executePageCapability(driver, 'page.fill', { handle: 'new-task-input', text: '' });
-    expect(driver.fill).toHaveBeenCalledWith('new-task-input', '');
+    await executePageCapability({ driver, capabilityId: 'page.fill', input: { handle: 'new-task-input', text: '' } });
+    expect(driver.fill).toHaveBeenCalledWith({ handle: 'new-task-input', text: '' });
   });
 });
 
 describe('page.select_option', () => {
   it('passes the chosen option to the driver and echoes it back, defaulting selected to true', async () => {
-    const result = await executePageCapability(driver, 'page.select_option', {
+    const result = await executePageCapability({ driver, capabilityId: 'page.select_option', input: {
       handle: 'new-task-input',
       option: 'Engineer',
-    });
-    expect(driver.selectOption).toHaveBeenCalledWith('new-task-input', 'Engineer', true);
+    } });
+    expect(driver.selectOption).toHaveBeenCalledWith({ handle: 'new-task-input', option: 'Engineer' }, { selected: true });
     expect(result).toMatchObject({ selected: 'new-task-input', option: 'Engineer', optionSelected: true });
   });
 
   it('passes an explicit selected: false through to the driver and echoes it back', async () => {
-    const result = await executePageCapability(driver, 'page.select_option', {
+    const result = await executePageCapability({ driver, capabilityId: 'page.select_option', input: {
       handle: 'new-task-input',
       option: 'Engineer',
       selected: false,
-    });
-    expect(driver.selectOption).toHaveBeenCalledWith('new-task-input', 'Engineer', false);
+    } });
+    expect(driver.selectOption).toHaveBeenCalledWith({ handle: 'new-task-input', option: 'Engineer' }, { selected: false });
     expect(result).toMatchObject({ selected: 'new-task-input', option: 'Engineer', optionSelected: false });
   });
 
   it('passes an explicit selected: true through the same as the default', async () => {
-    await executePageCapability(driver, 'page.select_option', {
+    await executePageCapability({ driver, capabilityId: 'page.select_option', input: {
       handle: 'new-task-input',
       option: 'Engineer',
       selected: true,
-    });
-    expect(driver.selectOption).toHaveBeenCalledWith('new-task-input', 'Engineer', true);
+    } });
+    expect(driver.selectOption).toHaveBeenCalledWith({ handle: 'new-task-input', option: 'Engineer' }, { selected: true });
   });
 
   it('rejects a non-boolean selected rather than coercing it', async () => {
-    await expect(executePageCapability(driver, 'page.select_option', {
+    await expect(executePageCapability({ driver, capabilityId: 'page.select_option', input: {
       handle: 'new-task-input',
       option: 'Engineer',
       selected: 'yes',
-    })).rejects.toThrow(/"selected" must be a boolean/);
+    } })).rejects.toThrow(/"selected" must be a boolean/);
     expect(driver.selectOption).not.toHaveBeenCalled();
   });
 
   it('requires both the element and the option', async () => {
-    await expect(executePageCapability(driver, 'page.select_option', { handle: 'new-task-input' }))
+    await expect(executePageCapability({ driver, capabilityId: 'page.select_option', input: { handle: 'new-task-input' } }))
       .rejects.toThrow(/"option" is required/);
-    await expect(executePageCapability(driver, 'page.select_option', { option: 'Engineer' }))
+    await expect(executePageCapability({ driver, capabilityId: 'page.select_option', input: { option: 'Engineer' } }))
       .rejects.toThrow(/"handle" is required/);
     expect(driver.selectOption).not.toHaveBeenCalled();
   });
 
   it('refuses a handle that is not a published one, like every other element-addressed verb', async () => {
-    await expect(executePageCapability(driver, 'page.select_option', {
+    await expect(executePageCapability({ driver, capabilityId: 'page.select_option', input: {
       handle: 'select[name=role]',
       option: 'Engineer',
-    })).rejects.toThrow(/published element handle/);
+    } })).rejects.toThrow(/published element handle/);
     expect(driver.selectOption).not.toHaveBeenCalled();
   });
 
@@ -365,10 +365,10 @@ describe('page.select_option', () => {
       { text: '', value: '', field: { type: 'select', name: 'role' }, options: ['Engineer', 'Designer'] },
       { text: '', value: 'engineer', field: { type: 'select', name: 'role' }, options: ['Engineer', 'Designer'] },
     ]);
-    const result = await executePageCapability(observing, 'page.select_option', {
+    const result = await executePageCapability({ driver: observing, capabilityId: 'page.select_option', input: {
       handle: 'new-task-input',
       option: 'Engineer',
-    });
+    } });
     expect(result).toMatchObject({
       selected: 'new-task-input',
       after: { value: 'engineer', options: ['Engineer', 'Designer'] },
@@ -379,17 +379,17 @@ describe('page.select_option', () => {
 
 describe('page.navigate', () => {
   it('navigates to a published page, reporting what was showing before and after', async () => {
-    expect(await executePageCapability(driver, 'page.navigate', { page: 'notes' }))
+    expect(await executePageCapability({ driver, capabilityId: 'page.navigate', input: { page: 'notes' } }))
       .toEqual({
         navigatedTo: 'notes',
         before: { page: 'sunday-list', elementCount: 4 },
         after: { page: 'sunday-list', elementCount: 4 },
       });
-    expect(driver.navigate).toHaveBeenCalledWith('notes');
+    expect(driver.navigate).toHaveBeenCalledWith({ page: 'notes' });
   });
 
   it('refuses an unpublished page and names what is available, with each id\'s label', async () => {
-    await expect(executePageCapability(driver, 'page.navigate', { page: 'https://example.com' }))
+    await expect(executePageCapability({ driver, capabilityId: 'page.navigate', input: { page: 'https://example.com' } }))
       .rejects.toThrow(
         /"https:\/\/example\.com" is not a published page\. Available: sunday-list \(Sunday List\), notes \(Notes\)/,
       );
@@ -398,7 +398,7 @@ describe('page.navigate', () => {
 
   it('reports (none) when the host publishes no pages at all', async () => {
     const pageless = createFakeDriver({ listPages: vi.fn(async () => []) });
-    await expect(executePageCapability(pageless, 'page.navigate', { page: 'anywhere' }))
+    await expect(executePageCapability({ driver: pageless, capabilityId: 'page.navigate', input: { page: 'anywhere' } }))
       .rejects.toThrow(/Available: \(none\)/);
   });
 
@@ -411,7 +411,7 @@ describe('page.navigate', () => {
     const hostile = `‮${'x'.repeat(5000)}​evil-instruction`;
     let caught: Error | undefined;
     try {
-      await executePageCapability(driver, 'page.navigate', { page: hostile });
+      await executePageCapability({ driver, capabilityId: 'page.navigate', input: { page: hostile } });
     } catch (error) {
       caught = error as Error;
     }
@@ -432,7 +432,7 @@ describe('page.navigate', () => {
     });
     let caught: Error | undefined;
     try {
-      await executePageCapability(hostilePages, 'page.navigate', { page: 'nope' });
+      await executePageCapability({ driver: hostilePages, capabilityId: 'page.navigate', input: { page: 'nope' } });
     } catch (error) {
       caught = error as Error;
     }
@@ -446,7 +446,7 @@ describe('page.navigate', () => {
 
   it('reports an undefined page when the surface publishes no tagged elements to read one from', async () => {
     const bare = createFakeDriver({ findElements: vi.fn(async () => []) });
-    expect(await executePageCapability(bare, 'page.navigate', { page: 'notes' }))
+    expect(await executePageCapability({ driver: bare, capabilityId: 'page.navigate', input: { page: 'notes' } }))
       .toEqual({
         navigatedTo: 'notes',
         before: { page: undefined, elementCount: 0 },
@@ -461,7 +461,7 @@ describe('page.navigate', () => {
       settle: vi.fn(async () => { order.push('settle'); }),
       findElements: vi.fn(async () => { order.push('read'); return ELEMENTS; }),
     });
-    await executePageCapability(observing, 'page.navigate', { page: 'notes' });
+    await executePageCapability({ driver: observing, capabilityId: 'page.navigate', input: { page: 'notes' } });
     // listPages/allowlist read happens first; what matters is read-navigate-settle-read.
     expect(order).toEqual(['read', 'navigate', 'settle', 'read']);
   });
@@ -480,7 +480,7 @@ const CHECKED: AgentElementRawState = { text: 'Water the window plants', checked
 describe('write observation — the caller can check its own work', () => {
   it('reports the target before and after a click, and that it changed', async () => {
     const { driver: observing } = createObservingDriver([UNCHECKED, CHECKED]);
-    expect(await executePageCapability(observing, 'page.click', { handle: 'task-water-plants' }))
+    expect(await executePageCapability({ driver: observing, capabilityId: 'page.click', input: { handle: 'task-water-plants' } }))
       .toEqual({
         clicked: 'task-water-plants',
         before: { text: 'Water the window plants', textTruncated: false, checked: false, visible: true },
@@ -491,7 +491,7 @@ describe('write observation — the caller can check its own work', () => {
 
   it('reports targetChanged false when the click left its own target exactly as it was', async () => {
     const { driver: observing } = createObservingDriver([UNCHECKED, UNCHECKED]);
-    const result = await executePageCapability(observing, 'page.click', { handle: 'task-water-plants' });
+    const result = await executePageCapability({ driver: observing, capabilityId: 'page.click', input: { handle: 'task-water-plants' } });
     expect(result).toMatchObject({ targetChanged: false });
   });
 
@@ -502,13 +502,13 @@ describe('write observation — the caller can check its own work', () => {
       click: vi.fn(async () => { order.push('click'); }),
       settle: vi.fn(async () => { order.push('settle'); }),
     });
-    await executePageCapability(observing, 'page.click', { handle: 'task-water-plants' });
+    await executePageCapability({ driver: observing, capabilityId: 'page.click', input: { handle: 'task-water-plants' } });
     expect(order).toEqual(['read', 'click', 'settle', 'read']);
   });
 
   it('omits the after reading, and any verdict, when the click removed its own target', async () => {
     const { driver: observing } = createObservingDriver([UNCHECKED]);
-    const result = await executePageCapability(observing, 'page.click', { handle: 'task-water-plants' });
+    const result = await executePageCapability({ driver: observing, capabilityId: 'page.click', input: { handle: 'task-water-plants' } });
     expect(result).toEqual({
       clicked: 'task-water-plants',
       before: { text: 'Water the window plants', textTruncated: false, checked: false, visible: true },
@@ -516,7 +516,7 @@ describe('write observation — the caller can check its own work', () => {
   });
 
   it('adds nothing at all for a driver that cannot observe itself', async () => {
-    expect(await executePageCapability(driver, 'page.click', { handle: 'task-water-plants' }))
+    expect(await executePageCapability({ driver, capabilityId: 'page.click', input: { handle: 'task-water-plants' } }))
       .toEqual({ clicked: 'task-water-plants' });
   });
 
@@ -525,7 +525,7 @@ describe('write observation — the caller can check its own work', () => {
       { text: '', value: '', field: { type: 'text', name: 'task' } },
       { text: '', value: 'Ada Lovelace', field: { type: 'text', name: 'task' } },
     ]);
-    const result = await executePageCapability(observing, 'page.fill', { handle: 'new-task-input', text: 'Ada Lovelace' });
+    const result = await executePageCapability({ driver: observing, capabilityId: 'page.fill', input: { handle: 'new-task-input', text: 'Ada Lovelace' } });
     expect(result).toMatchObject({
       filled: 'new-task-input',
       after: { value: 'Ada Lovelace', valueTruncated: false },
@@ -535,7 +535,7 @@ describe('write observation — the caller can check its own work', () => {
 
   it('still refuses a guarded field before observing anything', async () => {
     const { driver: observing, describeState } = createObservingDriver([UNCHECKED, UNCHECKED]);
-    await expect(executePageCapability(observing, 'page.fill', { handle: 'account-password', text: 'hunter2' }))
+    await expect(executePageCapability({ driver: observing, capabilityId: 'page.fill', input: { handle: 'account-password', text: 'hunter2' } }))
       .rejects.toThrow(/refusing to fill "account-password"/);
     expect(describeState).not.toHaveBeenCalled();
   });
@@ -543,23 +543,23 @@ describe('write observation — the caller can check its own work', () => {
 
 describe('projectElementState — what a caller may see', () => {
   it('normalizes and bounds page-authored text', () => {
-    expect(projectElementState({ text: '  Water   the‮ plants  ' }))
+    expect(projectElementState({ raw: { text: '  Water   the‮ plants  ' } }))
       .toEqual({ text: 'Water the plants', textTruncated: false });
-    expect(projectElementState({ text: 'x'.repeat(MAX_AGENT_LABEL_LENGTH + 10) }).textTruncated).toBe(true);
+    expect(projectElementState({ raw: { text: 'x'.repeat(MAX_AGENT_LABEL_LENGTH + 10) } }).textTruncated).toBe(true);
   });
 
   it('reports the value of an ordinary field', () => {
-    expect(projectElementState({ text: '', value: 'Ada', field: { type: 'text', name: 'full-name' } }))
+    expect(projectElementState({ raw: { text: '', value: 'Ada', field: { type: 'text', name: 'full-name' } } }))
       .toMatchObject({ value: 'Ada', valueTruncated: false });
   });
 
   it('reports the value of a read-only field, which is not a secrecy question', () => {
-    expect(projectElementState({ text: '', value: 'ACME Inc', field: { type: 'text', name: 'org', readOnly: true } }))
+    expect(projectElementState({ raw: { text: '', value: 'ACME Inc', field: { type: 'text', name: 'org', readOnly: true } } }))
       .toMatchObject({ value: 'ACME Inc' });
   });
 
   it('reports the value of a disabled field for the same reason', () => {
-    expect(projectElementState({ text: '', value: 'ACME Inc', field: { type: 'text', name: 'org', disabled: true } }))
+    expect(projectElementState({ raw: { text: '', value: 'ACME Inc', field: { type: 'text', name: 'org', disabled: true } } }))
       .toMatchObject({ value: 'ACME Inc' });
   });
 
@@ -569,13 +569,13 @@ describe('projectElementState — what a caller may see', () => {
     ['a card number', { type: 'text', autocomplete: 'cc-number', name: 'card' }, 'this field holds a credential or payment instrument'],
     ['a secret-looking name', { type: 'text', name: 'api_key' }, 'this field name indicates a secret or anti-forgery token'],
   ])('withholds the value of %s, and says so rather than reporting it empty', (_label, field, reason) => {
-    const state = projectElementState({ text: '', value: 'super-secret', field });
+    const state = projectElementState({ raw: { text: '', value: 'super-secret', field } });
     expect(state.value).toBeUndefined();
     expect(state.valueWithheld).toBe(reason);
   });
 
   it('withholds a value that arrived with no attributes to check it against', () => {
-    const state = projectElementState({ text: '', value: 'unknown provenance' });
+    const state = projectElementState({ raw: { text: '', value: 'unknown provenance' } });
     expect(state.value).toBeUndefined();
     expect(state.valueWithheld).toMatch(/without the attributes needed to check it for secrets/);
   });
@@ -583,12 +583,12 @@ describe('projectElementState — what a caller may see', () => {
   it('reports a dropdown\'s options, bounded but never withheld', () => {
     // Which options exist is the page's own ontology — a caller needs it to pass a valid one to
     // page.select_option, and it reveals nothing about the user.
-    const state = projectElementState({
+    const state = projectElementState({ raw: {
       text: '',
       value: 'secret',
       field: { type: 'select', name: 'auth_token' },
       options: ['  Engineer  ', 'Designer'],
-    });
+    } });
     expect(state.options).toEqual(['Engineer', 'Designer']);
     // ...while the selected value of a secret-named dropdown is still withheld.
     expect(state.value).toBeUndefined();
@@ -596,7 +596,7 @@ describe('projectElementState — what a caller may see', () => {
   });
 
   it('passes checked, disabled and visible through when the driver reported them', () => {
-    expect(projectElementState({ text: 'Submit', checked: false, disabled: true, visible: false }))
+    expect(projectElementState({ raw: { text: 'Submit', checked: false, disabled: true, visible: false } }))
       .toEqual({ text: 'Submit', textTruncated: false, checked: false, disabled: true, visible: false });
   });
 
@@ -604,23 +604,23 @@ describe('projectElementState — what a caller may see', () => {
     // Regression: checked used to be spread into the result unconditionally, three lines above
     // the refusal check, so a checkbox whose name triggered the guard still reported its boolean
     // state even though `value` was withheld on the same descriptor.
-    const state = projectElementState({
+    const state = projectElementState({ raw: {
       text: '',
       value: 'on',
       checked: true,
       field: { type: 'checkbox', name: 'otp_verified' },
-    });
+    } });
     expect(state.checked).toBeUndefined();
     expect(state.valueWithheld).toBe('this field name indicates a secret or anti-forgery token');
   });
 
   it('withholds checked on a radio group named for a credential even though the option label is plain', () => {
-    const state = projectElementState({
+    const state = projectElementState({ raw: {
       text: 'I am HIV positive',
       value: 'hiv-positive',
       checked: true,
       field: { type: 'radio', name: 'health_disclosure_password' },
-    });
+    } });
     expect(state.checked).toBeUndefined();
     expect(state.valueWithheld).toBeDefined();
     // The option's own visible label is page ontology, not the user's data — unlike `checked`,
@@ -630,17 +630,17 @@ describe('projectElementState — what a caller may see', () => {
   });
 
   it('still reports checked on an unrefused checkbox — the gate is the refusal, not the shape', () => {
-    const state = projectElementState({
+    const state = projectElementState({ raw: {
       text: 'Water the plants',
       value: 'on',
       checked: true,
       field: { type: 'checkbox', name: 'task-water-plants' },
-    });
+    } });
     expect(state.checked).toBe(true);
   });
 
   it('omits checked, disabled and visible rather than inventing false for them', () => {
-    expect(projectElementState({ text: 'Heading' })).toEqual({ text: 'Heading', textTruncated: false });
+    expect(projectElementState({ raw: { text: 'Heading' } })).toEqual({ text: 'Heading', textTruncated: false });
   });
 
   // Regression (2026-07-29 audit): `text` was reported unconditionally, which is right for every
@@ -650,22 +650,22 @@ describe('projectElementState — what a caller may see', () => {
   // `.value` to report in the first place) while handing the same secret straight back as `text`.
   describe('an editable region, whose text is its value rather than page chrome', () => {
     it('withholds the text of a refused editable region, and says why', () => {
-      const state = projectElementState({
+      const state = projectElementState({ raw: {
         text: 'hunter2',
         textIsValue: true,
         field: { type: 'contenteditable', name: 'password' },
-      });
+      } });
       expect(state.text).toBe('');
       expect(state.textTruncated).toBe(false);
       expect(state.textWithheld).toBe('this field name indicates a secret or anti-forgery token');
     });
 
     it('still reports the text of an editable region nothing about which is secret', () => {
-      const state = projectElementState({
+      const state = projectElementState({ raw: {
         text: '  A short   bio  ',
         textIsValue: true,
         field: { type: 'contenteditable', name: 'bio' },
-      });
+      } });
       expect(state.text).toBe('A short bio');
       expect(state.textWithheld).toBeUndefined();
     });
@@ -673,7 +673,7 @@ describe('projectElementState — what a caller may see', () => {
     it('withholds the text of an editable region that arrived with no descriptor to check', () => {
       // Same rule `value` already follows: content that cannot be checked is withheld rather
       // than trusted.
-      const state = projectElementState({ text: 'hunter2', textIsValue: true });
+      const state = projectElementState({ raw: { text: 'hunter2', textIsValue: true } });
       expect(state.text).toBe('');
       expect(state.textWithheld)
         .toBe('this element reported contents without the attributes needed to check them for secrets');
@@ -682,11 +682,11 @@ describe('projectElementState — what a caller may see', () => {
     it('leaves the text of every other element alone, refused or not', () => {
       // The checkbox case above proves the inverse: an option's own visible label stays readable
       // on a refused field. Only `textIsValue` changes that.
-      const state = projectElementState({
+      const state = projectElementState({ raw: {
         text: 'I am HIV positive',
         value: 'on',
         field: { type: 'radio', name: 'health_disclosure_password' },
-      });
+      } });
       expect(state.text).toBe('I am HIV positive');
       expect(state.textWithheld).toBeUndefined();
     });
@@ -696,16 +696,16 @@ describe('projectElementState — what a caller may see', () => {
 describe('page.find_elements — withState', () => {
   it('reports no state at all by default', async () => {
     const { driver: observing, describeState } = createObservingDriver([]);
-    const result = await executePageCapability(observing, 'page.find_elements', {}) as FindElementsResult;
+    const result = await executePageCapability({ driver: observing, capabilityId: 'page.find_elements', input: {} }) as FindElementsResult;
     expect(result.elements.every((element) => element.state === undefined)).toBe(true);
     expect(describeState).not.toHaveBeenCalled();
   });
 
   it('attaches state to each element when asked', async () => {
     const observing = createFakeDriver({
-      describeState: vi.fn(async (handle: string) => ({ text: `state of ${handle}`, visible: true })),
+      describeState: vi.fn(async ({ handle }: { handle: string }) => ({ text: `state of ${handle}`, visible: true })),
     });
-    const result = await executePageCapability(observing, 'page.find_elements', { withState: true }) as FindElementsResult;
+    const result = await executePageCapability({ driver: observing, capabilityId: 'page.find_elements', input: { withState: true } }) as FindElementsResult;
     expect(result.elements[0]?.state).toEqual({
       text: 'state of add-task-button',
       textTruncated: false,
@@ -716,20 +716,20 @@ describe('page.find_elements — withState', () => {
 
   it('never reports a password field\'s contents, even in a bulk listing', async () => {
     const observing = createFakeDriver({
-      describeState: vi.fn(async (handle: string) => ({
+      describeState: vi.fn(async ({ handle }: { handle: string }) => ({
         text: '',
         value: 'hunter2',
         field: FIELDS[handle] ?? undefined,
       })),
     });
-    const result = await executePageCapability(observing, 'page.find_elements', { withState: true }) as FindElementsResult;
+    const result = await executePageCapability({ driver: observing, capabilityId: 'page.find_elements', input: { withState: true } }) as FindElementsResult;
     const password = result.elements.find((element) => element.handle === 'account-password');
     expect(password?.state?.value).toBeUndefined();
     expect(password?.state?.valueWithheld).toBe('this field type is never readable by an agent');
   });
 
   it('says so plainly when the surface cannot observe itself', async () => {
-    const result = await executePageCapability(driver, 'page.find_elements', { withState: true }) as FindElementsResult;
+    const result = await executePageCapability({ driver, capabilityId: 'page.find_elements', input: { withState: true } }) as FindElementsResult;
     expect(result.stateUnavailable).toBe(true);
     expect(result.elements.every((element) => element.state === undefined)).toBe(true);
     expect(result.untrustedFields).toEqual(['elements[].label', 'pages[].label']);
@@ -743,7 +743,7 @@ describe('page.find_elements — withState', () => {
       findElements: vi.fn(async () => many),
       describeState: vi.fn(async () => ({ text: 'row' })),
     });
-    const result = await executePageCapability(observing, 'page.find_elements', { withState: true }) as FindElementsResult;
+    const result = await executePageCapability({ driver: observing, capabilityId: 'page.find_elements', input: { withState: true } }) as FindElementsResult;
     expect(result.stateTruncated).toBe(true);
     expect(result.elements[MAX_STATEFUL_ELEMENTS - 1]?.state).toBeDefined();
     expect(result.elements[MAX_STATEFUL_ELEMENTS]?.state).toBeUndefined();
@@ -752,7 +752,7 @@ describe('page.find_elements — withState', () => {
 
   it('does not set stateTruncated when everything matched fits under the cap', async () => {
     const observing = createFakeDriver({ describeState: vi.fn(async () => ({ text: 'x' })) });
-    const result = await executePageCapability(observing, 'page.find_elements', { withState: true }) as FindElementsResult;
+    const result = await executePageCapability({ driver: observing, capabilityId: 'page.find_elements', input: { withState: true } }) as FindElementsResult;
     expect(result.stateTruncated).toBeUndefined();
   });
 
@@ -763,13 +763,13 @@ describe('page.find_elements — withState', () => {
       ]),
       describeState: vi.fn(async () => ({ text: 'never reached' })),
     });
-    const result = await executePageCapability(observing, 'page.find_elements', { withState: true }) as FindElementsResult;
+    const result = await executePageCapability({ driver: observing, capabilityId: 'page.find_elements', input: { withState: true } }) as FindElementsResult;
     expect(result.elements[0]?.state).toBeUndefined();
     expect(observing.describeState).not.toHaveBeenCalled();
   });
 
   it('rejects a non-boolean withState through the shared schema check', async () => {
-    await expect(executePageCapability(driver, 'page.find_elements', { withState: 'yes' }))
+    await expect(executePageCapability({ driver, capabilityId: 'page.find_elements', input: { withState: 'yes' } }))
       .rejects.toThrow(/"withState" must be a boolean, received string/);
   });
 });

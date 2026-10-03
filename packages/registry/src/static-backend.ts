@@ -4,15 +4,17 @@
  * A read-mostly `RegistryBackend` over an in-memory {@link RegistryManifest}:
  * list/search/resolve/doctor computed directly from `manifest.entries`, no
  * publish/yank support. The base class every other backend in this package
- * extends — `github-backend` overrides `getManifest()`'s source and adds
- * publish/yank over a GitHub PR mutation; `database-backend` overrides
+ * extends — `github-backend` loads one manifest snapshot during construction and adds
+ * publish/yank over a GitHub PR mutation without refreshing that snapshot; `database-backend` overrides
  * `getManifest()` to read from sqlite and adds publish/yank as direct writes.
  */
 import {
+  RegistryBackendKindSchema,
   RegistryEntrySchema,
   RegistryListFilterSchema,
   RegistryPublishRequestSchema,
   RegistrySearchQuerySchema,
+  RegistryTrustSchema,
   type RegistryBackend,
   type RegistryBackendKind,
   type RegistryDoctorReport,
@@ -25,14 +27,14 @@ import {
   type RegistryTrust,
   type ResolvedRegistryEntry,
 } from '@jini-ai/protocol';
+import type { Clock } from '@jini-ai/core/primitives';
 import { parseRegistrySpecifier, resolveRegistryEntryVersion } from './versioning.js';
 import { verifyRegistryEntrySignatures, type RegistryTrustRoot } from './trust.js';
 
 export interface StaticRegistryBackendOptions {
-  id: string;
   kind?: RegistryBackendKind;
-  trust: RegistryTrust;
-  manifest: RegistryManifest;
+  /** Inject the kernel clock for reproducible storage and diagnostic timestamps. */
+  clock?: Clock;
   /**
    * Optional per-entry signature trust root (currently `github-oidc` only —
    * see `trust.ts`). Omitting this is the pre-existing, unchanged default:
@@ -52,15 +54,22 @@ export class StaticRegistryBackend implements RegistryBackend {
   protected readonly manifestData: RegistryManifest;
   protected readonly trustRoot: RegistryTrustRoot | undefined;
 
-  constructor(options: StaticRegistryBackendOptions) {
-    this.id = options.id;
-    this.kind = options.kind ?? 'http';
-    this.trust = options.trust;
-    this.manifestData = options.manifest;
+  protected readonly clock: Clock;
+
+  constructor(
+    required: { id: string; trust: RegistryTrust; manifest: RegistryManifest },
+    options: StaticRegistryBackendOptions = {},
+  ) {
+    this.id = required.id;
+    // Trust is host policy, never inferred from the transport; reject unknown modes.
+    this.kind = RegistryBackendKindSchema.parse(options.kind ?? 'http');
+    this.trust = RegistryTrustSchema.parse(required.trust);
+    this.manifestData = required.manifest;
     this.trustRoot = options.trustRoot;
+    this.clock = options.clock ?? { nowMs: () => Date.now() };
   }
 
-  async list(filter?: RegistryListFilter): Promise<RegistryEntry[]> {
+  async list(_required: Record<string, never>, filter: NonNullable<RegistryListFilter> = {}): Promise<RegistryEntry[]> {
     const parsedFilter = RegistryListFilterSchema.parse(filter);
     let entries = validEntries(this.getManifest());
 
@@ -93,13 +102,13 @@ export class StaticRegistryBackend implements RegistryBackend {
     return entries;
   }
 
-  async search(input: RegistrySearchQuery): Promise<RegistrySearchResult[]> {
-    const query = RegistrySearchQuerySchema.parse(input);
+  async search(required: Pick<RegistrySearchQuery, 'query'>, optional: Omit<RegistrySearchQuery, 'query'> = {}): Promise<RegistrySearchResult[]> {
+    const query = RegistrySearchQuerySchema.parse({ ...required, ...optional });
     const terms = query.query.toLowerCase().split(/\s+/g).filter(Boolean);
     const tags = new Set((query.tags ?? []).map((tag) => tag.toLowerCase()));
     // Pass `includeYanked` through to `list` so search honors the same
     // filter contract instead of unconditionally dropping yanked entries.
-    const entries = await this.list({ includeYanked: query.includeYanked });
+    const entries = await this.list({}, { includeYanked: query.includeYanked });
     const results: RegistrySearchResult[] = [];
     for (const entry of entries) {
       if (tags.size > 0) {
@@ -120,20 +129,20 @@ export class StaticRegistryBackend implements RegistryBackend {
       .slice(0, query.limit ?? 100);
   }
 
-  async resolve(name: string, range?: string): Promise<ResolvedRegistryEntry | null> {
-    const parsed = parseRegistrySpecifier(range ? `${name}@${range}` : name);
+  async resolve({ name }: { name: string }, { range }: { range?: string | undefined } = {}): Promise<ResolvedRegistryEntry | null> {
+    const parsed = parseRegistrySpecifier({ input: range ? `${name}@${range}` : name });
     const entry = validEntries(this.getManifest()).find(
       (candidate) => candidate.name.toLowerCase() === parsed.name.toLowerCase(),
     );
     if (!entry) return null;
-    const resolvedVersion = resolveRegistryEntryVersion(entry, parsed.range);
+    const resolvedVersion = resolveRegistryEntryVersion({ entry }, { requestedRange: parsed.range });
     if (!resolvedVersion) return null;
     // Additive alongside `trust`: never replaces or narrows the
     // backend-configured trust level above, which is still stamped exactly
     // as before. A backend with no `trustRoot` configured (the unchanged
     // default) always resolves `verified: false` here without attempting
     // any cryptographic work — see `trust.ts`'s `verifyRegistryEntrySignatures`.
-    const verification = verifyRegistryEntrySignatures(entry, this.trustRoot);
+    const verification = verifyRegistryEntrySignatures({ entry }, { trustRoot: this.trustRoot });
     return {
       backendId: this.id,
       backendKind: this.kind,
@@ -157,12 +166,12 @@ export class StaticRegistryBackend implements RegistryBackend {
     };
   }
 
-  async manifest(name: string, version: string): Promise<RegistryEntry | null> {
-    const resolved = await this.resolve(name, version);
+  async manifest({ name, version }: { name: string; version: string }): Promise<RegistryEntry | null> {
+    const resolved = await this.resolve({ name }, { range: version });
     return resolved?.entry ?? null;
   }
 
-  async doctor(): Promise<RegistryDoctorReport> {
+  async doctor(_required: Record<string, never>): Promise<RegistryDoctorReport> {
     const issues: RegistryDoctorReport['issues'] = [];
     // Deliberately audits the RAW manifest entries (not the `validEntries()`
     // schema-filtered set `list`/`search`/`resolve` use) — doctor's whole
@@ -247,7 +256,7 @@ export class StaticRegistryBackend implements RegistryBackend {
     return {
       ok: !issues.some((issue) => issue.severity === 'error'),
       backendId: this.id,
-      checkedAt: Date.now(),
+      checkedAt: this.clock.nowMs(),
       entriesChecked: entries.length,
       issues,
     };
@@ -306,8 +315,8 @@ function validEntries(manifest: RegistryManifest): RegistryEntry[] {
  * @returns The schema-parsed (and thus schema-shaped) request.
  * @throws If `request` does not conform to `RegistryPublishRequestSchema`.
  */
-export function assertValidPublishRequest(request: RegistryPublishRequest): RegistryPublishRequest {
-  const parsed = RegistryPublishRequestSchema.safeParse(request);
+export function assertValidPublishRequest(required: Pick<RegistryPublishRequest, 'entry'>, optional: Omit<RegistryPublishRequest, 'entry'> = {}): RegistryPublishRequest {
+  const parsed = RegistryPublishRequestSchema.safeParse({ ...required, ...optional });
   if (!parsed.success) {
     throw new Error(`Invalid registry publish request: ${parsed.error.message}`);
   }

@@ -30,12 +30,15 @@ import type { AdminRoute } from './types.js';
 export const DEFAULT_ADMIN_BASE = '/admin';
 
 /** `"/admin/settings/"` -> `"/admin/settings"`; leaves a lone `"/"` alone. */
-export function stripTrailingSlash(pathname: string): string {
+export function stripTrailingSlash({ pathname }: { readonly pathname: string }): string {
   return pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
 }
 
 /** Route path -> URL. `/settings` -> `/admin/settings`; `/` -> `/admin/`. */
-export function adminHref(routePath: string, base: string = DEFAULT_ADMIN_BASE): string {
+export function adminHref(
+  { routePath }: { readonly routePath: string },
+  { base = DEFAULT_ADMIN_BASE }: { readonly base?: string } = {},
+): string {
   const normalized = routePath.startsWith('/') ? routePath : `/${routePath}`;
   return `${base}${normalized}`;
 }
@@ -50,7 +53,10 @@ export function adminHref(routePath: string, base: string = DEFAULT_ADMIN_BASE):
  * `window.location.pathname` — that default is what made the original untestable without a DOM,
  * and it belongs in the browser layer, not here.
  */
-export function currentRoutePath(pathname: string, base: string = DEFAULT_ADMIN_BASE): string {
+export function currentRoutePath(
+  { pathname }: { readonly pathname: string },
+  { base = DEFAULT_ADMIN_BASE }: { readonly base?: string } = {},
+): string {
   if (pathname === base) return '/';
   if (pathname.startsWith(`${base}/`)) return pathname.slice(base.length) || '/';
   // Reached only if the app is mounted somewhere unexpected; treat the whole path as the route
@@ -67,7 +73,7 @@ export function currentRoutePath(pathname: string, base: string = DEFAULT_ADMIN_
  * @complexity O(p * r * s) — p panels, r patterns per panel, s segments per pattern. Bounded by
  * the manifest, and the common case exits on the first segment comparison.
  */
-export function matchRoute<T>(routePath: string, panels: readonly AdminPanel<T>[]): AdminRoute {
+export function matchRoute<T>({ routePath, panels }: { readonly routePath: string; readonly panels: readonly AdminPanel<T>[] }): AdminRoute {
   const [rawPath, rawQuery] = routePath.split('?');
   const segments = (rawPath ?? '').split('/').filter(Boolean);
   const query = new URLSearchParams(rawQuery ?? '');

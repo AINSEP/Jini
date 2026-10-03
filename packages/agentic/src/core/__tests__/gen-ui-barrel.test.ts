@@ -11,9 +11,8 @@ describe('@jini-ai/agentic public barrel — createGenUiEncoder', () => {
   });
 
   it('createGenUiEncoder produces a working encoder end to end', () => {
-    const encoder = agui.createGenUiEncoder();
-    const result = encoder.encode(
-      {
+    const encoder = agui.createGenUiEncoder({ clock: { nowMs: () => Date.now() } });
+    const result = encoder.encode({ event: {
         runId: 'run-1',
         eventId: 'e1',
         opaqueCursor: 'e1',
@@ -22,8 +21,7 @@ describe('@jini-ai/agentic public barrel — createGenUiEncoder', () => {
         kind: 'start',
         payload: { runId: 'run-1', contextRef: 'ctx-1' },
         durability: 'durable',
-      },
-      { runId: 'run-1', now: () => 1 },
+      }, runId: 'run-1' }, { now: () => 1 }
     );
     expect(result).toEqual({ kind: 'run.lifecycle', status: 'started', runId: 'run-1', ts: 1 });
   });

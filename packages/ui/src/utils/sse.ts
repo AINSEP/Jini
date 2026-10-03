@@ -20,7 +20,7 @@ export type ParsedSseFrame =
  *   are present but do not parse as JSON.
  * @complexity O(n) in the frame's line count — one linear scan.
  */
-export function parseSseFrame(frame: string): ParsedSseFrame | null {
+export function parseSseFrame({ frame }: { frame: string }): ParsedSseFrame | null {
   const lines = frame.split('\n');
   const comments: string[] = [];
   let event = 'message';

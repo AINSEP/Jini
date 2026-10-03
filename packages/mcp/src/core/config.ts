@@ -1,3 +1,4 @@
+import { isLoopbackHostname } from '@jini-ai/platform/net';
 /**
  * @module @jini-ai/mcp/core/config
  * Config schema + on-disk store for the external MCP servers the daemon connects
@@ -23,8 +24,8 @@
 import { readFile } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
-import { pathContains } from '@jini-ai/platform';
-import { writeSecretFileAtomic } from './secure-write.js';
+import { pathContains } from '@jini-ai/core/primitives';
+import { writeFileAtomicAsync } from '@jini-ai/platform/fs';
 
 /** Wire-level transport discriminator for how the daemon connects to an external MCP server. */
 export type McpTransport = 'stdio' | 'sse' | 'http';
@@ -52,6 +53,42 @@ export interface McpServerConfig {
 export interface McpConfig {
   servers: McpServerConfig[];
 }
+
+/** Text I/O boundary; secret writes must be atomic and owner-only from creation. */
+export interface McpConfigFilesystemPort {
+  readText(args: { filePath: string }): Promise<string>;
+  writeSecretText(args: { filePath: string; contents: string }): Promise<void>;
+}
+
+/** Shared atomic secret persistence (CR-006 / SEC-RB-002).
+ * The previous pattern in each of those stores wrote the temp file with
+ * default permissions and either never restricted it (config, OAuth client
+ * cache) or `chmod(0600)`'d it *after* the atomic rename and silently
+ * continued when the chmod failed (tokens) — both leave a window where the
+ * file exists world/group-readable, and the latter makes the "protection"
+ * advisory rather than enforced. The platform writer instead:
+ *
+ *   1. Creates the temp file *exclusively* (`wx`) with mode 0600 supplied to
+ *      the same `open()`/`writeFile()` call that creates it — POSIX applies
+ *      the requested mode atomically at creation time, so there is no
+ *      window where the file exists with a broader mode. Creation-mode enforcement
+ *      follows the existing prompt-file precedent; the shared writer also reapplies
+ *      0600 before checking the mode and flushing the file, never after rename.
+ *   2. On POSIX platforms, verifies the on-disk mode actually landed as
+ *      owner-only before renaming into place, and fails closed — removing
+ *      the temp file and throwing — if it did not (e.g. an unusual umask or
+ *      a filesystem that doesn't honor `mode`).
+ *   3. Skips that verification on `win32`: Windows has no POSIX permission-
+ *      bit model (`mode` there only toggles the read-only attribute), so
+ *      there is nothing meaningful to enforce or fail closed on.
+ *   4. Flushes file content before rename and the parent directory after it. A directory
+ *      flush can fail after replacement; it is reported rather than silently ignored.
+ *
+ */
+const defaultFilesystem: McpConfigFilesystemPort = {
+  readText: ({ filePath }) => readFile(filePath, 'utf8'),
+  writeSecretText: ({ filePath, contents }) => writeFileAtomicAsync({ filePath, content: contents }, { mode: 0o600, verifyOwnerOnly: true, createParent: true }),
+};
 
 const VALID_TRANSPORTS: ReadonlySet<McpTransport> = new Set([
   'stdio',
@@ -98,22 +135,8 @@ function sanitizeStringArray(raw: unknown): string[] | undefined {
   return out.length > 0 ? out : undefined;
 }
 
-function normalizeHost(hostname: string): string {
-  return hostname
-    .replace(/^\[|\]$/g, '')
-    .toLowerCase()
-    .replace(/\.+$/g, '');
-}
-
-function isLoopbackHost(hostname: string): boolean {
-  const host = normalizeHost(hostname);
-  if (host === 'localhost' || host === '::1') return true;
-  // Note: IPv4-mapped IPv6 loopback (`::ffff:127.0.0.1`) is not special-cased —
-  // the WHATWG URL parser compresses it to `::ffff:7f00:1` before it reaches
-  // here, so a dotted-quad match is unreachable through `inferMcpAuthModeForUrl`.
-  return /^127(?:\.\d{1,3}){3}$/.test(host);
-}
-
+// The shared classifier receives the URL parser's canonical hostname; IPv4-mapped
+// IPv6 is deliberately not a loopback exception for default authentication.
 /**
  * Infer the appropriate `McpAuthMode` for a given server URL.
  * Returns `'none'` for loopback targets (localhost, 127.x.x.x, ::1)
@@ -121,10 +144,10 @@ function isLoopbackHost(hostname: string): boolean {
  * @param rawUrl The server URL string to inspect, if any.
  * @returns The inferred `McpAuthMode`.
  */
-export function inferMcpAuthModeForUrl(rawUrl: string | undefined): McpAuthMode {
+export function inferMcpAuthModeForUrl({ rawUrl }: { rawUrl: string | undefined }): McpAuthMode {
   if (!rawUrl) return 'oauth';
   try {
-    return isLoopbackHost(new URL(rawUrl).hostname) ? 'none' : 'oauth';
+    return isLoopbackHostname({ hostname: new URL(rawUrl).hostname }) ? 'none' : 'oauth';
   } catch {
     return 'oauth';
   }
@@ -140,7 +163,7 @@ function sanitizeMcpAuthMode(raw: unknown): McpAuthMode | undefined {
 // there is no stdio short-circuit here — the token merge just needs the
 // effective auth mode for a remote server.
 function effectiveMcpAuthMode(server: McpServerConfig): McpAuthMode {
-  return server.authMode ?? inferMcpAuthModeForUrl(server.url);
+  return server.authMode ?? inferMcpAuthModeForUrl({ rawUrl: server.url });
 }
 
 /**
@@ -148,12 +171,16 @@ function effectiveMcpAuthMode(server: McpServerConfig): McpAuthMode {
  * one server doesn't tank the whole config. Returns null when the entry is
  * unsalvageable (no id, or no transport-required fields).
  */
-export function sanitizeMcpServer(raw: unknown): McpServerConfig | null {
+export function sanitizeMcpServer({ raw }: { raw: unknown }): McpServerConfig | null {
   if (!isPlainObject(raw)) return null;
   const id = typeof raw.id === 'string' ? raw.id.trim() : '';
   if (!SERVER_ID_PATTERN.test(id)) return null;
-  const transport = typeof raw.transport === 'string' ? (raw.transport as McpTransport) : 'stdio';
+  // Absence preserves the legacy stdio default; a supplied invalid discriminator must not
+  // silently select a different transport or authentication policy.
+  if (raw.transport !== undefined && typeof raw.transport !== 'string') return null;
+  const transport = raw.transport === undefined ? 'stdio' : (raw.transport as McpTransport);
   if (!VALID_TRANSPORTS.has(transport)) return null;
+  if (raw.authMode !== undefined && sanitizeMcpAuthMode(raw.authMode) === undefined) return null;
 
   const next: McpServerConfig = {
     id,
@@ -183,7 +210,7 @@ export function sanitizeMcpServer(raw: unknown): McpServerConfig | null {
     }
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
     next.url = parsed.toString();
-    next.authMode = sanitizeMcpAuthMode(raw.authMode) ?? inferMcpAuthModeForUrl(next.url);
+    next.authMode = sanitizeMcpAuthMode(raw.authMode) ?? inferMcpAuthModeForUrl({ rawUrl: next.url });
     const headers = sanitizeStringMap(raw.headers);
     if (headers) next.headers = headers;
   }
@@ -197,13 +224,13 @@ export function sanitizeMcpServer(raw: unknown): McpServerConfig | null {
  * @param raw The raw parsed JSON to sanitize.
  * @returns A clean `McpConfig` guaranteed to have only valid, unique server entries.
  */
-export function sanitizeMcpConfig(raw: unknown): McpConfig {
+export function sanitizeMcpConfig({ raw }: { raw: unknown }): McpConfig {
   if (!isPlainObject(raw)) return { servers: [] };
   const list = Array.isArray(raw.servers) ? raw.servers : [];
   const seen = new Set<string>();
   const out: McpServerConfig[] = [];
   for (const entry of list) {
-    const ok = sanitizeMcpServer(entry);
+    const ok = sanitizeMcpServer({ raw: entry });
     if (!ok) continue;
     if (seen.has(ok.id)) continue; // de-dupe by id
     seen.add(ok.id);
@@ -218,11 +245,11 @@ export function sanitizeMcpConfig(raw: unknown): McpConfig {
  * @param dataDir The resolved runtime data directory.
  * @returns The sanitized `McpConfig`, never rejects on missing-file or corrupt-JSON.
  */
-export async function readMcpConfig(dataDir: string): Promise<McpConfig> {
+export async function readMcpConfig({ dataDir }: { dataDir: string }, { filesystem = defaultFilesystem }: { filesystem?: McpConfigFilesystemPort } = {}): Promise<McpConfig> {
   try {
-    const raw = await readFile(configFile(dataDir), 'utf8');
+    const raw = await filesystem.readText({ filePath: configFile(dataDir) });
     const parsed: unknown = JSON.parse(raw);
-    return sanitizeMcpConfig(parsed);
+    return sanitizeMcpConfig({ raw: parsed });
   } catch (err: unknown) {
     const e = err as { code?: string; name?: string; message?: string };
     if (e.code === 'ENOENT') return { servers: [] };
@@ -243,18 +270,18 @@ const writeLocks = new Map<string, Promise<unknown>>();
  * being written. This file may carry environment variables and
  * `Authorization` header values (API keys, bearer tokens — see
  * `McpServerConfig.env`/`.headers`), so it is written with owner-only
- * (0600) permissions from the very first byte via `writeSecretFileAtomic`
+ * (0600) permissions from the very first byte via `writeFileAtomicAsync`
  * rather than a post-rename chmod (CR-006 / SEC-RB-002).
  * @param dataDir The resolved runtime data directory.
  * @param body The raw config body to sanitize and persist.
  * @returns The sanitized `McpConfig` that was written to disk.
  */
 export async function writeMcpConfig(
-  dataDir: string,
-  body: unknown,
+  { dataDir, body }: { dataDir: string; body: unknown },
+  { filesystem = defaultFilesystem }: { filesystem?: McpConfigFilesystemPort } = {},
 ): Promise<McpConfig> {
   const prev = writeLocks.get(dataDir) ?? Promise.resolve();
-  const task = prev.catch(() => {}).then(() => doWrite(dataDir, body));
+  const task = prev.catch(() => {}).then(() => doWrite(dataDir, body, filesystem));
   writeLocks.set(dataDir, task);
   try {
     return await task;
@@ -263,9 +290,9 @@ export async function writeMcpConfig(
   }
 }
 
-async function doWrite(dataDir: string, body: unknown): Promise<McpConfig> {
-  const next = sanitizeMcpConfig(body);
-  await writeSecretFileAtomic(configFile(dataDir), JSON.stringify(next, null, 2));
+async function doWrite(dataDir: string, body: unknown, filesystem: McpConfigFilesystemPort): Promise<McpConfig> {
+  const next = sanitizeMcpConfig({ raw: body });
+  await filesystem.writeSecretText({ filePath: configFile(dataDir), contents: JSON.stringify(next, null, 2) });
   return next;
 }
 
@@ -278,7 +305,7 @@ async function doWrite(dataDir: string, body: unknown): Promise<McpConfig> {
  * falls back to lexical `path.resolve` (still normalizing `..`/`.`
  * segments) when it does not exist yet, or the platform can't resolve it.
  */
-function resolveRealOrLexical(p: string): string {
+function resolveRealOrLexical({ filePath: p }: { filePath: string }): string {
   try {
     return realpathSync.native(p);
   } catch {
@@ -296,20 +323,20 @@ function resolveRealOrLexical(p: string): string {
  * Both `cwd` and `projectsDir` are realpath-resolved before the containment
  * check (falling back to lexical `path.resolve` normalization for a path
  * that doesn't exist on disk yet), and containment is decided with
- * `@jini-ai/platform`'s separator-aware `pathContains` rather than a raw
+ * `@jini-ai/core/primitives`' separator-aware `pathContains` rather than a raw
  * string-prefix check — a `..`-containing path or a symlinked descendant
  * can defeat a plain `startsWith` (CR-006 / SEC-RB-011).
  */
 export function isManagedProjectCwd(
-  cwd: string | null | undefined,
-  projectsDir: string,
+  { cwd, projectsDir }: { cwd: string | null | undefined; projectsDir: string },
+  { resolvePath = resolveRealOrLexical }: { resolvePath?: (args: { filePath: string }) => string } = {},
 ): boolean {
   if (!cwd || typeof cwd !== 'string') return false;
   if (typeof projectsDir !== 'string' || projectsDir.length === 0) return false;
-  const resolvedProjectsDir = resolveRealOrLexical(projectsDir);
-  const resolvedCwd = resolveRealOrLexical(cwd);
+  const resolvedProjectsDir = resolvePath({ filePath: projectsDir });
+  const resolvedCwd = resolvePath({ filePath: cwd });
   if (resolvedCwd === resolvedProjectsDir) return false; // projects root, not a project
-  return pathContains(resolvedProjectsDir, resolvedCwd);
+  return pathContains({ root: resolvedProjectsDir, target: resolvedCwd }, { caseSensitive: path.sep !== '\\', separator: path.sep === '\\' ? '\\' : '/' });
 }
 
 /**
@@ -327,8 +354,8 @@ export function isManagedProjectCwd(
  * conflict so they can pin a specific token if they really want to.
  */
 export function buildClaudeMcpJson(
-  servers: McpServerConfig[],
-  tokens: Record<string, string> = {},
+  { servers }: { servers: McpServerConfig[] },
+  { tokens = {} }: { tokens?: Record<string, string> } = {},
 ): unknown | null {
   const enabled = servers.filter((s) => s.enabled);
   if (enabled.length === 0) return null;
@@ -406,7 +433,7 @@ export interface AcpMcpServer {
  * @param servers The full server list from `McpConfig`.
  * @returns ACP-shaped server entries for all enabled stdio servers.
  */
-export function buildAcpMcpServers(servers: McpServerConfig[]): AcpMcpServer[] {
+export function buildAcpMcpServers({ servers }: { servers: McpServerConfig[] }): AcpMcpServer[] {
   const enabled = servers.filter((s) => s.enabled && s.transport === 'stdio');
   const out: AcpMcpServer[] = [];
   for (const s of enabled) {
@@ -451,6 +478,10 @@ export function buildAcpMcpServers(servers: McpServerConfig[]): AcpMcpServer[] {
  */
 /** Options for `buildOpenCodeMcpConfigContent`. */
 export interface OpenCodeConfigBuildOptions {
+  /** Access tokens keyed by server id. */
+  tokens?: Record<string, string>;
+  /** Resolves symlinks for permission allowlists. */
+  resolvePath?: (args: { filePath: string }) => string;
   /** Absolute filesystem paths OpenCode's `external_directory` permission should allow. */
   allowedDirectories?: string[];
   /** Additional top-level keys merged into the emitted config object (e.g. `provider`). */
@@ -458,9 +489,19 @@ export interface OpenCodeConfigBuildOptions {
 }
 
 export function buildOpenCodeMcpConfigContent(
-  servers: McpServerConfig[],
-  tokens: Record<string, string> = {},
+  { servers }: { servers: McpServerConfig[] },
   options: OpenCodeConfigBuildOptions = {},
+): string | null {
+  const tokens = options.tokens ?? {};
+  const resolvePath = options.resolvePath ?? (({ filePath }: { filePath: string }) => realpathSync.native(filePath));
+  return buildOpenCodeContent(servers, tokens, options, resolvePath);
+}
+
+function buildOpenCodeContent(
+  servers: McpServerConfig[],
+  tokens: Record<string, string>,
+  options: OpenCodeConfigBuildOptions,
+  resolvePath: (args: { filePath: string }) => string,
 ): string | null {
   const enabled = servers.filter((s) => s.enabled);
   const mcp: Record<string, Record<string, unknown>> = {};
@@ -494,7 +535,7 @@ export function buildOpenCodeMcpConfigContent(
     }
   }
   const externalDirectory = buildOpenCodeExternalDirectoryAllowlist(
-    options.allowedDirectories,
+    options.allowedDirectories, resolvePath,
   );
   const extraConfig = options.extraConfig ?? {};
   if (
@@ -520,13 +561,14 @@ export function buildOpenCodeMcpConfigContent(
 
 function buildOpenCodeExternalDirectoryAllowlist(
   directories: string[] | undefined,
+  resolvePath: (args: { filePath: string }) => string,
 ): Record<string, 'allow'> | null {
   const normalized = Array.from(
     new Set(
       (directories ?? [])
         .filter((dir) => typeof dir === 'string' && dir.trim().length > 0)
         .filter((dir) => path.isAbsolute(dir))
-        .flatMap((dir) => normalizeAllowedDirectoryVariants(dir)),
+        .flatMap((dir) => normalizeAllowedDirectoryVariants(dir, resolvePath)),
     ),
   );
   if (normalized.length === 0) return null;
@@ -547,11 +589,11 @@ function normalizeAllowedDirectory(dir: string): string {
   return resolved.replace(/[\\/]+$/, '');
 }
 
-function normalizeAllowedDirectoryVariants(dir: string): string[] {
+function normalizeAllowedDirectoryVariants(dir: string, resolvePath: (args: { filePath: string }) => string): string[] {
   const normalized = normalizeAllowedDirectory(dir);
   let real: string | null = null;
   try {
-    real = normalizeAllowedDirectory(realpathSync.native(dir));
+    real = normalizeAllowedDirectory(resolvePath({ filePath: dir }));
   } catch {
     real = null;
   }

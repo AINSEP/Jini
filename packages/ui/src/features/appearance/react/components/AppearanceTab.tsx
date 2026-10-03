@@ -57,8 +57,8 @@ export function AppearanceTab({
   agentHandle,
 }: AppearanceTabProps) {
   const t = useT();
-  const resolvedAccent = resolveAccentColor(accentColor);
-  const swatchHandles = agentHandle ? buildAgentListHandles(agentSubHandle(agentHandle, 'swatch'), accentSwatches) : undefined;
+  const resolvedAccent = resolveAccentColor({ value: accentColor });
+  const swatchHandles = agentHandle ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action: 'swatch' }), ids: accentSwatches }) : undefined;
   const resolvedAriaLabel = ariaLabel ?? t('Appearance');
   const resolvedAccentLabel = accentLabel ?? t('Accent color');
   const resolvedDefaultAccentAriaLabel = defaultAccentAriaLabel ?? t('Default accent color');
@@ -85,7 +85,7 @@ export function AppearanceTab({
             className={'jini-seg-btn' + (theme === option.value ? ' active' : '')}
             aria-pressed={theme === option.value}
             onClick={() => onThemeChange(option.value)}
-            {...agentHandleProps(agentHandle, { action: `theme-${option.value}`, role: 'button', label: t(option.label) })}
+            {...agentHandleProps({}, { base: agentHandle, ...({ action: `theme-${option.value}`, role: 'button', label: t(option.label) }) })}
           >
             {option.icon ? <Icon name={option.icon} size={14} aria-hidden="true" /> : null}
             <span className="jini-seg-title">{t(option.label)}</span>
@@ -108,8 +108,8 @@ export function AppearanceTab({
                 aria-label={swatchLabel}
                 aria-checked={active}
                 role="radio"
-                onClick={() => onAccentColorChange(normalizeAccentColor(color) ?? color)}
-                {...agentHandleProps(swatchHandles?.[index], { role: 'button', label: swatchLabel })}
+                onClick={() => onAccentColorChange(normalizeAccentColor({ value: color }) ?? color)}
+                {...agentHandleProps({}, { base: swatchHandles?.[index], ...({ role: 'button', label: swatchLabel }) })}
               />
             );
           })}
@@ -119,7 +119,7 @@ export function AppearanceTab({
             className="jini-accent-swatch-picker"
             value={resolvedAccent}
             onChange={(event) => onAccentColorChange(event.target.value)}
-            {...agentHandleProps(agentHandle, { action: 'custom-accent', role: 'field', label: resolvedCustomAccentAriaLabel })}
+            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'custom-accent', role: 'field', label: resolvedCustomAccentAriaLabel }) })}
           />
         </div>
       </div>

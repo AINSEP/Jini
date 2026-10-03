@@ -6,7 +6,7 @@
  *
  * Origin: `apps/web/src/components/PreviewModal.tsx`'s inline derivations
  * (the `initial` viewId ternary, `activeView`/`scale`/`scalerStyle` memos).
- * See `../source-map.md`.
+ * See `../archived provenance ledger`.
  */
 import type { PreviewModalContentStatus, PreviewModalScalerStyle, PreviewModalUnavailable } from './types.js';
 

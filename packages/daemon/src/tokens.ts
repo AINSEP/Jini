@@ -17,7 +17,7 @@ import type { RunLifecycle } from './run-lifecycle.js';
 import type { ToolExecutor } from './tool-executor.js';
 import type { AgentExecutor } from './agent-executor.js';
 
-export const RunLifecycleToken = token<RunLifecycle>('jini.runLifecycle');
-export const EventLogToken = token<EventLog>('jini.eventLog');
-export const ToolExecutorToken = token<ToolExecutor>('jini.toolExecutor');
-export const AgentExecutorToken = token<AgentExecutor>('jini.agentExecutor');
+export const RunLifecycleToken = token<RunLifecycle>({ id: 'jini.runLifecycle' });
+export const EventLogToken = token<EventLog>({ id: 'jini.eventLog' });
+export const ToolExecutorToken = token<ToolExecutor>({ id: 'jini.toolExecutor' });
+export const AgentExecutorToken = token<AgentExecutor>({ id: 'jini.agentExecutor' });

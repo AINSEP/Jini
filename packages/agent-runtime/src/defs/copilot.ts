@@ -5,7 +5,7 @@
  * product-prefixed operator-override env var name replaced with generic
  * phrasing (this package's `types.ts` already documents
  * `inactivityTimeoutMs` as "callers may still allow an operator override
- * via their own env var"). See `source-map.md` for the exact original
+ * via their own env var"). See `archived provenance ledger` for the exact original
  * wording.
  */
 import { DEFAULT_MODEL_OPTION } from './shared.js';
@@ -59,7 +59,7 @@ export const copilotAgentDef = {
       { id: 'claude-sonnet-4.6', label: 'Claude Sonnet 4.6' },
       { id: 'gpt-5.2', label: 'GPT-5.2' },
     ],
-    buildArgs: (_prompt, _imagePaths, extraAllowedDirs = [], options = {}) => {
+    buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs = [], options = {} } = {}) => {
       const args = [
         // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
         // behavior) unless a caller explicitly opts into a restricted run, in which case

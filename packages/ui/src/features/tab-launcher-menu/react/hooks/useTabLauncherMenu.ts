@@ -92,7 +92,7 @@ export function useTabLauncherMenu<TActionCtx = void>(
     };
   }, [anchor]);
 
-  useDismissOnOutsideOrEscape(onClose, { containerRef });
+  useDismissOnOutsideOrEscape({ onDismiss: onClose }, { containerRef });
 
   const kinds = useMemo(() => presentKinds(files), [files]);
   const fileResults = useMemo(() => filterFiles(files, query, kindFilter), [files, query, kindFilter]);

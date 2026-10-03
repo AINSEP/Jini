@@ -30,7 +30,7 @@ describe('DEFAULT_VITE_REACT_TEMPLATE', () => {
 
   it('is a SandboxFile[] usable directly as mountFiles input, not a template needing rendering', () => {
     // Real content, not a placeholder like `{{PLACEHOLDER}}` a caller would need to substitute —
-    // this is what makes `session.mountFiles(DEFAULT_VITE_REACT_TEMPLATE)` work with no
+    // this is what makes `session.mountFiles({ files: DEFAULT_VITE_REACT_TEMPLATE })` work with no
     // intermediate step. Every file here is text (SandboxFile.content also allows Uint8Array for
     // binary assets, but this starter template has none), so asserting `typeof === 'string'`
     // first both documents that and narrows the type for the checks below.

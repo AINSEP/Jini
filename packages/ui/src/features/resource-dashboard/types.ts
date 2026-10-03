@@ -8,7 +8,7 @@
  * over a config-driven status-kanban board) and `TasksView.tsx` (hero header
  * with metric tiles + a flat row-list with inline per-item action buttons +
  * a lazy-loaded expandable per-row run-history sublist). Both were read in
- * full from `/tmp/od-source` (see `packages/ui/source-map.md`'s
+ * full from `/tmp/od-source` (see `packages/ui/archived provenance ledger`'s
  * `features/resource-dashboard/` section for the full shared-vs-separate
  * verdict and quoted structural evidence).
  *
@@ -36,7 +36,7 @@
  * and TasksView's own 5-value run vocabulary
  * (`succeeded`/`failed`/`running`/`queued`/`canceled`) are two different,
  * non-identical instantiations of this same shape — see
- * `packages/ui/source-map.md` for the note on reconciling either against
+ * `packages/ui/archived provenance ledger` for the note on reconciling either against
  * `@jini-ai/protocol`'s own `RunState` later (explicitly out of scope here).
  */
 export interface ResourceStatusOption {
@@ -77,7 +77,7 @@ export interface ResourceMenuActionSpec {
  * `body` is a host-supplied render slot for anything else (DesignsTab's
  * cover-thumbnail resolution across html/image/video/logo/brand kinds stays
  * entirely host-owned, never ported into this generic primitive — see
- * source-map.md's "Dropped" list).
+ * archived provenance ledger's "Dropped" list).
  */
 export interface ResourceBoardItem<TBody = unknown> {
   id: string;
@@ -127,7 +127,7 @@ export interface ResourceRowItem {
   actions: ResourceRowAction[];
 }
 
-/** One entry in a row's expandable run-history sublist (TasksView's `RoutineRun`, lazy-fetched on first expand). `actions` generalizes the origin's per-run "crystallize"/"view progress" buttons — see source-map.md for what was dropped (the crystallize automation-evolution workflow is OD-specific and not ported; "open" is the one generic action kept). */
+/** One entry in a row's expandable run-history sublist (TasksView's `RoutineRun`, lazy-fetched on first expand). `actions` generalizes the origin's per-run "crystallize"/"view progress" buttons — see archived provenance ledger for what was dropped (the crystallize automation-evolution workflow is OD-specific and not ported; "open" is the one generic action kept). */
 export interface ResourceRunHistoryItem {
   id: string;
   status: string;

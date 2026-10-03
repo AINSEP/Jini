@@ -15,7 +15,7 @@
  * separate subsystem.
  *
  * So `detectAcpModels` becomes an injectable port: an `AcpModelProbe` with
- * a single `detectModels(request)` method, matching the real call shape
+ * a single `detectModels(requiredArgs, optionalArgs)` method, matching the real call shape
  * every ACP-based def literal already uses. The default implementation is
  * a no-op that resolves to `[]`, which makes `detection.ts`'s `fetchModels`
  * step treat the live-fetch as "returned nothing" and fall back to the
@@ -40,7 +40,8 @@ export interface AcpModelProbeRequest {
 }
 
 export interface AcpModelProbe {
-  detectModels(request: AcpModelProbeRequest): Promise<RuntimeModelOption[]>;
+  detectModels(requiredArgs: Pick<AcpModelProbeRequest, 'bin' | 'args'>,
+    optionalArgs?: Omit<AcpModelProbeRequest, 'bin' | 'args'>): Promise<RuntimeModelOption[]>;
 }
 
 export const noopAcpModelProbe: AcpModelProbe = {
@@ -52,11 +53,11 @@ export const noopAcpModelProbe: AcpModelProbe = {
 let activeAcpModelProbe: AcpModelProbe = noopAcpModelProbe;
 
 /** Install the real ACP transport (or a test double). Pass `null` to restore the no-op default. */
-export function setAcpModelProbe(probe: AcpModelProbe | null): void {
+export function setAcpModelProbe({ probe }: { probe: AcpModelProbe | null }): void {
   activeAcpModelProbe = probe ?? noopAcpModelProbe;
 }
 
 /** Drop-in replacement for OD's `detectAcpModels` — delegates to whatever probe is currently installed. */
-export async function detectAcpModels(request: AcpModelProbeRequest): Promise<RuntimeModelOption[]> {
-  return activeAcpModelProbe.detectModels(request);
+export async function detectAcpModels(requiredArgs: Pick<AcpModelProbeRequest, "bin" | "args">, optionalArgs: Omit<AcpModelProbeRequest, "bin" | "args"> = {}): Promise<RuntimeModelOption[]> {
+  return activeAcpModelProbe.detectModels(requiredArgs, optionalArgs);
 }

@@ -33,7 +33,7 @@ is a historical record of that removed mechanism, not something `pnpm guard` enf
 `./internal`, `./dom`, …), and most of the time they all share the same runtime — nothing to
 declare. The one case that doesn't fit is a package with a universal root and a browser-only (or
 otherwise differently-targeted) secondary entry point, e.g. `@jini-ai/agentic`'s DOM-free `.` plus its
-browser-only `./dom` (see `packages/agentic/source-map.md`'s "The DOM split"). For that case, add
+browser-only `./dom` (see the archived provenance ledger's "The DOM split"). For that case, add
 an optional `jini.entries` map alongside `runtime`:
 
 ```json
@@ -60,12 +60,12 @@ matching prebuild for the exact Node ABI they run under — inside an Electron/T
 that means an `electron-rebuild` (or equivalent) step whenever the shell's bundled Node/Electron
 version changes, not just a plain `npm install`. This table is the map of where each one actually
 shows up, and what shape that dependency takes (audited 2026-07-29 as part of a broader
-consumer-adoption pass — see each package's own `source-map.md` for the day-by-day history):
+consumer-adoption pass — see each package's own the archived provenance ledger for the day-by-day history):
 
 | Package | Native dep | Shape | What it means for a consumer |
 |---|---|---|---|
-| `@jini-ai/sqlite` | `better-sqlite3` | Hard `dependencies`, real value import (`createSqliteEventLog` opens the DB itself) | Always needs a working prebuild — this package's whole job is being the SQLite adapter. |
-| `@jini-ai/server` (ex-`node-host`) | `better-sqlite3` | Transitive, via its `@jini-ai/sqlite` dependency | Same requirement as `@jini-ai/sqlite`, inherited. |
+| `@jini-ai/sqlite` | None | Deprecated concern re-export shim; no driver hard dependency/autoload | Inject host handles/openers; use concern subpaths. |
+| `@jini-ai/server` (ex-`node-host`) | Host-injected `better-sqlite3` | Optional peer, no driver value import | Memory needs no SQLite; durable host supplies its opener. |
 | `@jini-ai/registry` | `better-sqlite3` | `peerDependencies` (optional) — `database-backend.ts` only needs the *type*, the caller owns/opens the real handle | Only pay the native-compile cost if you actually install `better-sqlite3` yourself to use `DatabaseRegistryBackend`; `StaticRegistryBackend` and friends need nothing. |
 | `@jini-ai/capability-providers` | `better-sqlite3` | `peerDependencies` (optional), and the code that needs it is behind the `./adapters/sqlite` subpath | Nothing on the root barrel references it, in code *or* in emitted `.d.ts`. Only pay the native-compile cost if you import `./adapters/sqlite` for `SqliteDbProvider`. |
 | `@jini-ai/integrations` (`./media-providers`) | `better-sqlite3` | Dynamically imported (`await import('better-sqlite3')`) inside `createSqliteMediaTaskStore` only | Importing anything else from `./media-providers` (e.g. `renderStub`) never touches the native binary at all; the cost is paid only if you actually call that one factory. |
@@ -88,6 +88,9 @@ barrel then costs nothing extra, and the subpath tells you exactly what to add i
 | `@jini-ai/capability-providers` | `better-sqlite3` | `./adapters/sqlite` (`SqliteDbProvider`) |
 | `@jini-ai/ui` | `@excalidraw/excalidraw` | `./sketch-editor` |
 | `@jini-ai/ui` | `lexical`, `@lexical/react`, `@lexical/utils` | `./lexical-rich-text-editor` |
+| `@jini-ai/ui` | `@radix-ui/react-checkbox`, `@radix-ui/react-label`, `@radix-ui/react-radio-group`, `@radix-ui/react-select`, `@radix-ui/react-slot` | `./interactive-ui` (shadcn provider components) |
+| `@jini-ai/ui` | `recharts` | `./interactive-ui` (chart provider components) |
+| `@jini-ai/ui` | `@mcp-ui/client` | `./mcp-ui` (`McpUiHost`) |
 | `@jini-ai/registry` | `better-sqlite3` | `DatabaseRegistryBackend` |
 | `@jini-ai/daemon` | `node-pty` | Terminal sessions (`loadRealSpawnPty`) |
 
@@ -115,3 +118,10 @@ oversight in any one package.
   whose module-eval vendor self-registration a bundler must not tree-shake away.
 - `jini.admission` — **removed 2026-07-28.** The locked/incubating/admitted tier is gone and
   nothing validates the field; do not reintroduce it.
+
+| Storage concern | Entry | Connection ownership |
+|---|---|---|
+| Chat | `@jini-ai/chat/store/*` | Borrowed host kernels/handles |
+| Daemon | `@jini-ai/daemon/store/*` | Borrowed session kernels; explicit owned event-log opener |
+| Tool catalog | `@jini-ai/registry/tool-catalog/sqlite` | Borrowed host handle |
+| Generic SQL | `@jini-ai/db/{core,sqlite,kernel/*}` | Injected host drivers |

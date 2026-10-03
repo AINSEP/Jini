@@ -1,6 +1,8 @@
-import { arch, hostname, platform, release, totalmem, type } from "node:os";
+import type { Clock } from "@jini-ai/core/primitives";
+import type { DiagnosticsSystemPort } from "./ports.js";
 
-import type { CollectedFile } from "./sources.js";
+import type { CollectedFile, MachineInfo } from "./types.js";
+export type { MachineInfo } from "./types.js";
 
 export interface DiagnosticsAppInfo {
   name: string;
@@ -47,27 +49,16 @@ export interface DiagnosticsManifest {
   extra?: Record<string, unknown> | undefined;
 }
 
-export interface MachineInfo {
-  hostname: string;
-  platform: string;
-  release: string;
-  arch: string;
-  type: string;
-  totalMemoryBytes: number;
-  nodeVersion: string;
-  pid: number;
-  ppid: number;
-  cwd: string;
-  username?: string | undefined;
-}
-
-export function buildManifest(context: DiagnosticsContext, files: CollectedFile[]): DiagnosticsManifest {
+/** Combines file and host warnings using only the caller's clock for the export timestamp. */
+export function buildManifest(
+  { context, files, clock }: { context: DiagnosticsContext; files: CollectedFile[]; clock: Clock },
+): DiagnosticsManifest {
   const warnings: string[] = [...(context.warnings ?? [])];
   for (const file of files) {
     if (file.error) warnings.push(`${file.name}: ${file.error}`);
   }
   return {
-    exportedAt: new Date().toISOString(),
+    exportedAt: new Date(clock.nowMs()).toISOString(),
     app: context.app,
     source: context.source,
     namespace: context.namespace,
@@ -84,23 +75,19 @@ export function buildManifest(context: DiagnosticsContext, files: CollectedFile[
   };
 }
 
-export function buildMachineInfo(username: string | undefined): MachineInfo {
-  return {
-    hostname: hostname(),
-    platform: platform(),
-    release: release(),
-    arch: arch(),
-    type: type(),
-    totalMemoryBytes: totalmem(),
-    nodeVersion: process.version,
-    pid: process.pid,
-    ppid: process.ppid,
-    cwd: process.cwd(),
-    username,
-  };
+/** Reads the injected machine snapshot and adds the caller's optional username. */
+export function buildMachineInfo(
+  { system }: { system: DiagnosticsSystemPort },
+  { username }: { username?: string | undefined } = {},
+): MachineInfo {
+  return { ...system.machineInfo({}), username };
 }
 
-export function diagnosticsFileName(prefix: string, now: Date = new Date()): string {
-  const iso = now.toISOString().replace(/[:.]/g, "-").replace(/-\d{3}Z$/, "Z");
+/** Uses an explicit date override or the supplied clock; never reads the ambient clock. */
+export function diagnosticsFileName(
+  { prefix, clock }: { prefix: string; clock: Clock },
+  { now }: { now?: Date } = {},
+): string {
+  const iso = (now ?? new Date(clock.nowMs())).toISOString().replace(/[:.]/g, "-").replace(/-\d{3}Z$/, "Z");
   return `${prefix}-${iso}.zip`;
 }

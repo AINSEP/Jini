@@ -10,7 +10,7 @@
  * Generalized from an upstream flat daemon module: the origin hardcoded its
  * host product's env-var names and a product-branded config sub-directory.
  * Every one of those is now a field on {@link SandboxEnvConfig} so a
- * consumer isn't branded — see `source-map.md` for the exact mapping.
+ * consumer isn't branded — see `archived provenance ledger` for the exact mapping.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,7 +20,7 @@ import { resolveProjectRelativePath } from './home-expansion.js';
 /**
  * Names the environment variables and on-disk naming this port reads/writes.
  * A consumer supplies its own env-var names and config-directory name — see
- * `source-map.md` for the values a real adapter (e.g. the OD adapter) uses.
+ * `archived provenance ledger` for the values a real adapter (e.g. the OD adapter) uses.
  */
 export interface SandboxEnvConfig {
   /** Env var gating whether sandboxing is on (truthy/falsy string). */

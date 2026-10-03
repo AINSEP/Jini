@@ -39,14 +39,14 @@ export interface E2bCommandHandle {
 export interface E2bRunOptions {
   readonly background?: boolean;
   readonly cwd?: string;
-  readonly onStdout?: (data: string) => void;
-  readonly onStderr?: (data: string) => void;
+  readonly onStdout?: (requiredArgs: { data: string }) => void;
+  readonly onStderr?: (requiredArgs: { data: string }) => void;
 }
 
 export interface E2bCommands {
   /** Foreground: resolves once the command exits. Background: resolves once it has started. */
-  run(command: string, opts?: E2bRunOptions & { background?: false }): Promise<E2bCommandResult>;
-  run(command: string, opts: E2bRunOptions & { background: true }): Promise<E2bCommandHandle>;
+  run(requiredArgs: { command: string }, optionalArgs?: Omit<E2bRunOptions, 'background'>): Promise<E2bCommandResult>;
+  run(requiredArgs: { command: string; background: true }, optionalArgs?: Omit<E2bRunOptions, 'background'>): Promise<E2bCommandHandle>;
 }
 
 /** E2B's filesystem event kinds (real values, lowercase — confirmed against the installed
@@ -93,16 +93,15 @@ export interface E2bFilesystem {
    *  a multi-overload source against a single-signature target picks the wrong overload to
    *  compare against and reports a confusing arity mismatch, so the real SDK is never passed
    *  through as-is. See `provider.ts`'s `toE2bHandle`. */
-  write(files: readonly E2bWriteEntry[]): Promise<unknown>;
+  write(requiredArgs: { files: readonly E2bWriteEntry[] }): Promise<unknown>;
   /** Always requested as raw bytes (`format: 'bytes'`) — this adapter never asks E2B to decode
    *  text on its behalf, matching `SandboxSession.readFile`'s "always raw bytes" contract. */
-  read(path: string, opts: { readonly format: 'bytes' }): Promise<Uint8Array>;
+  read(requiredArgs: { path: string; format: 'bytes' }): Promise<Uint8Array>;
   /** `depth` bounds how deep E2B's own server-side walk goes — see `MAX_LIST_DEPTH` in
    *  `wrap-e2b-sandbox.ts` for why a bound exists at all. */
-  list(path: string, opts?: { readonly depth?: number }): Promise<readonly E2bEntryInfo[]>;
+  list(requiredArgs: { path: string }, optionalArgs?: { readonly depth?: number }): Promise<readonly E2bEntryInfo[]>;
   watchDir(
-    path: string,
-    onEvent: (event: E2bFilesystemEvent) => void,
+    requiredArgs: { path: string; onEvent: (event: E2bFilesystemEvent) => void },
     opts?: { readonly recursive?: boolean },
   ): Promise<E2bWatchHandle>;
 }
@@ -114,7 +113,7 @@ export interface E2bFilesystem {
 export interface E2bSandboxHandle {
   readonly commands: E2bCommands;
   readonly files: E2bFilesystem;
-  getHost(port: number): string;
+  getHost(requiredArgs: { port: number }): string;
   /** `true` if the sandbox was killed, `false` if it was already gone — per the real SDK's
    *  `Sandbox.kill()` signature. */
   kill(): Promise<boolean>;

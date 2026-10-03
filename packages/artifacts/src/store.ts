@@ -29,12 +29,13 @@ import {
   type ArtifactManifest,
   type ArtifactManifestTaxonomy,
   type ManifestInferrer,
+  type ValidateManifestOptions,
 } from './manifest.js';
 
 export class ArtifactManifestRequiredError extends Error {
   readonly code = 'ARTIFACT_MANIFEST_REQUIRED' as const;
 
-  constructor(name: string) {
+  constructor({ name }: { name: string }) {
     super(`artifactManifest is required for ${name}; no safe default manifest can be inferred`);
     this.name = 'ArtifactManifestRequiredError';
   }
@@ -43,7 +44,7 @@ export class ArtifactManifestRequiredError extends Error {
 export class ArtifactManifestInvalidError extends Error {
   readonly code = 'ARTIFACT_MANIFEST_INVALID' as const;
 
-  constructor(message: string) {
+  constructor({ message }: { message: string }) {
     super(`invalid artifactManifest: ${message}`);
     this.name = 'ArtifactManifestInvalidError';
   }
@@ -59,43 +60,44 @@ export interface CreateArtifactInput {
 
 export interface ArtifactRecord {
   readonly name: string;
-  readonly content: Buffer;
+  readonly content: Uint8Array;
   readonly manifest: ArtifactManifest;
 }
 
 /**
  * A replayable, ordered artifact-manifest resolver: given a create request,
  * either the caller-supplied manifest (validated against `taxonomy`) or the
- * result of `inferManifest(name)` (also validated) becomes the record's
+ * result of `inferManifest({ entry: name })` (also validated) becomes the record's
  * manifest. Throws {@link ArtifactManifestRequiredError} when neither
  * source produces one, {@link ArtifactManifestInvalidError} when the
  * resolved manifest fails validation.
  */
 export function resolveArtifactManifest(
-  input: CreateArtifactInput,
-  taxonomy: ArtifactManifestTaxonomy,
-  inferManifest: ManifestInferrer,
+  { input, taxonomy, inferManifest }: {
+    input: CreateArtifactInput; taxonomy: ArtifactManifestTaxonomy; inferManifest: ManifestInferrer;
+  },
+  optional: ValidateManifestOptions = {},
 ): ArtifactManifest {
   const manifest = input.artifactManifest !== undefined && input.artifactManifest !== null
     ? input.artifactManifest
-    : inferManifest(input.name);
+    : inferManifest({ entry: input.name });
   if (manifest) {
-    const validated = validateArtifactManifestInput(manifest, input.name, taxonomy);
+    const validated = validateArtifactManifestInput({ manifest, entry: input.name, taxonomy }, optional);
     if (!validated.ok) {
-      throw new ArtifactManifestInvalidError(validated.error);
+      throw new ArtifactManifestInvalidError({ message: validated.error });
     }
     // `manifest != null` above and `validateArtifactManifestInput` only
     // returns `{ ok: true, value: null }` when its own `manifest` param is
     // `== null` — so `validated.value` is non-null here.
     return validated.value!;
   }
-  throw new ArtifactManifestRequiredError(input.name);
+  throw new ArtifactManifestRequiredError({ name: input.name });
 }
 
 /**
  * A store of named artifacts with validated manifests. Kernel port —
  * `@jini-ai/daemon` ships `createInMemoryArtifactStore` as the reference
- * implementation; a durable adapter (`@jini-ai/sqlite`) can implement the same
+ * implementation; a durable adapter (`@jini-ai/sqlite-chat`) can implement the same
  * interface against real persistence.
  */
 export interface ArtifactStore {
@@ -107,12 +109,29 @@ export interface ArtifactStore {
    */
   create(input: CreateArtifactInput): Promise<ArtifactRecord>;
   /** Returns the named artifact, or `null` if it doesn't exist. */
-  get(name: string): Promise<ArtifactRecord | null>;
+  get(required: { name: string }): Promise<ArtifactRecord | null>;
   /** Returns every stored artifact, most-recently-updated first. */
   list(): Promise<ArtifactRecord[]>;
 }
 
+/** A decoder port lets hosts keep their own byte representation and encoding policy. */
+export interface ArtifactContentCodecPort {
+  decode(required: { content: string }, optional?: { encoding?: 'utf8' | 'base64' }): Uint8Array;
+}
+
+const defaultContentCodec: ArtifactContentCodecPort = {
+  decode({ content }, { encoding = 'utf8' } = {}) {
+    // Retain native Node bytes there; browser/edge hosts need no Buffer polyfill.
+    if (typeof Buffer !== 'undefined') return Buffer.from(content, encoding);
+    if (encoding === 'utf8') return new TextEncoder().encode(content);
+    const binary = atob(content);
+    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  },
+};
+
 export interface InMemoryArtifactStoreOptions {
+  readonly contentCodec?: ArtifactContentCodecPort;
+  readonly now?: () => string;
   readonly taxonomy?: ArtifactManifestTaxonomy;
   readonly inferManifest?: ManifestInferrer;
 }
@@ -123,23 +142,22 @@ export interface InMemoryArtifactStoreOptions {
  * real persistent adapter is a future storage task's concern, mirroring
  * `event-log.ts`'s own in-memory-only reference implementation).
  */
-export function createInMemoryArtifactStore(options: InMemoryArtifactStoreOptions = {}): ArtifactStore {
+export function createInMemoryArtifactStore(_required: Record<string, never>, options: InMemoryArtifactStoreOptions = {}): ArtifactStore {
   const taxonomy = options.taxonomy ?? emptyArtifactManifestTaxonomy;
   const inferManifest = options.inferManifest ?? noopManifestInferrer;
   const records = new Map<string, ArtifactRecord>();
+  const contentCodec = options.contentCodec ?? defaultContentCodec;
 
   return {
     async create(input: CreateArtifactInput): Promise<ArtifactRecord> {
-      const manifest = resolveArtifactManifest(input, taxonomy, inferManifest);
-      const content = input.encoding === 'base64'
-        ? Buffer.from(input.content, 'base64')
-        : Buffer.from(input.content, 'utf8');
+      const manifest = resolveArtifactManifest({ input, taxonomy, inferManifest }, options);
+      const content = contentCodec.decode({ content: input.content }, { encoding: input.encoding ?? 'utf8' });
       const record: ArtifactRecord = { name: input.name, content, manifest };
       records.set(input.name, record);
       return record;
     },
 
-    async get(name: string): Promise<ArtifactRecord | null> {
+    async get({ name }: { name: string }): Promise<ArtifactRecord | null> {
       return records.get(name) ?? null;
     },
 

@@ -27,8 +27,8 @@ export function useAssetGridKeyboardShortcuts(params: UseAssetGridKeyboardShortc
     onRequestDeleteSelected,
   } = params;
 
-  useGlobalKeydown(
-    (e) => {
+  useGlobalKeydown({
+    handler: (e) => {
       if (!enabled) return;
       const typing = isTypingTarget(document.activeElement);
       if ((e.metaKey || e.ctrlKey) && (e.key === 'a' || e.key === 'A')) {
@@ -44,6 +44,5 @@ export function useAssetGridKeyboardShortcuts(params: UseAssetGridKeyboardShortc
         onRequestDeleteSelected();
       }
     },
-    { enabled: active },
-  );
+  }, { enabled: active });
 }

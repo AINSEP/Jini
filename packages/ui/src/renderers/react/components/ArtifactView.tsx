@@ -34,7 +34,7 @@ export interface ArtifactViewSlots {
 export interface ArtifactViewProps {
   file: ArtifactFile;
   registry: RendererRegistry;
-  /** Passed through to `registry.resolve({ file, hints })`. */
+  /** Passed through to `registry.resolve({ file }, { hints })`. */
   hints?: Record<string, unknown> | undefined;
   /** Passed through to `SrcDocSandbox` for the built-in `html`/`svg` rendering. */
   srcDocOptions?: BuildSrcDocOptions | undefined;
@@ -53,7 +53,7 @@ export interface ArtifactViewProps {
 
 export function ArtifactView({ file, registry, hints, srcDocOptions, slots, className, annotation }: ArtifactViewProps) {
   const t = useT();
-  const match = useMemo(() => registry.resolve({ file, hints }), [registry, file, hints]);
+  const match = useMemo(() => registry.resolve({ file }, { hints }), [registry, file, hints]);
 
   const wrap = (node: ReactNode): ReactNode => (annotation ? <AnnotationCanvas {...annotation}>{node}</AnnotationCanvas> : node);
 

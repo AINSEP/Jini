@@ -15,12 +15,12 @@ vi.mock('../shared.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../shared.js')>();
   return {
     ...actual,
-    execAgentFile: (bin: string, args: string[], opts?: unknown) => {
+    execAgentFile: ({ command: bin, args }: Parameters<typeof actual.execAgentFile>[0], { options: opts }: NonNullable<Parameters<typeof actual.execAgentFile>[1]> = {}) => {
       mockState.execCalls.push({ bin, args, opts });
       return mockState.execImpl(bin, args, opts);
     },
-    parsePiModels: (stdout: unknown) =>
-      mockState.parseImpl ? mockState.parseImpl(stdout) : actual.parsePiModels(stdout),
+    parsePiModels: ({ stdout }: Parameters<typeof actual.parsePiModels>[0]) =>
+      mockState.parseImpl ? mockState.parseImpl(stdout) : actual.parsePiModels({ stdout }),
   };
 });
 
@@ -39,7 +39,7 @@ describe('piAgentDef.fetchModels', () => {
       stdout: '',
       stderr: 'provider\tmodel\nanthropic\tclaude-sonnet-4-5',
     });
-    const models = await piAgentDef.fetchModels!('pi', { FOO: 'bar' });
+    const models = await piAgentDef.fetchModels!({ resolvedBin: 'pi', env: { FOO: 'bar' } });
     expect(mockState.execCalls).toHaveLength(1);
     expect(mockState.execCalls[0]).toMatchObject({ bin: 'pi', args: ['--list-models'] });
     expect((mockState.execCalls[0]!.opts as Record<string, unknown>).env).toEqual({ FOO: 'bar' });
@@ -51,7 +51,7 @@ describe('piAgentDef.fetchModels', () => {
 
   it('returns null when parsePiModels finds no usable rows (empty stderr)', async () => {
     mockState.execImpl = async () => ({ stdout: '', stderr: '' });
-    const models = await piAgentDef.fetchModels!('pi', {});
+    const models = await piAgentDef.fetchModels!({ resolvedBin: 'pi', env: {} });
     expect(models).toBeNull();
   });
 
@@ -62,7 +62,7 @@ describe('piAgentDef.fetchModels', () => {
     // written without relying on an otherwise-unreachable real parse result.
     mockState.parseImpl = () => [];
     mockState.execImpl = async () => ({ stdout: '', stderr: 'anything' });
-    const models = await piAgentDef.fetchModels!('pi', {});
+    const models = await piAgentDef.fetchModels!({ resolvedBin: 'pi', env: {} });
     expect(models).toBeNull();
   });
 
@@ -70,22 +70,22 @@ describe('piAgentDef.fetchModels', () => {
     mockState.execImpl = async () => {
       throw new Error('spawn pi ENOENT');
     };
-    const models = await piAgentDef.fetchModels!('pi', {});
+    const models = await piAgentDef.fetchModels!({ resolvedBin: 'pi', env: {} });
     expect(models).toBeNull();
   });
 });
 
 describe('piAgentDef.buildArgs', () => {
   it('builds the base rpc-mode argv with no model/reasoning/extra dirs', () => {
-    expect(piAgentDef.buildArgs('hi', [], [], {}, {})).toEqual(['--mode', 'rpc']);
+    expect(piAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} })).toEqual(['--mode', 'rpc']);
   });
 
   it('defaults extraAllowedDirs/options/runtimeContext when omitted', () => {
-    expect(piAgentDef.buildArgs('hi', [])).toEqual(['--mode', 'rpc']);
+    expect(piAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] })).toEqual(['--mode', 'rpc']);
   });
 
   it('adds --model when a non-default model is selected', () => {
-    expect(piAgentDef.buildArgs('hi', [], [], { model: 'anthropic/claude-sonnet-4-5' }, {})).toEqual([
+    expect(piAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'anthropic/claude-sonnet-4-5' }, runtimeContext: {} })).toEqual([
       '--mode',
       'rpc',
       '--model',
@@ -94,11 +94,11 @@ describe('piAgentDef.buildArgs', () => {
   });
 
   it('omits --model when the model is the literal string "default"', () => {
-    expect(piAgentDef.buildArgs('hi', [], [], { model: 'default' }, {})).toEqual(['--mode', 'rpc']);
+    expect(piAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'default' }, runtimeContext: {} })).toEqual(['--mode', 'rpc']);
   });
 
   it('adds --thinking when reasoning is set and not "default"', () => {
-    expect(piAgentDef.buildArgs('hi', [], [], { reasoning: 'high' }, {})).toEqual([
+    expect(piAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { reasoning: 'high' }, runtimeContext: {} })).toEqual([
       '--mode',
       'rpc',
       '--thinking',
@@ -107,16 +107,11 @@ describe('piAgentDef.buildArgs', () => {
   });
 
   it('omits --thinking when reasoning is the literal string "default"', () => {
-    expect(piAgentDef.buildArgs('hi', [], [], { reasoning: 'default' }, {})).toEqual(['--mode', 'rpc']);
+    expect(piAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { reasoning: 'default' }, runtimeContext: {} })).toEqual(['--mode', 'rpc']);
   });
 
   it('adds --append-system-prompt for each absolute extraAllowedDirs entry, filtering relative/non-string ones', () => {
-    const args = piAgentDef.buildArgs(
-      'hi',
-      [],
-      ['/abs/one', 'relative/two', 123 as unknown as string, '/abs/three'],
-      {},
-      {},
+    const args = piAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: ['/abs/one', 'relative/two', 123 as unknown as string, '/abs/three'], options: {}, runtimeContext: {} }
     );
     expect(args).toEqual([
       '--mode',
@@ -129,20 +124,15 @@ describe('piAgentDef.buildArgs', () => {
   });
 
   it('treats an omitted extraAllowedDirs as empty (parameter default)', () => {
-    expect(piAgentDef.buildArgs('hi', [], undefined, {}, {})).toEqual(['--mode', 'rpc']);
+    expect(piAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { options: {}, runtimeContext: {} })).toEqual(['--mode', 'rpc']);
   });
 
   it('treats an explicit null extraAllowedDirs as empty (the `|| []` fallback, not the parameter default)', () => {
-    expect(piAgentDef.buildArgs('hi', [], null as unknown as string[], {}, {})).toEqual(['--mode', 'rpc']);
+    expect(piAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: null as unknown as string[], options: {}, runtimeContext: {} })).toEqual(['--mode', 'rpc']);
   });
 
   it('composes model, reasoning, and extra dirs together', () => {
-    const args = piAgentDef.buildArgs(
-      'hi',
-      [],
-      ['/extra'],
-      { model: 'openai/gpt-5', reasoning: 'medium' },
-      {},
+    const args = piAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: ['/extra'], options: { model: 'openai/gpt-5', reasoning: 'medium' }, runtimeContext: {} }
     );
     expect(args).toEqual([
       '--mode',

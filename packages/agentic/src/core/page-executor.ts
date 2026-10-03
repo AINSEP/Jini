@@ -100,7 +100,7 @@ export interface PageWriteObservation {
 
 function requireHandle(input: Record<string, unknown>, key: string): string {
   const value = input[key];
-  if (typeof value !== 'string' || !isValidElementHandle(value)) {
+  if (typeof value !== 'string' || !isValidElementHandle({ handle: value })) {
     throw new Error(
       `"${key}" must be a published element handle from page.find_elements — `
       + 'lowercase words joined by single hyphens, never a CSS selector',
@@ -126,8 +126,8 @@ function isAgentElementRole(value: unknown): value is AgentElementRole {
  * guard does — a secrecy rule re-derived by each driver is a secrecy rule that will eventually be
  * derived wrong. A value arriving with no descriptor to check is withheld rather than trusted.
  */
-export function projectElementState(raw: AgentElementRawState): AgentElementState {
-  const text = normalizeAgentLabel(raw.text);
+export function projectElementState({ raw }: { raw: AgentElementRawState }, _optional: Record<string, never> = {}): AgentElementState {
+  const text = normalizeAgentLabel({ raw: raw.text });
 
   // Computed once, up front, so `checked` is gated by the exact same refusal as `value` below
   // rather than being copied through unconditionally. A checkbox/radio's `checked` is a second
@@ -139,7 +139,7 @@ export function projectElementState(raw: AgentElementRawState): AgentElementStat
   // it, exactly like a `<select>`'s `options` below. The secret is which option is checked, not
   // what the option is called; withholding the label too would blind a caller to the page's own
   // ontology for no reduction in what actually leaks.
-  const refusal = raw.field !== undefined ? findFieldReadRefusal(raw.field) : null;
+  const refusal = raw.field !== undefined ? findFieldReadRefusal({ field: raw.field }) : null;
 
   // The one element whose `text` is NOT page-authored chrome: an editable region, whose contents
   // are the user's data and whose driver has no `value` to report them as. It is gated by exactly
@@ -149,7 +149,7 @@ export function projectElementState(raw: AgentElementRawState): AgentElementStat
     ? undefined
     : raw.field === undefined
       ? 'this element reported contents without the attributes needed to check them for secrets'
-      : refusal !== null ? describeFieldReadRefusal(refusal) : undefined;
+      : refusal !== null ? describeFieldReadRefusal({ refusal }) : undefined;
 
   const base: AgentElementState = {
     text: withheldText === undefined ? text.text : '',
@@ -161,7 +161,7 @@ export function projectElementState(raw: AgentElementRawState): AgentElementStat
     // Bounded like every other page-authored string, but never withheld: the options a dropdown
     // offers are part of the UI's shape, not the user's data.
     ...(raw.options !== undefined
-      ? { options: raw.options.map((option) => normalizeAgentLabel(option).text) }
+      ? { options: raw.options.map((option) => normalizeAgentLabel({ raw: option }).text) }
       : {}),
   };
 
@@ -172,9 +172,9 @@ export function projectElementState(raw: AgentElementRawState): AgentElementStat
       valueWithheld: 'this element reported a value without the attributes needed to check it for secrets',
     };
   }
-  if (refusal !== null) return { ...base, valueWithheld: describeFieldReadRefusal(refusal) };
+  if (refusal !== null) return { ...base, valueWithheld: describeFieldReadRefusal({ refusal }) };
 
-  const value = normalizeAgentLabel(raw.value);
+  const value = normalizeAgentLabel({ raw: raw.value });
   return { ...base, value: value.text, valueTruncated: value.truncated };
 }
 
@@ -208,9 +208,9 @@ function sameElementState(a: AgentElementState, b: AgentElementState): boolean {
  * not report state.
  */
 async function observeElement(driver: PageDriver, handle: string): Promise<AgentElementState | undefined> {
-  if (driver.describeState === undefined || !isValidElementHandle(handle)) return undefined;
-  const raw = await driver.describeState(handle);
-  return raw === null ? undefined : projectElementState(raw);
+  if (driver.describeState === undefined || !isValidElementHandle({ handle })) return undefined;
+  const raw = await driver.describeState({ handle });
+  return raw === null ? undefined : projectElementState({ raw });
 }
 
 /** Runs a write between two readings of its target, waiting for the surface to settle in between. */
@@ -221,7 +221,7 @@ async function observeWrite(
 ): Promise<PageWriteObservation> {
   const before = await observeElement(driver, handle);
   await write();
-  if (driver.settle !== undefined) await driver.settle();
+  if (driver.settle !== undefined) await driver.settle({});
   const after = await observeElement(driver, handle);
   return {
     ...(before !== undefined ? { before } : {}),
@@ -248,7 +248,7 @@ export interface PageActivitySnapshot {
  * surface that publishes nothing has no page id to report, and says so rather than guessing.
  */
 async function summarizePage(driver: PageDriver): Promise<PageActivitySnapshot> {
-  const elements = await driver.findElements({});
+  const elements = await driver.findElements({}, {});
   return {
     page: elements.find((element) => element.page !== undefined)?.page,
     elementCount: elements.length,
@@ -266,16 +266,13 @@ async function summarizePage(driver: PageDriver): Promise<PageActivitySnapshot> 
  * a field no automated caller may fill, or the page is not published. Refusals are errors on
  * purpose: a caller must be told why, not handed a silent no-op it will retry forever.
  */
-export async function executePageCapability(
-  driver: PageDriver,
-  capabilityId: string,
-  input: Record<string, unknown>,
+export async function executePageCapability({ driver, capabilityId, input }: { driver: PageDriver; capabilityId: string; input: Record<string, unknown> }, _optional: Record<string, never> = {}
 ): Promise<unknown> {
   const capability: CapabilityDef | undefined =
     PAGE_CAPABILITIES.find((entry) => entry.id === capabilityId);
   if (capability === undefined) throw new Error(`unknown page capability: ${capabilityId}`);
 
-  const inputError = findCapabilityInputError(capability, input);
+  const inputError = findCapabilityInputError({ capability, input });
   if (inputError !== null) {
     // The schema rides along with the refusal rather than making a caller spend a second
     // round trip on describe_tool to learn what it already tried to guess — ai-control-plane.md
@@ -299,12 +296,12 @@ export async function executePageCapability(
         ...(isAgentElementRole(role) ? { role } : {}),
         ...(typeof input['query'] === 'string' ? { query: input['query'] } : {}),
       };
-      const [found, rawPages] = await Promise.all([driver.findElements(filter), driver.listPages()]);
+      const [found, rawPages] = await Promise.all([driver.findElements({}, filter), driver.listPages({})]);
       const withState = input['withState'] === true;
       const observing = withState && driver.describeState !== undefined;
 
       const elements = await Promise.all(found.map(async (element, index): Promise<PageElementResult> => {
-        const label = normalizeAgentLabel(element.label);
+        const label = normalizeAgentLabel({ raw: element.label });
         const base: PageElementResult = {
           handle: element.handle,
           role: element.role,
@@ -321,7 +318,7 @@ export async function executePageCapability(
       // every `data-agent-page` label short and clean.
       const pages: readonly PageSummary[] = rawPages.map((page) => ({
         id: page.id,
-        label: normalizeAgentLabel(page.label).text,
+        label: normalizeAgentLabel({ raw: page.label }).text,
       }));
 
       return {
@@ -338,19 +335,19 @@ export async function executePageCapability(
     case 'page.highlight': {
       const handle = requireHandle(input, 'handle');
       const durationMs = clampHighlightDuration(input['durationMs']);
-      await driver.highlight(handle, durationMs);
+      await driver.highlight({ handle, durationMs });
       return { highlighted: handle, durationMs };
     }
 
     case 'page.scroll_to': {
       const handle = requireHandle(input, 'handle');
-      await driver.scrollTo(handle);
+      await driver.scrollTo({ handle });
       return { scrolledTo: handle };
     }
 
     case 'page.click': {
       const handle = requireHandle(input, 'handle');
-      const observation = await observeWrite(driver, handle, () => driver.click(handle));
+      const observation = await observeWrite(driver, handle, () => driver.click({ handle }));
       return { clicked: handle, ...observation };
     }
 
@@ -362,14 +359,14 @@ export async function executePageCapability(
 
       // Ask the page what this field actually is before writing to it. A handle proves the page
       // published the element; it says nothing about whether it holds a password.
-      const field = await driver.describeField(handle);
+      const field = await driver.describeField({ handle });
       if (field === null) throw new Error(`"${handle}" is not a fillable field`);
-      const refusal = findFieldFillRefusal(field);
+      const refusal = findFieldFillRefusal({ field });
       if (refusal !== null) {
-        throw new Error(`refusing to fill "${handle}": ${describeFieldRefusal(refusal)}`);
+        throw new Error(`refusing to fill "${handle}": ${describeFieldRefusal({ refusal })}`);
       }
 
-      const observation = await observeWrite(driver, handle, () => driver.fill(handle, text));
+      const observation = await observeWrite(driver, handle, () => driver.fill({ handle, text }));
       return { filled: handle, ...observation };
     }
 
@@ -383,7 +380,7 @@ export async function executePageCapability(
       // No field guard: a dropdown's options are authored by the page, so choosing one reveals
       // nothing the page had not already published, and none of the credential field types this
       // surface refuses can be a `<select>`.
-      const observation = await observeWrite(driver, handle, () => driver.selectOption(handle, option, selected));
+      const observation = await observeWrite(driver, handle, () => driver.selectOption({ handle, option }, { selected }));
       // `optionSelected` names the boolean rather than reusing `selected`, which already means
       // "the handle this call acted on" for every verb in this switch (`clicked`, `filled`, …).
       return { selected: handle, option, optionSelected: selected, ...observation };
@@ -392,7 +389,7 @@ export async function executePageCapability(
     case 'page.navigate': {
       // Required and string-typed by the manifest, already enforced above. See page.fill.
       const page = input['page'] as string;
-      const pages = await driver.listPages();
+      const pages = await driver.listPages({});
       if (!pages.some((candidate) => candidate.id === page)) {
         // Every other piece of page-authored (or, here, caller-authored-but-page-shaped) text
         // this system hands to a model goes through normalizeAgentLabel first — bounded, control-
@@ -406,17 +403,17 @@ export async function executePageCapability(
         // is looking straight at the real menu, so it is worth spending the label here even though
         // `page.find_elements` already carries the same information — a caller that jumped
         // straight to `page.navigate` without calling that first still lands on the right id.
-        const safePage = normalizeAgentLabel(page).text;
+        const safePage = normalizeAgentLabel({ raw: page }).text;
         const safePages = pages.map(
-          (candidate) => `${normalizeAgentLabel(candidate.id).text} (${normalizeAgentLabel(candidate.label).text})`,
+          (candidate) => `${normalizeAgentLabel({ raw: candidate.id }).text} (${normalizeAgentLabel({ raw: candidate.label }).text})`,
         );
         throw new Error(
           `"${safePage}" is not a published page. Available: ${safePages.length > 0 ? safePages.join(', ') : '(none)'}`,
         );
       }
       const before = await summarizePage(driver);
-      await driver.navigate(page);
-      if (driver.settle !== undefined) await driver.settle();
+      await driver.navigate({ page });
+      if (driver.settle !== undefined) await driver.settle({});
       const after = await summarizePage(driver);
       return { navigatedTo: page, before, after };
     }

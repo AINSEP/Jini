@@ -43,7 +43,7 @@ type OpenTagMatch = { kind: 'complete'; start: number; end: number; attrs: strin
 //     future chunk may turn it into an inline code span.
 function findOpenTag(buffer: string): OpenTagMatch {
   const len = buffer.length;
-  const { ranges, unclosedFenceStart } = computeSkipRanges(buffer);
+  const { ranges, unclosedFenceStart } = computeSkipRanges({ buffer: buffer });
 
   // Pass 1: scan for the earliest *complete* real `<artifact …>` open outside
   // any skip range, before any hold-back decision — otherwise a stray
@@ -54,7 +54,7 @@ function findOpenTag(buffer: string): OpenTagMatch {
   while (from < len) {
     const idx = buffer.indexOf(OPEN_PREFIX, from);
     if (idx === -1) break;
-    if (rangeContains(ranges, idx)) {
+    if (rangeContains({ ranges: ranges, p: idx })) {
       from = idx + OPEN_PREFIX.length;
       continue;
     }
@@ -71,7 +71,7 @@ function findOpenTag(buffer: string): OpenTagMatch {
       if (earliestPartialOpen === -1) earliestPartialOpen = idx;
       break;
     }
-    if (!isRealArtifactOpenAt(buffer, idx)) {
+    if (!isRealArtifactOpenAt({ content: buffer, idx: idx })) {
       from = after; // e.g. "<artifactual" — not a real open, keep scanning
       continue;
     }
@@ -116,7 +116,7 @@ function findOpenTag(buffer: string): OpenTagMatch {
   let parity = 0;
   for (let k = lastNl + 1; k < len; k++) {
     if (buffer.charAt(k) !== '`') continue;
-    if (rangeContains(ranges, k)) continue;
+    if (rangeContains({ ranges: ranges, p: k })) continue;
     if (parity === 0) {
       firstUnmatched = k;
       parity = 1;
@@ -129,7 +129,7 @@ function findOpenTag(buffer: string): OpenTagMatch {
 
   // Strict prefix at the tail (e.g. "<art") — hold back.
   const tailLt = buffer.lastIndexOf('<');
-  if (tailLt !== -1 && !rangeContains(ranges, tailLt)) {
+  if (tailLt !== -1 && !rangeContains({ ranges: ranges, p: tailLt })) {
     const slice = buffer.slice(tailLt);
     if (OPEN_PREFIX.startsWith(slice) && slice.length < OPEN_PREFIX.length) {
       note(tailLt);
@@ -141,7 +141,7 @@ function findOpenTag(buffer: string): OpenTagMatch {
 }
 
 /**
- * Create a fresh streaming artifact parser. Call `feed(delta)` for each
+ * Create a fresh streaming artifact parser. Call `feed({ delta })` for each
  * chunk as it arrives (iterate its generator to drain queued events), and
  * `flush()` once at end-of-stream to emit whatever is still buffered.
  *
@@ -150,9 +150,9 @@ function findOpenTag(buffer: string): OpenTagMatch {
  *   the generator), which is the standard tradeoff for streaming tag
  *   detection over an ever-growing buffer.
  */
-export function createArtifactParser(): {
-  feed: (delta: string) => Generator<ArtifactEvent>;
-  flush: () => Generator<ArtifactEvent>;
+export function createArtifactParser(_requiredArgs: Record<string, never>): {
+  feed: (args: { delta: string }) => Generator<ArtifactEvent>;
+  flush: (args: Record<string, never>) => Generator<ArtifactEvent>;
 } {
   const state: ParserState = {
     inside: false,
@@ -163,7 +163,7 @@ export function createArtifactParser(): {
     content: '',
   };
 
-  function* feed(delta: string): Generator<ArtifactEvent> {
+  function* feed({ delta }: { delta: string }): Generator<ArtifactEvent> {
     state.buffer += delta;
 
     while (state.buffer.length > 0) {
@@ -184,7 +184,7 @@ export function createArtifactParser(): {
         if (open.start > 0) {
           yield { type: 'text', delta: state.buffer.slice(0, open.start) };
         }
-        const attrs = parseQuotedAttrs(open.attrs);
+        const attrs = parseQuotedAttrs({ raw: open.attrs });
         state.inside = true;
         state.identifier = attrs['identifier'] ?? '';
         state.artifactType = attrs['type'] ?? '';
@@ -227,7 +227,7 @@ export function createArtifactParser(): {
     }
   }
 
-  function* flush(): Generator<ArtifactEvent> {
+  function* flush(_requiredArgs: Record<string, never>): Generator<ArtifactEvent> {
     if (state.inside) {
       if (state.buffer.length > 0) {
         state.content += state.buffer;
@@ -254,7 +254,7 @@ export function createArtifactParser(): {
  * @param content - A complete (already fully-arrived) message body.
  * @complexity O(n) in `content.length` (one `feed` + one `flush` over the whole string).
  */
-export function parseArtifacts(content: string): ArtifactEvent[] {
-  const parser = createArtifactParser();
-  return [...parser.feed(content), ...parser.flush()];
+export function parseArtifacts({ content }: { content: string }): ArtifactEvent[] {
+  const parser = createArtifactParser({});
+  return [...parser.feed({ delta: content }), ...parser.flush({})];
 }

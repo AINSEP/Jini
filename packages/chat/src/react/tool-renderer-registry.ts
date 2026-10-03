@@ -38,18 +38,18 @@ const renderers = new Map<string, ToolRenderer>();
  * against `tool_use.name`. Re-registering the same name overwrites — last
  * writer wins.
  */
-export function registerToolRenderer(name: string, renderer: ToolRenderer): () => void {
+export function registerToolRenderer({ name, renderer }: { name: string; renderer: ToolRenderer }): () => void {
   renderers.set(name, renderer);
   return () => {
     if (renderers.get(name) === renderer) renderers.delete(name);
   };
 }
 
-export function getToolRenderer(name: string): ToolRenderer | undefined {
+export function getToolRenderer({ name }: { name: string }): ToolRenderer | undefined {
   return renderers.get(name);
 }
 
 /** Visible mainly for tests. */
-export function clearToolRenderers(): void {
+export function clearToolRenderers(_requiredArgs: Record<string, never>): void {
   renderers.clear();
 }

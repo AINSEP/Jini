@@ -1,5 +1,31 @@
 # @jini-ai/artifacts
 
+## 0.4.0 — 2026-10-02
+
+### Fixed
+
+- Initialize `ArtifactStoreToken` with core's required `{ id }` argument object, preserving its
+  `jini.artifactStore` ID, version and singleton cardinality.
+
+### BREAKING
+
+- Published artifact helpers use required/optional argument objects and retain their runtime surface.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased
+
+### Integration completion
+
+- **BREAKING:** Finish the deferred store/manifest conversion: factories, resolution, validation,
+  inference callbacks, lookup and error constructors receive objects. Propagate the injected clock.
+- **BREAKING:** Type artifact content as `Uint8Array` for universal consumers; Node retains native
+  Buffer values. Add the optional content-decoder port and browser-safe UTF-8 metadata sizing.
+- Existing root and `./node` subpaths cover all additions; no new dependencies or version bump.
+  Verification deferred by owner directive.
+
+
+- **BREAKING:** Convert the clean existing public APIs and provider methods to required argument objects plus separate optional settings. Inject transport, time, identity and filesystem dependencies through ports. No compatibility wrappers or version bump. Conversion of pre-existing dirty source files and their coupled APIs is deferred; see API-CONVERSION.md.
+
 ## 0.1.2
 
 ### Patch Changes

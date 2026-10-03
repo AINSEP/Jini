@@ -9,11 +9,11 @@
  *
  * This is the "actual generic extraction pipeline" `llm-provider.ts`'s own
  * module doc flagged as the real future work once the LLM-call primitive
- * existed (`source-map.md`'s 2026-07-21 `llm-provider.ts` addition: "a real
+ * existed (`archived provenance ledger`'s 2026-07-21 `llm-provider.ts` addition: "a real
  * future extraction candidate, noted here for whoever picks this up next").
  * It deliberately does NOT carry over any of the pieces the earlier passes
  * left un-ported for being OD-product-specific, not mechanism — see
- * `source-map.md`'s classification table for the reasoning this follows:
+ * `archived provenance ledger`'s classification table for the reasoning this follows:
  *
  * - **No fixed type/category taxonomy.** OD's `MEMORY_TYPES` enum
  *   (`profile`/`user`/`feedback`/`project`/`reference`/`rule`) is exactly
@@ -44,7 +44,7 @@
  *   from anything in this module) — see {@link factToNoteDraft} for an
  *   optional, deliberately thin bridge a caller may use, not a requirement.
  */
-import type { LlmProviderConfig } from './llm-provider.js';
+import type { LlmProviderConfig, LlmProviderOptions } from './llm-provider.js';
 import { callLlmProvider, parseStrictJson } from './llm-provider.js';
 import type { ExtractionLog } from './extraction-log.js';
 
@@ -66,6 +66,10 @@ export interface ExtractedFact {
 export interface ExtractFactsInput {
   /** The content to extract facts from — a note body, a document, a conversation excerpt, etc. */
   content: string;
+}
+
+/** Optional metadata for the content. */
+interface ExtractFactsMetadata {
   /** Optional human-readable label for what `content` is (e.g. "chat message from 2026-07-21", "uploaded PDF: contract.pdf"), folded into the prompt for context. Never a taxonomy value — purely descriptive text. */
   sourceLabel?: string;
 }
@@ -92,7 +96,8 @@ export interface ExtractFactsLogOptions {
   kind: string;
 }
 
-export interface ExtractFactsOptions {
+export interface ExtractFactsOptions extends ExtractFactsMetadata {
+  llm?: LlmProviderOptions;
   prompt?: ExtractFactsPromptConfig;
   logging?: ExtractFactsLogOptions;
 }
@@ -127,7 +132,7 @@ Rules:
 - "sourceQuote", if included, should be a short, verbatim-or-near-verbatim excerpt supporting the statement.
 - If the content contains no extractable facts, respond with {"facts": []}.`;
 
-function buildUserPrompt(input: ExtractFactsInput, prompt: ExtractFactsPromptConfig | undefined, maxFacts: number): string {
+function buildUserPrompt(input: ExtractFactsInput & ExtractFactsMetadata, prompt: ExtractFactsPromptConfig | undefined, maxFacts: number): string {
   const lines: string[] = [];
   if (input.sourceLabel) lines.push(`Source: ${input.sourceLabel}`);
   if (prompt?.suggestedCategories && prompt.suggestedCategories.length > 0) {
@@ -191,45 +196,50 @@ function resolveMaxFacts(prompt: ExtractFactsPromptConfig | undefined): number {
  * Empty/whitespace-only `input.content` short-circuits to `{ facts: [], raw: '' }`
  * without making a network call — there is nothing to extract from.
  *
- * @param llmConfig - Which vendor/model/credentials to call (passed straight through to `callLlmProvider`).
- * @param input - The content to extract from, plus an optional source label.
- * @param options - Prompt overrides and optional extraction-log integration.
+ * @param required - Vendor configuration and content to extract.
+ * @param options - Source label, prompt settings, transport ports and logging.
  * @returns The sanitized fact list (capped at the effective `maxFacts`) plus the model's raw text output.
- * @throws Whatever `callLlmProvider`/`parseStrictJson` throw (network/HTTP/non-JSON-response errors) — this function adds no new throw paths beyond the empty-content short-circuit.
+ * @throws Whatever `callLlmProvider`/`parseStrictJson` throw (network/HTTP/non-JSON-response errors), or an Error for a JSON null response. Response failures are logged before rethrowing.
  */
 export async function extractFacts(
-  llmConfig: LlmProviderConfig,
-  input: ExtractFactsInput,
+  { llmConfig, content: inputContent }: { llmConfig: LlmProviderConfig; content: string },
   options: ExtractFactsOptions = {},
 ): Promise<ExtractFactsResult> {
-  const content = input.content.trim();
+  const content = inputContent.trim();
   if (!content) {
     return { facts: [], raw: '' };
   }
 
   const maxFacts = resolveMaxFacts(options.prompt);
   const systemPrompt = options.prompt?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
-  const userPrompt = buildUserPrompt({ ...input, content }, options.prompt, maxFacts);
+  const userPrompt = buildUserPrompt(
+    { content, ...(options.sourceLabel !== undefined ? { sourceLabel: options.sourceLabel } : {}) },
+    options.prompt,
+    maxFacts,
+  );
 
   const logging = options.logging;
   const attemptId = logging?.log.startExtraction({ userMessage: content, kind: logging.kind });
   if (attemptId !== undefined) {
-    logging!.log.markProvider(attemptId, { kind: llmConfig.provider, model: llmConfig.model });
+    logging!.log.markProvider({ id: attemptId, provider: { kind: llmConfig.provider, model: llmConfig.model } });
   }
 
   let raw: string;
   try {
-    raw = await callLlmProvider(llmConfig, systemPrompt, userPrompt);
+    raw = await callLlmProvider({ config: llmConfig, systemPrompt, userPrompt }, options.llm);
   } catch (err) {
-    if (attemptId !== undefined) logging!.log.markFailed(attemptId, err);
+    if (attemptId !== undefined) logging!.log.markFailed({ id: attemptId, error: err });
     throw err;
   }
 
   let parsed: RawExtractionResponse;
   try {
-    parsed = parseStrictJson<RawExtractionResponse>(raw);
+    const response = parseStrictJson<RawExtractionResponse | null>({ rawText: raw });
+    // JSON null is valid syntax, but has no facts field; reject it inside the failure-log boundary.
+    if (response === null) throw new Error('extract-facts: response must not be null');
+    parsed = response;
   } catch (err) {
-    if (attemptId !== undefined) logging!.log.markFailed(attemptId, err);
+    if (attemptId !== undefined) logging!.log.markFailed({ id: attemptId, error: err });
     throw err;
   }
 
@@ -240,16 +250,16 @@ export async function extractFacts(
     .slice(0, maxFacts);
 
   if (attemptId !== undefined) {
-    logging!.log.markProposed(attemptId, facts.length);
+    logging!.log.markProposed({ id: attemptId, proposedCount: facts.length });
     // "success" here means the extraction call itself succeeded and
     // produced this many candidate facts — NOT that anything was persisted
     // (this module never writes to a store; see the module doc). A caller
     // that goes on to actually write some of these facts into a note store
-    // may call `log.markSuccess(attemptId, { writtenCount, writtenIds })`
+    // may call `log.markSuccess({ id: attemptId, outcome: { writtenCount, writtenIds } })`
     // again afterward with the real outcome — `ExtractionLog`'s records are
     // mutable/overwritable by id, so a second call updates the same record
     // rather than creating a duplicate.
-    logging!.log.markSuccess(attemptId, { writtenCount: facts.length, writtenIds: [] });
+    logging!.log.markSuccess({ id: attemptId, outcome: { writtenCount: facts.length, writtenIds: [] } });
   }
 
   return { facts, raw };
@@ -281,7 +291,7 @@ export interface NoteDraft {
  *   are short labels, not full bodies); `description` is the full
  *   `statement` plus, when present, a `sourceQuote` line.
  */
-export function factToNoteDraft(fact: ExtractedFact, type: string): NoteDraft {
+export function factToNoteDraft({ fact, type }: { fact: ExtractedFact; type: string }): NoteDraft {
   const name =
     fact.statement.length > NOTE_DRAFT_NAME_MAX_LENGTH ? `${fact.statement.slice(0, NOTE_DRAFT_NAME_MAX_LENGTH - 1).trim()}…` : fact.statement;
   const description = fact.sourceQuote ? `${fact.statement}\n\nSource: "${fact.sourceQuote}"` : fact.statement;

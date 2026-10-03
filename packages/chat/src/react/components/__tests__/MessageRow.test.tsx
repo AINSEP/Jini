@@ -162,7 +162,7 @@ describe('MessageRow', () => {
     });
 
     it('shows cached text content for a text-ish attachment', async () => {
-      cacheAttachmentPreviewSource('attachment:u6-1', new File(['{"ok":true}'], 'data.json'));
+      cacheAttachmentPreviewSource({ path: 'attachment:u6-1', file: new File(['{"ok":true}'], 'data.json') });
       const message: ChatMessage = {
         id: 'u6',
         role: 'user',
@@ -335,10 +335,10 @@ describe('MessageRow', () => {
 
     it('dispatches a kind:ext event group to its registered renderer, passing every event and runId', () => {
       const seen: unknown[] = [];
-      registerExtEventRenderer('a2ui', (props) => {
+      registerExtEventRenderer({ name: 'a2ui', renderer: (props) => {
         seen.push(props);
         return <div data-testid="a2ui-rendered">{props.events.length} events</div>;
-      });
+      } });
       const message: ChatMessage = {
         id: 'e1',
         role: 'assistant',
@@ -357,19 +357,15 @@ describe('MessageRow', () => {
       ]);
     });
 
-    // Tovu stuck-chat investigation, 2026-09-27: the second choice card of a run rendered inside
+    // host stuck-chat investigation, 2026-09-27: the second choice card of a run rendered inside
     // the FIRST surface's slot, far above the spinning tool row, so nobody could answer it.
     it('renders a keyed surface at its own position and hands each slot only its own events', () => {
       const seen: unknown[][] = [];
-      registerExtEventRenderer(
-        'mcp-ui',
-        (props) => {
+      registerExtEventRenderer({ name: 'mcp-ui', renderer: (props) => {
           seen.push([...props.events]);
           const uris = props.events.map((e) => (e as { uri: string }).uri).join(',');
           return <div data-testid={`surface ${uris}`}>{uris}</div>;
-        },
-        { slotKey: (data) => (data as { uri: string }).uri },
-      );
+        } }, { slotKey: ({ data }) => typeof data === 'object' && data !== null && 'uri' in data && typeof data.uri === 'string' ? data.uri : undefined });
       const message: ChatMessage = {
         id: 'e-slots',
         role: 'assistant',
@@ -409,7 +405,7 @@ describe('MessageRow', () => {
     });
 
     it('renders nothing when the registered renderer itself returns null/false/undefined', () => {
-      registerExtEventRenderer('quiet', () => null);
+      registerExtEventRenderer({ name: 'quiet', renderer: () => null });
       const message: ChatMessage = {
         id: 'e3',
         role: 'assistant',
@@ -430,7 +426,7 @@ describe('MessageRow', () => {
       function ThrowingRenderer(): never {
         throw new Error('malformed data-model path');
       }
-      registerExtEventRenderer('a2ui', () => <ThrowingRenderer />);
+      registerExtEventRenderer({ name: 'a2ui', renderer: () => <ThrowingRenderer /> });
       const message: ChatMessage = {
         id: 'e4',
         role: 'assistant',

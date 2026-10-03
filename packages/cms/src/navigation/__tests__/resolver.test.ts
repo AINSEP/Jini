@@ -7,7 +7,7 @@ import { resolveForLocation, type ResolveTargetHrefFn } from "../resolver.js";
 import { NAV_DOC_TYPE, type NavItemNode, type NavMenuEntry, type NavTarget } from "../types.js";
 
 function fakeClock(iso = "2026-07-10T00:00:00.000Z") {
-  return { nowIso: () => iso };
+  return { nowMs: () => Date.parse(iso)};
 }
 
 function fakeIdGen(prefix = "id") {
@@ -23,7 +23,7 @@ function fakeIdGen(prefix = "id") {
  * targets today). Any `entryRef` whose id starts with `deleted-` simulates a
  * trashed target: resolves to a real path but `available: false`.
  */
-const fakeResolveTargetHref: ResolveTargetHrefFn = async (target: NavTarget) => {
+const fakeResolveTargetHref: ResolveTargetHrefFn = async ({ target }: { target: NavTarget }) => {
   if (target.kind === "url") return null; // resolver.ts never calls us for url
   if (target.kind === "termRef") return null; // see comment above
   if (target.kind === "entryRef") {
@@ -45,8 +45,8 @@ function fakeOutbox() {
 }
 
 async function seedMenuBoundToLocation(items: readonly NavItemNode[]) {
-  const repo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const repo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const outbox = fakeOutbox();
@@ -64,8 +64,8 @@ async function seedMenuBoundToLocation(items: readonly NavItemNode[]) {
 }
 
 test("resolveForLocation returns null when no menu is bound to the location", async () => {
-  const repo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const repo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
 
   const result = await resolveForLocation({
     deps: { menuRepo: repo, bindingRepo, resolveTargetHref: fakeResolveTargetHref },
@@ -220,8 +220,8 @@ test("resolveForLocation computes isCurrent/isActive against the current path", 
 // ---------------------------------------------------------------------------
 
 test("resolveForLocation resolves a trashed (soft-deleted) menu exactly like a published one — status never gates resolution, only the purge lifecycle does", async () => {
-  const repo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const repo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
 
   // Constructed directly (not via createMenu + deleteMenu) so this test
   // isolates resolver.ts's own status-agnostic behavior from menu-service.ts's
@@ -262,8 +262,8 @@ test("resolveForLocation resolves a trashed (soft-deleted) menu exactly like a p
 });
 
 test("resolveForLocation returns null, not a throw, when the binding index points at a menu id with no backing menu row (a stale/dangling derived-index entry)", async () => {
-  const repo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const repo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
 
   // Seeded directly on the binding repo — bypassing assignLocation, which
   // requires a real menu to exist — specifically to reach resolveForLocation's

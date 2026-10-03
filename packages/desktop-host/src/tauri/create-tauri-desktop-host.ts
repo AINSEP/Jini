@@ -30,11 +30,11 @@ export function createTauriDesktopHost(
   overrides: Partial<DesktopHostPorts> = {},
 ): DesktopHost {
   const ports: DesktopHostPorts = {
-    singleInstance: overrides.singleInstance ?? createTauriSingleInstanceLockPort(surfaces.singleInstance),
-    windowLifecycle: overrides.windowLifecycle ?? createTauriWindowLifecyclePort(surfaces.createWindow),
-    protocolHandler: overrides.protocolHandler ?? createTauriProtocolHandlerPort(),
-    sidecarLauncher: overrides.sidecarLauncher ?? createTauriSidecarLauncher(surfaces.sidecarCommands),
-    renderService: overrides.renderService ?? createTauriRenderService(),
+    singleInstance: overrides.singleInstance ?? createTauriSingleInstanceLockPort({ api: surfaces.singleInstance }),
+    windowLifecycle: overrides.windowLifecycle ?? createTauriWindowLifecyclePort({ createTauriWindow: surfaces.createWindow }),
+    protocolHandler: overrides.protocolHandler ?? createTauriProtocolHandlerPort({}),
+    sidecarLauncher: overrides.sidecarLauncher ?? createTauriSidecarLauncher({ api: surfaces.sidecarCommands }),
+    renderService: overrides.renderService ?? createTauriRenderService({}),
     shell: overrides.shell ?? createTauriShellPort({ shell: surfaces.shell, fs: surfaces.fs, dialog: surfaces.dialog }),
   };
   return { backend: 'tauri', ports };

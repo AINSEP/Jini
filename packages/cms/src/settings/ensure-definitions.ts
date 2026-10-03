@@ -1,5 +1,5 @@
-import type { ClockPort, IdGeneratorPort, JsonValue, UUID } from "../core/ports.js";
-import type { PrincipalRepoPort } from "../identity/index.js";
+import type { Clock, IdGenerator, JsonValue, UUID } from "@jini-ai/core/primitives";
+import type { SettingsPrincipalLookupPort } from "./principal-lookup.js";
 import type { SettingsRepoPort } from "./ports.js";
 import { resolveDefinitionRaw } from "./settings.js";
 import { SCOPE_BIT, type SettingValueSchema } from "./types.js";
@@ -59,9 +59,9 @@ export interface SettingDefinitionSpec {
 
 export interface EnsureSettingDefinitionsDeps {
   settingsRepo: SettingsRepoPort;
-  clock: ClockPort;
-  ids: IdGeneratorPort;
-  principals: PrincipalRepoPort;
+  clock: Clock;
+  ids: IdGenerator;
+  principals: SettingsPrincipalLookupPort;
 }
 
 export interface EnsureSettingDefinitionsInput {

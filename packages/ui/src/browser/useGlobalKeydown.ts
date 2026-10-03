@@ -17,14 +17,18 @@ import { useEffect, useRef } from 'react';
 // a direct unit test — driving it through a real `renderHook` mount hits
 // React DOM internals that themselves dereference `window` well before this
 // hook's own effect ever runs, making that branch unreachable via a
-// rendered test (see packages/ui/source-map.md's 2026-07-22 dated entry;
+// rendered test (see packages/ui/archived provenance ledger's 2026-07-22 dated entry;
 // same "extract into a directly-testable pure function" precedent as
 // `@jini-ai/mcp`'s `oauth.ts` readCappedText).
-export function resolveGlobalKeydownTarget(target: 'window' | 'document'): EventTarget | undefined {
-  return target === 'document' ? globalThis.document : globalThis.window;
+export function resolveGlobalKeydownTarget(
+  { target }: { target: 'window' | 'document' },
+  { globals = globalThis }: { globals?: { window?: EventTarget; document?: EventTarget } } = {},
+): EventTarget | undefined {
+  return target === 'document' ? globals.document : globals.window;
 }
 
 export interface UseGlobalKeydownOptions {
+  resolveTarget?: (requiredArgs: { target: 'window' | 'document' }) => EventTarget | undefined;
   /** Skip attaching the listener while `false` (e.g. only while a surface is active/mounted-and-open). Defaults to `true`. */
   enabled?: boolean;
   /** Listener target. Defaults to `'window'`. */
@@ -39,10 +43,10 @@ export interface UseGlobalKeydownOptions {
  * outside the browser (SSR).
  */
 export function useGlobalKeydown(
-  handler: (event: KeyboardEvent) => void,
+  { handler }: { handler: (event: KeyboardEvent) => void },
   options: UseGlobalKeydownOptions = {},
 ): void {
-  const { enabled = true, target = 'window', capture = false } = options;
+  const { enabled = true, target = 'window', capture = false, resolveTarget = resolveGlobalKeydownTarget } = options;
 
   // Latest-ref indirection so callers don't need to memoize `handler` for
   // the listener effect below to stay attached with fresh behavior.
@@ -53,17 +57,8 @@ export function useGlobalKeydown(
 
   useEffect(() => {
     if (!enabled) return;
-    const eventTarget = resolveGlobalKeydownTarget(target);
-    // `resolveGlobalKeydownTarget` itself has a direct, real test proving
-    // it CAN return `undefined` (see this file's own test). This call
-    // site's guard against that, though, is empirically and structurally
-    // unreachable through any real mount: `useEffect` bodies only ever run
-    // client-side, after React has already committed real DOM nodes via
-    // `ReactDOM` — which itself requires `window` (and, for a 'document'
-    // target, `document`) to already exist. There is no real browser
-    // session in which this hook's effect runs at all while its own
-    // resolved target has vanished. See packages/ui/source-map.md's
-    // 2026-07-22 dated entry.
+    const eventTarget = resolveTarget({ target });
+    // A host may intentionally provide no target while its surface is detached.
     if (typeof eventTarget === 'undefined') return;
 
     function onKeyDown(event: KeyboardEvent) {
@@ -72,5 +67,5 @@ export function useGlobalKeydown(
 
     eventTarget.addEventListener('keydown', onKeyDown as EventListener, capture);
     return () => eventTarget.removeEventListener('keydown', onKeyDown as EventListener, capture);
-  }, [enabled, target, capture]);
+  }, [enabled, target, capture, resolveTarget]);
 }

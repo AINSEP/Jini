@@ -1,5 +1,33 @@
 # @jini-ai/capability-providers
 
+## 0.4.0 — 2026-10-02
+
+### BREAKING
+
+- Published capability helpers use required/optional argument objects and retain isolated provider entries.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased
+
+### Fixed
+
+- Align capability and visitor-auth token declarations with core's `token({ id })` factory,
+  preserving token IDs. Omit absent Stripe error metadata fields for exact optional property types.
+- Correct payment-description options and native `Reflect.get`/`URLSearchParams.has` calls in tests
+  while retaining their original assertions.
+
+### Integration reconciliation
+
+- Existing `.`, `./visitor-auth`, `./unsafe-reference` and five adapter subpaths already have export
+  and runtime metadata. No dependencies, exports or versions need changing.
+- Retain the prior **BREAKING** required/optional object conversion for non-DB provider APIs.
+  DB port/adapter conversion remains reserved for the active DB lane.
+- Make Stripe Basic auth work without Node Buffer and inject its fallback timestamp clock.
+  Strengthen package-wide production-source neutrality checks. Verification deferred by owner directive.
+
+
+- **BREAKING:** Convert the clean existing public APIs and provider methods to required argument objects plus separate optional settings. Inject transport, time, identity and filesystem dependencies through ports. No compatibility wrappers or version bump. Conversion of pre-existing dirty source files and their coupled APIs is deferred; see API-CONVERSION.md.
+
 ## 0.1.2
 
 ### Patch Changes

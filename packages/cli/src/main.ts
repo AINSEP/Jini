@@ -6,7 +6,7 @@
  * other module in this package is a library building block — `run-command.ts`,
  * `daemon-command.ts`, and `version-command.ts` each export a `register*Commands(registry,
  * deps)` function ready for a pack to call, but until this file, nothing actually parsed
- * `process.argv` and called them: `packages/cli/source-map.md`'s "Not built" note on
+ * `process.argv` and called them: `packages/cli/archived provenance ledger`'s "Not built" note on
  * `run-command.ts`'s original addition said as much — "no wiring of this file's commands into
  * an actual bootable CLI entrypoint." This closes that gap.
  *
@@ -22,7 +22,7 @@
  *
  * **Daemon-URL resolution.** `resolveDaemonUrl` (`daemon-url.ts`) has no baked-in default —
  * this package has never had a locked default daemon port to fall back to (see
- * `source-map.md`: `@jini-ai/server`'s `createLocalNodeDaemon` binds an ephemeral port, not a
+ * `archived provenance ledger`: `@jini-ai/server`'s `createLocalNodeDaemon` binds an ephemeral port, not a
  * fixed one). This binary wires the three real, already-built pieces together instead of
  * inventing a new one: an explicit `--daemon-url <url>` flag (highest precedence), a
  * `JINI_DAEMON_URL` env var, and — when `--data-dir <path>` or `--registry-path <path>` is
@@ -48,12 +48,12 @@
  * dispatch, so `run`/`daemon`/`version` always land as a clean first token no matter where on
  * the command line `--daemon-url`/`--data-dir`/`--registry-path` were typed.
  *
- * **`--version`/`-v`.** This package's `package.json` is `"private": true` with a placeholder
- * `"0.0.0"` version — not a real, published semver worth printing. Rather than invent one,
+ * **`--version`/`-v`.** This package has its own published semver, but this transport command reports
+ * the daemon it is controlling so operators can identify the running service. Accordingly,
  * `jini --version`/`jini -v` (recognized only as the very first token — see {@link main}) is a
  * plain alias for `jini version` (`version-command.ts`): it prints the *running daemon's* real
  * version. That is arguably more useful to a user of this transport-only CLI than this
- * package's own unpublished build number would be, and it means `--version` has exactly one
+ * package's own transport version would be, and it means `--version` has exactly one
  * implementation to keep correct, not two.
  *
  * **Error boundary.** `parseFlags` (`flags.ts`) throws a plain `Error` for an unrecognized
@@ -86,39 +86,35 @@ import { registerVersionCommand } from './version-command.js';
 
 export interface MainDeps {
   /** Defaults to `process.stdout.write`; inject for tests. */
-  write?: (text: string) => void;
+  write?: (requiredArgs: { text: string }) => void;
   /** Defaults to `process.stderr.write`; inject for tests. */
-  writeErr?: (text: string) => void;
+  writeErr?: (requiredArgs: { text: string }) => void;
   /** Defaults to `process.exit`; inject for tests (must not return). */
-  exit?: (code: number) => never;
+  exit?: (requiredArgs: { code: number }) => never;
   /** Defaults to the global `fetch`; inject for tests. */
   fetchImpl?: typeof fetch;
   /** Defaults to `process.env`; inject for tests. */
   env?: NodeJS.ProcessEnv;
 }
 
-function defaultWrite(text: string): void {
+function defaultWrite({ text }: { text: string }): void {
   process.stdout.write(text);
 }
 
-function defaultWriteErr(text: string): void {
+function defaultWriteErr({ text }: { text: string }): void {
   process.stderr.write(text);
 }
 
 /** Name of the environment variable {@link resolveDaemonUrl} checks when `--daemon-url` is absent. */
 const DAEMON_URL_ENV_VAR = 'JINI_DAEMON_URL';
 
-const ROOT_USAGE = renderUsage({
-  usage: ['jini <command> [...args]'],
-  description: 'CLI transport for a Jini daemon over HTTP. Commands: run, daemon, version.',
-  options: [
+const ROOT_USAGE = renderUsage({ usage: ['jini <command> [...args]'] }, { description: 'CLI transport for a Jini daemon over HTTP. Commands: run, daemon, version.', options: [
     { flag: '--daemon-url <url>', description: 'Explicit daemon base URL. Takes precedence over JINI_DAEMON_URL and local discovery.' },
     { flag: '--data-dir <path>', description: "Resolve a locally running daemon's URL from this data directory's on-disk registry (see @jini-ai/server's createLocalNodeDaemon)." },
     { flag: '--registry-path <path>', description: "Exact registry file path, overriding --data-dir's derived default." },
     { flag: '--help, -h', description: 'Show this help.' },
     { flag: '--version, -v', description: 'Print the running daemon\'s version (alias for "jini version"; recognized only as the first argument).' },
-  ],
-});
+  ] });
 
 const GLOBAL_FLAG_NAMES = ['daemon-url', 'data-dir', 'registry-path'] as const;
 type GlobalFlagName = (typeof GLOBAL_FLAG_NAMES)[number];
@@ -172,7 +168,7 @@ function partitionGlobalArgv(argv: readonly string[]): PartitionedArgv {
 }
 
 /** Builds a `resolveDaemonUrl`-backed `resolveBaseUrl` closure from this binary's own parsed global flags. */
-function buildResolveBaseUrl(globals: PartitionedArgv['globals'], env: NodeJS.ProcessEnv, warn: (message: string) => void): () => Promise<string> {
+function buildResolveBaseUrl(globals: PartitionedArgv['globals'], env: NodeJS.ProcessEnv, warn: (requiredArgs: { message: string }) => void): () => Promise<string> {
   const { 'daemon-url': daemonUrl, 'data-dir': dataDir, 'registry-path': registryPath } = globals;
   const discover: ResolveDaemonUrlOptions['discover'] =
     registryPath !== undefined
@@ -181,7 +177,7 @@ function buildResolveBaseUrl(globals: PartitionedArgv['globals'], env: NodeJS.Pr
         ? createLocalDaemonDiscovery({ dataDir })
         : undefined;
   return () =>
-    resolveDaemonUrl({
+    resolveDaemonUrl({}, {
       flagUrl: daemonUrl ?? null,
       env,
       envVarName: DAEMON_URL_ENV_VAR,
@@ -196,14 +192,14 @@ function buildResolveBaseUrl(globals: PartitionedArgv['globals'], env: NodeJS.Pr
  * caller under normal use — usage errors and daemon failures both exit through this package's
  * structured-error contract (`errors.ts`), via the injected (or default, real) `exit`.
  */
-export async function main(argv: readonly string[], deps: MainDeps = {}): Promise<void> {
+export async function main({ argv }: { argv: readonly string[] }, deps: MainDeps = {}): Promise<void> {
   const write = deps.write ?? defaultWrite;
   const writeErr = deps.writeErr ?? defaultWriteErr;
-  const rawExit = deps.exit ?? ((code: number) => process.exit(code));
+  const rawExit = deps.exit ?? (({ code }: { code: number }) => process.exit(code));
   const env = deps.env ?? process.env;
 
   if (argv.length === 0 || argv[0] === '--help' || argv[0] === '-h') {
-    write(`${ROOT_USAGE}\n`);
+    write({ text: `${ROOT_USAGE}\n` });
     return;
   }
 
@@ -215,29 +211,30 @@ export async function main(argv: readonly string[], deps: MainDeps = {}): Promis
   // already exited cleanly" (re-throw untouched) apart from "a genuinely raw, unhandled throw"
   // (reformat into a structured error) — see this file's own module doc, "Error boundary."
   let exitCalled = false;
-  const exit = (code: number): never => {
+  const exit = ({ code }: { code: number }): never => {
     exitCalled = true;
-    return rawExit(code);
+    return rawExit({ code });
   };
 
   let result: CommandDispatchResult;
   try {
     const { globals, rest } = partitionGlobalArgv(effectiveArgv);
-    const resolveBaseUrl = buildResolveBaseUrl(globals, env, writeErr);
-    const commandDeps = {
-      resolveBaseUrl,
-      write,
-      writeErr,
-      exit,
-      ...(deps.fetchImpl !== undefined ? { fetchImpl: deps.fetchImpl } : {}),
-    };
+    const resolveBaseUrl = buildResolveBaseUrl(globals, env, ({ message }) => writeErr({ text: message }));
+    const registry = new CommandRegistry({});
+    registerRunCommands({ registry, resolveBaseUrl }, {
+      write, writeErr, exit,
+      ...(deps.fetchImpl === undefined ? {} : { fetchImpl: deps.fetchImpl }),
+    });
+    registerDaemonCommands({ registry, resolveBaseUrl }, {
+      write, writeErr, exit,
+      ...(deps.fetchImpl === undefined ? {} : { fetchImpl: deps.fetchImpl }),
+    });
+    registerVersionCommand({ registry, resolveBaseUrl }, {
+      write, writeErr, exit,
+      ...(deps.fetchImpl === undefined ? {} : { fetchImpl: deps.fetchImpl }),
+    });
 
-    const registry = new CommandRegistry();
-    registerRunCommands(registry, commandDeps);
-    registerDaemonCommands(registry, commandDeps);
-    registerVersionCommand(registry, commandDeps);
-
-    result = await registry.dispatch(rest);
+    result = await registry.dispatch({ argv: rest });
   } catch (error) {
     if (exitCalled) throw error;
     const message = error instanceof Error ? error.message : String(error);
@@ -246,14 +243,11 @@ export async function main(argv: readonly string[], deps: MainDeps = {}): Promis
   }
 
   if (result.kind === 'empty') {
-    write(`${ROOT_USAGE}\n`);
+    write({ text: `${ROOT_USAGE}\n` });
     return;
   }
   if (result.kind === 'not-found') {
-    exitWithStructuredError(
-      { code: 'invalid-flag', message: `unknown command: "${result.name}". Run "jini --help" for usage.` },
-      { write: writeErr, exit },
-    );
+    exitWithStructuredError({ code: 'invalid-flag', message: `unknown command: "${result.name}". Run "jini --help" for usage.` }, { write: writeErr, exit });
   }
 }
 
@@ -263,5 +257,5 @@ export async function main(argv: readonly string[], deps: MainDeps = {}): Promis
 // `require.main === module` idiom for ESM; see this file's own module doc.
 const isMainModule = process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMainModule) {
-  await main(process.argv.slice(2));
+  await main({ argv: process.argv.slice(2) });
 }

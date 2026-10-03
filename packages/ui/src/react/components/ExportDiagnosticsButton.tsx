@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
+import { requestWithTimeout } from '../../utils/browser-request.js';
 import { Icon } from './Icon.js';
 
 /**
@@ -55,12 +55,12 @@ export function fallbackFilename(prefix: string): string {
  * Error (carrying the server message when available) on a non-OK response.
  */
 export async function exportViaHttp(
-  exportPath: string,
-  filenamePrefix: string,
+  { exportPath, filenamePrefix }: { exportPath: string; filenamePrefix: string },
+  { fetch }: { fetch?: typeof globalThis.fetch } = {},
 ): Promise<{ filename: string }> {
   // UPLOAD, not QUICK: this downloads a diagnostics archive — a large-payload transfer, the same
   // risk profile as an asset upload, not a metadata read.
-  const res = await fetchWithTimeout(exportPath, { credentials: 'same-origin' }, { timeoutMs: FETCH_TIMEOUT_MS.UPLOAD });
+  const res = await requestWithTimeout({ url: exportPath, timeoutMs: 120_000 }, { ...(fetch === undefined ? {} : { fetch }), init: { credentials: 'same-origin' } });
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`;
     try {
@@ -103,6 +103,8 @@ export interface ExportDiagnosticsButtonProps {
    *  present, used instead of the HTTP fallback. */
   desktopBridge?: DesktopExportBridge;
   labels?: ExportLabels;
+  /** Native fetch port used for the browser archive download. */
+  fetch?: typeof globalThis.fetch;
 }
 
 export const DEFAULT_EXPORT_LABELS = {
@@ -169,6 +171,7 @@ export function useExportDiagnostics(props: ExportDiagnosticsButtonProps): UseEx
     filenamePrefix = 'diagnostics',
     desktopBridge,
     labels,
+    fetch,
   } = props;
   const t = resolveExportLabels(labels);
   const { status, setStatus, scheduleClear } = useAutoClearStatus();
@@ -192,7 +195,7 @@ export function useExportDiagnostics(props: ExportDiagnosticsButtonProps): UseEx
         scheduleClear();
         return;
       }
-      const { filename } = await exportViaHttp(exportPath, filenamePrefix);
+      const { filename } = await exportViaHttp({ exportPath, filenamePrefix }, fetch === undefined ? {} : { fetch });
       setStatus({ kind: 'success', message: t.success(filename) });
       scheduleClear();
     } catch (error) {
@@ -200,7 +203,7 @@ export function useExportDiagnostics(props: ExportDiagnosticsButtonProps): UseEx
       setStatus({ kind: 'error', message: t.failed(message) });
       scheduleClear();
     }
-  }, [desktopBridge, exportPath, filenamePrefix, scheduleClear, setStatus, status.kind, t]);
+  }, [desktopBridge, exportPath, filenamePrefix, fetch, scheduleClear, setStatus, status.kind, t]);
 
   return { status, busy: status.kind === 'busy', labels: t, runExport };
 }

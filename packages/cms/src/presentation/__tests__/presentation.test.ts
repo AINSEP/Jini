@@ -15,7 +15,7 @@ const seedSettings = {
 };
 
 test("getPresentationSettings returns current theme and available themes", async () => {
-  const repo = new InMemoryPresentationSettingsRepo([seedSettings]);
+  const repo = new InMemoryPresentationSettingsRepo({}, { initialRows: [seedSettings] });
 
   const result = await getPresentationSettings({
     deps: { repo },
@@ -27,8 +27,8 @@ test("getPresentationSettings returns current theme and available themes", async
 });
 
 test("setActiveTheme updates the active theme", async () => {
-  const repo = new InMemoryPresentationSettingsRepo([seedSettings]);
-  const clock = { nowIso: () => "2026-04-06T01:00:00.000Z" };
+  const repo = new InMemoryPresentationSettingsRepo({}, { initialRows: [seedSettings] });
+  const clock = { nowMs: () => Date.parse("2026-04-06T01:00:00.000Z")};
 
   const result = await setActiveTheme({
     deps: { repo, clock },
@@ -40,8 +40,8 @@ test("setActiveTheme updates the active theme", async () => {
 });
 
 test("setActiveTheme rejects unsupported themes", async () => {
-  const repo = new InMemoryPresentationSettingsRepo([seedSettings]);
-  const clock = { nowIso: () => "2026-04-06T01:00:00.000Z" };
+  const repo = new InMemoryPresentationSettingsRepo({}, { initialRows: [seedSettings] });
+  const clock = { nowMs: () => Date.parse("2026-04-06T01:00:00.000Z")};
 
   await assert.rejects(
     () =>

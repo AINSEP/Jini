@@ -1,3 +1,4 @@
+import type { RequiredArgs, OptionalArgs } from '../../args.js';
 /**
  * `createSqliteAsyncOperationStore` — the durable `AsyncOperationStore` adapter.
  *
@@ -90,25 +91,25 @@ interface OperationRow {
 }
 
 function rowToOperation(row: OperationRow): AsyncOperationRecord {
-  return hydrateAsyncOperationRecord({
-    schemaVersion: row.schema_version,
-    id: row.id,
-    providerId: row.provider_id,
-    routeKey: row.route_key,
-    ownerRef: row.owner_ref,
-    status: row.status,
-    attempts: row.attempts,
-    maxAttempts: row.max_attempts,
-    deadlineAt: row.deadline_at,
-    nextPollAt: row.next_poll_at,
-    leaseOwner: row.lease_owner,
-    leaseExpiresAt: row.lease_expires_at,
-    state: row.state === null ? null : (JSON.parse(row.state) as Record<string, unknown>),
-    result: row.result === null ? null : (JSON.parse(row.result) as AsyncOperationResult),
-    error: row.error === null ? null : (JSON.parse(row.error) as AsyncOperationError),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  });
+  return hydrateAsyncOperationRecord({ raw: {
+        schemaVersion: row.schema_version,
+        id: row.id,
+        providerId: row.provider_id,
+        routeKey: row.route_key,
+        ownerRef: row.owner_ref,
+        status: row.status,
+        attempts: row.attempts,
+        maxAttempts: row.max_attempts,
+        deadlineAt: row.deadline_at,
+        nextPollAt: row.next_poll_at,
+        leaseOwner: row.lease_owner,
+        leaseExpiresAt: row.lease_expires_at,
+        state: row.state === null ? null : (JSON.parse(row.state) as Record<string, unknown>),
+        result: row.result === null ? null : (JSON.parse(row.result) as AsyncOperationResult),
+        error: row.error === null ? null : (JSON.parse(row.error) as AsyncOperationError),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    } });
 }
 
 /** An `AsyncOperationStore` backed by a `better-sqlite3` database, plus a `close()` to release the file handle. */
@@ -125,7 +126,7 @@ export interface SqliteAsyncOperationStore extends AsyncOperationStore {
  * operation exactly as it was left, and `recoverAfterRestart`/`reconcileOnBoot` can then release
  * dead leases and expire blown deadlines.
  */
-export async function createSqliteAsyncOperationStore(dbPath: string): Promise<SqliteAsyncOperationStore> {
+export async function createSqliteAsyncOperationStore({ dbPath }: { dbPath: string }): Promise<SqliteAsyncOperationStore> {
   const { default: Database } = await import('better-sqlite3');
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
@@ -210,54 +211,36 @@ export async function createSqliteAsyncOperationStore(dbPath: string): Promise<S
 
   const createTxn = db.transaction((input: AsyncOperationCreateInput): AsyncOperationRecord => {
     if (getStmt.get(input.id)) {
-      throw new Error(`async operation "${input.id}" already exists`);
+        throw new Error(`async operation "${input.id}" already exists`);
     }
     if (!Number.isFinite(input.maxAttempts) || input.maxAttempts < 1) {
-      throw new RangeError(`Invalid maxAttempts: ${input.maxAttempts} must be a finite number >= 1`);
+        throw new RangeError(`Invalid maxAttempts: ${input.maxAttempts} must be a finite number >= 1`);
     }
     if (!Number.isFinite(input.deadlineAt)) {
-      throw new RangeError(`Invalid deadlineAt: ${input.deadlineAt} must be a finite epoch-ms timestamp`);
+        throw new RangeError(`Invalid deadlineAt: ${input.deadlineAt} must be a finite epoch-ms timestamp`);
     }
-    assertNoCredentialMaterial(input.state);
-
+    assertNoCredentialMaterial({ state: input.state });
     const now = Date.now();
     const status: AsyncOperationStatus = input.status ?? 'submitted';
-    insertStmt.run(
-      input.id,
-      input.providerId,
-      input.routeKey,
-      input.ownerRef,
-      status,
-      0,
-      input.maxAttempts,
-      input.deadlineAt,
-      input.nextPollAt ?? now,
-      stateJson(input.state),
-      ASYNC_OPERATION_SCHEMA_VERSION,
-      now,
-      now,
-    );
+    insertStmt.run(input.id, input.providerId, input.routeKey, input.ownerRef, status, 0, input.maxAttempts, input.deadlineAt, input.nextPollAt ?? now, stateJson(input.state), ASYNC_OPERATION_SCHEMA_VERSION, now, now);
     return rowToOperation(getStmt.get(input.id)!);
-  });
+});
 
-  const updateTxn = db.transaction(
-    (id: string, patch: AsyncOperationPatch, options?: AsyncOperationUpdateOptions): AsyncOperationRecord | null => {
-      const existingRow = getStmt.get(id);
-      if (!existingRow) return null;
-      const existing = rowToOperation(existingRow);
-
-      // Fenced exactly like `releaseLease` and the in-memory store: a caller writing against a
-      // lease it no longer holds gets the row back unchanged, not an overwrite.
-      if (options?.leaseOwner !== undefined && existing.leaseOwner !== options.leaseOwner) {
+  const updateTxn = db.transaction((id: string, patch: AsyncOperationPatch, options?: AsyncOperationUpdateOptions): AsyncOperationRecord | null => {
+    const existingRow = getStmt.get(id);
+    if (!existingRow)
+        return null;
+    const existing = rowToOperation(existingRow);
+    // Fenced exactly like `releaseLease` and the in-memory store: a caller writing against a
+    // lease it no longer holds gets the row back unchanged, not an overwrite.
+    if (options?.leaseOwner !== undefined && existing.leaseOwner !== options.leaseOwner) {
         return existing;
-      }
-
-      if ('state' in patch) assertNoCredentialMaterial(patch.state);
-
-      const status = patch.status ?? existing.status;
-      assertTransition(existing.status, status);
-
-      const next = {
+    }
+    if ('state' in patch)
+        assertNoCredentialMaterial({ state: patch.state });
+    const status = patch.status ?? existing.status;
+    assertTransition(existing.status, status);
+    const next = {
         status,
         attempts: patch.attempts ?? existing.attempts,
         nextPollAt: patch.nextPollAt ?? existing.nextPollAt,
@@ -267,23 +250,10 @@ export async function createSqliteAsyncOperationStore(dbPath: string): Promise<S
         leaseOwner: 'leaseOwner' in patch ? (patch.leaseOwner ?? null) : existing.leaseOwner,
         leaseExpiresAt: 'leaseExpiresAt' in patch ? (patch.leaseExpiresAt ?? null) : existing.leaseExpiresAt,
         updatedAt: Date.now(),
-      };
-
-      updateStmt.run(
-        next.status,
-        next.attempts,
-        next.nextPollAt,
-        stateJson(next.state),
-        next.result === null ? null : JSON.stringify(next.result),
-        next.error === null ? null : JSON.stringify(next.error),
-        next.leaseOwner,
-        next.leaseExpiresAt,
-        next.updatedAt,
-        id,
-      );
-      return rowToOperation(getStmt.get(id)!);
-    },
-  );
+    };
+    updateStmt.run(next.status, next.attempts, next.nextPollAt, stateJson(next.state), next.result === null ? null : JSON.stringify(next.result), next.error === null ? null : JSON.stringify(next.error), next.leaseOwner, next.leaseExpiresAt, next.updatedAt, id);
+    return rowToOperation(getStmt.get(id)!);
+});
 
   const claimDueTxn = db.transaction((options: AsyncOperationClaimOptions): AsyncOperationRecord[] => {
     const { now, leaseOwner, leaseMs } = options;
@@ -304,28 +274,30 @@ export async function createSqliteAsyncOperationStore(dbPath: string): Promise<S
   });
 
   return {
-    async create(input: AsyncOperationCreateInput): Promise<AsyncOperationRecord> {
+    async create(required: RequiredArgs<AsyncOperationCreateInput>, optional: OptionalArgs<AsyncOperationCreateInput> = {}): Promise<AsyncOperationRecord> {
+      const input = { ...required, ...optional };
       return createTxn(input);
     },
 
-    async get(id: string): Promise<AsyncOperationRecord | null> {
+    async get({ id }: { id: string }): Promise<AsyncOperationRecord | null> {
       const row = getStmt.get(id);
       return row ? rowToOperation(row) : null;
     },
 
-    async update(id: string, patch: AsyncOperationPatch, options?: AsyncOperationUpdateOptions): Promise<AsyncOperationRecord | null> {
+    async update({ id, patch }: { id: string; patch: AsyncOperationPatch } , { options }: { options?: AsyncOperationUpdateOptions | undefined } = {}): Promise<AsyncOperationRecord | null> {
       return updateTxn(id, patch, options);
     },
 
-    async listByOwner(ownerRef: string): Promise<AsyncOperationRecord[]> {
+    async listByOwner({ ownerRef }: { ownerRef: string }): Promise<AsyncOperationRecord[]> {
       return listByOwnerStmt.all(ownerRef).map(rowToOperation);
     },
 
-    async claimDue(options: AsyncOperationClaimOptions): Promise<AsyncOperationRecord[]> {
+    async claimDue(required: RequiredArgs<AsyncOperationClaimOptions>, optional: OptionalArgs<AsyncOperationClaimOptions> = {}): Promise<AsyncOperationRecord[]> {
+      const options = { ...required, ...optional };
       return claimDueTxn(options);
     },
 
-    async releaseLease(id: string, leaseOwner: string): Promise<void> {
+    async releaseLease({ id, leaseOwner }: { id: string; leaseOwner: string }): Promise<void> {
       releaseLeaseStmt.run(Date.now(), id, leaseOwner);
     },
 

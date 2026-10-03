@@ -1,4 +1,4 @@
-import type { JsonValue } from "../core/ports.js";
+import type { JsonValue } from "@jini-ai/core/primitives";
 import { DefinitionInvalidError, SecretNotSupportedError } from "./errors.js";
 import type { SettingsRepoPort } from "./ports.js";
 import {
@@ -12,13 +12,14 @@ import {
 
 /**
  * @file The settings resolver + pure definition-registration validation
- * (REQ-02, REQ-03, REQ-09; "one evaluator").
+ * ("one evaluator").
  *
  * Purpose:
  * `validateDefinitionInput` is pure (no I/O) — the write-side chokepoint in
  * `write-service.ts` calls it before persisting. `getEffective`/`getLayer`/
  * `resolveDefinition` are read-only against `SettingsRepoPort`. Neither
  * mutates anything; every mutation goes through `write-service.ts`.
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
  */
 
 export interface DefinitionInput {
@@ -40,13 +41,14 @@ const NAMESPACE_FENCE: Record<SettingOwnerKind, (input: DefinitionInput) => bool
 };
 
 /**
- * REQ-02/REQ-09/INV-05/INV-08 — the pure half of `registerDefinitions`.
+ * — the pure half of `registerDefinitions`.
  * Never throws; returns a discriminated result so the chokepoint decides how
  * to surface the failure (matches `ValueValidationFailedError`'s pattern of
  * keeping I/O out of validation).
  *
  * @complexity O(1) per definition.
  * @overallScore 100
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
  */
 export function validateDefinitionInput(
   input: DefinitionInput
@@ -54,9 +56,10 @@ export function validateDefinitionInput(
   if (input.secret) {
     return {
       valid: false,
-      error: new SecretNotSupportedError(
-        "secret:true definitions are not supported in the core-only subset (REQ-09/INV-08)"
-      ),
+      error: new SecretNotSupportedError({
+        // See docs/decisions/DR-003-settings-ledger-invariants.md for the invariant behind this refusal; keep external identifiers out of caller-facing messages.
+        message: "secret:true definitions are not supported in the core-only subset",
+      }),
     };
   }
 
@@ -64,7 +67,8 @@ export function validateDefinitionInput(
     return {
       valid: false,
       error: new DefinitionInvalidError(
-        `namespace '${input.namespace}' does not match the owner fence for owner_kind '${input.ownerKind}' (REQ-02)`
+        // See docs/decisions/DR-003-settings-ledger-invariants.md for the invariant behind this refusal; keep external identifiers out of caller-facing messages.
+        `namespace '${input.namespace}' does not match the owner fence for owner_kind '${input.ownerKind}'`
       ),
     };
   }
@@ -76,23 +80,25 @@ export function validateDefinitionInput(
     };
   }
 
-  // INV-05: a site-owned def (workspace_id NOT NULL) may never declare the global scope bit.
+  // a site-owned def (workspace_id NOT NULL) may never declare the global scope bit. See docs/decisions/DR-003-settings-ledger-invariants.md.
   if (input.workspaceId !== null && (input.scopes & SCOPE_BIT.global) !== 0) {
     return {
       valid: false,
       error: new DefinitionInvalidError(
-        "a site-owned definition may not declare the global scope bit (INV-05)"
+        // See docs/decisions/DR-003-settings-ledger-invariants.md for the invariant behind this refusal; keep external identifiers out of caller-facing messages.
+        "a site-owned definition may not declare the global scope bit"
       ),
     };
   }
 
   // Totality (behavior.spec §3): every non-secret def needs a non-null default so
-  // getEffective is always total (INV-02) and factory-reset is provably bootable.
+  // getEffective is always total and factory-reset is provably bootable. See docs/decisions/DR-003-settings-ledger-invariants.md.
   if (input.defaultValue === null) {
     return {
       valid: false,
       error: new DefinitionInvalidError(
-        "non-secret definitions require a non-null default_json (totality, INV-02)"
+        // See docs/decisions/DR-003-settings-ledger-invariants.md for the invariant behind this refusal; keep external identifiers out of caller-facing messages.
+        "non-secret definitions require a non-null default_json (totality)"
       ),
     };
   }
@@ -119,10 +125,10 @@ export function validateValueAgainstSchema(schema: SettingValueSchema, value: Js
   }
 }
 
-/** Identity-registry of total coercers keyed by `coercionTag` (EC-08). `"identity"` is always registered. */
-const coercers = new Map<string, (value: JsonValue) => JsonValue>([["identity", (v) => v]]);
+/** Identity-registry of total coercers keyed by `coercionTag`. `"identity"` is always registered. See docs/decisions/DR-003-settings-ledger-invariants.md. */
+const coercers = new Map<string, (required: { value: JsonValue }) => JsonValue>([["identity", ({ value }) => value]]);
 
-export function registerCoercer(tag: string, fn: (value: JsonValue) => JsonValue): void {
+export function registerCoercer({ tag, fn }: { tag: string; fn: (required: { value: JsonValue }) => JsonValue }, _optional: Record<string, never> = {}): void {
   coercers.set(tag, fn);
 }
 
@@ -220,41 +226,49 @@ export function invalidateDefinitionNamespaceCache(repo: SettingsRepoPort, names
  * reintroduces caching. Deleting the call site would remove the place that question is asked. A
  * cache added without restoring a purge hook is a tenant-teardown leak, so this stays as the seam.
  */
-export function invalidateWorkspaceSettingsCache(_repo: SettingsRepoPort, _workspaceId: string, _principalId?: string): void {
+export function invalidateWorkspaceSettingsCache(_required: { repo: SettingsRepoPort; workspaceId: string }, _optional: { principalId?: string | undefined } = {}): void {
   // Intentionally empty — see doc above. Do not delete without re-reading `purge-service.ts`.
 }
 
 /**
  * Follows an alias marker (depth <=1) to the current row and returns it as
  * stored — status intact, including `tombstone`. `resolveDefinition` (below)
- * is the read-path wrapper that collapses tombstone to typed-absent (EC-10);
+ * is the read-path wrapper that collapses tombstone to typed-absent;
  * `write-service.ts` uses this raw form directly so it can report
  * `DEFINITION_TOMBSTONED` distinctly from "not found".
+ * Malformed alias targets, cycles and chains deeper than one fail closed as absent.
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
  */
 export async function resolveDefinitionRaw(
   deps: { repo: SettingsRepoPort },
   input: { namespace: string; key: string; workspaceId: string | null }
 ): Promise<SettingDefinitionRecord | null> {
-  // Namespace fencing (REQ-02) makes `site.*` (non-null workspace_id) and
+  // Namespace fencing makes `site.*` (non-null workspace_id) and. See docs/decisions/DR-003-settings-ledger-invariants.md.
   // `core.*`/`theme.*` (null workspace_id) disjoint by construction, so a
   // caller resolving inside a workspace context may still be asking for a
   // platform definition. Try the caller's own partition first, then fall
   // back to the platform (null) partition.
-  const found =
-    (await deps.repo.findActiveDefinition(input)) ??
-    (input.workspaceId !== null
-      ? await deps.repo.findActiveDefinition({ ...input, workspaceId: null })
-      : null);
-  if (!found) return null;
-  if (found.status === "alias") {
-    if (found.aliasOfNamespace == null || found.aliasOfKey == null) return null;
-    return resolveDefinitionRaw(deps, {
+  const visited = new Set<string>();
+  let cursor = input;
+  for (let depth = 0; depth <= 1; depth++) {
+    const address = JSON.stringify([cursor.workspaceId, cursor.namespace, cursor.key]);
+    if (visited.has(address)) return null;
+    visited.add(address);
+    const found =
+      (await deps.repo.findActiveDefinition(cursor)) ??
+      (cursor.workspaceId !== null
+        ? await deps.repo.findActiveDefinition({ ...cursor, workspaceId: null })
+        : null);
+    if (!found) return null;
+    if (found.status !== "alias") return found;
+    if (depth === 1 || found.aliasOfNamespace == null || found.aliasOfKey == null) return null;
+    cursor = {
       namespace: found.aliasOfNamespace,
       key: found.aliasOfKey,
       workspaceId: input.workspaceId,
-    });
+    };
   }
-  return found;
+  return null;
 }
 
 /**
@@ -290,7 +304,7 @@ export interface ResolvedSetting {
 }
 
 /**
- * REQ-03/INV-02 — total for a live key: never throws, never returns
+ * — total for a live key: never throws, never returns
  * undefined. Precedence `user ?? workspace ?? global ?? default`. A
  * `cleared` row is treated as absent at that layer (behavior.spec §1.2).
  *
@@ -300,6 +314,7 @@ export interface ResolvedSetting {
  *
  * @complexity O(1) — up to 3 layer reads + 1 definition read.
  * @overallScore 100
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
  */
 export async function getEffective(
   deps: { repo: SettingsRepoPort },
@@ -315,7 +330,7 @@ export async function getEffective(
   const coerce = (value: JsonValue, defVersion: number): JsonValue => {
     if (defVersion === definition.version) return value;
     const coercer = coercers.get(definition.coercionTag ?? "identity") ?? coercers.get("identity")!;
-    return coercer(value);
+    return coercer({ value });
   };
 
   // Every layer read below goes straight to the repo. See this module's cache header for why there

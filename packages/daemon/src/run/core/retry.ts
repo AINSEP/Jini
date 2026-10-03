@@ -50,10 +50,7 @@ function backoffBaseDelayMs(category: RunFailureCategory | undefined): number {
  * @param random - Optional jitter source; defaults to `Math.random` for production use.
  * @returns Backoff duration in milliseconds, capped at `MAX_RETRY_BACKOFF_DELAY_MS`.
  */
-export function computeRetryBackoffMs(
-  attemptIndex: number,
-  category: RunFailureCategory | undefined,
-  random: () => number = Math.random,
+export function computeRetryBackoffMs({ attemptIndex, category }: { readonly attemptIndex: number; readonly category: RunFailureCategory | undefined }, { random = Math.random }: { readonly random?: () => number } = {}
 ): number {
   const exponent = Math.max(0, Math.floor(attemptIndex) - 1);
   const raw = backoffBaseDelayMs(category) * RETRY_BACKOFF_MULTIPLIER ** exponent;
@@ -121,7 +118,7 @@ export type RunRetryPolicyDecision =
  * @returns A `RunRetryFailureSignal` suitable for {@link decideSafeRunRetry}.
  * @complexity O(1).
  */
-export function classifyProcessExitFailure(code: number | null, signal: string | null): RunRetryFailureSignal {
+export function classifyProcessExitFailure({ code, signal }: { readonly code: number | null; readonly signal: string | null }): RunRetryFailureSignal {
   if (signal !== null) {
     return { failure_category: 'process_exit', failure_detail: 'signal_killed', retryable: true };
   }
@@ -155,17 +152,9 @@ export function classifyProcessExitFailure(code: number | null, signal: string |
  * behavior for any other caller.
  * @complexity O(1).
  */
-export function resumableFromProcessExit(
-  code: number | null,
-  signal: string | null,
-  sideEffects?: Pick<RunRetrySideEffectState, 'userVisibleOutputSeen' | 'toolCallSeen'>,
+export function resumableFromProcessExit({ code, signal }: { readonly code: number | null; readonly signal: string | null }, { sideEffects }: { readonly sideEffects?: Pick<RunRetrySideEffectState, 'userVisibleOutputSeen' | 'toolCallSeen'> } = {}
 ): boolean {
-  const decision = decideSafeRunRetry({
-    result: 'failed',
-    failure: classifyProcessExitFailure(code, signal),
-    attemptCount: 0,
-    ...(sideEffects !== undefined ? { sideEffects } : {}),
-  });
+  const decision = decideSafeRunRetry({ result: 'failed', attemptCount: 0 }, { failure: classifyProcessExitFailure({ code: code, signal: signal }), ...(sideEffects !== undefined ? { sideEffects } : {}) });
   return decision.shouldRetry;
 }
 
@@ -250,9 +239,9 @@ function transientSuppressedReason(
  * @param input - Run outcome, failure classification, attempt count, and observable side effects.
  * @returns A `RunRetryPolicyDecision` with `shouldRetry: true` and a delay, or `shouldRetry: false` with a suppression reason.
  */
-export function decideSafeRunRetry(
-  input: RunRetryPolicyInput,
+export function decideSafeRunRetry(requiredArgs: Pick<RunRetryPolicyInput, "result" | "attemptCount">, optionalArgs: Pick<RunRetryPolicyInput, "failure" | "maxAttempts" | "sideEffects" | "random"> = {}
 ): RunRetryPolicyDecision {
+  const input: RunRetryPolicyInput = { ...requiredArgs, ...optionalArgs };
   const attemptCount = normalizeAttemptCount(input.attemptCount);
   const retryMaxAttempts = normalizeMaxAttempts(input.maxAttempts);
   const retryAttemptIndex = attemptCount + 1;
@@ -295,10 +284,7 @@ export function decideSafeRunRetry(
     ...base,
     shouldRetry: true,
     retryReason: 'transient_failure',
-    retryDelayMs: computeRetryBackoffMs(
-      retryAttemptIndex,
-      failure.failure_category,
-      input.random,
+    retryDelayMs: computeRetryBackoffMs({ attemptIndex: retryAttemptIndex, category: failure.failure_category }, input.random === undefined ? {} : { random: input.random }
     ),
   };
 }

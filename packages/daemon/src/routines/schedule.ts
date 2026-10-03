@@ -21,9 +21,7 @@ import type { RoutineProjectTarget, RoutineSchedule, Weekday } from './types.js'
  * edge cases no timezone on this test runner's ICU data naturally triggers — directly testable
  * with a mocked `Intl.DateTimeFormat.prototype.formatToParts` instead of left unreachable.
  */
-export function partsInTimezone(
-  timezone: string,
-  atUtc: Date,
+export function partsInTimezone({ timezone, atUtc }: { readonly timezone: string; readonly atUtc: Date }
 ): {
   year: number;
   month: number;
@@ -85,13 +83,7 @@ export function partsInTimezone(
  * the unguarded `partsInTimezone` earlier in its own loop body, so an invalid timezone throws
  * there first — this function's defensive catch is otherwise unreachable through that call path.
  */
-export function tzWallToUtcCandidates(
-  timezone: string,
-  year: number,
-  month: number,
-  day: number,
-  hour: number,
-  minute: number,
+export function tzWallToUtcCandidates({ timezone, year, month, day, hour, minute }: { readonly timezone: string; readonly year: number; readonly month: number; readonly day: number; readonly hour: number; readonly minute: number }
 ): Date[] {
   try {
     const tentative = Date.UTC(year, month - 1, day, hour, minute, 0);
@@ -124,13 +116,7 @@ export function tzWallToUtcCandidates(
  * Exported for the same reason as {@link tzWallToUtcCandidates} — its own `catch` branch is
  * otherwise unreachable through {@link nextWallTimeMatching}'s call path.
  */
-export function tzWallToUtcGapFallback(
-  timezone: string,
-  year: number,
-  month: number,
-  day: number,
-  hour: number,
-  minute: number,
+export function tzWallToUtcGapFallback({ timezone, year, month, day, hour, minute }: { readonly timezone: string; readonly year: number; readonly month: number; readonly day: number; readonly hour: number; readonly minute: number }
 ): Date | null {
   try {
     const tentative = Date.UTC(year, month - 1, day, hour, minute, 0);
@@ -153,20 +139,20 @@ function matchesWallClock(
   hour: number,
   minute: number,
 ): boolean {
-  const p = partsInTimezone(timezone, at);
+  const p = partsInTimezone({ timezone: timezone, atUtc: at });
   return p.year === year && p.month === month && p.day === day && p.hour === hour && p.minute === minute;
 }
 
 /** Minutes east of UTC for `timezone` at instant `at`. e.g. Asia/Shanghai returns 480. */
 function tzOffsetMinutes(timezone: string, at: Date): number {
-  const p = partsInTimezone(timezone, at);
+  const p = partsInTimezone({ timezone: timezone, atUtc: at });
   const asIfUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
   return Math.round((asIfUtc - at.getTime()) / 60_000);
 }
 
 // ---------- next-fire calculation ----------
 
-export function nextHourlyRunAt(minute: number, now = new Date()): Date {
+export function nextHourlyRunAt({ minute }: { readonly minute: number }, { now = new Date() }: { readonly now?: Date } = {}): Date {
   const next = new Date(now);
   next.setSeconds(0, 0);
   next.setMinutes(minute);
@@ -218,11 +204,11 @@ function resolveDayFireInstant(
   minute: number,
   now: Date,
 ): DayResolution {
-  const candidates = tzWallToUtcCandidates(timezone, date.year, date.month, date.day, hour, minute);
+  const candidates = tzWallToUtcCandidates({ timezone: timezone, year: date.year, month: date.month, day: date.day, hour: hour, minute: minute });
   if (candidates.length === 0) {
     // Spring-forward gap: no valid wall instant exists today; pick the synthesized post-gap
     // fallback so the routine still fires today.
-    const fallback = tzWallToUtcGapFallback(timezone, date.year, date.month, date.day, hour, minute);
+    const fallback = tzWallToUtcGapFallback({ timezone: timezone, year: date.year, month: date.month, day: date.day, hour: hour, minute: minute });
     if (!fallback) return { kind: 'abandon' };
     return fallback.getTime() > now.getTime() ? { kind: 'fire', at: fallback } : { kind: 'next-day' };
   }
@@ -235,11 +221,7 @@ function resolveDayFireInstant(
   return { kind: 'next-day' };
 }
 
-export function nextWallTimeMatching(
-  timezone: string,
-  time: string,
-  predicate: (weekday: Weekday) => boolean,
-  now: Date,
+export function nextWallTimeMatching({ timezone, time, predicate, now }: { readonly timezone: string; readonly time: string; readonly predicate: (weekday: Weekday) => boolean; readonly now: Date }
 ): Date | null {
   const wall = parseWallTime(time);
   if (!wall) return null;
@@ -247,7 +229,7 @@ export function nextWallTimeMatching(
   // Walk day by day in the target timezone.
   for (let offset = 0; offset < 14; offset += 1) {
     const probe = new Date(now.getTime() + offset * 24 * 60 * 60_000);
-    const parts = partsInTimezone(timezone, probe);
+    const parts = partsInTimezone({ timezone: timezone, atUtc: probe });
     if (!predicate(parts.weekday)) continue;
     const resolution = resolveDayFireInstant(timezone, parts, wall.hour, wall.minute, now);
     if (resolution.kind === 'fire') return resolution.at;
@@ -265,26 +247,26 @@ export function nextWallTimeMatching(
   return null;
 }
 
-export function nextRunAtForSchedule(schedule: RoutineSchedule, now = new Date()): Date | null {
+export function nextRunAtForSchedule({ schedule }: { readonly schedule: RoutineSchedule }, { now = new Date() }: { readonly now?: Date } = {}): Date | null {
   if (schedule.kind === 'hourly') {
-    return nextHourlyRunAt(schedule.minute, now);
+    return nextHourlyRunAt({ minute: schedule.minute }, { now: now });
   }
   if (schedule.kind === 'daily') {
-    return nextWallTimeMatching(schedule.timezone, schedule.time, () => true, now);
+    return nextWallTimeMatching({ timezone: schedule.timezone, time: schedule.time, predicate: () => true, now: now });
   }
   if (schedule.kind === 'weekdays') {
     // Mon=1 .. Fri=5
-    return nextWallTimeMatching(schedule.timezone, schedule.time, (w) => w >= 1 && w <= 5, now);
+    return nextWallTimeMatching({ timezone: schedule.timezone, time: schedule.time, predicate: (w) => w >= 1 && w <= 5, now: now });
   }
   if (schedule.kind === 'weekly') {
-    return nextWallTimeMatching(schedule.timezone, schedule.time, (w) => w === schedule.weekday, now);
+    return nextWallTimeMatching({ timezone: schedule.timezone, time: schedule.time, predicate: (w) => w === schedule.weekday, now: now });
   }
   return null;
 }
 
 // ---------- validation ----------
 
-export function isValidWallTime(time: string): boolean {
+export function isValidWallTime({ time }: { readonly time: string }): boolean {
   const m = /^(\d{2}):(\d{2})$/.exec(time);
   if (!m) return false;
   const h = Number(m[1]);
@@ -292,7 +274,7 @@ export function isValidWallTime(time: string): boolean {
   return h >= 0 && h <= 23 && mm >= 0 && mm <= 59;
 }
 
-export function isValidTimezone(tz: string): boolean {
+export function isValidTimezone({ tz }: { readonly tz: string }): boolean {
   if (!tz || typeof tz !== 'string') return false;
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: tz });
@@ -318,10 +300,10 @@ function validateWeekday(weekday: number): void {
 }
 
 function validateWallClockSchedule(schedule: WallClockSchedule): void {
-  if (!isValidWallTime(schedule.time)) {
+  if (!isValidWallTime({ time: schedule.time })) {
     throw new Error(`Invalid time: ${schedule.time}`);
   }
-  if (!isValidTimezone(schedule.timezone)) {
+  if (!isValidTimezone({ tz: schedule.timezone })) {
     throw new Error(`Invalid timezone: ${schedule.timezone}`);
   }
   if (schedule.kind === 'weekly') {
@@ -329,7 +311,7 @@ function validateWallClockSchedule(schedule: WallClockSchedule): void {
   }
 }
 
-export function validateSchedule(schedule: RoutineSchedule): void {
+export function validateSchedule({ schedule }: { readonly schedule: RoutineSchedule }): void {
   if (!schedule || typeof schedule !== 'object') {
     throw new Error('schedule is required');
   }
@@ -344,7 +326,7 @@ export function validateSchedule(schedule: RoutineSchedule): void {
   throw new Error(`Unsupported schedule kind: ${(schedule as { kind: string }).kind}`);
 }
 
-export function validateTarget(target: RoutineProjectTarget): void {
+export function validateTarget({ target }: { readonly target: RoutineProjectTarget }): void {
   if (!target || typeof target !== 'object') {
     throw new Error('target is required');
   }

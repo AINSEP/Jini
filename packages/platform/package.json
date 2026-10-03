@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/platform",
-  "version": "0.3.0",
+  "version": "0.5.0",
   "description": "Generic OS/platform primitives: process exec and lifecycle, filesystem containment, HTTP readiness polling, toolchain discovery, blob storage, AWS signing, and an SSRF-safe asset cache.",
   "license": "Apache-2.0",
   "repository": {
@@ -11,7 +11,22 @@
   "jini": {
     "domain": "platform",
     "kind": "abstraction",
-    "runtime": "node"
+    "runtime": "node",
+    "entries": {
+      ".": "node",
+      "./fetch-with-timeout": "node",
+      "./secrets": "node",
+      "./secrets/credential-sets": "node",
+      "./secrets/testing": "node",
+      "./http/guarded": "node",
+      "./mail": "node",
+      "./mail/smtp": "node",
+      "./fs/guarded-reader": "node",
+      "./fs/durable-json": "node",
+      "./fs": "node",
+      "./net": "node",
+      "./fs/file-lock": "node"
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -27,10 +42,68 @@
       "types": "./dist/fetch-with-timeout.d.ts",
       "import": "./dist/fetch-with-timeout.js",
       "default": "./dist/fetch-with-timeout.js"
+    },
+    "./secrets": {
+      "types": "./dist/secrets/index.d.ts",
+      "import": "./dist/secrets/index.js",
+      "default": "./dist/secrets/index.js"
+    },
+    "./secrets/credential-sets": {
+      "types": "./dist/secrets/credential-sets/index.d.ts",
+      "import": "./dist/secrets/credential-sets/index.js",
+      "default": "./dist/secrets/credential-sets/index.js"
+    },
+    "./secrets/testing": {
+      "types": "./dist/secrets/testing.d.ts",
+      "import": "./dist/secrets/testing.js",
+      "default": "./dist/secrets/testing.js"
+    },
+    "./http/guarded": {
+      "types": "./dist/http/guarded/index.d.ts",
+      "import": "./dist/http/guarded/index.js",
+      "default": "./dist/http/guarded/index.js"
+    },
+    "./mail": {
+      "types": "./dist/mail/index.d.ts",
+      "import": "./dist/mail/index.js",
+      "default": "./dist/mail/index.js"
+    },
+    "./mail/smtp": {
+      "types": "./dist/mail/smtp.d.ts",
+      "import": "./dist/mail/smtp.js",
+      "default": "./dist/mail/smtp.js"
+    },
+    "./fs/guarded-reader": {
+      "types": "./dist/fs/guarded-reader.d.ts",
+      "import": "./dist/fs/guarded-reader.js",
+      "default": "./dist/fs/guarded-reader.js"
+    },
+    "./fs/durable-json": {
+      "types": "./dist/fs/durable-json.d.ts",
+      "import": "./dist/fs/durable-json.js",
+      "default": "./dist/fs/durable-json.js"
+    },
+    "./fs": {
+      "types": "./dist/fs/index.d.ts",
+      "import": "./dist/fs/index.js",
+      "default": "./dist/fs/index.js"
+    },
+    "./net": {
+      "types": "./dist/net/index.d.ts",
+      "import": "./dist/net/index.js",
+      "default": "./dist/net/index.js"
+    },
+    "./fs/file-lock": {
+      "types": "./dist/fs/file-lock.d.ts",
+      "import": "./dist/fs/file-lock.js",
+      "default": "./dist/fs/file-lock.js"
     }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -39,7 +112,8 @@
     "!dist/**/*.map"
   ],
   "dependencies": {
-    "undici": "^7.25.0"
+    "undici": "^7.25.0",
+    "@jini-ai/core": "^0.4.0"
   },
   "publishConfig": {
     "access": "public",

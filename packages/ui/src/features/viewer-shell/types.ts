@@ -5,7 +5,7 @@
  * media-viewer shell (image/video/audio/svg/text/binary/document/sketch
  * viewers all wrap the same toolbar+body chrome around a
  * `{name,size,mtime}`-shaped file reference), plus its comment side-panel
- * and markdown split-pane. See `packages/ui/source-map.md`'s
+ * and markdown split-pane. See `packages/ui/archived provenance ledger`'s
  * `features/viewer-shell/` section for full provenance and what was
  * deliberately dropped.
  *

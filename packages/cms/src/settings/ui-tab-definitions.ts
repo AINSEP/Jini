@@ -1,4 +1,4 @@
-import type { UUID } from "../core/ports.js";
+import type { UUID } from "@jini-ai/core/primitives";
 import {
   ensureSettingDefinitions,
   type EnsureSettingDefinitionsDeps,

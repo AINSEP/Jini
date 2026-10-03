@@ -1,5 +1,33 @@
 # `@jini-ai/memory`
 
+## Integration update (2026-10-01)
+
+This section supersedes the deferred-conversion notes and positional note-store examples below.
+All note-store methods now receive a required object. The factory takes the required taxonomy and
+an optional object containing `subdir`, `filesystem`, `now`, and `ids`. The native filesystem port
+retains Node method signatures; host-owned helper callbacks receive objects. Root exports now include
+the note validation/event helpers and their port/input types. The root runtime is explicitly Node.
+
+```ts
+const store = createNoteStore(
+  { validTypes: ['fact'], defaultType: 'fact' },
+  { subdir: 'notes', filesystem, now, ids },
+);
+const entry = await store.upsertEntry({ dataDir, input: { name: 'Preference', type: 'fact', body: 'Tea' } });
+await store.readEntry({ dataDir, id: entry.id });
+await store.updateTreeNode({ dataDir, id: entry.id, patch: { body: 'Coffee' } });
+await store.writeConfig({ dataDir, patch: { enabled: false } });
+parseEntryFrontmatter({ raw });
+renderEntryFrontmatter({ fields, body });
+new NoteStoreConfigError({ message, code }, { cause });
+```
+
+`NoteStoreFilesystemPort` can use `node:fs` promises directly. `ids()` supplies a unique safe filename
+segment for each temporary write; `now()` supplies event timestamps. Native adapters remain defaults.
+The file format, IDs, index activation policy, errors, containment checks and atomic rename behavior
+are retained. Verification is not run (owner directive); see INTEGRATION-REPORT.md.
+
+
 A durable notes/memory capability for a daemon: Markdown files with YAML frontmatter on disk, a
 hand-editable `INDEX.md` that decides which notes are *active*, a bounded log of extraction attempts,
 a self-verify scorecard, and a small multi-vendor "call an LLM HTTP API and get strict JSON back"
@@ -43,8 +71,17 @@ grow it without limit.
 `appendVersionedApiPath`, `AZURE_DEFAULT_API_VERSION`, `DEFAULT_TIMEOUT_MS`.
 
 **Fact extraction** — `extractFacts(input, options)` → `ExtractFactsResult` and
-`factToNoteDraft(fact)` → `NoteDraft`, with `DEFAULT_MAX_FACTS`, `DEFAULT_SYSTEM_PROMPT`,
+`factToNoteDraft({ fact, type })` → `NoteDraft`, with `DEFAULT_MAX_FACTS`, `DEFAULT_SYSTEM_PROMPT`,
 `ExtractedFact`, `ExtractFactsPromptConfig`, `ExtractFactsLogOptions`.
+
+## Argument convention (2026-10-01)
+
+The converted APIs accept a required object and a separate optional settings object.
+For example, callLlmProvider({ config: { provider, apiKey, model }, systemPrompt, userPrompt },
+{ fetchFn, baseUrl, timeoutMs }). Logs are created with createExtractionLog({}, { now, ids, defer })
+or createVerifyLog({}, { now, ids, defer }). See API-CONVERSION.md for the complete inventory.
+The note-store and frontmatter conversion is deferred because its source file was already
+modified by another job; those examples below retain the existing note-store shape.
 
 ## Usage
 
@@ -74,12 +111,11 @@ store.events.on('change', (e) => console.log(e.kind, e.id));
 
 // Pull candidate notes out of a transcript, then persist the ones you want.
 const result = await extractFacts(
-  { provider: 'openai', apiKey: process.env.OPENAI_API_KEY!, model: 'gpt-4o-mini' },
-  { content: 'We decided to freeze merges after Thursday.', sourceLabel: 'standup 2026-07-29' },
-  { prompt: { suggestedCategories: ['decision', 'preference'], maxFacts: 5 } },
+  { llmConfig: { provider: 'openai', apiKey: process.env.OPENAI_API_KEY!, model: 'gpt-4o-mini' }, content: 'We decided to freeze merges after Thursday.' },
+  { sourceLabel: 'standup 2026-07-29', prompt: { suggestedCategories: ['decision', 'preference'], maxFacts: 5 } },
 );
 for (const fact of result.facts) {
-  await store.upsertEntry(dataDir, factToNoteDraft(fact, 'decision'));
+  await store.upsertEntry(dataDir, factToNoteDraft({ fact, type: 'decision' }));
 }
 ```
 
@@ -105,6 +141,6 @@ ESM only — ships `"type": "module"` with no CommonJS `require` build.
 
 ## Provenance
 
-See [source-map.md](./source-map.md) for per-file provenance and which behavior was generalized
+See the archived provenance ledger for per-file provenance and which behavior was generalized
 versus deliberately left in the originating product. Apache-2.0, inherited from Open Design — see the
 repo `NOTICE`.

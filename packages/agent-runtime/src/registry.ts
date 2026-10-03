@@ -12,10 +12,10 @@
  * product-branded default path under the user's home dir, reads a
  * product-prefixed data-dir env var, and depends on OD's daemon-level
  * sandbox-runtime-config subsystem (out of this package's charter
- * entirely; see `source-map.md` for the exact original names). `AGENT_DEFS`
+ * entirely; see `archived provenance ledger` for the exact original names). `AGENT_DEFS`
  * here is exactly `BASE_AGENT_DEFS` (no local-profile merge). A future task
  * can reintroduce a de-branded, sandbox-free local-profile loader as an
- * injected port if a consumer needs it. See `source-map.md`.
+ * injected port if a consumer needs it. See `archived provenance ledger`.
  */
 import {
   aiderAgentDef,
@@ -94,7 +94,7 @@ for (const def of AGENT_DEFS) {
   ids.add(def.id);
 }
 
-export function getAgentDef(id: string): RuntimeAgentDef | null {
+export function getAgentDef({ id }: { id: string }): RuntimeAgentDef | null {
   return AGENT_DEFS.find((a) => a.id === id) || null;
 }
 
@@ -114,6 +114,6 @@ export function getAgentDef(id: string): RuntimeAgentDef | null {
  *
  * @complexity Time/space: O(1).
  */
-export function runtimeSupportsExternalTools(def: Pick<RuntimeAgentDef, 'externalMcpInjection'>): boolean {
+export function runtimeSupportsExternalTools({ def }: { def: Pick<RuntimeAgentDef, 'externalMcpInjection'> }): boolean {
   return def.externalMcpInjection !== undefined;
 }

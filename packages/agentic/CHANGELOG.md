@@ -1,5 +1,34 @@
 # @jini-ai/agentic
 
+## 0.4.0 — 2026-10-02
+
+### BREAKING
+
+- Primitive ports converge into core; installation modules use concept paths and page-capability descriptions use host-neutral messages.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased — shared clocks and neutral navigation
+
+### BREAKING
+
+- Remove GenUiClockPort and A2uiClockPort; gen-ui/A2UI factories accept core Clock.nowMs(). A2UI sequence IDs and explicit per-event now callbacks retain their contracts.
+
+### Changed
+
+- Export defaultAgenticMessages with a neutral navigation description; hosts replace existing capability descriptor copy before projection.
+- Skill validation/live-registration/layout tests now live under the behavior-named install test directory. The process supplement lives outside the published package; layout rationale remains in its JSDoc.
+
+
+## Unreleased
+
+### Integration of extracted APIs
+
+- Complete `./skills/install` and `./skills/install/node` exports and Node runtime metadata. Reconcile shared layout/filesystem/archive/YAML contracts, expose layout and live-registration helpers, and provide `createSkillFetchAdapter` for explicitly supplied native fetch. This completes the previously pending subpath export work described below.
+- Include supplemental validation, explicit layout, live-registration and package-neutrality contracts from the extraction jobs, plus package-surface and native-fetch adapter integration tests. The filesystem factory is available from both Node skill entries; universal root/core exports stay independent of Node modules.
+- **BREAKING:** Public agent-control, DOM, MCP-UI, GenUI and A2UI functions, constructors and ports take required and optional argument objects. Encoder/interpreter factories require clock/ID ports; model-context detection requires a host-candidate port. Skill HTTP calls now use `fetch({ url }, requestOptions)`, and `SkillInputError` takes `{ message }` with optional `{ cause }`. Export names and wire formats remain intact. See `API.md` for migration examples; consumer rewiring and verification remain pending.
+
+- Add bounded skill installation/state, GitHub import, streaming archive ports and live registration under `skills/install`, with required host layout and dependencies. Add a separate Node filesystem adapter. Subpath exports pending coordinator edit; verification not run (owner directive).
+
 ## 0.1.2
 
 ### Patch Changes

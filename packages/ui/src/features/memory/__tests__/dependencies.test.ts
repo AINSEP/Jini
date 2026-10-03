@@ -4,7 +4,7 @@
 // `providers-connectors.test.ts` (mocking global `fetch` to pin the
 // ok/non-ok branches and the strict required-field response contract), plus
 // new coverage for this feature's own additions (the fake connector
-// catalogue, the browser pending-auth bridge). See `packages/ui/source-map.md`.
+// catalogue, the browser pending-auth bridge). See `packages/ui/archived provenance ledger`.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createFakeMemoryConnectorsPort,

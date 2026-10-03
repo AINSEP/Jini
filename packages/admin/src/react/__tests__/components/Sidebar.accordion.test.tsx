@@ -17,7 +17,7 @@ const panels: AdminPanel<null>[] = [
   { id: 'roles', render: null, nav: { label: 'Roles', group: 'People', order: 2 } },
 ];
 
-const groups = buildNav(panels);
+const groups = buildNav({ panels: panels });
 
 function renderNav(collapsibleGroups?: readonly string[], railStorageKey?: string) {
   return render(

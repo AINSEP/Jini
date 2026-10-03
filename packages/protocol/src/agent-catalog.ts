@@ -73,7 +73,7 @@ export interface AgentDefinition {
  *
  * Vendored (minimal, unmodified shape) from OD's
  * `packages/contracts/src/api/registry.ts#AgentFixIntent` — see
- * `source-map.md`. `@jini-ai/agent-runtime` does not depend on OD's
+ * `archived provenance ledger`. `@jini-ai/agent-runtime` does not depend on OD's
  * contracts workspace package.
  */
 export type AgentFixIntent =

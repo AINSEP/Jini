@@ -1,4 +1,4 @@
-import type { ISODateTime, JsonValue, UUID } from "../core/ports.js";
+import type { ISODateTime, JsonValue, UUID } from "@jini-ai/core/primitives";
 
 /**
  * @file Settings domain types.

@@ -54,10 +54,17 @@ export type {
   ConfirmDialogDefaultsProviderProps,
 } from './components/ConfirmDialog/ConfirmDialog.hooks.js';
 
-// The list table. Deliberately has no sorting, pagination or row selection — see its file header
-// for the corpus evidence behind each omission.
+// The list table. Sorting is opt-in per column (`DataTableColumn.sort`); pagination and row
+// selection are still deliberately absent — see its file header for the corpus evidence behind
+// every one of these decisions.
 export { DataTable } from './components/DataTable.js';
-export type { DataTableColumn, DataTableProps } from './components/DataTable.js';
+export type {
+  DataTableColumn,
+  DataTableColumnSort,
+  DataTableProps,
+  DataTableSortDirection,
+  DataTableSortState,
+} from './components/DataTable.js';
 
 // Visual click-into-text editing surface for a bespoke HTML document, built on GrapesJS. See its
 // own file header for the styling-contract exception it carries (vendor CSS import) and the
@@ -86,3 +93,6 @@ export { DEFAULT_SIDEBAR_RAIL_STORAGE_KEY, useSidebarRail } from './hooks/use-si
 export type { SidebarRail } from './hooks/use-sidebar-rail.js';
 export { DEFAULT_NAV_SECTIONS_STORAGE_KEY, useNavSections } from './hooks/use-nav-sections.js';
 export type { NavSections, NavSectionState } from './hooks/use-nav-sections.js';
+
+export * from './shell/index.js';
+export * from './entities/index.js';

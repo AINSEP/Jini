@@ -13,7 +13,6 @@ export const SETTINGS_DIALOG_HI: Record<string, string> = {
   "MCP server": "MCP सर्वर",
   "Connect an MCP client. Showing sample output — not yet wired to a live server.": "एक MCP क्लाइंट कनेक्ट करें. नमूना आउटपुट दिखाया जा रहा है — अभी तक किसी लाइव सर्वर से नहीं जुड़ा है.",
   "API keys for image, video, and audio generation.": "छवि, वीडियो और ऑडियो जनरेशन के लिए API कुंजियाँ.",
-  "Third-party accounts and APIs via Composio.": "Composio के ज़रिए थर्ड-पार्टी खाते और API.",
   "Memory": "मेमोरी",
   "Saved facts and context for future chats.": "भविष्य की बातचीत के लिए सहेजे गए तथ्य और संदर्भ.",
   "External MCP": "बाहरी MCP",

@@ -22,7 +22,7 @@
  * this library introduces; the entries repo, revisions, `entry_refs`, and the command
  * gateway are reused unchanged from the generic entries model.
  */
-import type { ISODateTime, JsonObject, UUID } from "../core/ports.js";
+import type { ISODateTime, JsonObject, UUID } from "@jini-ai/core/primitives";
 
 // ---------------------------------------------------------------------------
 // Content-type identity

@@ -53,7 +53,7 @@ export function SnippetBlock({ snippet, language, placeholder, copyAriaLabel, co
   // dead duplicate of that same disablement; removed rather than carried
   // forward or tested around.
   async function onCopy() {
-    const ok = await copyToClipboard(snippet);
+    const ok = await copyToClipboard({ text: snippet });
     if (!ok) return;
     setCopied(true);
     if (timerRef.current) clearTimeout(timerRef.current);

@@ -18,7 +18,8 @@
  */
 
 export class SameTermMergeError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "SameTermMergeError";
   }
@@ -44,13 +45,14 @@ export interface PlanMergeTermRequired {
 }
 
 /**
- * AC-22a/REQ-15a/INV-08 — rejects `fromTermId === intoTermId` structurally BEFORE
- * `computeOverlap()` ever runs (no plan, therefore no token, can ever exist for a self-merge).
- * AC-23/AC-24/REQ-16 — the returned plan discloses whether the merge would lose any pre-existing
+ * — rejects `fromTermId === intoTermId` structurally BEFORE
+ * `computeOverlap` ever runs (no plan, therefore no token, can ever exist for a self-merge).
+ * — the returned plan discloses whether the merge would lose any pre-existing
  * overlapping assignment (never a false "no loss" when `overlappingContentCount > 0`).
  *
  * @complexity O(1) plus the caller-supplied `computeOverlap`/`gatewayPlan` costs.
  * @overallScore 100
+ * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
  */
 export async function planMergeTerm(
   required: PlanMergeTermRequired,
@@ -59,7 +61,7 @@ export async function planMergeTerm(
   const { fromTermId, intoTermId, computeOverlap, gatewayPlan } = required;
 
   if (fromTermId === intoTermId) {
-    throw new SameTermMergeError(`cannot merge term '${fromTermId}' into itself`);
+    throw new SameTermMergeError({ message: `cannot merge term '${fromTermId}' into itself` });
   }
 
   const { overlappingContentCount } = await computeOverlap();

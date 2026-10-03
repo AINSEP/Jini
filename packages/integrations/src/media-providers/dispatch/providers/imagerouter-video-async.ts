@@ -71,9 +71,9 @@ function retryAfterMsFrom(resp: Response): number | undefined {
  *   context's own `wireModel`.
  * @complexity O(1) per built request; one vendor round trip per parse.
  */
-export function createImageRouterVideoPollingAdapter(
-  config: ImageRouterVideoConfig = {},
+export function createImageRouterVideoPollingAdapter(_required: Record<string, never>, optional: ImageRouterVideoConfig = {}
 ): PollingVendorAdapter<ImageRouterVideoMeta> {
+    const config = optional;
   const baseUrl = trimTrailingSlash((config.baseUrl || DEFAULT_BASE_URL).trim());
 
   return {
@@ -82,37 +82,34 @@ export function createImageRouterVideoPollingAdapter(
     // not have landed cannot be safely re-issued — a duplicate submit is a duplicate charge.
     submitIsIdempotent: false,
 
-    buildSubmitRequest(ctx: RenderContext): UnsignedVendorRequest<ImageRouterVideoMeta> {
+    buildSubmitRequest({ ctx }: { ctx: RenderContext }): UnsignedVendorRequest<ImageRouterVideoMeta> {
       const wireModel = (config.wireModel || ctx.wireModel).trim();
       const seconds = typeof ctx.length === 'number' ? ctx.length : 'auto';
-      const size = imageRouterSizeFor(ctx.aspect, 'video');
+      const size = imageRouterSizeFor({ aspect: ctx.aspect, surface: 'video' });
 
       return {
         url: `${baseUrl}/videos/generations`,
-        init: withUnsignedRequestInit(ctx, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
+        init: withUnsignedRequestInit({ ctx: ctx, init: {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
             prompt: ctx.prompt || 'A short cinematic clip.',
             model: wireModel,
             size,
             seconds,
             response_format: 'b64_json',
-          }),
         }),
+    } }),
         meta: { wireModel, size, seconds },
       };
     },
 
-    async parseSubmitResponse(
-      resp: Response,
-      ctx: RenderContext,
-      request: UnsignedVendorRequest<ImageRouterVideoMeta>,
+    async parseSubmitResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: UnsignedVendorRequest<ImageRouterVideoMeta> }
     ): Promise<SubmitOutcome> {
       const data = (await parseOpenAICompatibleJson(resp, 'imagerouter video')) as Record<string, unknown>;
 
       if (Array.isArray(data.data)) {
-        const bytes = await bytesFromOpenAICompatibleData(data, 'imagerouter video', ctx.requestInit);
+        const bytes = await bytesFromOpenAICompatibleData({ data, providerTag: 'imagerouter video' }, ctx);
         const { wireModel, size, seconds } = request.meta;
         return {
           kind: 'complete',
@@ -133,19 +130,19 @@ export function createImageRouterVideoPollingAdapter(
       throw new Error('imagerouter video submit returned neither generated data nor a job id');
     },
 
-    buildPollRequest(state: Readonly<Record<string, unknown>>, ctx: RenderContext): UnsignedVendorRequest<ImageRouterVideoMeta> {
+    buildPollRequest({ state, ctx }: { state: Readonly<Record<string, unknown>>; ctx: RenderContext }): UnsignedVendorRequest<ImageRouterVideoMeta> {
       const jobId = state.jobId;
       if (typeof jobId !== 'string' || !jobId) {
         throw new Error('imagerouter video poll requires a persisted jobId');
       }
       return {
         url: `${baseUrl}/videos/${encodeURIComponent(jobId)}`,
-        init: withUnsignedRequestInit(ctx, { method: 'GET', headers: { accept: 'application/json' } }),
-        meta: { wireModel: (config.wireModel || ctx.wireModel).trim(), size: imageRouterSizeFor(ctx.aspect, 'video'), seconds: typeof ctx.length === 'number' ? ctx.length : 'auto' },
+        init: withUnsignedRequestInit({ ctx: ctx, init: { method: 'GET', headers: { accept: 'application/json' } } }),
+        meta: { wireModel: (config.wireModel || ctx.wireModel).trim(), size: imageRouterSizeFor({ aspect: ctx.aspect, surface: 'video' }), seconds: typeof ctx.length === 'number' ? ctx.length : 'auto' },
       };
     },
 
-    async parsePollResponse(resp: Response, ctx: RenderContext, _state: Readonly<Record<string, unknown>>): Promise<PollOutcome> {
+    async parsePollResponse({ resp, ctx, state: _state }: { resp: Response; ctx: RenderContext; state: Readonly<Record<string, unknown>> }): Promise<PollOutcome> {
       const data = (await parseOpenAICompatibleJson(resp, 'imagerouter video')) as Record<string, unknown>;
       const status = typeof data.status === 'string' ? data.status.toLowerCase() : '';
 
@@ -156,9 +153,9 @@ export function createImageRouterVideoPollingAdapter(
       }
 
       if (Array.isArray(data.data)) {
-        const bytes = await bytesFromOpenAICompatibleData(data, 'imagerouter video', ctx.requestInit);
+        const bytes = await bytesFromOpenAICompatibleData({ data, providerTag: 'imagerouter video' }, ctx);
         const wireModel = (config.wireModel || ctx.wireModel).trim();
-        const size = imageRouterSizeFor(ctx.aspect, 'video');
+        const size = imageRouterSizeFor({ aspect: ctx.aspect, surface: 'video' });
         const seconds = typeof ctx.length === 'number' ? ctx.length : 'auto';
         return {
           kind: 'complete',

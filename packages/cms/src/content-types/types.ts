@@ -25,16 +25,17 @@
  */
 
 /**
- * CIC U-001-B1 — the closed, 5-entry INDEXABLE SCALAR set. Never extend ad hoc.
+ * — the closed, 5-entry INDEXABLE SCALAR set. Never extend ad hoc.
  *
  * Unchanged since the original enum: every value that has ever reached a `CAST` literal is still
  * here, in this order. Kept as its own constant so the "these five are the original, untouched
  * scalars" claim is expressible in code rather than only in a comment.
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 export const CONTENT_TYPE_SCALAR_KINDS = ["text", "integer", "real", "boolean", "datetime"] as const;
 
 /**
- * CIC U-001-B1 — kinds that MAY carry `queryable: true` and therefore MAY reach
+ * — kinds that MAY carry `queryable: true` and therefore MAY reach
  * `mapFieldKindToCast`. Every member MUST have an entry in `index-provisioning.ts`'s
  * `KIND_TO_CAST_LITERAL`; the compiler enforces this via `Record<IndexableFieldKind, string>`, so
  * adding a member here fails the build until a CAST literal is supplied for it.
@@ -42,6 +43,7 @@ export const CONTENT_TYPE_SCALAR_KINDS = ["text", "integer", "real", "boolean", 
  * `relation` stores a foreign entity id and shares `text`'s storage class, so its CAST target is
  * the already-present literal `"TEXT"` — it adds a KEY to that table, never a new VALUE to the
  * DDL alphabet.
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 export const INDEXABLE_FIELD_KINDS = [...CONTENT_TYPE_SCALAR_KINDS, "relation"] as const;
 
@@ -58,7 +60,7 @@ export const STORAGE_ONLY_FIELD_KINDS = ["json"] as const;
 export type StorageOnlyFieldKind = (typeof STORAGE_ONLY_FIELD_KINDS)[number];
 
 /**
- * CIC U-001-B1 — the closed field-kind enum. UNCHANGED NAME AND MEANING for every existing
+ * — the closed field-kind enum. UNCHANGED NAME AND MEANING for every existing
  * consumer: it is still the complete, closed set of legal `kind` values, and
  * {@link isContentTypeFieldKind} is still the gate for it.
  *
@@ -67,6 +69,7 @@ export type StorageOnlyFieldKind = (typeof STORAGE_ONLY_FIELD_KINDS)[number];
  * message. The spread order below preserves that; the published agent-tool schema
  * (`agent-tools.ts`) also spreads this constant, so both widen in lockstep with no hand-copied
  * second list to drift.
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 export const CONTENT_TYPE_FIELD_KINDS = [
   ...INDEXABLE_FIELD_KINDS,
@@ -86,7 +89,8 @@ export type ContentTypeFieldKind = (typeof CONTENT_TYPE_FIELD_KINDS)[number];
  * @complexity O(1) — a fixed-size array membership test.
  * @overallScore 100
  */
-export function isContentTypeFieldKind(value: unknown): value is ContentTypeFieldKind {
+export function isContentTypeFieldKind(required: { value: unknown }, _optional: Record<string, never> = {}): required is { value: ContentTypeFieldKind } {
+  const { value } = required;
   return typeof value === "string" && (CONTENT_TYPE_FIELD_KINDS as readonly string[]).includes(value);
 }
 
@@ -102,7 +106,8 @@ export function isContentTypeFieldKind(value: unknown): value is ContentTypeFiel
  * @complexity O(1) — a fixed-size array membership test.
  * @overallScore 100
  */
-export function isIndexableFieldKind(value: unknown): value is IndexableFieldKind {
+export function isIndexableFieldKind(required: { value: unknown }, _optional: Record<string, never> = {}): required is { value: IndexableFieldKind } {
+  const { value } = required;
   return typeof value === "string" && (INDEXABLE_FIELD_KINDS as readonly string[]).includes(value);
 }
 
@@ -134,7 +139,7 @@ export interface ContentTypeRecord {
  */
 export type ActorPrincipalKind = "user" | "agent" | "api_key" | "system";
 
-/** The actor-identity envelope every chokepoint write in this package accepts (REQ-01/02/16). */
+/** The actor-identity envelope every chokepoint write in this package accepts. See docs/decisions/DR-001-safe-schema-and-index-transitions.md. */
 export interface ActorIdentityInput {
   actorId: string;
   /**
@@ -151,4 +156,4 @@ export interface ActorIdentityInput {
 }
 
 /** Generic success/failure envelope used across this package instead of throwing for expected rejections. */
-export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
+

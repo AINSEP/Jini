@@ -83,7 +83,7 @@ export function useTabbedDialog<T extends TabbedDialogTabMeta>({
   // in its Escape-only shape (no `containerRef` — the backdrop click is
   // already handled separately by the host), matching the call site that
   // hook's own doc comment names for this exact hook.
-  useDismissOnOutsideOrEscape(() => onClose?.(), { enabled: Boolean(onClose) });
+  useDismissOnOutsideOrEscape({ onDismiss: () => onClose?.() }, { enabled: Boolean(onClose) });
 
   return {
     activeTabId,

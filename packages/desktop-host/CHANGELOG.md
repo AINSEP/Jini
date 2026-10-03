@@ -1,5 +1,46 @@
 # @jini-ai/desktop-host
 
+## 0.4.0 — 2026-10-02
+
+### BREAKING
+
+- Desktop clocks/logging adopt core ports; native updater/navigation ABIs replace custom wrappers. Native macOS speech source remains an explicit runtime export.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased
+
+- Repair desktop-host test fixture types for filesystem options, legacy popup registration, mutable updater flags, single-instance notifications, IPC rejections and native toolchain errors without changing their assertions.
+- **BREAKING:** Replace `HostLogger` with core `Logger`; import the type from `@jini-ai/core/primitives`. File logging accepts the optional `error` bag and records its normalized value.
+- Accept native Electron navigation and electron-updater callback ABIs directly. Keep the existing object registrations as union members (`LegacyNavigableContents`, `LegacyUpdaterLike`) while hosts remove their glue.
+- Controller clocks use core `Clock`, with the legacy `now` callback retained. Export `createElectronUpdaterAdapter`, `createNodeUpdateTimers`, `defaultUpdateMessages` and `defaultUpdateTiming`. Node timers and reference timing/copy are defaults; hosts may override them in parameter two. Reference timeout values are unchanged.
+
+
+### Desktop host integration
+
+- Publish `./electron/usability`, `./speech`, and `./speech/macos` alongside
+  `./shutdown`, `./electron/navigation-policy`, `./electron/updates`, and
+  `./node-toolchain`. Declare all subpath runtimes and ship the native Swift helper
+  at `./speech/macos/speech-helper.swift`; the build copies it into `dist`.
+- **BREAKING:** Existing functions, factories, constructors, and injected
+  Electron/Tauri/filesystem/timer ports now take a required-arguments object and
+  an optional-arguments object. Optional-only APIs take `{}` first; zero-input
+  lifecycle methods remain parameterless. Export names are preserved and only the updater/navigation migration above retains legacy registration unions. Bridge validation narrows `args.value`;
+  file loggers accept an optional object-argument append port.
+- **BREAKING:** Usability and speech ports, menu callbacks, sender guards, path
+  joiners, and native transcriber process/filesystem bindings use object arguments
+  too. Host adapters translate native callbacks and preserve IPC channel payloads.
+  Add package integration contracts and adapt the generalized characterization
+  fixtures without changing their behavioral assertions.
+- No version or dependency changes. Verification is not run by owner directive.
+
+
+- Add `./shutdown`, `./electron/navigation-policy`, `./electron/updates`, and
+  `./node-toolchain` with required input objects and injected host ports. Updates
+  permit multiple running instances and install only when no sibling remains.
+  Existing exports and version remain unchanged.
+- Add generalized policy and adapter tests, deterministic timer/failure cases,
+  and a runtime-source neutrality guard.
+
 ## 0.1.2
 
 ### Patch Changes

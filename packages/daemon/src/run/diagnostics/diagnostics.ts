@@ -7,9 +7,9 @@
  * `redactSecrets`). Defaults to identity so a caller that has already scrubbed —
  * or genuinely wants the raw tail — need not pass one.
  */
-export type TailRedactor = (text: string) => string;
+export type TailRedactor = (args: { text: string }) => string;
 
-const identityRedactor: TailRedactor = (text) => text;
+const identityRedactor: TailRedactor = ({ text }) => text;
 
 /** A recorded run event entry passed to diagnostics collection functions for scanning. */
 export interface RunEventForDiagnostics {
@@ -107,7 +107,7 @@ function countLines(text: string): number {
  * @param count - Total number of non-empty lines in the stream.
  * @returns A `StderrLineCountBucket` string for use in analytics payloads.
  */
-export function stderrLineCountBucket(count: number): StderrLineCountBucket {
+export function stderrLineCountBucket({ count }: { readonly count: number }): StderrLineCountBucket {
   if (count <= 0) return 'none';
   if (count <= 5) return '1_5';
   if (count <= 20) return '6_20';
@@ -146,7 +146,7 @@ function collectStreamTailSummary(
   const lines = streamText.trimEnd().split(/\r?\n/);
   const tailLines = lines.slice(-STDERR_TAIL_MAX_LINES);
   const lineTruncated = lines.length > tailLines.length;
-  const redacted = redact(tailLines.join('\n'));
+  const redacted = redact({ text: tailLines.join('\n') });
   const byteCapped = truncateUtf8(redacted, STDERR_TAIL_MAX_BYTES);
 
   return {
@@ -163,9 +163,7 @@ function collectStreamTailSummary(
  * @param redact - Secret/PII scrubber applied to the joined tail; defaults to identity.
  * @returns A `StderrTailSummary` with the last 20 lines (capped at 4 KB) and a truncation flag, or `undefined`.
  */
-export function collectStderrTailSummary(
-  events: RunEventForDiagnostics[] = [],
-  redact: TailRedactor = identityRedactor,
+export function collectStderrTailSummary(_requiredArgs: Record<string, never>, { events = [], redact = identityRedactor }: { readonly events?: RunEventForDiagnostics[]; readonly redact?: TailRedactor } = {}
 ): StderrTailSummary | undefined {
   return collectStreamTailSummary(events, 'stderr', readStderrChunk, redact);
 }
@@ -177,9 +175,7 @@ export function collectStderrTailSummary(
  * @param redact - Secret/PII scrubber applied to the joined tail; defaults to identity.
  * @returns A `StdoutTailSummary` with the last 20 lines (capped at 4 KB) and a truncation flag, or `undefined`.
  */
-export function collectStdoutTailSummary(
-  events: RunEventForDiagnostics[] = [],
-  redact: TailRedactor = identityRedactor,
+export function collectStdoutTailSummary(_requiredArgs: Record<string, never>, { events = [], redact = identityRedactor }: { readonly events?: RunEventForDiagnostics[]; readonly redact?: TailRedactor } = {}
 ): StdoutTailSummary | undefined {
   return collectStreamTailSummary(events, 'stdout', readStdoutChunk, redact);
 }
@@ -378,9 +374,9 @@ export function summarizeRunDiagnosticsForAnalytics(args: {
       exitCode: args.exitCode,
     }),
     stderr_present: stderrPresent,
-    stderr_line_count_bucket: stderrLineCountBucket(stderrLineCount),
+    stderr_line_count_bucket: stderrLineCountBucket({ count: stderrLineCount }),
     stdout_present: stdoutPresent,
-    stdout_line_count_bucket: stderrLineCountBucket(stdoutLineCount),
+    stdout_line_count_bucket: stderrLineCountBucket({ count: stdoutLineCount }),
     rpc_close_reason: resolveRpcCloseReason(observed.recordedCloseReason, args),
     first_token_seen: args.firstTokenSeen === true,
     user_visible_output_seen: observed.userVisibleOutputSeen,

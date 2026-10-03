@@ -128,7 +128,7 @@ describe('handle derivation', () => {
   it.each(['url', 'oauthClientSecret', 'api_key', 'Base URL', '***', 'Ünïcödé'])(
     'produces a handle the agentic layer will actually resolve, for key %s',
     (key) => {
-      expect(isValidElementHandle(sourceConfigFieldHandle('mcp-add', key))).toBe(true);
+      expect(isValidElementHandle({ handle: sourceConfigFieldHandle('mcp-add', key) })).toBe(true);
     },
   );
 

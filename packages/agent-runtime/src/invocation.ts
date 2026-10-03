@@ -7,7 +7,7 @@
  * `createCommandInvocation` now comes from `@jini-ai/platform` instead of the
  * OD workspace package it originally shipped from — the two are the same
  * function (platform was already verbatim-lifted into `@jini-ai/platform`,
- * see its `source-map.md`).
+ * see its `archived provenance ledger`).
  */
 import { execFile } from 'node:child_process';
 import os from 'node:os';
@@ -30,10 +30,7 @@ const execFileP = promisify(execFile);
 // running dev server. A probe writing a stray lockfile under the OS temp
 // dir is harmless. Actual agent runs spawn elsewhere with an explicit
 // project cwd and are unaffected.
-export function execAgentFile(
-  command: string,
-  args: string[],
-  options: RuntimeExecOptions = {},
+export function execAgentFile({ command, args }: { command: string; args: string[] }, { options = {} }: { options?: RuntimeExecOptions } = {}
 ) {
   const invocation = createCommandInvocation(
     options.env

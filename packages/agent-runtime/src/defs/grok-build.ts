@@ -1,7 +1,7 @@
 /**
  * Ported from OD's `apps/daemon/src/runtimes/defs/grok-build.ts` with
  * several product-named comment mentions reworded to generic
- * host-application phrasing (no behavior change; see `source-map.md` for
+ * host-application phrasing (no behavior change; see `archived provenance ledger` for
  * the exact original wording).
  */
 import { DEFAULT_MODEL_OPTION } from './shared.js';
@@ -10,7 +10,7 @@ import type { RuntimeAgentDef } from '../types.js';
 
 const GROK_MODEL_ID_RE = /^\*?\s*-?\s*(grok-[a-z0-9][a-z0-9._-]*)(?:\s+\(default\))?\s*$/i;
 
-export function parseGrokBuildModels(stdout: string): RuntimeModelOption[] {
+export function parseGrokBuildModels({ stdout }: { stdout: string }): RuntimeModelOption[] {
   const seen = new Set<string>();
   const out: RuntimeModelOption[] = [DEFAULT_MODEL_OPTION];
   for (const rawLine of String(stdout || '').split('\n')) {
@@ -80,7 +80,7 @@ export const grokBuildAgentDef = {
   // Grok Build CLI v0.1.212+ enforces `-p, --single <PROMPT>` as
   // value-required, while a host's composed prompts can exceed safe argv
   // budgets. Use the CLI's explicit prompt-file transport instead.
-  buildArgs: (_prompt, _imagePaths, _extra = [], options = {}, runtimeContext = {}) => {
+  buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs: _extra = [], options = {}, runtimeContext = {} } = {}) => {
     if (!runtimeContext.promptFilePath) {
       throw new Error('grok-build requires runtimeContext.promptFilePath');
     }

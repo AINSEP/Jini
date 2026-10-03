@@ -23,7 +23,7 @@ export interface UseAssetGridLiveUpdatesParams<TAsset extends AssetGridItem> {
  * changed ids, drop the deleted ids) instead of one full reload per event.
  * A burst of many events, a filtered view, or an event with no resolvable
  * id all fall back to a single full reload for that window — see
- * `packages/ui/source-map.md` for why (the original OD comment: "a filtered
+ * `packages/ui/archived provenance ledger` for why (the original OD comment: "a filtered
  * view can't predict membership client-side").
  */
 export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(

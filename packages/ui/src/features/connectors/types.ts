@@ -1,7 +1,7 @@
 /**
  * Generic OAuth-integration-marketplace domain types. Ported from the origin
  * product's ConnectorsBrowser.tsx (see the vendored reference tree cited in
- * `packages/ui/source-map.md`), stripped of Composio/product-specific
+ * `packages/ui/archived provenance ledger`), stripped of Connector Provider/product-specific
  * wire-shape specifics — see that file for the full provenance note.
  */
 
@@ -27,7 +27,7 @@ export interface ConnectorAuthBinding {
 export interface Connector {
   id: string;
   name: string;
-  /** Display provider name (e.g. "Composio", "Zapier"). */
+  /** Display provider name (e.g. "Connector Provider", "Zapier"). */
   provider: string;
   category: string;
   description?: string;

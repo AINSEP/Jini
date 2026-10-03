@@ -74,19 +74,18 @@ export interface CommentsSettings {
 export type CommentModerationAction = "approve" | "spam" | "trash" | "restore";
 
 export interface AdminCommentsPort {
-  listCommentsQueue(options?: {
+  listCommentsQueue(requiredArgs: Record<string, never>, optionalArgs?: {
     status?: CommentStatus;
     cursor?: string;
     limit?: number;
   }): Promise<AdminCommentsQueuePage>;
   /** See the file header: resolves to `void` even on success. */
   moderateComment(
-    commentId: string,
-    input: { action: CommentModerationAction; expectedVersion: number },
-    options?: { note?: string },
+    requiredArgs: { commentId: string; action: CommentModerationAction; expectedVersion: number },
+    optionalArgs?: { note?: string },
   ): Promise<void>;
   /** Hard delete, no version guard, separate permission — see the file header. */
-  purgeComment(commentId: string, options?: { note?: string }): Promise<void>;
-  getCommentsSettings(): Promise<CommentsSettings>;
-  putCommentsSettings(patch?: Partial<CommentsSettings>): Promise<CommentsSettings>;
+  purgeComment(requiredArgs: { commentId: string }, optionalArgs?: { note?: string }): Promise<void>;
+  getCommentsSettings(requiredArgs: Record<string, never>): Promise<CommentsSettings>;
+  putCommentsSettings(requiredArgs: Record<string, never>, optionalArgs?: Partial<CommentsSettings>): Promise<CommentsSettings>;
 }

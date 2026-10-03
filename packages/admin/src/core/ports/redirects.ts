@@ -135,16 +135,16 @@ export interface AdminRedirectImportResult {
 }
 
 export interface AdminRedirectsPort {
-  listRedirects(filter?: AdminRedirectListFilter): Promise<readonly AdminRedirect[]>;
-  getRedirect(id: string): Promise<AdminRedirect>;
-  createRedirect(input: AdminRedirectCreateInput): Promise<AdminRedirect>;
-  updateRedirect(id: string, patch: AdminRedirectUpdatePatch): Promise<AdminRedirect>;
+  listRedirects(requiredArgs: Record<string, never>, optionalArgs?: AdminRedirectListFilter): Promise<readonly AdminRedirect[]>;
+  getRedirect(requiredArgs: { id: string }): Promise<AdminRedirect>;
+  createRedirect(requiredArgs: Omit<AdminRedirectCreateInput, "override" | "priority">, optionalArgs?: Pick<AdminRedirectCreateInput, "override" | "priority">): Promise<AdminRedirect>;
+  updateRedirect(requiredArgs: { id: string }, optionalArgs?: AdminRedirectUpdatePatch): Promise<AdminRedirect>;
   /** Soft delete — returns the tombstoned record, not `void`. See file header. */
-  tombstoneRedirect(id: string): Promise<AdminRedirect>;
+  tombstoneRedirect(requiredArgs: { id: string }): Promise<AdminRedirect>;
   /** Resolves with `hitCount: 0`/`lastHitAt: null` when no hits have been recorded yet — distinct
    *  from the redirect itself not existing, which is a not-found-class rejection instead. */
-  getRedirectHitStats(id: string): Promise<AdminRedirectHitStats>;
+  getRedirectHitStats(requiredArgs: { id: string }): Promise<AdminRedirectHitStats>;
   /** Always a partial-success batch — see file header. Each item shares `AdminRedirectCreateInput`'s
    *  shape (provenance is stamped `"import"` automatically, not caller-supplied). */
-  importRedirects(rules: readonly AdminRedirectCreateInput[]): Promise<AdminRedirectImportResult>;
+  importRedirects(requiredArgs: { rules: readonly AdminRedirectCreateInput[] }): Promise<AdminRedirectImportResult>;
 }

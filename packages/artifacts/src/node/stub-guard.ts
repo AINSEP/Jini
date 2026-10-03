@@ -22,6 +22,18 @@ import {
   type PriorArtifactSibling,
 } from '../stub-guard.js';
 
+/** Injectable filesystem for sibling scans. */
+export interface ArtifactStubFilesystemPort {
+  readFile(required: { path: string }): Promise<string>;
+  readdir(required: { path: string }): Promise<Dirent[]>;
+  stat(required: { path: string }): Promise<{ size: number }>;
+}
+const nativeFilesystem: ArtifactStubFilesystemPort = {
+  readFile: ({ path }) => readFile(path, 'utf8'),
+  readdir: ({ path }) => readdir(path, { withFileTypes: true }),
+  stat: ({ path }) => stat(path),
+};
+
 export interface EvaluateArtifactStubGuardInput {
   readonly scanDir: string;
   readonly identifier: string;
@@ -33,9 +45,9 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-async function readSidecarIdentifier(scanDir: string, entryName: string): Promise<string | null> {
+async function readSidecarIdentifier(scanDir: string, entryName: string, filesystem: ArtifactStubFilesystemPort): Promise<string | null> {
   try {
-    const raw = await readFile(path.join(scanDir, `${entryName}.artifact.json`), 'utf8');
+    const raw = await filesystem.readFile({ path: path.join(scanDir, `${entryName}.artifact.json`) });
     const parsed = JSON.parse(raw) as { metadata?: { identifier?: unknown } } | null;
     const id = parsed?.metadata?.identifier;
     return typeof id === 'string' && id.length > 0 ? id : null;
@@ -66,9 +78,8 @@ function legacyCandidateIdentifiers(filename: string, extensionPattern: RegExp, 
  * scan runs).
  */
 export async function findPriorArtifactSiblings(
-  scanDir: string,
-  identifier: string,
-  config: Pick<ArtifactStubGuardConfig, 'siblingExtensions'>,
+  { scanDir, identifier, config }: { scanDir: string; identifier: string; config: Pick<ArtifactStubGuardConfig, 'siblingExtensions'> },
+  { filesystem = nativeFilesystem }: { filesystem?: ArtifactStubFilesystemPort } = {},
 ): Promise<PriorArtifactSibling[]> {
   if (identifier.length === 0) return [];
   const extAlternation = extensionAlternation(config.siblingExtensions);
@@ -78,7 +89,7 @@ export async function findPriorArtifactSiblings(
 
   const tokens = new Set<string>();
   tokens.add(identifier);
-  const slug = slugifyArtifactIdentifier(identifier);
+  const slug = slugifyArtifactIdentifier({ value: identifier });
   if (slug.length > 0) tokens.add(slug);
   else tokens.add(EMPTY_SLUG_FALLBACK_NAME);
   const alternation = Array.from(tokens, escapeRegExp).join('|');
@@ -86,7 +97,7 @@ export async function findPriorArtifactSiblings(
 
   let entries: Dirent[];
   try {
-    entries = await readdir(scanDir, { withFileTypes: true });
+    entries = await filesystem.readdir({ path: scanDir });
   } catch {
     return [];
   }
@@ -94,7 +105,7 @@ export async function findPriorArtifactSiblings(
   for (const entry of entries) {
     if (!entry.isFile()) continue;
     if (!pattern.test(entry.name)) continue;
-    const sidecarIdentifier = await readSidecarIdentifier(scanDir, entry.name);
+    const sidecarIdentifier = await readSidecarIdentifier(scanDir, entry.name, filesystem);
     // `legacyCandidateIdentifiers` always returns at least one non-empty
     // candidate here: `entry.name` already matched `pattern` above, which
     // requires its basename to start with one of `tokens` (all non-empty),
@@ -103,9 +114,9 @@ export async function findPriorArtifactSiblings(
     const candidateIdentifiers = sidecarIdentifier !== null
       ? [sidecarIdentifier]
       : legacyCandidateIdentifiers(entry.name, extensionPattern, suffixPattern);
-    if (!candidateIdentifiers.some((c) => artifactIdentifiersMatch(identifier, c))) continue;
+    if (!candidateIdentifiers.some((c) => artifactIdentifiersMatch({ a: identifier, b: c }))) continue;
     try {
-      const st = await stat(path.join(scanDir, entry.name));
+      const st = await filesystem.stat({ path: path.join(scanDir, entry.name) });
       results.push({ name: entry.name, size: st.size });
     } catch {
       // Ignore unreadable entries — they don't influence the guard decision.
@@ -116,9 +127,10 @@ export async function findPriorArtifactSiblings(
 
 export async function evaluateArtifactStubGuard(
   input: EvaluateArtifactStubGuardInput,
+  optional: { filesystem?: ArtifactStubFilesystemPort } = {},
 ): Promise<EvaluateArtifactStubGuardResult> {
   if (input.config.mode === 'off') return { outcome: 'pass' };
   if (input.identifier.length === 0) return { outcome: 'pass' };
-  const priors = await findPriorArtifactSiblings(input.scanDir, input.identifier, input.config);
-  return classifyArtifactStubGuard(priors, input.identifier, input.newSize, input.config);
+  const priors = await findPriorArtifactSiblings({ scanDir: input.scanDir, identifier: input.identifier, config: input.config }, optional);
+  return classifyArtifactStubGuard({ priors, identifier: input.identifier, newSize: input.newSize, config: input.config });
 }

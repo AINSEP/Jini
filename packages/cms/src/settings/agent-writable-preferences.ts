@@ -2,25 +2,14 @@
  * @file The curated list of setting keys an agent may write — the precondition
  * `agent-tools.ts`'s header names.
  *
- * ## Why this file has to exist before any settings write can be wired
+ * ## The curated surface and the generic value tools
  *
- * The generic setter (`settings_set`) is excluded from agent callability because there is no fixed,
- * curated list of named settings to wire tools against for a generic admin surface — an operator
- * can type any namespace string and edit any value through a raw editor. `ui-tab-definitions.ts`
- * changes that for one specific slice: it registers a fixed, statically-declared set of keys — each
- * with a schema, a default, and a scope mask — because the settings-dialog tabs need named keys to
- * bind to. This module is the subset of THAT list which is safe for an agent to write.
- *
- * The exclusion's sharpest objection was that schema validation "constrains the VALUE shape, not
- * WHICH key is targeted". That is exactly right about the generic setter, and exactly what
- * {@link AGENT_WRITABLE_PREFERENCE_IDS} fixes: it is published as a JSON Schema `enum`, so the
- * targeted key is constrained by the same mechanism that constrains everything else in the tool
- * surface. The two halves together are complete — this file bounds WHICH key, and the ledger's
- * own registered definition schema bounds the VALUE (`write-service.ts`'s `set()` validates
- * against it and rejects a mismatch before any write lands).
- *
- * So the generic setter stays excluded, permanently and for its original reason. This is the
- * curated alternative that exclusion explicitly pointed at, not a relaxation of it.
+ * This enum still bounds WHICH display preference settings_set_ui_preference may change.
+ * Value schemas alone do not bound target keys: the original concern remains valid.
+ * The owner reversed the generic setter's permanent exclusion on 2026-10-01. See agent-tools.ts
+ * and agent-write-denylist.ts: generic value tools require a human card for privacy consent and
+ * standing instructions, while ordinary settings run directly. The curated display tool stays
+ * caller-only and has no confirmation bypass for protected keys.
  *
  * ## What is deliberately NOT here
  *
@@ -34,8 +23,7 @@
  *   allowlist cannot express.
  * - **`core.instructions.custom`** — the custom instructions prepended to every admin-assistant
  *   conversation. An agent writing this edits its own standing prompt for all future runs. That
- *   may well be worth allowing later, but it is a self-modification question and not a display
- *   preference, so it does not ride in on the same decision.
+ *   is self-modification, not a display preference: the generic tool now requires a human card.
  *
  * Every key that IS here is a per-operator display preference: reversible in one call, scoped to
  * the caller's own user layer, and visible in the admin UI the moment it changes — which is what

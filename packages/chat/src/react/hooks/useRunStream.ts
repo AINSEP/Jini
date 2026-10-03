@@ -78,7 +78,7 @@ const INITIAL_STATE: RunStreamState = {
   toolInputDeltas: {},
 };
 
-export function useRunStream(transport: ChatTransport): UseRunStreamResult {
+export function useRunStream({ transport }: { transport: ChatTransport }): UseRunStreamResult {
   const [state, setState] = useState<RunStreamState>(INITIAL_STATE);
   const subscriptionAbortRef = useRef<AbortController | null>(null);
   const cancelAbortRef = useRef<AbortController | null>(null);

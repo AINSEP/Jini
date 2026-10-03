@@ -73,6 +73,8 @@ type ValidationResult =
 export interface ValidateManifestOptions {
   /** Keep an existing `updatedAt` instead of stamping the current time (used when re-parsing a persisted manifest). */
   preserveUpdatedAt?: boolean;
+  /** Injectable clock used for manifest timestamps. */
+  now?: () => string;
 }
 
 function isPlainObject(value: unknown): value is JsonRecord {
@@ -120,9 +122,7 @@ function validateSupportingPath(value: unknown): string | null {
  * (see `store.ts`'s `resolveArtifactManifest`).
  */
 export function validateArtifactManifestInput(
-  manifest: unknown,
-  entry: unknown,
-  taxonomy: ArtifactManifestTaxonomy,
+  { manifest, entry, taxonomy }: { manifest: unknown; entry: unknown; taxonomy: ArtifactManifestTaxonomy },
   options: ValidateManifestOptions = {},
 ): ValidationResult {
   if (manifest == null) return { ok: true, value: null };
@@ -216,7 +216,7 @@ export function validateArtifactManifestInput(
     // top-level argument itself is a function/symbol/undefined, which
     // isPlainObject above already rejected.
     const serialized: string = JSON.stringify(manifest.metadata);
-    if (Buffer.byteLength(serialized, 'utf8') > MAX_METADATA_BYTES) {
+    if (new TextEncoder().encode(serialized).byteLength > MAX_METADATA_BYTES) {
       return {
         ok: false,
         error: `artifactManifest.metadata exceeds max size (${MAX_METADATA_BYTES} bytes)`,
@@ -232,16 +232,15 @@ export function validateArtifactManifestInput(
   }
   const safeEntry = (manifestEntry as string).replace(/\\/g, '/');
 
-  return { ok: true, value: sanitizeManifest(manifest, safeEntry, options) };
+  return { ok: true, value: sanitizeManifest({ manifest, entry: safeEntry }, options) };
 }
 
 /** Normalizes a validated manifest payload into the stamped, canonical {@link ArtifactManifest} shape. */
 export function sanitizeManifest(
-  manifest: JsonRecord,
-  entry: string,
+  { manifest, entry }: { manifest: JsonRecord; entry: string },
   options: ValidateManifestOptions = {},
 ): ArtifactManifest {
-  const now = new Date().toISOString();
+  const now = (options.now ?? (() => new Date().toISOString()))();
   const supportingFiles = Array.isArray(manifest.supportingFiles)
     ? manifest.supportingFiles.map((x) => String(x).replace(/\\/g, '/'))
     : undefined;
@@ -281,15 +280,13 @@ export function sanitizeManifest(
  * or stale sidecar should degrade to "no manifest", not crash the reader.
  */
 export function parsePersistedManifest(
-  raw: string,
-  fallbackEntry: string,
-  taxonomy: ArtifactManifestTaxonomy,
+  { raw, fallbackEntry, taxonomy }: { raw: string; fallbackEntry: string; taxonomy: ArtifactManifestTaxonomy },
 ): ArtifactManifest | null {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!isPlainObject(parsed) || parsed.version !== MANIFEST_VERSION) return null;
     const entry = typeof parsed.entry === 'string' && parsed.entry ? parsed.entry : fallbackEntry;
-    const result = validateArtifactManifestInput(parsed, entry, taxonomy, { preserveUpdatedAt: true });
+    const result = validateArtifactManifestInput({ manifest: parsed, entry, taxonomy }, { preserveUpdatedAt: true });
     return result.ok ? result.value : null;
   } catch {
     return null;
@@ -304,7 +301,7 @@ export function parsePersistedManifest(
  * classification (per the task brief: "keep OD's file-kind classification
  * as adapter").
  */
-export type ManifestInferrer = (entry: string) => Partial<ArtifactManifest> | null;
+export type ManifestInferrer = (required: { entry: string }) => Partial<ArtifactManifest> | null;
 
 /** Infers nothing — every create call must supply an explicit manifest. */
-export const noopManifestInferrer: ManifestInferrer = () => null;
+export const noopManifestInferrer: ManifestInferrer = (_required) => null;

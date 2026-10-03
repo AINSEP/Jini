@@ -5,13 +5,13 @@
  * the flattened text a host sends to an agent as prior-turn context.
  *
  * Adapted from OD's `providers/daemon.ts` transcript section (see
- * source-map.md). The OD original also owned SSE/fetch transport
+ * archived provenance ledger). The OD original also owned SSE/fetch transport
  * (`streamViaDaemon`, `DaemonStreamHandlers`) — none of that is ported here;
  * only the pure string-assembly helpers. It also hard-coded OD's BYOK/
  * OpenCode agent-family policy and an `agent-browser`-tool-specific
  * context-warning heuristic; both are OD product policy, not generic
  * transcript assembly, so they are generalized into caller-supplied hooks
- * (or dropped) below — see source-map.md for the full accounting.
+ * (or dropped) below — see archived provenance ledger for the full accounting.
  */
 import type { ChatMessage } from './messages.js';
 import type { PersistedArtifactFileRef } from './util/strip.js';
@@ -22,7 +22,7 @@ const DEFAULT_LARGE_TOOL_RESULT_CHARS = 8_000;
 const DEFAULT_HIGH_INPUT_TOKEN_WARNING_THRESHOLD = 200_000;
 
 /** The most recent `user`-authored message's content, or `''` if there isn't one. */
-export function latestUserPromptFromHistory(history: ChatMessage[]): string {
+export function latestUserPromptFromHistory({ history }: { history: ChatMessage[] }): string {
   for (let i = history.length - 1; i >= 0; i -= 1) {
     const message = history[i];
     if (message?.role === 'user') return message.content;
@@ -105,7 +105,7 @@ function scopeHistoryToAgent(history: ChatMessage[], targetAgentId: string | und
  * @complexity O(n) in `content.length` (a small fixed number of regex
  *   passes) plus {@link summarizeArtifactsForTranscript}'s cost.
  */
-export function sanitizePriorAssistantTurn(content: string, persistedArtifactFiles: ReadonlyArray<PersistedArtifactFileRef> = []): string {
+export function sanitizePriorAssistantTurn({ content }: { content: string }, { persistedArtifactFiles = [] }: { persistedArtifactFiles?: (ReadonlyArray<PersistedArtifactFileRef>) | undefined } = {}): string {
   let sanitized = content.replace(
     // `\1` backreference keeps the open/close tag names matched so this never
     // splices across a `<question-form>…</ask-question>` mismatch.
@@ -124,7 +124,7 @@ export function sanitizePriorAssistantTurn(content: string, persistedArtifactFil
   // Replace prior-turn `<artifact>` HTML with a one-line summary for
   // artifacts CONFIRMED persisted (see summarizeArtifactsForTranscript's own
   // doc for why an unconfirmed save is left verbatim).
-  sanitized = summarizeArtifactsForTranscript(sanitized, persistedArtifactFiles);
+  sanitized = summarizeArtifactsForTranscript({ content: sanitized, persistedFiles: persistedArtifactFiles });
   return sanitized;
 }
 
@@ -169,7 +169,7 @@ export interface BuildTranscriptOptions {
  *   scope, one to sanitize/truncate/join each message, one to scan events
  *   for the warning.
  */
-export function buildTranscript(history: ChatMessage[], options: BuildTranscriptOptions = {}): string {
+export function buildTranscript({ history }: { history: ChatMessage[] }, options: BuildTranscriptOptions = {}): string {
   const maxMessageChars = options.maxMessageChars ?? DEFAULT_MAX_TRANSCRIPT_MESSAGE_CHARS;
   const largeToolResultChars = options.largeToolResultChars ?? DEFAULT_LARGE_TOOL_RESULT_CHARS;
   const highInputTokenWarningThreshold = options.highInputTokenWarningThreshold ?? DEFAULT_HIGH_INPUT_TOKEN_WARNING_THRESHOLD;
@@ -180,7 +180,7 @@ export function buildTranscript(history: ChatMessage[], options: BuildTranscript
   const transcript = scopedHistory
     .map((m) => {
       const trimmed = m.content.trim();
-      const sanitized = m.role === 'assistant' ? sanitizePriorAssistantTurn(trimmed, resolvePersistedArtifactFiles(m)) : trimmed;
+      const sanitized = m.role === 'assistant' ? sanitizePriorAssistantTurn({ content: trimmed }, { persistedArtifactFiles: resolvePersistedArtifactFiles(m) }) : trimmed;
       return `## ${m.role}\n${escapeTranscriptRoleDelimiters(truncateForTranscript(sanitized, maxMessageChars))}`;
     })
     .join('\n\n');

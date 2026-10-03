@@ -33,14 +33,14 @@ function executionContext(input: Record<string, unknown>): ToolExecutionContext 
 function fakeDeps(
   overrides: Partial<MediaToolDeps> = {}
 ): { deps: MediaToolDeps; mediaRepo: InMemoryMediaRepo; assetBlobRepo: InMemoryAssetBlobRepo; assetRenditionRepo: InMemoryAssetRenditionRepo } {
-  const mediaRepo = new InMemoryMediaRepo();
-  const assetBlobRepo = new InMemoryAssetBlobRepo();
-  const assetRenditionRepo = new InMemoryAssetRenditionRepo();
+  const mediaRepo = new InMemoryMediaRepo({});
+  const assetBlobRepo = new InMemoryAssetBlobRepo({});
+  const assetRenditionRepo = new InMemoryAssetRenditionRepo({});
   let counter = 0;
   const deps: MediaToolDeps = {
     authorize: async () => ({ allowed: true, reason: "matched" }),
     workspaceId: WORKSPACE_ID,
-    clock: { nowIso: () => NOW },
+    clock: { nowMs: () => Date.parse(NOW)},
     idGen: { newId: () => `id-${++counter}` },
     mediaRepo,
     assetBlobRepo,
@@ -64,7 +64,7 @@ test("media_upload_asset calls recordUploadContentType with the uploaded bytes a
       recorded.push(params);
     },
   });
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
   assert.ok(upload, "media_upload_asset must be wired");
 
@@ -79,7 +79,7 @@ test("media_upload_asset calls recordUploadContentType with the uploaded bytes a
 
 test("media_upload_asset without the hook configured behaves exactly as before — no throw, upload still succeeds", async () => {
   const { deps } = fakeDeps(); // no recordUploadContentType at all
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
   assert.ok(upload);
 
@@ -96,7 +96,7 @@ test("a hook that throws propagates — an upload must not be silently reported 
       throw new Error("content-type store unavailable");
     },
   });
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
   assert.ok(upload);
 
@@ -117,7 +117,7 @@ const ELEVEN_MIB = 11 * 1024 * 1024;
 
 test("media_upload_asset accepts a file over the 10 MiB default when the host supplies a higher maxUploadBytes cap", async () => {
   const { deps } = fakeDeps({ maxUploadBytes: 20 * 1024 * 1024 });
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
   assert.ok(upload, "media_upload_asset must be wired");
 
@@ -131,7 +131,7 @@ test("media_upload_asset accepts a file over the 10 MiB default when the host su
 
 test("media_upload_asset still rejects a file over 10 MiB when the host supplies no maxUploadBytes cap (today's default, unchanged)", async () => {
   const { deps } = fakeDeps(); // no maxUploadBytes override
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
   assert.ok(upload);
 
@@ -150,7 +150,7 @@ test("a hook that throws AFTER uploadMedia() commits does not leave the media/re
       throw new Error("content-type store unavailable");
     },
   });
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
   assert.ok(upload);
 
@@ -187,7 +187,7 @@ test("a hook that throws AFTER uploadMedia() commits does not leave the media/re
  * `html-attributes.ts` gives the render path).
  */
 async function seedAsset(deps: MediaToolDeps): Promise<string> {
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
   assert.ok(upload, "media_upload_asset must be wired");
   const result = (await upload.handler(
@@ -199,7 +199,7 @@ async function seedAsset(deps: MediaToolDeps): Promise<string> {
 test("media_update_metadata writes htmlAttributes through the allowlist and returns it on the view", async () => {
   const { deps, mediaRepo } = fakeDeps();
   const mediaId = await seedAsset(deps);
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
   assert.ok(update, "media_update_metadata must be wired");
 
@@ -215,7 +215,7 @@ test("media_update_metadata writes htmlAttributes through the allowlist and retu
 test("media_update_metadata rejects an on* handler and writes nothing", async () => {
   const { deps, mediaRepo } = fakeDeps();
   const mediaId = await seedAsset(deps);
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
   assert.ok(update);
   const before = await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: mediaId });
@@ -234,7 +234,7 @@ test("media_update_metadata rejects an on* handler and writes nothing", async ()
 test("media_update_metadata sets and clears cssClass", async () => {
   const { deps, mediaRepo } = fakeDeps();
   const mediaId = await seedAsset(deps);
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
   assert.ok(update);
 
@@ -250,7 +250,7 @@ test("media_update_metadata sets and clears cssClass", async () => {
 
 test("media_update_metadata publishes cssClass and htmlAttributes in its schema, naming every allowlisted attribute", async () => {
   const { deps } = fakeDeps();
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
   assert.ok(update);
 
@@ -270,7 +270,7 @@ test("media_update_metadata publishes cssClass and htmlAttributes in its schema,
 test("media tool views include the asset slug", async () => {
   const { deps } = fakeDeps();
   const mediaId = await seedAsset(deps);
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const list = registrations.find((r) => r.descriptor.id === "media_list_assets");
   assert.ok(list);
 
@@ -283,22 +283,22 @@ test("media tool views include the asset slug", async () => {
 test("media_update_metadata changes the slug", async () => {
   const { deps, mediaRepo } = fakeDeps();
   const mediaId = await seedAsset(deps);
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
   assert.ok(update);
 
-  const result = (await update.handler(executionContext({ mediaId, slug: "tovu-commercial-edit" }))) as { media: { slug: string } };
-  assert.equal(result.media.slug, "tovu-commercial-edit");
+  const result = (await update.handler(executionContext({ mediaId, slug: "sample-commercial-edit" }))) as { media: { slug: string } };
+  assert.equal(result.media.slug, "sample-commercial-edit");
 
   const row = await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: mediaId });
-  assert.equal(row?.slug, "tovu-commercial-edit");
+  assert.equal(row?.slug, "sample-commercial-edit");
 });
 
 test("media_update_metadata refuses a slug another asset already uses and writes nothing", async () => {
   const { deps, mediaRepo } = fakeDeps();
   const firstId = await seedAsset(deps);
   const secondId = await seedAsset(deps);
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
   assert.ok(update);
 

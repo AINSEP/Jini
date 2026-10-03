@@ -155,7 +155,7 @@ describe('useChatPane', () => {
     const file = new File(['hello'], 'notes.txt', { type: 'text/plain' });
     await act(() => result.current.addAttachments([file]));
 
-    expect(getAttachmentPreviewSource('attachment:0')).toBe(file);
+    expect(getAttachmentPreviewSource({ path: 'attachment:0' })).toBe(file);
   });
 
   it('blocks send while a directory is pending/invalid and supports attachment-only send', async () => {
@@ -385,7 +385,7 @@ describe('useChatPane', () => {
     expect(result.current.queuedPrompt).toBeNull();
   });
 
-  // Tovu stuck-chat investigation, 2026-09-27: a queued prompt that flushes in the SAME commit its
+  // host stuck-chat investigation, 2026-09-27: a queued prompt that flushes in the SAME commit its
   // run finished in replaced the transcript with the pre-terminal render's snapshot, so the finished
   // assistant turn kept `runStatus: 'running'` forever. Hosts persist only terminal turns, so its
   // answer never reached durable storage and the row reloaded as an endless spinner.

@@ -7,8 +7,8 @@ import { afterAll as after, test } from "vitest";
 import Database from "better-sqlite3";
 import { sql } from "kysely";
 
-import { openPgliteKernel } from "../pglite/index.js";
-import { sqliteKernel } from "../sqlite/index.js";
+import { openPgliteKernel } from "../kernel/pglite/index.js";
+import { sqliteKernel } from "../kernel/sqlite/index.js";
 import { PGlite } from "@electric-sql/pglite";
 
 /**

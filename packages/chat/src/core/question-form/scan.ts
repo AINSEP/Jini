@@ -37,7 +37,7 @@ function matchedTagAndAttrs(m: RegExpExecArray): { tagName: string; rawAttrs: st
  * @complexity O(n) amortized in `input.length` — each iteration advances the
  *   cursor past the segment it just emitted.
  */
-export function splitOnQuestionForms(input: string): FormSegment[] {
+export function splitOnQuestionForms({ input }: { input: string }): FormSegment[] {
   const out: FormSegment[] = [];
   let cursor = 0;
   while (cursor < input.length) {
@@ -61,7 +61,7 @@ export function splitOnQuestionForms(input: string): FormSegment[] {
       out.push({ kind: 'text', text: input.slice(cursor, openStart) });
     }
     const body = input.slice(openEnd, closeIdx);
-    const attrs = parseQuotedAttrs(rawAttrs);
+    const attrs = parseQuotedAttrs({ raw: rawAttrs });
     const form = tryParseForm(body, attrs);
     const blockEnd = closeIdx + closeTag.length;
     if (form) {
@@ -76,8 +76,8 @@ export function splitOnQuestionForms(input: string): FormSegment[] {
 }
 
 /** The first complete, parseable `<question-form>` in `input`, or `null`. */
-export function findFirstQuestionForm(input: string): { form: QuestionForm; raw: string } | null {
-  for (const seg of splitOnQuestionForms(input)) {
+export function findFirstQuestionForm({ input }: { input: string }): { form: QuestionForm; raw: string } | null {
+  for (const seg of splitOnQuestionForms({ input: input })) {
     if (seg.kind === 'form') return { form: seg.form, raw: seg.raw };
   }
   return null;
@@ -90,8 +90,8 @@ export function findFirstQuestionForm(input: string): { form: QuestionForm; raw:
  * question-form block. For a still-streaming block use
  * {@link parsePartialQuestionForm} instead.
  */
-export function parseQuestionForm(input: string): QuestionForm | null {
-  return findFirstQuestionForm(input)?.form ?? null;
+export function parseQuestionForm({ input }: { input: string }): QuestionForm | null {
+  return findFirstQuestionForm({ input: input })?.form ?? null;
 }
 
 /**
@@ -100,7 +100,7 @@ export function parseQuestionForm(input: string): QuestionForm | null {
  * JSON finishes. Returns the visible text plus whether such an open block
  * existed (meaning a form is mid-generation).
  */
-export function stripTrailingOpenQuestionForm(input: string): { text: string; hadOpenForm: boolean } {
+export function stripTrailingOpenQuestionForm({ input }: { input: string }): { text: string; hadOpenForm: boolean } {
   let cursor = 0;
   while (cursor < input.length) {
     const slice = input.slice(cursor);
@@ -120,8 +120,8 @@ export function stripTrailingOpenQuestionForm(input: string): { text: string; ha
 }
 
 /** `true` when a question-form open tag is present but its close tag hasn't streamed in yet. */
-export function hasUnterminatedQuestionForm(input: string): boolean {
-  return stripTrailingOpenQuestionForm(input).hadOpenForm;
+export function hasUnterminatedQuestionForm({ input }: { input: string }): boolean {
+  return stripTrailingOpenQuestionForm({ input: input }).hadOpenForm;
 }
 
 function findCloseTag(input: string, from: number, closeTag: string): number {
@@ -157,7 +157,7 @@ function tryParseForm(body: string, attrs: Record<string, string>): QuestionForm
   if (!rawQuestions) return null;
   const questions: FormQuestion[] = [];
   rawQuestions.forEach((q, i) => {
-    const mapped = mapRawQuestion(q, i);
+    const mapped = mapRawQuestion({ q: q, index: i });
     if (mapped) questions.push(mapped);
   });
   if (questions.length === 0) return null;
@@ -186,13 +186,13 @@ function tryParseForm(body: string, attrs: Record<string, string>): QuestionForm
  * @complexity O(n) in `input.length` (one regex scan plus a linear
  *   string-aware brace walk via {@link parsePartialJson}).
  */
-export function parsePartialQuestionForm(input: string): QuestionForm | null {
+export function parsePartialQuestionForm({ input }: { input: string }): QuestionForm | null {
   const m = OPEN_RE.exec(input);
   if (!m) return null;
   const { tagName, rawAttrs } = matchedTagAndAttrs(m);
   const closeTag = `</${tagName}>`;
   const openEnd = m.index + m[0].length;
-  const attrs = parseQuotedAttrs(rawAttrs);
+  const attrs = parseQuotedAttrs({ raw: rawAttrs });
   const closeIdx = findCloseTag(input, openEnd, closeTag);
   const rawBody = closeIdx === -1 ? input.slice(openEnd) : input.slice(openEnd, closeIdx);
   // Strip the fenced ```json wrapper some models emit. The opening fence is
@@ -204,7 +204,7 @@ export function parsePartialQuestionForm(input: string): QuestionForm | null {
   // Derive form-level metadata from the *parsed top-level object*, not a
   // whole-body regex scan: a nested question/option `id`/`title`/`description`
   // must not masquerade as the form's own.
-  const parsed = parsePartialJson(body);
+  const parsed = parsePartialJson({ buf: body });
   const top = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
   const topTitle = typeof top.title === 'string' && top.title.trim().length > 0 ? top.title : undefined;
   // `id` keys a still-editable panel, so it must be stable for the whole
@@ -328,7 +328,7 @@ function shapeStreamingQuestions(rawQuestions: unknown, closedCount: number): Fo
     const isClosed = index < closedCount;
     const hasId = typeof q.id === 'string' && q.id.trim().length > 0;
     if (!isClosed && !hasId) return;
-    const mapped = mapRawQuestion(raw, index);
+    const mapped = mapRawQuestion({ q: raw, index: index });
     if (mapped) out.push(mapped);
   });
   return out;

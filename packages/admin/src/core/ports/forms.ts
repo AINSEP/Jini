@@ -122,18 +122,18 @@ export interface AdminFormUpdatePatch {
 }
 
 export interface AdminFormsPort {
-  listFormDefinitions(): Promise<readonly AdminFormDefinition[]>;
-  getFormDefinition(id: string): Promise<AdminFormDefinition>;
-  createFormDefinition(input: AdminFormCreateInput): Promise<AdminFormDefinition>;
+  listFormDefinitions(requiredArgs: Record<string, never>): Promise<readonly AdminFormDefinition[]>;
+  getFormDefinition(requiredArgs: { id: string }): Promise<AdminFormDefinition>;
+  createFormDefinition(requiredArgs: Omit<AdminFormCreateInput, "notify">, optionalArgs?: Pick<AdminFormCreateInput, "notify">): Promise<AdminFormDefinition>;
   /** See file header: `patch.fields`, when supplied, may add or edit but never omit an existing
    *  field id. */
-  updateFormDefinition(id: string, patch: AdminFormUpdatePatch): Promise<AdminFormDefinition>;
+  updateFormDefinition(requiredArgs: { id: string }, optionalArgs?: AdminFormUpdatePatch): Promise<AdminFormDefinition>;
   listFormSubmissions(
-    formId: string,
-    options?: { limit?: number; cursor?: string },
+    requiredArgs: { formId: string },
+    optionalArgs?: { limit?: number; cursor?: string },
   ): Promise<AdminFormSubmissionPage>;
-  getFormSubmission(formId: string, submissionId: string): Promise<AdminFormSubmission>;
+  getFormSubmission(requiredArgs: { formId: string; submissionId: string }): Promise<AdminFormSubmission>;
   /** Permanent delete — the one hard delete in this port. See file header on why form
    *  DEFINITIONS have no equivalent. */
-  deleteFormSubmission(formId: string, submissionId: string): Promise<void>;
+  deleteFormSubmission(requiredArgs: { formId: string; submissionId: string }): Promise<void>;
 }

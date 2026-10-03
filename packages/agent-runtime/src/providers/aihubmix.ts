@@ -39,7 +39,7 @@ export const AIHUBMIX_DEFAULT_BASE_URL = 'https://aihubmix.com/v1';
  * fixed `APP-Code` attribution header. Callers spread the result into their
  * `fetch` headers and may add `content-type` etc. on top.
  */
-export function aihubmixHeaders(apiKey: string): Record<string, string> {
+export function aihubmixHeaders({ apiKey }: { apiKey: string }): Record<string, string> {
   return {
     authorization: `Bearer ${apiKey}`,
     ...aihubmixAppCodeHeader(),
@@ -68,7 +68,7 @@ export function aihubmixAppCodeHeader(): Record<string, string> {
 // proxy + media renderer.
 export type AIHubMixProtocol = 'openai' | 'anthropic' | 'gemini';
 
-export function classifyAIHubMixModel(model: string): AIHubMixProtocol {
+export function classifyAIHubMixModel({ model }: { model: string }): AIHubMixProtocol {
   const m = (model || '').trim().toLowerCase();
   // Gemini: gemini*/imagen*, excluding the `-nothink`/`-search` suffixes and
   // any embedding model (those stay on the OpenAI-compatible path per §4.1).
@@ -90,7 +90,7 @@ export function classifyAIHubMixModel(model: string): AIHubMixProtocol {
  *   anthropic -> `${origin}` (+ /v1/messages)
  *   gemini    -> `${origin}/gemini` (+ /v1beta/models/{model}:...)
  */
-export function aihubmixOriginFromBase(baseUrl: string): string {
+export function aihubmixOriginFromBase({ baseUrl }: { baseUrl: string }): string {
   try {
     return new URL(baseUrl || AIHUBMIX_DEFAULT_BASE_URL).origin;
   } catch {
@@ -99,9 +99,9 @@ export function aihubmixOriginFromBase(baseUrl: string): string {
 }
 
 /** Gemini-native generateContent endpoint for an AIHubMix image model. */
-export function aihubmixGeminiImageUrl(baseUrl: string, wireModel: string): string {
+export function aihubmixGeminiImageUrl({ baseUrl, wireModel }: { baseUrl: string; wireModel: string }): string {
   return (
-    `${aihubmixOriginFromBase(baseUrl)}/gemini/v1beta/models/`
+    `${aihubmixOriginFromBase({ baseUrl: baseUrl })}/gemini/v1beta/models/`
     + `${encodeURIComponent(wireModel)}:generateContent`
   );
 }
@@ -127,12 +127,10 @@ export interface AIHubMixGeminiImageRequest {
  * dispatcher, abort signal, redirect policy). Throws on a non-OK status or a
  * response without inline image data.
  */
-export async function aihubmixGeminiImageBytes(
-  req: AIHubMixGeminiImageRequest,
-  doFetch: (url: string, init: RequestInit) => Promise<Response>,
+export async function aihubmixGeminiImageBytes({ req, doFetch }: { req: AIHubMixGeminiImageRequest; doFetch: (requiredArgs: { url: string; init: RequestInit }) => Promise<Response> }
 ): Promise<Buffer> {
-  const url = aihubmixGeminiImageUrl(req.baseUrl, req.wireModel);
-  const resp = await doFetch(url, {
+  const url = aihubmixGeminiImageUrl({ baseUrl: req.baseUrl, wireModel: req.wireModel });
+  const resp = await doFetch({ url: url, init: {
     method: 'POST',
     redirect: 'error',
     headers: {
@@ -147,7 +145,7 @@ export async function aihubmixGeminiImageBytes(
         imageConfig: { aspectRatio: req.aspect },
       },
     }),
-  });
+  } });
   if (!resp.ok) {
     const text = await resp.text().catch(() => '');
     throw new Error(`aihubmix image (gemini) ${resp.status}: ${text.slice(0, 240)}`);
@@ -179,7 +177,7 @@ const AIHUBMIX_WIRE_MODELS: Record<string, string> = {
   'aihubmix-tts-1': 'tts-1',
 };
 
-export function aihubmixWireModel(catalogId: string): string {
+export function aihubmixWireModel({ catalogId }: { catalogId: string }): string {
   return AIHUBMIX_WIRE_MODELS[catalogId] ?? catalogId.replace(/^aihubmix-/, '');
 }
 
@@ -193,7 +191,7 @@ export function aihubmixWireModel(catalogId: string): string {
 //   wan:  5, 10     (default 5)
 //   seedance/doubao + unknown: accepts a range — clamp to 3-12.
 // `wireModel` is the upstream name (prefix already stripped).
-export function aihubmixVideoSeconds(wireModel: string, requested: number): string {
+export function aihubmixVideoSeconds({ wireModel, requested }: { wireModel: string; requested: number }): string {
   const m = (wireModel || '').toLowerCase();
   const req = Number.isFinite(requested) ? requested : 5;
   let allowed: number[] | null = null;
@@ -222,7 +220,7 @@ export function aihubmixVideoSeconds(wireModel: string, requested: number): stri
 // appended.
 export type AIHubMixCatalogType = 'llm' | 'image_generation' | 'tts' | 'video';
 
-export function aihubmixCatalogUrl(baseUrl: string, type: AIHubMixCatalogType): string {
+export function aihubmixCatalogUrl({ baseUrl, type }: { baseUrl: string; type: AIHubMixCatalogType }): string {
   let origin: string;
   try {
     origin = new URL(baseUrl || AIHUBMIX_DEFAULT_BASE_URL).origin;
@@ -265,9 +263,7 @@ export interface ParseAIHubMixCatalogOptions {
 
 /** Parses the AIHubMix catalogue envelope into { id, label } options. Reads
  *  `model_id` (the wire name sent as `model`) and `model_name` (display). */
-export function parseAIHubMixCatalog(
-  data: unknown,
-  options?: ParseAIHubMixCatalogOptions,
+export function parseAIHubMixCatalog({ data }: { data: unknown }, options: ParseAIHubMixCatalogOptions = {}
 ): AIHubMixCatalogModel[] {
   const rows = (data as { data?: unknown })?.data;
   if (!Array.isArray(rows)) return [];

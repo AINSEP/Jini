@@ -57,24 +57,20 @@ describe('DatabaseRegistryBackend', () => {
     const backend = new DatabaseRegistryBackend({ id: 'fixture', db });
     expect(backend.kind).toBe('db');
     expect(backend.trust).toBe('restricted');
-    await expect(backend.list()).resolves.toEqual([]);
+    await expect(backend.list({})).resolves.toEqual([]);
   });
 
   it('keeps behavior equivalent to a static backend seeded with the same entries', async () => {
-    const staticBackend = new StaticRegistryBackend({
-      id: 'fixture',
-      trust: 'trusted',
-      manifest: { specVersion: '1.0.0', name: 'fixture', version: '1.0.0', entries: [entry] },
-    });
-    ensureRegistryTables(db);
-    for (const e of await staticBackend.list()) {
-      upsertRegistryEntry(db, 'fixture', e, 123);
+    const staticBackend = new StaticRegistryBackend({ id: 'fixture', trust: 'trusted', manifest: { specVersion: '1.0.0', name: 'fixture', version: '1.0.0', entries: [entry] } });
+    ensureRegistryTables({ db });
+    for (const e of await staticBackend.list({})) {
+      upsertRegistryEntry({ db, backendId: 'fixture', entry: e }, { now: 123 });
     }
-    const databaseBackend = new DatabaseRegistryBackend({ id: 'fixture', trust: 'trusted', db });
+    const databaseBackend = new DatabaseRegistryBackend({ id: 'fixture', db }, { trust: 'trusted' });
 
-    await expect(databaseBackend.list()).resolves.toEqual(await staticBackend.list());
+    await expect(databaseBackend.list({})).resolves.toEqual(await staticBackend.list({}));
     await expect(databaseBackend.search({ query: 'Searchable' })).resolves.toMatchObject([{ entry: { name: 'vendor/example' } }]);
-    await expect(databaseBackend.resolve('vendor/example')).resolves.toMatchObject({ source: entry.source });
+    await expect(databaseBackend.resolve({ name: 'vendor/example' })).resolves.toMatchObject({ source: entry.source });
   });
 
   it('accepts an optional trustRoot constructor option and wires it into resolve()’s signature verification', async () => {
@@ -86,19 +82,19 @@ describe('DatabaseRegistryBackend', () => {
           issuer: 'https://token.actions.githubusercontent.com',
           certificate: SELF_SIGNED_CA_CERT_PEM,
           signedAt: '2026-08-01T00:00:00Z',
-          signature: sign('sha256', Buffer.from(canonicalRegistrySigningPayload(entry), 'utf8'), SELF_SIGNED_CA_KEY_PEM).toString('base64'),
+          signature: sign('sha256', Buffer.from(canonicalRegistrySigningPayload({ entry }), 'utf8'), SELF_SIGNED_CA_KEY_PEM).toString('base64'),
         },
       ],
     };
-    ensureRegistryTables(db);
-    upsertRegistryEntry(db, 'fixture', signedEntry, 123);
+    ensureRegistryTables({ db });
+    upsertRegistryEntry({ db, backendId: 'fixture', entry: signedEntry }, { now: 123 });
 
     const withoutTrustRoot = new DatabaseRegistryBackend({ id: 'fixture', db });
-    await expect(withoutTrustRoot.resolve('vendor/example')).resolves.toMatchObject({ verified: false });
+    await expect(withoutTrustRoot.resolve({ name: 'vendor/example' })).resolves.toMatchObject({ verified: false });
 
     const trustRoot: RegistryTrustRoot = { githubOidc: { caCertificates: [SELF_SIGNED_CA_CERT_PEM] } };
-    const withTrustRoot = new DatabaseRegistryBackend({ id: 'fixture', db, trustRoot });
-    await expect(withTrustRoot.resolve('vendor/example')).resolves.toMatchObject({
+    const withTrustRoot = new DatabaseRegistryBackend({ id: 'fixture', db }, { trustRoot });
+    await expect(withTrustRoot.resolve({ name: 'vendor/example' })).resolves.toMatchObject({
       verified: true,
       verifiedIssuer: 'https://token.actions.githubusercontent.com',
     });
@@ -112,49 +108,49 @@ describe('DatabaseRegistryBackend', () => {
       dryRun: false,
       changedFiles: ['db://fixture/entries/vendor/example', 'db://fixture/entries/vendor/example/versions/1.1.0'],
     });
-    await expect(backend.list()).resolves.toHaveLength(1);
+    await expect(backend.list({})).resolves.toHaveLength(1);
   });
 
   it('publish called twice for the same name upserts (does not duplicate rows)', async () => {
     const backend = new DatabaseRegistryBackend({ id: 'fixture', db });
     await backend.publish?.({ entry });
     await backend.publish?.({ entry: { ...entry, version: '1.2.0', source: 's-1.2.0' } });
-    const list = await backend.list();
+    const list = await backend.list({});
     expect(list).toHaveLength(1);
     expect(list[0]?.version).toBe('1.2.0');
   });
 
   it('publish with dryRun: true does not write to the database and reports dryRun: true (CR-009)', async () => {
     const backend = new DatabaseRegistryBackend({ id: 'fixture', db });
-    const outcome = await backend.publish?.({ entry, dryRun: true });
+    const outcome = await backend.publish?.({ entry }, { dryRun: true });
     expect(outcome).toMatchObject({
       ok: true,
       dryRun: true,
       changedFiles: ['db://fixture/entries/vendor/example', 'db://fixture/entries/vendor/example/versions/1.1.0'],
     });
     // No row was actually written.
-    await expect(backend.list()).resolves.toEqual([]);
+    await expect(backend.list({})).resolves.toEqual([]);
   });
 
   it('publish with dryRun: true on top of an already-published entry leaves the stored row untouched', async () => {
     const backend = new DatabaseRegistryBackend({ id: 'fixture', db });
     await backend.publish?.({ entry });
-    await backend.publish?.({ entry: { ...entry, version: '9.9.9', source: 'should-not-be-stored' }, dryRun: true });
-    const list = await backend.list();
+    await backend.publish?.({ entry: { ...entry, version: '9.9.9', source: 'should-not-be-stored' } }, { dryRun: true });
+    const list = await backend.list({});
     expect(list).toHaveLength(1);
     expect(list[0]?.version).toBe('1.1.0');
   });
 
   it('yank returns ok:false with a warning when the entry does not exist', async () => {
     const backend = new DatabaseRegistryBackend({ id: 'fixture', db });
-    const outcome = await backend.yank?.('vendor/missing', '1.0.0', 'security issue');
+    const outcome = await backend.yank?.({ name: 'vendor/missing', version: '1.0.0', reason: 'security issue' });
     expect(outcome).toMatchObject({ ok: false, warnings: ['vendor/missing not found'] });
   });
 
   it('yank returns ok:false with a warning when the entry exists but the requested version does not (CR-009)', async () => {
     const backend = new DatabaseRegistryBackend({ id: 'fixture', db });
     await backend.publish?.({ entry });
-    const outcome = await backend.yank?.('vendor/example', '9.9.9', 'security issue');
+    const outcome = await backend.yank?.({ name: 'vendor/example', version: '9.9.9', reason: 'security issue' });
     expect(outcome).toMatchObject({ ok: false, warnings: ['vendor/example@9.9.9 not found'] });
 
     // And it must not have mutated the stored entry.
@@ -167,7 +163,7 @@ describe('DatabaseRegistryBackend', () => {
   it('yank marks the specific version record yanked and, when it is the top version, the entry itself', async () => {
     const backend = new DatabaseRegistryBackend({ id: 'fixture', db });
     await backend.publish?.({ entry });
-    const outcome = await backend.yank?.('vendor/example', '1.1.0', 'security issue');
+    const outcome = await backend.yank?.({ name: 'vendor/example', version: '1.1.0', reason: 'security issue' });
     expect(outcome).toMatchObject({ ok: true, name: 'vendor/example', version: '1.1.0', reason: 'security issue' });
 
     const row = db.prepare('SELECT entry_json FROM registry_entries WHERE backend_id = ? AND name = ?').get('fixture', 'vendor/example') as { entry_json: string };
@@ -180,7 +176,7 @@ describe('DatabaseRegistryBackend', () => {
   it('yank on a non-top version marks only that version record, leaving the entry itself un-yanked', async () => {
     const backend = new DatabaseRegistryBackend({ id: 'fixture', db });
     await backend.publish?.({ entry });
-    await backend.yank?.('vendor/example', '1.0.0', 'superseded');
+    await backend.yank?.({ name: 'vendor/example', version: '1.0.0', reason: 'superseded' });
 
     const row = db.prepare('SELECT entry_json FROM registry_entries WHERE backend_id = ? AND name = ?').get('fixture', 'vendor/example') as { entry_json: string };
     const stored = JSON.parse(row.entry_json);
@@ -200,7 +196,7 @@ describe('DatabaseRegistryBackend', () => {
       /invalid registry publish request/i,
     );
     // Nothing was written, and the backend is still usable.
-    await expect(backend.list()).resolves.toEqual([]);
+    await expect(backend.list({})).resolves.toEqual([]);
   });
 
   it('publish rejects an entry with a wrongly-typed field instead of writing it (CR-009)', async () => {
@@ -208,14 +204,14 @@ describe('DatabaseRegistryBackend', () => {
     await expect(
       backend.publish?.({ entry: { name: 'vendor/example', version: '1.0.0', source: 's', tags: 'not-an-array' } as never }),
     ).rejects.toThrow(/invalid registry publish request/i);
-    await expect(backend.list()).resolves.toEqual([]);
+    await expect(backend.list({})).resolves.toEqual([]);
   });
 
   it('yank falls back to a synthetic single-version list when the stored entry has no versions array', async () => {
     const backend = new DatabaseRegistryBackend({ id: 'fixture', db });
     const bare = { name: 'vendor/bare', version: '1.0.0', source: 's' };
     await backend.publish?.({ entry: bare });
-    const outcome = await backend.yank?.('vendor/bare', '1.0.0', 'security issue');
+    const outcome = await backend.yank?.({ name: 'vendor/bare', version: '1.0.0', reason: 'security issue' });
     expect(outcome).toMatchObject({ ok: true });
 
     const row = db.prepare('SELECT entry_json FROM registry_entries WHERE backend_id = ? AND name = ?').get('fixture', 'vendor/bare') as { entry_json: string };
@@ -239,24 +235,24 @@ describe('DatabaseRegistryBackend', () => {
       const backend = new DatabaseRegistryBackend({ id: 'fixture', db });
       corruptRow('{not valid json');
 
-      await expect(backend.list()).rejects.toThrow(/corrupt registry_entries row/i);
+      await expect(backend.list({})).rejects.toThrow(/corrupt registry_entries row/i);
       await expect(backend.search({ query: '' })).rejects.toThrow(/corrupt registry_entries row/i);
-      await expect(backend.resolve('vendor/corrupt')).rejects.toThrow(/corrupt registry_entries row/i);
-      await expect(backend.doctor()).rejects.toThrow(/corrupt registry_entries row/i);
+      await expect(backend.resolve({ name: 'vendor/corrupt' })).rejects.toThrow(/corrupt registry_entries row/i);
+      await expect(backend.doctor({})).rejects.toThrow(/corrupt registry_entries row/i);
     });
 
     it('throws a clear error when a stored row is valid JSON but fails RegistryEntrySchema', async () => {
       const backend = new DatabaseRegistryBackend({ id: 'fixture', db });
       corruptRow(JSON.stringify({ not: 'a valid registry entry' }));
 
-      await expect(backend.list()).rejects.toThrow(/corrupt registry_entries row/i);
+      await expect(backend.list({})).rejects.toThrow(/corrupt registry_entries row/i);
     });
 
     it('yank throws a clear error rather than crashing when the stored row is corrupt', async () => {
       const backend = new DatabaseRegistryBackend({ id: 'fixture', db });
       corruptRow('{not valid json');
 
-      await expect(backend.yank?.('vendor/corrupt', '1.0.0', 'reason')).rejects.toThrow(/corrupt registry_entries row/i);
+      await expect(backend.yank?.({ name: 'vendor/corrupt', version: '1.0.0', reason: 'reason' })).rejects.toThrow(/corrupt registry_entries row/i);
     });
   });
 
@@ -322,7 +318,7 @@ describe('DatabaseRegistryBackend', () => {
         return stmt;
       });
 
-      const outcome = await backend.yank?.('vendor/example', '1.1.0', 'security issue');
+      const outcome = await backend.yank?.({ name: 'vendor/example', version: '1.1.0', reason: 'security issue' });
       prepareSpy.mockRestore();
 
       // The yank itself succeeds normally — it holds the lock, so it is

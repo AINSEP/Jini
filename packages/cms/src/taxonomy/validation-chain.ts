@@ -26,49 +26,56 @@
  */
 
 export class TaxonomyNotApplicableError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "TaxonomyNotApplicableError";
   }
 }
 
 export class WorkspaceMismatchError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "WorkspaceMismatchError";
   }
 }
 
 export class ContentTypeMismatchError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "ContentTypeMismatchError";
   }
 }
 
 export class TaxonomyNotHierarchicalError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "TaxonomyNotHierarchicalError";
   }
 }
 
 export class ParentCrossTaxonomyError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "ParentCrossTaxonomyError";
   }
 }
 
 export class TermNotFoundError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "TermNotFoundError";
   }
 }
 
 export class HierarchyCycleDetectedError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "HierarchyCycleDetectedError";
   }
@@ -76,14 +83,14 @@ export class HierarchyCycleDetectedError extends Error {
 
 /** Ancestor-chain lookup a cycle check walks. `null` marks a root (no parent). */
 export interface TermTreeLookup {
-  getParentId(termId: string): string | null;
+  getParentId({ termId }: { termId: string }): string | null;
 }
 
 /**
- * CIC U-002 — true if assigning `candidateParentId` as `termId`'s parent would create a cycle:
+ * — true if assigning `candidateParentId` as `termId`'s parent would create a cycle:
  * either immediate self-parenting, or `termId` appearing anywhere in `candidateParentId`'s own
  * ancestor chain. A full recursive walk, not a fixed-depth or immediate-parent-only comparison
- * (U-002-B1) — the exact shape a naive implementation gets wrong (a 3+-hop cycle is the
+ * — the exact shape a naive implementation gets wrong (a 3+-hop cycle is the
  * regression case this exists to catch).
  *
  * A `visited` guard bounds the walk even against a pre-existing malformed tree (defensive; no
@@ -92,6 +99,7 @@ export interface TermTreeLookup {
  *
  * @complexity O(depth) — one `getParentId` call per ancestor hop, each hop visited at most once.
  * @overallScore 100
+ * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
  */
 export function wouldCreateCycle(
   required: { termId: string; candidateParentId: string; tree: TermTreeLookup },
@@ -106,7 +114,7 @@ export function wouldCreateCycle(
   while (current !== null) {
     if (visited.has(current)) return false; // malformed/self-looping ancestor data upstream of termId; not this call's cycle
     visited.add(current);
-    const parent: string | null = tree.getParentId(current);
+    const parent: string | null = tree.getParentId({ termId: current });
     if (parent === termId) return true;
     current = parent;
   }
@@ -114,13 +122,14 @@ export function wouldCreateCycle(
 }
 
 /**
- * U-001-B1/ORD1/ORD2 — the content-join chain: allow-list, THEN workspace, THEN lens, in that
- * fixed order. A combined-failure case always reports the first-in-order failure (U-001-ORD1:
- * not-on-allow-list always wins over a simultaneous workspace mismatch; U-001-ORD2: a workspace
+ * /ORD1/ORD2 — the content-join chain: allow-list, THEN workspace, THEN lens, in that
+ * fixed order. A combined-failure case always reports the first-in-order failure (:
+ * not-on-allow-list always wins over a simultaneous workspace mismatch; : a workspace
  * mismatch always wins over a simultaneous lens mismatch).
  *
  * @complexity O(1) — three independent comparisons, no loop.
  * @overallScore 100
+ * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
  */
 export function validateContentJoin(
   required: {
@@ -145,37 +154,35 @@ export function validateContentJoin(
   } = required;
 
   if (!isOnAllowList) {
-    throw new TaxonomyNotApplicableError(
-      `taxonomy '${taxonomyId}' is not on the allow-list for content type '${suppliedContentType}'`
+    throw new TaxonomyNotApplicableError({ message: `taxonomy '${taxonomyId}' is not on the allow-list for content type '${suppliedContentType}'` }
     );
   }
 
   if (resolvedTermWorkspaceId !== callerWorkspaceId || resolvedContentWorkspaceId !== callerWorkspaceId) {
-    throw new WorkspaceMismatchError(
-      `term/content workspace does not match the caller's workspace '${callerWorkspaceId}'`
+    throw new WorkspaceMismatchError({ message: `term/content workspace does not match the caller's workspace '${callerWorkspaceId}'` }
     );
   }
 
   if (resolvedContentKind !== suppliedContentType) {
-    throw new ContentTypeMismatchError(
-      `supplied content type '${suppliedContentType}' does not match the resolved row's own kind '${resolvedContentKind}'`
+    throw new ContentTypeMismatchError({ message: `supplied content type '${suppliedContentType}' does not match the resolved row's own kind '${resolvedContentKind}'` }
     );
   }
 }
 
 /**
- * U-001-B2/B3/ORD3 — the hierarchy chain: hierarchical-mode, THEN same-taxonomy (distinguishing
+ * /B3/ORD3 — the hierarchy chain: hierarchical-mode, THEN same-taxonomy (distinguishing
  * not-found from wrong-taxonomy), THEN cycle, in that fixed order. `null` `candidateParentId`
- * (no parent assignment attempted) always short-circuits to a pass regardless of mode (RT-012's
+ * (no parent assignment attempted) always short-circuits to a pass regardless of mode (
  * regression: a no-op parent write must never be rejected).
  *
- * The compound RT-001 regression this chain exists to prevent: a flat taxonomy's candidate parent
+ * The compound regression this chain exists to prevent: a flat taxonomy's candidate parent
  * that ALSO happens to exist in a different taxonomy must report `TAXONOMY_NOT_HIERARCHICAL`,
  * never `PARENT_CROSS_TAXONOMY` — hierarchical-mode is checked first and is decisive on its own.
  *
- * @complexity O(1) plus the injected `wouldCreateCycle` closure's own cost (U-002, only reached
+ * @complexity O(1) plus the injected `wouldCreateCycle` closure's own cost (only reached
  * once hierarchical-mode and same-taxonomy both pass).
  * @overallScore 100
+ * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
  */
 export function validateHierarchyAssignment(
   required: {
@@ -183,7 +190,7 @@ export function validateHierarchyAssignment(
     taxonomyIsHierarchical: boolean;
     candidateParentId: string | null;
     resolvedParent: { id: string; taxonomyId: string } | null | "not-applicable";
-    wouldCreateCycle: (candidateParentId: string) => boolean;
+    wouldCreateCycle: (required: { candidateParentId: string }) => boolean;
     termId: string;
   },
   _optional: Record<string, never> = {}
@@ -194,24 +201,21 @@ export function validateHierarchyAssignment(
   if (candidateParentId === null) return;
 
   if (!taxonomyIsHierarchical) {
-    throw new TaxonomyNotHierarchicalError(
-      `taxonomy '${childTaxonomyId}' is not hierarchical; parentId must be null`
+    throw new TaxonomyNotHierarchicalError({ message: `taxonomy '${childTaxonomyId}' is not hierarchical; parentId must be null` }
     );
   }
 
   if (resolvedParent === null || resolvedParent === "not-applicable") {
-    throw new TermNotFoundError(`parent term '${candidateParentId}' was not found`);
+    throw new TermNotFoundError({ message: `parent term '${candidateParentId}' was not found` });
   }
 
   if (resolvedParent.taxonomyId !== childTaxonomyId) {
-    throw new ParentCrossTaxonomyError(
-      `parent term '${candidateParentId}' belongs to taxonomy '${resolvedParent.taxonomyId}', not '${childTaxonomyId}'`
+    throw new ParentCrossTaxonomyError({ message: `parent term '${candidateParentId}' belongs to taxonomy '${resolvedParent.taxonomyId}', not '${childTaxonomyId}'` }
     );
   }
 
-  if (checkCycle(candidateParentId)) {
-    throw new HierarchyCycleDetectedError(
-      `assigning '${candidateParentId}' as parent would create a hierarchy cycle`
+  if (checkCycle({ candidateParentId })) {
+    throw new HierarchyCycleDetectedError({ message: `assigning '${candidateParentId}' as parent would create a hierarchy cycle` }
     );
   }
 }

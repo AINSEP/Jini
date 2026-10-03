@@ -7,19 +7,19 @@ const BASE = ['exec', '--output-format', 'text'];
 
 describe('droidAgentDef.buildArgs', () => {
   it('builds `exec --output-format text --skip-permissions-unsafe` with no model selected', () => {
-    expect(droidAgentDef.buildArgs('hi', [], [], {})).toEqual([...BASE, '--skip-permissions-unsafe']);
+    expect(droidAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {} })).toEqual([...BASE, '--skip-permissions-unsafe']);
   });
 
   it('defaults options to {} when omitted entirely', () => {
-    expect(droidAgentDef.buildArgs('hi', [], [])).toEqual([...BASE, '--skip-permissions-unsafe']);
+    expect(droidAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] })).toEqual([...BASE, '--skip-permissions-unsafe']);
   });
 
   it('never puts the prompt in argv (it goes over stdin)', () => {
-    expect(droidAgentDef.buildArgs('secret prompt text', [], [], {})).not.toContain('secret prompt text');
+    expect(droidAgentDef.buildArgs({ prompt: 'secret prompt text', imagePaths: [] }, { extraAllowedDirs: [], options: {} })).not.toContain('secret prompt text');
   });
 
   it('adds --model when a non-default model is selected', () => {
-    expect(droidAgentDef.buildArgs('hi', [], [], { model: 'gpt-5-codex' })).toEqual([
+    expect(droidAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'gpt-5-codex' } })).toEqual([
       ...BASE,
       '--skip-permissions-unsafe',
       '--model',
@@ -28,11 +28,11 @@ describe('droidAgentDef.buildArgs', () => {
   });
 
   it('omits --model for the literal "default"', () => {
-    expect(droidAgentDef.buildArgs('hi', [], [], { model: 'default' })).toEqual([...BASE, '--skip-permissions-unsafe']);
+    expect(droidAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'default' } })).toEqual([...BASE, '--skip-permissions-unsafe']);
   });
 
   it('keeps droid exec read-only (no skip flag, no --auto) when permissionMode is "restricted"', () => {
-    const args = droidAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' });
+    const args = droidAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { permissionMode: 'restricted' } });
     expect(args).toEqual(BASE);
     expect(args).not.toContain('--auto');
   });
@@ -49,6 +49,6 @@ describe('droidAgentDef shape', () => {
   });
 
   it('is registered in the built-in catalog', () => {
-    expect(getAgentDef('droid')).toBe(droidAgentDef);
+    expect(getAgentDef({ id: 'droid' })).toBe(droidAgentDef);
   });
 });

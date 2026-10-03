@@ -20,6 +20,16 @@ import {
 import { pinnedFetch } from '../connection-guard.js';
 import { createRoleMarkerGuard } from '../../role-marker-guard.js';
 
+// Replace DNS I/O, keeping the fail-closed guard real and rejecting unknown fixture hosts.
+vi.mock('node:dns', () => ({
+  promises: {
+    lookup: async (hostname: string) => {
+      if (!['ollama.com', 'ollama.example.com'].includes(hostname)) throw new Error(`ENOTFOUND ${hostname}`);
+      return [{ address: '8.8.8.8', family: 4 }];
+    },
+  },
+}));
+
 /**
  * `pinnedFetch` (the transport `runSingleOllamaRequest` actually calls, since the DNS-rebinding
  * fix — see `connection-guard.ts`) is mocked instead of global `fetch`: it dials via
@@ -68,7 +78,7 @@ const baseMessages: OllamaMessageParam[] = [{ role: 'user', content: 'hi' }];
 const apiKey = 'sk-ollama-cloud';
 
 function freshOllamaState(): OllamaStreamState {
-  return { guard: createRoleMarkerGuard('test'), toolCalls: [], fullText: '', finishReason: null };
+  return { guard: createRoleMarkerGuard({ messageId: 'test' }), toolCalls: [], fullText: '', finishReason: null };
 }
 
 describe('runOllamaToolTurn', () => {
@@ -82,7 +92,7 @@ describe('runOllamaToolTurn', () => {
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: () => {} });
     expect(result).toEqual({ finishReason: 'stop', toolTurns: 0 });
-    const [url, init] = fetchMock.mock.calls[0]!;
+    const [{ url, init }] = fetchMock.mock.calls[0]!;
     expect(url).toBe('https://ollama.com/api/chat');
     expect(init.headers.authorization).toBe(`Bearer ${apiKey}`);
   });
@@ -91,15 +101,9 @@ describe('runOllamaToolTurn', () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: OllamaTurnEvent[] = [];
-    await runOllamaToolTurn({
-      apiKey,
-      baseUrl: 'http://localhost:11434',
-      model: 'llama3',
-      messages: baseMessages,
-      onEvent: (e) => events.push(e),
-    });
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) }, { baseUrl: 'http://localhost:11434' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]![0]).toBe('http://localhost:11434/api/chat');
+    expect(fetchMock.mock.calls[0]![0].url).toBe('http://localhost:11434/api/chat');
     expect(events.some((e) => e.type === 'error')).toBe(false);
   });
 
@@ -107,13 +111,7 @@ describe('runOllamaToolTurn', () => {
     const fetchMock = vi.fn();
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: OllamaTurnEvent[] = [];
-    const result = await runOllamaToolTurn({
-      apiKey,
-      model: 'llama3',
-      baseUrl: 'http://192.168.1.5:11434',
-      messages: baseMessages,
-      onEvent: (e) => events.push(e),
-    });
+    const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) }, { baseUrl: 'http://192.168.1.5:11434' });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(events.filter((e) => e.type === 'end')).toEqual([{ type: 'end', reason: 'error' }]);
     expect(result.finishReason).toBeNull();
@@ -122,8 +120,8 @@ describe('runOllamaToolTurn', () => {
   it('strips a trailing /api from a caller-supplied baseUrl before appending /api/chat', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
-    await runOllamaToolTurn({ apiKey, baseUrl: 'https://ollama.example.com/api/', model: 'llama3', messages: baseMessages, onEvent: () => {} });
-    const [url] = fetchMock.mock.calls[0]!;
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: () => {} }, { baseUrl: 'https://ollama.example.com/api/' });
+    const [{ url }] = fetchMock.mock.calls[0]!;
     expect(url).toBe('https://ollama.example.com/api/chat');
   });
 
@@ -132,7 +130,7 @@ describe('runOllamaToolTurn', () => {
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toEqual([
-      { type: 'error', message: 'upstream rejected key [REDACTED]' },
+      { type: 'error', message: 'upstream rejected key [REDACTED:exact_secret]' },
       { type: 'end', reason: 'error' },
     ]);
   });
@@ -191,45 +189,45 @@ describe('runOllamaToolTurn', () => {
   it('sends options.num_predict only when maxTokens is a positive number', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
-    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, maxTokens: 256, onEvent: () => {} });
-    const [, init] = fetchMock.mock.calls[0]!;
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: () => {} }, { maxTokens: 256 });
+    const [{ init }] = fetchMock.mock.calls[0]!;
     const body = JSON.parse(init.body);
     expect(body.options).toEqual({ num_predict: 256 });
 
     fetchMock.mockClear();
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: () => {} });
-    const [, init2] = fetchMock.mock.calls[0]!;
+    const [{ init: init2 }] = fetchMock.mock.calls[0]!;
     expect(JSON.parse(init2.body).options).toBeUndefined();
   });
 
   it('sends options.temperature, alongside num_predict when both are set', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
-    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, temperature: 0, maxTokens: 64, onEvent: () => {} });
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: () => {} }, { temperature: 0, maxTokens: 64 });
     // Temperature 0 must survive: it is the most useful value and the easiest to lose to a
     // truthiness check, and Ollama nests both under a single `options` object.
-    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).options).toEqual({ temperature: 0, num_predict: 64 });
+    expect(JSON.parse(fetchMock.mock.calls[0]![0].init.body).options).toEqual({ temperature: 0, num_predict: 64 });
   });
 
   it('forwards a non-empty tools array verbatim, and omits the field for an empty one', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const tools = [{ type: 'function' as const, function: { name: 'get_weather', description: 'w', parameters: { type: 'object' } } }];
-    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, tools, onEvent: () => {} });
-    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).tools).toEqual(tools);
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: () => {} }, { tools });
+    expect(JSON.parse(fetchMock.mock.calls[0]![0].init.body).tools).toEqual(tools);
 
     // Ollama rejects `tools: []`, so an empty list must be indistinguishable from no list.
     fetchMock.mockClear();
-    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, tools: [], onEvent: () => {} });
-    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).not.toHaveProperty('tools');
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: () => {} }, { tools: [] });
+    expect(JSON.parse(fetchMock.mock.calls[0]![0].init.body)).not.toHaveProperty('tools');
   });
 
   it('passes a caller AbortSignal through to fetch so a cancelled turn actually cancels the request', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const controller = new AbortController();
-    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, signal: controller.signal, onEvent: () => {} });
-    expect(fetchMock.mock.calls[0]![1].signal).toBe(controller.signal);
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: () => {} }, { signal: controller.signal });
+    expect(fetchMock.mock.calls[0]![0].init.signal).toBe(controller.signal);
   });
 
   it('reports a thrown non-Error rejection from fetch by stringifying it', async () => {
@@ -364,12 +362,7 @@ describe('runOllamaToolTurn', () => {
     );
     vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OllamaTurnEvent[] = [];
-    await runOllamaToolTurn({
-      apiKey,
-      model: 'llama3',
-      messages: baseMessages,
-      onEvent: (e) => events.push(e),
-    });
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events.filter((e) => e.type === 'tool_use')).toEqual([
       { type: 'tool_use', id: 'ollama-tool-0', name: 'get_weather', input: { location: 'SF' } },
     ]);
@@ -405,14 +398,8 @@ describe('runOllamaToolTurn', () => {
   it('merges caller-supplied extraHeaders verbatim (no hardcoded product-identity header)', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
-    await runOllamaToolTurn({
-      apiKey,
-      model: 'llama3',
-      messages: baseMessages,
-      onEvent: () => {},
-      extraHeaders: { 'X-Caller-App': 'my-app' },
-    });
-    const [, init] = fetchMock.mock.calls[0]!;
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: () => {} }, { extraHeaders: { 'X-Caller-App': 'my-app' } });
+    const [{ init }] = fetchMock.mock.calls[0]!;
     expect(init.headers['X-Caller-App']).toBe('my-app');
     expect(Object.keys(init.headers)).not.toContain('X-Title');
     expect(Object.keys(init.headers)).not.toContain('HTTP-Referer');
@@ -429,13 +416,7 @@ describe('runOllamaToolTurn', () => {
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: '72F sunny' });
     const events: OllamaTurnEvent[] = [];
-    const result = await runOllamaToolTurn({
-      apiKey,
-      model: 'llama3',
-      messages: baseMessages,
-      executeTool,
-      onEvent: (e) => events.push(e),
-    });
+    const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) }, { executeTool });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(executeTool).toHaveBeenCalledWith({ id: 'call_1', name: 'get_weather', input: { location: 'SF' } });
     expect(result).toEqual({ finishReason: 'stop', toolTurns: 1 });
@@ -445,8 +426,8 @@ describe('runOllamaToolTurn', () => {
 
     // Ollama's native continuation shape: `arguments` is a real object (never stringified), no
     // `id`/`type` on the tool_calls entry, and the tool-result message uses `tool_name` — NOT the
-    // OpenAI-shaped `tool_call_id` (AUD-R4-002 regression test).
-    const secondRequestBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    // OpenAI-shaped `tool_call_id` ( regression test). See docs/decisions/DR-001-provider-native-tool-lifecycle.md.
+    const secondRequestBody = JSON.parse(fetchMock.mock.calls[1]![0].init.body);
     expect(secondRequestBody.messages).toContainEqual({
       role: 'assistant',
       content: "Let's check ",
@@ -471,7 +452,7 @@ describe('runOllamaToolTurn', () => {
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'here is the screenshot', images: ['iVBORw0KGgoAAAANSUhEUg=='] });
     const events: OllamaTurnEvent[] = [];
-    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) }, { executeTool });
 
     expect(events).toContainEqual({
       type: 'tool_result',
@@ -480,7 +461,7 @@ describe('runOllamaToolTurn', () => {
       images: ['iVBORw0KGgoAAAANSUhEUg=='],
       isError: false,
     });
-    const secondRequestBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    const secondRequestBody = JSON.parse(fetchMock.mock.calls[1]![0].init.body);
     expect(secondRequestBody.messages).toContainEqual({
       role: 'tool',
       content: 'here is the screenshot',
@@ -511,9 +492,9 @@ describe('runOllamaToolTurn', () => {
     const executeTool = vi.fn().mockImplementation(async (call: { name: string }) =>
       call.name === 'get_weather' ? { content: '72F sunny' } : { content: 'shot', images: ['aGVsbG8='] },
     );
-    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, executeTool, onEvent: () => {} });
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: () => {} }, { executeTool });
 
-    const secondRequestBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    const secondRequestBody = JSON.parse(fetchMock.mock.calls[1]![0].init.body);
     const toolMessages = secondRequestBody.messages.filter((m: { role: string }) => m.role === 'tool');
     expect(toolMessages).toEqual([
       { role: 'tool', content: '72F sunny', tool_name: 'get_weather' },
@@ -528,12 +509,12 @@ describe('runOllamaToolTurn', () => {
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'shot', images: ['data:image/png;base64,aGVsbG8='] });
     const events: OllamaTurnEvent[] = [];
-    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) }, { executeTool });
 
     const toolResultEvent = events.find((e) => e.type === 'tool_result');
     expect(toolResultEvent).toMatchObject({ isError: true });
     expect(String((toolResultEvent as { content: unknown }).content)).toContain('data:');
-    const secondRequestBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    const secondRequestBody = JSON.parse(fetchMock.mock.calls[1]![0].init.body);
     const toolMessage = secondRequestBody.messages.find((m: { role: string }) => m.role === 'tool');
     expect(toolMessage.images).toBeUndefined();
   });
@@ -545,7 +526,7 @@ describe('runOllamaToolTurn', () => {
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'shot', images: [''] });
     const events: OllamaTurnEvent[] = [];
-    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) }, { executeTool });
 
     const toolResultEvent = events.find((e) => e.type === 'tool_result');
     expect(toolResultEvent).toMatchObject({ isError: true });
@@ -558,7 +539,7 @@ describe('runOllamaToolTurn', () => {
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'boom', isError: true });
     const events: OllamaTurnEvent[] = [];
-    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) }, { executeTool });
     expect(events).toContainEqual({ type: 'tool_result', toolUseId: 'call_1', content: 'boom', isError: true });
   });
 
@@ -577,14 +558,7 @@ describe('runOllamaToolTurn', () => {
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'again' });
     const events: OllamaTurnEvent[] = [];
-    const result = await runOllamaToolTurn({
-      apiKey,
-      model: 'llama3',
-      maxToolTurns: 1,
-      messages: baseMessages,
-      executeTool,
-      onEvent: (e) => events.push(e),
-    });
+    const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) }, { maxToolTurns: 1, executeTool });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(executeTool).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ finishReason: 'tool_calls', toolTurns: 1 });
@@ -621,37 +595,37 @@ describe('runOllamaToolTurn', () => {
 
 describe('unit: parseNdjsonLine', () => {
   it('parses a well-formed JSON line', () => {
-    expect(parseNdjsonLine('{"a":1}')).toEqual({ a: 1 });
+    expect(parseNdjsonLine({ line: '{"a":1}' })).toEqual({ a: 1 });
   });
 
   it('returns undefined for a malformed line', () => {
-    expect(parseNdjsonLine('{not json')).toBeUndefined();
+    expect(parseNdjsonLine({ line: '{not json' })).toBeUndefined();
   });
 
   it('returns undefined for an empty line', () => {
-    expect(parseNdjsonLine('')).toBeUndefined();
+    expect(parseNdjsonLine({ line: '' })).toBeUndefined();
   });
 
   it('parses a bare JSON literal (null) as itself, not as "failed to parse"', () => {
-    expect(parseNdjsonLine('null')).toBeNull();
+    expect(parseNdjsonLine({ line: 'null' })).toBeNull();
   });
 });
 
 describe('unit: splitNdjsonLines', () => {
   it('splits multiple newline-terminated lines and keeps the trailing partial line as remainder', () => {
-    const result = splitNdjsonLines('{"a":1}\n{"b":2}\npartial-no-newline');
+    const result = splitNdjsonLines({ buffer: '{"a":1}\n{"b":2}\npartial-no-newline' });
     expect(result.lines).toEqual(['{"a":1}', '{"b":2}']);
     expect(result.remainder).toBe('partial-no-newline');
   });
 
   it('returns no lines and the whole buffer as remainder when there is no newline yet', () => {
-    const result = splitNdjsonLines('still-buffering');
+    const result = splitNdjsonLines({ buffer: 'still-buffering' });
     expect(result.lines).toEqual([]);
     expect(result.remainder).toBe('still-buffering');
   });
 
   it('returns an empty remainder when the buffer ends exactly on a newline', () => {
-    const result = splitNdjsonLines('{"a":1}\n');
+    const result = splitNdjsonLines({ buffer: '{"a":1}\n' });
     expect(result.lines).toEqual(['{"a":1}']);
     expect(result.remainder).toBe('');
   });
@@ -659,51 +633,51 @@ describe('unit: splitNdjsonLines', () => {
 
 describe('unit: parseNdjsonLines', () => {
   it('yields only the lines that parse to something other than undefined, trimming and skipping blanks', () => {
-    const parsed = [...parseNdjsonLines(['{"a":1}', '  ', 'not-json', '{"b":2}'])];
+    const parsed = [...parseNdjsonLines({ rawLines: ['{"a":1}', '  ', 'not-json', '{"b":2}'] })];
     expect(parsed).toEqual([{ a: 1 }, { b: 2 }]);
   });
 
   it('yields nothing for an all-blank/all-malformed input', () => {
-    expect([...parseNdjsonLines(['', '   ', 'not-json'])]).toEqual([]);
+    expect([...parseNdjsonLines({ rawLines: ['', '   ', 'not-json'] })]).toEqual([]);
   });
 });
 
 describe('unit: parseOllamaToolCallArguments', () => {
   it('parses a stringified JSON arguments blob', () => {
-    expect(parseOllamaToolCallArguments('{"x":1}')).toEqual({ x: 1 });
+    expect(parseOllamaToolCallArguments({ args: '{"x":1}' })).toEqual({ x: 1 });
   });
 
   it('falls back to the raw string when the string is malformed JSON', () => {
-    expect(parseOllamaToolCallArguments('not-json')).toBe('not-json');
+    expect(parseOllamaToolCallArguments({ args: 'not-json' })).toBe('not-json');
   });
 
   it('passes a non-string value (already a native object) straight through', () => {
-    expect(parseOllamaToolCallArguments({ x: 1 })).toEqual({ x: 1 });
+    expect(parseOllamaToolCallArguments({ args: { x: 1 } })).toEqual({ x: 1 });
   });
 });
 
 describe('unit: resolveOllamaToolCall', () => {
   it('resolves a well-formed call, preferring the wire id when present', () => {
-    const call = resolveOllamaToolCall({ id: 'wire-id', function: { name: 'f', arguments: { a: 1 } } }, 3);
+    const call = resolveOllamaToolCall({ rawCall: { id: 'wire-id', function: { name: 'f', arguments: { a: 1 } } }, index: 3 });
     expect(call).toEqual({ id: 'wire-id', name: 'f', input: { a: 1 } });
   });
 
   it('synthesizes an id from the given index when the wire carries none', () => {
-    const call = resolveOllamaToolCall({ function: { name: 'f', arguments: {} } }, 2);
+    const call = resolveOllamaToolCall({ rawCall: { function: { name: 'f', arguments: {} } }, index: 2 });
     expect(call?.id).toBe('ollama-tool-2');
   });
 
   it('returns null when function is missing', () => {
-    expect(resolveOllamaToolCall({ id: 'x' }, 0)).toBeNull();
+    expect(resolveOllamaToolCall({ rawCall: { id: 'x' }, index: 0 })).toBeNull();
   });
 
   it('returns null when function.name is missing or empty', () => {
-    expect(resolveOllamaToolCall({ function: { arguments: {} } }, 0)).toBeNull();
-    expect(resolveOllamaToolCall({ function: { name: '', arguments: {} } }, 0)).toBeNull();
+    expect(resolveOllamaToolCall({ rawCall: { function: { arguments: {} } }, index: 0 })).toBeNull();
+    expect(resolveOllamaToolCall({ rawCall: { function: { name: '', arguments: {} } }, index: 0 })).toBeNull();
   });
 
   it('returns null for a non-record raw call', () => {
-    expect(resolveOllamaToolCall('not-a-record', 0)).toBeNull();
+    expect(resolveOllamaToolCall({ rawCall: 'not-a-record', index: 0 })).toBeNull();
   });
 });
 
@@ -711,7 +685,7 @@ describe('unit: handleOllamaTextContent', () => {
   it('appends safe text to fullText and emits a text_delta event', () => {
     const state = freshOllamaState();
     const events: OllamaTurnEvent[] = [];
-    const result = handleOllamaTextContent(state, 'hello', (e) => events.push(e));
+    const result = handleOllamaTextContent({ state: state, content: 'hello', onEvent: (e) => events.push(e) });
     expect(result).toBe('continue');
     expect(state.fullText).toBe('hello');
     expect(events).toEqual([{ type: 'text_delta', delta: 'hello' }]);
@@ -720,7 +694,7 @@ describe('unit: handleOllamaTextContent', () => {
   it('returns "break" and emits a warning once a fabricated role marker contaminates the text', () => {
     const state = freshOllamaState();
     const events: OllamaTurnEvent[] = [];
-    const result = handleOllamaTextContent(state, 'safe text\n## user\nmalicious continuation', (e) => events.push(e));
+    const result = handleOllamaTextContent({ state: state, content: 'safe text\n## user\nmalicious continuation', onEvent: (e) => events.push(e) });
     expect(result).toBe('break');
     expect(events.some((e) => e.type === 'fabricated_role_marker')).toBe(true);
   });
@@ -729,27 +703,27 @@ describe('unit: handleOllamaTextContent', () => {
 describe('unit: handleOllamaToolCallsField', () => {
   it('resolves every tool call in the array and sets finishReason once at least one resolved', () => {
     const state = freshOllamaState();
-    handleOllamaToolCallsField(state, { tool_calls: [{ function: { name: 'f1', arguments: {} } }, { function: { name: 'f2', arguments: {} } }] });
+    handleOllamaToolCallsField({ state: state, message: { tool_calls: [{ function: { name: 'f1', arguments: {} } }, { function: { name: 'f2', arguments: {} } }] } });
     expect(state.toolCalls).toHaveLength(2);
     expect(state.finishReason).toBe('tool_calls');
   });
 
   it('skips malformed entries in the batch without dropping the well-formed ones', () => {
     const state = freshOllamaState();
-    handleOllamaToolCallsField(state, { tool_calls: [{ notAFunction: true }, { function: { name: 'f1', arguments: {} } }] });
+    handleOllamaToolCallsField({ state: state, message: { tool_calls: [{ notAFunction: true }, { function: { name: 'f1', arguments: {} } }] } });
     expect(state.toolCalls).toEqual([{ id: 'ollama-tool-0', name: 'f1', input: {} }]);
   });
 
   it('is a no-op (and does not set finishReason) when message.tool_calls is not an array', () => {
     const state = freshOllamaState();
-    handleOllamaToolCallsField(state, {});
+    handleOllamaToolCallsField({ state: state, message: {} });
     expect(state.toolCalls).toHaveLength(0);
     expect(state.finishReason).toBeNull();
   });
 
   it('is a no-op when every entry in tool_calls is malformed (nothing resolves, finishReason stays unset)', () => {
     const state = freshOllamaState();
-    handleOllamaToolCallsField(state, { tool_calls: ['not-a-record', { function: { arguments: {} } }] });
+    handleOllamaToolCallsField({ state: state, message: { tool_calls: ['not-a-record', { function: { arguments: {} } }] } });
     expect(state.toolCalls).toHaveLength(0);
     expect(state.finishReason).toBeNull();
   });
@@ -758,17 +732,13 @@ describe('unit: handleOllamaToolCallsField', () => {
 describe('unit: processOllamaLine', () => {
   it('returns "continue" for a line with no message and done: false', () => {
     const state = freshOllamaState();
-    expect(processOllamaLine(state, {}, () => {}, () => {})).toBe('continue');
+    expect(processOllamaLine({ state: state, line: {}, onEvent: () => {}, emitEnd: () => {} })).toBe('continue');
   });
 
   it('accumulates text content and resolves tool calls from the same line, then continues', () => {
     const state = freshOllamaState();
     const events: OllamaTurnEvent[] = [];
-    const result = processOllamaLine(
-      state,
-      { message: { content: 'hi', tool_calls: [{ function: { name: 'f', arguments: {} } }] } },
-      (e) => events.push(e),
-      () => {},
+    const result = processOllamaLine({ state: state, line: { message: { content: 'hi', tool_calls: [{ function: { name: 'f', arguments: {} } }] } }, onEvent: (e) => events.push(e), emitEnd: () => {} }
     );
     expect(result).toBe('continue');
     expect(state.fullText).toBe('hi');
@@ -778,7 +748,7 @@ describe('unit: processOllamaLine', () => {
   it('returns "break" and emits end(contaminated) when the content delta trips the role-marker guard', () => {
     const state = freshOllamaState();
     const emitEnd = vi.fn();
-    const result = processOllamaLine(state, { message: { content: 'safe\n## user\nmalicious' } }, () => {}, emitEnd);
+    const result = processOllamaLine({ state: state, line: { message: { content: 'safe\n## user\nmalicious' } }, onEvent: () => {}, emitEnd: emitEnd });
     expect(result).toBe('break');
     expect(state.finishReason).toBe('contaminated');
     expect(emitEnd).toHaveBeenCalledWith('contaminated');
@@ -786,48 +756,48 @@ describe('unit: processOllamaLine', () => {
 
   it('returns "done" and sets finishReason "stop" when line.done is true and nothing else set a reason', () => {
     const state = freshOllamaState();
-    expect(processOllamaLine(state, { done: true }, () => {}, () => {})).toBe('done');
+    expect(processOllamaLine({ state: state, line: { done: true }, onEvent: () => {}, emitEnd: () => {} })).toBe('done');
     expect(state.finishReason).toBe('stop');
   });
 
   it('preserves an existing "tool_calls" finishReason on the terminal done line rather than overwriting it with "stop"', () => {
     const state = freshOllamaState();
     state.finishReason = 'tool_calls';
-    expect(processOllamaLine(state, { done: true }, () => {}, () => {})).toBe('done');
+    expect(processOllamaLine({ state: state, line: { done: true }, onEvent: () => {}, emitEnd: () => {} })).toBe('done');
     expect(state.finishReason).toBe('tool_calls');
   });
 });
 
 describe('unit: ollamaLoopExitReason', () => {
   it('returns "stop" when finishReason is not "tool_calls"', () => {
-    expect(ollamaLoopExitReason({ finishReason: 'stop', toolCalls: [], text: '' }, 0, 8)).toBe('stop');
+    expect(ollamaLoopExitReason({ outcome: { finishReason: 'stop', toolCalls: [], text: '' }, toolTurns: 0, maxToolTurns: 8 })).toBe('stop');
   });
 
   it('returns "stop" when finishReason is "tool_calls" but toolCalls is empty', () => {
-    expect(ollamaLoopExitReason({ finishReason: 'tool_calls', toolCalls: [], text: '' }, 0, 8)).toBe('stop');
+    expect(ollamaLoopExitReason({ outcome: { finishReason: 'tool_calls', toolCalls: [], text: '' }, toolTurns: 0, maxToolTurns: 8 })).toBe('stop');
   });
 
   it('returns "max_tool_turns" once toolTurns reaches the ceiling', () => {
     const outcome = { finishReason: 'tool_calls', toolCalls: [{ id: '1', name: 'f', input: {} }], text: '' };
-    expect(ollamaLoopExitReason(outcome, 8, 8)).toBe('max_tool_turns');
+    expect(ollamaLoopExitReason({ outcome: outcome, toolTurns: 8, maxToolTurns: 8 })).toBe('max_tool_turns');
   });
 
   it('returns null (continue the loop) when there are pending tool calls under the ceiling', () => {
     const outcome = { finishReason: 'tool_calls', toolCalls: [{ id: '1', name: 'f', input: {} }], text: '' };
-    expect(ollamaLoopExitReason(outcome, 2, 8)).toBeNull();
+    expect(ollamaLoopExitReason({ outcome: outcome, toolTurns: 2, maxToolTurns: 8 })).toBeNull();
   });
 });
 
 describe('unit: buildOllamaAssistantToolCalls', () => {
   it('builds one native { function: { name, arguments } } entry per call, with no id/type field on the wire', () => {
     const calls: OllamaToolCall[] = [{ id: 'c1', name: 'f1', input: { a: 1 } }];
-    const built = buildOllamaAssistantToolCalls(calls);
+    const built = buildOllamaAssistantToolCalls({ toolCalls: calls });
     expect(built).toEqual([{ function: { name: 'f1', arguments: { a: 1 } } }]);
     expect('id' in built[0]!).toBe(false);
   });
 
   it('returns an empty array for no calls', () => {
-    expect(buildOllamaAssistantToolCalls([])).toEqual([]);
+    expect(buildOllamaAssistantToolCalls({ toolCalls: [] })).toEqual([]);
   });
 });
 
@@ -836,7 +806,7 @@ describe('unit: executeOllamaToolCalls', () => {
     const executeTool = vi.fn().mockResolvedValue({ content: 'ok' });
     const calls: OllamaToolCall[] = [{ id: 'c1', name: 'f1', input: {} }];
     const events: OllamaTurnEvent[] = [];
-    const messages = await executeOllamaToolCalls(executeTool, calls, (e) => events.push(e));
+    const messages = await executeOllamaToolCalls({ executeTool: executeTool, calls: calls, onEvent: (e) => events.push(e) });
     expect(messages).toEqual([{ role: 'tool', content: 'ok', tool_name: 'f1' }]);
     expect(events).toEqual([{ type: 'tool_result', toolUseId: 'c1', content: 'ok', isError: false }]);
   });
@@ -845,7 +815,7 @@ describe('unit: executeOllamaToolCalls', () => {
     const executeTool = vi.fn().mockResolvedValue({ content: 'ok', images: ['data:image/png;base64,x'] });
     const calls: OllamaToolCall[] = [{ id: 'c1', name: 'f1', input: {} }];
     const events: OllamaTurnEvent[] = [];
-    const messages = await executeOllamaToolCalls(executeTool, calls, (e) => events.push(e));
+    const messages = await executeOllamaToolCalls({ executeTool: executeTool, calls: calls, onEvent: (e) => events.push(e) });
     expect(messages[0]).toMatchObject({ role: 'tool', tool_name: 'f1' });
     expect(events[0]).toMatchObject({ isError: true });
   });
@@ -853,7 +823,7 @@ describe('unit: executeOllamaToolCalls', () => {
   it('carries bare-base64 images through unchanged onto both the event and the continuation message', async () => {
     const executeTool = vi.fn().mockResolvedValue({ content: 'ok', images: ['YWJj'] });
     const calls: OllamaToolCall[] = [{ id: 'c1', name: 'f1', input: {} }];
-    const messages = await executeOllamaToolCalls(executeTool, calls, () => {});
+    const messages = await executeOllamaToolCalls({ executeTool: executeTool, calls: calls, onEvent: () => {} });
     expect(messages[0]).toEqual({ role: 'tool', content: 'ok', tool_name: 'f1', images: ['YWJj'] });
   });
 
@@ -863,7 +833,7 @@ describe('unit: executeOllamaToolCalls', () => {
       { id: 'c1', name: 'f1', input: {} },
       { id: 'c2', name: 'f2', input: {} },
     ];
-    const messages = await executeOllamaToolCalls(executeTool, calls, () => {});
+    const messages = await executeOllamaToolCalls({ executeTool: executeTool, calls: calls, onEvent: () => {} });
     expect(messages).toEqual([
       { role: 'tool', content: 'first', tool_name: 'f1' },
       { role: 'tool', content: 'second', tool_name: 'f2' },

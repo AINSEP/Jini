@@ -9,15 +9,15 @@ import { ENTRY_LIFECYCLE_OPS, parseEntryLifecycleOp } from "../lifecycle-dispatc
  */
 
 test("parseEntryLifecycleOp: accepts exactly the 2 closed ops", () => {
-  assert.equal(parseEntryLifecycleOp("publish"), "publish");
-  assert.equal(parseEntryLifecycleOp("unpublish"), "unpublish");
+  assert.equal(parseEntryLifecycleOp({ op: "publish" }), "publish");
+  assert.equal(parseEntryLifecycleOp({ op: "unpublish" }), "unpublish");
 });
 
 test("parseEntryLifecycleOp: rejects an arbitrary/unknown string or non-string input", () => {
-  assert.equal(parseEntryLifecycleOp("delete"), null);
-  assert.equal(parseEntryLifecycleOp(""), null);
-  assert.equal(parseEntryLifecycleOp(undefined), null);
-  assert.equal(parseEntryLifecycleOp(7), null);
+  assert.equal(parseEntryLifecycleOp({ op: "delete" }), null);
+  assert.equal(parseEntryLifecycleOp({ op: "" }), null);
+  assert.equal(parseEntryLifecycleOp({ op: undefined }), null);
+  assert.equal(parseEntryLifecycleOp({ op: 7 }), null);
 });
 
 test("ENTRY_LIFECYCLE_OPS: a prototype-chain key never resolves a handler", () => {

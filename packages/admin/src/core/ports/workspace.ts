@@ -35,8 +35,8 @@ export interface AdminWorkspace {
 }
 
 export interface AdminWorkspacePort {
-  getWorkspace(): Promise<AdminWorkspace>;
-  updateWorkspace(patch: { name?: string; slug?: string }): Promise<AdminWorkspace>;
+  getWorkspace(requiredArgs: Record<string, never>): Promise<AdminWorkspace>;
+  updateWorkspace(requiredArgs: Record<string, never>, optionalArgs?: { name?: string; slug?: string }): Promise<AdminWorkspace>;
   /** May unconditionally reject — see the file header. */
-  deleteWorkspace(): Promise<void>;
+  deleteWorkspace(requiredArgs: Record<string, never>): Promise<void>;
 }

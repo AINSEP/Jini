@@ -1,3 +1,4 @@
+import { createIds } from './fixture-ports.js';
 /**
  * Cross-validates this port's hand-rolled wire schemas and interpreter against the **official**
  * A2UI v1.0 conformance fixtures published in the spec repo's own test suite
@@ -70,7 +71,7 @@ describe('official fixture: renderer_messages.json (renderer_to_agent.json)', ()
   ];
 
   it.each(cases)('$description', ({ valid, data }) => {
-    expect(parseRendererToAgentMessage(data).ok).toBe(valid);
+    expect(parseRendererToAgentMessage({ raw: data }).ok).toBe(valid);
   });
 });
 
@@ -110,34 +111,34 @@ describe('official fixture: call_function_message.json (agent_to_renderer.json) 
   ];
 
   it.each(cases)('$description', ({ valid, data }) => {
-    expect(parseAgentToRendererMessage(data).ok).toBe(valid);
+    expect(parseAgentToRendererMessage({ raw: data }).ok).toBe(valid);
   });
 });
 
 describe('official fixture: call_function_message.json — catalog-dependent cases (documented, expected divergence)', () => {
   it('"Invalid args (nested object in a single value)" is official-invalid (the "required" function\'s own catalog arg schema forbids it) but this port\'s generic schema accepts it — common_types.json\'s own FunctionCall.args explicitly allows "a literal object argument" generically; only a per-function catalog schema (not implemented here) can narrow that further', () => {
     const data = { version: 'v1.0', callFunction: { call: 'required', args: { value: { nested: 'object' } } }, functionCallId: 'unique-call-id-127' };
-    expect(parseAgentToRendererMessage(data).ok).toBe(true); // official fixture: valid: false
+    expect(parseAgentToRendererMessage({ raw: data }).ok).toBe(true); // official fixture: valid: false
   });
 
   it('"Invalid args (array of nested objects)" — same divergence, same reason', () => {
     const data = { version: 'v1.0', callFunction: { call: 'required', args: { value: [{ nested: 'object' }] } }, functionCallId: 'unique-call-id-128' };
-    expect(parseAgentToRendererMessage(data).ok).toBe(true); // official fixture: valid: false
+    expect(parseAgentToRendererMessage({ raw: data }).ok).toBe(true); // official fixture: valid: false
   });
 
   it('"Invalid returnType (not a scalar)" agrees with the official fixture (valid: false) — but for a different, still-correct reason: `returnType` is not a property FunctionCallSchema (common_types.json#/$defs/FunctionCall) permits at all (.strict() rejects the unknown key), independent of any catalog', () => {
     const data = { version: 'v1.0', callFunction: { call: 'required', args: { value: 'bar' }, returnType: 'object' }, functionCallId: 'unique-call-id-129' };
-    expect(parseAgentToRendererMessage(data).ok).toBe(false);
+    expect(parseAgentToRendererMessage({ raw: data }).ok).toBe(false);
   });
 
   it('"Invalid call to local-only function (required)" is official-invalid at the catalog callableFrom layer, which this port\'s WIRE schema deliberately does not check (that\'s the interpreter\'s job) — so the raw parse is structurally valid...', () => {
     const data = { version: 'v1.0', callFunction: { call: 'required', args: { value: 'test' } }, functionCallId: 'id-3' };
-    expect(parseAgentToRendererMessage(data).ok).toBe(true); // structurally fine at the wire layer
+    expect(parseAgentToRendererMessage({ raw: data }).ok).toBe(true); // structurally fine at the wire layer
   });
 
   it('...but the full interpreter stack DOES refuse it end to end, same as the official expectation, via callFunction rejection (not registered in this port\'s lab catalog, which does not implement "required" at all — see catalog.ts\'s module doc)', () => {
-    const interpreter = createA2uiInterpreter(createLabCatalog());
-    const result = interpreter.applyAgentMessage({ version: 'v1.0', callFunction: { call: 'required', args: { value: 'test' } }, functionCallId: 'id-3', wantResponse: true });
+    const interpreter = createA2uiInterpreter({ catalog: createLabCatalog({}), clock: { nowMs: () => Date.now() }, ids: createIds({}) });
+    const result = interpreter.applyAgentMessage({ raw: { version: 'v1.0', callFunction: { call: 'required', args: { value: 'test' } }, functionCallId: 'id-3', wantResponse: true } });
     expect(result.rendererMessages).toMatchObject([{ error: { code: 'INVALID_FUNCTION_CALL', functionCallId: 'id-3' } }]);
   });
 });
@@ -150,37 +151,37 @@ describe('official fixture: call_function_message.json — catalog-dependent cas
 // -------------------------------------------------------------------------------------------
 describe('official fixture: text_variants.json — run through the interpreter (catalog-level, not wire-level)', () => {
   function freshSurface() {
-    const interpreter = createA2uiInterpreter(createLabCatalog());
-    interpreter.applyAgentMessage({ version: 'v1.0', createSurface: { surfaceId: 'test_surface', catalogId: createLabCatalog().catalogId } });
+    const interpreter = createA2uiInterpreter({ catalog: createLabCatalog({}), clock: { nowMs: () => Date.now() }, ids: createIds({}) });
+    interpreter.applyAgentMessage({ raw: { version: 'v1.0', createSurface: { surfaceId: 'test_surface', catalogId: createLabCatalog({}).catalogId } } });
     return interpreter;
   }
 
   it("Text with valid variant 'caption' is accepted", () => {
     const interpreter = freshSurface();
-    const result = interpreter.applyAgentMessage({
+    const result = interpreter.applyAgentMessage({ raw: {
       version: 'v1.0',
       updateComponents: { surfaceId: 'test_surface', components: [{ id: 'text_caption', component: 'Text', text: 'Caption text', variant: 'caption' }] },
-    });
+    } });
     expect(result.rendererMessages).toEqual([]);
-    expect(interpreter.getSurface('test_surface')?.components.has('text_caption')).toBe(true);
+    expect(interpreter.getSurface({ surfaceId: 'test_surface' })?.components.has('text_caption')).toBe(true);
   });
 
   it("Text with h1 variant is refused (real basic-catalog Text only allows caption|body — 'h1' is not a real A2UI variant, contrary to what an LLM familiar with HTML might guess)", () => {
     const interpreter = freshSurface();
-    const result = interpreter.applyAgentMessage({
+    const result = interpreter.applyAgentMessage({ raw: {
       version: 'v1.0',
       updateComponents: { surfaceId: 'test_surface', components: [{ id: 'text_h1', component: 'Text', text: 'Header', variant: 'h1' }] },
-    });
+    } });
     expect(result.rendererMessages).toMatchObject([{ error: { code: 'VALIDATION_FAILED' } }]);
-    expect(interpreter.getSurface('test_surface')?.components.has('text_h1')).toBe(false);
+    expect(interpreter.getSurface({ surfaceId: 'test_surface' })?.components.has('text_h1')).toBe(false);
   });
 
   it('Text with an arbitrary invalid variant string is refused', () => {
     const interpreter = freshSurface();
-    const result = interpreter.applyAgentMessage({
+    const result = interpreter.applyAgentMessage({ raw: {
       version: 'v1.0',
       updateComponents: { surfaceId: 'test_surface', components: [{ id: 'text_invalid', component: 'Text', text: 'Invalid', variant: 'not_a_variant' }] },
-    });
+    } });
     expect(result.rendererMessages).toMatchObject([{ error: { code: 'VALIDATION_FAILED' } }]);
   });
 });
@@ -212,7 +213,7 @@ describe('official fixture: contact_form_example.jsonl (a real, complete message
   // keeping the real fixture's literal catalogId would only prove that rejection path again, not
   // let the rest of this real sequence exercise per-component catalog enforcement end to end.
   // Every other field in every line below is unmodified from the fetched fixture.
-  const line1 = { version: 'v1.0', createSurface: { surfaceId: 'contact_form_1', catalogId: createLabCatalog().catalogId } };
+  const line1 = { version: 'v1.0', createSurface: { surfaceId: 'contact_form_1', catalogId: createLabCatalog({}).catalogId } };
   const line2 = {
     version: 'v1.0',
     updateComponents: {
@@ -300,26 +301,26 @@ describe('official fixture: contact_form_example.jsonl (a real, complete message
 
   it('every line in the real sequence parses at the wire level, regardless of which components/functions this port implements', () => {
     for (const line of [line1, line2, line3, line4]) {
-      expect(parseAgentToRendererMessage(line)).toMatchObject({ ok: true });
+      expect(parseAgentToRendererMessage({ raw: line })).toMatchObject({ ok: true });
     }
   });
 
   it('the interpreter processes the real sequence end to end with ZERO validation errors — every one of the 25 components in this real, spec-authored message is accepted, including a Card root', () => {
-    const interpreter = createA2uiInterpreter(createLabCatalog());
-    interpreter.applyAgentMessage(line1);
-    const result = interpreter.applyAgentMessage(line2);
+    const interpreter = createA2uiInterpreter({ catalog: createLabCatalog({}), clock: { nowMs: () => Date.now() }, ids: createIds({}) });
+    interpreter.applyAgentMessage({ raw: line1 });
+    const result = interpreter.applyAgentMessage({ raw: line2 });
 
     // The whole point: no component in this real fixture is refused for any reason.
     expect(result.rendererMessages).toEqual([]);
 
-    const surface = interpreter.getSurface('contact_form_1')!;
+    const surface = interpreter.getSurface({ surfaceId: 'contact_form_1' })!;
     expect(surface.components.size).toBe(line2.updateComponents.components.length);
     for (const wireComponent of line2.updateComponents.components) {
       expect(surface.components.has(wireComponent.id), wireComponent.id).toBe(true);
     }
 
     // 'root' is a Card in the real fixture — this port now has a renderable root for this sequence.
-    expect(interpreter.getRoot('contact_form_1')).toMatchObject({ id: 'root', component: 'Card', props: { child: 'form_container' } });
+    expect(interpreter.getRoot({ surfaceId: 'contact_form_1' })).toMatchObject({ id: 'root', component: 'Card', props: { child: 'form_container' } });
 
     // Spot-check that catalog defaults were actually applied to the newly-implemented types, not
     // just that the components were waved through.
@@ -328,12 +329,12 @@ describe('official fixture: contact_form_example.jsonl (a real, complete message
     expect(surface.components.get('first_name_field')?.props).toMatchObject({ variant: 'shortText' }); // TextField
     expect(surface.components.get('header_icon')?.props).toMatchObject({ name: 'mail' }); // Icon
 
-    interpreter.applyAgentMessage(line3);
-    expect(interpreter.getSurface('contact_form_1')?.dataModel).toMatchObject({ contact: { firstName: 'John', email: 'john.doe@example.com' } });
+    interpreter.applyAgentMessage({ raw: line3 });
+    expect(interpreter.getSurface({ surfaceId: 'contact_form_1' })?.dataModel).toMatchObject({ contact: { firstName: 'John', email: 'john.doe@example.com' } });
 
-    const deleteResult = interpreter.applyAgentMessage(line4);
+    const deleteResult = interpreter.applyAgentMessage({ raw: line4 });
     expect(deleteResult.rendererMessages).toEqual([]);
-    expect(interpreter.listSurfaceIds()).toEqual([]);
+    expect(interpreter.listSurfaceIds({})).toEqual([]);
   });
 });
 
@@ -349,10 +350,10 @@ describe('official fixture: contact_form_example.jsonl (a real, complete message
 
 /** Creates a surface on a fresh interpreter, then returns `updateComponents` applied to it. */
 function runComponentsCase(components: unknown): { accepted: boolean; errors: unknown[] } {
-  const catalog = createLabCatalog();
-  const interpreter = createA2uiInterpreter(catalog);
-  interpreter.applyAgentMessage({ version: 'v1.0', createSurface: { surfaceId: 'test_surface', catalogId: catalog.catalogId } });
-  const result = interpreter.applyAgentMessage({ version: 'v1.0', updateComponents: { surfaceId: 'test_surface', components } });
+  const catalog = createLabCatalog({});
+  const interpreter = createA2uiInterpreter({ catalog, clock: { nowMs: () => Date.now() }, ids: createIds({}) });
+  interpreter.applyAgentMessage({ raw: { version: 'v1.0', createSurface: { surfaceId: 'test_surface', catalogId: catalog.catalogId } } });
+  const result = interpreter.applyAgentMessage({ raw: { version: 'v1.0', updateComponents: { surfaceId: 'test_surface', components } } });
   return { accepted: result.rendererMessages.length === 0, errors: [...result.rendererMessages] };
 }
 
@@ -482,14 +483,14 @@ describe('official fixture: checkable_components.json', () => {
   });
 
   it('the check-carrying components are actually stored with their CheckRules intact, not merely waved through', () => {
-    const catalog = createLabCatalog();
-    const interpreter = createA2uiInterpreter(catalog);
-    interpreter.applyAgentMessage({ version: 'v1.0', createSurface: { surfaceId: 'test_surface', catalogId: catalog.catalogId } });
-    interpreter.applyAgentMessage({
+    const catalog = createLabCatalog({});
+    const interpreter = createA2uiInterpreter({ catalog, clock: { nowMs: () => Date.now() }, ids: createIds({}) });
+    interpreter.applyAgentMessage({ raw: { version: 'v1.0', createSurface: { surfaceId: 'test_surface', catalogId: catalog.catalogId } } });
+    interpreter.applyAgentMessage({ raw: {
       version: 'v1.0',
       updateComponents: { surfaceId: 'test_surface', components: [{ id: 'tf1', component: 'TextField', label: 'Email', value: { path: '/formData/email' }, checks: [{ condition: { call: 'required', args: { value: { path: '/formData/email' } } }, message: 'Email is required' }] }] },
-    });
-    expect(interpreter.getSurface('test_surface')?.components.get('tf1')?.props).toMatchObject({
+    } });
+    expect(interpreter.getSurface({ surfaceId: 'test_surface' })?.components.get('tf1')?.props).toMatchObject({
       label: 'Email',
       variant: 'shortText',
       checks: [{ message: 'Email is required' }],

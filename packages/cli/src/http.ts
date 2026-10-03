@@ -3,7 +3,7 @@
  *
  * HTTP-client-mode transport plumbing, ported from OD's
  * `apps/daemon/src/cli.ts` `surfaceFetchError`/`postJsonToDaemon` (see
- * `source-map.md`). This is the "HTTP-client mode default" half of
+ * `archived provenance ledger`). This is the "HTTP-client mode default" half of
  * extraction-plan §3's `@jini-ai/cli` spec: fetch a daemon route, translate a
  * network failure or a daemon error envelope into the structured exit-code
  * contract from `errors.ts`.
@@ -11,11 +11,11 @@
 
 import { DEFAULT_CLI_EXIT_CODES, exitWithStructuredError, structuredErrorData, type ExitCodeTable } from './errors.js';
 import { sanitizeDaemonUrlForDisplay } from './daemon-url.js';
-import { sanitizeUntrustedText } from './redact.js';
+import { sanitizeUntrustedText } from '@jini-ai/core/text';
 
 export interface SurfaceFetchErrorOptions {
   /** Defaults to `process.stderr.write`; inject for tests. */
-  write?: (text: string) => void;
+  write?: (requiredArgs: { text: string }) => void;
 }
 
 /**
@@ -27,8 +27,8 @@ export interface SurfaceFetchErrorOptions {
  * embeds terminal control sequences or a leaked credential, must not be
  * printed verbatim.
  */
-export function surfaceFetchError(err: unknown, daemonUrl: string, options: SurfaceFetchErrorOptions = {}): void {
-  const write = options.write ?? ((text: string) => { process.stderr.write(text); });
+export function surfaceFetchError({ err, daemonUrl }: { err: unknown; daemonUrl: string }, options: SurfaceFetchErrorOptions = {}): void {
+  const write = options.write ?? (({ text }: { text: string }) => { process.stderr.write(text); });
   const cause = err !== null && typeof err === 'object' ? (err as { cause?: unknown }).cause : null;
   const code =
     cause !== null && typeof cause === 'object' && typeof (cause as { code?: unknown }).code === 'string'
@@ -41,13 +41,13 @@ export function surfaceFetchError(err: unknown, daemonUrl: string, options: Surf
   let detail = err instanceof Error ? err.message : String(err);
   if (code !== null) detail = `${code}${causeMessage.length > 0 ? ` — ${causeMessage}` : ''}`;
   else if (causeMessage.length > 0) detail = causeMessage;
-  write(`failed to reach daemon at ${sanitizeDaemonUrlForDisplay(daemonUrl)}: ${sanitizeUntrustedText(detail)}\n`);
+  write({ text: `failed to reach daemon at ${sanitizeDaemonUrlForDisplay({ url: daemonUrl })}: ${sanitizeUntrustedText({ text: detail })}\n` });
   if (code === 'EPERM' || code === 'ENETUNREACH') {
-    write(
+    write({ text:
       'hint: outbound connect was denied, likely by a sandbox policy. ' +
         'If this command ran inside an agent sandbox, check its network policy — ' +
         'the daemon itself is unaffected and can be reached from a regular shell.\n',
-    );
+    });
   }
 }
 
@@ -128,10 +128,10 @@ export interface PostJsonToDaemonOptions {
   exitCodes?: ExitCodeTable;
   /** Defaults to the global `fetch`; inject for tests. */
   fetchImpl?: typeof fetch;
-  /** Defaults to `process.stderr.write`; inject for tests. Used only for the unrecognized-error-code fallback path. */
-  write?: (text: string) => void;
-  /** Defaults to `process.exit`; inject for tests (must not return). Used only for the unrecognized-error-code fallback path. */
-  exit?: (code: number) => never;
+  /** Defaults to `process.stderr.write`; inject for every structured failure path. */
+  write?: (requiredArgs: { text: string }) => void;
+  /** Defaults to `process.exit`; inject for every structured failure path (must not return). */
+  exit?: (requiredArgs: { code: number }) => never;
   /** Caller-supplied cancellation signal; combined with the internal timeout signal, so either one aborts the request. */
   signal?: AbortSignal;
   /** Request deadline in ms. Defaults to {@link DEFAULT_TIMEOUT_MS}. */
@@ -164,8 +164,8 @@ async function requestJsonFromDaemon(
   options: PostJsonToDaemonOptions = {},
 ): Promise<unknown> {
   const fetchImpl = options.fetchImpl ?? fetch;
-  const write = options.write ?? ((text: string) => { process.stderr.write(text); });
-  const exit = options.exit ?? ((exitCode: number) => process.exit(exitCode));
+  const write = options.write ?? (({ text }: { text: string }) => { process.stderr.write(text); });
+  const exit = options.exit ?? (({ code }: { code: number }) => process.exit(code));
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
   const structuredOptions = {
@@ -196,42 +196,38 @@ async function requestJsonFromDaemon(
         signal,
       });
     } catch (err) {
-      surfaceFetchError(err, base, { write });
-      return exitWithStructuredError(
-        { code: 'daemon-not-running', message: `Cannot reach daemon at ${sanitizeDaemonUrlForDisplay(base)}` },
-        structuredOptions,
-      );
+      const diagnostics: string[] = [];
+      surfaceFetchError({ err, daemonUrl: base }, { write: ({ text }) => { diagnostics.push(text.trimEnd()); } });
+      return exitWithStructuredError({ code: 'daemon-not-running', message: `Cannot reach daemon at ${sanitizeDaemonUrlForDisplay({ url: base })}` }, { data: { diagnostics }, ...structuredOptions });
     }
 
     try {
       data = await readJsonWithLimit(resp, maxResponseBytes);
     } catch (err) {
       if (err instanceof ResponseTooLargeError) {
-        write(`response from ${sanitizeDaemonUrlForDisplay(base)}${route} exceeded the ${err.limitBytes}-byte limit; aborting.\n`);
-        return exit(1);
+        timeoutController.abort(err);
+        return exitWithStructuredError({ code: 'response-too-large', message: `response from ${sanitizeDaemonUrlForDisplay({ url: base })}${route} exceeded the ${err.limitBytes}-byte limit; aborting.` }, structuredOptions);
       }
-      throw err;
+      const detail = err instanceof Error ? err.message : String(err);
+      return exitWithStructuredError({ code: 'request-failed', message: sanitizeUntrustedText({ text: detail }) }, structuredOptions);
     }
   } finally {
     clearTimeout(timeoutHandle);
   }
 
   if (!resp.ok) {
-    const errorObj = (data as DaemonJsonErrorBody).error;
+    const errorObj = (data as DaemonJsonErrorBody | null)?.error;
     const exitCodes: ExitCodeTable = { ...DEFAULT_CLI_EXIT_CODES, ...options.exitCodes };
     const code = typeof errorObj?.code === 'string' && errorObj.code in exitCodes ? errorObj.code : null;
     if (code !== null) {
       const rawMessage = typeof errorObj?.message === 'string' ? errorObj.message : `HTTP ${resp.status}`;
-      const message = sanitizeUntrustedText(rawMessage);
-      const errorData = structuredErrorData(errorObj);
-      return exitWithStructuredError(
-        { code, message, ...(errorData !== undefined ? { data: errorData } : {}) },
-        structuredOptions,
-      );
+      const message = sanitizeUntrustedText({ text: rawMessage });
+      const errorData = structuredErrorData({ error: errorObj });
+      return exitWithStructuredError({ code, message }, { ...(errorData !== undefined ? { data: errorData } : {}), ...structuredOptions });
     }
     const rawExcerpt = describeUnrecognizedDaemonPayload(data);
-    write(`${init.method} ${route} failed: ${resp.status}${rawExcerpt}\n`);
-    return exit(1);
+    const fallbackCode = typeof errorObj?.code === 'string' ? sanitizeUntrustedText({ text: errorObj.code }) : 'http-error';
+    return exitWithStructuredError({ code: fallbackCode, message: `${init.method} ${route} failed: ${resp.status}${rawExcerpt}` }, structuredOptions);
   }
   return data;
 }
@@ -248,9 +244,7 @@ async function requestJsonFromDaemon(
  * it verbatim.
  */
 export async function postJsonToDaemon(
-  base: string,
-  route: string,
-  body: unknown,
+  { base, route, body }: { base: string; route: string; body: unknown },
   options: PostJsonToDaemonOptions = {},
 ): Promise<unknown> {
   return requestJsonFromDaemon(base, route, { method: 'POST', body }, options);
@@ -263,8 +257,7 @@ export async function postJsonToDaemon(
  * `GET /api/runs/:runId`.
  */
 export async function getJsonFromDaemon(
-  base: string,
-  route: string,
+  { base, route }: { base: string; route: string },
   options: GetJsonFromDaemonOptions = {},
 ): Promise<unknown> {
   return requestJsonFromDaemon(base, route, { method: 'GET' }, options);
@@ -279,5 +272,5 @@ function describeUnrecognizedDaemonPayload(data: unknown): string {
     raw = String(data);
   }
   if (raw.length === 0) return '';
-  return ` (daemon response, redacted/truncated): ${sanitizeUntrustedText(raw)}`;
+  return ` (daemon response, redacted/truncated): ${sanitizeUntrustedText({ text: raw })}`;
 }

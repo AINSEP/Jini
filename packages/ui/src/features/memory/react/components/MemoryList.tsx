@@ -55,10 +55,10 @@ export function MemoryList({
   const t = useT();
   const typeLabel = useMemo(() => memoryTypeLabels(t), [t]);
   const entryHandles = agentHandle
-    ? buildAgentListHandles(agentSubHandle(agentHandle, 'entry'), filtered.map((e) => e.id))
+    ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action: 'entry' }), ids: filtered.map((e) => e.id) })
     : undefined;
   const extractionHandles = agentHandle
-    ? buildAgentListHandles(agentSubHandle(agentHandle, 'extraction'), visibleExtractions.map((r) => r.id))
+    ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action: 'extraction' }), ids: visibleExtractions.map((r) => r.id) })
     : undefined;
   return (
     <section ref={sectionRef} className="settings-section settings-section-card memory-records-section">
@@ -84,7 +84,7 @@ export function MemoryList({
               type="button"
               className={`filter-pill${filter === 'all' ? ' active' : ''}`}
               onClick={() => onFilterChange('all')}
-              {...agentHandleProps(agentHandle, { action: 'filter-all', role: 'button', label: t('All') })}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'filter-all', role: 'button', label: t('All') }) })}
             >
               {t('All')}
               <span className="filter-pill-count">{entries.length + visibleExtractions.length}</span>
@@ -98,7 +98,7 @@ export function MemoryList({
                   type="button"
                   className={`filter-pill${filter === type ? ' active' : ''}`}
                   onClick={() => onFilterChange(type)}
-                  {...agentHandleProps(agentHandle, { action: `filter-${type}`, role: 'button', label: typeLabel[type] })}
+                  {...agentHandleProps({}, { base: agentHandle, ...({ action: `filter-${type}`, role: 'button', label: typeLabel[type] }) })}
                 >
                   {typeLabel[type]}
                   <span className="filter-pill-count">{count}</span>
@@ -113,7 +113,7 @@ export function MemoryList({
                 className="ghost memory-clear-extractions"
                 onClick={() => onClearExtractions()}
                 title={t('Clear extraction history')}
-                {...agentHandleProps(agentHandle, { action: 'clear-extractions', role: 'button', label: t('Clear extraction history') })}
+                {...agentHandleProps({}, { base: agentHandle, ...({ action: 'clear-extractions', role: 'button', label: t('Clear extraction history') }) })}
               >
                 <Icon name="close" size={12} />
                 <span>{t('Clear')}</span>
@@ -126,7 +126,7 @@ export function MemoryList({
                 onClick={() => onRefreshExtractions()}
                 disabled={isRefreshing}
                 title={t('Refresh')}
-                {...agentHandleProps(agentHandle, { action: 'refresh-extractions', role: 'button', label: t('Refresh') })}
+                {...agentHandleProps({}, { base: agentHandle, ...({ action: 'refresh-extractions', role: 'button', label: t('Refresh') }) })}
               >
                 <Icon name="refresh" size={12} className={isRefreshing ? 'icon-spin' : ''} />
                 <span>{isRefreshing ? t('Refreshing') : t('Refresh')}</span>

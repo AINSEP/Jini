@@ -1,7 +1,7 @@
 /**
  * Reusable `VendorResponseParser` factories for the two response shapes
  * that genuinely repeat, byte-for-byte, across multiple already-ported
- * vendors (verified by reading their real bodies — see `source-map.md`'s
+ * vendors (verified by reading their real bodies — see `archived provenance ledger`'s
  * 2026-07-21 dispatch-engine-generalization section, not assumed from
  * their doc comments alone):
  *
@@ -10,7 +10,7 @@
  *   `renderFishAudioTTS` and `providers/openai.ts`'s `renderOpenAISpeech`.
  *   xAI TTS (`grok.ts`'s `renderXAITTS`) and ElevenLabs's two renderers
  *   have the identical shape and are natural future migrations onto this
- *   same parser, not yet done this pass (see source-map.md for why).
+ *   same parser, not yet done this pass (see archived provenance ledger for why).
  * - `createHexEnvelopeAudioParser` — "POST JSON, get hex-encoded audio back
  *   inside a `base_resp`-enveloped JSON body" — used today by
  *   `providers/minimax.ts` and `providers/senseaudio.ts`'s TTS renderers,
@@ -31,21 +31,21 @@
 import { truncate } from './openai-compatible.js';
 import type { VendorResponseParser } from './vendor-adapter.js';
 
-type Resolvable<T, Args extends readonly unknown[]> = T | ((...args: Args) => T);
+type Resolvable<T, Args extends object> = T | ((required: Args) => T);
 
-function resolve<T, Args extends readonly unknown[]>(value: Resolvable<T, Args>, args: Args): T {
-  return typeof value === 'function' ? (value as (...args: Args) => T)(...args) : value;
+function resolve<T, Args extends object>(value: Resolvable<T, Args>, args: Args): T {
+  return typeof value === 'function' ? (value as (required: Args) => T)(args) : value;
 }
 
 export interface RawBytesParserOptions<Meta> {
   /** Used in the `${tag} ${status}: ${truncated body}` message thrown on a non-OK response. A function receives the request's `meta` (e.g. so a dynamically-computed azure/non-azure tag survives the port — see `providers/openai.ts`). */
-  readonly errorTag: Resolvable<string, [meta: Meta]>;
+  readonly errorTag: Resolvable<string, { meta: Meta }>;
   /** Thrown verbatim when the response body decodes to zero bytes. */
-  readonly zeroBytesMessage: Resolvable<string, [meta: Meta]>;
+  readonly zeroBytesMessage: Resolvable<string, { meta: Meta }>;
   /** Builds the successful `RenderResult.providerNote`. */
-  readonly note: (bytes: Buffer, meta: Meta) => string;
+  readonly note: (required: { bytes: Buffer; meta: Meta }) => string;
   /** The successful `RenderResult.suggestedExt`. */
-  readonly suggestedExt: Resolvable<string, [bytes: Buffer, meta: Meta]>;
+  readonly suggestedExt: Resolvable<string, { bytes: Buffer; meta: Meta }>;
 }
 
 /**
@@ -57,20 +57,20 @@ export interface RawBytesParserOptions<Meta> {
  * `renderOpenAISpeech` each independently hand-wrote before this pass.
  */
 export function createRawBytesParser<Meta = undefined>(options: RawBytesParserOptions<Meta>): VendorResponseParser<Meta> {
-  return async (resp, _ctx, request) => {
+  return async ({ resp, request }) => {
     if (!resp.ok) {
       const text = await resp.text();
-      const tag = resolve(options.errorTag, [request.meta]);
+      const tag = resolve(options.errorTag, { meta: request.meta });
       throw new Error(`${tag} ${resp.status}: ${truncate(text, 240)}`);
     }
     const bytes = Buffer.from(await resp.arrayBuffer());
     if (bytes.length === 0) {
-      throw new Error(resolve(options.zeroBytesMessage, [request.meta]));
+      throw new Error(resolve(options.zeroBytesMessage, { meta: request.meta }));
     }
     return {
       bytes,
-      providerNote: options.note(bytes, request.meta),
-      suggestedExt: resolve(options.suggestedExt, [bytes, request.meta]),
+      providerNote: options.note({ bytes, meta: request.meta }),
+      suggestedExt: resolve(options.suggestedExt, { bytes, meta: request.meta }),
     };
   };
 }
@@ -100,13 +100,17 @@ export interface HexEnvelopeAudioParserOptions {
  * a *logical* failure) — the exact shape MiniMax's and SenseAudio's TTS
  * endpoints both independently return, verified identical (down to the
  * literal error-message templates) by reading both origin renderers in
- * full. `extra_info.audio_length` is centiseconds; `seconds` is `'?'` when
- * absent, matching both vendors' own formatting.
+ * full. `extra_info.audio_length` is milliseconds; the note rounds it to
+ * tenths of a second. `seconds` is `'?'` when absent, matching both vendors'
+ * own formatting. MiniMax's `/v1/t2a_v2` response contract is documented at
+ * https://platform.minimax.io/docs/api-reference/speech-t2a-http; the explicit
+ * field units are also listed by its hosted API adapter at
+ * https://help.aliyun.com/zh/model-studio/minimax-synchronous-speech-synthesis-api.
  */
 export function createHexEnvelopeAudioParser<Meta extends HexEnvelopeAudioMeta>(
   options: HexEnvelopeAudioParserOptions,
 ): VendorResponseParser<Meta> {
-  return async (resp, _ctx, request) => {
+  return async ({ resp, request }) => {
     const respText = await resp.text();
     if (!resp.ok) {
       throw new Error(`${options.errorTag} ${resp.status}: ${truncate(respText, 240)}`);

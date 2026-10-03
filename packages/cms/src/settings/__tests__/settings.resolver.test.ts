@@ -165,7 +165,7 @@ test("getEffective returns null for a tombstoned key (EC-10)", async () => {
 });
 
 test("getEffective coerces a value stored under a stale def_version in memory, no write-back (AC-21/EC-08)", async () => {
-  registerCoercer("upcase", (v) => (typeof v === "string" ? v.toUpperCase() : v));
+  registerCoercer({ tag: "upcase", fn: ({ value }) => (typeof value === "string" ? value.toUpperCase() : value) });
   const def = definition({ version: 2, coercionTag: "upcase" });
   const staleValue = value({ scope: "global", valueJson: "lowercase", defVersion: 1 });
   const repo = new InMemorySettingsRepo({ definitions: [def], globalValues: [staleValue] });

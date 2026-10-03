@@ -1,43 +1,21 @@
+import type { IdGenerator } from "@jini-ai/core/primitives";
+import { adaptLegacyAuthorize } from "../core/tools/index.js";
+import type { Clock } from "@jini-ai/core/primitives";
 /**
- * @file Settings' tool-registration wiring: maps the wireable subset of `agent-tools.ts`'s eight
- * catalog entries onto three reads and one curated write, as `ToolRegistration`s. See
- * `agent-tools.ts`'s own file header for why the four GENERIC write entries are documented but
- * deliberately never wired ({@link UNWIRED_SETTINGS_TOOL_IDS}), and why `settings_set_ui_preference`
- * is not one of them.
- *
- * The one write here is shaped so that its blast radius is a property of the code rather than of
- * the caller's restraint: its target key comes from a fixed enum
- * (`agent-writable-preferences.ts`), its scope is a constant, and it never names a principal — so
- * "write another operator's settings" and "write a key outside the list" are unrepresentable
- * inputs, not merely unauthorized ones.
- *
- * Authorization shape: `getEffective`/`resolveDefinition` (`settings.ts`) and a direct
- * `settingsRepo.listActiveDefinitions`/`getGlobalValue`/`getWorkspaceValue`/`getUserValue` read
- * carry no `authorize()` call of their own — a host's admin routes gate inline — so every handler
- * here calls the kit's `requireToolPermission` itself, mirroring those routes' identical checks.
- * `resolveOwnOrOtherPrincipalRead` below deliberately duplicates (rather than imports) any HTTP
- * admin layer's read-target resolution logic — this file is domain-owned wiring, and importing
- * logic from a host's HTTP admin layer would invert this library's ports/adapters direction
- * (features must not depend on a host's server/routes layer); the two are kept behaviorally
- * identical by inspection, the same discipline that logic's own host-side callers should apply.
+ * @file Settings tools: three reads and three bounded value writes. Bulk reset and definition
+ * registration stay unwired. The generic tools reuse write-service authorization/validation and
+ * return the previous override. Key policy and the optional host confirmation port enforce the
+ * owner's 2026-10-01 decision: privacy/instructions/self-configuration require a human card.
+ * Direct reads supply their own permission checks; writes pre-check before reading undo values
+ * and the service repeats authorization at mutation time. No host HTTP/runtime imports.
  */
 import type { AuthorizeFn } from "../core/commands/command.js";
-import {
-  buildDomainRegistrations,
-  indexCatalogById,
-  optionalString,
-  requireInputRecord,
-  requireNoInput,
-  requireString,
-  requireToolPermission,
-  withSchemaOnRejection,
-  type AgentToolSideEffect,
-  type DerivedRiskByToolId,
-  type ToolHandler,
-  type ToolRegistration,
-} from "../core/tools/registration-kit.js";
-import type { JsonValue } from "../core/ports.js";
-import type { PrincipalRepoPort } from "../identity/index.js";
+import { buildSettingsValueWriteHandler, type SettingsWriteConfirmation } from "./agent-value-write-tools.js";
+import { AGENT_WRITE_CONFIRMATION_SETTINGS, AGENT_WRITE_DENIED_SETTINGS, findAgentWriteRule, type AgentSettingWriteRule } from "./agent-write-denylist.js";
+import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireNoInput, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { requireToolPermission } from "../core/tools/index.js";
+import type { JsonValue } from "@jini-ai/core/primitives";
+import type { SettingsPrincipalLookupPort } from "./principal-lookup.js";
 import { getSettingsAgentToolCatalog } from "./agent-tools.js";
 import {
   AGENT_PREFERENCE_WRITE_SCOPE,
@@ -51,27 +29,34 @@ import {
   ValueValidationFailedError,
 } from "./errors.js";
 import type { SettingsRepoPort } from "./ports.js";
-import { getEffective, resolveDefinition } from "./settings.js";
-import type { SettingValueRecord } from "./types.js";
+import { getEffective, resolveDefinition, resolveDefinitionRaw } from "./settings.js";
+import { SCOPE_BIT, type SettingValueRecord } from "./types.js";
 import { set as setSettingValue, type SettingsWriteServiceDeps } from "./write-service.js";
 
-const CATALOG_BY_ID = indexCatalogById(getSettingsAgentToolCatalog());
+const CATALOG_BY_ID = indexCatalogById({ catalog: getSettingsAgentToolCatalog() });
 
 /**
  * The exact slice of a host's route-deps bag Settings' tool handlers read. Declared structurally
  * (rather than importing any host's own route-deps type) so this module carries no back-edge into
  * a host's composition root. A host satisfies this structurally by passing its existing route deps
- * object; nothing there needs to change shape.
+ * object after binding kernel clock/IDs and an active, workspace-scoped principal lookup.
  */
 export interface SettingsToolDeps {
   authorize: AuthorizeFn;
   workspaceId: string;
-  clock: { nowIso(): string };
-  idGen: { newId(): string };
+  clock: Clock;
+  idGen: IdGenerator;
   settingsReady: Promise<void>;
   settingsUiTabsReady: Promise<void>;
   settingsRepo: SettingsRepoPort;
-  principalRepo: PrincipalRepoPort;
+  principalRepo: SettingsPrincipalLookupPort;
+  /** Host extensions: explicit deny or human-confirmation rules, never agent inputs. */
+  extraDeniedSettings?: readonly AgentSettingWriteRule[];
+  extraConfirmationSettings?: readonly AgentSettingWriteRule[];
+  /** Must obtain an authenticated human card decision; absent means protected keys fail closed. */
+  confirmWrite?: (request: SettingsWriteConfirmation) => Promise<boolean>;
+  /** Host's validation wrapper; defaults to the package's existing set chokepoint. */
+  setValue?: typeof setSettingValue;
 }
 
 /** Permission gating a read that names a DIFFERENT principal than the caller — mirrors a host's
@@ -104,11 +89,7 @@ async function resolveOwnOrOtherPrincipalRead(
   const target = requestedPrincipalId ?? callerPrincipalId;
   if (target === callerPrincipalId) return target;
 
-  await requireToolPermission(routeDeps, {
-    principalId: callerPrincipalId,
-    permission: CROSS_PRINCIPAL_SETTINGS_READ_PERMISSION,
-    entityType: "setting-value",
-  });
+  await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: callerPrincipalId, permission: CROSS_PRINCIPAL_SETTINGS_READ_PERMISSION }, { entityType: "setting-value" });
   return requestedPrincipalId;
 }
 
@@ -158,11 +139,15 @@ function isPreferenceShapeRejection(error: unknown): boolean {
 /**
  * This wiring layer's OWN risk classification, authored from what each handler below actually
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
- * `sideEffects` declaration — and note that the four excluded writes appear NOWHERE here, which is
+ * `sideEffects` declaration — and note that the two excluded bulk/schema writes appear NOWHERE here, which is
  * itself the strongest of the guards: an unclassified id cannot be wired at all.
  */
 export const settingsDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
-  // -> settingsRepo.listActiveDefinitions() x2 (platform + this workspace): reads only.
+  // -> write-service.set(): one value override and one revision, with optional human confirmation.
+  ["settings_set_value", "mutates-durable-state"],
+  // -> write-service.clear(): one override marked cleared and one revision; no definition/delete.
+  ["settings_clear_value", "mutates-durable-state"],
+  // -> settingsRepo.listActiveDefinitions() x2 + resolveDefinitionRaw() for aliases: reads only.
   ["settings_list_definitions", "none"],
   // -> settingsRepo.listActiveDefinitions() x2 + getEffective() per key: reads only, no write path.
   ["settings_get_effective", "none"],
@@ -177,11 +162,6 @@ export const settingsDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToo
 
 /** Settings catalog entries this pass does not wire, and why — see `agent-tools.ts`'s own per-entry comments for the full reasoning. */
 const UNWIRED_SETTINGS_TOOL_IDS = new Set([
-  // EXCLUDED BY DESIGN: generic "set any setting key" — a typical human admin UI for this domain
-  // is itself an uncurated free-text/raw-JSON editor, not a fixed named list (see agent-tools.ts
-  // file header).
-  "settings_set",
-  "settings_clear",
   // EXCLUDED BY DESIGN: bulk variant — clears every value in an operator-named namespace at a
   // scope in one call, irreversible.
   "settings_reset",
@@ -193,32 +173,49 @@ const UNWIRED_SETTINGS_TOOL_IDS = new Set([
 
 export function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
+    settings_set_value: buildSettingsValueWriteHandler(routeDeps, "settings_set_value"),
+    settings_clear_value: buildSettingsValueWriteHandler(routeDeps, "settings_clear_value"),
     settings_list_definitions: async (ctx) => {
-      requireNoInput(ctx.input);
+      requireNoInput({ input: ctx.input });
       await routeDeps.settingsReady;
-      await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "settings.read.definitions", entityType: "setting-definition" });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "settings.read.definitions" }, { entityType: "setting-definition" });
 
       const [platformDefs, siteDefs] = await Promise.all([
         routeDeps.settingsRepo.listActiveDefinitions({ workspaceId: null }),
         routeDeps.settingsRepo.listActiveDefinitions({ workspaceId: routeDeps.workspaceId }),
       ]);
 
-      const data = [...platformDefs, ...siteDefs]
-        .map((def) => ({ namespace: def.namespace, key: def.key, ownerKind: def.ownerKind, scopes: def.scopes, status: def.status, version: def.version }))
+      const deniedRules = [...AGENT_WRITE_DENIED_SETTINGS, ...(routeDeps.extraDeniedSettings ?? [])];
+      const confirmationRules = [...AGENT_WRITE_CONFIRMATION_SETTINGS, ...(routeDeps.extraConfirmationSettings ?? [])];
+      // Only aliases need an extra lookup. Their target's schema/scope and BOTH coordinates'
+      // key policies must agree with the write handler; dangling/tombstoned targets fail closed.
+      const data = (await Promise.all([...platformDefs, ...siteDefs].map(async (def) => {
+        const resolved = def.status === "alias"
+          ? await resolveDefinitionRaw({ repo: routeDeps.settingsRepo }, { namespace: def.namespace, key: def.key, workspaceId: routeDeps.workspaceId })
+          : def;
+        const coordinates = resolved ? [def, resolved] : [def];
+        const denied = coordinates.some((coordinate) => !!findAgentWriteRule(deniedRules, coordinate));
+        const confirmationRequired = coordinates.some((coordinate) => !!findAgentWriteRule(confirmationRules, coordinate));
+        const scopes = resolved?.scopes ?? def.scopes;
+        return { namespace: def.namespace, key: def.key, ownerKind: def.ownerKind, scopes, status: def.status, version: def.version,
+          schema: resolved?.schema ?? def.schema,
+          agentWritable: !!resolved && resolved.status !== "tombstone" && !denied && (!confirmationRequired || !!routeDeps.confirmWrite) && (scopes & (SCOPE_BIT.workspace | SCOPE_BIT.user)) !== 0,
+          confirmationRequired };
+      })))
         .sort((a, b) => a.namespace.localeCompare(b.namespace) || a.key.localeCompare(b.key));
 
       return { data };
     },
 
     settings_get_effective: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
-      const namespace = requireString(input, "namespace");
+      const input = requireInputRecord({ input: ctx.input });
+      const namespace = requireString({ input: input, key: "namespace" });
       await routeDeps.settingsReady;
-      await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "settings.read", entityType: "setting-value" });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "settings.read" }, { entityType: "setting-value" });
 
       const workspaceId = routeDeps.workspaceId;
       const principalId = await resolveOwnOrOtherPrincipalRead(routeDeps, {
-        requestedPrincipalId: optionalString(input, "principalId"),
+        requestedPrincipalId: optionalString({ input: input, key: "principalId" }),
         callerPrincipalId: ctx.principal.id,
       });
 
@@ -238,15 +235,15 @@ export function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolReg
     },
 
     settings_get_raw: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
-      const namespace = requireString(input, "namespace");
-      const key = requireString(input, "key");
+      const input = requireInputRecord({ input: ctx.input });
+      const namespace = requireString({ input: input, key: "namespace" });
+      const key = requireString({ input: input, key: "key" });
       await routeDeps.settingsReady;
-      await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "settings.read.raw", entityType: "setting-value" });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "settings.read.raw" }, { entityType: "setting-value" });
 
       const workspaceId = routeDeps.workspaceId;
       const principalId = await resolveOwnOrOtherPrincipalRead(routeDeps, {
-        requestedPrincipalId: optionalString(input, "principalId"),
+        requestedPrincipalId: optionalString({ input: input, key: "principalId" }),
         callerPrincipalId: ctx.principal.id,
       });
 
@@ -269,8 +266,8 @@ export function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolReg
     },
 
     settings_set_ui_preference: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
-      const settingId = requireString(input, "setting");
+      const input = requireInputRecord({ input: ctx.input });
+      const settingId = requireString({ input: input, key: "setting" });
 
       // Re-checked here even though the published schema carries the same enum. See
       // `agent-writable-preferences.ts` on why: the enum is enforced by a caller's descriptor
@@ -300,18 +297,15 @@ export function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolReg
       // No `requireToolPermission` call here, unlike every read above. That is deliberate and is
       // the opposite of the reads' situation: the read paths carry no `authorize()` of their own,
       // so this layer must supply it, whereas `write-service.set()` IS the authorization
-      // chokepoint (INV-07) and derives the permission itself from the scope and target. Adding a
+      // chokepoint and derives the permission itself from the scope and target. Adding a. See docs/decisions/DR-003-settings-ledger-invariants.md.
       // pre-check would mean this file naming a permission string that the chokepoint might later
       // derive differently — the exact fail-open drift `deriveRequiredPermission`'s own header
-      // (Red-Team RT-003) says must not be duplicated. Omitting `principalId` is what makes the
+      // (Red-Team ) says must not be duplicated. Omitting `principalId` is what makes the. See docs/decisions/DR-003-settings-ledger-invariants.md.
       // derived permission `settings.user.self.write`.
-      const { value: stored, revisionSeq } = await withSchemaOnRejection(
-        {
+      const { value: stored, revisionSeq } = await withSchemaOnRejection({
           toolId: "settings_set_ui_preference",
           catalog: CATALOG_BY_ID,
-          isShapeRejection: isPreferenceShapeRejection,
-        },
-        () =>
+          isShapeRejection: ({ error }) => isPreferenceShapeRejection(error), fn: () =>
           setSettingValue({
             deps: toWriteDeps(routeDeps),
             input: {
@@ -326,19 +320,11 @@ export function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolReg
               callerPrincipalId: ctx.principal.id,
               authWorkspaceId: routeDeps.workspaceId,
             },
-          }),
-      );
+          }) });
 
       return { setting: settingId, value: stored, scope: AGENT_PREFERENCE_WRITE_SCOPE, revisionSeq };
     },
   };
 
-  return buildDomainRegistrations({
-    domain: "settings",
-    catalogModule: "settings/agent-tools.ts",
-    catalog: CATALOG_BY_ID,
-    handlers,
-    derivedRisk: settingsDerivedRisk,
-    unwiredToolIds: UNWIRED_SETTINGS_TOOL_IDS,
-  });
+  return buildDomainRegistrations({ domain: "settings", catalogModule: "settings/agent-tools.ts", catalog: CATALOG_BY_ID, handlers, derivedRisk: settingsDerivedRisk }, { unwiredToolIds: UNWIRED_SETTINGS_TOOL_IDS });
 }

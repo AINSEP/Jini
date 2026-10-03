@@ -13,7 +13,6 @@ export const SETTINGS_DIALOG_KO: Record<string, string> = {
   "MCP server": "MCP 서버",
   "Connect an MCP client. Showing sample output — not yet wired to a live server.": "MCP 클라이언트를 연결합니다. 예시 출력을 표시하고 있으며, 아직 실제 서버에 연결되어 있지 않습니다.",
   "API keys for image, video, and audio generation.": "이미지, 동영상, 오디오 생성을 위한 API 키입니다.",
-  "Third-party accounts and APIs via Composio.": "Composio를 통한 타사 계정 및 API입니다.",
   "Memory": "메모리",
   "Saved facts and context for future chats.": "향후 대화를 위해 저장된 사실 및 컨텍스트입니다.",
   "External MCP": "외부 MCP",

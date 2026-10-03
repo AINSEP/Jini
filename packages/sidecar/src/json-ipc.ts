@@ -110,7 +110,7 @@ function errorMessage(error: unknown): string {
  * hand today — matching this repo's "extract into a directly-testable pure
  * function" convention rather than narrowing the type away.
  */
-export function jsonIpcError(error: unknown): { code?: string; message: string } {
+export function jsonIpcError({ error }: { error: unknown }): { code?: string; message: string } {
   return {
     ...(errorCode(error) == null ? {} : { code: errorCode(error) as string }),
     message: errorMessage(error),
@@ -140,7 +140,7 @@ async function staleUnixSocketExists(socketPath: string): Promise<boolean> {
     // was provably unreachable (verified empirically this session: forcing
     // a second event through a fake socket finds zero listeners and crashes
     // the process outright, rather than reaching that guard — see
-    // source-map.md's 2026-07-22 entry) — removed as a real refactor rather
+    // archived provenance ledger's 2026-07-22 entry) — removed as a real refactor rather
     // than padded with a test that can't exercise real behavior.
     const settle = (callback: () => void) => {
       socket.removeAllListeners();
@@ -172,8 +172,8 @@ async function staleUnixSocketExists(socketPath: string): Promise<boolean> {
  * Windows. Testing this function directly (asserting no filesystem call
  * happens) verifies the real behavior on every platform this runs on.
  */
-export async function prepareIpcPath(socketPath: string): Promise<void> {
-  if (isWindowsNamedPipePath(socketPath)) return;
+export async function prepareIpcPath({ socketPath }: { socketPath: string }): Promise<void> {
+  if (isWindowsNamedPipePath({ value: socketPath })) return;
   await mkdir(dirname(socketPath), { recursive: true });
   if (await staleUnixSocketExists(socketPath)) await rm(socketPath, { force: true });
 }
@@ -187,17 +187,16 @@ export async function prepareIpcPath(socketPath: string): Promise<void> {
 export async function createJsonIpcServer({
   handler,
   socketPath,
-  maxFrameBytes = DEFAULT_MAX_FRAME_BYTES,
-  idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS,
 }: {
   handler: JsonIpcHandler;
   socketPath: string;
+}, { maxFrameBytes = DEFAULT_MAX_FRAME_BYTES, idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS }: {
   /** Reject a connection whose single frame exceeds this many bytes before a newline arrives (SEC-004). @default 1_000_000 */
   maxFrameBytes?: number;
   /** Drop a connection that has not delivered one complete frame within this many ms (SEC-004). @default 30_000 */
   idleTimeoutMs?: number;
-}): Promise<JsonIpcServerHandle> {
-  await prepareIpcPath(socketPath);
+} = {}): Promise<JsonIpcServerHandle> {
+  await prepareIpcPath({ socketPath });
   const server = createNetServer((socket) => {
     let buffer = "";
     let receivedBytes = 0;
@@ -230,7 +229,7 @@ export async function createJsonIpcServer({
       // execution model means no other callback (including this one) can
       // run in between that assignment and the `clearTimeout` call. Kept as
       // a real fail-safe (in case a future edit reorders that sequence)
-      // rather than asserted away — see source-map.md's 2026-07-22 entry.
+      // rather than asserted away — see archived provenance ledger's 2026-07-22 entry.
       if (handled) return;
       handled = true;
       traceJsonIpc("server.idle_timeout", {
@@ -252,7 +251,7 @@ export async function createJsonIpcServer({
       // the installed `@types/node`'s `net.d.ts` this session; not asserted
       // away since a test would have to manually `.emit()` a fabricated
       // non-Error value to reach the other side, which isn't real socket
-      // behavior (see source-map.md's 2026-07-22 entry).
+      // behavior (see archived provenance ledger's 2026-07-22 entry).
       traceJsonIpc("server.socket_error", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
         error: error instanceof Error ? error.message : String(error),
@@ -311,7 +310,7 @@ export async function createJsonIpcServer({
         // genuine `SyntaxError` (an `Error` instance) for any string input
         // — never a non-Error value — matching the same reasoning as the
         // socket-error `instanceof Error` checks above (see
-        // source-map.md's 2026-07-22 entry).
+        // archived provenance ledger's 2026-07-22 entry).
         traceJsonIpc("server.frame_parse_failed", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
           error: error instanceof Error ? error.message : String(error),
@@ -322,7 +321,7 @@ export async function createJsonIpcServer({
         socket.end(
           `${JSON.stringify({
             ok: false,
-            error: jsonIpcError(error),
+            error: jsonIpcError({ error }),
           })}\n`,
         );
         return;
@@ -342,7 +341,7 @@ export async function createJsonIpcServer({
           socketPath,
           traceId,
         });
-        const result = await handler(message);
+        const result = await handler({ message });
         traceJsonIpc("server.handler_success", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
           message: messageSummary,
@@ -355,7 +354,7 @@ export async function createJsonIpcServer({
         // same trust-boundary concern as SEC-005's HTTP fix). The peer gets a stable code plus
         // the traceId as a correlation handle; the real detail is redacted and logged
         // server-side only, unconditionally (not gated behind JINI_JSON_IPC_TRACE).
-        const redactedDetail = redactSecrets(error instanceof Error ? error.message : String(error));
+        const redactedDetail = redactSecrets({ input: error instanceof Error ? error.message : String(error) });
         // eslint-disable-next-line no-console
         console.error(`[@jini-ai/sidecar] json-ipc handler failed (traceId=${traceId})`, redactedDetail);
         traceJsonIpc("server.handler_failed", {
@@ -386,7 +385,7 @@ export async function createJsonIpcServer({
   return {
     async close() {
       await closeServer(server);
-      if (!isWindowsNamedPipePath(socketPath)) await rm(socketPath, { force: true });
+      if (!isWindowsNamedPipePath({ value: socketPath })) await rm(socketPath, { force: true });
     },
   };
 }
@@ -397,8 +396,7 @@ export async function createJsonIpcServer({
  * @returns The server's `result` payload.
  */
 export async function requestJsonIpc<T = any>(
-  socketPath: string,
-  payload: unknown,
+  { socketPath, payload }: { socketPath: string; payload: unknown },
   { timeoutMs = 1500 }: { timeoutMs?: number } = {},
 ): Promise<T> {
   return await new Promise<T>((resolveRequest, rejectRequest) => {
@@ -511,7 +509,7 @@ export async function requestJsonIpc<T = any>(
     socket.on("error", (error) => {
       // Same defense-in-depth, not-reachable-through-real-usage reasoning as
       // the server-side `error instanceof Error` check above (see that
-      // comment + source-map.md's 2026-07-22 entry).
+      // comment + archived provenance ledger's 2026-07-22 entry).
       traceJsonIpc("client.socket_error", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
         error: error instanceof Error ? error.message : String(error),

@@ -1,5 +1,92 @@
 # @jini-ai/platform
 
+## 0.5.0 — 2026-10-02
+
+### BREAKING
+
+- Use canonical core ports and platform ./net and ./fs/file-lock. Analytics and trash moved to their domain packages; credential scope and durable filesystem contracts changed.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased
+
+### Compilation fixes
+
+- Omit an absent guarded HTTP abort signal to satisfy the canonical request contract.
+- Import the mail adapter's HTTP port from core primitives and type the key-rotation test
+  fake against `KeyringPort`, preserving its assertions and behavior.
+
+### Breaking domain extraction
+
+- Remove `./analytics` and the analytics root namespace; import the standalone `@jini-ai/analytics` package.
+- Remove `./trash` and the trash root namespace; import `@jini-ai/cms/trash`.
+- Move both capabilities' behavior tests with their source; platform retains only generic OS/transport capabilities.
+
+
+### Shared platform primitives
+
+- BREAKING: HTTP primitive types now come from `@jini-ai/core/primitives`; guarded HTTP exports
+  `GuardedClock` with `nowMs()` and `timeoutSignal({ timeoutMs })`. Mail uses the kernel clock.
+  Analytics primitive declarations also come from core. Add core as a regular dependency.
+- BREAKING: address classifiers move from asset-cache.ts to `./net`; `isPrivateAddress` and
+  `expandIpv6` take `{ address }`. The root IP-classifier export points to the canonical module.
+- Add `./fs/file-lock` async/sync token-and-inode-owned locks sharing one stale decision.
+  Durable JSON retains its lock budgets, user copy, read/quarantine behavior and JSON bytes.
+- BREAKING: the synchronous atomic filesystem seam owns descriptors and exposes open/sync/close/
+  lstat as well as existing mode/rename/remove effects. Add file and directory fsync and owned-temp
+  failure cleanup; move `tempName` into argument two as an optional token factory with the native pid.UUID default. Add async file/JSON
+  writers, secret-mode verification, optional symlink refusal, and sidecar newline/parent support.
+  Durable JSON delegates to the canonical writer, retains its temp layout/new-file mode, and gains
+  exclusive temp creation, cleanup on failure, and directory fsync.
+- Add exported `defaultPlatformMessages` with host replacement seams. Egress refusal and invalid
+  root-key recovery warnings use neutral defaults. Keyring source-permission flags and derivation
+  formats are unchanged. Tests and builds are deferred by the owner.
+
+- Security defaults: purpose-gated mail validates runtime modes at composition; only explicit local mode bypasses readiness. Root-key adapters require an injected environment reader and explicit fallback/generation booleans. Fresh inspection/reveal also require that reader. Existing wire derivation is unchanged.
+
+- Guarded HTTP restores per-socket inactivity timeouts. Requests accept explicit
+  `idleTimeoutMs`, with `timeoutMs` retained as its legacy alias and the historical
+  `connectTimeoutMs` policy ceiling applied per socket. Optional `totalDeadlineMs`
+  bounds DNS, all redirects and decoded body reads independently; it is off by default.
+  Idle failures retain `Error("request timed out after …ms")`; explicit deadline failures
+  use `FetchTimeoutError`. Slow but progressing transfers are no longer cut off by
+  an implicit total deadline. Verification is deferred by owner directive.
+
+### Integration finish pass
+
+- Complete Node runtime metadata for every export, the filesystem barrel, and additive root
+  namespaces for `./http/guarded`, `./mail`, `./mail/smtp`, `./fs`, `./fs/guarded-reader`,
+  `./fs/durable-json`, `./analytics`, `./trash`, `./secrets`, `./secrets/credential-sets`,
+  and `./secrets/testing`. No version change or dependency addition.
+- BREAKING (new extraction APIs): native factories and transport/memory constructors take `{}`;
+  keyring `activeKey`, mailer `capabilities`, clock/random methods and durable JSON `read` take
+  `{}`. SMTP transport `sendMail` takes `{ mail }`; the native nodemailer payload remains
+  behind `NativeSmtpTransport`. Analytics/trash policy errors take `{ message }` and optional
+  `{ cause }`. Existing legacy root functions retain their compatibility signatures.
+- Reconcile the export-map contract test and remove application names from analytics fixtures.
+  Verification of this finish pass is deferred by owner directive.
+
+- Add privacy analytics ingest with required HKDF context and privacy policy, injectable hash/hook seams, and a recent-hit memory sink.
+- Add trash write/sweep orchestration with required retention/entity policy, reentrant transaction ports, host scheduler, record-store adapter, and optional follow-ups in arg 2.
+- Add `./fs` with mode-preserving atomic file/JSON writes, narrow env-text transforms, and strict lexical containment; keep all existing filesystem exports unchanged.
+
+- Add guarded outbound HTTP with injected DNS, pinned transport, clock, policy, and required user agent. Reuse existing address validation and timeout errors. Preserve redirect refusal and response-byte contracts.
+- Add mail contracts, a purpose/readiness gate, delivery capability checks, and an optional SMTP subpath over a host-supplied transport/module; no new dependency.
+- Add contained and bounded file readers with caller-owned deny rules/limits, and durable JSON file operations with injectable filesystem, time, liveness, sleep, randomness, and notices.
+- Convert the unpublished secrets surface to required-object/optional-object signatures; preserve pinned derivation, AAD, ciphertext, and envelope bytes.
+
+## 0.4.0
+
+### Minor Changes
+
+- Add `./secrets` with AES-256-GCM sealing, root-key ports, explicit env/file and fixed-key
+  adapters, HKDF helpers, and root-key validation, status, reveal, and exclusive generation.
+  Env names, key paths, and HKDF salts are caller-supplied, with no defaults. New seals require
+  AAD; opening historical ciphertext without AAD remains supported. The ciphertext envelope
+  and derivation labels are preserved and covered by pinned vectors.
+- Add `./secrets/credential-sets` with generic vendor credential records, repository contracts,
+  the stable v1 AAD builder, and a memory repository. Add `./secrets/testing` with ephemeral and
+  fixed root-key adapters and the memory repository. Existing exports and dependencies are unchanged.
+
 ## 0.1.2
 
 ### Patch Changes

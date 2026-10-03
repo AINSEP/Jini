@@ -52,7 +52,7 @@ export interface EnforceVerifyInput {
   /** Master enable switch — when false, enforcement is skipped outright. */
   verifyEnabled: boolean;
   /** Host-supplied extraction of a scorecard from `assistantOutput`, or `null` if absent. */
-  extractScorecard: (output: string) => VerifyScorecard | null;
+  extractScorecard: (required: { output: string }) => VerifyScorecard | null;
 }
 
 export type VerifyStatus = 'skipped' | 'missing' | 'fail' | 'pass';
@@ -168,7 +168,7 @@ export function enforceVerify(input: EnforceVerifyInput): VerifyResult {
   if (activeRules.length === 0) return { ...base, status: 'skipped', skipReason: 'no-rules' };
   if (!input.hadArtifact) return { ...base, status: 'skipped', skipReason: 'no-artifact' };
 
-  const scorecard = input.extractScorecard(input.assistantOutput);
+  const scorecard = input.extractScorecard({ output: input.assistantOutput });
   if (!scorecard || !Array.isArray(scorecard.rows)) {
     return { ...base, status: 'missing', uncoveredRules: activeRules.map((r) => r.name) };
   }
@@ -209,9 +209,9 @@ export function enforceVerify(input: EnforceVerifyInput): VerifyResult {
 
 export interface VerifyLog {
   readonly events: EventEmitter;
-  record(result: VerifyResult, meta?: { runId?: string; contextId?: string | null }): VerifyRecord | null;
+  record(required: { result: VerifyResult }, meta?: { runId?: string; contextId?: string | null }): VerifyRecord | null;
   list(): VerifyRecord[];
-  remove(id: string): number;
+  remove(required: { id: string }): number;
   clear(): number;
 }
 
@@ -224,27 +224,30 @@ const MAX_RECORDS = 20;
  *
  * @returns A fresh, independent `VerifyLog`.
  */
-export function createVerifyLog(): VerifyLog {
+export function createVerifyLog(_required: Record<string, never>, optional: { now?: () => number; ids?: () => string; defer?: (required: { callback: () => void }) => void } = {}): VerifyLog {
+  const nowMs = optional.now ?? Date.now;
+  const nextId = optional.ids ?? randomUUID;
+  const defer = optional.defer ?? (({ callback }: { callback: () => void }) => { setImmediate(callback); });
   const records: VerifyRecord[] = [];
   const events = new EventEmitter();
   events.setMaxListeners(64);
 
   function emit(record: VerifyRecord | { id: string; status: string; at: number }): void {
-    setImmediate(() => {
+    defer({ callback: () => {
       try {
         events.emit('verify', { ...record });
       } catch {
         // A listener throwing is not this module's problem.
       }
-    });
+    } });
   }
 
-  function record(result: VerifyResult, meta: { runId?: string; contextId?: string | null } = {}): VerifyRecord | null {
+  function record({ result }: { result: VerifyResult }, meta: { runId?: string; contextId?: string | null } = {}): VerifyRecord | null {
     if (result.status === 'skipped') return null;
     const rec: VerifyRecord = {
       ...result,
-      id: randomUUID(),
-      at: Date.now(),
+      id: nextId(),
+      at: nowMs(),
       ...(meta.runId ? { runId: meta.runId } : {}),
       ...(meta.contextId !== undefined ? { contextId: meta.contextId } : {}),
     };
@@ -258,18 +261,18 @@ export function createVerifyLog(): VerifyLog {
     return records.map((r) => ({ ...r }));
   }
 
-  function remove(id: string): number {
+  function remove({ id }: { id: string }): number {
     const idx = records.findIndex((r) => r.id === id);
     if (idx < 0) return 0;
     records.splice(idx, 1);
-    emit({ id, status: 'deleted', at: Date.now() });
+    emit({ id, status: 'deleted', at: nowMs() });
     return 1;
   }
 
   function clear(): number {
     const removed = records.length;
     records.length = 0;
-    if (removed > 0) emit({ id: 'all', status: 'cleared', at: Date.now() });
+    if (removed > 0) emit({ id: 'all', status: 'cleared', at: nowMs() });
     return removed;
   }
 

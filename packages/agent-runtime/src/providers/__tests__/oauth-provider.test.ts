@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   XAI_OAUTH_PROVIDER_CONFIG,
   XAI_OAUTH_PROVIDER_ID,
@@ -12,6 +12,8 @@ import {
   type OAuthPkceProviderConfig,
 } from '../oauth-provider.js';
 import { PendingAuthCache } from '../pkce.js';
+
+afterEach(() => vi.unstubAllGlobals());
 
 const testConfig: OAuthPkceProviderConfig = {
   providerId: 'test-provider',
@@ -32,7 +34,7 @@ describe('beginOAuthPkce', () => {
     });
     expect(result.authorizeUrl).toContain('https://auth.example.com/authorize');
     expect(result.state.length).toBeGreaterThan(0);
-    const stashed = pending.consume(result.state);
+    const stashed = pending.consume({ state: result.state });
     expect(stashed?.serverId).toBe('test-provider');
     expect(stashed?.clientId).toBe('client-1');
     expect(stashed?.redirectUri).toBe('http://127.0.0.1:5555/callback');
@@ -44,8 +46,8 @@ describe('completeOAuthPkce', () => {
   it('exchanges the code for a token when state matches', async () => {
     const pending = new PendingAuthCache();
     const { state } = beginOAuthPkce({ config: testConfig, pending, redirectUri: 'http://127.0.0.1:5555/callback' });
-    const fetchImpl = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ access_token: 'at-1' }) });
-    const token = await completeOAuthPkce({ config: testConfig, pending, state, code: 'code-1', fetchImpl });
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ access_token: 'at-1' })));
+    const token = await completeOAuthPkce({ config: testConfig, pending, state, code: 'code-1' }, { fetchImpl });
     expect(token.access_token).toBe('at-1');
     pending.stop();
   });
@@ -71,7 +73,7 @@ describe('completeOAuthPkce', () => {
   it('defaults fetchImpl to the global fetch', async () => {
     const pending = new PendingAuthCache();
     const { state } = beginOAuthPkce({ config: testConfig, pending, redirectUri: 'http://127.0.0.1:5555/callback' });
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ access_token: 'at-2' }) });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ access_token: 'at-2' })));
     vi.stubGlobal('fetch', fetchMock);
     await completeOAuthPkce({ config: testConfig, pending, state, code: 'code-1' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -82,8 +84,8 @@ describe('completeOAuthPkce', () => {
 
 describe('refreshOAuthPkceToken', () => {
   it('posts a refresh_token grant to the token endpoint', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ access_token: 'at-3' }) });
-    const token = await refreshOAuthPkceToken({ config: testConfig, refreshToken: 'rt-1', fetchImpl });
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ access_token: 'at-3' })));
+    const token = await refreshOAuthPkceToken({ config: testConfig, refreshToken: 'rt-1' }, { fetchImpl });
     expect(token.access_token).toBe('at-3');
     const [, init] = fetchImpl.mock.calls[0]!;
     const body = new URLSearchParams(init.body as string);
@@ -92,7 +94,7 @@ describe('refreshOAuthPkceToken', () => {
   });
 
   it('defaults fetchImpl to the global fetch', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ access_token: 'at-4' }) });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ access_token: 'at-4' })));
     vi.stubGlobal('fetch', fetchMock);
     await refreshOAuthPkceToken({ config: testConfig, refreshToken: 'rt-1' });
     expect(fetchMock).toHaveBeenCalledTimes(1);

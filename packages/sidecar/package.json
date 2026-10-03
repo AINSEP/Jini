@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/sidecar",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Sidecar process runtime: JSON-IPC server and client, IPC path validation, namespace/runtime path resolution, port allocation, launch bootstrap, and a local daemon registry.",
   "license": "Apache-2.0",
   "repository": {
@@ -11,6 +11,12 @@
   "jini": {
     "domain": "platform",
     "kind": "process-bridge",
+    "entries": {
+      ".": "node",
+      "./respawn-policy": "universal",
+      "./supervisor": "universal",
+      "./supervisor/node": "node"
+    },
     "runtime": "node"
   },
   "type": "module",
@@ -22,10 +28,28 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./respawn-policy": {
+      "types": "./dist/respawn-policy.d.ts",
+      "import": "./dist/respawn-policy.js",
+      "default": "./dist/respawn-policy.js"
+    },
+    "./supervisor": {
+      "types": "./dist/supervisor.d.ts",
+      "import": "./dist/supervisor.js",
+      "default": "./dist/supervisor.js"
+    },
+    "./supervisor/node": {
+      "types": "./dist/supervisor-node.d.ts",
+      "import": "./dist/supervisor-node.js",
+      "default": "./dist/supervisor-node.js"
     }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -44,7 +68,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:*"
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/platform": "workspace:*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9"

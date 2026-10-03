@@ -53,10 +53,10 @@ export interface PollingVendorAdapter<Meta = undefined> {
    * money per call, so a retry must be *proven* safe, not assumed.
    */
   readonly submitIsIdempotent?: boolean;
-  buildSubmitRequest(ctx: RenderContext): UnsignedVendorRequest<Meta>;
-  parseSubmitResponse(resp: Response, ctx: RenderContext, request: UnsignedVendorRequest<Meta>): Promise<SubmitOutcome>;
-  buildPollRequest(state: Readonly<Record<string, unknown>>, ctx: RenderContext): UnsignedVendorRequest<Meta>;
-  parsePollResponse(resp: Response, ctx: RenderContext, state: Readonly<Record<string, unknown>>): Promise<PollOutcome>;
+  buildSubmitRequest(required: { ctx: RenderContext }): UnsignedVendorRequest<Meta>;
+  parseSubmitResponse(required: { resp: Response; ctx: RenderContext; request: UnsignedVendorRequest<Meta> }): Promise<SubmitOutcome>;
+  buildPollRequest(required: { state: Readonly<Record<string, unknown>>; ctx: RenderContext }): UnsignedVendorRequest<Meta>;
+  parsePollResponse(required: { resp: Response; ctx: RenderContext; state: Readonly<Record<string, unknown>> }): Promise<PollOutcome>;
 }
 
 /**
@@ -78,7 +78,7 @@ export interface SignedVendorRequest {
  * The broker seam: attaches auth to an unsigned request. Async because a real broker resolves from
  * a vault / refreshes an OAuth token, and is called once per tick rather than once per operation.
  */
-export type RequestSigner = (request: UnsignedVendorRequest<unknown>) => Promise<SignedVendorRequest> | SignedVendorRequest;
+export type RequestSigner = (required: { request: UnsignedVendorRequest<unknown> }) => Promise<SignedVendorRequest> | SignedVendorRequest;
 
 /**
  * Reference signer for the `Authorization: Bearer <key>` scheme every vendor in this package uses.
@@ -93,7 +93,7 @@ export type RequestSigner = (request: UnsignedVendorRequest<unknown>) => Promise
 export function createBearerSigner(
   required: { resolve: () => Promise<ProviderCredentials> | ProviderCredentials; missingCredentialMessage: string },
 ): RequestSigner {
-  return async (request) => {
+  return async ({ request }) => {
     const credentials = await required.resolve();
     if (!credentials.apiKey) {
       throw new Error(required.missingCredentialMessage);
@@ -109,6 +109,6 @@ export function createBearerSigner(
 }
 
 /** Carries a caller-supplied `dispatcher` onto an unsigned request, matching `withRequestInit`'s role on the sync tier. */
-export function withUnsignedRequestInit(ctx: { readonly requestInit: MediaGenerationRequestInit }, init: RequestInit): RequestInit {
+export function withUnsignedRequestInit({ ctx, init }: { ctx: { readonly requestInit: MediaGenerationRequestInit }; init: RequestInit }): RequestInit {
   return { ...init, ...(ctx.requestInit.dispatcher ? { dispatcher: ctx.requestInit.dispatcher } : {}) };
 }

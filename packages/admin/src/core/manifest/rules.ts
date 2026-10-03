@@ -27,7 +27,7 @@ export interface AdminRegistryContext {
  * small, bounded by what a developer typed into a manifest.
  */
 export function resolvePanels<T>(
-  panels: readonly AdminPanel<T>[],
+  { panels }: { readonly panels: readonly AdminPanel<T>[] },
   context: AdminRegistryContext = {},
 ): readonly AdminPanel<T>[] {
   const capabilities = context.capabilities ?? [];
@@ -35,7 +35,7 @@ export function resolvePanels<T>(
   return panels.filter((panel) => {
     const capabilitiesMet = (panel.requires ?? []).every((key) => capabilities.includes(key));
     if (!capabilitiesMet) return false;
-    return (panel.permissions ?? []).every((p) => hasPermission(permissions, p));
+    return (panel.permissions ?? []).every((p) => hasPermission({ permissions, permission: p }));
   });
 }
 
@@ -64,7 +64,10 @@ export interface AdminNavItem extends AdminNavEntry {
  *
  * @complexity O(n log n) on the items within each group; O(n) otherwise.
  */
-export function buildNav<T>(panels: readonly AdminPanel<T>[]): readonly AdminNavGroup[] {
+export function buildNav<T>(
+  { panels }: { readonly panels: readonly AdminPanel<T>[] },
+  options: { readonly defaultPanelId?: string } = {},
+): readonly AdminNavGroup[] {
   const groups = new Map<string, AdminNavItem[]>();
   const groupOrder: string[] = [];
   // Sentinel for "no group". A panel cannot collide with it: `group` is `string | undefined`, and
@@ -78,7 +81,7 @@ export function buildNav<T>(panels: readonly AdminPanel<T>[]): readonly AdminNav
       groups.set(key, []);
       groupOrder.push(key);
     }
-    groups.get(key)?.push({ ...panel.nav, id: panel.id, href: panelHref(panel.id) });
+    groups.get(key)?.push({ ...panel.nav, id: panel.id, href: panelHref({ panelId: panel.id }, options) });
   });
 
   // Ungrouped first regardless of when it was registered — it is the top row, not a peer group.
@@ -99,9 +102,13 @@ function stableSortByOrder(items: readonly AdminNavItem[]): readonly AdminNavIte
   return [...items].sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
 }
 
-/** Panel id -> its **route path**. `dashboard` is the root, not `/dashboard`. */
-export function panelHref(panelId: string): string {
-  return panelId === 'dashboard' ? '/' : `/${panelId}`;
+/** Panel id -> its **route path**. `dashboard` is the root, not `/dashboard`, unless the host
+ *  assigns root to another default panel. Navigation and agent maps must share that policy. */
+export function panelHref(
+  { panelId }: { readonly panelId: string },
+  { defaultPanelId = 'dashboard' }: { readonly defaultPanelId?: string } = {},
+): string {
+  return panelId === 'dashboard' && defaultPanelId === 'dashboard' ? '/' : `/${panelId}`;
 }
 
 /**
@@ -124,13 +131,13 @@ export function panelHref(panelId: string): string {
  * an agent could navigate to a panel whose capability is not wired.
  */
 export function buildAgentPageMap<T>(
-  panels: readonly AdminPanel<T>[],
-  options: { readonly defaultReachable?: boolean } = {},
+  { panels }: { readonly panels: readonly AdminPanel<T>[] },
+  options: { readonly defaultReachable?: boolean; readonly defaultPanelId?: string } = {},
 ): Readonly<Record<string, string>> {
   const defaultReachable = options.defaultReachable ?? false;
   const map: Record<string, string> = {};
   panels.forEach((panel) => {
-    if ((panel.agentReachable ?? defaultReachable) === true) map[panel.id] = panelHref(panel.id);
+    if ((panel.agentReachable ?? defaultReachable) === true) map[panel.id] = panelHref({ panelId: panel.id }, options);
 
     // A param-free detail route carrying an `agentPageId` is a destination in its own right —
     // the reference implementation publishes `widget-regions -> /widgets/regions` exactly this
@@ -140,7 +147,7 @@ export function buildAgentPageMap<T>(
     (panel.routes ?? []).forEach((route) => {
       if (!route.agentPageId) return;
       if (route.pattern.includes(':')) return;
-      map[route.agentPageId] = `${panelHref(panel.id)}${route.pattern}`.replace('//', '/');
+      map[route.agentPageId] = `${panelHref({ panelId: panel.id }, options)}${route.pattern}`.replace('//', '/');
     });
   });
   return map;
@@ -156,9 +163,7 @@ export function buildAgentPageMap<T>(
  * which is the nearest id an agent can actually act on.
  */
 export function resolveAgentPageId<T>(
-  panels: readonly AdminPanel<T>[],
-  panelId: string | null,
-  view: string | null,
+  { panels, panelId, view }: { readonly panels: readonly AdminPanel<T>[]; readonly panelId: string | null; readonly view: string | null },
 ): string | null {
   if (panelId == null) return null;
   const panel = panels.find((p) => p.id === panelId);

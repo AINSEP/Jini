@@ -46,21 +46,24 @@ export interface BlobStorageProviderOptions {
  * a deliberate, documented adapter-level gap, not a `StorageProvider` interface change.
  */
 export class BlobStorageProvider implements StorageProvider {
-  constructor(
-    private readonly blobStorage: BlobStorage,
-    private readonly options: BlobStorageProviderOptions,
-  ) {
+  private readonly blobStorage: BlobStorage;
+  private readonly options: BlobStorageProviderOptions;
+
+  constructor({ blobStorage, namespace }: { blobStorage: BlobStorage; namespace: string }) {
+    this.blobStorage = blobStorage;
+    const options = { namespace };
+    this.options = options;
     if (!options.namespace) {
       throw new Error('BlobStorageProvider requires a non-empty options.namespace');
     }
   }
 
-  async put(key: string, data: Uint8Array, options: StoragePutOptions = {}): Promise<StorageObjectMeta> {
+  async put({ key, data }: { key: string; data: Uint8Array }, options: StoragePutOptions = {}): Promise<StorageObjectMeta> {
     const meta = await this.blobStorage.writeFile(this.options.namespace, key, Buffer.from(data));
     return this.toObjectMeta(meta, options.contentType);
   }
 
-  async get(key: string): Promise<Uint8Array | null> {
+  async get({ key }: { key: string }): Promise<Uint8Array | null> {
     try {
       return await this.blobStorage.readFile(this.options.namespace, key);
     } catch (err) {
@@ -69,13 +72,13 @@ export class BlobStorageProvider implements StorageProvider {
     }
   }
 
-  async delete(key: string): Promise<void> {
+  async delete({ key }: { key: string }): Promise<void> {
     // `BlobStorage.deleteFile` is already documented idempotent (missing files don't throw),
     // matching `StorageProvider.delete`'s "no-op if it doesn't exist" contract directly.
     await this.blobStorage.deleteFile(this.options.namespace, key);
   }
 
-  async list(prefix = ''): Promise<StorageObjectMeta[]> {
+  async list(_required: Record<string, never>, { prefix = '' }: { prefix?: string } = {}): Promise<StorageObjectMeta[]> {
     const files = await this.blobStorage.listFiles(this.options.namespace);
     return files
       .filter((file) => file.path.startsWith(prefix))

@@ -7,7 +7,7 @@ import { test } from "vitest";
 import Database from "better-sqlite3";
 import { sql } from "kysely";
 
-import { sqliteKernel } from "../sqlite/index.js";
+import { sqliteKernel } from "../kernel/sqlite/index.js";
 
 /**
  * @file Several connections to ONE SQLite file in one process take turns through one lock.

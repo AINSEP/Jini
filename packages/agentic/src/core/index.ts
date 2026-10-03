@@ -15,7 +15,7 @@
  * preview in a sandboxed frame. The verbs are identical either way. Also not here: any product's
  * OWN capabilities (`@jini-ai/chat-core`'s `chat.*` verbs stay in chat-core, which depends on this
  * package for the vocabulary rather than the other way around) — see this package's
- * source-map.md for why the split is real rather than a wholesale relocation.
+ * archived provenance ledger for why the split is real rather than a wholesale relocation.
  */
 export {
   findCapability,
@@ -184,3 +184,5 @@ export {
   type JsonRpcResponse,
   type JsonRpcError,
 } from './mcp-ui-apps.js';
+
+export { defaultAgenticMessages } from "./messages.js";

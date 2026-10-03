@@ -14,7 +14,7 @@ describe('listElevenLabsVoiceOptions', () => {
   });
 
   it('throws ElevenLabsCredentialMissingError when no api key is configured', async () => {
-    await expect(listElevenLabsVoiceOptions('ws-1', resolver({ apiKey: '' }))).rejects.toBeInstanceOf(
+    await expect(listElevenLabsVoiceOptions({ workspaceKey: 'ws-1', resolveCredentials: resolver({ apiKey: '' }) })).rejects.toBeInstanceOf(
       ElevenLabsCredentialMissingError,
     );
   });
@@ -40,7 +40,7 @@ describe('listElevenLabsVoiceOptions', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const voices = await listElevenLabsVoiceOptions('ws-1', resolver({ apiKey: 'k1' }), { limit: 5 });
+    const voices = await listElevenLabsVoiceOptions({ workspaceKey: 'ws-1', resolveCredentials: resolver({ apiKey: 'k1' }) }, { limit: 5 });
     expect(voices).toEqual([
       {
         voiceId: 'v1',
@@ -61,7 +61,7 @@ describe('listElevenLabsVoiceOptions', () => {
   it('uses a custom base url and strips a trailing slash', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ voices: [] }) });
     vi.stubGlobal('fetch', fetchMock);
-    await listElevenLabsVoiceOptions('ws-2', resolver({ apiKey: 'k1', baseUrl: 'https://custom.example.com/' }));
+    await listElevenLabsVoiceOptions({ workspaceKey: 'ws-2', resolveCredentials: resolver({ apiKey: 'k1', baseUrl: 'https://custom.example.com/' }) });
     expect(fetchMock).toHaveBeenCalledWith(
       'https://custom.example.com/v2/voices?page_size=100',
       expect.anything(),
@@ -71,16 +71,16 @@ describe('listElevenLabsVoiceOptions', () => {
   it('clamps an out-of-range or non-numeric limit to the default/bounds', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ voices: [] }) });
     vi.stubGlobal('fetch', fetchMock);
-    await listElevenLabsVoiceOptions('ws-3', resolver({ apiKey: 'k1' }), { limit: 'oops' as unknown as number });
+    await listElevenLabsVoiceOptions({ workspaceKey: 'ws-3', resolveCredentials: resolver({ apiKey: 'k1' }) }, { limit: 'oops' as unknown as number });
     expect(fetchMock).toHaveBeenCalledWith('https://api.elevenlabs.io/v2/voices?page_size=100', expect.anything());
 
-    await listElevenLabsVoiceOptions('ws-3', resolver({ apiKey: 'k1' }), { limit: 500 });
+    await listElevenLabsVoiceOptions({ workspaceKey: 'ws-3', resolveCredentials: resolver({ apiKey: 'k1' }) }, { limit: 500 });
     expect(fetchMock).toHaveBeenLastCalledWith(
       'https://api.elevenlabs.io/v2/voices?page_size=100',
       expect.anything(),
     );
 
-    await listElevenLabsVoiceOptions('ws-3', resolver({ apiKey: 'k1' }), { limit: -5 });
+    await listElevenLabsVoiceOptions({ workspaceKey: 'ws-3', resolveCredentials: resolver({ apiKey: 'k1' }) }, { limit: -5 });
     expect(fetchMock).toHaveBeenLastCalledWith('https://api.elevenlabs.io/v2/voices?page_size=1', expect.anything());
   });
 
@@ -89,14 +89,14 @@ describe('listElevenLabsVoiceOptions', () => {
       'fetch',
       vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => 'unauthorized' }),
     );
-    await expect(listElevenLabsVoiceOptions('ws-4', resolver({ apiKey: 'bad' }))).rejects.toThrow(
+    await expect(listElevenLabsVoiceOptions({ workspaceKey: 'ws-4', resolveCredentials: resolver({ apiKey: 'bad' }) })).rejects.toThrow(
       /elevenlabs voices 401: unauthorized/,
     );
   });
 
   it('returns [] when the payload has no voices array', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
-    await expect(listElevenLabsVoiceOptions('ws-5', resolver({ apiKey: 'k1' }))).resolves.toEqual([]);
+    await expect(listElevenLabsVoiceOptions({ workspaceKey: 'ws-5', resolveCredentials: resolver({ apiKey: 'k1' }) })).resolves.toEqual([]);
   });
 
   it('caches results per workspace+baseUrl+pageSize+credential fingerprint', async () => {
@@ -105,14 +105,14 @@ describe('listElevenLabsVoiceOptions', () => {
       json: async () => ({ voices: [{ voice_id: 'v1', name: 'Rachel' }] }),
     });
     vi.stubGlobal('fetch', fetchMock);
-    const first = await listElevenLabsVoiceOptions('ws-cache', resolver({ apiKey: 'same-key' }));
-    const second = await listElevenLabsVoiceOptions('ws-cache', resolver({ apiKey: 'same-key' }));
+    const first = await listElevenLabsVoiceOptions({ workspaceKey: 'ws-cache', resolveCredentials: resolver({ apiKey: 'same-key' }) });
+    const second = await listElevenLabsVoiceOptions({ workspaceKey: 'ws-cache', resolveCredentials: resolver({ apiKey: 'same-key' }) });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(second).toEqual(first);
     // Mutating the returned array must not corrupt the cached copy.
     second[0]!.name = 'mutated';
     second[0]!.labels = { x: 'y' };
-    const third = await listElevenLabsVoiceOptions('ws-cache', resolver({ apiKey: 'same-key' }));
+    const third = await listElevenLabsVoiceOptions({ workspaceKey: 'ws-cache', resolveCredentials: resolver({ apiKey: 'same-key' }) });
     expect(third[0]!.name).toBe('Rachel');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -120,8 +120,8 @@ describe('listElevenLabsVoiceOptions', () => {
   it('does not cache across a different api key (cache key includes a credential fingerprint)', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ voices: [] }) });
     vi.stubGlobal('fetch', fetchMock);
-    await listElevenLabsVoiceOptions('ws-fp', resolver({ apiKey: 'key-a' }));
-    await listElevenLabsVoiceOptions('ws-fp', resolver({ apiKey: 'key-b' }));
+    await listElevenLabsVoiceOptions({ workspaceKey: 'ws-fp', resolveCredentials: resolver({ apiKey: 'key-a' }) });
+    await listElevenLabsVoiceOptions({ workspaceKey: 'ws-fp', resolveCredentials: resolver({ apiKey: 'key-b' }) });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

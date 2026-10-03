@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createVerifyLog, enforceVerify, type VerifyRecord, type VerifyScorecard } from '../verify.js';
 
-function extractorFor(scorecard: VerifyScorecard | null): (output: string) => VerifyScorecard | null {
+function extractorFor(scorecard: VerifyScorecard | null): (required: { output: string }) => VerifyScorecard | null {
   return () => scorecard;
 }
 
@@ -227,35 +227,32 @@ describe('enforceVerify', () => {
 
 describe('createVerifyLog', () => {
   it('does not persist a skipped result', () => {
-    const log = createVerifyLog();
-    const rec = log.record({ status: 'skipped', rulesActive: 0, rulesCovered: 0, uncoveredRules: [], rowsTotal: 0, rowsFailed: 0, hadArtifact: false });
+    const log = createVerifyLog({});
+    const rec = log.record({ result: { status: 'skipped', rulesActive: 0, rulesCovered: 0, uncoveredRules: [], rowsTotal: 0, rowsFailed: 0, hadArtifact: false } });
     expect(rec).toBeNull();
     expect(log.list()).toEqual([]);
   });
 
   it('records a non-skipped result with an id/timestamp and optional runId/contextId', () => {
-    const log = createVerifyLog();
-    const rec = log.record(
-      { status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true },
-      { runId: 'run-1', contextId: 'ctx-1' },
-    );
+    const log = createVerifyLog({});
+    const rec = log.record({ result: { status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true } }, { runId: 'run-1', contextId: 'ctx-1' });
     expect(rec).toMatchObject({ status: 'pass', runId: 'run-1', contextId: 'ctx-1' });
     expect(typeof rec?.id).toBe('string');
     expect(log.list()).toHaveLength(1);
   });
 
   it('omits runId/contextId from the record when not provided', () => {
-    const log = createVerifyLog();
-    const rec = log.record({ status: 'fail', rulesActive: 1, rulesCovered: 0, uncoveredRules: ['r'], rowsTotal: 0, rowsFailed: 0, hadArtifact: true });
+    const log = createVerifyLog({});
+    const rec = log.record({ result: { status: 'fail', rulesActive: 1, rulesCovered: 0, uncoveredRules: ['r'], rowsTotal: 0, rowsFailed: 0, hadArtifact: true } });
     expect(rec).not.toHaveProperty('runId');
     expect(rec).not.toHaveProperty('contextId');
   });
 
   it('list() returns copies, newest first, evicting past 20 records', () => {
-    const log = createVerifyLog();
+    const log = createVerifyLog({});
     const records: (VerifyRecord | null)[] = [];
     for (let i = 0; i < 25; i++) {
-      records.push(log.record({ status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true }));
+      records.push(log.record({ result: { status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true } }));
     }
     const list = log.list();
     expect(list).toHaveLength(20);
@@ -265,35 +262,35 @@ describe('createVerifyLog', () => {
   });
 
   it('remove deletes by id and returns 1, or 0 for an unknown id', () => {
-    const log = createVerifyLog();
-    const rec = log.record({ status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true });
-    expect(log.remove(rec!.id)).toBe(1);
+    const log = createVerifyLog({});
+    const rec = log.record({ result: { status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true } });
+    expect(log.remove({ id: rec!.id })).toBe(1);
     expect(log.list()).toEqual([]);
-    expect(log.remove('missing')).toBe(0);
+    expect(log.remove({ id: 'missing' })).toBe(0);
   });
 
   it('clear empties the log and returns the removed count, 0 when already empty', () => {
-    const log = createVerifyLog();
-    log.record({ status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true });
+    const log = createVerifyLog({});
+    log.record({ result: { status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true } });
     expect(log.clear()).toBe(1);
     expect(log.list()).toEqual([]);
     expect(log.clear()).toBe(0);
   });
 
   it('emits verify events for record/remove/clear (deferred via setImmediate)', async () => {
-    const log = createVerifyLog();
+    const log = createVerifyLog({});
     const seen: unknown[] = [];
     log.events.on('verify', (e) => seen.push(e));
-    const rec = log.record({ status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true });
+    const rec = log.record({ result: { status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true } });
     await new Promise((resolve) => setImmediate(resolve));
     expect(seen).toHaveLength(1);
-    log.remove(rec!.id);
+    log.remove({ id: rec!.id });
     await new Promise((resolve) => setImmediate(resolve));
     expect(seen).toHaveLength(2);
-    const log2 = createVerifyLog();
+    const log2 = createVerifyLog({});
     const seen2: unknown[] = [];
     log2.events.on('verify', (e) => seen2.push(e));
-    log2.record({ status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true });
+    log2.record({ result: { status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true } });
     await new Promise((resolve) => setImmediate(resolve));
     log2.clear();
     await new Promise((resolve) => setImmediate(resolve));
@@ -301,14 +298,14 @@ describe('createVerifyLog', () => {
   });
 
   it('swallows a throwing listener rather than propagating it, on record/remove/clear alike', async () => {
-    const log = createVerifyLog();
-    const rec = log.record({ status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true });
+    const log = createVerifyLog({});
+    const rec = log.record({ result: { status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true } });
     log.events.on('verify', () => {
       throw new Error('listener boom');
     });
-    log.record({ status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true });
+    log.record({ result: { status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true } });
     await new Promise((resolve) => setImmediate(resolve));
-    expect(() => log.remove(rec!.id)).not.toThrow();
+    expect(() => log.remove({ id: rec!.id })).not.toThrow();
     await new Promise((resolve) => setImmediate(resolve));
     expect(() => log.clear()).not.toThrow();
     await new Promise((resolve) => setImmediate(resolve));

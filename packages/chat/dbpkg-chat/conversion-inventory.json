@@ -1,0 +1,2093 @@
+{
+  "converted": [
+    {
+      "name": "legacyAssistantContentFromEvents",
+      "file": "src/core/assistant-content.ts",
+      "required": [
+        {
+          "name": "events",
+          "type": "readonly AgentEvent[] | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "repairJsonPrefix",
+      "file": "src/core/partial-json.ts",
+      "required": [
+        {
+          "name": "buf",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "parsePartialJson",
+      "file": "src/core/partial-json.ts",
+      "required": [
+        {
+          "name": "buf",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "deriveConversationTitle",
+      "file": "src/core/persistence/title.ts",
+      "required": [
+        {
+          "name": "prompt",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "formatFormAnswers",
+      "file": "src/core/question-form/format.ts",
+      "required": [
+        {
+          "name": "form",
+          "type": "QuestionForm"
+        },
+        {
+          "name": "answers",
+          "type": "Record<string, string | string[]>"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "formOptionLabelForValue",
+      "file": "src/core/question-form/format.ts",
+      "required": [
+        {
+          "name": "question",
+          "type": "{ options?: FormOption[] | undefined }"
+        },
+        {
+          "name": "value",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "formOptionValueForLabel",
+      "file": "src/core/question-form/format.ts",
+      "required": [
+        {
+          "name": "question",
+          "type": "{ options?: FormOption[] | undefined }"
+        },
+        {
+          "name": "labelOrValue",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "mapRawQuestion",
+      "file": "src/core/question-form/normalize.ts",
+      "required": [
+        {
+          "name": "q",
+          "type": "unknown"
+        },
+        {
+          "name": "index",
+          "type": "number"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "isRenderableColor",
+      "file": "src/core/question-form/normalize.ts",
+      "required": [
+        {
+          "name": "value",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "splitOnQuestionForms",
+      "file": "src/core/question-form/scan.ts",
+      "required": [
+        {
+          "name": "input",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "findFirstQuestionForm",
+      "file": "src/core/question-form/scan.ts",
+      "required": [
+        {
+          "name": "input",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "parseQuestionForm",
+      "file": "src/core/question-form/scan.ts",
+      "required": [
+        {
+          "name": "input",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "stripTrailingOpenQuestionForm",
+      "file": "src/core/question-form/scan.ts",
+      "required": [
+        {
+          "name": "input",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "hasUnterminatedQuestionForm",
+      "file": "src/core/question-form/scan.ts",
+      "required": [
+        {
+          "name": "input",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "parsePartialQuestionForm",
+      "file": "src/core/question-form/scan.ts",
+      "required": [
+        {
+          "name": "input",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "humanizeToolName",
+      "file": "src/core/run-activity.ts",
+      "required": [
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "optional": [
+        {
+          "name": "input",
+          "type": "unknown"
+        }
+      ],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "deriveRunActivity",
+      "file": "src/core/run-activity.ts",
+      "required": [
+        {
+          "name": "events",
+          "type": "readonly AgentEvent[] | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "formatActivityClock",
+      "file": "src/core/run-activity.ts",
+      "required": [
+        {
+          "name": "totalSeconds",
+          "type": "number"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "describeRunActivity",
+      "file": "src/core/run-activity.ts",
+      "required": [
+        {
+          "name": "activity",
+          "type": "RunActivity"
+        },
+        {
+          "name": "clock",
+          "type": "RunActivityClock"
+        },
+        {
+          "name": "t",
+          "type": "RunActivityTranslate"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "isTodoWriteToolName",
+      "file": "src/core/todos.ts",
+      "required": [
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "parseTodoWriteInput",
+      "file": "src/core/todos.ts",
+      "required": [
+        {
+          "name": "input",
+          "type": "unknown"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "latestTodosFromEvents",
+      "file": "src/core/todos.ts",
+      "required": [
+        {
+          "name": "events",
+          "type": "AgentEvent[] | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "unfinishedTodosFromEvents",
+      "file": "src/core/todos.ts",
+      "required": [
+        {
+          "name": "events",
+          "type": "AgentEvent[] | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "latestTodoWriteInputFromMessages",
+      "file": "src/core/todos.ts",
+      "required": [
+        {
+          "name": "messages",
+          "type": "ReadonlyArray<{ events?: AgentEvent[] | undefined }> | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "latestTodoWriteInputForPinnedCard",
+      "file": "src/core/todos.ts",
+      "required": [
+        {
+          "name": "messages",
+          "type": "ReadonlyArray<T> | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "dedupeToolUsesById",
+      "file": "src/core/tool-events.ts",
+      "required": [
+        {
+          "name": "events",
+          "type": "AgentEvent[] | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "formatToolOutputForDisplay",
+      "file": "src/core/tool-output.ts",
+      "required": [
+        {
+          "name": "text",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "deriveToolStatus",
+      "file": "src/core/tools.ts",
+      "required": [
+        {
+          "name": "result",
+          "type": "ToolResultEvent | undefined"
+        },
+        {
+          "name": "runStreaming",
+          "type": "boolean"
+        }
+      ],
+      "optional": [
+        {
+          "name": "runSucceeded",
+          "type": "boolean",
+          "default": "false"
+        }
+      ],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "toRenderProps",
+      "file": "src/core/tools.ts",
+      "required": [
+        {
+          "name": "use",
+          "type": "ToolUseEvent"
+        },
+        {
+          "name": "result",
+          "type": "ToolResultEvent | undefined"
+        },
+        {
+          "name": "runStreaming",
+          "type": "boolean"
+        }
+      ],
+      "optional": [
+        {
+          "name": "runSucceeded",
+          "type": "boolean",
+          "default": "false"
+        }
+      ],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "latestUserPromptFromHistory",
+      "file": "src/core/transcript.ts",
+      "required": [
+        {
+          "name": "history",
+          "type": "ChatMessage[]"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "sanitizePriorAssistantTurn",
+      "file": "src/core/transcript.ts",
+      "required": [
+        {
+          "name": "content",
+          "type": "string"
+        }
+      ],
+      "optional": [
+        {
+          "name": "persistedArtifactFiles",
+          "type": "ReadonlyArray<PersistedArtifactFileRef>",
+          "default": "[]"
+        }
+      ],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "buildTranscript",
+      "file": "src/core/transcript.ts",
+      "required": [
+        {
+          "name": "history",
+          "type": "ChatMessage[]"
+        }
+      ],
+      "optional": [],
+      "optionalObject": {
+        "name": "options",
+        "type": "BuildTranscriptOptions",
+        "default": "{}"
+      },
+      "alias": false
+    },
+    {
+      "name": "artifactManifestNameFor",
+      "file": "src/core/util/manifest.ts",
+      "required": [
+        {
+          "name": "entry",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "serializeArtifactManifest",
+      "file": "src/core/util/manifest.ts",
+      "required": [
+        {
+          "name": "manifest",
+          "type": "ArtifactManifest"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "parseArtifactManifest",
+      "file": "src/core/util/manifest.ts",
+      "required": [
+        {
+          "name": "raw",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "isRealArtifactOpenAt",
+      "file": "src/core/util/markdown-context.ts",
+      "required": [
+        {
+          "name": "content",
+          "type": "string"
+        },
+        {
+          "name": "idx",
+          "type": "number"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "computeSkipRanges",
+      "file": "src/core/util/markdown-context.ts",
+      "required": [
+        {
+          "name": "buffer",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "rangeContains",
+      "file": "src/core/util/markdown-context.ts",
+      "required": [
+        {
+          "name": "ranges",
+          "type": "ReadonlyArray<Range>"
+        },
+        {
+          "name": "p",
+          "type": "number"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "parseQuotedAttrs",
+      "file": "src/core/util/markup-attributes.ts",
+      "required": [
+        {
+          "name": "raw",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "parseArtifacts",
+      "file": "src/core/util/parser.ts",
+      "required": [
+        {
+          "name": "content",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "recoverStandaloneHtmlDocument",
+      "file": "src/core/util/recover.ts",
+      "required": [
+        {
+          "name": "sourceText",
+          "type": "string | null | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "recoverHtmlDocumentFromMarkdownFence",
+      "file": "src/core/util/recover.ts",
+      "required": [
+        {
+          "name": "sourceText",
+          "type": "string | null | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "stripArtifact",
+      "file": "src/core/util/strip.ts",
+      "required": [
+        {
+          "name": "content",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "stripRecoveredHtmlFallbackForDisplay",
+      "file": "src/core/util/strip.ts",
+      "required": [
+        {
+          "name": "content",
+          "type": "string"
+        }
+      ],
+      "optional": [
+        {
+          "name": "sourceText",
+          "type": "string",
+          "default": "content"
+        }
+      ],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "matchPersistedArtifactFile",
+      "file": "src/core/util/strip.ts",
+      "required": [
+        {
+          "name": "attrs",
+          "type": "Record<string, string>"
+        },
+        {
+          "name": "persistedFiles",
+          "type": "ReadonlyArray<PersistedArtifactFileRef>"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "summarizeArtifactsForTranscript",
+      "file": "src/core/util/strip.ts",
+      "required": [
+        {
+          "name": "content",
+          "type": "string"
+        },
+        {
+          "name": "persistedFiles",
+          "type": "ReadonlyArray<PersistedArtifactFileRef>"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "splitStreamingArtifact",
+      "file": "src/core/util/strip.ts",
+      "required": [
+        {
+          "name": "content",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "validateHtmlArtifact",
+      "file": "src/core/util/validate.ts",
+      "required": [
+        {
+          "name": "content",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "looksLikeImageAttachment",
+      "file": "src/react/components/AttachmentPreviewModal.hooks.ts",
+      "required": [
+        {
+          "name": "attachment",
+          "type": "Pick<ChatAttachment, 'kind' | 'name'>"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "useAttachmentPreviewModal",
+      "file": "src/react/components/AttachmentPreviewModal.hooks.ts",
+      "required": [
+        {
+          "name": "attachment",
+          "type": "ChatAttachment"
+        },
+        {
+          "name": "onClose",
+          "type": "() => void"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "formatAttachmentSize",
+      "file": "src/react/components/AttachmentTray.tsx",
+      "required": [
+        {
+          "name": "size",
+          "type": "number | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "replaceComposerSlashTrigger",
+      "file": "src/react/components/composer-discovery.ts",
+      "required": [
+        {
+          "name": "draft",
+          "type": "string"
+        },
+        {
+          "name": "insertText",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "appendComposerDiscovery",
+      "file": "src/react/components/composer-discovery.ts",
+      "required": [
+        {
+          "name": "draft",
+          "type": "string"
+        },
+        {
+          "name": "insertText",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "resolveComposerSlashKeyAction",
+      "file": "src/react/components/composer-discovery.ts",
+      "required": [
+        {
+          "name": "key",
+          "type": "string"
+        },
+        {
+          "name": "shiftKey",
+          "type": "boolean"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "runtimeAgentStatus",
+      "file": "src/react/features/chat-pane/components/AgentRuntimePicker.tsx",
+      "required": [
+        {
+          "name": "agent",
+          "type": "ChatPaneAgent"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "createDaemonAttachmentUploader",
+      "file": "src/react/features/chat-pane/create-daemon-attachment-uploader.ts",
+      "required": [
+        {
+          "name": "baseUrl",
+          "type": "string"
+        },
+        {
+          "name": "fetch",
+          "type": "typeof globalThis.fetch"
+        }
+      ],
+      "optional": [],
+      "optionalObject": {
+        "name": "options",
+        "type": "CreateDaemonAttachmentUploaderOptions",
+        "default": "{}"
+      },
+      "alias": false
+    },
+    {
+      "name": "createMcpUiToolCaller",
+      "file": "src/react/features/chat-pane/create-mcp-ui-tool-caller.ts",
+      "required": [
+        {
+          "name": "baseUrl",
+          "type": "string"
+        },
+        {
+          "name": "fetch",
+          "type": "typeof globalThis.fetch"
+        }
+      ],
+      "optional": [],
+      "optionalObject": {
+        "name": "options",
+        "type": "CreateMcpUiToolCallerOptions",
+        "default": "{}"
+      },
+      "alias": false
+    },
+    {
+      "name": "runtimeOptionLabel",
+      "file": "src/react/features/chat-pane/hooks/useAgentRuntimePicker.hooks.ts",
+      "required": [
+        {
+          "name": "options",
+          "type": "readonly { id: string; label: string }[] | undefined"
+        },
+        {
+          "name": "value",
+          "type": "string | undefined"
+        },
+        {
+          "name": "fallback",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "runtimePopoverPosition",
+      "file": "src/react/features/chat-pane/hooks/useAgentRuntimePicker.hooks.ts",
+      "required": [
+        {
+          "name": "trigger",
+          "type": "DOMRect"
+        },
+        {
+          "name": "placement",
+          "type": "RuntimePickerPlacement"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "resolveTabWrapIndex",
+      "file": "src/react/features/chat-pane/hooks/useAgentRuntimePicker.hooks.ts",
+      "required": [
+        {
+          "name": "shiftKey",
+          "type": "boolean"
+        },
+        {
+          "name": "currentIndex",
+          "type": "number"
+        },
+        {
+          "name": "count",
+          "type": "number"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "resolveRovingIndex",
+      "file": "src/react/features/chat-pane/hooks/useAgentRuntimePicker.hooks.ts",
+      "required": [
+        {
+          "name": "key",
+          "type": "string"
+        },
+        {
+          "name": "currentIndex",
+          "type": "number"
+        },
+        {
+          "name": "count",
+          "type": "number"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "resolvePopoverKeyAction",
+      "file": "src/react/features/chat-pane/hooks/useAgentRuntimePicker.hooks.ts",
+      "required": [
+        {
+          "name": "key",
+          "type": "string"
+        },
+        {
+          "name": "shiftKey",
+          "type": "boolean"
+        },
+        {
+          "name": "isButtonTarget",
+          "type": "boolean"
+        },
+        {
+          "name": "currentIndex",
+          "type": "number"
+        },
+        {
+          "name": "count",
+          "type": "number"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "runtimeSummaryText",
+      "file": "src/react/features/chat-pane/hooks/useAgentRuntimePicker.hooks.ts",
+      "required": [
+        {
+          "name": "selectedAgent",
+          "type": "ChatPaneAgent | undefined"
+        },
+        {
+          "name": "modelLabel",
+          "type": "string"
+        },
+        {
+          "name": "t",
+          "type": "(key: string) => string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "byokSummaryText",
+      "file": "src/react/features/chat-pane/hooks/useAgentRuntimePicker.hooks.ts",
+      "required": [
+        {
+          "name": "byokRuntime",
+          "type": "ByokRuntimeSummary | undefined"
+        },
+        {
+          "name": "t",
+          "type": "(key: string) => string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "useChatPaneAgentControl",
+      "file": "src/react/features/chat-pane/hooks/useChatPaneAgentControl.hooks.ts",
+      "required": [
+        {
+          "name": "pane",
+          "type": "UseChatPaneResult"
+        }
+      ],
+      "optional": [],
+      "optionalObject": {
+        "name": "options",
+        "type": "UseChatPaneAgentControlOptions",
+        "default": "{}"
+      },
+      "alias": false
+    },
+    {
+      "name": "useChatPaneComposerPlaceholder",
+      "file": "src/react/features/chat-pane/hooks/useChatPaneComposerPlaceholder.hooks.ts",
+      "required": [
+        {
+          "name": "placeholder",
+          "type": "string | undefined"
+        },
+        {
+          "name": "placeholders",
+          "type": "readonly string[] | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "defaultChatPaneSelection",
+      "file": "src/react/features/chat-pane/rules.ts",
+      "required": [
+        {
+          "name": "agent",
+          "type": "ChatPaneAgent"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "resolveChatPaneSelection",
+      "file": "src/react/features/chat-pane/rules.ts",
+      "required": [
+        {
+          "name": "agents",
+          "type": "readonly ChatPaneAgent[]"
+        },
+        {
+          "name": "requested",
+          "type": "ChatPaneAgentSelection"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "isChatPaneQueueableBlocker",
+      "file": "src/react/features/chat-pane/rules.ts",
+      "required": [
+        {
+          "name": "blocker",
+          "type": "ChatPaneSendBlocker | null"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "orderChatPaneAgents",
+      "file": "src/react/features/chat-pane/rules.ts",
+      "required": [
+        {
+          "name": "agents",
+          "type": "readonly ChatPaneAgent[]"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "groupModelsByProvider",
+      "file": "src/react/features/model-picker/rules.ts",
+      "required": [
+        {
+          "name": "models",
+          "type": "readonly ModelOption[]"
+        },
+        {
+          "name": "providers",
+          "type": "readonly ModelProvider[]"
+        },
+        {
+          "name": "statusByProviderId",
+          "type": "Readonly<Record<string, CredentialStatus>>"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "matchesModelQuery",
+      "file": "src/react/features/model-picker/rules.ts",
+      "required": [
+        {
+          "name": "model",
+          "type": "ModelOption"
+        },
+        {
+          "name": "provider",
+          "type": "ModelProvider"
+        },
+        {
+          "name": "normalizedQuery",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "filterModelGroups",
+      "file": "src/react/features/model-picker/rules.ts",
+      "required": [
+        {
+          "name": "groups",
+          "type": "readonly ModelPickerGroup[]"
+        },
+        {
+          "name": "query",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "findSelectedModel",
+      "file": "src/react/features/model-picker/rules.ts",
+      "required": [
+        {
+          "name": "groups",
+          "type": "readonly ModelPickerGroup[]"
+        },
+        {
+          "name": "modelId",
+          "type": "string | null | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "isCustomModelId",
+      "file": "src/react/features/model-picker/rules.ts",
+      "required": [
+        {
+          "name": "modelId",
+          "type": "string | null | undefined"
+        },
+        {
+          "name": "groups",
+          "type": "readonly ModelPickerGroup[]"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "firstAvailableModelId",
+      "file": "src/react/features/model-picker/rules.ts",
+      "required": [
+        {
+          "name": "groups",
+          "type": "readonly ModelPickerGroup[]"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "readCachedDraft",
+      "file": "src/react/hooks/composer-draft-cache.ts",
+      "required": [
+        {
+          "name": "conversationId",
+          "type": "string | null | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "writeCachedDraft",
+      "file": "src/react/hooks/composer-draft-cache.ts",
+      "required": [
+        {
+          "name": "conversationId",
+          "type": "string | null | undefined"
+        },
+        {
+          "name": "draft",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "clearCachedDraft",
+      "file": "src/react/hooks/composer-draft-cache.ts",
+      "required": [
+        {
+          "name": "conversationId",
+          "type": "string | null | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "readCachedAttachments",
+      "file": "src/react/hooks/composer-draft-cache.ts",
+      "required": [
+        {
+          "name": "conversationId",
+          "type": "string | null | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "writeCachedAttachments",
+      "file": "src/react/hooks/composer-draft-cache.ts",
+      "required": [
+        {
+          "name": "conversationId",
+          "type": "string | null | undefined"
+        },
+        {
+          "name": "attachments",
+          "type": "readonly ChatAttachment[]"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "useArtifactStream",
+      "file": "src/react/hooks/useArtifactStream.ts",
+      "required": [
+        {
+          "name": "content",
+          "type": "string"
+        }
+      ],
+      "optional": [
+        {
+          "name": "registry",
+          "type": "RendererRegistry"
+        }
+      ],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "clampChatFabToViewport",
+      "file": "src/react/hooks/useChatFabDrag.ts",
+      "required": [
+        {
+          "name": "position",
+          "type": "ChatFabPosition"
+        },
+        {
+          "name": "size",
+          "type": "{ width: number; height: number }"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "useChatFabDrag",
+      "file": "src/react/hooks/useChatFabDrag.ts",
+      "required": [
+        {
+          "name": "onClick",
+          "type": "() => void"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "useExtEventGroups",
+      "file": "src/react/hooks/useExtEventGroups.ts",
+      "required": [
+        {
+          "name": "events",
+          "type": "AgentEvent[] | undefined"
+        }
+      ],
+      "optional": [
+        {
+          "name": "slotOf",
+          "type": "(name: string, data: unknown) => string",
+          "default": "(name) => name"
+        }
+      ],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "normalizeOperationError",
+      "file": "src/react/hooks/useLatestOperation.ts",
+      "required": [
+        {
+          "name": "error",
+          "type": "unknown"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "usePinnedTodos",
+      "file": "src/react/hooks/usePinnedTodos.ts",
+      "required": [
+        {
+          "name": "messages",
+          "type": "ReadonlyArray<ChatMessage> | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "useQuestionForms",
+      "file": "src/react/hooks/useQuestionForms.ts",
+      "required": [
+        {
+          "name": "messages",
+          "type": "ReadonlyArray<ChatMessage> | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "parseSubmittedAnswers",
+      "file": "src/react/hooks/useQuestionForms.ts",
+      "required": [
+        {
+          "name": "form",
+          "type": "QuestionForm"
+        },
+        {
+          "name": "userMessageContent",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "useRunActivity",
+      "file": "src/react/hooks/useRunActivity.ts",
+      "required": [
+        {
+          "name": "events",
+          "type": "readonly AgentEvent[] | undefined"
+        },
+        {
+          "name": "active",
+          "type": "boolean"
+        }
+      ],
+      "optional": [
+        {
+          "name": "now",
+          "type": "NowFn",
+          "default": "Date.now"
+        }
+      ],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "useToolTimeline",
+      "file": "src/react/hooks/useToolTimeline.ts",
+      "required": [
+        {
+          "name": "events",
+          "type": "AgentEvent[] | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": {
+        "name": "options",
+        "type": "UseToolTimelineOptions",
+        "default": "{}"
+      },
+      "alias": false
+    },
+    {
+      "name": "registerToolRenderer",
+      "file": "src/react/tool-renderer-registry.ts",
+      "required": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "renderer",
+          "type": "ToolRenderer"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "getToolRenderer",
+      "file": "src/react/tool-renderer-registry.ts",
+      "required": [
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "definedProps",
+      "file": "src/react/util/defined-props.ts",
+      "required": [
+        {
+          "name": "source",
+          "type": "T"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "chatAdditionalContract",
+      "file": "src/store/__tests__/additional-contract.ts",
+      "required": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "makeFixture",
+          "type": "()=>Promise<Fixture>"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "allChatContracts",
+      "file": "src/store/__tests__/all-contracts.ts",
+      "required": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "fixture",
+          "type": "()=>Promise<Fixture>"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "chatIsolationContract",
+      "file": "src/store/__tests__/isolation-contract.ts",
+      "required": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "makeFixture",
+          "type": "() => Promise<Fixture>"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "chatPagingContract",
+      "file": "src/store/__tests__/paging-contract.ts",
+      "required": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "makeFixture",
+          "type": "() => Promise<Fixture>"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "chatParityContract",
+      "file": "src/store/__tests__/parity-contract.ts",
+      "required": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "makeFixture",
+          "type": "() => Promise<Fixture>"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "chatTransactionContract",
+      "file": "src/store/__tests__/transactions-contract.ts",
+      "required": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "makeFixture",
+          "type": "()=>Promise<Fixture>"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "twoConnectionContract",
+      "file": "src/store/__tests__/two-connection-contract.ts",
+      "required": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "open",
+          "type": "()=>Promise<{a:Fixture;b:Fixture;close():Promise<void>}>"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "compileContract",
+      "file": "src/store/__tests__/types.fixture.ts",
+      "required": [
+        {
+          "name": "kernel",
+          "type": "StorageKernel<ChatDatabase>"
+        },
+        {
+          "name": "scope",
+          "type": "ChatOwnerScope"
+        },
+        {
+          "name": "store",
+          "type": "ChatStore"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "missingRequiredTable",
+      "file": "src/store/__tests__/types.fixture.ts",
+      "required": [
+        {
+          "name": "kernel",
+          "type": "StorageKernel<{ai_chats:AiChatsTable}>"
+        },
+        {
+          "name": "scope",
+          "type": "ChatOwnerScope"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "listConversations",
+      "file": "src/store/legacy/sqlite/conversations.ts",
+      "required": [
+        {
+          "name": "db",
+          "type": "SqliteDb"
+        },
+        {
+          "name": "projectId",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "getConversation",
+      "file": "src/store/legacy/sqlite/conversations.ts",
+      "required": [
+        {
+          "name": "db",
+          "type": "SqliteDb"
+        },
+        {
+          "name": "id",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "normalizeConversationSessionMode",
+      "file": "src/store/legacy/sqlite/conversations.ts",
+      "required": [
+        {
+          "name": "value",
+          "type": "unknown"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "insertConversation",
+      "file": "src/store/legacy/sqlite/conversations.ts",
+      "required": [
+        {
+          "name": "db",
+          "type": "SqliteDb"
+        },
+        {
+          "name": "c",
+          "type": "DbRow"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "updateConversation",
+      "file": "src/store/legacy/sqlite/conversations.ts",
+      "required": [
+        {
+          "name": "db",
+          "type": "SqliteDb"
+        },
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "patch",
+          "type": "DbRow"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "deleteConversation",
+      "file": "src/store/legacy/sqlite/conversations.ts",
+      "required": [
+        {
+          "name": "db",
+          "type": "SqliteDb"
+        },
+        {
+          "name": "id",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "listMessages",
+      "file": "src/store/legacy/sqlite/messages.ts",
+      "required": [
+        {
+          "name": "db",
+          "type": "SqliteDb"
+        },
+        {
+          "name": "conversationId",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "upsertMessage",
+      "file": "src/store/legacy/sqlite/messages.ts",
+      "required": [
+        {
+          "name": "db",
+          "type": "SqliteDb"
+        },
+        {
+          "name": "conversationId",
+          "type": "string"
+        },
+        {
+          "name": "m",
+          "type": "DbRow"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "getMessageTelemetryFinalizationState",
+      "file": "src/store/legacy/sqlite/messages.ts",
+      "required": [
+        {
+          "name": "db",
+          "type": "SqliteDb"
+        },
+        {
+          "name": "messageId",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "appendMessageStatusEvent",
+      "file": "src/store/legacy/sqlite/messages.ts",
+      "required": [
+        {
+          "name": "db",
+          "type": "SqliteDb"
+        },
+        {
+          "name": "messageId",
+          "type": "string"
+        },
+        {
+          "name": "event",
+          "type": "DbRow"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "appendMessageAgentEvent",
+      "file": "src/store/legacy/sqlite/messages.ts",
+      "required": [
+        {
+          "name": "db",
+          "type": "SqliteDb"
+        },
+        {
+          "name": "messageId",
+          "type": "string"
+        },
+        {
+          "name": "event",
+          "type": "DbRow"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "deleteMessage",
+      "file": "src/store/legacy/sqlite/messages.ts",
+      "required": [
+        {
+          "name": "db",
+          "type": "SqliteDb"
+        },
+        {
+          "name": "id",
+          "type": "string"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "validateKernel",
+      "file": "src/store/sql/boundary.ts",
+      "required": [
+        {
+          "name": "kernel",
+          "type": "StorageKernel<DB>"
+        },
+        {
+          "name": "transports",
+          "type": "readonly StorageTransport[]"
+        },
+        {
+          "name": "dialect",
+          "type": "'sqlite' | 'postgres'"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "copyScope",
+      "file": "src/store/sql/boundary.ts",
+      "required": [
+        {
+          "name": "scope",
+          "type": "ChatOwnerScope"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "atStoreBoundary",
+      "file": "src/store/sql/boundary.ts",
+      "required": [
+        {
+          "name": "operation",
+          "type": "() => Promise<T>"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "runChatQuery",
+      "file": "src/store/sql/boundary.ts",
+      "required": [
+        {
+          "name": "kernel",
+          "type": "StorageKernel<DB>"
+        },
+        {
+          "name": "body",
+          "type": "(db: Kysely<ChatDatabase>) => T | Promise<T>"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "pageLimit",
+      "file": "src/store/sql/cursor.ts",
+      "required": [
+        {
+          "name": "options",
+          "type": "ChatPageOptions | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "encodeCursor",
+      "file": "src/store/sql/cursor.ts",
+      "required": [
+        {
+          "name": "kind",
+          "type": "ReadKind"
+        },
+        {
+          "name": "scope",
+          "type": "ChatOwnerScope"
+        },
+        {
+          "name": "conversation",
+          "type": "string | null"
+        },
+        {
+          "name": "anchor",
+          "type": "Anchor"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "decodeCursor",
+      "file": "src/store/sql/cursor.ts",
+      "required": [
+        {
+          "name": "cursor",
+          "type": "string | undefined"
+        },
+        {
+          "name": "kind",
+          "type": "ReadKind"
+        },
+        {
+          "name": "scope",
+          "type": "ChatOwnerScope"
+        },
+        {
+          "name": "conversation",
+          "type": "string | null"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "createChatHistoryStore",
+      "file": "src/store/sqlite/index.ts",
+      "required": [
+        {
+          "name": "db",
+          "type": "SqliteConnectionSource"
+        },
+        {
+          "name": "scope",
+          "type": "ChatOwnerScope"
+        }
+      ],
+      "optional": [
+        {
+          "name": "now",
+          "type": "() => number",
+          "default": "Date.now"
+        }
+      ],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "createChatHistoryMaintenance",
+      "file": "src/store/sqlite/index.ts",
+      "required": [
+        {
+          "name": "db",
+          "type": "SqliteConnectionSource"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "ensureChatHistoryTables",
+      "file": "src/store/sqlite/schema.ts",
+      "required": [
+        {
+          "name": "db",
+          "type": "Pick<SqliteClient, 'exec'>"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": false
+    },
+    {
+      "name": "latestTodoWriteInput",
+      "file": "src/core/todos.ts",
+      "required": [
+        {
+          "name": "messages",
+          "type": "ReadonlyArray<{ events?: AgentEvent[] | undefined }> | undefined"
+        }
+      ],
+      "optional": [],
+      "optionalObject": null,
+      "alias": true
+    },
+    {
+      "name": "createArtifactParser",
+      "file": "src/core/util/parser.ts",
+      "manual": true
+    },
+    {
+      "name": "clearToolRenderers",
+      "file": "src/react/tool-renderer-registry.ts",
+      "manual": true
+    },
+    {
+      "name": "useLatestOperation",
+      "file": "src/react/hooks/useLatestOperation.ts",
+      "manual": true
+    },
+    {
+      "name": "createFrontendSessionBridge",
+      "file": "src/react/agent-bridge/frontend-session-bridge.ts",
+      "manual": true
+    }
+  ],
+  "blocked": [
+    "assistantContentFromEvents",
+    "cacheAttachmentPreviewSource",
+    "composerDiscoveryMenuPosition",
+    "composerSlashMenuPosition",
+    "extEventSlot",
+    "filterComposerDiscovery",
+    "getAttachmentPreviewSource",
+    "getExtEventRenderer",
+    "interleaveMessageBlocks",
+    "isTerminalRunStatus",
+    "mcpUiSurfaceSlotKey",
+    "mergeAdjacentTextEvents",
+    "parseComposerSlashQuery",
+    "registerExtEventRenderer",
+    "resolveComposerSlashInvocation",
+    "useRunStream"
+  ],
+  "remainingPublicContracts": [
+    "ChatStore.get/rename/touch/delete/messages/appendMessage/pageConversations",
+    "ChatHistoryMaintenance.sweepExpired",
+    "ChatStoreFactory",
+    "ChatTransport.reattachRun/fetchRunStatus/stopRun",
+    "RendererRegistry.register (already an object)",
+    "ChatPaneAgentBridgeAccess and other peer-owned callback ports",
+    "legacy zero-argument getters and framework callbacks are exempt"
+  ]
+}

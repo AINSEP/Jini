@@ -8,4 +8,4 @@
 import { token } from './token.js';
 import type { ToolRegistry } from './tool-registry.js';
 
-export const ToolRegistryToken = token<ToolRegistry>('jini.toolRegistry');
+export const ToolRegistryToken = token<ToolRegistry>({ id: 'jini.toolRegistry' });

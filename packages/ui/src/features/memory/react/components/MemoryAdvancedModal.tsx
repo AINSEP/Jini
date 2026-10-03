@@ -74,7 +74,7 @@ export function MemoryAdvancedModal({
                 style={{
                   width: '100%',
                   marginTop: 8,
-                  fontFamily: 'monospace',
+                  fontFamily: 'var(--jini-font-mono)',
                 }}
               />
               <div
@@ -92,7 +92,7 @@ export function MemoryAdvancedModal({
                   style={{
                     fontSize: 11,
                     margin: 0,
-                    color: indexDraft !== null ? 'var(--text-warning, #b06a00)' : 'var(--text-muted, #888)',
+                    color: indexDraft !== null ? 'var(--jini-warning)' : 'var(--jini-text-muted)',
                     fontWeight: indexDraft !== null ? 600 : 400,
                   }}
                 >

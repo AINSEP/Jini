@@ -4,8 +4,8 @@ import { afterAll as after, describe, test } from "vitest";
 import { sql } from "kysely";
 
 import { listTables } from "../kernel/index.js";
-import { openPgliteKernel } from "../pglite/index.js";
-import { openMemorySqliteKernel } from "../sqlite/index.js";
+import { openPgliteKernel } from "../kernel/pglite/index.js";
+import { openMemorySqliteKernel } from "../kernel/sqlite/index.js";
 import type { StorageKernel } from "../kernel/index.js";
 import { assertValidSteps, hasLedger, runMigrations } from "../migrate/index.js";
 import { MigrationChecksumError, type MigrationStep, UnknownAppliedMigrationError } from "../migrate/index.js";

@@ -10,55 +10,61 @@
  */
 
 export class ForbiddenError extends Error {
-  constructor(message: string) {
+  constructor({ message }: { message: string }, _optional: Record<string, never> = {}) {
     super(message);
     this.name = "ForbiddenError";
   }
 }
 
 export class EntryNotFoundError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "ENTRY_NOT_FOUND";
   }
 }
 
-/** REQ-29/AC-29 — the owning content type does not exist, or (INV-01) exists only in a different workspace. */
+/** — the owning content type does not exist, or exists only in a different workspace. See docs/decisions/DR-002-content-lifecycle-and-cleanup.md. */
 export class ContentTypeNotFoundError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "CONTENT_TYPE_NOT_FOUND";
   }
 }
 
-/** REQ-10 (create) / REQ-28 (update/publish/unpublish) — the owning content type's status forbids this write. */
+/** (create) / (update/publish/unpublish) — the owning content type's status forbids this write. See docs/decisions/DR-002-content-lifecycle-and-cleanup.md. */
 export class ContentTypeNotActiveError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "ContentTypeNotActiveError";
   }
 }
 
-/** AC-21 — a second entry submitted with an identical `(workspaceId, type, slug)`. */
+/** — a second entry submitted with an identical `(workspaceId, type, slug)`. See docs/decisions/DR-002-content-lifecycle-and-cleanup.md. */
 export class EntrySlugConflictError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "ENTRY_SLUG_CONFLICT";
   }
 }
 
 export class VersionConflictError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "VersionConflictError";
   }
 }
 
-/** REQ-14/15 — `fieldsJson` failed `validateFieldsAgainstSchema` against the owning type's current schema. */
+/** — `fieldsJson` failed `validateFieldsAgainstSchema` against the owning type's current schema. See docs/decisions/DR-002-content-lifecycle-and-cleanup.md. */
 export class EntryFieldValidationError extends Error {
   readonly fieldErrors: Array<{ field: string; reason: string }>;
 
-  constructor(fieldErrors: Array<{ field: string; reason: string }>) {
+  constructor(requiredArgs: { fieldErrors: Array<{ field: string; reason: string }> }, optionalArgs: Record<string, never> = {}) {
+    const { fieldErrors } = requiredArgs;
     super(`fieldsJson failed schema validation: ${fieldErrors.map((e) => `${e.field}: ${e.reason}`).join("; ")}`);
     this.name = "EntryFieldValidationError";
     this.fieldErrors = fieldErrors;

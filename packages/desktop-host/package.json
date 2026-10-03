@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/desktop-host",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Shell-agnostic desktop-host ports: single-instance lock, window lifecycle, protocol handling, sidecar launch, paths, and config. Electron and Tauri assemblies live behind ./electron and ./tauri.",
   "license": "Apache-2.0",
   "repository": {
@@ -11,7 +11,21 @@
   "jini": {
     "domain": "platform",
     "kind": "host",
-    "runtime": "desktop"
+    "runtime": "desktop",
+    "entries": {
+      ".": "desktop",
+      "./bridge-testing": "universal",
+      "./electron": "desktop",
+      "./tauri": "desktop",
+      "./shutdown": "node",
+      "./electron/navigation-policy": "desktop",
+      "./electron/updates": "desktop",
+      "./node-toolchain": "node",
+      "./electron/usability": "desktop",
+      "./speech": "desktop",
+      "./speech/macos": "node",
+      "./speech/macos/speech-helper.swift": "node"
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -37,10 +51,49 @@
       "types": "./dist/tauri/index.d.ts",
       "import": "./dist/tauri/index.js",
       "default": "./dist/tauri/index.js"
-    }
+    },
+    "./shutdown": {
+      "types": "./dist/shutdown/index.d.ts",
+      "import": "./dist/shutdown/index.js",
+      "default": "./dist/shutdown/index.js"
+    },
+    "./electron/navigation-policy": {
+      "types": "./dist/electron/navigation-policy/index.d.ts",
+      "import": "./dist/electron/navigation-policy/index.js",
+      "default": "./dist/electron/navigation-policy/index.js"
+    },
+    "./electron/updates": {
+      "types": "./dist/electron/updates/index.d.ts",
+      "import": "./dist/electron/updates/index.js",
+      "default": "./dist/electron/updates/index.js"
+    },
+    "./node-toolchain": {
+      "types": "./dist/node-toolchain/index.d.ts",
+      "import": "./dist/node-toolchain/index.js",
+      "default": "./dist/node-toolchain/index.js"
+    },
+    "./electron/usability": {
+      "types": "./dist/electron/usability/index.d.ts",
+      "import": "./dist/electron/usability/index.js",
+      "default": "./dist/electron/usability/index.js"
+    },
+    "./speech": {
+      "types": "./dist/speech/index.d.ts",
+      "import": "./dist/speech/index.js",
+      "default": "./dist/speech/index.js"
+    },
+    "./speech/macos": {
+      "types": "./dist/speech/macos/index.d.ts",
+      "import": "./dist/speech/macos/index.js",
+      "default": "./dist/speech/macos/index.js"
+    },
+    "./speech/macos/speech-helper.swift": "./dist/speech/macos/speech-helper.swift"
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -53,7 +106,7 @@
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && cp src/speech/macos/speech-helper.swift dist/speech/macos/speech-helper.swift",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"

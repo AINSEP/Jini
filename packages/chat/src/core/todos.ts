@@ -25,7 +25,7 @@ const TODO_WRITE_TOOL_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 /** `true` when `name` is one of the accepted plan/TodoWrite tool-name spellings. */
-export function isTodoWriteToolName(name: string): boolean {
+export function isTodoWriteToolName({ name }: { name: string }): boolean {
   return TODO_WRITE_TOOL_NAMES.has(name);
 }
 
@@ -49,7 +49,7 @@ function normalizeTodoStatus(status: unknown): TodoStatus {
  * @returns Normalized items; entries with no recognizable body text are dropped.
  * @complexity O(n) in the number of raw plan entries.
  */
-export function parseTodoWriteInput(input: unknown): TodoItem[] {
+export function parseTodoWriteInput({ input }: { input: unknown }): TodoItem[] {
   if (!input || typeof input !== 'object') return [];
   const obj = input as { plan?: unknown; todos?: unknown };
   const rawItems = Array.isArray(obj.todos) ? obj.todos : Array.isArray(obj.plan) ? obj.plan : [];
@@ -89,19 +89,19 @@ export function parseTodoWriteInput(input: unknown): TodoItem[] {
  * return its parsed items, or `[]` if this turn never wrote a plan.
  * @complexity O(n), scanning from the end.
  */
-export function latestTodosFromEvents(events: AgentEvent[] | undefined): TodoItem[] {
+export function latestTodosFromEvents({ events }: { events: AgentEvent[] | undefined }): TodoItem[] {
   if (!events) return [];
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const event = events[i];
-    if (event?.kind !== 'tool_use' || !isTodoWriteToolName(event.name)) continue;
-    return parseTodoWriteInput(event.input);
+    if (event?.kind !== 'tool_use' || !isTodoWriteToolName({ name: event.name })) continue;
+    return parseTodoWriteInput({ input: event.input });
   }
   return [];
 }
 
 /** The subset of {@link latestTodosFromEvents} not yet marked `completed`. */
-export function unfinishedTodosFromEvents(events: AgentEvent[] | undefined): TodoItem[] {
-  return latestTodosFromEvents(events).filter((todo) => todo.status !== 'completed');
+export function unfinishedTodosFromEvents({ events }: { events: AgentEvent[] | undefined }): TodoItem[] {
+  return latestTodosFromEvents({ events: events }).filter((todo) => todo.status !== 'completed');
 }
 
 /**
@@ -116,8 +116,7 @@ export function unfinishedTodosFromEvents(events: AgentEvent[] | undefined): Tod
  *   the first hit scanning backwards, so the common case (a recent plan
  *   update) is far cheaper.
  */
-export function latestTodoWriteInputFromMessages(
-  messages: ReadonlyArray<{ events?: AgentEvent[] | undefined }> | undefined,
+export function latestTodoWriteInputFromMessages({ messages }: { messages: ReadonlyArray<{ events?: AgentEvent[] | undefined }> | undefined }
 ): unknown | null {
   if (!messages || messages.length === 0) return null;
   for (let mi = messages.length - 1; mi >= 0; mi -= 1) {
@@ -126,7 +125,7 @@ export function latestTodoWriteInputFromMessages(
     for (let ei = events.length - 1; ei >= 0; ei -= 1) {
       const event = events[ei];
       if (event?.kind !== 'tool_use') continue;
-      if (!isTodoWriteToolName(event.name)) continue;
+      if (!isTodoWriteToolName({ name: event.name })) continue;
       return event.input;
     }
   }
@@ -178,7 +177,7 @@ export function latestTodoWriteInputForPinnedCard<
     runStatus?: ChatRunStatus | undefined;
     endedAt?: number | undefined;
   },
->(messages: ReadonlyArray<T> | undefined): unknown | null {
+>({ messages }: { messages: ReadonlyArray<T> | undefined }): unknown | null {
   if (!messages || messages.length === 0) return null;
   for (let mi = messages.length - 1; mi >= 0; mi -= 1) {
     const message = messages[mi];
@@ -187,7 +186,7 @@ export function latestTodoWriteInputForPinnedCard<
     for (let ei = events.length - 1; ei >= 0; ei -= 1) {
       const event = events[ei];
       if (event?.kind !== 'tool_use') continue;
-      if (!isTodoWriteToolName(event.name)) continue;
+      if (!isTodoWriteToolName({ name: event.name })) continue;
       if (!hasTerminalRunEnded(message.runStatus, message.endedAt)) {
         return event.input;
       }

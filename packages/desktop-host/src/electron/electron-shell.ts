@@ -10,17 +10,17 @@ export interface ElectronShellSurfaces {
 
 export function createElectronShellPort(surfaces: ElectronShellSurfaces): ShellPort {
   return {
-    async openExternal(url: string): Promise<void> {
-      await surfaces.shell.openExternal(url);
+    async openExternal({ url }: { url: string }): Promise<void> {
+      await surfaces.shell.openExternal({ url });
     },
-    async openPath(path: string): Promise<void> {
-      const errorMessage = await surfaces.shell.openPath(path);
-      if (errorMessage.length > 0) throw new ShellError(errorMessage);
+    async openPath({ path }: { path: string }): Promise<void> {
+      const errorMessage = await surfaces.shell.openPath({ path });
+      if (errorMessage.length > 0) throw new ShellError({ message: errorMessage });
     },
     // Electron main has full `node:fs` access — this matches `sidecar.ts`'s own precedent of
     // calling `node:fs/promises` directly rather than adding a new structural Electron surface
     // for a capability Electron's own main process didn't need mediating in the first place.
-    async dirExists(path: string): Promise<boolean> {
+    async dirExists({ path }: { path: string }): Promise<boolean> {
       try {
         const info = await stat(path);
         return info.isDirectory();
@@ -31,8 +31,8 @@ export function createElectronShellPort(surfaces: ElectronShellSurfaces): ShellP
     async recentDirs(): Promise<string[]> {
       return surfaces.app.getRecentDocuments();
     },
-    async openFolderDialog(options?: OpenFolderDialogOptions): Promise<string | null> {
-      const result = await surfaces.dialog.showOpenDialog({
+    async openFolderDialog(_requiredArgs: Record<string, never>, options?: OpenFolderDialogOptions): Promise<string | null> {
+      const result = await surfaces.dialog.showOpenDialog({}, {
         properties: ['openDirectory'],
         ...(options?.defaultPath !== undefined ? { defaultPath: options.defaultPath } : {}),
       });

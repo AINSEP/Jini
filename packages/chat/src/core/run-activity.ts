@@ -70,7 +70,7 @@ function stringField(data: unknown, key: string): string | undefined {
 }
 
 /** `"page.fill"` → `"Page Fill"`, `"mcp__supabase__list_projects"` → `"List Projects"`. Display only. */
-export function humanizeToolName(name: string, input?: unknown): string {
+export function humanizeToolName({ name }: { name: string }, { input }: { input?: (unknown) | undefined } = {}): string {
   const real = WRAPPER_TOOL_NAMES.has(name) ? (stringField(input, 'toolId') ?? name) : name;
   const bare = real.startsWith('mcp__') ? real.split('__').slice(2).join('__') || real : real;
   return bare
@@ -129,7 +129,7 @@ function scanEvent(scan: Scan, event: AgentEvent, index: number): void {
  *
  * @complexity O(n) in events, O(open tool calls) extra space.
  */
-export function deriveRunActivity(events: readonly AgentEvent[] | undefined): RunActivityState {
+export function deriveRunActivity({ events }: { events: readonly AgentEvent[] | undefined }): RunActivityState {
   const scan: Scan = { open: [], lastVisible: null, lastCardIndex: -1, retry: null, progress: null, visibleCount: 0 };
   (events ?? []).forEach((event, index) => scanEvent(scan, event, index));
   const visibleCount = scan.visibleCount;
@@ -163,7 +163,7 @@ export function deriveRunActivity(events: readonly AgentEvent[] | undefined): Ru
     return {
       activity: {
         kind: 'running-tool',
-        tool: humanizeToolName(newestOpen.name, newestOpen.input),
+        tool: humanizeToolName({ name: newestOpen.name }, { input: newestOpen.input }),
         ...(reported !== undefined ? { reportedSeconds: reported } : {}),
       },
       key: `tool:${newestOpen.id}`,
@@ -177,7 +177,7 @@ export function deriveRunActivity(events: readonly AgentEvent[] | undefined): Ru
 }
 
 /** `4` → `"4 s"`, `80` → `"1 m 20 s"`, `120` → `"2 m 0 s"`. */
-export function formatActivityClock(totalSeconds: number): string {
+export function formatActivityClock({ totalSeconds }: { totalSeconds: number }): string {
   const seconds = Math.max(0, Math.floor(totalSeconds));
   const minutes = Math.floor(seconds / 60);
   return minutes > 0 ? `${minutes} m ${seconds % 60} s` : `${seconds} s`;
@@ -207,15 +207,15 @@ export const RUN_ACTIVITY_LABELS: {
 } = {
   thinking: (_a, clock, t) =>
     clock.idleMs >= RUN_ACTIVITY_IDLE_MS
-      ? t('Still working… {time}', { time: formatActivityClock(clock.seconds) })
-      : t('Thinking… {time}', { time: formatActivityClock(clock.seconds) }),
+      ? t('Still working… {time}', { time: formatActivityClock({ totalSeconds: clock.seconds }) })
+      : t('Thinking… {time}', { time: formatActivityClock({ totalSeconds: clock.seconds }) }),
   writing: (_a, clock, t) =>
     clock.idleMs >= RUN_ACTIVITY_IDLE_MS
-      ? t('Still working… {time}', { time: formatActivityClock(clock.seconds) })
+      ? t('Still working… {time}', { time: formatActivityClock({ totalSeconds: clock.seconds }) })
       : t('Writing…'),
-  'finding-tool': (_a, clock, t) => t('Finding the right tool… {time}', { time: formatActivityClock(clock.seconds) }),
-  'running-tool': (a, clock, t) => t('Running {tool}… {time}', { tool: a.tool, time: formatActivityClock(clock.seconds) }),
-  'awaiting-answer': (_a, clock, t) => t('Waiting for your answer above · {time}', { time: formatActivityClock(clock.seconds) }),
+  'finding-tool': (_a, clock, t) => t('Finding the right tool… {time}', { time: formatActivityClock({ totalSeconds: clock.seconds }) }),
+  'running-tool': (a, clock, t) => t('Running {tool}… {time}', { tool: a.tool, time: formatActivityClock({ totalSeconds: clock.seconds }) }),
+  'awaiting-answer': (_a, clock, t) => t('Waiting for your answer above · {time}', { time: formatActivityClock({ totalSeconds: clock.seconds }) }),
   retrying: (a, _clock, t) => {
     const who = a.service ? t("{service}'s servers are busy", { service: a.service }) : t('The AI service is busy');
     return a.attempt !== undefined && a.maxAttempts !== undefined
@@ -229,7 +229,7 @@ export const RUN_ACTIVITY_LABELS: {
  *
  * @complexity O(1).
  */
-export function describeRunActivity(activity: RunActivity, clock: RunActivityClock, t: RunActivityTranslate): string {
+export function describeRunActivity({ activity, clock, t }: { activity: RunActivity; clock: RunActivityClock; t: RunActivityTranslate }): string {
   const label = RUN_ACTIVITY_LABELS[activity.kind] as (a: RunActivity, c: RunActivityClock, tr: RunActivityTranslate) => string;
   return label(activity, clock, t);
 }

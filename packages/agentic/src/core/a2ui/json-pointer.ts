@@ -66,7 +66,7 @@ function escapeToken(token: string): string {
 }
 
 /** Splits a non-root pointer into its unescaped reference tokens. `pointer` must start with `/`. */
-export function parsePointerTokens(pointer: string): string[] {
+export function parsePointerTokens({ pointer }: { pointer: string }, _optional: Record<string, never> = {}): string[] {
   if (pointer === '') return [];
   if (!pointer.startsWith('/')) {
     throw new Error(`invalid JSON Pointer (must start with "/"): ${JSON.stringify(pointer)}`);
@@ -74,18 +74,18 @@ export function parsePointerTokens(pointer: string): string[] {
   return pointer.slice(1).split('/').map(unescapeToken);
 }
 
-export function joinPointer(base: string, ...tokens: string[]): string {
-  const baseTokens = base === '' || base === '/' ? [] : parsePointerTokens(base);
+export function joinPointer({ base, tokens }: { base: string; tokens: string[] }, _optional: Record<string, never> = {}): string {
+  const baseTokens = base === '' || base === '/' ? [] : parsePointerTokens({ pointer: base });
   return '/' + [...baseTokens, ...tokens].map(escapeToken).join('/');
 }
 
 /** Reads the value at `pointer` in `doc`. Never throws on a non-resolving path — `found: false` degrades sanely, matching this port's "a bad binding must not crash the renderer" adversarial requirement (see `resolve.ts`). */
-export function getAtPointer(doc: unknown, pointer: string): PointerGetResult {
+export function getAtPointer({ doc, pointer }: { doc: unknown; pointer: string }, _optional: Record<string, never> = {}): PointerGetResult {
   if (isRootPointer(pointer)) return { found: true, value: doc };
 
   let tokens: string[];
   try {
-    tokens = parsePointerTokens(pointer);
+    tokens = parsePointerTokens({ pointer });
   } catch {
     return { found: false, value: undefined };
   }
@@ -128,12 +128,12 @@ export function getAtPointer(doc: unknown, pointer: string): PointerGetResult {
  * for the same class of bug — this is the specific root cause it would otherwise have had to
  * catch).
  */
-export function setAtPointer(doc: unknown, pointer: string, value: unknown): unknown {
+export function setAtPointer({ doc, pointer, value }: { doc: unknown; pointer: string; value: unknown }, _optional: Record<string, never> = {}): unknown {
   if (isRootPointer(pointer)) return value;
 
   let tokens: string[];
   try {
-    tokens = parsePointerTokens(pointer);
+    tokens = parsePointerTokens({ pointer });
   } catch {
     return doc;
   }

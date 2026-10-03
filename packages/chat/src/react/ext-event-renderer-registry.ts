@@ -64,11 +64,11 @@ export type ExtEventRenderer = (props: ExtEventRenderProps) => ReactNode;
  * occurrence — right for a stream that builds a single surface (A2UI's create → update sequence).
  * It is wrong for a protocol whose events are separate surfaces: MCP-UI emits one resource per
  * card, so a run's second card rendered inside the first card's slot, far above where it arrived,
- * and a run blocked on it waited for an answer nobody could see (Tovu stuck-chat investigation,
+ * and a run blocked on it waited for an answer nobody could see (host stuck-chat investigation,
  * 2026-09-27). A slot key gives each surface its own slot at its own first occurrence; later events
  * with the same key still update that slot in place.
  */
-export type ExtEventSlotKey = (data: unknown) => string | undefined;
+export type ExtEventSlotKey = (required: { data: unknown }) => string | undefined;
 
 export interface ExtEventRendererOptions {
   /** See {@link ExtEventSlotKey}. Omit for one shared slot per `name`. */
@@ -87,8 +87,7 @@ const renderers = new Map<string, RegisteredExtEventRenderer>();
  * can dispose cleanly. Re-registering the same name overwrites — last writer wins.
  */
 export function registerExtEventRenderer(
-  name: string,
-  renderer: ExtEventRenderer,
+  { name, renderer }: { name: string; renderer: ExtEventRenderer },
   options: ExtEventRendererOptions = {},
 ): () => void {
   const entry: RegisteredExtEventRenderer = { renderer, slotKey: options.slotKey };
@@ -98,7 +97,7 @@ export function registerExtEventRenderer(
   };
 }
 
-export function getExtEventRenderer(name: string): ExtEventRenderer | undefined {
+export function getExtEventRenderer({ name }: { name: string }): ExtEventRenderer | undefined {
   return renderers.get(name)?.renderer;
 }
 
@@ -107,12 +106,12 @@ export function getExtEventRenderer(name: string): ExtEventRenderer | undefined 
  * registered with a {@link ExtEventSlotKey} that recognizes this event. A throwing key function
  * falls back to the shared slot rather than taking the whole message down.
  */
-export function extEventSlot(name: string, data: unknown): string {
+export function extEventSlot({ name, data }: { name: string; data: unknown }): string {
   const slotKey = renderers.get(name)?.slotKey;
   if (!slotKey) return name;
   let key: string | undefined;
   try {
-    key = slotKey(data);
+    key = slotKey({ data });
   } catch {
     key = undefined;
   }

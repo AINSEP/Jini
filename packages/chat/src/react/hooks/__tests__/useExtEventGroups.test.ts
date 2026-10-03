@@ -6,12 +6,12 @@ import { useExtEventGroups } from '../useExtEventGroups.js';
 describe('useExtEventGroups', () => {
   it('returns an empty array for events with no ext kind', () => {
     const events: AgentEvent[] = [{ kind: 'text', text: 'hi' }];
-    const { result } = renderHook(() => useExtEventGroups(events));
+    const { result } = renderHook(() => useExtEventGroups({ events: events }));
     expect(result.current).toEqual([]);
   });
 
   it('returns an empty array for undefined events', () => {
-    const { result } = renderHook(() => useExtEventGroups(undefined));
+    const { result } = renderHook(() => useExtEventGroups({ events: undefined }));
     expect(result.current).toEqual([]);
   });
 
@@ -22,7 +22,7 @@ describe('useExtEventGroups', () => {
       { kind: 'tool_use', id: 't1', name: 'Bash', input: {} },
       { kind: 'ext', name: 'a2ui', data: { step: 2 } },
     ];
-    const { result } = renderHook(() => useExtEventGroups(events));
+    const { result } = renderHook(() => useExtEventGroups({ events: events }));
     expect(result.current).toEqual([{ name: 'a2ui', slot: 'a2ui', events: [{ step: 1 }, { step: 2 }] }]);
   });
 
@@ -33,7 +33,7 @@ describe('useExtEventGroups', () => {
       { kind: 'ext', name: 'a2ui', data: 'a2' },
       { kind: 'ext', name: 'live_artifact', data: 'l2' },
     ];
-    const { result } = renderHook(() => useExtEventGroups(events));
+    const { result } = renderHook(() => useExtEventGroups({ events: events }));
     expect(result.current).toEqual([
       { name: 'a2ui', slot: 'a2ui', events: ['a1', 'a2'] },
       { name: 'live_artifact', slot: 'live_artifact', events: ['l1', 'l2'] },
@@ -50,7 +50,7 @@ describe('useExtEventGroups', () => {
       { kind: 'tool_result', toolUseId: 'inner', content: '{"submitted":true}', isError: false },
       { kind: 'tool_result', toolUseId: 'outer', content: 'done', isError: false },
     ];
-    const { result } = renderHook(() => useExtEventGroups(events));
+    const { result } = renderHook(() => useExtEventGroups({ events: events }));
     expect(result.current).toEqual([
       {
         name: 'mcp-ui',
@@ -66,7 +66,7 @@ describe('useExtEventGroups', () => {
       { kind: 'tool_use', id: 'inner', name: 'assistant_ask_choice', input: {} },
       { kind: 'ext', name: 'mcp-ui', data: 'card' },
     ];
-    const { result } = renderHook(() => useExtEventGroups(events));
+    const { result } = renderHook(() => useExtEventGroups({ events: events }));
     expect(result.current[0]?.call).toEqual({ name: 'assistant_ask_choice', input: {} });
   });
 });

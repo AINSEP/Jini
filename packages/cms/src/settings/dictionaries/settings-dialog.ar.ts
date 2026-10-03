@@ -13,7 +13,6 @@ export const SETTINGS_DIALOG_AR: Record<string, string> = {
   "MCP server": "خادم MCP",
   "Connect an MCP client. Showing sample output — not yet wired to a live server.": "اربط عميل MCP. يُعرض ناتج نموذجي — لم يتم ربطه بعد بخادم فعلي.",
   "API keys for image, video, and audio generation.": "مفاتيح API لإنشاء الصور والفيديو والصوت.",
-  "Third-party accounts and APIs via Composio.": "حسابات وواجهات برمجة تطبيقات تابعة لجهات خارجية عبر Composio.",
   "Memory": "الذاكرة",
   "Saved facts and context for future chats.": "حقائق وسياق محفوظان للمحادثات المستقبلية.",
   "External MCP": "MCP خارجي",

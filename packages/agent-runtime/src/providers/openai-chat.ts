@@ -1,3 +1,4 @@
+import { redactSecrets } from '@jini-ai/core';
 /**
  * @module providers/openai-chat
  *
@@ -67,7 +68,7 @@
  * reasoning.
  */
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
-import { defaultDnsLookup, pinnedFetch, redactSecrets, validateBaseUrlResolved, type DnsLookupAddress, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
+import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupAddress, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
 import { decodeSseStream, type DecodedSseEvent } from './sse-decode.js';
 import { buildOpenAIChatTokenParam } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
@@ -176,12 +177,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function openAiRequestUrl(baseUrl: string | undefined): string {
+export function openAiRequestUrl({ baseUrl }: { baseUrl: string | undefined }): string {
   const base = (baseUrl ?? DEFAULT_OPENAI_BASE_URL).replace(/\/+$/, '');
   return /\/v\d+(\/|$)/.test(base) ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
 }
 
-export function openAiHeaders(options: OpenAiTurnOptions): Record<string, string> {
+export function openAiHeaders(requiredArgs: Pick<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent">, optionalArgs: Omit<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent"> = {}): Record<string, string> {
+  const options: OpenAiTurnOptions = { ...optionalArgs, ...requiredArgs };
   return {
     'content-type': 'application/json',
     authorization: `Bearer ${options.apiKey}`,
@@ -189,20 +191,20 @@ export function openAiHeaders(options: OpenAiTurnOptions): Record<string, string
   };
 }
 
-export function openAiRequestBody(options: OpenAiTurnOptions, messages: readonly OpenAiMessageParam[]): Record<string, unknown> {
+export function openAiRequestBody({ options, messages }: { options: OpenAiTurnOptions; messages: readonly OpenAiMessageParam[] }): Record<string, unknown> {
   const effectiveMaxTokens = typeof options.maxTokens === 'number' && options.maxTokens > 0 ? options.maxTokens : DEFAULT_OPENAI_MAX_TOKENS;
   return {
     model: options.model,
     stream: true,
     stream_options: { include_usage: true },
     messages,
-    ...buildOpenAIChatTokenParam(options.model, effectiveMaxTokens),
+    ...buildOpenAIChatTokenParam({ model: options.model, maxTokens: effectiveMaxTokens }),
     ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
     ...(options.tools && options.tools.length > 0 ? { tools: options.tools } : {}),
   };
 }
 
-export function extractOpenAiErrorDetail(rawText: string): string {
+export function extractOpenAiErrorDetail({ rawText }: { rawText: string }): string {
   try {
     const parsed: unknown = JSON.parse(rawText);
     if (isRecord(parsed) && isRecord(parsed.error) && typeof parsed.error.message === 'string') {
@@ -269,7 +271,7 @@ export interface OpenAiStreamState {
 }
 
 /** Parses one SSE frame's data as a JSON object, or `null` for a malformed/empty keep-alive frame or a non-object payload — both are tolerated by the caller as "nothing to do this frame". */
-export function parseOpenAiSseData(raw: string): Record<string, unknown> | null {
+export function parseOpenAiSseData({ raw }: { raw: string }): Record<string, unknown> | null {
   let data: unknown;
   try {
     data = JSON.parse(raw);
@@ -279,14 +281,14 @@ export function parseOpenAiSseData(raw: string): Record<string, unknown> | null 
   return isRecord(data) ? data : null;
 }
 
-export function applyOpenAiStreamUsage(state: OpenAiStreamState, data: Record<string, unknown>, onEvent: (event: OpenAiTurnEvent) => void): void {
+export function applyOpenAiStreamUsage({ state, data, onEvent }: { state: OpenAiStreamState; data: Record<string, unknown>; onEvent: (event: OpenAiTurnEvent) => void }): void {
   if (!isRecord(data.usage)) return;
   state.usage = data.usage;
   onEvent({ type: 'usage', usage: data.usage });
 }
 
 /** The chunk's first (and, for Chat Completions, only) choice — `null` when the chunk carries no choice at all (e.g. a usage-only trailer chunk). */
-export function firstOpenAiChoice(data: Record<string, unknown>): Record<string, unknown> | null {
+export function firstOpenAiChoice({ data }: { data: Record<string, unknown> }): Record<string, unknown> | null {
   const choices = Array.isArray(data.choices) ? data.choices : [];
   const choice = choices[0];
   return isRecord(choice) ? choice : null;
@@ -297,8 +299,8 @@ export function firstOpenAiChoice(data: Record<string, unknown>): Record<string,
  * `'break'` once the guard flags contamination (the caller ends the turn immediately), otherwise
  * `'continue'` — same contract as `anthropic-messages.ts#handleAnthropicTextDelta`.
  */
-export function handleOpenAiTextContentDelta(state: OpenAiStreamState, content: string, onEvent: (event: OpenAiTurnEvent) => void): 'continue' | 'break' {
-  const safe = state.guard.feedText(content);
+export function handleOpenAiTextContentDelta({ state, content, onEvent }: { state: OpenAiStreamState; content: string; onEvent: (event: OpenAiTurnEvent) => void }): 'continue' | 'break' {
+  const safe = state.guard.feedText({ text: content });
   if (safe.length > 0) {
     state.fullText += safe;
     onEvent({ type: 'text_delta', delta: safe });
@@ -310,7 +312,7 @@ export function handleOpenAiTextContentDelta(state: OpenAiStreamState, content: 
 }
 
 /** Builds a fresh `PendingToolCall` from the streaming chunk that first mentions a given tool-call index — OpenAI sends `id`/`function.name` once, on that first chunk, then dribbles `function.arguments` in across subsequent chunks (accumulated separately by the caller). */
-export function newPendingOpenAiToolCall(rawCall: Record<string, unknown>, index: number): PendingToolCall {
+export function newPendingOpenAiToolCall({ rawCall, index }: { rawCall: Record<string, unknown>; index: number }): PendingToolCall {
   const id = typeof rawCall.id === 'string' ? rawCall.id : `call_${index}`;
   const fn = isRecord(rawCall.function) ? rawCall.function : {};
   const name = typeof fn.name === 'string' ? fn.name : '';
@@ -318,11 +320,11 @@ export function newPendingOpenAiToolCall(rawCall: Record<string, unknown>, index
 }
 
 /** Accumulates one `delta.tool_calls[]` entry from a streaming chunk into its running `PendingToolCall`. */
-export function accumulateOpenAiToolCallDelta(state: OpenAiStreamState, rawCall: unknown): void {
+export function accumulateOpenAiToolCallDelta({ state, rawCall }: { state: OpenAiStreamState; rawCall: unknown }): void {
   if (!isRecord(rawCall) || typeof rawCall.index !== 'number') return;
   let pending = state.toolCalls.get(rawCall.index);
   if (!pending) {
-    pending = newPendingOpenAiToolCall(rawCall, rawCall.index);
+    pending = newPendingOpenAiToolCall({ rawCall: rawCall, index: rawCall.index });
     state.toolCalls.set(rawCall.index, pending);
   }
   const fn = isRecord(rawCall.function) ? rawCall.function : null;
@@ -332,7 +334,7 @@ export function accumulateOpenAiToolCallDelta(state: OpenAiStreamState, rawCall:
 }
 
 /** Reduces one chunk's `choices[0]` — `finish_reason`, text content, and tool-call deltas — into `state`. Returns `'break'` when the text-delta guard detects contamination. */
-export function handleOpenAiChoiceDelta(state: OpenAiStreamState, choice: Record<string, unknown>, onEvent: (event: OpenAiTurnEvent) => void): 'continue' | 'break' {
+export function handleOpenAiChoiceDelta({ state, choice, onEvent }: { state: OpenAiStreamState; choice: Record<string, unknown>; onEvent: (event: OpenAiTurnEvent) => void }): 'continue' | 'break' {
   if (typeof choice.finish_reason === 'string') {
     state.finishReason = choice.finish_reason;
   }
@@ -340,18 +342,18 @@ export function handleOpenAiChoiceDelta(state: OpenAiStreamState, choice: Record
   if (!delta) return 'continue';
 
   if (typeof delta.content === 'string' && delta.content.length > 0) {
-    if (handleOpenAiTextContentDelta(state, delta.content, onEvent) === 'break') return 'break';
+    if (handleOpenAiTextContentDelta({ state: state, content: delta.content, onEvent: onEvent }) === 'break') return 'break';
   }
   if (Array.isArray(delta.tool_calls)) {
     for (const rawCall of delta.tool_calls) {
-      accumulateOpenAiToolCallDelta(state, rawCall);
+      accumulateOpenAiToolCallDelta({ state: state, rawCall: rawCall });
     }
   }
   return 'continue';
 }
 
 /** Parses one accumulated tool call's `argsJson`, falling back to `{}` for empty or malformed JSON — mirrors Anthropic's identical fallback for `input_json_delta` accumulation in `anthropic-messages.ts`. */
-export function resolveOpenAiToolCalls(pending: ReadonlyMap<number, PendingToolCall>): OpenAiToolCall[] {
+export function resolveOpenAiToolCalls({ pending }: { pending: ReadonlyMap<number, PendingToolCall> }): OpenAiToolCall[] {
   return Array.from(pending.values()).map((call) => {
     let input: unknown = {};
     if (call.argsJson.trim()) {
@@ -388,9 +390,7 @@ async function requestOpenAiCompatibleStream(init: OpenAiCompatibleRequestInit):
 
   let response: { ok: boolean; status: number; body: AsyncIterable<Uint8Array | string> | null; text(): Promise<string> };
   try {
-    response = await (init.fetchImpl ?? pinnedFetch)(
-      init.url,
-      {
+    response = await (init.fetchImpl ?? pinnedFetch)({ url: init.url, init: {
         method: 'POST',
         headers: init.headers,
         body: JSON.stringify(init.body),
@@ -405,12 +405,11 @@ async function requestOpenAiCompatibleStream(init: OpenAiCompatibleRequestInit):
         // self-documentation, not the mechanism.
         redirect: 'error',
         ...(init.signal ? { signal: init.signal } : {}),
-      },
-      init.pinnedAddress,
+      }, pinnedAddress: init.pinnedAddress }
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    onEvent({ type: 'error', message: redactSecrets(message, init.redactSecretsList) });
+    onEvent({ type: 'error', message: redactSecrets({ input: message }, { exactSecrets: init.redactSecretsList }) });
     emitEnd('error');
     return { type: 'ended' };
   }
@@ -424,7 +423,7 @@ async function requestOpenAiCompatibleStream(init: OpenAiCompatibleRequestInit):
     }
     onEvent({
       type: 'error',
-      message: redactSecrets(extractOpenAiErrorDetail(rawText), init.redactSecretsList),
+      message: redactSecrets({ input: extractOpenAiErrorDetail({ rawText: rawText }) }, { exactSecrets: init.redactSecretsList }),
       code: String(response.status),
     });
     emitEnd('error');
@@ -448,17 +447,17 @@ export type OpenAiFrameResult = 'continue' | 'done' | 'contaminated';
  * turns what would be four sequential, nesting-penalized `if`s into a single function call plus
  * one outcome check — see `runOpenAiCompatibleRequest`'s loop below.
  */
-export function processOpenAiStreamFrame(state: OpenAiStreamState, frame: DecodedSseEvent, onEvent: (event: OpenAiTurnEvent) => void): OpenAiFrameResult {
+export function processOpenAiStreamFrame({ state, frame, onEvent }: { state: OpenAiStreamState; frame: DecodedSseEvent; onEvent: (event: OpenAiTurnEvent) => void }): OpenAiFrameResult {
   if (frame.data === DONE_SENTINEL) return 'done';
-  const data = parseOpenAiSseData(frame.data);
+  const data = parseOpenAiSseData({ raw: frame.data });
   if (!data) return 'continue'; // malformed/empty keep-alive frame, or a non-object payload
 
-  applyOpenAiStreamUsage(state, data, onEvent);
+  applyOpenAiStreamUsage({ state: state, data: data, onEvent: onEvent });
 
-  const choice = firstOpenAiChoice(data);
+  const choice = firstOpenAiChoice({ data: data });
   if (!choice) return 'continue';
 
-  return handleOpenAiChoiceDelta(state, choice, onEvent) === 'break' ? 'contaminated' : 'continue';
+  return handleOpenAiChoiceDelta({ state: state, choice: choice, onEvent: onEvent }) === 'break' ? 'contaminated' : 'continue';
 }
 
 /**
@@ -476,7 +475,8 @@ export function processOpenAiStreamFrame(state: OpenAiStreamState, frame: Decode
  * `anthropic-messages.ts#runSingleAnthropicRequest`'s `emitEnd` contract —
  * see that function's doc.
  */
-export async function runOpenAiCompatibleRequest(init: OpenAiCompatibleRequestInit): Promise<OpenAiCompatibleRequestOutcome> {
+export async function runOpenAiCompatibleRequest(requiredArgs: Pick<OpenAiCompatibleRequestInit, "url" | "headers" | "body" | "redactSecretsList" | "guardMessageId" | "providerLabel" | "onEvent" | "emitEnd" | "hasEnded">, optionalArgs: Omit<OpenAiCompatibleRequestInit, "url" | "headers" | "body" | "redactSecretsList" | "guardMessageId" | "providerLabel" | "onEvent" | "emitEnd" | "hasEnded"> = {}): Promise<OpenAiCompatibleRequestOutcome> {
+  const init: OpenAiCompatibleRequestInit = { ...optionalArgs, ...requiredArgs };
   const { onEvent, hasEnded } = init;
 
   const fetchOutcome = await requestOpenAiCompatibleStream(init);
@@ -484,20 +484,20 @@ export async function runOpenAiCompatibleRequest(init: OpenAiCompatibleRequestIn
     return { finishReason: null, toolCalls: [], text: '' };
   }
   if (fetchOutcome.type === 'retry') {
-    return runOpenAiCompatibleRequest(fetchOutcome.retryInit);
+    return (({ url, headers, body, redactSecretsList, guardMessageId, providerLabel, onEvent, emitEnd, hasEnded, ...optionalArgs }: Parameters<typeof runOpenAiCompatibleRequest>[0] & NonNullable<Parameters<typeof runOpenAiCompatibleRequest>[1]>) => runOpenAiCompatibleRequest({ url, headers, body, redactSecretsList, guardMessageId, providerLabel, onEvent, emitEnd, hasEnded }, optionalArgs))(fetchOutcome.retryInit);
   }
 
   onEvent({ type: 'status', label: 'requesting' });
 
   const state: OpenAiStreamState = {
-    guard: createRoleMarkerGuard(init.guardMessageId),
+    guard: createRoleMarkerGuard({ messageId: init.guardMessageId }),
     toolCalls: new Map(),
     fullText: '',
     finishReason: null,
     usage: null,
   };
 
-  for await (const frame of decodeSseStream(fetchOutcome.body)) {
+  for await (const frame of decodeSseStream({ source: fetchOutcome.body })) {
     // No `hasEnded()` re-check at the top of this loop: the only in-loop call to `emitEnd`
     // (contamination, below) is immediately followed by `break`, and every other call site is a
     // pre-loop early `return` — traced across all five call sites in this function and
@@ -505,7 +505,7 @@ export async function runOpenAiCompatibleRequest(init: OpenAiCompatibleRequestIn
     // `anthropic-messages.ts#runSingleAnthropicRequest`. `hasEnded()` is still consulted once,
     // after this loop, to decide whether pending tool_use events should still be emitted (a
     // contaminating delta can arrive on a *later* chunk than the one that set `finish_reason`).
-    const result = processOpenAiStreamFrame(state, frame, onEvent);
+    const result = processOpenAiStreamFrame({ state: state, frame: frame, onEvent: onEvent });
     if (result === 'done') break;
     if (result === 'contaminated') {
       init.emitEnd('contaminated');
@@ -513,7 +513,7 @@ export async function runOpenAiCompatibleRequest(init: OpenAiCompatibleRequestIn
     }
   }
 
-  const resolvedToolCalls = resolveOpenAiToolCalls(state.toolCalls);
+  const resolvedToolCalls = resolveOpenAiToolCalls({ pending: state.toolCalls });
 
   if (state.finishReason === 'tool_calls' && !hasEnded()) {
     emitPendingOpenAiToolUseEvents(resolvedToolCalls, onEvent);
@@ -533,17 +533,17 @@ async function runSingleOpenAiRequest(
   // so `https://internal.example.com -> 10.0.0.5` passed it and this runner connected to private
   // infrastructure on behalf of whoever supplied `baseUrl`. Matches what the Azure, Google and
   // Ollama runners in this directory already did.
-  const baseUrlCheck = await validateBaseUrlResolved(options.baseUrl ?? DEFAULT_OPENAI_BASE_URL, options.dnsLookup ?? defaultDnsLookup);
+  const baseUrlCheck = await validateBaseUrlResolved({ baseUrl: options.baseUrl ?? DEFAULT_OPENAI_BASE_URL, lookup: options.dnsLookup ?? defaultDnsLookup });
   if (baseUrlCheck.error) {
     options.onEvent({ type: 'error', message: baseUrlCheck.error });
     emitEnd('error');
     return { finishReason: null, toolCalls: [], text: '' };
   }
 
-  return runOpenAiCompatibleRequest({
-    url: openAiRequestUrl(options.baseUrl),
-    headers: openAiHeaders(options),
-    body: openAiRequestBody(options, messages),
+  return (({ url, headers, body, redactSecretsList, guardMessageId, providerLabel, onEvent, emitEnd, hasEnded, ...optionalArgs }: Parameters<typeof runOpenAiCompatibleRequest>[0] & NonNullable<Parameters<typeof runOpenAiCompatibleRequest>[1]>) => runOpenAiCompatibleRequest({ url, headers, body, redactSecretsList, guardMessageId, providerLabel, onEvent, emitEnd, hasEnded }, optionalArgs))({
+    url: openAiRequestUrl({ baseUrl: options.baseUrl }),
+    headers: (({ apiKey, model, messages, onEvent, ...optionalArgs }: Parameters<typeof openAiHeaders>[0] & NonNullable<Parameters<typeof openAiHeaders>[1]>) => openAiHeaders({ apiKey, model, messages, onEvent }, optionalArgs))(options),
+    body: openAiRequestBody({ options: options, messages: messages }),
     ...(baseUrlCheck.pinnedAddress ? { pinnedAddress: baseUrlCheck.pinnedAddress } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
     ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
@@ -588,7 +588,7 @@ const OPENAI_DATA_URI_PATTERN = /^data:([^;,]+)(?:;charset=[^;,]+)?;base64,(.+)$
  *
  * @complexity O(1) — reads `data.length`, never decodes or parses the base64 payload.
  */
-export function invalidOpenAiContentPartReason(part: OpenAiContentPart): string | null {
+export function invalidOpenAiContentPartReason({ part }: { part: OpenAiContentPart }): string | null {
   if (part.type === 'text') return null;
   const dataUriMatch = OPENAI_DATA_URI_PATTERN.exec(part.image_url.url);
   if (!dataUriMatch) return null;
@@ -620,13 +620,13 @@ export interface SanitizedOpenAiToolResult {
  *
  * @complexity O(n) in the number of content parts; O(1) per part (see `invalidOpenAiContentPartReason`).
  */
-export function sanitizeOpenAiToolResult(result: OpenAiToolResult): SanitizedOpenAiToolResult {
+export function sanitizeOpenAiToolResult({ result }: { result: OpenAiToolResult }): SanitizedOpenAiToolResult {
   if (typeof result.content === 'string') return { content: result.content, isError: false };
   if (result.content.length > MAX_IMAGES_PER_OPENAI_TOOL_RESULT) {
     return { content: `tool result rejected: exceeds the ${MAX_IMAGES_PER_OPENAI_TOOL_RESULT}-image-per-request guard (${result.content.length} parts)`, isError: true };
   }
   for (const part of result.content) {
-    const reason = invalidOpenAiContentPartReason(part);
+    const reason = invalidOpenAiContentPartReason({ part: part });
     if (reason) return { content: `tool result rejected: ${reason}`, isError: true };
   }
   return { content: result.content, isError: false };
@@ -649,7 +649,7 @@ export interface SplitOpenAiToolResultContent {
  *
  * @complexity O(n) in the number of content parts.
  */
-export function splitOpenAiToolResultContent(content: string | readonly OpenAiContentPart[]): SplitOpenAiToolResultContent {
+export function splitOpenAiToolResultContent({ content }: { content: string | readonly OpenAiContentPart[] }): SplitOpenAiToolResultContent {
   if (typeof content === 'string') return { toolMessageContent: content, imageParts: [] };
   const textParts = content.filter((part): part is OpenAiTextPart => part.type === 'text');
   const imageParts = content.filter((part): part is OpenAiImageUrlPart => part.type === 'image_url');
@@ -663,7 +663,7 @@ export function splitOpenAiToolResultContent(content: string | readonly OpenAiCo
  * instead proceed to execute the pending tool calls — mirrors
  * `anthropic-messages.ts#anthropicLoopExitReason`'s pure decision/effect split.
  */
-export function openAiLoopExitReason(outcome: OpenAiCompatibleRequestOutcome, toolTurns: number, maxToolTurns: number): OpenAiTurnEndReason | null {
+export function openAiLoopExitReason({ outcome, toolTurns, maxToolTurns }: { outcome: OpenAiCompatibleRequestOutcome; toolTurns: number; maxToolTurns: number }): OpenAiTurnEndReason | null {
   if (outcome.finishReason !== 'tool_calls' || outcome.toolCalls.length === 0) return 'stop';
   if (toolTurns >= maxToolTurns) return 'max_tool_turns';
   return null;
@@ -680,18 +680,15 @@ export interface OpenAiToolExecutionOutcome {
  * module doc's "Tool messages cannot carry an image" section for why the split exists and why the
  * follow-up is assembled once per batch rather than per call.
  */
-export async function executeOpenAiToolCalls(
-  executeTool: OpenAiToolExecutor,
-  calls: readonly OpenAiToolCall[],
-  onEvent: (event: OpenAiTurnEvent) => void,
+export async function executeOpenAiToolCalls({ executeTool, calls, onEvent }: { executeTool: OpenAiToolExecutor; calls: readonly OpenAiToolCall[]; onEvent: (event: OpenAiTurnEvent) => void }
 ): Promise<OpenAiToolExecutionOutcome> {
   const toolResultMessages: OpenAiMessageParam[] = [];
   const followUpParts: OpenAiContentPart[] = [];
   for (const call of calls) {
     const result = await executeTool(call);
-    const sanitized = sanitizeOpenAiToolResult(result);
+    const sanitized = sanitizeOpenAiToolResult({ result: result });
     onEvent({ type: 'tool_result', toolUseId: call.id, content: sanitized.content, isError: sanitized.isError });
-    const split = splitOpenAiToolResultContent(sanitized.content);
+    const split = splitOpenAiToolResultContent({ content: sanitized.content });
     toolResultMessages.push({ role: 'tool', content: split.toolMessageContent, tool_call_id: call.id });
     if (split.imageParts.length > 0) {
       // Attribution label — without it, the model cannot tell this image apart from a human
@@ -705,14 +702,12 @@ export async function executeOpenAiToolCalls(
 }
 
 /** Builds the assistant turn that records the model's pending tool calls in `messages` history — `content` falls back to `null` (never `''`) per the wire schema. */
-export function buildOpenAiAssistantToolCallMessage(text: string, toolCalls: readonly OpenAiToolCallParam[]): OpenAiMessageParam {
+export function buildOpenAiAssistantToolCallMessage({ text, toolCalls }: { text: string; toolCalls: readonly OpenAiToolCallParam[] }): OpenAiMessageParam {
   return { role: 'assistant', content: text || null, tool_calls: toolCalls };
 }
 
 /** Appends the batch's `tool` messages plus, when present, the single labeled-image follow-up message — see module doc's "Tool messages cannot carry an image" section for why the follow-up is at most one message per batch. */
-export function buildOpenAiToolExchangeMessages(
-  toolResultMessages: readonly OpenAiMessageParam[],
-  followUpParts: readonly OpenAiContentPart[],
+export function buildOpenAiToolExchangeMessages({ toolResultMessages, followUpParts }: { toolResultMessages: readonly OpenAiMessageParam[]; followUpParts: readonly OpenAiContentPart[] }
 ): OpenAiMessageParam[] {
   return [...toolResultMessages, ...(followUpParts.length > 0 ? [{ role: 'user' as const, content: followUpParts }] : [])];
 }
@@ -723,7 +718,8 @@ export function buildOpenAiToolExchangeMessages(
  * function call. See `anthropic-messages.ts#runAnthropicToolTurn`'s doc for
  * the shared event-stream/`ended`-flag contract this mirrors exactly.
  */
-export async function runOpenAiToolTurn(options: OpenAiTurnOptions): Promise<OpenAiTurnResult> {
+export async function runOpenAiToolTurn(requiredArgs: Pick<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent">, optionalArgs: Omit<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent"> = {}): Promise<OpenAiTurnResult> {
+  const options: OpenAiTurnOptions = { ...optionalArgs, ...requiredArgs };
   const maxToolTurns = options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;
   const executeTool = options.executeTool;
 
@@ -739,7 +735,7 @@ export async function runOpenAiToolTurn(options: OpenAiTurnOptions): Promise<Ope
     lastFinishReason = outcome.finishReason;
     if (endGuard.hasEnded()) break;
 
-    const exitReason = openAiLoopExitReason(outcome, toolTurns, maxToolTurns);
+    const exitReason = openAiLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns });
     if (exitReason) {
       emitEnd(exitReason);
       break;
@@ -755,12 +751,12 @@ export async function runOpenAiToolTurn(options: OpenAiTurnOptions): Promise<Ope
       type: 'function',
       function: { name: call.name, arguments: JSON.stringify(call.input) },
     }));
-    const { toolResultMessages, followUpParts } = await executeOpenAiToolCalls(executeTool, outcome.toolCalls, options.onEvent);
+    const { toolResultMessages, followUpParts } = await executeOpenAiToolCalls({ executeTool: executeTool, calls: outcome.toolCalls, onEvent: options.onEvent });
 
     messages = [
       ...messages,
-      buildOpenAiAssistantToolCallMessage(outcome.text, assistantToolCalls),
-      ...buildOpenAiToolExchangeMessages(toolResultMessages, followUpParts),
+      buildOpenAiAssistantToolCallMessage({ text: outcome.text, toolCalls: assistantToolCalls }),
+      ...buildOpenAiToolExchangeMessages({ toolResultMessages: toolResultMessages, followUpParts: followUpParts }),
     ];
   }
 

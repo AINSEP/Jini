@@ -35,12 +35,12 @@ function makeDeps() {
   };
 
   const deps = {
-    clock: { nowIso: () => "2026-07-10T00:00:00.000Z" },
+    clock: { nowMs: () => Date.parse("2026-07-10T00:00:00.000Z")},
     idGen: { newId: () => `id-${(counter += 1)}` },
-    mediaRepo: new InMemoryMediaRepo(),
-    blobRepo: new InMemoryAssetBlobRepo(),
-    renditionRepo: new InMemoryAssetRenditionRepo(),
-    transformRepo: new InMemoryTransformDefinitionRepo(),
+    mediaRepo: new InMemoryMediaRepo({}),
+    blobRepo: new InMemoryAssetBlobRepo({}),
+    renditionRepo: new InMemoryAssetRenditionRepo({}),
+    transformRepo: new InMemoryTransformDefinitionRepo({}),
     blobStore: new InMemoryBlobStore(),
     imageTransformer: countingTransformer,
   };

@@ -2,27 +2,39 @@
 
 Content-model capability for Jini-hosted products.
 
-> **Status: implemented, port in progress.** Created 2026-08-02 as an empty shell; the port has
-> been landing since. Measured 2026-09-05 at `v0.3.4`: 131 non-test source files / 21,718 lines
-> under `src/` (34,938 including tests), 11 domain trees, and 14 public subpath exports wired in
-> `package.json`. Some domain modules named under [Port inventory](#port-inventory) have not moved
-> yet — check `src/` and the `exports` map for what is actually reachable today rather than
-> trusting this paragraph's counts.
+The source tree includes content domains and Node adapters. CMS depends on shared kernel
+contracts and has no user-management dependency. Generic tool wiring is exported by
+`@jini-ai/core`; hosts provide CMS authorization and active-principal lookup ports.
+See [API integration](API-INTEGRATION.md) for current signatures and migration examples, and
+[integration-report.md](integration-report.md) for pending protected work and deferred verification.
 
 ## Layers
 
 | subpath | runtime | contents |
 |---|---|---|
 | `.` / `./core` | universal | Content contracts and types, ports, pure domain services, kernel registries. No Express, no `node:*`, no DOM. |
-| `./server` | node | Concrete adapters for the ports in `/core`: SQLite/Postgres repositories, filesystem blob stores, image transformers. |
+| `./media` | node | Media services, filesystem blob stores and image transformers. |
+| `./http/settings` | node | Settings HTTP routes, host policy contracts, CMS adapters and resumable change feed. |
 
-`/server` depends on `/core`. The reverse is a boundary violation — if a core module wants
-something from `/server`, the dependency is backwards and the fix is a port (interface) in core,
+Node-bound domain adapters depend on `/core`. The reverse is a boundary violation — if a core module wants
+something from a Node adapter, the dependency is backwards and the fix is a port (interface) in core,
 not a widened export.
 
-`./server` means *the Node-bound layer*, not *the HTTP server* — same convention as
-`@jini-ai/admin`. HTTP transport is out of scope; Jini has `@jini-ai/http-kit` and
-`@jini-ai/server`.
+Domain HTTP adapters live under `./http/*`, using the generic transport and host
+composition supplied by `@jini-ai/http-kit` and `@jini-ai/server`.
+Identity tool registration composition belongs to `@jini-ai/user-management/server`.
+
+`@jini-ai/cms/http/settings` exports `registerSettingsRoutes`, the settings HTTP
+contracts and the CMS service/change-feed factories. Hosts provide route paths,
+permissions, workspace, readiness, principal resolution, authorization, scheduler,
+service and feed ports. Registration returns a disposer that closes active feeds.
+CMS adapters pass named request objects to settings dispatch and change-feed services;
+queryable index-name helpers return promises that callers must await.
+Install the optional peers `express` and `@jini-ai/http-kit` when using HTTP subpaths;
+the framework-free root and domain entries do not import them.
+Readiness or principal-resolution failures return `401 UNAUTHENTICATED`.
+Stream diagnostics are best-effort: a throwing reporter cannot prevent retries,
+cancellation of other schedules or ending the response.
 
 ## Why the split exists before there is any code to split
 
@@ -57,11 +69,12 @@ history shows they essentially never co-change with each other, so each ports in
 coordination.
 
 **Landed** (directories under `src/`, each with its own subpath export):
-`core`, `content-types`, `entries`, `identity`, `media`, `navigation`, `presentation`, `settings`,
-`taxonomy`, `workspace`, and the `server` adapter layer.
+`core`, `content-types`, `entries`, `media`, `navigation`, `presentation`, `settings`,
+`taxonomy`, `workspace`, and `trash`. `./core/tools` exports CMS permission helpers; `./media/import` exports bounded image fetching with injected policies and ports.
 
-**Still to move:** `post`, `seo`, `comments`, `forms`, `redirects`, `widgets`, `newsletter`,
-`members`. (`widgets` has an `exports` entry but no `src/widgets/` tree yet.)
+**Still to move:** `post`, `seo`, `comments`, `redirects`, `widgets`, `newsletter`,
+`members`. The unimplemented `./widgets` export has been removed.
+The nested forms package is maintained by its separate owner and is excluded from this parent package.
 
 **Explicitly not ported:**
 
@@ -84,6 +97,14 @@ pnpm --filter @jini-ai/cms test
 - **Add coverage thresholds.** `vitest.config.ts` still has none. That was a deliberate omission
   while the package was a placeholder; it no longer is, so the reason has expired. Set them against
   what the ported modules actually measure — siblings run 98–100%.
-- **Delete `CMS_SERVER_LAYER`** (`src/server/index.ts`). It existed only to give the `/server`
-  entry point something real to resolve, and real exports have since landed. Its `/core`
-  counterpart `CMS_CORE_LAYER` is already gone.
+
+## Design decisions
+
+- [Schema indexes use closed fragments and unambiguous identities](docs/decisions/DR-001-safe-schema-and-index-transitions.md).
+- [Content lifecycle separates new authoring from existing-entry writes](docs/decisions/DR-002-content-lifecycle-and-cleanup.md).
+- [Settings preserve total defaults, scope fences and revision evidence](docs/decisions/DR-003-settings-ledger-invariants.md).
+- [Blob collection rechecks references before journaled unlink](docs/decisions/DR-004-journaled-blob-gc.md).
+- [Taxonomy validation preserves first-failure order and full cycle checks](docs/decisions/DR-005-ordered-taxonomy-validation.md).
+- [Mutation, audit record and outbox intent share a commit boundary](docs/decisions/DR-006-mutation-audit-atomicity.md).
+- [Workspace administration preserves tenancy and ownership floors](docs/decisions/DR-007-workspace-and-owner-floors.md).
+- [Navigation mutations enqueue one event only on success](docs/decisions/DR-008-navigation-event-intent.md).

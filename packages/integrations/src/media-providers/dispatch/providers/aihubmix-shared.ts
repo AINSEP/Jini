@@ -2,7 +2,7 @@
  * Shared plumbing for the AIHubMix aggregator gateway (an OpenAI-wire-
  * compatible aggregator: one API key fronts OpenAI/Anthropic/Gemini
  * models, routed by model name). Ported near-verbatim from Open Design's
- * `apps/daemon/src/integrations/aihubmix.ts` — see `source-map.md`. Only
+ * `apps/daemon/src/integrations/aihubmix.ts` — see `archived provenance ledger`. Only
  * the pieces `providers/aihubmix.ts`'s image/TTS renderers need are
  * ported; see "Not ported" below for what's deliberately left out.
  *
@@ -23,7 +23,7 @@
  * covered with a contrived test that fakes an empty app code.
  *
  * Not ported: `aihubmixVideoSeconds` (video is deferred — see
- * `source-map.md`'s async-polling bucket), `aihubmixCatalogUrl`/
+ * `archived provenance ledger`'s async-polling bucket), `aihubmixCatalogUrl`/
  * `parseAIHubMixCatalog`/`AIHubMixCatalogModel` (a model-catalogue-
  * discovery HTTP call, not part of the render path), and
  * `AIHUBMIX_IMAGE_ASPECT_TO_SIZE` (used by OD's in-chat `generate_image`

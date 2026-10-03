@@ -42,14 +42,14 @@ never the other way around.
 
 - Only one shadcn component (`table`) — `21st`/`magic` providers don't exist yet, and shadcn only
   has the one.
-- `search_components`/`describe_component` exist in `@jini-ai/mcp`, and Tovu wires them for real
+- `search_components`/`describe_component` exist in `@jini-ai/mcp`, and the host wires them for real
   (`src/assistant/component-catalog-query.ts`, mirroring that repo's own `tool-catalog-query.ts` —
   in-memory, not SQLite, since `ALL_MANIFESTS` is static). Any *other* consumer of `@jini-ai/mcp`
   still needs its own equivalent wiring; there is no default.
 - `ui/features/a2ui` consumes this registry (full recursive tree-walking as of 2026-08-08, not
   root-only — see its own README for the per-row-action gap that remains).
 - No agent tool anywhere yet actually *places* a registry component into a live surface via
-  conversation — `search_components` only lets an agent discover one exists. Tovu's admin
+  conversation — `search_components` only lets an agent discover one exists. the host’s admin
   Playground page (`apps/admin/src/features/playground/`) adds components by hand, not by asking
   the assistant; that's still open.
 
@@ -57,7 +57,7 @@ never the other way around.
 
 `styles.css` (this folder) is real and correctly scoped (`@source` limited to `providers/**`,
 verified to produce ~7.5KB of only the classes actually used, not a sweep of anything else) — but
-it is **not imported anywhere** in Tovu yet. A naive global `import '@jini-ai/ui/interactive-ui.css'`
+it is **not imported anywhere** in the host yet. A naive global `import '@jini-ai/ui/interactive-ui.css'`
 would inject Tailwind's preflight layer app-wide, resetting every button/input across the whole
 admin, not just this feature. Confirmed live in a browser 2026-08-08: both `native.data-table` and
 `shadcn.data-table` render with zero visual styling — structurally different (shadcn's `data-slot`

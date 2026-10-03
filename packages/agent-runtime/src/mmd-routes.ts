@@ -41,7 +41,7 @@ function expandRoutesFileOverride(raw: string, env: RuntimeEnv): string | null {
   return raw;
 }
 
-export function resolveMmdRoutesFile(env: RuntimeEnv): string | null {
+export function resolveMmdRoutesFile({ env }: { env: RuntimeEnv }): string | null {
   const override = stringEnv(env, MMD_MODEL_ROUTES_FILE_ENV);
   if (override) return expandRoutesFileOverride(override, env);
 
@@ -54,13 +54,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function parseMmdRouteModelIds(raw: unknown): string[] {
+export function parseMmdRouteModelIds({ raw }: { raw: unknown }): string[] {
   if (!isRecord(raw) || !isRecord(raw.routes)) return [];
 
   const seen = new Set<string>();
   const ids: string[] = [];
   for (const rawId of Object.keys(raw.routes)) {
-    const id = sanitizeCustomModel(rawId);
+    const id = sanitizeCustomModel({ id: rawId });
     if (!id || seen.has(id)) continue;
     seen.add(id);
     ids.push(id);
@@ -68,11 +68,9 @@ export function parseMmdRouteModelIds(raw: unknown): string[] {
   return ids;
 }
 
-export function resolveMmdRouteLaunchEnv(
-  raw: unknown,
-  modelId: string | null | undefined,
+export function resolveMmdRouteLaunchEnv({ raw, modelId }: { raw: unknown; modelId: string | null | undefined }
 ): MmdRouteLaunchEnv | null {
-  const id = sanitizeCustomModel(modelId);
+  const id = sanitizeCustomModel({ id: modelId });
   if (!id || !isRecord(raw) || !isRecord(raw.routes)) return null;
 
   const route = raw.routes[id];
@@ -97,7 +95,7 @@ function addModel(
   seen: Set<string>,
   option: RuntimeModelOption,
 ): void {
-  const id = sanitizeCustomModel(option.id);
+  const id = sanitizeCustomModel({ id: option.id });
   if (!id || seen.has(id)) return;
   seen.add(id);
   const label = typeof option.label === 'string' && option.label.trim().length > 0
@@ -106,9 +104,7 @@ function addModel(
   out.push({ id, label });
 }
 
-export function mergeMmdRouteModels(
-  routeIds: readonly string[],
-  fallbackModels: readonly RuntimeModelOption[],
+export function mergeMmdRouteModels({ routeIds, fallbackModels }: { routeIds: readonly string[]; fallbackModels: readonly RuntimeModelOption[] }
 ): RuntimeModelOption[] {
   const out: RuntimeModelOption[] = [];
   const seen = new Set<string>();
@@ -124,11 +120,9 @@ export function mergeMmdRouteModels(
   return out;
 }
 
-export async function loadMmdRouteModels(
-  env: RuntimeEnv,
-  fallbackModels: readonly RuntimeModelOption[],
+export async function loadMmdRouteModels({ env, fallbackModels }: { env: RuntimeEnv; fallbackModels: readonly RuntimeModelOption[] }
 ): Promise<RuntimeModelOption[] | null> {
-  const routesFile = resolveMmdRoutesFile(env);
+  const routesFile = resolveMmdRoutesFile({ env: env });
   if (!routesFile) return null;
 
   let text: string;
@@ -145,16 +139,14 @@ export async function loadMmdRouteModels(
     return null;
   }
 
-  const routeIds = parseMmdRouteModelIds(parsed);
+  const routeIds = parseMmdRouteModelIds({ raw: parsed });
   if (routeIds.length === 0) return null;
-  return mergeMmdRouteModels(routeIds, fallbackModels);
+  return mergeMmdRouteModels({ routeIds: routeIds, fallbackModels: fallbackModels });
 }
 
-export async function loadMmdRouteLaunchEnv(
-  env: RuntimeEnv,
-  modelId: string | null | undefined,
+export async function loadMmdRouteLaunchEnv({ env, modelId }: { env: RuntimeEnv; modelId: string | null | undefined }
 ): Promise<MmdRouteLaunchEnv | null> {
-  const routesFile = resolveMmdRoutesFile(env);
+  const routesFile = resolveMmdRoutesFile({ env: env });
   if (!routesFile) return null;
 
   let text: string;
@@ -171,5 +163,5 @@ export async function loadMmdRouteLaunchEnv(
     return null;
   }
 
-  return resolveMmdRouteLaunchEnv(parsed, modelId);
+  return resolveMmdRouteLaunchEnv({ raw: parsed, modelId: modelId });
 }

@@ -18,9 +18,9 @@
  */
 export interface ArtifactTaxonomy {
   /** Does this file path count as a user-facing artifact? (OD: html/svg/prototype/live-artifact.) */
-  isArtifact(path: string): boolean;
+  isArtifact(requiredArgs: { path: string }): boolean;
   /** Optional finer buckets a host tracks for analytics; the engine treats all buckets as opaque. */
-  classify?(path: string): string | null;
+  classify?(requiredArgs: { path: string }): string | null;
 }
 
 /** Classifies nothing as an artifact and provides no finer buckets — a safe default until a host supplies its own taxonomy. */

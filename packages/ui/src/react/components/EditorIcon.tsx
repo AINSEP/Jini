@@ -42,11 +42,11 @@ function finderLogo(size: number) {
   const s = size * 0.78;
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" aria-hidden="true">
-      <rect width="24" height="24" rx="5.4" fill="#2f9bff" />
-      <path d="M12 0h6.6A5.4 5.4 0 0 1 24 5.4v13.2a5.4 5.4 0 0 1-5.4 5.4H12Z" fill="#77c2ff" />
-      <path d="M11.6 2.2c-1.4 2.4-2.1 5.5-2.1 9.8s.7 7.4 2.1 9.8" fill="none" stroke="#0b4f93" strokeWidth="1.2" strokeLinecap="round" />
-      <path d="M7.4 9.1h.1M16.4 9.1h.1" stroke="#0b4f93" strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M7.4 15.2c2.9 1.6 6.3 1.6 9.2 0" fill="none" stroke="#0b4f93" strokeWidth="1.2" strokeLinecap="round" />
+      <rect width="24" height="24" rx="5.4" fill="var(--jini-primary)" />
+      <path d="M12 0h6.6A5.4 5.4 0 0 1 24 5.4v13.2a5.4 5.4 0 0 1-5.4 5.4H12Z" fill="var(--jini-primary)" />
+      <path d="M11.6 2.2c-1.4 2.4-2.1 5.5-2.1 9.8s.7 7.4 2.1 9.8" fill="none" stroke="var(--jini-text)" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M7.4 9.1h.1M16.4 9.1h.1" stroke="var(--jini-text)" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M7.4 15.2c2.9 1.6 6.3 1.6 9.2 0" fill="none" stroke="var(--jini-text)" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -55,9 +55,9 @@ function terminalLogo(size: number) {
   const s = size * 0.76;
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="1.5" y="3" width="21" height="18" rx="3" fill="#111" />
-      <path d="m6.2 8 4 4-4 4" stroke="#9be37a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M12.8 16h5" stroke="#9be37a" strokeWidth="2.2" strokeLinecap="round" />
+      <rect x="1.5" y="3" width="21" height="18" rx="3" fill="var(--jini-text)" />
+      <path d="m6.2 8 4 4-4 4" stroke="var(--jini-success)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12.8 16h5" stroke="var(--jini-success)" strokeWidth="2.2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -70,7 +70,7 @@ function folderLogo(size: number) {
         d="M2.75 5.75A2.75 2.75 0 0 1 5.5 3h4.32c.74 0 1.43.36 1.86.96l1.1 1.54h5.72a2.75 2.75 0 0 1 2.75 2.75v9.5a2.75 2.75 0 0 1-2.75 2.75h-13A2.75 2.75 0 0 1 2.75 17.75z"
         fill="currentColor"
       />
-      <path d="M3.7 8.1h16.6" stroke="#ffffff" strokeWidth="1.25" strokeLinecap="round" opacity=".7" />
+      <path d="M3.7 8.1h16.6" stroke="var(--jini-bg)" strokeWidth="1.25" strokeLinecap="round" opacity=".7" />
     </svg>
   );
 }
@@ -79,9 +79,9 @@ function qoderLogo(size: number) {
   const s = size * 0.76;
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" aria-hidden="true">
-      <rect width="24" height="24" rx="5" fill="#ffb15e" />
-      <path d="M12 4 20 12l-8 8-8-8 8-8Z" fill="#667085" />
-      <path d="M12 8.2 15.8 12 12 15.8 8.2 12 12 8.2Z" fill="#1f2937" opacity=".2" />
+      <rect width="24" height="24" rx="5" fill="var(--jini-warning)" />
+      <path d="M12 4 20 12l-8 8-8-8 8-8Z" fill="var(--jini-muted)" />
+      <path d="M12 8.2 15.8 12 12 15.8 8.2 12 12 8.2Z" fill="var(--jini-text)" opacity=".2" />
     </svg>
   );
 }
@@ -90,11 +90,11 @@ function antigravityLogo(size: number) {
   const s = size * 0.78;
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect width="24" height="24" rx="5" fill="#f8fafd" />
-      <path d="M6.5 15.4c1.5 2.4 5.1 3.2 8 1.8 2.9-1.4 4.2-4.5 2.7-6.9" stroke="#4285f4" strokeWidth="2.1" strokeLinecap="round" />
-      <path d="M17.5 8.6c-1.5-2.4-5.1-3.2-8-1.8-2.9 1.4-4.2 4.5-2.7 6.9" stroke="#ea4335" strokeWidth="2.1" strokeLinecap="round" />
-      <path d="M8.2 8.3 12 12l3.8 3.7" stroke="#34a853" strokeWidth="2.1" strokeLinecap="round" />
-      <circle cx="12" cy="12" r="2" fill="#fbbc04" />
+      <rect width="24" height="24" rx="5" fill="var(--jini-bg)" />
+      <path d="M6.5 15.4c1.5 2.4 5.1 3.2 8 1.8 2.9-1.4 4.2-4.5 2.7-6.9" stroke="var(--jini-primary)" strokeWidth="2.1" strokeLinecap="round" />
+      <path d="M17.5 8.6c-1.5-2.4-5.1-3.2-8-1.8-2.9 1.4-4.2 4.5-2.7 6.9" stroke="var(--jini-danger)" strokeWidth="2.1" strokeLinecap="round" />
+      <path d="M8.2 8.3 12 12l3.8 3.7" stroke="var(--jini-success)" strokeWidth="2.1" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="2" fill="var(--jini-warning)" />
     </svg>
   );
 }
@@ -108,24 +108,24 @@ const ideaPath = 'M0 0v24h24V0zm3.723 3.111h5v1.834h-1.39v6.277h1.39v1.834h-5v-1
 const warpPath = 'M12.035 2.723h9.253A2.712 2.712 0 0 1 24 5.435v10.529a2.712 2.712 0 0 1-2.712 2.713H8.047Zm-1.681 2.6L6.766 19.677h5.598l-.399 1.6H2.712A2.712 2.712 0 0 1 0 18.565V8.036a2.712 2.712 0 0 1 2.712-2.712Z';
 
 const EDITORS: Record<string, EditorVisual> = {
-  vscode: { bg: '#007ACC', fg: '#ffffff', glyph: vscodeLogo },
-  cursor: { bg: '#0a0a0a', fg: '#ffffff', glyph: simplePath(cursorPath) },
-  windsurf: { bg: '#f7fffb', fg: '#0b100f', glyph: simplePath(windsurfPath) },
-  zed: { bg: '#1348DC', fg: '#ffffff', glyph: simplePath(zedPath) },
-  qoder: { bg: '#ffb15e', fg: '#1f2937', glyph: qoderLogo },
-  antigravity: { bg: '#ffffff', fg: '#1f2937', glyph: antigravityLogo },
-  webstorm: { bg: '#000000', fg: '#ffffff', glyph: simplePath(webstormPath) },
-  idea: { bg: '#000000', fg: '#ffffff', glyph: simplePath(ideaPath) },
-  xcode: { bg: '#147EFB', fg: '#ffffff', glyph: simplePath(xcodePath) },
-  finder: { bg: '#3097f6', fg: '#ffffff', glyph: finderLogo },
-  explorer: { bg: '#fbbf24', fg: '#1a1a1a', glyph: folderLogo },
-  'file-manager': { bg: '#6b7280', fg: '#ffffff', glyph: folderLogo },
-  terminal: { bg: '#111111', fg: '#9be37a', glyph: terminalLogo },
-  warp: { bg: '#01A4FF', fg: '#ffffff', glyph: simplePath(warpPath) },
+  vscode: { bg: 'var(--jini-primary)', fg: 'var(--jini-bg)', glyph: vscodeLogo },
+  cursor: { bg: 'var(--jini-text)', fg: 'var(--jini-bg)', glyph: simplePath(cursorPath) },
+  windsurf: { bg: 'var(--jini-bg)', fg: 'var(--jini-text)', glyph: simplePath(windsurfPath) },
+  zed: { bg: 'var(--jini-primary)', fg: 'var(--jini-bg)', glyph: simplePath(zedPath) },
+  qoder: { bg: 'var(--jini-warning)', fg: 'var(--jini-text)', glyph: qoderLogo },
+  antigravity: { bg: 'var(--jini-bg)', fg: 'var(--jini-text)', glyph: antigravityLogo },
+  webstorm: { bg: 'var(--jini-text)', fg: 'var(--jini-bg)', glyph: simplePath(webstormPath) },
+  idea: { bg: 'var(--jini-text)', fg: 'var(--jini-bg)', glyph: simplePath(ideaPath) },
+  xcode: { bg: 'var(--jini-primary)', fg: 'var(--jini-bg)', glyph: simplePath(xcodePath) },
+  finder: { bg: 'var(--jini-primary)', fg: 'var(--jini-bg)', glyph: finderLogo },
+  explorer: { bg: 'var(--jini-warning)', fg: 'var(--jini-text)', glyph: folderLogo },
+  'file-manager': { bg: 'var(--jini-muted)', fg: 'var(--jini-bg)', glyph: folderLogo },
+  terminal: { bg: 'var(--jini-text)', fg: 'var(--jini-success)', glyph: terminalLogo },
+  warp: { bg: 'var(--jini-primary)', fg: 'var(--jini-bg)', glyph: simplePath(warpPath) },
 };
 
 /**
- * Renders a host-supplied editor/target's brand mark by string key, with a
+ * Renders an editor/target glyph by string key using the host's theme, with a
  * graceful neutral folder-tile fallback for unregistered ids. Same
  * lookup-table shape as `Icon`/`AgentIcon`/`RemixIcon`, but keyed on inline
  * SVG glyphs + a bg/fg color pair instead of an external asset or webfont
@@ -141,8 +141,8 @@ export function EditorIcon({ editorId, size = 16 }: Props) {
         style={{
           width: size,
           height: size,
-          background: '#9ca3af',
-          color: '#ffffff',
+          background: 'var(--jini-muted)',
+          color: 'var(--jini-bg)',
         }}
       >
         <svg

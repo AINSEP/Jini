@@ -5,34 +5,34 @@ import { parseRegistrySpecifier, resolveRegistryEntryVersion } from '../versioni
 
 describe('parseRegistrySpecifier', () => {
   it('returns the name alone when no range suffix is present (vendor/name form)', () => {
-    expect(parseRegistrySpecifier('vendor/name')).toEqual({ name: 'vendor/name' });
+    expect(parseRegistrySpecifier({ input: 'vendor/name' })).toEqual({ name: 'vendor/name' });
   });
 
   it('splits a vendor/name@version specifier into name + range', () => {
-    expect(parseRegistrySpecifier('vendor/name@1.0.0')).toEqual({ name: 'vendor/name', range: '1.0.0' });
+    expect(parseRegistrySpecifier({ input: 'vendor/name@1.0.0' })).toEqual({ name: 'vendor/name', range: '1.0.0' });
   });
 
   it('preserves caret/tilde range markers in the range field', () => {
-    expect(parseRegistrySpecifier('vendor/name@^1.0.0')).toEqual({ name: 'vendor/name', range: '^1.0.0' });
-    expect(parseRegistrySpecifier('vendor/name@~1.2.3')).toEqual({ name: 'vendor/name', range: '~1.2.3' });
+    expect(parseRegistrySpecifier({ input: 'vendor/name@^1.0.0' })).toEqual({ name: 'vendor/name', range: '^1.0.0' });
+    expect(parseRegistrySpecifier({ input: 'vendor/name@~1.2.3' })).toEqual({ name: 'vendor/name', range: '~1.2.3' });
   });
 
   it('preserves dist-tag style ranges like "latest"', () => {
-    expect(parseRegistrySpecifier('vendor/name@latest')).toEqual({ name: 'vendor/name', range: 'latest' });
+    expect(parseRegistrySpecifier({ input: 'vendor/name@latest' })).toEqual({ name: 'vendor/name', range: 'latest' });
   });
 
   it('trims surrounding whitespace before parsing', () => {
-    expect(parseRegistrySpecifier('  vendor/name@1.0.0  ')).toEqual({ name: 'vendor/name', range: '1.0.0' });
+    expect(parseRegistrySpecifier({ input: '  vendor/name@1.0.0  ' })).toEqual({ name: 'vendor/name', range: '1.0.0' });
   });
 
   it('treats a bare name without a slash as the whole specifier (no range split)', () => {
     // Without a `vendor/` segment, the `@` is interpreted as part of the name
     // (e.g. an org-scoped namespace), not a version separator.
-    expect(parseRegistrySpecifier('name@1.0.0')).toEqual({ name: 'name@1.0.0' });
+    expect(parseRegistrySpecifier({ input: 'name@1.0.0' })).toEqual({ name: 'name@1.0.0' });
   });
 
   it('drops a trailing bare @ with nothing after it', () => {
-    expect(parseRegistrySpecifier('vendor/name@')).toEqual({ name: 'vendor/name' });
+    expect(parseRegistrySpecifier({ input: 'vendor/name@' })).toEqual({ name: 'vendor/name' });
   });
 });
 
@@ -48,8 +48,8 @@ function entry(overrides: Partial<RegistryEntry> = {}): RegistryEntry {
 describe('resolveRegistryEntryVersion', () => {
   it('returns null for a yanked entry regardless of requested range', () => {
     const e = entry({ yanked: true, version: '1.0.0' });
-    expect(resolveRegistryEntryVersion(e)).toBeNull();
-    expect(resolveRegistryEntryVersion(e, '1.0.0')).toBeNull();
+    expect(resolveRegistryEntryVersion({ entry: e })).toBeNull();
+    expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '1.0.0' })).toBeNull();
   });
 
   it('defaults to distTags.latest when no range is requested', () => {
@@ -61,12 +61,12 @@ describe('resolveRegistryEntryVersion', () => {
         { version: '1.2.0', source: 'github:vendor/example@v1.2.0/entry' },
       ],
     });
-    expect(resolveRegistryEntryVersion(e)?.version).toBe('1.2.0');
+    expect(resolveRegistryEntryVersion({ entry: e })?.version).toBe('1.2.0');
   });
 
   it('defaults to the entry version when distTags is absent and no versions match', () => {
     const e = entry({ version: '1.0.0' });
-    expect(resolveRegistryEntryVersion(e)?.version).toBe('1.0.0');
+    expect(resolveRegistryEntryVersion({ entry: e })?.version).toBe('1.0.0');
   });
 
   it('falls back to the first non-yanked version when entry has no version/distTags', () => {
@@ -77,7 +77,7 @@ describe('resolveRegistryEntryVersion', () => {
         { version: '1.1.0', source: 's2' },
       ],
     });
-    expect(resolveRegistryEntryVersion(e)?.version).toBe('1.1.0');
+    expect(resolveRegistryEntryVersion({ entry: e })?.version).toBe('1.1.0');
   });
 
   it('returns null instead of silently serving a yanked version when it is the resolved DEFAULT (no range requested)', () => {
@@ -93,14 +93,14 @@ describe('resolveRegistryEntryVersion', () => {
       distTags: { latest: '1.0.0' },
       versions: [{ version: '1.0.0', source: 's1', yanked: true }],
     });
-    expect(resolveRegistryEntryVersion(viaDistTagsLatest)).toBeNull();
+    expect(resolveRegistryEntryVersion({ entry: viaDistTagsLatest })).toBeNull();
 
     const viaTopLevelVersion = entry({
       version: '1.0.0',
       distTags: undefined,
       versions: [{ version: '1.0.0', source: 's1', yanked: true }],
     });
-    expect(resolveRegistryEntryVersion(viaTopLevelVersion)).toBeNull();
+    expect(resolveRegistryEntryVersion({ entry: viaTopLevelVersion })).toBeNull();
   });
 
   it('picks the highest matching version for a caret range, ignoring out-of-major candidates', () => {
@@ -113,7 +113,7 @@ describe('resolveRegistryEntryVersion', () => {
         { version: '2.0.0', source: 's200' },
       ],
     });
-    const resolved = resolveRegistryEntryVersion(e, '^1.0.0');
+    const resolved = resolveRegistryEntryVersion({ entry: e }, { requestedRange: '^1.0.0' });
     expect(resolved?.version).toBe('1.2.0');
     expect(resolved?.source).toBe('s120');
   });
@@ -127,7 +127,7 @@ describe('resolveRegistryEntryVersion', () => {
         { version: '0.3.0', source: 's030' },
       ],
     });
-    const resolved = resolveRegistryEntryVersion(e, '^0.2.0');
+    const resolved = resolveRegistryEntryVersion({ entry: e }, { requestedRange: '^0.2.0' });
     expect(resolved?.version).toBe('0.2.5');
     expect(resolved?.source).toBe('s025');
   });
@@ -140,7 +140,7 @@ describe('resolveRegistryEntryVersion', () => {
         { version: '0.0.4', source: 's004' },
       ],
     });
-    expect(resolveRegistryEntryVersion(e, '^0.0.3')?.version).toBe('0.0.3');
+    expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '^0.0.3' })?.version).toBe('0.0.3');
   });
 
   it('excludes prerelease candidates from a non-prerelease caret range', () => {
@@ -151,13 +151,13 @@ describe('resolveRegistryEntryVersion', () => {
         { version: '0.2.1-beta.1', source: 's021b' },
       ],
     });
-    expect(resolveRegistryEntryVersion(e, '^0.2.0')?.version).toBe('0.2.0');
+    expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '^0.2.0' })?.version).toBe('0.2.0');
 
     const patch = entry({
       version: '0.0.3-beta.1',
       versions: [{ version: '0.0.3-beta.1', source: 's003b' }],
     });
-    expect(resolveRegistryEntryVersion(patch, '^0.0.3')).toBeNull();
+    expect(resolveRegistryEntryVersion({ entry: patch }, { requestedRange: '^0.0.3' })).toBeNull();
   });
 
   it('matches same-tuple prereleases when the caret range is itself a prerelease', () => {
@@ -170,7 +170,7 @@ describe('resolveRegistryEntryVersion', () => {
         { version: '0.2.5-beta.1', source: 's025b' },
       ],
     });
-    expect(resolveRegistryEntryVersion(e, '^0.2.1-beta.1')?.version).toBe('0.2.1');
+    expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '^0.2.1-beta.1' })?.version).toBe('0.2.1');
   });
 
   it('respects tilde ranges (locks minor)', () => {
@@ -182,7 +182,7 @@ describe('resolveRegistryEntryVersion', () => {
         { version: '1.3.0', source: 's' },
       ],
     });
-    expect(resolveRegistryEntryVersion(e, '~1.2.0')?.version).toBe('1.2.5');
+    expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '~1.2.0' })?.version).toBe('1.2.5');
   });
 
   it('filters yanked version records from caret matches', () => {
@@ -193,17 +193,17 @@ describe('resolveRegistryEntryVersion', () => {
         { version: '1.2.0', source: 's12', yanked: true },
       ],
     });
-    expect(resolveRegistryEntryVersion(e, '^1.0.0')?.version).toBe('1.0.0');
+    expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '^1.0.0' })?.version).toBe('1.0.0');
   });
 
   it('returns null when a specific yanked version is requested directly', () => {
     const e = entry({ version: '1.0.0', versions: [{ version: '1.0.0', source: 's1', yanked: true }] });
-    expect(resolveRegistryEntryVersion(e, '1.0.0')).toBeNull();
+    expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '1.0.0' })).toBeNull();
   });
 
   it('returns null when no version matches the caret range', () => {
     const e = entry({ version: '2.0.0', versions: [{ version: '2.0.0', source: 's2' }] });
-    expect(resolveRegistryEntryVersion(e, '^1.0.0')).toBeNull();
+    expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '^1.0.0' })).toBeNull();
   });
 
   it('skips a candidate version string that does not parse as semver', () => {
@@ -214,12 +214,12 @@ describe('resolveRegistryEntryVersion', () => {
         { version: '1.0.0', source: 's-good' },
       ],
     });
-    expect(resolveRegistryEntryVersion(e, '^1.0.0')?.source).toBe('s-good');
+    expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '^1.0.0' })?.source).toBe('s-good');
   });
 
   it('returns null when the requested range does not parse as semver', () => {
     const e = entry({ version: '1.0.0', versions: [{ version: '1.0.0', source: 's1' }] });
-    expect(resolveRegistryEntryVersion(e, '^not-a-version')).toBeNull();
+    expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '^not-a-version' })).toBeNull();
   });
 
   it('resolves a dist-tag (non-latest) name to its pinned version', () => {
@@ -231,7 +231,7 @@ describe('resolveRegistryEntryVersion', () => {
         { version: '2.0.0-beta.1', source: 'sb' },
       ],
     });
-    expect(resolveRegistryEntryVersion(e, 'beta')?.version).toBe('2.0.0-beta.1');
+    expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: 'beta' })?.version).toBe('2.0.0-beta.1');
   });
 
   it('resolves an exact version string that is not a dist-tag', () => {
@@ -242,7 +242,7 @@ describe('resolveRegistryEntryVersion', () => {
         { version: '1.1.0', source: 's2' },
       ],
     });
-    expect(resolveRegistryEntryVersion(e, '1.1.0')?.version).toBe('1.1.0');
+    expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '1.1.0' })?.version).toBe('1.1.0');
   });
 
   describe('version identity cannot detach from source/integrity (CR-008)', () => {
@@ -258,7 +258,7 @@ describe('resolveRegistryEntryVersion', () => {
       });
       // `9.9.9` has no record in `entry.versions` — must not resolve to the
       // top-level source/integrity mislabeled as version 9.9.9.
-      expect(resolveRegistryEntryVersion(e, '9.9.9')).toBeNull();
+      expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '9.9.9' })).toBeNull();
     });
 
     it('rejects a dist-tag whose pinned version has no matching record in entry.versions', () => {
@@ -269,7 +269,7 @@ describe('resolveRegistryEntryVersion', () => {
         versions: [{ version: '1.0.0', source: 's1' }],
       });
       // `beta` points at `9.9.9-beta.1`, which has no record in `versions`.
-      expect(resolveRegistryEntryVersion(e, 'beta')).toBeNull();
+      expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: 'beta' })).toBeNull();
     });
 
     it('rejects a dist-tag pointing at a yanked version record', () => {
@@ -281,7 +281,7 @@ describe('resolveRegistryEntryVersion', () => {
           { version: '2.0.0-beta.1', source: 'sb', yanked: true },
         ],
       });
-      expect(resolveRegistryEntryVersion(e, 'beta')).toBeNull();
+      expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: 'beta' })).toBeNull();
     });
 
     it('rejects an exact-version request pointing at a yanked version record (distinct from the dist-tag case)', () => {
@@ -292,7 +292,7 @@ describe('resolveRegistryEntryVersion', () => {
           { version: '2.0.0', source: 's2', yanked: true },
         ],
       });
-      expect(resolveRegistryEntryVersion(e, '2.0.0')).toBeNull();
+      expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '2.0.0' })).toBeNull();
     });
 
     it('still allows an exact-version request matching the top-level version when the entry declares no versions ledger at all', () => {
@@ -300,14 +300,14 @@ describe('resolveRegistryEntryVersion', () => {
       // is no ledger to be authoritative over — the top-level `version` *is*
       // the one version this entry has.
       const e = entry({ version: '1.0.0', source: 's1' });
-      expect(resolveRegistryEntryVersion(e, '1.0.0')?.source).toBe('s1');
+      expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '1.0.0' })?.source).toBe('s1');
     });
 
     it('rejects an exact-version request that does not match the top-level version when there is no versions ledger', () => {
       const e = entry({ version: '1.0.0', source: 's1' });
       // No `versions` array, and `9.9.9` isn't the entry's top-level version
       // either — must not fall back to `s1` mislabeled as version 9.9.9.
-      expect(resolveRegistryEntryVersion(e, '9.9.9')).toBeNull();
+      expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '9.9.9' })).toBeNull();
     });
   });
 
@@ -325,7 +325,7 @@ describe('resolveRegistryEntryVersion', () => {
         },
       ],
     });
-    const r = resolveRegistryEntryVersion(e, '1.0.0');
+    const r = resolveRegistryEntryVersion({ entry: e }, { requestedRange: '1.0.0' });
     expect(r).toMatchObject({
       version: '1.0.0',
       source: 's1',
@@ -345,7 +345,7 @@ describe('resolveRegistryEntryVersion', () => {
       dist: { integrity: 'sha256:dist-level', manifestDigest: 'sha256:dist-digest' },
       versions: [{ version: '1.0.0', source: 's1' }],
     });
-    const r = resolveRegistryEntryVersion(e, '1.0.0');
+    const r = resolveRegistryEntryVersion({ entry: e }, { requestedRange: '1.0.0' });
     expect(r).toMatchObject({
       ref: 'refs/heads/main',
       archiveIntegrity: 'sha256:entry-level',
@@ -364,7 +364,7 @@ describe('resolveRegistryEntryVersion', () => {
         },
       ],
     });
-    const r = resolveRegistryEntryVersion(e, '1.0.0');
+    const r = resolveRegistryEntryVersion({ entry: e }, { requestedRange: '1.0.0' });
     expect(r).toMatchObject({ archiveIntegrity: 'sha256:version-dist', manifestDigest: 'sha256:version-dist-digest' });
   });
 
@@ -374,7 +374,7 @@ describe('resolveRegistryEntryVersion', () => {
       dist: { integrity: 'sha256:dist-level', manifestDigest: 'sha256:dist-digest' },
       versions: [{ version: '1.0.0', source: 's1' }],
     });
-    const r = resolveRegistryEntryVersion(e, '1.0.0');
+    const r = resolveRegistryEntryVersion({ entry: e }, { requestedRange: '1.0.0' });
     expect(r).toMatchObject({ archiveIntegrity: 'sha256:dist-level', manifestDigest: 'sha256:dist-digest' });
   });
 
@@ -393,7 +393,7 @@ describe('resolveRegistryEntryVersion', () => {
     // Numeric identifiers are ranked lower than alphanumeric ones (semver
     // §11.4.3), and among alphanumeric identifiers ASCII order applies, so
     // the highest-precedence candidate is "beta".
-    expect(resolveRegistryEntryVersion(e, '^1.0.0-9')?.version).toBe('1.0.0-beta');
+    expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '^1.0.0-9' })?.version).toBe('1.0.0-beta');
   });
 
   it('ranks two differing alphanumeric prerelease identifiers by ASCII order, either direction', () => {
@@ -404,7 +404,7 @@ describe('resolveRegistryEntryVersion', () => {
         { version: '1.0.0-beta', source: 's-beta' },
       ],
     });
-    expect(resolveRegistryEntryVersion(alphaFirst, '^1.0.0-alpha')?.version).toBe('1.0.0-beta');
+    expect(resolveRegistryEntryVersion({ entry: alphaFirst }, { requestedRange: '^1.0.0-alpha' })?.version).toBe('1.0.0-beta');
 
     const betaFirst = entry({
       version: '1.0.0-beta',
@@ -413,7 +413,7 @@ describe('resolveRegistryEntryVersion', () => {
         { version: '1.0.0-alpha', source: 's-alpha' },
       ],
     });
-    expect(resolveRegistryEntryVersion(betaFirst, '^1.0.0-alpha')?.version).toBe('1.0.0-beta');
+    expect(resolveRegistryEntryVersion({ entry: betaFirst }, { requestedRange: '^1.0.0-alpha' })?.version).toBe('1.0.0-beta');
   });
 
   it('ranks a longer identifier set above a shorter one when the shared prefix is equal, either direction', () => {
@@ -426,7 +426,7 @@ describe('resolveRegistryEntryVersion', () => {
         { version: '1.0.0-alpha.1', source: 's-long' },
       ],
     });
-    expect(resolveRegistryEntryVersion(shortFirst, '^1.0.0-alpha')?.version).toBe('1.0.0-alpha.1');
+    expect(resolveRegistryEntryVersion({ entry: shortFirst }, { requestedRange: '^1.0.0-alpha' })?.version).toBe('1.0.0-alpha.1');
 
     const longFirst = entry({
       version: '1.0.0-alpha.1',
@@ -435,11 +435,11 @@ describe('resolveRegistryEntryVersion', () => {
         { version: '1.0.0-alpha', source: 's-short' },
       ],
     });
-    expect(resolveRegistryEntryVersion(longFirst, '^1.0.0-alpha')?.version).toBe('1.0.0-alpha.1');
+    expect(resolveRegistryEntryVersion({ entry: longFirst }, { requestedRange: '^1.0.0-alpha' })?.version).toBe('1.0.0-alpha.1');
   });
 
   it('returns null when neither version record nor entry has a source', () => {
     const e = { name: 'vendor/example', version: '1.0.0', versions: [{ version: '1.0.0' }] } as unknown as RegistryEntry;
-    expect(resolveRegistryEntryVersion(e, '1.0.0')).toBeNull();
+    expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '1.0.0' })).toBeNull();
   });
 });

@@ -47,7 +47,7 @@ function unitBezier(x1: number, y1: number, x2: number, y2: number): (x: number)
       // full domain t∈[0,1] (the only range `smoothScrollToTop` ever feeds
       // in, since its own `t` is clamped via `Math.min(1, ...)`) and the
       // minimum observed was ~0.6095 — nowhere near this 1e-6 guard. See
-      // packages/ui/source-map.md's 2026-07-22 dated entry for the full
+      // packages/ui/archived provenance ledger's 2026-07-22 dated entry for the full
       // re-verification record (matches this task's own standard for
       // documenting provable unreachability instead of forcing a test).
       if (Math.abs(d) < 1e-6) break;

@@ -4,7 +4,7 @@
  * product-specific system-prompt block via
  * `env.REASONIX_ACP_SYSTEM_APPEND` — a `DESIGN_INSTRUCTIONS` constant that
  * literally named the host product and instructed the model to wrap output
- * in that product's own artifact-tag convention (see `source-map.md` for
+ * in that product's own artifact-tag convention (see `archived provenance ledger` for
  * the exact original text). That is genuine product-specific prompt
  * content baked into what's supposed to be a pure declarative def literal,
  * not the generic ACP-transport config the rest of this file is. It is
@@ -19,7 +19,7 @@
  * central dispatch every def's overlay delivery goes through) and
  * `computeChildEnv`, not through this file's own static `env` object
  * below (that one is fixed at def-load time, computed once; the overlay
- * varies per run and per host). See `source-map.md`.
+ * varies per run and per host). See `archived provenance ledger`.
  */
 import os from 'node:os';
 import path from 'node:path';
@@ -42,8 +42,8 @@ export const reasonixAgentDef = {
     bin: 'reasonix',
     fallbackBins: ['dsnix'],
     versionArgs: ['--version'],
-    fetchModels: async (resolvedBin, env) =>
-      detectAcpModels({
+    fetchModels: async ({ resolvedBin, env }) =>
+      (({ bin, args, ...optionalArgs }: Parameters<typeof detectAcpModels>[0] & NonNullable<Parameters<typeof detectAcpModels>[1]>) => detectAcpModels({ bin, args }, optionalArgs))({
         bin: resolvedBin,
         args: ['acp'],
         env,

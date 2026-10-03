@@ -10,6 +10,16 @@ import { setClaudeCodeModelIoForTesting } from '../claude-code-models.js';
 import { claudeAgentDef } from '../defs/claude.js';
 import type { RuntimeModelOption } from '../types.js';
 
+// Keep the real SSRF guard and model-catalog parser; only DNS is supplied by the fixture.
+vi.mock('node:dns', () => ({
+  promises: {
+    lookup: async (hostname: string) => {
+      if (hostname !== 'api.anthropic.com') throw new Error(`ENOTFOUND ${hostname}`);
+      return [{ address: '8.8.8.8', family: 4 }];
+    },
+  },
+}));
+
 const FALLBACK: RuntimeModelOption[] = [
   { id: 'default', label: 'Default (CLI config)' },
   { id: 'fable', label: 'Fable (alias)' },
@@ -173,10 +183,10 @@ describe("claudeAgentDef.fetchModels — the def's own resolution order", () => 
   it('reaches live discovery when no mmd routes file resolves, and merges into the static list', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(anthropicCatalog('claude-fable-6-hypothetical'));
 
-    const result = await claudeAgentDef.fetchModels!('claude', {
+    const result = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: {
       HOME: '/nonexistent-home-for-this-test',
       ANTHROPIC_API_KEY: 'sk-a',
-    });
+    } });
 
     expect(result?.map((m) => m.id)).toContain('claude-fable-6-hypothetical');
     // Everything the static list offered is still offered.
@@ -190,7 +200,7 @@ describe("claudeAgentDef.fetchModels — the def's own resolution order", () => 
       throw new Error('no network call should have been attempted');
     });
 
-    await claudeAgentDef.fetchModels!('claude', { HOME: '/nonexistent-home-for-this-test' });
+    await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: { HOME: '/nonexistent-home-for-this-test' } });
 
     expect(fetchSpy).not.toHaveBeenCalled();
   });

@@ -99,12 +99,11 @@ export function FileDropzone({
   const dropzone = useFileDropzoneHook({ onFiles, onZoneClick, onError, onProcessingStart, enablePaste });
   const previews = useFileDropzonePreviewsHook(files ?? NO_FILES);
 
-  useGlobalKeydown(
-    (event) => {
+  useGlobalKeydown({
+    handler: (event) => {
       if (event.key === 'Escape') setLightboxFile(null);
     },
-    { enabled: lightboxFile !== null },
-  );
+  }, { enabled: lightboxFile !== null });
 
   function onZoneKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === 'Enter' || event.key === ' ') {

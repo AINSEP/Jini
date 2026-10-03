@@ -1,0 +1,87 @@
+{
+  "exports": {
+    "./core/run-events": {
+      "types": "./dist/core/run-events/entry.d.ts",
+      "import": "./dist/core/run-events/entry.js",
+      "default": "./dist/core/run-events/entry.js"
+    },
+    "./core/ag-ui": {
+      "types": "./dist/core/ag-ui/entry.d.ts",
+      "import": "./dist/core/ag-ui/entry.js",
+      "default": "./dist/core/ag-ui/entry.js"
+    },
+    "./server/run-finalizer": {
+      "types": "./dist/server/run-finalizer/entry.d.ts",
+      "import": "./dist/server/run-finalizer/entry.js",
+      "default": "./dist/server/run-finalizer/entry.js"
+    },
+    "./react/embed": {
+      "types": "./dist/embed-widget/react/embed.d.ts",
+      "import": "./dist/embed-widget/react/embed.js",
+      "default": "./dist/embed-widget/react/embed.js"
+    },
+    "./transports/fetch-sse": {
+      "types": "./dist/embed-widget/transports/fetch-sse.d.ts",
+      "import": "./dist/embed-widget/transports/fetch-sse.js",
+      "default": "./dist/embed-widget/transports/fetch-sse.js"
+    },
+    "./browser/session-store": {
+      "types": "./dist/embed-widget/browser/session-store.d.ts",
+      "import": "./dist/embed-widget/browser/session-store.js",
+      "default": "./dist/embed-widget/browser/session-store.js"
+    },
+    "./browser/page-actions": {
+      "types": "./dist/embed-widget/browser/page-actions.d.ts",
+      "import": "./dist/embed-widget/browser/page-actions.js",
+      "default": "./dist/embed-widget/browser/page-actions.js"
+    }
+  },
+  "jini": {
+    "entries": {
+      "./core/run-events": "universal",
+      "./core/ag-ui": "universal",
+      "./server/run-finalizer": "universal",
+      "./react/embed": "browser",
+      "./transports/fetch-sse": "universal",
+      "./browser/session-store": "browser",
+      "./browser/page-actions": "browser"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "core/run-events": [
+        "./dist/core/run-events/entry.d.ts"
+      ],
+      "core/ag-ui": [
+        "./dist/core/ag-ui/entry.d.ts"
+      ],
+      "server/run-finalizer": [
+        "./dist/server/run-finalizer/entry.d.ts"
+      ],
+      "react/embed": [
+        "./dist/embed-widget/react/embed.d.ts"
+      ],
+      "transports/fetch-sse": [
+        "./dist/embed-widget/transports/fetch-sse.d.ts"
+      ],
+      "browser/session-store": [
+        "./dist/embed-widget/browser/session-store.d.ts"
+      ],
+      "browser/page-actions": [
+        "./dist/embed-widget/browser/page-actions.d.ts"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@ag-ui/core": "0.0.58"
+  },
+  "peerDependenciesMeta": {
+    "@ag-ui/core": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@ag-ui/core": "0.0.58",
+    "@jini-ai/agent-runtime": "workspace:*"
+  }
+}

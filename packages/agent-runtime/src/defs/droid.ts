@@ -22,7 +22,7 @@ export const droidAgentDef = {
     bin: 'droid',
     versionArgs: ['--version'],
     fallbackModels: [DEFAULT_MODEL_OPTION],
-    buildArgs: (_prompt, _imagePaths, _extra, options = {}) => {
+    buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs: _extra, options = {} } = {}) => {
       const args = ['exec', '--output-format', 'text'];
       // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
       // behavior); a restricted run keeps `droid exec`'s own read-only default.

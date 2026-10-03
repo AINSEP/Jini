@@ -33,18 +33,18 @@ describe('registry', () => {
   });
 
   it('getAgentDef finds a known agent by id', () => {
-    const claude = getAgentDef('claude');
+    const claude = getAgentDef({ id: 'claude' });
     expect(claude?.id).toBe('claude');
     expect(claude?.bin).toBe('claude');
   });
 
   it('getAgentDef returns null for an unknown id', () => {
-    expect(getAgentDef('not-a-real-agent')).toBeNull();
+    expect(getAgentDef({ id: 'not-a-real-agent' })).toBeNull();
   });
 
   it('claude buildArgs composes stream-json argv', () => {
-    const claude = getAgentDef('claude')!;
-    const args = claude.buildArgs('hello', [], [], { model: 'sonnet' }, {});
+    const claude = getAgentDef({ id: 'claude' })!;
+    const args = claude.buildArgs({ prompt: 'hello', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'sonnet' }, runtimeContext: {} });
     expect(args).toContain('--model');
     expect(args).toContain('sonnet');
     expect(args).toContain('--output-format');
@@ -53,7 +53,7 @@ describe('registry', () => {
   it('claude offers the effort levels its CLI actually accepts', () => {
     // `claude --effort` reports these five when handed an unknown level. The set
     // differs from codex's on both ends, so it must not be shared with it.
-    const claude = getAgentDef('claude')!;
+    const claude = getAgentDef({ id: 'claude' })!;
     expect(claude.reasoningOptions?.map((option) => option.id))
       .toEqual(['default', 'low', 'medium', 'high', 'xhigh', 'max']);
   });
@@ -61,36 +61,36 @@ describe('registry', () => {
   it('claude passes --effort only once the probe has seen the flag', () => {
     // Older builds exit 1 on an unknown option, which kills the chat rather
     // than degrading it — same reason `--include-partial-messages` is gated.
-    const claude = getAgentDef('claude')!;
+    const claude = getAgentDef({ id: 'claude' })!;
     agentCapabilities.set('claude', {});
-    expect(claude.buildArgs('hi', [], [], { reasoning: 'high' }, {})).not.toContain('--effort');
+    expect(claude.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { reasoning: 'high' }, runtimeContext: {} })).not.toContain('--effort');
 
     agentCapabilities.set('claude', { effort: true });
-    const args = claude.buildArgs('hi', [], [], { reasoning: 'high' }, {});
+    const args = claude.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { reasoning: 'high' }, runtimeContext: {} });
     expect(args.slice(args.indexOf('--effort'), args.indexOf('--effort') + 2))
       .toEqual(['--effort', 'high']);
   });
 
   it('claude omits --effort for the default level and for a level from another runtime', () => {
-    const claude = getAgentDef('claude')!;
+    const claude = getAgentDef({ id: 'claude' })!;
     agentCapabilities.set('claude', { effort: true });
-    expect(claude.buildArgs('hi', [], [], { reasoning: 'default' }, {})).not.toContain('--effort');
+    expect(claude.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { reasoning: 'default' }, runtimeContext: {} })).not.toContain('--effort');
     // 'minimal' is one of codex's levels; reaching the CLI it would warn on
     // stderr and run at the default, looking like the setting had applied.
-    expect(claude.buildArgs('hi', [], [], { reasoning: 'minimal' }, {})).not.toContain('--effort');
-    expect(claude.buildArgs('hi', [], [], {}, {})).not.toContain('--effort');
+    expect(claude.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { reasoning: 'minimal' }, runtimeContext: {} })).not.toContain('--effort');
+    expect(claude.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} })).not.toContain('--effort');
   });
 
   it('the amr def declares supportsCustomModel: false (ACP-driven model selection)', () => {
-    const amr = getAgentDef('amr')!;
+    const amr = getAgentDef({ id: 'amr' })!;
     expect(amr.supportsCustomModel).toBe(false);
     expect(amr.streamFormat).toBe('acp-json-rpc');
   });
 
   describe('runtimeSupportsExternalTools', () => {
     it('is true only when externalMcpInjection is declared', () => {
-      expect(runtimeSupportsExternalTools({ externalMcpInjection: 'claude-mcp-json' })).toBe(true);
-      expect(runtimeSupportsExternalTools({})).toBe(false);
+      expect(runtimeSupportsExternalTools({ def: { externalMcpInjection: 'claude-mcp-json' } })).toBe(true);
+      expect(runtimeSupportsExternalTools({ def: {} })).toBe(false);
     });
 
     // Locks in the exact split this session's picker fix depends on, derived from the real defs
@@ -98,11 +98,11 @@ describe('registry', () => {
     // moves with it instead of silently drifting stale.
     it('splits the built-in defs into the known tool-capable and tool-less sets', () => {
       const toolLess = BASE_AGENT_DEFS
-        .filter((def) => !runtimeSupportsExternalTools(def))
+        .filter((def) => !runtimeSupportsExternalTools({ def: def }))
         .map((def) => def.id)
         .sort();
       const toolCapable = BASE_AGENT_DEFS
-        .filter((def) => runtimeSupportsExternalTools(def))
+        .filter((def) => runtimeSupportsExternalTools({ def: def }))
         .map((def) => def.id)
         .sort();
 

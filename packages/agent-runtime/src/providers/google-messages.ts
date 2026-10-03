@@ -1,3 +1,4 @@
+import { redactSecrets } from '@jini-ai/core';
 /**
  * @module providers/google-messages
  *
@@ -94,7 +95,7 @@
  * tool-loop body and its test file's multi-tool-call image test).
  */
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
-import { defaultDnsLookup, pinnedFetch, redactSecrets, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
+import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
 import { googleStreamGenerateContentUrl } from './google.js';
 import { decodeSseStream } from './sse-decode.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
@@ -252,7 +253,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * parity correction and a real hardening.
  */
 function googleRequestUrl(baseUrl: string | undefined, model: string): string {
-  return googleStreamGenerateContentUrl(baseUrl ?? DEFAULT_GOOGLE_BASE_URL, model);
+  return googleStreamGenerateContentUrl({ baseUrl: baseUrl ?? DEFAULT_GOOGLE_BASE_URL, model: model });
 }
 
 function googleHeaders(options: GoogleTurnOptions): Record<string, string> {
@@ -303,7 +304,7 @@ export interface GoogleStreamState {
   usage: Record<string, unknown> | null;
 }
 
-export function applyGoogleUsage(state: GoogleStreamState, data: Record<string, unknown>, onEvent: (event: GoogleTurnEvent) => void): void {
+export function applyGoogleUsage({ state, data, onEvent }: { state: GoogleStreamState; data: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }): void {
   if (!isRecord(data.usageMetadata)) return;
   state.usage = data.usageMetadata;
   onEvent({ type: 'usage', usage: state.usage });
@@ -316,7 +317,7 @@ function firstGoogleCandidate(data: Record<string, unknown>): unknown {
 }
 
 /** Checks `data.promptFeedback` for a documented block reason and, if present, emits the `error` event for it (the caller emits `end` — see `processGoogleFrame`). Returns whether the frame loop should stop. */
-export function handleGoogleBlockedPrompt(data: Record<string, unknown>, onEvent: (event: GoogleTurnEvent) => void): boolean {
+export function handleGoogleBlockedPrompt({ data, onEvent }: { data: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }): boolean {
   if (!isRecord(data.promptFeedback) || typeof data.promptFeedback.blockReason !== 'string') return false;
   onEvent({ type: 'error', message: `prompt blocked: ${data.promptFeedback.blockReason}`, code: data.promptFeedback.blockReason });
   return true;
@@ -332,8 +333,8 @@ function googleCandidateParts(candidate: Record<string, unknown>): readonly unkn
  * once the guard flags contamination (the caller ends the turn immediately), otherwise
  * `'continue'` — same contract as `anthropic-messages.ts#handleAnthropicTextDelta`.
  */
-export function handleGoogleTextPart(state: GoogleStreamState, text: string, onEvent: (event: GoogleTurnEvent) => void): 'continue' | 'break' {
-  const safe = state.guard.feedText(text);
+export function handleGoogleTextPart({ state, text, onEvent }: { state: GoogleStreamState; text: string; onEvent: (event: GoogleTurnEvent) => void }): 'continue' | 'break' {
+  const safe = state.guard.feedText({ text: text });
   if (safe.length > 0) {
     state.fullText += safe;
     onEvent({ type: 'text_delta', delta: safe });
@@ -345,7 +346,7 @@ export function handleGoogleTextPart(state: GoogleStreamState, text: string, onE
 }
 
 /** `rawPart.functionCall` must already be confirmed a record by the caller. Reads `thoughtSignature` off `rawPart` (a sibling of `functionCall`, not a member of it) — see `GoogleFunctionCallPart.thoughtSignature`'s doc for why only a non-empty string is carried. */
-export function handleGoogleFunctionCallPart(state: GoogleStreamState, rawPart: Record<string, unknown>, onEvent: (event: GoogleTurnEvent) => void): void {
+export function handleGoogleFunctionCallPart({ state, rawPart, onEvent }: { state: GoogleStreamState; rawPart: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }): void {
   const fc = rawPart.functionCall as Record<string, unknown>;
   const name = typeof fc.name === 'string' ? fc.name : null;
   if (!name) return;
@@ -357,13 +358,13 @@ export function handleGoogleFunctionCallPart(state: GoogleStreamState, rawPart: 
 }
 
 /** Dispatches one part between the text and function-call handlers above. Returns `'break'` once a text part contaminates the guard, else `'continue'`. */
-export function processGoogleRawPart(state: GoogleStreamState, rawPart: unknown, onEvent: (event: GoogleTurnEvent) => void): 'continue' | 'break' {
+export function processGoogleRawPart({ state, rawPart, onEvent }: { state: GoogleStreamState; rawPart: unknown; onEvent: (event: GoogleTurnEvent) => void }): 'continue' | 'break' {
   if (!isRecord(rawPart)) return 'continue';
   if (typeof rawPart.text === 'string' && rawPart.text.length > 0) {
-    return handleGoogleTextPart(state, rawPart.text, onEvent);
+    return handleGoogleTextPart({ state: state, text: rawPart.text, onEvent: onEvent });
   }
   if (isRecord(rawPart.functionCall)) {
-    handleGoogleFunctionCallPart(state, rawPart, onEvent);
+    handleGoogleFunctionCallPart({ state: state, rawPart: rawPart, onEvent: onEvent });
   }
   return 'continue';
 }
@@ -371,7 +372,7 @@ export function processGoogleRawPart(state: GoogleStreamState, rawPart: unknown,
 /** Dispatches one candidate's `parts` array, one part at a time, via `processGoogleRawPart`. Returns `'break'` once a text part contaminates the guard. */
 function processGoogleParts(state: GoogleStreamState, parts: readonly unknown[], onEvent: (event: GoogleTurnEvent) => void): 'continue' | 'break' {
   for (const rawPart of parts) {
-    if (processGoogleRawPart(state, rawPart, onEvent) === 'break') return 'break';
+    if (processGoogleRawPart({ state: state, rawPart: rawPart, onEvent: onEvent }) === 'break') return 'break';
   }
   return 'continue';
 }
@@ -386,12 +387,12 @@ export type GoogleFrameOutcome = { readonly action: 'continue' } | { readonly ac
  * nesting-penalized top-level `if`s into one function call plus one outcome check — see
  * `runSingleGoogleRequest`'s loop below.
  */
-export function processGoogleFrame(state: GoogleStreamState, data: Record<string, unknown>, onEvent: (event: GoogleTurnEvent) => void): GoogleFrameOutcome {
-  applyGoogleUsage(state, data, onEvent);
+export function processGoogleFrame({ state, data, onEvent }: { state: GoogleStreamState; data: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }): GoogleFrameOutcome {
+  applyGoogleUsage({ state: state, data: data, onEvent: onEvent });
 
   const rawCandidate = firstGoogleCandidate(data);
   if (!rawCandidate) {
-    return handleGoogleBlockedPrompt(data, onEvent) ? { action: 'end', reason: 'error' } : { action: 'continue' };
+    return handleGoogleBlockedPrompt({ data: data, onEvent: onEvent }) ? { action: 'end', reason: 'error' } : { action: 'continue' };
   }
   if (!isRecord(rawCandidate)) return { action: 'continue' };
 
@@ -418,7 +419,7 @@ async function openGoogleResponseStream(
 ): Promise<AsyncIterable<Uint8Array | string> | null> {
   const { onEvent } = options;
 
-  const baseUrlCheck = await validateBaseUrlResolved(options.baseUrl ?? DEFAULT_GOOGLE_BASE_URL, options.dnsLookup ?? defaultDnsLookup);
+  const baseUrlCheck = await validateBaseUrlResolved({ baseUrl: options.baseUrl ?? DEFAULT_GOOGLE_BASE_URL, lookup: options.dnsLookup ?? defaultDnsLookup });
   if (baseUrlCheck.error) {
     onEvent({ type: 'error', message: baseUrlCheck.error });
     emitEnd('error');
@@ -427,20 +428,17 @@ async function openGoogleResponseStream(
 
   let response: { ok: boolean; status: number; body: AsyncIterable<Uint8Array | string> | null; text(): Promise<string> };
   try {
-    response = await (options.fetchImpl ?? pinnedFetch)(
-      googleRequestUrl(options.baseUrl, options.model),
-      {
+    response = await (options.fetchImpl ?? pinnedFetch)({ url: googleRequestUrl(options.baseUrl, options.model), init: {
         method: 'POST',
         headers: googleHeaders(options),
         body: JSON.stringify(googleRequestBody(options, contents)),
         redirect: 'error',
         ...(options.signal ? { signal: options.signal } : {}),
-      },
-      baseUrlCheck.pinnedAddress,
+      }, pinnedAddress: baseUrlCheck.pinnedAddress }
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    onEvent({ type: 'error', message: redactSecrets(message, [options.apiKey]) });
+    onEvent({ type: 'error', message: redactSecrets({ input: message }, { exactSecrets: [options.apiKey] }) });
     emitEnd('error');
     return null;
   }
@@ -449,7 +447,7 @@ async function openGoogleResponseStream(
     const rawText = await response.text();
     onEvent({
       type: 'error',
-      message: redactSecrets(extractGoogleErrorDetail(rawText), [options.apiKey]),
+      message: redactSecrets({ input: extractGoogleErrorDetail(rawText) }, { exactSecrets: [options.apiKey] }),
       code: String(response.status),
     });
     emitEnd('error');
@@ -480,14 +478,14 @@ async function runSingleGoogleRequest(
   onEvent({ type: 'status', label: 'requesting' });
 
   const state: GoogleStreamState = {
-    guard: createRoleMarkerGuard('google-turn'),
+    guard: createRoleMarkerGuard({ messageId: 'google-turn' }),
     toolCalls: [],
     fullText: '',
     finishReason: null,
     usage: null,
   };
 
-  frameLoop: for await (const frame of decodeSseStream(body)) {
+  frameLoop: for await (const frame of decodeSseStream({ source: body })) {
     // No re-check of an "ended" flag at the top of this loop: the only way this loop calls
     // `emitEnd` is the `outcome.action === 'end'` branch below, immediately followed by
     // `break frameLoop` — same reachability proof as
@@ -500,7 +498,7 @@ async function runSingleGoogleRequest(
     }
     if (!isRecord(data)) continue;
 
-    const outcome = processGoogleFrame(state, data, onEvent);
+    const outcome = processGoogleFrame({ state: state, data: data, onEvent: onEvent });
     if (outcome.action === 'end') {
       emitEnd(outcome.reason);
       break frameLoop;
@@ -609,14 +607,14 @@ function splitGoogleToolResultContent(content: string | readonly GoogleToolResul
  * `finishReason` comparison (see module doc, point 2, for why Gemini's `finishReason` enum cannot
  * be used here).
  */
-export function googleLoopExitReason(outcome: SingleRequestOutcome, toolTurns: number, maxToolTurns: number): GoogleTurnEndReason | null {
+export function googleLoopExitReason({ outcome, toolTurns, maxToolTurns }: { outcome: SingleRequestOutcome; toolTurns: number; maxToolTurns: number }): GoogleTurnEndReason | null {
   if (outcome.toolCalls.length === 0) return 'stop';
   if (toolTurns >= maxToolTurns) return 'max_tool_turns';
   return null;
 }
 
 /** Builds the `model`-role `Content`'s `parts` recording the pending tool calls — text (if any) followed by one `functionCall` part per call, each with its `thoughtSignature` spread back on as a sibling field, in the same shape the response delivered it and only when the response actually carried one (a `functionCall` part with no signature is legal; one with an empty-string signature is not). */
-export function buildGoogleAssistantParts(text: string, toolCalls: readonly GoogleToolCall[]): GooglePart[] {
+export function buildGoogleAssistantParts({ text, toolCalls }: { text: string; toolCalls: readonly GoogleToolCall[] }): GooglePart[] {
   return [
     ...(text ? [{ text } as const] : []),
     ...toolCalls.map(
@@ -641,10 +639,7 @@ export interface GoogleToolExecutionOutcome {
  * functionResponse" section for why images travel this way instead of a separate follow-up
  * message (unlike `openai-chat.ts`/`azure-chat.ts`).
  */
-export async function executeGoogleToolCalls(
-  executeTool: GoogleToolExecutor,
-  calls: readonly GoogleToolCall[],
-  onEvent: (event: GoogleTurnEvent) => void,
+export async function executeGoogleToolCalls({ executeTool, calls, onEvent }: { executeTool: GoogleToolExecutor; calls: readonly GoogleToolCall[]; onEvent: (event: GoogleTurnEvent) => void }
 ): Promise<GoogleToolExecutionOutcome> {
   const functionResponseParts: GooglePart[] = [];
   const followUpParts: GooglePart[] = [];
@@ -675,7 +670,8 @@ export async function executeGoogleToolCalls(
  * requests a function call. See `anthropic-messages.ts#runAnthropicToolTurn`'s
  * doc for the shared event-stream/`ended`-flag contract this mirrors.
  */
-export async function runGoogleToolTurn(options: GoogleTurnOptions): Promise<GoogleTurnResult> {
+export async function runGoogleToolTurn(requiredArgs: Pick<GoogleTurnOptions, "apiKey" | "model" | "contents" | "onEvent">, optionalArgs: Omit<GoogleTurnOptions, "apiKey" | "model" | "contents" | "onEvent"> = {}): Promise<GoogleTurnResult> {
+  const options: GoogleTurnOptions = { ...optionalArgs, ...requiredArgs };
   const maxToolTurns = options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;
   const executeTool = options.executeTool;
 
@@ -692,7 +688,7 @@ export async function runGoogleToolTurn(options: GoogleTurnOptions): Promise<Goo
 
     if (endGuard.hasEnded()) break;
 
-    const exitReason = googleLoopExitReason(outcome, toolTurns, maxToolTurns);
+    const exitReason = googleLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns });
     if (exitReason) {
       emitEnd(exitReason);
       break;
@@ -706,8 +702,8 @@ export async function runGoogleToolTurn(options: GoogleTurnOptions): Promise<Goo
     }
     toolTurns += 1;
 
-    const modelParts = buildGoogleAssistantParts(outcome.text, outcome.toolCalls);
-    const { functionResponseParts, followUpParts } = await executeGoogleToolCalls(executeTool, outcome.toolCalls, options.onEvent);
+    const modelParts = buildGoogleAssistantParts({ text: outcome.text, toolCalls: outcome.toolCalls });
+    const { functionResponseParts, followUpParts } = await executeGoogleToolCalls({ executeTool: executeTool, calls: outcome.toolCalls, onEvent: options.onEvent });
 
     contents = [
       ...contents,

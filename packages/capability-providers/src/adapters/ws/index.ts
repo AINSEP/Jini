@@ -10,29 +10,28 @@
  * can't resolve Node-only packages — to also resolve `ws`. Import from here
  * only when you actually want this concrete adapter.
  */
-import { WebSocketServer, type ServerOptions } from 'ws';
+import { WebSocketServer, type ServerOptions, type WebSocket } from 'ws';
 import type { RealtimeHandler, RealtimeProvider, RealtimeUnsubscribe } from '../../realtime.js';
 
 /** WebSocket `readyState` value meaning "open and ready to communicate" (WHATWG WebSocket spec; `ws`'s `WebSocket.OPEN` is the same constant `1`). Spelled out locally so `WebSocketRealtimeProvider`'s core class has no runtime import of `ws` — only the `RealtimeWebSocketLike`/`RealtimeWebSocketServerLike` structural types below, and the `createWebSocketRealtimeProvider` factory, actually touch the real package. */
 const WEBSOCKET_OPEN_STATE = 1;
 
 /**
- * The minimal structural subset of a `ws` `WebSocket` connection this adapter depends on. A real
- * `ws.WebSocket` instance satisfies this without any adaptation; tests construct a plain fake
+ * The minimal structural subset of a `ws` `WebSocket` connection this adapter depends on. A native socket is adapted by the factory; tests construct a plain fake
  * (an `EventEmitter`-backed object) satisfying the same shape, so `WebSocketRealtimeProvider`'s
  * core logic is fully unit-testable with zero real sockets/ports.
  */
 export interface RealtimeWebSocketLike {
   readonly readyState: number;
-  send(data: string): void;
-  on(event: 'message', listener: (data: unknown) => void): void;
-  on(event: 'close', listener: () => void): void;
-  on(event: 'error', listener: (err: Error) => void): void;
+  send(required: { data: string }): void;
+  on(required: { event: 'message'; listener: (data: unknown) => void }): void;
+  on(required: { event: 'close'; listener: () => void }): void;
+  on(required: { event: 'error'; listener: (err: Error) => void }): void;
 }
 
 /** The minimal structural subset of a `ws` `WebSocketServer` this adapter depends on. */
 export interface RealtimeWebSocketServerLike {
-  on(event: 'connection', listener: (socket: RealtimeWebSocketLike) => void): void;
+  on(required: { event: 'connection'; listener: (socket: RealtimeWebSocketLike) => void }): void;
 }
 
 export interface WebSocketRealtimeProviderOptions {
@@ -92,13 +91,13 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
   private readonly socketsByChannel = new Map<string, Set<RealtimeWebSocketLike>>();
 
   constructor(options: WebSocketRealtimeProviderOptions) {
-    options.server.on('connection', (socket) => this.handleConnection(socket));
+    options.server.on({ event: 'connection', listener: (socket) => this.handleConnection(socket) });
   }
 
   private handleConnection(socket: RealtimeWebSocketLike): void {
     const subscribedChannels = new Set<string>();
 
-    socket.on('message', (raw) => {
+    socket.on({ event: 'message', listener: (raw) => {
       const message = parseClientMessage(raw);
       if (!message) return;
       if (message.type === 'subscribe') {
@@ -108,17 +107,17 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
         subscribedChannels.delete(message.channel);
         this.socketsByChannel.get(message.channel)?.delete(socket);
       }
-    });
+    } });
 
-    socket.on('close', () => {
+    socket.on({ event: 'close', listener: () => {
       for (const channel of subscribedChannels) {
         this.socketsByChannel.get(channel)?.delete(socket);
       }
-    });
+    } });
 
     // Swallow — `ws` always follows an 'error' with a 'close' for the same socket, which already
     // performs the subscription cleanup above; there is nothing additional to do here.
-    socket.on('error', () => {});
+    socket.on({ event: 'error', listener: () => {} });
   }
 
   private socketsFor(channel: string): Set<RealtimeWebSocketLike> {
@@ -139,22 +138,22 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
     return handlers;
   }
 
-  async publish<T>(channel: string, event: T): Promise<void> {
+  async publish<T>({ channel, event }: { channel: string; event: T }): Promise<void> {
     const handlers = this.handlersByChannel.get(channel);
     if (handlers) {
-      for (const handler of [...handlers]) handler(event);
+      for (const handler of [...handlers]) handler({ event });
     }
 
     const sockets = this.socketsByChannel.get(channel);
     if (sockets && sockets.size > 0) {
       const payload = JSON.stringify({ type: 'event', channel, event });
       for (const socket of [...sockets]) {
-        if (socket.readyState === WEBSOCKET_OPEN_STATE) socket.send(payload);
+        if (socket.readyState === WEBSOCKET_OPEN_STATE) socket.send({ data: payload });
       }
     }
   }
 
-  subscribe<T>(channel: string, handler: RealtimeHandler<T>): RealtimeUnsubscribe {
+  subscribe<T>({ channel, handler }: { channel: string; handler: RealtimeHandler<T> }): RealtimeUnsubscribe {
     const handlers = this.handlersFor(channel);
     handlers.add(handler as RealtimeHandler);
     let unsubscribed = false;
@@ -171,11 +170,33 @@ export interface CreateWebSocketRealtimeProviderOptions {
   readonly wsOptions: ServerOptions;
 }
 
-/** The real, production entry point: constructs an actual `ws.WebSocketServer` and wires a `WebSocketRealtimeProvider` to it. Callers that want to inject a fake server for tests should construct `WebSocketRealtimeProvider` directly instead. */
+/** The optional createServer port injects server construction; native ws is the default adapter. The real, production entry point: constructs an actual `ws.WebSocketServer` and wires a `WebSocketRealtimeProvider` to it. Callers that want to inject a fake server for tests should construct `WebSocketRealtimeProvider` directly instead. */
 export function createWebSocketRealtimeProvider(
   options: CreateWebSocketRealtimeProviderOptions,
+  optional: { createServer?: (required: { wsOptions: ServerOptions }) => WebSocketServer } = {},
 ): { readonly provider: WebSocketRealtimeProvider; readonly server: WebSocketServer } {
-  const server = new WebSocketServer(options.wsOptions);
-  const provider = new WebSocketRealtimeProvider({ server });
+  const server = (optional.createServer ?? (({ wsOptions }) => new WebSocketServer(wsOptions)))({ wsOptions: options.wsOptions });
+  const provider = new WebSocketRealtimeProvider({
+    server: {
+      on({ listener }) {
+        server.on('connection', (socket) => listener(adaptWebSocket(socket)));
+      },
+    },
+  });
   return { provider, server };
+}
+
+
+function adaptWebSocket(socket: WebSocket): RealtimeWebSocketLike {
+  return {
+    get readyState() { return socket.readyState; },
+    send: ({ data }) => socket.send(data),
+    on(required: { event: 'message'; listener: (data: unknown) => void } |
+      { event: 'close'; listener: () => void } |
+      { event: 'error'; listener: (err: Error) => void }) {
+      if (required.event === 'message') socket.on('message', required.listener);
+      else if (required.event === 'close') socket.on('close', required.listener);
+      else socket.on('error', required.listener);
+    },
+  };
 }

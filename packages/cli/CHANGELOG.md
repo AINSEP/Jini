@@ -1,5 +1,33 @@
 # @jini-ai/cli
 
+## 0.4.0 — 2026-10-02
+
+### BREAKING
+
+- Shared sanitization now comes from core/text and loopback policy from platform/net. Public helpers use required/optional argument objects.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased
+
+- Fix command and discovery test calls to match required/optional argument objects, and create the command-registry token with core's `{ id }` argument.
+
+- **BREAKING:** Remove CLI sanitizeUntrustedText/SanitizeTextOptions/stripControlSequences exports;
+  callers import core/text. Remove redactSecretLike in favor of core redactSecrets with explicit
+  aggressive policy for former direct opaque-token users. Its category markers and PII masking
+  are covered by migration vectors; core's default remains conservative. Terminal transport and
+  recursive JSON sanitization keep their frozen lowercase output.
+- Depend on platform/net for daemon URL loopback checks; recognize full IPv4 loopback range and
+  dotted localhost. Mapped IPv6 retains remote-warning behavior. Tests are written, not run.
+
+- Emit structured JSON HTTP failures through injected ports for unknown codes, response-size and
+  body-read failures. Include the truncation marker within diagnostic maxLength and correct the
+  binary version rationale. Regression tests are written, not run (owner directive).
+
+- **BREAKING:** Public helpers, command handlers/registrations and injected I/O ports now take required and optional argument objects. Output, exit, warning and file-reader ports receive `{ text }`, `{ code }`, `{ message }` and `{ path }`. See `API.md` and the archived migration inventory.
+- Expose introspection from the library barrel and declare its universal runtime without importing the binary entrypoint.
+
+- Add an introspection subpath for structural Commander trees and MCP schemas with required host exclusions and tool-name prefix.
+
 ## 0.1.2
 
 ### Patch Changes

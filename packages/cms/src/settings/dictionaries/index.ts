@@ -1,5 +1,5 @@
 /**
- * @file Settings-dialog chrome dictionary — the 24 generic tab labels/subtitles for the Settings
+ * @file Settings-dialog chrome dictionary — the 23 generic tab labels/subtitles for the Settings
  * screen (Instructions, Notifications, Privacy, MCP server, Memory, Skills, Version, etc.).
  *
  * Relocated here from Jini's `@jini-ai/ui` (2026-08-08): these keys aren't UI-rendering logic,
@@ -89,6 +89,6 @@ export const SETTINGS_DIALOG_DICTIONARIES: Readonly<Record<string, Record<string
 
 /** `dict[locale]?.[key] ?? key` — no separate English dict to fall back to, since the key
  *  itself already is the English text. */
-export function translateSettingsDialog(locale: string, key: string): string {
+export function translateSettingsDialog({ locale, key }: { locale: string; key: string }, _optional: Record<string, never> = {}): string {
   return SETTINGS_DIALOG_DICTIONARIES[locale]?.[key] ?? key;
 }

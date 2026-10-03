@@ -1,5 +1,37 @@
 # `@jini-ai/capability-providers`
 
+## Integration update (2026-10-01)
+
+The existing exports and entry runtimes cover all reported subpaths: `.`, `./visitor-auth`,
+`./unsafe-reference`, and the five `./adapters/*` entries. No new exports or dependencies are needed.
+The non-DB APIs use required/optional argument objects; the remaining DB conversion belongs to the
+active DB lane and remains deferred across the port and both implementations together.
+
+```ts
+const stripe = new StripePaymentsProvider(
+  { secretKey },
+  { fetchFn, apiBase, now: () => Date.now() },
+);
+await stripe.getCharge({ id });
+await stripe.charge(
+  { amountCents: 1000, currency: 'usd', customerRef },
+  { description: 'Order payment' },
+);
+```
+
+Provider tokens use core's `token({ id })` factory and retain their existing IDs.
+Stripe error metadata includes `stripeType` and `stripeCode` only when supplied by the response.
+
+The universal Stripe adapter now uses UTF-8 plus native base64 encoding for Basic auth and an
+injected clock when a response omits `created`. Successful response timestamps and HTTP payloads
+retain their existing meaning. Neutrality guards inspect every production source extension and
+reject application references in comments as well as imports.
+Verification is not run (owner directive); see INTEGRATION-REPORT.md.
+
+
+The 2026-10-01 breaking argument conversion is documented in [API-CONVERSION.md](./API-CONVERSION.md). Required values use the first object; optional settings use the second. Pre-existing dirty APIs remain deferred and are explicitly listed there.
+
+
 Five swappable "capability" ports an application-shaped host tends to need — authentication, blob
 storage, payments, a document store, and realtime pub/sub — expressed as narrow TypeScript
 interfaces plus typed `@jini-ai/core` DI tokens. The root entry point is **interfaces and tokens
@@ -9,7 +41,7 @@ port never drags in a vendor client or a native binary.
 
 Be honest with yourself about maturity before adopting: this is deliberate port-design exploration,
 built without a current in-repo consumer. The interfaces are small and stable-shaped, but they have
-not been pressure-tested by a real product yet. See [source-map.md](./source-map.md) for the full
+not been pressure-tested by a real product yet. See the archived provenance ledger for the full
 scope note.
 
 ## Install
@@ -137,6 +169,6 @@ ESM only — ships `"type": "module"` with no CommonJS `require` build.
 
 ## Provenance
 
-See [source-map.md](./source-map.md) for per-file provenance and scope decisions (note that it
+See the archived provenance ledger for per-file provenance and scope decisions (note that it
 predates the adapters/ports split described above; trust the exports map and this file for the
 current layout). Apache-2.0, inherited from Open Design — see the repo `NOTICE`.

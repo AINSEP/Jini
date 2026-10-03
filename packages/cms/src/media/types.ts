@@ -22,7 +22,7 @@
  * the original design describes — they were always meant to be core-owned tables
  * independent of the entries model, so no scope adjustment was needed there.
  */
-import type { ISODateTime, UUID } from "../core/ports.js";
+import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
 
 /** Deletion ladder status (mirrored from `navigation`'s menu ladder). */
 export type MediaStatus = "active" | "trashed";
@@ -95,13 +95,14 @@ export interface MediaRecord {
 }
 
 /**
- * Blob-GC lifecycle status (INV-1's two-phase journaled protocol,
+ * Blob-GC lifecycle status ( two-phase journaled protocol,
  * implemented in `blob-gc.ts`). `active` — has at least one live reference as
  * of the last check (or has never been checked). `tombstoned` — the
  * tombstone-pass found it unreferenced and is waiting out `gc_grace` before
  * the delete-pass may remove the row; a dedup upload observing `tombstoned`
  * resurrects it back to `active` in the same locked section instead of
  * writing a duplicate blob.
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 export type AssetBlobStatus = "active" | "tombstoned";
 
@@ -125,7 +126,7 @@ export interface AssetBlobRecord {
 }
 
 /**
- * `blob_gc_journal` sidecar (INV-1's two-phase protocol,
+ * `blob_gc_journal` sidecar ( two-phase protocol,
  * `blob-gc.ts`): written by the delete-pass in the same locked step as the
  * `asset_blobs` row deletion, drained by the unlink-pass. This is what makes
  * the unlink crash-safe/retriable instead of "delete row, hope the unlink
@@ -134,6 +135,7 @@ export interface AssetBlobRecord {
  * in-memory table like every other `media` repo in this pass — it does not
  * survive a process restart; see `repo.memory.ts` file header for the
  * standing disclosed precedent.)
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 export interface BlobGcJournalEntry {
   id: UUID;
@@ -159,15 +161,31 @@ export interface AssetRenditionRecord {
   createdAt: ISODateTime;
 }
 
-export class MediaNotFoundError extends Error {}
-export class MediaValidationError extends Error {}
-export class MediaConflictError extends Error {}
+export class MediaNotFoundError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
+export class MediaValidationError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
+export class MediaConflictError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
 
 /**
  * The write-once source guard rejected an attempt to change an
  * already-set `source.sha256` ("settable-once-from-absent").
  */
-export class MediaSourceImmutableError extends MediaValidationError {}
+export class MediaSourceImmutableError extends MediaValidationError {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super({ message }, optionalArgs);
+  }
+}
 
 /**
  * The 409-style purge rejection (deletion ladder, mirrors
@@ -178,8 +196,9 @@ export class MediaSourceImmutableError extends MediaValidationError {}
 export class MediaStillReferencedError extends MediaConflictError {
   readonly referencing: readonly string[];
 
-  constructor(message: string, referencing: readonly string[]) {
-    super(message);
+  constructor(requiredArgs: { message: string; referencing: readonly string[] }, optionalArgs: Record<string, never> = {}) {
+    const { message, referencing } = requiredArgs;
+    super({ message: message });
     this.referencing = referencing;
   }
 }

@@ -20,23 +20,24 @@ import type { ElectronBrowserWindowFactory, ElectronBrowserWindowLike, ElectronW
 
 function waitForLoad(webContents: ElectronWebContentsLike): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    webContents.once('did-finish-load', () => resolve());
-    webContents.once('did-fail-load', (_event, errorCode, errorDescription) => {
-      reject(new RenderServiceError(`failed to load render document: ${errorDescription} (${errorCode})`, 'load-failed'));
-    });
+    webContents.once({ event: 'did-finish-load', listener: () => resolve() });
+    webContents.once({ event: 'did-fail-load', listener: ({ errorCode, errorDescription }) => {
+      reject(new RenderServiceError({ message: `failed to load render document: ${errorDescription} (${errorCode})`, code: 'load-failed' }));
+    } });
   });
 }
 
 function attachResourcePolicy(webContents: ElectronWebContentsLike, policy: RenderOptions['resourcePolicy']): void {
   if (policy?.allowNavigation !== true) {
-    webContents.on('will-navigate', (event) => event.preventDefault());
+    webContents.on({ event: 'will-navigate', listener: ({ event }) => event.preventDefault() });
   }
-  if (policy?.allowedOrigins != null) {
-    const allowedOrigins = policy.allowedOrigins;
-    webContents.session.webRequest.onBeforeRequest((details, callback) => {
-      callback({ cancel: !isOriginAllowed(details.url, allowedOrigins) });
-    });
-  }
+  // Omitted origins are an empty allowlist. Permissive rendering requires an explicit opt-out.
+  webContents.session.webRequest.onBeforeRequest({ listener: ({ details, callback }) => {
+    callback({ cancel: !isOriginAllowed({ url: details.url }, {
+      allowedOrigins: policy?.allowedOrigins,
+      allowUnrestrictedNetwork: policy?.allowUnrestrictedNetwork,
+    }) });
+  } });
 }
 
 async function withRenderWindow<T>(
@@ -45,7 +46,7 @@ async function withRenderWindow<T>(
   options: RenderOptions,
   run: (win: ElectronBrowserWindowLike) => Promise<T>,
 ): Promise<T> {
-  const win = createBrowserWindow({
+  const win = createBrowserWindow({}, {
     show: false,
     width: options.viewport?.width ?? 1024,
     height: options.viewport?.height ?? 768,
@@ -55,19 +56,19 @@ async function withRenderWindow<T>(
     const task = (async () => {
       attachResourcePolicy(win.webContents, options.resourcePolicy);
       const loaded = waitForLoad(win.webContents);
-      await win.loadURL(htmlToDataUrl(html));
+      await win.loadURL({ url: htmlToDataUrl({ html }) });
       await loaded;
       return await run(win);
     })();
-    return await withRenderTimeout(task, options.timeoutMs, options.signal);
+    return await withRenderTimeout({ promise: task }, { timeoutMs: options.timeoutMs, signal: options.signal });
   } finally {
     if (!win.isDestroyed()) win.destroy();
   }
 }
 
-export function createElectronRenderService(createBrowserWindow: ElectronBrowserWindowFactory): RenderService {
+export function createElectronRenderService({ createBrowserWindow }: { createBrowserWindow: ElectronBrowserWindowFactory }): RenderService {
   return {
-    async renderToPdf(html: string, options: RenderToPdfOptions = {}): Promise<Uint8Array> {
+    async renderToPdf({ html }: { html: string }, options: RenderToPdfOptions = {}): Promise<Uint8Array> {
       const buffer = await withRenderWindow(createBrowserWindow, html, options, (win) =>
         win.webContents.printToPDF({
           landscape: options.landscape ?? false,
@@ -81,13 +82,13 @@ export function createElectronRenderService(createBrowserWindow: ElectronBrowser
       return new Uint8Array(buffer);
     },
 
-    async capture(html: string, options: CaptureOptions = {}): Promise<Uint8Array> {
-      const image = await withRenderWindow(createBrowserWindow, html, options, (win) => win.webContents.capturePage(options.clip));
+    async capture({ html }: { html: string }, options: CaptureOptions = {}): Promise<Uint8Array> {
+      const image = await withRenderWindow(createBrowserWindow, html, options, (win) => win.webContents.capturePage({}, { rect: options.clip }));
       return new Uint8Array(image.toPNG());
     },
 
-    async exportArtifact(_html, options): Promise<unknown> {
-      throw new RenderServiceError(`exportArtifact format "${options.format}" is not implemented by the Electron adapter`, 'not-implemented');
+    async exportArtifact({ format }): Promise<unknown> {
+      throw new RenderServiceError({ message: `exportArtifact format "${format}" is not implemented by the Electron adapter`, code: 'not-implemented' });
     },
   };
 }

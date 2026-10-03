@@ -1,4 +1,4 @@
-/** Ported from OD's `apps/daemon/src/runtimes/defs/amr.ts` (two de-branded comments; see `source-map.md`). */
+/** Ported from OD's `apps/daemon/src/runtimes/defs/amr.ts` (two de-branded comments; see `archived provenance ledger`). */
 import { execAgentFile } from './shared.js';
 import type { RuntimeAgentDef, RuntimeModelOption } from '../types.js';
 
@@ -19,7 +19,7 @@ const PREFERRED_AMR_CHAT_MODEL_RANK: ReadonlyMap<string, number> = new Map(
 
 // AMR is the vela CLI's ACP stdio mode. `vela agent run --runtime opencode`
 // starts a private OpenCode server and forwards stream-json over ACP JSON-RPC.
-// Required env (set on the daemon process or via Settings → CLI env):
+// Required env (supplied by the host process environment):
 //   VELA_RUNTIME_KEY  — OpenRouter (or compatible) API key
 //   VELA_LINK_URL     — OpenAI-compatible endpoint, e.g. https://openrouter.ai/api/v1
 //   VELA_OPENCODE_BIN — optional; absolute path to opencode when not on PATH
@@ -38,7 +38,7 @@ const PREFERRED_AMR_CHAT_MODEL_RANK: ReadonlyMap<string, number> = new Map(
 //      the link-facing slug (`deepseek-v3.2` / `glm-5.1`), so this adapter
 //      normalizes those public ids at the spawn boundary until Vela exposes
 //      canonical ACP ids directly.
-export function normalizeVelaModelId(rawId: string): string | null {
+export function normalizeVelaModelId({ rawId }: { rawId: string }): string | null {
   const trimmed = rawId.trim();
   if (!trimmed) return null;
   const withoutProvider = trimmed.startsWith('vela/')
@@ -109,7 +109,7 @@ function isVelaChatModelId(modelId: string): boolean {
   return true;
 }
 
-export function parseVelaModels(stdout: string): RuntimeModelOption[] {
+export function parseVelaModels({ stdout }: { stdout: string }): RuntimeModelOption[] {
   const seen = new Set<string>();
   const models: RuntimeModelOption[] = [];
   for (const line of String(stdout || '').split('\n')) {
@@ -118,7 +118,7 @@ export function parseVelaModels(stdout: string): RuntimeModelOption[] {
     // `trimmed` is already non-empty and has no leading whitespace (checked
     // above), so its first whitespace-split token is always non-empty too.
     const rawId = trimmed.split(/\s+/)[0]!;
-    const id = normalizeVelaModelId(rawId);
+    const id = normalizeVelaModelId({ rawId: rawId });
     if (!id || seen.has(id) || !isVelaChatModelId(id)) continue;
     seen.add(id);
     models.push({ id, label: id });
@@ -126,9 +126,7 @@ export function parseVelaModels(stdout: string): RuntimeModelOption[] {
   return orderAmrChatModels(models);
 }
 
-export function parseVelaModelJson(
-  stdout: string,
-  expectedSource: VelaModelJsonSource,
+export function parseVelaModelJson({ stdout, expectedSource }: { stdout: string; expectedSource: VelaModelJsonSource }
 ): RuntimeModelOption[] {
   let parsed: unknown;
   try {
@@ -202,21 +200,17 @@ function isRetriableVelaModelsError(error: unknown): boolean {
   ].some((pattern) => message.includes(pattern));
 }
 
-export async function fetchVelaPresetModels(
-  resolvedBin: string,
-  env: NodeJS.ProcessEnv,
+export async function fetchVelaPresetModels({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv }
 ): Promise<RuntimeModelOption[]> {
-  const { stdout } = await execAgentFile(resolvedBin, ['model', 'preset', '--format', 'json'], {
+  const { stdout } = await execAgentFile({ command: resolvedBin, args: ['model', 'preset', '--format', 'json'] }, { options: {
     env,
     timeout: AMR_MODELS_TIMEOUT_MS,
     maxBuffer: 1024 * 1024,
-  });
-  return parseVelaModelJson(String(stdout), 'preset');
+  } });
+  return parseVelaModelJson({ stdout: String(stdout), expectedSource: 'preset' });
 }
 
-export async function fetchVelaRemoteModelsWithRetry(
-  resolvedBin: string,
-  env: NodeJS.ProcessEnv,
+export async function fetchVelaRemoteModelsWithRetry({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv }
 ): Promise<RuntimeModelOption[]> {
   // The internal exhaustion check below (`attempt === AMR_MODELS_RETRY_DELAYS_MS.length`)
   // always throws on the last allowed attempt — strictly before the `for`
@@ -238,16 +232,16 @@ export async function fetchVelaRemoteModelsWithRetry(
   // below) can never execute — v8/istanbul still instruments it because
   // it can't prove an arbitrary `for(;;)` terminates, but the real control
   // flow genuinely never reaches it. Documented here (and in
-  // `source-map.md`'s 2026-07-22 entry) instead of forced via a test,
+  // `archived provenance ledger`'s 2026-07-22 entry) instead of forced via a test,
   // per this repo's no-`/* v8 ignore */` standard.
   for (let attempt = 0; ; attempt += 1) {
     try {
-      const { stdout } = await execAgentFile(resolvedBin, ['model', 'list', '--format', 'json'], {
+      const { stdout } = await execAgentFile({ command: resolvedBin, args: ['model', 'list', '--format', 'json'] }, { options: {
         env,
         timeout: AMR_MODELS_TIMEOUT_MS,
         maxBuffer: 1024 * 1024,
-      });
-      return parseVelaModelJson(String(stdout), 'remote');
+      } });
+      return parseVelaModelJson({ stdout: String(stdout), expectedSource: 'remote' });
     } catch (error) {
       if (
         attempt === AMR_MODELS_RETRY_DELAYS_MS.length ||
@@ -274,15 +268,9 @@ export interface VelaBillingSummary {
  * contract rather than a separate HTTP call. Returns total available balance
  * and the real membership tier.
  */
-export async function fetchVelaBillingSummary(
-  resolvedBin: string,
-  env: NodeJS.ProcessEnv,
+export async function fetchVelaBillingSummary({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv }
 ): Promise<VelaBillingSummary> {
-  const { stdout } = await execAgentFile(
-    resolvedBin,
-    ['billing', 'summary', '--format', 'json'],
-    { env, timeout: AMR_MODELS_TIMEOUT_MS, maxBuffer: 1024 * 1024 },
-  );
+  const { stdout } = await execAgentFile({ command: resolvedBin, args: ['billing', 'summary', '--format', 'json'] }, { options: { env, timeout: AMR_MODELS_TIMEOUT_MS, maxBuffer: 1024 * 1024 } });
   const data = JSON.parse(String(stdout)) as {
     balanceUsd?: unknown;
     totalAvailableCreditsUsd?: unknown;

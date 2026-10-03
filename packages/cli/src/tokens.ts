@@ -10,4 +10,4 @@
 import { token } from '@jini-ai/core';
 import type { CommandRegistry } from './command-registry.js';
 
-export const CommandRegistryToken = token<CommandRegistry>('jini.cli.commandRegistry');
+export const CommandRegistryToken = token<CommandRegistry>({ id: 'jini.cli.commandRegistry' });

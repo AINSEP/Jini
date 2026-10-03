@@ -18,12 +18,12 @@ vocabulary.
 brand/plugin/figma-specific components. Those stay in
 `foundry/integrations/open-design/` as OD's own UI if/when that adapter needs them.
 `SettingsDialog` itself is one of these (its `execution`/`orbit`/`media`/
-`composio`/`critiqueTheater`/`pet`/`designSystems`/`projectLocations`/
+`connector-provider`/`critiqueTheater`/`pet`/`designSystems`/`projectLocations`/
 `routines`/`about` tabs and its AMR/autosave shell state stay OD-specific) —
 but its reusable tabbed-dialog *shell* and 6 of its small, clean, generic
 tabs (`appearance`, `notifications`, `language`, `instructions`,
 `integrations`, `privacy`) shipped as `src/features/settings-dialog/`; see
-`packages/ui/source-map.md`.
+the archived provenance ledger.
 Also not here: chat/artifact UI — that's `@jini-ai/chat`'s `./core` and `./react` subpaths (the
 former standalone `@jini-ai/chat-core` package was retired into `./core` on 2026-08-03), and this
 package's own `./renderers` subpath (the artifact-renderer registry, once planned as a separate
@@ -52,7 +52,7 @@ package's own React layer. See the chat-core/chat-react split discussion in
   split: not "prepare for a Vue consumer" (no such consumer exists or is
   planned), just keeping the pure layer visibly and mechanically separate
   from the React layer within one package, at effectively zero cost. See
-  `packages/ui/source-map.md`'s `features/connectors/` section for the
+  the archived provenance ledger's `features/connectors/` section for the
   worked example. **Retrofitted onto the flat `src/components/` bucket
   (2026-07-18, now `src/react/components/`)**; `src/hooks/` below is not —
   it still sits at the top level; revisit if this pattern proves worth
@@ -67,7 +67,7 @@ package's own React layer. See the chat-core/chat-react split discussion in
 - `src/utils/` — non-component pure helpers and small stateful browser-API
   wrappers that don't need the full ports+dependencies ceremony. Added in the
   i18n/observability/utils porting task (2026-07-16); see
-  `packages/ui/source-map.md`.
+  the archived provenance ledger.
 
 ## `./core` — the framework-free half, importable without React
 
@@ -82,7 +82,7 @@ This used to be a genuinely separate package, `@jini-ai/ui-core`, until it becam
 earned that: it was always the framework-free half of *this* package's features, and its own name
 — "core of the UI package" — gave no hint that it was one half of a per-feature split. Folded back
 in here 2026-08-01, once that confusion cost real time (including for the person who built it).
-`packages/ui/source-map.md` has the dated entry.
+the archived provenance ledger has the dated entry.
 
 ### Feature map
 
@@ -162,7 +162,7 @@ package.
 ## Status
 
 Real content has landed in several parallel passes — see
-`packages/ui/source-map.md` for full per-section provenance:
+the archived provenance ledger for full per-section provenance:
 
 - `src/utils/` — a framework-free DOM/pure-function layer (2026-07-16), plus
   a second batch (i18n/observability-adjacent utils: notifications, uuid,
@@ -185,7 +185,7 @@ Real content has landed in several parallel passes — see
   viewport-preset switcher, and ports for `onNavigate`/history storage/
   brand-bridge registration) — not the full file. The first feature to use
   the new `react/{hooks,components}/` layout described above. See
-  `packages/ui/source-map.md` for the full breakdown, including a confirmed
+  the archived provenance ledger for the full breakdown, including a confirmed
   duplicate with `FileViewer.tsx`'s (not-yet-ported) viewport controls.
 - `src/features/sketch-editor/` — `SketchEditor.tsx`'s Excalidraw-integration
   shim (2026-07-17), per the god-components-extraction-plan.md Consolidation
@@ -214,9 +214,11 @@ Real content has landed in several parallel passes — see
   — extracted from `SettingsDialog.tsx` (2026-07-17), per
   `ADS-memory/reports/jini-port/god-components-extraction-plan.md` item 5. Uses the NEW
   `react/{hooks,components}` layout (this is the first feature built with it
-  from scratch). See `packages/ui/source-map.md`.
+  from scratch). See the archived provenance ledger.
 - `src/features/tab-strip/` — a consolidated draggable/reorderable tab-strip
-  primitive (2026-07-18), per `ADS-memory/reports/jini-port/god-components-extraction-plan.md`'s
+  primitive, published through the browser entry `@jini-ai/ui/tab-strip`, including
+  `TabBar`, `TabBarProps`, `TabBarTab`, `TabStrip`, `TabStripItem`, and their hooks.
+  The feature was consolidated (2026-07-18), per `ADS-memory/reports/jini-port/god-components-extraction-plan.md`'s
   Consolidation map §A `features/tab-strip/` row: `WorkspaceTabsBar.tsx`'s
   workspace-tab strip and `FileWorkspace.tsx`'s independently-reimplemented
   inline `Tab` component (r6 confirms these are two divergent
@@ -227,7 +229,7 @@ Real content has landed in several parallel passes — see
   option and pinned-tab drop-edge coercion), active/close-button
   affordances, host-injected tab content. A dual-shape test proves both
   source interaction shapes work correctly through the same code paths, not
-  just that they compile. See `packages/ui/source-map.md`.
+  just that they compile. See the archived provenance ledger.
 - `src/features/list-detail-panel/` — a generic `ListDetailPanel<TItem>`
   master-detail (list+preview) navigator shell, ported from
   `DesignSystemsTab.tsx` (2026-07-18), per
@@ -236,12 +238,12 @@ Real content has landed in several parallel passes — see
   read and confirmed NOT to share this shape (a portal overlay and a
   resizable 2-pane split, respectively) — scoped to `DesignSystemsTab.tsx`
   alone rather than forcing a broader generalization. See
-  `packages/ui/source-map.md`.
+  the archived provenance ledger.
 - 10 more `src/components/` flat atoms (2026-07-18) — the Section C
   bucket-A batch from `NewProjectPanel.tsx` (`OptionCards`, `CompactToggle`,
   `ToggleRow`), `PluginsView.tsx` (`StatCard`, `Notice`, `ImportChoice`,
   `FileImportPanel`), and `EntryShell.tsx` (`OnboardingPanelHeader`,
-  `OnboardingChipField`, `OnboardingDropdown`). See `packages/ui/source-map.md`.
+  `OnboardingChipField`, `OnboardingDropdown`). See the archived provenance ledger.
 - `src/features/memory/` — ported from OD's never-merged PR #5228 (a
   vertical-slice decomposition of `MemorySection.tsx`, 2026-07-18): the
   saved-memory list/editor, the extraction-history stream, and the
@@ -250,7 +252,7 @@ Real content has landed in several parallel passes — see
   independently confirmed pre-existing in OD's original monolith, not
   introduced by the decomposition), plus one additional fix
   (`fetchMemoryList()`'s under-validated response) made during this port. See
-  `packages/ui/source-map.md` for the full provenance note, including why its
+  the archived provenance ledger for the full provenance note, including why its
   connector-reconciliation reducers reuse `features/connectors/rules.ts`
   instead of re-deriving a third copy.
 
@@ -260,14 +262,14 @@ Real content has landed in several parallel passes — see
   `ADS-memory/reports/jini-port/god-components-extraction-plan.md`'s Consolidation map.
   Also added flat `src/components/{PillButton,PopoverMenu,PopoverItem}.tsx`
   and `src/utils/timezone.ts`, both from the same source file. See
-  `packages/ui/source-map.md`.
+  the archived provenance ledger.
 - `src/features/mention-autocomplete/` — `MentionAutocomplete`, a generic
   "type a trigger character, get a filtered picker" mention/capability
   autocomplete (2026-07-18), also ported from `NewAutomationModal.tsx`, per
   the same Consolidation map row. Checked against `QuickSwitcher.tsx` and
   the `composer/*` Lexical `@mention` system for a possible 3-way overlap —
   concluded they're three distinct shapes, not one primitive done three
-  times; see `packages/ui/source-map.md` for the full comparison (read that
+  times; see the archived provenance ledger for the full comparison (read that
   section before extracting either of those two).
 
 - `src/react/components/EditorIcon.tsx` (2026-07-18) — a flat icon-by-key
@@ -276,7 +278,7 @@ Real content has landed in several parallel passes — see
   `src/react/components/` path (the `refactor/ui-flat-components-under-react`
   rename hadn't landed on this branch's base yet, so this is a new folder
   alongside the still-present flat `src/components/`). See
-  `packages/ui/source-map.md`.
+  the archived provenance ledger.
 - `src/features/iframe-pool/` — a generic, host-configurable "cap N mounted
   iframes, LRU-evict inactive ones, park the rest off-DOM" pool (2026-07-18),
   ported from `IframeKeepAlivePool.tsx` per
@@ -287,7 +289,7 @@ Real content has landed in several parallel passes — see
   `OD_PREVIEW_KEEP_ALIVE` env-var toggle. Fixed two real bugs found while
   porting (a missing `px`-unit append on numeric style values, and a reused
   parked iframe never having its hidden/inert markers undone) — see
-  `packages/ui/source-map.md`.
+  the archived provenance ledger.
 - `src/features/command-palette/` — `CommandPalette`, a generic Cmd/Ctrl+P
   fuzzy file-and-item palette (2026-07-18), ported from `QuickSwitcher.tsx`.
   Collapses the origin's file/tab discriminated union into one
@@ -295,7 +297,7 @@ Real content has landed in several parallel passes — see
   `localStorage`-backed `CommandPaletteRecentsPort`. Confirmed distinct from
   `features/mention-autocomplete/` (already checked in that feature's
   source-map section) rather than re-litigated. See
-  `packages/ui/source-map.md`.
+  the archived provenance ledger.
 - `src/features/tab-launcher-menu/` — `TabLauncherMenu`, an anchored,
   portal-rendered "+"-button command-palette dropdown (2026-07-18), ported
   from `TabLauncherMenu.tsx`. Generic `TabLauncherResultItem` shared by both
@@ -304,21 +306,21 @@ Real content has landed in several parallel passes — see
   OD-specific `LauncherContext`. `features/tab-strip/` does not exist on
   this branch despite the extraction plan describing it as already shipped
   — documented as a discrepancy, matching the same pattern already recorded
-  for `features/progress-card/`. See `packages/ui/source-map.md`.
+  for `features/progress-card/`. See the archived provenance ledger.
 - `src/features/revision-review/` — `RevisionDiffCard`/`RevisionHistoryList`,
   a generic "proposed change review" widget (2026-07-18), ported from
   `DesignSystemFlow.tsx`'s remaining pieces. Genericizes `DesignSystemRevision`
   to `RevisionReviewItem<TMeta>`; unifies the origin's two duplicate diff
   functions into one `diffAddedLines`. Confirmed distinct from
   `features/progress-card/` rather than folded in. See
-  `packages/ui/source-map.md`.
+  the archived provenance ledger.
 - `src/react/components/{TokenChip,ValueChip,ComponentKitPreview}.tsx`
   (2026-07-18) — the rest of `DesignSystemFlow.tsx`'s remaining pieces: a
   color-swatch chip, a plain-value chip, and the theme-toggle-driven
   style-guide preview panel that renders both, with the token source
   genericized to host-injected data (the origin's markdown-parsing pipeline
   is not ported). Reuses the already-shipped `utils/color-math.ts` rather
-  than re-deriving its math a second time. See `packages/ui/source-map.md`.
+  than re-deriving its math a second time. See the archived provenance ledger.
 - `src/features/file-dropzone/` — `FileDropzone`, a consolidated file-staging
   primitive (2026-07-18) ported from **two** independent OD file-staging
   zones — `DesignSystemAssetDropzone.tsx` (a kind-aware thumbnail grid +
@@ -329,7 +331,7 @@ Real content has landed in several parallel passes — see
   utilities the two features already duplicated a third time (from
   `features/asset-tree-browser/rules.ts`) up to `utils/file-transfer.ts` and
   `browser/useFileDropTarget.ts`, so this package now has exactly one copy.
-  See `packages/ui/source-map.md` for the consolidation evidence, a real
+  See the archived provenance ledger for the consolidation evidence, a real
   infinite-render-loop bug found and fixed during this port, and full
   test/coverage numbers.
 - `src/features/folder-path-drop/` (2026-09-14) — dropping a folder onto a
@@ -337,20 +339,20 @@ Real content has landed in several parallel passes — see
   `webUtils.getPathForFile` as a `FolderPathDropPort`) inserts the folder's
   absolute path as text instead of uploading its contents. The
   framework-free rules are also on `./core`; `useFolderPathDropCapture`
-  returns a stable `onDropCapture` handler. See `packages/ui/source-map.md`.
+  returns a stable `onDropCapture` handler. See the archived provenance ledger.
 - `src/utils/scroll-tabs-with-wheel.ts` and `src/utils/color-math.ts`
   (2026-07-18) — two flat bucket-A atoms from
   `ADS-memory/reports/jini-port/god-components-extraction-plan.md`'s Consolidation map §C:
   a generic wheel-to-horizontal-scroll handler for an overflowing tab strip
   (from `FileWorkspace.tsx`'s `scrollWorkspaceTabsWithWheel`) and hex/RGB/
   luminance/mix color-math primitives (from `DesignSystemFlow.tsx`). See
-  `packages/ui/source-map.md` for the full writeup, including what was
+  the archived provenance ledger for the full writeup, including what was
   deliberately left behind (the OD-specific color-selection heuristic that
   consumes the math, not the math itself).
 - `src/features/lexical-rich-text-editor/` (renamed from `rich-text-input/`,
   2026-07-26 — the feature is Lexical specifically, not a general rich-text
   input, so the old name promised an engine-neutrality its Lexical-shaped API
-  never had; see `packages/ui/source-map.md`'s dated rename entry) — a real Lexical (Meta's
+  never had; see the archived provenance ledger's dated rename entry) — a real Lexical (Meta's
   rich-text framework) editor integration ported from OD's chat composer
   (2026-07-18): editor setup/config, an atomic `@mention`/`/command`
   token node type (generic, host-injected `resolveMentionColor` instead of
@@ -358,7 +360,7 @@ Real content has landed in several parallel passes — see
   positioning hook/component, and serialize/deserialize between the
   editor's document model and a plain `@token` string. Named by three
   prior tasks (`mention-autocomplete`'s own "3-way overlap" note among
-  them) as this exact destination. See `packages/ui/source-map.md`,
+  them) as this exact destination. See the archived provenance ledger,
   including four dead branches found and refactored away during the
   coverage-driven-refactor loop (a `mention-parser.ts` merge pass, a
   `rules.ts` selection catch-all, a `useSeededValue` StrictMode guard, and
@@ -373,3 +375,95 @@ Consolidation map's naming-reconciliation note) and `rich-text-input`
 (renamed `lexical-rich-text-editor`, 2026-07-26) are now landed, per above —
 no longer in this "not started" list. The god-components-extraction-plan.md
 list beyond the features enumerated above is also not started.
+
+## Integrated widgets and panel APIs
+
+See [API-CONVENTION.md](./API-CONVENTION.md) for the widget, panel-kit, fetch-query, port and
+object-argument API shapes, including the breaking changes collected in [CHANGELOG.md](./CHANGELOG.md).
+
+
+## Theming the admin
+
+Import `@jini-ai/ui/styles/admin.css` for the variable contract, admin aliases and widgets.
+For a custom layout that needs only the contract, import `@jini-ai/ui/styles/variables.css`.
+The existing `admin-widgets.css`, `tabbed-dialog.css` and `settings-dialog.css` subpaths remain.
+`@jini-ai/tokens` has been removed; no alias package is provided.
+
+`@jini-ai/ui/theme` exports `AdminTheme`, `defaultAdminTheme`, `validateAdminTheme`,
+`applyAdminTheme` and `resolveColorScheme`. A theme supplies `name`, body/heading fonts, an
+optional mono font and font stylesheet URLs, complete light/dark palettes, and optional base
+radius/density. The ten palette fields are `primary`, `primaryInk`, `bg`, `surface`, `text`,
+`muted`, `border`, `danger`, `success` and `warning`. Existing variable names derive from this
+compact contract. Palettes accept concrete hex, RGB/HSL/OKLCH/OKLab/Lab/LCH values or basic
+color keywords; URLs, dependent variables, injected declarations and incomplete palettes fail
+validation. Radius is a nonnegative px/rem/em length; density is a multiplier from 0.5 to 2.
+The validator reports `{ valid, theme }` or `{ valid, errors }`; applying an invalid theme throws
+before any DOM mutation. Neutral defaults hold no product brand.
+
+```tsx
+import '@jini-ai/ui/styles/admin.css';
+import { defaultAdminTheme } from '@jini-ai/ui/theme';
+import { AdminShell } from '@jini-ai/admin/react/shell';
+
+// The host supplies its document and storage adapters, along with the existing shell props.
+const themeEnvironment = {
+  target: document.documentElement,
+  document,
+  matchMedia: window.matchMedia.bind(window),
+};
+
+<AdminShell {...hostShellProps}
+  theme={defaultAdminTheme}
+  themeEnvironment={themeEnvironment}
+  themePreferenceStore={hostUserPreferenceStore}
+/>;
+```
+
+The preference store implements `read({ userId, workspace })` and
+`write({ userId, workspace, preference })`; reads return `light`, `dark`, `system` or `null`.
+The host owns persistent storage and keys. No user preference is written during mounting.
+Authenticated slots receive `appearance`, including `setPreference({ preference })`, so the
+host provides its own picker and labels. `colorScheme` makes the setting controlled when supplied;
+`onColorSchemeChange({ preference })` tells that host to update it. Without a controlled prop,
+the shell restores the user's stored choice or follows the system. User/workspace changes discard
+the previous user's selection.
+
+For other layouts call `applyAdminTheme({ theme }, { target, document })`; its cleanup restores
+the scope and releases owned font links, with deduplication across active themes. Then call
+`resolveColorScheme({ preference }, { matchMedia })` and set the target's `data-color-scheme`
+attribute to the returned `light` or `dark`. A `system` preference requires the injected media
+port. `AdminShell` subscribes to system changes and cleans up on unmount. Inject the document
+root when components portal so dialogs share the palette. Former `data-theme` attributes must be
+migrated to this resolved attribute. Independent theme scopes can use different target elements.
+
+The `ZANA-THEME.md` and `the host-THEME.md` files preserve product data for later host adoption;
+they are documentation, not runtime themes. Derived ramps/radius scales and the neutral defaults
+change the previous look, so review both schemes during adoption. Verification was not run in the
+extraction job at the owner's direction.
+
+## Design decisions
+
+- [Reusable navigation hooks own state while the host owns effects](docs/decisions/DR-001-state-hooks-effect-ownership.md).
+
+## Kernel contracts
+
+Fetch-query caches accept the shared `Clock` from `@jini-ai/core/primitives` through
+`new FetchQueryCache({}, { clock })`; clocks implement `nowMs()`. Freshness remains ten seconds
+by default and idle retention five minutes. Browser HTTP defaults now use injected
+native fetch ports and have no platform imports.
+
+The A2UI interpreter uses that same core `Clock` with `nowMs()`; import the clock type
+directly from `@jini-ai/core/primitives`. The obsolete `A2uiClockPort` re-export is removed.
+Create the basic catalog with `createLabCatalog({})` and inject it through
+`createA2uiInterpreter({ catalog, clock, ids })`.
+
+## Browser transport ports
+
+`useBrandFonts({ fonts }, { fetch?, manifest?, ... })` and
+`ExportDiagnosticsButton`'s `fetch` prop accept native fetch implementations.
+Memory's `createMemoryHttpPorts({}, { fetch? })` returns `{ config, entries, extractions }`;
+pass these ports to the existing feature hooks. Omitted fetch uses `globalThis.fetch`.
+Quick requests abort after 15 seconds and archive downloads after 120 seconds;
+a caller signal is combined with the timeout. Browser failures retain native abort
+reasons, including `TimeoutError`, rather than platform's `FetchTimeoutError`.
+The package no longer depends on platform. Connector examples are vendor-neutral.

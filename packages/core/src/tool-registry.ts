@@ -13,8 +13,8 @@
  * available and check membership, but the only way to actually *run* a
  * tool is through `@jini-ai/daemon`'s `ToolExecutor`, which is the sole
  * consumer of {@link authorizeToolInvocation} — a function deliberately
- * exported from `./internal.js` (a package-internal entry point, see this
- * package's `package.json` `exports` map and `source-map.md`) rather than
+ * exported from `./composition.js` (a package-internal entry point, see this
+ * package's `package.json` `exports` map and `archived provenance ledger`) rather than
  * from the public `index.ts` barrel. Every other caller of
  * `@jini-ai/core`'s default entry point gets descriptors only.
  * `authorizeToolInvocation` itself runs the tool's `ToolPolicy` (and an
@@ -23,7 +23,7 @@
  * authorization — the earlier design (a separate `getToolRegistration`
  * that returned the handler unconditionally) let any caller of this
  * package-internal entry point skip the gate entirely; see this package's
- * `source-map.md` for the 2026-07-29 hardening note.
+ * `archived provenance ledger` for the 2026-07-29 hardening note.
  */
 import type { Principal } from './principal.js';
 
@@ -45,7 +45,7 @@ export interface ToolDescriptor {
    * validator dependency here would put one in every package that touches a registry.
    *
    * It exists because *every* discovery mechanism needs it and nothing else in the kernel can
-   * supply it: a caller that can enumerate `ToolRegistry.list()` still cannot tell an agent what
+   * supply it: a caller that can enumerate `ToolRegistry.list({})` still cannot tell an agent what
    * arguments a tool takes, which reduces discovery to guess-and-check against an opaque id.
    * Optional and additive, so no existing registration changes shape.
    */
@@ -83,11 +83,11 @@ export interface ToolDescriptor {
  * so the rule lives in exactly one place — a change to what counts as read-only is a change to this
  * body, not a sweep across transports.
  *
- * @param descriptor - The registered descriptor, or `undefined` for an id that resolved to nothing.
+ * @param required.descriptor - The registered descriptor, or `undefined` for an id that resolved to nothing.
  * @returns `true` only for a descriptor that explicitly declares `readOnly: true`.
  * @complexity O(1).
  */
-export function isReadOnlyTool(descriptor: ToolDescriptor | undefined): boolean {
+export function isReadOnlyTool({ descriptor }: { descriptor: ToolDescriptor | undefined }): boolean {
   return descriptor?.readOnly === true;
 }
 
@@ -144,15 +144,18 @@ export interface ToolExecutionContext {
   readonly run: RunRef;
   readonly input: unknown;
   readonly signal: AbortSignal;
-  /** Present only when the invoking transport owns a run event stream — see {@link SurfaceEmitter}. */
+}
+
+/** Optional handler ports supplied by the invoking transport. */
+export interface ToolExecutionOptions {
   readonly emitSurface?: SurfaceEmitter;
 }
 
 /** Runs the tool's actual side effect. Only ever invoked by `ToolExecutor`, never called directly by a route/agent holding the registry. */
-export type ToolHandler = (ctx: ToolExecutionContext) => Promise<unknown>;
+export type ToolHandler = (required: ToolExecutionContext, optional?: ToolExecutionOptions) => Promise<unknown>;
 
 /**
- * Thrown by a `ToolHandler` (or a validator it calls, e.g. `@jini-ai/cms`'s `registration-kit.ts`
+ * Thrown by a `ToolHandler` (or a validator it calls, e.g. the kernel's `registration-kit.ts`
  * `requireString`/`requireInputRecord`/etc.) to mean "the caller's input was malformed or missing a
  * required field" — a fact about the CALL, not the server. `@jini-ai/daemon`'s `ToolExecutor.execute`
  * tags a handler rejection's `ToolExecutionResult.errorKind` as `'validation'` when the thrown error
@@ -165,8 +168,8 @@ export type ToolHandler = (ctx: ToolExecutionContext) => Promise<unknown>;
  * of these" needs to survive the `instanceof` check.
  */
 export class ToolInputError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor({ message }: { message: string }, optional: ErrorOptions = {}) {
+    super(message, optional);
     this.name = 'ToolInputError';
   }
 }
@@ -202,9 +205,9 @@ export interface ToolRegistration {
 export interface ToolRegistry {
   /** @throws If `registration.descriptor.id` is already registered — re-registration must be explicit (unregister is not exposed; this registry is append-only by design, matching the kernel's "tools are registered once at composition time" model). */
   register(registration: ToolRegistration): void;
-  has(toolId: string): boolean;
+  has(required: { toolId: string }): boolean;
   /** Descriptors only, in registration order. Never the underlying handlers/policies. */
-  list(): readonly ToolDescriptor[];
+  list(_required: Record<string, never>): readonly ToolDescriptor[];
 }
 
 const registrationsByRegistry = new WeakMap<ToolRegistry, Map<string, ToolRegistration>>();
@@ -219,7 +222,7 @@ const registrationsByRegistry = new WeakMap<ToolRegistry, Map<string, ToolRegist
  * @complexity `register`/`has` O(1); `list` O(n) in registered tool count.
  * @overallScore 100/100
  */
-export function createToolRegistry(): ToolRegistry {
+export function createToolRegistry(_required: Record<string, never>): ToolRegistry {
   const registrations = new Map<string, ToolRegistration>();
 
   const registry: ToolRegistry = {
@@ -229,10 +232,10 @@ export function createToolRegistry(): ToolRegistry {
       }
       registrations.set(registration.descriptor.id, registration);
     },
-    has(toolId: string): boolean {
+    has({ toolId }: { toolId: string }): boolean {
       return registrations.has(toolId);
     },
-    list(): readonly ToolDescriptor[] {
+    list(_required: Record<string, never>): readonly ToolDescriptor[] {
       return Array.from(registrations.values(), (r) => r.descriptor);
     },
   };
@@ -263,7 +266,7 @@ export type ToolInvocationAuthorization =
  * Package-internal escape hatch: resolves `toolId` in `registry` and runs
  * its authorization gate — the tool's own {@link ToolPolicy}, then an
  * optional transport-level `delegate.onAuthorize` veto — before ever
- * exposing the handler. Exported only from `./internal.js` (see this
+ * exposing the handler. Exported only from `./composition.js` (see this
  * package's `package.json` `exports` map) — `@jini-ai/daemon`'s
  * `ToolExecutor` is the one and only intended caller. Not re-exported from
  * `index.ts`, so it never reaches `@jini-ai/core`'s public consumers.
@@ -271,7 +274,7 @@ export type ToolInvocationAuthorization =
  * Replaces an earlier `getToolRegistration` that returned the full
  * `{descriptor, handler, policy}` triple unconditionally — since a
  * package.json `exports` subpath is not an access modifier (see this
- * package's `source-map.md`), that let any consumer able to `import` this
+ * package's `archived provenance ledger`), that let any consumer able to `import` this
  * package-internal entry point retrieve a live handler closure without
  * ever calling a policy. Bundling resolution with authorization here means
  * the handler itself is now unobtainable without already having passed the
@@ -281,12 +284,10 @@ export type ToolInvocationAuthorization =
  * @internal
  */
 export async function authorizeToolInvocation(
-  registry: ToolRegistry,
-  toolId: string,
-  principal: Principal,
-  run: RunRef,
-  input: unknown,
-  delegate?: ToolAuthorizationDelegate,
+  { registry, toolId, principal, run, input }: {
+    registry: ToolRegistry; toolId: string; principal: Principal; run: RunRef; input: unknown;
+  },
+  { delegate }: { delegate?: ToolAuthorizationDelegate } = {},
 ): Promise<ToolInvocationAuthorization | undefined> {
   const registration = registrationsByRegistry.get(registry)?.get(toolId);
   if (!registration) {

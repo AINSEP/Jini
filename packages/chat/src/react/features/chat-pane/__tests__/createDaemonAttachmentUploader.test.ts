@@ -46,7 +46,7 @@ describe('createDaemonAttachmentUploader', () => {
       .mockResolvedValueOnce(jsonResponse({ attachment: uploadedImage }, 201))
       .mockResolvedValueOnce(jsonResponse({ attachment: uploadedFile }, 201));
     globalThis.fetch = fetchMock;
-    const upload = createDaemonAttachmentUploader('http://127.0.0.1:4317');
+    const upload = createDaemonAttachmentUploader({ baseUrl: 'http://127.0.0.1:4317' , fetch: (...args) => globalThis.fetch(...args) });
     const files = [
       new File(['img'], 'diagram & notes.png', { type: 'image/png' }),
       new File(['text'], 'brief.txt', { type: 'text/plain' }),
@@ -77,7 +77,7 @@ describe('createDaemonAttachmentUploader', () => {
     // it. The daemon sniffs the kind from the bytes, so this header is pure liability.
     const fetchMock = vi.fn().mockImplementation(() => jsonResponse({ attachment: uploadedFile }, 201));
     globalThis.fetch = fetchMock;
-    const upload = createDaemonAttachmentUploader('');
+    const upload = createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) });
 
     await upload([new File(['{}'], 'data.json', { type: 'application/json' })], signalOptions('batch-json'));
 
@@ -91,10 +91,10 @@ describe('createDaemonAttachmentUploader', () => {
     const fetchMock = vi.fn().mockImplementation(() => jsonResponse({ attachment: uploadedFile }, 201));
     globalThis.fetch = fetchMock;
 
-    await createDaemonAttachmentUploader('')([new File(['a'], 'a.txt')], signalOptions('batch-rel'));
+    await createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })([new File(['a'], 'a.txt')], signalOptions('batch-rel'));
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/attachments?batch=batch-rel&name=a.txt');
 
-    await createDaemonAttachmentUploader('http://127.0.0.1:4317/')(
+    await createDaemonAttachmentUploader({ baseUrl: 'http://127.0.0.1:4317/' , fetch: (...args) => globalThis.fetch(...args) })(
       [new File(['a'], 'a.txt')],
       signalOptions('batch-slash'),
     );
@@ -106,7 +106,7 @@ describe('createDaemonAttachmentUploader', () => {
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock;
 
-    await expect(createDaemonAttachmentUploader('')([], signalOptions('batch-empty'))).resolves.toEqual([]);
+    await expect(createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })([], signalOptions('batch-empty'))).resolves.toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -114,7 +114,7 @@ describe('createDaemonAttachmentUploader', () => {
     const fetchMock = vi.fn().mockImplementation(() => jsonResponse({ attachment: uploadedFile }, 201));
     globalThis.fetch = fetchMock;
 
-    await createDaemonAttachmentUploader('')([new File(['a'], 'a.txt')]);
+    await createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })([new File(['a'], 'a.txt')]);
 
     expect(fetchMock.mock.calls[0]?.[0]).toMatch(
       /^\/api\/attachments\?batch=[0-9a-f-]{36}&name=a\.txt$/u,
@@ -126,14 +126,14 @@ describe('createDaemonAttachmentUploader', () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
       jsonResponse({ error: { message: 'Each attachment must be 20 MB or smaller' } }, 413),
     );
-    await expect(createDaemonAttachmentUploader('')(
+    await expect(createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })(
       [new File(['large'], 'large.bin')],
       signalOptions('batch-envelope'),
     )).rejects.toThrow('Each attachment must be 20 MB or smaller');
 
     // ...and a bare `{ message }`, which a host with its own upload route may still answer with.
     globalThis.fetch = vi.fn().mockImplementation(() => jsonResponse({ message: 'Upload refused' }, 413));
-    await expect(createDaemonAttachmentUploader('')(
+    await expect(createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })(
       [new File(['large'], 'large.bin')],
       signalOptions('batch-bare'),
     )).rejects.toThrow('Upload refused');
@@ -142,7 +142,7 @@ describe('createDaemonAttachmentUploader', () => {
   it('falls back to a filename-specific error for a malformed rejection body', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(new Response('<html>502</html>', { status: 502 }));
 
-    await expect(createDaemonAttachmentUploader('')(
+    await expect(createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })(
       [new File(['bad'], 'broken.dat')],
       signalOptions('batch-malformed'),
     )).rejects.toThrow('Could not attach broken.dat');
@@ -152,13 +152,13 @@ describe('createDaemonAttachmentUploader', () => {
     // Well-formed JSON with neither envelope's message field — the user still has to be told which
     // file failed rather than shown "undefined".
     globalThis.fetch = vi.fn().mockImplementation(() => jsonResponse({ error: {} }, 500));
-    await expect(createDaemonAttachmentUploader('')(
+    await expect(createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })(
       [new File(['x'], 'silent.bin')],
       signalOptions('batch-no-message'),
     )).rejects.toThrow('Could not attach silent.bin');
 
     globalThis.fetch = vi.fn().mockImplementation(() => jsonResponse({ unrelated: true }, 500));
-    await expect(createDaemonAttachmentUploader('')(
+    await expect(createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })(
       [new File(['x'], 'quiet.bin')],
       signalOptions('batch-no-envelope'),
     )).rejects.toThrow('Could not attach quiet.bin');
@@ -167,7 +167,7 @@ describe('createDaemonAttachmentUploader', () => {
   it('rejects a successful response that omits the attachment record', async () => {
     globalThis.fetch = vi.fn().mockImplementation(() => jsonResponse({}, 201));
 
-    await expect(createDaemonAttachmentUploader('')(
+    await expect(createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })(
       [new File(['missing'], 'missing.txt')],
       signalOptions('batch-missing'),
     )).rejects.toThrow('The daemon did not return an attachment for missing.txt');
@@ -176,7 +176,7 @@ describe('createDaemonAttachmentUploader', () => {
   it('rejects per-file, count, and aggregate quota breaches before starting network I/O', async () => {
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock;
-    const upload = createDaemonAttachmentUploader('');
+    const upload = createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) });
 
     const oversized = new File(['x'], 'huge.bin');
     Object.defineProperty(oversized, 'size', { value: 20 * 1024 * 1024 + 1 });
@@ -205,7 +205,7 @@ describe('createDaemonAttachmentUploader', () => {
   it('applies caller-supplied quotas, reporting a non-megabyte cap in bytes', async () => {
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock;
-    const upload = createDaemonAttachmentUploader('', {
+    const upload = createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) }, {
       maxAttachmentBytes: 100,
       maxAttachmentCount: 1,
       maxBatchBytes: 150,
@@ -224,7 +224,7 @@ describe('createDaemonAttachmentUploader', () => {
 
   it('counts uploads already staged for the same turn against the per-turn quota', async () => {
     globalThis.fetch = vi.fn().mockImplementation(() => jsonResponse({ attachment: uploadedFile }, 201));
-    const upload = createDaemonAttachmentUploader('', { maxAttachmentCount: 2 });
+    const upload = createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) }, { maxAttachmentCount: 2 });
 
     await upload([new File(['a'], 'a.txt'), new File(['b'], 'b.txt')], signalOptions('batch-running'));
     // A third file dropped into the same composer turn must be refused, even though this call only
@@ -235,8 +235,8 @@ describe('createDaemonAttachmentUploader', () => {
 
   it('keeps batch accounting per uploader instance', async () => {
     globalThis.fetch = vi.fn().mockImplementation(() => jsonResponse({ attachment: uploadedFile }, 201));
-    const first = createDaemonAttachmentUploader('', { maxAttachmentCount: 1 });
-    const second = createDaemonAttachmentUploader('', { maxAttachmentCount: 1 });
+    const first = createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) }, { maxAttachmentCount: 1 });
+    const second = createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) }, { maxAttachmentCount: 1 });
 
     await first([new File(['a'], 'a.txt')], signalOptions('batch-shared'));
     // Same batch id, different uploader: the second instance must not have inherited the first's
@@ -248,7 +248,7 @@ describe('createDaemonAttachmentUploader', () => {
     globalThis.fetch = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ message: 'Transient failure' }, 500))
       .mockResolvedValueOnce(jsonResponse({ attachment: uploadedFile }, 201));
-    const upload = createDaemonAttachmentUploader('', { maxAttachmentCount: 1 });
+    const upload = createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) }, { maxAttachmentCount: 1 });
 
     await expect(upload([new File(['a'], 'a.txt')], signalOptions('batch-retry')))
       .rejects.toThrow('Transient failure');
@@ -264,7 +264,7 @@ describe('createDaemonAttachmentUploader', () => {
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     globalThis.fetch = fetchMock;
 
-    await expect(createDaemonAttachmentUploader('')(
+    await expect(createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })(
       [new File(['one'], 'one.txt'), new File(['two'], 'two.txt')],
       signalOptions('batch-partial'),
     )).rejects.toThrow('Upload rejected');
@@ -272,7 +272,7 @@ describe('createDaemonAttachmentUploader', () => {
       method: 'DELETE',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ batchId: 'batch-partial', paths: [uploadedFile.path] }),
-      // fetchWithTimeout composes its own timeout AbortSignal in — see fetch-with-timeout.ts.
+      // Cleanup has an independent quick deadline, using the same injected uploader fetch.
       signal: expect.any(AbortSignal),
     });
   });
@@ -281,7 +281,7 @@ describe('createDaemonAttachmentUploader', () => {
     const fetchMock = vi.fn().mockImplementation(() => jsonResponse({ message: 'Rejected outright' }, 500));
     globalThis.fetch = fetchMock;
 
-    await expect(createDaemonAttachmentUploader('')(
+    await expect(createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })(
       [new File(['one'], 'one.txt')],
       signalOptions('batch-nothing'),
     )).rejects.toThrow('Rejected outright');
@@ -294,7 +294,7 @@ describe('createDaemonAttachmentUploader', () => {
       .mockResolvedValueOnce(jsonResponse({ message: 'Upload rejected' }, 500))
       .mockRejectedValueOnce(new Error('network down'));
 
-    await expect(createDaemonAttachmentUploader('')(
+    await expect(createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })(
       [new File(['one'], 'one.txt'), new File(['two'], 'two.txt')],
       signalOptions('batch-cleanup-fails'),
     )).rejects.toThrow('Upload rejected');
@@ -308,7 +308,7 @@ describe('createDaemonAttachmentUploader', () => {
           reject(new DOMException('Aborted', 'AbortError'));
         });
       })) as unknown as typeof fetch;
-    const pending = createDaemonAttachmentUploader('')(
+    const pending = createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })(
       [new File(['a'], 'a.txt')],
       signalOptions('batch-abort', controller),
     );
@@ -324,7 +324,7 @@ describe('createDaemonAttachmentUploader', () => {
     const controller = new AbortController();
     controller.abort(new Error('already gone'));
 
-    await expect(createDaemonAttachmentUploader('')(
+    await expect(createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })(
       [new File(['a'], 'a.txt')],
       signalOptions('batch-pre-aborted', controller),
     )).rejects.toThrow('already gone');
@@ -338,7 +338,7 @@ describe('createDaemonAttachmentUploader', () => {
     // `AbortController.abort` accepts any reason; a string one must not surface as `undefined`.
     controller.abort('user navigated away');
 
-    await expect(createDaemonAttachmentUploader('')(
+    await expect(createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })(
       [new File(['a'], 'a.txt')],
       signalOptions('batch-string-reason', controller),
     )).rejects.toThrow('Attachment upload was canceled.');
@@ -353,7 +353,7 @@ describe('createDaemonAttachmentUploader', () => {
           reject(init.signal?.reason ?? new Error('aborted'));
         });
       })) as unknown as typeof fetch;
-    const pending = createDaemonAttachmentUploader('', { timeoutMs: 5_000 })(
+    const pending = createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) }, { timeoutMs: 5_000 })(
       [new File(['a'], 'a.txt')],
       signalOptions('batch-timeout'),
     );
@@ -380,7 +380,7 @@ describe('createDaemonAttachmentUploader', () => {
         });
       });
     }) as unknown as typeof fetch;
-    const pending = createDaemonAttachmentUploader('', { concurrency: 3 })(
+    const pending = createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) }, { concurrency: 3 })(
       Array.from({ length: 6 }, (_, index) => new File(['x'], `${index}.txt`)),
       signalOptions('batch-concurrency'),
     );
@@ -408,7 +408,7 @@ describe('createDaemonAttachmentUploader', () => {
         });
       });
     }) as unknown as typeof fetch;
-    const pending = createDaemonAttachmentUploader('')(
+    const pending = createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })(
       Array.from({ length: 4 }, (_, index) => new File(['x'], `${index}.txt`)),
       signalOptions('batch-default-concurrency'),
     );
@@ -423,7 +423,7 @@ describe('createDaemonAttachmentUploader', () => {
 
   it('evicts stale batch usage rather than growing without bound', async () => {
     globalThis.fetch = vi.fn().mockImplementation(() => jsonResponse({ attachment: uploadedFile }, 201));
-    const upload = createDaemonAttachmentUploader('', { maxAttachmentCount: 1 });
+    const upload = createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) }, { maxAttachmentCount: 1 });
     const nowSpy = vi.spyOn(Date, 'now');
 
     nowSpy.mockReturnValue(0);
@@ -437,7 +437,7 @@ describe('createDaemonAttachmentUploader', () => {
 
   it('drops the oldest tracked batch once the tracking cap is reached', async () => {
     globalThis.fetch = vi.fn().mockImplementation(() => jsonResponse({ attachment: uploadedFile }, 201));
-    const upload = createDaemonAttachmentUploader('', { maxAttachmentCount: 1 });
+    const upload = createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) }, { maxAttachmentCount: 1 });
 
     // 100 distinct turns fill the tracking map; the 101st must evict rather than grow, and the very
     // first turn's usage is what goes.
@@ -448,4 +448,20 @@ describe('createDaemonAttachmentUploader', () => {
     await expect(upload([new File(['x'], 'x.txt')], signalOptions('batch-lru-0')))
       .resolves.toHaveLength(1);
   });
+});
+
+// REGRESSION: fails if deletePartialUpload uses platform/global fetch instead of the uploader's fetch port.
+it('cleans a partial upload through the same injected fetch with a quick deadline', async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>()
+    .mockResolvedValueOnce(jsonResponse({ attachment: uploadedFile }, 201))
+    .mockResolvedValueOnce(jsonResponse({ message: 'rejected' }, 500))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  const timeout = vi.spyOn(AbortSignal, 'timeout');
+  const upload = createDaemonAttachmentUploader({ baseUrl: '', fetch }, { concurrency: 1 });
+  await expect(upload([new File(['a'], 'a.txt'), new File(['b'], 'b.txt')], signalOptions('partial'))).rejects.toThrow('rejected');
+  expect(fetch).toHaveBeenNthCalledWith(3, '/api/attachments', expect.objectContaining({
+    method: 'DELETE', signal: expect.any(AbortSignal),
+    body: JSON.stringify({ batchId: 'partial', paths: [uploadedFile.path] }),
+  }));
+  expect(timeout).toHaveBeenCalledWith(15_000);
 });

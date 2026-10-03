@@ -10,7 +10,7 @@ export type ChatRole = 'user' | 'assistant';
  * `RunStatus` for a different shape at a different layer — a richer `{ id, state, ... }` record.
  * This is the flat string union a chat message stamps on itself. While both were called
  * `RunStatus`, every consumer importing both packages had to alias one on import, and nothing
- * stopped the two from being confused at a glance. See source-map.md.
+ * stopped the two from being confused at a glance. See archived provenance ledger.
  */
 export const CHAT_RUN_STATUSES = ['queued', 'running', 'succeeded', 'failed', 'canceled'] as const;
 export type ChatRunStatus = (typeof CHAT_RUN_STATUSES)[number];
@@ -18,7 +18,7 @@ export type ChatRunStatus = (typeof CHAT_RUN_STATUSES)[number];
 const TERMINAL_RUN_STATUSES: ReadonlySet<ChatRunStatus> = new Set(['succeeded', 'failed', 'canceled']);
 
 /** `true` once a run has reached a terminal status (no further events will arrive). */
-export function isTerminalRunStatus(status: ChatRunStatus | undefined): boolean {
+export function isTerminalRunStatus({ status }: { status: ChatRunStatus | undefined }): boolean {
   return status !== undefined && TERMINAL_RUN_STATUSES.has(status);
 }
 

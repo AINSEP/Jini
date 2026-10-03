@@ -3,7 +3,7 @@
  * srcDoc host. See `ADS-memory/reports/jini-port/extraction-plan.md` §3 and
  * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §1 ("@jini-ai/artifacts-react —
  * RendererRegistry", the pre-lock name for this package) for the design
- * this targets, and `source-map.md` for exact provenance.
+ * this targets, and `archived provenance ledger` for exact provenance.
  */
 export type { ArtifactFile, ArtifactManifest, ArtifactKind, ArtifactRendererId, ArtifactExportKind, ArtifactStatus } from './types.js';
 

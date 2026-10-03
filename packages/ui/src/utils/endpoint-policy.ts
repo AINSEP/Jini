@@ -105,7 +105,7 @@ function ipv4MappedToDotted(hostname: string): string | null {
 }
 
 /** True for `localhost`, `::1`, `127.0.0.0/8`, and their IPv4-mapped-IPv6 forms. Allowed — local model servers live here. */
-export function isLoopbackEndpointHost(hostname: string): boolean {
+export function isLoopbackEndpointHost({ hostname }: { hostname: string }): boolean {
   const host = normalizeHost(hostname);
   if (host === 'localhost' || host === '::1') return true;
   if (isLoopbackIpv4(host)) return true;
@@ -114,7 +114,7 @@ export function isLoopbackEndpointHost(hostname: string): boolean {
 }
 
 /** True for RFC1918/link-local/CGNAT/multicast/unspecified/unique-local-IPv6 literals — private space a credentialed request must not be steered into. */
-export function isBlockedEndpointHost(hostname: string): boolean {
+export function isBlockedEndpointHost({ hostname }: { hostname: string }): boolean {
   const host = normalizeHost(hostname);
   if (host === '::') return true;
   if (isBlockedIpv4(host)) return true;
@@ -135,7 +135,7 @@ export function isBlockedEndpointHost(hostname: string): boolean {
  * time. This is the cheap check that runs on every keystroke, not the last
  * line of defense.
  */
-export function isAllowedEndpointUrl(raw: string): boolean {
+export function isAllowedEndpointUrl({ raw }: { raw: string }): boolean {
   const trimmed = raw.trim();
   if (!trimmed) return false;
   let parsed: URL;
@@ -146,6 +146,6 @@ export function isAllowedEndpointUrl(raw: string): boolean {
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
   const hostname = parsed.hostname.toLowerCase();
-  if (isLoopbackEndpointHost(hostname)) return true;
-  return !isBlockedEndpointHost(hostname);
+  if (isLoopbackEndpointHost({ hostname })) return true;
+  return !isBlockedEndpointHost({ hostname });
 }

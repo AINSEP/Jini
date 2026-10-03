@@ -22,17 +22,17 @@ function makeTarget(options?: {
     parts,
     validateCalls,
     listParts: async () => [...parts.keys()].map((id) => ({ id })),
-    readPart: async (id) => {
+    readPart: async ({ id }) => {
       const found = parts.get(id);
       if (found === undefined) throw new Error(`no such part: ${id}`);
       return found;
     },
-    replacePart: async (id, content) => {
+    replacePart: async ({ id, content }) => {
       if (options?.failWriteOn === id) throw new Error("disk on fire");
       parts.set(id, content);
     },
     snapshot: async (): Promise<Snapshot> => ({ id: "snap", parts: Object.fromEntries(parts) }),
-    restore: async (snapshot) => {
+    restore: async ({ snapshot }) => {
       parts.clear();
       for (const [id, content] of Object.entries(snapshot.parts)) parts.set(id, content);
     },
@@ -44,19 +44,41 @@ function makeTarget(options?: {
 }
 
 describe("transaction batching", () => {
+  test("a failed validator leaves a batch's successful writes undoable as one transaction", async () => {
+    const failure = new Error("parser unavailable");
+    const target = makeTarget({
+      initial: { a: "a0", bad: "b0", c: "c0" },
+      validate: ({ id }) => {
+        if (id === "bad") throw failure;
+        return { ok: true };
+      },
+    });
+    const history = createEditHistory({ target });
+    const outcomes = await history.transaction({ work: (recording) => applyEdits({
+      target: recording,
+      edits: [{ id: "a", content: "a1" }, { id: "bad", content: "b1" }, { id: "c", content: "c1" }],
+    }) });
+
+    expect(outcomes).toEqual([
+      { status: "applied", id: "a" }, { status: "failed", id: "bad", error: failure }, { status: "applied", id: "c" },
+    ]);
+    expect(Object.fromEntries(target.parts)).toEqual({ a: "a1", bad: "b0", c: "c1" });
+    expect(history.entries()).toHaveLength(1);
+    expect(history.entries()[0]?.changes.map(({ id }) => id)).toEqual(["a", "c"]);
+    await history.undo();
+    expect(Object.fromEntries(target.parts)).toEqual({ a: "a0", bad: "b0", c: "c0" });
+  });
+
   test("a multi-part model turn undoes as ONE step, not as N steps", async () => {
     const target = makeTarget({ initial: { a: "a0", b: "b0", c: "c0" } });
-    const history = createEditHistory(target);
+    const history = createEditHistory({ target });
 
-    await history.transaction(
-      (recording) =>
-        applyEdits(recording, [
+    await history.transaction({ work: (recording) =>
+        applyEdits({ target: recording, edits: [
           { id: "a", content: "a1" },
           { id: "b", content: "b1" },
           { id: "c", content: "c1" },
-        ]),
-      "one turn"
-    );
+        ] }) }, { label: "one turn" });
 
     expect(history.entries()).toHaveLength(1);
 
@@ -74,14 +96,13 @@ describe("transaction batching", () => {
       validate: (candidate) =>
         candidate.id === "b" ? { ok: false, reason: "unclosed <section>" } : { ok: true },
     });
-    const history = createEditHistory(target);
+    const history = createEditHistory({ target });
 
-    const outcomes = await history.transaction((recording) =>
-      applyEdits(recording, [
+    const outcomes = await history.transaction({ work: (recording) =>
+      applyEdits({ target: recording, edits: [
         { id: "a", content: "a1" },
         { id: "b", content: "b1" },
-      ])
-    );
+      ] }) });
 
     expect(outcomes).toEqual([
       { status: "applied", id: "a" },
@@ -96,9 +117,9 @@ describe("transaction batching", () => {
       initial: { a: "a0" },
       validate: () => ({ ok: false, reason: "no" }),
     });
-    const history = createEditHistory(target);
+    const history = createEditHistory({ target });
 
-    await history.transaction((recording) => applyEdits(recording, [{ id: "a", content: "a1" }]));
+    await history.transaction({ work: (recording) => applyEdits({ target: recording, edits: [{ id: "a", content: "a1" }] }) });
 
     expect(history.entries()).toHaveLength(0);
     expect(history.canUndo()).toBe(false);
@@ -106,21 +127,21 @@ describe("transaction batching", () => {
 
   test("a write of identical content is not recorded as a step", async () => {
     const target = makeTarget({ initial: { a: "same" } });
-    const history = createEditHistory(target);
+    const history = createEditHistory({ target });
 
-    await history.transaction((recording) => applyEdits(recording, [{ id: "a", content: "same" }]));
+    await history.transaction({ work: (recording) => applyEdits({ target: recording, edits: [{ id: "a", content: "same" }] }) });
 
     expect(history.canUndo()).toBe(false);
   });
 
   test("overlapping transactions are refused rather than silently interleaved", async () => {
     const target = makeTarget({ initial: { a: "a0" } });
-    const history = createEditHistory(target);
+    const history = createEditHistory({ target });
 
     await expect(
-      history.transaction(async () => {
-        await history.transaction(async () => undefined);
-      })
+      history.transaction({ work: async () => {
+        await history.transaction({ work: async () => undefined });
+      } })
     ).rejects.toThrow(/already open/);
   });
 });
@@ -128,9 +149,9 @@ describe("transaction batching", () => {
 describe("undo and redo", () => {
   test("redo re-applies what undo reverted", async () => {
     const target = makeTarget({ initial: { a: "a0" } });
-    const history = createEditHistory(target);
+    const history = createEditHistory({ target });
 
-    await history.transaction((r) => applyEdits(r, [{ id: "a", content: "a1" }]));
+    await history.transaction({ work: (r) => applyEdits({ target: r, edits: [{ id: "a", content: "a1" }] }) });
     await history.undo();
     expect(target.parts.get("a")).toBe("a0");
 
@@ -143,10 +164,10 @@ describe("undo and redo", () => {
 
   test("undo steps back one transaction at a time, in reverse order", async () => {
     const target = makeTarget({ initial: { a: "a0" } });
-    const history = createEditHistory(target);
+    const history = createEditHistory({ target });
 
-    await history.transaction((r) => applyEdits(r, [{ id: "a", content: "a1" }]));
-    await history.transaction((r) => applyEdits(r, [{ id: "a", content: "a2" }]));
+    await history.transaction({ work: (r) => applyEdits({ target: r, edits: [{ id: "a", content: "a1" }] }) });
+    await history.transaction({ work: (r) => applyEdits({ target: r, edits: [{ id: "a", content: "a2" }] }) });
 
     await history.undo();
     expect(target.parts.get("a")).toBe("a1");
@@ -156,14 +177,13 @@ describe("undo and redo", () => {
 
   test("undo and redo do NOT consult validate — a multi-part rewind must not be judged on its intermediate states", async () => {
     const target = makeTarget({ initial: { a: "a0", b: "b0" } });
-    const history = createEditHistory(target);
+    const history = createEditHistory({ target });
 
-    await history.transaction((r) =>
-      applyEdits(r, [
+    await history.transaction({ work: (r) =>
+      applyEdits({ target: r, edits: [
         { id: "a", content: "a1" },
         { id: "b", content: "b1" },
-      ])
-    );
+      ] }) });
     const callsAfterApply = target.validateCalls.length;
     expect(callsAfterApply).toBe(2);
 
@@ -179,8 +199,8 @@ describe("undo and redo", () => {
       initial: { a: "a0" },
       validate: () => (hostile ? { ok: false, reason: "everything is invalid now" } : { ok: true }),
     });
-    const history = createEditHistory(target);
-    await history.transaction((r) => applyEdits(r, [{ id: "a", content: "a1" }]));
+    const history = createEditHistory({ target });
+    await history.transaction({ work: (r) => applyEdits({ target: r, edits: [{ id: "a", content: "a1" }] }) });
 
     // The host turns hostile after the fact — a rewind must not be at its mercy.
     hostile = true;
@@ -191,19 +211,19 @@ describe("undo and redo", () => {
 
   test("committing a new transaction clears the redo stack", async () => {
     const target = makeTarget({ initial: { a: "a0" } });
-    const history = createEditHistory(target);
+    const history = createEditHistory({ target });
 
-    await history.transaction((r) => applyEdits(r, [{ id: "a", content: "a1" }]));
+    await history.transaction({ work: (r) => applyEdits({ target: r, edits: [{ id: "a", content: "a1" }] }) });
     await history.undo();
     expect(history.canRedo()).toBe(true);
 
-    await history.transaction((r) => applyEdits(r, [{ id: "a", content: "branched" }]));
+    await history.transaction({ work: (r) => applyEdits({ target: r, edits: [{ id: "a", content: "branched" }] }) });
 
     expect(history.canRedo()).toBe(false);
   });
 
   test("undo and redo on empty stacks return null rather than throwing", async () => {
-    const history = createEditHistory(makeTarget());
+    const history = createEditHistory({ target: makeTarget() });
 
     await expect(history.undo()).resolves.toBeNull();
     await expect(history.redo()).resolves.toBeNull();
@@ -213,9 +233,9 @@ describe("undo and redo", () => {
 describe("creation — the case undo cannot fully invert", () => {
   test("undoing a created part writes empty content and flags existedBefore:false", async () => {
     const target = makeTarget();
-    const history = createEditHistory(target);
+    const history = createEditHistory({ target });
 
-    await history.transaction((r) => applyEdits(r, [{ id: "fresh", content: "hello" }]));
+    await history.transaction({ work: (r) => applyEdits({ target: r, edits: [{ id: "fresh", content: "hello" }] }) });
 
     expect(history.entries()[0]?.changes[0]).toEqual({
       id: "fresh",
@@ -236,17 +256,16 @@ describe("creation — the case undo cannot fully invert", () => {
 describe("never-destructive restore", () => {
   test("a snapshot restore is itself undoable", async () => {
     const target = makeTarget({ initial: { a: "a0", b: "b0" } });
-    const history = createEditHistory(target);
+    const history = createEditHistory({ target });
     const snapshot = await target.snapshot();
 
-    await history.transaction((r) =>
-      applyEdits(r, [
+    await history.transaction({ work: (r) =>
+      applyEdits({ target: r, edits: [
         { id: "a", content: "a-edited" },
         { id: "b", content: "b-edited" },
-      ])
-    );
+      ] }) });
 
-    await history.restore(snapshot);
+    await history.restore({ snapshot });
     expect(target.parts.get("a")).toBe("a0");
     expect(target.parts.get("b")).toBe("b0");
 
@@ -258,9 +277,9 @@ describe("never-destructive restore", () => {
 
   test("restoring a snapshot that already matches records nothing", async () => {
     const target = makeTarget({ initial: { a: "a0" } });
-    const history = createEditHistory(target);
+    const history = createEditHistory({ target });
 
-    const entry = await history.restore(await target.snapshot());
+    const entry = await history.restore({ snapshot: await target.snapshot() });
 
     expect(entry).toBeNull();
     expect(history.canUndo()).toBe(false);
@@ -268,11 +287,11 @@ describe("never-destructive restore", () => {
 
   test("restore leaves parts absent from the snapshot alone — there is no delete verb", async () => {
     const target = makeTarget({ initial: { a: "a0" } });
-    const history = createEditHistory(target);
+    const history = createEditHistory({ target });
     const snapshot = await target.snapshot();
 
-    await history.transaction((r) => applyEdits(r, [{ id: "added-later", content: "extra" }]));
-    await history.restore(snapshot);
+    await history.transaction({ work: (r) => applyEdits({ target: r, edits: [{ id: "added-later", content: "extra" }] }) });
+    await history.restore({ snapshot });
 
     expect(target.parts.get("a")).toBe("a0");
     expect(target.parts.get("added-later")).toBe("extra");
@@ -282,13 +301,13 @@ describe("never-destructive restore", () => {
 describe("durability of the stack itself", () => {
   test("a transaction that throws still commits its partial changes as an undoable entry", async () => {
     const target = makeTarget({ initial: { a: "a0" } });
-    const history = createEditHistory(target);
+    const history = createEditHistory({ target });
 
     await expect(
-      history.transaction(async (recording) => {
-        await recording.replacePart("a", "a1");
+      history.transaction({ work: async (recording) => {
+        await recording.replacePart({ id: "a", content: "a1" });
         throw new Error("model turn exploded");
-      })
+      } })
     ).rejects.toThrow("model turn exploded");
 
     expect(history.canUndo()).toBe(true);
@@ -303,21 +322,20 @@ describe("durability of the stack itself", () => {
    */
   function armFailureOn(target: EditTarget, id: PartId): void {
     const real = target.replacePart;
-    target.replacePart = async (partId, content) => {
+    target.replacePart = async ({ id: partId, content }) => {
       if (partId === id) throw new Error("disk on fire");
-      await real(partId, content);
+      await real({ id: partId, content });
     };
   }
 
   test("an undo that fails partway keeps its entry on the undo stack, so the half-rewound artifact is still reachable", async () => {
     const target = makeTarget({ initial: { a: "a0", b: "b0" } });
-    const history = createEditHistory(target);
-    await history.transaction((recording) =>
-      applyEdits(recording, [
+    const history = createEditHistory({ target });
+    await history.transaction({ work: (recording) =>
+      applyEdits({ target: recording, edits: [
         { id: "a", content: "a1" },
         { id: "b", content: "b1" },
-      ])
-    );
+      ] }) });
 
     // Undo replays in reverse, so `b` rewinds cleanly and `a` is the one that blows up.
     armFailureOn(target, "a");
@@ -332,7 +350,7 @@ describe("durability of the stack itself", () => {
 
     // Retrying finishes the job — replaying `before` over the part that already rewound rewrites
     // it with the content it already holds, which is what makes the retry safe, not merely possible.
-    target.replacePart = async (id, content) => {
+    target.replacePart = async ({ id, content }) => {
       target.parts.set(id, content);
     };
     await history.undo();
@@ -344,13 +362,12 @@ describe("durability of the stack itself", () => {
 
   test("a redo that fails partway keeps its entry on the redo stack", async () => {
     const target = makeTarget({ initial: { a: "a0", b: "b0" } });
-    const history = createEditHistory(target);
-    await history.transaction((recording) =>
-      applyEdits(recording, [
+    const history = createEditHistory({ target });
+    await history.transaction({ work: (recording) =>
+      applyEdits({ target: recording, edits: [
         { id: "a", content: "a1" },
         { id: "b", content: "b1" },
-      ])
-    );
+      ] }) });
     await history.undo();
 
     // Redo replays in application order, so `b` is the second write here.
@@ -365,11 +382,11 @@ describe("durability of the stack itself", () => {
 
   test("a restore that fails partway still records its entry, so the parts it did change can be undone", async () => {
     const target = makeTarget({ initial: { a: "a0", b: "b0" } });
-    const history = createEditHistory(target);
+    const history = createEditHistory({ target });
     const snapshot: Snapshot = { id: "snap", parts: { a: "aX", b: "bX" } };
 
     armFailureOn(target, "b");
-    await expect(history.restore(snapshot)).rejects.toThrow("disk on fire");
+    await expect(history.restore({ snapshot })).rejects.toThrow("disk on fire");
 
     expect(target.parts.get("a")).toBe("aX");
     expect(target.parts.get("b")).toBe("b0");
@@ -377,7 +394,7 @@ describe("durability of the stack itself", () => {
     // the destructive-restore failure this tier exists to prevent, reached by a different route.
     expect(history.canUndo()).toBe(true);
 
-    target.replacePart = async (id, content) => {
+    target.replacePart = async ({ id, content }) => {
       target.parts.set(id, content);
     };
     await history.undo();
@@ -387,10 +404,10 @@ describe("durability of the stack itself", () => {
 
   test("the stack is bounded — oldest entries drop past the limit", async () => {
     const target = makeTarget({ initial: { a: "a0" } });
-    const history = createEditHistory(target, { limit: 2 });
+    const history = createEditHistory({ target }, { limit: 2 });
 
     for (const content of ["a1", "a2", "a3"]) {
-      await history.transaction((r) => applyEdits(r, [{ id: "a", content }]), content);
+      await history.transaction({ work: (r) => applyEdits({ target: r, edits: [{ id: "a", content }] }) }, { label: content });
     }
 
     expect(history.entries().map((e) => e.label)).toEqual(["a2", "a3"]);
@@ -398,8 +415,8 @@ describe("durability of the stack itself", () => {
 
   test("entries() returns a copy — mutating it cannot corrupt the stack", async () => {
     const target = makeTarget({ initial: { a: "a0" } });
-    const history = createEditHistory(target);
-    await history.transaction((r) => applyEdits(r, [{ id: "a", content: "a1" }]));
+    const history = createEditHistory({ target });
+    await history.transaction({ work: (r) => applyEdits({ target: r, edits: [{ id: "a", content: "a1" }] }) });
 
     (history.entries() as unknown[]).length = 0;
 
@@ -408,8 +425,8 @@ describe("durability of the stack itself", () => {
 
   test("clear discards both stacks", async () => {
     const target = makeTarget({ initial: { a: "a0" } });
-    const history = createEditHistory(target);
-    await history.transaction((r) => applyEdits(r, [{ id: "a", content: "a1" }]));
+    const history = createEditHistory({ target });
+    await history.transaction({ work: (r) => applyEdits({ target: r, edits: [{ id: "a", content: "a1" }] }) });
     await history.undo();
 
     history.clear();

@@ -35,30 +35,56 @@ describe("cms settings-dialog dictionaries: cross-locale key parity", () => {
     }
   });
 
-  it("has exactly the 24 relocated chrome keys (guards against a partial or bloated dictionary)", () => {
+  // REGRESSION: fails if the removed Composio key is restored in any locale.
+  it("has exactly 23 chrome keys after removing the retired account-provider description", () => {
     const [firstLocale] = locales;
     if (!firstLocale) throw new Error("SETTINGS_DIALOG_DICTIONARIES is empty");
-    expect(Object.keys(SETTINGS_DIALOG_DICTIONARIES[firstLocale]!).length).toBe(24);
+    expect(Object.keys(SETTINGS_DIALOG_DICTIONARIES[firstLocale]!).length).toBe(23);
+    for (const locale of locales) {
+      expect(Object.keys(SETTINGS_DIALOG_DICTIONARIES[locale]!)).not.toContain("Third-party accounts and APIs via Composio.");
+    }
+  });
+
+  // PARITY
+  it("retains all five other potentially orphaned descriptions in every locale", () => {
+    const retainedKeys = [
+      "Add MCP tools from external services.",
+      "API keys for image, video, and audio generation.",
+      "Custom skills your assistant can invoke mid-task.",
+      "No MCP config store to connect to yet.",
+      "Connect an MCP client. Showing sample output — not yet wired to a live server.",
+    ];
+    for (const locale of locales) {
+      for (const key of retainedKeys) {
+        expect(Object.keys(SETTINGS_DIALOG_DICTIONARIES[locale]!)).toContain(key);
+      }
+    }
   });
 });
 
 describe("translateSettingsDialog", () => {
+  // REGRESSION: fails if the removed Composio key is restored in the Spanish dictionary.
+  it("falls back to the raw key for the retired account-provider description", () => {
+    const key = "Third-party accounts and APIs via Composio.";
+    expect(translateSettingsDialog({ locale: "es", key })).toBe(key);
+  });
+
   it("returns the real translation for a known key in a known locale", () => {
-    expect(translateSettingsDialog("es", "Skills")).toBe(SETTINGS_DIALOG_DICTIONARIES.es!["Skills"]);
-    expect(translateSettingsDialog("es", "Skills")).not.toBe("Skills");
+    expect(translateSettingsDialog({ locale: "es", key: "Skills" })).toBe(SETTINGS_DIALOG_DICTIONARIES.es!["Skills"]);
+    expect(translateSettingsDialog({ locale: "es", key: "Skills" })).not.toBe("Skills");
   });
 
   it("falls back to the raw key for an unknown locale", () => {
-    expect(translateSettingsDialog("xx-not-a-locale", "Skills")).toBe("Skills");
+    expect(translateSettingsDialog({ locale: "xx-not-a-locale", key: "Skills" })).toBe("Skills");
   });
 
   it("falls back to the raw key for a key missing from every dictionary", () => {
-    expect(translateSettingsDialog("es", "this.key.does.not.exist.anywhere")).toBe(
+    expect(translateSettingsDialog({ locale: "es", key: "this.key.does.not.exist.anywhere" })).toBe(
       "this.key.does.not.exist.anywhere",
     );
   });
 
   it("returns the raw key for English (no en dictionary is shipped, by design)", () => {
-    expect(translateSettingsDialog("en", "Skills")).toBe("Skills");
+    expect(translateSettingsDialog({ locale: "en", key: "Skills" })).toBe("Skills");
   });
 });

@@ -12,3 +12,5 @@ export {
   readRoutePath,
   subscribeToRoute,
 } from './navigation.js';
+
+export { createAdminShellNavigation } from './shell-navigation.js';

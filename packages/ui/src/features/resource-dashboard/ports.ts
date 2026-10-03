@@ -2,7 +2,7 @@
  * The DI seam for both composed components. Two separate port interfaces,
  * matching the two composed components — nothing here is shared, which is
  * itself evidence for the shared-vs-separate verdict recorded in `types.ts`
- * and `packages/ui/source-map.md`: the only shared surface in this feature
+ * and `packages/ui/archived provenance ledger`: the only shared surface in this feature
  * is pure (`rules.ts`) plus one presentational leaf (`StatusPill`), never a
  * transport-level one.
  */

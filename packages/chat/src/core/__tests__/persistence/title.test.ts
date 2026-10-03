@@ -15,7 +15,7 @@ describe('deriveConversationTitle', () => {
     // "of"/"the"/"in" dropped, as in Open Design's own UI. Deliberate divergence: Open Design
     // renders this as "Do You See All Files This", because its six-word cap lands mid-phrase and
     // strands the "This". We trim trailing function words, so the title ends on a content word.
-    expect(deriveConversationTitle('Do you see all of the files in this project?')).toBe(
+    expect(deriveConversationTitle({ prompt: 'Do you see all of the files in this project?' })).toBe(
       'Do You See All Files',
     );
   });
@@ -24,7 +24,7 @@ describe('deriveConversationTitle', () => {
     // A pasted blob is one enormous token, so it passed the word cap untouched and became the title
     // verbatim — then got stored and re-rendered on every conversation-list read.
     const blob = 'A'.repeat(500_000);
-    const title = deriveConversationTitle(blob);
+    const title = deriveConversationTitle({ prompt: blob });
     expect(title.length).toBeLessThanOrEqual(80);
     // Still a usable title rather than empty.
     expect(title.length).toBeGreaterThan(0);
@@ -33,47 +33,47 @@ describe('deriveConversationTitle', () => {
   it('does not end a title on a stranded auxiliary or pronoun', () => {
     // The word cap falls mid-clause on question-shaped prompts, which is how a real conversation
     // ended up titled "How Many Published Posts Do I" in the admin switcher.
-    expect(deriveConversationTitle('how many published posts do I have?')).toBe(
+    expect(deriveConversationTitle({ prompt: 'how many published posts do I have?' })).toBe(
       'How Many Published Posts',
     );
     // Trailing-only trimming must not touch a title that already ends on a content word.
-    expect(deriveConversationTitle('Fix the login bug')).toBe('Login Bug');
+    expect(deriveConversationTitle({ prompt: 'Fix the login bug' })).toBe('Login Bug');
   });
 
   it('drops a leading polite imperative', () => {
-    expect(deriveConversationTitle('Can you build a dashboard for signups')).toBe('Dashboard Signups');
+    expect(deriveConversationTitle({ prompt: 'Can you build a dashboard for signups' })).toBe('Dashboard Signups');
   });
 
   it('caps at six words so a long prompt cannot become a long row', () => {
-    const title = deriveConversationTitle('alpha bravo charlie delta echo foxtrot golf hotel india');
+    const title = deriveConversationTitle({ prompt: 'alpha bravo charlie delta echo foxtrot golf hotel india' });
     expect(title.split(' ')).toHaveLength(6);
   });
 
   it('stops at the first sentence rather than running two together', () => {
-    expect(deriveConversationTitle('Fix the login bug! Then deploy to staging.')).toBe('Login Bug');
+    expect(deriveConversationTitle({ prompt: 'Fix the login bug! Then deploy to staging.' })).toBe('Login Bug');
   });
 
   it('does NOT treat a period as a sentence break', () => {
     // Deliberate: periods appear in filenames and versions far more often than they end a
     // prompt's first clause. Splitting on '.' would title this conversation "App" and throw
     // away the only word that identifies it.
-    expect(deriveConversationTitle('Update app.tsx and the router')).toBe('App Tsx Router');
+    expect(deriveConversationTitle({ prompt: 'Update app.tsx and the router' })).toBe('App Tsx Router');
   });
 
   it('ignores fenced code, inline code, URLs and handles', () => {
-    expect(deriveConversationTitle('```ts\nconst x = 1\n```')).toBe('');
-    expect(deriveConversationTitle('https://example.com/a/b/c')).toBe('');
-    expect(deriveConversationTitle('@alice #urgent')).toBe('');
+    expect(deriveConversationTitle({ prompt: '```ts\nconst x = 1\n```' })).toBe('');
+    expect(deriveConversationTitle({ prompt: 'https://example.com/a/b/c' })).toBe('');
+    expect(deriveConversationTitle({ prompt: '@alice #urgent' })).toBe('');
   });
 
   it('returns empty for input that yields nothing usable, rather than inventing a title', () => {
     // Callers render "Untitled" for '' — better than a row showing 400 characters of pasted code.
-    expect(deriveConversationTitle('   ')).toBe('');
-    expect(deriveConversationTitle('!!!???')).toBe('');
+    expect(deriveConversationTitle({ prompt: '   ' })).toBe('');
+    expect(deriveConversationTitle({ prompt: '!!!???' })).toBe('');
   });
 
   it('uses the CJK path, which caps by character and drops spacing', () => {
-    const title = deriveConversationTitle('帮我做一个博客的搜索功能，然后再优化一下样式');
+    const title = deriveConversationTitle({ prompt: '帮我做一个博客的搜索功能，然后再优化一下样式' });
     expect(title).not.toContain(' ');
     expect(title.length).toBeLessThanOrEqual(18);
     // Leading filler ("帮我做一个") is stripped, so the topic survives rather than the request verb.
@@ -81,7 +81,7 @@ describe('deriveConversationTitle', () => {
   });
 
   it('keeps the first clause when the prompt is a single long sentence', () => {
-    expect(deriveConversationTitle('implement the retention sweep for guest chats')).toBe(
+    expect(deriveConversationTitle({ prompt: 'implement the retention sweep for guest chats' })).toBe(
       'Retention Sweep Guest Chats',
     );
   });

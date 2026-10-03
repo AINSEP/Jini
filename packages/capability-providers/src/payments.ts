@@ -1,6 +1,6 @@
 /**
  * `PaymentsProvider` — a swappable payment-charge port. Speculative
- * port-design exploration (see `source-map.md`) — no OD source; named
+ * port-design exploration (see `archived provenance ledger`) — no OD source; named
  * explicitly in `ADS-memory/reports/jini-port/recon/r5b-consumers-matrix.md` §3.3 as one
  * of the capabilities Zana's and a fleet orchestrator's independent provider
  * layers converge on (alongside auth/storage/db/realtime).
@@ -21,7 +21,6 @@ export interface ChargeInput {
   readonly amountCents: number;
   readonly currency: string;
   readonly customerRef: string;
-  readonly description?: string;
 }
 
 export interface Charge {
@@ -35,9 +34,9 @@ export interface Charge {
 
 export interface PaymentsProvider {
   /** Creates and (in the reference stub) immediately settles a charge. Rejects on a non-positive amount. */
-  charge(input: ChargeInput): Promise<Charge>;
+  charge(input: ChargeInput, optional?: { description?: string }): Promise<Charge>;
   /** Looks up a previously created charge by id, or `null` if unknown. */
-  getCharge(id: string): Promise<Charge | null>;
+  getCharge(required: { id: string }): Promise<Charge | null>;
   /** Refunds a `'succeeded'` charge. Rejects if the charge is unknown or not in a refundable state. */
-  refund(id: string): Promise<Charge>;
+  refund(required: { id: string }): Promise<Charge>;
 }

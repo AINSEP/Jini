@@ -1,11 +1,11 @@
 /**
  * @module providers/pkce
  *
- * Generic OAuth 2.0 Authorization Code + PKCE (RFC 7636) client primitives —
+ * Fixed-issuer OAuth 2.0 Authorization Code + PKCE (RFC 7636) provider adapters —
  * verifier/challenge/state generation, authorize-URL building, and the
  * code-exchange/refresh token-endpoint calls.
  *
- * Vendored from the minimal subset of OD's `apps/daemon/src/mcp-oauth.ts`
+ * Originally vendored from the minimal subset of OD's `apps/daemon/src/mcp-oauth.ts`
  * (a 601-line "daemon-side OAuth 2.1 client for HTTP/SSE MCP servers") that
  * `integrations/xai-oauth.ts` actually depends on: PKCE generation,
  * `buildAuthorizeUrl`, `exchangeCodeForToken`, `refreshAccessToken`, and the
@@ -19,10 +19,19 @@
  * ported, mirroring the same reasoning `@jini-ai/agent-runtime`'s
  * `acp-model-probe.ts` used to exclude the ACP transport (a distinct
  * subsystem named as its own future extraction target). No product-identity
- * strings in the vendored subset — ported verbatim apart from doc-comment
- * wording.
+ * strings in the vendored subset. Protocol implementation now lives in
+ * `@jini-ai/oauth`; this module retains the provider DTO and synchronous callback adapter.
+ * The historical split still explains why discovery and dynamic registration do not
+ * belong in this fixed-issuer bridge.
  */
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
+import {
+  createPkcePair, deriveCodeChallenge as deriveOAuthCodeChallenge, generateOAuthState,
+  buildOAuthAuthorizationUrl, exchangeOAuthAuthorizationCode, refreshAccessToken as refreshOAuthAccessToken,
+  createPendingAuthorizationStore, createOAuthUrlGuard, type PendingAuthorizationCache,
+  type OAuthTokenSet, type OAuthClient,
+} from '@jini-ai/oauth';
+
 
 /** RFC 8414 / OIDC discovery document fields a PKCE client needs. */
 export interface AuthorizationServerMetadata {
@@ -54,27 +63,12 @@ export interface PendingAuthState {
   createdAt: number;
 }
 
-const VERIFIER_LEN = 64; // RFC 7636 §4.1: 43-128 chars
 
-function base64url(buf: Buffer): string {
-  return buf
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/g, '');
-}
-
-export function generateCodeVerifier(): string {
-  return base64url(randomBytes(VERIFIER_LEN));
-}
-
-export function deriveCodeChallenge(verifier: string): string {
-  return base64url(createHash('sha256').update(verifier).digest());
-}
-
-export function generateState(): string {
-  return base64url(randomBytes(32));
-}
+const entropy = ({ byteLength }: { byteLength: number }) => randomBytes(byteLength);
+/** RFC 7636 §4.1 permits 43–128 verifier characters; 64 random bytes encode to 86. */
+export function generateCodeVerifier(): string { return createPkcePair({ randomBytesFn: entropy }, { verifierBytes: 64 }).codeVerifier; }
+export function deriveCodeChallenge({ verifier }: { verifier: string }): string { return deriveOAuthCodeChallenge({ codeVerifier: verifier }); }
+export function generateState(): string { return generateOAuthState({ randomBytesFn: entropy }); }
 
 export interface AuthorizeUrlInput {
   authServer: AuthorizationServerMetadata;
@@ -86,20 +80,12 @@ export interface AuthorizeUrlInput {
   resource?: string;
 }
 
-export function buildAuthorizeUrl(input: AuthorizeUrlInput): string {
-  const u = new URL(input.authServer.authorization_endpoint);
-  u.searchParams.set('response_type', 'code');
-  u.searchParams.set('client_id', input.clientId);
-  u.searchParams.set('redirect_uri', input.redirectUri);
-  u.searchParams.set('state', input.state);
-  u.searchParams.set('code_challenge', input.codeChallenge);
-  u.searchParams.set('code_challenge_method', 'S256');
-  if (input.scope) u.searchParams.set('scope', input.scope);
-  // RFC 8707 resource indicator — narrows the issued token to the resource
-  // actually being requested. Most authoritative servers require it;
-  // harmless when ignored.
-  if (input.resource) u.searchParams.set('resource', input.resource);
-  return u.toString();
+export function buildAuthorizeUrl(requiredArgs: Pick<AuthorizeUrlInput, "authServer" | "clientId" | "redirectUri" | "state" | "codeChallenge">, optionalArgs: Omit<AuthorizeUrlInput, "authServer" | "clientId" | "redirectUri" | "state" | "codeChallenge"> = {}): string {
+  return buildOAuthAuthorizationUrl({
+    authorizationEndpoint: requiredArgs.authServer.authorization_endpoint,
+    clientId: requiredArgs.clientId, redirectUri: requiredArgs.redirectUri,
+    state: requiredArgs.state, codeChallenge: requiredArgs.codeChallenge,
+  }, optionalArgs);
 }
 
 export interface ExchangeCodeInput {
@@ -112,18 +98,15 @@ export interface ExchangeCodeInput {
   resource?: string;
 }
 
-export async function exchangeCodeForToken(
-  input: ExchangeCodeInput,
-  fetchImpl: typeof fetch = fetch,
-): Promise<OAuthTokenResponse> {
-  const form = new URLSearchParams();
-  form.set('grant_type', 'authorization_code');
-  form.set('code', input.code);
-  form.set('redirect_uri', input.redirectUri);
-  form.set('client_id', input.clientId);
-  form.set('code_verifier', input.codeVerifier);
-  if (input.resource) form.set('resource', input.resource);
-  return tokenRequest(input.tokenEndpoint, form, input.clientSecret, fetchImpl);
+export async function exchangeCodeForToken({ input }: { input: ExchangeCodeInput }, { fetchImpl = fetch }: { fetchImpl?: typeof fetch } = {}): Promise<OAuthTokenResponse> {
+  let issuedAtMs = 0;
+  const tokenClock = { nowMs: () => (issuedAtMs = Date.now()) };
+  const tokens = await exchangeOAuthAuthorizationCode({
+    fetchFn: ({ url }, init) => fetchImpl(url, init), guard, clock: tokenClock,
+    tokenEndpoint: input.tokenEndpoint, client: clientFor(input),
+    redirectUri: input.redirectUri, code: input.code, codeVerifier: input.codeVerifier,
+  }, input.resource === undefined ? {} : { resource: input.resource });
+  return persistedWireTokens({ tokens, issuedAtMs });
 }
 
 export interface RefreshTokenInput {
@@ -135,118 +118,58 @@ export interface RefreshTokenInput {
   resource?: string;
 }
 
-export async function refreshAccessToken(
-  input: RefreshTokenInput,
-  fetchImpl: typeof fetch = fetch,
-): Promise<OAuthTokenResponse> {
-  const form = new URLSearchParams();
-  form.set('grant_type', 'refresh_token');
-  form.set('refresh_token', input.refreshToken);
-  form.set('client_id', input.clientId);
-  if (input.scope) form.set('scope', input.scope);
-  if (input.resource) form.set('resource', input.resource);
-  return tokenRequest(input.tokenEndpoint, form, input.clientSecret, fetchImpl);
+export async function refreshAccessToken({ input }: { input: RefreshTokenInput }, { fetchImpl = fetch }: { fetchImpl?: typeof fetch } = {}): Promise<OAuthTokenResponse> {
+  let issuedAtMs = 0;
+  const tokenClock = { nowMs: () => (issuedAtMs = Date.now()) };
+  const tokens = await refreshOAuthAccessToken({
+    fetchFn: ({ url }, init) => fetchImpl(url, init), guard, clock: tokenClock,
+    tokenEndpoint: input.tokenEndpoint, client: clientFor(input), refreshToken: input.refreshToken,
+  }, { ...(input.scope === undefined ? {} : { scopes: input.scope.split(/\s+/).filter(Boolean) }),
+       ...(input.resource === undefined ? {} : { resource: input.resource }) });
+  return persistedWireTokens({ tokens, issuedAtMs });
 }
 
-async function tokenRequest(
-  tokenEndpoint: string,
-  form: URLSearchParams,
-  clientSecret: string | undefined,
-  fetchImpl: typeof fetch,
-): Promise<OAuthTokenResponse> {
-  const headers: Record<string, string> = {
-    'content-type': 'application/x-www-form-urlencoded',
-    accept: 'application/json',
-  };
-  if (clientSecret) {
-    // RFC 6749 §2.3.1 — confidential clients use HTTP Basic with the
-    // client_id already in the form. Public clients (PKCE-only) skip this.
-    const basic = Buffer.from(`${form.get('client_id')}:${clientSecret}`).toString('base64');
-    headers['authorization'] = `Basic ${basic}`;
-  }
-  const res = await fetchImpl(tokenEndpoint, {
-    method: 'POST',
-    headers,
-    body: form.toString(),
-  });
-  if (!res.ok) {
-    const txt = await safeText(res);
-    throw new Error(
-      `token endpoint rejected request: HTTP ${res.status} ${res.statusText} ${txt}`,
-    );
-  }
-  const json = (await res.json()) as OAuthTokenResponse;
-  if (!json.access_token) {
-    throw new Error('token endpoint response missing access_token');
-  }
-  return json;
+const clock = { nowMs: () => Date.now() };
+// Fixed-issuer provider definitions supply endpoints; the shared scheme gate
+// still refuses plaintext except for explicitly allowed local authorization servers.
+const guard = createOAuthUrlGuard({ assertAllowed: () => undefined }, { allowLoopbackHttp: true });
+function clientFor(input: { clientId: string; clientSecret?: string }): OAuthClient {
+  return input.clientSecret
+    ? { clientId: input.clientId, clientSecret: input.clientSecret, authMethod: 'client_secret_basic' }
+    : { clientId: input.clientId, authMethod: 'none' };
 }
-
-async function safeText(res: Response): Promise<string> {
-  try {
-    const t = await res.text();
-    return t.slice(0, 500);
-  } catch {
-    return '';
-  }
+/** Persistence keeps the provider adapter's existing snake_case format; parsing is OAuth-owned. */
+function persistedWireTokens({ tokens, issuedAtMs }: { tokens: OAuthTokenSet; issuedAtMs: number }): OAuthTokenResponse {
+  return { access_token: tokens.accessToken, token_type: tokens.tokenType,
+    ...(tokens.refreshToken === null ? {} : { refresh_token: tokens.refreshToken }),
+    ...(tokens.expiresAt === null ? {} : { expires_in: Math.max(0, (Date.parse(tokens.expiresAt) - issuedAtMs) / 1000) }),
+    ...(tokens.scopes.length === 0 ? {} : { scope: tokens.scopes.join(' ') }) };
 }
-
-/**
- * In-memory pending-authorization cache keyed by the OAuth `state`
- * parameter. Bridges the "begin" (mint state + verifier) and "complete"
- * (browser returns code + state) halves of the dance; persistence isn't
- * needed because the caller completes auth in the same process, and state
- * is single-use.
+/** In-memory pending authorization keyed by the OAuth state parameter. Bridges the
+ * begin (mint state + verifier) and complete (browser returns code + state) halves.
+ * Persistence is not needed because the caller completes auth in the same process,
+ * and state is single-use. The host timer adapter retains unref and the synchronous
+ * cache contract while delegating storage and expiry to the main OAuth factory.
  */
 export class PendingAuthCache {
-  private store = new Map<string, PendingAuthState>();
-  private timer: ReturnType<typeof setInterval> | null = null;
-
-  constructor(private readonly ttlMs: number = 10 * 60 * 1000) {}
-
-  put(state: string, value: PendingAuthState): void {
-    this.store.set(state, value);
-    this.startSweeper();
+  private readonly cache: PendingAuthorizationCache<PendingAuthState>;
+  constructor(_requiredArgs: Record<string, never> = {}, { ttlMs = 10 * 60 * 1000 }: { ttlMs?: number } = {}) {
+    this.cache = createPendingAuthorizationStore<PendingAuthState>({ clock }, {
+      ttlMs, expiry: ({ value, ttlMs }) => value.createdAt + ttlMs, exclusiveExpiry: true,
+      scheduler: {
+        every: ({ intervalMs, run }) => {
+          const timer = setInterval(run, intervalMs);
+          // Pending browser authorization must not keep an otherwise idle host process alive.
+          timer.unref();
+          return () => clearInterval(timer);
+        },
+      },
+    });
   }
-
-  /** One-shot consume — any successful callback removes the state so a replay can't reuse it. */
-  consume(state: string): PendingAuthState | null {
-    const v = this.store.get(state);
-    if (!v) return null;
-    this.store.delete(state);
-    if (Date.now() - v.createdAt > this.ttlMs) return null;
-    return v;
-  }
-
-  size(): number {
-    return this.store.size;
-  }
-
-  /** Stops the background sweeper. Production lets the timer ride on the host process lifetime. */
-  stop(): void {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
-  }
-
-  private startSweeper(): void {
-    if (this.timer) return;
-    this.timer = setInterval(() => this.sweep(), Math.min(this.ttlMs, 60_000));
-    // unref so the cache doesn't keep the event loop alive in tests.
-    if (typeof this.timer === 'object' && this.timer && typeof (this.timer as { unref?: () => void }).unref === 'function') {
-      (this.timer as { unref: () => void }).unref();
-    }
-  }
-
-  private sweep(): void {
-    const now = Date.now();
-    for (const [k, v] of this.store) {
-      if (now - v.createdAt > this.ttlMs) this.store.delete(k);
-    }
-    if (this.store.size === 0 && this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
-  }
+  put({ state, value }: { state: string; value: PendingAuthState }): void { this.cache.put({ state, value }); }
+  /** One-shot consume removes state before returning so a callback replay cannot reuse it. */
+  consume({ state }: { state: string }): PendingAuthState | null { return this.cache.consume({ state }); }
+  size(): number { return this.cache.size({}); }
+  /** Stops the background sweeper; its timer ownership belongs to the host scheduler. */
+  stop(): void { this.cache.stop({}); }
 }

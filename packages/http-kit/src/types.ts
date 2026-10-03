@@ -3,6 +3,7 @@
  * (`JsonRouteSpec`, `InputParser`, `Handler`, `HttpMethod`, `RouteInputContext`) every other
  * module in this package depends on.
  */
+import type { Result as CoreResult } from '@jini-ai/core/primitives';
 import type { ApiError } from '@jini-ai/protocol';
 
 /**
@@ -10,12 +11,12 @@ import type { ApiError } from '@jini-ai/protocol';
  * Route parsing, handling, and origin checks all resolve to a `Result` so the Adapter can fold
  * every failure mode into one error-handling pipeline.
  */
-export type Result<T, E = ApiError> = { ok: true; value: T } | { ok: false; error: E };
+export type Result<T, E = ApiError> = CoreResult<T, E>;
 
 /** Builds a successful `Result` carrying `value`. */
-export const ok = <T, E = ApiError>(value: T): Result<T, E> => ({ ok: true, value });
+export const ok = <T, E = ApiError>({ value }: { readonly value: T }, _optional: Record<string, never> = {}): Result<T, E> => ({ ok: true, value });
 /** Builds a failed `Result` carrying `error`. */
-export const err = <T = never, E = ApiError>(error: E): Result<T, E> => ({ ok: false, error });
+export const err = <T = never, E = ApiError>({ error }: { readonly error: E }, _optional: Record<string, never> = {}): Result<T, E> => ({ ok: false, error });
 
 /**
  * The normalized shape of a raw HTTP request handed to a route's `parse` function: body, query,
@@ -35,14 +36,11 @@ export type InputParser<Input> = (raw: RouteInputContext) => Result<Input>;
  * Handles a parsed `Input` (plus injected `Deps`) and produces a `Result<Output>`.
  *
  * `signal` is optional and additive: it aborts if the underlying HTTP request's connection drops
- * before the Adapter has written a response (see `mountJsonRoute` in `adapter.ts`) — a route with
- * no long-running or delegated work has no reason to read it, and every existing 2-arg handler
- * stays a valid `Handler` unchanged (TS accepts a callback that ignores trailing parameters).
+ * before the Adapter has written a response (see `mountJsonRoute` in `adapter.ts`) — handlers read it from their optional arguments when they perform cancellable work.
  */
 export type Handler<Input, Output, Deps> = (
-  input: Input,
-  deps: Deps,
-  signal?: AbortSignal,
+  requiredArgs: { readonly input: Input; readonly deps: Deps },
+  optionalArgs?: { readonly signal?: AbortSignal | undefined },
 ) => Promise<Result<Output>> | Result<Output>;
 
 /** HTTP verbs the Adapter can mount a `JsonRouteSpec` under. */

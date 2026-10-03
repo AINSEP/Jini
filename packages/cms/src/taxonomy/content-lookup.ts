@@ -100,7 +100,7 @@ export function createContentLookup(deps: {
   const entryLookup = createEntryBackedContentLookup({ entryRepo: deps.entryRepo, workspaceId: deps.workspaceId });
   return {
     async resolve(params) {
-      return isContentTypeOnAllowList(params.contentType) ? postLookup.resolve(params) : entryLookup.resolve(params);
+      return isContentTypeOnAllowList({ contentType: params.contentType }) ? postLookup.resolve(params) : entryLookup.resolve(params);
     },
   };
 }

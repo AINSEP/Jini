@@ -1,7 +1,7 @@
 /**
  * `@jini-ai/capability-providers/adapters/sqlite` — the one real,
  * production-quality `DbProvider` adapter this package ships, backed directly
- * by `better-sqlite3`, following `@jini-ai/sqlite`'s `createSqliteEventLog`
+ * by `better-sqlite3`, following `@jini-ai/sqlite-chat`'s `createSqliteEventLog`
  * DI/schema conventions (an injected, already-open `Database` handle;
  * idempotent `CREATE TABLE IF NOT EXISTS`; multi-statement writes wrapped in
  * `db.transaction()`).
@@ -21,7 +21,7 @@
 import type Database from 'better-sqlite3';
 import type { DbProvider, DbQuery, DbRecord } from '../../db.js';
 
-/** Alias for a `better-sqlite3` `Database` handle, matching `@jini-ai/sqlite`'s own `SqliteDb` alias (`packages/sqlite/src/db/core/types.ts`). */
+/** Alias for a `better-sqlite3` `Database` handle, matching `@jini-ai/sqlite-chat`'s own `SqliteDb` alias (`packages/sqlite-chat/src/db/core/types.ts`). */
 type SqliteDatabase = Database.Database;
 
 interface DbRecordRow {

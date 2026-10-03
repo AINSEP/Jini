@@ -1,3 +1,4 @@
+import type { AgentToolDefinition, AgentToolSideEffect, AgentToolActorClassRule } from "@jini-ai/core";
 /**
  * @file The Settings domain's agent-tool catalog, instantiating the naming/callability
  * convention every other domain catalog in this package already uses.
@@ -9,72 +10,51 @@
  * raw-JSON textarea, with no schema-exposing endpoint feeding a typed control. There is no fixed,
  * curated list of named settings on that surface to wire tools against.
  *
- * That disqualifies every GENERIC write in this domain from being wired here:
- * - `SETTINGS_SET`/`SETTINGS_CLEAR` let a caller write/clear the value of any registered
- *   namespace+key at any scope it can name — exactly the generic "set any setting key" tool this
- *   dispatch's brief prohibits outright, regardless of the write path's own schema validation
- *   (validation constrains VALUE shape, not WHICH key can be targeted).
+ * The original generic-write exclusion correctly observed that schema validation bounds VALUE
+ * shape, not WHICH key may be targeted. The owner reversed permanent exclusion on 2026-10-01:
+ * settings_set_value/settings_clear_value now address one registered workspace or caller-owned
+ * user override. Explicit key policy bounds the target; privacy consent and the assistant's own
+ * instructions require a HUMAN confirmation port (the agent cannot self-confirm). Hosts add
+ * runtime/permission policies through the same seam. Headless protected writes fail closed.
+ * Ordinary settings apply directly and remain undoable using the returned previous override.
  *
- * One curated write IS wired, and it is not a weaker `settings_set`: `ui-tab-definitions.ts`
- * registers a fixed, statically-declared list, because the settings-dialog tabs need named keys to
- * bind to. `SETTINGS_SET_UI_PREFERENCE` below wires a seven-key subset of that list
- * (`agent-writable-preferences.ts`):
+ * settings_set_ui_preference remains the fixed seven-key, caller-only display-preference surface.
+ * It cannot reach consent or standing instructions; use the generic tools and a human card there.
  *
- * - Its `setting` parameter is a JSON Schema `enum`, so WHICH key is targeted is constrained by
- *   the same mechanism as everything else — the exact gap the paragraph above identifies. The
- *   ledger's registered definition schema still bounds the VALUE, so both halves are covered.
- * - It exposes no `scope` and no `principalId`. Every write is `scope: "user"` against the
- *   caller's own principal, which derives `settings.user.self.write` — the narrowest write grant
- *   in the system — and makes writing another operator's preferences unrepresentable rather than
- *   merely unauthorized.
- * - The keys are per-operator display preferences (locale, theme, accent, notification sounds),
- *   each reversible in one call and visible in the admin UI the moment it changes.
- *
- * The generic setter stays excluded, permanently and for its original reason. Nothing above is
- * evidence that the other three writes may now be wired:
- * - `SETTINGS_RESET` is broader still: a single call clears every value in an operator-named
- *   namespace at a scope — typically described in a host's own confirmation dialog as
- *   irreversible.
- * - `SETTINGS_REGISTER_DEFINITIONS` is schema-level, not value-level: it can rename/retype/
- *   deprecate/tombstone the DEFINITION a key resolves through, changing how every existing stored
- *   value for that key is interpreted platform-wide.
+ * The broader operations remain excluded:
+ * - SETTINGS_RESET clears every value in a namespace at once, an irreversible bulk operation.
+ * - SETTINGS_REGISTER_DEFINITIONS can retype/rename/tombstone definitions and reinterpret values
+ * platform-wide. Neither gets wired by the value-write decision.
  *
  * Reads are a different risk class and are wired: `SETTINGS_LIST_DEFINITIONS`/
  * `SETTINGS_GET_EFFECTIVE`/`SETTINGS_GET_RAW` cannot mutate anything, are gated by the same real
- * `authorize()` permissions an admin UI's own reads use (including the cross-principal
+ * `authorize` permissions an admin UI's own reads use (including the cross-principal
  * `settings.user.read` check), and cannot surface a secret value even in principle —
  * `settings.ts`'s `validateDefinitionInput` unconditionally refuses `secret:true` at registration
- * time (REQ-09/INV-08), so no secret setting can exist in this library's current state to leak.
+ * time, so no secret setting can exist in this library's current state to leak.
  *
  * How it relates to a host:
  * A host's tool-registration layer consumes this catalog to decide which tool names an agent
- * session may even see; `authorize()` enforces the actual permission checks at call time — this
+ * session may even see; `authorize` enforces the actual permission checks at call time — this
  * module only declares the catalog shape, it performs no I/O and no enforcement itself.
  *
  * Architectural role:
  * `settings` domain logic. Depends only on its own sibling `agent-writable-preferences.ts` (for
  * the curated write's enum) — no I/O, no enforcement.
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
  */
 
 import { AGENT_WRITABLE_PREFERENCE_IDS, AGENT_WRITABLE_PREFERENCES } from "./agent-writable-preferences.js";
 
-export type AgentToolSideEffect = "none" | "mutates-durable-state" | "mints-token";
 
-export interface AgentToolDefinition {
-  name: string;
-  description: string;
-  sideEffects: AgentToolSideEffect;
-  authorization: { permission: string };
-  /**
+
+/**
    * JSON Schema for this tool's `input`, published to the model via `ToolDescriptor.inputSchema`
-   * (a host's tool-registration layer refuses to wire any tool lacking one). Optional — the four
+   * (a host's tool-registration layer refuses to wire any tool lacking one). Optional — the two bulk/schema
    * write entries this file documents but never wires (see file header) carry no schema at all,
    * since one is never published for a tool the model never sees.
-   */
-  inputSchema?: Readonly<Record<string, unknown>>;
-}
-
-/** No arguments — `settings_list_definitions` takes none; it always enumerates the caller's own
+   *
+ * No arguments — `settings_list_definitions` takes none; it always enumerates the caller's own
  * (boot-wired) workspace's site-owned partition plus the shared platform partition. */
 const NO_INPUT_SCHEMA = {
   type: "object",
@@ -145,9 +125,26 @@ const SET_UI_PREFERENCE_SCHEMA = {
   },
 } as const;
 
+/** Both generic writes target only this workspace or the caller's own user layer. */
+const CLEAR_VALUE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["namespace", "key"],
+  properties: {
+    namespace: { type: "string", minLength: 1, description: "A registered settings namespace; call settings_list_definitions first." },
+    key: { type: "string", minLength: 1, description: "A registered key inside the namespace." },
+    scope: { type: "string", enum: ["workspace", "user"], default: "workspace", description: "Workspace override, or only the calling operator's own user override." },
+  },
+} as const;
+
+const SET_VALUE_SCHEMA = {
+  ...CLEAR_VALUE_SCHEMA,
+  required: ["namespace", "key", "value"],
+  properties: { ...CLEAR_VALUE_SCHEMA.properties, value: { description: "Any JSON matching the definition schema returned by settings_list_definitions." } },
+} as const;
+
 /**
- * The Settings domain's fixed agent-tool catalog — the three reads, one curated write
- * (`settings_set_ui_preference`), and four generic writes documented but deliberately never
+ * The Settings domain's fixed agent-tool catalog — three reads, three bounded writes, and two bulk/schema writes documented but never
  * wired. See file header.
  *
  * @complexity O(1) — a fixed, statically-defined list.
@@ -158,7 +155,7 @@ export function getSettingsAgentToolCatalog(): AgentToolDefinition[] {
     {
       name: "settings_list_definitions",
       description:
-        "Lists every active setting definition visible to this workspace (platform core/theme definitions plus this workspace's own site-owned definitions): namespace, key, owner kind, scope bitmask, status, and version. Metadata only — never a value.",
+        "Lists every active setting definition visible to this workspace (platform core/theme definitions plus this workspace's own site-owned definitions): namespace, key, owner kind, scope bitmask, status, version, schema, agentWritable and confirmationRequired. Use before writing a setting. Metadata only — never a value.",
       sideEffects: "none",
       authorization: { permission: "settings.read.definitions" },
       inputSchema: NO_INPUT_SCHEMA,
@@ -191,25 +188,21 @@ export function getSettingsAgentToolCatalog(): AgentToolDefinition[] {
       inputSchema: SET_UI_PREFERENCE_SCHEMA,
     },
     {
-      // EXCLUDED BY DESIGN, never wired: see this file's header. Generic "set any setting key" —
-      // a typical human admin UI for this domain is an uncurated free-text/raw-JSON editor, not a
-      // fixed named list. `settings_set_ui_preference` above is the curated alternative and does
-      // NOT make this one wireable: the whole difference is that its target key is enum-bounded.
-      name: "settings_set",
-      description: "Sets a setting's value at a scope. NEVER agent-callable — see file header.",
+      name: "settings_set_value",
+      description: "Sets one registered setting at workspace scope (default) or the caller's own user scope. Call settings_list_definitions for valid keys, schemas, scopes and confirmation policy. Returns {key, scope, previous, value, revisionSeq}; previous is the old override, or null if absent. Privacy, instructions and host-protected assistant settings need a human confirmation card; the agent cannot confirm itself. Rejects unknown/tombstoned keys, disallowed scopes, invalid values and missing permissions. Cannot write globally, target another operator, reset a namespace or change definitions.",
       sideEffects: "mutates-durable-state",
       authorization: { permission: "settings.workspace.write" },
+      inputSchema: SET_VALUE_SCHEMA,
     },
     {
-      // EXCLUDED BY DESIGN, never wired: see this file's header. Same "generic key" exclusion as
-      // settings_set.
-      name: "settings_clear",
-      description: "Clears a setting's value at a scope, reverting it to default. NEVER agent-callable — see file header.",
+      name: "settings_clear_value",
+      description: "Clears one setting override at workspace scope (default) or the caller's own user scope so the next layer/default applies. Use to put one setting back to its inherited value; not to reset a namespace or delete a definition. Returns {key, scope, previous, effective}; restore a non-null previous override with settings_set_value. Protected assistant settings require a human confirmation card. Rejects unknown/tombstoned keys, disallowed scopes and missing permissions; cannot target global or another operator's layer.",
       sideEffects: "mutates-durable-state",
       authorization: { permission: "settings.workspace.write" },
+      inputSchema: CLEAR_VALUE_SCHEMA,
     },
     {
-      // EXCLUDED BY DESIGN, never wired: see this file's header. Bulk variant of settings_clear —
+      // EXCLUDED BY DESIGN, never wired: see this file's header. Bulk variant of a single-value clear —
       // clears every value in an operator-named namespace at a scope in one call, irreversible.
       name: "settings_reset",
       description: "Resets every setting in a namespace to defaults at a scope. NEVER agent-callable — see file header.",

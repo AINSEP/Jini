@@ -34,8 +34,8 @@ import type { EventLog } from '../event-log.js';
 import { createRunLifecycle, DEFAULT_SLOW_RUN_THRESHOLD_MS } from '../run-lifecycle.js';
 
 function makeLifecycle(overrides?: Partial<Omit<Parameters<typeof createRunLifecycle>[0], 'eventLog'>>) {
-  const eventLog = createInMemoryEventLog();
-  return { eventLog, lifecycle: createRunLifecycle({ eventLog, ...overrides }) };
+  const eventLog = createInMemoryEventLog({});
+  return { eventLog, lifecycle: createRunLifecycle({ eventLog, ...overrides }, { ...overrides }) };
 }
 
 describe('RunLifecycle — slow-run notice', () => {
@@ -51,12 +51,12 @@ describe('RunLifecycle — slow-run notice', () => {
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
 
     const delivered: RunProtocolEvent[] = [];
-    await lifecycle.stream(run.id, (event) => delivered.push(event));
+    await lifecycle.stream({ runId: run.id, onEvent: (event) => delivered.push(event) });
 
     await vi.advanceTimersByTimeAsync(1_000);
 
     // The critical assertion: the run is NOT terminated. A slow-but-working turn must stay `running`.
-    const status = await lifecycle.get(run.id);
+    const status = await lifecycle.get({ runId: run.id });
     expect(status?.state).toBe('running');
     expect(status).not.toHaveProperty('endedAt');
 
@@ -74,10 +74,10 @@ describe('RunLifecycle — slow-run notice', () => {
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
 
     const delivered: RunProtocolEvent[] = [];
-    await lifecycle.stream(run.id, (event) => delivered.push(event));
+    await lifecycle.stream({ runId: run.id, onEvent: (event) => delivered.push(event) });
 
     await vi.advanceTimersByTimeAsync(700);
-    await lifecycle.emit(run.id, { event: 'agent', data: { type: 'text_delta', delta: 'still working...' } });
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'still working...' } } });
     await vi.advanceTimersByTimeAsync(700);
 
     // 1400ms of wall-clock time has passed but the window was reset at 700ms, so the 1000ms timer
@@ -95,19 +95,19 @@ describe('RunLifecycle — slow-run notice', () => {
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
 
     const delivered: RunProtocolEvent[] = [];
-    await lifecycle.stream(run.id, (event) => delivered.push(event));
+    await lifecycle.stream({ runId: run.id, onEvent: (event) => delivered.push(event) });
 
     await vi.advanceTimersByTimeAsync(600);
-    await lifecycle.emit(run.id, { event: 'stdout', data: { chunk: '{"type":"tool_progress","elapsed_time_seconds":30}\n' } });
+    await lifecycle.emit({ runId: run.id, input: { event: 'stdout', data: { chunk: '{"type":"tool_progress","elapsed_time_seconds":30}\n' } } });
     await vi.advanceTimersByTimeAsync(300);
-    await lifecycle.emit(run.id, { event: 'stderr', data: { chunk: 'debug line\n' } });
+    await lifecycle.emit({ runId: run.id, input: { event: 'stderr', data: { chunk: 'debug line\n' } } });
     await vi.advanceTimersByTimeAsync(200);
 
     const notices = delivered.filter(
       (event) => event.kind === 'agent' && (event.payload as { type?: string }).type === 'slow_running',
     );
     expect(notices).toHaveLength(1);
-    expect((await lifecycle.get(run.id))?.state).toBe('running');
+    expect((await lifecycle.get({ runId: run.id }))?.state).toBe('running');
   });
 
   it('is disabled entirely when slowRunThresholdMs is explicitly null', async () => {
@@ -115,14 +115,14 @@ describe('RunLifecycle — slow-run notice', () => {
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
 
     const delivered: RunProtocolEvent[] = [];
-    await lifecycle.stream(run.id, (event) => delivered.push(event));
+    await lifecycle.stream({ runId: run.id, onEvent: (event) => delivered.push(event) });
 
     // Advance well past the default threshold to prove no notice fires with the feature disabled.
     await vi.advanceTimersByTimeAsync(DEFAULT_SLOW_RUN_THRESHOLD_MS * 2);
 
     const agentEvents = delivered.filter((event) => event.kind === 'agent');
     expect(agentEvents).toHaveLength(0);
-    expect((await lifecycle.get(run.id))?.state).toBe('running');
+    expect((await lifecycle.get({ runId: run.id }))?.state).toBe('running');
   });
 
   it('is armed with the kernel-wide default threshold when the host supplies no override at all — the shape every real production caller uses today', async () => {
@@ -133,14 +133,14 @@ describe('RunLifecycle — slow-run notice', () => {
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
 
     const delivered: RunProtocolEvent[] = [];
-    await lifecycle.stream(run.id, (event) => delivered.push(event));
+    await lifecycle.stream({ runId: run.id, onEvent: (event) => delivered.push(event) });
 
     await vi.advanceTimersByTimeAsync(DEFAULT_SLOW_RUN_THRESHOLD_MS);
 
     const agentEvents = delivered.filter((event) => event.kind === 'agent');
     expect(agentEvents).toHaveLength(1);
     expect(agentEvents[0]?.payload).toMatchObject({ type: 'slow_running' });
-    expect((await lifecycle.get(run.id))?.state).toBe('running');
+    expect((await lifecycle.get({ runId: run.id }))?.state).toBe('running');
   });
 
   it('cancels the slow-run watchdog once the run finishes normally, so no stray notice fires afterward', async () => {
@@ -148,7 +148,7 @@ describe('RunLifecycle — slow-run notice', () => {
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
 
     const delivered: RunProtocolEvent[] = [];
-    await lifecycle.stream(run.id, (event) => delivered.push(event));
+    await lifecycle.stream({ runId: run.id, onEvent: (event) => delivered.push(event) });
 
     await vi.advanceTimersByTimeAsync(500);
     await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
@@ -165,7 +165,7 @@ describe('RunLifecycle — slow-run notice', () => {
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
 
     const delivered: RunProtocolEvent[] = [];
-    await lifecycle.stream(run.id, (event) => delivered.push(event));
+    await lifecycle.stream({ runId: run.id, onEvent: (event) => delivered.push(event) });
     const slowRunNotices = () =>
       delivered.filter((event) => event.kind === 'agent' && (event.payload as { type?: string }).type === 'slow_running');
 
@@ -174,17 +174,17 @@ describe('RunLifecycle — slow-run notice', () => {
     // CPU-starved-and-silent condition the watchdog exists to catch — this is the exact RED this
     // test proves: without `suspendSlowRunNotice`, the assertion below fails because a notice fires
     // partway through this advance.
-    lifecycle.suspendSlowRunNotice(run.id);
+    lifecycle.suspendSlowRunNotice({ runId: run.id });
     await vi.advanceTimersByTimeAsync(5_000);
     expect(slowRunNotices()).toHaveLength(0);
 
     // The known operation concludes. A fresh window starts here — if the run then goes genuinely
     // silent again, the notice must still fire. A fix that leaves the watchdog permanently
     // suspended (silencing the false positive by never firing at all) would fail this half.
-    lifecycle.resumeSlowRunNotice(run.id);
+    lifecycle.resumeSlowRunNotice({ runId: run.id });
     await vi.advanceTimersByTimeAsync(1_000);
     expect(slowRunNotices()).toHaveLength(1);
-    expect((await lifecycle.get(run.id))?.state).toBe('running');
+    expect((await lifecycle.get({ runId: run.id }))?.state).toBe('running');
   });
 
   it('suspendSlowRunNotice/resumeSlowRunNotice are no-ops for an unknown or already-terminal run', async () => {
@@ -192,15 +192,15 @@ describe('RunLifecycle — slow-run notice', () => {
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
 
     // Unknown run: must not throw (called defensively from a driver that may race run cleanup).
-    expect(() => lifecycle.suspendSlowRunNotice('no-such-run')).not.toThrow();
-    expect(() => lifecycle.resumeSlowRunNotice('no-such-run')).not.toThrow();
+    expect(() => lifecycle.suspendSlowRunNotice({ runId: 'no-such-run' })).not.toThrow();
+    expect(() => lifecycle.resumeSlowRunNotice({ runId: 'no-such-run' })).not.toThrow();
 
     await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
     const delivered: RunProtocolEvent[] = [];
-    await lifecycle.stream(run.id, (event) => delivered.push(event));
+    await lifecycle.stream({ runId: run.id, onEvent: (event) => delivered.push(event) });
 
-    lifecycle.suspendSlowRunNotice(run.id);
-    lifecycle.resumeSlowRunNotice(run.id);
+    lifecycle.suspendSlowRunNotice({ runId: run.id });
+    lifecycle.resumeSlowRunNotice({ runId: run.id });
     await vi.advanceTimersByTimeAsync(5_000);
 
     expect(delivered.filter((event) => event.kind === 'agent')).toHaveLength(0);
@@ -211,10 +211,10 @@ describe('RunLifecycle — slow-run notice', () => {
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
 
     const delivered: RunProtocolEvent[] = [];
-    await lifecycle.stream(run.id, (event) => delivered.push(event));
+    await lifecycle.stream({ runId: run.id, onEvent: (event) => delivered.push(event) });
 
     await lifecycle.finish({ runId: run.id, status: 'failed', code: null, signal: null, resumable: true });
-    const { resumed } = await lifecycle.resume(run.id);
+    const { resumed } = await lifecycle.resume({ runId: run.id });
     expect(resumed).toBe(true);
 
     await vi.advanceTimersByTimeAsync(1_000);
@@ -222,11 +222,11 @@ describe('RunLifecycle — slow-run notice', () => {
     const agentEvents = delivered.filter((event) => event.kind === 'agent');
     expect(agentEvents).toHaveLength(1);
     expect(agentEvents[0]?.payload).toMatchObject({ type: 'slow_running' });
-    expect((await lifecycle.get(run.id))?.state).toBe('running');
+    expect((await lifecycle.get({ runId: run.id }))?.state).toBe('running');
   });
 
   it('contains and reports a failure from the notice\'s own emit() rather than letting it escape as an unhandled rejection', async () => {
-    const inner = createInMemoryEventLog();
+    const inner = createInMemoryEventLog({});
     const appendError = new Error('event database is closed');
     const eventLog: EventLog = {
       ...inner,
@@ -237,7 +237,7 @@ describe('RunLifecycle — slow-run notice', () => {
       },
     };
     const onInternalError = vi.fn();
-    const lifecycle = createRunLifecycle({ eventLog, onInternalError, slowRunThresholdMs: 1_000 });
+    const lifecycle = createRunLifecycle({ eventLog }, { onInternalError, slowRunThresholdMs: 1_000 });
     const { run } = await lifecycle.start({ contextRef: 'ctx-slow-notice-error' });
 
     await vi.advanceTimersByTimeAsync(1_000);
@@ -248,6 +248,6 @@ describe('RunLifecycle — slow-run notice', () => {
       error: appendError,
     });
     // Contained, not fatal to the run: still running, exactly as before the failed notice attempt.
-    expect((await lifecycle.get(run.id))?.state).toBe('running');
+    expect((await lifecycle.get({ runId: run.id }))?.state).toBe('running');
   });
 });

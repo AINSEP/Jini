@@ -4,7 +4,7 @@ import type { RuntimeAgentDef } from '../../types.js';
 import { devinAgentDef } from '../devin.js';
 
 afterEach(() => {
-  setAcpModelProbe(null);
+  setAcpModelProbe({ probe: null });
 });
 
 describe('devinAgentDef shape', () => {
@@ -29,13 +29,13 @@ describe('devinAgentDef shape', () => {
 describe('devinAgentDef.buildArgs', () => {
   it('returns the fixed dangerous-mode ACP argv regardless of prompt/image/dir/model inputs', () => {
     const buildArgs: RuntimeAgentDef['buildArgs'] = devinAgentDef.buildArgs;
-    const args = buildArgs('any prompt', ['/img.png'], ['/extra'], { model: 'sonnet' }, { cwd: '/x' });
+    const args = buildArgs({ prompt: 'any prompt', imagePaths: ['/img.png'] }, { extraAllowedDirs: ['/extra'], options: { model: 'sonnet' }, runtimeContext: { cwd: '/x' } });
     expect(args).toEqual(['--permission-mode', 'dangerous', '--respect-workspace-trust', 'false', 'acp']);
   });
 
   it('omits --permission-mode dangerous and --respect-workspace-trust false when permissionMode is "restricted"', () => {
     const buildArgs: RuntimeAgentDef['buildArgs'] = devinAgentDef.buildArgs;
-    const args = buildArgs('hi', [], [], { permissionMode: 'restricted' });
+    const args = buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { permissionMode: 'restricted' } });
     expect(args).not.toContain('dangerous');
     expect(args).not.toContain('--respect-workspace-trust');
     expect(args).toEqual(['acp']);
@@ -43,7 +43,7 @@ describe('devinAgentDef.buildArgs', () => {
 
   it('still emits the dangerous-mode flags when permissionMode is explicitly "bypass"', () => {
     const buildArgs: RuntimeAgentDef['buildArgs'] = devinAgentDef.buildArgs;
-    expect(buildArgs('hi', [], [], { permissionMode: 'bypass' })).toEqual([
+    expect(buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { permissionMode: 'bypass' } })).toEqual([
       '--permission-mode',
       'dangerous',
       '--respect-workspace-trust',
@@ -57,14 +57,15 @@ describe('devinAgentDef.fetchModels', () => {
   it('delegates to detectAcpModels with the same fixed ACP argv and a 15s timeout', async () => {
     const seen: Array<{ bin: string; args: string[]; timeoutMs?: number | undefined }> = [];
     const stub: AcpModelProbe = {
-      detectModels: async (request) => {
+      detectModels: async (required, optional = {}) => {
+        const request = { ...optional, ...required };
         seen.push({ bin: request.bin, args: request.args, timeoutMs: request.timeoutMs });
         return [{ id: 'adaptive', label: 'adaptive' }];
       },
     };
-    setAcpModelProbe(stub);
+    setAcpModelProbe({ probe: stub });
 
-    const models = await devinAgentDef.fetchModels!('devin', {});
+    const models = await devinAgentDef.fetchModels!({ resolvedBin: 'devin', env: {} });
 
     expect(models).toEqual([{ id: 'adaptive', label: 'adaptive' }]);
     expect(seen).toHaveLength(1);
@@ -77,14 +78,15 @@ describe('devinAgentDef.fetchModels', () => {
 
   it('propagates whatever the resolved bin path is through to the probe request', async () => {
     const seen: string[] = [];
-    setAcpModelProbe({
-      detectModels: async (request) => {
+    setAcpModelProbe({ probe: {
+      detectModels: async (required, optional = {}) => {
+        const request = { ...optional, ...required };
         seen.push(request.bin);
         return [];
       },
-    });
+    } });
 
-    await devinAgentDef.fetchModels!('/abs/path/to/devin', {});
+    await devinAgentDef.fetchModels!({ resolvedBin: '/abs/path/to/devin', env: {} });
 
     expect(seen).toEqual(['/abs/path/to/devin']);
   });

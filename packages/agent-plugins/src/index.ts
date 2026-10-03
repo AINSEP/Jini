@@ -6,5 +6,7 @@ export {
   PLUGIN_SKILLS_DIRNAME,
   isMcpManifest,
   isPluginManifest,
+  validatePluginManifest,
+  validateMcpManifest,
 } from './manifest.js';
 export type { McpManifest, McpServerEntry, PluginManifest, PluginManifestAuthor } from './manifest.js';

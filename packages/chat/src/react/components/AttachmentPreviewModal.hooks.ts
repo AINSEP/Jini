@@ -58,7 +58,7 @@ function extensionOf(name: string): string {
 }
 
 /** Exported for the component's own render branch, which needs the same answer without re-deriving it from `status`. */
-export function looksLikeImageAttachment(attachment: Pick<ChatAttachment, 'kind' | 'name'>): boolean {
+export function looksLikeImageAttachment({ attachment }: { attachment: Pick<ChatAttachment, 'kind' | 'name'> }): boolean {
   return attachment.kind === 'image' || IMAGE_PREVIEW_EXTENSIONS.has(extensionOf(attachment.name));
 }
 
@@ -118,9 +118,7 @@ export interface AttachmentPreviewController {
  * read on mount (bounded in practice by the upload route's own 20 MB per-attachment cap, and by
  * {@link MAX_TEXT_PREVIEW_CHARS} for what actually renders).
  */
-export function useAttachmentPreviewModal(
-  attachment: ChatAttachment,
-  onClose: () => void,
+export function useAttachmentPreviewModal({ attachment, onClose }: { attachment: ChatAttachment; onClose: () => void }
 ): AttachmentPreviewController {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<Element | null>(null);
@@ -129,9 +127,9 @@ export function useAttachmentPreviewModal(
   const [text, setText] = useState<AttachmentTextPreview | undefined>(undefined);
   const [textLoading, setTextLoading] = useState(false);
 
-  const cachedFile = getAttachmentPreviewSource(attachment.path);
+  const cachedFile = getAttachmentPreviewSource({ path: attachment.path });
   const attemptImage =
-    !imageFailed && cachedFile !== undefined && looksLikeImageAttachment(attachment) && canCreateObjectUrl();
+    !imageFailed && cachedFile !== undefined && looksLikeImageAttachment({ attachment: attachment }) && canCreateObjectUrl();
   const attemptText = !attemptImage && cachedFile !== undefined && looksLikeTextAttachment(attachment.name);
   const status: AttachmentPreviewStatus = attemptImage ? 'image' : attemptText ? 'text' : 'unsupported';
 
@@ -222,7 +220,7 @@ export function useAttachmentPreviewModal(
     onImageError: () => setImageFailed(true),
     textLoading,
     text,
-    sizeLabel: formatAttachmentSize(attachment.size),
+    sizeLabel: formatAttachmentSize({ size: attachment.size }),
     handleNativeCancel,
     handleBackdropClick,
   };

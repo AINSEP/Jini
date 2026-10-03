@@ -7,7 +7,7 @@
  * decoupled from it: a host's transport adapter is responsible for reducing
  * wire deltas (`text_delta`, `thinking_delta`, `tool_input_delta`, ...) into
  * the persisted/renderable `AgentEvent` items below before handing them to
- * chat-core's pure helpers. See source-map.md for the provenance of this
+ * chat-core's pure helpers. See archived provenance ledger for the provenance of this
  * split and why chat-core does not itself depend on `@jini-ai/protocol`.
  */
 

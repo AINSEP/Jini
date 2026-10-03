@@ -18,8 +18,10 @@ import type { WorkspaceRecord, WorkspaceRepoPort } from "./create.js";
 export class InMemoryWorkspaceRepo implements WorkspaceRepoPort {
   /** Internal record storage. */
   private rows: WorkspaceRecord[];
+  private transactionTail: Promise<void> = Promise.resolve();
 
-  constructor(initialRows: WorkspaceRecord[] = []) {
+  constructor(requiredArgs: Record<string, never>, optionalArgs: { initialRows?: WorkspaceRecord[] } = {}) {
+    const { initialRows = [] } = optionalArgs;
     this.rows = [...initialRows];
   }
 
@@ -29,12 +31,12 @@ export class InMemoryWorkspaceRepo implements WorkspaceRepoPort {
   }
 
   /** Find workspace by unique slug. */
-  async findBySlug(slug: string): Promise<WorkspaceRecord | null> {
+  async findBySlug({ slug }: { slug: string }): Promise<WorkspaceRecord | null> {
     return this.rows.find((row) => row.slug === slug) ?? null;
   }
 
   /** Find workspace by id. */
-  async findById(id: string): Promise<WorkspaceRecord | null> {
+  async findById({ id }: { id: string }): Promise<WorkspaceRecord | null> {
     return this.rows.find((row) => row.id === id) ?? null;
   }
 
@@ -51,7 +53,26 @@ export class InMemoryWorkspaceRepo implements WorkspaceRepoPort {
   }
 
   /** Remove the row matching `id`, if present (idempotent). */
-  async delete(id: string): Promise<void> {
+  async delete({ id }: { id: string }): Promise<void> {
     this.rows = this.rows.filter((row) => row.id !== id);
+  }
+
+  /** Serializes transactions on this instance, restoring rows on failure. Non-reentrant:
+   * callers must put every competing guarded deletion through this seam. Direct repo writes
+   * do not join or wait for it; this local adapter supplies no cross-process isolation. */
+  async transaction<T>({ fn }: { fn: () => Promise<T> }): Promise<T> {
+    const previous = this.transactionTail;
+    let release!: () => void;
+    this.transactionTail = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    const before = this.rows.map((row) => ({ ...row }));
+    try {
+      return await fn();
+    } catch (error) {
+      this.rows = before;
+      throw error;
+    } finally {
+      release();
+    }
   }
 }

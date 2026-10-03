@@ -2,11 +2,11 @@
  * @jini-ai/chat-react — headless hooks + presentational components + slots for
  * a chat/artifact frontend, built on `@jini-ai/chat/core`'s framework-free
  * vocabulary. See ADS-memory/reports/jini-port/recon/r4b-webui-design.md §1/§2/§4 for the
- * spec this package implements, and source-map.md for provenance.
+ * spec this package implements, and archived provenance ledger for provenance.
  *
  * This barrel is filled in incrementally as each layer lands (hooks first,
  * then presentational components, then the `<JiniChatProvider>` composition
- * root) — see source-map.md's "Status" section for what's shipped so far.
+ * root) — see archived provenance ledger's "Status" section for what's shipped so far.
  *
  * ## Every export here is explicit. Do not reintroduce `export *`.
  *
@@ -97,11 +97,11 @@ export type {
 // this package's re-export. See ADS-memory/reports/refactor/2026-08-05-ref-001-steps-bcd-proposal.md
 // §2.4 for the full trace and §9 for the re-confirmation against the post-BYOK tree.
 //
-// The feature itself is not deleted — `./features/model-picker/index.js` still exists and still
-// works for anything inside this package that wants it (nothing currently does). This removes only
-// the root barrel's re-export of it. A future consumer that genuinely needs it gets a real ADR-worthy
-// decision (its own subpath, most likely, following Step C's pattern) instead of a standing
-// "just in case" export nobody asked for.
+// The unused feature was deleted on 2026-10-02 after re-confirming that no import or export
+// outside its own tests reached it. Model/provider selection belongs to the host-injected
+// `ModelAgentPickerSlot`, not chat's domain. A future standalone picker needs a real consumer
+// and an explicit API decision (its own subpath, most likely, following Step C's pattern)
+// instead of a standing "just in case" export nobody asked for.
 /**
  * @deprecated REF-001 Step C (2026-08-05): `ChatPane` and its companions moved to their own
  * subpath, `@jini-ai/chat/react/chat-pane` — import from there in new code. Re-exported here,
@@ -294,7 +294,7 @@ export { TodoCard } from './components/TodoCard.js';
 export type { TodoCardProps } from './components/TodoCard.js';
 /**
  * The conversation switcher — new / select / delete / search / rename-on-double-click. Storage
- * agnostic: it takes data plus callbacks, so a host backs it with `@jini-ai/sqlite`'s
+ * agnostic: it takes data plus callbacks, so a host backs it with `@jini-ai/sqlite-chat`'s
  * `ChatHistoryStore`, an HTTP endpoint, or a plain array. Drop it into `ChatPane`'s
  * `leadingAccessory` slot; it needs no changes to `ChatPane` itself.
  */
@@ -348,6 +348,7 @@ export type { JiniChatProviderProps, JiniChatSlots } from './components/JiniChat
 export { createFrontendSessionBridge } from './agent-bridge/frontend-session-bridge.js';
 export type {
   FrontendSessionBridge,
+  FrontendSessionBridgeArgs,
   FrontendSessionBridgeOptions,
 } from './agent-bridge/frontend-session-bridge.js';
 export { createDomPageDriver, currentAgentPage, type DomPageDriverOptions } from '@jini-ai/agentic/dom';

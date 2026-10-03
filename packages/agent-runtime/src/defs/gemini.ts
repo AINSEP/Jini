@@ -55,7 +55,7 @@ export const geminiAgentDef = {
       { id: 'gemini-2.5-pro', label: 'gemini-2.5-pro' },
       { id: 'gemini-2.5-flash', label: 'gemini-2.5-flash' },
     ],
-    buildArgs: (_prompt, _imagePaths, extraAllowedDirs = [], options = {}) => {
+    buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs = [], options = {} } = {}) => {
       const args = ['--output-format', 'stream-json'];
       if (agentCapabilities.get('gemini')?.skipTrust) {
         args.push(SKIP_TRUST_FLAG);

@@ -82,7 +82,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *   non-envelope value is passed through by reference with no surfaces.
  * @complexity O(n) in the number of content blocks.
  */
-export function splitToolResultSurfaces(output: unknown): SplitToolResultSurfaces {
+export function splitToolResultSurfaces({ output }: { readonly output: unknown }): SplitToolResultSurfaces {
   if (!isRecord(output)) return { modelOutput: output, surfaces: [] };
 
   const content = output['content'];

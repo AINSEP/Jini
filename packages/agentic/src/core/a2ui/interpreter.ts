@@ -1,3 +1,4 @@
+import type { Clock } from "@jini-ai/core/primitives";
 /**
  * @module interpreter
  *
@@ -54,7 +55,6 @@ import { setAtPointer } from './json-pointer.js';
 import { isComponentAllowed, type Catalog } from './catalog.js';
 import { resolveDynamicValue } from './resolve.js';
 import {
-  isLocalFunctionAction,
   type Action,
   type AgentActionEvent,
   type DynamicValue,
@@ -101,11 +101,8 @@ export type BuildActionResult =
   | { readonly ok: true; readonly kind: 'local'; readonly result: unknown }
   | { readonly ok: false; readonly reason: string };
 
-let actionIdCounter = 0;
-function nextActionId(): string {
-  actionIdCounter += 1;
-  return `a2ui-action-${actionIdCounter}-${Date.now().toString(36)}`;
-}
+/** Host ports keep action IDs and timestamps deterministic and product-independent. */
+export interface A2uiIdsPort { next(required: Record<string, never>): string }
 
 /**
  * Best-effort `surfaceId` extraction from a raw envelope's message-type-keyed body, without
@@ -131,7 +128,7 @@ function bestEffortSurfaceId(raw: unknown, key: string): string | undefined {
  * Exported and pure — it only reads `parsed`/`raw`, so the surfaceId-attribution rule can be
  * tested directly, without a live interpreter instance.
  */
-export function buildParseFailureResult(parsed: ParseFailure, raw: unknown): ApplyMessageResult {
+export function buildParseFailureResult({ parsed, raw }: { parsed: ParseFailure; raw: unknown }, _optional: Record<string, never> = {}): ApplyMessageResult {
   if (
     parsed.code === 'MISSING_VERSION'
     || parsed.code === 'UNSUPPORTED_VERSION'
@@ -161,7 +158,7 @@ export function buildParseFailureResult(parsed: ParseFailure, raw: unknown): App
     // (`bestEffortSurfaceId` requires that) — so this specific combination (object-shaped raw,
     // yet no `path`) cannot occur. Asserted, not defensively branched, per this package's
     // testing discipline (see the zod-issues-array comments elsewhere in this file).
-    return { rendererMessages: [buildValidationFailedMessage(surfaceId, parsed.path!, parsed.message)] };
+    return { rendererMessages: [buildValidationFailedMessage({ surfaceId, path: parsed.path!, message: parsed.message })] };
   }
   return { rendererMessages: [], unattributedViolation: parsed.message };
 }
@@ -175,45 +172,39 @@ export function buildParseFailureResult(parsed: ParseFailure, raw: unknown): App
  * data model, and a resolution failure becomes a typed refusal rather than a thrown error" can be
  * tested without a live interpreter instance.
  */
-export function runLocalFunctionAction(
-  dataModel: unknown,
-  catalog: Catalog,
-  action: LocalFunctionAction,
+export function runLocalFunctionAction({ dataModel, catalog, action }: { dataModel: unknown; catalog: Catalog; action: LocalFunctionAction }, _optional: Record<string, never> = {}
 ): BuildActionResult {
-  const result = resolveDynamicValue(action.functionCall, { dataModel, catalog, side: 'renderer' });
+  const result = resolveDynamicValue({ value: action.functionCall, ctx: { dataModel, catalog, side: 'renderer' } });
   return result.ok ? { ok: true, kind: 'local', result: result.value } : { ok: false, reason: result.detail };
 }
 
 export interface A2uiInterpreter {
-  applyAgentMessage(raw: unknown): ApplyMessageResult;
-  getSurface(surfaceId: string): SurfaceSnapshot | undefined;
-  listSurfaceIds(): string[];
+  applyAgentMessage(required: { raw: unknown }, _optional?: Record<string, never>): ApplyMessageResult;
+  getSurface(required: { surfaceId: string }, _optional?: Record<string, never>): SurfaceSnapshot | undefined;
+  listSurfaceIds(_required: Record<string, never>, _optional?: Record<string, never>): string[];
   /** `undefined` if the surface doesn't exist, or exists but has no component with id `'root'` yet (a legal, "still streaming in" state per the spec's own forward-reference tolerance). */
-  getRoot(surfaceId: string): ComponentInstance | undefined;
+  getRoot(required: { surfaceId: string }, _optional?: Record<string, never>): ComponentInstance | undefined;
   /** Resolves a component's `action` prop (if any) for dispatch — builds the `action` envelope for an agent-event action, or synchronously runs a local `functionCall` action. Called by a host renderer on a real user interaction (e.g. a Button click). */
-  buildAction(surfaceId: string, componentId: string, now?: () => number): BuildActionResult;
-  resolve(surfaceId: string, value: DynamicValue, itemBasePath?: string, itemIndex?: number): ReturnType<typeof resolveDynamicValue>;
-  subscribe(listener: () => void): () => void;
+  buildAction(required: { surfaceId: string; componentId: string }, optional?: { now?: ((required: Record<string, never>) => number) | undefined }): BuildActionResult;
+  resolve(required: { surfaceId: string; value: DynamicValue }, optional?: { itemBasePath?: string | undefined; itemIndex?: number | undefined }): ReturnType<typeof resolveDynamicValue>;
+  subscribe(required: { listener: (required: Record<string, never>) => void }, _optional?: Record<string, never>): (required: Record<string, never>) => void;
 }
 
-export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
+export function createA2uiInterpreter({ catalog, clock, ids }: { catalog: Catalog; clock: Clock; ids: A2uiIdsPort }, _optional: Record<string, never> = {}): A2uiInterpreter {
   const surfaces = new Map<string, SurfaceState>();
-  const listeners = new Set<() => void>();
+  const listeners = new Set<(required: Record<string, never>) => void>();
 
   function notify(): void {
-    for (const listener of listeners) listener();
+    for (const listener of listeners) listener({});
   }
 
   function applyComponentsList(surface: SurfaceState, wireComponents: ComponentsList): RendererToAgentMessage[] {
     const errors: RendererToAgentMessage[] = [];
     wireComponents.forEach((wireComponent, index) => {
       const { id, component: type, ...rest } = wireComponent;
-      if (!isComponentAllowed(catalog, type)) {
+      if (!isComponentAllowed({ catalog, componentType: type })) {
         errors.push(
-          buildValidationFailedMessage(
-            surface.surfaceId,
-            `/components/${index}/component`,
-            `Component type "${type}" is not in catalog "${catalog.catalogId}" — refused, not rendered.`,
+          buildValidationFailedMessage({ surfaceId: surface.surfaceId, path: `/components/${index}/component`, message: `Component type "${type}" is not in catalog "${catalog.catalogId}" — refused, not rendered.` }
           ),
         );
         return;
@@ -229,10 +220,7 @@ export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
         // string, not the sibling `path` pointer on the built message) never says which prop.
         const field = issue.path.length > 0 ? issue.path.join('.') : '(root)';
         errors.push(
-          buildValidationFailedMessage(
-            surface.surfaceId,
-            `/components/${index}/${issue.path.join('/')}`,
-            `Component "${id}" (${type}) failed catalog validation: ${field}: ${issue.message}`,
+          buildValidationFailedMessage({ surfaceId: surface.surfaceId, path: `/components/${index}/${issue.path.join('/')}`, message: `Component "${id}" (${type}) failed catalog validation: ${field}: ${issue.message}` }
           ),
         );
         return;
@@ -245,10 +233,10 @@ export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
   function handleCreateSurface(message: Extract<AgentToRendererMessage, { createSurface: unknown }>): RendererToAgentMessage[] {
     const { surfaceId, catalogId, components, dataModel } = message.createSurface;
     if (catalogId !== catalog.catalogId) {
-      return [buildValidationFailedMessage(surfaceId, '/createSurface/catalogId', `Unknown catalogId "${catalogId}" — this renderer only has "${catalog.catalogId}" loaded.`)];
+      return [buildValidationFailedMessage({ surfaceId, path: '/createSurface/catalogId', message: `Unknown catalogId "${catalogId}" — this renderer only has "${catalog.catalogId}" loaded.` })];
     }
     if (surfaces.has(surfaceId)) {
-      return [buildValidationFailedMessage(surfaceId, '/createSurface/surfaceId', `Surface "${surfaceId}" already exists — delete it before recreating (per spec).`)];
+      return [buildValidationFailedMessage({ surfaceId, path: '/createSurface/surfaceId', message: `Surface "${surfaceId}" already exists — delete it before recreating (per spec).` })];
     }
     const surface: SurfaceState = {
       surfaceId,
@@ -266,7 +254,7 @@ export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
     const { surfaceId, components } = message.updateComponents;
     const surface = surfaces.get(surfaceId);
     if (!surface) {
-      return [buildValidationFailedMessage(surfaceId, '/updateComponents/surfaceId', `Unknown surfaceId "${surfaceId}" — createSurface must be sent first.`)];
+      return [buildValidationFailedMessage({ surfaceId, path: '/updateComponents/surfaceId', message: `Unknown surfaceId "${surfaceId}" — createSurface must be sent first.` })];
     }
     return applyComponentsList(surface, components);
   }
@@ -275,16 +263,16 @@ export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
     const { surfaceId, path, value } = message.updateDataModel;
     const surface = surfaces.get(surfaceId);
     if (!surface) {
-      return [buildValidationFailedMessage(surfaceId, '/updateDataModel/surfaceId', `Unknown surfaceId "${surfaceId}" — createSurface must be sent first.`)];
+      return [buildValidationFailedMessage({ surfaceId, path: '/updateDataModel/surfaceId', message: `Unknown surfaceId "${surfaceId}" — createSurface must be sent first.` })];
     }
-    surface.dataModel = setAtPointer(surface.dataModel, path ?? '/', value);
+    surface.dataModel = setAtPointer({ doc: surface.dataModel, pointer: path ?? '/', value });
     return [];
   }
 
   function handleDeleteSurface(message: Extract<AgentToRendererMessage, { deleteSurface: unknown }>): RendererToAgentMessage[] {
     const { surfaceId } = message.deleteSurface;
     if (!surfaces.has(surfaceId)) {
-      return [buildValidationFailedMessage(surfaceId, '/deleteSurface/surfaceId', `Unknown surfaceId "${surfaceId}" — nothing to delete.`)];
+      return [buildValidationFailedMessage({ surfaceId, path: '/deleteSurface/surfaceId', message: `Unknown surfaceId "${surfaceId}" — nothing to delete.` })];
     }
     // Dropping the whole SurfaceState also drops its pendingActions map — any actionResponse that
     // arrives afterward for an actionId that lived here simply won't be found (handled gracefully
@@ -296,17 +284,17 @@ export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
 
   function handleCallFunction(message: Extract<AgentToRendererMessage, { callFunction: unknown }>): RendererToAgentMessage[] {
     const { functionCallId, callFunction, wantResponse } = message;
-    const result = resolveDynamicValue(callFunction, { dataModel: undefined, catalog, side: 'agent' });
+    const result = resolveDynamicValue({ value: callFunction, ctx: { dataModel: undefined, catalog, side: 'agent' } });
     if (!result.ok) {
       const code = result.reason === 'FUNCTION_NOT_CALLABLE_FROM_SIDE' || result.reason === 'FUNCTION_NOT_REGISTERED' ? 'INVALID_FUNCTION_CALL' : result.reason;
-      return [buildGenericErrorMessage(code, result.detail, { functionCallId })];
+      return [buildGenericErrorMessage({ code, message: result.detail, target: { functionCallId } })];
     }
     if (!wantResponse) return [];
     // `?? null` because `functionResponse.value` is required on the wire and JSON has no
     // `undefined`: a `returnType: 'void'` function (the catalog has three) resolves to
     // `undefined`, and passing that straight through built a message whose `value` vanished on
     // serialization — one this package's own `parseRendererToAgentMessage` correctly refuses.
-    return [buildFunctionResponseMessage({ functionCallId, call: callFunction.call, value: result.value ?? null })];
+    return [buildFunctionResponseMessage({ payload: { functionCallId, call: callFunction.call, value: result.value ?? null } })];
   }
 
   function handleActionResponse(message: Extract<AgentToRendererMessage, { actionResponse: unknown }>): RendererToAgentMessage[] {
@@ -316,7 +304,7 @@ export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
       if (!pending) continue;
       surface.pendingActions.delete(actionId);
       if ('value' in actionResponse && pending.responsePath) {
-        surface.dataModel = setAtPointer(surface.dataModel, pending.responsePath, actionResponse.value);
+        surface.dataModel = setAtPointer({ doc: surface.dataModel, pointer: pending.responsePath, value: actionResponse.value });
       }
       return [];
     }
@@ -336,35 +324,35 @@ export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
     return handleActionResponse(message);
   }
 
-  function applyAgentMessage(raw: unknown): ApplyMessageResult {
-    const parsed = parseAgentToRendererMessage(raw);
-    if (!parsed.ok) return buildParseFailureResult(parsed, raw);
+  function applyAgentMessage({ raw }: { raw: unknown }, _optional: Record<string, never> = {}): ApplyMessageResult {
+    const parsed = parseAgentToRendererMessage({ raw });
+    if (!parsed.ok) return buildParseFailureResult({ parsed, raw });
 
     const rendererMessages = dispatchAgentMessage(parsed.message);
     notify();
     return { rendererMessages };
   }
 
-  function getSurface(surfaceId: string): SurfaceSnapshot | undefined {
+  function getSurface({ surfaceId }: { surfaceId: string }, _optional: Record<string, never> = {}): SurfaceSnapshot | undefined {
     const surface = surfaces.get(surfaceId);
     if (!surface) return undefined;
     return { surfaceId: surface.surfaceId, catalogId: surface.catalogId, components: surface.components, dataModel: surface.dataModel };
   }
 
-  function getRoot(surfaceId: string): ComponentInstance | undefined {
+  function getRoot({ surfaceId }: { surfaceId: string }, _optional: Record<string, never> = {}): ComponentInstance | undefined {
     return surfaces.get(surfaceId)?.components.get('root');
   }
 
-  function resolve(surfaceId: string, value: DynamicValue, itemBasePath?: string, itemIndex?: number) {
+  function resolve({ surfaceId, value }: { surfaceId: string; value: DynamicValue }, { itemBasePath, itemIndex }: { itemBasePath?: string | undefined; itemIndex?: number | undefined } = {}) {
     const surface = surfaces.get(surfaceId);
     const itemScope = itemBasePath !== undefined && itemIndex !== undefined ? { basePath: itemBasePath, index: itemIndex } : undefined;
-    return resolveDynamicValue(value, { dataModel: surface?.dataModel, catalog, side: 'renderer', ...(itemScope ? { itemScope } : {}) });
+    return resolveDynamicValue({ value, ctx: { dataModel: surface?.dataModel, catalog, side: 'renderer' } }, { itemScope });
   }
 
   function resolveActionContext(context: Record<string, DynamicValue> | undefined, surfaceId: string): Record<string, unknown> {
     const resolved: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(context ?? {})) {
-      const result = resolve(surfaceId, value);
+      const result = resolve({ surfaceId, value });
       resolved[key] = result.ok ? result.value : null;
     }
     return resolved;
@@ -390,10 +378,10 @@ export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
     surfaceId: string,
     componentId: string,
     event: AgentActionEvent,
-    now: () => number,
+    now: (required: Record<string, never>) => number,
   ): BuildActionResult {
     const { name, context, wantResponse, responsePath } = event;
-    const actionId = wantResponse ? nextActionId() : undefined;
+    const actionId = wantResponse ? ids.next({}) : undefined;
     if (actionId) {
       surface.pendingActions.set(actionId, { name, sourceComponentId: componentId, responsePath });
     }
@@ -401,21 +389,21 @@ export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
       name,
       surfaceId,
       sourceComponentId: componentId,
-      timestamp: new Date(now()).toISOString(),
+      timestamp: new Date(now({})).toISOString(),
       context: resolveActionContext(context, surfaceId),
       ...(wantResponse !== undefined ? { wantResponse } : {}),
       ...(actionId !== undefined ? { actionId } : {}),
     };
-    return { ok: true, kind: 'agent', message: buildActionMessage(payload) };
+    return { ok: true, kind: 'agent', message: buildActionMessage({ payload }) };
   }
 
-  function buildAction(surfaceId: string, componentId: string, now: () => number = Date.now): BuildActionResult {
+  function buildAction({ surfaceId, componentId }: { surfaceId: string; componentId: string }, { now }: { now?: ((required: Record<string, never>) => number) | undefined } = {}): BuildActionResult {
     const target = resolveActionTarget(surfaceId, componentId);
     if (!target.ok) return target;
     const { surface, action } = target;
 
-    if (isLocalFunctionAction(action)) {
-      return runLocalFunctionAction(surface.dataModel, catalog, action);
+    if ('functionCall' in action) {
+      return runLocalFunctionAction({ dataModel: surface.dataModel, catalog, action });
     }
     // `ActionSchema` (validated when this component's props were ingested — see
     // `applyComponentsList`) is a closed 2-branch union: `{event}` | `{functionCall}`. Having
@@ -424,19 +412,19 @@ export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
     // malformed third shape could never have made it into `component.props.action` in the first
     // place. (Not defensively branched-and-left-untested, per this package's own testing
     // discipline — see the zod-issues-array comments above for the same principle.)
-    return buildAgentEventAction(surface, surfaceId, componentId, action.event, now);
+    return buildAgentEventAction(surface, surfaceId, componentId, action.event, now ?? (() => clock.nowMs()));
   }
 
   return {
     applyAgentMessage,
     getSurface,
-    listSurfaceIds: () => [...surfaces.keys()],
+    listSurfaceIds: (_required: Record<string, never>) => [...surfaces.keys()],
     getRoot,
     buildAction,
     resolve,
-    subscribe: (listener) => {
+    subscribe: ({ listener }: { listener: (required: Record<string, never>) => void }) => {
       listeners.add(listener);
-      return () => listeners.delete(listener);
+      return (_required: Record<string, never>) => { listeners.delete(listener); };
     },
   };
 }

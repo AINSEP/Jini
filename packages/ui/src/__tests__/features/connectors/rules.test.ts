@@ -36,7 +36,7 @@ function makeConnector(overrides: Partial<Connector> = {}): Connector {
   return {
     id: 'slack',
     name: 'Slack',
-    provider: 'Composio',
+    provider: 'Connector Provider',
     category: 'communication',
     status: 'available',
     tools: [],
@@ -367,10 +367,10 @@ describe('getConnectorDisplayToolCount / hasLoadedAllAdvertisedConnectorTools', 
 
 describe('scopeConnectorsToProvider', () => {
   const tabs = [
-    { id: 'composio', label: 'Composio', match: (c: Connector) => c.provider === 'Composio' },
+    { id: 'connector-provider', label: 'Connector Provider', match: (c: Connector) => c.provider === 'Connector Provider' },
     { id: 'zapier', label: 'Zapier', match: (c: Connector) => c.provider === 'Zapier' },
   ];
-  const connectors = [makeConnector({ id: 'a', provider: 'Composio' }), makeConnector({ id: 'b', provider: 'Zapier' })];
+  const connectors = [makeConnector({ id: 'a', provider: 'Connector Provider' }), makeConnector({ id: 'b', provider: 'Zapier' })];
 
   it('filters to the selected tab', () => {
     expect(scopeConnectorsToProvider(connectors, tabs, 'zapier').map((c) => c.id)).toEqual(['b']);
@@ -525,7 +525,7 @@ describe('connectorPanelAlerts', () => {
 
 describe('getDisplayableConnectorAccountLabel', () => {
   it('shows the account label regardless of provider (no provider-specific policy baked in)', () => {
-    expect(getDisplayableConnectorAccountLabel(makeConnector({ accountLabel: 'me@x.com', auth: { provider: 'composio' } }))).toBe('me@x.com');
+    expect(getDisplayableConnectorAccountLabel(makeConnector({ accountLabel: 'me@x.com', auth: { provider: 'connector-provider' } }))).toBe('me@x.com');
     expect(getDisplayableConnectorAccountLabel(makeConnector({ accountLabel: 'me@x.com', auth: { provider: 'zapier' } }))).toBe('me@x.com');
   });
 

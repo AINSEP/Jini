@@ -9,7 +9,7 @@
  * @returns The value re-serialized with two-space indentation, or `text` as given.
  * @complexity O(n) in `text.length`.
  */
-export function formatToolOutputForDisplay(text: string): string {
+export function formatToolOutputForDisplay({ text }: { text: string }): string {
   const trimmed = text.trim();
   const first = trimmed[0];
   if (first !== '{' && first !== '[') return text;

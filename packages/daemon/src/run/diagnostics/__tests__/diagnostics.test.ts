@@ -9,21 +9,21 @@ import type { RunEventForDiagnostics } from '../diagnostics.js';
 
 describe('stderrLineCountBucket', () => {
   it('maps line counts to low-cardinality buckets across every boundary', () => {
-    expect(stderrLineCountBucket(0)).toBe('none');
-    expect(stderrLineCountBucket(-1)).toBe('none');
-    expect(stderrLineCountBucket(5)).toBe('1_5');
-    expect(stderrLineCountBucket(6)).toBe('6_20');
-    expect(stderrLineCountBucket(20)).toBe('6_20');
-    expect(stderrLineCountBucket(21)).toBe('21_100');
-    expect(stderrLineCountBucket(100)).toBe('21_100');
-    expect(stderrLineCountBucket(101)).toBe('gt_100');
+    expect(stderrLineCountBucket({ count: 0 })).toBe('none');
+    expect(stderrLineCountBucket({ count: -1 })).toBe('none');
+    expect(stderrLineCountBucket({ count: 5 })).toBe('1_5');
+    expect(stderrLineCountBucket({ count: 6 })).toBe('6_20');
+    expect(stderrLineCountBucket({ count: 20 })).toBe('6_20');
+    expect(stderrLineCountBucket({ count: 21 })).toBe('21_100');
+    expect(stderrLineCountBucket({ count: 100 })).toBe('21_100');
+    expect(stderrLineCountBucket({ count: 101 })).toBe('gt_100');
   });
 });
 
 describe('collectStderrTailSummary', () => {
   it('returns undefined when called with no events and when no stderr was recorded', () => {
-    expect(collectStderrTailSummary()).toBeUndefined();
-    expect(collectStderrTailSummary([{ event: 'stdout', data: 'x\n' }])).toBeUndefined();
+    expect(collectStderrTailSummary({  })).toBeUndefined();
+    expect(collectStderrTailSummary({  }, { events: [{ event: 'stdout', data: 'x\n' }] })).toBeUndefined();
   });
 
   it('accumulates stderr chunks from string, {chunk}, and {text} shapes, ignoring other data', () => {
@@ -36,21 +36,19 @@ describe('collectStderrTailSummary', () => {
       { event: 'stderr', data: ['nope'] }, // array → null chunk → skipped
       { event: 'agent', data: 'ignored' },
     ];
-    const summary = collectStderrTailSummary(events);
+    const summary = collectStderrTailSummary({  }, { events: events });
     expect(summary).toEqual({ tail: 'a line\nb line\nc line', lineCount: 3, truncated: false });
   });
 
   it('applies the injected redactor to the collected tail', () => {
-    const summary = collectStderrTailSummary(
-      [{ event: 'stderr', data: 'token=SECRET-VALUE now\n' }],
-      (text) => text.replace(/SECRET-\w+/g, '[REDACTED]'),
+    const summary = collectStderrTailSummary({  }, { events: [{ event: 'stderr', data: 'token=SECRET-VALUE now\n' }], redact: ({ text }) => text.replace(/SECRET-\w+/g, '[REDACTED]') }
     );
     expect(summary?.tail).toBe('token=[REDACTED] now');
   });
 
   it('keeps only the last 20 lines and flags line truncation', () => {
     const data = Array.from({ length: 25 }, (_, i) => `line-${i}`).join('\n') + '\n';
-    const summary = collectStderrTailSummary([{ event: 'stderr', data }]);
+    const summary = collectStderrTailSummary({  }, { events: [{ event: 'stderr', data }] });
     expect(summary?.lineCount).toBe(25);
     expect(summary?.truncated).toBe(true);
     expect(summary?.tail.split('\n')).toHaveLength(20);
@@ -58,7 +56,7 @@ describe('collectStderrTailSummary', () => {
   });
 
   it('byte-caps a single oversized line and flags truncation', () => {
-    const summary = collectStderrTailSummary([{ event: 'stderr', data: 'x'.repeat(5000) + '\n' }]);
+    const summary = collectStderrTailSummary({  }, { events: [{ event: 'stderr', data: 'x'.repeat(5000) + '\n' }] });
     expect(summary?.lineCount).toBe(1);
     expect(summary?.truncated).toBe(true);
     expect(Buffer.byteLength(summary?.tail ?? '', 'utf8')).toBeLessThanOrEqual(4 * 1024);
@@ -75,12 +73,12 @@ describe('collectStdoutTailSummary', () => {
       { event: 'stdout', data: null },
       { event: 'stdout', data: [1, 2] },
     ];
-    expect(collectStdoutTailSummary(events)).toEqual({
+    expect(collectStdoutTailSummary({  }, { events: events })).toEqual({
       tail: 'out-1\nout-2\nout-3',
       lineCount: 3,
       truncated: false,
     });
-    expect(collectStdoutTailSummary()).toBeUndefined();
+    expect(collectStdoutTailSummary({  })).toBeUndefined();
   });
 });
 

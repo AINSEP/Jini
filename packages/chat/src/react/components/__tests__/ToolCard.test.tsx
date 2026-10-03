@@ -4,7 +4,7 @@ import { describe, expect, it, afterEach, vi } from 'vitest';
 import { ToolCard } from '../ToolCard.js';
 import { registerToolRenderer, clearToolRenderers } from '../../tool-renderer-registry.js';
 
-afterEach(() => clearToolRenderers());
+afterEach(() => clearToolRenderers({}));
 
 describe('ToolCard', () => {
   it('renders a Bash card with the command and output', async () => {
@@ -151,7 +151,7 @@ describe('ToolCard', () => {
   });
 
   it('prefers a registered custom renderer over the built-in family card', () => {
-    registerToolRenderer('Bash', (props) => <div data-testid="custom">{props.name}:{props.status}</div>);
+    registerToolRenderer({ name: 'Bash', renderer: (props) => <div data-testid="custom">{props.name}:{props.status}</div> });
     render(<ToolCard use={{ kind: 'tool_use', id: 't4', name: 'Bash', input: { command: 'x' } }} runSucceeded />);
     expect(screen.getByTestId('custom')).toHaveTextContent('Bash:complete');
   });
@@ -164,9 +164,9 @@ describe('ToolCard', () => {
 
   it('falls back to the built-in family card when a custom renderer throws', () => {
     const err = new Error('boom');
-    registerToolRenderer('Bash', () => {
+    registerToolRenderer({ name: 'Bash', renderer: () => {
       throw err;
-    });
+    } });
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     render(<ToolCard use={{ kind: 'tool_use', id: 't6', name: 'Bash', input: { command: 'x' } }} runSucceeded />);
     expect(screen.getByText('Bash')).toBeInTheDocument();

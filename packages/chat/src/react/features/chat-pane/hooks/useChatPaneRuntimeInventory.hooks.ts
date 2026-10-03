@@ -66,8 +66,8 @@ export function useChatPaneRuntimeInventory({
   const [connectingAgents, setConnectingAgents] = useState(false);
   const [daemonOnline, setDaemonOnline] = useState(false);
   const [runtimeInventoryError, setRuntimeInventoryError] = useState<Error | null>(null);
-  const inventory = useLatestOperation();
-  const health = useLatestOperation();
+  const inventory = useLatestOperation({});
+  const health = useLatestOperation({});
   const retry = useInventoryRetry(retryDelaysMs);
 
   useEffect(() => {
@@ -85,14 +85,14 @@ export function useChatPaneRuntimeInventory({
     retry.cancel();
     setScanningAgents(true);
     setRuntimeInventoryError(null);
-    await inventory.run(async (token) => {
+    await inventory.run({ body: async (token) => {
       const nextAgents = await (rescan ? access.rescanAgents() : access.listAgents());
       token.ensureCurrent();
       retry.answered();
       setAgents([...nextAgents]);
       setConnectingAgents(false);
       setScanningAgents(false);
-    }, (error) => {
+    }, onError: (error) => {
       // A failed load after a good answer keeps that inventory on screen. Before one there is no
       // last-good to keep: clear to empty, report "connecting", and try again on the backoff.
       if (!retry.hasAnswer()) {
@@ -102,7 +102,7 @@ export function useChatPaneRuntimeInventory({
       }
       setRuntimeInventoryError(error);
       setScanningAgents(false);
-    });
+    } });
   }, [access, inventory, retry]);
 
   /** A fresh attempt now, with the backoff restarted — only while nothing has answered yet. */
@@ -119,15 +119,15 @@ export function useChatPaneRuntimeInventory({
     // below) all sit behind their own `if (!access) return` — `access` is guaranteed defined by
     // the time any one runs.
     const runtimeAccess = access as ChatPaneRuntimeAccess;
-    await health.run(async (token) => {
+    await health.run({ body: async (token) => {
       const online = await runtimeAccess.daemonOnline();
       token.ensureCurrent();
       setDaemonOnline(online);
       if (retry.observeOnline(online)) reloadIfUnanswered();
-    }, () => {
+    }, onError: () => {
       retry.observeOnline(false);
       setDaemonOnline(false);
-    });
+    } });
   }, [access, health, reloadIfUnanswered, retry]);
 
   useEffect(() => {

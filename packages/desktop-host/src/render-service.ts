@@ -27,6 +27,8 @@ export interface RenderResourcePolicy {
   javascript?: boolean;
   allowNavigation?: boolean;
   allowedOrigins?: string[];
+  /** Explicit opt-out from the default remote-network block, used only when no allowlist is supplied. */
+  allowUnrestrictedNetwork?: boolean;
 }
 
 export interface RenderOptions {
@@ -65,7 +67,7 @@ export type RenderServiceErrorCode = 'timeout' | 'aborted' | 'load-failed' | 'na
 export class RenderServiceError extends Error {
   readonly code: RenderServiceErrorCode;
 
-  constructor(message: string, code: RenderServiceErrorCode) {
+  constructor({ message, code }: { message: string; code: RenderServiceErrorCode }) {
     super(message);
     this.name = 'RenderServiceError';
     this.code = code;
@@ -73,21 +75,21 @@ export class RenderServiceError extends Error {
 }
 
 export interface RenderService {
-  renderToPdf(html: string, options?: RenderToPdfOptions): Promise<Uint8Array>;
-  capture(html: string, options?: CaptureOptions): Promise<Uint8Array>;
-  exportArtifact(html: string, options: ExportArtifactOptions): Promise<unknown>;
+  renderToPdf({ html }: { html: string }, options?: RenderToPdfOptions): Promise<Uint8Array>;
+  capture({ html }: { html: string }, options?: CaptureOptions): Promise<Uint8Array>;
+  exportArtifact(requiredArgs: { html: string; format: string }, options?: Omit<ExportArtifactOptions, 'format'>): Promise<unknown>;
 }
 
 /** Data-URL-encodes HTML for loading into an offscreen renderer, base64 (not `encodeURIComponent`) to avoid per-platform URL-length/charset surprises with large documents. */
-export function htmlToDataUrl(html: string): string {
+export function htmlToDataUrl({ html }: { html: string }): string {
   return `data:text/html;base64,${Buffer.from(html, 'utf8').toString('base64')}`;
 }
 
-export function isOriginAllowed(url: string, allowedOrigins: string[] | undefined): boolean {
-  if (allowedOrigins == null) return true;
+export function isOriginAllowed({ url }: { url: string }, { allowedOrigins, allowUnrestrictedNetwork }: { allowedOrigins?: string[] | undefined; allowUnrestrictedNetwork?: boolean | undefined } = {}): boolean {
   if (url.startsWith('data:') || url.startsWith('about:')) return true;
+  if (allowedOrigins == null && allowUnrestrictedNetwork === true) return true;
   try {
-    return allowedOrigins.includes(new URL(url).origin);
+    return (allowedOrigins ?? []).includes(new URL(url).origin);
   } catch {
     return false;
   }
@@ -98,8 +100,8 @@ export function isOriginAllowed(url: string, allowedOrigins: string[] | undefine
  * normalizing both into `RenderServiceError`. Shared by every adapter so
  * the timeout/abort contract behaves identically regardless of backend.
  */
-export async function withRenderTimeout<T>(promise: Promise<T>, timeoutMs: number | undefined, signal: AbortSignal | undefined): Promise<T> {
-  if (signal?.aborted) throw new RenderServiceError('render aborted before starting', 'aborted');
+export async function withRenderTimeout<T>({ promise }: { promise: Promise<T> }, { timeoutMs, signal }: { timeoutMs?: number | undefined; signal?: AbortSignal | undefined } = {}): Promise<T> {
+  if (signal?.aborted) throw new RenderServiceError({ message: 'render aborted before starting', code: 'aborted' });
   if (timeoutMs == null && signal == null) return promise;
 
   return await new Promise<T>((resolve, reject) => {
@@ -115,14 +117,14 @@ export async function withRenderTimeout<T>(promise: Promise<T>, timeoutMs: numbe
         ? null
         : setTimeout(() => {
             settled = true;
-            reject(new RenderServiceError(`render timed out after ${timeoutMs}ms`, 'timeout'));
+            reject(new RenderServiceError({ message: `render timed out after ${timeoutMs}ms`, code: 'timeout' }));
           }, timeoutMs);
 
     const onAbort = () => {
       if (settled) return;
       settled = true;
       if (timer != null) clearTimeout(timer);
-      reject(new RenderServiceError('render aborted', 'aborted'));
+      reject(new RenderServiceError({ message: 'render aborted', code: 'aborted' }));
     };
     signal?.addEventListener('abort', onAbort, { once: true });
 

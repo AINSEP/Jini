@@ -127,7 +127,7 @@ export type FieldRefusal = FieldReadRefusal | 'not-text' | 'read-only' | 'disabl
  * @param field - The field's attributes.
  * @returns The first secrecy refusal, or `null` when the value may be reported.
  */
-export function findFieldReadRefusal(field: FieldDescriptor): FieldReadRefusal | null {
+export function findFieldReadRefusal({ field }: { field: FieldDescriptor }, _optional: Record<string, never> = {}): FieldReadRefusal | null {
   const type = field.type?.toLowerCase();
   if (type !== undefined && DENIED_TYPES.has(type)) return 'denied-type';
 
@@ -172,8 +172,8 @@ export function findFieldReadRefusal(field: FieldDescriptor): FieldReadRefusal |
  * @param field - The field's attributes.
  * @returns The first refusal reason, or `null` when the field may be filled.
  */
-export function findFieldFillRefusal(field: FieldDescriptor): FieldRefusal | null {
-  const secrecy = findFieldReadRefusal(field);
+export function findFieldFillRefusal({ field }: { field: FieldDescriptor }, _optional: Record<string, never> = {}): FieldRefusal | null {
+  const secrecy = findFieldReadRefusal({ field });
   if (secrecy !== null) return secrecy;
   const type = field.type?.toLowerCase();
   if (type !== undefined && NON_TEXT_TYPES.has(type)) return 'not-text';
@@ -198,12 +198,12 @@ const FIELD_READ_REFUSAL_MESSAGES: Record<FieldReadRefusal, string> = {
 };
 
 /** Model-readable reason for a refusal, so a blocked fill explains itself instead of failing opaquely. */
-export function describeFieldRefusal(refusal: FieldRefusal): string {
+export function describeFieldRefusal({ refusal }: { refusal: FieldRefusal }, _optional: Record<string, never> = {}): string {
   return FIELD_REFUSAL_MESSAGES[refusal];
 }
 
 /** Model-readable reason a value was withheld, so a caller knows the field has contents it may not see rather than assuming it is empty. */
-export function describeFieldReadRefusal(refusal: FieldReadRefusal): string {
+export function describeFieldReadRefusal({ refusal }: { refusal: FieldReadRefusal }, _optional: Record<string, never> = {}): string {
   return FIELD_READ_REFUSAL_MESSAGES[refusal];
 }
 
@@ -237,7 +237,7 @@ export interface NormalizedLabel {
  * @param maxLength - Cap, defaulting to {@link MAX_AGENT_LABEL_LENGTH}.
  * @returns The bounded text and whether anything was cut.
  */
-export function normalizeAgentLabel(raw: string, maxLength = MAX_AGENT_LABEL_LENGTH): NormalizedLabel {
+export function normalizeAgentLabel({ raw }: { raw: string }, { maxLength = MAX_AGENT_LABEL_LENGTH }: { maxLength?: number | undefined } = {}): NormalizedLabel {
   const stripped = raw.replace(CONTROL_AND_BIDI, ' ');
   const collapsed = stripped.replace(/\s+/g, ' ').trim();
   if (collapsed.length <= maxLength) return { text: collapsed, truncated: false };

@@ -8,7 +8,7 @@ interface Node extends ComponentLike {
 function map(nodes: Node[]): Map<string, Node> {
   return new Map(nodes.map((n) => [n.id, n]));
 }
-const getChildIds = (n: Node) => n.children;
+const getChildIds = ({ component: n }: { component: Node }) => n.children;
 
 describe('flattenRenderTree', () => {
   it('walks a simple tree depth-first, pre-order', () => {
@@ -18,7 +18,7 @@ describe('flattenRenderTree', () => {
       { id: 'b', children: ['c'] },
       { id: 'c', children: [] },
     ]);
-    expect(flattenRenderTree(components, 'root', getChildIds)).toEqual([
+    expect(flattenRenderTree({ components, rootId: 'root', getChildIds })).toEqual([
       { id: 'root', depth: 0, status: 'ok' },
       { id: 'a', depth: 1, status: 'ok' },
       { id: 'b', depth: 1, status: 'ok' },
@@ -28,7 +28,7 @@ describe('flattenRenderTree', () => {
 
   it('adversarial: a child id referencing a component that does not exist is emitted as a "missing" leaf, not thrown', () => {
     const components = map([{ id: 'root', children: ['ghost'] }]);
-    expect(flattenRenderTree(components, 'root', getChildIds)).toEqual([
+    expect(flattenRenderTree({ components, rootId: 'root', getChildIds })).toEqual([
       { id: 'root', depth: 0, status: 'ok' },
       { id: 'ghost', depth: 1, status: 'missing' },
     ]);
@@ -39,7 +39,7 @@ describe('flattenRenderTree', () => {
       { id: 'a', children: ['b'] },
       { id: 'b', children: ['a'] },
     ]);
-    expect(flattenRenderTree(components, 'a', getChildIds)).toEqual([
+    expect(flattenRenderTree({ components, rootId: 'a', getChildIds })).toEqual([
       { id: 'a', depth: 0, status: 'ok' },
       { id: 'b', depth: 1, status: 'ok' },
       { id: 'a', depth: 2, status: 'cycle' },
@@ -48,7 +48,7 @@ describe('flattenRenderTree', () => {
 
   it('adversarial: a self-reference (A -> A) also terminates', () => {
     const components = map([{ id: 'a', children: ['a'] }]);
-    expect(flattenRenderTree(components, 'a', getChildIds)).toEqual([
+    expect(flattenRenderTree({ components, rootId: 'a', getChildIds })).toEqual([
       { id: 'a', depth: 0, status: 'ok' },
       { id: 'a', depth: 1, status: 'cycle' },
     ]);
@@ -61,13 +61,13 @@ describe('flattenRenderTree', () => {
       { id: 'b', children: ['c'] },
       { id: 'c', children: [] },
     ]);
-    const result = flattenRenderTree(components, 'root', getChildIds);
+    const result = flattenRenderTree({ components, rootId: 'root', getChildIds });
     expect(result.filter((n) => n.status === 'cycle')).toEqual([]);
     expect(result.filter((n) => n.id === 'c')).toHaveLength(2);
   });
 
   it('the root id itself missing produces a single "missing" node, not a crash', () => {
-    expect(flattenRenderTree(map([]), 'root', getChildIds)).toEqual([{ id: 'root', depth: 0, status: 'missing' }]);
+    expect(flattenRenderTree({ components: map([]), rootId: 'root', getChildIds })).toEqual([{ id: 'root', depth: 0, status: 'missing' }]);
   });
 });
 
@@ -94,7 +94,7 @@ describe('flattenRenderTree — bounded against untrusted trees', () => {
     // 10,000 is comfortably past where the recursive walk died (measured: fine at 6,000,
     // RangeError at 8,000) and comfortably under MAX_RENDER_NODES, so this measures depth
     // safety alone rather than the node cap below.
-    const result = flattenRenderTree(chain(10_000), 'n0', getChildIds);
+    const result = flattenRenderTree({ components: chain(10_000), rootId: 'n0', getChildIds });
     expect(result).toHaveLength(10_000);
     expect(result[0]).toEqual({ id: 'n0', depth: 0, status: 'ok' });
     expect(result[9_999]).toEqual({ id: 'n9999', depth: 9_999, status: 'ok' });
@@ -106,7 +106,7 @@ describe('flattenRenderTree — bounded against untrusted trees', () => {
     for (let i = 0; i < 24; i += 1) {
       nodes.push({ id: `n${i}`, children: i + 1 < 24 ? [`n${i + 1}`, `n${i + 1}`] : [] });
     }
-    const result = flattenRenderTree(map(nodes), 'n0', getChildIds);
+    const result = flattenRenderTree({ components: map(nodes), rootId: 'n0', getChildIds });
     expect(result).toHaveLength(MAX_RENDER_NODES + 1);
     // The cap is reported, not silently applied: the last node tells a renderer the tree was cut
     // short, the same way `missing`/`cycle` make those two degradations visible.
@@ -115,7 +115,7 @@ describe('flattenRenderTree — bounded against untrusted trees', () => {
   });
 
   it('leaves a tree just under the cap untouched', () => {
-    const result = flattenRenderTree(chain(MAX_RENDER_NODES), 'n0', getChildIds);
+    const result = flattenRenderTree({ components: chain(MAX_RENDER_NODES), rootId: 'n0', getChildIds });
     expect(result).toHaveLength(MAX_RENDER_NODES);
     expect(result.some((node) => node.status === 'truncated')).toBe(false);
   });

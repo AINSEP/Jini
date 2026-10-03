@@ -6,7 +6,7 @@
  * `ResourceBoardPort` nor `ResourceRowListPort` has an "add" concept at all
  * — both origins delegate creation entirely to host UI (DesignsTab's
  * `onNewProject`, TasksView's template-gallery + `NewAutomationModal`, both
- * out of this primitive's scope, see `packages/ui/source-map.md`'s
+ * out of this primitive's scope, see `packages/ui/archived provenance ledger`'s
  * "Dropped" list). So both fakes below can ship a genuinely useful
  * zero-config default, same reasoning as `features/asset-grid`'s read-only
  * fake.

@@ -12,12 +12,12 @@ describe('isAgentEventAction / isLocalFunctionAction', () => {
   const localAction: Action = { functionCall: { call: 'and', args: { values: [true, true] } } };
 
   it('correctly discriminates an agent-event action', () => {
-    expect(isAgentEventAction(agentAction)).toBe(true);
-    expect(isAgentEventAction(localAction)).toBe(false);
+    expect(isAgentEventAction({ action: agentAction })).toBe(true);
+    expect(isAgentEventAction({ action: localAction })).toBe(false);
   });
 
   it('correctly discriminates a local functionCall action', () => {
-    expect(isLocalFunctionAction(localAction)).toBe(true);
-    expect(isLocalFunctionAction(agentAction)).toBe(false);
+    expect(isLocalFunctionAction({ action: localAction })).toBe(true);
+    expect(isLocalFunctionAction({ action: agentAction })).toBe(false);
   });
 });

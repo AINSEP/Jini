@@ -1,5 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { fetchWithTimeout } from '@jini-ai/platform';
+import type { HttpClientPort } from '@jini-ai/core/primitives';
 import { GithubApiRegistryClient } from '../github-client.js';
+
+// Bind the existing platform timeout behavior to the transport port; global fetch is stubbed below.
+const http: HttpClientPort = {
+  async send({ request }, optional = {}) {
+    const response = await fetchWithTimeout(request.url, {
+      method: request.method, headers: request.headers,
+      ...(request.body === undefined ? {} : { body: request.body }),
+      ...(request.signal === undefined ? {} : { signal: request.signal }),
+      ...(optional.redirect === undefined ? {} : { redirect: optional.redirect }),
+    }, { timeoutMs: request.totalDeadlineMs ?? request.idleTimeoutMs ?? request.timeoutMs ?? 15_000 });
+    return { status: response.status, headers: Object.fromEntries(response.headers.entries()), bodyText: await response.text() };
+  },
+};
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -14,6 +29,16 @@ describe('GithubApiRegistryClient.readManifest', () => {
     vi.unstubAllGlobals();
   });
 
+  // REGRESSION: fails if readManifest restores this.http.fetch followed by readGithubJson(Response).
+  it('propagates body transport failure before attempting to interpret GitHub JSON', async () => {
+    const failure = new Error('response stream interrupted');
+    const body = new ReadableStream<Uint8Array>({ start(controller) { controller.error(failure); } });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body, { status: 200 })));
+    const client = new GithubApiRegistryClient({ http });
+    await expect(client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'index.json' }))
+      .rejects.toBe(failure);
+  });
+
   it('reads and decodes a base64 manifest file, sending ref as a query param and an Authorization header when a token is configured', async () => {
     const manifest = { specVersion: '1.0.0', name: 'reg', version: '1.0.0', entries: [] };
     let seenUrl = '';
@@ -26,8 +51,8 @@ describe('GithubApiRegistryClient.readManifest', () => {
         return jsonResponse(200, { type: 'file', encoding: 'base64', content: base64(JSON.stringify(manifest)), size: 10 });
       }),
     );
-    const client = new GithubApiRegistryClient({ token: 'tok' });
-    const result = await client.readManifest('acme', 'registry', 'main', 'registry/index.json');
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
+    const result = await client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'registry/index.json' });
     expect(result).toEqual(manifest);
     expect(seenUrl).toContain('/repos/acme/registry/contents/registry/index.json');
     expect(seenUrl).toContain('ref=main');
@@ -43,8 +68,8 @@ describe('GithubApiRegistryClient.readManifest', () => {
         return jsonResponse(200, { type: 'file', encoding: 'base64', content: base64('{"specVersion":"1.0.0","name":"r","version":"1.0.0","entries":[]}') });
       }),
     );
-    const client = new GithubApiRegistryClient();
-    await client.readManifest('acme', 'registry', 'main', 'registry/index.json');
+    const client = new GithubApiRegistryClient({ http });
+    await client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'registry/index.json' });
     expect(seenAuth).toBeUndefined();
   });
 
@@ -57,81 +82,81 @@ describe('GithubApiRegistryClient.readManifest', () => {
         return jsonResponse(200, { type: 'file', encoding: 'base64', content: base64('{"specVersion":"1.0.0","name":"r","version":"1.0.0","entries":[]}') });
       }),
     );
-    const client = new GithubApiRegistryClient();
-    await client.readManifest('acme', 'registry', 'main', 'a dir/index file.json');
+    const client = new GithubApiRegistryClient({ http });
+    await client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'a dir/index file.json' });
     expect(seenUrl).toContain('/contents/a%20dir/index%20file.json');
   });
 
   it('throws a clear not-found error on a 404 without attempting to parse an error body', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 404 })));
-    const client = new GithubApiRegistryClient();
-    await expect(client.readManifest('acme', 'registry', 'main', 'missing.json')).rejects.toThrow(
+    const client = new GithubApiRegistryClient({ http });
+    await expect(client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'missing.json' })).rejects.toThrow(
       'Registry manifest not found: acme/registry@main:missing.json',
     );
   });
 
   it('throws with the GitHub error message on a non-2xx, non-404 response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(403, { message: 'API rate limit exceeded' })));
-    const client = new GithubApiRegistryClient();
-    await expect(client.readManifest('acme', 'registry', 'main', 'index.json')).rejects.toThrow('API rate limit exceeded');
+    const client = new GithubApiRegistryClient({ http });
+    await expect(client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'index.json' })).rejects.toThrow('API rate limit exceeded');
   });
 
   it('falls back to a generic message when a non-2xx array response has no message field', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(500, [])));
-    const client = new GithubApiRegistryClient();
-    await expect(client.readManifest('acme', 'registry', 'main', 'index.json')).rejects.toThrow(
+    const client = new GithubApiRegistryClient({ http });
+    await expect(client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'index.json' })).rejects.toThrow(
       'Failed to read registry manifest acme/registry@main:index.json.',
     );
   });
 
   it('throws when the path resolves to a directory listing (an array response)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, [{ type: 'file', name: 'a.json' }])));
-    const client = new GithubApiRegistryClient();
-    await expect(client.readManifest('acme', 'registry', 'main', 'registry')).rejects.toThrow(
+    const client = new GithubApiRegistryClient({ http });
+    await expect(client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'registry' })).rejects.toThrow(
       'Registry manifest path is a directory, not a file: acme/registry@main:registry',
     );
   });
 
   it('throws when the path resolves to a non-file type (e.g. a symlink)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { type: 'symlink' })));
-    const client = new GithubApiRegistryClient();
-    await expect(client.readManifest('acme', 'registry', 'main', 'index.json')).rejects.toThrow(
+    const client = new GithubApiRegistryClient({ http });
+    await expect(client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'index.json' })).rejects.toThrow(
       'Registry manifest path is not a file (type: symlink)',
     );
   });
 
   it('throws a clear oversized-file error when encoding is not base64 (the 1-100MB Contents API shape)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { type: 'file', encoding: 'none', content: '', size: 5_000_000 })));
-    const client = new GithubApiRegistryClient();
-    await expect(client.readManifest('acme', 'registry', 'main', 'index.json')).rejects.toThrow(
+    const client = new GithubApiRegistryClient({ http });
+    await expect(client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'index.json' })).rejects.toThrow(
       /too large for the Contents API.*size: 5000000 bytes, encoding: none/s,
     );
   });
 
   it('reports "unknown" size when the oversized response omits a numeric size field', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { type: 'file', encoding: 'none', content: '' })));
-    const client = new GithubApiRegistryClient();
-    await expect(client.readManifest('acme', 'registry', 'main', 'index.json')).rejects.toThrow(/size: unknown bytes/);
+    const client = new GithubApiRegistryClient({ http });
+    await expect(client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'index.json' })).rejects.toThrow(/size: unknown bytes/);
   });
 
   it('throws when the decoded content is not valid JSON', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { type: 'file', encoding: 'base64', content: base64('not json') })));
-    const client = new GithubApiRegistryClient();
-    await expect(client.readManifest('acme', 'registry', 'main', 'index.json')).rejects.toThrow('is not valid JSON');
+    const client = new GithubApiRegistryClient({ http });
+    await expect(client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'index.json' })).rejects.toThrow('is not valid JSON');
   });
 
   it('tolerates base64 content with embedded newlines (as GitHub actually wraps it)', async () => {
     const raw = JSON.stringify({ specVersion: '1.0.0', name: 'r', version: '1.0.0', entries: [] });
     const wrapped = base64(raw).replace(/(.{20})/g, '$1\n');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { type: 'file', encoding: 'base64', content: wrapped })));
-    const client = new GithubApiRegistryClient();
-    await expect(client.readManifest('acme', 'registry', 'main', 'index.json')).resolves.toEqual(JSON.parse(raw));
+    const client = new GithubApiRegistryClient({ http });
+    await expect(client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'index.json' })).resolves.toEqual(JSON.parse(raw));
   });
 
   it('throws when the response body is not valid JSON at all', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('not json', { status: 200 })));
-    const client = new GithubApiRegistryClient();
-    await expect(client.readManifest('acme', 'registry', 'main', 'index.json')).rejects.toThrow('GitHub returned a non-JSON response.');
+    const client = new GithubApiRegistryClient({ http });
+    await expect(client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'index.json' })).rejects.toThrow('GitHub returned a non-JSON response.');
   });
 
   it('honors a custom apiUrl override (e.g. GitHub Enterprise Server)', async () => {
@@ -143,8 +168,8 @@ describe('GithubApiRegistryClient.readManifest', () => {
         return jsonResponse(200, { type: 'file', encoding: 'base64', content: base64('{"specVersion":"1.0.0","name":"r","version":"1.0.0","entries":[]}') });
       }),
     );
-    const client = new GithubApiRegistryClient({ apiUrl: 'https://ghe.example.com/api/v3' });
-    await client.readManifest('acme', 'registry', 'main', 'index.json');
+    const client = new GithubApiRegistryClient({ http }, { apiUrl: 'https://ghe.example.com/api/v3' });
+    await client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'index.json' });
     expect(seenUrl.startsWith('https://ghe.example.com/api/v3/repos/acme/registry/contents/index.json')).toBe(true);
   });
 
@@ -157,8 +182,8 @@ describe('GithubApiRegistryClient.readManifest', () => {
         return jsonResponse(200, { type: 'file', encoding: 'base64', content: base64('{"specVersion":"1.0.0","name":"r","version":"1.0.0","entries":[]}') });
       }),
     );
-    const client = new GithubApiRegistryClient();
-    await client.readManifest('acme', 'registry', 'main', 'index.json');
+    const client = new GithubApiRegistryClient({ http });
+    await client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'index.json' });
     expect(seenSignal).toBeInstanceOf(AbortSignal);
   });
 });
@@ -214,7 +239,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
   it('throws immediately without any network call when no token is configured', async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient();
+    const client = new GithubApiRegistryClient({ http });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('A GitHub token is required');
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -244,7 +269,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       },
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     const result = await client.createPublishPullRequest(mutation);
     expect(result).toEqual({ url: 'https://github.com/acme/registry/pull/9' });
     expect(seenBodies.blob).toEqual({ content: base64('{"name":"vendor/example"}'), encoding: 'base64' });
@@ -261,7 +286,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       return happyPathRouter()(input, init);
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await client.createPublishPullRequest(mutation);
     // getRefSha, getCommitTreeSha, createBlob, createTree, createCommit, ensureBranch (create), ensurePullRequest.
     expect(seenSignals).toHaveLength(7);
@@ -272,19 +297,19 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
 
   it('throws a clear error when baseRef does not exist', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 404 })));
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('GitHub base ref "main" does not exist in acme/registry.');
   });
 
   it('throws the same "does not exist" error when the ref lookup succeeds (200) but the response has no object.sha (a malformed/missing ref object)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { ref: 'refs/heads/main' })));
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('GitHub base ref "main" does not exist in acme/registry.');
   });
 
   it('throws with the GitHub message when the ref lookup fails with a non-404 error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(500, { message: 'Internal error' })));
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('Internal error');
   });
 
@@ -293,7 +318,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       'GET https://api.github.com/repos/acme/registry/git/commits/base-sha': () => jsonResponse(500, { message: 'Commit lookup failed' }),
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('Commit lookup failed');
   });
 
@@ -302,7 +327,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       'GET https://api.github.com/repos/acme/registry/git/commits/base-sha': () => jsonResponse(200, { sha: 'base-sha' }),
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('GitHub base commit response did not include a tree sha.');
   });
 
@@ -311,7 +336,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       'POST https://api.github.com/repos/acme/registry/git/blobs': () => jsonResponse(422, { message: 'Bad blob' }),
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('Bad blob');
   });
 
@@ -320,7 +345,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       'POST https://api.github.com/repos/acme/registry/git/blobs': () => jsonResponse(201, {}),
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('GitHub blob response did not include a sha.');
   });
 
@@ -329,7 +354,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       'POST https://api.github.com/repos/acme/registry/git/trees': () => jsonResponse(422, { message: 'Bad tree' }),
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('Bad tree');
   });
 
@@ -338,7 +363,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       'POST https://api.github.com/repos/acme/registry/git/trees': () => jsonResponse(201, {}),
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('GitHub tree response did not include a sha.');
   });
 
@@ -347,7 +372,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       'POST https://api.github.com/repos/acme/registry/git/commits': () => jsonResponse(422, { message: 'Bad commit' }),
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('Bad commit');
   });
 
@@ -356,7 +381,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       'POST https://api.github.com/repos/acme/registry/git/commits': () => jsonResponse(201, {}),
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('GitHub commit response did not include a sha.');
   });
 
@@ -370,7 +395,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       },
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     const result = await client.createPublishPullRequest(mutation);
     expect(result).toEqual({ url: 'https://github.com/acme/registry/pull/9' });
     expect(patchBody).toEqual({ sha: 'commit-sha', force: true });
@@ -386,7 +411,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       },
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await client.createPublishPullRequest(mutation);
     expect(patchSignal).toBeInstanceOf(AbortSignal);
   });
@@ -398,7 +423,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
         jsonResponse(500, { message: 'Update failed' }),
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('Update failed');
   });
 
@@ -407,7 +432,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       'POST https://api.github.com/repos/acme/registry/git/refs': () => jsonResponse(403, { message: 'Forbidden' }),
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('Forbidden');
   });
 
@@ -416,7 +441,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       'POST https://api.github.com/repos/acme/registry/pulls': () => jsonResponse(201, {}),
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('GitHub pull request response did not include an html_url.');
   });
 
@@ -425,7 +450,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       'POST https://api.github.com/repos/acme/registry/pulls': () => jsonResponse(422, { message: 'Validation failed: no commits between main and publish/vendor-example-1.0.0' }),
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('Validation failed');
   });
 
@@ -434,7 +459,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       'POST https://api.github.com/repos/acme/registry/pulls': () => jsonResponse(422, {}),
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('GitHub pull request creation failed.');
   });
 
@@ -448,7 +473,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       },
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     const result = await client.createPublishPullRequest(mutation);
     expect(result).toEqual({ url: 'https://github.com/acme/registry/pull/7' });
     expect(listUrl).toContain('head=acme%3Apublish%2Fvendor-example-1.0.0');
@@ -465,7 +490,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       },
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await client.createPublishPullRequest(mutation);
     expect(listSignal).toBeInstanceOf(AbortSignal);
   });
@@ -476,7 +501,7 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       'GET https://api.github.com/repos/acme/registry/pulls': () => jsonResponse(200, []),
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('A pull request already exists');
   });
 
@@ -486,13 +511,13 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
       'GET https://api.github.com/repos/acme/registry/pulls': () => jsonResponse(500, { message: 'list failed' }),
     });
     vi.stubGlobal('fetch', fetchSpy);
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('A pull request already exists');
   });
 
   it('falls back to a generic message when an error body has no message field', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(500, {})));
-    const client = new GithubApiRegistryClient({ token: 'tok' });
+    const client = new GithubApiRegistryClient({ http }, { token: 'tok' });
     await expect(client.createPublishPullRequest(mutation)).rejects.toThrow('GitHub ref lookup failed.');
   });
 });

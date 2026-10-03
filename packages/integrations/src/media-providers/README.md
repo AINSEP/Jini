@@ -26,7 +26,7 @@ self-registration a bundler must not tree-shake away.
 
 ## What you get
 
-**Capability registry** — `createCapabilityRegistry(seed)` → `CapabilityRegistry`
+**Capability registry** — `createCapabilityRegistry({}, { seed })` → `CapabilityRegistry`
 (`get` / `register` / `all`) over `ModelCapability` entries, with `normalizeModelId` (strips a known
 aggregator prefix) and `MEDIA_CAPABILITY_SEED` as a starting set.
 
@@ -34,10 +34,10 @@ aggregator prefix) and `MEDIA_CAPABILITY_SEED` as a starting set.
 `AUDIO_MODELS_BY_KIND`, `MEDIA_ASPECTS`, `VIDEO_LENGTHS_SEC`, `AUDIO_DURATIONS_SEC`,
 `PROVIDER_CREDENTIAL_ENV_VARS`, with lookups `findMediaModel`, `findProvider`, `modelsForSurface`.
 
-**Dispatch engine** — `createMediaDispatchEngine({ credentials, allowStubFallback })` →
-`MediaDispatchEngine` with a single `generate(request)` → `MediaGenerationResult`
+**Dispatch engine** — `createMediaDispatchEngine({}, { credentials, allowStubFallback, httpClient })` →
+`MediaDispatchEngine` with `generate({ surface, model }, optionalRequestFields)` → `MediaGenerationResult`
 (`{ bytes, providerNote, suggestedExt?, providerId, usedStubFallback, warnings }`).
-`resolveProviderCredentialsFromEnv(providerId, env)` fills `ProviderCredentials` from the documented
+`resolveProviderCredentialsFromEnv({ providerId, env })` fills `ProviderCredentials` from the documented
 env-var names. `allowStubFallback` defaults to `false`: with no real renderer for a
 (provider, surface) pair, generation throws rather than returning placeholder bytes that could be
 mistaken for a real result.
@@ -68,19 +68,21 @@ not rejected).
 **SSRF guard** — `assertExternalAssetUrl`, `assertAndFetchExternalAsset`, `validateBaseUrlResolved`,
 `isBlockedExternalApiHostname`, `isLoopbackApiHost`, with an injectable `DnsLookupFn`. Vendor base
 URLs and returned asset URLs are both attacker-influenced; these resolve and check them before any
-fetch.
+fetch. The guarded client pins vetted DNS peers; asset and vendor redirects are refused.
+Loopback/private/link-local destinations are blocked by default, including DNS aliases.
 
 **Task store port** — `MediaTaskStore` (`create` / `get` / `update` / `listByOwner` / `delete` /
 `reconcileOnBoot`), with `createInMemoryMediaTaskStore()` and the durable
 `createSqliteMediaTaskStore(dbPath)` → `SqliteMediaTaskStore` (adds `close()`). `reconcileOnBoot`
 marks tasks still `queued`/`running` after a restart as `interrupted`, since nothing can resume them.
 
-**Policy port** — `MediaPolicy` (`evaluate(target)` → denial or `null`),
-`createAllowlistMediaPolicy(policy)`, `MediaExecutionPolicy`, and
+**Policy port** — `MediaPolicy` (`evaluate({ surface }, { model })` → denial or `null`),
+`createAllowlistMediaPolicy({}, policy)`, `MediaExecutionPolicy`, and
 `DEFAULT_MEDIA_EXECUTION_POLICY` — which is `{ mode: 'disabled' }`. Deny by default is deliberate: a
 host must opt in rather than getting unrestricted, real-money generation by omitting a config.
 
-**Attachment staging** — `createFsAttachmentStaging(cwd, options)` → `AttachmentStaging`.
+**Attachment staging** — `createFsAttachmentStaging({ cwd }, options)` → `AttachmentStaging`,
+with `stage({ imagePaths }, { uploadRoot })`.
 
 **DI tokens** — `CapabilityRegistryToken`, `MediaTaskStoreToken`, `MediaPolicyToken`.
 
@@ -96,26 +98,27 @@ import {
   MEDIA_CAPABILITY_SEED,
 } from '@jini-ai/integrations/media-providers';
 
-const registry = createCapabilityRegistry(MEDIA_CAPABILITY_SEED);
+const registry = createCapabilityRegistry({}, { seed: MEDIA_CAPABILITY_SEED });
 
 // Deny-by-default: this must be opted into explicitly.
-const policy = createAllowlistMediaPolicy({
+const policy = createAllowlistMediaPolicy({}, {
   mode: 'enabled',
   allowedSurfaces: ['image'],
   allowedModels: ['dall-e-3'],
 });
 
-const denial = policy.evaluate({ surface: 'image', model: 'dall-e-3' });
+const denial = policy.evaluate({ surface: 'image' }, { model: 'dall-e-3' });
 if (denial) throw new Error(`${denial.code}: ${denial.message}`);
 
-const engine = createMediaDispatchEngine({
-  credentials: { openai: resolveProviderCredentialsFromEnv('openai') },
+const engine = createMediaDispatchEngine({}, {
+  credentials: { openai: resolveProviderCredentialsFromEnv({ providerId: 'openai', env: process.env }) },
   // allowStubFallback stays false — a missing renderer must fail, not fake a result.
 });
 
 const result = await engine.generate({
   surface: 'image',
   model: 'dall-e-3',
+}, {
   prompt: 'a lighthouse at dusk',
   aspect: '16:9',
 });
@@ -123,6 +126,7 @@ const result = await engine.generate({
 console.log(result.providerId, result.bytes.length, result.warnings);
 
 const tasks = createInMemoryMediaTaskStore();
+// This legacy task-store API awaits conversion by its current file owner.
 await tasks.reconcileOnBoot({ terminalTtlMs: 7 * 24 * 60 * 60 * 1000 });
 ```
 
@@ -138,7 +142,16 @@ one"), and `CapabilityRegistry`. Below that, the vendor layer is injection-first
 `VendorRequestBuilder` / `VendorResponseParser` / `VendorCredentialGuard` let a new vendor be added
 without touching the engine, `createVendorAdapterRegistry()` gives you a private registry instead of
 the shared `mediaVendorRegistry`, `DnsLookupFn` makes the SSRF guard testable, and
-`MediaGenerationRequestInit` lets you supply your own `undici` dispatcher for pooling and timeouts.
+`MediaOutboundOptions.httpClient` accepts the canonical `HttpClientPort` from
+`@jini-ai/core/primitives`, constructed with `@jini-ai/platform/http/guarded`. The engine carries
+it through vendor requests and provider-returned asset downloads. `OperationRuntimeDeps.httpClient`
+uses the same port for signed submits, polls and response-parser downloads. Raw `fetchImpl` is no
+longer supported. With no injected client, native guarded ports deny private, loopback and
+link-local peers, refuse redirects and bound decoded responses at 96 MiB. Explicit
+`allowPrivateNetwork: true` enables local development only on the default client; redirects remain
+refused. `requestInit.dispatcher` is rejected because it would replace the DNS-pinned socket.
+Use guarded-client construction for pooling and timeout policy instead.
+See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/integrations/src/media-providers/API.md) for the outbound contract and diagnostics overrides.
 `ProviderCredentials` are passed in, never read from the environment implicitly — you call
 `resolveProviderCredentialsFromEnv` yourself if you want that. Fixed: each vendor's actual HTTP
 contract, the SSRF blocklist rules, and the snapping logic.
@@ -151,6 +164,6 @@ ESM only — ships `"type": "module"` with no CommonJS `require` build.
 
 ## Provenance
 
-See [source-map.md](./source-map.md) for per-file provenance, exactly which vendors are ported versus
+See the archived provenance ledger for per-file provenance, exactly which vendors are ported versus
 deferred, and this package's maturity status. Apache-2.0, inherited from Open Design — see the repo
 `NOTICE`.

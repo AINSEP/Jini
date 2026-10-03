@@ -5,22 +5,23 @@ import { registerContentType } from "../write-service.js";
 import { createEntry } from "../../entries/write-service.js";
 
 /**
- * @file REQ-07/08/16/17 — same-transaction watermark stamping (INV-08) and composite
+ * @file same-transaction watermark stamping and composite
  * actor-identity propagation (`delegatedByWorkspaceId`/`delegatedById`) on BOTH write chokepoints
- * (REQ-01/REQ-02/REQ-16's `ActorIdentityRef` shape).
+ * ( `ActorIdentityRef` shape).
  *
- * Covers: AC-11 (content-type commit advances the watermark by exactly 1), AC-12 (revision row
- * in the same transaction), AC-26 (entry commit advances the watermark by exactly 1), AC-47
- * (content_type_revisions carries delegatedBy* for an agent-delegated write), AC-48
+ * Covers: (content-type commit advances the watermark by exactly 1), (revision row
+ * in the same transaction), (entry commit advances the watermark by exactly 1), 
+ * (content_type_revisions carries delegatedBy* for an agent-delegated write), 
  * (entry_revisions carries delegatedBy* for an api_key-delegated write).
  *
  * Integration-level: exercises the write-service's real call into a fake `stampWatermark` +
  * revision-append pair to prove the SAME-TRANSACTION property, not just that each happens
  * eventually.
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 
 const NOW = "2026-07-15T00:00:00.000Z";
-const clock = { nowIso: () => NOW };
+const clock = { nowMs: () => Date.parse(NOW)};
 let idCounter = 0;
 const ids = { newId: () => `wm-${++idCounter}` };
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
@@ -42,7 +43,7 @@ function watermarkTracker() {
 
 test("AC-11/INV-08: registerContentType advances database_write_watermark by exactly 1 per commit", async () => {
   const watermark = watermarkTracker();
-  const repo = { save: async () => undefined, appendRevision: async () => undefined, findByKey: async () => null, transaction: async <T>(fn: () => Promise<T>) => fn() };
+  const repo = { save: async () => undefined, appendRevision: async () => undefined, findByKey: async () => null, transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn() };
   const indexProvisioner = { provisionIndexesForNewContentType: async () => undefined, applyFieldIndexTransitions: async () => undefined };
 
   const before = watermark.getValue();
@@ -58,7 +59,7 @@ test("AC-11/INV-08: registerContentType advances database_write_watermark by exa
 test("AC-26/INV-08: createEntry advances database_write_watermark by exactly 1 per commit", async () => {
   const watermark = watermarkTracker();
   const contentTypeRepo = { findByKey: async () => ({ workspaceId: "ws-1", key: "recipe", status: "active" as const, fields: [] }) };
-  const entryRepo = { save: async () => undefined, appendRevision: async () => undefined, findBySlug: async () => null, findById: async () => null, transaction: async <T>(fn: () => Promise<T>) => fn() };
+  const entryRepo = { save: async () => undefined, appendRevision: async () => undefined, findBySlug: async () => null, findById: async () => null, transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn() };
 
   const before = watermark.getValue();
   await createEntry({
@@ -76,7 +77,7 @@ test("AC-47: a content_type_revisions row for an agent-delegated write carries (
     save: async () => undefined,
     appendRevision: async (rev: unknown) => { revisions.push(rev); },
     findByKey: async () => null,
-    transaction: async <T>(fn: () => Promise<T>) => fn(),
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn(),
   };
   const indexProvisioner = { provisionIndexesForNewContentType: async () => undefined, applyFieldIndexTransitions: async () => undefined };
 
@@ -108,7 +109,7 @@ test("AC-48: an entry_revisions row for an api_key-delegated write carries (dele
     appendRevision: async (rev: unknown) => { revisions.push(rev); },
     findBySlug: async () => null,
     findById: async () => null,
-    transaction: async <T>(fn: () => Promise<T>) => fn(),
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn(),
   };
 
   await createEntry({
@@ -138,7 +139,7 @@ test("a plain user-initiated write leaves delegatedByWorkspaceId/delegatedById a
     save: async () => undefined,
     appendRevision: async (rev: unknown) => { revisions.push(rev); },
     findByKey: async () => null,
-    transaction: async <T>(fn: () => Promise<T>) => fn(),
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn(),
   };
   const indexProvisioner = { provisionIndexesForNewContentType: async () => undefined, applyFieldIndexTransitions: async () => undefined };
 

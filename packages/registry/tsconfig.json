@@ -2,7 +2,38 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "paths": {
+      "@jini-ai/db/core": [
+        "../db/dist/core/index.d.ts"
+      ],
+      "@jini-ai/db/sqlite": [
+        "../db/dist/sqlite/index.d.ts"
+      ],
+      "@jini-ai/db/kernel": [
+        "../db/dist/kernel/index.d.ts"
+      ],
+      "kysely": [
+        "../db/node_modules/kysely/dist/index.d.ts"
+      ],
+      "@jini-ai/chat/store/legacy/sqlite": [
+        "../chat/dist/store/legacy/sqlite/index.d.ts"
+      ],
+      "@jini-ai/chat/store/sqlite": [
+        "../chat/dist/store/sqlite/index.d.ts"
+      ],
+      "@jini-ai/daemon/store/event-log/sqlite": [
+        "../daemon/dist/store/event-log/sqlite.d.ts"
+      ],
+      "@jini-ai/daemon/store/agent-sessions/sqlite": [
+        "../daemon/dist/store/agent-sessions/sqlite.d.ts"
+      ]
+    }
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "src/**/__tests__/**"
+  ]
 }

@@ -1,10 +1,10 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/cursor-agent.ts` (import path adjusted only). See `source-map.md`. */
+/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/cursor-agent.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import { agentCapabilities } from '../capabilities.js';
 import type { RuntimeAgentDef } from '../types.js';
 import type { RuntimeModelOption } from '../types.js';
 
-export function parseCursorAgentModels(stdout: string): RuntimeModelOption[] | null {
+export function parseCursorAgentModels({ stdout }: { stdout: string }): RuntimeModelOption[] | null {
   const lines = String(stdout || '')
     .split('\n')
     .map((line) => line.trim())
@@ -50,10 +50,10 @@ export const cursorAgentDef = {
     listModels: {
       args: ['models'],
       timeoutMs: 5000,
-      parse: (stdout) => {
+      parse: ({ stdout }) => {
         const trimmed = String(stdout || '').trim();
         if (!trimmed || /no models available/i.test(trimmed)) return null;
-        return parseCursorAgentModels(trimmed);
+        return parseCursorAgentModels({ stdout: trimmed });
       },
     },
     fallbackModels: [
@@ -67,12 +67,7 @@ export const cursorAgentDef = {
     // Passing it makes the CLI treat the dash as the literal user prompt,
     // which then surfaces as "your message only contains '-'". Keep stdin
     // piped for prompt delivery, but do not append a fake prompt arg.
-    buildArgs: (
-      _prompt,
-      _imagePaths,
-      _extra,
-      options = {},
-      runtimeContext = {},
+    buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs: _extra, options = {}, runtimeContext = {} } = {}
     ) => {
       const caps = agentCapabilities.get('cursor-agent') || {};
       const args = [];

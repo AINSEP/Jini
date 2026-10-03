@@ -37,13 +37,13 @@ function makeDeps() {
   let counter = 0;
   let currentNow = "2026-07-10T00:00:00.000Z";
   const deps = {
-    clock: { nowIso: () => currentNow },
+    clock: { nowMs: () => Date.parse(currentNow)},
     idGen: { newId: () => `id-${(counter += 1)}` },
-    mediaRepo: new InMemoryMediaRepo(),
-    blobRepo: new InMemoryAssetBlobRepo(),
-    renditionRepo: new InMemoryAssetRenditionRepo(),
+    mediaRepo: new InMemoryMediaRepo({}),
+    blobRepo: new InMemoryAssetBlobRepo({}),
+    renditionRepo: new InMemoryAssetRenditionRepo({}),
     blobStore: new InMemoryBlobStore(),
-    journalRepo: new InMemoryBlobGcJournalRepo(),
+    journalRepo: new InMemoryBlobGcJournalRepo({}),
   };
   return { deps, setNow: (iso: string) => (currentNow = iso) };
 }
@@ -619,7 +619,7 @@ test("purgeMedia removes the media row immediately but only TOMBSTONES an unshar
   await assert.rejects(() => getMediaById({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id } }), MediaNotFoundError);
 
   // The blob is only TOMBSTONED by purge — row and bytes both still exist
-  // (INV-1a: unlink only happens after a completed delete-pass, never as a
+  // (: unlink only happens after a completed delete-pass, never as a. See docs/decisions/DR-004-journaled-blob-gc.md.
   // side effect of removing the media row).
   const blobAfterPurge = await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256 });
   assert.ok(blobAfterPurge);
@@ -810,10 +810,10 @@ test("findMediaByIdOrSlug resolves the ID first — a row claiming another asset
 
 test("isValidMediaSlugFormat — exported so hosts can decide whether a stored value is safe to emit as a URL", () => {
   for (const slug of ["abc-123-def", "2026-09-07-launch-clip", "deadbeef", "a"]) {
-    assert.equal(isValidMediaSlugFormat(slug), true, `expected ${JSON.stringify(slug)} to be valid`);
+    assert.equal(isValidMediaSlugFormat({ slug: slug }), true, `expected ${JSON.stringify(slug)} to be valid`);
   }
   for (const slug of ["..", "a/b", "A", "", UUID_SHAPED]) {
-    assert.equal(isValidMediaSlugFormat(slug), false, `expected ${JSON.stringify(slug)} to be invalid`);
+    assert.equal(isValidMediaSlugFormat({ slug: slug }), false, `expected ${JSON.stringify(slug)} to be invalid`);
   }
 });
 

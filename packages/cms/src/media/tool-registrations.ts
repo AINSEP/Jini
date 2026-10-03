@@ -1,3 +1,5 @@
+import type { IdGenerator } from "@jini-ai/core/primitives";
+import type { Clock } from "@jini-ai/core/primitives";
 /**
  * @file Media's tool-registration wiring: maps `agent-tools.ts`'s four catalog entries onto
  * `media-service.ts`'s list/upload/update/trash operations, as `ToolRegistration`s. The entire
@@ -5,7 +7,7 @@
  * present-but-unwired; see `media/agent-tools.ts`'s own header.
  *
  * Authorization shape: unlike Forms/Identity/Widgets, `media-service.ts`'s functions perform NO
- * internal `authorize()` call of their own — every admin HTTP route a host builds gates inline
+ * internal `authorize` call of their own — every admin HTTP route a host builds gates inline
  * instead. Every handler here does the same via the kit's `requireToolPermission`, which is the
  * single evaluation for these tools, located where a real route would locate it.
  *
@@ -13,7 +15,7 @@
  * own `publicUrl` addition closed there: an agent could upload/list an asset but had no tool-facing
  * way to learn a URL usable to embed it in a post/page). Unlike `post`, this package has no host to
  * resolve a public URL against — the `/m/{assetId}/{transformName}.v{version}/...` contract
- * (ADR-027 §4) is a HOST decision (which URL prefix, which transform pipeline, whether one even
+ *  is a HOST decision (which URL prefix, which transform pipeline, whether one even
  * exists), not a `@jini-ai/cms` one; this package deliberately has zero `/m/`-shaped string
  * literals anywhere. So `publicUrl` is resolved through an OPTIONAL, host-injected
  * {@link MediaToolDeps.resolvePublicUrls}, batch-shaped (one call per `media_list_assets`/
@@ -26,38 +28,29 @@
  * `features/post/tool-registrations.ts`'s identical reasoning for skipping `content_post_update`/
  * `content_post_delete`: those two return the row incidentally, to confirm what was just
  * edited/trashed, not to answer "where does this live".
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 import type { AuthorizeFn } from "../core/commands/command.js";
-import {
-  buildDomainRegistrations,
-  indexCatalogById,
-  requireInputRecord,
-  requireString,
-  requireToolPermission,
-  withSchemaOnRejection,
-  type AgentToolSideEffect,
-  type DerivedRiskByToolId,
-  type ToolHandler,
-  type ToolRegistration,
-} from "../core/tools/registration-kit.js";
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { mediaAgentToolCatalog } from "./agent-tools.js";
 import { listMedia, MediaValidationError, rollbackUploadedMedia, trashMedia, updateMediaMetadata, uploadMedia } from "./media-service.js";
 import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRepoPort } from "./ports.js";
 import type { MediaRecord } from "./types.js";
 
-const CATALOG_BY_ID = indexCatalogById(mediaAgentToolCatalog);
+const CATALOG_BY_ID = indexCatalogById({ catalog: mediaAgentToolCatalog });
 
 /**
  * The exact slice of a host's route-deps bag Media's tool handlers read. Declared structurally
  * (rather than importing any host's own route-deps type) so this module carries no back-edge into
  * a host's composition root. A host satisfies this structurally by passing its existing route deps
- * object; nothing there needs to change shape.
+ * object after binding the kernel clock/ID contracts.
  */
 export interface MediaToolDeps {
   authorize: AuthorizeFn;
   workspaceId: string;
-  clock: { nowIso(): string };
-  idGen: { newId(): string };
+  clock: Clock;
+  idGen: IdGenerator;
   mediaRepo: MediaRepoPort;
   assetBlobRepo: AssetBlobRepoPort;
   assetRenditionRepo: AssetRenditionRepoPort;
@@ -70,7 +63,7 @@ export interface MediaToolDeps {
    * resolution failed soft). Omitted entirely: every response's `publicUrl` is `null`, matching this
    * field's own pre-2026-09-02 absence for every host that has not opted in yet.
    */
-  resolvePublicUrls?: (assets: readonly MediaRecord[]) => Promise<ReadonlyMap<string, string | null>>;
+  resolvePublicUrls?: ((required: { assets: readonly MediaRecord[] }, optional?: Record<string, never>) => Promise<ReadonlyMap<string, string | null>>) | undefined;
   /**
    * Optional hook run once, right after `media_upload_asset`'s own `uploadMedia()` call succeeds —
    * the fix for a defect where a tool-driven upload recorded NO content type anywhere. `uploadMedia`
@@ -100,7 +93,7 @@ export interface MediaToolDeps {
    * matching this field's own pre-fix absence for every host that has not opted in yet — the exact
    * `resolvePublicUrls`-precedent contract.
    */
-  recordUploadContentType?: (params: { media: MediaRecord; bytes: Uint8Array }) => Promise<void>;
+  recordUploadContentType?: ((params: { media: MediaRecord; bytes: Uint8Array }) => Promise<void>) | undefined;
   /**
    * Optional host-supplied override of `uploadMedia`'s own `DEFAULT_MAX_UPLOAD_BYTES` (10 MiB,
    * `media-service.ts`), forwarded verbatim as `uploadMedia`'s third (`optional`) argument in the
@@ -112,7 +105,7 @@ export interface MediaToolDeps {
    * pre-2026-09-21 absence for every host that has not opted in yet — the same degrade-soft
    * contract {@link resolvePublicUrls} and {@link recordUploadContentType} already established.
    */
-  maxUploadBytes?: number;
+  maxUploadBytes?: number | undefined;
 }
 
 /**
@@ -133,7 +126,7 @@ export const mediaDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSi
 ]);
 
 /** The only Media rejection worth decorating with the published schema — a shape problem a different input would fix. */
-function isMediaShapeRejection(error: unknown): boolean {
+function isMediaShapeRejection({ error }: { error: unknown }): boolean {
   return error instanceof MediaValidationError;
 }
 
@@ -195,11 +188,22 @@ interface MediaToolViewWithPublicUrl extends MediaToolView {
  * responsibility — see `MediaToolDeps.resolvePublicUrls`'s own doc).
  */
 async function toMediaToolViewsWithPublicUrls(routeDeps: MediaToolDeps, records: readonly MediaRecord[]): Promise<MediaToolViewWithPublicUrl[]> {
-  const urls = routeDeps.resolvePublicUrls ? await routeDeps.resolvePublicUrls(records) : new Map<string, string | null>();
+  const urls = routeDeps.resolvePublicUrls ? await routeDeps.resolvePublicUrls({ assets: records }) : new Map<string, string | null>();
   return records.map((record) => ({ ...toMediaToolView(record), publicUrl: urls.get(record.id) ?? null }));
 }
 
-export function buildMediaRegistrations(routeDeps: MediaToolDeps): ToolRegistration[] {
+export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes">, optional: Pick<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes"> = {}): ToolRegistration[] {
+  const routeDeps: MediaToolDeps = {
+    authorize: required.authorize,
+    workspaceId: required.workspaceId,
+    clock: required.clock,
+    idGen: required.idGen,
+    mediaRepo: required.mediaRepo,
+    assetBlobRepo: required.assetBlobRepo,
+    assetRenditionRepo: required.assetRenditionRepo,
+    blobStore: required.blobStore,
+    ...optional,
+  };
   const mediaWriteDeps = () => ({
     clock: routeDeps.clock,
     idGen: routeDeps.idGen,
@@ -211,16 +215,16 @@ export function buildMediaRegistrations(routeDeps: MediaToolDeps): ToolRegistrat
 
   const handlers: Record<string, ToolHandler> = {
     media_list_assets: async (ctx) => {
-      await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "media.read", entityType: "media" });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.read" }, { entityType: "media" });
       const { media } = await listMedia({ deps: { mediaRepo: routeDeps.mediaRepo }, input: { workspaceId: routeDeps.workspaceId } });
       return { media: await toMediaToolViewsWithPublicUrls(routeDeps, media) };
     },
 
     media_upload_asset: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
-      await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "media.upload", entityType: "media" });
-      return withSchemaOnRejection({ toolId: "media_upload_asset", catalog: CATALOG_BY_ID, isShapeRejection: isMediaShapeRejection }, async () => {
-        const dataBase64 = requireString(input, "dataBase64");
+      const input = requireInputRecord({ input: ctx.input });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.upload" }, { entityType: "media" });
+      return withSchemaOnRejection({ toolId: "media_upload_asset", catalog: CATALOG_BY_ID, isShapeRejection: isMediaShapeRejection, fn: async () => {
+        const dataBase64 = requireString({ input, key: "dataBase64" });
         let bytes: Uint8Array;
         try {
           bytes = new Uint8Array(Buffer.from(dataBase64, "base64"));
@@ -232,8 +236,8 @@ export function buildMediaRegistrations(routeDeps: MediaToolDeps): ToolRegistrat
           input: {
             workspaceId: routeDeps.workspaceId,
             bytes,
-            filename: requireString(input, "filename"),
-            contentType: requireString(input, "contentType"),
+            filename: requireString({ input, key: "filename" }),
+            contentType: requireString({ input, key: "contentType" }),
             alt: typeof input.alt === "string" ? input.alt : undefined,
             caption: typeof input.caption === "string" ? input.caption : undefined,
             credit: typeof input.credit === "string" ? input.credit : undefined,
@@ -261,14 +265,14 @@ export function buildMediaRegistrations(routeDeps: MediaToolDeps): ToolRegistrat
         }
         const [view] = await toMediaToolViewsWithPublicUrls(routeDeps, [media]);
         return { media: view };
-      });
+      } });
     },
 
     media_update_metadata: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
-      const mediaId = requireString(input, "mediaId");
-      await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "media.update", entityType: "media", entityId: mediaId });
-      return withSchemaOnRejection({ toolId: "media_update_metadata", catalog: CATALOG_BY_ID, isShapeRejection: isMediaShapeRejection }, async () => {
+      const input = requireInputRecord({ input: ctx.input });
+      const mediaId = requireString({ input, key: "mediaId" });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.update" }, { entityType: "media", entityId: mediaId });
+      return withSchemaOnRejection({ toolId: "media_update_metadata", catalog: CATALOG_BY_ID, isShapeRejection: isMediaShapeRejection, fn: async () => {
         const { media } = await updateMediaMetadata({
           deps: { clock: routeDeps.clock, mediaRepo: routeDeps.mediaRepo },
           input: {
@@ -284,12 +288,12 @@ export function buildMediaRegistrations(routeDeps: MediaToolDeps): ToolRegistrat
           },
         });
         return { media: toMediaToolView(media) };
-      });
+      } });
     },
 
     media_trash_asset: async (ctx) => {
-      const mediaId = requireString(requireInputRecord(ctx.input), "mediaId");
-      await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "media.delete", entityType: "media", entityId: mediaId });
+      const mediaId = requireString({ input: requireInputRecord({ input: ctx.input }), key: "mediaId" });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.delete" }, { entityType: "media", entityId: mediaId });
       const { media } = await trashMedia({
         deps: { clock: routeDeps.clock, mediaRepo: routeDeps.mediaRepo },
         input: { workspaceId: routeDeps.workspaceId, id: mediaId },

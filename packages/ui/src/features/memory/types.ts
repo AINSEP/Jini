@@ -4,7 +4,7 @@
  * `MemoryExtractionRecord`, `ConnectorMemorySuggestionResponse`, etc.) — that
  * package is not available here, so this file defines the same shapes
  * locally, scoped to exactly what this slice's ported hooks/components/rules
- * consume. See `packages/ui/source-map.md` for the full provenance note.
+ * consume. See `packages/ui/archived provenance ledger` for the full provenance note.
  *
  * Connector-shaped fields reuse `@jini-ai/ui`'s own `features/connectors` types
  * (`Connector`/`ConnectorStatusMap`/`ConnectorActionResult`) instead of a

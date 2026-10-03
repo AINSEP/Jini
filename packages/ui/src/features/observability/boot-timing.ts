@@ -64,7 +64,7 @@ export function installBootTimingObserver(options: BootTimingOptions = {}): () =
 // only ever runs after that function's own `typeof window === 'undefined'`
 // guard has already passed, so a second check here was dead code for every
 // real call — removed rather than tested around (see
-// packages/ui/source-map.md's 2026-07-22 dated entry).
+// packages/ui/archived provenance ledger's 2026-07-22 dated entry).
 function schedule(fn: () => void): void {
   const rIC = (
     window as unknown as {
@@ -101,7 +101,7 @@ function emit(reporter: SafetyEventReporter): void {
     // resolvable in global scope by the time this line runs; a `typeof
     // document !== 'undefined'` re-check here was dead code for every real
     // call, removed rather than tested around (see
-    // packages/ui/source-map.md's 2026-07-22 dated entry).
+    // packages/ui/archived provenance ledger's 2026-07-22 dated entry).
     visibility_state: document.visibilityState,
   });
 }

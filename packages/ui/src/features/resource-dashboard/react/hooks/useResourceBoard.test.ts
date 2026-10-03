@@ -10,7 +10,7 @@ import type { ResourceBoardItem, ResourceBoardViewMode } from '../../types.js';
 // key. Without resetting it between tests, one test's persisted 'kanban'
 // leaks into every later test in this file that also uses the default
 // storage path — exactly the bug a first pass of this suite caught (see
-// `packages/ui/source-map.md`).
+// `packages/ui/archived provenance ledger`).
 beforeEach(() => {
   window.localStorage.clear();
 });

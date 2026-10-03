@@ -11,12 +11,12 @@
  * `antigravityQuotaGuidance`, `reasonixAuthGuidance`, `claudeAuthGuidance`)
  * and `genericAuthGuidance` took an implicit product name baked into nine
  * literal strings (e.g. "expose CURSOR_API_KEY in the <product>'s process
- * environment" — see `source-map.md` for the exact original text). Each
+ * environment" — see `archived provenance ledger` for the exact original text). Each
  * now takes an optional `hostName`
  * parameter (default `'the host application'`) so the guidance text is
  * product-neutral by default and a consumer can substitute its own name.
  * `classifyAgentAuthFailure`/`probeAgentAuthStatus` thread `hostName`
- * through to whichever guidance function they call. See `source-map.md`.
+ * through to whichever guidance function they call. See `archived provenance ledger`.
  */
 import { execAgentFile } from './invocation.js';
 import type { RuntimeAgentDef, RuntimeEnv } from './types.js';
@@ -90,15 +90,15 @@ function geminiAuthGuidanceText(hostName: string): string {
   return `Gemini CLI is installed but has no usable sign-in. Google no longer serves Gemini CLI's "Login with Google" for free, Google AI Pro or Ultra accounts. Use a Gemini API key instead: run \`gemini\` in a terminal, type /auth, choose "Use Gemini API key", and make GEMINI_API_KEY available to ${hostName}'s process environment (or configure Vertex AI). Google's replacement for individual accounts is Antigravity (\`agy\`), which you can pick here instead.`;
 }
 
-export function cursorAuthGuidance(hostName: string = DEFAULT_HOST_NAME): string {
+export function cursorAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string {
   return cursorAuthGuidanceText(hostName);
 }
 
-export function deepseekAuthGuidance(hostName: string = DEFAULT_HOST_NAME): string {
+export function deepseekAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string {
   return deepseekAuthGuidanceText(hostName);
 }
 
-export function antigravityAuthGuidance(hostName: string = DEFAULT_HOST_NAME): string {
+export function antigravityAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string {
   return antigravityAuthGuidanceText(hostName);
 }
 
@@ -106,19 +106,19 @@ export function antigravityQuotaGuidance(): string {
   return antigravityQuotaGuidanceText();
 }
 
-export function reasonixAuthGuidance(hostName: string = DEFAULT_HOST_NAME): string {
+export function reasonixAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string {
   return reasonixAuthGuidanceText(hostName);
 }
 
-export function claudeAuthGuidance(hostName: string = DEFAULT_HOST_NAME): string {
+export function claudeAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string {
   return claudeAuthGuidanceText(hostName);
 }
 
-export function geminiAuthGuidance(hostName: string = DEFAULT_HOST_NAME): string {
+export function geminiAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string {
   return geminiAuthGuidanceText(hostName);
 }
 
-export function isCursorAuthFailureText(text: string): boolean {
+export function isCursorAuthFailureText({ text }: { text: string }): boolean {
   const value = String(text || '');
   if (!value.trim()) return false;
   return (
@@ -140,7 +140,7 @@ export function isCursorAuthFailureText(text: string): boolean {
 //   "error getting token source: You are not logged into Antigravity"
 // Any of these is sufficient signal — match conservatively so the regex
 // doesn't fire on prose containing the word "authentication" by accident.
-export function isAntigravityAuthFailureText(text: string): boolean {
+export function isAntigravityAuthFailureText({ text }: { text: string }): boolean {
   const value = String(text || '');
   if (!value.trim()) return false;
   return (
@@ -151,7 +151,7 @@ export function isAntigravityAuthFailureText(text: string): boolean {
   );
 }
 
-export function isDeepSeekAuthFailureText(text: string): boolean {
+export function isDeepSeekAuthFailureText({ text }: { text: string }): boolean {
   const value = String(text || '');
   if (!value.trim()) return false;
   return (
@@ -163,7 +163,7 @@ export function isDeepSeekAuthFailureText(text: string): boolean {
   );
 }
 
-export function isReasonixAuthFailureText(text: string): boolean {
+export function isReasonixAuthFailureText({ text }: { text: string }): boolean {
   const value = String(text || '');
   if (!value.trim()) return false;
   return (
@@ -174,7 +174,7 @@ export function isReasonixAuthFailureText(text: string): boolean {
   );
 }
 
-export function isClaudeAuthFailureText(text: string): boolean {
+export function isClaudeAuthFailureText({ text }: { text: string }): boolean {
   const value = String(text || '');
   if (!value.trim()) return false;
   try {
@@ -197,7 +197,7 @@ export function isClaudeAuthFailureText(text: string): boolean {
   );
 }
 
-export function isGeminiAuthFailureText(text: string): boolean {
+export function isGeminiAuthFailureText({ text }: { text: string }): boolean {
   const value = String(text || '');
   if (!value.trim()) return false;
   return (
@@ -209,34 +209,31 @@ export function isGeminiAuthFailureText(text: string): boolean {
   );
 }
 
-export function classifyAgentAuthFailure(
-  agentId: string,
-  text: string,
-  hostName: string = DEFAULT_HOST_NAME,
+export function classifyAgentAuthFailure({ agentId, text }: { agentId: string; text: string }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}
 ): AgentAuthProbeResult | null {
   if (agentId === 'claude') {
-    if (!isClaudeAuthFailureText(text)) return null;
-    return { status: 'missing', message: claudeAuthGuidance(hostName) };
+    if (!isClaudeAuthFailureText({ text: text })) return null;
+    return { status: 'missing', message: claudeAuthGuidance({  }, { hostName: hostName }) };
   }
   if (agentId === 'cursor-agent') {
-    if (!isCursorAuthFailureText(text)) return null;
-    return { status: 'missing', message: cursorAuthGuidance(hostName) };
+    if (!isCursorAuthFailureText({ text: text })) return null;
+    return { status: 'missing', message: cursorAuthGuidance({  }, { hostName: hostName }) };
   }
   if (agentId === 'deepseek') {
-    if (!isDeepSeekAuthFailureText(text)) return null;
-    return { status: 'missing', message: deepseekAuthGuidance(hostName) };
+    if (!isDeepSeekAuthFailureText({ text: text })) return null;
+    return { status: 'missing', message: deepseekAuthGuidance({  }, { hostName: hostName }) };
   }
   if (agentId === 'antigravity') {
-    if (!isAntigravityAuthFailureText(text)) return null;
-    return { status: 'missing', message: antigravityAuthGuidance(hostName) };
+    if (!isAntigravityAuthFailureText({ text: text })) return null;
+    return { status: 'missing', message: antigravityAuthGuidance({  }, { hostName: hostName }) };
   }
   if (agentId === 'reasonix') {
-    if (!isReasonixAuthFailureText(text)) return null;
-    return { status: 'missing', message: reasonixAuthGuidance(hostName) };
+    if (!isReasonixAuthFailureText({ text: text })) return null;
+    return { status: 'missing', message: reasonixAuthGuidance({  }, { hostName: hostName }) };
   }
   if (agentId === 'gemini') {
-    if (!isGeminiAuthFailureText(text)) return null;
-    return { status: 'missing', message: geminiAuthGuidance(hostName) };
+    if (!isGeminiAuthFailureText({ text: text })) return null;
+    return { status: 'missing', message: geminiAuthGuidance({  }, { hostName: hostName }) };
   }
   return null;
 }
@@ -289,7 +286,7 @@ const AGENT_UPSTREAM_FAILURE_RE = new RegExp(
 // process failure. Auth is checked before rate/upstream so a `401` is never
 // misread as a `5xx`. Pure text match — no agent-specific assumptions — so it
 // applies uniformly to any CLI agent.
-export function classifyAgentServiceFailure(text: string): AgentServiceFailureCode | null {
+export function classifyAgentServiceFailure({ text }: { text: string }): AgentServiceFailureCode | null {
   const value = String(text || '');
   if (!value.trim()) return null;
   if (AGENT_AUTH_FAILURE_RE.test(value)) return 'AGENT_AUTH_REQUIRED';
@@ -369,9 +366,9 @@ function classifyProbedAuthFailure(
   hostName: string,
 ): AgentAuthProbeResult | null {
   if (TAILORED_AUTH_AGENTS.has(def.id)) {
-    return classifyAgentAuthFailure(def.id, text, hostName);
+    return classifyAgentAuthFailure({ agentId: def.id, text: text }, { hostName: hostName });
   }
-  if (classifyAgentServiceFailure(text) === 'AGENT_AUTH_REQUIRED') {
+  if (classifyAgentServiceFailure({ text: text }) === 'AGENT_AUTH_REQUIRED') {
     return { status: 'missing', message: genericAuthGuidance(def.name || def.id, hostName) };
   }
   return null;
@@ -381,21 +378,17 @@ function classifyProbedAuthFailure(
 // status/whoami command) and classify the result. Returns null when the
 // adapter declares no `authProbe` — those agents are never actively probed;
 // their auth status is inferred only from a real chat failure's error text.
-export async function probeAgentAuthStatus(
-  def: Pick<RuntimeAgentDef, 'id' | 'name' | 'authProbe'>,
-  resolvedBin: string,
-  env: RuntimeEnv,
-  hostName: string = DEFAULT_HOST_NAME,
+export async function probeAgentAuthStatus({ def, resolvedBin, env }: { def: Pick<RuntimeAgentDef, 'id' | 'name' | 'authProbe'>; resolvedBin: string; env: RuntimeEnv }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}
 ): Promise<AgentAuthProbeResult | null> {
   const probe = def.authProbe;
   if (!probe) return null;
   if (hasProbeSatisfyingApiKey(def, env)) return { status: 'ok' };
   try {
-    const { stdout, stderr } = await execAgentFile(resolvedBin, probe.args, {
+    const { stdout, stderr } = await execAgentFile({ command: resolvedBin, args: probe.args }, { options: {
       env: env as NodeJS.ProcessEnv,
       timeout: probe.timeoutMs ?? 5000,
       maxBuffer: 1024 * 1024,
-    });
+    } });
     const stdoutText = typeof stdout === 'string' ? stdout : '';
     const stderrText = typeof stderr === 'string' ? stderr : '';
     const output = `${stdoutText}\n${stderrText}`;

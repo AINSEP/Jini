@@ -37,7 +37,7 @@
  * requires opting in to this path by name, so they can't be pulled in by
  * accident alongside the port interfaces/types and typed DI tokens (which
  * *are* stable, safe-to-depend-on exports of the normal entry point). See
- * `packages/capability-providers/source-map.md` and
+ * `packages/capability-providers/archived provenance ledger` and
  * `ADS-memory/reports/security/SEC-remaining-backend-audit-2026-07-21.md`
  * finding SEC-RB-006 for the audit that prompted this split.
  */

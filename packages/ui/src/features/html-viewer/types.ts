@@ -1,6 +1,6 @@
 /**
  * Deck/slide-navigation + zoom + present slice of the classified `HtmlViewer`
- * god-component — see `packages/ui/source-map.md`'s `html-viewer`
+ * god-component — see `packages/ui/archived provenance ledger`'s `html-viewer`
  * classification section for the full disposition. This slice ships only
  * the pieces that classification found GENERIC with low coupling to the
  * rest of `HtmlViewer` (deck navigation, the zoom-percentage control, and

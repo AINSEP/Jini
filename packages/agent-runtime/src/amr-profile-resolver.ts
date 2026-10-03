@@ -15,7 +15,7 @@
  */
 export interface AmrProfileResolver {
   /** Return a scope key for the `amr` agent's remembered-live-models cache, derived from the spawn env. */
-  resolveProfile(env: NodeJS.ProcessEnv): string;
+  resolveProfile(requiredArgs: { env: NodeJS.ProcessEnv }): string;
 }
 
 export const noopAmrProfileResolver: AmrProfileResolver = {

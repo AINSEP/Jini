@@ -21,7 +21,9 @@ const VIEWPORT_MARGIN = 8;
  * @param itemCount Length of the caller's item list — the only piece of `RowMenuProps` this state
  *   needs, for `ArrowUp`-to-last-item and wraparound navigation.
  */
-export function useRowMenu(itemCount: number) {
+export function useRowMenu(
+  { itemCount, window, document }: { readonly itemCount: number; readonly window: Pick<Window, 'innerHeight' | 'innerWidth' | 'addEventListener' | 'removeEventListener'>; readonly document: Pick<Document, 'addEventListener' | 'removeEventListener'> },
+) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<Position | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -77,7 +79,7 @@ export function useRowMenu(itemCount: number) {
       window.removeEventListener('scroll', reposition, true);
       window.removeEventListener('resize', reposition);
     };
-  }, [open]);
+  }, [open, window, document]);
 
   // Click-outside closes. Scoped to the open window only, same lifecycle discipline as
   // `ConfirmButton`'s armed-only document listeners — a closed, idle `RowMenu` costs nothing beyond
@@ -92,7 +94,7 @@ export function useRowMenu(itemCount: number) {
     document.addEventListener('mousedown', onDocMouseDown);
     return () => document.removeEventListener('mousedown', onDocMouseDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, window, document]);
 
   // Keeps real DOM focus on the active item (roving focus via `tabIndex={-1}` on every item except
   // the active one) rather than only tracking `activeIndex` in state — arrow-key navigation needs
@@ -153,7 +155,7 @@ export function useRowMenu(itemCount: number) {
   /** Closes (returning focus to the trigger, same as Escape) and then fires the selected item's own
    *  callback — takes the callback directly rather than a whole `RowMenuItem` so this hook stays
    *  free of any dependency on that component-level type. */
-  function selectItem(onSelect: () => void) {
+  function selectItem({ onSelect }: { readonly onSelect: () => void }) {
     close(true);
     onSelect();
   }

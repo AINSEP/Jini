@@ -1,3 +1,4 @@
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 /**
  * @file Write-service for the `navigation` library.
  *
@@ -9,21 +10,22 @@
  *
  * How it relates to the project:
  * - Storage is `MenuRepoPort` (`repo.memory.ts`) — a self-contained repo, not
- *   the generic entries repo (see `repo.memory.ts`'s file header for why).
+ * the generic entries repo (see `repo.memory.ts`'s file header for why).
  * - Location assignment additionally writes `NavLocationBindingRepoPort`
- *   (`ports.ts`), the one real port this library declares.
+ * (`ports.ts`), the one real port this library declares.
  * - In production this whole module runs inside the command
- *   gateway/write chokepoint (same-transaction revision, attribution,
- *   `entry_refs` extraction). That gateway is not implemented as running code
- *   yet, so these functions are the chokepoint's future *contents*, called
- *   directly for now.
+ * gateway/write chokepoint (same-transaction revision, attribution,
+ * `entry_refs` extraction). That gateway is not implemented as running code
+ * yet, so these functions are the chokepoint's future *contents* called
+ * directly for now.
  *
  * Architectural role:
  * Feature logic only. No Express/route code, no direct SQL — everything goes
  * through the injected repo ports (`deps`).
- */
+ */ 
 import { assertEntityLive } from "../core/entity-liveness.js";
-import type { ClockPort, DomainEvent, IdGeneratorPort, OutboxPort, UUID } from "../core/ports.js";
+import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
+import type { DomainEvent, OutboxPort } from "../core/ports.js";
 import type { MenuRepoPort } from "./repo.memory.js";
 import type { NavLocationBindingRepoPort } from "./ports.js";
 import {
@@ -41,7 +43,7 @@ import {
 // Outbox event publication — each mutating function below
 // enqueues its matching NAVIGATION_EVENTS entry after its repo write(s)
 // succeed, never on a rejection path. Mirrors the host's proven
-// `outbox.enqueue()` call shape.
+// `outbox.enqueue` call shape.
 // ---------------------------------------------------------------------------
 
 /**
@@ -51,10 +53,10 @@ import {
  * default payload type is `Record<string, unknown>`) without a cast — every
  * call site below still passes a fresh object literal matching one of those
  * two contract shapes exactly (`contracts.ts`), just not nominally typed here.
- */
+ */ 
 function buildEvent(required: {
-  idGen: IdGeneratorPort;
-  clock: ClockPort;
+  idGen: IdGenerator;
+  clock: Clock;
   name: string;
   workspaceId: UUID;
   aggregateId: UUID;
@@ -63,7 +65,7 @@ function buildEvent(required: {
   return {
     id: required.idGen.newId(),
     name: required.name,
-    occurredAt: required.clock.nowIso(),
+    occurredAt: kernelNowIso({ clock: required.clock }),
     aggregateId: required.aggregateId,
     workspaceId: required.workspaceId,
     payload: required.payload,
@@ -74,21 +76,34 @@ function buildEvent(required: {
 // Typed errors
 // ---------------------------------------------------------------------------
 
-export class MenuNotFoundError extends Error {}
-export class MenuValidationError extends Error {}
-export class MenuConflictError extends Error {}
+export class MenuNotFoundError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
+export class MenuValidationError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
+export class MenuConflictError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
 
 /**
  * The 409-style purge rejection: hard delete is blocked while the menu is
  * still bound to at least one theme location (deletion ladder).
  * Carries the offending location keys so a caller can render "unassign these
  * first" without a second lookup.
- */
+ */ 
 export class MenuLocationBoundError extends MenuConflictError {
   readonly boundLocations: readonly NavLocationKey[];
 
-  constructor(message: string, boundLocations: readonly NavLocationKey[]) {
-    super(message);
+  constructor(requiredArgs: { message: string; boundLocations: readonly NavLocationKey[] }, optionalArgs: Record<string, never> = {}) {
+    const { message, boundLocations } = requiredArgs;
+    super({ message: message });
     this.boundLocations = boundLocations;
   }
 }
@@ -97,30 +112,30 @@ export class MenuLocationBoundError extends MenuConflictError {
 // Tree validation (total/bounded amendment)
 // ---------------------------------------------------------------------------
 
-/** Default max nesting depth (root = depth 1). Configurable. */
+/** Default max nesting depth (root = depth 1). Configurable. */ 
 export const DEFAULT_MAX_TREE_DEPTH = 5;
-/** Default max total item count across the whole tree. */
+/** Default max total item count across the whole tree. */ 
 export const DEFAULT_MAX_ITEM_COUNT = 500;
 
 const VALID_TARGET_KINDS = new Set<string>(["entryRef", "termRef", "url", "route"]);
-/** Named deferred seams — recognized, rejected until their resolver ships. */
+/** Named deferred seams — recognized, rejected until their resolver ships. */ 
 const RESERVED_TARGET_KINDS = new Set<string>(["dynamicQuery", "content"]);
 
 /**
  * Fixed placeholder origin {@link isAllowedHref} resolves a claimed same-origin-relative href
  * against, to compare the RESOLVED origin rather than the raw string shape. Mirrors
- * `apps/website/src/server/inbound/public-http/http/site/render.ts`'s identically-named constant
+ * the host's public renderer's identically-named constant
  * byte-for-byte — see that file's own header for why a fixed placeholder origin is sufficient (only
  * the relationship between the resolved URL's origin and this one is ever inspected, never the
  * placeholder value itself).
- */
-const SAFE_HREF_RESOLUTION_BASE = "http://tovu-safehref.invalid/";
+ */ 
+const SAFE_HREF_RESOLUTION_BASE = "http://safehref.invalid/";
 const SAFE_HREF_RESOLUTION_ORIGIN = new URL(SAFE_HREF_RESOLUTION_BASE).origin;
 
 /**
  * The CANONICAL href allowlist for an author-authored link — same accepted shapes (`#…`, same-origin
  * `/…`, `http(s)://`, `mailto:`) as the host's render-time `safeHref` in `render.ts` and its
- * `features/theme/static-render.ts` duplicate. **This is now the single source of truth**: exported
+ * `features/theme/static-render.ts` duplicate. **This is now the single source of truth** exported
  * from this package's public surface (`navigation/index.ts` -> `@jini-ai/cms/navigation`) so the
  * dependency runs the direction that is actually legal — the host already depends on `@jini-ai/cms`, not
  * the reverse — rather than each consumer hand-copying the predicate.
@@ -131,14 +146,14 @@ const SAFE_HREF_RESOLUTION_ORIGIN = new URL(SAFE_HREF_RESOLUTION_BASE).origin;
  * `check:boundaries` no-deep-import concern is NOT what blocks it: `render.ts` already imports
  * `@jini-ai/cms/core` today, and `features/theme` already imports `@jini-ai/cms/core` too, so both
  * call sites may legally import `@jini-ai/cms/navigation` directly — verified by grep, not assumed).
- * Until that follow-up lands, `apps/website/development/scripts/check-menu-href-allowlist-sync.ts`
+ * Until that follow-up lands, the host's menu href allowlist sync check
  * behaviorally gates the three copies against the same adversarial table so a divergence fails CI
  * instead of drifting silently.
  *
- * Replaced (this change) a `URL_SCHEME_DENYLIST` (`startsWith` on a lowercased, `.trim()`ed string)
+ * Replaced (this change) a `URL_SCHEME_DENYLIST` (`startsWith` on a lowercased, `.trim`ed string)
  * that failed open: the WHATWG `URL` parser strips TAB/LF/CR from ANYWHERE in the input and folds a
- * leading backslash to `/` for `http(s)`, so `"java\tscript:alert(1)"`, `" javascript:alert(1)"`,
- * `"file:///etc/passwd"`, `"blob:…"`, `"about:blank"`, `"//evil.example"` (protocol-relative), and
+ * leading backslash to `/` for `http(s)`, so `"java\tscript:alert"`, `" javascript:alert"`,
+ * `"file:// etc/passwd"`, `"blob:…"`, `"about:blank"`, `"//evil.example"` (protocol-relative), and
  * `"/\evil.example"` all resolved to a dangerous or off-origin target while never matching any
  * `startsWith` prefix in the old list. An allowlist closes the whole bypass class at once (case,
  * embedded control characters, and scheme are all irrelevant to an allowlist the same way) rather
@@ -153,11 +168,11 @@ const SAFE_HREF_RESOLUTION_ORIGIN = new URL(SAFE_HREF_RESOLUTION_BASE).origin;
  * hrefs written through the host's admin editor.
  *
  * @param rawHref - The href to check, already confirmed non-empty by `validateTarget`. Any string is
- *   otherwise a valid input — this function performs no other precondition checks.
+ * otherwise a valid input — this function performs no other precondition checks.
  * @returns `true` when `rawHref` passes the allowlist, `false` otherwise.
- * @complexity O(1) — a handful of string checks plus one `URL` construction on the `/…` branch.
- */
-export function isAllowedHref(rawHref: string): boolean {
+ * @complexity O — a handful of string checks plus one `URL` construction on the `/…` branch.
+ */ 
+export function isAllowedHref({ rawHref }: { rawHref: string }, _optional: Record<string, never> = {}): boolean {
   const href = rawHref.trim();
   if (href.startsWith("#")) return true;
   if (/^https?:\/\//i.test(href) || /^mailto:/i.test(href)) return true;
@@ -177,7 +192,7 @@ export function isAllowedHref(rawHref: string): boolean {
  * `href` description, so an author-facing 400 and an LLM-facing tool description can never drift out
  * of sync with each other the way three independent copies of the URL-checking LOGIC itself did
  * before this change.
- */
+ */ 
 export const ALLOWED_HREF_SHAPES_DESCRIPTION =
   "an in-page anchor ('#...'), a same-origin relative path ('/...'), an 'http://' or 'https://' URL, or a 'mailto:' address";
 
@@ -191,28 +206,28 @@ export interface TreeValidationLimits {
  *
  * Checks (total/bounded validation + target integrity):
  * - `items` (and every `children` array) is actually an array, and every node
- *   in it is a non-null object — untrusted JSON bodies can carry `null`
- *   entries or a non-array `items`/`children`, which must reject as a
- *   `MenuValidationError`, not throw an uncaught `TypeError`;
+ * in it is a non-null object — untrusted JSON bodies can carry `null`
+ * entries or a non-array `items`/`children`, which must reject as a
+ * `MenuValidationError`, not throw an uncaught `TypeError`;
  * - every node has a non-empty `id`, unique across the whole tree (id
- *   stability is a caller responsibility — see `updateMenuTree` doc for the
- *   simplification this build accepts);
+ * stability is a caller responsibility — see `updateMenuTree` doc for the
+ * simplification this build accepts);
  * - nesting depth stays within `maxDepth`;
  * - total item count stays within `maxItemCount`;
  * - every node has a `target` object (a missing/`null` `target` rejects
- *   rather than crashing) whose `kind` is one of the four v1 kinds — reserved
- *   kinds (`dynamicQuery`, `content`) are rejected with a clear "not yet"
- *   error rather than silently accepted;
+ * rather than crashing) whose `kind` is one of the four v1 kinds — reserved
+ * kinds (`dynamicQuery`, `content`) are rejected with a clear "not yet"
+ * error rather than silently accepted;
  * - `url` targets require a non-empty string `href` and pass an origin/scheme
- *   ALLOWLIST (`#…`, same-origin `/…`, `http(s)://`, `mailto:` — see
- *   {@link isAllowedHref}), not a scheme denylist.
+ * ALLOWLIST (`#…`, same-origin `/…`, `http(s)://`, `mailto:` — see
+ * {@link isAllowedHref}), not a scheme denylist.
  *
  * @complexity O(n) over total node count for one full walk; no per-node
  * backtracking. Space is O(n) for the cloned tree plus O(n) for the id set.
  * @overallScore 100
- */
+ */ 
 export function validateAndCloneTree(
-  items: readonly NavItemNode[],
+  { items }: { items: readonly NavItemNode[] },
   limits: TreeValidationLimits = {}
 ): NavItemNode[] {
   const maxDepth = limits.maxDepth ?? DEFAULT_MAX_TREE_DEPTH;
@@ -222,24 +237,24 @@ export function validateAndCloneTree(
 
   function walk(nodes: readonly NavItemNode[], depth: number): NavItemNode[] {
     if (!Array.isArray(nodes)) {
-      throw new MenuValidationError("menu items must be an array");
+      throw new MenuValidationError({ message: "menu items must be an array" });
     }
     if (depth > maxDepth) {
-      throw new MenuValidationError(`menu tree exceeds max nesting depth of ${maxDepth}`);
+      throw new MenuValidationError({ message: `menu tree exceeds max nesting depth of ${maxDepth}` });
     }
     return nodes.map((node) => {
       count += 1;
       if (count > maxItemCount) {
-        throw new MenuValidationError(`menu tree exceeds max item count of ${maxItemCount}`);
+        throw new MenuValidationError({ message: `menu tree exceeds max item count of ${maxItemCount}` });
       }
       if (!node || typeof node !== "object") {
-        throw new MenuValidationError("every menu item must be an object");
+        throw new MenuValidationError({ message: "every menu item must be an object" });
       }
       if (!node.id || !node.id.trim()) {
-        throw new MenuValidationError("every menu item requires a non-empty id");
+        throw new MenuValidationError({ message: "every menu item requires a non-empty id" });
       }
       if (seenIds.has(node.id)) {
-        throw new MenuValidationError(`duplicate item id '${node.id}' in menu tree`);
+        throw new MenuValidationError({ message: `duplicate item id '${node.id}' in menu tree` });
       }
       seenIds.add(node.id);
       validateTarget(node.target);
@@ -257,37 +272,35 @@ export function validateAndCloneTree(
  * arriving `null`/`undefined` (missing from the request body) or a `url` target missing `href`
  * previously threw an uncaught `TypeError` here, which the host's route handler had no case for and
  * surfaced as a 500 instead of the intended 400 `MenuValidationError` path.
- */
+ */ 
 function validateTarget(target: NavTarget): void {
   if (!target || typeof target !== "object") {
-    throw new MenuValidationError("every menu item requires a target");
+    throw new MenuValidationError({ message: "every menu item requires a target" });
   }
   const kind = target.kind;
   if (RESERVED_TARGET_KINDS.has(kind)) {
-    throw new MenuValidationError(
-      `target kind '${kind}' is a reserved seam and is not supported yet`
+    throw new MenuValidationError({ message: `target kind '${kind}' is a reserved seam and is not supported yet` }
     );
   }
   if (!VALID_TARGET_KINDS.has(kind)) {
-    throw new MenuValidationError(`unknown target kind '${kind}'`);
+    throw new MenuValidationError({ message: `unknown target kind '${kind}'` });
   }
   if (kind === "url") {
     const rawHref = (target as NavUrlTarget).href;
     if (typeof rawHref !== "string" || !rawHref.trim()) {
-      throw new MenuValidationError("url target requires a non-empty href");
+      throw new MenuValidationError({ message: "url target requires a non-empty href" });
     }
-    if (!isAllowedHref(rawHref)) {
-      throw new MenuValidationError(
-        `url target href is not allowed: '${rawHref}'. Accepted shapes: ${ALLOWED_HREF_SHAPES_DESCRIPTION}.`
+    if (!isAllowedHref({ rawHref: rawHref })) {
+      throw new MenuValidationError({ message: `url target href is not allowed: '${rawHref}'. Accepted shapes: ${ALLOWED_HREF_SHAPES_DESCRIPTION}.` }
       );
     }
   }
 }
 
 function assertValidTitleAndSlug(title: string, slug: string): void {
-  if (!title) throw new MenuValidationError("title is required");
+  if (!title) throw new MenuValidationError({ message: "title is required" });
   if (!slug.match(/^[a-z0-9-]+$/)) {
-    throw new MenuValidationError("slug must use lowercase letters, numbers, and dashes");
+    throw new MenuValidationError({ message: "slug must use lowercase letters, numbers, and dashes" });
   }
 }
 
@@ -297,9 +310,9 @@ function assertValidTitleAndSlug(title: string, slug: string): void {
 
 export interface CreateMenuDeps {
   repo: MenuRepoPort;
-  clock: ClockPort;
-  idGen: IdGeneratorPort;
-  /** Enqueues `navigation.menu.created` after a successful save. */
+  clock: Clock;
+  idGen: IdGenerator;
+  /** Enqueues `navigation.menu.created` after a successful save. */ 
   outbox: OutboxPort;
 }
 
@@ -307,7 +320,7 @@ export interface CreateMenuServiceInput {
   workspaceId: UUID;
   title: string;
   slug: string;
-  /** Optional initial tree; defaults to an empty menu. Items must carry ids. */
+  /** Optional initial tree; defaults to an empty menu. Items must carry ids. */ 
   items?: readonly NavItemNode[] | undefined;
 }
 
@@ -334,7 +347,7 @@ export interface CreateMenuOptional {
  * @complexity O(n) in the initial tree size for validation; O(m) in existing
  * menu count for the slug-uniqueness scan (repo-dependent).
  * @overallScore 100
- */
+ */ 
 export async function createMenu(
   required: CreateMenuRequired,
   optional: CreateMenuOptional = {}
@@ -345,9 +358,9 @@ export async function createMenu(
   assertValidTitleAndSlug(title, slug);
 
   const duplicate = await deps.repo.findBySlug({ workspaceId: input.workspaceId, slug });
-  if (duplicate) throw new MenuConflictError(`slug '${slug}' already exists`);
+  if (duplicate) throw new MenuConflictError({ message: `slug '${slug}' already exists` });
 
-  const items = validateAndCloneTree(input.items ?? [], optional.limits);
+  const items = validateAndCloneTree({ items: input.items ?? [] }, optional.limits);
 
   const menu: NavMenuEntry = {
     id: deps.idGen.newId(),
@@ -357,7 +370,7 @@ export async function createMenu(
     status: "published" as MenuStatus,
     doc: { type: NAV_DOC_TYPE, version: 1, items },
     locations: [],
-    updatedAt: deps.clock.nowIso(),
+    updatedAt: kernelNowIso({ clock: deps.clock }),
     version: 1,
   };
 
@@ -383,21 +396,21 @@ export async function createMenu(
 
 export interface UpdateMenuTreeDeps {
   repo: MenuRepoPort;
-  clock: ClockPort;
-  /** Not previously present on this deps bag — needed to mint the outbox event's id. */
-  idGen: IdGeneratorPort;
-  /** Enqueues `navigation.menu.updated` after a successful save. */
+  clock: Clock;
+  /** Not previously present on this deps bag — needed to mint the outbox event's id. */ 
+  idGen: IdGenerator;
+  /** Enqueues `navigation.menu.updated` after a successful save. */ 
   outbox: OutboxPort;
 }
 
 export interface UpdateMenuTreeServiceInput {
   workspaceId: UUID;
   id: UUID;
-  /** The entry `version` this edit was based on — OCC guard. */
+  /** The entry `version` this edit was based on — OCC guard. */ 
   expectedVersion: number;
   title?: string | undefined;
   slug?: string | undefined;
-  /** The full replacement tree (whole-tree edit). */
+  /** The full replacement tree (whole-tree edit). */ 
   items: readonly NavItemNode[];
 }
 
@@ -421,7 +434,7 @@ export interface UpdateMenuTreeOptional {
  * previous tree and is deferred — a caller-discipline requirement for now,
  * not a runtime-enforced invariant.
  *
- * @complexity O(n) in the new tree size for validation; O(1) additional repo
+ * @complexity O(n) in the new tree size for validation; O additional repo
  * calls (one read, at most one slug-uniqueness read, one write).
  * @overallScore 90
  * @findings Medium: id-stability across edits (ids not renumbered on survive)
@@ -429,19 +442,18 @@ export interface UpdateMenuTreeOptional {
  * pending a tree-diff mechanism; would need the previous tree's id set passed
  * in to check "no id vanished and reappeared elsewhere," which is more than
  * this slice's scope calls for.
- */
+ */ 
 export async function updateMenuTree(
   required: UpdateMenuTreeRequired,
   optional: UpdateMenuTreeOptional = {}
 ): Promise<{ menu: NavMenuEntry }> {
   const { deps, input } = required;
   const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.id });
-  if (!existing) throw new MenuNotFoundError(`menu '${input.id}' was not found`);
+  if (!existing) throw new MenuNotFoundError({ message: `menu '${input.id}' was not found` });
   assertEntityLive({ entityType: "menu", entityId: input.id, state: existing.status === "trash" ? "trashed" : "live" });
 
   if (existing.version !== input.expectedVersion) {
-    throw new MenuConflictError(
-      `menu '${input.id}' was modified concurrently (expected version ${input.expectedVersion}, found ${existing.version})`
+    throw new MenuConflictError({ message: `menu '${input.id}' was modified concurrently (expected version ${input.expectedVersion}, found ${existing.version})` }
     );
   }
 
@@ -452,18 +464,18 @@ export async function updateMenuTree(
   if (slug !== existing.slug) {
     const duplicate = await deps.repo.findBySlug({ workspaceId: input.workspaceId, slug });
     if (duplicate && duplicate.id !== existing.id) {
-      throw new MenuConflictError(`slug '${slug}' already exists`);
+      throw new MenuConflictError({ message: `slug '${slug}' already exists` });
     }
   }
 
-  const items = validateAndCloneTree(input.items, optional.limits);
+  const items = validateAndCloneTree({ items: input.items }, optional.limits);
 
   const menu: NavMenuEntry = {
     ...existing,
     title,
     slug,
     doc: { type: NAV_DOC_TYPE, version: existing.doc.version, items },
-    updatedAt: deps.clock.nowIso(),
+    updatedAt: kernelNowIso({ clock: deps.clock }),
     version: existing.version + 1,
   };
 
@@ -490,10 +502,10 @@ export async function updateMenuTree(
 export interface AssignLocationDeps {
   repo: MenuRepoPort;
   bindingRepo: NavLocationBindingRepoPort;
-  clock: ClockPort;
-  /** Not previously present on this deps bag — needed to mint outbox event ids. */
-  idGen: IdGeneratorPort;
-  /** Enqueues `navigation.location.assigned` (+ `.unassigned` on reassignment). */
+  clock: Clock;
+  /** Not previously present on this deps bag — needed to mint outbox event ids. */ 
+  idGen: IdGenerator;
+  /** Enqueues `navigation.location.assigned` (+ `.unassigned` on reassignment). */ 
   outbox: OutboxPort;
 }
 
@@ -531,7 +543,7 @@ export interface AssignLocationOptional {}
  * transaction machinery — do not copy this sequencing pattern into code that
  * has real transactions available.
  *
- * @complexity O(1) repo calls (bounded: at most two menu reads/writes plus one
+ * @complexity O repo calls (bounded: at most two menu reads/writes plus one
  * binding upsert), independent of workspace size.
  * @overallScore 90
  * @findings Medium: no rollback across the two writes (menu save, then
@@ -539,17 +551,17 @@ export interface AssignLocationOptional {}
  * a rebuild. Acceptable because the index is declared rebuildable-by-definition;
  * flagged as tech debt for when transactions
  * exist.
- */
+ */ 
 export async function assignLocation(
   required: AssignLocationRequired,
   _optional: AssignLocationOptional = {}
 ): Promise<{ menu: NavMenuEntry; binding: NavLocationBindingRow; displacedMenu: NavMenuEntry | null }> {
   const { deps, input } = required;
   const menu = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.menuId });
-  if (!menu) throw new MenuNotFoundError(`menu '${input.menuId}' was not found`);
+  if (!menu) throw new MenuNotFoundError({ message: `menu '${input.menuId}' was not found` });
   assertEntityLive({ entityType: "menu", entityId: input.menuId, state: menu.status === "trash" ? "trashed" : "live" });
 
-  const now = deps.clock.nowIso();
+  const now = kernelNowIso({ clock: deps.clock });
 
   const existingBinding = await deps.bindingRepo.findByLocation({
     workspaceId: input.workspaceId,
@@ -625,17 +637,17 @@ export async function assignLocation(
 export interface DeleteMenuDeps {
   repo: MenuRepoPort;
   bindingRepo: NavLocationBindingRepoPort;
-  clock: ClockPort;
-  /** Not previously present on this deps bag — needed to mint outbox event ids. */
-  idGen: IdGeneratorPort;
-  /** Enqueues `navigation.menu.updated` (trash) or `navigation.menu.deleted` (purge); nothing on a blocked purge. */
+  clock: Clock;
+  /** Not previously present on this deps bag — needed to mint outbox event ids. */ 
+  idGen: IdGenerator;
+  /** Enqueues `navigation.menu.updated` (trash) or `navigation.menu.deleted` (purge); nothing on a blocked purge. */ 
   outbox: OutboxPort;
 }
 
 export interface DeleteMenuServiceInput {
   workspaceId: UUID;
   id: UUID;
-  /** Force past the 409 dangling-location guard (needs `navigation.delete.force`). */
+  /** Force past the 409 dangling-location guard (needs `navigation.delete.force`). */ 
   force?: boolean | undefined;
 }
 
@@ -649,33 +661,33 @@ export interface DeleteMenuOptional {}
 /**
  * Deletion ladder (mirrors the media library's):
  * 1. First call on a non-trashed menu **soft-deletes** it (`status: 'trash'`,
- *    revisioned) and returns — no purge yet.
- * 2. A second call on an already-trashed menu attempts the **hard purge**. If
- *    the menu is still bound to any location, purge is rejected with
- *    `MenuLocationBoundError` (409-style) listing the bound keys, unless
- *    `force` is set — permission-gating that error behind
- *    `navigation.delete.force` is the caller's (gateway's) job, not this
- *    function's; this function only enforces the *shape* of the guard.
+ * revisioned) and returns — no purge yet.
+ * 2. A second call on an already-trashed menu attempts the **hard purge** If
+ * the menu is still bound to any location, purge is rejected with
+ * `MenuLocationBoundError` (409-style) listing the bound keys, unless
+ * `force` is set — permission-gating that error behind
+ * `navigation.delete.force` is the caller's (gateway's) job, not this
+ * function's; this function only enforces the *shape* of the guard.
  * 3. On a successful purge, the menu row and all of its location bindings are
- *    removed.
+ * removed.
  *
- * @complexity O(1) repo calls; O(k) bindings scanned where k = locations this
+ * @complexity O repo calls; O(k) bindings scanned where k = locations this
  * menu holds (small, bounded by registered locations).
  * @overallScore 100
- */
+ */ 
 export async function deleteMenu(
   required: DeleteMenuRequired,
   _optional: DeleteMenuOptional = {}
 ): Promise<{ menu: NavMenuEntry | null; purged: boolean }> {
   const { deps, input } = required;
   const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.id });
-  if (!existing) throw new MenuNotFoundError(`menu '${input.id}' was not found`);
+  if (!existing) throw new MenuNotFoundError({ message: `menu '${input.id}' was not found` });
 
   if (existing.status !== "trash") {
     const trashed: NavMenuEntry = {
       ...existing,
       status: "trash" as MenuStatus,
-      updatedAt: deps.clock.nowIso(),
+      updatedAt: kernelNowIso({ clock: deps.clock }),
       version: existing.version + 1,
     };
     await deps.repo.save(trashed);
@@ -701,9 +713,7 @@ export async function deleteMenu(
 
   if (bindings.length > 0 && !input.force) {
     const boundLocations = bindings.map((row) => row.locationKey);
-    throw new MenuLocationBoundError(
-      `menu '${input.id}' is still bound to location(s): ${boundLocations.join(", ")} — unassign before purging, or use force`,
-      boundLocations
+    throw new MenuLocationBoundError({ message: `menu '${input.id}' is still bound to location(s): ${boundLocations.join(", ")} — unassign before purging, or use force`, boundLocations: boundLocations }
     );
   }
 

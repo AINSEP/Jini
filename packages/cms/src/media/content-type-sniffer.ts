@@ -191,7 +191,7 @@ function isSvgLike(text: string): boolean {
  * {@link TEXT_SNIFF_WINDOW} bytes, a fixed constant independent of `bytes.length`.
  * @overallScore 100
  */
-export function sniffContentType(bytes: Uint8Array): SniffedContentType {
+export function sniffContentType({ bytes }: { bytes: Uint8Array }, _optional: Record<string, never> = {}): SniffedContentType {
   if (isPng(bytes)) return "image/png";
   if (isJpeg(bytes)) return "image/jpeg";
   if (isGif(bytes)) return "image/gif";

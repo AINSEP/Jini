@@ -8,10 +8,10 @@ import type { TauriSingleInstanceApi } from './tauri-surfaces.js';
  * `true`, since by construction this JS is only running because the lock
  * was already granted.
  */
-export function createTauriSingleInstanceLockPort(api: TauriSingleInstanceApi): SingleInstanceLockPort {
+export function createTauriSingleInstanceLockPort({ api }: { api: TauriSingleInstanceApi }): SingleInstanceLockPort {
   return {
-    claim(onSecondInstance) {
-      api.onSecondInstance(() => onSecondInstance());
+    claim({ onSecondInstance }) {
+      api.onSecondInstance({ listener: () => onSecondInstance() });
       return true;
     },
   };

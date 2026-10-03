@@ -22,9 +22,9 @@ const WORKSPACE_ID = "workspace-1";
 function makeDeps() {
   let counter = 0;
   return {
-    clock: { nowIso: () => "2026-07-10T00:00:00.000Z" },
+    clock: { nowMs: () => Date.parse("2026-07-10T00:00:00.000Z")},
     idGen: { newId: () => `id-${(counter += 1)}` },
-    transformRepo: new InMemoryTransformDefinitionRepo(),
+    transformRepo: new InMemoryTransformDefinitionRepo({}),
   };
 }
 

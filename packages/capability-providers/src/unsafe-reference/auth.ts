@@ -26,7 +26,7 @@ interface StoredUser extends AuthUser {
 }
 
 /** Creates the in-memory reference `AuthProvider`. No persistence — state is lost on process exit. */
-export function createInMemoryAuthProvider(options: InMemoryAuthProviderOptions = {}): AuthProvider {
+export function createInMemoryAuthProvider(_required: Record<string, never>, options: InMemoryAuthProviderOptions = {}): AuthProvider {
   const sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
   const now = options.now ?? Date.now;
   const usersByEmail = new Map<string, StoredUser>();
@@ -63,11 +63,11 @@ export function createInMemoryAuthProvider(options: InMemoryAuthProviderOptions 
       return session;
     },
 
-    async signOut(token: string): Promise<void> {
+    async signOut({ token }: { token: string }): Promise<void> {
       sessions.delete(token);
     },
 
-    async verifySession(token: string): Promise<AuthUser | null> {
+    async verifySession({ token }: { token: string }): Promise<AuthUser | null> {
       const session = sessions.get(token);
       if (!session) return null;
       if (session.expiresAt <= now()) {

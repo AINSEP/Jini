@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { InMemoryPrincipalRepo } from "../../identity/index.js";
+import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import { ForbiddenError } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
 import {
@@ -21,13 +21,13 @@ import {
  * gate itself was never exercised. This file exists solely to close that gap.
  */
 
-const clock = { nowIso: () => "2026-07-31T00:00:00.000Z" };
+const clock = { nowMs: () => Date.parse("2026-07-31T00:00:00.000Z")};
 let idCounter = 0;
 const ids = { newId: () => `id-${++idCounter}` };
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
 const alwaysDeny = async () => ({ allowed: false, reason: "no_grant" });
 
-async function seedDefinition(repo: InMemorySettingsRepo, principals: InMemoryPrincipalRepo, namespace: string, key: string) {
+async function seedDefinition(repo: InMemorySettingsRepo, principals: InMemorySettingsPrincipalLookup, namespace: string, key: string) {
   const { registered } = await registerDefinitions({
     deps: { repo, clock, ids, authorize: alwaysAllow, principals },
     input: {
@@ -52,7 +52,7 @@ async function seedDefinition(repo: InMemorySettingsRepo, principals: InMemoryPr
 
 test("renameDefinition/retypeDefinition/deprecateDefinition/tombstoneDefinition are each rejected FORBIDDEN when the caller lacks settings.definitions.manage, and none of the four writes anything", async () => {
   const repo = new InMemorySettingsRepo();
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
   const settingId = await seedDefinition(repo, principals, "core.ns", "a");
   const deniedDeps = { repo, clock, ids, authorize: alwaysDeny, principals };
 

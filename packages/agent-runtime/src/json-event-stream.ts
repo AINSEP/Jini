@@ -3,7 +3,7 @@
  *
  * Ported verbatim from OD's
  * `apps/daemon/src/runtimes/json-event-stream.ts`. Self-contained —
- * no imports, no product coupling. See `source-map.md`.
+ * no imports, no product coupling. See `archived provenance ledger`.
  */
 type JsonObject = Record<string, unknown>;
 type StreamEvent = Record<string, unknown>;
@@ -68,7 +68,7 @@ function stringifyContent(value: unknown): string {
     // `JSON.parse`, the same "keep the defensive branch, document it, don't
     // force a test around impossible data" call `@jini-ai/cli`'s
     // `defaultReadFile`'s `finish()` guard made on 2026-07-22 — see
-    // `source-map.md`'s 2026-07-22 entry for the full re-derivation.
+    // `archived provenance ledger`'s 2026-07-22 entry for the full re-derivation.
     return String(value);
   }
 }
@@ -925,7 +925,7 @@ function handleCodexEvent(obj: unknown, onEvent: StreamEventHandler, state: Pars
   return false;
 }
 
-export function createJsonEventStreamHandler(kind: ParserKind, onEvent: StreamEventHandler) {
+export function createJsonEventStreamHandler({ kind, onEvent }: { kind: ParserKind; onEvent: StreamEventHandler }) {
   let buffer = '';
   const state: ParserState = {
     cursorTextSoFar: '',
@@ -959,7 +959,7 @@ export function createJsonEventStreamHandler(kind: ParserKind, onEvent: StreamEv
     onEvent({ type: 'raw', line });
   }
 
-  function feed(chunk: string): void {
+  function feed({ chunk }: { chunk: string }): void {
     buffer += chunk;
     let nl;
     while ((nl = buffer.indexOf('\n')) !== -1) {

@@ -25,10 +25,10 @@
  * file name (a host typically gates on file extension, as OD's origin did
  * with `.html`/`.htm`). Returns the body unchanged when no rewrite applies.
  */
-export type RuntimeCompatNormalizer = (name: string, body: unknown) => unknown;
+export type RuntimeCompatNormalizer = (required: { name: string; body: unknown }) => unknown;
 
 /** Applies no rewrite — returns `body` unchanged. Safe default until a host supplies its own normalizer(s). */
-export const noopRuntimeCompatNormalizer: RuntimeCompatNormalizer = (_name, body) => body;
+export const noopRuntimeCompatNormalizer: RuntimeCompatNormalizer = ({ body }) => body;
 
 /**
  * Composes several normalizers into one, applying each in order — the
@@ -37,7 +37,7 @@ export const noopRuntimeCompatNormalizer: RuntimeCompatNormalizer = (_name, body
  * others.
  */
 export function composeRuntimeCompatNormalizers(
-  normalizers: readonly RuntimeCompatNormalizer[],
+  { normalizers }: { normalizers: readonly RuntimeCompatNormalizer[] },
 ): RuntimeCompatNormalizer {
-  return (name, body) => normalizers.reduce((current, normalize) => normalize(name, current), body);
+  return ({ name, body }) => normalizers.reduce((current, normalize) => normalize({ name, body: current }), body);
 }

@@ -26,7 +26,7 @@ export interface OpenCodeServiceFailure {
 // `$HOME/.local/share/opencode`, with session logs under `log/`. Mirror that
 // so we read the same files the spawned CLI wrote. Null when neither var is
 // set (we have no basis to guess a path).
-export function resolveOpenCodeLogDir(env: Record<string, string | undefined>): string | null {
+export function resolveOpenCodeLogDir({ env }: { env: Record<string, string | undefined> }): string | null {
   const xdg = typeof env.XDG_DATA_HOME === 'string' ? env.XDG_DATA_HOME.trim() : '';
   const home = typeof env.HOME === 'string' ? env.HOME.trim() : '';
   const base = xdg || (home ? path.join(home, '.local', 'share') : '');
@@ -45,9 +45,7 @@ export function resolveOpenCodeLogDir(env: Record<string, string | undefined>): 
 // callers are a (non-async) run-close handler and an inactivity watchdog,
 // once per failed OpenCode run. Returns null on any fs error (no dir yet,
 // perms).
-export function readLatestOpenCodeLogTail(
-  logDir: string,
-  options: { maxBytes?: number; since?: number } = {},
+export function readLatestOpenCodeLogTail({ logDir }: { logDir: string }, options: { maxBytes?: number; since?: number } = {}
 ): string | null {
   const { maxBytes = 2_000_000, since } = options;
   let names: string[];
@@ -130,7 +128,7 @@ function defaultMessageForCode(code: AgentServiceFailureCode): string {
 // We scope to that single line so the huge request body of *other* lines
 // can't leak in, key the classification on the unambiguous HTTP `statusCode`
 // first, and fall back to keyword matching the extracted message only.
-export function extractOpenCodeServiceFailure(logTail: string): OpenCodeServiceFailure | null {
+export function extractOpenCodeServiceFailure({ logTail }: { logTail: string }): OpenCodeServiceFailure | null {
   if (!logTail || !logTail.trim()) return null;
   const lines = logTail.split(/\r?\n/);
   let line: string | null = null;
@@ -148,7 +146,7 @@ export function extractOpenCodeServiceFailure(logTail: string): OpenCodeServiceF
   const message = pickServiceErrorMessage(line);
 
   let code: AgentServiceFailureCode | null = statusCode != null ? codeFromStatus(statusCode) : null;
-  if (!code && message) code = classifyAgentServiceFailure(message);
+  if (!code && message) code = classifyAgentServiceFailure({ text: message });
   if (!code) return null;
 
   return { code, message: message || defaultMessageForCode(code), statusCode };
@@ -157,13 +155,11 @@ export function extractOpenCodeServiceFailure(logTail: string): OpenCodeServiceF
 // Convenience for a run-close handler / inactivity watchdog: resolve the
 // log dir from the spawned agent's env, read the newest log tail (bound to
 // the current run via `since`), and classify it.
-export function readOpenCodeServiceFailure(
-  env: Record<string, string | undefined>,
-  options: { since?: number } = {},
+export function readOpenCodeServiceFailure({ env }: { env: Record<string, string | undefined> }, options: { since?: number } = {}
 ): OpenCodeServiceFailure | null {
-  const logDir = resolveOpenCodeLogDir(env);
+  const logDir = resolveOpenCodeLogDir({ env: env });
   if (!logDir) return null;
-  const tail = readLatestOpenCodeLogTail(logDir, options);
+  const tail = readLatestOpenCodeLogTail({ logDir: logDir }, options);
   if (!tail) return null;
-  return extractOpenCodeServiceFailure(tail);
+  return extractOpenCodeServiceFailure({ logTail: tail });
 }

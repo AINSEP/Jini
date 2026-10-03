@@ -50,10 +50,7 @@ const FOCUSABLE_CONTROLS = 'button:not(:disabled), select:not(:disabled), input:
  * @complexity Time: O(n) in the supplied option count; space: O(1).
  * @overallScore 100/100
  */
-export function runtimeOptionLabel(
-  options: readonly { id: string; label: string }[] | undefined,
-  value: string | undefined,
-  fallback: string,
+export function runtimeOptionLabel({ options, value, fallback }: { options: readonly { id: string; label: string }[] | undefined; value: string | undefined; fallback: string }
 ): string {
   if (!value || value === 'default') return fallback;
   return options?.find((option) => option.id === value)?.label ?? value;
@@ -65,9 +62,7 @@ export function runtimeOptionLabel(
  * @complexity Time/space: O(1).
  * @overallScore 100/100
  */
-export function runtimePopoverPosition(
-  trigger: DOMRect,
-  placement: RuntimePickerPlacement,
+export function runtimePopoverPosition({ trigger, placement }: { trigger: DOMRect; placement: RuntimePickerPlacement }
 ): CSSProperties {
   const margin = 12;
   const gap = 8;
@@ -105,7 +100,7 @@ export function runtimePopoverPosition(
  * modal-ish dialog). Returns the index to wrap TO, or `null` when `Tab` should behave natively
  * (not at an edge). `currentIndex` may be `-1` (active element not in `controls`); `atStart`/
  * `atEnd` below only matter when it legitimately is 0 or `count - 1`. */
-export function resolveTabWrapIndex(shiftKey: boolean, currentIndex: number, count: number): number | null {
+export function resolveTabWrapIndex({ shiftKey, currentIndex, count }: { shiftKey: boolean; currentIndex: number; count: number }): number | null {
   if (shiftKey && currentIndex === 0) return count - 1;
   if (!shiftKey && currentIndex === count - 1) return 0;
   return null;
@@ -114,7 +109,7 @@ export function resolveTabWrapIndex(shiftKey: boolean, currentIndex: number, cou
 /** Arrow/Home/End roving-tabindex target, or `null` for any other key. `currentIndex === -1`
  * (nothing in `controls` focused yet) is a legitimate input — the modulo arithmetic below relies
  * on it wrapping the same way a real index would. */
-export function resolveRovingIndex(key: string, currentIndex: number, count: number): number | null {
+export function resolveRovingIndex({ key, currentIndex, count }: { key: string; currentIndex: number; count: number }): number | null {
   if (key === 'Home') return 0;
   if (key === 'End') return count - 1;
   if (key === 'ArrowDown') return (currentIndex + 1 + count) % count;
@@ -127,25 +122,17 @@ export function resolveRovingIndex(key: string, currentIndex: number, count: num
  * (and, in the caller, to skip `preventDefault()`). `Tab` is resolved and returned immediately —
  * it must never fall through to the roving-tabindex logic below it.
  */
-export function resolvePopoverKeyAction(
-  key: string,
-  shiftKey: boolean,
-  isButtonTarget: boolean,
-  currentIndex: number,
-  count: number,
+export function resolvePopoverKeyAction({ key, shiftKey, isButtonTarget, currentIndex, count }: { key: string; shiftKey: boolean; isButtonTarget: boolean; currentIndex: number; count: number }
 ): number | null {
-  if (key === 'Tab') return resolveTabWrapIndex(shiftKey, currentIndex, count);
+  if (key === 'Tab') return resolveTabWrapIndex({ shiftKey: shiftKey, currentIndex: currentIndex, count: count });
   // Native selects own their arrow/Home/End behavior. Roving applies only
   // when a button (including the agent radios) has focus.
   if (!isButtonTarget) return null;
-  return resolveRovingIndex(key, currentIndex, count);
+  return resolveRovingIndex({ key: key, currentIndex: currentIndex, count: count });
 }
 
 /** Builds the one-line "which runtime am I talking to" summary shown in the popover head. */
-export function runtimeSummaryText(
-  selectedAgent: ChatPaneAgent | undefined,
-  modelLabel: string,
-  t: (key: string) => string,
+export function runtimeSummaryText({ selectedAgent, modelLabel, t }: { selectedAgent: ChatPaneAgent | undefined; modelLabel: string; t: (key: string) => string }
 ): string {
   if (selectedAgent === undefined) return t('No agent selected');
   const version = selectedAgent.version ? ` · ${selectedAgent.version}` : '';
@@ -163,9 +150,7 @@ export function runtimeSummaryText(
  *
  * @complexity Time/space: O(1).
  */
-export function byokSummaryText(
-  byokRuntime: ByokRuntimeSummary | undefined,
-  t: (key: string) => string,
+export function byokSummaryText({ byokRuntime, t }: { byokRuntime: ByokRuntimeSummary | undefined; t: (key: string) => string }
 ): { title: string; modelLabel: string; summary: string } {
   const title = byokRuntime?.providerLabel?.trim() || t('API · BYOK');
   const model = byokRuntime?.model?.trim();
@@ -246,7 +231,7 @@ export function useAgentRuntimePicker({
   const popoverRef = useRef<HTMLDivElement | null>(null);
 
   const orderedAgents = useMemo(
-    () => orderChatPaneAgents(agents.filter((agent) => agent.available !== false)),
+    () => orderChatPaneAgents({ agents: agents.filter((agent) => agent.available !== false) }),
     [agents],
   );
   const selectedAgent = orderedAgents.find((agent) => agent.id === value.agentId);
@@ -254,11 +239,11 @@ export function useAgentRuntimePicker({
   // `selectedAgent` stays resolved in BOTH modes on purpose — the CLI selection is still the stored
   // one, and switching back to Local CLI must not have silently lost it. What changes in `'api'` is
   // only what gets DESCRIBED, because none of the CLI's labels are true of an API turn.
-  const localModelLabel = runtimeOptionLabel(selectedAgent?.models, value.model, t('Default model'));
-  const byok = byokSummaryText(byokRuntime, t);
+  const localModelLabel = runtimeOptionLabel({ options: selectedAgent?.models, value: value.model, fallback: t('Default model') });
+  const byok = byokSummaryText({ byokRuntime: byokRuntime, t: t });
   const isApi = executionMode === 'api';
   const modelLabel = isApi ? byok.modelLabel : localModelLabel;
-  const runtimeSummary = isApi ? byok.summary : runtimeSummaryText(selectedAgent, localModelLabel, t);
+  const runtimeSummary = isApi ? byok.summary : runtimeSummaryText({ selectedAgent: selectedAgent, modelLabel: localModelLabel, t: t });
   const triggerTitle = isApi ? byok.title : (selectedAgent?.name ?? t('Choose agent'));
 
   // Read during render rather than in an effect: the popover only mounts once `open` is true, which
@@ -310,7 +295,7 @@ export function useAgentRuntimePicker({
     if (!open) return;
     const update = () => {
       const rect = triggerRef.current?.getBoundingClientRect();
-      if (rect) setPosition(runtimePopoverPosition(rect, placement));
+      if (rect) setPosition(runtimePopoverPosition({ trigger: rect, placement: placement }));
     };
     update();
     window.addEventListener('resize', update);
@@ -339,12 +324,7 @@ export function useAgentRuntimePicker({
     if (controls.length === 0) return;
 
     const currentIndex = controls.indexOf(document.activeElement as HTMLElement);
-    const nextIndex = resolvePopoverKeyAction(
-      event.key,
-      event.shiftKey,
-      event.target instanceof HTMLButtonElement,
-      currentIndex,
-      controls.length,
+    const nextIndex = resolvePopoverKeyAction({ key: event.key, shiftKey: event.shiftKey, isButtonTarget: event.target instanceof HTMLButtonElement, currentIndex: currentIndex, count: controls.length }
     );
     if (nextIndex === null) return;
     event.preventDefault();

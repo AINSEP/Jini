@@ -1,7 +1,7 @@
 /**
  * @file `@jini-ai/db/kernel`: the storage kernel port, the kernel core every driver builds on, the
  * dialect helpers and introspection, and the storage-ops contract. Imports kysely and Node builtins
- * only — never a database driver (guard rule R12 checks it; `loads-without-driver.test.ts` proves it).
+ * only — never a database driver (`import-isolation.test.ts` and `loads-without-driver.test.ts` prove it).
  */
 export {
   type StorageCapabilities,
@@ -43,6 +43,4 @@ export {
   type StorageOps,
   verifyLedgerReadBack,
 } from "./ops.js";
-export { PG_OID, PG_PARSERS, parseInt8 } from "./pg-types.js";
 export { postgresLockKey } from "./postgres-lock.js";
-export { PGLITE_SOCKET_FILE } from "./socket.js";

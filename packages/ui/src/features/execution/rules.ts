@@ -45,7 +45,7 @@ import type {
  * connection time.
  */
 export function isValidApiBaseUrl(raw: string): boolean {
-  return isAllowedEndpointUrl(raw);
+  return isAllowedEndpointUrl({ raw });
 }
 
 /** The synthetic "Custom" preset, so the picker always has a manual escape

@@ -74,6 +74,27 @@ describe('RowMenu trigger', () => {
 });
 
 describe('RowMenu opening', () => {
+  it('lets a host keep the popup in its scoped page rather than the default body portal', () => {
+    const portalContainer = document.createElement('section');
+    document.body.append(portalContainer);
+    try {
+      const list = items();
+      const baseline = render(<RowMenu items={list} triggerLabel='Scoped actions' />);
+      fireEvent.click(screen.getByRole('button', { name: 'Scoped actions' }));
+      expect(portalContainer.contains(screen.getByRole('menu'))).toBe(false);
+      baseline.unmount();
+
+      render(<RowMenu items={list} triggerLabel='Scoped actions' portalContainer={portalContainer} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Scoped actions' }));
+      expect(portalContainer.contains(screen.getByRole('menu'))).toBe(true);
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
+      expect(list[0]!.onSelect).toHaveBeenCalledOnce();
+      expect(portalContainer.querySelector('[role="menu"]')).toBeNull();
+    } finally {
+      portalContainer.remove();
+    }
+  });
+
   it('portals the menu outside the trigger, as a sibling of the app root', () => {
     const { trigger } = renderMenu();
     fireEvent.click(trigger());
@@ -288,7 +309,7 @@ describe('RowMenu hook injection', () => {
     expect(fakeOnTriggerClick).toHaveBeenCalledOnce();
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
-    expect(fakeSelectItem).toHaveBeenCalledWith(list[0]?.onSelect);
+    expect(fakeSelectItem).toHaveBeenCalledWith({ onSelect: list[0]?.onSelect });
   });
 });
 

@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/memory",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Daemon-side memory/notes capability: a frontmatter-backed note store, a bounded extraction-attempt log, a self-verify scorecard enforcer, and a strict-JSON LLM primitive.",
   "license": "Apache-2.0",
   "repository": {
@@ -11,7 +11,10 @@
   "jini": {
     "domain": "capability",
     "kind": "memory-store",
-    "runtime": "node"
+    "runtime": "node",
+    "entries": {
+      ".": "node"
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -26,6 +29,9 @@
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",

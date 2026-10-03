@@ -11,7 +11,7 @@ import type {
  * The parameterized counterpart to `database-gated.test.ts`.
  *
  * Together the two pin both ends of `GatedOperation`: `migrateForward` uses the defaulted
- * `TConfirmInput`/`TExecuteInput` (bare tokens), restore supplies its own. Restore is the case that
+ * `TConfirmInput`/`TExecuteInput` (object tokens), restore supplies its own. Restore is the case that
  * matters most — it is the most destructive operation a host exposes, and an earlier draft of
  * `recovery.ts` declared it as three loose methods on the grounds that the shared interface could
  * not express it. It can. This assertion is what stops that regressing quietly.
@@ -22,7 +22,7 @@ import type {
 describe('AdminRecoveryPort.restore', () => {
   it('structurally satisfies GatedOperation with operation-specific confirm/execute input', () => {
     expectTypeOf<AdminRecoveryPort['restore']>().toEqualTypeOf<
-      GatedOperation<string, unknown, RestoreExecuteResult, RestoreConfirmInput, RestoreExecuteInput>
+      GatedOperation<{ readonly restorePointId: string }, unknown, RestoreExecuteResult, RestoreConfirmInput, RestoreExecuteInput>
     >();
   });
 

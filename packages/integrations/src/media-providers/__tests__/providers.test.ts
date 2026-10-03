@@ -90,50 +90,43 @@ describe('provider catalogue shape', () => {
 });
 
 describe('findMediaModel', () => {
-  it('finds an image model by id', () => {
-    expect(findMediaModel('gpt-image-2')?.provider).toBe('openai');
-  });
-
-  it('finds a video model by id', () => {
-    expect(findMediaModel('doubao-seedance-2-0-260128')?.provider).toBe('volcengine');
-  });
-
-  it('finds a music/speech/sfx model by id', () => {
-    expect(findMediaModel('suno-v5')?.caps).toContain('music');
-    expect(findMediaModel('minimax-tts')?.caps).toContain('tts');
-    expect(findMediaModel('elevenlabs-sfx')?.caps).toContain('sfx');
-  });
-
-  it('returns null for an unknown id', () => {
-    expect(findMediaModel('not-a-real-model')).toBeNull();
-  });
+    it('finds an image model by id', () => {
+        expect(findMediaModel({ id: 'gpt-image-2' })?.provider).toBe('openai');
+    });
+    it('finds a video model by id', () => {
+        expect(findMediaModel({ id: 'doubao-seedance-2-0-260128' })?.provider).toBe('volcengine');
+    });
+    it('finds a music/speech/sfx model by id', () => {
+        expect(findMediaModel({ id: 'suno-v5' })?.caps).toContain('music');
+        expect(findMediaModel({ id: 'minimax-tts' })?.caps).toContain('tts');
+        expect(findMediaModel({ id: 'elevenlabs-sfx' })?.caps).toContain('sfx');
+    });
+    it('returns null for an unknown id', () => {
+        expect(findMediaModel({ id: 'not-a-real-model' })).toBeNull();
+    });
 });
 
 describe('findProvider', () => {
-  it('finds a known provider', () => {
-    expect(findProvider('fal')?.label).toBe('Fal.ai');
-  });
-
-  it('returns null for an unknown provider', () => {
-    expect(findProvider('not-a-real-provider')).toBeNull();
-  });
+    it('finds a known provider', () => {
+        expect(findProvider({ id: 'fal' })?.label).toBe('Fal.ai');
+    });
+    it('returns null for an unknown provider', () => {
+        expect(findProvider({ id: 'not-a-real-provider' })).toBeNull();
+    });
 });
 
 describe('modelsForSurface', () => {
-  it('returns IMAGE_MODELS for "image"', () => {
-    expect(modelsForSurface('image')).toBe(IMAGE_MODELS);
-  });
-
-  it('returns VIDEO_MODELS for "video"', () => {
-    expect(modelsForSurface('video')).toBe(VIDEO_MODELS);
-  });
-
-  it('returns music models for "audio" with no audioKind', () => {
-    expect(modelsForSurface('audio')).toBe(AUDIO_MODELS_BY_KIND.music);
-  });
-
-  it('returns the requested audio kind list', () => {
-    expect(modelsForSurface('audio', 'speech')).toBe(AUDIO_MODELS_BY_KIND.speech);
-    expect(modelsForSurface('audio', 'sfx')).toBe(AUDIO_MODELS_BY_KIND.sfx);
-  });
+    it('returns IMAGE_MODELS for "image"', () => {
+        expect(modelsForSurface({ surface: 'image' })).toBe(IMAGE_MODELS);
+    });
+    it('returns VIDEO_MODELS for "video"', () => {
+        expect(modelsForSurface({ surface: 'video' })).toBe(VIDEO_MODELS);
+    });
+    it('returns music models for "audio" with no audioKind', () => {
+        expect(modelsForSurface({ surface: 'audio' })).toBe(AUDIO_MODELS_BY_KIND.music);
+    });
+    it('returns the requested audio kind list', () => {
+        expect(modelsForSurface({ surface: 'audio' }, { audioKind: 'speech' })).toBe(AUDIO_MODELS_BY_KIND.speech);
+        expect(modelsForSurface({ surface: 'audio' }, { audioKind: 'sfx' })).toBe(AUDIO_MODELS_BY_KIND.sfx);
+    });
 });

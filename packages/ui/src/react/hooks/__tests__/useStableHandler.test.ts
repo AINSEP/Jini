@@ -6,7 +6,7 @@ import { useStableHandler } from '../useStableHandler.js';
 describe('useStableHandler', () => {
   it('returns a function with a stable identity across re-renders', () => {
     const { result, rerender } = renderHook(
-      ({ handler }: { handler: () => void }) => useStableHandler(handler),
+      ({ handler }: { handler: () => void }) => useStableHandler({ handler }),
       { initialProps: { handler: () => {} } },
     );
 
@@ -22,7 +22,7 @@ describe('useStableHandler', () => {
     const second = vi.fn();
 
     const { result, rerender } = renderHook(
-      ({ handler }: { handler: () => void }) => useStableHandler(handler),
+      ({ handler }: { handler: () => void }) => useStableHandler({ handler }),
       { initialProps: { handler: first } },
     );
 
@@ -40,7 +40,7 @@ describe('useStableHandler', () => {
 
   it('forwards arguments and returns the handler result', () => {
     const handler = vi.fn((a: number, b: number) => a + b);
-    const { result } = renderHook(() => useStableHandler(handler));
+    const { result } = renderHook(() => useStableHandler({ handler }));
 
     const value = result.current(2, 3);
 

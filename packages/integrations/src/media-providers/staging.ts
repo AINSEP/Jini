@@ -38,13 +38,17 @@ export interface AttachmentStagingOptions {
  * prunes staged files older than `maxAgeMs` on each call.
  */
 export interface AttachmentStaging {
-  stage(imagePaths: readonly string[], uploadRoot?: string | null): Promise<string[]>;
+  stage(required: { imagePaths: readonly string[] }, optional?: { uploadRoot?: string | null | undefined }): Promise<string[]>;
 }
 
 const DEFAULT_STAGING_DIRNAME = '.media-attachments';
 const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_MAX_ITEMS = 50;
 const DEFAULT_MAX_BYTES_PER_FILE = 100 * 1024 * 1024;
+
+// Authorization failures must escape the advisory-file catch below; otherwise
+// a missing containment boundary looks like an ordinary missing attachment.
+class MissingUploadRootError extends Error {}
 
 function isWithinRoot(root: string, candidate: string): boolean {
   const relativePath = path.relative(root, candidate);
@@ -89,7 +93,7 @@ async function pruneStagedAttachments(stagingDir: string, maxAgeMs: number): Pro
 }
 
 /** Creates a filesystem-backed `AttachmentStaging` rooted at `cwd`. */
-export function createFsAttachmentStaging(cwd: string, options: AttachmentStagingOptions = {}): AttachmentStaging {
+export function createFsAttachmentStaging({ cwd }: { cwd: string }, options: AttachmentStagingOptions = {}): AttachmentStaging {
   const stagingDirName = options.stagingDirName ?? DEFAULT_STAGING_DIRNAME;
   assertSafeStagingDirName(stagingDirName);
   const maxAgeMs = options.maxAgeMs ?? DEFAULT_MAX_AGE_MS;
@@ -99,7 +103,7 @@ export function createFsAttachmentStaging(cwd: string, options: AttachmentStagin
   const stagingDir = path.join(root, stagingDirName);
 
   return {
-    async stage(imagePaths: readonly string[], uploadRoot?: string | null): Promise<string[]> {
+    async stage({ imagePaths }: { imagePaths: readonly string[] } , { uploadRoot }: { uploadRoot?: string | null | undefined } = {}): Promise<string[]> {
       if (!Array.isArray(imagePaths) || imagePaths.length === 0) return [];
       if (imagePaths.length > maxItems) {
         throw new Error(`attachment staging: ${imagePaths.length} paths exceeds the ${maxItems}-item limit`);
@@ -153,13 +157,17 @@ export function createFsAttachmentStaging(cwd: string, options: AttachmentStagin
           }
           // Outside cwd: this is the "copy an external file into staging"
           // path, which requires an authorized uploadRoot — deny by default.
-          if (uploadRootReal == null || !isWithinRoot(uploadRootReal, real)) continue;
+          if (uploadRootReal == null) {
+            throw new MissingUploadRootError('attachment staging: files outside cwd require an uploadRoot');
+          }
+          if (!isWithinRoot(uploadRootReal, real)) continue;
           if (stat.size > maxBytesPerFile) continue;
           const basename = path.basename(real);
           const destination = path.join(stagingDir, `${randomUUID()}-${basename}`);
           await fs.promises.copyFile(real, destination);
           staged.push(destination);
-        } catch {
+        } catch (error) {
+          if (error instanceof MissingUploadRootError) throw error;
           // Ignore malformed or missing files; attachments are advisory input.
         }
       }

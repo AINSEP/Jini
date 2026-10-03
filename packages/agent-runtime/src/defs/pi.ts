@@ -1,4 +1,4 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/pi.ts` (import path adjusted only). See `source-map.md`. */
+/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/pi.ts` (import path adjusted only). See `archived provenance ledger`. */
 import path from 'node:path';
 import { DEFAULT_MODEL_OPTION, execAgentFile, parsePiModels } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
@@ -15,14 +15,14 @@ export const piAgentDef = {
     versionProbeTimeoutMs: 15_000,
     // `pi --list-models` prints a TSV table to stderr (not stdout),
     // so we use a custom fetchModels that reads stderr.
-    fetchModels: async (resolvedBin, env) => {
+    fetchModels: async ({ resolvedBin, env }) => {
       try {
-        const { stderr } = await execAgentFile(resolvedBin, ['--list-models'], {
+        const { stderr } = await execAgentFile({ command: resolvedBin, args: ['--list-models'] }, { options: {
           env,
           timeout: 60_000, // Windows: 20s exceeded under parallel detection load
           maxBuffer: 8 * 1024 * 1024,
-        });
-        const parsed = parsePiModels(stderr);
+        } });
+        const parsed = parsePiModels({ stdout: stderr });
         if (!parsed || parsed.length === 0) return null;
         return parsed;
       } catch {
@@ -64,12 +64,7 @@ export const piAgentDef = {
     // pi's RPC mode drives the entire conversation over stdio JSON-RPC.
     // The daemon sends a `prompt` command and pi streams back typed events.
     // No prompt in argv — avoids ENAMETOOLONG and keeps the protocol clean.
-    buildArgs: (
-      _prompt,
-      _imagePaths,
-      extraAllowedDirs = [],
-      options = {},
-      runtimeContext = {},
+    buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}
     ) => {
       const args = ['--mode', 'rpc'];
       if (options.model && options.model !== 'default') {

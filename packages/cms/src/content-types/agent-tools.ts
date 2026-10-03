@@ -1,6 +1,7 @@
+import type { AgentToolDefinition, AgentToolSideEffect, AgentToolActorClassRule } from "@jini-ai/core";
 /**
- * @file REQ-22/REQ-23 — the Collections content-types agent-tool catalog, instantiating
- * a REQ-22 naming/callability convention (mirrors `features/database/agent-tools.ts`'s
+ * @file the Collections content-types agent-tool catalog, instantiating
+ * a naming/callability convention (mirrors `features/database/agent-tools.ts`'s
  * shape for this domain).
  *
  * Purpose:
@@ -12,13 +13,13 @@
  * one destructive tool, gated to
  * `admin.collections.manage` and restricted to `confirmer-must-equal-own-delegatedBy`. There is
  * deliberately no `collections_confirm_cleanup` tool and no tool description implying an agent can
- * perform the confirm() step — confirmation of a destructive cleanup is human-UI-only (mirrors
+ * perform the confirm step — confirmation of a destructive cleanup is human-UI-only (mirrors
  * the Database library's "Restore is a Recovery tool, not a Database tool" discipline: a lever an agent must
  * never be handed directly).
  *
  * How it relates to the project:
  * The server-side tool filter consumes this catalog to decide which tool names an agent
- * session may even see; `authorize()` and the confirmation-token gateway (`core/gated-mutations`)
+ * session may even see; `authorize` and the confirmation-token gateway (`core/gated-mutations`)
  * enforce the actual permission/actor-class checks at call time — this module only declares the
  * catalog shape, it performs no I/O and no enforcement itself.
  *
@@ -27,38 +28,31 @@
  * package's own `types.ts` (the field-kind enum) and `index-provisioning.ts` (the identifier
  * grammar pattern) — imported so the published JSON Schemas cannot drift from the single sources
  * of those two values, rather than restating either.
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 
 import { IDENTIFIER_GRAMMAR_PATTERN } from "./index-provisioning.js";
 import { CONTENT_TYPE_FIELD_KINDS } from "./types.js";
 
-export type AgentToolSideEffect = "none" | "mutates-durable-state" | "mints-token";
 
-export type AgentToolActorClassRule = "confirmer-must-equal-own-delegatedBy" | "user-only" | "none";
 
-export interface AgentToolDefinition {
-  name: string;
-  description: string;
-  sideEffects: AgentToolSideEffect;
-  authorization: { permission: string };
-  actorClassRule?: AgentToolActorClassRule;
-  /**
+
+
+/**
    * JSON Schema for this tool's `input`, published to the model via `ToolDescriptor.inputSchema`
    * (`assistant/tool-registrations.ts`). Optional because the two cleanup entries are not wired to
    * handlers yet and their input shape is not designed; `tool-registrations.ts` asserts that every
    * tool it DOES wire has one.
    *
    * These schemas are hand-authored, and enforcement lives elsewhere — `field-defs.ts` for
-   * structure and `write-service.ts`'s CIC U-002-B1 chain for the domain rules. That is a
+   * structure and `write-service.ts`'s chain for the domain rules. That is a
    * deliberate two-artifact design, so the pair is pinned against drift by a fixture corpus in
    * `__tests__/unit/agent-tools.schema-agreement.unit.test.ts`. The two values a schema would
    * otherwise duplicate — the field-kind enum and the identifier grammar — are imported from their
    * single sources rather than restated.
-   */
-  inputSchema?: Readonly<Record<string, unknown>>;
-}
-
-/** One entry of a `fields` array, as published to the model. Mirrors what `field-defs.ts` enforces. */
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
+ *
+ * One entry of a `fields` array, as published to the model. Mirrors what `field-defs.ts` enforces. */
 const FIELD_DEF_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -117,12 +111,13 @@ const LIFECYCLE_INPUT_SCHEMA = {
 } as const;
 
 /**
- * REQ-22/REQ-23 — the Collections content-types domain's fixed agent-tool catalog.
+ * — the Collections content-types domain's fixed agent-tool catalog.
  *
  * `collections_content_type_list` is ordered first, mirroring `identity/agent-tools.ts`'s
  * "read-tools-first" convention: a model cannot call `update_fields`/`deprecate`/`reactivate`/
  * `tombstone` without a `key` and current `expectedVersion`, and this is the only way to learn
  * either for a content type it did not itself just create.
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 export const contentTypesAgentToolCatalog: AgentToolDefinition[] = [
   {

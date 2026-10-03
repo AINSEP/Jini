@@ -119,7 +119,7 @@ export function useMentionAutocomplete<T extends MentionItem>({
 
   const closeMention = () => setMention(null);
 
-  useDismissOnOutsideOrEscape(closeMention, { enabled: mention !== null, containerRef });
+  useDismissOnOutsideOrEscape({ onDismiss: closeMention }, { enabled: mention !== null, containerRef });
 
   const pickItem = (item: T) => {
     const token = buildMentionToken(item.label, triggerChar);

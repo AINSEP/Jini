@@ -13,26 +13,26 @@ const YOLO = ['--approval-mode', 'yolo'];
 
 describe('geminiAgentDef.buildArgs', () => {
   it('builds stream-json + yolo argv with no capabilities, model, or extra dirs', () => {
-    expect(geminiAgentDef.buildArgs('hi', [], [], {})).toEqual([...BASE, ...YOLO]);
+    expect(geminiAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {} })).toEqual([...BASE, ...YOLO]);
   });
 
   it('defaults extraAllowedDirs and options when omitted entirely', () => {
-    expect(geminiAgentDef.buildArgs('hi', [])).toEqual([...BASE, ...YOLO]);
+    expect(geminiAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] })).toEqual([...BASE, ...YOLO]);
   });
 
   it('never puts the prompt in argv (it goes over stdin)', () => {
-    expect(geminiAgentDef.buildArgs('secret prompt text', [], [], {})).not.toContain('secret prompt text');
-    expect(geminiAgentDef.buildArgs('hi', [], [], {})).not.toContain('-p');
+    expect(geminiAgentDef.buildArgs({ prompt: 'secret prompt text', imagePaths: [] }, { extraAllowedDirs: [], options: {} })).not.toContain('secret prompt text');
+    expect(geminiAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {} })).not.toContain('-p');
   });
 
   it('adds --skip-trust when the --help probe recorded it', () => {
     agentCapabilities.set('gemini', { skipTrust: true });
-    expect(geminiAgentDef.buildArgs('hi', [], [], {})).toEqual([...BASE, '--skip-trust', ...YOLO]);
+    expect(geminiAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {} })).toEqual([...BASE, '--skip-trust', ...YOLO]);
   });
 
   it('keeps --skip-trust in restricted mode (trust is about the cwd, not tool approval)', () => {
     agentCapabilities.set('gemini', { skipTrust: true });
-    expect(geminiAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' })).toEqual([
+    expect(geminiAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { permissionMode: 'restricted' } })).toEqual([
       ...BASE,
       '--skip-trust',
     ]);
@@ -40,15 +40,15 @@ describe('geminiAgentDef.buildArgs', () => {
 
   it('omits --skip-trust when the probe recorded it as absent', () => {
     agentCapabilities.set('gemini', { skipTrust: false });
-    expect(geminiAgentDef.buildArgs('hi', [], [], {})).toEqual([...BASE, ...YOLO]);
+    expect(geminiAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {} })).toEqual([...BASE, ...YOLO]);
   });
 
   it('omits --approval-mode yolo when permissionMode is "restricted"', () => {
-    expect(geminiAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' })).toEqual(BASE);
+    expect(geminiAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { permissionMode: 'restricted' } })).toEqual(BASE);
   });
 
   it('adds --model for a non-default model', () => {
-    expect(geminiAgentDef.buildArgs('hi', [], [], { model: 'gemini-2.5-pro' })).toEqual([
+    expect(geminiAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'gemini-2.5-pro' } })).toEqual([
       ...BASE,
       ...YOLO,
       '--model',
@@ -57,11 +57,11 @@ describe('geminiAgentDef.buildArgs', () => {
   });
 
   it('omits --model for the literal "default"', () => {
-    expect(geminiAgentDef.buildArgs('hi', [], [], { model: 'default' })).toEqual([...BASE, ...YOLO]);
+    expect(geminiAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'default' } })).toEqual([...BASE, ...YOLO]);
   });
 
   it('adds one --include-directories per non-empty extra dir', () => {
-    expect(geminiAgentDef.buildArgs('hi', [], ['/a', '', '/b'], {})).toEqual([
+    expect(geminiAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: ['/a', '', '/b'], options: {} })).toEqual([
       ...BASE,
       ...YOLO,
       '--include-directories',
@@ -87,6 +87,6 @@ describe('geminiAgentDef shape', () => {
   });
 
   it('is registered in the built-in catalog', () => {
-    expect(getAgentDef('gemini')).toBe(geminiAgentDef);
+    expect(getAgentDef({ id: 'gemini' })).toBe(geminiAgentDef);
   });
 });

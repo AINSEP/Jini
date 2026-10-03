@@ -32,7 +32,7 @@ export interface ResolvedRegistryEntryVersion {
  * @param input - The raw specifier string.
  * @returns The parsed `{ name, range? }`.
  */
-export function parseRegistrySpecifier(input: string): ParsedRegistrySpecifier {
+export function parseRegistrySpecifier({ input }: { input: string }): ParsedRegistrySpecifier {
   const trimmed = input.trim();
   const slash = trimmed.indexOf('/');
   const at = trimmed.lastIndexOf('@');
@@ -57,8 +57,8 @@ export function parseRegistrySpecifier(input: string): ParsedRegistrySpecifier {
  * @returns The resolved version's source/ref/integrity/digest, or `null`.
  */
 export function resolveRegistryEntryVersion(
-  entry: RegistryEntry,
-  requestedRange?: string,
+  { entry }: { entry: RegistryEntry },
+  { requestedRange }: { requestedRange?: string | undefined } = {},
 ): ResolvedRegistryEntryVersion | null {
   if (entry.yanked) return null;
 

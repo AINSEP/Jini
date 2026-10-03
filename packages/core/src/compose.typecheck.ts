@@ -15,22 +15,22 @@ interface RunStore {
   save(id: string): void;
 }
 
-const RunStoreToken = token<RunStore>('jini.runStore');
+const RunStoreToken = token<RunStore>({ id: 'jini.runStore' });
 
 const runsPack = definePack({
   name: 'runs',
   deps: [RunStoreToken],
-  services: (c) => c.get(RunStoreToken),
+  services: (c) => c.get({ token: RunStoreToken }),
 });
 
 // @ts-expect-error — `jini.runStore` is required by `runsPack` but never bound.
 createDaemon({
   packs: [runsPack],
-  bindings: bindings(),
+  bindings: bindings({}),
 });
 
 // The same daemon typechecks once the required token is bound.
 createDaemon({
   packs: [runsPack],
-  bindings: bindings().bind(RunStoreToken, { save: () => {} }),
+  bindings: bindings({}).bind({ token: RunStoreToken, impl: { save: () => {} } }),
 });

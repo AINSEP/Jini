@@ -31,7 +31,7 @@ describe('codebuddyAgentDef shape', () => {
 
 describe('codebuddyAgentDef.buildArgs', () => {
   it('produces the base argv with no capability flags, no model, no reasoning, no dirs, no session', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], []);
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] });
     expect(args).toEqual([
       '-p',
       '--input-format',
@@ -46,103 +46,103 @@ describe('codebuddyAgentDef.buildArgs', () => {
 
   it('adds --include-partial-messages only when the capability probe recorded partialMessages', () => {
     agentCapabilities.set('codebuddy', { partialMessages: true });
-    const args = codebuddyAgentDef.buildArgs('hi', [], []);
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] });
     expect(args).toContain('--include-partial-messages');
   });
 
   it('omits --include-partial-messages when there is no capability entry at all', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], []);
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] });
     expect(args).not.toContain('--include-partial-messages');
   });
 
   it('adds --model <id> for a concrete model selection', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], [], { model: 'glm-5.1-ioa' });
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'glm-5.1-ioa' } });
     expect(args).toContain('--model');
     expect(args[args.indexOf('--model') + 1]).toBe('glm-5.1-ioa');
   });
 
   it('omits --model for the "default" sentinel and when falsy', () => {
-    expect(codebuddyAgentDef.buildArgs('hi', [], [], { model: 'default' })).not.toContain('--model');
-    expect(codebuddyAgentDef.buildArgs('hi', [], [], { model: '' })).not.toContain('--model');
+    expect(codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'default' } })).not.toContain('--model');
+    expect(codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: '' } })).not.toContain('--model');
   });
 
   it('adds --effort <level> for a concrete reasoning selection', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], [], { reasoning: 'high' });
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { reasoning: 'high' } });
     expect(args).toContain('--effort');
     expect(args[args.indexOf('--effort') + 1]).toBe('high');
   });
 
   it('omits --effort for the "default" sentinel and when falsy', () => {
-    expect(codebuddyAgentDef.buildArgs('hi', [], [], { reasoning: 'default' })).not.toContain('--effort');
-    expect(codebuddyAgentDef.buildArgs('hi', [], [], { reasoning: '' })).not.toContain('--effort');
-    expect(codebuddyAgentDef.buildArgs('hi', [], [], {})).not.toContain('--effort');
+    expect(codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { reasoning: 'default' } })).not.toContain('--effort');
+    expect(codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { reasoning: '' } })).not.toContain('--effort');
+    expect(codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {} })).not.toContain('--effort');
   });
 
   it('adds --add-dir with all non-empty string dirs by default', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], ['/a', '', '/b']);
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: ['/a', '', '/b'] });
     const idx = args.indexOf('--add-dir');
     expect(idx).toBeGreaterThan(-1);
     expect(args.slice(idx + 1, idx + 3)).toEqual(['/a', '/b']);
   });
 
   it('omits --add-dir entirely when the filtered dirs list is empty', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], ['']);
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [''] });
     expect(args).not.toContain('--add-dir');
   });
 
   it('tolerates an explicit null extraAllowedDirs (the `|| []` fallback, distinct from the default param)', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], null as unknown as string[]);
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: null as unknown as string[] });
     expect(args).not.toContain('--add-dir');
   });
 
   it('omits --add-dir when the capability probe explicitly recorded addDir: false, even with dirs present', () => {
     agentCapabilities.set('codebuddy', { addDir: false });
-    const args = codebuddyAgentDef.buildArgs('hi', [], ['/a']);
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: ['/a'] });
     expect(args).not.toContain('--add-dir');
   });
 
   it('uses --resume <id> when runtimeContext.resumeSessionId is a non-empty string', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], [], {}, { resumeSessionId: 'sess-123' });
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { resumeSessionId: 'sess-123' } });
     expect(args).toContain('--resume');
     expect(args[args.indexOf('--resume') + 1]).toBe('sess-123');
     expect(args).not.toContain('--session-id');
   });
 
   it('uses --session-id <id> when resumeSessionId is absent but newSessionId is present', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], [], {}, { newSessionId: 'new-456' });
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { newSessionId: 'new-456' } });
     expect(args).toContain('--session-id');
     expect(args[args.indexOf('--session-id') + 1]).toBe('new-456');
   });
 
   it('emits neither --resume nor --session-id when both are absent', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], [], {}, {});
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} });
     expect(args).not.toContain('--resume');
     expect(args).not.toContain('--session-id');
   });
 
   it('treats an empty-string resumeSessionId as absent', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], [], {}, { resumeSessionId: '' });
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { resumeSessionId: '' } });
     expect(args).not.toContain('--resume');
   });
 
   it('treats an empty-string newSessionId as absent', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], [], {}, { newSessionId: '' });
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { newSessionId: '' } });
     expect(args).not.toContain('--session-id');
   });
 
   it('always appends --permission-mode bypassPermissions as the trailing flag', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], [], { model: 'gpt-5.5' }, { resumeSessionId: 'x' });
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'gpt-5.5' }, runtimeContext: { resumeSessionId: 'x' } });
     expect(args.slice(-2)).toEqual(['--permission-mode', 'bypassPermissions']);
   });
 
   it('omits --permission-mode bypassPermissions entirely when permissionMode is "restricted"', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' });
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { permissionMode: 'restricted' } });
     expect(args).not.toContain('--permission-mode');
     expect(args).not.toContain('bypassPermissions');
   });
 
   it('defaults extraAllowedDirs/options/runtimeContext when omitted entirely', () => {
-    expect(() => codebuddyAgentDef.buildArgs('hi', [])).not.toThrow();
+    expect(() => codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] })).not.toThrow();
   });
 });
 
@@ -152,7 +152,7 @@ describe('codebuddyAgentDef.buildArgs', () => {
 // claude fix exists to avoid. These mirror claude.test.ts's equivalent block.
 describe('codebuddyAgentDef.buildArgs — staged .mcp.json delivery', () => {
   it('adds --strict-mcp-config --mcp-config <path> when runtimeContext.mcpJsonPath is set', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], [], {}, { mcpJsonPath: '/tmp/run-abc/.mcp.json' });
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { mcpJsonPath: '/tmp/run-abc/.mcp.json' } });
     expect(args).toContain('--strict-mcp-config');
     const idx = args.indexOf('--mcp-config');
     expect(idx).toBeGreaterThan(-1);
@@ -160,13 +160,13 @@ describe('codebuddyAgentDef.buildArgs — staged .mcp.json delivery', () => {
   });
 
   it('omits --strict-mcp-config and --mcp-config when mcpJsonPath is absent (default, unchanged behavior)', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], [], {}, {});
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} });
     expect(args).not.toContain('--strict-mcp-config');
     expect(args).not.toContain('--mcp-config');
   });
 
   it('omits --mcp-config for an empty-string mcpJsonPath', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], [], {}, { mcpJsonPath: '' });
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { mcpJsonPath: '' } });
     expect(args).not.toContain('--mcp-config');
   });
 
@@ -174,17 +174,12 @@ describe('codebuddyAgentDef.buildArgs — staged .mcp.json delivery', () => {
   // developer's own global/project MCP servers. Both flags are documented on Codebuddy's own CLI
   // reference, so the isolation guarantee is not quietly weaker here than it is for claude.
   it('keeps strict isolation rather than passing --mcp-config alone', () => {
-    const args = codebuddyAgentDef.buildArgs('hi', [], [], {}, { mcpJsonPath: '/x/.mcp.json' });
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { mcpJsonPath: '/x/.mcp.json' } });
     expect(args.indexOf('--strict-mcp-config')).toBeLessThan(args.indexOf('--mcp-config'));
   });
 
   it('composes with the other flags rather than replacing them', () => {
-    const args = codebuddyAgentDef.buildArgs(
-      'hi',
-      [],
-      ['/a'],
-      { model: 'gpt-5.5', reasoning: 'high' },
-      { resumeSessionId: 'sess-1', mcpJsonPath: '/x/.mcp.json' },
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: ['/a'], options: { model: 'gpt-5.5', reasoning: 'high' }, runtimeContext: { resumeSessionId: 'sess-1', mcpJsonPath: '/x/.mcp.json' } }
     );
     expect(args).toEqual(expect.arrayContaining(['--model', 'gpt-5.5', '--effort', 'high', '--add-dir', '--resume']));
     expect(args.slice(-3)).toEqual(['--strict-mcp-config', '--mcp-config', '/x/.mcp.json']);

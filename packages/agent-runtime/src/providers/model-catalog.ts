@@ -1,3 +1,4 @@
+import { redactSecrets } from '@jini-ai/core';
 /**
  * @module providers/model-catalog
  *
@@ -15,7 +16,7 @@
  */
 
 import type { DnsLookupFn } from './connection-guard.js';
-import { defaultDnsLookup, redactSecrets, validateBaseUrlResolved } from './connection-guard.js';
+import { defaultDnsLookup, validateBaseUrlResolved } from './connection-guard.js';
 import { aihubmixCatalogUrl, aihubmixHeaders, parseAIHubMixCatalog } from './aihubmix.js';
 import { googleProviderModelsUrl, normalizeGoogleModelId } from './google.js';
 import type {
@@ -190,10 +191,10 @@ function extractAnthropicModels(data: unknown): ProviderModelOption[] {
 
 function googleModelId(rawName: unknown, rawBaseModelId: unknown): string {
   if (typeof rawBaseModelId === 'string' && rawBaseModelId.trim()) {
-    return normalizeGoogleModelId(rawBaseModelId);
+    return normalizeGoogleModelId({ model: rawBaseModelId });
   }
   if (typeof rawName !== 'string') return '';
-  return normalizeGoogleModelId(rawName);
+  return normalizeGoogleModelId({ model: rawName });
 }
 
 function supportsGoogleGenerateContent(item: unknown): boolean {
@@ -230,7 +231,7 @@ function providerModelsUrl(protocol: ConnectionTestProtocol, baseUrl: string, ap
   if (protocol === 'aihubmix') {
     // AIHubMix exposes its chat catalogue on a dedicated endpoint
     // (GET /api/v1/models?type=llm), not the OpenAI /v1/models route.
-    return aihubmixCatalogUrl(baseUrl, 'llm');
+    return aihubmixCatalogUrl({ baseUrl: baseUrl, type: 'llm' });
   }
   if (protocol === 'openai' || protocol === 'senseaudio') {
     return appendVersionedApiPath(baseUrl, '/models');
@@ -241,7 +242,7 @@ function providerModelsUrl(protocol: ConnectionTestProtocol, baseUrl: string, ap
     return url.toString();
   }
   if (protocol === 'google') {
-    return googleProviderModelsUrl(baseUrl, apiKey);
+    return googleProviderModelsUrl({ baseUrl: baseUrl, apiKey: apiKey });
   }
   throw new Error(`Unsupported protocol: ${protocol}`);
 }
@@ -257,7 +258,7 @@ function providerModelsHeaders(
     // The catalogue is public — only attach Bearer auth (+ APP-Code) when the
     // caller actually supplied a key. An empty `Bearer ` would be rejected by
     // some gateways, so send no headers when the key is blank.
-    return apiKey.trim() ? aihubmixHeaders(apiKey) : {};
+    return apiKey.trim() ? aihubmixHeaders({ apiKey: apiKey }) : {};
   }
   if (protocol === 'anthropic') {
     return {
@@ -284,7 +285,7 @@ function extractModels(protocol: ModelListProtocol, data: unknown): ProviderMode
   // model whose `types` merely contains `llm`, so dual-tagged image models
   // (e.g. gpt-image-2 -> "image_generation,llm") would otherwise leak in. Those
   // belong to the dedicated image/video/audio pickers.
-  if (protocol === 'aihubmix') return parseAIHubMixCatalog(data, { chatOnly: true });
+  if (protocol === 'aihubmix') return parseAIHubMixCatalog({ data: data }, { chatOnly: true });
   if (protocol === 'openai' || protocol === 'senseaudio') return extractOpenAiModels(data);
   if (protocol === 'anthropic') return extractAnthropicModels(data);
   return extractGoogleModels(data);
@@ -297,9 +298,9 @@ function extractModels(protocol: ModelListProtocol, data: unknown): ProviderMode
  * "unsupported" response for Azure), and normalizes every provider's
  * response envelope into a de-duplicated, alphabetized `{ id, label }[]`.
  */
-export async function listProviderModels(
-  input: ProviderModelsInput,
+export async function listProviderModels(requiredArgs: Pick<ProviderModelsInput, "protocol" | "baseUrl" | "apiKey">, optionalArgs: Omit<ProviderModelsInput, "protocol" | "baseUrl" | "apiKey"> = {}
 ): Promise<ProviderModelsResponse> {
+  const input: ProviderModelsInput = { ...optionalArgs, ...requiredArgs };
   const start = Date.now();
   if (input.protocol === 'azure') {
     return {
@@ -310,7 +311,7 @@ export async function listProviderModels(
     };
   }
 
-  const validated = await validateBaseUrlResolved(input.baseUrl, input.dnsLookup ?? defaultDnsLookup);
+  const validated = await validateBaseUrlResolved({ baseUrl: input.baseUrl, lookup: input.dnsLookup ?? defaultDnsLookup });
   if (validated.error || !validated.parsed) {
     return {
       ok: false,
@@ -407,7 +408,7 @@ export async function listProviderModels(
         kind: statusToKind(response.status),
         latencyMs,
         status: response.status,
-        detail: redactSecrets(detail, [input.apiKey]),
+        detail: redactSecrets({ input: detail }, { exactSecrets: [input.apiKey] }),
       };
     }
 
@@ -417,7 +418,7 @@ export async function listProviderModels(
         kind: 'unknown',
         latencyMs,
         status: response.status,
-        detail: redactSecrets(parseError, [input.apiKey]),
+        detail: redactSecrets({ input: parseError }, { exactSecrets: [input.apiKey] }),
       };
     }
 
@@ -449,7 +450,7 @@ export async function listProviderModels(
       ok: false,
       kind,
       latencyMs,
-      detail: redactSecrets(message, [input.apiKey]),
+      detail: redactSecrets({ input: message }, { exactSecrets: [input.apiKey] }),
     };
   } finally {
     clearTimeout(timer);

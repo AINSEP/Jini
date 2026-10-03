@@ -1,4 +1,4 @@
-import type { UUID } from "../core/ports.js";
+import type { UUID } from "@jini-ai/core/primitives";
 import {
   validateWorkspaceNameAndSlug,
   WorkspaceConflictError,
@@ -23,7 +23,7 @@ import {
  * apply to business logic, only to the repo/outbox seams it calls through `WorkspaceRepoPort`.
  */
 
-/** Command payload for `UPDATE_WORKSPACE`. At least one of `name`/`slug` must be present (EC-01). */
+/** Command payload for `UPDATE_WORKSPACE`. At least one of `name`/`slug` must be present. See docs/decisions/DR-007-workspace-and-owner-floors.md. */
 export interface UpdateWorkspaceInput {
   id: UUID;
   name?: string | undefined;
@@ -42,8 +42,8 @@ export interface UpdateWorkspaceRequired {
 }
 
 /**
- * Execute `UPDATE_WORKSPACE` (REQ-04). At least one of `name`/`slug` must be present in the input
- * (EC-01 — an empty-object update is rejected, not a silent no-op, so a client-side bug that drops
+ * Execute `UPDATE_WORKSPACE`. At least one of `name`/`slug` must be present in the input
+ * ( — an empty-object update is rejected, not a silent no-op, so a client-side bug that drops
  * both fields fails loudly instead of masquerading as a successful save). When only one field is
  * given, the other keeps its current stored value; both are re-validated together through
  * `validateWorkspaceNameAndSlug` either way, so a `slug`-only update still catches a blank stored
@@ -51,22 +51,23 @@ export interface UpdateWorkspaceRequired {
  * rejects that, but re-validating both together — rather than only the changed field — keeps this
  * function's invariant identical to `createWorkspace`'s with no special-cased partial path).
  *
- * The slug-uniqueness check excludes the row being updated (EC-02 — a workspace is never "in
+ * The slug-uniqueness check excludes the row being updated ( — a workspace is never "in
  * conflict with itself"): `findBySlug` naturally excludes it whenever the row's own `id` matches,
  * since that's a no-op rename, not a collision with a *different* row.
  *
  * @complexity O(1) — one lookup by id, one lookup by slug, one write.
  * @overallScore 100
+ * See docs/decisions/DR-007-workspace-and-owner-floors.md.
  */
 export async function updateWorkspace(required: UpdateWorkspaceRequired): Promise<{ workspace: WorkspaceRecord }> {
   const { deps, input } = required;
 
   if (input.name === undefined && input.slug === undefined) {
-    throw new WorkspaceValidationError("at least one of name or slug is required");
+    throw new WorkspaceValidationError({ message: "at least one of name or slug is required" });
   }
 
-  const existing = await deps.repo.findById(input.id);
-  if (!existing) throw new WorkspaceNotFoundError(`workspace '${input.id}' was not found`);
+  const existing = await deps.repo.findById({ id: input.id });
+  if (!existing) throw new WorkspaceNotFoundError({ message: `workspace '${input.id}' was not found` });
 
   const { name, slug } = validateWorkspaceNameAndSlug({
     name: input.name ?? existing.name,
@@ -74,9 +75,9 @@ export async function updateWorkspace(required: UpdateWorkspaceRequired): Promis
   });
 
   if (slug !== existing.slug) {
-    const collision = await deps.repo.findBySlug(slug);
+    const collision = await deps.repo.findBySlug({ slug: slug });
     if (collision && collision.id !== existing.id) {
-      throw new WorkspaceConflictError(`slug '${slug}' already exists`);
+      throw new WorkspaceConflictError({ message: `slug '${slug}' already exists` });
     }
   }
 

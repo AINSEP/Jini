@@ -9,7 +9,7 @@ function fakeApp(lockGranted: boolean): SingleInstanceApp & { quitCalled: boolea
     quit() {
       app.quitCalled = true;
     },
-    onSecondInstance(listener: () => void) {
+    onSecondInstance({ listener }: { listener: () => void }) {
       app.secondInstanceListener = listener;
     },
   };
@@ -20,7 +20,7 @@ describe('claimSingleInstanceLock', () => {
   it('quits and returns false when the lock is already held', () => {
     const app = fakeApp(false);
     const onSecondInstance = vi.fn();
-    expect(claimSingleInstanceLock(app, onSecondInstance)).toBe(false);
+    expect(claimSingleInstanceLock({ app, onSecondInstance })).toBe(false);
     expect(app.quitCalled).toBe(true);
     expect(app.secondInstanceListener).toBeNull();
   });
@@ -28,7 +28,7 @@ describe('claimSingleInstanceLock', () => {
   it('registers the second-instance listener and returns true when the lock is granted', () => {
     const app = fakeApp(true);
     const onSecondInstance = vi.fn();
-    expect(claimSingleInstanceLock(app, onSecondInstance)).toBe(true);
+    expect(claimSingleInstanceLock({ app, onSecondInstance })).toBe(true);
     expect(app.quitCalled).toBe(false);
     app.secondInstanceListener?.();
     expect(onSecondInstance).toHaveBeenCalledTimes(1);

@@ -1,7 +1,7 @@
 /**
  * @module providers/connection-guard
  *
- * Minimal, self-contained SSRF-guard + secret-redaction utilities needed by
+ * SSRF validation and pinned transport needed by
  * this package's own `model-catalog.ts`. Vendored from the small generic
  * subset of OD's `packages/contracts/src/api/connectionTest.ts` (the
  * `isLoopbackApiHost`/`isBlockedExternalApiHostname`/`validateBaseUrl` triad)
@@ -10,17 +10,25 @@
  * 2,600-line file, which is almost entirely OD's own agent-CLI
  * connection-test orchestration (proxy dispatchers, product-specific
  * executable-fallback copy and env-var names) and out of this task's
- * scope; see `source-map.md` for the exact origin details. These four
- * functions are pure security/text utilities with
+ * scope; see `archived provenance ledger` for the exact origin details. The shared classifiers now live in `@jini-ai/platform/net`, and redaction
+ * lives in core. Validation and transport here retain
  * no product coupling in the origin — reject requests to loopback-disguised
  * or RFC1918/link-local/CGNAT/metadata-service addresses, and strip bearer
  * tokens / API-key headers / `?key=` query values out of free-form text
- * before it is logged or surfaced to a caller.
+ * before it is logged or surfaced to a caller. Provider modules call core with
+ * explicit exactSecrets because upstream 401 bodies can echo configured credentials.
  *
- * Also exports `pinnedFetch` — a `node:https`/`node:http`-based POST that dials the exact address
+ * The provider redaction contract removes bearer tokens,
+ * `x-api-key`/`api-key`/`x-goog-api-key` headers, `?key=` query values,
+ * and exact secret strings supplied by the caller from free-form text.
+ * It is used for logging or surfacing upstream failures without leaking
+ * credentials embedded in them (some providers echo the key in a 401 body).
+ * Core owns this union now; provider model/request IDs remain readable.
+ *
+ * Exports `pinnedFetch` — a `node:https`/`node:http`-based POST that dials the exact address
  * `validateBaseUrlResolved` already validated, instead of leaving the transport to re-resolve DNS
  * independently when it connects. Added later than the four functions above, for the same
- * dependency-free package; see `pinnedFetch`'s own doc for why `fetch()` itself cannot do this.
+ * explicit network boundary; see `pinnedFetch`'s own doc for why `fetch()` itself cannot do this.
  *
  * ## Paired with `@jini-ai/ui`'s `utils/endpoint-policy.ts`
  *
@@ -31,10 +39,12 @@
  * imports by design and this package is Node-only (`validateBaseUrlResolved`
  * needs `node:dns`); see that file's header for the full reasoning.
  *
- * **If the block-list here changes, change it there too.** A divergence means
+ * **If the platform/net block-list changes, change the browser copy too.** A divergence means
  * the UI accepts an endpoint this guard then refuses — or, in the direction
  * that actually matters, the UI accepts one this guard would have refused.
  */
+
+import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/platform/net';
 
 export interface BaseUrlValidationResult {
   parsed?: URL;
@@ -49,94 +59,6 @@ export interface BaseUrlValidationResult {
    * instead of re-resolving DNS when it dials.
    */
   pinnedAddress?: DnsLookupAddress;
-}
-
-function normalizeBracketedIpv6(hostname: string): string {
-  const stripped = hostname.startsWith('[') && hostname.endsWith(']')
-    ? hostname.slice(1, -1)
-    : hostname;
-  // FQDN trailing-dot form (RFC 1034) resolves identically to the dotless
-  // form, so `localhost.` must normalize to `localhost` before the equality
-  // check below — and `0.0.0.0.`, `10.0.0.1.`, etc. must normalize before
-  // isBlockedIpv4 parses them. Strips one or more trailing dots.
-  return stripped.toLowerCase().replace(/\.+$/, '');
-}
-
-function parseIpv4(hostname: string): [number, number, number, number] | null {
-  const parts = hostname.split('.');
-  if (parts.length !== 4) return null;
-  const parsed = parts.map((part) => {
-    if (!/^\d{1,3}$/.test(part)) return null;
-    const value = Number(part);
-    return value >= 0 && value <= 255 ? value : null;
-  });
-  if (parsed.some((part) => part === null)) return null;
-  return parsed as [number, number, number, number];
-}
-
-function isLoopbackIpv4(hostname: string): boolean {
-  const parts = parseIpv4(hostname);
-  return Boolean(parts && parts[0] === 127);
-}
-
-function isBlockedIpv4(hostname: string): boolean {
-  const parts = parseIpv4(hostname);
-  if (!parts) return false;
-  const [a, b] = parts;
-  return (
-    a === 0 ||
-    (a === 100 && b >= 64 && b <= 127) ||
-    (a === 169 && b === 254) ||
-    a === 10 ||
-    (a === 192 && b === 168) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    a >= 224
-  );
-}
-
-function ipv4MappedToDotted(hostname: string): string | null {
-  const host = normalizeBracketedIpv6(hostname);
-  const mapped = /^::ffff:(.+)$/i.exec(host)?.[1];
-  if (!mapped) return null;
-  if (parseIpv4(mapped.toLowerCase())) return mapped.toLowerCase();
-  const hexParts = mapped.split(':');
-  if (
-    hexParts.length !== 2 ||
-    !hexParts.every((part) => /^[0-9a-f]{1,4}$/i.test(part))
-  ) {
-    return null;
-  }
-  // Non-null assertions, not a runtime guard: the length/regex checks above
-  // already guarantee exactly two non-empty hex segments here.
-  const hi = hexParts[0]!;
-  const lo = hexParts[1]!;
-  const value = (Number.parseInt(hi, 16) << 16) | Number.parseInt(lo, 16);
-  return [
-    (value >>> 24) & 255,
-    (value >>> 16) & 255,
-    (value >>> 8) & 255,
-    value & 255,
-  ].join('.');
-}
-
-/** True for `localhost`, `::1`, `127.0.0.0/8`, and their IPv4-mapped-IPv6 forms. */
-export function isLoopbackApiHost(hostname: string): boolean {
-  const host = normalizeBracketedIpv6(hostname);
-  if (host === 'localhost' || host === '::1') return true;
-  if (isLoopbackIpv4(host)) return true;
-  const mapped = ipv4MappedToDotted(host);
-  return Boolean(mapped && isLoopbackIpv4(mapped));
-}
-
-/** True for RFC1918/link-local/CGNAT/multicast/unspecified/unique-local-IPv6 addresses — private network space a public caller should never be steered into. */
-export function isBlockedExternalApiHostname(hostname: string): boolean {
-  const host = normalizeBracketedIpv6(hostname);
-  if (host === '::') return true;
-  if (isBlockedIpv4(host)) return true;
-  if (/^f[cd][0-9a-f]{2}:/i.test(host)) return true;
-  if (/^fe[89ab][0-9a-f]:/i.test(host)) return true;
-  const mapped = ipv4MappedToDotted(host);
-  return Boolean(mapped && isBlockedIpv4(mapped));
 }
 
 /**
@@ -159,7 +81,7 @@ export function isBlockedExternalApiHostname(hostname: string): boolean {
  * is the only shape that would let the block-list inspect one string while the
  * network used another.
  */
-export function validateBaseUrl(baseUrl: string): BaseUrlValidationResult {
+export function validateBaseUrl({ baseUrl }: { baseUrl: string }): BaseUrlValidationResult {
   let parsed: URL;
   try {
     // Trim BEFORE stripping trailing slashes: in `"https://x/ "` the trailing
@@ -172,14 +94,14 @@ export function validateBaseUrl(baseUrl: string): BaseUrlValidationResult {
     return { error: 'Only http/https allowed' };
   }
   const hostname = parsed.hostname.toLowerCase();
-  if (!isLoopbackApiHost(hostname) && isBlockedExternalApiHostname(hostname)) {
+  if (!isLoopbackApiHost({ hostname: hostname }) && isBlockedExternalApiHostname({ hostname: hostname })) {
     return { error: 'Internal IPs blocked', forbidden: true };
   }
   return { parsed };
 }
 
 export type DnsLookupAddress = { address: string; family: number };
-export type DnsLookupFn = (hostname: string) => Promise<DnsLookupAddress[]>;
+export type DnsLookupFn = (requiredArgs: { hostname: string }) => Promise<DnsLookupAddress[]>;
 
 function looksLikeIpLiteral(hostname: string): boolean {
   const host = hostname.startsWith('[') && hostname.endsWith(']')
@@ -220,48 +142,46 @@ function looksLikeIpLiteral(hostname: string): boolean {
  * unvalidated address; `pinnedFetch` never follows one regardless (`node:https`/`node:http` don't,
  * unlike `fetch`'s default), but callers still pass `redirect: 'error'` for self-documentation.
  *
- * DNS lookup failures are not treated as a security signal — the caller is
- * going to surface a connection error from `fetch` anyway, and turning a
- * transient resolver hiccup into a rejection would just confuse callers. The
+ * DNS lookup failures and empty answers fail closed: an unpinned fallback
+ * would let the transport resolve the host again without checking that answer.
+ * Earlier behavior deferred resolver hiccups to the transport; that bypassed
+ * validation if its independent lookup succeeded, so it is no longer allowed. The
  * synchronous hostname check still rejects the obvious literal-IP cases
- * before DNS is ever consulted. `lookup` defaults to `node:dns`'s promise
- * `lookup(hostname, { all: true, family: 0 })`, injectable for tests and for
- * hosts that already own a resolver.
+ * before DNS is ever consulted. `lookup` is a required injected resolver;
+ * a Node host can wrap `node:dns`'s promise
+ * `lookup(hostname, { all: true, family: 0 })` in this port's object signature.
  */
-export async function validateBaseUrlResolved(
-  baseUrl: string,
-  lookup: DnsLookupFn,
+export async function validateBaseUrlResolved({ baseUrl, lookup }: { baseUrl: string; lookup: DnsLookupFn }
 ): Promise<BaseUrlValidationResult> {
-  const sync = validateBaseUrl(baseUrl);
+  const sync = validateBaseUrl({ baseUrl: baseUrl });
   if (sync.error || !sync.parsed) return sync;
 
   const hostname = sync.parsed.hostname.toLowerCase();
-  if (isLoopbackApiHost(hostname)) return sync;
+  if (isLoopbackApiHost({ hostname: hostname })) return sync;
   if (looksLikeIpLiteral(hostname)) return sync;
 
   let addresses: DnsLookupAddress[];
   try {
-    addresses = await lookup(hostname);
+    addresses = await lookup({ hostname });
   } catch {
-    return sync;
+    return { error: 'DNS lookup failed', forbidden: true };
   }
+  if (addresses.length === 0) return { error: 'DNS lookup returned no addresses', forbidden: true };
 
   for (const addr of addresses) {
     const ip = String(addr.address).toLowerCase();
-    if (isLoopbackApiHost(ip)) continue;
-    if (isBlockedExternalApiHostname(ip)) {
+    if (isLoopbackApiHost({ hostname: ip })) continue;
+    if (isBlockedExternalApiHostname({ hostname: ip })) {
       return { error: 'Internal IPs blocked', forbidden: true };
     }
   }
 
   // Pin to the FIRST resolved address — the loop above already proved every address in this list
   // cleared the block-list, so this is "the address the guard actually approved", singular, ready
-  // to hand to `pinnedFetch`. An empty `addresses` array (a `lookup` that resolves to nothing
-  // without throwing) leaves `pinnedAddress` unset; a real `dns.lookup` throws ENOTFOUND rather
-  // than resolving to `[]`, so this is not a realistic gap, just a graceful fallback to the
-  // pre-pinning pass-through behavior.
-  const pinnedAddress = addresses[0];
-  return pinnedAddress ? { ...sync, pinnedAddress } : sync;
+  // to hand to `pinnedFetch`. A real `dns.lookup` throws ENOTFOUND rather than resolving to `[]`;
+  // injected resolvers can do either, and both fail closed above instead of reviving the earlier
+  // pre-pinning pass-through behavior. The nonempty check guarantees the first address exists.
+  return { ...sync, pinnedAddress: addresses[0]! };
 }
 
 /** Request options accepted by {@link pinnedFetch} — the subset of `fetch`'s `init` this package's provider adapters actually pass. `redirect` is accepted only as documentation of intent: `pinnedFetch` never follows a redirect regardless of this field, so a caller cannot opt back into `fetch`'s default follow-redirects behavior. */
@@ -292,9 +212,7 @@ export interface PinnedFetchResponse {
  * overrides it.
  */
 export type PinnedFetch = (
-  url: string,
-  init: PinnedFetchInit,
-  pinnedAddress: DnsLookupAddress | undefined,
+  requiredArgs: { url: string; init: PinnedFetchInit; pinnedAddress: DnsLookupAddress | undefined },
 ) => Promise<PinnedFetchResponse>;
 
 /**
@@ -335,10 +253,7 @@ const PINNED_FETCH_IDLE_TIMEOUT_MS = 300_000;
  * (`lookup` option simply omitted). That is intentional, not a gap: an IP literal has nothing left
  * to re-resolve, and loopback literals are the documented carve-out, outside this threat model.
  */
-export async function pinnedFetch(
-  url: string,
-  init: PinnedFetchInit,
-  pinnedAddress: DnsLookupAddress | undefined,
+export async function pinnedFetch({ url, init, pinnedAddress }: { url: string; init: PinnedFetchInit; pinnedAddress: DnsLookupAddress | undefined }
 ): Promise<PinnedFetchResponse> {
   const parsed = new URL(url);
   const isHttps = parsed.protocol === 'https:';
@@ -459,35 +374,8 @@ export async function pinnedFetch(
   });
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Redacts bearer tokens, `x-api-key`/`api-key`/`x-goog-api-key` headers,
- * `?key=` query values, and any exact secret strings supplied via
- * `exactSecrets` out of free-form text — for logging or surfacing an
- * upstream error message to a caller without leaking credentials embedded in
- * it (some providers echo the key back in a 401 body).
- */
-export function redactSecrets(
-  text: string,
-  exactSecrets: ReadonlyArray<string | undefined | null> = [],
-): string {
-  if (typeof text !== 'string' || text.length === 0) return '';
-  let redacted = text
-    .replace(/Bearer\s+[A-Za-z0-9_\-.+/=]+/gi, 'Bearer [REDACTED]')
-    .replace(/(x-api-key|api-key|x-goog-api-key)\s*[:=]\s*[^\s,;"']+/gi, '$1: [REDACTED]')
-    .replace(/([?&]key=)[^&\s]+/gi, '$1[REDACTED]');
-  for (const secret of exactSecrets) {
-    if (typeof secret !== 'string' || secret.length === 0) continue;
-    redacted = redacted.replace(new RegExp(escapeRegExp(secret), 'g'), '[REDACTED]');
-  }
-  return redacted;
-}
-
 /** Default DNS lookup for {@link validateBaseUrlResolved} — `node:dns/promises`' `lookup(hostname, { all: true, family: 0 })`. */
-export async function defaultDnsLookup(hostname: string): Promise<DnsLookupAddress[]> {
+export async function defaultDnsLookup({ hostname }: { hostname: string }): Promise<DnsLookupAddress[]> {
   const { promises: dnsPromises } = await import('node:dns');
   const result = await dnsPromises.lookup(hostname, { all: true, family: 0 });
   return result.map(({ address, family }) => ({ address, family }));

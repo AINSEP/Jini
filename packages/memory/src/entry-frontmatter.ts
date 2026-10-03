@@ -31,7 +31,7 @@ export interface EntryFrontmatter {
  * @param raw - The full file contents.
  * @returns The parsed frontmatter fields and the body with the block removed.
  */
-export function parseEntryFrontmatter(raw: string): { data: EntryFrontmatter; body: string } {
+export function parseEntryFrontmatter({ raw }: { raw: string }): { data: EntryFrontmatter; body: string } {
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(raw);
   if (!match) return { data: { name: '', description: '', type: '' }, body: raw };
   // Both capture groups are `*`-quantified (zero-or-more), so a successful
@@ -57,7 +57,7 @@ export function parseEntryFrontmatter(raw: string): { data: EntryFrontmatter; bo
  * @param body - The markdown body.
  * @returns The full file contents, ready to write to disk.
  */
-export function renderEntryFrontmatter(fields: EntryFrontmatter, body: string): string {
+export function renderEntryFrontmatter({ fields, body }: { fields: EntryFrontmatter; body: string }): string {
   const safeName = fields.name.replace(/\r?\n/g, ' ').trim();
   const safeDescription = fields.description.replace(/\r?\n/g, ' ').trim();
   const safeType = fields.type.replace(/\r?\n/g, ' ').trim();

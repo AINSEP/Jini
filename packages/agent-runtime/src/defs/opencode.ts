@@ -1,4 +1,4 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/opencode.ts` (import path adjusted only). See `source-map.md`. */
+/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/opencode.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { DEFAULT_MODEL_OPTION, parseLineSeparatedModels } from './shared.js';
 import { agentCapabilities } from '../capabilities.js';
 import type { RuntimeAgentDef } from '../types.js';
@@ -50,7 +50,7 @@ export const opencodeAgentDef = {
     // avoid Windows `spawn ENAMETOOLONG` while preserving OpenCode's
     // structured stream. A literal `-` is parsed as a positional message by
     // OpenCode 1.14.x and can surface as "Session not found".
-    buildArgs: (_prompt, _imagePaths, _extra, options = {}, runtimeContext = {}) => {
+    buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs: _extra, options = {}, runtimeContext = {} } = {}) => {
       const args = [
         'run',
         '--format',

@@ -16,12 +16,13 @@ import type { EntryRecord } from "../types.js";
  * content type: `tombstone` blocks all three; `deprecated` blocks none of them (the inverse of
  * the rule that blocks only *new* entry creation).
  *
- * Covers: AC-44 (UPDATE_ENTRY rejected for tombstoned type), AC-45 (PUBLISH/UNPUBLISH rejected,
- * no outbox event), AC-46 (all three succeed normally for a deprecated owning type), EC-13, EC-14.
+ * Covers: (UPDATE_ENTRY rejected for tombstoned type), (PUBLISH/UNPUBLISH rejected,
+ * no outbox event), (all three succeed normally for a deprecated owning type),.
+ * See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
  */
 
 const NOW = "2026-07-15T00:00:00.000Z";
-const clock = { nowIso: () => NOW };
+const clock = { nowMs: () => Date.parse(NOW)};
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
 
 // Returns a whole `EntryRecord` rather than the six columns the assertions touch. The four added
@@ -48,7 +49,7 @@ function fakeEntryRepo(seed: EntryRecord) {
       stored = row;
     },
     appendRevision: async () => undefined,
-    transaction: async <T>(fn: () => Promise<T>) => fn(),
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn(),
   };
 }
 
@@ -233,7 +234,7 @@ test("an entry id that does not resolve is rejected with ENTRY_NOT_FOUND rather 
     },
     save: async () => undefined,
     appendRevision: async () => undefined,
-    transaction: async <T>(fn: () => Promise<T>) => fn(),
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn(),
   };
 
   const result = await updateEntry({

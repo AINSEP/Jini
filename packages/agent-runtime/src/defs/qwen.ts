@@ -1,4 +1,4 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/qwen.ts` (import path adjusted only). See `source-map.md`. */
+/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/qwen.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
@@ -17,7 +17,7 @@ export const qwenAgentDef = {
     // Gemini-CLI fork and supports the same `--yolo` non-interactive mode.
     // Qwen Code reads from piped stdin when no positional prompt is supplied.
     // Current Qwen treats/rejects a bare `-` rather than needing it as a stdin sentinel.
-    buildArgs: (_prompt, _imagePaths, _extra, options = {}) => {
+    buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs: _extra, options = {} } = {}) => {
       const args = [];
       // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
       // behavior) unless a caller explicitly opts into a restricted run.

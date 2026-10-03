@@ -41,18 +41,18 @@ export interface UseToolTimelineResult {
   collapseAll: () => void;
 }
 
-export function useToolTimeline(events: AgentEvent[] | undefined, options: UseToolTimelineOptions = {}): UseToolTimelineResult {
+export function useToolTimeline({ events }: { events: AgentEvent[] | undefined }, options: UseToolTimelineOptions = {}): UseToolTimelineResult {
   const { runStreaming = false, runSucceeded = false, defaultExpanded = false } = options;
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
 
-  const deduped = useMemo(() => dedupeToolUsesById(events), [events]);
+  const deduped = useMemo(() => dedupeToolUsesById({ events: events }), [events]);
 
   const rows = useMemo<ToolTimelineRow[]>(() => {
     const out: ToolTimelineRow[] = [];
     for (const ev of deduped) {
       if (ev.kind !== 'tool_use') continue;
       const result = deduped.find((r): r is ToolResultEvent => r.kind === 'tool_result' && r.toolUseId === ev.id);
-      const status = deriveToolStatus(result, runStreaming, runSucceeded);
+      const status = deriveToolStatus({ result: result, runStreaming: runStreaming }, { runSucceeded: runSucceeded });
       out.push({
         id: ev.id,
         name: ev.name,

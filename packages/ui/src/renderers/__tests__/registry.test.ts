@@ -39,44 +39,44 @@ describe('resolveArtifactManifest', () => {
       renderer: 'markdown' as const,
       exports: [],
     };
-    expect(resolveArtifactManifest(file({ manifest }))).toEqual(manifest);
+    expect(resolveArtifactManifest({ file: file({ manifest }) })).toEqual(manifest);
   });
 
   it('no longer infers a manifest from the file name (inference removed)', () => {
-    expect(resolveArtifactManifest(file({ name: 'notes.md' }))).toBeNull();
+    expect(resolveArtifactManifest({ file: file({ name: 'notes.md' }) })).toBeNull();
   });
 
   it('returns null when the file has no manifest', () => {
-    expect(resolveArtifactManifest(file({ name: 'data.bin' }))).toBeNull();
+    expect(resolveArtifactManifest({ file: file({ name: 'data.bin' }) })).toBeNull();
   });
 });
 
 describe('RendererRegistry', () => {
   it('resolves the first renderer whose canRender matches', () => {
-    const registry = new RendererRegistry([neverMatches, alwaysHtml]);
+    const registry = new RendererRegistry({ renderers: [neverMatches, alwaysHtml] });
     const match = registry.resolve({ file: file({ manifest: sampleManifest }) });
     expect(match?.renderer.id).toBe('html');
   });
 
   it('returns null when no manifest can be resolved', () => {
-    const registry = new RendererRegistry([alwaysHtml]);
+    const registry = new RendererRegistry({ renderers: [alwaysHtml] });
     expect(registry.resolve({ file: file({ name: 'data.bin' }) })).toBeNull();
   });
 
   it('returns null when no renderer matches', () => {
-    const registry = new RendererRegistry([neverMatches]);
+    const registry = new RendererRegistry({ renderers: [neverMatches] });
     expect(registry.resolve({ file: file({ manifest: sampleManifest }) })).toBeNull();
   });
 
   it('list() exposes renderers in resolution order', () => {
-    const registry = new RendererRegistry([neverMatches, alwaysHtml]);
+    const registry = new RendererRegistry({ renderers: [neverMatches, alwaysHtml] });
     expect(registry.list().map((r) => r.id)).toEqual(['never', 'html']);
   });
 
   it('register() replaces an existing renderer with the same id', () => {
-    const registry = new RendererRegistry([neverMatches]);
+    const registry = new RendererRegistry({ renderers: [neverMatches] });
     const replaced: ArtifactRenderer = { id: 'never', supportsStreaming: false, canRender: () => true };
-    const next = registry.register(replaced);
+    const next = registry.register({ renderer: replaced });
     expect(next.list()).toHaveLength(1);
     expect(next.resolve({ file: file({ manifest: sampleManifest }) })?.renderer).toBe(replaced);
     // original registry is untouched
@@ -84,8 +84,8 @@ describe('RendererRegistry', () => {
   });
 
   it('register() appends a renderer with a new id', () => {
-    const registry = new RendererRegistry([neverMatches]);
-    const next = registry.register(alwaysHtml);
+    const registry = new RendererRegistry({ renderers: [neverMatches] });
+    const next = registry.register({ renderer: alwaysHtml });
     expect(next.list().map((r) => r.id)).toEqual(['never', 'html']);
   });
 });

@@ -56,23 +56,23 @@ function makeRecord(overrides: Partial<LocalDaemonRegistryRecord> = {}): LocalDa
 
 describe("resolveDaemonRegistryPath", () => {
   it("resolves <dataDir>/daemon.json by default", () => {
-    expect(resolveDaemonRegistryPath("/tmp/some-data-dir")).toBe(join("/tmp/some-data-dir", "daemon.json"));
+    expect(resolveDaemonRegistryPath({ dataDir: "/tmp/some-data-dir" })).toBe(join("/tmp/some-data-dir", "daemon.json"));
   });
 
   it("honors a custom file name", () => {
-    expect(resolveDaemonRegistryPath("/tmp/some-data-dir", "custom.json")).toBe(join("/tmp/some-data-dir", "custom.json"));
+    expect(resolveDaemonRegistryPath({ dataDir: "/tmp/some-data-dir" }, { fileName: "custom.json" })).toBe(join("/tmp/some-data-dir", "custom.json"));
   });
 
   it("throws on a non-string/empty dataDir", () => {
-    expect(() => resolveDaemonRegistryPath("")).toThrow(/dataDir must be a non-empty string/);
-    expect(() => resolveDaemonRegistryPath("   ")).toThrow(/dataDir must be a non-empty string/);
+    expect(() => resolveDaemonRegistryPath({ dataDir: "" })).toThrow(/dataDir must be a non-empty string/);
+    expect(() => resolveDaemonRegistryPath({ dataDir: "   " })).toThrow(/dataDir must be a non-empty string/);
     // @ts-expect-error deliberate runtime-only misuse proof
-    expect(() => resolveDaemonRegistryPath(undefined)).toThrow(/dataDir must be a non-empty string/);
+    expect(() => resolveDaemonRegistryPath({ dataDir: undefined })).toThrow(/dataDir must be a non-empty string/);
   });
 
   it("scopes two different dataDirs to two different, non-colliding paths (the multi-daemon-per-machine case)", () => {
-    const a = resolveDaemonRegistryPath("/tmp/daemon-a");
-    const b = resolveDaemonRegistryPath("/tmp/daemon-b");
+    const a = resolveDaemonRegistryPath({ dataDir: "/tmp/daemon-a" });
+    const b = resolveDaemonRegistryPath({ dataDir: "/tmp/daemon-b" });
     expect(a).not.toBe(b);
   });
 });
@@ -80,108 +80,108 @@ describe("resolveDaemonRegistryPath", () => {
 describe("writeDaemonRegistryRecord / readLiveDaemonRegistryRecord", () => {
   it("round-trips a record written for the current (definitely alive) process", async () => {
     const dir = await makeTempDir();
-    const registryPath = resolveDaemonRegistryPath(dir);
+    const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
     const record = makeRecord({ pid: process.pid });
 
-    await writeDaemonRegistryRecord(registryPath, record);
+    await writeDaemonRegistryRecord({ registryPath, record });
 
-    await expect(readJsonFile(registryPath)).resolves.toEqual(record);
-    await expect(readLiveDaemonRegistryRecord(registryPath)).resolves.toEqual(record);
+    await expect(readJsonFile({ filePath: registryPath })).resolves.toEqual(record);
+    await expect(readLiveDaemonRegistryRecord({ registryPath })).resolves.toEqual(record);
   });
 
   it("returns null when no record file exists", async () => {
     const dir = await makeTempDir();
-    await expect(readLiveDaemonRegistryRecord(resolveDaemonRegistryPath(dir))).resolves.toBeNull();
+    await expect(readLiveDaemonRegistryRecord({ registryPath: resolveDaemonRegistryPath({ dataDir: dir }) })).resolves.toBeNull();
   });
 
   it("returns null for a malformed/foreign JSON record (missing required fields)", async () => {
     const dir = await makeTempDir();
-    const registryPath = resolveDaemonRegistryPath(dir);
+    const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
     await writeFile(registryPath, JSON.stringify({ notADaemonRecord: true }), "utf8");
 
-    await expect(readLiveDaemonRegistryRecord(registryPath)).resolves.toBeNull();
+    await expect(readLiveDaemonRegistryRecord({ registryPath })).resolves.toBeNull();
   });
 
   it("returns null for a record whose pid is out of range (0/negative/non-integer)", async () => {
     const dir = await makeTempDir();
-    const registryPath = resolveDaemonRegistryPath(dir);
-    await writeDaemonRegistryRecord(registryPath, makeRecord({ pid: -1 }));
-    await expect(readLiveDaemonRegistryRecord(registryPath)).resolves.toBeNull();
+    const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
+    await writeDaemonRegistryRecord({ registryPath, record: makeRecord({ pid: -1 }) });
+    await expect(readLiveDaemonRegistryRecord({ registryPath })).resolves.toBeNull();
   });
 
   it("treats a stale record from a crashed process (pid no longer alive) as absent, not trusted — the core edge case this module exists for", async () => {
     const dir = await makeTempDir();
-    const registryPath = resolveDaemonRegistryPath(dir);
+    const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
     const deadPid = await spawnAndAwaitExit();
 
-    await writeDaemonRegistryRecord(registryPath, makeRecord({ pid: deadPid }));
+    await writeDaemonRegistryRecord({ registryPath, record: makeRecord({ pid: deadPid }) });
 
     // The file is real and well-formed — a naive reader that skipped the liveness check would
     // hand this URL back to a caller as if the daemon were still reachable.
-    await expect(readJsonFile(registryPath)).resolves.toMatchObject({ pid: deadPid });
-    await expect(readLiveDaemonRegistryRecord(registryPath)).resolves.toBeNull();
+    await expect(readJsonFile({ filePath: registryPath })).resolves.toMatchObject({ pid: deadPid });
+    await expect(readLiveDaemonRegistryRecord({ registryPath })).resolves.toBeNull();
   });
 
   it("a later write to the same path fully replaces the earlier one — no merged/torn record, matching json-file.ts's atomic temp-file-rename writer", async () => {
     const dir = await makeTempDir();
-    const registryPath = resolveDaemonRegistryPath(dir);
+    const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
     const first = makeRecord({ url: "http://127.0.0.1:1111", port: 1111 });
     const second = makeRecord({ url: "http://127.0.0.1:2222", port: 2222 });
 
-    await writeDaemonRegistryRecord(registryPath, first);
-    await writeDaemonRegistryRecord(registryPath, second);
+    await writeDaemonRegistryRecord({ registryPath, record: first });
+    await writeDaemonRegistryRecord({ registryPath, record: second });
 
     // A reader observing mid-sequence would see exactly `first` or exactly `second` — this
-    // module writes through `writeJsonFile`'s temp-file+rename primitive (json-file.ts), which is
+    // module writes through `writeJsonFile`'s platform-backed atomic writer (json-file.ts), which is
     // what actually provides that guarantee; this asserts the end state a repeated-restart /
     // multiple-writer sequence converges to, not a torn/merged mix of both records.
-    await expect(readJsonFile(registryPath)).resolves.toEqual(second);
+    await expect(readJsonFile({ filePath: registryPath })).resolves.toEqual(second);
   });
 });
 
 describe("removeDaemonRegistryRecordIfCurrent", () => {
   it("removes the record when its pid matches", async () => {
     const dir = await makeTempDir();
-    const registryPath = resolveDaemonRegistryPath(dir);
-    await writeDaemonRegistryRecord(registryPath, makeRecord({ pid: process.pid }));
+    const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
+    await writeDaemonRegistryRecord({ registryPath, record: makeRecord({ pid: process.pid }) });
 
-    await removeDaemonRegistryRecordIfCurrent(registryPath, process.pid);
+    await removeDaemonRegistryRecordIfCurrent({ registryPath, pid: process.pid });
 
-    await expect(readJsonFile(registryPath)).resolves.toBeNull();
+    await expect(readJsonFile({ filePath: registryPath })).resolves.toBeNull();
   });
 
   it("leaves the record alone when its pid does not match (guards a fast crash-restart race on a reused dataDir)", async () => {
     const dir = await makeTempDir();
-    const registryPath = resolveDaemonRegistryPath(dir);
+    const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
     const record = makeRecord({ pid: process.pid });
-    await writeDaemonRegistryRecord(registryPath, record);
+    await writeDaemonRegistryRecord({ registryPath, record });
 
-    await removeDaemonRegistryRecordIfCurrent(registryPath, process.pid + 1);
+    await removeDaemonRegistryRecordIfCurrent({ registryPath, pid: process.pid + 1 });
 
-    await expect(readJsonFile(registryPath)).resolves.toEqual(record);
+    await expect(readJsonFile({ filePath: registryPath })).resolves.toEqual(record);
   });
 
   it("is a no-op when no record file exists", async () => {
     const dir = await makeTempDir();
-    await expect(removeDaemonRegistryRecordIfCurrent(resolveDaemonRegistryPath(dir), process.pid)).resolves.toBeUndefined();
+    await expect(removeDaemonRegistryRecordIfCurrent({ registryPath: resolveDaemonRegistryPath({ dataDir: dir }), pid: process.pid })).resolves.toBeUndefined();
   });
 });
 
 describe("isProcessAlive", () => {
   it("returns true for the current process (a real, definitely-alive pid)", () => {
-    expect(isProcessAlive(process.pid)).toBe(true);
+    expect(isProcessAlive({ pid: process.pid })).toBe(true);
   });
 
   it("returns false for a pid that has actually exited (real OS-level liveness check, not mocked)", async () => {
     const deadPid = await spawnAndAwaitExit();
-    expect(isProcessAlive(deadPid)).toBe(false);
+    expect(isProcessAlive({ pid: deadPid })).toBe(false);
   });
 
   it("returns false for non-integer, zero, and negative pids without probing the OS", () => {
     const killSpy = vi.spyOn(process, "kill");
-    expect(isProcessAlive(1.5)).toBe(false);
-    expect(isProcessAlive(0)).toBe(false);
-    expect(isProcessAlive(-5)).toBe(false);
+    expect(isProcessAlive({ pid: 1.5 })).toBe(false);
+    expect(isProcessAlive({ pid: 0 })).toBe(false);
+    expect(isProcessAlive({ pid: -5 })).toBe(false);
     expect(killSpy).not.toHaveBeenCalled();
     killSpy.mockRestore();
   });
@@ -192,7 +192,7 @@ describe("isProcessAlive", () => {
       error.code = "EPERM";
       throw error;
     });
-    expect(isProcessAlive(123)).toBe(true);
+    expect(isProcessAlive({ pid: 123 })).toBe(true);
     killSpy.mockRestore();
   });
 
@@ -202,7 +202,7 @@ describe("isProcessAlive", () => {
       error.code = "ESRCH";
       throw error;
     });
-    expect(isProcessAlive(123)).toBe(false);
+    expect(isProcessAlive({ pid: 123 })).toBe(false);
     killSpy.mockRestore();
   });
 
@@ -210,7 +210,7 @@ describe("isProcessAlive", () => {
     const killSpy = vi.spyOn(process, "kill").mockImplementation(() => {
       throw new Error("unexpected");
     });
-    expect(isProcessAlive(123)).toBe(false);
+    expect(isProcessAlive({ pid: 123 })).toBe(false);
     killSpy.mockRestore();
   });
 });

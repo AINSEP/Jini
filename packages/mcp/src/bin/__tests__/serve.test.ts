@@ -1,7 +1,7 @@
 import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { McpToolServerHandle, McpToolServerOptions } from '../../server/tool-server.js';
+import type { McpToolServerHandle, McpToolServerRequiredArgs, McpToolServerOptions } from '../../server/tool-server.js';
 import { DAEMON_TOKEN_ENV_VAR, DAEMON_URL_ENV_VAR, RUN_ID_ENV_VAR, serve, type ServeDeps } from '../serve.js';
 
 class ExitSentinel extends Error {
@@ -12,12 +12,12 @@ class ExitSentinel extends Error {
 
 function makeDeps(overrides: Partial<ServeDeps> = {}): ServeDeps & { errWritten: string[] } {
   const errWritten: string[] = [];
-  const exit = (code: number): never => {
+  const exit = ({ code }: { code: number }): never => {
     throw new ExitSentinel(code);
   };
   return {
     env: { [RUN_ID_ENV_VAR]: 'run-1' },
-    writeErr: (text: string) => {
+    writeErr: ({ text }: { text: string }) => {
       errWritten.push(text);
     },
     errWritten,
@@ -26,8 +26,8 @@ function makeDeps(overrides: Partial<ServeDeps> = {}): ServeDeps & { errWritten:
   };
 }
 
-function castMcpToolServer(fn: (...args: any[]) => any): (options: McpToolServerOptions) => McpToolServerHandle {
-  return fn as unknown as (options: McpToolServerOptions) => McpToolServerHandle;
+function castMcpToolServer(fn: (...args: any[]) => any): (requiredArgs: McpToolServerRequiredArgs, optionalArgs?: McpToolServerOptions) => McpToolServerHandle {
+  return fn as unknown as (requiredArgs: McpToolServerRequiredArgs, optionalArgs?: McpToolServerOptions) => McpToolServerHandle;
 }
 
 function flushAsync(): Promise<void> {
@@ -38,7 +38,7 @@ describe('serve() — wiring, with a fully-injected fake createMcpToolServer', (
   it('exits 1 without ever calling createMcpToolServer when JINI_RUN_ID is missing', async () => {
     const createMcpToolServer = vi.fn();
     const deps = makeDeps({ env: {}, createMcpToolServer: castMcpToolServer(createMcpToolServer) });
-    await expect(serve(deps)).rejects.toBeInstanceOf(ExitSentinel);
+    await expect(serve({}, deps)).rejects.toBeInstanceOf(ExitSentinel);
     expect(deps.errWritten.join('')).toContain(RUN_ID_ENV_VAR);
     expect(createMcpToolServer).not.toHaveBeenCalled();
   });
@@ -49,19 +49,20 @@ describe('serve() — wiring, with a fully-injected fake createMcpToolServer', (
       env: { [RUN_ID_ENV_VAR]: '' },
       createMcpToolServer: castMcpToolServer(createMcpToolServer),
     });
-    await expect(serve(deps)).rejects.toBeInstanceOf(ExitSentinel);
+    await expect(serve({}, deps)).rejects.toBeInstanceOf(ExitSentinel);
     expect(createMcpToolServer).not.toHaveBeenCalled();
   });
 
   it('builds a tool list of RUN_TOOLS plus TOOL_CATALOG_TOOLS plus COMPONENT_CATALOG_TOOLS plus one execute_delegated_tool def, resources, name/version/instructions', async () => {
-    let seenOptions: McpToolServerOptions | undefined;
+    let seenOptions: (McpToolServerRequiredArgs & McpToolServerOptions) | undefined;
     const fakeHandle: McpToolServerHandle = { run: async () => {} };
-    const createMcpToolServer = vi.fn((options: McpToolServerOptions) => {
+    const createMcpToolServer = vi.fn((requiredArgs: McpToolServerRequiredArgs, optionalArgs: McpToolServerOptions = {}) => {
+      const options = { ...requiredArgs, ...optionalArgs };
       seenOptions = options;
       return fakeHandle;
     });
     const deps = makeDeps({ createMcpToolServer });
-    await serve(deps);
+    await serve({}, deps);
     expect(createMcpToolServer).toHaveBeenCalledTimes(1);
     expect(seenOptions?.name).toBe('jini-mcp');
     expect(seenOptions?.version).toEqual(expect.any(String));
@@ -90,44 +91,47 @@ describe('serve() — wiring, with a fully-injected fake createMcpToolServer', (
   });
 
   it('omits fetchImpl/stdin/stdout from the built options entirely when not injected', async () => {
-    let seenOptions: McpToolServerOptions | undefined;
-    const createMcpToolServer = vi.fn((options: McpToolServerOptions) => {
+    let seenOptions: (McpToolServerRequiredArgs & McpToolServerOptions) | undefined;
+    const createMcpToolServer = vi.fn((requiredArgs: McpToolServerRequiredArgs, optionalArgs: McpToolServerOptions = {}) => {
+      const options = { ...requiredArgs, ...optionalArgs };
       seenOptions = options;
       return { run: async () => {} };
     });
-    await serve(makeDeps({ createMcpToolServer }));
+    await serve({}, makeDeps({ createMcpToolServer }));
     expect('fetchImpl' in (seenOptions as object)).toBe(false);
     expect('stdin' in (seenOptions as object)).toBe(false);
     expect('stdout' in (seenOptions as object)).toBe(false);
   });
 
   it('threads fetchImpl/stdin/stdout through to createMcpToolServer when injected', async () => {
-    let seenOptions: McpToolServerOptions | undefined;
-    const createMcpToolServer = vi.fn((options: McpToolServerOptions) => {
+    let seenOptions: (McpToolServerRequiredArgs & McpToolServerOptions) | undefined;
+    const createMcpToolServer = vi.fn((requiredArgs: McpToolServerRequiredArgs, optionalArgs: McpToolServerOptions = {}) => {
+      const options = { ...requiredArgs, ...optionalArgs };
       seenOptions = options;
       return { run: async () => {} };
     });
     const fetchImpl = vi.fn() as unknown as typeof fetch;
     const stdin = new PassThrough();
     const stdout = new PassThrough();
-    await serve(makeDeps({ createMcpToolServer, fetchImpl, stdin: stdin as any, stdout: stdout as any }));
+    await serve({}, makeDeps({ createMcpToolServer, fetchImpl, stdin: stdin as any, stdout: stdout as any }));
     expect(seenOptions?.fetchImpl).toBe(fetchImpl);
     expect(seenOptions?.stdin).toBe(stdin);
     expect(seenOptions?.stdout).toBe(stdout);
   });
 
   it('threads a custom generateToolUseId into the execute_delegated_tool def', async () => {
-    let seenOptions: McpToolServerOptions | undefined;
-    const createMcpToolServer = vi.fn((options: McpToolServerOptions) => {
+    let seenOptions: (McpToolServerRequiredArgs & McpToolServerOptions) | undefined;
+    const createMcpToolServer = vi.fn((requiredArgs: McpToolServerRequiredArgs, optionalArgs: McpToolServerOptions = {}) => {
+      const options = { ...requiredArgs, ...optionalArgs };
       seenOptions = options;
       return { run: async () => {} };
     });
     const postDaemonJsonCalls: unknown[] = [];
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ result: { executionId: 'e1', status: 'completed' } }), { status: 200 })) as unknown as typeof fetch;
-    await serve(makeDeps({ createMcpToolServer, fetchImpl, generateToolUseId: () => 'fixed-tool-use-id' }));
+    await serve({}, makeDeps({ createMcpToolServer, fetchImpl, generateToolUseId: () => 'fixed-tool-use-id' }));
     const tool = seenOptions?.tools.find((t) => t.name === 'execute_delegated_tool');
     expect(tool).toBeDefined();
-    await tool!.handler({ toolId: 'echo' }, { baseUrl: 'http://d.example', fetchImpl });
+    await tool!.handler({ args: { toolId: 'echo' }, ctx: { baseUrl: 'http://d.example', fetchImpl } });
     expect(fetchImpl).toHaveBeenCalledWith(
       'http://d.example/api/delegated-tool-calls',
       expect.objectContaining({ body: expect.stringContaining('"toolUseId":"fixed-tool-use-id"') }),
@@ -136,16 +140,17 @@ describe('serve() — wiring, with a fully-injected fake createMcpToolServer', (
   });
 
   it('resolves the daemon base URL via resolveDaemonUrl, wired to JINI_DAEMON_URL and no CLI flag', async () => {
-    let seenOptions: McpToolServerOptions | undefined;
-    const createMcpToolServer = vi.fn((options: McpToolServerOptions) => {
+    let seenOptions: (McpToolServerRequiredArgs & McpToolServerOptions) | undefined;
+    const createMcpToolServer = vi.fn((requiredArgs: McpToolServerRequiredArgs, optionalArgs: McpToolServerOptions = {}) => {
+      const options = { ...requiredArgs, ...optionalArgs };
       seenOptions = options;
       return { run: async () => {} };
     });
     const resolveDaemonUrl = vi.fn(async () => 'http://resolved.example');
-    await serve(makeDeps({ createMcpToolServer, resolveDaemonUrl, env: { [RUN_ID_ENV_VAR]: 'run-1', [DAEMON_URL_ENV_VAR]: 'http://from-env.example' } }));
+    await serve({}, makeDeps({ createMcpToolServer, resolveDaemonUrl, env: { [RUN_ID_ENV_VAR]: 'run-1', [DAEMON_URL_ENV_VAR]: 'http://from-env.example' } }));
     const resolved = await seenOptions!.resolveBaseUrl();
     expect(resolved).toBe('http://resolved.example');
-    expect(resolveDaemonUrl).toHaveBeenCalledWith({
+    expect(resolveDaemonUrl).toHaveBeenCalledWith({}, {
       flagUrl: null,
       env: { [RUN_ID_ENV_VAR]: 'run-1', [DAEMON_URL_ENV_VAR]: 'http://from-env.example' },
       envVarName: DAEMON_URL_ENV_VAR,
@@ -153,18 +158,18 @@ describe('serve() — wiring, with a fully-injected fake createMcpToolServer', (
     });
   });
 
-  it('writes an error and exits 1 when handle.run() rejects (e.g. resolveDaemonUrl throwing)', async () => {
+  it('writes an error and exits 1 when handle.run({}) rejects (e.g. resolveDaemonUrl throwing)', async () => {
     const createMcpToolServer = vi.fn(() => ({
       run: async () => {
         throw new Error('no daemon URL resolved');
       },
     }));
     const deps = makeDeps({ createMcpToolServer });
-    await expect(serve(deps)).rejects.toBeInstanceOf(ExitSentinel);
+    await expect(serve({}, deps)).rejects.toBeInstanceOf(ExitSentinel);
     expect(deps.errWritten.join('')).toContain('no daemon URL resolved');
   });
 
-  it('formats a non-Error throw from handle.run() via String()', async () => {
+  it('formats a non-Error throw from handle.run({}) via String()', async () => {
     const createMcpToolServer = vi.fn(() => ({
       run: async () => {
         // eslint-disable-next-line @typescript-eslint/no-throw-literal
@@ -172,7 +177,7 @@ describe('serve() — wiring, with a fully-injected fake createMcpToolServer', (
       },
     }));
     const deps = makeDeps({ createMcpToolServer });
-    await expect(serve(deps)).rejects.toBeInstanceOf(ExitSentinel);
+    await expect(serve({}, deps)).rejects.toBeInstanceOf(ExitSentinel);
     expect(deps.errWritten.join('')).toContain('raw string failure');
   });
 });
@@ -213,7 +218,7 @@ describe('serve() — real MCP round trip over in-memory stdio (no createMcpTool
       }
     });
 
-    const runPromise = serve({
+    const runPromise = serve({}, {
       env: { [RUN_ID_ENV_VAR]: 'run-xyz', [DAEMON_URL_ENV_VAR]: 'http://daemon.example' },
       stdin: stdin as any,
       stdout: stdout as any,
@@ -270,10 +275,10 @@ describe('serve() — real MCP round trip over in-memory stdio (no createMcpTool
 // dynamic `import('../serve.js')` after pointing `process.argv[1]` at the module's own resolved
 // path is the only way to actually exercise that top-level branch. The "runs for real" case below
 // deliberately drives the *missing-JINI_RUN_ID* path (not a full server run): every other path
-// eventually calls the real, blocking `createMcpToolServer(...).run()` against real
+// eventually calls the real, blocking `createMcpToolServer(...).run({})` against real
 // `process.stdin`/`process.stdout`, which would never resolve in a test process (nothing closes
 // real stdin) — the missing-env-var path is the one exit that both completes immediately and
-// exercises the real, undoctored `serve()` call the guard makes.
+// exercises the real, undoctored `serve({})` call the guard makes.
 describe('module top-level entrypoint guard', () => {
   const originalArgv = process.argv;
   const hadRunId = RUN_ID_ENV_VAR in process.env;
@@ -320,8 +325,9 @@ describe('module top-level entrypoint guard', () => {
 
 describe('serve() — daemon credential propagation', () => {
   function captureOptions() {
-    let seen: McpToolServerOptions | undefined;
-    const createMcpToolServer = vi.fn((options: McpToolServerOptions) => {
+    let seen: (McpToolServerRequiredArgs & McpToolServerOptions) | undefined;
+    const createMcpToolServer = vi.fn((requiredArgs: McpToolServerRequiredArgs, optionalArgs: McpToolServerOptions = {}) => {
+      const options = { ...requiredArgs, ...optionalArgs };
       seen = options;
       return { run: async () => {} } as McpToolServerHandle;
     });
@@ -330,11 +336,10 @@ describe('serve() — daemon credential propagation', () => {
 
   it('turns JINI_DAEMON_TOKEN into an Authorization header for every tool call', async () => {
     const { createMcpToolServer, seenOptions } = captureOptions();
-    await serve(
-      makeDeps({
+    await serve({}, makeDeps({
         env: { [RUN_ID_ENV_VAR]: 'run-1', [DAEMON_TOKEN_ENV_VAR]: 'run-scoped-secret' },
         createMcpToolServer,
-      }),
+      })
     );
     expect(seenOptions()?.authHeaders).toEqual({ Authorization: 'Bearer run-scoped-secret' });
   });
@@ -343,14 +348,13 @@ describe('serve() — daemon credential propagation', () => {
   // process must keep serving it exactly as before rather than refusing to boot.
   it('omits authHeaders entirely when no credential was delivered', async () => {
     const { createMcpToolServer, seenOptions } = captureOptions();
-    await serve(makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run-1' }, createMcpToolServer }));
+    await serve({}, makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run-1' }, createMcpToolServer }));
     expect(seenOptions()).not.toHaveProperty('authHeaders');
   });
 
   it('treats an empty credential as absent rather than sending "Bearer "', async () => {
     const { createMcpToolServer, seenOptions } = captureOptions();
-    await serve(
-      makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run-1', [DAEMON_TOKEN_ENV_VAR]: '' }, createMcpToolServer }),
+    await serve({}, makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run-1', [DAEMON_TOKEN_ENV_VAR]: '' }, createMcpToolServer })
     );
     expect(seenOptions()).not.toHaveProperty('authHeaders');
   });
@@ -361,7 +365,29 @@ describe('serve() — daemon credential propagation', () => {
       env: { [DAEMON_TOKEN_ENV_VAR]: 'run-scoped-secret' },
       createMcpToolServer: castMcpToolServer(createMcpToolServer),
     });
-    await expect(serve(deps)).rejects.toThrow(ExitSentinel);
+    await expect(serve({}, deps)).rejects.toThrow(ExitSentinel);
     expect(createMcpToolServer).not.toHaveBeenCalled();
   });
+});
+
+// PARITY: executable assembly still resolves the host env once and redacts userinfo in warnings.
+it('resolves the daemon URL without a CLI dependency and keeps warning credentials private', async () => {
+  const errors: string[] = [];
+  let resolved: string | undefined;
+  await serve({}, { env: { [RUN_ID_ENV_VAR]: 'run', [DAEMON_URL_ENV_VAR]: 'http://user:secret@example.com:4111' },
+    writeErr: ({ text }) => { errors.push(text); },
+    exit: () => { throw new Error('unexpected exit'); },
+    createMcpToolServer: required => ({ run: async () => { resolved = await required.resolveBaseUrl(); } }),
+  });
+  expect(resolved).toBe('http://user:secret@example.com:4111');
+  expect(errors).toEqual(['daemon URL http://example.com:4111/ is neither loopback nor HTTPS; traffic to a remote, non-HTTPS daemon is not encrypted.']);
+});
+// PARITY: a run child has no discovery or default port when its spawning host omitted the URL.
+it('reports the existing unresolved URL error through the executable boundary', async () => {
+  const errors: string[] = [];
+  await expect(serve({}, { env: { [RUN_ID_ENV_VAR]: 'run' }, writeErr: ({ text }) => { errors.push(text); },
+    exit: () => { throw new Error('exit 1'); },
+    createMcpToolServer: required => ({ run: async () => { await required.resolveBaseUrl(); } }),
+  })).rejects.toThrow('exit 1');
+  expect(errors).toEqual(['jini-mcp: no daemon URL resolved: pass flagUrl, set envVarName on a populated env var, supply a discover() probe, or provide defaultUrl.\n']);
 });

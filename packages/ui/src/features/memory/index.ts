@@ -78,6 +78,7 @@ export type {
 
 export {
   createFakeMemoryConnectorsPort,
+  createMemoryHttpPorts,
   fetchMemoryList,
   memoryConfigPort,
   memoryConnectorsPort,

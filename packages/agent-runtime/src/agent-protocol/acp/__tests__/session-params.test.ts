@@ -4,13 +4,13 @@ import path from 'node:path';
 
 describe('buildAcpSessionNewParams', () => {
   it('resolves cwd to an absolute path and defaults to no MCP servers', () => {
-    const params = buildAcpSessionNewParams('some/relative/dir');
+    const params = buildAcpSessionNewParams({ cwd: 'some/relative/dir' });
     expect(params.cwd).toBe(path.resolve('some/relative/dir'));
     expect(params.mcpServers).toEqual([]);
   });
 
   it('normalises a server with array-format env, keeping array format by default', () => {
-    const params = buildAcpSessionNewParams('/tmp', {
+    const params = buildAcpSessionNewParams({ cwd: '/tmp' }, {
       mcpServers: [
         { type: 'stdio', name: 'srv', command: 'cmd', args: ['--a'], env: [{ name: 'K', value: 'v' }] },
       ],
@@ -21,7 +21,7 @@ describe('buildAcpSessionNewParams', () => {
   });
 
   it('converts array-format env to map format when envFormat is "map"', () => {
-    const params = buildAcpSessionNewParams('/tmp', {
+    const params = buildAcpSessionNewParams({ cwd: '/tmp' }, {
       mcpServers: [{ env: [{ name: 'K', value: 'v' }] }],
       envFormat: 'map',
     });
@@ -29,7 +29,7 @@ describe('buildAcpSessionNewParams', () => {
   });
 
   it('passes a plain-object env through unchanged when envFormat is "map"', () => {
-    const params = buildAcpSessionNewParams('/tmp', {
+    const params = buildAcpSessionNewParams({ cwd: '/tmp' }, {
       mcpServers: [{ type: 'http', name: 'srv', command: 'cmd', args: ['x'], env: { K: 'v' } }],
       envFormat: 'map',
     });
@@ -37,7 +37,7 @@ describe('buildAcpSessionNewParams', () => {
   });
 
   it('defaults type/name/command/args in the map+plain-object-env branch when absent', () => {
-    const params = buildAcpSessionNewParams('/tmp', {
+    const params = buildAcpSessionNewParams({ cwd: '/tmp' }, {
       mcpServers: [{ env: { K: 'v' } }],
       envFormat: 'map',
     });
@@ -45,7 +45,7 @@ describe('buildAcpSessionNewParams', () => {
   });
 
   it('converts a plain-object env to array format when envFormat is "array" (default)', () => {
-    const params = buildAcpSessionNewParams('/tmp', {
+    const params = buildAcpSessionNewParams({ cwd: '/tmp' }, {
       mcpServers: [{ env: { K: 'v', J: 'w' } }],
     });
     expect(params.mcpServers).toEqual([
@@ -54,28 +54,28 @@ describe('buildAcpSessionNewParams', () => {
   });
 
   it('defaults type/name/command/args/env when the server entry has none', () => {
-    const params = buildAcpSessionNewParams('/tmp', { mcpServers: [{}] });
+    const params = buildAcpSessionNewParams({ cwd: '/tmp' }, { mcpServers: [{}] });
     expect(params.mcpServers).toEqual([{ type: 'stdio', name: '', command: '', args: [], env: [] }]);
   });
 
   it('handles a missing env field entirely (array mode)', () => {
-    const params = buildAcpSessionNewParams('/tmp', { mcpServers: [{ name: 'x' }] });
+    const params = buildAcpSessionNewParams({ cwd: '/tmp' }, { mcpServers: [{ name: 'x' }] });
     expect(params.mcpServers[0]!.env).toEqual([]);
   });
 
   it('handles a missing env field entirely (map mode)', () => {
-    const params = buildAcpSessionNewParams('/tmp', { mcpServers: [{ name: 'x' }], envFormat: 'map' });
+    const params = buildAcpSessionNewParams({ cwd: '/tmp' }, { mcpServers: [{ name: 'x' }], envFormat: 'map' });
     expect(params.mcpServers[0]!.env).toEqual({});
   });
 
   it('ignores a non-array mcpServers value (treats it as no servers)', () => {
     // @ts-expect-error - exercising the runtime Array.isArray guard directly
-    const params = buildAcpSessionNewParams('/tmp', { mcpServers: 'not-an-array' });
+    const params = buildAcpSessionNewParams({ cwd: '/tmp' }, { mcpServers: 'not-an-array' });
     expect(params.mcpServers).toEqual([]);
   });
 
   it('handles an env array entry missing name/value keys (map mode)', () => {
-    const params = buildAcpSessionNewParams('/tmp', {
+    const params = buildAcpSessionNewParams({ cwd: '/tmp' }, {
       mcpServers: [{ env: [{}] }],
       envFormat: 'map',
     });

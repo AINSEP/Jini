@@ -64,11 +64,10 @@ export {
   type UnassignableEntryTermRepoPort,
   type TaxonomyRevisionRow,
   type TaxonomyRevisionRepoPort,
-  type ClockPort,
-  type IdGeneratorPort,
   type WriteServiceDeps,
   type CreateTaxonomyRequired,
   type CreateTermRequired,
+  type CreateTermOptional,
   type RenameTermRequired,
   type AssignTermsRequired,
   type UnassignTermsRequired,
@@ -84,6 +83,7 @@ export {
   type ImportableTermRepoPort,
   type ImportTaxonomyRequired,
   type ImportTermRequired,
+  type ImportTermOptional,
 } from "./write-service.js";
 
 export {
@@ -134,7 +134,4 @@ export {
 /** The agent-tool surface for this domain (see `agent-tools.ts` for what is deliberately omitted). */
 export {
   taxonomyAgentToolCatalog,
-  type AgentToolDefinition as TaxonomyAgentToolDefinition,
-  type AgentToolSideEffect as TaxonomyAgentToolSideEffect,
-  type AgentToolActorClassRule as TaxonomyAgentToolActorClassRule,
 } from "./agent-tools.js";

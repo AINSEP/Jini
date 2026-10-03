@@ -13,7 +13,6 @@ export const SETTINGS_DIALOG_TR: Record<string, string> = {
   "MCP server": "MCP sunucusu",
   "Connect an MCP client. Showing sample output — not yet wired to a live server.": "Bir MCP istemcisi bağlayın. Örnek çıktı gösteriliyor — henüz canlı bir sunucuya bağlanmadı.",
   "API keys for image, video, and audio generation.": "Görsel, video ve ses oluşturma için API anahtarları.",
-  "Third-party accounts and APIs via Composio.": "Composio üzerinden üçüncü taraf hesapları ve API'ler.",
   "Memory": "Bellek",
   "Saved facts and context for future chats.": "Gelecekteki sohbetler için kaydedilmiş bilgiler ve bağlam.",
   "External MCP": "Harici MCP",

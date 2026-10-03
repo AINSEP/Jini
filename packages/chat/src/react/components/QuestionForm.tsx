@@ -107,14 +107,14 @@ export const QuestionForm = forwardRef<QuestionFormHandle, QuestionFormProps>(fu
     if (locked || !onSubmit) return;
     if (!ready) return;
     const files = collectFileSubmissions(form, fileAnswers);
-    if (files.length > 0) onSubmit(formatFormAnswers(form, answers), answers, files);
-    else onSubmit(formatFormAnswers(form, answers), answers);
+    if (files.length > 0) onSubmit(formatFormAnswers({ form: form, answers: answers }), answers, files);
+    else onSubmit(formatFormAnswers({ form: form, answers: answers }), answers);
   }
 
   function handleSkipAll() {
     if (locked || !onSubmit) return;
     const empty: Record<string, string | string[]> = {};
-    onSubmit(formatFormAnswers(form, empty), empty);
+    onSubmit(formatFormAnswers({ form: form, answers: empty }), empty);
   }
 
   const withinSelectionLimits = form.questions.every((q) => {
@@ -399,8 +399,8 @@ function emptyQuestionValue(q: QuestionFormType['questions'][number]): string | 
 }
 
 function canonicalizeQuestionValue(q: QuestionFormType['questions'][number], value: string | string[]): string | string[] {
-  if (Array.isArray(value)) return value.map((entry) => formOptionValueForLabel(q, entry));
-  return formOptionValueForLabel(q, value);
+  if (Array.isArray(value)) return value.map((entry) => formOptionValueForLabel({ question: q, labelOrValue: entry }));
+  return formOptionValueForLabel({ question: q, labelOrValue: value });
 }
 
 function shouldRenderCustomChoice(q: QuestionFormType['questions'][number]): boolean {

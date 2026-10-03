@@ -139,14 +139,14 @@ describe('mcp-ui envelope', () => {
   });
 
   it('builds requests, notifications, results and errors', () => {
-    expect(createJsonRpcRequest(1, 'ping')).toEqual({ jsonrpc: '2.0', id: 1, method: 'ping' });
-    expect(createJsonRpcRequest(1, 'ping', { a: 1 }).params).toEqual({ a: 1 });
-    expect(createJsonRpcNotification('ui/notifications/initialized')).toEqual({
+    expect(createJsonRpcRequest({ id: 1, method: 'ping' })).toEqual({ jsonrpc: '2.0', id: 1, method: 'ping' });
+    expect(createJsonRpcRequest({ id: 1, method: 'ping' }, { params: { a: 1 } }).params).toEqual({ a: 1 });
+    expect(createJsonRpcNotification({ method: 'ui/notifications/initialized' })).toEqual({
       jsonrpc: '2.0',
       method: 'ui/notifications/initialized',
     });
-    expect(createJsonRpcResult(2, { ok: true })).toEqual({ jsonrpc: '2.0', id: 2, result: { ok: true } });
-    expect(createJsonRpcError(3, JSON_RPC_ERROR_CODES.methodNotFound, 'nope')).toEqual({
+    expect(createJsonRpcResult({ id: 2, result: { ok: true } })).toEqual({ jsonrpc: '2.0', id: 2, result: { ok: true } });
+    expect(createJsonRpcError({ id: 3, code: JSON_RPC_ERROR_CODES.methodNotFound, message: 'nope' })).toEqual({
       jsonrpc: '2.0',
       id: 3,
       error: { code: -32601, message: 'nope' },
@@ -154,12 +154,12 @@ describe('mcp-ui envelope', () => {
   });
 
   it('omits optional fields rather than sending them undefined', () => {
-    expect(createJsonRpcRequest(1, 'ping')).not.toHaveProperty('params');
-    expect(createJsonRpcError(1, -1, 'x').error).not.toHaveProperty('data');
+    expect(createJsonRpcRequest({ id: 1, method: 'ping' })).not.toHaveProperty('params');
+    expect(createJsonRpcError({ id: 1, code: -1, message: 'x' }).error).not.toHaveProperty('data');
   });
 
   it('builds a namespaced page-action request carrying capability and input', () => {
-    expect(createPageActionRequest('inv-1', 'page.click', { element: 'add-task-button' })).toEqual({
+    expect(createPageActionRequest({ id: 'inv-1', capabilityId: 'page.click', input: { element: 'add-task-button' } })).toEqual({
       jsonrpc: '2.0',
       id: 'inv-1',
       method: JINI_PAGE_ACTION_METHOD,
@@ -169,10 +169,10 @@ describe('mcp-ui envelope', () => {
 
   describe('isJsonRpcMessage', () => {
     it('accepts requests, notifications and both response shapes', () => {
-      expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: 'ping' })).toBe(true);
-      expect(isJsonRpcMessage({ jsonrpc: '2.0', method: 'note' })).toBe(true);
-      expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, result: null })).toBe(true);
-      expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 'a', error: { code: 1, message: 'x' } })).toBe(true);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: 'ping' } })).toBe(true);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', method: 'note' } })).toBe(true);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, result: null } })).toBe(true);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 'a', error: { code: 1, message: 'x' } } })).toBe(true);
     });
 
     it('rejects anything a hostile page could post at the frame', () => {
@@ -190,7 +190,7 @@ describe('mcp-ui envelope', () => {
         { jsonrpc: '2.0', id: { nested: true }, result: 1 },
         { method: 'ping', id: 1 },
       ]) {
-        expect(isJsonRpcMessage(hostile)).toBe(false);
+        expect(isJsonRpcMessage({ value: hostile })).toBe(false);
       }
     });
 
@@ -200,27 +200,27 @@ describe('mcp-ui envelope', () => {
     // looking at `id`'s type. See the fix's doc comment in mcp-ui-apps.ts for the exact wire
     // message that exposed it (`{ jsonrpc: '2.0', id: { nested: true }, method: 'tools/call' }`).
     it('rejects a request whose method is valid but whose id is malformed', () => {
-      expect(isJsonRpcMessage({ jsonrpc: '2.0', id: { nested: true }, method: 'tools/call', params: {} })).toBe(false);
-      expect(isJsonRpcMessage({ jsonrpc: '2.0', id: [1, 2], method: 'ui/initialize' })).toBe(false);
-      expect(isJsonRpcMessage({ jsonrpc: '2.0', id: null, method: 'ui/initialize' })).toBe(false);
-      expect(isJsonRpcMessage({ jsonrpc: '2.0', id: true, method: 'ui/initialize' })).toBe(false);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: { nested: true }, method: 'tools/call', params: {} } })).toBe(false);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: [1, 2], method: 'ui/initialize' } })).toBe(false);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: null, method: 'ui/initialize' } })).toBe(false);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: true, method: 'ui/initialize' } })).toBe(false);
     });
 
     it('still accepts a notification (a valid method, deliberately no id at all)', () => {
       // The fix above must not turn "no id" into "invalid id" — a notification never has one.
-      expect(isJsonRpcMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized' })).toBe(true);
-      expect(isJsonRpcMessage({ jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { width: 1, height: 1 } })).toBe(true);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', method: 'ui/notifications/initialized' } })).toBe(true);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { width: 1, height: 1 } } })).toBe(true);
     });
 
     it('still accepts a request whose id is a valid string or number', () => {
-      expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 'view-1', method: 'ui/initialize' })).toBe(true);
-      expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 42, method: 'tools/call', params: {} })).toBe(true);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 'view-1', method: 'ui/initialize' } })).toBe(true);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 42, method: 'tools/call', params: {} } })).toBe(true);
     });
 
     it('distinguishes a request from a notification', () => {
-      expect(isJsonRpcRequest({ jsonrpc: '2.0', id: 1, method: 'ping' })).toBe(true);
-      expect(isJsonRpcRequest({ jsonrpc: '2.0', method: 'ping' })).toBe(false);
-      expect(isJsonRpcRequest({ jsonrpc: '2.0', id: 1, result: 1 })).toBe(false);
+      expect(isJsonRpcRequest({ message: { jsonrpc: '2.0', id: 1, method: 'ping' } })).toBe(true);
+      expect(isJsonRpcRequest({ message: { jsonrpc: '2.0', method: 'ping' } })).toBe(false);
+      expect(isJsonRpcRequest({ message: { jsonrpc: '2.0', id: 1, result: 1 } })).toBe(false);
     });
 
     // Regression (2026-07-29 audit). The guard checked `jsonrpc`, then `id`'s type, then
@@ -232,27 +232,27 @@ describe('mcp-ui envelope', () => {
       it('rejects a response carrying both result and error', () => {
         // §5: "Either the result member or error member MUST be included, but both members MUST
         // NOT be included."
-        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, result: 1, error: { code: -1, message: 'x' } })).toBe(false);
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, result: 1, error: { code: -1, message: 'x' } } })).toBe(false);
       });
 
       it('rejects a response carrying neither result nor error', () => {
-        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1 })).toBe(false);
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1 } })).toBe(false);
       });
 
       it('rejects a request that also carries response members', () => {
         // A message is a request or a response, never both — a dispatcher handed this would
         // execute the method AND resolve a pending call with the same id.
-        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: 'tools/call', result: 5 })).toBe(false);
-        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: 'tools/call', error: { code: -1, message: 'x' } })).toBe(false);
-        expect(isJsonRpcMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized', result: 5 })).toBe(false);
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: 'tools/call', result: 5 } })).toBe(false);
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: 'tools/call', error: { code: -1, message: 'x' } } })).toBe(false);
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', method: 'ui/notifications/initialized', result: 5 } })).toBe(false);
       });
 
       it('rejects a message whose method is present but not a string', () => {
         // Previously these fell through to the response branch and were accepted as responses,
         // silently reinterpreting a malformed request as something else entirely.
-        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: 42, result: 1 })).toBe(false);
-        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: null, result: 1 })).toBe(false);
-        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: { evil: true }, error: { code: -1, message: 'x' } })).toBe(false);
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: 42, result: 1 } })).toBe(false);
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: null, result: 1 } })).toBe(false);
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: { evil: true }, error: { code: -1, message: 'x' } } })).toBe(false);
       });
     });
 
@@ -261,50 +261,50 @@ describe('mcp-ui envelope', () => {
         // §4.2: "If present, parameters ... MUST be Array or Object." A handler reaching for
         // `params.capabilityId` on a string gets `undefined`, not a refusal.
         for (const params of ['nope', 42, true, null]) {
-          expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: 'tools/call', params })).toBe(false);
+          expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: 'tools/call', params } })).toBe(false);
         }
       });
 
       it('accepts params as either an object or an array, which the spec allows both of', () => {
-        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { a: 1 } })).toBe(true);
-        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: [1, 2] })).toBe(true);
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { a: 1 } } })).toBe(true);
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: [1, 2] } })).toBe(true);
       });
 
       it('rejects an error member that is not a well-formed error object', () => {
         // §5.1: the error object carries a Number `code` and a String `message`.
         for (const error of ['boom', 42, null, [], {}, { code: 'not-a-number', message: 'x' }, { code: -1 }, { code: -1, message: 7 }]) {
-          expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, error })).toBe(false);
+          expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, error } })).toBe(false);
         }
       });
 
       it('still accepts a well-formed error response, including one carrying data', () => {
-        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, error: { code: -32601, message: 'nope' } })).toBe(true);
-        expect(isJsonRpcMessage(createJsonRpcError(1, JSON_RPC_ERROR_CODES.invalidParams, 'bad', { field: 'x' }))).toBe(true);
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, error: { code: -32601, message: 'nope' } } })).toBe(true);
+        expect(isJsonRpcMessage({ value: createJsonRpcError({ id: 1, code: JSON_RPC_ERROR_CODES.invalidParams, message: 'bad' }, { data: { field: 'x' } }) })).toBe(true);
       });
 
       it('rejects an array, which is a JSON-RPC batch rather than a message', () => {
         // `typeof [] === 'object'`, so a bare isRecord check let one through if it carried the
         // right properties. This transport does not do batches.
-        expect(isJsonRpcMessage(Object.assign([], { jsonrpc: '2.0', method: 'tools/call' }))).toBe(false);
+        expect(isJsonRpcMessage({ value: Object.assign([], { jsonrpc: '2.0', method: 'tools/call' }) })).toBe(false);
       });
     });
 
     it('accepts everything this module itself builds', () => {
       // The guard and the builders have to agree, or the host rejects its own wire format.
-      expect(isJsonRpcMessage(createJsonRpcRequest(1, 'ping'))).toBe(true);
-      expect(isJsonRpcMessage(createJsonRpcRequest(1, 'tools/call', { name: 'x' }))).toBe(true);
-      expect(isJsonRpcMessage(createJsonRpcNotification('ui/notifications/initialized'))).toBe(true);
-      expect(isJsonRpcMessage(createJsonRpcNotification('ui/notifications/size-changed', { width: 1 }))).toBe(true);
-      expect(isJsonRpcMessage(createJsonRpcResult(1, { ok: true }))).toBe(true);
-      expect(isJsonRpcMessage(createJsonRpcError(1, -1, 'x'))).toBe(true);
-      expect(isJsonRpcMessage(createPageActionRequest('inv-1', 'page.click', { element: 'a' }))).toBe(true);
+      expect(isJsonRpcMessage({ value: createJsonRpcRequest({ id: 1, method: 'ping' }) })).toBe(true);
+      expect(isJsonRpcMessage({ value: createJsonRpcRequest({ id: 1, method: 'tools/call' }, { params: { name: 'x' } }) })).toBe(true);
+      expect(isJsonRpcMessage({ value: createJsonRpcNotification({ method: 'ui/notifications/initialized' }) })).toBe(true);
+      expect(isJsonRpcMessage({ value: createJsonRpcNotification({ method: 'ui/notifications/size-changed' }, { params: { width: 1 } }) })).toBe(true);
+      expect(isJsonRpcMessage({ value: createJsonRpcResult({ id: 1, result: { ok: true } }) })).toBe(true);
+      expect(isJsonRpcMessage({ value: createJsonRpcError({ id: 1, code: -1, message: 'x' }) })).toBe(true);
+      expect(isJsonRpcMessage({ value: createPageActionRequest({ id: 'inv-1', capabilityId: 'page.click', input: { element: 'a' } }) })).toBe(true);
     });
   });
 });
 
 describe('mcp-ui envelope — optional field branches', () => {
   it('includes params on a notification when supplied', () => {
-    expect(createJsonRpcNotification('ui/notifications/size-changed', { width: 320, height: 200 }))
+    expect(createJsonRpcNotification({ method: 'ui/notifications/size-changed' }, { params: { width: 320, height: 200 } }))
       .toEqual({
         jsonrpc: '2.0',
         method: 'ui/notifications/size-changed',
@@ -313,7 +313,7 @@ describe('mcp-ui envelope — optional field branches', () => {
   });
 
   it('includes error data when supplied', () => {
-    expect(createJsonRpcError(7, JSON_RPC_ERROR_CODES.invalidParams, 'bad', { field: 'element' }))
+    expect(createJsonRpcError({ id: 7, code: JSON_RPC_ERROR_CODES.invalidParams, message: 'bad' }, { data: { field: 'element' } }))
       .toEqual({
         jsonrpc: '2.0',
         id: 7,

@@ -13,7 +13,7 @@
  * `core` is the half of `@jini-ai/sandbox` that must stay installable with no adapter present —
  * a host that hasn't decided on E2B/local/WebContainer yet can still depend on `./core` for
  * types and never compile `@e2b/code-interpreter`. That property is enforced the same way
- * `@jini-ai/infra`'s `db/core` enforces it against `better-sqlite3`: `pnpm guard`'s R12 check
+ * `@jini-ai/db`'s `core` enforces it against `better-sqlite3`: `pnpm guard`'s R12 check
  * walks this directory's transitive import closure and fails if it reaches an adapter folder or
  * an adapter package. See `scripts/check-driver-isolation.ts`.
  *
@@ -124,7 +124,7 @@ export interface ProcessHandle {
   /** Stop the process. Resolves once it has actually stopped. */
   kill(): Promise<void>;
   /** Subscribe to output as it's produced. Returns an `Unsubscribe`. */
-  onOutput(listener: (chunk: ProcessOutputChunk) => void): Unsubscribe;
+  onOutput(requiredArgs: { listener: (chunk: ProcessOutputChunk) => void }): Unsubscribe;
 }
 
 /** Options shared by `runCommand` and `installDependencies` for observing output while the
@@ -153,27 +153,27 @@ export interface SandboxSession {
    * there's no seam to name here, both backends already want the same behavior. A caller that
    * needs to remove a file is out of scope for this package's first slice.
    */
-  mountFiles(files: readonly SandboxFile[]): Promise<void>;
+  mountFiles(requiredArgs: { files: readonly SandboxFile[] }): Promise<void>;
 
   /** Read one file's current bytes. Always returns raw bytes, never a decoded string — a caller
    *  that knows a path is text decodes it itself (`new TextDecoder().decode(...)`); guessing
    *  encoding from a path or extension is exactly the kind of silent-corruption risk
    *  `SandboxFile.content` exists to avoid on the write side. Rejects with category `'not-found'`
    *  if nothing exists at `path`. */
-  readFile(path: string): Promise<Uint8Array>;
+  readFile(requiredArgs: { path: string }): Promise<Uint8Array>;
 
-  /** List every file under `directory` (default: the project root), as paths relative to the
-   *  project root — the same convention `SandboxFile.path` and `FileChangeEvent.path` use. */
-  listFiles(directory?: string): Promise<readonly string[]>;
+  /** List project files under `directory` (default: the project root), as paths relative to the
+   *  project root — the same convention `SandboxFile.path` and `FileChangeEvent.path` use.
+   *  Adapters document their traversal limits and excluded dependency/build/VCS directories. */
+  listFiles(requiredArgs: Record<string, never>, optionalArgs?: { directory?: string }): Promise<readonly string[]>;
 
   /** Run one command and wait for it to exit. Not for commands that don't exit on their own —
    *  see `startProcess` for those. `options.onOutput`, if given, is called with each chunk as
    *  it's produced; the command still resolves with the complete `CommandResult` once it exits,
    *  callers that only need the final result can ignore the option entirely. */
   runCommand(
-    command: string,
-    args?: readonly string[],
-    options?: RunCommandOptions,
+    requiredArgs: { command: string },
+    optionalArgs?: RunCommandOptions & { args?: readonly string[] },
   ): Promise<CommandResult>;
 
   /**
@@ -186,21 +186,21 @@ export interface SandboxSession {
    * forever, so it belongs here rather than behind `startProcess`.
    */
   installDependencies(
-    packages?: readonly string[],
-    options?: RunCommandOptions,
+    requiredArgs: Record<string, never>,
+    optionalArgs?: RunCommandOptions & { packages?: readonly string[] },
   ): Promise<CommandResult>;
 
   /** Start a command that is not expected to exit on its own — a dev server, most importantly.
    *  Returns as soon as the process has started, not once it's ready; use `getPreview` to find
    *  out once something is actually listening. */
-  startProcess(command: string, args?: readonly string[]): Promise<ProcessHandle>;
+  startProcess(requiredArgs: { command: string }, optionalArgs?: { args?: readonly string[] }): Promise<ProcessHandle>;
 
   /** Where the dev server can currently be reached. Rejects (category `'timeout'`, typically) if
    *  nothing is listening yet. */
   getPreview(): Promise<PreviewTarget>;
 
   /** Subscribe to file changes the sandbox makes on its own. Returns an `Unsubscribe`. */
-  onFileChange(listener: (event: FileChangeEvent) => void): Unsubscribe;
+  onFileChange(requiredArgs: { listener: (event: FileChangeEvent) => void }): Unsubscribe;
 
   /**
    * Stop the sandbox and free its resources: every process this session started via
@@ -233,5 +233,5 @@ export interface BootOptions {
  * `'permission-denied'` for a rejected credential or an unwritable local directory.
  */
 export interface SandboxProviderPort {
-  boot(options?: BootOptions): Promise<SandboxSession>;
+  boot(requiredArgs: Record<string, never>, optionalArgs?: BootOptions): Promise<SandboxSession>;
 }

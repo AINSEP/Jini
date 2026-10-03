@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/ui",
-  "version": "0.3.14",
+  "version": "0.4.0",
   "description": "Generic, product-neutral React UI primitives and feature domains. Framework-free types, decision rules, catalogs, and host port contracts live behind ./core (no React, no DOM). The Excalidraw and Lexical editors live behind ./sketch-editor and ./lexical-rich-text-editor; the GrapesJS-backed inline HTML editor lives behind ./html-editor.",
   "license": "Apache-2.0",
   "repository": {
@@ -11,10 +11,41 @@
   "jini": {
     "domain": "ui",
     "kind": "react-library",
-    "runtime": "browser"
+    "runtime": "browser",
+    "entries": {
+      ".": "browser",
+      "./core": "universal",
+      "./sketch-editor": "browser",
+      "./lexical-rich-text-editor": "browser",
+      "./html-editor": "browser",
+      "./mcp-ui": "browser",
+      "./mcp-ui/surfaces": "universal",
+      "./interactive-ui": "browser",
+      "./interactive-ui/manifests": "universal",
+      "./a2ui": "browser",
+      "./renderers": "browser",
+      "./interactive-ui.css": "browser",
+      "./settings-dialog.css": "browser",
+      "./tabbed-dialog.css": "browser",
+      "./remixicon.css": "browser",
+      "./admin-widgets": "browser",
+      "./panel-kit": "browser",
+      "./fetch-query": "browser",
+      "./tab-strip": "browser",
+      "./admin-widgets.css": "browser",
+      "./theme": "browser",
+      "./styles/*": "browser"
+    }
   },
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/features/admin-widgets/styles/admin-widgets.css",
+    "./dist/styles/*.css",
+    "./dist/features/tabbed-dialog/styles/tabbed-dialog.css",
+    "./dist/features/settings/dialog/styles/settings-dialog.css",
+    "./dist/features/interactive-ui/interactive-ui.css",
+    "./dist/**/*.css"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -76,15 +107,46 @@
     "./interactive-ui.css": "./dist/features/interactive-ui/interactive-ui.css",
     "./settings-dialog.css": "./dist/features/settings/dialog/styles/settings-dialog.css",
     "./tabbed-dialog.css": "./dist/features/tabbed-dialog/styles/tabbed-dialog.css",
-    "./remixicon.css": "./dist/react/components/remixicon-font/remixicon.css"
+    "./remixicon.css": "./dist/react/components/remixicon-font/remixicon.css",
+    "./admin-widgets": {
+      "types": "./dist/features/admin-widgets/index.d.ts",
+      "import": "./dist/features/admin-widgets/index.js",
+      "default": "./dist/features/admin-widgets/index.js"
+    },
+    "./panel-kit": {
+      "types": "./dist/features/panel-kit/index.d.ts",
+      "import": "./dist/features/panel-kit/index.js",
+      "default": "./dist/features/panel-kit/index.js"
+    },
+    "./fetch-query": {
+      "types": "./dist/features/panel-kit/fetch-query/index.d.ts",
+      "import": "./dist/features/panel-kit/fetch-query/index.js",
+      "default": "./dist/features/panel-kit/fetch-query/index.js"
+    },
+    "./tab-strip": {
+      "types": "./dist/features/tab-strip/index.d.ts",
+      "import": "./dist/features/tab-strip/index.js",
+      "default": "./dist/features/tab-strip/index.js"
+    },
+    "./admin-widgets.css": "./dist/features/admin-widgets/styles/admin-widgets.css",
+    "./theme": {
+      "types": "./dist/theme/index.d.ts",
+      "import": "./dist/theme/index.js",
+      "default": "./dist/theme/index.js"
+    },
+    "./styles/*": "./dist/styles/*"
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
     "!dist/**/__tests__/**",
+    "!dist/**/test-support/**",
     "!dist/**/*.map"
   ],
   "publishConfig": {
@@ -92,35 +154,33 @@
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
-    "build": "node scripts/generate-agent-icon-data-uris.mjs && tsc -p tsconfig.json && mkdir -p dist/react/components/remixicon-font dist/features/settings/dialog/styles dist/features/tabbed-dialog/styles && cp src/react/components/remixicon-font/remixicon.css src/react/components/remixicon-font/remixicon.woff2 dist/react/components/remixicon-font/ && cp src/features/settings/dialog/styles/settings-dialog.css dist/features/settings/dialog/styles/ && cp src/features/tabbed-dialog/styles/tabbed-dialog.css dist/features/tabbed-dialog/styles/ && npx @tailwindcss/cli -i src/features/interactive-ui/styles.css -o dist/features/interactive-ui/interactive-ui.css --minify",
+    "build": "node scripts/generate-agent-icon-data-uris.mjs && tsc -p tsconfig.json && mkdir -p dist/react/components/remixicon-font dist/features/settings/dialog/styles dist/features/tabbed-dialog/styles && cp src/react/components/remixicon-font/remixicon.css src/react/components/remixicon-font/remixicon.woff2 dist/react/components/remixicon-font/ && cp src/features/settings/dialog/styles/settings-dialog.css dist/features/settings/dialog/styles/ && cp src/features/tabbed-dialog/styles/tabbed-dialog.css dist/features/tabbed-dialog/styles/ && npx @tailwindcss/cli -i src/features/interactive-ui/styles.css -o dist/features/interactive-ui/interactive-ui.css --minify && mkdir -p dist/features/admin-widgets/styles && cp src/features/admin-widgets/styles/admin-widgets.css dist/features/admin-widgets/styles/ && mkdir -p dist/styles && cp src/styles/*.css dist/styles/",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@jini-ai/agentic": "workspace:*",
-    "@jini-ai/platform": "workspace:*",
-    "@jini-ai/protocol": "workspace:*",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "micromark": "^4.0.0",
+    "micromark-extension-gfm": "^3.0.0",
+    "parse5": "^8.0.1",
+    "shiki": "^1.24.4",
+    "tailwind-merge": "^2.6.0",
+    "zod": "^3.25.76",
+    "@jini-ai/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@excalidraw/excalidraw": "0.18.1",
+    "@lexical/react": "0.36.2",
+    "@lexical/utils": "0.36.2",
     "@mcp-ui/client": "7.1.1",
     "@radix-ui/react-checkbox": "^1.3.11",
     "@radix-ui/react-label": "^2.1.15",
     "@radix-ui/react-radio-group": "^1.4.7",
     "@radix-ui/react-select": "^2.3.7",
     "@radix-ui/react-slot": "^1.3.3",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "micromark": "^4.0.0",
-    "micromark-extension-gfm": "^3.0.0",
-    "parse5": "^8.0.1",
-    "recharts": "^3.10.1",
-    "shiki": "^1.24.4",
-    "tailwind-merge": "^2.6.0",
-    "zod": "^3.25.76"
-  },
-  "devDependencies": {
-    "@excalidraw/excalidraw": "0.18.1",
-    "@lexical/react": "0.36.2",
-    "@lexical/utils": "0.36.2",
     "@tailwindcss/cli": "^4.1.16",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
@@ -133,16 +193,24 @@
     "lexical": "0.36.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "recharts": "^3.10.1",
     "tailwindcss": "^4.1.16"
   },
   "peerDependencies": {
     "@excalidraw/excalidraw": "0.18.1",
     "@lexical/react": "0.36.2",
     "@lexical/utils": "0.36.2",
+    "@mcp-ui/client": "7.1.1",
+    "@radix-ui/react-checkbox": "^1.3.11",
+    "@radix-ui/react-label": "^2.1.15",
+    "@radix-ui/react-radio-group": "^1.4.7",
+    "@radix-ui/react-select": "^2.3.7",
+    "@radix-ui/react-slot": "^1.3.3",
     "grapesjs": "0.23.4",
     "lexical": "0.36.2",
     "react": "^18.3.0 || ^19.0.0",
-    "react-dom": "^18.3.0 || ^19.0.0"
+    "react-dom": "^18.3.0 || ^19.0.0",
+    "recharts": "^3.10.1"
   },
   "peerDependenciesMeta": {
     "@excalidraw/excalidraw": {
@@ -152,6 +220,24 @@
       "optional": true
     },
     "@lexical/utils": {
+      "optional": true
+    },
+    "@mcp-ui/client": {
+      "optional": true
+    },
+    "@radix-ui/react-checkbox": {
+      "optional": true
+    },
+    "@radix-ui/react-label": {
+      "optional": true
+    },
+    "@radix-ui/react-radio-group": {
+      "optional": true
+    },
+    "@radix-ui/react-select": {
+      "optional": true
+    },
+    "@radix-ui/react-slot": {
       "optional": true
     },
     "grapesjs": {
@@ -164,6 +250,9 @@
       "optional": true
     },
     "react-dom": {
+      "optional": true
+    },
+    "recharts": {
       "optional": true
     }
   }

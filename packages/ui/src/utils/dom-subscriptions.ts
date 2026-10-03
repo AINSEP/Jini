@@ -7,7 +7,7 @@
 // Ported from a chat-surface-scoped `providers/dom/*.dom.ts` pair in the
 // source project, where these were filed under one feature's "DOM bridges"
 // despite having no feature-specific logic in their bodies — see
-// packages/ui/source-map.md for the reclassification note.
+// packages/ui/archived provenance ledger for the reclassification note.
 
 export interface ViewportSize {
   width: number;

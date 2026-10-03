@@ -5,20 +5,21 @@ import { traeCliAgentDef } from '../trae-cli.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 afterEach(() => {
-  setAcpModelProbe(null);
+  setAcpModelProbe({ probe: null });
 });
 
 describe('traeCliAgentDef.fetchModels', () => {
   it('delegates to detectAcpModels with the ACP serve handshake args for the resolved binary', async () => {
     const seen: Array<{ bin: string; args: string[] }> = [];
     const stub: AcpModelProbe = {
-      detectModels: async (request) => {
+      detectModels: async (required, optional = {}) => {
+        const request = { ...optional, ...required };
         seen.push({ bin: request.bin, args: request.args });
         return [{ id: 'x', label: 'x' }];
       },
     };
-    setAcpModelProbe(stub);
-    const models = await traeCliAgentDef.fetchModels!('traecli', {});
+    setAcpModelProbe({ probe: stub });
+    const models = await traeCliAgentDef.fetchModels!({ resolvedBin: 'traecli', env: {} });
     expect(models).toEqual([{ id: 'x', label: 'x' }]);
     expect(seen).toEqual([{ bin: 'traecli', args: ['acp', 'serve'] }]);
   });
@@ -27,7 +28,7 @@ describe('traeCliAgentDef.fetchModels', () => {
 describe('traeCliAgentDef.buildArgs', () => {
   it('always returns the ACP serve --yolo argv, ignoring prompt/images/dirs/model/cwd', () => {
     const buildArgs: RuntimeAgentDef['buildArgs'] = traeCliAgentDef.buildArgs;
-    expect(buildArgs('prompt', ['img.png'], ['/extra'], { model: 'x' }, { cwd: '/a' })).toEqual([
+    expect(buildArgs({ prompt: 'prompt', imagePaths: ['img.png'] }, { extraAllowedDirs: ['/extra'], options: { model: 'x' }, runtimeContext: { cwd: '/a' } })).toEqual([
       'acp',
       'serve',
       '--yolo',
@@ -36,7 +37,7 @@ describe('traeCliAgentDef.buildArgs', () => {
 
   it('omits --yolo when permissionMode is "restricted"', () => {
     const buildArgs: RuntimeAgentDef['buildArgs'] = traeCliAgentDef.buildArgs;
-    expect(buildArgs('prompt', [], [], { permissionMode: 'restricted' })).toEqual(['acp', 'serve']);
+    expect(buildArgs({ prompt: 'prompt', imagePaths: [] }, { extraAllowedDirs: [], options: { permissionMode: 'restricted' } })).toEqual(['acp', 'serve']);
   });
 });
 

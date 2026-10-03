@@ -9,6 +9,7 @@
  * that distinction real, not cosmetic).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { SandboxOperationError } from '../../core/errors.js';
 
 const sandboxCreate = vi.fn();
 vi.mock('@e2b/code-interpreter', () => ({
@@ -26,7 +27,7 @@ const { createE2bSandboxProvider } = await import('../provider.js');
  *  logic (does `files.write` get the right args, etc.) is covered by `to-e2b-handle.test.ts`,
  *  not here. */
 const FAKE_SANDBOX = {
-  commands: { fake: 'commands' },
+  commands: { run: vi.fn() },
   files: { write: vi.fn(), read: vi.fn(), list: vi.fn(), watchDir: vi.fn() },
   getHost: vi.fn(),
   kill: vi.fn(),
@@ -39,18 +40,38 @@ beforeEach(() => {
 });
 
 describe('createE2bSandboxProvider', () => {
-  it('applies its own defaults when config and boot options are both empty', async () => {
-    const provider = createE2bSandboxProvider();
+  it('wraps SDK creation errors with the core category, message and original cause', async () => {
+    const cause = Object.assign(new Error('bad credentials'), { name: 'AuthenticationError' });
+    sandboxCreate.mockRejectedValueOnce(cause);
+    const pending = createE2bSandboxProvider({}).boot({});
+    await expect(pending).rejects.toBeInstanceOf(SandboxOperationError);
+    await expect(pending).rejects.toMatchObject({
+      category: 'permission-denied', message: 'Failed to create the sandbox', cause,
+    });
+    expect(wrapE2bSandboxMock).not.toHaveBeenCalled();
+  });
 
-    const session = await provider.boot();
+  it('wraps injected creation failures too, including non-Error values', async () => {
+    const cause = 'factory unavailable';
+    const provider = createE2bSandboxProvider({}, { createSandbox: async () => { throw cause; } });
+    const pending = provider.boot({});
+    await expect(pending).rejects.toBeInstanceOf(SandboxOperationError);
+    await expect(pending).rejects.toMatchObject({ category: 'unknown', cause });
+    expect(wrapE2bSandboxMock).not.toHaveBeenCalled();
+  });
+
+  it('applies its own defaults when config and boot options are both empty', async () => {
+    const provider = createE2bSandboxProvider({});
+
+    const session = await provider.boot({});
 
     expect(sandboxCreate).toHaveBeenCalledWith({});
     expect(wrapE2bSandboxMock).toHaveBeenCalledOnce();
-    const [handleArg, configArg] = wrapE2bSandboxMock.mock.calls[0] as [unknown, unknown];
+    const { handle: handleArg, config: configArg } = wrapE2bSandboxMock.mock.calls[0]![0] as { handle: unknown; config: unknown };
     // Proves boot() wrapped `sandboxCreate`'s result through `toE2bHandle` (its `commands` is
     // passed through by reference, per to-e2b-handle.test.ts) rather than passing the raw
     // Sandbox straight to wrapE2bSandbox.
-    expect((handleArg as { commands: unknown }).commands).toBe(FAKE_SANDBOX.commands);
+    expect(typeof (handleArg as { commands: { run: unknown } }).commands.run).toBe('function');
     expect(configArg).toEqual({
       projectRoot: '/home/user/app',
       previewPort: 5173,
@@ -60,7 +81,7 @@ describe('createE2bSandboxProvider', () => {
   });
 
   it('passes explicit config and a boot-time template through with no leaked undefined keys', async () => {
-    const provider = createE2bSandboxProvider({
+    const provider = createE2bSandboxProvider({}, {
       apiKey: 'key-123',
       timeoutMs: 60_000,
       projectRoot: '/workspace',
@@ -68,7 +89,7 @@ describe('createE2bSandboxProvider', () => {
       previewCheckTimeoutMs: 500,
     });
 
-    await provider.boot({ template: 'my-template' });
+    await provider.boot({}, { template: 'my-template' });
 
     // Not `{ apiKey: 'key-123', timeoutMs: 60_000, template: 'my-template' }` merely by value —
     // asserting the exact object also proves no stray `apiKey: undefined`-shaped key survived
@@ -78,7 +99,7 @@ describe('createE2bSandboxProvider', () => {
       timeoutMs: 60_000,
       template: 'my-template',
     });
-    expect(wrapE2bSandboxMock.mock.calls[0]?.[1]).toEqual({
+    expect(wrapE2bSandboxMock.mock.calls[0]?.[0].config).toEqual({
       projectRoot: '/workspace',
       previewPort: 3000,
       previewCheckTimeoutMs: 500,
@@ -86,9 +107,9 @@ describe('createE2bSandboxProvider', () => {
   });
 
   it('omits apiKey/timeoutMs from the SDK call when config sets them but boot supplies no template', async () => {
-    const provider = createE2bSandboxProvider({ apiKey: 'key-123' });
+    const provider = createE2bSandboxProvider({}, { apiKey: 'key-123' });
 
-    await provider.boot();
+    await provider.boot({});
 
     expect(sandboxCreate).toHaveBeenCalledWith({ apiKey: 'key-123' });
   });

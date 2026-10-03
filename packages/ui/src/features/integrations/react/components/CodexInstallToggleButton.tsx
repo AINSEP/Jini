@@ -41,7 +41,7 @@ export function CodexInstallToggleButton({ port, agentHandle }: CodexInstallTogg
         className={installed ? 'jini-button' : 'jini-button jini-button-primary'}
         disabled={busy}
         onClick={toggle}
-        {...agentHandleProps(agentHandle, { role: 'button', label })}
+        {...agentHandleProps({}, { base: agentHandle, ...({ role: 'button', label }) })}
       >
         {busy ? t('Working…') : label}
       </button>

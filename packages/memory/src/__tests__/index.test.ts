@@ -12,6 +12,6 @@ describe('@jini-ai/memory — barrel', () => {
     expect(enforceVerify).toBeTypeOf('function');
 
     const store = createNoteStore({ validTypes: ['user'], defaultType: 'user' });
-    expect(store.dir('/tmp/x')).toContain('notes');
+    expect(store.dir({ dataDir: '/tmp/x' })).toContain('notes');
   });
 });

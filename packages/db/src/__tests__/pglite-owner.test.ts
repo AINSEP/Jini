@@ -1,3 +1,4 @@
+import { PGLITE_SOCKET_FILE } from "../core/index.js";
 import assert from "node:assert/strict";
 import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
@@ -18,12 +19,11 @@ import {
   defaultPgliteSocketDir,
   ensurePrivateDir,
   pgliteLowMemoryStartParams,
-  PGLITE_SOCKET_FILE,
   type PgliteOwner,
   PgliteOwnerLockedError,
   startPgliteOwner,
 } from "../pglite/index.js";
-import { openPgliteSocketKernel } from "../postgres/index.js";
+import { openPgliteSocketKernel } from "../kernel/postgres/index.js";
 import type { StorageKernel } from "../kernel/index.js";
 import { LOCK_FILE, RUN_DIR, OWNER } from "./helpers.js";
 

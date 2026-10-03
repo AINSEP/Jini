@@ -16,7 +16,7 @@ describe('@jini-ai/agentic/dom public barrel', () => {
     document.body.append(root);
 
     const driver = domBarrel.createDomPageDriver({ root, pages: {} });
-    expect((await driver.findElements({})).map((element) => element.handle)).toEqual(['save']);
+    expect((await driver.findElements({}, {})).map((element) => element.handle)).toEqual(['save']);
 
     root.remove();
   });
@@ -26,12 +26,12 @@ describe('@jini-ai/agentic/dom public barrel', () => {
     root.innerHTML = '<section data-agent-page="lab"><span data-agent-element="s" data-agent-role="status">x</span></section>';
     document.body.append(root);
 
-    expect(domBarrel.currentAgentPage(root)).toBe('lab');
+    expect(domBarrel.currentAgentPage({ root })).toBe('lab');
 
     root.remove();
   });
 
   it('re-exports getAgentModelContext, which reports no WebMCP surface on a bare jsdom page', () => {
-    expect(domBarrel.getAgentModelContext()).toBeUndefined();
+    expect(domBarrel.getAgentModelContext({ host: { candidates: () => [] } })).toBeUndefined();
   });
 });

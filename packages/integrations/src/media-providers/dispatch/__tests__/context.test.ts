@@ -7,85 +7,72 @@ function baseRequest(overrides: Partial<MediaGenerationRequest> = {}): MediaGene
 }
 
 describe('buildRenderContext', () => {
-  it('defaults wireModel to model when not supplied, and honors an explicit override', () => {
-    expect(buildRenderContext(baseRequest(), undefined, undefined, undefined).wireModel).toBe('gpt-image-2');
-    expect(buildRenderContext(baseRequest({ wireModel: 'my-alias' }), undefined, undefined, undefined).wireModel).toBe('my-alias');
-  });
-
-  it('defaults aspect per surface when not supplied, and honors an explicit override', () => {
-    expect(buildRenderContext(baseRequest({ surface: 'image' }), undefined, undefined, undefined).aspect).toBe('1:1');
-    expect(buildRenderContext(baseRequest({ surface: 'video' }), undefined, undefined, undefined).aspect).toBe('16:9');
-    expect(buildRenderContext(baseRequest({ surface: 'audio' }), undefined, undefined, undefined).aspect).toBeUndefined();
-    expect(buildRenderContext(baseRequest({ aspect: '4:3' }), undefined, undefined, undefined).aspect).toBe('4:3');
-  });
-
-  it('defaults prompt/voice/language to empty strings when omitted', () => {
-    const ctx = buildRenderContext(baseRequest(), undefined, undefined, undefined);
-    expect(ctx.prompt).toBe('');
-    expect(ctx.voice).toBe('');
-    expect(ctx.language).toBe('');
-  });
-
-  it('passes through prompt/voice/language when supplied', () => {
-    const ctx = buildRenderContext(baseRequest({ prompt: 'a cat', voice: 'nova', language: 'en' }), undefined, undefined, undefined);
-    expect(ctx.prompt).toBe('a cat');
-    expect(ctx.voice).toBe('nova');
-    expect(ctx.language).toBe('en');
-  });
-
-  it('threads the already-clamped length/duration through unchanged', () => {
-    const ctx = buildRenderContext(baseRequest(), undefined, 8, undefined);
-    expect(ctx.length).toBe(8);
-    expect(ctx.duration).toBeUndefined();
-  });
-
-  it('normalizes loop to a strict boolean', () => {
-    expect(buildRenderContext(baseRequest({ loop: true }), undefined, undefined, undefined).loop).toBe(true);
-    expect(buildRenderContext(baseRequest(), undefined, undefined, undefined).loop).toBe(false);
-    expect(buildRenderContext(baseRequest({ loop: false }), undefined, undefined, undefined).loop).toBe(false);
-  });
-
-  it('resolves speechFormat via resolveSpeechFormat (defaults to mp3)', () => {
-    expect(buildRenderContext(baseRequest(), undefined, undefined, undefined).speechFormat).toBe('mp3');
-    expect(buildRenderContext(baseRequest({ speechFormat: 'wav' }), undefined, undefined, undefined).speechFormat).toBe('wav');
-  });
-
-  describe('promptInfluence', () => {
-    it('passes through a valid finite number', () => {
-      expect(buildRenderContext(baseRequest({ promptInfluence: 0.7 }), undefined, undefined, undefined).promptInfluence).toBe(0.7);
+    it('defaults wireModel to model when not supplied, and honors an explicit override', () => {
+        expect(buildRenderContext({ request: baseRequest(), resolvedAudioKind: undefined, length: undefined, duration: undefined }).wireModel).toBe('gpt-image-2');
+        expect(buildRenderContext({ request: baseRequest({ wireModel: 'my-alias' }), resolvedAudioKind: undefined, length: undefined, duration: undefined }).wireModel).toBe('my-alias');
     });
-
-    it('is undefined when omitted', () => {
-      expect(buildRenderContext(baseRequest(), undefined, undefined, undefined).promptInfluence).toBeUndefined();
+    it('defaults aspect per surface when not supplied, and honors an explicit override', () => {
+        expect(buildRenderContext({ request: baseRequest({ surface: 'image' }), resolvedAudioKind: undefined, length: undefined, duration: undefined }).aspect).toBe('1:1');
+        expect(buildRenderContext({ request: baseRequest({ surface: 'video' }), resolvedAudioKind: undefined, length: undefined, duration: undefined }).aspect).toBe('16:9');
+        expect(buildRenderContext({ request: baseRequest({ surface: 'audio' }), resolvedAudioKind: undefined, length: undefined, duration: undefined }).aspect).toBeUndefined();
+        expect(buildRenderContext({ request: baseRequest({ aspect: '4:3' }), resolvedAudioKind: undefined, length: undefined, duration: undefined }).aspect).toBe('4:3');
     });
-
-    it('is undefined for NaN or Infinity (never forwards a non-finite number to a provider)', () => {
-      expect(buildRenderContext(baseRequest({ promptInfluence: Number.NaN }), undefined, undefined, undefined).promptInfluence).toBeUndefined();
-      expect(buildRenderContext(baseRequest({ promptInfluence: Number.POSITIVE_INFINITY }), undefined, undefined, undefined).promptInfluence).toBeUndefined();
+    it('defaults prompt/voice/language to empty strings when omitted', () => {
+        const ctx = buildRenderContext({ request: baseRequest(), resolvedAudioKind: undefined, length: undefined, duration: undefined });
+        expect(ctx.prompt).toBe('');
+        expect(ctx.voice).toBe('');
+        expect(ctx.language).toBe('');
     });
-  });
-
-  describe('imageRef / imageRefs', () => {
-    it('imageRef defaults to null when omitted, and passes through when supplied', () => {
-      expect(buildRenderContext(baseRequest(), undefined, undefined, undefined).imageRef).toBeNull();
-      const ref = { dataUrl: 'data:image/png;base64,AAA=' };
-      expect(buildRenderContext(baseRequest({ imageRef: ref }), undefined, undefined, undefined).imageRef).toEqual(ref);
+    it('passes through prompt/voice/language when supplied', () => {
+        const ctx = buildRenderContext({ request: baseRequest({ prompt: 'a cat', voice: 'nova', language: 'en' }), resolvedAudioKind: undefined, length: undefined, duration: undefined });
+        expect(ctx.prompt).toBe('a cat');
+        expect(ctx.voice).toBe('nova');
+        expect(ctx.language).toBe('en');
     });
-
-    it('imageRefs defaults to [] when neither imageRef nor imageRefs is supplied', () => {
-      expect(buildRenderContext(baseRequest(), undefined, undefined, undefined).imageRefs).toEqual([]);
+    it('threads the already-clamped length/duration through unchanged', () => {
+        const ctx = buildRenderContext({ request: baseRequest(), resolvedAudioKind: undefined, length: 8, duration: undefined });
+        expect(ctx.length).toBe(8);
+        expect(ctx.duration).toBeUndefined();
     });
-
-    it('imageRefs derives a single-element array from imageRef when imageRefs is omitted', () => {
-      const ref = { dataUrl: 'data:image/png;base64,AAA=' };
-      expect(buildRenderContext(baseRequest({ imageRef: ref }), undefined, undefined, undefined).imageRefs).toEqual([ref]);
+    it('normalizes loop to a strict boolean', () => {
+        expect(buildRenderContext({ request: baseRequest({ loop: true }), resolvedAudioKind: undefined, length: undefined, duration: undefined }).loop).toBe(true);
+        expect(buildRenderContext({ request: baseRequest(), resolvedAudioKind: undefined, length: undefined, duration: undefined }).loop).toBe(false);
+        expect(buildRenderContext({ request: baseRequest({ loop: false }), resolvedAudioKind: undefined, length: undefined, duration: undefined }).loop).toBe(false);
     });
-
-    it('an explicit imageRefs array wins over deriving one from imageRef', () => {
-      const primary = { dataUrl: 'data:image/png;base64,PRIMARY=' };
-      const explicit = [{ dataUrl: 'data:image/png;base64,A=' }, { dataUrl: 'data:image/png;base64,B=' }];
-      const ctx = buildRenderContext(baseRequest({ imageRef: primary, imageRefs: explicit }), undefined, undefined, undefined);
-      expect(ctx.imageRefs).toBe(explicit);
+    it('resolves speechFormat via resolveSpeechFormat (defaults to mp3)', () => {
+        expect(buildRenderContext({ request: baseRequest(), resolvedAudioKind: undefined, length: undefined, duration: undefined }).speechFormat).toBe('mp3');
+        expect(buildRenderContext({ request: baseRequest({ speechFormat: 'wav' }), resolvedAudioKind: undefined, length: undefined, duration: undefined }).speechFormat).toBe('wav');
     });
-  });
+    describe('promptInfluence', () => {
+        it('passes through a valid finite number', () => {
+            expect(buildRenderContext({ request: baseRequest({ promptInfluence: 0.7 }), resolvedAudioKind: undefined, length: undefined, duration: undefined }).promptInfluence).toBe(0.7);
+        });
+        it('is undefined when omitted', () => {
+            expect(buildRenderContext({ request: baseRequest(), resolvedAudioKind: undefined, length: undefined, duration: undefined }).promptInfluence).toBeUndefined();
+        });
+        it('is undefined for NaN or Infinity (never forwards a non-finite number to a provider)', () => {
+            expect(buildRenderContext({ request: baseRequest({ promptInfluence: Number.NaN }), resolvedAudioKind: undefined, length: undefined, duration: undefined }).promptInfluence).toBeUndefined();
+            expect(buildRenderContext({ request: baseRequest({ promptInfluence: Number.POSITIVE_INFINITY }), resolvedAudioKind: undefined, length: undefined, duration: undefined }).promptInfluence).toBeUndefined();
+        });
+    });
+    describe('imageRef / imageRefs', () => {
+        it('imageRef defaults to null when omitted, and passes through when supplied', () => {
+            expect(buildRenderContext({ request: baseRequest(), resolvedAudioKind: undefined, length: undefined, duration: undefined }).imageRef).toBeNull();
+            const ref = { dataUrl: 'data:image/png;base64,AAA=' };
+            expect(buildRenderContext({ request: baseRequest({ imageRef: ref }), resolvedAudioKind: undefined, length: undefined, duration: undefined }).imageRef).toEqual(ref);
+        });
+        it('imageRefs defaults to [] when neither imageRef nor imageRefs is supplied', () => {
+            expect(buildRenderContext({ request: baseRequest(), resolvedAudioKind: undefined, length: undefined, duration: undefined }).imageRefs).toEqual([]);
+        });
+        it('imageRefs derives a single-element array from imageRef when imageRefs is omitted', () => {
+            const ref = { dataUrl: 'data:image/png;base64,AAA=' };
+            expect(buildRenderContext({ request: baseRequest({ imageRef: ref }), resolvedAudioKind: undefined, length: undefined, duration: undefined }).imageRefs).toEqual([ref]);
+        });
+        it('an explicit imageRefs array wins over deriving one from imageRef', () => {
+            const primary = { dataUrl: 'data:image/png;base64,PRIMARY=' };
+            const explicit = [{ dataUrl: 'data:image/png;base64,A=' }, { dataUrl: 'data:image/png;base64,B=' }];
+            const ctx = buildRenderContext({ request: baseRequest({ imageRef: primary, imageRefs: explicit }), resolvedAudioKind: undefined, length: undefined, duration: undefined });
+            expect(ctx.imageRefs).toBe(explicit);
+        });
+    });
 });

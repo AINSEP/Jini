@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/integrations",
-  "version": "0.3.6",
-  "description": "Third-party vendor integrations, each independently importable: Composio connector catalog/execution (./composio) and a multi-vendor image/video/audio generation gateway (./media-providers).",
+  "version": "0.4.0",
+  "description": "Third-party vendor integrations and outbound services, each independently importable: media generation, credentialed HTTP and webhooks.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -13,9 +13,10 @@
     "kind": "vendor-integration-gateway",
     "runtime": "node",
     "entries": {
-      "./composio": "node",
       "./media-providers": "node",
-      "./media-providers/catalog": "universal"
+      "./media-providers/catalog": "universal",
+      "./credentialed-http": "node",
+      "./webhooks": "node"
     }
   },
   "type": "module",
@@ -24,11 +25,6 @@
     "./dist/media-providers/dispatch/providers/*.js"
   ],
   "exports": {
-    "./composio": {
-      "types": "./dist/composio/index.d.ts",
-      "import": "./dist/composio/index.js",
-      "default": "./dist/composio/index.js"
-    },
     "./media-providers": {
       "types": "./dist/media-providers/index.d.ts",
       "import": "./dist/media-providers/index.js",
@@ -38,23 +34,39 @@
       "types": "./dist/media-providers/catalog.d.ts",
       "import": "./dist/media-providers/catalog.js",
       "default": "./dist/media-providers/catalog.js"
+    },
+    "./credentialed-http": {
+      "types": "./dist/credentialed-http/index.d.ts",
+      "import": "./dist/credentialed-http/index.js",
+      "default": "./dist/credentialed-http/index.js"
+    },
+    "./webhooks": {
+      "types": "./dist/webhooks/index.d.ts",
+      "import": "./dist/webhooks/index.js",
+      "default": "./dist/webhooks/index.js"
     }
   },
   "typesVersions": {
     "*": {
-      "composio": [
-        "./dist/composio/index.d.ts"
-      ],
       "media-providers": [
         "./dist/media-providers/index.d.ts"
       ],
       "media-providers/catalog": [
         "./dist/media-providers/catalog.d.ts"
+      ],
+      "credentialed-http": [
+        "./dist/credentialed-http/index.d.ts"
+      ],
+      "webhooks": [
+        "./dist/webhooks/index.d.ts"
       ]
     }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -74,8 +86,7 @@
   },
   "dependencies": {
     "@jini-ai/core": "workspace:*",
-    "@jini-ai/platform": "workspace:*",
-    "undici": "^7.25.0"
+    "@jini-ai/platform": "workspace:*"
   },
   "peerDependencies": {
     "better-sqlite3": "^13.0.0"
@@ -86,7 +97,6 @@
     }
   },
   "devDependencies": {
-    "@jini-ai/protocol": "workspace:*",
     "@types/better-sqlite3": "^7.6.11",
     "better-sqlite3": "^13.0.0",
     "@vitest/coverage-v8": "^2.1.9"

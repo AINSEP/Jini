@@ -1,3 +1,4 @@
+import type { AgentToolDefinition, AgentToolSideEffect, AgentToolActorClassRule } from "@jini-ai/core";
 /**
  * @file The Entries agent-tool catalog — this domain's instance of the per-domain `agent-tools.ts`
  * convention `features/content-types/agent-tools.ts`, `features/settings/agent-tools.ts`, and every
@@ -30,22 +31,22 @@
  *
  * Deliberate absences (the point of a catalog, not an oversight):
  * - There is no delete/purge tool: `write-service.ts` exposes no delete function at all (confirmed
- *   by reading the whole file) — there is nothing to wrap or exclude on that front.
+ * by reading the whole file) — there is nothing to wrap or exclude on that front.
  * - `collections_entry_update`'s schema omits `bodyJson` even though `updateEntry` itself accepts an
- *   optional `bodyJson` (REQ-44/45, used internally by `widgets/embed-service.ts`'s own guardrailed
- *   mutation path). The generic Collections admin route (`entries/update.ts`) never forwards
- *   `body.bodyJson` at all — only `title`/`fieldsJson`/`expectedVersion` — so exposing it here would
- *   invent capability beyond what the human admin UI's own Collections editor exposes. Omitting it
- *   from the input is enough: `updateEntry` leaves `bodyJson` unchanged whenever the field is
- *   `undefined`, so this exclusion changes nothing about what a call can still do.
+ * optional `bodyJson` (used internally by `widgets/embed-service.ts`'s own guardrailed
+ * mutation path). The generic Collections admin route (`entries/update.ts`) never forwards
+ * `body.bodyJson` at all — only `title`/`fieldsJson`/`expectedVersion` — so exposing it here would
+ * invent capability beyond what the human admin UI's own Collections editor exposes. Omitting it
+ * from the input is enough: `updateEntry` leaves `bodyJson` unchanged whenever the field is
+ * `undefined`, so this exclusion changes nothing about what a call can still do.
  * - `collections_entry_list`'s schema omits `status`/`orderBy`/`limit` even though
- *   `EntryListPort.listByWorkspace` supports all three (added for `widgets/resolvers/recent-entries.ts`'s
- *   own bounded-query need) — `server/routes/admin/entries/list.ts` only ever forwards `type` from
- *   its query string, so the other three are not part of what the Collections admin list screen
- *   itself can do; adding them here would again exceed the human surface this catalog mirrors.
+ * `EntryListPort.listByWorkspace` supports all three (added for `widgets/resolvers/recent-entries.ts`'s
+ * own bounded-query need) — `server/routes/admin/entries/list.ts` only ever forwards `type` from
+ * its query string, so the other three are not part of what the Collections admin list screen
+ * itself can do; adding them here would again exceed the human surface this catalog mirrors.
  *
  * What IS included, and why it is safe: all four write-service functions are `admin.collections.*`
- * self-enforcing (each opens with its own `deps.authorize()` call before any other side effect —
+ * self-enforcing (each opens with its own `deps.authorize` call before any other side effect —
  * confirmed by reading `write-service.ts` directly), and `publishEntry`/`unpublishEntry` are ordinary,
  * fully reversible status flips with a full revision trail (`entryRepo.appendRevision`) — publishing
  * and unpublishing are each other's own undo.
@@ -55,22 +56,13 @@
  *
  * Architectural role:
  * `features/entries` domain declaration. No dependencies.
- */
-
-export type AgentToolSideEffect = "none" | "mutates-durable-state" | "mints-token";
-
-export interface AgentToolDefinition {
-  name: string;
-  description: string;
-  sideEffects: AgentToolSideEffect;
-  authorization: { permission: string };
-  /**
+ * See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
+ *
+ *
    * JSON Schema for this tool's `input`, published to the model via `ToolDescriptor.inputSchema`
-   * (`assistant/tool-registration-kit.ts`'s `buildDomainRegistrations`, which refuses to wire any
+   * (`@jini-ai/core`'s `registration-kit.ts`'s `buildDomainRegistrations`, which refuses to wire any
    * tool lacking one).
    */
-  inputSchema?: Readonly<Record<string, unknown>>;
-}
 
 const ENTRY_ID_SCHEMA = {
   type: "string",

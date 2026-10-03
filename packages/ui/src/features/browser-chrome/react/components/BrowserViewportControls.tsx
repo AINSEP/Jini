@@ -41,7 +41,7 @@ export function BrowserViewportControls({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const activePreset = presets.find((preset) => preset.id === viewport) ?? presets[0];
 
-  useDismissOnOutsideOrEscape(() => setOpen(false), { enabled: open, containerRef: menuRef });
+  useDismissOnOutsideOrEscape({ onDismiss: () => setOpen(false) }, { enabled: open, containerRef: menuRef });
 
   if (!activePreset) return null;
 

@@ -1,4 +1,4 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/qoder.ts` (import path adjusted only). See `source-map.md`. */
+/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/qoder.ts` (import path adjusted only). See `archived provenance ledger`. */
 import path from 'node:path';
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
@@ -25,12 +25,7 @@ export const qoderAgentDef = {
     // QODER_PERSONAL_ACCESS_TOKEN for automation. Do not add that token to
     // static adapter env; unlike Gemini's workspace trust flag it is a user
     // secret and already flows through the inherited process environment.
-    buildArgs: (
-      _prompt,
-      imagePaths,
-      extraAllowedDirs = [],
-      options = {},
-      runtimeContext = {},
+    buildArgs: ({ prompt: _prompt, imagePaths }, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}
     ) => {
       const args = [
         '-p',

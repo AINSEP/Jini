@@ -18,7 +18,7 @@
  * useMemoryConfig's hydrate() — invalidate() was only called at toggle
  * start, not in the write's onSettled callback — before being caught in
  * review and fixed. Ported with that fix already applied — see
- * `packages/ui/source-map.md`.)
+ * `packages/ui/archived provenance ledger`.)
  */
 export interface AsyncCommitGuard {
   begin: () => number;

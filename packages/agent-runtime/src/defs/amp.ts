@@ -1,4 +1,4 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/amp.ts` (import path adjusted only). See `source-map.md`. */
+/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/amp.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
@@ -46,7 +46,7 @@ export const ampAgentDef = {
     { id: 'rush', label: 'Rush (mode)' },
   ],
   supportsCustomModel: false,
-  buildArgs: (_prompt, _imagePaths, _extraAllowedDirs = [], options = {}) => {
+  buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs: _extraAllowedDirs = [], options = {} } = {}) => {
     // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
     // behavior) unless a caller explicitly opts into a restricted run, in which case Amp
     // blocks on tool calls that would need approval rather than auto-running them.

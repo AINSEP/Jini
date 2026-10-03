@@ -94,7 +94,7 @@ const TRIMMABLE = [
 ] as const;
 
 function agrees(raw: string): { ui: boolean; runtime: boolean } {
-  return { ui: isAllowedEndpointUrl(raw), runtime: !('error' in validateBaseUrl(raw)) };
+  return { ui: isAllowedEndpointUrl({ raw }), runtime: !('error' in validateBaseUrl({ baseUrl: raw })) };
 }
 
 describe('endpoint-policy / connection-guard parity', () => {
@@ -144,8 +144,8 @@ describe('endpoint-policy / connection-guard parity', () => {
       const ws = String.fromCodePoint(code);
       for (const form of mustStayBlocked) {
         for (const padded of [ws + form, form + ws, ws + form + ws]) {
-          expect(isAllowedEndpointUrl(padded), `ui allowed ${JSON.stringify(padded)}`).toBe(false);
-          expect('error' in validateBaseUrl(padded), `runtime allowed ${JSON.stringify(padded)}`).toBe(true);
+          expect(isAllowedEndpointUrl({ raw: padded }), `ui allowed ${JSON.stringify(padded)}`).toBe(false);
+          expect('error' in validateBaseUrl({ baseUrl: padded }), `runtime allowed ${JSON.stringify(padded)}`).toBe(true);
         }
       }
     }
@@ -157,7 +157,7 @@ describe('endpoint-policy / connection-guard parity', () => {
     const nbspPadded = `${nbsp}https://example.com${nbsp}`;
     // If this ever becomes an ordinary space the case is gone, not fixed.
     expect(nbspPadded).not.toBe(' https://example.com ');
-    expect(isAllowedEndpointUrl(nbspPadded)).toBe(true);
-    expect(validateBaseUrl(nbspPadded)).not.toHaveProperty('error');
+    expect(isAllowedEndpointUrl({ raw: nbspPadded })).toBe(true);
+    expect(validateBaseUrl({ baseUrl: nbspPadded })).not.toHaveProperty('error');
   });
 });

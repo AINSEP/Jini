@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/mcp",
-  "version": "0.3.4",
+  "version": "0.4.0",
   "description": "Model Context Protocol adapters: server config schema and IO, an MCP client, and agent-side MCP server installation.",
   "license": "Apache-2.0",
   "repository": {
@@ -11,7 +11,16 @@
   "jini": {
     "domain": "integration",
     "kind": "protocol-adapter",
-    "runtime": "node"
+    "runtime": "node",
+    "entries": {
+      ".": "node",
+      "./bin": "node",
+      "./tools/ask-choice": "universal",
+      "./federation": "node",
+      "./federation/approvals": "node",
+      "./federation/stdio": "node",
+      "./federation/testing": "universal"
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -23,7 +32,34 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./tools/ask-choice": {
+      "types": "./dist/tools/ask-choice/index.d.ts",
+      "import": "./dist/tools/ask-choice/index.js",
+      "default": "./dist/tools/ask-choice/index.js"
+    },
+    "./federation": {
+      "types": "./dist/federation/index.d.ts",
+      "import": "./dist/federation/index.js",
+      "default": "./dist/federation/index.js"
+    },
+    "./federation/approvals": {
+      "types": "./dist/federation/approvals/index.d.ts",
+      "import": "./dist/federation/approvals/index.js",
+      "default": "./dist/federation/approvals/index.js"
+    },
+    "./federation/stdio": {
+      "types": "./dist/federation/stdio/index.d.ts",
+      "import": "./dist/federation/stdio/index.js",
+      "default": "./dist/federation/stdio/index.js"
+    },
+    "./federation/testing": {
+      "types": "./dist/federation/testing/index.d.ts",
+      "import": "./dist/federation/testing/index.js",
+      "default": "./dist/federation/testing/index.js"
+    },
     "./bin": {
+      "types": "./dist/bin/serve.d.ts",
+      "import": "./dist/bin/serve.js",
       "default": "./dist/bin/serve.js"
     }
   },
@@ -32,6 +68,9 @@
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -51,9 +90,8 @@
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",
-    "@jini-ai/cli": "workspace:*",
+    "@jini-ai/core": "workspace:*",
     "@jini-ai/platform": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "undici": "^7.25.0"
+    "@modelcontextprotocol/sdk": "^1.29.0"
   }
 }

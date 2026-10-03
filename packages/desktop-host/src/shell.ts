@@ -16,14 +16,14 @@
  * desktop/Electron-bridge concept and never will, so this is where the
  * capability actually belongs: the same `ShellPort` a chat UI's
  * `window.__jini__` bridge already reaches for `openExternal`/`openPath`.
- * See `packages/desktop-host/source-map.md`'s dated entry for the full
+ * See `packages/desktop-host/archived provenance ledger`'s dated entry for the full
  * per-adapter provenance, including the one deliberate gap:
  * `recentDirs` has no Tauri equivalent and throws `NotImplementedError`
  * there rather than being silently stubbed to an empty array.
  */
 
 export class ShellError extends Error {
-  constructor(message: string) {
+  constructor({ message }: { message: string }) {
     super(message);
     this.name = 'ShellError';
   }
@@ -34,12 +34,12 @@ export interface OpenFolderDialogOptions {
 }
 
 export interface ShellPort {
-  openExternal(url: string): Promise<void>;
-  openPath(path: string): Promise<void>;
+  openExternal({ url }: { url: string }): Promise<void>;
+  openPath({ path }: { path: string }): Promise<void>;
   /** True if `path` exists on the local filesystem and is a directory; `false` for a missing path, a non-directory (a file), or any other stat failure. Never throws. */
-  dirExists(path: string): Promise<boolean>;
+  dirExists({ path }: { path: string }): Promise<boolean>;
   /** Host-tracked recently-opened locations, most-recent first. Electron backs this with `app.getRecentDocuments()`; Tauri has no equivalent (see module doc) and rejects with `NotImplementedError`. */
   recentDirs(): Promise<string[]>;
   /** Opens a native "choose a folder" dialog. Resolves to the chosen absolute path, or `null` if the user canceled. */
-  openFolderDialog(options?: OpenFolderDialogOptions): Promise<string | null>;
+  openFolderDialog(requiredArgs: Record<string, never>, options?: OpenFolderDialogOptions): Promise<string | null>;
 }

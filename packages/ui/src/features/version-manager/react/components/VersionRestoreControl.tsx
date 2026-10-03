@@ -17,7 +17,7 @@ export function VersionRestoreControl({ disabled, restoring, onRestore }: Versio
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const popoverId = useId();
 
-  useDismissOnOutsideOrEscape(() => setConfirmOpen(false), { enabled: confirmOpen, containerRef: wrapRef });
+  useDismissOnOutsideOrEscape({ onDismiss: () => setConfirmOpen(false) }, { enabled: confirmOpen, containerRef: wrapRef });
 
   return (
     <div className="jini-version-restore-wrap" ref={wrapRef}>

@@ -205,6 +205,65 @@ function makeService(overrides: Partial<CreateTerminalServiceOptions> = {}) {
 }
 
 describe('@jini-ai/platform — terminal — createTerminalService lifecycle', () => {
+  it('shares an in-flight loader across concurrent creates and caches its successful result', async () => {
+    let resolveLoad!: (spawn: PtySpawn) => void;
+    const loading = new Promise<PtySpawn>((resolve) => { resolveLoad = resolve; });
+    const spawn = vi.fn<PtySpawn>(() => new FakePty());
+    const loadSpawnPty = vi.fn(() => loading);
+    const { service } = makeService({ loadSpawnPty });
+    const first = service.create({ cwd: '/first' });
+    const second = service.create({ cwd: '/second' });
+    await Promise.resolve();
+    expect(loadSpawnPty).toHaveBeenCalledTimes(1);
+    expect(loadSpawnPty).toHaveBeenCalledWith();
+    expect(service.list()).toEqual([]);
+    resolveLoad(spawn);
+    const sessions = await Promise.all([first, second]);
+    expect(sessions.map((session) => session.cwd)).toEqual(['/first', '/second']);
+    expect(new Set(sessions.map((session) => session.id)).size).toBe(2);
+    await service.create({ cwd: '/third' });
+    expect(loadSpawnPty).toHaveBeenCalledTimes(1);
+    expect(spawn.mock.calls.map((call) => call[2].cwd)).toEqual(['/first', '/second', '/third']);
+  });
+
+  it('shares a failed loading attempt and lets a later create retry', async () => {
+    let rejectLoad!: (error: Error) => void;
+    const loading = new Promise<PtySpawn>((_resolve, reject) => { rejectLoad = reject; });
+    const spawn: PtySpawn = () => new FakePty();
+    const failure = new Error('backend unavailable');
+    const loadSpawnPty = vi.fn(() => loading).mockReturnValueOnce(loading).mockResolvedValue(spawn);
+    const { service } = makeService({ loadSpawnPty });
+    const creates = Promise.allSettled([service.create({ cwd: '/first' }), service.create({ cwd: '/second' })]);
+    await Promise.resolve();
+    expect(loadSpawnPty).toHaveBeenCalledTimes(1);
+    rejectLoad(failure);
+    expect(await creates).toEqual([
+      { status: 'rejected', reason: failure },
+      { status: 'rejected', reason: failure },
+    ]);
+    expect(service.list()).toEqual([]);
+    expect((await service.create({ cwd: '/retry' })).cwd).toBe('/retry');
+    expect(loadSpawnPty).toHaveBeenCalledTimes(2);
+  });
+
+  it('shares a synchronous loader failure across concurrent creates and permits retry', async () => {
+    const failure = new Error('native backend failed');
+    const spawn: PtySpawn = () => new FakePty();
+    const loadSpawnPty = vi.fn<() => Promise<PtySpawn>>()
+      .mockImplementationOnce(() => { throw failure; })
+      .mockResolvedValue(spawn);
+    const { service } = makeService({ loadSpawnPty });
+    const results = await Promise.allSettled([service.create({ cwd: '/first' }), service.create({ cwd: '/second' })]);
+    expect(results).toEqual([
+      { status: 'rejected', reason: failure },
+      { status: 'rejected', reason: failure },
+    ]);
+    expect(loadSpawnPty).toHaveBeenCalledTimes(1);
+    expect(service.list()).toEqual([]);
+    expect((await service.create({ cwd: '/retry' })).cwd).toBe('/retry');
+    expect(loadSpawnPty).toHaveBeenCalledTimes(2);
+  });
+
   it('creates a session, loading the pty spawner lazily and only once', async () => {
     const { service, loadSpawnPty } = makeService();
     const session = await service.create({ cwd: '/work' });
@@ -303,6 +362,48 @@ describe('@jini-ai/platform — terminal — createTerminalService lifecycle', (
 });
 
 describe('@jini-ai/platform — terminal — data flow, buffering, and exit', () => {
+  it('flushes coalesced Unicode output when its UTF-8 bytes reach the threshold', async () => {
+    const { service, ptys } = makeService({ flushThresholdBytes: 4 });
+    const session = await service.create({ cwd: '/work' });
+    const sink = new FakeSink();
+    service.attach(session.id, 0, sink);
+    ptys[0]!.emitData('é');
+    expect(sink.events).toEqual([]);
+    ptys[0]!.emitData('é');
+    expect(sink.events).toEqual([{ event: 'data', data: { data: 'éé' }, id: 1 }]);
+    ptys[0]!.emitExit(0);
+  });
+
+  it('evicts Unicode scrollback using UTF-8 bytes rather than UTF-16 length', async () => {
+    const { service, ptys } = makeService({ maxEvents: 100, maxBufferBytes: 10, flushThresholdBytes: 1 });
+    const session = await service.create({ cwd: '/work' });
+    ptys[0]!.emitData('éé');
+    ptys[0]!.emitData('漢');
+    ptys[0]!.emitData('😀');
+    const replay = new FakeSink();
+    service.attach(session.id, 0, replay);
+    expect(replay.events).toEqual([
+      { event: 'data', data: { data: '漢' }, id: 2 },
+      { event: 'data', data: { data: '😀' }, id: 3 },
+    ]);
+    ptys[0]!.emitExit(0);
+  });
+
+  it('counts UTF-8 bytes when retaining the event-granular exit tail', async () => {
+    const { service, ptys } = makeService({ maxBufferBytes: 100, exitTailBytes: 5, flushThresholdBytes: 1 });
+    const session = await service.create({ cwd: '/work' });
+    for (const chunk of ['éé', '漢', '😀']) ptys[0]!.emitData(chunk);
+    ptys[0]!.emitExit(0);
+    const replay = new FakeSink();
+    expect(service.attach(session.id, 0, replay)).toBe('ended');
+    expect(replay.events).toEqual([
+      { event: 'data', data: { data: '漢' }, id: 2 },
+      { event: 'data', data: { data: '😀' }, id: 3 },
+      { event: 'exit', data: { code: 0, signal: null }, id: 4 },
+    ]);
+    expect(replay.ended).toBe(true);
+  });
+
   it('flushes small chunks after the frame timer and large chunks immediately', async () => {
     const { service, ptys } = makeService();
     const session = await service.create({ cwd: '/work' });

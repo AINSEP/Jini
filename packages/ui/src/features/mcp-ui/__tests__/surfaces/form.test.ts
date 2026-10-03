@@ -23,7 +23,7 @@ const SPEC: FormSurfaceSpec = {
 describe('renderFormDocument credential autofill guard', () => {
   // Chrome ignores autocomplete="off" on password fields and fills a saved website login into them
   // (the database-transfer destination form's password field, 2026-09-28). Every masked input a
-  // form surface emits must say new-password; this is the HTML-string half of Tovu's
+  // form surface emits must say new-password; this is the HTML-string half of host's
   // credential-input-autocomplete guard.
   it('gives every type="password" input autocomplete="new-password", never off', () => {
     const html = renderFormDocument({

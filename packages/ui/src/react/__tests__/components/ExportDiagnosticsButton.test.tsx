@@ -75,7 +75,7 @@ describe('exportViaHttp', () => {
     const { createObjectURL, revokeObjectURL } = stubUrl();
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
-    const result = await exportViaHttp('/custom/export', 'diag');
+    const result = await exportViaHttp({ exportPath: '/custom/export', filenamePrefix: 'diag' });
 
     expect(result.filename).toBe('from-header.zip');
     expect(fetchMock).toHaveBeenCalledWith('/custom/export', {
@@ -95,7 +95,7 @@ describe('exportViaHttp', () => {
     );
     stubUrl();
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
-    const result = await exportViaHttp('/p', 'diag');
+    const result = await exportViaHttp({ exportPath: '/p', filenamePrefix: 'diag' });
     expect(result.filename).toMatch(/^diag-[\dTZ-]+\.zip$/);
   });
 
@@ -107,7 +107,7 @@ describe('exportViaHttp', () => {
         json: () => Promise.resolve({ message: 'maintenance window' }),
       }),
     );
-    await expect(exportViaHttp('/p', 'diag')).rejects.toThrow('maintenance window');
+    await expect(exportViaHttp({ exportPath: '/p', filenamePrefix: 'diag' })).rejects.toThrow('maintenance window');
   });
 
   it('throws the status text when the JSON body has no string message', async () => {
@@ -118,7 +118,7 @@ describe('exportViaHttp', () => {
         json: () => Promise.resolve({ code: 7 }),
       }),
     );
-    await expect(exportViaHttp('/p', 'diag')).rejects.toThrow('500 Server Error');
+    await expect(exportViaHttp({ exportPath: '/p', filenamePrefix: 'diag' })).rejects.toThrow('500 Server Error');
   });
 
   it('throws the status text when the JSON body is null (falsy)', async () => {
@@ -129,7 +129,7 @@ describe('exportViaHttp', () => {
         json: () => Promise.resolve(null),
       }),
     );
-    await expect(exportViaHttp('/p', 'diag')).rejects.toThrow('502 Bad Gateway');
+    await expect(exportViaHttp({ exportPath: '/p', filenamePrefix: 'diag' })).rejects.toThrow('502 Bad Gateway');
   });
 
   it('throws the status text when the error body is not JSON', async () => {
@@ -140,7 +140,7 @@ describe('exportViaHttp', () => {
         json: () => Promise.reject(new Error('not json')),
       }),
     );
-    await expect(exportViaHttp('/p', 'diag')).rejects.toThrow('500 Server Error');
+    await expect(exportViaHttp({ exportPath: '/p', filenamePrefix: 'diag' })).rejects.toThrow('500 Server Error');
   });
 });
 
@@ -313,4 +313,17 @@ describe('ExportDiagnosticsButton', () => {
     await waitFor(() => expect(screen.getByRole('status')).toBeTruthy());
     expect(screen.getByRole('status').textContent).toBe('Saved: /tmp/diag.zip');
   });
+});
+
+// REGRESSION: fails if exportViaHttp bypasses its injected native fetch.
+it('uses the supplied fetch for the archive download and keeps its upload deadline', async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response('zip', {
+    headers: { 'content-disposition': 'attachment; filename="archive.zip"' },
+  }));
+  const timeout = vi.spyOn(AbortSignal, 'timeout');
+  vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:injected'), revokeObjectURL: vi.fn() });
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  await expect(exportViaHttp({ exportPath: '/custom/export', filenamePrefix: 'diag' }, { fetch })).resolves.toEqual({ filename: 'archive.zip' });
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(timeout).toHaveBeenCalledWith(120_000);
 });

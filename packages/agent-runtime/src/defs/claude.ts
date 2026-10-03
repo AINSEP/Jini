@@ -1,6 +1,6 @@
 /**
  * Ported verbatim from OD's `apps/daemon/src/runtimes/defs/claude.ts` (import
- * path adjusted only). See `source-map.md`.
+ * path adjusted only). See `archived provenance ledger`.
  *
  * **Image delivery (added 2026-08-03):** `buildArgs` below takes an
  * `_imagePaths` parameter but never references it — the Claude Code CLI has
@@ -136,8 +136,8 @@ export const claudeAgentDef = {
     // `~/.claude.json`'s server-fetched `additionalModelOptionsCache`. See
     // `RuntimeAgentDef.fallbackModelsAssertedAt` and `scripts/check-model-fallback-freshness.ts`.
     fallbackModelsAssertedAt: '2026-09-05',
-    fetchModels: async (resolvedBin, env) => {
-      const routed = await loadMmdRouteModels(env, CLAUDE_FALLBACK_MODELS);
+    fetchModels: async ({ resolvedBin, env }) => {
+      const routed = await loadMmdRouteModels({ env: env, fallbackModels: CLAUDE_FALLBACK_MODELS });
       if (routed) return routed;
       const [fromCli, fromApi] = await Promise.all([
         loadClaudeCodeModels(resolvedBin, env, CLAUDE_FALLBACK_MODELS),
@@ -168,7 +168,7 @@ export const claudeAgentDef = {
     // prompt reads the prompt from stdin under `--input-format text` (the
     // default), which has no length cap. Mirrors the codex/gemini/opencode/
     // cursor/qwen entries below.
-    buildArgs: (_prompt, _imagePaths, extraAllowedDirs = [], options = {}, runtimeContext = {}) => {
+    buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}) => {
       const caps = agentCapabilities.get('claude') || {};
       // `--input-format stream-json` lets the daemon stream multiple JSONL
       // messages into stdin instead of closing it after the initial prompt,
@@ -265,7 +265,7 @@ export const claudeAgentDef = {
     // Load MCP tools up front instead of deferring them behind the CLI's ToolSearch tool.
     // Deferral cost every run one extra model round (a `select:` ToolSearch call, ~3 s) before its
     // first real tool call, while the run's MCP set is only what the daemon stages
-    // (`--strict-mcp-config`; 11 tools for the Tovu host), so loading it eagerly is cheap. Documented at
+    // (`--strict-mcp-config`; 11 tools for the originating host), so loading it eagerly is cheap. Documented at
     // code.claude.com/docs/en/mcp ("`false` — All MCP tools loaded upfront, no deferral"); verified
     // in the installed 2.1.283 binary (a defined-falsy value selects the "standard" tool mode).
     // A default only: a run's own env can still set ENABLE_TOOL_SEARCH (see agent-executor).

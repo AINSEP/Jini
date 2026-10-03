@@ -86,7 +86,7 @@ function renderControlledPane(
           }
         : {}),
     });
-    useChatPaneAgentControl(pane, {
+    useChatPaneAgentControl({ pane: pane }, {
       enabled: options.enabled ?? true,
       // These cases are about what the WebMCP surface does once a host has accepted it, so they
       // opt in. That it is *not* on by default has its own case at the bottom of this file.
@@ -117,7 +117,7 @@ describe('useChatPaneAgentControl — registration lifecycle', () => {
     const view = renderHook(() => {
       const pane = useChatPane({ transport, agents, selection: { agentId: 'codex' } });
       // A NEW object literal every render — exactly how hosts write this prop in JSX.
-      useChatPaneAgentControl(pane, { enabled: true, webmcp: true, bridgeAccess: { ...bridge } });
+      useChatPaneAgentControl({ pane: pane }, { enabled: true, webmcp: true, bridgeAccess: { ...bridge } });
       return pane;
     });
 
@@ -406,7 +406,7 @@ describe('useChatPaneAgentControl — host surface detection', () => {
     const transport = createFakeChatTransport();
     renderHook(() => {
       const pane = useChatPane({ transport, agents, selection: { agentId: 'codex' } });
-      useChatPaneAgentControl(pane, {});
+      useChatPaneAgentControl({ pane: pane }, {});
       return pane;
     });
     // Agent control is opt-in in the library even when a host means to enable it.
@@ -421,7 +421,7 @@ describe('useChatPaneAgentControl — host surface detection', () => {
     const transport = createFakeChatTransport();
     renderHook(() => {
       const pane = useChatPane({ transport, agents, selection: { agentId: 'codex' } });
-      useChatPaneAgentControl(pane, { enabled: true });
+      useChatPaneAgentControl({ pane: pane }, { enabled: true });
       return pane;
     });
     expect(context.registerCalls).toBe(0);
@@ -432,7 +432,7 @@ describe('useChatPaneAgentControl — host surface detection', () => {
     const transport = createFakeChatTransport();
     renderHook(() => {
       const pane = useChatPane({ transport, agents, selection: { agentId: 'codex' } });
-      useChatPaneAgentControl(pane, { enabled: true, webmcp: true });
+      useChatPaneAgentControl({ pane: pane }, { enabled: true, webmcp: true });
       return pane;
     });
     expect(context.registerCalls).toBeGreaterThan(0);

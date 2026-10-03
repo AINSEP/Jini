@@ -1,6 +1,6 @@
 /**
  * `StorageProvider` — a swappable blob-storage port (file uploads, generated
- * assets). Speculative port-design exploration (see `source-map.md`) — no OD
+ * assets). Speculative port-design exploration (see `archived provenance ledger`) — no OD
  * source; the shape is the object-storage capability Zana's `app-chassis`
  * (`packages/storage`) and a fleet orchestrator's ports layer both name explicitly.
  *
@@ -27,11 +27,11 @@ export interface StoragePutOptions {
 
 export interface StorageProvider {
   /** Writes `data` at `key`, overwriting any existing object. */
-  put(key: string, data: Uint8Array, options?: StoragePutOptions): Promise<StorageObjectMeta>;
+  put(required: { key: string; data: Uint8Array }, options?: StoragePutOptions): Promise<StorageObjectMeta>;
   /** Reads the object at `key`, or `null` if it doesn't exist. */
-  get(key: string): Promise<Uint8Array | null>;
+  get(required: { key: string }): Promise<Uint8Array | null>;
   /** Deletes the object at `key`. A no-op if it doesn't exist. */
-  delete(key: string): Promise<void>;
+  delete(required: { key: string }): Promise<void>;
   /** Lists objects whose key starts with `prefix` (all objects when `prefix` is omitted), sorted by key. */
-  list(prefix?: string): Promise<StorageObjectMeta[]>;
+  list(required: Record<string, never>, optional?: { prefix?: string }): Promise<StorageObjectMeta[]>;
 }

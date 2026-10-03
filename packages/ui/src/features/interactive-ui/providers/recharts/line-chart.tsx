@@ -7,7 +7,7 @@ export interface LineChartProps {
   readonly color?: string;
 }
 
-export function LineChart({ data, categoryKey, valueKey, color = '#2563eb' }: LineChartProps) {
+export function LineChart({ data, categoryKey, valueKey, color = 'var(--jini-primary)' }: LineChartProps) {
   return (
     <ResponsiveContainer width="100%" height={300}>
       <RechartsLineChart data={data as Record<string, unknown>[]}>

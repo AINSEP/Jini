@@ -4,13 +4,13 @@
  * comment is the explicit template named by the porting proposal,
  * `ADS-memory/reports/proposals/PROP-http-route-packs-automation-routines-2026-07-21.md`): a
  * storage-agnostic interface plus an in-memory reference implementation, async-only from day one
- * (extraction-plan §2.6) so a durable `@jini-ai/sqlite` adapter is a drop-in swap later without an
+ * (extraction-plan §2.6) so a durable `@jini-ai/sqlite-chat` adapter is a drop-in swap later without an
  * API break.
  *
  * No such port existed anywhere in this repo before this file — OD's own `routine.ts` route file
  * called eight raw `db.js` SQL functions directly (`getRoutine`/`insertRoutine`/`updateRoutine`/
  * `deleteRoutine`/`listRoutines`/`listRoutineRuns`/`getLatestRoutineRun`/`getRoutineRun`) against
- * `routines`/`routine_runs` tables that `packages/sqlite/source-map.md` already documents as
+ * `routines`/`routine_runs` tables that `packages/sqlite/archived provenance ledger` already documents as
  * explicitly out of scope for the db-barrel port. This is the missing design.
  *
  * **Deliberately separate from `./scheduler.js`'s `RoutinePersistence`, not a shared interface**,
@@ -21,7 +21,7 @@
  * mirrors that same split: `RoutineStore` owns Routine CRUD and *read-only* run history
  * (`listRuns`/`getLatestRun`); it does not write run records — that stays the scheduler's job via
  * its own separately-injected `RoutinePersistence`. A host wiring both together against one real
- * durable table (a future `@jini-ai/sqlite` adapter) is host-level integration wiring, the same way
+ * durable table (a future `@jini-ai/sqlite-chat` adapter) is host-level integration wiring, the same way
  * `runs.ts`'s `onStarted` driver is host-supplied rather than built into `RunLifecycle` itself —
  * not attempted here, out of this port's scope.
  */
@@ -54,22 +54,22 @@ export interface RoutineUpdateInput {
 /**
  * Storage-agnostic CRUD + read-only run-history port for routines. `@jini-ai/daemon` ships
  * {@link createInMemoryRoutineStore} as the reference implementation; a durable adapter
- * (`@jini-ai/sqlite`, future work) implements the same interface.
+ * (`@jini-ai/sqlite-chat`, future work) implements the same interface.
  */
 export interface RoutineStore {
   list(): Promise<readonly Routine[]>;
   /** Returns `null` when no routine with `id` exists — never throws for a missing id. */
-  get(id: string): Promise<Routine | null>;
+  get(args: { readonly id: string }): Promise<Routine | null>;
   /** Assigns and returns the new routine's `id` — never supplied by the caller, matching `EventLog.append`'s cursor-assignment precedent. */
-  create(input: RoutineCreateInput): Promise<Routine>;
+  create(requiredArgs: Pick<RoutineCreateInput, "name" | "prompt" | "schedule" | "target">, optionalArgs?: Pick<RoutineCreateInput, "skillId" | "agentId" | "context" | "enabled">): Promise<Routine>;
   /** Applies a partial patch and returns the updated routine, or `null` if `id` does not exist. */
-  update(id: string, patch: RoutineUpdateInput): Promise<Routine | null>;
+  update(args: { readonly id: string; readonly patch: RoutineUpdateInput }): Promise<Routine | null>;
   /** Returns whether a routine with `id` existed (and was removed). */
-  delete(id: string): Promise<boolean>;
+  delete(args: { readonly id: string }): Promise<boolean>;
   /** Returns up to `limit` runs for `routineId`, newest first. Returns `[]` for an unknown routine rather than throwing — mirrors `list()`'s empty-collection convention. */
-  listRuns(routineId: string, limit: number): Promise<readonly RoutineRun[]>;
+  listRuns(args: { readonly routineId: string; readonly limit: number }): Promise<readonly RoutineRun[]>;
   /** Returns the most recently started run for `routineId`, or `null` if none has ever run. */
-  getLatestRun(routineId: string): Promise<RoutineRun | null>;
+  getLatestRun(args: { readonly routineId: string }): Promise<RoutineRun | null>;
 }
 
 /**
@@ -79,7 +79,7 @@ export interface RoutineStore {
  * Kept as its own exported pure function (not inlined) so it is directly unit-testable, matching
  * this repo's "extract to a testable pure function" convention for awkward-to-cover branches.
  */
-export function summarizeLastRun(run: RoutineRun | null): Record<string, unknown> | null {
+export function summarizeLastRun({ run }: { readonly run: RoutineRun | null }): Record<string, unknown> | null {
   if (!run) return null;
   return {
     runId: run.id,
@@ -107,9 +107,9 @@ export function summarizeLastRun(run: RoutineRun | null): Record<string, unknown
  */
 export interface InMemoryRoutineStore extends RoutineStore {
   /** Records a run — mirrors `RoutinePersistence.insertRun`'s signature minus the scheduled-slot claim (this reference store has no concept of a "slot," only a flat run history), returning `false` if `run.id` was already recorded. */
-  recordRun(run: RoutineRun): boolean;
+  recordRun(args: { readonly run: RoutineRun }): boolean;
   /** Patches a previously recorded run in place. A patch for an unknown `id` is a no-op, mirroring `RoutinePersistence.updateRun`'s own silent-no-op-on-unknown-id convention (see `./scheduler.js`'s `updateRun` call sites, none of which check a return value). */
-  patchRun(id: string, patch: Partial<RoutineRun>): void;
+  patchRun(args: { readonly id: string; readonly patch: Partial<RoutineRun> }): void;
 }
 
 function cloneContext(context: RoutineContextSelection): RoutineContextSelection {
@@ -134,14 +134,14 @@ function cloneRoutine(routine: Routine): Routine {
 /**
  * Reference `RoutineStore` implementation: an in-process `Map` of routines plus a flat array of
  * runs, no durable copy — matching `createInMemoryEventLog`'s own scope (a real persistent
- * adapter is `@jini-ai/sqlite`'s job).
+ * adapter is `@jini-ai/sqlite-chat`'s job).
  *
  * @complexity `get`/`create`/`update`/`delete` are O(1). `list` is O(n log n) (stable id-sort for
  * deterministic ordering). `listRuns`/`getLatestRun` are O(m log m) in the number of runs
  * recorded for the routine (m), since each sorts by `startedAt` descending on every call rather
  * than maintaining a secondary index — acceptable at this reference implementation's scale.
  */
-export function createInMemoryRoutineStore(): InMemoryRoutineStore {
+export function createInMemoryRoutineStore(_requiredArgs: Record<string, never>, { now = Date.now, newId = randomUUID }: { now?: () => number; newId?: () => string } = {}): InMemoryRoutineStore {
   const routines = new Map<string, Routine>();
   const runs: RoutineRun[] = [];
 
@@ -153,7 +153,7 @@ export function createInMemoryRoutineStore(): InMemoryRoutineStore {
 
   async function withLastRun(routine: Routine): Promise<Routine> {
     const latest = runsFor(routine.id)[0] ?? null;
-    return { ...cloneRoutine(routine), lastRun: summarizeLastRun(latest) };
+    return { ...cloneRoutine(routine), lastRun: summarizeLastRun({ run: latest }) };
   }
 
   return {
@@ -162,15 +162,16 @@ export function createInMemoryRoutineStore(): InMemoryRoutineStore {
       return Promise.all(ids.map((id) => withLastRun(routines.get(id)!)));
     },
 
-    async get(id: string): Promise<Routine | null> {
+    async get({ id }: { readonly id: string }): Promise<Routine | null> {
       const routine = routines.get(id);
       return routine ? withLastRun(routine) : null;
     },
 
-    async create(input: RoutineCreateInput): Promise<Routine> {
-      const now = Date.now();
+    async create(requiredArgs: Pick<RoutineCreateInput, "name" | "prompt" | "schedule" | "target">, optionalArgs: Pick<RoutineCreateInput, "skillId" | "agentId" | "context" | "enabled"> = {}): Promise<Routine> {
+      const input: RoutineCreateInput = { ...requiredArgs, ...optionalArgs };
+      const createdAt = now();
       const routine: Routine = {
-        id: `routine-${randomUUID()}`,
+        id: `routine-${newId()}`,
         name: input.name,
         prompt: input.prompt,
         schedule: input.schedule,
@@ -181,14 +182,14 @@ export function createInMemoryRoutineStore(): InMemoryRoutineStore {
         enabled: input.enabled ?? true,
         nextRunAt: null,
         lastRun: null,
-        createdAt: now,
-        updatedAt: now,
+        createdAt: createdAt,
+        updatedAt: createdAt,
       };
       routines.set(routine.id, routine);
       return withLastRun(routine);
     },
 
-    async update(id: string, patch: RoutineUpdateInput): Promise<Routine | null> {
+    async update({ id, patch }: { readonly id: string; readonly patch: RoutineUpdateInput }): Promise<Routine | null> {
       const existing = routines.get(id);
       if (!existing) return null;
       const updated: Routine = {
@@ -201,31 +202,31 @@ export function createInMemoryRoutineStore(): InMemoryRoutineStore {
         ...(patch.agentId !== undefined ? { agentId: patch.agentId } : {}),
         ...(patch.context !== undefined ? { context: patch.context } : {}),
         ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
-        updatedAt: Date.now(),
+        updatedAt: now(),
       };
       routines.set(id, updated);
       return withLastRun(updated);
     },
 
-    async delete(id: string): Promise<boolean> {
+    async delete({ id }: { readonly id: string }): Promise<boolean> {
       return routines.delete(id);
     },
 
-    async listRuns(routineId: string, limit: number): Promise<readonly RoutineRun[]> {
+    async listRuns({ routineId, limit }: { readonly routineId: string; readonly limit: number }): Promise<readonly RoutineRun[]> {
       return runsFor(routineId).slice(0, limit);
     },
 
-    async getLatestRun(routineId: string): Promise<RoutineRun | null> {
+    async getLatestRun({ routineId }: { readonly routineId: string }): Promise<RoutineRun | null> {
       return runsFor(routineId)[0] ?? null;
     },
 
-    recordRun(run: RoutineRun): boolean {
+    recordRun({ run }: { readonly run: RoutineRun }): boolean {
       if (runs.some((existing) => existing.id === run.id)) return false;
       runs.push({ ...run });
       return true;
     },
 
-    patchRun(id: string, patch: Partial<RoutineRun>): void {
+    patchRun({ id, patch }: { readonly id: string; readonly patch: Partial<RoutineRun> }): void {
       const run = runs.find((candidate) => candidate.id === id);
       if (run) Object.assign(run, patch);
     },

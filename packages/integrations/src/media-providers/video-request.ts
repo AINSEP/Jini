@@ -14,19 +14,19 @@
  *     `seconds` MUST be a number and the only size hint is `size`.
  *   • `generic` (Sora and similar) — flat JSON with `seconds` as a string.
  *
- * See `source-map.md` for the vendor-verification notes each snapping
+ * See `archived provenance ledger` for the vendor-verification notes each snapping
  * function was ported with — they encode real, tested API quirks, not
  * arbitrary defaults.
  */
 import type { BuiltVideoRequest, MediaFamily, ModelCapability, NormalizedVideoResponse, VideoBuildInput } from './types.js';
 
 /** Resolves the upstream model name: the i2v variant when a reference image is present. */
-export function resolveWireModel(cap: ModelCapability, hasReference: boolean): string {
+export function resolveWireModel({ cap, hasReference }: { cap: ModelCapability; hasReference: boolean }): string {
   return hasReference && cap.apiModelI2V ? cap.apiModelI2V : cap.apiModel;
 }
 
 /** Derives the request family from the resolved upstream model name (or an explicit `cap.family` override). */
-export function deriveVideoFamily(wireModel: string, cap?: ModelCapability): MediaFamily {
+export function deriveVideoFamily({ wireModel }: { wireModel: string }, { cap }: { cap?: ModelCapability | undefined } = {}): MediaFamily {
   if (cap?.family) return cap.family;
   const m = wireModel.toLowerCase();
   if (m.startsWith('doubao-seedance-')) return 'seedance';
@@ -40,7 +40,7 @@ export function deriveVideoFamily(wireModel: string, cap?: ModelCapability): Med
  * 5/10). Falls back to a 3-12 clamp when the model declares no constraint.
  * Ties prefer the shorter value (array order wins on an exact tie distance).
  */
-export function snapDuration(cap: ModelCapability, requested: number | undefined): number {
+export function snapDuration({ cap, requested }: { cap: ModelCapability; requested: number | undefined }): number {
   const req = Number.isFinite(requested) ? (requested as number) : 5;
   const allowed = cap.supportedDurations;
   if (!allowed || allowed.length === 0) {
@@ -56,7 +56,7 @@ export function snapDuration(cap: ModelCapability, requested: number | undefined
  * (720→720p, 1080→1080p, ...); defaults to `720p` when nothing usable is
  * supplied. (The `wan` family upper-cases the result itself.)
  */
-export function snapResolutionToken(resolution: string | undefined, size: string | undefined): string {
+export function snapResolutionToken({ resolution, size }: { resolution: string | undefined; size: string | undefined }): string {
   const token = (resolution || '').trim().toLowerCase();
   if (/^(480|720|1080)p$/.test(token)) return token;
   const m = /^(\d+)\s*[x×]\s*(\d+)$/i.exec((size || resolution || '').trim());
@@ -77,7 +77,7 @@ const VEO_VALID_SIZES = new Set(['1280x720', '720x1280', '1920x1080', '1080x1920
  * (e.g. a 1:1 `1024x1024`) 400s. Snaps to the nearest valid Veo size by
  * orientation; defaults to landscape 720p.
  */
-export function snapVeoSize(size: string | undefined): string {
+export function snapVeoSize({ size }: { size: string | undefined }): string {
   const s = (size || '').trim().toLowerCase().replace('×', 'x');
   if (VEO_VALID_SIZES.has(s)) return s;
   const m = /^(\d+)\s*x\s*(\d+)$/.exec(s);
@@ -91,7 +91,7 @@ export function snapVeoSize(size: string | undefined): string {
  * unchanged when the model declares no constraint; falls back to the first
  * supported size when the input is missing/unparseable.
  */
-export function snapSizeToSupported(size: string | undefined, supported: readonly string[] | undefined): string | undefined {
+export function snapSizeToSupported({ size, supported }: { size: string | undefined; supported: readonly string[] | undefined }): string | undefined {
   if (!supported || supported.length === 0) return size;
   const norm = (v: string) => v.trim().toLowerCase().replace('×', 'x');
   const s = norm(size || '');
@@ -138,11 +138,11 @@ function buildSeedanceContent(input: VideoBuildInput): Array<Record<string, unkn
  * auth. Caller: `POST \`${baseUrl}${pathSuffix}\`` with auth headers +
  * `JSON.stringify(body)`.
  */
-export function buildVideoRequest(cap: ModelCapability, input: VideoBuildInput): BuiltVideoRequest {
+export function buildVideoRequest({ cap, input }: { cap: ModelCapability; input: VideoBuildInput }): BuiltVideoRequest {
   const hasReference = Boolean(input.imageRef?.dataUrl);
-  const wireModel = resolveWireModel(cap, hasReference);
-  const family = deriveVideoFamily(wireModel, cap);
-  const seconds = snapDuration(cap, input.durationSeconds);
+  const wireModel = resolveWireModel({ cap: cap, hasReference: hasReference });
+  const family = deriveVideoFamily({ wireModel: wireModel }, { cap: cap });
+  const seconds = snapDuration({ cap: cap, requested: input.durationSeconds });
 
   let body: Record<string, unknown>;
   if (family === 'seedance') {
@@ -151,7 +151,7 @@ export function buildVideoRequest(cap: ModelCapability, input: VideoBuildInput):
       prompt: input.prompt,
       duration: seconds,
       content: buildSeedanceContent(input),
-      resolution: snapResolutionToken(input.resolution, input.size),
+      resolution: snapResolutionToken({ resolution: input.resolution, size: input.size }),
     };
     if (input.aspectRatio) body.ratio = input.aspectRatio;
     if (typeof input.generateAudio === 'boolean') body.generate_audio = input.generateAudio;
@@ -162,7 +162,7 @@ export function buildVideoRequest(cap: ModelCapability, input: VideoBuildInput):
       wanInput.media = [{ type: 'first_frame', url: input.imageRef!.dataUrl }];
     }
     const parameters: Record<string, unknown> = {
-      resolution: snapResolutionToken(input.resolution, input.size).toUpperCase(),
+      resolution: snapResolutionToken({ resolution: input.resolution, size: input.size }).toUpperCase(),
       duration: seconds,
       prompt_extend: true,
       watermark: false,
@@ -175,7 +175,7 @@ export function buildVideoRequest(cap: ModelCapability, input: VideoBuildInput):
       model: wireModel,
       prompt: input.prompt,
       seconds,
-      size: snapVeoSize(input.size),
+      size: snapVeoSize({ size: input.size }),
     };
     if (typeof input.generateAudio === 'boolean') body.generate_audio = input.generateAudio;
     if (typeof input.seed === 'number') body.seed = input.seed;
@@ -185,7 +185,7 @@ export function buildVideoRequest(cap: ModelCapability, input: VideoBuildInput):
       prompt: input.prompt,
       seconds: String(seconds),
     };
-    const genericSize = snapSizeToSupported(input.size, cap.supportedSizes);
+    const genericSize = snapSizeToSupported({ size: input.size, supported: cap.supportedSizes });
     if (genericSize) body.size = genericSize;
     if (input.resolution) body.resolution = input.resolution;
     if (hasReference) body.input_reference = input.imageRef!.dataUrl;
@@ -199,7 +199,7 @@ export function buildVideoRequest(cap: ModelCapability, input: VideoBuildInput):
 }
 
 /** Best-effort normalization of an async-submit / poll response across vendor families. */
-export function normalizeVideoResponse(raw: unknown): NormalizedVideoResponse {
+export function normalizeVideoResponse({ raw }: { raw: unknown }): NormalizedVideoResponse {
   const d = (raw ?? {}) as Record<string, unknown>;
   const data = d.data as Record<string, unknown> | undefined;
   const dataArray = Array.isArray(d.data) ? (d.data as Array<Record<string, unknown>>) : undefined;

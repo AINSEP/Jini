@@ -3,7 +3,7 @@
  *
  * A concrete `GithubRegistryClient` (the interface `github-backend.ts`
  * defines and takes as an injected dependency) implemented against GitHub's
- * real REST API. Per `source-map.md`'s "2026-07-21 hardening pass": "No
+ * real REST API. Per `archived provenance ledger`'s "2026-07-21 hardening pass": "No
  * concrete `GithubRegistryClient` HTTP implementation exists in this
  * package — `readManifest`/`createPublishPullRequest` are an injected
  * interface with no concrete implementation anywhere in this repo." This
@@ -17,8 +17,15 @@
  * dependency and does not gain one — the blob/tree/commit/ref mechanics
  * below are written fresh for this package, not shared cross-package, since
  * there is no existing shared low-level GitHub REST helper package).
+ * The HTTP orchestration now uses a host-injected transport port: hosts can
+ * bind that established timeout helper while preserving its cancellation and
+ * error semantics, and tests can exercise the request flow without global I/O.
+ * The kernel HttpClientPort owns timeout/cancellation and timeout error types. Requests retain
+ * the QUICK total bound and an explicit idle budget; request orchestration never chooses global
+ * fetch. Hosts can bind the existing helper or a policy-enforcing egress client without a new port.
  */
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
+import type { HttpClientPort, HttpResponse } from '@jini-ai/core/primitives';
 import type { RegistryManifest } from '@jini-ai/protocol';
 import type { GithubPublishMutation, GithubRegistryClient } from './github-backend.js';
 
@@ -53,7 +60,10 @@ export class GithubApiRegistryClient implements GithubRegistryClient {
   private readonly token: string | undefined;
   private readonly apiUrl: string;
 
-  constructor(options: GithubApiRegistryClientOptions = {}) {
+  private readonly http: HttpClientPort;
+
+  constructor({ http }: { http: HttpClientPort }, options: GithubApiRegistryClientOptions = {}) {
+    this.http = http;
     this.token = options.token;
     this.apiUrl = options.apiUrl ?? GITHUB_API;
   }
@@ -81,14 +91,14 @@ export class GithubApiRegistryClient implements GithubRegistryClient {
    * @throws If the file does not exist, is a directory, is too large for
    *   this endpoint's inline-content response, or is not valid JSON.
    */
-  async readManifest(owner: string, repo: string, ref: string, path: string): Promise<RegistryManifest> {
+  async readManifest({ owner, repo, ref, path }: { owner: string; repo: string; ref: string; path: string }): Promise<RegistryManifest> {
     const url = `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/contents/${encPath(path)}?${new URLSearchParams({ ref }).toString()}`;
-    const resp = await fetchWithTimeout(url, { headers: githubHeaders(this.token) }, { timeoutMs: FETCH_TIMEOUT_MS.QUICK });
+    const resp = await this.http.send({ request: { url, method: 'GET', headers: githubHeaders(this.token), idleTimeoutMs: FETCH_TIMEOUT_MS.QUICK, totalDeadlineMs: FETCH_TIMEOUT_MS.QUICK } });
     if (resp.status === 404) {
       throw new Error(`Registry manifest not found: ${owner}/${repo}@${ref}:${path}`);
     }
     const json = await readGithubJson<JsonObject | JsonObject[]>(resp);
-    if (!resp.ok) {
+    if (!(resp.status >= 200 && resp.status < 300)) {
       throw githubError(Array.isArray(json) ? {} : json, resp.status, `Failed to read registry manifest ${owner}/${repo}@${ref}:${path}.`);
     }
     if (Array.isArray(json)) {
@@ -145,27 +155,19 @@ export class GithubApiRegistryClient implements GithubRegistryClient {
   }
 
   private async getRefSha(owner: string, repo: string, branch: string): Promise<string | undefined> {
-    const resp = await fetchWithTimeout(
-      `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/git/ref/heads/${enc(branch)}`,
-      { headers: githubHeaders(this.token) },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-    );
+    const resp = await this.http.send({ request: { url: `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/git/ref/heads/${enc(branch)}`, method: 'GET', headers: githubHeaders(this.token), idleTimeoutMs: FETCH_TIMEOUT_MS.QUICK, totalDeadlineMs: FETCH_TIMEOUT_MS.QUICK } });
     if (resp.status === 404) return undefined;
     const json = await readGithubJson<JsonObject>(resp);
-    if (!resp.ok) throw githubError(json, resp.status, 'GitHub ref lookup failed.');
+    if (!(resp.status >= 200 && resp.status < 300)) throw githubError(json, resp.status, 'GitHub ref lookup failed.');
     const object = json.object as JsonObject | undefined;
     return typeof object?.sha === 'string' ? object.sha : undefined;
   }
 
   /** `GET /repos/{owner}/{repo}/git/commits/{sha}` (Git Data API) — the tree API's `base_tree` param needs a *tree* sha, not the commit sha `getRefSha` returns. */
   private async getCommitTreeSha(owner: string, repo: string, commitSha: string): Promise<string> {
-    const resp = await fetchWithTimeout(
-      `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/git/commits/${enc(commitSha)}`,
-      { headers: githubHeaders(this.token) },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-    );
+    const resp = await this.http.send({ request: { url: `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/git/commits/${enc(commitSha)}`, method: 'GET', headers: githubHeaders(this.token), idleTimeoutMs: FETCH_TIMEOUT_MS.QUICK, totalDeadlineMs: FETCH_TIMEOUT_MS.QUICK } });
     const json = await readGithubJson<JsonObject>(resp);
-    if (!resp.ok) throw githubError(json, resp.status, 'GitHub base commit lookup failed.');
+    if (!(resp.status >= 200 && resp.status < 300)) throw githubError(json, resp.status, 'GitHub base commit lookup failed.');
     const tree = json.tree as JsonObject | undefined;
     const sha = typeof tree?.sha === 'string' ? tree.sha : '';
     if (!sha) throw new Error('GitHub base commit response did not include a tree sha.');
@@ -173,17 +175,9 @@ export class GithubApiRegistryClient implements GithubRegistryClient {
   }
 
   private async createBlob(owner: string, repo: string, content: string): Promise<string> {
-    const resp = await fetchWithTimeout(
-      `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/git/blobs`,
-      {
-        method: 'POST',
-        headers: githubHeaders(this.token, { 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ content: Buffer.from(content, 'utf8').toString('base64'), encoding: 'base64' }),
-      },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-    );
+    const resp = await this.http.send({ request: { url: `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/git/blobs`, method: 'POST', headers: githubHeaders(this.token, { 'Content-Type': 'application/json' }), body: JSON.stringify({ content: Buffer.from(content, 'utf8').toString('base64'), encoding: 'base64' }), idleTimeoutMs: FETCH_TIMEOUT_MS.QUICK, totalDeadlineMs: FETCH_TIMEOUT_MS.QUICK } });
     const json = await readGithubJson<JsonObject>(resp);
-    if (!resp.ok) throw githubError(json, resp.status, 'GitHub blob creation failed.');
+    if (!(resp.status >= 200 && resp.status < 300)) throw githubError(json, resp.status, 'GitHub blob creation failed.');
     const sha = typeof json.sha === 'string' ? json.sha : '';
     if (!sha) throw new Error('GitHub blob response did not include a sha.');
     return sha;
@@ -195,34 +189,18 @@ export class GithubApiRegistryClient implements GithubRegistryClient {
       const blobSha = await this.createBlob(owner, repo, file.content);
       tree.push({ path: file.path, mode: '100644', type: 'blob', sha: blobSha });
     }
-    const resp = await fetchWithTimeout(
-      `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/git/trees`,
-      {
-        method: 'POST',
-        headers: githubHeaders(this.token, { 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ base_tree: baseTreeSha, tree }),
-      },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-    );
+    const resp = await this.http.send({ request: { url: `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/git/trees`, method: 'POST', headers: githubHeaders(this.token, { 'Content-Type': 'application/json' }), body: JSON.stringify({ base_tree: baseTreeSha, tree }), idleTimeoutMs: FETCH_TIMEOUT_MS.QUICK, totalDeadlineMs: FETCH_TIMEOUT_MS.QUICK } });
     const json = await readGithubJson<JsonObject>(resp);
-    if (!resp.ok) throw githubError(json, resp.status, 'GitHub tree creation failed.');
+    if (!(resp.status >= 200 && resp.status < 300)) throw githubError(json, resp.status, 'GitHub tree creation failed.');
     const sha = typeof json.sha === 'string' ? json.sha : '';
     if (!sha) throw new Error('GitHub tree response did not include a sha.');
     return sha;
   }
 
   private async createCommit(owner: string, repo: string, message: string, treeSha: string, parents: string[]): Promise<string> {
-    const resp = await fetchWithTimeout(
-      `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/git/commits`,
-      {
-        method: 'POST',
-        headers: githubHeaders(this.token, { 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ message, tree: treeSha, parents }),
-      },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-    );
+    const resp = await this.http.send({ request: { url: `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/git/commits`, method: 'POST', headers: githubHeaders(this.token, { 'Content-Type': 'application/json' }), body: JSON.stringify({ message, tree: treeSha, parents }), idleTimeoutMs: FETCH_TIMEOUT_MS.QUICK, totalDeadlineMs: FETCH_TIMEOUT_MS.QUICK } });
     const json = await readGithubJson<JsonObject>(resp);
-    if (!resp.ok) throw githubError(json, resp.status, 'GitHub commit creation failed.');
+    if (!(resp.status >= 200 && resp.status < 300)) throw githubError(json, resp.status, 'GitHub commit creation failed.');
     const sha = typeof json.sha === 'string' ? json.sha : '';
     if (!sha) throw new Error('GitHub commit response did not include a sha.');
     return sha;
@@ -238,31 +216,15 @@ export class GithubApiRegistryClient implements GithubRegistryClient {
    * `@jini-ai/deploy`'s `github-pages.ts` already documents for its own ref update.
    */
   private async ensureBranch(owner: string, repo: string, branch: string, sha: string): Promise<void> {
-    const createResp = await fetchWithTimeout(
-      `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/git/refs`,
-      {
-        method: 'POST',
-        headers: githubHeaders(this.token, { 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ ref: `refs/heads/${branch}`, sha }),
-      },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-    );
-    if (createResp.ok) return;
+    const createResp = await this.http.send({ request: { url: `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/git/refs`, method: 'POST', headers: githubHeaders(this.token, { 'Content-Type': 'application/json' }), body: JSON.stringify({ ref: `refs/heads/${branch}`, sha }), idleTimeoutMs: FETCH_TIMEOUT_MS.QUICK, totalDeadlineMs: FETCH_TIMEOUT_MS.QUICK } });
+    if ((createResp.status >= 200 && createResp.status < 300)) return;
     if (createResp.status !== 409 && createResp.status !== 422) {
       const json = await readGithubJson<JsonObject>(createResp);
       throw githubError(json, createResp.status, 'GitHub branch creation failed.');
     }
-    const updateResp = await fetchWithTimeout(
-      `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/git/refs/heads/${enc(branch)}`,
-      {
-        method: 'PATCH',
-        headers: githubHeaders(this.token, { 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ sha, force: true }),
-      },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-    );
+    const updateResp = await this.http.send({ request: { url: `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/git/refs/heads/${enc(branch)}`, method: 'PATCH', headers: githubHeaders(this.token, { 'Content-Type': 'application/json' }), body: JSON.stringify({ sha, force: true }), idleTimeoutMs: FETCH_TIMEOUT_MS.QUICK, totalDeadlineMs: FETCH_TIMEOUT_MS.QUICK } });
     const json = await readGithubJson<JsonObject>(updateResp);
-    if (!updateResp.ok) throw githubError(json, updateResp.status, 'GitHub branch update failed.');
+    if (!(updateResp.status >= 200 && updateResp.status < 300)) throw githubError(json, updateResp.status, 'GitHub branch update failed.');
   }
 
   /**
@@ -275,17 +237,9 @@ export class GithubApiRegistryClient implements GithubRegistryClient {
    * analogous "create-or-find" race.
    */
   private async ensurePullRequest(owner: string, repo: string, request: GithubPublishMutation): Promise<{ url: string }> {
-    const resp = await fetchWithTimeout(
-      `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/pulls`,
-      {
-        method: 'POST',
-        headers: githubHeaders(this.token, { 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ title: request.title, body: request.body, head: request.branchName, base: request.baseRef }),
-      },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-    );
+    const resp = await this.http.send({ request: { url: `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/pulls`, method: 'POST', headers: githubHeaders(this.token, { 'Content-Type': 'application/json' }), body: JSON.stringify({ title: request.title, body: request.body, head: request.branchName, base: request.baseRef }), idleTimeoutMs: FETCH_TIMEOUT_MS.QUICK, totalDeadlineMs: FETCH_TIMEOUT_MS.QUICK } });
     const json = await readGithubJson<JsonObject>(resp);
-    if (resp.ok) {
+    if ((resp.status >= 200 && resp.status < 300)) {
       const url = typeof json.html_url === 'string' ? json.html_url : '';
       if (!url) throw new Error('GitHub pull request response did not include an html_url.');
       return { url };
@@ -300,13 +254,9 @@ export class GithubApiRegistryClient implements GithubRegistryClient {
 
   private async findOpenPullRequest(owner: string, repo: string, base: string, branch: string): Promise<string | undefined> {
     const query = new URLSearchParams({ head: `${owner}:${branch}`, base, state: 'open' });
-    const resp = await fetchWithTimeout(
-      `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/pulls?${query.toString()}`,
-      { headers: githubHeaders(this.token) },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-    );
+    const resp = await this.http.send({ request: { url: `${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/pulls?${query.toString()}`, method: 'GET', headers: githubHeaders(this.token), idleTimeoutMs: FETCH_TIMEOUT_MS.QUICK, totalDeadlineMs: FETCH_TIMEOUT_MS.QUICK } });
     const json = await readGithubJson<JsonObject[]>(resp);
-    if (!resp.ok || !Array.isArray(json)) return undefined;
+    if (!(resp.status >= 200 && resp.status < 300) || !Array.isArray(json)) return undefined;
     const first = json[0];
     return first && typeof first.html_url === 'string' ? first.html_url : undefined;
   }
@@ -330,9 +280,9 @@ function githubHeaders(token: string | undefined, extra: Record<string, string> 
   };
 }
 
-async function readGithubJson<T>(resp: Response): Promise<T> {
+async function readGithubJson<T>(resp: HttpResponse): Promise<T> {
   try {
-    return (await resp.json()) as T;
+    return JSON.parse(resp.bodyText) as T;
   } catch (cause) {
     throw new Error('GitHub returned a non-JSON response.', { cause });
   }

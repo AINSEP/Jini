@@ -1,0 +1,113 @@
+{
+  "name": "@jini-ai/user-management",
+  "version": "0.2.0",
+  "description": "Runtime-separated user management contracts and Node authentication, authorization, and administration services.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/user-management"
+  },
+  "jini": {
+    "domain": "capability",
+    "kind": "user-management",
+    "runtime": "universal",
+    "entries": {
+      ".": "universal",
+      "./server": "node",
+      "./react": "browser",
+      "./react/testing": "browser"
+    }
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js",
+      "default": "./dist/core/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js",
+      "default": "./dist/server/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js",
+      "default": "./dist/react/index.js"
+    },
+    "./react/testing": {
+      "types": "./dist/react/testing.d.ts",
+      "import": "./dist/react/testing.js",
+      "default": "./dist/react/testing.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "!dist/**/__tests__/**",
+    "!dist/**/*.test.*",
+    "!dist/**/*.map"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "argon2": "^0.44.0",
+    "react": "^18.3.0 || ^19.0.0",
+    "react-dom": "^18.3.0 || ^19.0.0",
+    "@jini-ai/ui": "^0.4.0",
+    "@jini-ai/admin": "^0.4.0",
+    "@jini-ai/agentic": "^0.4.0"
+  },
+  "peerDependenciesMeta": {
+    "argon2": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "@jini-ai/ui": {
+      "optional": true
+    },
+    "@jini-ai/admin": {
+      "optional": true
+    },
+    "@jini-ai/agentic": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^24.0.0",
+    "argon2": "^0.44.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.5.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "jsdom": "^25.0.1",
+    "@jini-ai/ui": "workspace:*",
+    "@jini-ai/admin": "workspace:*",
+    "@jini-ai/agentic": "workspace:*",
+    "@jini-ai/cms": "workspace:*"
+  },
+  "dependencies": {
+    "@jini-ai/core": "workspace:*"
+  }
+}

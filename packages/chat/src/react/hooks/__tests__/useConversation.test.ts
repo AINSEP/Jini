@@ -286,4 +286,115 @@ describe('useConversation', () => {
     expect(result.current.messages).toHaveLength(3);
     expect(transport.calls[0]?.input.history.map((m) => m.content)).toEqual(['earlier turn', 'follow up']);
   });
+
+  /**
+   * Regression suite for the 2026-09-11 reattach investigation: `run.reattach` existed, fully
+   * implemented, with zero callers anywhere in this package or any host — see
+   * `ADS-memory/reports/2026-09-11-wire-reattach.md` (host repo). These prove the user-visible
+   * outcome the mount effect exists for: a subscription that was torn down (browser reload, pane
+   * remount, HMR) resumes streaming into the SAME message instead of staying frozen — not merely
+   * that `transport.reattachRun` was called.
+   */
+  describe('mount-time reattach of an interrupted run', () => {
+    it('reattaches automatically when initialMessages\' last message is a non-terminal assistant run carrying a runId', async () => {
+      const transport = createFakeChatTransport();
+      const seed = [
+        { id: 'u1', role: 'user' as const, content: 'earlier turn' },
+        { id: 'a1', role: 'assistant' as const, content: 'partial reply so far', runId: 'run-9', runStatus: 'running' as const },
+      ];
+      const { result } = renderHook(() => useConversation({ transport, initialMessages: seed }));
+
+      expect(transport.reattachCalls).toHaveLength(1);
+      expect(transport.reattachCalls[0]?.runId).toBe('run-9');
+      // Not a fresh run — `startRun` must never fire for an interrupted one this hook is resuming.
+      expect(transport.calls).toHaveLength(0);
+
+      // The reattached stream resumes into the SAME message the seed named, not a new one.
+      act(() => transport.emit({ kind: 'text', text: ' — and more' }));
+      expect(result.current.messages).toHaveLength(2);
+      expect(result.current.messages[1]).toMatchObject({ id: 'a1', content: ' — and more', runStatus: 'running' });
+
+      act(() => transport.finish());
+      expect(result.current.messages[1]!.runStatus).toBe('succeeded');
+    });
+
+    it('seeds state from the stub\'s own events before any new event arrives', () => {
+      const transport = createFakeChatTransport();
+      const seed = [
+        { id: 'u1', role: 'user' as const, content: 'earlier turn' },
+        {
+          id: 'a1',
+          role: 'assistant' as const,
+          content: 'so far',
+          events: [{ kind: 'text' as const, text: 'so far' }],
+          runId: 'run-9',
+          runStatus: 'running' as const,
+        },
+      ];
+      const { result } = renderHook(() => useConversation({ transport, initialMessages: seed }));
+
+      expect(transport.reattachCalls[0]?.runId).toBe('run-9');
+      // Reconciled from the seeded events immediately, before any live delta — otherwise the pane
+      // would flash empty for a beat between mount and the first new event.
+      expect(result.current.messages[1]).toMatchObject({ content: 'so far' });
+    });
+
+    it.each(['succeeded', 'failed', 'canceled'] as const)(
+      'does NOT reattach once the run has already reached a terminal status (%s)',
+      (runStatus) => {
+        const transport = createFakeChatTransport();
+        const seed = [
+          { id: 'u1', role: 'user' as const, content: 'earlier turn' },
+          { id: 'a1', role: 'assistant' as const, content: 'done', runId: 'run-9', runStatus },
+        ];
+        renderHook(() => useConversation({ transport, initialMessages: seed }));
+        expect(transport.reattachCalls).toHaveLength(0);
+      },
+    );
+
+    it('does NOT reattach when there is no runId, no runStatus, an empty transcript, or the last message is a user turn', () => {
+      const cases: (Parameters<typeof useConversation>[0]['initialMessages'] & object)[] = [
+        [],
+        [{ id: 'u1', role: 'user', content: 'hi' }],
+        [{ id: 'a1', role: 'assistant', content: 'queued but no id yet', runStatus: 'queued' }],
+        [{ id: 'a1', role: 'assistant', content: 'id but no status at all', runId: 'run-9' }],
+      ];
+      for (const initialMessages of cases) {
+        const transport = createFakeChatTransport();
+        renderHook(() => useConversation({ transport, initialMessages }));
+        expect(transport.reattachCalls, JSON.stringify(initialMessages)).toHaveLength(0);
+      }
+    });
+
+    it('fires at most once per mount, even across re-renders', () => {
+      const transport = createFakeChatTransport();
+      const seed = [{ id: 'a1', role: 'assistant' as const, content: '', runId: 'run-9', runStatus: 'running' as const }];
+      const { rerender } = renderHook(
+        (props: { agentId?: string }) => useConversation({ transport, initialMessages: seed, ...props }),
+        { initialProps: {} },
+      );
+      rerender({ agentId: 'some-agent' });
+      rerender({ agentId: 'a-different-agent' });
+      expect(transport.reattachCalls).toHaveLength(1);
+    });
+
+    it('a rejected reattach marks the message failed with the real error, same as a failed fresh run', async () => {
+      const seed = [{ id: 'a1', role: 'assistant' as const, content: '', runId: 'run-9', runStatus: 'running' as const }];
+      const transport = {
+        startRun: vi.fn(),
+        reattachRun: vi.fn().mockRejectedValue(new Error('daemon lost this run — 404')),
+        stopRun: vi.fn(),
+        fetchRunStatus: vi.fn(),
+      } as unknown as ChatTransport;
+      const { result } = renderHook(() => useConversation({ transport, initialMessages: seed }));
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.messages[0]).toMatchObject({ id: 'a1', runStatus: 'failed' });
+      expect(result.current.error?.message).toBe('daemon lost this run — 404');
+    });
+  });
 });

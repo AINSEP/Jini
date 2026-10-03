@@ -29,7 +29,7 @@ import type { CanvasContentWrapperNode } from './canvas-style.js';
 /** Marks the outermost wrapper element this module inserts, so a second call (defensive — the
  *  caller's `load` handler should fire once per mount, but re-entrancy here would otherwise nest a
  *  second copy around the first) detects the existing wrapper and no-ops instead of double-wrapping. */
-const WRAPPER_ROOT_MARKER = 'data-tovu-canvas-wrapper-root';
+const WRAPPER_ROOT_MARKER = 'data-jini-canvas-wrapper-root';
 
 /**
  * Builds one chain level's element and applies its attributes verbatim via `setAttribute` — plain

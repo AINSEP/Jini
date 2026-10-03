@@ -164,20 +164,23 @@ function conformsToKind(value: unknown, kind: ContentTypeFieldKind): boolean {
 }
 
 /**
- * REQ-14/15 — validates a candidate `fieldsJson` payload against a content type's current field
- * schema: envelope shape first (AC-50), then per-key unrecognized-field rejection (AC-22) and
- * kind-conformance (AC-49), then a required-field-missing pass (AC-23).
+ * — validates a candidate `fieldsJson` payload against a content type's current field
+ * schema: envelope shape first, then per-key unrecognized-field rejection and
+ * kind-conformance, then a required-field-missing pass.
  *
  * @complexity O(f) in the number of schema fields plus O(k) in the number of submitted keys.
  * @overallScore 100
+ * See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
  */
 export function validateFieldsAgainstSchema(required: {
   schema: ContentTypeFieldDef[];
   fieldsJson: unknown;
+}, optional: {
   /** The `ext` sub-key this content type's fields live under. Defaults to `"site"` — every existing caller keeps identical behavior unless it opts into a different owner namespace. */
   owner?: string | undefined;
-}): ValidateFieldsResult {
-  const { schema, fieldsJson, owner = "site" } = required;
+} = {}): ValidateFieldsResult {
+  const { schema, fieldsJson } = required;
+  const { owner = "site" } = optional;
 
   const ext = isPlainObject(fieldsJson) ? fieldsJson.ext : undefined;
   const ownerBag = isPlainObject(ext) ? ext[owner] : undefined;

@@ -30,7 +30,7 @@ function separatorBefore(out: string, text: string): string {
  * @param events - The turn's events, in arrival order.
  * @complexity O(total text length).
  */
-export function assistantContentFromEvents(events: readonly AgentEvent[] | undefined): string {
+export function assistantContentFromEvents({ events }: { events: readonly AgentEvent[] | undefined }): string {
   let out = '';
   let stepBoundary = false;
   for (const ev of events ?? []) {
@@ -47,7 +47,7 @@ export function assistantContentFromEvents(events: readonly AgentEvent[] | undef
 }
 
 /** The pre-2026-09-27 rule (plain concatenation), kept only so older saved rows still match. */
-export function legacyAssistantContentFromEvents(events: readonly AgentEvent[] | undefined): string {
+export function legacyAssistantContentFromEvents({ events }: { events: readonly AgentEvent[] | undefined }): string {
   let out = '';
   for (const ev of events ?? []) {
     if (ev.kind === 'text') out += ev.text;

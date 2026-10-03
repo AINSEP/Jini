@@ -78,7 +78,7 @@ test("SharpImageTransformer.transform rejects a malformed GIF that passes this p
 });
 
 test("ImageTransformUnavailableError stays exported and instantiable for environments without 'sharp'", () => {
-  const err = new ImageTransformUnavailableError("the 'sharp' npm package is not installed");
+  const err = new ImageTransformUnavailableError({ message: "the 'sharp' npm package is not installed" });
   assert.ok(err instanceof Error);
   assert.match(err.message, /sharp/i);
 });

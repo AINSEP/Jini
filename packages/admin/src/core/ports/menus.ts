@@ -25,6 +25,20 @@
  * `kind` values (with `AdminMenuCustomTarget` as the `default` arm) is the straightforward way to
  * stay correct.
  *
+ * **Migration hazard, measured 2026-09-05.** This is not merely a style preference — it means an
+ * exhaustive `switch` with NO `default` arm cannot compile against `AdminMenuTarget` at all, and
+ * that is exactly the shape a host arrives with. Existing host menu editors' `targetForKind` functions
+ * switch over their own local CLOSED four-member
+ * union with no `default`, and rely on exhaustiveness for the return type. Compiling that function
+ * against this port's union emits `TS2366` (lacks ending return statement) plus a `TS2339` per
+ * field access. Confirmed by compiling the real function against this union directly.
+ *
+ * The hazard is pre-existing and belongs to `AdminMenuCustomTarget`, not to any later change: the
+ * identical probe run against the union with and without an extra member emits a character-for-
+ * character identical error set. Recorded here because it will surface the first time anyone wires
+ * a host onto this port, and the natural instinct will be to blame whatever change is in flight at
+ * that moment. The fix is a `default` arm in the host, not a change to this file.
+ *
  * **This is a deliberately deferred decision, not a settled one — record it as such.** `entryRef`/
  * `termRef` encode a host content model (an "entry" and a "taxonomy term" are the reference
  * implementation's own vocabulary for its content system, not a vendor-neutral abstraction this
@@ -38,6 +52,35 @@
  * `termRef`, `url`, nor `route` — at that point there are two real examples to generalize from
  * instead of one, and a genuine vendor-neutral reference shape (rather than another bespoke
  * `kind`-per-host member) becomes the right call.
+ *
+ * ### Status of that trigger, re-checked 2026-09-05 — NOT fired
+ *
+ * A second host now exists in this workspace, and that is NOT the trigger. The trigger is a second
+ * host needing a fifth KIND. Recording the difference here because a promotion was very nearly
+ * approved on the weaker reading. Four findings, all verified against source rather than assumed:
+ *
+ * 1. **Zero importers.** Nothing anywhere imports `AdminMenuTarget`, `NavTargetKind`, or any target
+ *    variant from this package. In this repo they are re-exported by `core/index.ts` and
+ *    `core/ports/index.ts` and consumed by nothing.
+ * 2. **Both admin apps declare their own.** Each ships a local, *closed*
+ *    `{ kind: "entryRef" | "termRef" | "url" | "route" }` in its own `src/lib/api.ts` — an HTTP
+ *    DTO, not this port. The two are byte-identical to each other: the second is a fork of the
+ *    first, so they are one data point, not two.
+ * 3. **The other `NavTargetKind` is a different type.** `@jini-ai/cms/navigation` exports its own
+ *    `NavTargetKind` (closed, plus a separate `ReservedNavTargetKind`). A host importing that one
+ *    is not exercising this port.
+ * 4. **The union is already open.** `AdminMenuCustomTarget`'s `kind: string & {}` already lets any
+ *    host express any kind today. Nothing is blocked while the decision stays deferred.
+ *
+ * So no fifth kind has been needed, and adding a named generic variant now would be designing from
+ * zero validating examples — the exact failure the paragraph above exists to prevent. Considered
+ * and rejected on 2026-09-05 for that reason. Re-check this section, not the prose above it,
+ * before concluding the trigger has fired.
+ *
+ * Note for whoever revisits: wiring `AdminMenusPort` into a host is the experiment that ANSWERS the
+ * type question, and it is not blocked by it. A host that wires the port and finds
+ * `entryRef`/`termRef` fit vindicates the deferral; one that needs a product/collection kind fires
+ * the trigger with a real second example to design from.
  *
  * ## `deleteMenu` is a two-rung ladder driven by call count, not by `force` alone
  *

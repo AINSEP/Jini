@@ -1,13 +1,13 @@
 /**
  * @module handle
  *
- * `agentHandle('save')` — the attribute props a component spreads onto its root element to
+ * `agentHandle({ handle: 'save' })` — the attribute props a component spreads onto its root element to
  * publish itself under this package's `data-agent-*` markup convention (see
  * `element-handles.ts`), without the caller having to know the attribute names or re-derive the
  * handle-validity rule itself.
  *
  * Deliberately pure data, no DOM: this returns a plain object of string attributes, spreadable by
- * React (`<button {...agentHandle('save')}>`), Vue, Svelte, or any renderer that accepts arbitrary
+ * React (`<button {...agentHandle({ handle: 'save' })}>`), Vue, Svelte, or any renderer that accepts arbitrary
  * attribute props on an element. That is what lets it live in this package's universal root
  * rather than `./dom` — nothing here touches `document` or any browser global.
  */
@@ -52,8 +52,8 @@ export type AgentHandleProps = {
  * @throws If `handle` is not a valid element handle — never publishes a handle a caller (`page.*`
  *   capabilities, `resolveHandleSelector`) could not later resolve.
  */
-export function agentHandle(handle: string, options: AgentHandleOptions = {}): AgentHandleProps {
-  if (!isValidElementHandle(handle)) {
+export function agentHandle({ handle }: { handle: string }, options: AgentHandleOptions = {}): AgentHandleProps {
+  if (!isValidElementHandle({ handle })) {
     throw new Error(
       `invalid element handle "${handle.slice(0, 128)}": `
       + 'handles are lowercase words joined by single hyphens, and are never CSS selectors',
@@ -82,12 +82,14 @@ export function agentHandle(handle: string, options: AgentHandleOptions = {}): A
  * @returns `<base>-<action>`.
  * @complexity O(1).
  */
-export function agentSubHandle(base: string, action: string): string {
+export function agentSubHandle({ base, action }: { base: string; action: string }, _optional: Record<string, never> = {}): string {
   return `${base}-${action}`;
 }
 
 /** What to publish about one sub-element — see {@link agentHandleProps}. */
 export interface AgentHandlePropsOptions extends AgentHandleOptions {
+  /** Host-published base handle. Omit to leave the element unpublished. */
+  readonly base?: string | undefined;
   /**
    * The sub-element's name, appended to `base` via {@link agentSubHandle}. Omit when the element
    * IS `base` — the component's own root.
@@ -117,11 +119,10 @@ export interface AgentHandlePropsOptions extends AgentHandleOptions {
  *   answering to a handle the host never wrote.
  * @complexity O(1).
  */
-export function agentHandleProps(
-  base: string | undefined,
-  options: AgentHandlePropsOptions = {},
+export function agentHandleProps(_required: Record<string, never>, options: AgentHandlePropsOptions = {}
 ): AgentHandleProps | Record<string, never> {
+  const { base } = options;
   if (base === undefined) return {};
-  const { action, ...rest } = options;
-  return agentHandle(action === undefined ? base : agentSubHandle(base, action), rest);
+  const { action, base: _base, ...rest } = options;
+  return agentHandle({ handle: action === undefined ? base : agentSubHandle({ base, action }) }, rest);
 }

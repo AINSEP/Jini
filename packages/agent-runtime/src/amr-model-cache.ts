@@ -14,6 +14,7 @@
  * "cheap static preset + slower authoritative remote list" catalog.
  */
 import type { RuntimeModelOption } from './types.js';
+import { coalesceModelLoad } from './model-loading-state.js';
 
 export type AmrModelsResponse = {
   source: 'remote' | 'preset';
@@ -56,9 +57,13 @@ function errorMessage(error: unknown): string {
 export class AmrModelLoadingCache {
   private readonly states = new Map<string, CacheState>();
 
-  constructor(private readonly refreshIntervalMs = DEFAULT_REMOTE_REFRESH_INTERVAL_MS) {}
+  private readonly refreshIntervalMs: number;
 
-  async get(cacheKey: string, fetchers: Fetchers): Promise<AmrModelsResponse> {
+  constructor(_requiredArgs: Record<string, never> = {}, { refreshIntervalMs = DEFAULT_REMOTE_REFRESH_INTERVAL_MS }: { refreshIntervalMs?: number } = {}) {
+    this.refreshIntervalMs = refreshIntervalMs;
+  }
+
+  async get({ cacheKey, fetchers }: { cacheKey: string; fetchers: Fetchers }): Promise<AmrModelsResponse> {
     const state = this.stateFor(cacheKey);
     const now = Date.now();
     if (state.remote) {
@@ -83,7 +88,7 @@ export class AmrModelLoadingCache {
     };
   }
 
-  warm(cacheKey: string, fetchRemote: () => Promise<RuntimeModelOption[]>): void {
+  warm({ cacheKey, fetchRemote }: { cacheKey: string; fetchRemote: () => Promise<RuntimeModelOption[]> }): void {
     this.startRefresh(this.stateFor(cacheKey), fetchRemote);
   }
 
@@ -100,8 +105,7 @@ export class AmrModelLoadingCache {
   }
 
   private startRefresh(state: CacheState, fetchRemote: () => Promise<RuntimeModelOption[]>): void {
-    if (state.inFlight) return;
-    state.inFlight = (async () => {
+    void coalesceModelLoad({ state, load: async () => {
       try {
         const models = await fetchRemote();
         if (models.length === 0) {
@@ -111,10 +115,8 @@ export class AmrModelLoadingCache {
         state.lastRemoteError = null;
       } catch (error) {
         state.lastRemoteError = errorMessage(error);
-      } finally {
-        state.inFlight = null;
       }
-    })();
+    } });
   }
 }
 

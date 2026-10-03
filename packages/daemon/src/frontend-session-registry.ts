@@ -88,7 +88,7 @@ export interface FrontendSessionHandle {
    * Detaches the surface. Every invocation still awaiting it is rejected rather than left pending,
    * so a closed tab surfaces as a failed tool call instead of a run that never finishes.
    */
-  detach(): void;
+  detach(_args: Record<string, never>): void;
 }
 
 export interface FrontendSessionRegistry {
@@ -98,9 +98,7 @@ export interface FrontendSessionRegistry {
    *
    * @throws If `sessionId` is already attached.
    */
-  attach(
-    descriptor: FrontendSessionDescriptor,
-    deliver: (invocation: FrontendInvocation) => void,
+  attach(args: { readonly descriptor: FrontendSessionDescriptor; readonly deliver: (invocation: FrontendInvocation) => void }
   ): FrontendSessionHandle;
   /**
    * Associates a started run with the surface that originated it, so capability calls made by that
@@ -113,7 +111,7 @@ export interface FrontendSessionRegistry {
    * @throws If `sessionId` is not attached. Binding a run to a surface that is already gone would
    * produce calls that hang until their tool timeout instead of failing immediately.
    */
-  bindRun(runId: string, sessionId: string): () => void;
+  bindRun(args: { readonly runId: string; readonly sessionId: string }): () => void;
   /**
    * Binds a run to whichever surface holds `bindToken` — the wire-safe form of {@link bindRun}.
    *
@@ -129,18 +127,14 @@ export interface FrontendSessionRegistry {
    * distinguish "never existed" from "detached" — telling a caller which one it guessed is how a
    * probe learns whether a token is worth retrying.
    */
-  bindRunByToken(runId: string, bindToken: string): () => void;
+  bindRunByToken(args: { readonly runId: string; readonly bindToken: string }): () => void;
   /**
    * Routes one capability call to the surface bound to `runId` and resolves with its output.
    *
    * @throws If no surface is bound to `runId`, if the bound surface does not claim `capabilityId`,
    * if delivery fails, if the surface answers with a refusal, or if `signal` aborts first.
    */
-  invoke(
-    runId: string,
-    capabilityId: string,
-    input: Record<string, unknown>,
-    signal?: AbortSignal,
+  invoke(args: { readonly runId: string; readonly capabilityId: string; readonly input: Record<string, unknown> }, optionalArgs?: { readonly signal?: AbortSignal }
   ): Promise<unknown>;
   /**
    * Settles a pending invocation with the surface's answer.
@@ -148,15 +142,15 @@ export interface FrontendSessionRegistry {
    * @returns `true` if this call settled it; `false` if it was already settled, unknown, or belongs
    * to a different session — the duplicate-answer case, which is a no-op by design.
    */
-  settle(sessionId: string, invocationId: string, outcome: FrontendOutcome): boolean;
+  settle(args: { readonly sessionId: string; readonly invocationId: string; readonly outcome: FrontendOutcome }): boolean;
   /**
    * Capability ids reachable for `runId` right now — empty when nothing is bound. A caller uses
    * this to advertise only what can actually be served, so an agent is never offered a capability
    * that would fail the moment it tried.
    */
-  capabilitiesFor(runId: string): readonly string[];
+  capabilitiesFor(args: { readonly runId: string }): readonly string[];
   /** The surface bound to `runId`, or `undefined` when there is none. */
-  sessionFor(runId: string): FrontendSessionDescriptor | undefined;
+  sessionFor(args: { readonly runId: string }): FrontendSessionDescriptor | undefined;
 }
 
 export interface CreateFrontendSessionRegistryOptions {
@@ -195,9 +189,9 @@ interface AttachedSession {
  * @complexity Every operation is O(1) except `detach`, which is O(p + b) in that surface\'s pending
  * invocations and bound runs.
  */
-export function createFrontendSessionRegistry(
-  options: CreateFrontendSessionRegistryOptions = {},
+export function createFrontendSessionRegistry(requiredArgs: Record<string, never>, optionalArgs: Pick<CreateFrontendSessionRegistryOptions, "newInvocationId" | "newBindToken"> = {}
 ): FrontendSessionRegistry {
+  const options: CreateFrontendSessionRegistryOptions = { ...requiredArgs, ...optionalArgs };
   const newInvocationId = options.newInvocationId ?? randomUUID;
   const newBindToken = options.newBindToken ?? randomUUID;
   const sessions = new Map<string, AttachedSession>();
@@ -251,9 +245,7 @@ export function createFrontendSessionRegistry(
     return session;
   }
 
-  function attach(
-    descriptor: FrontendSessionDescriptor,
-    deliver: (invocation: FrontendInvocation) => void,
+  function attach({ descriptor, deliver }: { readonly descriptor: FrontendSessionDescriptor; readonly deliver: (invocation: FrontendInvocation) => void }
   ): FrontendSessionHandle {
     if (sessions.has(descriptor.sessionId)) {
       throw new Error(`FrontendSessionRegistry: session "${descriptor.sessionId}" is already attached`);
@@ -266,7 +258,7 @@ export function createFrontendSessionRegistry(
     return {
       sessionId: descriptor.sessionId,
       bindToken,
-      detach(): void {
+      detach(_args: Record<string, never>): void {
         // Only tear down state this attachment still owns. A stale handle — one whose attachment
         // already detached and whose session id has since been re-attached — must not remove the
         // replacement or its bindings; the replacement's own token/pending state is not this
@@ -287,7 +279,7 @@ export function createFrontendSessionRegistry(
     };
   }
 
-  function bindRun(runId: string, sessionId: string): () => void {
+  function bindRun({ runId, sessionId }: { readonly runId: string; readonly sessionId: string }): () => void {
     const session = sessions.get(sessionId);
     if (session === undefined) {
       throw new Error(`FrontendSessionRegistry: cannot bind run "${runId}" to unattached session "${sessionId}"`);
@@ -301,7 +293,7 @@ export function createFrontendSessionRegistry(
     };
   }
 
-  function bindRunByToken(runId: string, bindToken: string): () => void {
+  function bindRunByToken({ runId, bindToken }: { readonly runId: string; readonly bindToken: string }): () => void {
     const sessionId = bindTokens.get(bindToken);
     // One message for both "no such token" and "the surface holding it detached". Distinguishing
     // them tells a caller whether a guess was close, which is the feedback a probe needs and the
@@ -309,18 +301,14 @@ export function createFrontendSessionRegistry(
     if (sessionId === undefined) {
       throw new Error(`FrontendSessionRegistry: cannot bind run "${runId}" — unknown or expired bind token`);
     }
-    return bindRun(runId, sessionId);
+    return bindRun({ runId: runId, sessionId: sessionId });
   }
 
   // `async` so that a routing refusal from `resolveTarget` surfaces as a rejected promise like
   // every other failure here. Throwing synchronously out of a Promise-returning function would
   // make `invoke(...).catch(...)` an uncaught exception for exactly the fail-closed cases this
   // registry exists to report.
-  async function invoke(
-    runId: string,
-    capabilityId: string,
-    input: Record<string, unknown>,
-    signal?: AbortSignal,
+  async function invoke({ runId, capabilityId, input }: { readonly runId: string; readonly capabilityId: string; readonly input: Record<string, unknown> }, { signal }: { readonly signal?: AbortSignal } = {}
   ): Promise<unknown> {
     const target = resolveTarget(runId, capabilityId);
     const invocationId = newInvocationId();
@@ -352,7 +340,7 @@ export function createFrontendSessionRegistry(
     });
   }
 
-  function settle(sessionId: string, invocationId: string, outcome: FrontendOutcome): boolean {
+  function settle({ sessionId, invocationId, outcome }: { readonly sessionId: string; readonly invocationId: string; readonly outcome: FrontendOutcome }): boolean {
     const session = sessions.get(sessionId);
     const entry = session?.pending.get(invocationId);
     if (session === undefined || entry === undefined) return false;
@@ -363,12 +351,12 @@ export function createFrontendSessionRegistry(
     return true;
   }
 
-  function sessionFor(runId: string): FrontendSessionDescriptor | undefined {
+  function sessionFor({ runId }: { readonly runId: string }): FrontendSessionDescriptor | undefined {
     return runBindings.get(runId)?.descriptor;
   }
 
-  function capabilitiesFor(runId: string): readonly string[] {
-    return sessionFor(runId)?.capabilities ?? [];
+  function capabilitiesFor({ runId }: { readonly runId: string }): readonly string[] {
+    return sessionFor({ runId: runId })?.capabilities ?? [];
   }
 
   return { attach, bindRun, bindRunByToken, invoke, settle, capabilitiesFor, sessionFor };

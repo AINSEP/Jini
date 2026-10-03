@@ -42,8 +42,8 @@ function makeDeps(overrides: Partial<RunCommandDeps> = {}): RunCommandDeps & { w
   const errWritten: string[] = [];
   return {
     resolveBaseUrl: () => 'http://d.example',
-    write: (text: string) => { written.push(text); },
-    writeErr: (text: string) => { errWritten.push(text); },
+    write: ({ text }: { text: string }) => { written.push(text); },
+    writeErr: ({ text }: { text: string }) => { errWritten.push(text); },
     written,
     errWritten,
     ...overrides,
@@ -52,7 +52,7 @@ function makeDeps(overrides: Partial<RunCommandDeps> = {}): RunCommandDeps & { w
 
 function exitingDeps(overrides: Partial<RunCommandDeps> = {}) {
   const deps = makeDeps(overrides);
-  const exit = vi.fn((code: number): never => { throw new ExitSentinel(code); });
+  const exit = vi.fn(({ code }: { code: number }): never => { throw new ExitSentinel(code); });
   return { ...deps, exit };
 }
 
@@ -60,15 +60,15 @@ describe('runStartCommand', () => {
   it('prints usage and returns for --help without making a request', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await runStartCommand(['--help'], { ...deps, fetchImpl });
+    await runStartCommand({ args: ['--help'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(deps.written.join('')).toContain('Usage:');
   });
 
   it('exits with missing-input when --context-ref is absent', async () => {
     const deps = exitingDeps();
-    await expect(runStartCommand([], deps)).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['missing-input']);
+    await expect(runStartCommand({ args: [], resolveBaseUrl: (deps).resolveBaseUrl }, { ...deps })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['missing-input'] });
   });
 
   it('posts contextRef/agentId/idempotencyKey and prints the JSON result', async () => {
@@ -77,10 +77,7 @@ describe('runStartCommand', () => {
       expect(JSON.parse(String(init?.body))).toEqual({ contextRef: 'ctx-1', agentId: 'agent-1', idempotencyKey: 'key-1' });
       return jsonResponse(201, { run: { id: 'run-1', state: 'running' }, started: true });
     });
-    await runStartCommand(
-      ['--context-ref', 'ctx-1', '--agent-id', 'agent-1', '--idempotency-key', 'key-1'],
-      { ...deps, fetchImpl },
-    );
+    await runStartCommand({ args: ['--context-ref', 'ctx-1', '--agent-id', 'agent-1', '--idempotency-key', 'key-1'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(deps.written[0]).toBe(`${JSON.stringify({ run: { id: 'run-1', state: 'running' }, started: true })}\n`);
   });
@@ -91,27 +88,27 @@ describe('runStartCommand', () => {
       expect(JSON.parse(String(init?.body))).toEqual({ contextRef: 'ctx-1' });
       return jsonResponse(201, { ok: true });
     });
-    await runStartCommand(['--context-ref', 'ctx-1'], { ...deps, fetchImpl });
+    await runStartCommand({ args: ['--context-ref', 'ctx-1'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
   });
 
   it('accepts "-h" as a --help alias', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await runStartCommand(['-h'], { ...deps, fetchImpl });
+    await runStartCommand({ args: ['-h'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('honors caller-supplied exitCodes on a missing-input error', async () => {
     const deps = exitingDeps({ exitCodes: { 'missing-input': 99 } });
-    await expect(runStartCommand([], deps)).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(99);
+    await expect(runStartCommand({ args: [], resolveBaseUrl: (deps).resolveBaseUrl }, { ...deps })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: 99 });
   });
 
   it('defaults write/writeErr/exit/fetchImpl to their process-global counterparts when nothing is injected', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(201, { ok: true }) as Response);
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
-      await runStartCommand(['--context-ref', 'ctx-1'], { resolveBaseUrl: () => 'http://d.example' });
+      await runStartCommand({ args: ['--context-ref', 'ctx-1'], resolveBaseUrl: () => 'http://d.example' });
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       expect(stdoutSpy).toHaveBeenCalledWith(`${JSON.stringify({ ok: true })}\n`);
     } finally {
@@ -123,7 +120,7 @@ describe('runStartCommand', () => {
   it('prints --help usage via process.stdout.write when no write is injected', async () => {
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
-      await runStartCommand(['--help'], { resolveBaseUrl: () => 'http://d.example' });
+      await runStartCommand({ args: ['--help'], resolveBaseUrl: () => 'http://d.example' });
       expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Usage:'));
     } finally {
       stdoutSpy.mockRestore();
@@ -133,7 +130,7 @@ describe('runStartCommand', () => {
   it('passes exit/exitCodes through transportOptions on a success path when both are set', async () => {
     const deps = makeDeps({ exit: vi.fn() as never, exitCodes: { custom: 5 } });
     const fetchImpl = vi.fn(async () => jsonResponse(201, { ok: true }));
-    await runStartCommand(['--context-ref', 'ctx-1'], { ...deps, fetchImpl });
+    await runStartCommand({ args: ['--context-ref', 'ctx-1'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -143,7 +140,7 @@ describe('runStartCommand', () => {
       throw new ExitSentinel(code ?? 0);
     }) as never);
     try {
-      await expect(runStartCommand([], { resolveBaseUrl: () => 'http://d.example' })).rejects.toThrow(ExitSentinel);
+      await expect(runStartCommand({ args: [], resolveBaseUrl: () => 'http://d.example' })).rejects.toThrow(ExitSentinel);
       expect(stderrSpy).toHaveBeenCalled();
       expect(exitSpy).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['missing-input']);
     } finally {
@@ -157,7 +154,7 @@ describe('runListCommand', () => {
   it('prints usage and returns for --help without making a request', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await runListCommand(['--help'], { ...deps, fetchImpl });
+    await runListCommand({ args: ['--help'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -167,7 +164,7 @@ describe('runListCommand', () => {
       expect(url).toBe('http://d.example/api/runs');
       return jsonResponse(200, { runs: [] });
     });
-    await runListCommand([], { ...deps, fetchImpl });
+    await runListCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(deps.written[0]).toBe(`${JSON.stringify({ runs: [] })}\n`);
   });
 
@@ -177,20 +174,20 @@ describe('runListCommand', () => {
       expect(url).toBe('http://d.example/api/runs?contextRef=ctx%201');
       return jsonResponse(200, { runs: [{ id: 'run-1' }] });
     });
-    await runListCommand(['--context-ref', 'ctx 1'], { ...deps, fetchImpl });
+    await runListCommand({ args: ['--context-ref', 'ctx 1'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
   });
 
   it('accepts "-h" as a --help alias', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await runListCommand(['-h'], { ...deps, fetchImpl });
+    await runListCommand({ args: ['-h'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('prints --help usage via process.stdout.write when no write is injected', async () => {
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
-      await runListCommand(['--help'], { resolveBaseUrl: () => 'http://d.example' });
+      await runListCommand({ args: ['--help'], resolveBaseUrl: () => 'http://d.example' });
       expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Usage:'));
     } finally {
       stdoutSpy.mockRestore();
@@ -202,21 +199,21 @@ describe('runGetCommand', () => {
   it('prints usage and returns for --help without making a request', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await runGetCommand(['--help'], { ...deps, fetchImpl });
+    await runGetCommand({ args: ['--help'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(deps.written.join('')).toContain('Usage:');
   });
 
   it('exits with missing-input when runId is absent', async () => {
     const deps = exitingDeps();
-    await expect(runGetCommand([], deps)).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['missing-input']);
+    await expect(runGetCommand({ args: [], resolveBaseUrl: (deps).resolveBaseUrl }, { ...deps })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['missing-input'] });
   });
 
   it('treats an empty-string runId the same as a missing one', async () => {
     const deps = exitingDeps();
-    await expect(runGetCommand([''], deps)).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['missing-input']);
+    await expect(runGetCommand({ args: [''], resolveBaseUrl: (deps).resolveBaseUrl }, { ...deps })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['missing-input'] });
   });
 
   it('GETs /api/runs/:runId and prints the JSON result', async () => {
@@ -225,7 +222,7 @@ describe('runGetCommand', () => {
       expect(url).toBe('http://d.example/api/runs/run-1');
       return jsonResponse(200, { run: { id: 'run-1', state: 'running' } });
     });
-    await runGetCommand(['run-1'], { ...deps, fetchImpl });
+    await runGetCommand({ args: ['run-1'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(deps.written[0]).toBe(`${JSON.stringify({ run: { id: 'run-1', state: 'running' } })}\n`);
   });
@@ -236,26 +233,26 @@ describe('runGetCommand', () => {
       expect(url).toBe('http://d.example/api/runs/run%2Fid');
       return jsonResponse(200, {});
     });
-    await runGetCommand(['run/id'], { ...deps, fetchImpl });
+    await runGetCommand({ args: ['run/id'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
   });
 
   it('accepts "-h" as a --help alias', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await runGetCommand(['-h'], { ...deps, fetchImpl });
+    await runGetCommand({ args: ['-h'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('exits through the structured-error path on a non-2xx daemon response (e.g. an unknown runId)', async () => {
     const deps = exitingDeps();
     const fetchImpl = vi.fn(async () => jsonResponse(404, { error: { code: 'not-found', message: 'run "missing" was not found' } }));
-    await expect(runGetCommand(['missing'], { ...deps, fetchImpl })).rejects.toThrow(ExitSentinel);
+    await expect(runGetCommand({ args: ['missing'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } })).rejects.toThrow(ExitSentinel);
   });
 
   it('prints --help usage via process.stdout.write when no write is injected', async () => {
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
-      await runGetCommand(['--help'], { resolveBaseUrl: () => 'http://d.example' });
+      await runGetCommand({ args: ['--help'], resolveBaseUrl: () => 'http://d.example' });
       expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Usage:'));
     } finally {
       stdoutSpy.mockRestore();
@@ -268,7 +265,7 @@ describe('runGetCommand', () => {
       throw new ExitSentinel(code ?? 0);
     }) as never);
     try {
-      await expect(runGetCommand([], { resolveBaseUrl: () => 'http://d.example' })).rejects.toThrow(ExitSentinel);
+      await expect(runGetCommand({ args: [], resolveBaseUrl: () => 'http://d.example' })).rejects.toThrow(ExitSentinel);
       expect(stderrSpy).toHaveBeenCalled();
       expect(exitSpy).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['missing-input']);
     } finally {
@@ -282,14 +279,14 @@ describe('runCancelCommand', () => {
   it('prints usage and returns for --help without making a request', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await runCancelCommand(['--help'], { ...deps, fetchImpl });
+    await runCancelCommand({ args: ['--help'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('exits with missing-input when runId is absent', async () => {
     const deps = exitingDeps();
-    await expect(runCancelCommand(['--reason', 'x'], deps)).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['missing-input']);
+    await expect(runCancelCommand({ args: ['--reason', 'x'], resolveBaseUrl: (deps).resolveBaseUrl }, { ...deps })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['missing-input'] });
   });
 
   it('posts to /api/runs/:runId/cancel with an optional reason', async () => {
@@ -299,7 +296,7 @@ describe('runCancelCommand', () => {
       expect(JSON.parse(String(init?.body))).toEqual({ reason: 'cleanup' });
       return jsonResponse(200, { run: { id: 'run-1', state: 'cancelled' } });
     });
-    await runCancelCommand(['run-1', '--reason', 'cleanup'], { ...deps, fetchImpl });
+    await runCancelCommand({ args: ['run-1', '--reason', 'cleanup'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(deps.written[0]).toBe(`${JSON.stringify({ run: { id: 'run-1', state: 'cancelled' } })}\n`);
   });
 
@@ -309,26 +306,26 @@ describe('runCancelCommand', () => {
       expect(url).toBe('http://d.example/api/runs/run%2Fid/cancel');
       return jsonResponse(200, {});
     });
-    await runCancelCommand(['run/id'], { ...deps, fetchImpl });
+    await runCancelCommand({ args: ['run/id'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
   });
 
   it('accepts "-h" as a --help alias', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await runCancelCommand(['-h'], { ...deps, fetchImpl });
+    await runCancelCommand({ args: ['-h'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('treats an empty-string runId the same as a missing one', async () => {
     const deps = exitingDeps();
-    await expect(runCancelCommand([''], deps)).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['missing-input']);
+    await expect(runCancelCommand({ args: [''], resolveBaseUrl: (deps).resolveBaseUrl }, { ...deps })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['missing-input'] });
   });
 
   it('prints --help usage via process.stdout.write when no write is injected', async () => {
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
-      await runCancelCommand(['--help'], { resolveBaseUrl: () => 'http://d.example' });
+      await runCancelCommand({ args: ['--help'], resolveBaseUrl: () => 'http://d.example' });
       expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Usage:'));
     } finally {
       stdoutSpy.mockRestore();
@@ -340,26 +337,26 @@ describe('watchRunEvents / runWatchCommand', () => {
   it('prints usage and returns for --help without making a request', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await runWatchCommand(['--help'], { ...deps, fetchImpl });
+    await runWatchCommand({ args: ['--help'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('exits with missing-input when runId is absent', async () => {
     const deps = exitingDeps();
-    await expect(runWatchCommand([], deps)).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['missing-input']);
+    await expect(runWatchCommand({ args: [], resolveBaseUrl: (deps).resolveBaseUrl }, { ...deps })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['missing-input'] });
   });
 
   it('treats an empty-string runId the same as a missing one', async () => {
     const deps = exitingDeps();
-    await expect(runWatchCommand([''], deps)).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['missing-input']);
+    await expect(runWatchCommand({ args: [''], resolveBaseUrl: (deps).resolveBaseUrl }, { ...deps })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['missing-input'] });
   });
 
   it('accepts "-h" as a --help alias', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await runWatchCommand(['-h'], { ...deps, fetchImpl });
+    await runWatchCommand({ args: ['-h'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -368,7 +365,7 @@ describe('watchRunEvents / runWatchCommand', () => {
     const fetchImpl = vi.fn(async () =>
       sseResponse(200, ['data: not-json-at-all\n\n', sseFrame('c2', 'end')]),
     );
-    await watchRunEvents('http://d.example', 'run-1', [], { ...deps, fetchImpl });
+    await watchRunEvents({ baseUrl: 'http://d.example', runId: 'run-1', args: [] }, { ...deps, fetchImpl });
     expect(deps.written).toHaveLength(2);
     expect(deps.written[0]).toBe('not-json-at-all\n');
   });
@@ -376,7 +373,7 @@ describe('watchRunEvents / runWatchCommand', () => {
   it('silently drops a frame with no "data:" line at all (e.g. an id/event-only heartbeat)', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn(async () => sseResponse(200, ['id: c0\nevent: heartbeat\n\n', sseFrame('c1', 'end')]));
-    await watchRunEvents('http://d.example', 'run-1', [], { ...deps, fetchImpl });
+    await watchRunEvents({ baseUrl: 'http://d.example', runId: 'run-1', args: [] }, { ...deps, fetchImpl });
     // Only the real "end" event was written — the heartbeat-only frame produced no output.
     expect(deps.written).toHaveLength(1);
     expect(JSON.parse(deps.written[0]!)).toEqual({ kind: 'end', opaqueCursor: 'c1' });
@@ -390,8 +387,8 @@ describe('watchRunEvents / runWatchCommand', () => {
       },
     });
     const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, body: stream } as unknown as Response));
-    await expect(watchRunEvents('http://d.example', 'run-1', [], { ...deps, fetchImpl })).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['daemon-not-running']);
+    await expect(watchRunEvents({ baseUrl: 'http://d.example', runId: 'run-1', args: [] }, { ...deps, fetchImpl })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['daemon-not-running'] });
     const combined = deps.errWritten.join('');
     expect(combined).toContain('a plain string stream failure');
   });
@@ -399,7 +396,7 @@ describe('watchRunEvents / runWatchCommand', () => {
   it('prints --help usage via process.stdout.write when no write is injected', async () => {
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
-      await runWatchCommand(['--help'], { resolveBaseUrl: () => 'http://d.example' });
+      await runWatchCommand({ args: ['--help'], resolveBaseUrl: () => 'http://d.example' });
       expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Usage:'));
     } finally {
       stdoutSpy.mockRestore();
@@ -410,7 +407,7 @@ describe('watchRunEvents / runWatchCommand', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseResponse(200, [sseFrame('c1', 'end')]) as Response);
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
-      await watchRunEvents('http://d.example', 'run-1', [], {} as RunCommandDeps);
+      await watchRunEvents({ baseUrl: 'http://d.example', runId: 'run-1', args: [] }, {} as RunCommandDeps);
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       expect(stdoutSpy).toHaveBeenCalled();
     } finally {
@@ -425,7 +422,7 @@ describe('watchRunEvents / runWatchCommand', () => {
       expect(url).toBe('http://d.example/api/runs/run-1/events');
       return sseResponse(200, [sseFrame('c1', 'agent', { data: { text: 'hi' } }), sseFrame('c2', 'end')]);
     });
-    await runWatchCommand(['run-1'], { ...deps, fetchImpl });
+    await runWatchCommand({ args: ['run-1'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(deps.written).toHaveLength(2);
     expect(JSON.parse(deps.written[0]!)).toEqual({ kind: 'agent', opaqueCursor: 'c1', data: { text: 'hi' } });
     expect(JSON.parse(deps.written[1]!)).toEqual({ kind: 'end', opaqueCursor: 'c2' });
@@ -437,7 +434,7 @@ describe('watchRunEvents / runWatchCommand', () => {
       expect((init?.headers as Record<string, string>)['last-event-id']).toBe('c1');
       return sseResponse(200, [sseFrame('c2', 'end')]);
     });
-    await runWatchCommand(['run-1', '--after-cursor', 'c1'], { ...deps, fetchImpl });
+    await runWatchCommand({ args: ['run-1', '--after-cursor', 'c1'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
   });
 
   it('strips terminal control sequences from event data before writing', async () => {
@@ -446,7 +443,7 @@ describe('watchRunEvents / runWatchCommand', () => {
     const fetchImpl = vi.fn(async () =>
       sseResponse(200, [`data: ${JSON.stringify({ kind: 'end', text: escaped })}\n\n`]),
     );
-    await watchRunEvents('http://d.example', 'run-1', [], { ...deps, fetchImpl });
+    await watchRunEvents({ baseUrl: 'http://d.example', runId: 'run-1', args: [] }, { ...deps, fetchImpl });
     expect(deps.written[0]).not.toContain('');
     expect(deps.written[0]).toContain('red');
   });
@@ -454,7 +451,7 @@ describe('watchRunEvents / runWatchCommand', () => {
   it('exits via the structured-error path on a non-ok response', async () => {
     const deps = exitingDeps();
     const fetchImpl = vi.fn(async () => jsonResponse(404, { error: { code: 'not-found', message: 'no such run' } }));
-    await expect(watchRunEvents('http://d.example', 'missing', [], { ...deps, fetchImpl })).rejects.toThrow(ExitSentinel);
+    await expect(watchRunEvents({ baseUrl: 'http://d.example', runId: 'missing', args: [] }, { ...deps, fetchImpl })).rejects.toThrow(ExitSentinel);
   });
 
   it('exits via the structured-error path when the stream never terminates a frame within the buffer cap', async () => {
@@ -467,14 +464,14 @@ describe('watchRunEvents / runWatchCommand', () => {
       },
     });
     const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, body: stream } as unknown as Response));
-    await expect(watchRunEvents('http://d.example', 'run-1', [], { ...deps, fetchImpl })).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['daemon-not-running']);
+    await expect(watchRunEvents({ baseUrl: 'http://d.example', runId: 'run-1', args: [] }, { ...deps, fetchImpl })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['daemon-not-running'] });
   });
 
   it('stops cleanly if the stream closes without ever sending a terminal event', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn(async () => sseResponse(200, [sseFrame('c1', 'agent')]));
-    await watchRunEvents('http://d.example', 'run-1', [], { ...deps, fetchImpl });
+    await watchRunEvents({ baseUrl: 'http://d.example', runId: 'run-1', args: [] }, { ...deps, fetchImpl });
     expect(deps.written).toHaveLength(1);
   });
 });
@@ -484,9 +481,9 @@ describe('registerRunCommands', () => {
     const deps = makeDeps();
     const registry = new CommandRegistry();
     const fetchImpl = vi.fn(async () => jsonResponse(200, { ok: true }));
-    registerRunCommands(registry, { ...deps, fetchImpl });
+    registerRunCommands({ registry, resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
 
-    await registry.dispatch(['run', 'list']);
+    await registry.dispatch({ argv: ['run', 'list'] });
     expect(fetchImpl).toHaveBeenCalledWith('http://d.example/api/runs', expect.anything());
   });
 
@@ -497,32 +494,32 @@ describe('registerRunCommands', () => {
       return jsonResponse(201, { ok: true });
     });
     const registry = new CommandRegistry();
-    registerRunCommands(registry, { ...deps, fetchImpl });
-    await registry.dispatch(['run', 'start', '--context-ref', 'ctx-1']);
+    registerRunCommands({ registry, resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
+    await registry.dispatch({ argv: ['run', 'start', '--context-ref', 'ctx-1'] });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('prints root run usage for a bare "run" with no subcommand', async () => {
     const deps = makeDeps();
     const registry = new CommandRegistry();
-    registerRunCommands(registry, deps);
-    await registry.dispatch(['run']);
+    registerRunCommands({ registry, resolveBaseUrl: (deps).resolveBaseUrl }, { ...deps });
+    await registry.dispatch({ argv: ['run'] });
     expect(deps.written.join('')).toContain('Usage:');
   });
 
   it('prints root run usage for "run --help"', async () => {
     const deps = makeDeps();
     const registry = new CommandRegistry();
-    registerRunCommands(registry, deps);
-    await registry.dispatch(['run', '--help']);
+    registerRunCommands({ registry, resolveBaseUrl: (deps).resolveBaseUrl }, { ...deps });
+    await registry.dispatch({ argv: ['run', '--help'] });
     expect(deps.written.join('')).toContain('Usage:');
   });
 
   it('prints root run usage for "run -h"', async () => {
     const deps = makeDeps();
     const registry = new CommandRegistry();
-    registerRunCommands(registry, deps);
-    await registry.dispatch(['run', '-h']);
+    registerRunCommands({ registry, resolveBaseUrl: (deps).resolveBaseUrl }, { ...deps });
+    await registry.dispatch({ argv: ['run', '-h'] });
     expect(deps.written.join('')).toContain('Usage:');
   });
 
@@ -533,8 +530,8 @@ describe('registerRunCommands', () => {
       return jsonResponse(200, { run: { id: 'run-1' } });
     });
     const registry = new CommandRegistry();
-    registerRunCommands(registry, { ...deps, fetchImpl });
-    await registry.dispatch(['run', 'get', 'run-1']);
+    registerRunCommands({ registry, resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
+    await registry.dispatch({ argv: ['run', 'get', 'run-1'] });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -545,8 +542,8 @@ describe('registerRunCommands', () => {
       return jsonResponse(200, { ok: true });
     });
     const registry = new CommandRegistry();
-    registerRunCommands(registry, { ...deps, fetchImpl });
-    await registry.dispatch(['run', 'cancel', 'run-1']);
+    registerRunCommands({ registry, resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
+    await registry.dispatch({ argv: ['run', 'cancel', 'run-1'] });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -557,25 +554,25 @@ describe('registerRunCommands', () => {
       return sseResponse(200, [sseFrame('c1', 'end')]);
     });
     const registry = new CommandRegistry();
-    registerRunCommands(registry, { ...deps, fetchImpl });
-    await registry.dispatch(['run', 'watch', 'run-1']);
+    registerRunCommands({ registry, resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
+    await registry.dispatch({ argv: ['run', 'watch', 'run-1'] });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('exits with invalid-flag for an unknown "run" subcommand', async () => {
     const deps = exitingDeps();
     const registry = new CommandRegistry();
-    registerRunCommands(registry, deps);
-    await expect(registry.dispatch(['run', 'bogus'])).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['invalid-flag']);
+    registerRunCommands({ registry, resolveBaseUrl: (deps).resolveBaseUrl }, { ...deps });
+    await expect(registry.dispatch({ argv: ['run', 'bogus'] })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['invalid-flag'] });
   });
 
   it('prints root run usage via process.stdout.write when no write is injected', async () => {
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
       const registry = new CommandRegistry();
-      registerRunCommands(registry, { resolveBaseUrl: () => 'http://d.example' });
-      await registry.dispatch(['run']);
+      registerRunCommands({ registry, resolveBaseUrl: () => 'http://d.example' });
+      await registry.dispatch({ argv: ['run'] });
       expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Usage:'));
     } finally {
       stdoutSpy.mockRestore();

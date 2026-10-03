@@ -53,14 +53,14 @@ export interface CanvasEmbedPlaceholderDescriptor {
 /** Marks a placeholder card's own root, so a later pass (this function called again, or a re-entrant
  *  `load`) can recognize an already-decorated marker via `el.closest` and skip it — see this file's
  *  header. */
-const CARD_ROOT_MARKER = 'data-tovu-embed-placeholder-root';
+const CARD_ROOT_MARKER = 'data-jini-embed-placeholder-root';
 
 /** Flags every child the card itself builds (icon, text), so the one unflagged child is always the
  *  marker. {@link OVERLAY_RULE} and the stale-card check in `removeStaleCards` both rely on it. */
-const CARD_CHROME_MARKER = 'data-tovu-embed-placeholder-chrome';
+const CARD_CHROME_MARKER = 'data-jini-embed-placeholder-chrome';
 
 /** Identifies the one `<style>` this module adds to the canvas document's `<head>`. */
-const OVERLAY_STYLE_MARKER = 'data-tovu-embed-placeholder-style';
+const OVERLAY_STYLE_MARKER = 'data-jini-embed-placeholder-style';
 
 /**
  * Stretches the (empty) marker over its card as a transparent overlay, so a click anywhere on the card
@@ -88,10 +88,10 @@ const CARD_STYLE = [
   'align-items:flex-start',
   'gap:8px',
   'box-sizing:border-box',
-  'border:2px dashed #f59e0b',
+  'border:2px dashed var(--jini-warning)',
   'border-radius:8px',
-  'background:#1f2937',
-  'color:#f9fafb',
+  'background:var(--jini-surface)',
+  'color:var(--jini-text)',
   'padding:10px 12px',
   "font:13px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
 ].join(';');
@@ -107,7 +107,7 @@ function buildPlaceholderIcon(doc: Document): SVGSVGElement {
   icon.setAttribute('height', '18');
   icon.setAttribute('viewBox', '0 0 24 24');
   icon.setAttribute('fill', 'none');
-  icon.setAttribute('stroke', '#f59e0b');
+  icon.setAttribute('stroke', 'var(--jini-warning)');
   icon.setAttribute('stroke-width', '2');
   icon.setAttribute('style', 'flex-shrink:0;margin-top:1px;');
 

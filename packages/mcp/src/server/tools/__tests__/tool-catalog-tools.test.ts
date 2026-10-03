@@ -17,25 +17,25 @@ describe('TOOL_CATALOG_TOOLS', () => {
 
 describe('searchToolsTool', () => {
   it('requires query', async () => {
-    await expect(searchToolsTool.handler({}, ctx)).rejects.toThrow('query is required (string).');
+    await expect(searchToolsTool.handler({ args: {}, ctx: ctx })).rejects.toThrow('query is required (string).');
   });
 
   it('omits limit from the query string when not supplied', async () => {
     getDaemonJson.mockResolvedValueOnce({ hits: [] });
-    await searchToolsTool.handler({ query: 'navigate page' }, ctx);
-    expect(getDaemonJson).toHaveBeenCalledWith('http://d.example', '/api/tools/search?q=navigate+page', { fetchImpl: ctx.fetchImpl });
+    await searchToolsTool.handler({ args: { query: 'navigate page' }, ctx: ctx });
+    expect(getDaemonJson).toHaveBeenCalledWith({ baseUrl: 'http://d.example', route: '/api/tools/search?q=navigate+page' }, { fetchImpl: ctx.fetchImpl });
   });
 
   it('includes limit in the query string when supplied as a number', async () => {
     getDaemonJson.mockResolvedValueOnce({ hits: [] });
-    await searchToolsTool.handler({ query: 'navigate page', limit: 5 }, ctx);
-    expect(getDaemonJson).toHaveBeenCalledWith('http://d.example', '/api/tools/search?q=navigate+page&limit=5', { fetchImpl: ctx.fetchImpl });
+    await searchToolsTool.handler({ args: { query: 'navigate page', limit: 5 }, ctx: ctx });
+    expect(getDaemonJson).toHaveBeenCalledWith({ baseUrl: 'http://d.example', route: '/api/tools/search?q=navigate+page&limit=5' }, { fetchImpl: ctx.fetchImpl });
   });
 
   it('returns the hits array from the daemon response', async () => {
     const hits = [{ id: 'page.fill', description: 'Fill a field', source: 'engine', score: 0.9 }];
     getDaemonJson.mockResolvedValueOnce({ hits });
-    const result = await searchToolsTool.handler({ query: 'fill' }, ctx);
+    const result = await searchToolsTool.handler({ args: { query: 'fill' }, ctx: ctx });
     expect(result).toBe(hits);
   });
 });
@@ -47,7 +47,7 @@ describe('searchToolsTool.inputSchema limit bounds', () => {
   // anything above MAX_SEARCH_LIMIT, so a schema of bare `type: 'number'` lets
   // arguments through MCP validation that the route then refuses — the caller gets a
   // daemon-side error for input the tool declared acceptable.
-  const tools = buildToolIndex([searchToolsTool]);
+  const tools = buildToolIndex({ tools: [searchToolsTool] });
 
   // These cases assert on whether the daemon was reached at all, so the shared
   // module-level mock must not carry calls in from earlier tests.
@@ -57,7 +57,7 @@ describe('searchToolsTool.inputSchema limit bounds', () => {
 
   async function call(limit: unknown) {
     getDaemonJson.mockResolvedValueOnce({ hits: [] });
-    return handleToolCall('search_tools', { query: 'q', limit }, tools, ctx);
+    return handleToolCall({ name: 'search_tools', tools, ctx }, { rawArgs: { query: 'q', limit } });
   }
 
   it('describes limit as an integer in the range the route actually accepts', () => {
@@ -76,22 +76,20 @@ describe('searchToolsTool.inputSchema limit bounds', () => {
     const result = await call(limit);
     expect(result.isError).toBeUndefined();
     expect(getDaemonJson).toHaveBeenCalledWith(
-      'http://d.example',
-      `/api/tools/search?q=q&limit=${limit}`,
-      { fetchImpl: ctx.fetchImpl },
+      { baseUrl: 'http://d.example', route: `/api/tools/search?q=q&limit=${limit}` }, { fetchImpl: ctx.fetchImpl },
     );
   });
 });
 
 describe('describeToolTool', () => {
   it('requires id', async () => {
-    await expect(describeToolTool.handler({}, ctx)).rejects.toThrow('id is required (string).');
+    await expect(describeToolTool.handler({ args: {}, ctx: ctx })).rejects.toThrow('id is required (string).');
   });
 
   it('fetches the tool descriptor by id, URI-encoded', async () => {
     getDaemonJson.mockResolvedValueOnce({ id: 'page.fill', description: 'Fill a field' });
-    const result = await describeToolTool.handler({ id: 'page.fill' }, ctx);
-    expect(getDaemonJson).toHaveBeenCalledWith('http://d.example', '/api/tools/page.fill', { fetchImpl: ctx.fetchImpl });
+    const result = await describeToolTool.handler({ args: { id: 'page.fill' }, ctx: ctx });
+    expect(getDaemonJson).toHaveBeenCalledWith({ baseUrl: 'http://d.example', route: '/api/tools/page.fill' }, { fetchImpl: ctx.fetchImpl });
     expect(result).toEqual({ id: 'page.fill', description: 'Fill a field' });
   });
 });

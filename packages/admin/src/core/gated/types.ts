@@ -77,19 +77,19 @@ export interface GatedConfirmResult {
  * excludes it is describing the easy case and abandoning the one that matters. Widened rather than
  * documented around.
  *
- * The extra parameters default to `string`, so the simple case still reads
+ * The extra parameters default to objects carrying `token` and `confirmToken`, so the simple case still reads
  * `GatedOperation<PlanInput, Details, Result>` with no change.
  */
 export interface GatedOperation<
-  TPlanInput,
+  TPlanInput extends object,
   TDetails,
   TResult,
-  TConfirmInput = string,
-  TExecuteInput = string,
+  TConfirmInput extends object = { readonly token: string },
+  TExecuteInput extends object = { readonly confirmToken: string },
 > {
   plan(input: TPlanInput): Promise<GatedPlanResult<TDetails>>;
-  /** Takes the plan's `token`, either bare or as one field of an operation-specific object. */
+  /** Takes the plan's `token` as a field of an operation-specific object. */
   confirm(input: TConfirmInput): Promise<GatedConfirmResult>;
-  /** Takes the confirm step's `confirmToken`, bare or within an operation-specific object. */
+  /** Takes the confirm step's `confirmToken` within an operation-specific object. */
   execute(input: TExecuteInput): Promise<TResult>;
 }

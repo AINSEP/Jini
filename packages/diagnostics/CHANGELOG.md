@@ -1,5 +1,25 @@
 # @jini-ai/diagnostics
 
+## 0.4.0 — 2026-10-02
+
+### BREAKING
+
+- Observability clocks and conservative secret patterns come from core; evidence copy is neutral and adapters remain isolated.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased
+
+- **BREAKING:** Remove local `ClockPort`/`DiagnosticsClockPort`; all clocks use `Clock.nowMs()` from `@jini-ai/core/primitives`. Add core as a package dependency.
+- Share the eleven byte-pinned credential patterns with core while retaining all redaction/scanner export names and diagnostics-specific policy. Bundle text and JSON redaction also mask standalone provider credential shapes; ordinary IDs, hashes and paths stay readable.
+- Off-origin evidence copy now says "the inspected origin".
+
+
+- **BREAKING:** All 12 existing root functions now take a required-argument object and, when applicable, a separate optional-settings object. Filesystem, clock, machine snapshot and archive creation use injected ports. `createNodeDiagnosticsPorts({})` supplies the Node/JSZip adapter. Previous positional signatures have no compatibility wrappers; export names and the package version remain unchanged.
+- Complete publication metadata for `./redaction/secrets-only`, `./observability`, `./web-evidence`, `./web-evidence/playwright` and `./domain-dns`, with per-entry runtime declarations. The first three subpaths are universal; the root, browser adapter and DNS checks require Node. Existing exports are retained.
+- Add current API migration documentation and package-wide source-neutrality and export/barrel contract tests. Application-key redaction rules, telemetry SDK adapters, authorization and transport policy remain caller-owned. The earlier integration step required no new dependency; shared kernel adoption above adds core.
+
+- Add secret-only redaction, explicitly configured observability, bounded browser evidence with an optional Playwright subpath, and public DNS/TLS checks. New APIs use required-argument and optional-argument objects with injected ports; existing root exports and version stay unchanged.
+
 ## 0.1.2
 
 ### Patch Changes

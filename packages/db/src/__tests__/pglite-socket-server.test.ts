@@ -8,7 +8,8 @@ import { afterAll as after, afterEach, beforeAll as before, test } from "vitest"
 import { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
 
-import { pgliteLowMemoryStartParams, PGLITE_SOCKET_FILE } from "../pglite/index.js";
+import { pgliteLowMemoryStartParams } from "../pglite/index.js";
+import { PGLITE_SOCKET_FILE } from "../core/index.js";
 import { PgliteSocketServer } from "../pglite/index.js";
 
 /**

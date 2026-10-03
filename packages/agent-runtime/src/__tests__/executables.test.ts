@@ -55,10 +55,10 @@ afterEach(() => {
   // Reset the injectable env-var-name overrides back to the module default
   // between tests — configureExecutableResolutionEnv() mutates shared
   // module state with no reset export of its own.
-  configureExecutableResolutionEnv({
+  configureExecutableResolutionEnv({ overrides: {
     agentHomeEnvVar: 'AGENT_RUNTIME_HOME',
     resourceRootEnvVar: 'AGENT_RUNTIME_RESOURCE_ROOT',
-  });
+  } });
   delete process.env.AGENT_RUNTIME_HOME;
   delete process.env.AGENT_RUNTIME_RESOURCE_ROOT;
   vi.restoreAllMocks();
@@ -66,16 +66,16 @@ afterEach(() => {
 
 describe('agentBinEnvKey', () => {
   it('returns null for an undefined agent id', () => {
-    expect(agentBinEnvKey(undefined)).toBeNull();
+    expect(agentBinEnvKey({ agentId: undefined })).toBeNull();
   });
 
   it('returns null for an unknown agent id', () => {
-    expect(agentBinEnvKey('not-a-real-agent')).toBeNull();
+    expect(agentBinEnvKey({ agentId: 'not-a-real-agent' })).toBeNull();
   });
 
   it('returns the *_BIN key for a known agent id', () => {
-    expect(agentBinEnvKey('cursor-agent')).toBe('CURSOR_AGENT_BIN');
-    expect(agentBinEnvKey('claude')).toBe('CLAUDE_BIN');
+    expect(agentBinEnvKey({ agentId: 'cursor-agent' })).toBe('CURSOR_AGENT_BIN');
+    expect(agentBinEnvKey({ agentId: 'claude' })).toBe('CLAUDE_BIN');
   });
 });
 
@@ -95,12 +95,12 @@ describe('resolveOnPath / agentSearchDirs', () => {
   it('finds a binary added to PATH', () => {
     makeExecutable(path.join(dir, 'my-bin'));
     process.env.PATH = [dir, originalPath].join(path.delimiter);
-    expect(resolveOnPath('my-bin')).toBe(path.join(dir, 'my-bin'));
+    expect(resolveOnPath({ bin: 'my-bin' })).toBe(path.join(dir, 'my-bin'));
   });
 
   it('returns null when the binary is not found anywhere on PATH', () => {
     process.env.PATH = dir;
-    expect(resolveOnPath('totally-nonexistent-binary-xyz')).toBeNull();
+    expect(resolveOnPath({ bin: 'totally-nonexistent-binary-xyz' })).toBeNull();
   });
 
   it('agentSearchDirs de-duplicates PATH entries and includes user toolchain dirs', () => {
@@ -124,7 +124,7 @@ describe('resolveOnPath / agentSearchDirs', () => {
     try {
       makeExecutable(path.join(dir, 'my-bin.EXE'));
       process.env.PATH = dir;
-      expect(resolveOnPath('my-bin')).toBe(path.join(dir, 'my-bin.EXE'));
+      expect(resolveOnPath({ bin: 'my-bin' })).toBe(path.join(dir, 'my-bin.EXE'));
     } finally {
       Object.defineProperty(process, 'platform', { value: originalPlatform });
       // Assigning `undefined` to a process.env key stringifies to the
@@ -145,7 +145,7 @@ describe('userToolchainBinDirs / configureExecutableResolutionEnv', () => {
   });
 
   it('honors a custom agentHomeEnvVar name via configureExecutableResolutionEnv', () => {
-    configureExecutableResolutionEnv({ agentHomeEnvVar: 'MY_CUSTOM_HOME_VAR' });
+    configureExecutableResolutionEnv({ overrides: { agentHomeEnvVar: 'MY_CUSTOM_HOME_VAR' } });
     process.env.MY_CUSTOM_HOME_VAR = '/another/fake/home';
     const dirs = userToolchainBinDirs();
     expect(Array.isArray(dirs)).toBe(true);
@@ -172,7 +172,7 @@ describe('resolveAmrOpenCodeExecutable', () => {
   it('prefers an explicit VELA_OPENCODE_BIN override', () => {
     const bin = path.join(dir, 'opencode');
     makeExecutable(bin);
-    expect(resolveAmrOpenCodeExecutable({ VELA_OPENCODE_BIN: bin })).toBe(bin);
+    expect(resolveAmrOpenCodeExecutable({  }, { env: { VELA_OPENCODE_BIN: bin } })).toBe(bin);
   });
 
   it('falls back to the bundled companion tree under resourceRootEnvVar when no override is set', () => {
@@ -181,7 +181,7 @@ describe('resolveAmrOpenCodeExecutable', () => {
     mkdirSync(companionDir, { recursive: true });
     const companionBin = path.join(companionDir, process.platform === 'win32' ? 'opencode.exe' : 'opencode');
     makeExecutable(companionBin);
-    const result = resolveAmrOpenCodeExecutable({ AGENT_RUNTIME_RESOURCE_ROOT: resourceRoot });
+    const result = resolveAmrOpenCodeExecutable({  }, { env: { AGENT_RUNTIME_RESOURCE_ROOT: resourceRoot } });
     expect(result).toBe(companionBin);
   });
 
@@ -191,7 +191,7 @@ describe('resolveAmrOpenCodeExecutable', () => {
     const originalPath = process.env.PATH;
     process.env.PATH = dir;
     try {
-      expect(resolveAmrOpenCodeExecutable({})).toBe(bin);
+      expect(resolveAmrOpenCodeExecutable({  }, { env: {} })).toBe(bin);
     } finally {
       process.env.PATH = originalPath;
     }
@@ -206,7 +206,7 @@ describe('resolveAmrOpenCodeExecutable', () => {
     process.env.AGENT_RUNTIME_HOME = dir;
     process.env.PATH = dir; // empty dir, nothing installed
     try {
-      expect(resolveAmrOpenCodeExecutable({})).toBeNull();
+      expect(resolveAmrOpenCodeExecutable({  }, { env: {} })).toBeNull();
     } finally {
       process.env.PATH = originalPath;
     }
@@ -226,7 +226,7 @@ describe('inspectAgentExecutableResolution / resolveAgentExecutable', () => {
 
   it('returns all-null when the def has no bin', () => {
     const def = makeDef({ bin: '' });
-    const result = inspectAgentExecutableResolution(def, {});
+    const result = inspectAgentExecutableResolution({ def: def }, { configuredEnv: {} });
     expect(result).toEqual({ configuredOverridePath: null, pathResolvedPath: null, selectedPath: null });
   });
 
@@ -240,7 +240,7 @@ describe('inspectAgentExecutableResolution / resolveAgentExecutable', () => {
     process.env.PATH = path.join(dir, 'path-dir');
     try {
       const def = makeDef({ id: 'claude', bin: 'claude' });
-      const result = resolveAgentExecutable(def, { CLAUDE_BIN: overridePath });
+      const result = resolveAgentExecutable({ def: def }, { configuredEnv: { CLAUDE_BIN: overridePath } });
       expect(result).toBe(overridePath);
     } finally {
       process.env.PATH = originalPath;
@@ -257,7 +257,7 @@ describe('inspectAgentExecutableResolution / resolveAgentExecutable', () => {
     process.env.PATH = dir;
     try {
       const def = makeDef({ id: 'claude', bin: 'claude', fallbackBins: ['claude-fork'] });
-      const result = resolveAgentExecutable(def, {});
+      const result = resolveAgentExecutable({ def: def }, { configuredEnv: {} });
       expect(result).toBe(bin);
     } finally {
       process.env.PATH = originalPath;
@@ -266,7 +266,7 @@ describe('inspectAgentExecutableResolution / resolveAgentExecutable', () => {
 
   it('returns null when nothing resolves at all', () => {
     const def = makeDef({ id: 'claude', bin: 'claude-not-installed-xyz' });
-    expect(resolveAgentExecutable(def, {})).toBeNull();
+    expect(resolveAgentExecutable({ def: def }, { configuredEnv: {} })).toBeNull();
   });
 });
 
@@ -288,7 +288,7 @@ describe('executableFilePath / looksExecutableOnWindows (via resolveAgentExecuta
       const bin = path.join(dir, 'claude.EXE');
       writeFileSync(bin, 'stub', 'utf8');
       const def = makeDef({ id: 'claude', bin: 'claude' });
-      expect(resolveAgentExecutable(def, { CLAUDE_BIN: bin })).toBe(bin);
+      expect(resolveAgentExecutable({ def: def }, { configuredEnv: { CLAUDE_BIN: bin } })).toBe(bin);
     } finally {
       Object.defineProperty(process, 'platform', { value: originalPlatform });
     }
@@ -301,7 +301,7 @@ describe('executableFilePath / looksExecutableOnWindows (via resolveAgentExecuta
       const bin = path.join(dir, 'claude.txt');
       writeFileSync(bin, 'stub', 'utf8');
       const def = makeDef({ id: 'claude', bin: 'claude' });
-      expect(resolveAgentExecutable(def, { CLAUDE_BIN: bin })).toBeNull();
+      expect(resolveAgentExecutable({ def: def }, { configuredEnv: { CLAUDE_BIN: bin } })).toBeNull();
     } finally {
       Object.defineProperty(process, 'platform', { value: originalPlatform });
     }
@@ -314,7 +314,7 @@ describe('executableFilePath / looksExecutableOnWindows (via resolveAgentExecuta
       const bin = path.join(dir, 'claude');
       writeFileSync(bin, 'stub', 'utf8');
       const def = makeDef({ id: 'claude', bin: 'claude' });
-      expect(resolveAgentExecutable(def, { CLAUDE_BIN: bin })).toBeNull();
+      expect(resolveAgentExecutable({ def: def }, { configuredEnv: { CLAUDE_BIN: bin } })).toBeNull();
     } finally {
       Object.defineProperty(process, 'platform', { value: originalPlatform });
     }
@@ -323,27 +323,27 @@ describe('executableFilePath / looksExecutableOnWindows (via resolveAgentExecuta
   it('rejects a path that is not absolute', () => {
     withIsolatedToolchain(dir, () => {
       const def = makeDef({ id: 'claude', bin: 'claude-not-installed-xyz' });
-      expect(resolveAgentExecutable(def, { CLAUDE_BIN: 'relative/path/claude' })).toBeNull();
+      expect(resolveAgentExecutable({ def: def }, { configuredEnv: { CLAUDE_BIN: 'relative/path/claude' } })).toBeNull();
     });
   });
 
   it('rejects a blank configured override value', () => {
     withIsolatedToolchain(dir, () => {
       const def = makeDef({ id: 'claude', bin: 'claude-not-installed-xyz' });
-      expect(resolveAgentExecutable(def, { CLAUDE_BIN: '   ' })).toBeNull();
+      expect(resolveAgentExecutable({ def: def }, { configuredEnv: { CLAUDE_BIN: '   ' } })).toBeNull();
     });
   });
 
   it('rejects a configured override that points at a directory, not a file', () => {
     withIsolatedToolchain(dir, () => {
       const def = makeDef({ id: 'claude', bin: 'claude-not-installed-xyz' });
-      expect(resolveAgentExecutable(def, { CLAUDE_BIN: dir })).toBeNull();
+      expect(resolveAgentExecutable({ def: def }, { configuredEnv: { CLAUDE_BIN: dir } })).toBeNull();
     });
   });
 
   it('rejects a configured override with no matching AGENT_BIN_ENV_KEYS entry', () => {
     const def = makeDef({ id: 'not-a-registered-agent-id', bin: 'whatever-not-installed-xyz' });
-    expect(resolveAgentExecutable(def, {})).toBeNull();
+    expect(resolveAgentExecutable({ def: def }, { configuredEnv: {} })).toBeNull();
   });
 });
 
@@ -362,7 +362,7 @@ describe('packagedBuiltInExecutable (AMR/vela native binary)', () => {
     withIsolatedToolchain(dir, () => {
       process.env.AGENT_RUNTIME_RESOURCE_ROOT = dir;
       const def = makeDef({ id: 'claude', bin: 'claude-not-installed-xyz' });
-      expect(resolveAgentExecutable(def, {})).toBeNull();
+      expect(resolveAgentExecutable({ def: def }, { configuredEnv: {} })).toBeNull();
     });
   });
 
@@ -375,7 +375,7 @@ describe('packagedBuiltInExecutable (AMR/vela native binary)', () => {
       mkdirSync(path.join(dir, 'bin'), { recursive: true });
       makeExecutable(velaBin);
       const def = makeDef({ id: 'amr', bin: 'amr' });
-      const result = resolveAgentExecutable(def, { VELA_OPENCODE_BIN: opencodeBin });
+      const result = resolveAgentExecutable({ def: def }, { configuredEnv: { VELA_OPENCODE_BIN: opencodeBin } });
       expect(result).toBe(velaBin);
     });
   });
@@ -389,14 +389,14 @@ describe('packagedBuiltInExecutable (AMR/vela native binary)', () => {
       const velaBin = path.join(dir, 'bin', 'vela');
       makeExecutable(velaBin);
       const def = makeDef({ id: 'amr', bin: 'amr' });
-      expect(resolveAgentExecutable(def, {})).toBe(velaBin);
+      expect(resolveAgentExecutable({ def: def }, { configuredEnv: {} })).toBe(velaBin);
     });
   });
 
   it('returns null (falls through) when no resourceRoot is configured', () => {
     withIsolatedToolchain(dir, () => {
       const def = makeDef({ id: 'amr', bin: 'amr-not-installed-xyz' });
-      expect(resolveAgentExecutable(def, {})).toBeNull();
+      expect(resolveAgentExecutable({ def: def }, { configuredEnv: {} })).toBeNull();
     });
   });
 
@@ -404,7 +404,7 @@ describe('packagedBuiltInExecutable (AMR/vela native binary)', () => {
     withIsolatedToolchain(dir, () => {
       process.env.AGENT_RUNTIME_RESOURCE_ROOT = dir;
       const def = makeDef({ id: 'amr', bin: 'amr-not-installed-xyz' });
-      expect(resolveAgentExecutable(def, {})).toBeNull();
+      expect(resolveAgentExecutable({ def: def }, { configuredEnv: {} })).toBeNull();
     });
   });
 
@@ -415,7 +415,7 @@ describe('packagedBuiltInExecutable (AMR/vela native binary)', () => {
       makeExecutable(opencodeBin);
       // No bin/vela created at all.
       const def = makeDef({ id: 'amr', bin: 'amr-not-installed-xyz' });
-      expect(resolveAgentExecutable(def, { VELA_OPENCODE_BIN: opencodeBin })).toBeNull();
+      expect(resolveAgentExecutable({ def: def }, { configuredEnv: { VELA_OPENCODE_BIN: opencodeBin } })).toBeNull();
     });
   });
 
@@ -426,7 +426,7 @@ describe('packagedBuiltInExecutable (AMR/vela native binary)', () => {
       makeExecutable(opencodeBin);
       mkdirSync(path.join(dir, 'bin', 'vela'), { recursive: true }); // 'vela' is a dir, not a file
       const def = makeDef({ id: 'amr', bin: 'amr-not-installed-xyz' });
-      expect(resolveAgentExecutable(def, { VELA_OPENCODE_BIN: opencodeBin })).toBeNull();
+      expect(resolveAgentExecutable({ def: def }, { configuredEnv: { VELA_OPENCODE_BIN: opencodeBin } })).toBeNull();
     });
   });
 
@@ -440,7 +440,7 @@ describe('packagedBuiltInExecutable (AMR/vela native binary)', () => {
       writeFileSync(velaBin, 'stub', 'utf8');
       chmodSync(velaBin, 0o600); // no execute bit
       const def = makeDef({ id: 'amr', bin: 'amr-not-installed-xyz' });
-      expect(resolveAgentExecutable(def, { VELA_OPENCODE_BIN: opencodeBin })).toBeNull();
+      expect(resolveAgentExecutable({ def: def }, { configuredEnv: { VELA_OPENCODE_BIN: opencodeBin } })).toBeNull();
     });
   });
 });
@@ -458,14 +458,14 @@ describe('packagedVelaOpenCodeCompanionTree edge cases', () => {
 
   it('returns null when the libexec/opencode directory does not exist', () => {
     withIsolatedToolchain(dir, () => {
-      expect(resolveAmrOpenCodeExecutable({ AGENT_RUNTIME_RESOURCE_ROOT: dir })).toBeNull();
+      expect(resolveAmrOpenCodeExecutable({  }, { env: { AGENT_RUNTIME_RESOURCE_ROOT: dir } })).toBeNull();
     });
   });
 
   it('returns null when libexec/opencode exists but the inner binary is missing', () => {
     mkdirSync(path.join(dir, 'bin', 'libexec', 'opencode'), { recursive: true });
     withIsolatedToolchain(dir, () => {
-      expect(resolveAmrOpenCodeExecutable({ AGENT_RUNTIME_RESOURCE_ROOT: dir })).toBeNull();
+      expect(resolveAmrOpenCodeExecutable({  }, { env: { AGENT_RUNTIME_RESOURCE_ROOT: dir } })).toBeNull();
     });
   });
 
@@ -475,7 +475,7 @@ describe('packagedVelaOpenCodeCompanionTree edge cases', () => {
     mkdirSync(path.join(dir, 'bin', 'libexec'), { recursive: true });
     writeFileSync(path.join(dir, 'bin', 'libexec', 'opencode'), 'not a dir', 'utf8');
     withIsolatedToolchain(dir, () => {
-      expect(resolveAmrOpenCodeExecutable({ AGENT_RUNTIME_RESOURCE_ROOT: dir })).toBeNull();
+      expect(resolveAmrOpenCodeExecutable({  }, { env: { AGENT_RUNTIME_RESOURCE_ROOT: dir } })).toBeNull();
     });
   });
 
@@ -484,7 +484,7 @@ describe('packagedVelaOpenCodeCompanionTree edge cases', () => {
     // specific inner binary path is itself a directory rather than a file.
     mkdirSync(path.join(dir, 'bin', 'libexec', 'opencode', 'opencode'), { recursive: true });
     withIsolatedToolchain(dir, () => {
-      expect(resolveAmrOpenCodeExecutable({ AGENT_RUNTIME_RESOURCE_ROOT: dir })).toBeNull();
+      expect(resolveAmrOpenCodeExecutable({  }, { env: { AGENT_RUNTIME_RESOURCE_ROOT: dir } })).toBeNull();
     });
   });
 });
@@ -511,7 +511,7 @@ describe('win32-specific branches of the AMR/vela companion + built-in resolutio
       mkdirSync(companionDir, { recursive: true });
       writeFileSync(path.join(companionDir, 'opencode.exe'), 'stub', 'utf8');
       withIsolatedToolchain(dir, () => {
-        expect(resolveAmrOpenCodeExecutable({ AGENT_RUNTIME_RESOURCE_ROOT: dir })).toBeNull();
+        expect(resolveAmrOpenCodeExecutable({  }, { env: { AGENT_RUNTIME_RESOURCE_ROOT: dir } })).toBeNull();
       });
     } finally {
       Object.defineProperty(process, 'platform', { value: originalPlatform });
@@ -531,7 +531,7 @@ describe('win32-specific branches of the AMR/vela companion + built-in resolutio
       mkdirSync(companionDir, { recursive: true });
       writeFileSync(path.join(companionDir, 'opencode.exe'), 'stub', 'utf8');
       withIsolatedToolchain(dir, () => {
-        expect(resolveAmrOpenCodeExecutable({ AGENT_RUNTIME_RESOURCE_ROOT: dir })).toBe(
+        expect(resolveAmrOpenCodeExecutable({  }, { env: { AGENT_RUNTIME_RESOURCE_ROOT: dir } })).toBe(
           path.join(companionDir, 'opencode.exe'),
         );
       });
@@ -559,7 +559,7 @@ describe('win32-specific branches of the AMR/vela companion + built-in resolutio
       withIsolatedToolchain(dir, () => {
         process.env.AGENT_RUNTIME_RESOURCE_ROOT = dir;
         const def = makeDef({ id: 'amr', bin: 'amr-not-installed-xyz' });
-        expect(resolveAgentExecutable(def, { VELA_OPENCODE_BIN: opencodeBin })).toBeNull();
+        expect(resolveAgentExecutable({ def: def }, { configuredEnv: { VELA_OPENCODE_BIN: opencodeBin } })).toBeNull();
       });
     } finally {
       Object.defineProperty(process, 'platform', { value: originalPlatform });
@@ -582,7 +582,7 @@ describe('codexAppBundleExecutable (via resolveAgentExecutable)', () => {
 
   it('is a no-op for a non-codex agent id', () => {
     const def = makeDef({ id: 'claude', bin: 'claude-not-installed-xyz' });
-    expect(resolveAgentExecutable(def, {})).toBeNull();
+    expect(resolveAgentExecutable({ def: def }, { configuredEnv: {} })).toBeNull();
   });
 
   it('resolves the user-scoped app-bundle Codex binary on darwin when no PATH/override match exists', () => {
@@ -597,7 +597,7 @@ describe('codexAppBundleExecutable (via resolveAgentExecutable)', () => {
       const originalPath = process.env.PATH;
       process.env.PATH = dir; // nothing named "codex" directly on PATH
       try {
-        expect(resolveAgentExecutable(def, {})).toBe(bundlePath);
+        expect(resolveAgentExecutable({ def: def }, { configuredEnv: {} })).toBe(bundlePath);
       } finally {
         process.env.PATH = originalPath;
       }
@@ -612,7 +612,7 @@ describe('codexAppBundleExecutable (via resolveAgentExecutable)', () => {
     process.env.AGENT_RUNTIME_HOME = dir;
     try {
       const def = makeDef({ id: 'codex', bin: 'codex-not-installed-xyz' });
-      expect(resolveAgentExecutable(def, {})).toBeNull();
+      expect(resolveAgentExecutable({ def: def }, { configuredEnv: {} })).toBeNull();
     } finally {
       Object.defineProperty(process, 'platform', { value: originalPlatform });
     }

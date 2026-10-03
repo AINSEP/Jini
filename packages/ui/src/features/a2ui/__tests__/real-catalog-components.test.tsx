@@ -17,12 +17,12 @@ import { DEFAULT_INTERACTIVE_UI_REGISTRY } from '../../interactive-ui/index.js';
 const SURFACE_ID = 's1';
 
 function setUpSurface(components: unknown[]) {
-  const catalog = buildA2uiCatalogFromRegistry(DEFAULT_INTERACTIVE_UI_REGISTRY, 'merged', { base: createLabCatalog() });
-  const interpreter = createA2uiInterpreter(catalog);
-  interpreter.applyAgentMessage({
+  const catalog = buildA2uiCatalogFromRegistry({ registry: DEFAULT_INTERACTIVE_UI_REGISTRY, catalogId: 'merged' }, { base: createLabCatalog({}) });
+  const interpreter = createA2uiInterpreter({ catalog, clock: { nowMs: () => 1_000 }, ids: { next: () => "fixture-action" } });
+  interpreter.applyAgentMessage({ raw: {
     version: 'v1.0',
     createSurface: { surfaceId: SURFACE_ID, catalogId: 'merged', components },
-  });
+  } });
   return interpreter;
 }
 
@@ -121,7 +121,7 @@ describe('real catalog: DEFAULT_INTERACTIVE_UI_REGISTRY coverage', () => {
   });
 
   it('resolves by capability, e.g. every "chart" provider', () => {
-    const chartEntries = DEFAULT_INTERACTIVE_UI_REGISTRY.resolveByCapability('chart');
+    const chartEntries = DEFAULT_INTERACTIVE_UI_REGISTRY.resolveByCapability({ capability: 'chart' });
     expect(chartEntries.map((entry) => entry.id)).toEqual(['recharts.bar-chart', 'recharts.line-chart', 'recharts.pie-chart']);
   });
 });

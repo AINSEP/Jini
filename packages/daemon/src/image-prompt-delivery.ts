@@ -53,7 +53,7 @@ export interface ImagePromptDelivery {
  * @complexity O(n) in the number of images — one line rendered per path, no I/O.
  * @overallScore 100
  */
-export function augmentPromptWithImageAttachments(prompt: string, imagePaths: readonly string[]): string {
+export function augmentPromptWithImageAttachments({ prompt, imagePaths }: { readonly prompt: string; readonly imagePaths: readonly string[] }): string {
   const list = imagePaths.map((imagePath, index) => `${index + 1}. ${imagePath}`).join('\n');
   const plural = imagePaths.length === 1;
   return (
@@ -77,7 +77,7 @@ export function augmentPromptWithImageAttachments(prompt: string, imagePaths: re
  * @complexity O(n) in the number of images.
  * @overallScore 100
  */
-export function deriveImageAllowedDirs(imagePaths: readonly string[]): string[] {
+export function deriveImageAllowedDirs({ imagePaths }: { readonly imagePaths: readonly string[] }): string[] {
   return [...new Set(imagePaths.map((imagePath) => path.dirname(imagePath)))];
 }
 
@@ -99,11 +99,7 @@ export function deriveImageAllowedDirs(imagePaths: readonly string[]): string[] 
  * @complexity O(n) in the number of images; O(1) when delivery is not `'prompt-path'` or there are no images.
  * @overallScore 100
  */
-export function applyImagePromptDelivery(
-  imageDelivery: RuntimeAgentDef['imageDelivery'],
-  prompt: string,
-  imagePaths: readonly string[] | undefined,
-  extraAllowedDirs: readonly string[] | undefined,
+export function applyImagePromptDelivery({ imageDelivery, prompt, imagePaths, extraAllowedDirs }: { readonly imageDelivery: RuntimeAgentDef['imageDelivery']; readonly prompt: string; readonly imagePaths: readonly string[] | undefined; readonly extraAllowedDirs: readonly string[] | undefined }
 ): ImagePromptDelivery {
   if (imageDelivery !== 'prompt-path') return { prompt, extraAllowedDirs };
 
@@ -111,10 +107,10 @@ export function applyImagePromptDelivery(
   if (paths.length === 0) return { prompt, extraAllowedDirs };
 
   const mergedDirs = new Set(extraAllowedDirs ?? []);
-  for (const dir of deriveImageAllowedDirs(paths)) mergedDirs.add(dir);
+  for (const dir of deriveImageAllowedDirs({ imagePaths: paths })) mergedDirs.add(dir);
 
   return {
-    prompt: augmentPromptWithImageAttachments(prompt, paths),
+    prompt: augmentPromptWithImageAttachments({ prompt: prompt, imagePaths: paths }),
     extraAllowedDirs: [...mergedDirs],
   };
 }

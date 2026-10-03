@@ -20,9 +20,9 @@ export type NowFn = () => number;
  * @returns The activity line's text, or `null` when `active` is false.
  * @complexity O(n) in events per render (memoized on the events array).
  */
-export function useRunActivity(events: readonly AgentEvent[] | undefined, active: boolean, now: NowFn = Date.now): string | null {
+export function useRunActivity({ events, active }: { events: readonly AgentEvent[] | undefined; active: boolean }, { now = Date.now }: { now?: (NowFn) | undefined } = {}): string | null {
   const t = useT();
-  const state = useMemo(() => deriveRunActivity(events), [events]);
+  const state = useMemo(() => deriveRunActivity({ events: events }), [events]);
   const [, setTick] = useState(0);
   const signal = useRef<{ key: string; at: number } | null>(null);
   const visible = useRef<{ count: number; at: number } | null>(null);
@@ -43,9 +43,6 @@ export function useRunActivity(events: readonly AgentEvent[] | undefined, active
   if (visible.current?.count !== state.visibleCount) visible.current = { count: state.visibleCount, at };
   const localSeconds = (at - signal.current.at) / 1000;
   const reported = state.activity.kind === 'running-tool' ? (state.activity.reportedSeconds ?? 0) : 0;
-  return describeRunActivity(
-    state.activity,
-    { seconds: Math.max(localSeconds, reported), idleMs: at - visible.current.at },
-    t,
+  return describeRunActivity({ activity: state.activity, clock: { seconds: Math.max(localSeconds, reported), idleMs: at - visible.current.at }, t: t }
   );
 }

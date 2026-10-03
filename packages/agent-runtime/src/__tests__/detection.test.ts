@@ -73,7 +73,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     mockState.responses.set(JSON.stringify(['models']), { stdout: 'gpt-5 - GPT-5\nsonnet-4 - Sonnet 4\n' });
     mockState.responses.set(JSON.stringify(['status']), { stdout: 'authenticated' });
 
-    const results = await detectAgents(scopedEnv(bin));
+    const results = await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin) });
     const cursor = results.find((a) => a.id === 'cursor-agent')!;
 
     expect(cursor.available).toBe(true);
@@ -103,7 +103,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
   // field, not evidence a real closure was exercised here, and it keeps this
   // test from silently losing coverage if a future def declares one again.
   it("strips antigravity's spawn-orchestration fields out of the registry projection", async () => {
-    const results = await detectAgents(scopedEnv(path.join(dir, 'nonexistent-cursor-agent')));
+    const results = await detectAgents({  }, { configuredEnvByAgent: scopedEnv(path.join(dir, 'nonexistent-cursor-agent')) });
     const antigravity = results.find((a) => a.id === 'antigravity')!;
 
     expect(antigravity).toBeDefined();
@@ -125,7 +125,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     mockState.responses.set(JSON.stringify(['models']), { stdout: 'No models available for this account.' });
     mockState.responses.set(JSON.stringify(['status']), { stdout: 'authenticated' });
 
-    const results = await detectAgents(scopedEnv(bin));
+    const results = await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin) });
     const cursor = results.find((a) => a.id === 'cursor-agent')!;
     expect(cursor.modelsSource).toBe('fallback');
     expect(cursor.models.some((m) => m.id === 'auto')).toBe(true);
@@ -138,7 +138,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     mockState.responses.set(JSON.stringify(['--version']), { stdout: '1.2.3\n' });
     mockState.responses.set(JSON.stringify(['status']), { stdout: 'authenticated' });
     // No --help or models response registered -> both reject with ENOENT.
-    const results = await detectAgents(scopedEnv(bin));
+    const results = await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin) });
     const cursor = results.find((a) => a.id === 'cursor-agent')!;
     expect(cursor.modelsSource).toBe('fallback');
     // probeCapabilities swallows the failure into an empty caps map.
@@ -153,7 +153,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     mockState.responses.set(JSON.stringify(['models']), { stdout: 'No models available for this account.' });
     mockState.responses.set(JSON.stringify(['status']), { stdout: 'Error: not authenticated. Run cursor-agent login.' });
 
-    const results = await detectAgents(scopedEnv(bin));
+    const results = await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin) });
     const cursor = results.find((a) => a.id === 'cursor-agent')!;
     expect(cursor.authStatus).toBe('missing');
     expect(cursor.diagnostics?.[0]?.reason).toBe('auth-missing');
@@ -165,7 +165,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     mockState.responses.set(JSON.stringify(['--version']), {
       error: Object.assign(new Error('EACCES'), { code: 'EACCES' }),
     });
-    const results = await detectAgents(scopedEnv(bin));
+    const results = await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin) });
     const cursor = results.find((a) => a.id === 'cursor-agent')!;
     expect(cursor.available).toBe(false);
     expect(cursor.diagnostics?.[0]?.reason).toBe('not-executable');
@@ -177,7 +177,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     mockState.responses.set(JSON.stringify(['--version']), {
       error: Object.assign(new Error('ENOENT'), { code: 'ENOENT' }),
     });
-    const results = await detectAgents(scopedEnv(bin));
+    const results = await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin) });
     const cursor = results.find((a) => a.id === 'cursor-agent')!;
     expect(cursor.available).toBe(false);
     expect(cursor.diagnostics?.[0]?.reason).toBe('shim-broken');
@@ -189,7 +189,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     mockState.responses.set(JSON.stringify(['--version']), {
       error: Object.assign(new Error('ENOTDIR'), { code: 'ENOTDIR' }),
     });
-    const results = await detectAgents(scopedEnv(bin));
+    const results = await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin) });
     const cursor = results.find((a) => a.id === 'cursor-agent')!;
     expect(cursor.available).toBe(false);
     expect(cursor.diagnostics?.[0]?.reason).toBe('shim-broken');
@@ -201,13 +201,13 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     mockState.responses.set(JSON.stringify(['--version']), {
       error: Object.assign(new Error('exit 126'), { code: 126 }),
     });
-    const results126 = await detectAgents(scopedEnv(bin));
+    const results126 = await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin) });
     expect(results126.find((a) => a.id === 'cursor-agent')!.diagnostics?.[0]?.reason).toBe('not-executable');
 
     mockState.responses.set(JSON.stringify(['--version']), {
       error: Object.assign(new Error('exit 127'), { code: 127 }),
     });
-    const results127 = await detectAgents(scopedEnv(bin));
+    const results127 = await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin) });
     expect(results127.find((a) => a.id === 'cursor-agent')!.diagnostics?.[0]?.reason).toBe('shim-broken');
   });
 
@@ -220,16 +220,16 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     mockState.responses.set(JSON.stringify(['--help']), { stdout: '' });
     mockState.responses.set(JSON.stringify(['models']), { stdout: 'No models available for this account.' });
     mockState.responses.set(JSON.stringify(['status']), { stdout: 'authenticated' });
-    const results = await detectAgents(scopedEnv(bin));
+    const results = await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin) });
     const cursor = results.find((a) => a.id === 'cursor-agent')!;
     expect(cursor.available).toBe(true);
     expect(cursor.version).toBeNull();
   });
 
   it('reports unavailable with a configured-bin-invalid diagnostic when the override points at a missing file', async () => {
-    const results = await detectAgents({
+    const results = await detectAgents({  }, { configuredEnvByAgent: {
       'cursor-agent': { CURSOR_AGENT_BIN: path.join(dir, 'does-not-exist') },
-    });
+    } });
     const cursor = results.find((a) => a.id === 'cursor-agent')!;
     expect(cursor.available).toBe(false);
     expect(cursor.diagnostics?.[0]?.reason).toBe('configured-bin-invalid');
@@ -244,7 +244,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     process.env.AGENT_RUNTIME_HOME = dir;
     process.env.PATH = dir;
     try {
-      const results = await detectAgents({});
+      const results = await detectAgents({  }, { configuredEnvByAgent: {} });
       const cursor = results.find((a) => a.id === 'cursor-agent')!;
       expect(cursor.available).toBe(false);
       expect(cursor.diagnostics?.[0]?.reason).toBe('not-on-path');
@@ -261,8 +261,8 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     mockState.responses.set(JSON.stringify(['--help']), { stdout: '' });
     mockState.responses.set(JSON.stringify(['models']), { stdout: 'gpt-5 - GPT-5\n' });
     mockState.responses.set(JSON.stringify(['status']), { stdout: 'authenticated' });
-    await detectAgents(scopedEnv(bin));
-    expect(getRememberedLiveModels('cursor-agent').some((m) => m.id === 'gpt-5')).toBe(true);
+    await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin) });
+    expect(getRememberedLiveModels({ agentId: 'cursor-agent' }).some((m) => m.id === 'gpt-5')).toBe(true);
   });
 
   it('a def with a fetchModels function (devin, via ACP) surfaces live models from the injected AcpModelProbe', async () => {
@@ -270,15 +270,15 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     makeExecutable(bin);
     mockState.responses.set(JSON.stringify(['--version']), { stdout: '2.0.0\n' });
     const stub = { detectModels: async () => [{ id: 'adaptive', label: 'Adaptive' }] };
-    setAcpModelProbe(stub);
+    setAcpModelProbe({ probe: stub });
     try {
-      const results = await detectAgents({ devin: { DEVIN_BIN: bin } });
+      const results = await detectAgents({  }, { configuredEnvByAgent: { devin: { DEVIN_BIN: bin } } });
       const devin = results.find((a) => a.id === 'devin')!;
       expect(devin.available).toBe(true);
       expect(devin.modelsSource).toBe('live');
       expect(devin.models).toEqual([{ id: 'adaptive', label: 'Adaptive' }]);
     } finally {
-      setAcpModelProbe(null);
+      setAcpModelProbe({ probe: null });
     }
   });
 
@@ -286,14 +286,14 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     const bin = path.join(dir, 'devin');
     makeExecutable(bin);
     mockState.responses.set(JSON.stringify(['--version']), { stdout: '2.0.0\n' });
-    setAcpModelProbe({ detectModels: async () => [] });
+    setAcpModelProbe({ probe: { detectModels: async () => [] } });
     try {
-      const results = await detectAgents({ devin: { DEVIN_BIN: bin } });
+      const results = await detectAgents({  }, { configuredEnvByAgent: { devin: { DEVIN_BIN: bin } } });
       const devin = results.find((a) => a.id === 'devin')!;
       expect(devin.modelsSource).toBe('fallback');
       expect(devin.models.some((m) => m.id === 'adaptive')).toBe(true);
     } finally {
-      setAcpModelProbe(null);
+      setAcpModelProbe({ probe: null });
     }
   });
 
@@ -301,17 +301,17 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     const bin = path.join(dir, 'devin');
     makeExecutable(bin);
     mockState.responses.set(JSON.stringify(['--version']), { stdout: '2.0.0\n' });
-    setAcpModelProbe({
+    setAcpModelProbe({ probe: {
       detectModels: async () => {
         throw new Error('boom');
       },
-    });
+    } });
     try {
-      const results = await detectAgents({ devin: { DEVIN_BIN: bin } });
+      const results = await detectAgents({  }, { configuredEnvByAgent: { devin: { DEVIN_BIN: bin } } });
       const devin = results.find((a) => a.id === 'devin')!;
       expect(devin.modelsSource).toBe('fallback');
     } finally {
-      setAcpModelProbe(null);
+      setAcpModelProbe({ probe: null });
     }
   });
 
@@ -325,8 +325,8 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
       error: new Error('malformed response'),
     });
     const stubResolver: AmrProfileResolver = { resolveProfile: () => 'profile-a' };
-    rememberLiveModels('amr', [{ id: 'remembered-model', label: 'Remembered' }], 'profile-a');
-    const results = await detectAgents({ amr: { VELA_BIN: bin } }, stubResolver);
+    rememberLiveModels({ agentId: 'amr', models: [{ id: 'remembered-model', label: 'Remembered' }] }, { scope: 'profile-a' });
+    const results = await detectAgents({  }, { configuredEnvByAgent: { amr: { VELA_BIN: bin } }, amrProfileResolver: stubResolver });
     const amr = results.find((a) => a.id === 'amr')!;
     expect(amr.modelsSource).toBe('live');
     // getRememberedLiveModels synthesizes label = id (see models.ts).
@@ -341,7 +341,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
       error: new Error('malformed response'),
     });
     const stubResolver: AmrProfileResolver = { resolveProfile: () => 'profile-never-remembered' };
-    const results = await detectAgents({ amr: { VELA_BIN: bin } }, stubResolver);
+    const results = await detectAgents({  }, { configuredEnvByAgent: { amr: { VELA_BIN: bin } }, amrProfileResolver: stubResolver });
     const amr = results.find((a) => a.id === 'amr')!;
     expect(amr.modelsSource).toBe('fallback');
     expect(amr.models).toEqual([]);
@@ -351,7 +351,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     const bin = path.join(dir, 'aider');
     makeExecutable(bin);
     mockState.responses.set(JSON.stringify(['--version']), { stdout: '0.60.0\n' });
-    const results = await detectAgents({ aider: { AIDER_BIN: bin } });
+    const results = await detectAgents({  }, { configuredEnvByAgent: { aider: { AIDER_BIN: bin } } });
     const aider = results.find((a) => a.id === 'aider')!;
     expect(aider.available).toBe(true);
     expect(aider.modelsSource).toBe('fallback');
@@ -375,7 +375,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
         throw new Error('resolver blew up');
       },
     };
-    const results = await detectAgents({ amr: { VELA_BIN: bin } }, throwingResolver);
+    const results = await detectAgents({  }, { configuredEnvByAgent: { amr: { VELA_BIN: bin } }, amrProfileResolver: throwingResolver });
     const amr = results.find((a) => a.id === 'amr')!;
     expect(amr.available).toBe(false);
   });
@@ -387,7 +387,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     mockState.responses.set(JSON.stringify(['model', 'list', '--format', 'json']), {
       stdout: JSON.stringify({ source: 'remote', data: [{ id: 'live-model', object: 'model' }] }),
     });
-    const results = await detectAgents({ amr: { VELA_BIN: bin } });
+    const results = await detectAgents({  }, { configuredEnvByAgent: { amr: { VELA_BIN: bin } } });
     const amr = results.find((a) => a.id === 'amr')!;
     expect(amr.modelsSource).toBe('live');
     expect(amr.models.some((m) => m.id === 'live-model')).toBe(true);
@@ -402,7 +402,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     mockState.responses.set(JSON.stringify(['status']), { stdout: 'authenticated' });
 
     const seenIds: string[] = [];
-    for await (const agent of detectAgentsStream(scopedEnv(bin))) {
+    for await (const agent of detectAgentsStream({  }, { configuredEnvByAgent: scopedEnv(bin) })) {
       seenIds.push(agent.id);
     }
     expect(seenIds.length).toBeGreaterThan(20);
@@ -458,7 +458,7 @@ describe('detectAgents — codex effort options come from the live catalog', () 
     mockState.responses.set(JSON.stringify(['--version']), { stdout: 'codex-cli 0.153.4\n' });
     mockState.responses.set(JSON.stringify(['debug', 'models']), { stdout: catalogStdout });
     mockState.responses.set(JSON.stringify(['login', 'status']), { stdout: 'Logged in' });
-    const results = await detectAgents(codexEnv(bin));
+    const results = await detectAgents({  }, { configuredEnvByAgent: codexEnv(bin) });
     return results.find((a) => a.id === 'codex')!;
   }
 
@@ -510,22 +510,22 @@ describe('probeAgentModels — the model half of detection, for hosts with their
     makeExecutable(bin);
     mockState.responses.set(JSON.stringify(['models']), { stdout: 'gpt-probe-live - GPT Probe\n' });
 
-    const result = await probeAgentModels(cursorDef(), { CURSOR_AGENT_BIN: bin });
+    const result = await probeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: bin } });
 
     expect(result.source).toBe('live');
     expect(result.models.some((m) => m.id === 'gpt-probe-live')).toBe(true);
-    expect(getRememberedLiveModels('cursor-agent').some((m) => m.id === 'gpt-probe-live')).toBe(true);
+    expect(getRememberedLiveModels({ agentId: 'cursor-agent' }).some((m) => m.id === 'gpt-probe-live')).toBe(true);
   });
 
   it('returns fallbackModels when the binary cannot be found', async () => {
-    const result = await probeAgentModels(cursorDef(), { CURSOR_AGENT_BIN: path.join(dir, 'missing') , PATH: dir });
+    const result = await probeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: path.join(dir, 'missing') , PATH: dir } });
     expect(result).toEqual({ models: cursorDef().fallbackModels, source: 'fallback' });
   });
 
   it('returns fallbackModels when the model listing fails', async () => {
     const bin = path.join(dir, 'cursor-agent');
     makeExecutable(bin);
-    const result = await probeAgentModels(cursorDef(), { CURSOR_AGENT_BIN: bin });
+    const result = await probeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: bin } });
     expect(result).toEqual({ models: cursorDef().fallbackModels, source: 'fallback' });
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/cli",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "CLI transport shell for driving a Jini daemon over HTTP: flag parsing, daemon-URL resolution, local daemon discovery, and a pluggable command registry.",
   "license": "Apache-2.0",
   "repository": {
@@ -11,6 +11,10 @@
   "jini": {
     "domain": "server",
     "kind": "cli",
+    "entries": {
+      ".": "node",
+      "./introspection": "universal"
+    },
     "runtime": "node"
   },
   "type": "module",
@@ -22,6 +26,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./introspection": {
+      "types": "./dist/introspection.d.ts",
+      "import": "./dist/introspection.js",
+      "default": "./dist/introspection.js"
     }
   },
   "bin": {
@@ -29,6 +38,9 @@
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -48,6 +60,10 @@
   },
   "dependencies": {
     "@jini-ai/core": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
     "@jini-ai/sidecar": "workspace:*"
+  },
+  "devDependencies": {
+    "commander": "^15.0.0"
   }
 }

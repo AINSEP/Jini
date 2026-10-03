@@ -13,7 +13,6 @@ export const SETTINGS_DIALOG_PL: Record<string, string> = {
   "MCP server": "Serwer MCP",
   "Connect an MCP client. Showing sample output — not yet wired to a live server.": "Połącz klienta MCP. Wyświetlany jest przykładowy wynik — jeszcze niepodłączony do rzeczywistego serwera.",
   "API keys for image, video, and audio generation.": "Klucze API do generowania obrazów, wideo i dźwięku.",
-  "Third-party accounts and APIs via Composio.": "Konta i API innych firm za pośrednictwem Composio.",
   "Memory": "Pamięć",
   "Saved facts and context for future chats.": "Zapisane fakty i kontekst na potrzeby przyszłych rozmów.",
   "External MCP": "Zewnętrzne MCP",

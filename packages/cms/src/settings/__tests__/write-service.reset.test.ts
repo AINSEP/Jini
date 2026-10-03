@@ -4,10 +4,10 @@ import { test } from "vitest";
 import { ForbiddenError } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
 import { resetNamespace, set } from "../write-service.js";
-import { InMemoryPrincipalRepo } from "../../identity/index.js";
+import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import type { SettingDefinitionRecord } from "../types.js";
 
-const clock = { nowIso: () => "2026-07-11T00:00:00.000Z" };
+const clock = { nowMs: () => Date.parse("2026-07-11T00:00:00.000Z")};
 let idCounter = 0;
 const ids = { newId: () => `id-${++idCounter}` };
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
@@ -40,7 +40,7 @@ test("resetNamespace clears every key in the namespace, each with its own op='cl
   const defA = definition("a");
   const defB = definition("b");
   const repo = new InMemorySettingsRepo({ definitions: [defA, defB] });
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
   const deps = { repo, clock, ids, authorize: alwaysAllow, principals };
 
   await set({
@@ -69,7 +69,7 @@ test("resetNamespace clears every key in the namespace, each with its own op='cl
 test("resetNamespace succeeds for a caller holding only settings.reset.workspace, without also holding settings.workspace.write", async () => {
   const defA = definition("a");
   const repo = new InMemorySettingsRepo({ definitions: [defA] });
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
 
   let requestedPermission: string | null = null;
   const trackingAuthorize = async (params: { permission: string }) => {
@@ -85,8 +85,8 @@ test("resetNamespace succeeds for a caller holding only settings.reset.workspace
     ["a"]
   );
 
-  // Only the outer settings.reset.workspace check ran — clear()'s inner
-  // authorize() was skipped (reset-authorized internal context), so the
+  // Only the outer settings.reset.workspace check ran — clear's inner
+  // authorize was skipped (reset-authorized internal context), so the
   // tracking authorize function was never asked for settings.workspace.write.
   assert.equal(requestedPermission, "settings.reset.workspace");
   assert.equal(result.clearedCount, 1);
@@ -95,7 +95,7 @@ test("resetNamespace succeeds for a caller holding only settings.reset.workspace
 test("resetNamespace is rejected FORBIDDEN and clears nothing when the caller lacks settings.reset.*", async () => {
   const defA = definition("a");
   const repo = new InMemorySettingsRepo({ definitions: [defA] });
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
 
   await assert.rejects(
     () =>

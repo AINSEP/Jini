@@ -1,5 +1,77 @@
 # @jini-ai/core
 
+## 0.4.0 — 2026-10-02
+
+### BREAKING
+
+- Canonical primitive ports, JSON/time/HTTP types and tool contracts now live in core; use ./composition instead of ./internal and ./text for untrusted-text handling.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased
+
+- Add browser-safe `pathContains` to `./primitives` for absolute lexical paths, with host-selected case sensitivity and complete directory-segment boundaries.
+
+### Shared registration wiring
+
+- Move the domain-independent catalog/input/schema/risk/confirmation registration kit into the root entry, with its behavior contracts. Domain-specific authorization and denial errors remain outside the kernel.
+- Use the existing named argument surface directly; primitive, Result and tool catalog types remain canonical in core.
+
+
+### Shared kernel
+
+- Add `./primitives` with canonical time, ID, JSON, HTTP, logger and result contracts,
+  system/crypto/console default adapters, and UTC time helpers. No runtime dependencies.
+- Add root agent-tool catalog types, preserving delete as a distinct risk classification.
+- Add `./text` with the unchanged bounded terminal sanitizer and its behavior tests.
+- Expand telemetry redaction to the union of core, CLI and provider rules, with literal
+  exact-secret masking and named extra patterns. Export the eleven diagnostics credential
+  regexes unchanged. Broader opaque/short bearer/header/query rules can mask more input;
+  union vectors and existing category tests document the behavior.
+- Add UTF-8 `timingSafeTokenMatch` with a required injected native comparison port so the
+  kernel stays universal. Both original native comparators have identical results.
+
+### BREAKING — shared kernel
+
+- Rename `./internal` to `./composition` without an alias. Authorized tool invocation and
+  pack binding derivation keep their implementation and security boundary.
+- Gated mutations now require `Clock.nowMs()` and `IdGenerator.newId()` from primitives,
+  replacing the local `ClockPort.nowIso({})` and `IdGeneratorPort.newId({})`. Format clock
+  samples with `nowIso({ clock })`; approval order, TTL and wire timestamps are unchanged.
+- Origin diagnostics use `Pick<Logger, 'warn'>` rather than a duplicate logger interface.
+  The alias name `OriginValidationLoggerPort` remains available with the shared shape.
+
+
+- Add transport-neutral gated mutations with required token generation/TTL and async
+  authorization, identity and token-store ports; preserve verified-plan handoff and
+  single-use redemption, with atomic explicit expiry and duplicate-issuance rejection.
+- Add domain-owned model-facing error allowlists, an instance-owned contribution
+  registry, and bounded naming with required collision, suffix and message policies.
+- Add generalized approval, disclosure, registry and naming contract tests plus a
+  package-wide source-neutrality guard. Verification is deferred by owner directive;
+  the four subpath manifest exports are listed in `extraction-w4a.md` for coordination.
+
+### Extraction integration
+
+- Publish `./gated-mutations`, `./model-facing-tool-errors`, `./contribution-registry`
+  and `./naming`, with universal runtime metadata and matching root barrel exports.
+  These entries implement the earlier manifest follow-ups in `extraction-w4a.md`;
+  no runtime dependency or version change is required.
+- BREAKING: Existing core APIs now accept a required-args object and a separate
+  optional-args object. Tokens, bindings, registry lookups, pack callbacks/lifecycle,
+  redaction, auth/origin helpers, ToolInputError and internal authorization changed
+  shape with no compatibility adapters. Environment snapshots are explicit, origin
+  logging uses a supplied port, and optional handler emitSurface moved to the second
+  argument. Update consumers before adopting this release. Version unchanged.
+- BREAKING: New extraction APIs follow the same convention: contribution
+  `list({})`/`clear({})`, `new InMemoryTokenStore({})`/`count({})`, approval
+  `computePlan({})`, `nowIso({})`, `newId({})` and `generateToken({})`, and marker-error
+  constructors `new ErrorClass({ message }, { cause? })`. `ForbiddenError` additionally
+  requires `reasonCode`; naming exhaustion callbacks receive `{ base, maxAttempts }`.
+  `AuthorizeFn` moves optional `entityType`/`entityId` selectors to its second object.
+- Add package-entry identity, manifest/runtime, approval-port, error-cause and
+  convention contract tests. Extend the source-neutrality guard to the manifest.
+  All verification remains not run (owner directive).
+
 ## 0.1.2
 
 ### Patch Changes

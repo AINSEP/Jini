@@ -13,23 +13,23 @@ describe('claude buildArgs — settingSources', () => {
 
   it('passes --setting-sources with the joined list (empty = none) when the CLI supports it', () => {
     agentCapabilities.set('claude', { settingSources: true });
-    const def = getAgentDef('claude')!;
-    const none = def.buildArgs('', [], [], { settingSources: [] }, {});
+    const def = getAgentDef({ id: 'claude' })!;
+    const none = def.buildArgs({ prompt: '', imagePaths: [] }, { extraAllowedDirs: [], options: { settingSources: [] }, runtimeContext: {} });
     expect(none.slice(none.indexOf('--setting-sources'), none.indexOf('--setting-sources') + 2)).toEqual(['--setting-sources', '']);
-    const some = def.buildArgs('', [], [], { settingSources: ['project', 'local'] }, {});
+    const some = def.buildArgs({ prompt: '', imagePaths: [] }, { extraAllowedDirs: [], options: { settingSources: ['project', 'local'] }, runtimeContext: {} });
     expect(some.slice(some.indexOf('--setting-sources'), some.indexOf('--setting-sources') + 2)).toEqual(['--setting-sources', 'project,local']);
   });
 
   it('omits the flag when unset, and when the probe says the CLI lacks it (an unknown option exits 1)', () => {
     agentCapabilities.set('claude', { settingSources: true });
-    const def = getAgentDef('claude')!;
-    expect(def.buildArgs('', [], [], {}, {})).not.toContain('--setting-sources');
+    const def = getAgentDef({ id: 'claude' })!;
+    expect(def.buildArgs({ prompt: '', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} })).not.toContain('--setting-sources');
     agentCapabilities.set('claude', { settingSources: false });
-    expect(def.buildArgs('', [], [], { settingSources: [] }, {})).not.toContain('--setting-sources');
+    expect(def.buildArgs({ prompt: '', imagePaths: [] }, { extraAllowedDirs: [], options: { settingSources: [] }, runtimeContext: {} })).not.toContain('--setting-sources');
   });
 
   it('probes for the flag in `claude -p --help`', () => {
-    expect(getAgentDef('claude')!.capabilityFlags?.['--setting-sources']).toBe('settingSources');
+    expect(getAgentDef({ id: 'claude' })!.capabilityFlags?.['--setting-sources']).toBe('settingSources');
   });
 });
 
@@ -41,13 +41,13 @@ describe('claude buildArgs — settingSources', () => {
 describe('claude buildArgs — settings', () => {
   it('passes --settings with the value verbatim', () => {
     const json = '{"hooks":{}}';
-    const args = getAgentDef('claude')!.buildArgs('', [], [], { settings: json }, {});
+    const args = getAgentDef({ id: 'claude' })!.buildArgs({ prompt: '', imagePaths: [] }, { extraAllowedDirs: [], options: { settings: json }, runtimeContext: {} });
     expect(args.slice(args.indexOf('--settings'), args.indexOf('--settings') + 2)).toEqual(['--settings', json]);
   });
 
   it('omits the flag when unset or empty', () => {
-    const def = getAgentDef('claude')!;
-    expect(def.buildArgs('', [], [], {}, {})).not.toContain('--settings');
-    expect(def.buildArgs('', [], [], { settings: '' }, {})).not.toContain('--settings');
+    const def = getAgentDef({ id: 'claude' })!;
+    expect(def.buildArgs({ prompt: '', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} })).not.toContain('--settings');
+    expect(def.buildArgs({ prompt: '', imagePaths: [] }, { extraAllowedDirs: [], options: { settings: '' }, runtimeContext: {} })).not.toContain('--settings');
   });
 });

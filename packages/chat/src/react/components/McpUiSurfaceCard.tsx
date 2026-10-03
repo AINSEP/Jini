@@ -118,7 +118,7 @@ function latestResourcesByUri(events: readonly unknown[]): readonly UIResource[]
  * handle that does not, which would take down the whole surface card's render for an otherwise
  * perfectly valid resource), this sanitizes unconditionally: lowercase, collapse every run of
  * disallowed characters to one hyphen, trim the ends. A URI already shaped like
- * `ui://tovu/deployment-execute-static-publish/<uuid>` survives this close to verbatim; this only
+ * `ui://host/deployment-execute-static-publish/<uuid>` survives this close to verbatim; this only
  * has teeth for a producer whose id scheme this package has never seen.
  */
 function pendingMirrorHandle(uri: string): string {
@@ -162,7 +162,7 @@ const UNANSWERED_RESULT = /\b(expired|abandoned|did not respond|run ended)\b/i;
  *
  * A held-open question (the tool shows the card and waits) is over once its tool call returns, and
  * dead once its run ends without that return. Its first document stays on screen either way, so
- * without this an expired, answered or orphaned question still looked answerable (Tovu stuck-chat
+ * without this an expired, answered or orphaned question still looked answerable (host stuck-chat
  * investigation, 2026-09-27). Only a card still showing that FIRST document closes: a tool that sent
  * a follow-up document for the same `ui://` URI (an outcome after the answer) keeps showing it.
  *
@@ -248,10 +248,10 @@ export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLi
  * The ext-event slot key for MCP-UI: one slot per `ui://` URI. Each resource is its own card, so a
  * run's second card renders where it arrived instead of inside the first card's slot, while a
  * re-emitted resource with the same URI still updates its card in place. Pass it as
- * `registerExtEventRenderer(MCP_UI_EXT_EVENT_NAME, renderer, { slotKey: mcpUiSurfaceSlotKey })`
+ * `registerExtEventRenderer({ name: MCP_UI_EXT_EVENT_NAME, renderer }, { slotKey: mcpUiSurfaceSlotKey })`
  * when registering a custom MCP-UI renderer; {@link registerMcpUiSurfaceRenderer} already does.
  */
-export function mcpUiSurfaceSlotKey(data: unknown): string | undefined {
+export function mcpUiSurfaceSlotKey({ data }: { data: unknown }): string | undefined {
   return parseUIResource(data)?.resource.uri;
 }
 
@@ -278,7 +278,7 @@ export function registerMcpUiSurfaceRenderer(options: {
   name?: string;
   maxHeight?: number;
 }): () => void {
-  return registerExtEventRenderer(options.name ?? MCP_UI_EXT_EVENT_NAME, (props) => (
+  return registerExtEventRenderer({ name: options.name ?? MCP_UI_EXT_EVENT_NAME, renderer: (props) => (
     <McpUiSurfaceCard
       {...props}
       sandboxProxyUrl={options.sandboxProxyUrl}
@@ -286,5 +286,5 @@ export function registerMcpUiSurfaceRenderer(options: {
       {...(options.onOpenLink === undefined ? {} : { onOpenLink: options.onOpenLink })}
       {...(options.maxHeight === undefined ? {} : { maxHeight: options.maxHeight })}
     />
-  ), { slotKey: mcpUiSurfaceSlotKey });
+  ) }, { slotKey: mcpUiSurfaceSlotKey });
 }

@@ -32,9 +32,7 @@ export interface UseChatFabDragResult {
 }
 
 /** Keeps a dragged position fully on screen, re-clamped on drag and on viewport resize. */
-export function clampChatFabToViewport(
-  position: ChatFabPosition,
-  size: { width: number; height: number },
+export function clampChatFabToViewport({ position, size }: { position: ChatFabPosition; size: { width: number; height: number } }
 ): ChatFabPosition {
   const maxX = Math.max(CHAT_FAB_EDGE_MARGIN_PX, globalThis.innerWidth - size.width - CHAT_FAB_EDGE_MARGIN_PX);
   const maxY = Math.max(CHAT_FAB_EDGE_MARGIN_PX, globalThis.innerHeight - size.height - CHAT_FAB_EDGE_MARGIN_PX);
@@ -44,7 +42,7 @@ export function clampChatFabToViewport(
   };
 }
 
-export function useChatFabDrag(onClick: () => void): UseChatFabDragResult {
+export function useChatFabDrag({ onClick }: { onClick: () => void }): UseChatFabDragResult {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [position, setPosition] = useState<ChatFabPosition | null>(null);
   const drag = useRef<{ pointerId: number; offsetX: number; offsetY: number; moved: boolean } | null>(null);
@@ -55,7 +53,7 @@ export function useChatFabDrag(onClick: () => void): UseChatFabDragResult {
       if (!element) return;
       setPosition((current) => (current === null
         ? null
-        : clampChatFabToViewport(current, { width: element.offsetWidth, height: element.offsetHeight })));
+        : clampChatFabToViewport({ position: current, size: { width: element.offsetWidth, height: element.offsetHeight } })));
     };
     globalThis.addEventListener('resize', onResize);
     return () => globalThis.removeEventListener('resize', onResize);
@@ -78,9 +76,7 @@ export function useChatFabDrag(onClick: () => void): UseChatFabDragResult {
     const state = drag.current;
     if (state === null || state.pointerId !== event.pointerId) return;
     const element = event.currentTarget;
-    const next = clampChatFabToViewport(
-      { x: event.clientX - state.offsetX, y: event.clientY - state.offsetY },
-      { width: element.offsetWidth, height: element.offsetHeight },
+    const next = clampChatFabToViewport({ position: { x: event.clientX - state.offsetX, y: event.clientY - state.offsetY }, size: { width: element.offsetWidth, height: element.offsetHeight } }
     );
     const rect = element.getBoundingClientRect();
     if (Math.abs(next.x - rect.left) > CHAT_FAB_DRAG_THRESHOLD_PX || Math.abs(next.y - rect.top) > CHAT_FAB_DRAG_THRESHOLD_PX) {

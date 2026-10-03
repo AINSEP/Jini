@@ -14,7 +14,7 @@ describe('createMcpIdleExitController', () => {
     expect(onIdle).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(onIdle).toHaveBeenCalledTimes(1);
-    c.dispose();
+    c.dispose({});
   });
 
   it('noteActivity resets the idle timer', () => {
@@ -22,12 +22,12 @@ describe('createMcpIdleExitController', () => {
     const onIdle = vi.fn();
     const c = createMcpIdleExitController({ idleMs: 1000, onIdle });
     vi.advanceTimersByTime(600);
-    c.noteActivity();
+    c.noteActivity({});
     vi.advanceTimersByTime(600);
     expect(onIdle).not.toHaveBeenCalled();
     vi.advanceTimersByTime(400);
     expect(onIdle).toHaveBeenCalledTimes(1);
-    c.dispose();
+    c.dispose({});
   });
 
   it('defers idle while a request is in flight, then re-arms once it settles', async () => {
@@ -35,7 +35,7 @@ describe('createMcpIdleExitController', () => {
     const onIdle = vi.fn();
     const c = createMcpIdleExitController({ idleMs: 1000, onIdle });
     let resolveFn!: (v: string) => void;
-    const p = c.trackRequest(() => new Promise<string>((r) => { resolveFn = r; }));
+    const p = c.trackRequest({ fn: () => new Promise<string>((r) => { resolveFn = r; }) });
     // Timer fires while the request is still in flight -> re-schedule, no idle.
     vi.advanceTimersByTime(1000);
     expect(onIdle).not.toHaveBeenCalled();
@@ -44,7 +44,7 @@ describe('createMcpIdleExitController', () => {
     // Now idle again from a clean re-arm.
     vi.advanceTimersByTime(1000);
     expect(onIdle).toHaveBeenCalledTimes(1);
-    c.dispose();
+    c.dispose({});
   });
 
   it('does not re-arm while other requests remain in flight', async () => {
@@ -53,8 +53,8 @@ describe('createMcpIdleExitController', () => {
     const c = createMcpIdleExitController({ idleMs: 1000, onIdle });
     let r1!: (v: string) => void;
     let r2!: (v: string) => void;
-    const p1 = c.trackRequest(() => new Promise<string>((r) => { r1 = r; }));
-    const p2 = c.trackRequest(() => new Promise<string>((r) => { r2 = r; }));
+    const p1 = c.trackRequest({ fn: () => new Promise<string>((r) => { r1 = r; }) });
+    const p2 = c.trackRequest({ fn: () => new Promise<string>((r) => { r2 = r; }) });
     r1('a');
     await expect(p1).resolves.toBe('a');
     // One request still in flight, so no idle should be scheduled/fire yet.
@@ -62,17 +62,17 @@ describe('createMcpIdleExitController', () => {
     expect(onIdle).not.toHaveBeenCalled();
     r2('b');
     await expect(p2).resolves.toBe('b');
-    c.dispose();
+    c.dispose({});
   });
 
   it('after dispose, trackRequest runs directly, noteActivity is a no-op, and re-dispose is safe', async () => {
     vi.useFakeTimers();
     const onIdle = vi.fn();
     const c = createMcpIdleExitController({ idleMs: 1000, onIdle });
-    c.dispose();
-    await expect(c.trackRequest(() => 'direct')).resolves.toBe('direct');
-    c.noteActivity();
-    c.dispose();
+    c.dispose({});
+    await expect(c.trackRequest({ fn: () => 'direct' })).resolves.toBe('direct');
+    c.noteActivity({});
+    c.dispose({});
     vi.advanceTimersByTime(5000);
     expect(onIdle).not.toHaveBeenCalled();
   });
@@ -100,7 +100,7 @@ describe('createMcpIdleExitController', () => {
       const c = createMcpIdleExitController({ idleMs: 1, onIdle });
       vi.advanceTimersByTime(1);
       expect(onIdle).toHaveBeenCalledTimes(1);
-      c.dispose();
+      c.dispose({});
     });
 
     it('clamps an excessively large idleMs to the 24h ceiling instead of scheduling an effectively-infinite timer', () => {
@@ -109,7 +109,7 @@ describe('createMcpIdleExitController', () => {
       const c = createMcpIdleExitController({ idleMs: Number.MAX_SAFE_INTEGER, onIdle });
       vi.advanceTimersByTime(24 * 60 * 60 * 1000);
       expect(onIdle).toHaveBeenCalledTimes(1);
-      c.dispose();
+      c.dispose({});
     });
   });
 
@@ -121,12 +121,12 @@ describe('createMcpIdleExitController', () => {
       const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
       setTimeoutSpy.mockClear();
       let resolveFn!: (v: string) => void;
-      const p = c.trackRequest(() => new Promise<string>((r) => { resolveFn = r; }));
+      const p = c.trackRequest({ fn: () => new Promise<string>((r) => { resolveFn = r; }) });
       expect(setTimeoutSpy).not.toHaveBeenCalled();
       resolveFn('done');
       await expect(p).resolves.toBe('done');
       expect(setTimeoutSpy).toHaveBeenCalledTimes(1); // only the completion-triggered reschedule
-      c.dispose();
+      c.dispose({});
     });
 
     it('still defers idle correctly while in flight even without the start-of-request reschedule', () => {
@@ -134,11 +134,11 @@ describe('createMcpIdleExitController', () => {
       const onIdle = vi.fn();
       const c = createMcpIdleExitController({ idleMs: 1000, onIdle });
       let resolveFn!: (v: string) => void;
-      void c.trackRequest(() => new Promise<string>((r) => { resolveFn = r; }));
+      void c.trackRequest({ fn: () => new Promise<string>((r) => { resolveFn = r; }) });
       vi.advanceTimersByTime(1000);
       expect(onIdle).not.toHaveBeenCalled(); // deferred: inFlight > 0 re-arms on fire
       resolveFn('done');
-      c.dispose();
+      c.dispose({});
     });
   });
 });
@@ -157,20 +157,20 @@ describe('isTextualMime', () => {
       'application/xhtml+xml',
       'image/svg+xml',
     ]) {
-      expect(isTextualMime(mime)).toBe(true);
+      expect(isTextualMime({ mime })).toBe(true);
     }
   });
 
   it('rejects binary and absent mimes', () => {
-    expect(isTextualMime('application/octet-stream')).toBe(false);
-    expect(isTextualMime('image/png')).toBe(false);
-    expect(isTextualMime(undefined)).toBe(false);
+    expect(isTextualMime({ mime: 'application/octet-stream' })).toBe(false);
+    expect(isTextualMime({ mime: 'image/png' })).toBe(false);
+    expect(isTextualMime({ mime: undefined })).toBe(false);
   });
 });
 
 describe('extractRelativeRefs', () => {
   it('returns [] for empty text', () => {
-    expect(extractRelativeRefs('', 'index.html', 'text/html')).toEqual([]);
+    expect(extractRelativeRefs({ text: '', fromPath: 'index.html', fromMime: 'text/html' })).toEqual([]);
   });
 
   it('extracts HTML/CSS refs, resolves against a nested dir, and dedupes', () => {
@@ -189,7 +189,7 @@ describe('extractRelativeRefs', () => {
       '<script src="./dup.js"></script>',
       '<script src="dup.js"></script>',
     ].join('\n');
-    const refs = extractRelativeRefs(html, 'pages/index.html', 'text/html');
+    const refs = extractRelativeRefs({ text: html, fromPath: 'pages/index.html', fromMime: 'text/html' });
     expect(refs).toContain('pages/app.js');
     expect(refs).toContain('pages/styles/site.css');
     expect(refs).toContain('img/logo.png'); // rooted "/img/logo.png"
@@ -213,7 +213,7 @@ describe('extractRelativeRefs', () => {
       '.d { background: url(../../escape.png); }',
       '.e { background: url(.); }',
     ].join('\n');
-    const refs = extractRelativeRefs(css, 'styles/main.css', 'text/css');
+    const refs = extractRelativeRefs({ text: css, fromPath: 'styles/main.css', fromMime: 'text/css' });
     expect(refs).toContain('styles/base.css');
     expect(refs).toContain('styles/img/bg.png');
     expect(refs).toContain('shared/x.png'); // ../shared/x.png from styles/
@@ -230,23 +230,23 @@ describe('extractRelativeRefs', () => {
       "export { x } from './x.js';",
       "import 'https://cdn/y.js';",
     ].join('\n');
-    const refs = extractRelativeRefs(js, 'src/index.js', 'application/javascript');
+    const refs = extractRelativeRefs({ text: js, fromPath: 'src/index.js', fromMime: 'application/javascript' });
     expect(refs).toEqual(expect.arrayContaining(['src/a.js', 'src/b/mod.js', 'src/c.js', 'src/d.js', 'src/x.js']));
     expect(refs).not.toContain('https://cdn/y.js');
   });
 
   it('falls back to url() extraction for unknown textual types and a root-level file (empty dir)', () => {
-    const refs = extractRelativeRefs('body { background: url(only.css) }', 'notes.txt', 'text/plain');
+    const refs = extractRelativeRefs({ text: 'body { background: url(only.css) }', fromPath: 'notes.txt', fromMime: 'text/plain' });
     expect(refs).toEqual(['only.css']);
   });
 
   it('selects pattern sets by extension when the mime is blank', () => {
-    expect(extractRelativeRefs('<img src="a.png">', 'page.htm', '')).toEqual(['a.png']);
-    expect(extractRelativeRefs('.a{background:url(a.png)}', 'a.css', '')).toEqual(['a.png']);
-    expect(extractRelativeRefs("import x from './m.tsx'", 'a.tsx', '')).toEqual(['m.tsx']);
+    expect(extractRelativeRefs({ text: '<img src="a.png">', fromPath: 'page.htm', fromMime: '' })).toEqual(['a.png']);
+    expect(extractRelativeRefs({ text: '.a{background:url(a.png)}', fromPath: 'a.css', fromMime: '' })).toEqual(['a.png']);
+    expect(extractRelativeRefs({ text: "import x from './m.tsx'", fromPath: 'a.tsx', fromMime: '' })).toEqual(['m.tsx']);
   });
 
   it('recognizes typescript mime as JS-like', () => {
-    expect(extractRelativeRefs("import x from './m.ts'", 'a.unknownext', 'application/typescript')).toEqual(['m.ts']);
+    expect(extractRelativeRefs({ text: "import x from './m.ts'", fromPath: 'a.unknownext', fromMime: 'application/typescript' })).toEqual(['m.ts']);
   });
 });

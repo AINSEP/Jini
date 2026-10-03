@@ -8,7 +8,7 @@
 // `connectorAuthSnapshotChanged` — generified ports of the exact same
 // reconciliation reducers OD's `connectors-state.ts` module has on
 // its current `main` (confirmed by direct comparison; see
-// `packages/ui/source-map.md`'s provenance note for this feature). This slice
+// `packages/ui/archived provenance ledger`'s provenance note for this feature). This slice
 // imports and reuses those instead of shipping a third near-duplicate copy,
 // per `ADS-memory/reports/jini-port/god-components-extraction-plan.md`'s Consolidation map,
 // which flags this exact overlap and asks each future extraction to check

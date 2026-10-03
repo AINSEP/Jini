@@ -192,32 +192,32 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const [internalSelection, setInternalSelection] = useState<ChatPaneAgentSelection>(
     options.initialSelection ?? { agentId: '' },
   );
-  const workingDirectoryState = useChatPaneWorkingDirectory(definedProps({
+  const workingDirectoryState = useChatPaneWorkingDirectory(definedProps({ source: {
     workingDirectory: options.workingDirectory,
     initialWorkingDirectory: options.initialWorkingDirectory,
     onChangeWorkingDirectory: options.onChangeWorkingDirectory,
     workingDirectoryAccess: options.workingDirectoryAccess,
-  }));
+  } }));
   const requestedSelection = options.selection ?? internalSelection;
   const selection = useMemo(
-    () => resolveChatPaneSelection(options.agents, requestedSelection),
+    () => resolveChatPaneSelection({ agents: options.agents, requested: requestedSelection }),
     [options.agents, requestedSelection],
   );
   const selectedAgent = options.agents.find((agent) => agent.id === selection.agentId);
-  const composer = useComposer(definedProps({
+  const composer = useComposer(definedProps({ source: {
     initialDraft: options.initialDraft,
     initialAgent: selection,
     conversationId: options.conversationId,
     validateAttachments: options.validateAttachments,
-  }));
-  const conversation = useConversation(definedProps({
+  } }));
+  const conversation = useConversation(definedProps({ source: {
     transport: options.transport,
     initialMessages: options.initialMessages,
     conversationId: options.conversationId,
     // Keys off an empty string, not `undefined` — `selection.agentId` is always a string (never
     // absent), so only the falsy "no agent selected" case should omit the key.
     agentId: selection.agentId || undefined,
-  }));
+  } }));
 
   const activity: ChatPaneActivity = resolveChatPaneActivity(selectedAgent, conversation);
 
@@ -260,7 +260,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   ]);
 
   const setSelection = useCallback((next: ChatPaneAgentSelection) => {
-    const validated = resolveChatPaneSelection(options.agents, next);
+    const validated = resolveChatPaneSelection({ agents: options.agents, requested: next });
     setInternalSelection(validated);
     composer.setAgent(validated);
     options.onSelectionChange?.(validated);
@@ -303,7 +303,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
         // ever be captured.
         onAttachment: (attachment, file) => {
           composer.addAttachment(attachment);
-          if (file) cacheAttachmentPreviewSource(attachment.path, file);
+          if (file) cacheAttachmentPreviewSource({ path: attachment.path, file });
         },
         onError: setAttachmentError,
       });
@@ -332,13 +332,13 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     attachmentGenerationRef.current += 1;
     attachmentBatchIdRef.current = createAttachmentBatchId();
     options.onActivityChange?.('queued');
-    await conversation.sendMessage(trimmed, definedProps({
+    await conversation.sendMessage(trimmed, definedProps({ source: {
       agentId: selection.agentId,
       // Omitted when the array is EMPTY, not merely absent — an empty `attachments: []` would be a
       // different (valid, present) value to the transport than "no attachments key at all".
       attachments: attachments.length === 0 ? undefined : attachments,
       context,
-    }));
+    } }));
   }, [
     composer,
     conversation,
@@ -354,7 +354,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     if (!prompt) return;
     // Queue instead of no-op'ing. `setDraft('')` and NOT `composer.reset()`: reset also discards
     // staged attachments, which this turn still needs when it finally goes out.
-    if (isChatPaneQueueableBlocker(sendBlocker)) {
+    if (isChatPaneQueueableBlocker({ blocker: sendBlocker })) {
       queuedConversationIdRef.current = options.conversationId;
       setQueuedPrompt(prompt);
       composer.setDraft('');

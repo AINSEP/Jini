@@ -1,0 +1,54 @@
+{
+  "name": "@jini-ai/cms-forms",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Framework-free configurable form validation, audited definitions, anonymous submissions and notification services with injected host ports.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/cms/forms"
+  },
+  "jini": {
+    "domain": "capability",
+    "kind": "content-model",
+    "runtime": "universal",
+    "entries": {
+      ".": "universal"
+    }
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "!dist/**/__tests__/**",
+    "!dist/**/*.test.*",
+    "!dist/**/*.map"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@jini-ai/cms": "workspace:*",
+    "@jini-ai/core": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^24.0.0"
+  }
+}

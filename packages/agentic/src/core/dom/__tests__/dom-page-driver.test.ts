@@ -47,14 +47,10 @@ let navigated: string[];
 
 function makeDriver(overrides: { currentPage?: string } = {}) {
   navigated = [];
-  return createDomPageDriver({
-    root,
-    pages: {
+  return createDomPageDriver({ root, pages: {
       'agent-lab': { label: 'Agent Lab', navigate: () => navigated.push('agent-lab') },
       signup: { label: 'Signup', navigate: () => navigated.push('signup') },
-    },
-    ...overrides,
-  });
+    } }, { ...overrides });
 }
 
 beforeEach(() => {
@@ -73,7 +69,7 @@ afterEach(() => {
 
 describe('findElements', () => {
   it('lists every tagged element, skipping ones with no usable handle', async () => {
-    const handles = (await makeDriver().findElements({})).map((element) => element.handle);
+    const handles = (await makeDriver().findElements({}, {})).map((element) => element.handle);
     expect(handles).toEqual([
       'save-button',
       'item-water-plants',
@@ -88,47 +84,47 @@ describe('findElements', () => {
   });
 
   it('filters by role', async () => {
-    const found = await makeDriver().findElements({ role: 'checkbox' });
+    const found = await makeDriver().findElements({}, { role: 'checkbox' });
     expect(found.map((element) => element.handle)).toEqual(['item-water-plants']);
   });
 
   it('drops a role the convention does not define rather than reporting it', async () => {
     root.querySelector('[data-agent-element="save-button"]')?.setAttribute('data-agent-role', 'wizard');
-    const found = await makeDriver().findElements({});
+    const found = await makeDriver().findElements({}, {});
     expect(found.find((element) => element.handle === 'save-button')?.role).toBeUndefined();
   });
 
   it('matches a query against both handle and label, case-insensitively', async () => {
-    const byHandle = await makeDriver().findElements({ query: 'WATER' });
+    const byHandle = await makeDriver().findElements({}, { query: 'WATER' });
     expect(byHandle.map((element) => element.handle)).toEqual(['item-water-plants']);
-    const byLabel = await makeDriver().findElements({ query: 'save the draft' });
+    const byLabel = await makeDriver().findElements({}, { query: 'save the draft' });
     expect(byLabel.map((element) => element.handle)).toEqual(['save-button']);
   });
 
   it('falls back to text content when the page tagged an element with no label', async () => {
     const status = root.querySelector('[data-agent-element="status-line"]');
     status?.removeAttribute('data-agent-label');
-    const found = await makeDriver().findElements({ query: 'ready' });
+    const found = await makeDriver().findElements({}, { query: 'ready' });
     // Raw here on purpose — the executor normalizes and bounds it in exactly one place.
     expect(found[0]?.label).toBe('  Ready.  ');
   });
 
   it('reads the showing page live, so navigating changes what elements report', async () => {
     const driver = makeDriver();
-    expect((await driver.findElements({ role: 'button' }))[0]?.page).toBe('agent-lab');
+    expect((await driver.findElements({}, { role: 'button' }))[0]?.page).toBe('agent-lab');
     root.querySelector('[data-agent-page]')?.setAttribute('data-agent-page', 'signup');
-    expect((await driver.findElements({ role: 'button' }))[0]?.page).toBe('signup');
+    expect((await driver.findElements({}, { role: 'button' }))[0]?.page).toBe('signup');
   });
 
   it('honours a page the host pinned, for a surface that never changes view', async () => {
     const driver = makeDriver({ currentPage: 'pinned' });
     root.querySelector('[data-agent-page]')?.setAttribute('data-agent-page', 'signup');
-    expect((await driver.findElements({ role: 'button' }))[0]?.page).toBe('pinned');
+    expect((await driver.findElements({}, { role: 'button' }))[0]?.page).toBe('pinned');
   });
 
   it('reports no page when nothing on the surface is tagged with one', async () => {
     root.querySelector('[data-agent-page]')?.removeAttribute('data-agent-page');
-    expect((await makeDriver().findElements({ role: 'button' }))[0]?.page).toBeUndefined();
+    expect((await makeDriver().findElements({}, { role: 'button' }))[0]?.page).toBeUndefined();
   });
 
   it('does not filter out a display:none element -- discovery is independent of visibility', async () => {
@@ -146,7 +142,7 @@ describe('findElements', () => {
         + 'data-agent-label="Agent-only, not rendered for sighted or screen-reader users" '
         + 'style="display:none"></div>',
     );
-    const found = await makeDriver().findElements({ query: 'hidden-region' });
+    const found = await makeDriver().findElements({}, { query: 'hidden-region' });
     expect(found.map((element) => element.handle)).toEqual(['hidden-region']);
   });
 
@@ -160,7 +156,7 @@ describe('findElements', () => {
       '<div data-agent-element="aria-hidden-region" data-agent-role="status" '
         + 'data-agent-label="Agent-only" aria-hidden="true"></div>',
     );
-    const found = await makeDriver().findElements({ query: 'aria-hidden-region' });
+    const found = await makeDriver().findElements({}, { query: 'aria-hidden-region' });
     expect(found.map((element) => element.handle)).toEqual(['aria-hidden-region']);
   });
 
@@ -174,7 +170,7 @@ describe('findElements', () => {
         <button data-agent-element="settings-btn" data-agent-role="button">Settings</button>
       </section>`,
     );
-    const found = await makeDriver().findElements({});
+    const found = await makeDriver().findElements({}, {});
     const byHandle = Object.fromEntries(found.map((element) => [element.handle, element.page]));
     expect(byHandle['save-button']).toBe('agent-lab');
     expect(byHandle['settings-btn']).toBe('settings');
@@ -190,14 +186,14 @@ describe('findElements', () => {
         <button data-agent-element="settings-btn" data-agent-role="button">Settings</button>
       </section>`,
     );
-    const found = await makeDriver().findElements({ query: 'settings' });
+    const found = await makeDriver().findElements({}, { query: 'settings' });
     expect(found.map((element) => element.handle)).toEqual(['settings-btn']);
   });
 });
 
 describe('listPages', () => {
   it('publishes exactly the host-supplied page ids, each with its label', async () => {
-    expect(await makeDriver().listPages()).toEqual([
+    expect(await makeDriver().listPages({})).toEqual([
       { id: 'agent-lab', label: 'Agent Lab' },
       { id: 'signup', label: 'Signup' },
     ]);
@@ -206,36 +202,36 @@ describe('listPages', () => {
 
 describe('describeField', () => {
   it('describes an input through the wrapper that carries the handle', async () => {
-    expect(await makeDriver().describeField('item-water-plants')).toMatchObject({
+    expect(await makeDriver().describeField({ handle: 'item-water-plants' })).toMatchObject({
       type: 'checkbox',
       name: 'water',
     });
   });
 
   it('describes a textarea as one', async () => {
-    expect(await makeDriver().describeField('bio-input')).toMatchObject({ type: 'textarea' });
+    expect(await makeDriver().describeField({ handle: 'bio-input' })).toMatchObject({ type: 'textarea' });
   });
 
   it('reports null for something that is not a field at all', async () => {
-    expect(await makeDriver().describeField('save-button')).toBeNull();
+    expect(await makeDriver().describeField({ handle: 'save-button' })).toBeNull();
   });
 
   it('lowercases the attributes the guards match on', async () => {
     const input = root.querySelector('[data-agent-element="full-name-input"]');
     input?.setAttribute('autocomplete', 'Current-Password');
-    expect(await makeDriver().describeField('full-name-input')).toMatchObject({
+    expect(await makeDriver().describeField({ handle: 'full-name-input' })).toMatchObject({
       autocomplete: 'current-password',
     });
   });
 
   it('omits an empty name and id rather than reporting them as blank strings', async () => {
-    const bio = await makeDriver().describeField('bio-input');
+    const bio = await makeDriver().describeField({ handle: 'bio-input' });
     expect(bio?.name).toBeUndefined();
     expect(bio?.id).toBeUndefined();
   });
 
   it('throws for a handle this surface never published', async () => {
-    await expect(makeDriver().describeField('not-published'))
+    await expect(makeDriver().describeField({ handle: 'not-published' }))
       .rejects.toThrow(/no element published as "not-published"/);
   });
 
@@ -248,7 +244,7 @@ describe('describeField', () => {
       'beforeend',
       '<fieldset disabled><input data-agent-element="fieldset-disabled-input" name="f" /></fieldset>',
     );
-    expect(await makeDriver().describeField('fieldset-disabled-input')).toMatchObject({ disabled: true });
+    expect(await makeDriver().describeField({ handle: 'fieldset-disabled-input' })).toMatchObject({ disabled: true });
   });
 });
 
@@ -264,7 +260,7 @@ describe('accessibleLabels', () => {
       'beforeend',
       '<input data-agent-element="al-aria" aria-label="Card number" placeholder="1234" name="cc" />',
     );
-    expect(await makeDriver().describeField('al-aria')).toMatchObject({ accessibleLabels: ['Card number', '1234'] });
+    expect(await makeDriver().describeField({ handle: 'al-aria' })).toMatchObject({ accessibleLabels: ['Card number', '1234'] });
   });
 
   it('reports placeholder when there is no aria-label', async () => {
@@ -272,7 +268,7 @@ describe('accessibleLabels', () => {
       'beforeend',
       '<input data-agent-element="al-placeholder" placeholder="Card number" name="cc" />',
     );
-    expect(await makeDriver().describeField('al-placeholder')).toMatchObject({ accessibleLabels: ['Card number'] });
+    expect(await makeDriver().describeField({ handle: 'al-placeholder' })).toMatchObject({ accessibleLabels: ['Card number'] });
   });
 
   it('reports an explicit <label for> when there is no aria-label or placeholder', async () => {
@@ -280,7 +276,7 @@ describe('accessibleLabels', () => {
       'beforeend',
       '<label for="al-for-target">Card number</label><input id="al-for-target" data-agent-element="al-for" name="cc" />',
     );
-    expect(await makeDriver().describeField('al-for')).toMatchObject({ accessibleLabels: ['Card number'] });
+    expect(await makeDriver().describeField({ handle: 'al-for' })).toMatchObject({ accessibleLabels: ['Card number'] });
   });
 
   it('reports an ancestor <label> that wraps the control', async () => {
@@ -288,7 +284,7 @@ describe('accessibleLabels', () => {
       'beforeend',
       '<label>Card number <input data-agent-element="al-wrap" name="cc" /></label>',
     );
-    expect(await makeDriver().describeField('al-wrap')).toMatchObject({ accessibleLabels: ['Card number'] });
+    expect(await makeDriver().describeField({ handle: 'al-wrap' })).toMatchObject({ accessibleLabels: ['Card number'] });
   });
 
   it('reports every <label> associated with a control, not only the first', async () => {
@@ -299,7 +295,7 @@ describe('accessibleLabels', () => {
       '<label for="al-multi-target">Optional</label><label for="al-multi-target">Card number</label>'
       + '<input id="al-multi-target" data-agent-element="al-multi" name="f" />',
     );
-    expect(await makeDriver().describeField('al-multi')).toMatchObject({
+    expect(await makeDriver().describeField({ handle: 'al-multi' })).toMatchObject({
       accessibleLabels: ['Optional', 'Card number'],
     });
   });
@@ -309,14 +305,14 @@ describe('accessibleLabels', () => {
       'beforeend',
       '<div data-agent-element="al-ce" contenteditable="true" aria-label="Card number"></div>',
     );
-    expect(await makeDriver().describeField('al-ce')).toMatchObject({ accessibleLabels: ['Card number'] });
+    expect(await makeDriver().describeField({ handle: 'al-ce' })).toMatchObject({ accessibleLabels: ['Card number'] });
   });
 
   it('reports no labels at all when nothing on the page names the field', async () => {
     // `bio-input` (from MARKUP) carries no aria-label, placeholder or associated <label>. This is
     // proof the property is actually SET (to an empty list) rather than merely absent:
     // `toMatchObject` treats a missing key differently from a present one.
-    expect(await makeDriver().describeField('bio-input')).toMatchObject({ accessibleLabels: [] });
+    expect(await makeDriver().describeField({ handle: 'bio-input' })).toMatchObject({ accessibleLabels: [] });
   });
 
   it('does not repeat one naming source that resolves twice', async () => {
@@ -326,7 +322,7 @@ describe('accessibleLabels', () => {
       'beforeend',
       '<label>Card number <input data-agent-element="al-dupe" name="f" /></label>',
     );
-    expect(await makeDriver().describeField('al-dupe')).toMatchObject({ accessibleLabels: ['Card number'] });
+    expect(await makeDriver().describeField({ handle: 'al-dupe' })).toMatchObject({ accessibleLabels: ['Card number'] });
   });
 
   it('end to end: a field named only "field_47" but visibly labelled "Card number" is refused by the fill guard', async () => {
@@ -338,9 +334,9 @@ describe('accessibleLabels', () => {
       'beforeend',
       '<label for="field_47">Card number</label><input id="field_47" data-agent-element="al-e2e" name="field_47" />',
     );
-    const field = await makeDriver().describeField('al-e2e');
+    const field = await makeDriver().describeField({ handle: 'al-e2e' });
     expect(field).not.toBeNull();
-    expect(findFieldFillRefusal(field!)).toBe('suspicious-name');
+    expect(findFieldFillRefusal({ field: field! })).toBe('suspicious-name');
   });
 
   // A contenteditable region is not a form control, so it has no `.labels` — the two <label>
@@ -352,7 +348,7 @@ describe('accessibleLabels', () => {
       'beforeend',
       '<label>Card number <div data-agent-element="al-ce-wrap" contenteditable="true" name="field_47"></div></label>',
     );
-    expect(await makeDriver().describeField('al-ce-wrap')).toMatchObject({
+    expect(await makeDriver().describeField({ handle: 'al-ce-wrap' })).toMatchObject({
       type: 'contenteditable',
       accessibleLabels: ['Card number'],
     });
@@ -363,7 +359,7 @@ describe('accessibleLabels', () => {
       'beforeend',
       '<label for="ce-cc">Card number</label><div id="ce-cc" data-agent-element="al-ce-for" contenteditable="true"></div>',
     );
-    expect(await makeDriver().describeField('al-ce-for')).toMatchObject({ accessibleLabels: ['Card number'] });
+    expect(await makeDriver().describeField({ handle: 'al-ce-for' })).toMatchObject({ accessibleLabels: ['Card number'] });
   });
 
   it('skips a <label for> that names a different id and keeps looking', async () => {
@@ -374,7 +370,7 @@ describe('accessibleLabels', () => {
       '<label for="some-other-field">Not this one</label><label for="ce-picked">Card number</label>' +
         '<div id="ce-picked" data-agent-element="al-ce-pick" contenteditable="true"></div>',
     );
-    expect(await makeDriver().describeField('al-ce-pick')).toMatchObject({ accessibleLabels: ['Card number'] });
+    expect(await makeDriver().describeField({ handle: 'al-ce-pick' })).toMatchObject({ accessibleLabels: ['Card number'] });
   });
 
   it('ignores an empty wrapping <label> and still reports the for-linked one', async () => {
@@ -385,7 +381,7 @@ describe('accessibleLabels', () => {
       '<label for="ce-empty-wrap">Card number</label>' +
         '<label><div id="ce-empty-wrap" data-agent-element="al-ce-empty" contenteditable="true"></div></label>',
     );
-    expect(await makeDriver().describeField('al-ce-empty')).toMatchObject({ accessibleLabels: ['Card number'] });
+    expect(await makeDriver().describeField({ handle: 'al-ce-empty' })).toMatchObject({ accessibleLabels: ['Card number'] });
   });
 
   it('reports no accessible label for a hidden input, whose .labels is null rather than an empty list', async () => {
@@ -395,7 +391,7 @@ describe('accessibleLabels', () => {
       'beforeend',
       '<input type="hidden" data-agent-element="al-hidden" name="csrf" value="t" />',
     );
-    expect(await makeDriver().describeField('al-hidden')).toMatchObject({ type: 'hidden', accessibleLabels: [] });
+    expect(await makeDriver().describeField({ handle: 'al-hidden' })).toMatchObject({ type: 'hidden', accessibleLabels: [] });
   });
 
   // The attack this whole plural shape exists to stop, end to end through the executor rather
@@ -411,14 +407,14 @@ describe('accessibleLabels', () => {
     );
     const driver = makeDriver();
 
-    const field = await driver.describeField('masked-field');
+    const field = await driver.describeField({ handle: 'masked-field' });
     expect(field).not.toBeNull();
-    expect(findFieldFillRefusal(field!)).toBe('suspicious-name');
+    expect(findFieldFillRefusal({ field: field! })).toBe('suspicious-name');
 
-    const result = await executePageCapability(driver, 'page.find_elements', {
+    const result = await executePageCapability({ driver, capabilityId: 'page.find_elements', input: {
       query: 'masked-field',
       withState: true,
-    }) as FindElementsResult;
+    } }) as FindElementsResult;
     const masked = result.elements[0]!;
     expect(masked.state?.value).toBeUndefined();
     expect(masked.state?.valueWithheld).toBe('this field name indicates a secret or anti-forgery token');
@@ -435,10 +431,10 @@ describe('accessibleLabels', () => {
       + '<option value="4111111111111111">Visa ending 1111</option></select>',
     );
     const driver = makeDriver();
-    const result = await executePageCapability(driver, 'page.find_elements', {
+    const result = await executePageCapability({ driver, capabilityId: 'page.find_elements', input: {
       query: 'cc-select',
       withState: true,
-    }) as FindElementsResult;
+    } }) as FindElementsResult;
     const state = result.elements[0]!.state;
     expect(state?.value).toBeUndefined();
     expect(state?.valueWithheld).toBe('this field name indicates a secret or anti-forgery token');
@@ -457,7 +453,7 @@ describe('a contenteditable region holding a secret', () => {
 
   it('does not report the region\'s contents as its label', async () => {
     root.insertAdjacentHTML('beforeend', secretMarkup);
-    const [element] = await makeDriver().findElements({ query: 'notes' });
+    const [element] = await makeDriver().findElements({}, { query: 'notes' });
     expect(element!.label).not.toBe('hunter2');
   });
 
@@ -466,16 +462,16 @@ describe('a contenteditable region holding a secret', () => {
       'beforeend',
       '<div data-agent-element="notes2" contenteditable="true" aria-label="Recovery phrase">correct horse</div>',
     );
-    const [element] = await makeDriver().findElements({ query: 'notes2' });
+    const [element] = await makeDriver().findElements({}, { query: 'notes2' });
     expect(element!.label).toBe('Recovery phrase');
   });
 
   it('withholds the contents from state.text, through the executor', async () => {
     root.insertAdjacentHTML('beforeend', secretMarkup);
-    const result = await executePageCapability(makeDriver(), 'page.find_elements', {
+    const result = await executePageCapability({ driver: makeDriver(), capabilityId: 'page.find_elements', input: {
       query: 'notes',
       withState: true,
-    }) as FindElementsResult;
+    } }) as FindElementsResult;
     expect(JSON.stringify(result)).not.toContain('hunter2');
     expect(result.elements[0]!.state?.textWithheld)
       .toBe('this field name indicates a secret or anti-forgery token');
@@ -486,10 +482,10 @@ describe('a contenteditable region holding a secret', () => {
       'beforeend',
       '<div data-agent-element="bio-region" contenteditable="true" name="bio" aria-label="Bio">A short bio</div>',
     );
-    const result = await executePageCapability(makeDriver(), 'page.find_elements', {
+    const result = await executePageCapability({ driver: makeDriver(), capabilityId: 'page.find_elements', input: {
       query: 'bio-region',
       withState: true,
-    }) as FindElementsResult;
+    } }) as FindElementsResult;
     expect(result.elements[0]!.state?.text).toBe('A short bio');
     expect(result.elements[0]!.state?.textWithheld).toBeUndefined();
   });
@@ -498,14 +494,14 @@ describe('a contenteditable region holding a secret', () => {
     // The label fallback is only withdrawn for editable regions — for everything else, live text
     // is the page's own ontology and is what `status-line` (from MARKUP) relies on.
     root.insertAdjacentHTML('beforeend', '<span data-agent-element="plain-span">Ready.</span>');
-    const [element] = await makeDriver().findElements({ query: 'plain-span' });
+    const [element] = await makeDriver().findElements({}, { query: 'plain-span' });
     expect(element!.label).toBe('Ready.');
   });
 });
 
 describe('describeState', () => {
   it('reports a field\'s current value, along with the attributes the read guard needs', async () => {
-    expect(await makeDriver().describeState?.('full-name-input')).toMatchObject({
+    expect(await makeDriver().describeState?.({ handle: 'full-name-input' })).toMatchObject({
       value: 'Ada',
       field: { type: 'text', name: 'full-name', id: 'full-name' },
     });
@@ -514,7 +510,7 @@ describe('describeState', () => {
   it('reports a password\'s value raw — withholding it is the executor\'s decision, not the driver\'s', async () => {
     // The driver stays mechanical. If it started deciding what is secret, every future driver
     // would have to re-derive the same rule and one of them would get it wrong.
-    expect(await makeDriver().describeState?.('account-password')).toMatchObject({
+    expect(await makeDriver().describeState?.({ handle: 'account-password' })).toMatchObject({
       value: 'hunter2',
       field: { type: 'password' },
     });
@@ -522,19 +518,19 @@ describe('describeState', () => {
 
   it('reports checked for a checkbox reached through its wrapper', async () => {
     const driver = makeDriver();
-    expect(await driver.describeState?.('item-water-plants')).toMatchObject({ checked: false });
-    await driver.click('item-water-plants');
-    expect(await driver.describeState?.('item-water-plants')).toMatchObject({ checked: true });
+    expect(await driver.describeState?.({ handle: 'item-water-plants' })).toMatchObject({ checked: false });
+    await driver.click({ handle: 'item-water-plants' });
+    expect(await driver.describeState?.({ handle: 'item-water-plants' })).toMatchObject({ checked: true });
   });
 
   it('reports the element\'s live text, which is what a label deliberately does not carry', async () => {
-    expect((await makeDriver().describeState?.('status-line'))?.text).toBe('  Ready.  ');
+    expect((await makeDriver().describeState?.({ handle: 'status-line' }))?.text).toBe('  Ready.  ');
   });
 
   it('reports disabled for a control that has the notion, and omits it for one that does not', async () => {
     const driver = makeDriver();
-    expect(await driver.describeState?.('disabled-button')).toMatchObject({ disabled: true });
-    expect((await driver.describeState?.('status-line'))?.disabled).toBeUndefined();
+    expect(await driver.describeState?.({ handle: 'disabled-button' })).toMatchObject({ disabled: true });
+    expect((await driver.describeState?.({ handle: 'status-line' }))?.disabled).toBeUndefined();
   });
 
   it('reports disabled:true for a control disabled only via an ancestor <fieldset disabled>', async () => {
@@ -542,7 +538,7 @@ describe('describeState', () => {
       'beforeend',
       '<fieldset disabled><input data-agent-element="fieldset-disabled-input2" name="f" /></fieldset>',
     );
-    expect(await makeDriver().describeState?.('fieldset-disabled-input2')).toMatchObject({ disabled: true });
+    expect(await makeDriver().describeState?.({ handle: 'fieldset-disabled-input2' })).toMatchObject({ disabled: true });
   });
 
   it('reports the field descriptor\'s disabled:true for a <select> disabled only via an ancestor fieldset', async () => {
@@ -552,14 +548,14 @@ describe('describeState', () => {
       'beforeend',
       '<fieldset disabled><select data-agent-element="fieldset-disabled-select"><option>a</option></select></fieldset>',
     );
-    const state = await makeDriver().describeState?.('fieldset-disabled-select');
+    const state = await makeDriver().describeState?.({ handle: 'fieldset-disabled-select' });
     expect(state?.field).toMatchObject({ disabled: true });
   });
 
   it('reports a dropdown\'s value, its options, and a descriptor the read guard can check', async () => {
     // Without `options` a caller has to guess what page.select_option will accept; without a
     // descriptor, a `<select name="secret">` would report its value unguarded.
-    expect(await makeDriver().describeState?.('role-select')).toMatchObject({
+    expect(await makeDriver().describeState?.({ handle: 'role-select' })).toMatchObject({
       value: '',
       options: ['Choose one…', 'Engineer', 'Designer'],
       field: { type: 'select', name: 'role', id: 'role', disabled: false },
@@ -570,18 +566,18 @@ describe('describeState', () => {
     const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
     select.removeAttribute('name');
     select.removeAttribute('id');
-    const field = (await makeDriver().describeState?.('role-select'))?.field;
+    const field = (await makeDriver().describeState?.({ handle: 'role-select' }))?.field;
     expect(field?.name).toBeUndefined();
     expect(field?.id).toBeUndefined();
   });
 
   it('omits options for everything that is not a dropdown', async () => {
-    expect((await makeDriver().describeState?.('full-name-input'))?.options).toBeUndefined();
-    expect((await makeDriver().describeState?.('status-line'))?.options).toBeUndefined();
+    expect((await makeDriver().describeState?.({ handle: 'full-name-input' }))?.options).toBeUndefined();
+    expect((await makeDriver().describeState?.({ handle: 'status-line' }))?.options).toBeUndefined();
   });
 
   it('omits value and field entirely for something that is not a field', async () => {
-    const state = await makeDriver().describeState?.('save-button');
+    const state = await makeDriver().describeState?.({ handle: 'save-button' });
     expect(state?.value).toBeUndefined();
     expect(state?.field).toBeUndefined();
   });
@@ -589,12 +585,12 @@ describe('describeState', () => {
   it('reports visibility when the platform can answer, and omits it when it cannot', async () => {
     // jsdom implements no layout and no checkVisibility, so the honest answer there is "unknown"
     // rather than a measurement that would call every element invisible.
-    expect((await makeDriver().describeState?.('save-button'))?.visible).toBeUndefined();
+    expect((await makeDriver().describeState?.({ handle: 'save-button' }))?.visible).toBeUndefined();
 
     const button = root.querySelector('[data-agent-element="save-button"]') as HTMLElement
       & { checkVisibility?: () => boolean };
     button.checkVisibility = () => false;
-    expect((await makeDriver().describeState?.('save-button'))?.visible).toBe(false);
+    expect((await makeDriver().describeState?.({ handle: 'save-button' }))?.visible).toBe(false);
   });
 
   it('asks checkVisibility to also account for visibility:hidden and opacity:0, not just its defaults', async () => {
@@ -610,7 +606,7 @@ describe('describeState', () => {
       seenOptions.push(options);
       return true;
     };
-    await makeDriver().describeState?.('save-button');
+    await makeDriver().describeState?.({ handle: 'save-button' });
     // `describeState` reads `visibilityOf` more than once (once to decide whether to include the
     // field, once for the value) — asserting on every recorded call rather than the count, so this
     // stays robust to that detail.
@@ -623,11 +619,11 @@ describe('describeState', () => {
   it('returns null, not an error, when the element is gone — which is itself the observation', async () => {
     const driver = makeDriver();
     root.querySelector('[data-agent-element="save-button"]')?.remove();
-    expect(await driver.describeState?.('save-button')).toBeNull();
+    expect(await driver.describeState?.({ handle: 'save-button' })).toBeNull();
   });
 
   it('still refuses a malformed handle rather than treating it as a selector', async () => {
-    await expect(makeDriver().describeState?.('input[type=password]'))
+    await expect(makeDriver().describeState?.({ handle: 'input[type=password]' }))
       .rejects.toThrow(/invalid element handle/);
   });
 });
@@ -642,7 +638,7 @@ describe('settle', () => {
     vi.useFakeTimers();
 
     let settled = false;
-    const pending = makeDriver().settle?.().then(() => { settled = true; });
+    const pending = makeDriver().settle?.({}).then(() => { settled = true; });
     frames.shift()?.(0);
     await Promise.resolve();
     expect(settled).toBe(false);
@@ -658,7 +654,7 @@ describe('settle', () => {
     // working while the user does something else.
     vi.stubGlobal('requestAnimationFrame', () => 1);
     vi.useFakeTimers();
-    const pending = makeDriver().settle?.();
+    const pending = makeDriver().settle?.({});
     await vi.advanceTimersByTimeAsync(200);
     await expect(pending).resolves.toBeUndefined();
   });
@@ -666,7 +662,7 @@ describe('settle', () => {
   it('falls back to a macrotask where there are no animation frames at all', async () => {
     vi.stubGlobal('requestAnimationFrame', undefined);
     vi.useFakeTimers();
-    const pending = makeDriver().settle?.();
+    const pending = makeDriver().settle?.({});
     await vi.advanceTimersByTimeAsync(0);
     await expect(pending).resolves.toBeUndefined();
   });
@@ -678,7 +674,7 @@ describe('highlight', () => {
     const element = root.querySelector('[data-agent-element="save-button"]') as HTMLElement;
     element.style.outline = '1px dotted blue';
 
-    await makeDriver().highlight('save-button', 50);
+    await makeDriver().highlight({ handle: 'save-button', durationMs: 50 });
     expect(element.style.outline).toBe('3px solid #e11d48');
     expect(element.scrollIntoView).toHaveBeenCalled();
 
@@ -692,9 +688,9 @@ describe('highlight', () => {
     vi.useFakeTimers();
     const element = root.querySelector('[data-agent-element="save-button"]') as HTMLElement;
     const driver = makeDriver();
-    await driver.highlight('save-button', 100);
+    await driver.highlight({ handle: 'save-button', durationMs: 100 });
     await vi.advanceTimersByTimeAsync(80);
-    await driver.highlight('save-button', 100);
+    await driver.highlight({ handle: 'save-button', durationMs: 100 });
     await vi.advanceTimersByTimeAsync(80);
     // The first timer would have fired by now had it survived.
     expect(element.style.outline).toBe('3px solid #e11d48');
@@ -707,8 +703,8 @@ describe('highlight', () => {
     const element = root.querySelector('[data-agent-element="save-button"]') as HTMLElement;
     element.style.outline = '1px dotted blue';
     const driver = makeDriver();
-    await driver.highlight('save-button', 100);
-    await driver.highlight('save-button', 100);
+    await driver.highlight({ handle: 'save-button', durationMs: 100 });
+    await driver.highlight({ handle: 'save-button', durationMs: 100 });
     await vi.advanceTimersByTimeAsync(120);
     expect(element.style.outline).toBe('1px dotted blue');
   });
@@ -721,7 +717,7 @@ describe('highlight', () => {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('data-agent-element', 'chart-svg');
     root.append(svg);
-    await expect(makeDriver().highlight('chart-svg', 10)).rejects.toThrow(/"chart-svg" is not highlightable/);
+    await expect(makeDriver().highlight({ handle: 'chart-svg', durationMs: 10 })).rejects.toThrow(/"chart-svg" is not highlightable/);
   });
 });
 
@@ -735,7 +731,7 @@ describe('duplicate data-agent-element handles', () => {
       '<button data-agent-element="dup" data-agent-label="First">First</button>'
       + '<button data-agent-element="dup" data-agent-label="Second">Second</button>',
     );
-    await expect(makeDriver().click('dup')).rejects.toThrow(/"dup" is published on 2 elements/);
+    await expect(makeDriver().click({ handle: 'dup' })).rejects.toThrow(/"dup" is published on 2 elements/);
   });
 
   it('still lists every duplicate in findElements, so the collision is discoverable rather than hidden', async () => {
@@ -744,7 +740,7 @@ describe('duplicate data-agent-element handles', () => {
       '<button data-agent-element="dup" data-agent-label="First">First</button>'
       + '<button data-agent-element="dup" data-agent-label="Second">Second</button>',
     );
-    const found = await makeDriver().findElements({ query: 'dup' });
+    const found = await makeDriver().findElements({}, { query: 'dup' });
     expect(found.map((element) => element.label)).toEqual(['First', 'Second']);
   });
 
@@ -753,7 +749,7 @@ describe('duplicate data-agent-element handles', () => {
       'beforeend',
       '<button data-agent-element="dup">First</button><button data-agent-element="dup">Second</button>',
     );
-    await expect(makeDriver().describeState?.('dup')).rejects.toThrow(/"dup" is published on 2 elements/);
+    await expect(makeDriver().describeState?.({ handle: 'dup' })).rejects.toThrow(/"dup" is published on 2 elements/);
   });
 
   it('refuses fill on an ambiguous handle too', async () => {
@@ -761,13 +757,13 @@ describe('duplicate data-agent-element handles', () => {
       'beforeend',
       '<input data-agent-element="dup" name="a" /><input data-agent-element="dup" name="b" />',
     );
-    await expect(makeDriver().fill('dup', 'x')).rejects.toThrow(/"dup" is published on 2 elements/);
+    await expect(makeDriver().fill({ handle: 'dup', text: 'x' })).rejects.toThrow(/"dup" is published on 2 elements/);
   });
 });
 
 describe('scrollTo', () => {
   it('scrolls the handle into view', async () => {
-    await makeDriver().scrollTo('status-line');
+    await makeDriver().scrollTo({ handle: 'status-line' });
     const element = root.querySelector('[data-agent-element="status-line"]');
     expect(element?.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
   });
@@ -776,7 +772,7 @@ describe('scrollTo', () => {
 describe('click', () => {
   it('clicks the control inside the wrapper that carries the handle', async () => {
     const checkbox = root.querySelector('[data-agent-element="item-water-plants"] input') as HTMLInputElement;
-    await makeDriver().click('item-water-plants');
+    await makeDriver().click({ handle: 'item-water-plants' });
     expect(checkbox.checked).toBe(true);
   });
 
@@ -784,7 +780,7 @@ describe('click', () => {
     const button = root.querySelector('[data-agent-element="save-button"]') as HTMLButtonElement;
     const clicked = vi.fn();
     button.addEventListener('click', clicked);
-    await makeDriver().click('save-button');
+    await makeDriver().click({ handle: 'save-button' });
     expect(clicked).toHaveBeenCalledOnce();
   });
 
@@ -792,7 +788,7 @@ describe('click', () => {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('data-agent-element', 'chart-svg');
     root.append(svg);
-    await expect(makeDriver().click('chart-svg')).rejects.toThrow(/"chart-svg" is not clickable/);
+    await expect(makeDriver().click({ handle: 'chart-svg' })).rejects.toThrow(/"chart-svg" is not clickable/);
   });
 
   it('does not descend into a nested descendant that is itself a separately published handle', async () => {
@@ -808,7 +804,7 @@ describe('click', () => {
     const inner = root.querySelector('[data-agent-element="inner"]') as HTMLButtonElement;
     const clicked = vi.fn();
     inner.addEventListener('click', clicked);
-    await makeDriver().click('outer');
+    await makeDriver().click({ handle: 'outer' });
     expect(clicked).not.toHaveBeenCalled();
   });
 });
@@ -822,13 +818,13 @@ describe('fill', () => {
     input.addEventListener('input', () => events.push('input'));
     input.addEventListener('change', () => events.push('change'));
 
-    await makeDriver().fill('full-name-input', 'Ada Lovelace');
+    await makeDriver().fill({ handle: 'full-name-input', text: 'Ada Lovelace' });
     expect(input.value).toBe('Ada Lovelace');
     expect(events).toEqual(['input', 'change']);
   });
 
   it('fills a textarea', async () => {
-    await makeDriver().fill('bio-input', 'Rewritten');
+    await makeDriver().fill({ handle: 'bio-input', text: 'Rewritten' });
     const textarea = root.querySelector('[data-agent-element="bio-input"]') as HTMLTextAreaElement;
     expect(textarea.value).toBe('Rewritten');
   });
@@ -842,13 +838,13 @@ describe('fill', () => {
         ? { configurable: true, get: () => '' }
         : real(target, property));
 
-    await makeDriver().fill('full-name-input', 'Grace');
+    await makeDriver().fill({ handle: 'full-name-input', text: 'Grace' });
     const input = root.querySelector('[data-agent-element="full-name-input"]') as HTMLInputElement;
     expect(input.value).toBe('Grace');
   });
 
   it('refuses a target that is not a field', async () => {
-    await expect(makeDriver().fill('save-button', 'x'))
+    await expect(makeDriver().fill({ handle: 'save-button', text: 'x' }))
       .rejects.toThrow(/"save-button" is not a fillable field/);
   });
 });
@@ -860,13 +856,13 @@ describe('selectOption', () => {
     select.addEventListener('input', () => events.push('input'));
     select.addEventListener('change', () => events.push('change'));
 
-    await makeDriver().selectOption('role-select', 'Engineer');
+    await makeDriver().selectOption({ handle: 'role-select', option: 'Engineer' });
     expect(select.value).toBe('engineer');
     expect(events).toEqual(['input', 'change']);
   });
 
   it('falls back to matching the underlying value', async () => {
-    await makeDriver().selectOption('role-select', 'designer');
+    await makeDriver().selectOption({ handle: 'role-select', option: 'designer' });
     const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
     expect(select.value).toBe('designer');
   });
@@ -876,12 +872,12 @@ describe('selectOption', () => {
     // quietly select the wrong row.
     const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
     select.innerHTML = '<option value="Engineer">Designer</option><option value="x">Engineer</option>';
-    await makeDriver().selectOption('role-select', 'Engineer');
+    await makeDriver().selectOption({ handle: 'role-select', option: 'Engineer' });
     expect(select.value).toBe('x');
   });
 
   it('refuses an option that does not exist, and names the ones that do', async () => {
-    await expect(makeDriver().selectOption('role-select', 'Astronaut'))
+    await expect(makeDriver().selectOption({ handle: 'role-select', option: 'Astronaut' }))
       .rejects.toThrow(/"Astronaut" is not an option of "role-select"\. Available: Choose one…, Engineer, Designer/);
   });
 
@@ -899,7 +895,7 @@ describe('selectOption', () => {
 
     let message = '';
     try {
-      await makeDriver().selectOption('role-select', callerPayload);
+      await makeDriver().selectOption({ handle: 'role-select', option: callerPayload });
     } catch (error) {
       message = (error as Error).message;
     }
@@ -912,12 +908,12 @@ describe('selectOption', () => {
   it('reports (none) when the dropdown has no labelled options at all', async () => {
     const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
     select.innerHTML = '';
-    await expect(makeDriver().selectOption('role-select', 'Engineer'))
+    await expect(makeDriver().selectOption({ handle: 'role-select', option: 'Engineer' }))
       .rejects.toThrow(/Available: \(none\)/);
   });
 
   it('refuses a target that is not a dropdown', async () => {
-    await expect(makeDriver().selectOption('full-name-input', 'Engineer'))
+    await expect(makeDriver().selectOption({ handle: 'full-name-input', option: 'Engineer' }))
       .rejects.toThrow(/"full-name-input" is not a dropdown/);
   });
 
@@ -928,7 +924,7 @@ describe('selectOption', () => {
         ? { configurable: true, get: () => '' }
         : real(target, property));
 
-    await makeDriver().selectOption('role-select', 'Engineer');
+    await makeDriver().selectOption({ handle: 'role-select', option: 'Engineer' });
     const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
     expect(select.value).toBe('engineer');
   });
@@ -941,26 +937,26 @@ describe('selectOption with an explicit `selected`', () => {
 
   it('toggles one option off a multi-select without disturbing the rest', async () => {
     const driver = makeDriver();
-    await driver.selectOption('skills-select', 'Engineer');
-    await driver.selectOption('skills-select', 'Designer');
-    await driver.selectOption('skills-select', 'Engineer', false);
+    await driver.selectOption({ handle: 'skills-select', option: 'Engineer' });
+    await driver.selectOption({ handle: 'skills-select', option: 'Designer' });
+    await driver.selectOption({ handle: 'skills-select', option: 'Engineer' }, { selected: false });
     expect(skillsValues()).toEqual(['designer']);
   });
 
   it('toggles that option back on', async () => {
     const driver = makeDriver();
-    await driver.selectOption('skills-select', 'Engineer');
-    await driver.selectOption('skills-select', 'Engineer', false);
+    await driver.selectOption({ handle: 'skills-select', option: 'Engineer' });
+    await driver.selectOption({ handle: 'skills-select', option: 'Engineer' }, { selected: false });
     // Checked mid-sequence, not just at the end: without this, a driver that ignored the `false`
     // altogether would still pass, since selecting Engineer again at the end lands on the same
     // final state either way.
     expect(skillsValues()).toEqual([]);
-    await driver.selectOption('skills-select', 'Engineer', true);
+    await driver.selectOption({ handle: 'skills-select', option: 'Engineer' }, { selected: true });
     expect(skillsValues()).toEqual(['engineer']);
   });
 
   it('deselecting an option that was never selected is a harmless no-op', async () => {
-    await makeDriver().selectOption('skills-select', 'Designer', false);
+    await makeDriver().selectOption({ handle: 'skills-select', option: 'Designer' }, { selected: false });
     expect(skillsValues()).toEqual([]);
   });
 
@@ -969,12 +965,12 @@ describe('selectOption with an explicit `selected`', () => {
     const events: string[] = [];
     select.addEventListener('input', () => events.push('input'));
     select.addEventListener('change', () => events.push('change'));
-    await makeDriver().selectOption('skills-select', 'Designer', false);
+    await makeDriver().selectOption({ handle: 'skills-select', option: 'Designer' }, { selected: false });
     expect(events).toEqual(['input', 'change']);
   });
 
   it('refuses to deselect on a single-select, naming the option and pointing at the alternative', async () => {
-    await expect(makeDriver().selectOption('role-select', 'Engineer', false)).rejects.toThrow(
+    await expect(makeDriver().selectOption({ handle: 'role-select', option: 'Engineer' }, { selected: false })).rejects.toThrow(
       /"role-select" is a single-select; its choice cannot be removed, only replaced — select a different option instead of deselecting "Engineer"/,
     );
   });
@@ -990,7 +986,7 @@ describe('selectOption with an explicit `selected`', () => {
 
     let message = '';
     try {
-      await makeDriver().selectOption('role-select', payload, false);
+      await makeDriver().selectOption({ handle: 'role-select', option: payload }, { selected: false });
     } catch (error) {
       message = (error as Error).message;
     }
@@ -1002,23 +998,23 @@ describe('selectOption with an explicit `selected`', () => {
   it('does not change the single-select\'s value when the deselect is refused', async () => {
     const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
     select.value = 'designer';
-    await expect(makeDriver().selectOption('role-select', 'Engineer', false)).rejects.toThrow();
+    await expect(makeDriver().selectOption({ handle: 'role-select', option: 'Engineer' }, { selected: false })).rejects.toThrow();
     expect(select.value).toBe('designer');
   });
 
   it('selected: true on a single-select is unchanged from today\'s behaviour', async () => {
-    await makeDriver().selectOption('role-select', 'Engineer', true);
+    await makeDriver().selectOption({ handle: 'role-select', option: 'Engineer' }, { selected: true });
     const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
     expect(select.value).toBe('engineer');
   });
 
   it('still refuses an option that does not exist when selected: false is requested', async () => {
-    await expect(makeDriver().selectOption('skills-select', 'Astronaut', false))
+    await expect(makeDriver().selectOption({ handle: 'skills-select', option: 'Astronaut' }, { selected: false }))
       .rejects.toThrow(/"Astronaut" is not an option of "skills-select"\. Available: Engineer, Designer/);
   });
 
   it('still refuses a disabled option when selected: false is requested', async () => {
-    await expect(makeDriver().selectOption('skills-select', 'Pilot', false))
+    await expect(makeDriver().selectOption({ handle: 'skills-select', option: 'Pilot' }, { selected: false }))
       .rejects.toThrow(/"Pilot" is not an option of "skills-select"\. Available: Engineer, Designer/);
   });
 });
@@ -1048,7 +1044,7 @@ describe('selectOption on a dropdown the user cannot touch', () => {
     (root.querySelector(`[data-agent-element="${handle}"]`) as HTMLSelectElement).value;
 
   it('refuses a dropdown disabled by its own attribute, and leaves its value alone', async () => {
-    await expect(makeDriver().selectOption('plan-select', 'Pro'))
+    await expect(makeDriver().selectOption({ handle: 'plan-select', option: 'Pro' }))
       .rejects.toThrow(/"plan-select" is disabled/);
     expect(valueOf('plan-select')).toBe('free');
   });
@@ -1056,7 +1052,7 @@ describe('selectOption on a dropdown the user cannot touch', () => {
   it('refuses a dropdown disabled only by an ancestor <fieldset disabled>', async () => {
     // `.disabled` reflects only the element's own attribute; `:disabled` is the platform's answer
     // for both, and is what decides whether the value reaches form submission at all.
-    await expect(makeDriver().selectOption('tier-select', 'B'))
+    await expect(makeDriver().selectOption({ handle: 'tier-select', option: 'B' }))
       .rejects.toThrow(/"tier-select" is disabled/);
     expect(valueOf('tier-select')).toBe('a');
   });
@@ -1064,7 +1060,7 @@ describe('selectOption on a dropdown the user cannot touch', () => {
   it('refuses before considering whether the option exists at all', async () => {
     // The refusal is about the control, so it must not depend on the caller having named a real
     // option — otherwise the error message leaks which options a disabled control offers.
-    await expect(makeDriver().selectOption('plan-select', 'Astronaut'))
+    await expect(makeDriver().selectOption({ handle: 'plan-select', option: 'Astronaut' }))
       .rejects.toThrow(/"plan-select" is disabled/);
   });
 
@@ -1074,7 +1070,7 @@ describe('selectOption on a dropdown the user cannot touch', () => {
       '<select data-agent-element="tags-select" name="tags" multiple disabled>'
       + '<option value="x" selected>X</option></select>',
     );
-    await expect(makeDriver().selectOption('tags-select', 'X', false))
+    await expect(makeDriver().selectOption({ handle: 'tags-select', option: 'X' }, { selected: false }))
       .rejects.toThrow(/"tags-select" is disabled/);
     expect(Array.from(
       (root.querySelector('[data-agent-element="tags-select"]') as HTMLSelectElement).selectedOptions,
@@ -1082,20 +1078,20 @@ describe('selectOption on a dropdown the user cannot touch', () => {
   });
 
   it('still writes to an enabled dropdown, so the refusal is scoped to disabled controls', async () => {
-    await makeDriver().selectOption('role-select', 'Engineer');
+    await makeDriver().selectOption({ handle: 'role-select', option: 'Engineer' });
     expect(valueOf('role-select')).toBe('engineer');
   });
 });
 
 describe('navigate', () => {
   it('runs the host-supplied navigation for a published page', async () => {
-    await makeDriver().navigate('signup');
+    await makeDriver().navigate({ page: 'signup' });
     expect(navigated).toEqual(['signup']);
   });
 
   it('refuses an unpublished page even though the executor checked first', async () => {
     // Belt on the braces: this driver may one day be reachable from something else.
-    await expect(makeDriver().navigate('admin')).rejects.toThrow(/"admin" is not a published page/);
+    await expect(makeDriver().navigate({ page: 'admin' })).rejects.toThrow(/"admin" is not a published page/);
   });
 
   it('bounds and strips control/bidi characters from an unpublished page id, for a caller that reaches this method directly', async () => {
@@ -1106,7 +1102,7 @@ describe('navigate', () => {
     const payload = `${bidiOverride}${'w'.repeat(5000)}`;
     let message = '';
     try {
-      await makeDriver().navigate(payload);
+      await makeDriver().navigate({ page: payload });
     } catch (error) {
       message = (error as Error).message;
     }
@@ -1123,7 +1119,7 @@ describe('navigate', () => {
   it.each(['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__'])(
     'refuses "%s", which a host never published but Object.prototype supplies',
     async (inherited) => {
-      await expect(makeDriver().navigate(inherited)).rejects.toThrow(/is not a published page/);
+      await expect(makeDriver().navigate({ page: inherited })).rejects.toThrow(/is not a published page/);
       expect(navigated).toEqual([]);
     },
   );
@@ -1131,20 +1127,17 @@ describe('navigate', () => {
   it('refuses an inherited name even when the host built its page map from a bare object', async () => {
     // A host that hands over `Object.create(null)` has no inherited names to leak; one that hands
     // over an object literal does. Both must behave identically.
-    const driver = createDomPageDriver({
-      root,
-      pages: Object.assign(Object.create(null), { home: { label: 'Home', navigate: () => {} } }),
-    });
-    await expect(driver.navigate('constructor')).rejects.toThrow(/is not a published page/);
+    const driver = createDomPageDriver({ root, pages: Object.assign(Object.create(null), { home: { label: 'Home', navigate: () => {} } }) });
+    await expect(driver.navigate({ page: 'constructor' })).rejects.toThrow(/is not a published page/);
   });
 });
 
 describe('currentAgentPage', () => {
   it('reads the showing page id', () => {
-    expect(currentAgentPage(root)).toBe('agent-lab');
+    expect(currentAgentPage({ root })).toBe('agent-lab');
   });
 
   it('reports undefined when nothing is tagged', () => {
-    expect(currentAgentPage(document.createElement('div'))).toBeUndefined();
+    expect(currentAgentPage({ root: document.createElement('div') })).toBeUndefined();
   });
 });

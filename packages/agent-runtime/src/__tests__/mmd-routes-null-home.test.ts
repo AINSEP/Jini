@@ -14,6 +14,6 @@ import { resolveMmdRoutesFile } from '../mmd-routes.js';
 
 describe('mmd-routes when os.homedir() itself returns a nullish value', () => {
   it('resolveMmdRoutesFile returns null rather than throwing', () => {
-    expect(resolveMmdRoutesFile({})).toBeNull();
+    expect(resolveMmdRoutesFile({ env: {} })).toBeNull();
   });
 });

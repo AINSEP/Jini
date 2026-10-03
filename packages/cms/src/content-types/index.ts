@@ -15,7 +15,6 @@ export type {
   ContentTypeRecord,
   ActorPrincipalKind,
   ActorIdentityInput,
-  Result,
 } from "./types.js";
 /**
  * `CONTENT_TYPE_FIELD_KINDS`/`isContentTypeFieldKind` answer "may this kind be DECLARED and
@@ -71,7 +70,8 @@ export {
  * single definition of the identifier grammar — the published agent-tool schemas reference it
  * rather than restating it, and a consumer validating input ahead of a call must reach the same
  * one. `mapFieldKindToCast`/`buildQueryableFieldIndexName` are what a host's own DDL provisioner
- * needs in order to generate the same index names this module expects to find.
+ * needs in order to generate the same index names this module expects to find. The index-name
+ * builder returns a promise: await its Web Crypto hash before passing the name to DDL.
  */
 export type { FieldIndexState, FieldIndexTransition } from "./index-provisioning.js";
 export {
@@ -149,9 +149,6 @@ export {
 /** The agent-tool surface for this domain (see `agent-tools.ts` for what is deliberately omitted). */
 export {
   contentTypesAgentToolCatalog,
-  type AgentToolDefinition as ContentTypesAgentToolDefinition,
-  type AgentToolSideEffect as ContentTypesAgentToolSideEffect,
-  type AgentToolActorClassRule as ContentTypesAgentToolActorClassRule,
 } from "./agent-tools.js";
 
 /**

@@ -7,7 +7,7 @@
  * (`'image'`, `'video'`, `'audio:speech'`, ...). `engine.ts` consults this
  * registry first when resolving a renderer, falling back to the static
  * `ROUTES` table for vendors not yet migrated onto the generic engine — see
- * `source-map.md`'s 2026-07-21 dispatch-engine-generalization section for
+ * `archived provenance ledger`'s 2026-07-21 dispatch-engine-generalization section for
  * exactly which vendors are registered here today, and why the rest
  * legitimately aren't (yet).
  */
@@ -17,7 +17,7 @@ export class VendorAdapterRegistry {
   private readonly table = new Map<string, Map<string, VendorAdapter<never>>>();
 
   /** Registers `adapter` for `(providerId, routeKey)`. Throws if that pair is already registered — a vendor module should register each of its (provider, surface) pairs exactly once, at module load. */
-  register<Meta>(providerId: string, routeKey: string, adapter: VendorAdapter<Meta>): void {
+  register<Meta>({ providerId, routeKey, adapter }: { providerId: string; routeKey: string; adapter: VendorAdapter<Meta> }): void {
     let bySurface = this.table.get(providerId);
     if (!bySurface) {
       bySurface = new Map();
@@ -30,12 +30,12 @@ export class VendorAdapterRegistry {
   }
 
   /** Looks up the adapter registered for `(providerId, routeKey)`, or `undefined` if none is registered. */
-  get(providerId: string, routeKey: string): VendorAdapter<never> | undefined {
+  get({ providerId, routeKey }: { providerId: string; routeKey: string }): VendorAdapter<never> | undefined {
     return this.table.get(providerId)?.get(routeKey);
   }
 
   /** Whether an adapter is registered for `(providerId, routeKey)`. */
-  has(providerId: string, routeKey: string): boolean {
+  has({ providerId, routeKey }: { providerId: string; routeKey: string }): boolean {
     return this.table.get(providerId)?.has(routeKey) ?? false;
   }
 

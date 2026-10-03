@@ -34,24 +34,24 @@ function makeRegistry(): InteractiveUiRegistry {
     // that file's comment for why.
     Component: DummyTable as unknown as ComponentType<Record<string, unknown>>,
   };
-  return new InteractiveUiRegistry([entry]);
+  return new InteractiveUiRegistry({ entries: [entry] });
 }
 
 const SURFACE_ID = 's1';
 
 function setUpSurface(registry: InteractiveUiRegistry, components: unknown[]) {
-  const catalog = buildA2uiCatalogFromRegistry(registry, 'merged', { base: createLabCatalog() });
-  const interpreter = createA2uiInterpreter(catalog);
-  interpreter.applyAgentMessage({
+  const catalog = buildA2uiCatalogFromRegistry({ registry, catalogId: 'merged' }, { base: createLabCatalog({}) });
+  const interpreter = createA2uiInterpreter({ catalog, clock: { nowMs: () => 1_000 }, ids: { next: () => "fixture-action" } });
+  interpreter.applyAgentMessage({ raw: {
     version: 'v1.0',
     createSurface: { surfaceId: SURFACE_ID, catalogId: 'merged', components },
-  });
+  } });
   return interpreter;
 }
 
 describe('A2uiSurfaceRenderer', () => {
   it('renders nothing (or the fallback) when the surface has no root yet', () => {
-    const interpreter = createA2uiInterpreter(buildA2uiCatalogFromRegistry(makeRegistry(), 'merged', { base: createLabCatalog() }));
+    const interpreter = createA2uiInterpreter({ catalog: buildA2uiCatalogFromRegistry({ registry: makeRegistry(), catalogId: 'merged' }, { base: createLabCatalog({}) }), clock: { nowMs: () => 1_000 }, ids: { next: () => 'fixture-action' } });
     const { container } = render(<A2uiSurfaceRenderer interpreter={interpreter} surfaceId="no-such-surface" registry={makeRegistry()} />);
     expect(container).toBeEmptyDOMElement();
   });
@@ -76,7 +76,7 @@ describe('A2uiSurfaceRenderer', () => {
   });
 
   it('renders a placeholder for a catalog type with no basic case and no registry match', () => {
-    const registry = new InteractiveUiRegistry([]);
+    const registry = new InteractiveUiRegistry({ entries: [] });
     // Icon is a real basic-catalog type this renderer has no case for (see module doc).
     const interpreter = setUpSurface(registry, [{ id: 'root', component: 'Icon', name: 'search' }]);
     render(<A2uiSurfaceRenderer interpreter={interpreter} surfaceId={SURFACE_ID} registry={registry} />);
@@ -92,7 +92,7 @@ describe('A2uiSurfaceRenderer', () => {
     const buildActionSpy = vi.spyOn(interpreter, 'buildAction');
     render(<A2uiSurfaceRenderer interpreter={interpreter} surfaceId={SURFACE_ID} registry={registry} />);
     await userEvent.click(screen.getByText('Go'));
-    expect(buildActionSpy).toHaveBeenCalledWith(SURFACE_ID, 'root');
+    expect(buildActionSpy).toHaveBeenCalledWith({ surfaceId: SURFACE_ID, componentId: 'root' });
   });
 
   it('dispatches interpreter.buildAction when a registry component inside a Column fires its callback, and it has an action prop', async () => {
@@ -104,6 +104,6 @@ describe('A2uiSurfaceRenderer', () => {
     const buildActionSpy = vi.spyOn(interpreter, 'buildAction');
     render(<A2uiSurfaceRenderer interpreter={interpreter} surfaceId={SURFACE_ID} registry={registry} />);
     await userEvent.click(screen.getByText('Ada'));
-    expect(buildActionSpy).toHaveBeenCalledWith(SURFACE_ID, 'table');
+    expect(buildActionSpy).toHaveBeenCalledWith({ surfaceId: SURFACE_ID, componentId: 'table' });
   });
 });

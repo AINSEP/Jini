@@ -38,9 +38,6 @@ export { InMemoryWorkspaceRepo } from "./repo.memory.js";
 /** The agent-tool surface for this domain (see `agent-tools.ts` for what is deliberately omitted). */
 export {
   getWorkspaceAgentToolCatalog,
-  type AgentToolDefinition as WorkspaceAgentToolDefinition,
-  type AgentToolSideEffect as WorkspaceAgentToolSideEffect,
-  type AgentToolActorClassRule as WorkspaceAgentToolActorClassRule,
 } from "./agent-tools.js";
 
 /**

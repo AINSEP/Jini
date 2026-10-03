@@ -1,52 +1,54 @@
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 /**
  * @file Blob-GC protocol ("References, deletion, and GC
- * (never-brick)", INV-1) — the audited tombstone -> delete-pass -> unlink-pass
+ * (never-brick)") — the audited tombstone -> delete-pass -> unlink-pass
  * design, scoped to what an in-memory-repo build can actually run today.
  *
  * Built in this pass:
- *  - The real "unreferenced" predicate's sha256-uniqueness-across-non-purged-
- *    media-entries conjunct ({@link isBlobUnreferenced}), backed by the actual
- *    `mediaRepo` data `purgeMedia` already has.
- *  - Ordering (INV-1a): {@link runBlobGcDeletePass} deletes the `asset_blobs`
- *    row and writes the `blob_gc_journal` entry together, before any bytes are
- *    touched; {@link runBlobGcUnlinkPass} only ever unlinks bytes for a row
- *    whose deletion has already happened. `uploadMedia` (see
- *    `media-service.ts`) already writes bytes before the row.
- *  - Serialization: every transition below runs inside {@link withSha256Lock}
- *    (`blob-gc-lock.ts`) — this build's substitute for `BEGIN IMMEDIATE`
- *    against an in-memory table (see that file's header for why).
- *  - The two-phase, journaled shape: {@link tombstoneBlobIfUnreferenced} ->
- *    {@link runBlobGcDeletePass} (re-checks the predicate + `gc_grace`,
- *    journals, deletes the row) -> {@link runBlobGcUnlinkPass} (drains the
- *    journal, removes bytes). {@link runBlobGcCycle} is a convenience batch
- *    wrapper around the last two for tests/manual operation; nothing calls it
- *    on a schedule.
- *  - `gc_grace = max(30d default, retained-snapshot age)`, with the snapshot
- *    input wired as a stub (see below) so a real value slots in later without
- *    reworking callers.
+ * - The real "unreferenced" predicate's sha256-uniqueness-across-non-purged-
+ * media-entries conjunct ({@link isBlobUnreferenced}), backed by the actual
+ * `mediaRepo` data `purgeMedia` already has.
+ * - Ordering : {@link runBlobGcDeletePass} first writes the `blob_gc_journal`
+ * entry, then deletes the `asset_blobs` row in separate awaited operations, before any bytes are
+ * touched; {@link runBlobGcUnlinkPass} only ever unlinks bytes for a row
+ * whose deletion has already happened. `uploadMedia` (see
+ * `media-service.ts`) already writes bytes before the row.
+ * - Serialization: every transition below runs inside {@link withSha256Lock}
+ * (`blob-gc-lock.ts`) — this build's substitute for `BEGIN IMMEDIATE`
+ * against an in-memory table (see that file's header for why).
+ * - The two-phase, journaled shape: {@link tombstoneBlobIfUnreferenced} ->
+ * {@link runBlobGcDeletePass} (re-checks the predicate + `gc_grace`,
+ * journals, deletes the row) -> {@link runBlobGcUnlinkPass} (drains the
+ * journal, removes bytes). {@link runBlobGcCycle} is a convenience batch
+ * wrapper around the last two for tests/manual operation; nothing calls it
+ * on a schedule.
+ * - `gc_grace = max(30d default, retained-snapshot age)`, with the snapshot
+ * input wired as a stub (see below) so a real value slots in later without
+ * reworking callers.
  *
  * Deliberately NOT built (disclosed, matches this task's explicit scope):
- *  - **`entry_refs` where-used index** ({@link hasLiveEntryRefs}) — belongs to
- *    the generic entries model, which is accepted design only, not
- *    running code yet (see `types.ts`'s file header on `MediaRecord` being a
- *    bespoke table for the same reason). Stubbed to always return `false`
- *    ("no live refs found").
- *  - **Retained-snapshot conjunct** ({@link getOldestRetainedSnapshotAgeMs}) —
- *    owned by a pending Storage/Backups snapshot primitive, which doesn't
- *    exist yet either. Stubbed to always
- *    return `undefined` ("no retained snapshot").
- *  - **Monthly orphan sweep** ({@link runMonthlyOrphanSweepStub}) — the fourth
- *    protocol phase, reconciling bytes on disk with no `asset_blobs` row at
- *    all (e.g. a crash before any GC protocol existed). Needs a scheduler
- *    this library doesn't provide. Named so the seam exists; performs no work
- *    and is never called.
- *  - **Cross-process safety** — `withSha256Lock` only serializes within one
- *    Node process. A real multi-instance deployment needs the real DB
- *    transaction the original design specifies, which a host's own persistence adapter
- *    would supply; this build has no multi-writer story for media at all yet
- *    (in-memory repo), so that gap is inherited, not new.
+ * - **`entry_refs` where-used index** ({@link hasLiveEntryRefs}) — belongs to
+ * the generic entries model, which is accepted design only, not
+ * running code yet (see `types.ts`'s file header on `MediaRecord` being a
+ * bespoke table for the same reason). Stubbed to always return `false`
+ * ("no live refs found").
+ * - **Retained-snapshot conjunct** ({@link getOldestRetainedSnapshotAgeMs}) —
+ * owned by a pending Storage/Backups snapshot primitive, which doesn't
+ * exist yet either. Stubbed to always
+ * return `undefined` ("no retained snapshot").
+ * - **Monthly orphan sweep** ({@link runMonthlyOrphanSweepStub}) — the fourth
+ * protocol phase, reconciling bytes on disk with no `asset_blobs` row at
+ * all (e.g. a crash before any GC protocol existed). Needs a scheduler
+ * this library doesn't provide. Named so the seam exists; performs no work
+ * and is never called.
+ * - **Cross-process safety** — `withSha256Lock` only serializes within one
+ * Node process. A real multi-instance deployment needs the real DB
+ * transaction the original design specifies, which a host's own persistence adapter
+ * would supply; this build has no multi-writer story for media at all yet
+ * (in-memory repo), so that gap is inherited, not new.
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
-import type { ClockPort, IdGeneratorPort, UUID } from "../core/ports.js";
+import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
 import type { AssetBlobRepoPort, BlobGcJournalRepoPort, BlobStorePort, MediaRepoPort } from "./ports.js";
 import { withSha256Lock } from "./blob-gc-lock.js";
 
@@ -162,7 +164,7 @@ export async function isBlobUnreferenced(required: IsBlobUnreferencedRequired): 
 export interface TombstoneBlobDeps {
   mediaRepo: MediaRepoPort;
   blobRepo: AssetBlobRepoPort;
-  clock: ClockPort;
+  clock: Clock;
 }
 
 export interface TombstoneBlobRequired {
@@ -185,7 +187,7 @@ export async function tombstoneBlobIfUnreferenced(
   required: TombstoneBlobRequired
 ): Promise<{ tombstoned: boolean; reason: string }> {
   const { deps, input } = required;
-  return withSha256Lock(input.sha256, async () => {
+  return withSha256Lock({ key: input.sha256, criticalSection: async () => {
     const row = await deps.blobRepo.findByHash(input);
     if (!row) return { tombstoned: false, reason: "no-blob-row" };
     if (row.status === "tombstoned") return { tombstoned: true, reason: "already-tombstoned" };
@@ -193,9 +195,9 @@ export async function tombstoneBlobIfUnreferenced(
     const unreferenced = await isBlobUnreferenced({ deps, input });
     if (!unreferenced) return { tombstoned: false, reason: "still-referenced" };
 
-    await deps.blobRepo.save({ ...row, status: "tombstoned", tombstonedAt: deps.clock.nowIso() });
+    await deps.blobRepo.save({ ...row, status: "tombstoned", tombstonedAt: kernelNowIso({ clock: deps.clock }) });
     return { tombstoned: true, reason: "tombstoned" };
-  });
+  } });
 }
 
 // ---------------------------------------------------------------------------
@@ -206,8 +208,8 @@ export interface RunBlobGcDeletePassDeps {
   mediaRepo: MediaRepoPort;
   blobRepo: AssetBlobRepoPort;
   journalRepo: BlobGcJournalRepoPort;
-  clock: ClockPort;
-  idGen: IdGeneratorPort;
+  clock: Clock;
+  idGen: IdGenerator;
 }
 
 export interface RunBlobGcDeletePassRequired {
@@ -224,17 +226,26 @@ export interface RunBlobGcDeletePassRequired {
  * re-check is what the protocol calls for and is what future non-stub
  * entry_refs/snapshot conjuncts would need). On success: writes the
  * `blob_gc_journal` entry and removes the `asset_blobs` row, in that order,
- * inside the same locked section — INV-1a's "unlinked only after the row
+ * inside the same locked section — "unlinked only after the row
  * deletion commits" half depends on nothing touching bytes here at all.
+ * These operations are ordered, not atomic. A journal-save rejection leaves the row alone;
+ * a row-delete rejection leaves a pending entry plus the row. The unlink-pass rechecks ANY
+ * row (including a tombstone), skips its bytes and drains that stale entry, so a later delete
+ * retry can journal again. If row deletion succeeded before interruption, the pending entry
+ * lets unlink resume; unlink failure retains the entry, and byte removal must be idempotent.
+ * Durable recovery requires the journal save to commit before row deletion on the same store;
+ * the in-memory adapters survive neither a process crash nor restart. Across processes the
+ * host must additionally serialize row ownership checks, uploads and unlinking (see header).
  *
  * @complexity O(n) — dominated by the re-check's `isBlobUnreferenced` scan.
  * @overallScore 100
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 export async function runBlobGcDeletePass(
   required: RunBlobGcDeletePassRequired
 ): Promise<{ deleted: boolean; reason: string }> {
   const { deps, input } = required;
-  return withSha256Lock(input.sha256, async () => {
+  return withSha256Lock({ key: input.sha256, criticalSection: async () => {
     const row = await deps.blobRepo.findByHash(input);
     if (!row) return { deleted: false, reason: "no-blob-row" };
     if (row.status !== "tombstoned" || !row.tombstonedAt) {
@@ -242,7 +253,7 @@ export async function runBlobGcDeletePass(
     }
 
     const graceMs = resolveGcGraceMs(input);
-    const elapsedMs = new Date(deps.clock.nowIso()).getTime() - new Date(row.tombstonedAt).getTime();
+    const elapsedMs = new Date(kernelNowIso({ clock: deps.clock })).getTime() - new Date(row.tombstonedAt).getTime();
     if (elapsedMs < graceMs) return { deleted: false, reason: "grace-period-not-elapsed" };
 
     const stillUnreferenced = await isBlobUnreferenced({ deps, input });
@@ -253,11 +264,11 @@ export async function runBlobGcDeletePass(
       workspaceId: input.workspaceId,
       sha256: input.sha256,
       storageKey: row.storageKey,
-      journaledAt: deps.clock.nowIso(),
+      journaledAt: kernelNowIso({ clock: deps.clock }),
     });
     await deps.blobRepo.remove(input);
     return { deleted: true, reason: "deleted" };
-  });
+  } });
 }
 
 // ---------------------------------------------------------------------------
@@ -307,7 +318,7 @@ export async function runBlobGcUnlinkPass(
   const skipped: string[] = [];
 
   for (const entry of entries) {
-    await withSha256Lock(entry.sha256, async () => {
+    await withSha256Lock({ key: entry.sha256, criticalSection: async () => {
       const liveRow = await deps.blobRepo.findByHash({
         workspaceId: entry.workspaceId,
         sha256: entry.sha256,
@@ -319,7 +330,7 @@ export async function runBlobGcUnlinkPass(
         unlinked.push(entry.sha256);
       }
       await deps.journalRepo.remove({ workspaceId: entry.workspaceId, id: entry.id });
-    });
+    } });
   }
 
   return { unlinked, skipped };
@@ -387,8 +398,8 @@ export async function runBlobGcCycle(
  * @overallScore 100
  */
 export async function runMonthlyOrphanSweepStub(
-  _deps: { blobStore: BlobStorePort; blobRepo: AssetBlobRepoPort },
-  _input: { workspaceId: UUID }
+  _required: { deps: { blobStore: BlobStorePort; blobRepo: AssetBlobRepoPort }; input: { workspaceId: UUID } },
+  _optional: Record<string, never> = {}
 ): Promise<{ implemented: false }> {
   return { implemented: false };
 }

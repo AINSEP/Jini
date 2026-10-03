@@ -4,7 +4,7 @@
  * Ported verbatim from OD's top-level `apps/daemon/src/copilot-stream.ts`
  * (relocated under `runtimes/` in Jini's daemon per r1's recon; grouped
  * with the other stream parsers here). Self-contained — no imports, no
- * product coupling. See `source-map.md`.
+ * product coupling. See `archived provenance ledger`.
  *
  * Parses GitHub Copilot CLI's `--output-format json` JSONL stream into the
  * same UI-friendly events that claude-stream.js emits, so the chat panel
@@ -44,10 +44,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-export function createCopilotStreamHandler(onEvent: EventSink) {
+export function createCopilotStreamHandler({ onEvent }: { onEvent: EventSink }) {
   let buffer = '';
 
-  function feed(chunk: string) {
+  function feed({ chunk }: { chunk: string }) {
     buffer += chunk;
     let nl;
     while ((nl = buffer.indexOf('\n')) !== -1) {

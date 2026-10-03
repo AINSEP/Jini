@@ -121,7 +121,7 @@ export function MessageList({
     >
       {messages.map((message) => {
         const isLast = message.id === messages[messages.length - 1]?.id;
-        const runStreaming = isLast && isStreaming && !isTerminalRunStatus(message.runStatus);
+        const runStreaming = isLast && isStreaming && !isTerminalRunStatus({ status: message.runStatus });
         return (
           <MessageRow
             key={message.id}

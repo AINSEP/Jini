@@ -7,20 +7,21 @@ import { reasonixAgentDef } from '../reasonix.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 afterEach(() => {
-  setAcpModelProbe(null);
+  setAcpModelProbe({ probe: null });
 });
 
 describe('reasonixAgentDef.fetchModels', () => {
   it('delegates to detectAcpModels with the ACP handshake args for the resolved binary', async () => {
     const seen: Array<{ bin: string; args: string[] }> = [];
     const stub: AcpModelProbe = {
-      detectModels: async (request) => {
+      detectModels: async (required, optional = {}) => {
+        const request = { ...optional, ...required };
         seen.push({ bin: request.bin, args: request.args });
         return [{ id: 'deepseek-v4-pro', label: 'deepseek-v4-pro' }];
       },
     };
-    setAcpModelProbe(stub);
-    const models = await reasonixAgentDef.fetchModels!('reasonix', {});
+    setAcpModelProbe({ probe: stub });
+    const models = await reasonixAgentDef.fetchModels!({ resolvedBin: 'reasonix', env: {} });
     expect(models).toEqual([{ id: 'deepseek-v4-pro', label: 'deepseek-v4-pro' }]);
     expect(seen).toEqual([{ bin: 'reasonix', args: ['acp'] }]);
   });
@@ -29,7 +30,7 @@ describe('reasonixAgentDef.fetchModels', () => {
 describe('reasonixAgentDef.buildArgs', () => {
   it('always returns the ACP argv, ignoring any input params', () => {
     const buildArgs: RuntimeAgentDef['buildArgs'] = reasonixAgentDef.buildArgs;
-    expect(buildArgs('prompt', ['img.png'], ['/extra'], { model: 'x' }, { cwd: '/a' })).toEqual(['acp']);
+    expect(buildArgs({ prompt: 'prompt', imagePaths: ['img.png'] }, { extraAllowedDirs: ['/extra'], options: { model: 'x' }, runtimeContext: { cwd: '/a' } })).toEqual(['acp']);
   });
 });
 

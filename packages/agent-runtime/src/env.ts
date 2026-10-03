@@ -12,7 +12,7 @@
  * classification anticipated — it read OD's own app-config subsystem, OD's
  * sandbox-mode subsystem, and vela/AMR-specific env forwarding including a
  * literal product-name identity value and two product-prefixed env var
- * names (see `source-map.md` for the exact originals). None of that is
+ * names (see `archived provenance ledger` for the exact originals). None of that is
  * ported:
  *
  * - `mergeProxyAwareEnv` / `resolveSystemProxyEnv` now come from
@@ -30,7 +30,7 @@
  *   was itself product-branded. A host that needs equivalent trace
  *   correlation can build it as a `perAgentEnv` hook.
  *
- * See `source-map.md` for the full accounting.
+ * See `archived provenance ledger` for the full accounting.
  */
 import os from 'node:os';
 import { mergeProxyAwareEnv, resolveSystemProxyEnv } from '@jini-ai/platform';
@@ -43,16 +43,16 @@ export interface SpawnEnvHooks {
   /**
    * Per-agent env customization (e.g. vela/AMR profile forwarding,
    * analytics identity, a routed model's endpoint override). Called after
-   * the proxy-aware merge, before the built-in OpenCode/MiMo housekeeping.
+   * the proxy-aware merge and built-in housekeeping, before `sandboxOverlay`.
    * Return a partial env to merge in, or nothing to leave `env` as-is
    * (mutating `env` directly is also fine — it's a live object).
    */
-  perAgentEnv?: (agentId: string, env: NodeJS.ProcessEnv) => NodeJS.ProcessEnv | void;
+  perAgentEnv?: (requiredArgs: { agentId: string; env: NodeJS.ProcessEnv }) => NodeJS.ProcessEnv | void;
   /**
    * Applied last, after all other env composition. A host with a
    * sandboxed/jailed spawn mode plugs its own env constraints in here.
    */
-  sandboxOverlay?: (env: NodeJS.ProcessEnv) => NodeJS.ProcessEnv;
+  sandboxOverlay?: (requiredArgs: { env: NodeJS.ProcessEnv }) => NodeJS.ProcessEnv;
 }
 
 function stripKeysCaseInsensitive(env: NodeJS.ProcessEnv, keysToStrip: readonly string[]): void {
@@ -62,14 +62,9 @@ function stripKeysCaseInsensitive(env: NodeJS.ProcessEnv, keysToStrip: readonly 
   }
 }
 
-export function spawnEnvForAgent(
-  agentId: string,
-  baseEnv: RuntimeEnvMap,
-  configuredEnv: unknown = {},
-  systemProxyEnv: RuntimeEnvMap = resolveSystemProxyEnv(),
-  hooks: SpawnEnvHooks = {},
+export function spawnEnvForAgent({ agentId, baseEnv }: { agentId: string; baseEnv: RuntimeEnvMap }, { configuredEnv = {}, systemProxyEnv = resolveSystemProxyEnv(), hooks = {} }: { configuredEnv?: unknown; systemProxyEnv?: RuntimeEnvMap; hooks?: SpawnEnvHooks } = {}
 ): NodeJS.ProcessEnv {
-  const expandedConfiguredEnv = expandConfiguredEnv(configuredEnv);
+  const expandedConfiguredEnv = expandConfiguredEnv({ configuredEnv: configuredEnv });
   const env = mergeProxyAwareEnv(process.platform, systemProxyEnv, baseEnv, expandedConfiguredEnv);
 
   if (agentId === 'amr') {
@@ -84,7 +79,7 @@ export function spawnEnvForAgent(
       if (home) env.HOME = home;
     }
     if (!env.VELA_OPENCODE_BIN?.trim()) {
-      const opencodeBin = resolveAmrOpenCodeExecutable(env);
+      const opencodeBin = resolveAmrOpenCodeExecutable({  }, { env: env });
       if (opencodeBin) env.VELA_OPENCODE_BIN = opencodeBin;
     }
   }
@@ -114,8 +109,8 @@ export function spawnEnvForAgent(
     }
   }
 
-  const perAgentOverrides = hooks.perAgentEnv?.(agentId, env);
+  const perAgentOverrides = hooks.perAgentEnv?.({ agentId: agentId, env: env });
   if (perAgentOverrides) Object.assign(env, perAgentOverrides);
 
-  return hooks.sandboxOverlay ? hooks.sandboxOverlay(env) : env;
+  return hooks.sandboxOverlay ? hooks.sandboxOverlay({ env: env }) : env;
 }

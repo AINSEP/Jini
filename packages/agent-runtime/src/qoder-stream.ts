@@ -2,7 +2,7 @@
  * @module qoder-stream
  *
  * Ported verbatim from OD's `apps/daemon/src/runtimes/qoder-stream.ts`
- * (only `node:buffer` as a dependency). See `source-map.md`.
+ * (only `node:buffer` as a dependency). See `archived provenance ledger`.
  *
  * Parses Qoder CLI's `--output-format stream-json` JSONL stream into the
  * small event set consumed by the chat UI. Qoder's top-level records are
@@ -87,7 +87,7 @@ function messageFromResult(obj: JsonRecord): string {
   return 'Qoder run failed';
 }
 
-export function createQoderStreamHandler(onEvent: QoderEventSink) {
+export function createQoderStreamHandler({ onEvent }: { onEvent: QoderEventSink }) {
   let buffer = '';
   let emittedThinkingStart = false;
 
@@ -179,7 +179,7 @@ export function createQoderStreamHandler(onEvent: QoderEventSink) {
     }
   }
 
-  function feed(chunk: unknown) {
+  function feed({ chunk }: { chunk: unknown }) {
     buffer += stringifyContent(chunk);
     let nl;
     while ((nl = buffer.indexOf('\n')) !== -1) {

@@ -51,7 +51,7 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 }
 
 /** Coerces a freeform JSON blob into the typed shape, dropping anything that doesn't deserialize cleanly. Used both at read time and as a defensive pass when third-party tooling has hand-edited the file. */
-export function sanitizeOAuthTokenFile(raw: unknown): OAuthTokenFile {
+export function sanitizeOAuthTokenFile({ raw }: { raw: unknown }): OAuthTokenFile {
   if (!isPlainObject(raw)) return {};
   const tok = sanitizeToken(raw.token);
   return tok ? { token: tok } : {};
@@ -89,10 +89,10 @@ function sanitizeToken(raw: unknown): StoredOAuthToken | null {
   return out;
 }
 
-export async function readOAuthTokenFile(dataDir: string, fileName: string): Promise<OAuthTokenFile> {
+export async function readOAuthTokenFile({ dataDir, fileName }: { dataDir: string; fileName: string }): Promise<OAuthTokenFile> {
   try {
     const raw = await readFile(tokenFilePath(dataDir, fileName), 'utf8');
-    return sanitizeOAuthTokenFile(JSON.parse(raw));
+    return sanitizeOAuthTokenFile({ raw: JSON.parse(raw) });
   } catch (err: unknown) {
     const e = err as { code?: string; name?: string; message?: string };
     if (e.code === 'ENOENT') return { ...EMPTY };
@@ -146,19 +146,14 @@ async function writeTokenFile(
 }
 
 /** Gets the current stored OAuth token for `fileName`, or null when none is stored (or the persisted entry is malformed). */
-export async function getStoredOAuthToken(
-  dataDir: string,
-  fileName: string,
+export async function getStoredOAuthToken({ dataDir, fileName }: { dataDir: string; fileName: string }
 ): Promise<StoredOAuthToken | null> {
-  const file = await readOAuthTokenFile(dataDir, fileName);
+  const file = await readOAuthTokenFile({ dataDir: dataDir, fileName: fileName });
   return file.token ?? null;
 }
 
 /** Atomically replaces the stored OAuth token for `fileName`. */
-export async function setStoredOAuthToken(
-  dataDir: string,
-  fileName: string,
-  token: StoredOAuthToken,
+export async function setStoredOAuthToken({ dataDir, fileName, token }: { dataDir: string; fileName: string; token: StoredOAuthToken }
 ): Promise<void> {
   await withLock(`${dataDir}\0${fileName}`, async () => {
     await writeTokenFile(dataDir, fileName, { token });
@@ -166,19 +161,16 @@ export async function setStoredOAuthToken(
 }
 
 /** Atomically deletes the stored OAuth token for `fileName`. No-op when absent. */
-export async function clearStoredOAuthToken(dataDir: string, fileName: string): Promise<void> {
+export async function clearStoredOAuthToken({ dataDir, fileName }: { dataDir: string; fileName: string }): Promise<void> {
   await withLock(`${dataDir}\0${fileName}`, async () => {
-    const file = await readOAuthTokenFile(dataDir, fileName);
+    const file = await readOAuthTokenFile({ dataDir: dataDir, fileName: fileName });
     if (!file.token) return;
     await writeTokenFile(dataDir, fileName, {});
   });
 }
 
 /** True when the stored token is past its `expiresAt` (or within `skew` milliseconds of expiring). Returns false when no `expiresAt` is recorded — some providers issue non-expiring tokens. */
-export function isOAuthTokenExpired(
-  token: StoredOAuthToken,
-  now: number = Date.now(),
-  skew: number = 120_000,
+export function isOAuthTokenExpired({ token }: { token: StoredOAuthToken }, { now = Date.now(), skew = 120_000 }: { now?: number; skew?: number } = {}
 ): boolean {
   if (typeof token.expiresAt !== 'number') return false;
   return token.expiresAt - skew <= now;

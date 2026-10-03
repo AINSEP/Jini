@@ -10,7 +10,7 @@
  * Generalized from an upstream flat daemon module: every hardcoded env-var
  * name, the host CLI's own package specifier, the default data-directory
  * name, and the Windows packaged-resources marker segment are now fields on
- * {@link ResourcePathsConfig} — see `source-map.md` for the exact mapping.
+ * {@link ResourcePathsConfig} — see `archived provenance ledger` for the exact mapping.
  */
 import fs from 'node:fs';
 import { createRequire } from 'node:module';

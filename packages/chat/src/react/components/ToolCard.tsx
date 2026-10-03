@@ -76,10 +76,10 @@ function renderToolCardBody(
   isSucceeded: boolean,
   fileCtx: FileToolCtx,
 ): ReactNode {
-  const custom = getToolRenderer(name);
+  const custom = getToolRenderer({ name: name });
   if (custom) {
     try {
-      const node = custom(toRenderProps(use, result, isStreaming, isSucceeded));
+      const node = custom(toRenderProps({ use: use, result: result, runStreaming: isStreaming }, { runSucceeded: isSucceeded }));
       if (node !== undefined && node !== null && node !== false) return node;
     } catch (err) {
       console.error(`[ToolCard] custom renderer for "${name}" threw; falling back`, err);
@@ -96,7 +96,7 @@ function renderToolCardBody(
   // visible rather than disappear silently.
   if (EXECUTE_DELEGATED_TOOL_NAMES.has(name) && result && !result.isError) return null;
 
-  if (isTodoWriteToolName(name)) return <TodoCard todos={parseTodoWriteInput(use.input)} runStreaming={isStreaming} />;
+  if (isTodoWriteToolName({ name: name })) return <TodoCard todos={parseTodoWriteInput({ input: use.input })} runStreaming={isStreaming} />;
   if (name === 'Write' || name === 'write' || name === 'create_file') return <FileWriteCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={fileCtx} />;
   if (name === 'Edit' || name === 'str_replace_edit') return <FileEditCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={fileCtx} />;
   if (name === 'Read' || name === 'read_file') return <FileReadCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={fileCtx} />;
@@ -173,7 +173,7 @@ function DelegatedToolCard({ name, input, result, runStreaming, runSucceeded }: 
         <div className="accordion-collapsible-inner">
           <div className="op-card-detail">
             <pre className="op-command">{JSON.stringify(args ?? {})}</pre>
-            {result?.content ? <pre className="op-output">{truncate(formatToolOutputForDisplay(result.content), 2000)}</pre> : null}
+            {result?.content ? <pre className="op-output">{truncate(formatToolOutputForDisplay({ text: result.content }), 2000)}</pre> : null}
             <ToolResultMedia result={result} />
           </div>
         </div>
@@ -201,7 +201,7 @@ function SearchToolsCard({ input, result, runStreaming, runSucceeded }: CardProp
       <div className={`accordion-collapsible${open ? ' open' : ''}`}>
         <div className="accordion-collapsible-inner">
           <div className="op-card-detail">
-            {result?.content ? <pre className="op-output">{truncate(formatToolOutputForDisplay(result.content), 2000)}</pre> : null}
+            {result?.content ? <pre className="op-output">{truncate(formatToolOutputForDisplay({ text: result.content }), 2000)}</pre> : null}
           </div>
         </div>
       </div>
@@ -228,7 +228,7 @@ function DescribeToolCard({ input, result, runStreaming, runSucceeded }: CardPro
       <div className={`accordion-collapsible${open ? ' open' : ''}`}>
         <div className="accordion-collapsible-inner">
           <div className="op-card-detail">
-            {result?.content ? <pre className="op-output">{truncate(formatToolOutputForDisplay(result.content), 2000)}</pre> : null}
+            {result?.content ? <pre className="op-output">{truncate(formatToolOutputForDisplay({ text: result.content }), 2000)}</pre> : null}
           </div>
         </div>
       </div>
@@ -387,7 +387,7 @@ function BashCard({ input, result, runStreaming, runSucceeded }: CardProps) {
         <div className="accordion-collapsible-inner">
           <div className="op-card-detail">
             <pre className="op-command">{truncate(command, 400)}</pre>
-            {result?.content ? <pre className="op-output">{truncate(formatToolOutputForDisplay(result.content), 4000)}</pre> : null}
+            {result?.content ? <pre className="op-output">{truncate(formatToolOutputForDisplay({ text: result.content }), 4000)}</pre> : null}
           </div>
         </div>
       </div>
@@ -532,7 +532,7 @@ function ToolResultMedia({ result }: { result?: ToolResultEvent | undefined }) {
 
 function FileErrorDetail({ result }: { result?: ToolResultEvent | undefined }) {
   if (!result?.isError || !result.content.trim()) return null;
-  return <pre className="op-output">{truncate(formatToolOutputForDisplay(result.content), 1200)}</pre>;
+  return <pre className="op-output">{truncate(formatToolOutputForDisplay({ text: result.content }), 1200)}</pre>;
 }
 
 function describeInput(input: unknown): string {

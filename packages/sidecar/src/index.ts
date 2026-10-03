@@ -18,6 +18,11 @@ export type {
   JsonIpcHandler,
   JsonIpcServerHandle,
   NamespaceResolutionOptions,
+  NamespaceOptionalArgs,
+  BaseResolutionOptionsOptionalArgs,
+  AppIpcPathRequestOptionalArgs,
+  SidecarLaunchEnvRequestOptionalArgs,
+  BootstrapSidecarRuntimeOptionsOptionalArgs,
   PortAllocation,
   PortRequest,
   ProjectRuntimePathRequest,
@@ -58,3 +63,6 @@ export {
   resolveDaemonRegistryPath,
   writeDaemonRegistryRecord,
 } from "./daemon-registry.js";
+
+export * from "./respawn-policy.js";
+export * from "./supervisor.js";

@@ -29,7 +29,7 @@ export default defineConfig({
         // for real. `branches` sits at 98.34, not 100, because of exactly 4
         // branches confirmed genuinely unreachable through any real call
         // path this session (each independently verified, not assumed —
-        // see source-map.md's 2026-07-22 entry): json-ipc.ts's idle-timer
+        // see archived provenance ledger's 2026-07-22 entry): json-ipc.ts's idle-timer
         // `handled` re-check (single-threaded execution already guarantees
         // `clearTimeout` always precedes it) and three `error instanceof
         // Error` checks whose real inputs (a `Socket`'s `'error'` event —

@@ -64,7 +64,7 @@ export function useRecurringSchedulePicker({
     return Array.from(new Set([local, ...listSupportedTimezones()]));
   }, [timezones]);
 
-  useDismissOnOutsideOrEscape(() => setOpen(false), { enabled: open, containerRef });
+  useDismissOnOutsideOrEscape({ onDismiss: () => setOpen(false) }, { enabled: open, containerRef });
 
   const toggleOpen = () => {
     setOpen((current) => {

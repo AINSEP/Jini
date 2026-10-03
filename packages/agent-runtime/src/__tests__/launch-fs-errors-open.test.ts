@@ -66,7 +66,7 @@ describe('resolveAgentLaunch when openSync fails inside looksLikeCodexNodeWrappe
     chmodSync(binPath, 0o755);
 
     const def = makeDef({ id: 'codex', bin: 'codex' });
-    const result = resolveAgentLaunch(def, { CODEX_BIN: binPath });
+    const result = resolveAgentLaunch({ def: def }, { configuredEnv: { CODEX_BIN: binPath } });
 
     expect(result.launchKind).toBe('selected');
     expect(result.launchPath).toBe(binPath);

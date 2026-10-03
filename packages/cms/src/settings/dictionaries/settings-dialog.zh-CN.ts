@@ -13,7 +13,6 @@ export const SETTINGS_DIALOG_ZH_CN: Record<string, string> = {
   "MCP server": "MCP 服务器",
   "Connect an MCP client. Showing sample output — not yet wired to a live server.": "连接一个 MCP 客户端。当前显示的是示例输出——尚未接入实际服务器。",
   "API keys for image, video, and audio generation.": "用于生成图像、视频和音频的 API 密钥。",
-  "Third-party accounts and APIs via Composio.": "通过 Composio 接入的第三方账户和 API。",
   "Memory": "记忆",
   "Saved facts and context for future chats.": "为后续对话保存的事实和上下文。",
   "External MCP": "外部 MCP",

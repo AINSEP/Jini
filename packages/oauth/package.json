@@ -1,0 +1,67 @@
+{
+  "name": "@jini-ai/oauth",
+  "version": "0.2.0",
+  "description": "OAuth 2.x client with discovery, registration, PKCE, device grants and refresh.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/oauth"
+  },
+  "jini": {
+    "domain": "integration",
+    "kind": "protocol-client",
+    "runtime": "node",
+    "entries": {
+      ".": "node",
+      "./testing": "node",
+      "./discovery-policy": "node",
+      "./dns-pinned-transport": "node"
+    }
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js",
+      "default": "./dist/testing/index.js"
+    },
+    "./discovery-policy": {
+      "types": "./dist/discovery-policy.d.ts",
+      "import": "./dist/discovery-policy.js",
+      "default": "./dist/discovery-policy.js"
+    },
+    "./dns-pinned-transport": {
+      "types": "./dist/dns-pinned-transport.d.ts",
+      "import": "./dist/dns-pinned-transport.js",
+      "default": "./dist/dns-pinned-transport.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "!dist/**/*.test.*",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@jini-ai/core": "^0.4.0"
+  }
+}

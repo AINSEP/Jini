@@ -4,8 +4,8 @@ import { createQoderStreamHandler } from '../qoder-stream.js';
 /** Synthetic trace shaped like Qoder CLI's `--output-format stream-json`; see `claude-stream.test.ts` for the network-access caveat. */
 function feed(lines: unknown[]) {
   const events: Record<string, unknown>[] = [];
-  const handler = createQoderStreamHandler((event) => events.push(event));
-  for (const line of lines) handler.feed(`${JSON.stringify(line)}\n`);
+  const handler = createQoderStreamHandler({ onEvent: (event) => events.push(event) });
+  for (const line of lines) handler.feed({ chunk: `${JSON.stringify(line)}\n` });
   handler.flush();
   return events;
 }
@@ -46,8 +46,8 @@ describe('createQoderStreamHandler', () => {
   });
 
   it('emits a raw event for malformed JSON', () => {
-    const handler = createQoderStreamHandler(() => {});
-    expect(() => handler.feed('{bad json\n')).not.toThrow();
+    const handler = createQoderStreamHandler({ onEvent: () => {} });
+    expect(() => handler.feed({ chunk: '{bad json\n' })).not.toThrow();
   });
 
   it('omits model/session/version fields from init status when absent', () => {
@@ -120,24 +120,24 @@ describe('createQoderStreamHandler', () => {
 
   it('ignores blank lines between records', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createQoderStreamHandler((event) => events.push(event));
-    handler.feed('\n\n');
-    handler.feed(`${JSON.stringify({ type: 'result' })}\n`);
+    const handler = createQoderStreamHandler({ onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: '\n\n' });
+    handler.feed({ chunk: `${JSON.stringify({ type: 'result' })}\n` });
     handler.flush();
     expect(events).toEqual([{ type: 'usage', usage: null, modelUsage: undefined, costUsd: null, durationMs: null, stopReason: null, isError: false }]);
   });
 
   it('flush() is a no-op when the buffer is empty', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createQoderStreamHandler((event) => events.push(event));
+    const handler = createQoderStreamHandler({ onEvent: (event) => events.push(event) });
     handler.flush();
     expect(events).toEqual([]);
   });
 
   it('flush() processes a final line with no trailing newline', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createQoderStreamHandler((event) => events.push(event));
-    handler.feed(JSON.stringify({ type: 'result', stop_reason: 'stop' }));
+    const handler = createQoderStreamHandler({ onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: JSON.stringify({ type: 'result', stop_reason: 'stop' }) });
     handler.flush();
     expect(events).toEqual([{ type: 'usage', usage: null, modelUsage: undefined, costUsd: null, durationMs: null, stopReason: 'stop', isError: false }]);
   });
@@ -159,8 +159,8 @@ describe('createQoderStreamHandler', () => {
 
   it('ignores a top-level JSON value that parses but is not a record (e.g. a bare number)', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createQoderStreamHandler((event) => events.push(event));
-    handler.feed('42\n');
+    const handler = createQoderStreamHandler({ onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: '42\n' });
     handler.flush();
     expect(events).toEqual([]);
   });
@@ -168,17 +168,17 @@ describe('createQoderStreamHandler', () => {
   describe('stringifyContent (via feed(chunk: unknown))', () => {
     it('accepts a Buffer chunk and decodes it as utf8', () => {
       const events: Record<string, unknown>[] = [];
-      const handler = createQoderStreamHandler((event) => events.push(event));
+      const handler = createQoderStreamHandler({ onEvent: (event) => events.push(event) });
       const line = `${JSON.stringify({ type: 'result', stop_reason: 'stop' })}\n`;
-      handler.feed(Buffer.from(line, 'utf8'));
+      handler.feed({ chunk: Buffer.from(line, 'utf8') });
       expect(events).toEqual([{ type: 'usage', usage: null, modelUsage: undefined, costUsd: null, durationMs: null, stopReason: 'stop', isError: false }]);
     });
 
     it('treats a null/undefined chunk as empty content', () => {
       const events: Record<string, unknown>[] = [];
-      const handler = createQoderStreamHandler((event) => events.push(event));
-      handler.feed(null);
-      handler.feed(undefined);
+      const handler = createQoderStreamHandler({ onEvent: (event) => events.push(event) });
+      handler.feed({ chunk: null });
+      handler.feed({ chunk: undefined });
       handler.flush();
       expect(events).toEqual([]);
     });
@@ -189,8 +189,8 @@ describe('createQoderStreamHandler', () => {
       // produces `{"foo":"bar"}` with no trailing newline, so nothing is
       // processed until flush().
       const events: Record<string, unknown>[] = [];
-      const handler = createQoderStreamHandler((event) => events.push(event));
-      handler.feed({ foo: 'bar' } as unknown as string);
+      const handler = createQoderStreamHandler({ onEvent: (event) => events.push(event) });
+      handler.feed({ chunk: { foo: 'bar' } as unknown as string });
       handler.flush();
       expect(events).toEqual([{ type: 'raw', line: '{"foo":"bar"}' }]);
     });
@@ -199,8 +199,8 @@ describe('createQoderStreamHandler', () => {
       const circular: Record<string, unknown> = {};
       circular.self = circular;
       const events: Record<string, unknown>[] = [];
-      const handler = createQoderStreamHandler((event) => events.push(event));
-      handler.feed(circular as unknown as string);
+      const handler = createQoderStreamHandler({ onEvent: (event) => events.push(event) });
+      handler.feed({ chunk: circular as unknown as string });
       handler.flush();
       expect(events).toEqual([{ type: 'raw', line: '[object Object]' }]);
     });

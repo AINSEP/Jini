@@ -2,7 +2,39 @@
 
 > Historical changelog of the former standalone `@jini-ai/media`
 > package, retained here for provenance. This package is now the `./media-providers` subpath of
-> `@jini-ai/integrations`; see the root `CHANGELOG.md` for changes from this point forward.
+> `@jini-ai/integrations`; see this subpath changelog and the root `CHANGELOG.md` for current changes.
+
+## Unreleased — guarded media egress
+
+- Route all vendor calls, signed submit/poll requests and provider-returned asset downloads
+  through the canonical guarded HTTP port. The default client blocks private, loopback and
+  link-local peers, including mixed DNS answers, and pins the vetted address before connection.
+- Refuse every redirect, including when `allowPrivateNetwork: true` explicitly enables local
+  development. DNS failures and empty answers no longer pass standalone URL validation.
+- **BREAKING:** `OperationRuntimeDeps.fetchImpl` is removed; inject `httpClient` instead.
+  The engine and render context accept the same optional port, with a safe native default.
+- **BREAKING:** The internal exported `bytesFromOpenAICompatibleData` helper uses
+  `({ data, providerTag }, { requestInit?, httpClient?, allowPrivateNetwork? })`.
+- **BREAKING:** Raw `requestInit.dispatcher` overrides are refused; guarded-client construction
+  owns the socket. OpenAI image generation retains its ten-minute budget without a raw dispatcher.
+- Default buffering is limited to 96 MiB and refuses truncated bytes. Whole-operation deadlines
+  now cover DNS and the complete body: generation ten minutes, assets two minutes, polls QUICK.
+- Export `MediaOutboundOptions` and `defaultMediaOutboundMessages` for host wiring and diagnostics.
+
+## Unreleased — required/optional argument objects
+
+- **BREAKING:** Catalog lookups, video helpers, renderers, staging, policies,
+  dispatch factories, registries, vendor/polling adapters, parsers, DNS lookup
+  ports and async-operation stores use required and optional argument objects.
+  Existing export names remain; positional calls have no compatibility overloads.
+- **BREAKING:** Async runtime entry points receive required ports and operation
+  fields in argument one and optional controls in argument two. The optional
+  clock callback is `clock`; recovery's numeric time remains `now`.
+- **BREAKING:** `resolveProviderCredentialsFromEnv` receives both `providerId`
+  and the caller's `env` record in its required argument.
+- The legacy `MediaTaskStore` and its SQLite factory still need conversion by
+  their current file owner; this change deliberately leaves those busy files
+  untouched.
 
 ## 0.1.2
 

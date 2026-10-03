@@ -328,7 +328,7 @@ describe('ConfirmDialog dialog-hook injection', () => {
     // state and calls no React hook — the annotation, not the inference, is what says that is
     // allowed, because `typeof` names an implementation while this names a contract.
     const handleBackdropClick = vi.fn();
-    const stateless: UseConfirmDialog = (open, pending, onCancel) => ({
+    const stateless: UseConfirmDialog = ({ open, onCancel }, { pending } = {}) => ({
       titleId: 'contract-title-id',
       dialogRef: { current: null },
       cancelRef: { current: null },

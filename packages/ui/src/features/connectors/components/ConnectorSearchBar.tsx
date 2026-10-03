@@ -57,7 +57,7 @@ export function ConnectorSearchBar({
         aria-label={resolvedAriaLabel}
         disabled={disabled}
         data-testid="connectors-search-input"
-        {...agentHandleProps(agentHandle, { role: 'field', label: resolvedAriaLabel })}
+        {...agentHandleProps({}, { base: agentHandle, ...({ role: 'field', label: resolvedAriaLabel }) })}
       />
       {hasQuery ? (
         <button
@@ -69,7 +69,7 @@ export function ConnectorSearchBar({
             inputRef.current?.focus();
           }}
           data-testid="connectors-search-clear"
-          {...agentHandleProps(agentHandle, { action: 'clear', role: 'button', label: resolvedClearAriaLabel })}
+          {...agentHandleProps({}, { base: agentHandle, ...({ action: 'clear', role: 'button', label: resolvedClearAriaLabel }) })}
         >
           <Icon name="close" size={12} />
         </button>

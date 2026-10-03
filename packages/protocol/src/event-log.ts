@@ -3,8 +3,8 @@
  *
  * The port's *types* live here, in the dependency-free contract package, rather than beside its
  * reference implementation in `@jini-ai/daemon`. That is what lets a storage adapter
- * (`@jini-ai/sqlite`'s `createSqliteEventLog`) implement the port without depending on the daemon
- * runtime at all — before this split, `@jini-ai/sqlite` pulled `@jini-ai/daemon` (and therefore
+ * (`@jini-ai/sqlite-chat`'s `createSqliteEventLog`) implement the port without depending on the daemon
+ * runtime at all — before this split, `@jini-ai/sqlite-chat` pulled `@jini-ai/daemon` (and therefore
  * `@jini-ai/agent-runtime`, `@jini-ai/platform`, and native `node-pty`) purely to reach four
  * `import type` names. It also matches the split `@jini-ai/registry`'s barrel already documents:
  * protocol defines the port, a leaf package implements adapters against it.
@@ -31,6 +31,10 @@ export interface EventLogAppendInput<Payload = unknown> {
   readonly runId: string;
   readonly event: string;
   readonly data: Payload;
+}
+
+/** Optional producer metadata, separate from the required event record. */
+export interface EventLogAppendOptions {
   /**
    * Optional producer-supplied dedup token. Appending twice with the same
    * `dedupeKey` for the same run returns the original entry unchanged rather
@@ -86,16 +90,19 @@ export type EventLogReplayResult<Payload = unknown> =
 /**
  * A replayable, ordered, per-run event log. Kernel port — `@jini-ai/daemon`
  * ships `createInMemoryEventLog` as the reference implementation; a durable
- * adapter (`@jini-ai/sqlite`, task 8) implements the same interface.
+ * adapter (`@jini-ai/sqlite-chat`, task 8) implements the same interface.
  */
 export interface EventLog {
   /**
    * Appends one event to `input.runId`'s ordered log.
    *
    * @returns The recorded entry (with its assigned cursor `id`), or the
-   * original entry unchanged if `input.dedupeKey` matches a prior append.
+   * original entry unchanged if `options.dedupeKey` matches a prior append.
    */
-  append<Payload>(input: EventLogAppendInput<Payload>): Promise<EventLogEntry<Payload>>;
+  append<Payload>(
+    input: EventLogAppendInput<Payload>,
+    options?: EventLogAppendOptions,
+  ): Promise<EventLogEntry<Payload>>;
   /**
    * Returns every entry recorded after `afterCursor` for `runId`, or a
    * distinguishable non-`'ok'` result — see {@link EventLogReplayResult}.
@@ -104,9 +111,9 @@ export interface EventLog {
    * earliest events were already evicted before this call is not a gap —
    * nothing was ever promised to this caller).
    */
-  replay(runId: string, afterCursor: string | null): Promise<EventLogReplayResult>;
+  replay(input: { readonly runId: string; readonly afterCursor: string | null }): Promise<EventLogReplayResult>;
   /** Lists every run for which this log retains durable state. Used by a host at boot to rehydrate its `RunLifecycle` index. */
-  listRunIds(): Promise<readonly string[]>;
+  listRunIds(input: Record<string, never>): Promise<readonly string[]>;
   /** Discards all retained state for `runId` (e.g. once a terminal run's retention window has passed). */
-  drop(runId: string): Promise<void>;
+  drop(input: { readonly runId: string }): Promise<void>;
 }

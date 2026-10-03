@@ -5,7 +5,7 @@
  * catalog ids, and `renderAIHubMixTTS` (`POST /audio/speech`, OpenAI
  * shape). Ported near-verbatim from Open Design's
  * `apps/daemon/src/media/index.ts` `renderAIHubMixImage`/
- * `renderAIHubMixGeminiImage`/`renderAIHubMixTTS` — see `source-map.md`.
+ * `renderAIHubMixGeminiImage`/`renderAIHubMixTTS` — see `archived provenance ledger`.
  *
  * The non-Gemini image path and the TTS path route through
  * `openai-compatible.ts`'s shared helpers since AIHubMix's default wire
@@ -67,9 +67,9 @@ const NO_CREDENTIAL_MESSAGE = 'no AIHubMix credential — configure an API key o
 type AIHubMixImageMeta = { readonly kind: 'gemini'; readonly wireModel: string; readonly aspect: string } | { readonly kind: 'openai'; readonly wireModel: string };
 
 const aihubmixImageAdapter: VendorAdapter<AIHubMixImageMeta> = {
-  requireCredential: requireApiKey(NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<AIHubMixImageMeta> {
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<AIHubMixImageMeta> {
     const apiKey = credentials.apiKey!; // requireCredential already validated this.
     const baseUrl = credentials.baseUrl || AIHUBMIX_DEFAULT_BASE_URL;
     const wireModel = aihubmixWireModel(credentials.model || ctx.wireModel);
@@ -122,7 +122,7 @@ const aihubmixImageAdapter: VendorAdapter<AIHubMixImageMeta> = {
     };
   },
 
-  async parseResponse(resp: Response, ctx: RenderContext, request: VendorRequest<AIHubMixImageMeta>): Promise<RenderResult> {
+  async parseResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<AIHubMixImageMeta> }): Promise<RenderResult> {
     if (request.meta.kind === 'gemini') {
       const { wireModel, aspect } = request.meta;
       if (!resp.ok) {
@@ -162,7 +162,7 @@ const aihubmixImageAdapter: VendorAdapter<AIHubMixImageMeta> = {
     if (entry.b64_json) {
       bytes = Buffer.from(entry.b64_json, 'base64');
     } else if (entry.url) {
-      const imgResp = await assertAndFetchExternalAsset(entry.url, withRequestInit(ctx));
+      const imgResp = await assertAndFetchExternalAsset({ url: entry.url }, { ...ctx, init: withRequestInit(ctx) });
       if (!imgResp.ok) throw new Error(`aihubmix image fetch ${imgResp.status}`);
       bytes = Buffer.from(await imgResp.arrayBuffer());
     } else {
@@ -176,10 +176,10 @@ const aihubmixImageAdapter: VendorAdapter<AIHubMixImageMeta> = {
   },
 };
 
-mediaVendorRegistry.register('aihubmix', 'image', aihubmixImageAdapter);
+mediaVendorRegistry.register({ providerId: 'aihubmix', routeKey: 'image', adapter: aihubmixImageAdapter });
 
-export async function renderAIHubMixImage(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(aihubmixImageAdapter, ctx, credentials);
+export async function renderAIHubMixImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: aihubmixImageAdapter, ctx: ctx, credentials: credentials });
 }
 
 interface AIHubMixTTSMeta {
@@ -189,9 +189,9 @@ interface AIHubMixTTSMeta {
 }
 
 const aihubmixTTSAdapter: VendorAdapter<AIHubMixTTSMeta> = {
-  requireCredential: requireApiKey(NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<AIHubMixTTSMeta> {
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<AIHubMixTTSMeta> {
     const apiKey = credentials.apiKey!; // requireCredential already validated this.
     const baseUrl = credentials.baseUrl || AIHUBMIX_DEFAULT_BASE_URL;
     const wireModel = aihubmixWireModel(credentials.model || ctx.wireModel);
@@ -214,13 +214,13 @@ const aihubmixTTSAdapter: VendorAdapter<AIHubMixTTSMeta> = {
   parseResponse: createRawBytesParser<AIHubMixTTSMeta>({
     errorTag: 'aihubmix speech',
     zeroBytesMessage: 'aihubmix speech returned zero bytes',
-    note: (bytes, meta) => `aihubmix/${meta.wireModel} · ${meta.voice} · ${meta.format} · ${bytes.length} bytes`,
-    suggestedExt: (_bytes, meta) => (meta.format === 'opus' ? '.ogg' : `.${meta.format}`),
+    note: ({ bytes, meta }) => `aihubmix/${meta.wireModel} · ${meta.voice} · ${meta.format} · ${bytes.length} bytes`,
+    suggestedExt: ({ bytes: _bytes, meta }) => (meta.format === 'opus' ? '.ogg' : `.${meta.format}`),
   }),
 };
 
-mediaVendorRegistry.register('aihubmix', 'audio:speech', aihubmixTTSAdapter);
+mediaVendorRegistry.register({ providerId: 'aihubmix', routeKey: 'audio:speech', adapter: aihubmixTTSAdapter });
 
-export async function renderAIHubMixTTS(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(aihubmixTTSAdapter, ctx, credentials);
+export async function renderAIHubMixTTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: aihubmixTTSAdapter, ctx: ctx, credentials: credentials });
 }

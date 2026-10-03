@@ -31,9 +31,9 @@ function resetPendingJson(state: JsonLineAccumulatorState): void {
   state.pendingJsonLineCount = 0;
 }
 
-export function emitJsonLine(candidate: string, onMessage: (message: unknown, rawLine: string) => void): boolean {
+export function emitJsonLine(candidate: string, onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void): boolean {
   try {
-    onMessage(JSON.parse(candidate), candidate);
+    onMessage({ message: JSON.parse(candidate), rawLine: candidate });
     return true;
   } catch {
     return false;
@@ -46,7 +46,7 @@ export function emitJsonLine(candidate: string, onMessage: (message: unknown, ra
 export function continuePendingJsonLine(
   state: JsonLineAccumulatorState,
   trimmed: string,
-  onMessage: (message: unknown, rawLine: string) => void,
+  onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void,
 ): void {
   const nextCandidate = `${state.pendingJson}\n${trimmed}`;
   if (emitJsonLine(nextCandidate, onMessage)) {
@@ -83,7 +83,7 @@ export function tryStartPendingJsonLine(state: JsonLineAccumulatorState, trimmed
 export function handleJsonLine(
   state: JsonLineAccumulatorState,
   line: string,
-  onMessage: (message: unknown, rawLine: string) => void,
+  onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void,
 ): void {
   const trimmed = line.trim();
   if (!trimmed) return;
@@ -105,17 +105,17 @@ export function handleJsonLine(
  * Used as the shared ACP transport: both the acp/ and pi-rpc/ adapters call
  * this to decode JSON-RPC frames from a subprocess's stdout.
  *
- * @param onMessage - Called for each successfully parsed JSON value along with
- *   the raw reassembled line string as a second argument.
- * @returns An object with `feed(chunk)` for incremental input and `flush()` to
+ * @param requiredArgs.onMessage - Called with `{ message, rawLine }` for each
+ *   successfully parsed JSON value and its raw reassembled line string.
+ * @returns An object with `feed({ chunk })` for incremental input and `flush()` to
  *   drain any residual buffered content at stream end.
  */
-export function createJsonLineStream(onMessage: (message: unknown, rawLine: string) => void) {
+export function createJsonLineStream({ onMessage }: { onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void }) {
   let buffer = '';
   const state: JsonLineAccumulatorState = { pendingJson: '', pendingJsonLineCount: 0 };
 
   return {
-    feed(chunk: string) {
+    feed({ chunk }: { chunk: string }) {
       buffer += chunk;
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
@@ -139,7 +139,7 @@ export function createJsonLineStream(onMessage: (message: unknown, rawLine: stri
       // a defensive `if (pendingJson && emit(pendingJson)) { pendingJson =
       // '' }` here that was provably dead code; removed per this package's
       // coverage-driven dead-branch discipline rather than left uncovered or
-      // suppressed. See source-map.md.
+      // suppressed. See archived provenance ledger.
       // Ignore trailing non-JSON log lines on stdout.
     },
   };
@@ -183,7 +183,7 @@ export function afterValue(state: JsonScanState): void {
 // guard was provably dead (verified by a 2M-trial adversarial fuzz,
 // including deliberately malformed bracket sequences, finding zero
 // mismatches) and is removed here per this package's coverage-driven
-// dead-branch discipline. See source-map.md.
+// dead-branch discipline. See archived provenance ledger.
 function closeFrame(state: JsonScanState): void {
   state.stack.pop();
   afterValue(state);

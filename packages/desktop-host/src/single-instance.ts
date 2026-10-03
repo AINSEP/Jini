@@ -8,23 +8,23 @@
 export interface SingleInstanceApp {
   requestSingleInstanceLock(): boolean;
   quit(): void;
-  onSecondInstance(listener: () => void): void;
+  onSecondInstance({ listener }: { listener: () => void }): void;
 }
 
 /** Bound to one host app instance, matching how `WindowLifecyclePort`/`ProtocolHandlerPort` are bound at construction rather than taking the host handle per call. */
 export interface SingleInstanceLockPort {
-  claim(onSecondInstance: () => void): boolean;
+  claim({ onSecondInstance }: { onSecondInstance: () => void }): boolean;
 }
 
-export function claimSingleInstanceLock(app: SingleInstanceApp, onSecondInstance: () => void): boolean {
+export function claimSingleInstanceLock({ app, onSecondInstance }: { app: SingleInstanceApp; onSecondInstance: () => void }): boolean {
   if (!app.requestSingleInstanceLock()) {
     app.quit();
     return false;
   }
-  app.onSecondInstance(onSecondInstance);
+  app.onSecondInstance({ listener: onSecondInstance });
   return true;
 }
 
-export function createSingleInstanceLockPort(app: SingleInstanceApp): SingleInstanceLockPort {
-  return { claim: (onSecondInstance) => claimSingleInstanceLock(app, onSecondInstance) };
+export function createSingleInstanceLockPort({ app }: { app: SingleInstanceApp }): SingleInstanceLockPort {
+  return { claim: ({ onSecondInstance }) => claimSingleInstanceLock({ app, onSecondInstance }) };
 }

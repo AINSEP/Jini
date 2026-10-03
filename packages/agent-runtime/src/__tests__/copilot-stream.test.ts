@@ -4,8 +4,8 @@ import { createCopilotStreamHandler } from '../copilot-stream.js';
 /** Synthetic trace shaped like GitHub Copilot CLI's `--output-format json`; see `claude-stream.test.ts` for the network-access caveat. */
 function feed(lines: unknown[]) {
   const events: Record<string, unknown>[] = [];
-  const handler = createCopilotStreamHandler((event) => events.push(event));
-  for (const line of lines) handler.feed(`${JSON.stringify(line)}\n`);
+  const handler = createCopilotStreamHandler({ onEvent: (event) => events.push(event) });
+  for (const line of lines) handler.feed({ chunk: `${JSON.stringify(line)}\n` });
   handler.flush();
   return events;
 }
@@ -39,39 +39,39 @@ describe('createCopilotStreamHandler', () => {
 
   it('emits a raw event for malformed JSON instead of throwing', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createCopilotStreamHandler((event) => events.push(event));
-    expect(() => handler.feed('{unterminated\n')).not.toThrow();
+    const handler = createCopilotStreamHandler({ onEvent: (event) => events.push(event) });
+    expect(() => handler.feed({ chunk: '{unterminated\n' })).not.toThrow();
     expect(events).toEqual([{ type: 'raw', line: '{unterminated' }]);
   });
 
   it('flush() processes a final line with no trailing newline', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createCopilotStreamHandler((event) => events.push(event));
-    handler.feed(JSON.stringify({ type: 'assistant.turn_start', data: {} }));
+    const handler = createCopilotStreamHandler({ onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: JSON.stringify({ type: 'assistant.turn_start', data: {} }) });
     handler.flush();
     expect(events).toEqual([{ type: 'status', label: 'streaming' }]);
   });
 
   it('ignores blank lines between records', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createCopilotStreamHandler((event) => events.push(event));
-    handler.feed('\n\n');
-    handler.feed(`${JSON.stringify({ type: 'assistant.turn_start', data: {} })}\n`);
+    const handler = createCopilotStreamHandler({ onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: '\n\n' });
+    handler.feed({ chunk: `${JSON.stringify({ type: 'assistant.turn_start', data: {} })}\n` });
     handler.flush();
     expect(events).toEqual([{ type: 'status', label: 'streaming' }]);
   });
 
   it('flush() is a no-op when the buffer is empty', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createCopilotStreamHandler((event) => events.push(event));
+    const handler = createCopilotStreamHandler({ onEvent: (event) => events.push(event) });
     handler.flush();
     expect(events).toEqual([]);
   });
 
   it('flush() emits a raw event for a malformed trailing line', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createCopilotStreamHandler((event) => events.push(event));
-    handler.feed('{still not json');
+    const handler = createCopilotStreamHandler({ onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: '{still not json' });
     handler.flush();
     expect(events).toEqual([{ type: 'raw', line: '{still not json' }]);
   });
@@ -83,8 +83,8 @@ describe('createCopilotStreamHandler', () => {
 
   it('ignores a top-level JSON value that is not a record (e.g. a bare number)', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createCopilotStreamHandler((event) => events.push(event));
-    handler.feed('42\n');
+    const handler = createCopilotStreamHandler({ onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: '42\n' });
     handler.flush();
     expect(events).toEqual([]);
   });

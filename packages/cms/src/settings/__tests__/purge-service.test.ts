@@ -6,16 +6,16 @@ import { InMemorySettingsRepo } from "../repo.memory.js";
 import type { SettingsRepoPort } from "../ports.js";
 import { purgeTenantSettings } from "../purge-service.js";
 import { set } from "../write-service.js";
-import { InMemoryPrincipalRepo } from "../../identity/index.js";
+import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import type { SettingDefinitionRecord } from "../types.js";
 
 /**
  * The ledgered tenant/principal purge: authorize once, then append a
  * redacted `op='purge'` revision per affected row before deleting it, all in
  * one transaction; prior revision rows must remain in the ledger untouched.
- */
+ */ 
 
-const clock = { nowIso: () => "2026-07-12T00:00:00.000Z" };
+const clock = { nowMs: () => Date.parse("2026-07-12T00:00:00.000Z")};
 let idCounter = 0;
 const ids = { newId: () => `id-${++idCounter}` };
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
@@ -45,7 +45,7 @@ function definition(key: string, overrides: Partial<SettingDefinitionRecord> = {
   };
 }
 
-/** Records the order `appendRevision` vs `delete*Value` calls happen in, delegating to a real repo underneath. */
+/** Records the order `appendRevision` vs `delete*Value` calls happen in, delegating to a real repo underneath. */ 
 function wrapWithCallLog(repo: SettingsRepoPort, log: string[]): SettingsRepoPort {
   return new Proxy(repo, {
     get(target, prop, receiver) {
@@ -66,7 +66,7 @@ test("purgeTenantSettings (full tenant, no principalId) purges every workspace- 
   const defA = definition("a", { scopes: 2 }); // workspace-scoped
   const defB = definition("b", { scopes: 4 }); // user-scoped
   const repo = new InMemorySettingsRepo({ definitions: [defA, defB] });
-  const principals = new InMemoryPrincipalRepo([
+  const principals = new InMemorySettingsPrincipalLookup([
     { id: "p-1", workspaceId: "ws-1", kind: "user", displayName: "P1", status: "active", createdAt: NOW },
     { id: "p-2", workspaceId: "ws-1", kind: "user", displayName: "P2", status: "active", createdAt: NOW },
   ]);
@@ -128,7 +128,7 @@ test("purgeTenantSettings scoped to a principalId only purges that principal's u
   const defA = definition("a", { scopes: 2 });
   const defB = definition("b", { scopes: 4 });
   const repo = new InMemorySettingsRepo({ definitions: [defA, defB] });
-  const principals = new InMemoryPrincipalRepo([
+  const principals = new InMemorySettingsPrincipalLookup([
     { id: "p-1", workspaceId: "ws-1", kind: "user", displayName: "P1", status: "active", createdAt: NOW },
     { id: "p-2", workspaceId: "ws-1", kind: "user", displayName: "P2", status: "active", createdAt: NOW },
   ]);
@@ -167,7 +167,7 @@ test("purgeTenantSettings scoped to a principalId only purges that principal's u
 test("purgeTenantSettings is rejected FORBIDDEN and deletes/appends nothing when the caller is unauthorized", async () => {
   const defA = definition("a", { scopes: 2 });
   const repo = new InMemorySettingsRepo({ definitions: [defA] });
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
 
   await set({
     deps: { repo, clock, ids, authorize: alwaysAllow, principals },
@@ -193,7 +193,7 @@ test("purgeTenantSettings is rejected FORBIDDEN and deletes/appends nothing when
 test("purgeTenantSettings appends the purge revision before deleting the row, per affected row (INV-06 ordering)", async () => {
   const defA = definition("a", { scopes: 2 });
   const repo = new InMemorySettingsRepo({ definitions: [defA] });
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
 
   await set({
     deps: { repo, clock, ids, authorize: alwaysAllow, principals },

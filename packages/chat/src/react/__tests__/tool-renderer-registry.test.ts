@@ -3,52 +3,52 @@ import { clearToolRenderers, getToolRenderer, registerToolRenderer } from '../to
 
 describe('tool-renderer-registry', () => {
   it('registers a renderer and resolves it by name', () => {
-    clearToolRenderers();
+    clearToolRenderers({});
     const renderer = () => 'rendered';
-    registerToolRenderer('Bash', renderer);
-    expect(getToolRenderer('Bash')).toBe(renderer);
+    registerToolRenderer({ name: 'Bash', renderer: renderer });
+    expect(getToolRenderer({ name: 'Bash' })).toBe(renderer);
   });
 
   it('returns undefined for a name with no registered renderer', () => {
-    clearToolRenderers();
-    expect(getToolRenderer('Nope')).toBeUndefined();
+    clearToolRenderers({});
+    expect(getToolRenderer({ name: 'Nope' })).toBeUndefined();
   });
 
   it('re-registering the same name overwrites — last writer wins', () => {
-    clearToolRenderers();
+    clearToolRenderers({});
     const first = () => 'first';
     const second = () => 'second';
-    registerToolRenderer('Read', first);
-    registerToolRenderer('Read', second);
-    expect(getToolRenderer('Read')).toBe(second);
+    registerToolRenderer({ name: 'Read', renderer: first });
+    registerToolRenderer({ name: 'Read', renderer: second });
+    expect(getToolRenderer({ name: 'Read' })).toBe(second);
   });
 
   it('the returned unregister handle removes the renderer it was created for', () => {
-    clearToolRenderers();
+    clearToolRenderers({});
     const renderer = () => 'x';
-    const unregister = registerToolRenderer('Grep', renderer);
-    expect(getToolRenderer('Grep')).toBe(renderer);
+    const unregister = registerToolRenderer({ name: 'Grep', renderer: renderer });
+    expect(getToolRenderer({ name: 'Grep' })).toBe(renderer);
     unregister();
-    expect(getToolRenderer('Grep')).toBeUndefined();
+    expect(getToolRenderer({ name: 'Grep' })).toBeUndefined();
   });
 
   it('a stale unregister handle is a no-op once a newer registration has replaced it', () => {
-    clearToolRenderers();
+    clearToolRenderers({});
     const first = () => 'first';
     const second = () => 'second';
-    const unregisterFirst = registerToolRenderer('Glob', first);
-    registerToolRenderer('Glob', second);
+    const unregisterFirst = registerToolRenderer({ name: 'Glob', renderer: first });
+    registerToolRenderer({ name: 'Glob', renderer: second });
     // The stale handle must not delete the newer registration it no longer owns.
     unregisterFirst();
-    expect(getToolRenderer('Glob')).toBe(second);
+    expect(getToolRenderer({ name: 'Glob' })).toBe(second);
   });
 
   it('clearToolRenderers() removes every registration', () => {
-    clearToolRenderers();
-    registerToolRenderer('A', () => 'a');
-    registerToolRenderer('B', () => 'b');
-    clearToolRenderers();
-    expect(getToolRenderer('A')).toBeUndefined();
-    expect(getToolRenderer('B')).toBeUndefined();
+    clearToolRenderers({});
+    registerToolRenderer({ name: 'A', renderer: () => 'a' });
+    registerToolRenderer({ name: 'B', renderer: () => 'b' });
+    clearToolRenderers({});
+    expect(getToolRenderer({ name: 'A' })).toBeUndefined();
+    expect(getToolRenderer({ name: 'B' })).toBeUndefined();
   });
 });

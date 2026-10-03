@@ -101,28 +101,28 @@ Catalog format) that this package does not implement.
 
 | export | runtime | contents |
 |---|---|---|
-| `.` (root) | universal | `PluginManifest`/`McpManifest` types, `isPluginManifest`/`isMcpManifest` structural validators, and the known path constants (`PLUGIN_MANIFEST_FILENAME`, `PLUGIN_SKILLS_DIRNAME`, `PLUGIN_MCP_MANIFEST_FILENAME`). No filesystem access, no DOM. |
+| `.` (root) | universal | `PluginManifest`/`McpManifest` types, `validatePluginManifest({ value })`/`validateMcpManifest({ value })` structural validators (plus compatible `isPluginManifest(value)`/`isMcpManifest(value)` wrappers), and the known path constants (`PLUGIN_MANIFEST_FILENAME`, `PLUGIN_SKILLS_DIRNAME`, `PLUGIN_MCP_MANIFEST_FILENAME`). No filesystem access, no DOM. |
+| `./manifest` | universal | Strict manifest/MCP parsing and typed namespace readers; object structural validators are also re-exported here. |
+| `./lifecycle` | node | Host-injected installation, activation, locks, digests, bundles, trusted files, reference resolution, ranking and MCP provisioning helpers. |
+| `./lifecycle/node` | node | `createNodeAgentPluginEffects({})` opt-in native effects. |
+| `./lifecycle/yauzl` | node | `createYauzlAgentPluginArchiveReader({ yauzl })`; the host supplies the optional peer library. |
 | `./ui-ux-design/*` | — | Raw files of the bundled `ui-ux-design` plugin — static JSON/Markdown, not run through the TS build. |
-| `./create-tovu-theme/*` | — | Raw files of the bundled `create-tovu-theme` plugin — Tovu-specific, see below. |
 
-This package deliberately stops at "validate a manifest object" — there is no loader, installer,
-or discovery client yet. Add those as the actual consumer (a Jini agent runtime, an admin UI, or a
-CLI install command) makes the requirement concrete, rather than building ahead of a real caller.
+The universal root handles structural validation. The separate Node lifecycle entry implements
+local archive installation and host-owned activation policy; it does not implement remote catalog discovery.
 
 ## Not this package: `@jini-ai/plugins` (`./host`)
 
 `@jini-ai/plugins` is a **different, sibling package** — Jini's own host-extension plugin format
 (manifest + `setup()` + hooks + activation), unrelated to the third-party Agent Plugins spec this
-package supports. It is reserved and currently has zero real content: the only working
-implementation of that concept today is Tovu's `src/features/plugin-runtime/` (SPEC-005), which
-has not moved into either package. Do not confuse the two — "agent plugins" (this package, a
+package supports. Do not confuse the two — "agent plugins" (this package, a
 public spec) and "Jini plugins" (`@jini-ai/plugins`'s `./host`, Jini's own unbuilt format) share
 the word "plugin" and nothing else.
 
 ## Bundled plugins
 
 Real, install-ready plugin directories shipped alongside the code — not illustrative examples.
-Each lives at the package root under **its own name** (`ui-ux-design/`, `create-tovu-theme/`).
+Each lives at the package root under **its own name** (`ui-ux-design/`).
 Plugins live at the package root rather than inside `src/` because `src/` is the TypeScript
 compile root (`rootDir: "src"`, `include: ["src"]`) — a plugin's skill trees can carry files
 (`.tsx` examples, etc.) that are illustrative content, not package code, and putting them under
@@ -153,18 +153,8 @@ portable to a host that has never heard of AI-Dev-Shop. `AI-Dev-Shop/agents/web-
 itself (the persona that composes these skills into one role) is not bundled — it is ADS-specific
 routing glue, not a portable skill.
 
-Consumed today by Tovu's admin UI, which reads all 44 files by **relative path** into a sibling
-Jini checkout (`apps/admin/src/features/plugins/agent-plugin-source-catalog.ts`), not through this
-package's `exports` map — the subpath export exists and resolves, but has no import-based consumer
-yet.
-
-### `create-tovu-theme/`
-
-One skill, `create-tovu-theme`, that scaffolds a new Tovu theme against the **v2 TARGET** folder
-structure documented in Tovu's `development/docs/themes/theme-authoring-guide-v2.md` — a settled
-design that Tovu's live theme loader does not read yet (see that guide's own status banner). The
-skill itself repeats this warning every time it runs, so a theme it scaffolds is never mistaken for
-one that will render today. Tovu-specific: only useful inside a Tovu repo checkout.
+Consumers may read bundled raw assets through the public wildcard subpath. Product-specific
+plugin assets are owned and shipped by their product, outside this library.
 
 ## Scripts
 
@@ -173,6 +163,9 @@ pnpm --filter @jini-ai/agent-plugins build
 pnpm --filter @jini-ai/agent-plugins typecheck
 pnpm --filter @jini-ai/agent-plugins test
 ```
+
+The build and typecheck include lifecycle test sources. Copied Node test options are
+translated to Vitest registration, preserving per-test timeouts and platform skip conditions.
 
 ## Adding another bundled plugin
 
@@ -184,6 +177,80 @@ pnpm --filter @jini-ai/agent-plugins test
 3. Register it in `package.json`: an `exports` key `"./<plugin-name>/*": "./<plugin-name>/*"`, a
    matching `jini.entries` key (the R8 guard requires every export to have one), and a
    `files` entry.
-4. Add coverage in `src/__tests__/manifest.test.ts` following the `ui-ux-design plugin` /
-   `create-tovu-theme plugin` blocks — assert the manifest validates and the expected skill
+4. Add coverage in `src/__tests__/manifest.test.ts` following the `ui-ux-design plugin` block — assert the manifest validates and the expected skill
    directories exist.
+
+## Lifecycle API and ports
+
+New public callables use `(requiredArgs, optionalArgs)`, with effects supplied as ports.
+Create and retain one lifecycle per host context:
+
+```ts
+import { createAgentPluginLifecycle, createAgentPluginLayout } from '@jini-ai/agent-plugins/lifecycle';
+import { createNodeAgentPluginEffects } from '@jini-ai/agent-plugins/lifecycle/node';
+
+const layout = createAgentPluginLayout({ root: pluginRoot });
+const lifecycle = createAgentPluginLifecycle({
+  ...createNodeAgentPluginEffects({}),
+  layout,
+  productName,
+  extensionNamespace,
+  bundledArchiveMagic,
+  deliveryMode,
+  seededEnabledPluginIds,
+  retiredBundledPlugins,
+  formatPluginToolPointer,
+  mcpProvisioning,
+  outboundGuard,
+  fetch: ({ url }, options) => fetch(url, options),
+}, { onEvent, readServerMetadata });
+
+const downloaded = await lifecycle.fetchAgentPluginArchive({ url }, { signal });
+const installed = await lifecycle.installAgentPlugin({
+  archive: downloaded.archive,
+  expectedSha256: downloaded.sha256,
+  archiveReader,
+  layout,
+  workspaceId,
+});
+```
+
+All names in the example are supplied by the host. There is no default storage root,
+namespace, product name, bundle policy or archive framing. Preserve your existing framing
+when adopting the package. Prefer pinned hashes for remote installations; trust-on-first-use
+is an explicit choice in `installAgentPluginFromUrl`.
+
+Filesystem effects use native `node:fs/promises` signatures and native FileHandles. Inject
+instrumented native effects directly through `filesystem`; `createNodeAgentPluginEffects({})`
+provides the default. Clocks extend core `Clock` with `monotonicMs()` and `sleep({ ms })`;
+IDs extend core `IdGenerator` with `random()`.
+
+Generic locks are imported directly from `@jini-ai/platform/fs/file-lock`. Lifecycle activation
+uses `withFileLock({ lockPath, run }, { timeoutMs: 15000, staleMs: 10000, pollMs: 10, ...effects })`.
+Lock helpers, errors and constants are no longer members/exports of the lifecycle API.
+
+Archive readers implement `entries({ archive })`; file entries expose `openReadStream({})`.
+`createYauzlAgentPluginArchiveReader({ yauzl })` accepts the native library protocol explicitly;
+no peer library is imported by the core. Fetch ports implement `fetch({ url }, requestOptions)`.
+The outbound guard runs before every request and redirect. The host's fetch adapter must
+pin DNS if its security policy requires protection against DNS rebinding.
+
+Public callbacks also receive objects: `pluginIdOf({ item })`, `run({ lock })`,
+`isProcessAlive({ pid })`, `onStaleLockRemoved({ holder })`, `onInactive({ plugin })`
+and `now({})`. Lock ownership checks use `lock.assertHeld({})`. Constructors receive
+named fields, for example `new AgentPluginInstallError({ code, message }, { cause })`.
+`recordBundledAgentPluginDigests` accepts the clock override in its second object;
+`findTrustedPluginPackages` accepts `orderByPluginId` and `onInactive` in its second object.
+
+`parseAgentPluginMcpConfig({ value, extensionNamespace }, { pluginManifest, readServerMetadata })`
+accepts optional namespace metadata separately. Strict parsing preserves standard object
+shaped authors and older string authors. Inline transport fields never become reviewed-read
+metadata. MCP provisioning helpers delegate to the host and notify only after success;
+filesystem installation and federation remain separate operations with host-owned recovery.
+
+The legacy root validators keep their positional shape and behavior. New code can use the
+object-shaped `validatePluginManifest` and `validateMcpManifest` facades. Internal composition
+factories are implementation details and are not package exports.
+
+See [integration-extraction.md](integration-extraction.md) for the reconciliation, source mapping,
+rewire ledger and verification commands. All verification is deferred by owner directive.

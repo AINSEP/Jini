@@ -13,23 +13,25 @@
  * factory over it — makes both work:
  *
  * ```ts
- * const transport = createHttpTransport({ baseUrl: '/api/admin/v1' });
+ * const transport = createHttpTransport({ baseUrl: '/api/admin/v1', fetch: ({ url }, init) => fetch(url, init) });
  *
- * const client = createAdminClient(transport, {
- *   identity: createIdentityRoutes,          // shipped by @jini-ai/admin
- *   media:    createMediaRoutes,             // shipped by @jini-ai/admin
+ * const client = createAdminClient({ transport, groups: {
+ *   identity: createHostIdentityRoutes,      // host implementation of AdminIdentityPort
+ *   media:    createHostMediaRoutes,         // host implementation of AdminMediaPort
  *   posts:    createHostPostRoutes,          // the host's own, same signature
  *   widgets:  createHostWidgetRoutes,        // the host's own
- * });
+ * } });
  *
- * await client.identity.listUsers();   // Jini's
- * await client.posts.list();           // the host's
+ * await client.identity.listUsers({}); // host adapter over Jini's port contract
+ * await client.posts.list({});         // the host's own port
  * ```
  *
  * Both halves share one auth policy, one error class, one place to add retries or tracing. A host
  * adding a route is a factory plus one line in the map — it never edits a Jini file, and it never
  * grows a second `fetch` wrapper with its own subtly different error handling, which is exactly
  * how `api.ts` reached 1,548 lines.
+ * This package ships port contracts and the assembler, not backend route factories;
+ * the host supplies each factory and may share it with other hosts without changing this seam.
  *
  * ## Why `AdminTransport` is an interface and not just a function
  *
@@ -52,27 +54,31 @@ export interface AdminTransport {
    * @param path Route-group-relative path, always starting with `/` (`/users`, `/media/abc`).
    *   The base is the transport's concern — a route group that embeds a base is not portable to
    *   a host that mounts the admin API somewhere else.
-   * @param init Standard `RequestInit`. A transport that is not HTTP-backed may ignore fields it
-   *   cannot honour, but must respect `method` and `body`.
+   * @param init Standard `RequestInit` plus an optional success observer. A transport that is not
+   *   HTTP-backed may ignore fields it cannot honour, but must respect `method` and `body`.
    * @throws {AdminApiError} on any non-success response.
    */
-  request<T>(path: string, init?: RequestInit): Promise<T>;
+  request<T>(requiredArgs: { readonly path: string }, optionalArgs?: RequestInit & {
+    /** Called only on success with the response metadata, after parsing and before resolving.
+     *  Reading ETag here lets route adapters send If-Match without duplicating transport logic. */
+    readonly onOk?: (args: { readonly response: Response }) => void;
+  }): Promise<T>;
 }
 
 /**
  * A route group: turns a transport into a typed set of operations.
  *
- * Every port implementation in this package is one of these, and a host's own route groups use
- * the identical signature — that symmetry is what lets Jini-shipped and host-owned groups sit in
+ * Host implementations of this package's ports and a host's own route groups use
+ * the identical signature — that symmetry is what lets shared and host-owned groups sit in
  * the same client with no adapter between them.
  */
-export type AdminRouteGroupFactory<TPort> = (transport: AdminTransport) => TPort;
+export type AdminRouteGroupFactory<TPort> = (requiredArgs: { readonly transport: AdminTransport }) => TPort;
 
 /**
  * The assembled client: one object carrying every wired route group.
  *
  * `TGroups` is inferred from the factory map handed to `createAdminClient`, so a host's own
- * groups are as type-safe as the shipped ones with no declaration merging or module augmentation.
+ * groups are as type-safe as shared ones with no declaration merging or module augmentation.
  */
 export type AdminClient<TGroups extends Record<string, AdminRouteGroupFactory<unknown>>> = {
   readonly [K in keyof TGroups]: ReturnType<TGroups[K]>;

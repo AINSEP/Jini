@@ -1,4 +1,5 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/antigravity.ts` (import path adjusted only). See `source-map.md`. */
+/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/antigravity.ts` (import path adjusted only). See `archived provenance ledger`. */
+import { redactOAuthUrls } from '@jini-ai/oauth';
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef, RuntimeModelOption } from '../types.js';
 
@@ -76,15 +77,15 @@ const OAUTH_URL_PLACEHOLDER = '[redacted sign-in URL]';
  * already has an owner — `auth.ts`'s `classifyAgentAuthFailure` /
  * `isAntigravityAuthFailureText`, consumed by whatever surfaces a structured
  * auth error — and duplicating the decision here would mean this def silently
- * rewrites assistant text into instructions. See `source-map.md`.
+ * rewrites assistant text into instructions. See `archived provenance ledger`.
  *
  * @param fullText - The concatenation of every stdout chunk agy produced.
  * @returns The same text with every sign-in URL replaced by a placeholder.
  * @complexity O(n) in the buffered text length.
  * @overallScore 100/100
  */
-export function redactAntigravityAuthUrls(fullText: string): string {
-  return fullText.replace(OAUTH_URL_PATTERN, OAUTH_URL_PLACEHOLDER);
+export function redactAntigravityAuthUrls({ fullText }: { fullText: string }): string {
+  return redactOAuthUrls({ text: fullText, pattern: OAUTH_URL_PATTERN, replacement: OAUTH_URL_PLACEHOLDER });
 }
 
 /**
@@ -104,7 +105,7 @@ export function redactAntigravityAuthUrls(fullText: string): string {
  * as an empty array: fall back to `fallbackModels`.
  * @complexity O(n) in the stdout length.
  */
-export function parseAgyModels(stdout: string): RuntimeModelOption[] | null {
+export function parseAgyModels({ stdout }: { stdout: string }): RuntimeModelOption[] | null {
   const lines = String(stdout || '')
     .split('\n')
     .map((line) => line.trim())
@@ -192,12 +193,7 @@ export const antigravityAgentDef = {
   // apps/web/src/providers/daemon.ts). The stronger OVERRIDE block
   // composed in server.ts gives a second line of defense for weak
   // plain-stream models like Gemini 3.5 Flash.
-  buildArgs: (
-    prompt,
-    _imagePaths,
-    _extra = [],
-    options = {},
-    runtimeContext = {},
+  buildArgs: ({ prompt, imagePaths: _imagePaths }, { extraAllowedDirs: _extra = [], options = {}, runtimeContext = {} } = {}
   ) => {
     // `-p` is a Go `flag`-package flag that TAKES THE PROMPT AS ITS VALUE,
     // not a boolean switch followed by a positional prompt, and agy has no
@@ -265,12 +261,12 @@ export const antigravityAgentDef = {
   //
   //   - Proven with a probe MCP server registered under a relocated `HOME`'s
   //     `.gemini/config/mcp_config.json`: booted under `agy -p`, it read a marker variable
-  //     (`TOVU_ENV_PASSTHROUGH_PROBE`) straight out of its own `process.env` — no config field, no
+  //     straight out of its own `process.env` — no config field, no
   //     argv, nothing but inherited environment. Full MCP handshake observed on the same run:
   //     `server/discover` → `initialize` → `notifications/initialized` → `tools/list`
   //     (protocolVersion `2025-11-25`, clientInfo `antigravity-client`).
   //   - That makes the registration itself a STATIC, one-time operation — the operator adds one
-  //     `tovu` entry to their real `~/.gemini/config/mcp_config.json` (confirmed still the one real
+  //     bridge entry to their real `~/.gemini/config/mcp_config.json` (confirmed still the one real
   //     mechanism; see the probes below) with a bare, env-free `command` pointing at this package's
   //     own `jini-mcp` bin, resolving its credential from the environment at spawn time instead of
   //     a baked-in value. No per-spawn config mutation, no lock, no restore discipline — the exact

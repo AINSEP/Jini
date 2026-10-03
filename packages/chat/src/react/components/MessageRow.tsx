@@ -124,7 +124,7 @@ function isPendingWithNoContent(message: ChatMessage, visibleContent: string, to
  * @complexity O(1) — one comparison plus a set lookup via `isTerminalRunStatus`.
  */
 function isRunInProgress(runStatus: ChatRunStatus | undefined): boolean {
-  return runStatus !== undefined && !isTerminalRunStatus(runStatus);
+  return runStatus !== undefined && !isTerminalRunStatus({ status: runStatus });
 }
 
 /** One "Done · 6m 29s · 2612 out · $0.4028" summary line, from the run's own `kind:'usage'` event — never estimated client-side. Renders only the fields the event actually carries, so a transport that supplies partial usage data degrades gracefully instead of showing fabricated zeros. */
@@ -195,8 +195,8 @@ export function MessageRow({
   renderAttachment,
 }: MessageRowProps) {
   const t = useT();
-  const timeline = useToolTimeline(message.events, { runStreaming, runSucceeded });
-  const extGroups = useExtEventGroups(message.events, extEventSlot);
+  const timeline = useToolTimeline({ events: message.events }, { runStreaming, runSucceeded });
+  const extGroups = useExtEventGroups({ events: message.events }, { slotOf: (name, data) => extEventSlot({ name, data }) });
   // Which attachment chip (if any) this row's preview modal is open for. Row-local, not
   // module-level: two attachments in the same message can never be "open" at once, but two
   // different messages opening their own attachments independently is fine and expected.
@@ -238,8 +238,8 @@ export function MessageRow({
     );
   }
 
-  const visibleContent = stripArtifact(message.content);
-  const segments = splitOnQuestionForms(visibleContent);
+  const visibleContent = stripArtifact({ content: message.content });
+  const segments = splitOnQuestionForms({ input: visibleContent });
   const usageEvent = message.events?.filter((ev): ev is UsageEvent => ev.kind === 'usage').pop();
 
   // Interleaving is skipped outright when an artifact was stripped. `stripArtifact` operates on the
@@ -249,7 +249,7 @@ export function MessageRow({
   // messages are dominated by the artifact panel anyway, so the ordering matters least there.
   const blocks =
     visibleContent === message.content
-      ? interleaveMessageBlocks<ToolTimelineRow>(message.events, message.content, timeline.rows, (ev) => extEventSlot(ev.name, ev.data))
+      ? interleaveMessageBlocks<ToolTimelineRow>({ events: message.events, content: message.content, rows: timeline.rows }, { slotOf: (ev) => extEventSlot({ name: ev.name, data: ev.data }) })
       : null;
   const pending = isPendingWithNoContent(message, visibleContent, timeline.rows.length);
   const runInProgress = isRunInProgress(message.runStatus);
@@ -267,7 +267,7 @@ export function MessageRow({
   );
 
   const renderExtGroup = (group: ExtEventGroup) => {
-    const renderer = getExtEventRenderer(group.name);
+    const renderer = getExtEventRenderer({ name: group.name });
     if (!renderer) return null;
     const node = renderer({
       name: group.name,
@@ -289,7 +289,7 @@ export function MessageRow({
   };
 
   const renderTextSegments = (text: string, keyPrefix: string): ReactNode =>
-    splitOnQuestionForms(text).map((segment, i) =>
+    splitOnQuestionForms({ input: text }).map((segment, i) =>
       segment.kind === 'text' ? (
         segment.text.trim() ? (
           <div className="jini-message-content" key={`${keyPrefix}-${i}`}>
@@ -384,7 +384,7 @@ export function MessageRow({
  * Kept a separate component so its one-second tick re-renders only this line, not the whole row.
  */
 function RunActivityLine({ events, active }: { events: AgentEvent[] | undefined; active: boolean }) {
-  const label = useRunActivity(events, active);
+  const label = useRunActivity({ events: events, active: active });
   if (label === null) return null;
   return (
     <div className="jini-message-pending jini-run-activity" aria-live="off">

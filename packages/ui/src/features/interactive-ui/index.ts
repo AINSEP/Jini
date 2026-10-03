@@ -80,7 +80,7 @@ import {
  * boundary that matters — this cast doesn't weaken that, it only widens a type this file cannot
  * make TypeScript accept structurally.
  */
-export const DEFAULT_INTERACTIVE_UI_REGISTRY = new InteractiveUiRegistry([
+export const DEFAULT_INTERACTIVE_UI_REGISTRY = new InteractiveUiRegistry({ entries: [
   { ...shadcnDataTableManifest, Component: ShadcnDataTable as unknown as ComponentType<Record<string, unknown>> },
   { ...nativeDataTableManifest, Component: NativeDataTable as unknown as ComponentType<Record<string, unknown>> },
   { ...shadcnButtonManifest, Component: ActionButton as unknown as ComponentType<Record<string, unknown>> },
@@ -92,4 +92,4 @@ export const DEFAULT_INTERACTIVE_UI_REGISTRY = new InteractiveUiRegistry([
   { ...rechartsBarChartManifest, Component: BarChart as unknown as ComponentType<Record<string, unknown>> },
   { ...rechartsLineChartManifest, Component: LineChart as unknown as ComponentType<Record<string, unknown>> },
   { ...rechartsPieChartManifest, Component: PieChart as unknown as ComponentType<Record<string, unknown>> },
-] satisfies InteractiveComponentEntry[]);
+] satisfies InteractiveComponentEntry[] });

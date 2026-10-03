@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { InMemoryPrincipalRepo } from "../../identity/index.js";
+import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import { PrincipalNotFoundError } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
 import { set } from "../write-service.js";
 import type { SettingDefinitionRecord } from "../types.js";
 
-const clock = { nowIso: () => "2026-07-11T00:00:00.000Z" };
+const clock = { nowMs: () => Date.parse("2026-07-11T00:00:00.000Z")};
 let idCounter = 0;
 const ids = { newId: () => `id-${++idCounter}` };
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
@@ -39,7 +39,7 @@ function definition(overrides: Partial<SettingDefinitionRecord> = {}): SettingDe
 test("set at scope=user targeting a principalId not in the request's workspace is rejected PRINCIPAL_NOT_FOUND, no rows written (AC-24/INV-09)", async () => {
   const def = definition();
   const repo = new InMemorySettingsRepo({ definitions: [def] });
-  const principals = new InMemoryPrincipalRepo([
+  const principals = new InMemorySettingsPrincipalLookup([
     // "target-1" belongs to a DIFFERENT workspace than the request's ws-1.
     { id: "target-1", workspaceId: "ws-OTHER", kind: "user", displayName: "T", status: "active", createdAt: NOW },
   ]);
@@ -70,7 +70,7 @@ test("set at scope=user targeting a principalId not in the request's workspace i
 test("set at scope=user targeting a principalId that doesn't exist at all is rejected PRINCIPAL_NOT_FOUND (EC-11)", async () => {
   const def = definition();
   const repo = new InMemorySettingsRepo({ definitions: [def] });
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
 
   await assert.rejects(
     () =>
@@ -93,7 +93,7 @@ test("set at scope=user targeting a principalId that doesn't exist at all is rej
 test("set at scope=user targeting a real principal in the same workspace succeeds (AC-22)", async () => {
   const def = definition();
   const repo = new InMemorySettingsRepo({ definitions: [def] });
-  const principals = new InMemoryPrincipalRepo([
+  const principals = new InMemorySettingsPrincipalLookup([
     { id: "target-1", workspaceId: "ws-1", kind: "user", displayName: "T", status: "active", createdAt: NOW },
   ]);
 
@@ -122,7 +122,7 @@ test("set at scope=user targeting a real principal in the same workspace succeed
 test("set at scope=user targeting the caller's own principalId does not require the principal-membership check to find a different record (self-write)", async () => {
   const def = definition();
   const repo = new InMemorySettingsRepo({ definitions: [def] });
-  const principals = new InMemoryPrincipalRepo([]); // caller not registered as a principal anywhere — self-write must not consult PrincipalRepoPort
+  const principals = new InMemorySettingsPrincipalLookup([]); // caller not registered as a principal anywhere — self-write must not consult PrincipalRepoPort
 
   const result = await set({
     deps: { repo, clock, ids, authorize: alwaysAllow, principals },
@@ -137,4 +137,18 @@ test("set at scope=user targeting the caller's own principalId does not require 
   });
 
   assert.equal(result.value, "atlas");
+});
+
+// PARITY: replacing the identity repo dependency preserves disabled-principal refusal.
+test("a disabled target resolved by the host lookup is refused before a user setting write", async () => {
+  const def = definition();
+  const repo = new InMemorySettingsRepo({ definitions: [def] });
+  const principals = new InMemorySettingsPrincipalLookup([
+    { id: "disabled", workspaceId: "ws-1", status: "disabled" },
+  ]);
+  await assert.rejects(set({ deps: { repo, clock, ids, authorize: alwaysAllow, principals },
+    input: { namespace: def.namespace, key: def.key, scope: "user", value: "atlas",
+      workspaceId: "ws-1", principalId: "disabled", callerPrincipalId: "caller" },
+  }), PrincipalNotFoundError);
+  assert.equal(await repo.getUserValue({ workspaceId: "ws-1", principalId: "disabled", settingId: def.settingId }), null);
 });

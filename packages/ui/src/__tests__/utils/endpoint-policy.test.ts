@@ -50,50 +50,50 @@ const ALLOWED = [
 
 describe('isAllowedEndpointUrl', () => {
   it.each(BLOCKED)('rejects %s (%s)', (url) => {
-    expect(isAllowedEndpointUrl(url)).toBe(false);
+    expect(isAllowedEndpointUrl({ raw: url })).toBe(false);
   });
 
   it.each(ALLOWED)('accepts %s', (url) => {
-    expect(isAllowedEndpointUrl(url)).toBe(true);
+    expect(isAllowedEndpointUrl({ raw: url })).toBe(true);
   });
 
   it('still rejects what the old scheme-only check rejected', () => {
-    expect(isAllowedEndpointUrl('')).toBe(false);
-    expect(isAllowedEndpointUrl('   ')).toBe(false);
-    expect(isAllowedEndpointUrl('not-a-url')).toBe(false);
-    expect(isAllowedEndpointUrl('ftp://example.com/file')).toBe(false);
-    expect(isAllowedEndpointUrl('file:///etc/passwd')).toBe(false);
-    expect(isAllowedEndpointUrl('/relative/path')).toBe(false);
+    expect(isAllowedEndpointUrl({ raw: '' })).toBe(false);
+    expect(isAllowedEndpointUrl({ raw: '   ' })).toBe(false);
+    expect(isAllowedEndpointUrl({ raw: 'not-a-url' })).toBe(false);
+    expect(isAllowedEndpointUrl({ raw: 'ftp://example.com/file' })).toBe(false);
+    expect(isAllowedEndpointUrl({ raw: 'file:///etc/passwd' })).toBe(false);
+    expect(isAllowedEndpointUrl({ raw: '/relative/path' })).toBe(false);
   });
 
   it('trims, matching how every call site treats operator input', () => {
-    expect(isAllowedEndpointUrl('  https://example.com  ')).toBe(true);
+    expect(isAllowedEndpointUrl({ raw: '  https://example.com  ' })).toBe(true);
   });
 
   it('does NOT claim to catch a public name resolving to private space — that needs DNS', () => {
     // Documented boundary, not an oversight: `connection-guard.ts`'s
     // `validateBaseUrlResolved` covers this at connection time. If this ever
     // starts returning false, the two layers have diverged.
-    expect(isAllowedEndpointUrl('https://internal.example.com/v1')).toBe(true);
+    expect(isAllowedEndpointUrl({ raw: 'https://internal.example.com/v1' })).toBe(true);
   });
 });
 
 describe('host predicates', () => {
   it('treats loopback as loopback, not as blocked private space', () => {
-    expect(isLoopbackEndpointHost('127.0.0.1')).toBe(true);
-    expect(isLoopbackEndpointHost('127.9.9.9')).toBe(true);
-    expect(isLoopbackEndpointHost('localhost')).toBe(true);
-    expect(isLoopbackEndpointHost('LOCALHOST.')).toBe(true);
-    expect(isLoopbackEndpointHost('::1')).toBe(true);
-    expect(isLoopbackEndpointHost('example.com')).toBe(false);
+    expect(isLoopbackEndpointHost({ hostname: '127.0.0.1' })).toBe(true);
+    expect(isLoopbackEndpointHost({ hostname: '127.9.9.9' })).toBe(true);
+    expect(isLoopbackEndpointHost({ hostname: 'localhost' })).toBe(true);
+    expect(isLoopbackEndpointHost({ hostname: 'LOCALHOST.' })).toBe(true);
+    expect(isLoopbackEndpointHost({ hostname: '::1' })).toBe(true);
+    expect(isLoopbackEndpointHost({ hostname: 'example.com' })).toBe(false);
   });
 
   it('flags private address space', () => {
-    expect(isBlockedEndpointHost('169.254.169.254')).toBe(true);
-    expect(isBlockedEndpointHost('10.1.2.3')).toBe(true);
-    expect(isBlockedEndpointHost('172.15.0.1')).toBe(false); // just below the /12
-    expect(isBlockedEndpointHost('172.32.0.1')).toBe(false); // just above the /12
-    expect(isBlockedEndpointHost('example.com')).toBe(false);
+    expect(isBlockedEndpointHost({ hostname: '169.254.169.254' })).toBe(true);
+    expect(isBlockedEndpointHost({ hostname: '10.1.2.3' })).toBe(true);
+    expect(isBlockedEndpointHost({ hostname: '172.15.0.1' })).toBe(false); // just below the /12
+    expect(isBlockedEndpointHost({ hostname: '172.32.0.1' })).toBe(false); // just above the /12
+    expect(isBlockedEndpointHost({ hostname: 'example.com' })).toBe(false);
   });
 });
 

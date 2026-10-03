@@ -5,19 +5,19 @@ import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 describe('crushAgentDef.buildArgs', () => {
   it('builds `run --quiet --yolo` with no model selected', () => {
-    expect(crushAgentDef.buildArgs('hi', [], [], {})).toEqual(['run', '--quiet', '--yolo']);
+    expect(crushAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {} })).toEqual(['run', '--quiet', '--yolo']);
   });
 
   it('defaults options to {} when omitted entirely', () => {
-    expect(crushAgentDef.buildArgs('hi', [], [])).toEqual(['run', '--quiet', '--yolo']);
+    expect(crushAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] })).toEqual(['run', '--quiet', '--yolo']);
   });
 
   it('never puts the prompt in argv (it goes over stdin)', () => {
-    expect(crushAgentDef.buildArgs('secret prompt text', [], [], {})).not.toContain('secret prompt text');
+    expect(crushAgentDef.buildArgs({ prompt: 'secret prompt text', imagePaths: [] }, { extraAllowedDirs: [], options: {} })).not.toContain('secret prompt text');
   });
 
   it('adds --model when a non-default model is selected', () => {
-    expect(crushAgentDef.buildArgs('hi', [], [], { model: 'anthropic/claude-sonnet-5' })).toEqual([
+    expect(crushAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'anthropic/claude-sonnet-5' } })).toEqual([
       'run',
       '--quiet',
       '--yolo',
@@ -27,11 +27,11 @@ describe('crushAgentDef.buildArgs', () => {
   });
 
   it('omits --model for the literal "default"', () => {
-    expect(crushAgentDef.buildArgs('hi', [], [], { model: 'default' })).toEqual(['run', '--quiet', '--yolo']);
+    expect(crushAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'default' } })).toEqual(['run', '--quiet', '--yolo']);
   });
 
   it('omits --yolo when permissionMode is "restricted"', () => {
-    expect(crushAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted', model: 'm' })).toEqual([
+    expect(crushAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { permissionMode: 'restricted', model: 'm' } })).toEqual([
       'run',
       '--quiet',
       '--model',
@@ -50,6 +50,6 @@ describe('crushAgentDef shape', () => {
   });
 
   it('is registered in the built-in catalog', () => {
-    expect(getAgentDef('crush')).toBe(crushAgentDef);
+    expect(getAgentDef({ id: 'crush' })).toBe(crushAgentDef);
   });
 });

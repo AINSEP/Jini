@@ -30,9 +30,7 @@ export interface ExtEventGroup {
  * @param slotOf - Which render slot an event belongs to. Defaults to its `name`, the one-slot-per-name
  *   grouping this hook always had; `MessageRow` passes the registry's `extEventSlot`.
  */
-export function useExtEventGroups(
-  events: AgentEvent[] | undefined,
-  slotOf: (name: string, data: unknown) => string = (name) => name,
+export function useExtEventGroups({ events }: { events: AgentEvent[] | undefined }, { slotOf = (name) => name }: { slotOf?: ((name: string, data: unknown) => string) | undefined } = {}
 ): ExtEventGroup[] {
   return useMemo(() => {
     const order: ExtEventGroup[] = [];

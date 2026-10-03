@@ -1,3 +1,5 @@
+import type { IdGenerator } from "@jini-ai/core/primitives";
+import type { Clock } from "@jini-ai/core/primitives";
 /**
  * @file Entries' half of the shared agent-tool-registration convention: maps `agent-tools.ts`'s 5
  * catalog entries onto `write-service.ts`'s create/update/publish/unpublish and `list.ts`'s read, as
@@ -15,22 +17,8 @@
  */
 import type { AuthorizeFn } from "../core/commands/command.js";
 import type { OutboxPort } from "../core/ports.js";
-import {
-  AGENT_TOOL_PRINCIPAL_KIND,
-  buildDomainRegistrations,
-  fromResult,
-  indexCatalogById,
-  optionalString,
-  requireInputRecord,
-  requireNumber,
-  requireString,
-  requireToolPermission,
-  withSchemaOnRejection,
-  type AgentToolSideEffect,
-  type DerivedRiskByToolId,
-  type ToolHandler,
-  type ToolRegistration,
-} from "../core/tools/registration-kit.js";
+import { AGENT_TOOL_PRINCIPAL_KIND, buildDomainRegistrations, fromResult, indexCatalogById, optionalString, requireInputRecord, requireNumber, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { entriesAgentToolCatalog } from "./agent-tools.js";
 import { EntryFieldValidationError } from "./errors.js";
 import { listEntries, type EntryListPort } from "./list.js";
@@ -38,13 +26,13 @@ import type { EntryRecord, EntryStatus } from "./types.js";
 import { createEntry, publishEntry, unpublishEntry, updateEntry, type ContentTypeLookupPort, type EntryRepoPort } from "./write-service.js";
 import { toEntryOutbox } from "./repo.memory.js";
 
-const CATALOG_BY_ID = indexCatalogById(entriesAgentToolCatalog);
+const CATALOG_BY_ID = indexCatalogById({ catalog: entriesAgentToolCatalog });
 
 /**
  * The exact slice of the route-deps bag Entries' tool handlers read. Declared structurally (rather
  * than importing `server/routes/types`'s `RouteDeps`) so this module carries no back-edge into the
  * composition root. `server/routes/*` satisfies this structurally by passing its existing
- * `RouteDeps` object; nothing there changes.
+ * `RouteDeps` object with the kernel clock/ID contracts.
  *
  * `contentTypeRepo` is typed as `write-service.ts`'s own `ContentTypeLookupPort` — the narrow
  * lookup contract Entries itself declares, not content-types' full `ContentTypeRepoPort` — mirroring
@@ -54,8 +42,8 @@ const CATALOG_BY_ID = indexCatalogById(entriesAgentToolCatalog);
 export interface EntriesToolDeps {
   authorize: AuthorizeFn;
   workspaceId: string;
-  clock: { nowIso(): string };
-  idGen: { newId(): string };
+  clock: Clock;
+  idGen: IdGenerator;
   outbox: OutboxPort;
   entryRepo: EntryRepoPort & EntryListPort;
   contentTypeRepo: ContentTypeLookupPort;
@@ -84,7 +72,7 @@ export const entriesDerivedRisk: DerivedRiskByToolId = new Map<string, AgentTool
  * only. A not-found, a tombstoned-type rejection, or a version conflict is not a shape problem
  * retrying the SAME input would ever resolve.
  */
-function isEntriesShapeRejection(error: unknown): boolean {
+function isEntriesShapeRejection({ error }: { error: unknown }): boolean {
   return error instanceof EntryFieldValidationError;
 }
 
@@ -97,7 +85,7 @@ function entriesDeps(routeDeps: EntriesToolDeps) {
     contentTypeRepo: routeDeps.contentTypeRepo,
     clock: routeDeps.clock,
     ids: routeDeps.idGen,
-    authorize: routeDeps.authorize,
+    authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }),
     outbox: toEntryOutbox(routeDeps),
   };
 }
@@ -136,22 +124,22 @@ function toEntryToolView(entry: EntryRecord): EntryToolView {
 }
 
 function fromEntryResult(fn: () => ReturnType<typeof createEntry>): Promise<{ entry: EntryToolView }> {
-  return fromResult(fn).then(({ entry }) => ({ entry: toEntryToolView(entry) }));
+  return fromResult({ fn: fn }).then(({ entry }) => ({ entry: toEntryToolView(entry) }));
 }
 
 export function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
     collections_entry_list: async (ctx) => {
-      const input = ctx.input !== undefined ? requireInputRecord(ctx.input) : {};
-      await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "admin.collections.read", entityType: "entry" });
+      const input = ctx.input !== undefined ? requireInputRecord({ input: ctx.input }) : {};
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.collections.read" }, { entityType: "entry" });
 
-      const { items } = await listEntries({ repo: routeDeps.entryRepo, workspaceId: routeDeps.workspaceId, type: optionalString(input, "type") });
+      const { items } = await listEntries({ repo: routeDeps.entryRepo, workspaceId: routeDeps.workspaceId }, { type: optionalString({ input, key: "type" }) });
       return { items: items.map(toEntryToolView) };
     },
 
     collections_entry_create: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
-      return withSchemaOnRejection({ toolId: "collections_entry_create", catalog: CATALOG_BY_ID, isShapeRejection: isEntriesShapeRejection }, () =>
+      const input = requireInputRecord({ input: ctx.input });
+      return withSchemaOnRejection({ toolId: "collections_entry_create", catalog: CATALOG_BY_ID, isShapeRejection: isEntriesShapeRejection, fn: () =>
         fromEntryResult(() =>
           createEntry({
             deps: entriesDeps(routeDeps),
@@ -159,20 +147,19 @@ export function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegis
               actorId: ctx.principal.id,
               principalKind: AGENT_TOOL_PRINCIPAL_KIND,
               workspaceId: routeDeps.workspaceId,
-              type: requireString(input, "type"),
-              slug: requireString(input, "slug"),
-              title: requireString(input, "title"),
+              type: requireString({ input, key: "type" }),
+              slug: requireString({ input, key: "slug" }),
+              title: requireString({ input, key: "title" }),
               fieldsJson: input.fieldsJson ?? { ext: { site: {} } },
               bodyJson: input.bodyJson,
             },
           }),
-        ),
-      );
+        ) });
     },
 
     collections_entry_update: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
-      return withSchemaOnRejection({ toolId: "collections_entry_update", catalog: CATALOG_BY_ID, isShapeRejection: isEntriesShapeRejection }, () =>
+      const input = requireInputRecord({ input: ctx.input });
+      return withSchemaOnRejection({ toolId: "collections_entry_update", catalog: CATALOG_BY_ID, isShapeRejection: isEntriesShapeRejection, fn: () =>
         fromEntryResult(() =>
           updateEntry({
             deps: entriesDeps(routeDeps),
@@ -180,18 +167,17 @@ export function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegis
               actorId: ctx.principal.id,
               principalKind: AGENT_TOOL_PRINCIPAL_KIND,
               workspaceId: routeDeps.workspaceId,
-              id: requireString(input, "id"),
+              id: requireString({ input, key: "id" }),
               title: typeof input.title === "string" ? input.title : undefined,
               fieldsJson: input.fieldsJson,
-              expectedVersion: requireNumber(input, "expectedVersion"),
+              expectedVersion: requireNumber({ input, key: "expectedVersion" }),
             },
           }),
-        ),
-      );
+        ) });
     },
 
     collections_entry_publish: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
+      const input = requireInputRecord({ input: ctx.input });
       return fromEntryResult(() =>
         publishEntry({
           deps: entriesDeps(routeDeps),
@@ -199,15 +185,15 @@ export function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegis
             actorId: ctx.principal.id,
             principalKind: AGENT_TOOL_PRINCIPAL_KIND,
             workspaceId: routeDeps.workspaceId,
-            id: requireString(input, "id"),
-            expectedVersion: requireNumber(input, "expectedVersion"),
+            id: requireString({ input, key: "id" }),
+            expectedVersion: requireNumber({ input, key: "expectedVersion" }),
           },
         }),
       );
     },
 
     collections_entry_unpublish: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
+      const input = requireInputRecord({ input: ctx.input });
       return fromEntryResult(() =>
         unpublishEntry({
           deps: entriesDeps(routeDeps),
@@ -215,8 +201,8 @@ export function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegis
             actorId: ctx.principal.id,
             principalKind: AGENT_TOOL_PRINCIPAL_KIND,
             workspaceId: routeDeps.workspaceId,
-            id: requireString(input, "id"),
-            expectedVersion: requireNumber(input, "expectedVersion"),
+            id: requireString({ input, key: "id" }),
+            expectedVersion: requireNumber({ input, key: "expectedVersion" }),
           },
         }),
       );

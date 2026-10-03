@@ -1,3 +1,4 @@
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 /**
  * @file Named transform registry service — the core-declared
  * path only (no theme/plugin declaration API; see `transform-types.ts` file
@@ -6,7 +7,7 @@
  * Mirrors `media-service.ts`'s shape: plain async functions taking
  * `{ deps, input }` (+ optional `options`), typed domain errors.
  */
-import type { ClockPort, IdGeneratorPort, UUID } from "../core/ports.js";
+import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
 import type { TransformDefinitionRepoPort } from "./ports.js";
 import { assertValidTransformParams, TransformValidationError, type TransformDefinitionRecord, type TransformParams } from "./transform-types.js";
 import { withTransformRegistryLock } from "./transform-lock.js";
@@ -26,8 +27,8 @@ export interface RegisterTransformInput {
 }
 
 export interface RegisterTransformDeps {
-  clock: ClockPort;
-  idGen: IdGeneratorPort;
+  clock: Clock;
+  idGen: IdGenerator;
   transformRepo: TransformDefinitionRepoPort;
 }
 
@@ -59,12 +60,12 @@ export async function registerTransform(
   const { deps, input } = required;
 
   const name = input.name.trim();
-  if (!name) throw new TransformValidationError("transform name is required");
+  if (!name) throw new TransformValidationError({ message: "transform name is required" });
   const owner = input.owner.trim();
-  if (!owner) throw new TransformValidationError("owner is required");
-  assertValidTransformParams(input.params);
+  if (!owner) throw new TransformValidationError({ message: "owner is required" });
+  assertValidTransformParams({ format: input.params.format }, { width: input.params.width, height: input.params.height, fit: input.params.fit });
 
-  return withTransformRegistryLock(`${input.workspaceId}:${name}`, async () => {
+  return withTransformRegistryLock({ key: `${input.workspaceId}:${name}`, criticalSection: async () => {
     const existingVersions = await deps.transformRepo.listByName({ workspaceId: input.workspaceId, name });
     const currentMaxVersion = existingVersions.reduce((max, row) => Math.max(max, row.version), 0);
 
@@ -75,11 +76,11 @@ export async function registerTransform(
       version: currentMaxVersion + 1,
       params: input.params,
       owner,
-      createdAt: deps.clock.nowIso(),
+      createdAt: kernelNowIso({ clock: deps.clock }),
     };
     await deps.transformRepo.insert(definition);
     return { definition };
-  });
+  } });
 }
 
 // ---------------------------------------------------------------------------

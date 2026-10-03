@@ -11,8 +11,8 @@ import { createJsonEventStreamHandler } from '../json-event-stream.js';
  */
 function feed(kind: string, lines: unknown[]) {
   const events: Record<string, unknown>[] = [];
-  const handler = createJsonEventStreamHandler(kind, (event) => events.push(event));
-  for (const line of lines) handler.feed(`${JSON.stringify(line)}\n`);
+  const handler = createJsonEventStreamHandler({ kind: kind, onEvent: (event) => events.push(event) });
+  for (const line of lines) handler.feed({ chunk: `${JSON.stringify(line)}\n` });
   handler.flush();
   return events;
 }
@@ -896,8 +896,8 @@ describe('createJsonEventStreamHandler (cursor-agent)', () => {
 describe('createJsonEventStreamHandler (dispatch/plumbing)', () => {
   it('emits a raw event for a malformed JSON line instead of throwing', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createJsonEventStreamHandler('codex', (event) => events.push(event));
-    handler.feed('{not valid json\n');
+    const handler = createJsonEventStreamHandler({ kind: 'codex', onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: '{not valid json\n' });
     handler.flush();
     expect(events).toEqual([{ type: 'raw', line: '{not valid json' }]);
   });
@@ -909,23 +909,23 @@ describe('createJsonEventStreamHandler (dispatch/plumbing)', () => {
 
   it('skips blank lines within a chunk instead of emitting an event for them', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createJsonEventStreamHandler('codex', (event) => events.push(event));
-    handler.feed('\n   \n' + `${JSON.stringify({ type: 'turn.started' })}\n` + '\n');
+    const handler = createJsonEventStreamHandler({ kind: 'codex', onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: '\n   \n' + `${JSON.stringify({ type: 'turn.started' })}\n` + '\n' });
     handler.flush();
     expect(events).toEqual([{ type: 'status', label: 'thinking' }]);
   });
 
   it('flush() is a no-op when there is no buffered remainder and nothing pending', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createJsonEventStreamHandler('codex', (event) => events.push(event));
+    const handler = createJsonEventStreamHandler({ kind: 'codex', onEvent: (event) => events.push(event) });
     handler.flush();
     expect(events).toEqual([]);
   });
 
   it('processes a final unterminated line on flush()', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createJsonEventStreamHandler('codex', (event) => events.push(event));
-    handler.feed(JSON.stringify({ type: 'turn.started' })); // no trailing newline
+    const handler = createJsonEventStreamHandler({ kind: 'codex', onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: JSON.stringify({ type: 'turn.started' }) }); // no trailing newline
     expect(events).toEqual([]); // not processed until flush
     handler.flush();
     expect(events).toEqual([{ type: 'status', label: 'thinking' }]);

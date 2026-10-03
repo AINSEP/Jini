@@ -30,7 +30,7 @@ function fakeOutbox(): OutboxPort {
         createdAt: event.occurredAt,
       });
     },
-    claimPending: async (batchSize, nowIso) => {
+    claimPending: async ({ batchSize, nowIso }) => {
       const pending = records.filter((r) => r.status === "pending" && r.nextAttemptAt <= nowIso).slice(0, batchSize);
       for (const row of pending) row.status = "processing";
       return pending;
@@ -41,12 +41,12 @@ function fakeOutbox(): OutboxPort {
 }
 
 test("createWorkspace stores workspace and enqueues workspace.created", async () => {
-  const repo = new InMemoryWorkspaceRepo();
+  const repo = new InMemoryWorkspaceRepo({});
   const outbox = fakeOutbox();
 
   let n = 0;
   const idGen = { newId: () => `id-${++n}` };
-  const clock = { nowIso: () => "2026-02-21T00:00:00.000Z" };
+  const clock = { nowMs: () => Date.parse("2026-02-21T00:00:00.000Z")};
 
   const result = await createWorkspace(
     {
@@ -57,17 +57,17 @@ test("createWorkspace stores workspace and enqueues workspace.created", async ()
 
   assert.equal(result.id, "id-1");
 
-  const rows = await outbox.claimPending(10, "2026-02-21T00:00:00.000Z");
+  const rows = await outbox.claimPending({ batchSize: 10, nowIso: "2026-02-21T00:00:00.000Z" });
   assert.equal(rows.length, 1);
   assert.equal(rows[0]!.event.name, "workspace.created");
   assert.equal(rows[0]!.event.workspaceId, "id-1");
 });
 
 test("createWorkspace rejects invalid slug", async () => {
-  const repo = new InMemoryWorkspaceRepo();
+  const repo = new InMemoryWorkspaceRepo({});
   const outbox = fakeOutbox();
   const idGen = { newId: () => "id-1" };
-  const clock = { nowIso: () => "2026-02-21T00:00:00.000Z" };
+  const clock = { nowMs: () => Date.parse("2026-02-21T00:00:00.000Z")};
 
   await assert.rejects(
     () =>
@@ -80,11 +80,11 @@ test("createWorkspace rejects invalid slug", async () => {
 });
 
 test("createWorkspace rejects duplicate slug", async () => {
-  const repo = new InMemoryWorkspaceRepo();
+  const repo = new InMemoryWorkspaceRepo({});
   const outbox = fakeOutbox();
   let n = 0;
   const idGen = { newId: () => `id-${++n}` };
-  const clock = { nowIso: () => "2026-02-21T00:00:00.000Z" };
+  const clock = { nowMs: () => Date.parse("2026-02-21T00:00:00.000Z")};
 
   await createWorkspace({
     deps: { repo, outbox, idGen, clock },

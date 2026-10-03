@@ -4,7 +4,7 @@
  * product-prefixed) are renamed to `CODEX_SANDBOX_MODE` /
  * `CODEX_DISABLE_PLUGINS` — these are already codex-adapter-scoped
  * operator knobs, so no product namespacing is needed. See
- * `source-map.md` for the exact original names.
+ * `archived provenance ledger` for the exact original names.
  */
 import { DEFAULT_MODEL_OPTION, clampCodexReasoning } from './shared.js';
 import type { RuntimeModelOption, RuntimeReasoningOption } from '../types.js';
@@ -134,7 +134,7 @@ function codexCatalogRow(raw: unknown, takenIds: ReadonlySet<string>): RuntimeMo
   return { id, label: codexEntryLabel(entry, id), ...(reasoning ? { reasoning } : {}) };
 }
 
-export function parseCodexDebugModels(stdout: string): RuntimeModelOption[] | null {
+export function parseCodexDebugModels({ stdout }: { stdout: string }): RuntimeModelOption[] | null {
   const models = readCodexCatalogEntries(stdout);
   if (!models) return null;
 
@@ -165,8 +165,7 @@ export function parseCodexDebugModels(stdout: string): RuntimeModelOption[] | nu
  * static list rather than replace it with an empty one.
  * @complexity O(n·m) over n models and their m levels.
  */
-export function unionModelReasoningOptions(
-  models: readonly RuntimeModelOption[],
+export function unionModelReasoningOptions({ models }: { models: readonly RuntimeModelOption[] }
 ): RuntimeReasoningOption[] | null {
   const seen = new Set<string>();
   const out: RuntimeReasoningOption[] = [];
@@ -180,9 +179,7 @@ export function unionModelReasoningOptions(
   return out.length > 0 ? [{ id: 'default', label: 'Default' }, ...out] : null;
 }
 
-export function codexNeedsDangerFullAccessSandbox(
-  platform: NodeJS.Platform = process.platform,
-  env: NodeJS.ProcessEnv = process.env,
+export function codexNeedsDangerFullAccessSandbox({  }: {  }, { platform = process.platform, env = process.env }: { platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv } = {}
 ): boolean {
   // Operator override for deployments where Codex cannot create its
   // workspace-write sandbox, for example unprivileged Linux containers.
@@ -264,12 +261,7 @@ export const codexAgentDef = {
     // `error: unexpected argument '-' found` and the agent exits with
     // code 2 before any prompt is read. The pipe alone is sufficient for
     // stdin delivery.
-    buildArgs: (
-      _prompt,
-      imagePaths,
-      extraAllowedDirs = [],
-      options = {},
-      runtimeContext = {},
+    buildArgs: ({ prompt: _prompt, imagePaths }, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}
     ) => {
       // Codex CLI's `workspace-write` sandbox blocks shell invocations on
       // Windows ("powershell.exe ... rejected: blocked by policy"),
@@ -277,7 +269,7 @@ export const codexAgentDef = {
       // back to a coarse policy that rejects any shell. macOS (Seatbelt)
       // and Linux (Landlock+seccomp) keep workspace-write because their
       // sandbox enforcement permits shell while restricting writes.
-      const needsDangerFullAccess = codexNeedsDangerFullAccessSandbox();
+      const needsDangerFullAccess = codexNeedsDangerFullAccessSandbox({  });
       // Capture-style resume: when the caller has a stored Codex thread id
       // for this conversation it asks the CLI to continue that session
       // with `exec resume <thread_id>` instead of `exec` (a fresh
@@ -423,6 +415,6 @@ export const codexAgentDef = {
     //     that keeps the operator's real config untouched by routine daemon spawns.
     //
     // See `@jini-ai/daemon`'s `agent-executor.ts` (`prepareCodexHomeForRun`, `buildCodexHomeConfigToml`)
-    // for the staging/cleanup implementation and `source-map.md` for the full verification transcript.
+    // for the staging/cleanup implementation and `archived provenance ledger` for the full verification transcript.
     externalMcpInjection: 'codex-toml',
 } satisfies RuntimeAgentDef;

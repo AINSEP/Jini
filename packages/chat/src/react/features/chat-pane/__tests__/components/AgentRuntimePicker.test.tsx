@@ -96,25 +96,25 @@ describe('AgentRuntimePicker', () => {
   });
 
   it('maps known and fallback runtime presentation details', () => {
-    expect(runtimeAgentStatus({
+    expect(runtimeAgentStatus({ agent: {
       id: 'missing',
       name: 'Missing',
       available: false,
       diagnostic: 'Custom diagnostic',
-    })).toBe('Custom diagnostic');
-    expect(runtimeAgentStatus({ id: 'missing', name: 'Missing', available: false }))
+    } })).toBe('Custom diagnostic');
+    expect(runtimeAgentStatus({ agent: { id: 'missing', name: 'Missing', available: false } }))
       .toBe('Not found on PATH');
-    expect(runtimeAgentStatus({ id: 'auth', name: 'Auth', authStatus: 'missing' }))
+    expect(runtimeAgentStatus({ agent: { id: 'auth', name: 'Auth', authStatus: 'missing' } }))
       .toBe('Installed · sign-in required');
-    expect(runtimeAgentStatus({ id: 'versioned', name: 'Versioned', version: '1.2.3' }))
+    expect(runtimeAgentStatus({ agent: { id: 'versioned', name: 'Versioned', version: '1.2.3' } }))
       .toBe('1.2.3');
-    expect(runtimeAgentStatus({ id: 'installed', name: 'Installed' })).toBe('Installed');
+    expect(runtimeAgentStatus({ agent: { id: 'installed', name: 'Installed' } })).toBe('Installed');
 
     const options = [{ id: 'high', label: 'High' }];
-    expect(runtimeOptionLabel(options, undefined, 'Default')).toBe('Default');
-    expect(runtimeOptionLabel(options, 'default', 'Default')).toBe('Default');
-    expect(runtimeOptionLabel(options, 'high', 'Default')).toBe('High');
-    expect(runtimeOptionLabel(undefined, 'custom', 'Default')).toBe('custom');
+    expect(runtimeOptionLabel({ options: options, value: undefined, fallback: 'Default' })).toBe('Default');
+    expect(runtimeOptionLabel({ options: options, value: 'default', fallback: 'Default' })).toBe('Default');
+    expect(runtimeOptionLabel({ options: options, value: 'high', fallback: 'Default' })).toBe('High');
+    expect(runtimeOptionLabel({ options: undefined, value: 'custom', fallback: 'Default' })).toBe('custom');
   });
 
   it('calculates bounded upward and downward portal geometry', () => {
@@ -126,13 +126,13 @@ describe('AgentRuntimePicker', () => {
       top: 500,
       bottom: 540,
     } as DOMRect;
-    expect(runtimePopoverPosition(middle, 'up')).toMatchObject({
+    expect(runtimePopoverPosition({ trigger: middle, placement: 'up' })).toMatchObject({
       left: 300,
       bottom: 276,
       width: 320,
       maxHeight: 480,
     });
-    expect(runtimePopoverPosition(middle, 'down')).toMatchObject({
+    expect(runtimePopoverPosition({ trigger: middle, placement: 'down' })).toMatchObject({
       left: 300,
       top: 548,
       width: 320,
@@ -140,9 +140,9 @@ describe('AgentRuntimePicker', () => {
     });
 
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 300 });
-    expect(runtimePopoverPosition({ ...middle, left: -200, top: 50 } as DOMRect, 'up'))
+    expect(runtimePopoverPosition({ trigger: { ...middle, left: -200, top: 50 } as DOMRect, placement: 'up' }))
       .toMatchObject({ left: 12, width: 276, maxHeight: 30 });
-    expect(runtimePopoverPosition({ ...middle, left: 500, bottom: 700 } as DOMRect, 'down'))
+    expect(runtimePopoverPosition({ trigger: { ...middle, left: 500, bottom: 700 } as DOMRect, placement: 'down' }))
       .toMatchObject({ left: 12, top: 708, maxHeight: 48 });
   });
 

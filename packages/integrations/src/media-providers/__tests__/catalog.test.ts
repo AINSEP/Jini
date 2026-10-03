@@ -58,7 +58,7 @@ describe('@jini-ai/integrations/media-providers/catalog', () => {
     expect(catalog.findMediaModel).toBeTypeOf('function');
     expect(catalog.findProvider).toBeTypeOf('function');
     expect(catalog.modelsForSurface).toBeTypeOf('function');
-    expect(catalog.findProvider('openai')?.label).toBe('OpenAI');
+    expect(catalog.findProvider({ id: 'openai' })?.label).toBe('OpenAI');
   });
 
   it('does NOT re-export anything from the node-only dispatch/task/staging layers', () => {

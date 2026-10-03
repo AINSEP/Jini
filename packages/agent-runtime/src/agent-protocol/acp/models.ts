@@ -8,7 +8,7 @@
  */
 import { spawn } from 'node:child_process';
 import { createJsonLineStream } from '../core/index.js';
-import type { JsonRpcId, JsonObject, TimerHandle } from './types.js';
+import type { JsonRpcId, UnknownRecord, TimerHandle } from './types.js';
 import { ACP_PROTOCOL_VERSION, DEFAULT_TIMEOUT_MS, MODEL_CONFIG_OPTION_IDS } from './constants.js';
 import { errorMessage, resolveAcpTimeoutMs, asObject } from './json.js';
 import { sendRpc, rpcErrorMessage } from './rpc.js';
@@ -56,7 +56,7 @@ export function normalizeConfigOptionToken(value: unknown): string {
  * @param option - A single item from the `configOptions` array.
  * @param configId - The trimmed `id` field of that item.
  */
-export function isModelConfigOption(option: JsonObject, configId: string): boolean {
+export function isModelConfigOption(option: UnknownRecord, configId: string): boolean {
   const category = normalizeConfigOptionToken(option.category);
   if (category === 'model') return true;
   const id = normalizeConfigOptionToken(configId);
@@ -142,10 +142,7 @@ export function normalizeModelConfigOptions(
  * @param configOptions - Optional `result.configOptions` for the config-option path.
  * @returns A deduplicated array of `ModelOption` items.
  */
-export function normalizeModels(
-  models: unknown,
-  defaultModelOption: ModelOption,
-  configOptions?: unknown,
+export function normalizeModels({ models, defaultModelOption }: { models: unknown; defaultModelOption: ModelOption }, { configOptions }: { configOptions?: unknown } = {}
 ): ModelOption[] {
   const configModels = normalizeModelConfigOptions(configOptions, defaultModelOption);
   if (configModels && configModels.models.length > 1) {
@@ -185,7 +182,7 @@ export function modelSelectionErrorIsRecoverable(code: unknown): boolean {
  *
  * @param result - The parsed `result` object from a session handshake response.
  */
-export function currentModelFromSessionResult(result: JsonObject): string | null {
+export function currentModelFromSessionResult(result: UnknownRecord): string | null {
   const configCurrent = findModelConfigOption(result.configOptions)?.currentValue;
   if (configCurrent) return configCurrent;
   const models = asObject(result.models);
@@ -212,7 +209,8 @@ export function currentModelFromSessionResult(result: JsonObject): string | null
  * @param options.defaultModelOption - Fallback option prepended to the result list.
  * @returns A promise resolving to the available `ModelOption[]`.
  */
-export async function detectAcpModels({
+export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions, "bin" | "args">, optionalArgs: Omit<DetectAcpModelsOptions, "bin" | "args"> = {}): Promise<ModelOption[]> {
+  const {
   bin,
   args,
   cwd = process.cwd(),
@@ -221,7 +219,7 @@ export async function detectAcpModels({
   clientName = 'agent-runtime-detect',
   clientVersion = 'runtime-adapter',
   defaultModelOption = { id: 'default', label: 'Default (CLI config)' },
-}: DetectAcpModelsOptions): Promise<ModelOption[]> {
+}: DetectAcpModelsOptions = { ...optionalArgs, ...requiredArgs };
   const effectiveTimeoutMs = resolveAcpTimeoutMs(env, timeoutMs);
   return await new Promise<ModelOption[]>((resolve, reject) => {
     const child = spawn(bin, args, {
@@ -263,11 +261,11 @@ export async function detectAcpModels({
 
     const sendSessionNew = () => {
       expectedId = nextId;
-      writeRpc(nextId, 'session/new', buildAcpSessionNewParams(cwd));
+      writeRpc(nextId, 'session/new', buildAcpSessionNewParams({ cwd: cwd }));
       nextId += 1;
     };
 
-    const parser = createJsonLineStream((raw) => {
+    const parser = createJsonLineStream({ onMessage: ({ message: raw }) => {
       const obj = asObject(raw);
       const error = asObject(obj?.error);
       const result = asObject(obj?.result);
@@ -287,13 +285,13 @@ export async function detectAcpModels({
         return;
       }
       if (expectedId === 2) {
-        const models = normalizeModels(result.models, defaultModelOption, result.configOptions);
+        const models = normalizeModels({ models: result.models, defaultModelOption: defaultModelOption }, { configOptions: result.configOptions });
         finish(resolve, models);
         if (!child.killed) child.kill('SIGTERM');
       }
-    });
+    } });
 
-    child.stdout.on('data', (chunk) => parser.feed(chunk));
+    child.stdout.on('data', (chunk) => parser.feed({ chunk: chunk }));
     child.stdout.on('close', () => parser.flush());
     child.stdin.on('error', (err) => fail(`stdin error: ${err.message}`));
     child.stderr.on('data', (chunk) => {

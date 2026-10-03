@@ -315,7 +315,7 @@ function targetFromOptions(options: Pick<ManagedDownloadOptions, "basePath" | "b
   // `path.resolve` never actually walked upward. Empirically verified this
   // session: a 300k-segment fuzz found ~0.2% of `normalizeSegment`-valid
   // segments (every one starting with literal "..") trip this exact guard —
-  // see source-map.md's 2026-07-22 entry and this file's own test for a
+  // see archived provenance ledger's 2026-07-22 entry and this file's own test for a
   // concrete example (bucket "..evil").
   for (const path of [finalPath, manifestPath, partialPath, lockPath]) {
     if (!pathContains(basePath, path)) {
@@ -705,7 +705,7 @@ async function acquireLock(target: NormalizedTarget): Promise<AcquiredLock> {
   // no trailing fallback throw is needed. Every path out of this loop body is
   // a `return` or a `throw`; V8 still instruments the loop's closing brace as
   // a branch (whether execution "falls off" the loop normally), but that
-  // outcome is structurally impossible here — see source-map.md's
+  // outcome is structurally impossible here — see archived provenance ledger's
   // 2026-07-22 entry.
   for (let attempt = 0; ; attempt += 1) {
     try {

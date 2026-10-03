@@ -83,7 +83,7 @@ describe('loadRealSpawnPty', () => {
     const fakePty = new FakeIPty();
     nodePtySpawnMock.mockReturnValue(fakePty);
 
-    const spawnPty = await loadRealSpawnPty();
+    const spawnPty = await loadRealSpawnPty({  });
 
     expect(ensureSpawnHelperExecutableMock).toHaveBeenCalledWith(['/fake/candidate/spawn-helper']);
     const [candidatesCallOptions] = spawnHelperCandidatePathsMock.mock.calls[0]!;
@@ -167,9 +167,9 @@ function lastPty(ptys: Map<string, FakeIPty>): FakeIPty {
   return values[values.length - 1]!;
 }
 
-function makeManager(overrides: Parameters<typeof createTerminalSessionManager>[0] = {}) {
+function makeManager(overrides: NonNullable<Parameters<typeof createTerminalSessionManager>[1]> = {}) {
   const { spawnPty, ptys } = fakeSpawnPty();
-  const manager = createTerminalSessionManager({ loadSpawnPty: async () => spawnPty, ...overrides });
+  const manager = createTerminalSessionManager({}, { loadSpawnPty: async () => spawnPty, ...overrides });
   return { manager, ptys };
 }
 
@@ -179,7 +179,7 @@ const bob: Principal = { id: 'bob' };
 describe('createTerminalSessionManager — create/get/list', () => {
   it('create() returns a session shape with no origin-only grouping field, and records resourceRef/ownership', async () => {
     const { manager } = makeManager();
-    const session = await manager.create(alice, { resourceRef: 'proj-1', cwd: '/work' });
+    const session = await manager.create({ principal: alice, options: { resourceRef: 'proj-1', cwd: '/work' } });
     expect(Object.keys(session).sort()).toEqual(
       ['cols', 'createdAt', 'cwd', 'exitCode', 'id', 'resourceRef', 'rows', 'shell', 'signal', 'status', 'updatedAt'].sort(),
     );
@@ -189,13 +189,13 @@ describe('createTerminalSessionManager — create/get/list', () => {
 
   it('create() defaults resourceRef to null when omitted', async () => {
     const { manager } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
     expect(session.resourceRef).toBeNull();
   });
 
   it('create() forwards explicit cols/rows/shell through to the underlying engine', async () => {
     const { manager } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work', cols: 132, rows: 43, shell: '/bin/zsh' });
+    const session = await manager.create({ principal: alice, options: { cwd: '/work', cols: 132, rows: 43, shell: '/bin/zsh' } });
     expect(session.cols).toBe(132);
     expect(session.rows).toBe(43);
     expect(session.shell).toBe('/bin/zsh');
@@ -204,59 +204,52 @@ describe('createTerminalSessionManager — create/get/list', () => {
   it('createTerminalSessionManager() defaults loadSpawnPty to loadRealSpawnPty (fully mocked node-pty/spawn-helper machinery), and forwards every tuning knob to the underlying engine', async () => {
     const fakePty = new FakeIPty();
     nodePtySpawnMock.mockReturnValue(fakePty);
-    const manager = createTerminalSessionManager({
-      maxEvents: 10,
-      maxBufferBytes: 1024,
-      exitTailBytes: 256,
-      flushIntervalMs: 1,
-      flushThresholdBytes: 64,
-      shutdownGraceMs: 1,
-    });
-    const session = await manager.create(alice, { cwd: '/work' });
+    const manager = createTerminalSessionManager({  }, { maxEvents: 10, maxBufferBytes: 1024, exitTailBytes: 256, flushIntervalMs: 1, flushThresholdBytes: 64, shutdownGraceMs: 1 });
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
     expect(session.status).toBe('running');
     expect(nodePtySpawnMock).toHaveBeenCalledTimes(1);
   });
 
   it('get() returns not-found for an unknown id', () => {
     const { manager } = makeManager();
-    expect(manager.get(alice, 'missing')).toEqual({ status: 'not-found' });
+    expect(manager.get({ principal: alice, id: 'missing' })).toEqual({ status: 'not-found' });
   });
 
   it("get() returns not-found for a session owned by a different principal (never a distinguishable 'forbidden')", async () => {
     const { manager } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
-    expect(manager.get(bob, session.id)).toEqual({ status: 'not-found' });
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
+    expect(manager.get({ principal: bob, id: session.id })).toEqual({ status: 'not-found' });
   });
 
   it('get() returns the session for its owning principal', async () => {
     const { manager } = makeManager();
-    const created = await manager.create(alice, { cwd: '/work' });
-    expect(manager.get(alice, created.id)).toEqual({ status: 'ok', session: created });
+    const created = await manager.create({ principal: alice, options: { cwd: '/work' } });
+    expect(manager.get({ principal: alice, id: created.id })).toEqual({ status: 'ok', session: created });
   });
 
   it('list() scopes to the calling principal only', async () => {
     const { manager } = makeManager();
-    const aliceSession = await manager.create(alice, { cwd: '/a' });
-    await manager.create(bob, { cwd: '/b' });
-    expect(manager.list(alice).map((s) => s.id)).toEqual([aliceSession.id]);
+    const aliceSession = await manager.create({ principal: alice, options: { cwd: '/a' } });
+    await manager.create({ principal: bob, options: { cwd: '/b' } });
+    expect(manager.list({ principal: alice }).map((s) => s.id)).toEqual([aliceSession.id]);
   });
 
   it('list() narrows by resourceRef when provided', async () => {
     const { manager } = makeManager();
-    const match = await manager.create(alice, { resourceRef: 'r1', cwd: '/a' });
-    await manager.create(alice, { resourceRef: 'r2', cwd: '/b' });
-    expect(manager.list(alice, { resourceRef: 'r1' }).map((s) => s.id)).toEqual([match.id]);
+    const match = await manager.create({ principal: alice, options: { resourceRef: 'r1', cwd: '/a' } });
+    await manager.create({ principal: alice, options: { resourceRef: 'r2', cwd: '/b' } });
+    expect(manager.list({ principal: alice }, { filter: { resourceRef: 'r1' } }).map((s) => s.id)).toEqual([match.id]);
   });
 
   it('get() prunes and reports not-found once the underlying service has reaped an exited session past its TTL', async () => {
     vi.useFakeTimers();
     try {
       const { manager, ptys } = makeManager({ ttlMs: 10 });
-      const session = await manager.create(alice, { cwd: '/work' });
+      const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
       const pty = lastPty(ptys);
       pty.emitExit(0, undefined);
       vi.advanceTimersByTime(11);
-      expect(manager.get(alice, session.id)).toEqual({ status: 'not-found' });
+      expect(manager.get({ principal: alice, id: session.id })).toEqual({ status: 'not-found' });
     } finally {
       vi.useRealTimers();
     }
@@ -266,20 +259,20 @@ describe('createTerminalSessionManager — create/get/list', () => {
 describe('createTerminalSessionManager — write/resize/kill ownership + the kill/write/resize lock', () => {
   it('write() returns not-found for an unknown session', async () => {
     const { manager } = makeManager();
-    expect(await manager.write(alice, 'missing', 'x')).toEqual({ status: 'not-found' });
+    expect(await manager.write({ principal: alice, id: 'missing', input: 'x' })).toEqual({ status: 'not-found' });
   });
 
   it("write() returns not-found for another principal's session, and never reaches the pty", async () => {
     const { manager, ptys } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
-    expect(await manager.write(bob, session.id, 'x')).toEqual({ status: 'not-found' });
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
+    expect(await manager.write({ principal: bob, id: session.id, input: 'x' })).toEqual({ status: 'not-found' });
     expect(lastPty(ptys).writeCalls).toEqual([]);
   });
 
   it('write() forwards to the pty and reports ok:true for the owning principal', async () => {
     const { manager, ptys } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
-    const result = await manager.write(alice, session.id, 'ls\n');
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
+    const result = await manager.write({ principal: alice, id: session.id, input: 'ls\n' });
     expect(result.status).toBe('ok');
     expect(result.status === 'ok' && result.ok).toBe(true);
     expect(lastPty(ptys).writeCalls).toEqual(['ls\n']);
@@ -287,8 +280,8 @@ describe('createTerminalSessionManager — write/resize/kill ownership + the kil
 
   it('resize() forwards to the pty and reports the updated session', async () => {
     const { manager, ptys } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
-    const result = await manager.resize(alice, session.id, 120, 40);
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
+    const result = await manager.resize({ principal: alice, id: session.id, cols: 120, rows: 40 });
     expect(result).toEqual({
       status: 'ok',
       ok: true,
@@ -299,14 +292,14 @@ describe('createTerminalSessionManager — write/resize/kill ownership + the kil
 
   it("resize() returns not-found for another principal's session", async () => {
     const { manager } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
-    expect(await manager.resize(bob, session.id, 10, 10)).toEqual({ status: 'not-found' });
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
+    expect(await manager.resize({ principal: bob, id: session.id, cols: 10, rows: 10 })).toEqual({ status: 'not-found' });
   });
 
   it('kill() forwards SIGTERM to the pty and returns the updated (still running, until real exit) session', async () => {
     const { manager, ptys } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
-    const result = await manager.kill(alice, session.id, 'SIGTERM');
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
+    const result = await manager.kill({ principal: alice, id: session.id }, { signal: 'SIGTERM' });
     expect(result.status).toBe('ok');
     expect(result.status === 'ok' && result.ok).toBe(true);
     expect(lastPty(ptys).killCalls).toEqual(['SIGTERM']);
@@ -314,16 +307,16 @@ describe('createTerminalSessionManager — write/resize/kill ownership + the kil
 
   it("kill() returns not-found for another principal's session, and never reaches the pty", async () => {
     const { manager, ptys } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
-    expect(await manager.kill(bob, session.id)).toEqual({ status: 'not-found' });
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
+    expect(await manager.kill({ principal: bob, id: session.id })).toEqual({ status: 'not-found' });
     expect(lastPty(ptys).killCalls).toEqual([]);
   });
 
   it('kill() on an already-exited session reports ok:false without throwing', async () => {
     const { manager, ptys } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
     lastPty(ptys).emitExit(0, undefined);
-    const result = await manager.kill(alice, session.id);
+    const result = await manager.kill({ principal: alice, id: session.id });
     expect(result.status).toBe('ok');
     expect(result.status === 'ok' && result.ok).toBe(false);
   });
@@ -333,11 +326,11 @@ describe('createTerminalSessionManager — write/resize/kill ownership + the kil
       "immediate 'killed' flag, even though the underlying pty has not (in this test, ever) reported real process exit",
     async () => {
       const { manager, ptys } = makeManager();
-      const session = await manager.create(alice, { cwd: '/work' });
+      const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
       const pty = lastPty(ptys);
 
-      const killPromise = manager.kill(alice, session.id, 'SIGTERM');
-      const writePromise = manager.write(alice, session.id, 'should-be-rejected\n');
+      const killPromise = manager.kill({ principal: alice, id: session.id }, { signal: 'SIGTERM' });
+      const writePromise = manager.write({ principal: alice, id: session.id, input: 'should-be-rejected\n' });
       const [killResult, writeResult] = await Promise.all([killPromise, writePromise]);
 
       expect(killResult).toEqual({ status: 'ok', ok: true, session: expect.any(Object) });
@@ -352,11 +345,11 @@ describe('createTerminalSessionManager — write/resize/kill ownership + the kil
 
   it('a write() issued and queued before a kill() for the same session still completes normally (the lock enforces call order, not "kill always wins")', async () => {
     const { manager, ptys } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
     const pty = lastPty(ptys);
 
-    const writePromise = manager.write(alice, session.id, 'first\n');
-    const killPromise = manager.kill(alice, session.id, 'SIGTERM');
+    const writePromise = manager.write({ principal: alice, id: session.id, input: 'first\n' });
+    const killPromise = manager.kill({ principal: alice, id: session.id }, { signal: 'SIGTERM' });
     const [writeResult, killResult] = await Promise.all([writePromise, killPromise]);
 
     expect(writeResult).toEqual({ status: 'ok', ok: true, session: expect.any(Object) });
@@ -367,11 +360,11 @@ describe('createTerminalSessionManager — write/resize/kill ownership + the kil
 
   it('a resize() queued behind a kill() for the same session is also rejected via the killed flag', async () => {
     const { manager, ptys } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
     const pty = lastPty(ptys);
 
-    const killPromise = manager.kill(alice, session.id);
-    const resizePromise = manager.resize(alice, session.id, 10, 10);
+    const killPromise = manager.kill({ principal: alice, id: session.id });
+    const resizePromise = manager.resize({ principal: alice, id: session.id, cols: 10, rows: 10 });
     const [, resizeResult] = await Promise.all([killPromise, resizePromise]);
 
     expect(resizeResult).toEqual({ status: 'ok', ok: false, session: expect.any(Object) });
@@ -380,8 +373,8 @@ describe('createTerminalSessionManager — write/resize/kill ownership + the kil
 
   it('write() after write() for the same session is serialized through the lock rather than racing (both calls still land, in order)', async () => {
     const { manager, ptys } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
-    await Promise.all([manager.write(alice, session.id, 'a'), manager.write(alice, session.id, 'b')]);
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
+    await Promise.all([manager.write({ principal: alice, id: session.id, input: 'a' }), manager.write({ principal: alice, id: session.id, input: 'b' })]);
     expect(lastPty(ptys).writeCalls).toEqual(['a', 'b']);
   });
 
@@ -389,10 +382,10 @@ describe('createTerminalSessionManager — write/resize/kill ownership + the kil
     vi.useFakeTimers();
     try {
       const { manager, ptys } = makeManager({ ttlMs: 5 });
-      const session = await manager.create(alice, { cwd: '/work' });
+      const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
       // Outer ownership check runs synchronously here (before any microtask yield) and finds the
       // session present — the lock body itself is only scheduled, not yet run.
-      const writePromise = manager.write(alice, session.id, 'queued');
+      const writePromise = manager.write({ principal: alice, id: session.id, input: 'queued' });
       lastPty(ptys).emitExit(0, undefined);
       // Advancing past the TTL reaps the session from @jini-ai/platform's own registry — still
       // entirely within this synchronous stretch of the test, so it lands before the queued lock
@@ -410,14 +403,14 @@ describe('createTerminalSessionManager — attach/detach', () => {
   it('attach() returns not-found for an unknown or foreign session, without adding a sink', () => {
     const { manager } = makeManager();
     const sink: TerminalSseSink = { send: vi.fn(), end: vi.fn() };
-    expect(manager.attach(alice, 'missing', 0, sink)).toBe('not-found');
+    expect(manager.attach({ principal: alice, id: 'missing', lastEventId: 0, sink: sink })).toBe('not-found');
   });
 
   it('attach() attaches a running session and delivers live output to the sink', async () => {
     const { manager, ptys } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
     const sink: TerminalSseSink = { send: vi.fn(), end: vi.fn() };
-    expect(manager.attach(alice, session.id, 0, sink)).toBe('attached');
+    expect(manager.attach({ principal: alice, id: session.id, lastEventId: 0, sink: sink })).toBe('attached');
     lastPty(ptys).emitData('hello');
     // Data is coalesced onto a frame timer by the underlying @jini-ai/platform engine — flush it.
     await vi.waitFor(() => expect(sink.send).toHaveBeenCalledWith('data', { data: 'hello' }, expect.any(Number)));
@@ -425,26 +418,26 @@ describe('createTerminalSessionManager — attach/detach', () => {
 
   it("attach() for another principal's session returns not-found even though the session exists", async () => {
     const { manager } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
     const sink: TerminalSseSink = { send: vi.fn(), end: vi.fn() };
-    expect(manager.attach(bob, session.id, 0, sink)).toBe('not-found');
+    expect(manager.attach({ principal: bob, id: session.id, lastEventId: 0, sink: sink })).toBe('not-found');
   });
 
   it('attach() on an already-exited session replays and ends immediately', async () => {
     const { manager, ptys } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
     lastPty(ptys).emitExit(0, undefined);
     const sink: TerminalSseSink = { send: vi.fn(), end: vi.fn() };
-    expect(manager.attach(alice, session.id, 0, sink)).toBe('ended');
+    expect(manager.attach({ principal: alice, id: session.id, lastEventId: 0, sink: sink })).toBe('ended');
     expect(sink.end).toHaveBeenCalledTimes(1);
   });
 
   it('detach() removes a previously attached sink so it stops receiving output', async () => {
     const { manager, ptys } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
     const sink: TerminalSseSink = { send: vi.fn(), end: vi.fn() };
-    manager.attach(alice, session.id, 0, sink);
-    manager.detach(session.id, sink);
+    manager.attach({ principal: alice, id: session.id, lastEventId: 0, sink: sink });
+    manager.detach({ id: session.id, sink: sink });
     lastPty(ptys).emitData('should-not-arrive');
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(sink.send).not.toHaveBeenCalled();
@@ -452,16 +445,16 @@ describe('createTerminalSessionManager — attach/detach', () => {
 
   it('detach() on a session that was never attached is a safe no-op', async () => {
     const { manager } = makeManager();
-    const session = await manager.create(alice, { cwd: '/work' });
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
     const sink: TerminalSseSink = { send: vi.fn(), end: vi.fn() };
-    expect(() => manager.detach(session.id, sink)).not.toThrow();
+    expect(() => manager.detach({ id: session.id, sink: sink })).not.toThrow();
   });
 });
 
 describe('createTerminalSessionManager — shutdownActive', () => {
   it('kills every active session pty', async () => {
     const { manager, ptys } = makeManager();
-    await manager.create(alice, { cwd: '/work' });
+    await manager.create({ principal: alice, options: { cwd: '/work' } });
     await manager.shutdownActive({ graceMs: 0 });
     expect(lastPty(ptys).killCalls).toEqual(['SIGTERM']);
   });
@@ -510,16 +503,12 @@ describe('createTerminalToolRegistrations', () => {
 
   it('a caller-supplied policy overrides the default', () => {
     const policy: ToolPolicy = { authorize: () => 'allow' };
-    const regs = createTerminalToolRegistrations({ manager: makeManagerStub(), policy });
+    const regs = createTerminalToolRegistrations({ manager: makeManagerStub() }, { policy });
     expect(regs.create.policy).toBe(policy);
   });
 
   it('forwards requiresConfirmation/timeoutMs onto the descriptor', () => {
-    const regs = createTerminalToolRegistrations({
-      manager: makeManagerStub(),
-      requiresConfirmation: true,
-      timeoutMs: 5000,
-    });
+    const regs = createTerminalToolRegistrations({ manager: makeManagerStub() }, { requiresConfirmation: true, timeoutMs: 5000 });
     expect(regs.create.descriptor.requiresConfirmation).toBe(true);
     expect(regs.create.descriptor.timeoutMs).toBe(5000);
   });
@@ -542,13 +531,13 @@ describe('createTerminalToolRegistrations', () => {
       input: { cwd: '/work', resourceRef: 'r1', cols: 100, rows: 40, shell: '/bin/zsh' },
       signal: new AbortController().signal,
     });
-    expect(manager.create).toHaveBeenCalledWith(alice, {
+    expect(manager.create).toHaveBeenCalledWith({ principal: alice, options: {
       resourceRef: 'r1',
       cwd: '/work',
       cols: 100,
       rows: 40,
       shell: '/bin/zsh',
-    });
+    } });
   });
 
   it('the handler ignores malformed optional fields rather than throwing', async () => {
@@ -561,29 +550,29 @@ describe('createTerminalToolRegistrations', () => {
       input: { cwd: '/work', resourceRef: 42, cols: 'wide', rows: 'tall', shell: 7 },
       signal: new AbortController().signal,
     });
-    expect(manager.create).toHaveBeenCalledWith(alice, { resourceRef: null, cwd: '/work', shell: null });
+    expect(manager.create).toHaveBeenCalledWith({ principal: alice, options: { resourceRef: null, cwd: '/work', shell: null } });
   });
 
   it('end to end: the real deny-by-default policy blocks creation through a real ToolExecutor, and manager.create is never invoked', async () => {
     const manager = makeManagerStub();
-    const registry: ToolRegistry = createToolRegistry();
+    const registry: ToolRegistry = createToolRegistry({});
     const regs = createTerminalToolRegistrations({ manager }); // no policy override — real default applies
     registry.register(regs.create);
     const executor: ToolExecutor = createToolExecutor({ registry });
 
-    const result = await executor.execute(alice, { id: 'r1' }, TERMINAL_CREATE_TOOL_ID, { cwd: '/work' });
+    const result = await executor.execute({ principal: alice, run: { id: 'r1' }, toolId: TERMINAL_CREATE_TOOL_ID, input: { cwd: '/work' } });
     expect(result.status).toBe('denied');
     expect(manager.create).not.toHaveBeenCalled();
   });
 
   it('end to end: an allow policy lets creation reach manager.create through a real ToolExecutor', async () => {
     const manager = makeManagerStub();
-    const registry: ToolRegistry = createToolRegistry();
-    const regs = createTerminalToolRegistrations({ manager, policy: { authorize: () => 'allow' } });
+    const registry: ToolRegistry = createToolRegistry({});
+    const regs = createTerminalToolRegistrations({ manager }, { policy: { authorize: () => 'allow' } });
     registry.register(regs.create);
     const executor: ToolExecutor = createToolExecutor({ registry });
 
-    const result = await executor.execute(alice, { id: 'r1' }, TERMINAL_CREATE_TOOL_ID, { cwd: '/work' });
+    const result = await executor.execute({ principal: alice, run: { id: 'r1' }, toolId: TERMINAL_CREATE_TOOL_ID, input: { cwd: '/work' } });
     expect(result.status).toBe('completed');
     expect(manager.create).toHaveBeenCalledTimes(1);
   });

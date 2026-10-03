@@ -19,11 +19,11 @@ afterEach(() => {
 describe('useBrandFonts — Google Fonts stylesheet injection', () => {
   it('injects a <link> for each valid Google Fonts URL and dedupes duplicates', () => {
     renderHook(() =>
-      useBrandFonts(undefined, [
+      useBrandFonts({ fonts: [
         { googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Inter' },
         { googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Inter' },
         { googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Roboto' },
-      ]),
+      ] }),
     );
     const links = document.head.querySelectorAll('link[rel="stylesheet"]');
     expect(links).toHaveLength(2);
@@ -31,16 +31,16 @@ describe('useBrandFonts — Google Fonts stylesheet injection', () => {
 
   it('filters out non-googleapis and empty font URLs', () => {
     renderHook(() =>
-      useBrandFonts(undefined, [
+      useBrandFonts({ fonts: [
         { googleFontsUrl: 'https://evil.example/css2?family=Inter' },
         {},
-      ]),
+      ] }),
     );
     expect(document.head.querySelectorAll('link[rel="stylesheet"]')).toHaveLength(0);
   });
 
   it('removes the injected links when the font list changes', () => {
-    const { rerender } = renderHook(({ fonts }) => useBrandFonts(undefined, fonts), {
+    const { rerender } = renderHook(({ fonts }) => useBrandFonts({ fonts }), {
       initialProps: { fonts: [{ googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Inter' }] },
     });
     expect(document.head.querySelectorAll('link[rel="stylesheet"]')).toHaveLength(1);
@@ -51,7 +51,7 @@ describe('useBrandFonts — Google Fonts stylesheet injection', () => {
 
   it('removes the injected links on unmount', () => {
     const { unmount } = renderHook(() =>
-      useBrandFonts(undefined, [{ googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Inter' }]),
+      useBrandFonts({ fonts: [{ googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Inter' }] }),
     );
     expect(document.head.querySelectorAll('link[rel="stylesheet"]')).toHaveLength(1);
     unmount();
@@ -63,19 +63,19 @@ describe('useBrandFonts — self-hosted font manifest', () => {
   it('skips the manifest fetch entirely when no resolveProjectAssetUrl is supplied', () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
-    renderHook(() => useBrandFonts('proj-1', []));
+    renderHook(() => useBrandFonts({ fonts: [] }, { projectId: 'proj-1' }));
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('skips the manifest fetch entirely when no projectId is supplied', () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
-    renderHook(() => useBrandFonts(undefined, [], { resolveProjectAssetUrl: (id, path) => `/assets/${id}/${path}` }));
+    renderHook(() => useBrandFonts({ fonts: [] }, { resolveProjectAssetUrl: ({ projectId: id, path }) => `/assets/${id}/${path}` }));
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('fetches the manifest via the injected resolver and injects @font-face rules', async () => {
-    const resolveProjectAssetUrl = vi.fn((id: string, path: string) => `/assets/${id}/${path}`);
+    const resolveProjectAssetUrl = vi.fn(({ projectId: id, path }: { projectId: string; path: string }) => `/assets/${id}/${path}`);
     const fetchSpy = vi.fn(async () => ({
       ok: true,
       json: async () => ({
@@ -86,7 +86,7 @@ describe('useBrandFonts — self-hosted font manifest', () => {
     }));
     vi.stubGlobal('fetch', fetchSpy);
 
-    renderHook(() => useBrandFonts('proj-1', [], { resolveProjectAssetUrl }));
+    renderHook(() => useBrandFonts({ fonts: [] }, { projectId: 'proj-1', resolveProjectAssetUrl }));
     await flushMicrotasks();
 
     // fetchWithTimeout composes its own timeout AbortSignal in — see fetch-with-timeout.ts.
@@ -94,8 +94,8 @@ describe('useBrandFonts — self-hosted font manifest', () => {
       cache: 'no-store',
       signal: expect.any(AbortSignal),
     });
-    expect(resolveProjectAssetUrl).toHaveBeenCalledWith('proj-1', 'fonts/manifest.json');
-    expect(resolveProjectAssetUrl).toHaveBeenCalledWith('proj-1', 'fonts/obrien.woff2');
+    expect(resolveProjectAssetUrl).toHaveBeenCalledWith({ projectId: 'proj-1', path: 'fonts/manifest.json' });
+    expect(resolveProjectAssetUrl).toHaveBeenCalledWith({ projectId: 'proj-1', path: 'fonts/obrien.woff2' });
 
     const styleEl = document.head.querySelector('style[data-brand-fonts="proj-1"]');
     expect(styleEl).not.toBeNull();
@@ -108,7 +108,7 @@ describe('useBrandFonts — self-hosted font manifest', () => {
   it('does not inject a style element when the response is not ok', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({}) })));
     renderHook(() =>
-      useBrandFonts('proj-1', [], { resolveProjectAssetUrl: (id, path) => `/assets/${id}/${path}` }),
+      useBrandFonts({ fonts: [] }, { projectId: 'proj-1', resolveProjectAssetUrl: ({ projectId: id, path }) => `/assets/${id}/${path}` }),
     );
     await flushMicrotasks();
     expect(document.head.querySelector('style[data-brand-fonts]')).toBeNull();
@@ -117,7 +117,7 @@ describe('useBrandFonts — self-hosted font manifest', () => {
   it('does not inject a style element when the manifest has no files', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ files: [] }) })));
     renderHook(() =>
-      useBrandFonts('proj-1', [], { resolveProjectAssetUrl: (id, path) => `/assets/${id}/${path}` }),
+      useBrandFonts({ fonts: [] }, { projectId: 'proj-1', resolveProjectAssetUrl: ({ projectId: id, path }) => `/assets/${id}/${path}` }),
     );
     await flushMicrotasks();
     expect(document.head.querySelector('style[data-brand-fonts]')).toBeNull();
@@ -126,7 +126,7 @@ describe('useBrandFonts — self-hosted font manifest', () => {
   it('does not inject a style element when the manifest response is malformed', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })));
     renderHook(() =>
-      useBrandFonts('proj-1', [], { resolveProjectAssetUrl: (id, path) => `/assets/${id}/${path}` }),
+      useBrandFonts({ fonts: [] }, { projectId: 'proj-1', resolveProjectAssetUrl: ({ projectId: id, path }) => `/assets/${id}/${path}` }),
     );
     await flushMicrotasks();
     expect(document.head.querySelector('style[data-brand-fonts]')).toBeNull();
@@ -135,7 +135,7 @@ describe('useBrandFonts — self-hosted font manifest', () => {
   it('swallows a fetch rejection (a missing/malformed manifest is expected for some systems)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network down'); }));
     renderHook(() =>
-      useBrandFonts('proj-1', [], { resolveProjectAssetUrl: (id, path) => `/assets/${id}/${path}` }),
+      useBrandFonts({ fonts: [] }, { projectId: 'proj-1', resolveProjectAssetUrl: ({ projectId: id, path }) => `/assets/${id}/${path}` }),
     );
     await flushMicrotasks();
     expect(document.head.querySelector('style[data-brand-fonts]')).toBeNull();
@@ -152,7 +152,7 @@ describe('useBrandFonts — self-hosted font manifest', () => {
       })),
     );
     const { unmount } = renderHook(() =>
-      useBrandFonts('proj-1', [], { resolveProjectAssetUrl: (id, path) => `/assets/${id}/${path}` }),
+      useBrandFonts({ fonts: [] }, { projectId: 'proj-1', resolveProjectAssetUrl: ({ projectId: id, path }) => `/assets/${id}/${path}` }),
     );
     await flushMicrotasks();
     expect(document.head.querySelector('style[data-brand-fonts]')).not.toBeNull();
@@ -172,7 +172,7 @@ describe('useBrandFonts — self-hosted font manifest', () => {
       ),
     );
     const { unmount } = renderHook(() =>
-      useBrandFonts('proj-1', [], { resolveProjectAssetUrl: (id, path) => `/assets/${id}/${path}` }),
+      useBrandFonts({ fonts: [] }, { projectId: 'proj-1', resolveProjectAssetUrl: ({ projectId: id, path }) => `/assets/${id}/${path}` }),
     );
     unmount();
     await act(async () => {
@@ -191,9 +191,9 @@ describe('useBrandFonts — self-hosted font manifest', () => {
   it('re-fetches when projectId or the resolver identity changes', async () => {
     const fetchSpy = vi.fn(async () => ({ ok: true, json: async () => ({ files: [] }) }));
     vi.stubGlobal('fetch', fetchSpy);
-    const resolveProjectAssetUrl = (id: string, path: string) => `/assets/${id}/${path}`;
+    const resolveProjectAssetUrl = ({ projectId: id, path }: { projectId: string; path: string }) => `/assets/${id}/${path}`;
     const { rerender } = renderHook(
-      ({ projectId }) => useBrandFonts(projectId, [], { resolveProjectAssetUrl }),
+      ({ projectId }) => useBrandFonts({ fonts: [] }, { projectId, resolveProjectAssetUrl }),
       { initialProps: { projectId: 'proj-1' } },
     );
     await flushMicrotasks();
@@ -207,4 +207,15 @@ describe('useBrandFonts — self-hosted font manifest', () => {
       signal: expect.any(AbortSignal),
     });
   });
+});
+
+// REGRESSION: fails if useBrandFonts routes its default manifest loader through global fetch.
+it('loads the manifest with the supplied native fetch port', async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(JSON.stringify({ files: [] })));
+  const { unmount } = renderHook(() => useBrandFonts({ fonts: [] }, {
+    projectId: 'project', resolveProjectAssetUrl: ({ path }) => `/assets/${path}`, fetch,
+  }));
+  await flushMicrotasks();
+  expect(fetch).toHaveBeenCalledWith('/assets/fonts/manifest.json', expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) }));
+  unmount();
 });

@@ -5,7 +5,7 @@
  * diagnostics. Depends on acp/types, acp/json, and acp/account-failure;
  * consumed exclusively by acp/session.ts.
  */
-import type { JsonObject } from './types.js';
+import type { UnknownRecord } from './types.js';
 import { asObject, acpValueKind, objectKeys, extractAcpUpdateText } from './json.js';
 import {
   accountFailureDetails,
@@ -23,7 +23,7 @@ import {
  * @param update - A parsed ACP `session/update` params object.
  * @returns A flat diagnostic object suitable for inclusion in an agent event payload.
  */
-export function acpRawEventShape(update: JsonObject) {
+export function acpRawEventShape(update: UnknownRecord) {
   const content = update.content;
   const rawInput = update.rawInput;
   const locations = update.locations;
@@ -53,7 +53,7 @@ export function acpRawEventShape(update: JsonObject) {
  *
  * @param update - A parsed ACP `session/update` params object.
  */
-export function acpUpdateStatus(update: JsonObject): string {
+export function acpUpdateStatus(update: UnknownRecord): string {
   return typeof update.status === 'string'
     ? update.status.trim().toLowerCase().replace(/[\s_-]+/g, '')
     : '';
@@ -63,7 +63,7 @@ export function acpUpdateStatus(update: JsonObject): string {
  * terminal state (`completed`, `complete`, `succeeded`, or `success`).
  * Used to decide when to emit deferred artifact-write tool events.
  */
-export function isAcpCompletedStatus(update: JsonObject): boolean {
+export function isAcpCompletedStatus(update: UnknownRecord): boolean {
   const status = acpUpdateStatus(update);
   return status === 'completed' || status === 'complete' || status === 'succeeded' || status === 'success';
 }
@@ -72,7 +72,7 @@ export function isAcpCompletedStatus(update: JsonObject): boolean {
  * failure state (`failed`, `failure`, `error`, `cancelled`, or `canceled`).
  * Used to clean up pending write-suppression state and emit failed tool events.
  */
-export function isAcpTerminalFailureStatus(update: JsonObject): boolean {
+export function isAcpTerminalFailureStatus(update: UnknownRecord): boolean {
   const status = acpUpdateStatus(update);
   return status === 'failed' || status === 'failure' || status === 'error' || status === 'cancelled' || status === 'canceled';
 }
@@ -81,7 +81,7 @@ export function isAcpTerminalFailureStatus(update: JsonObject): boolean {
  * agent wants to restart the request; the session promoter maps this to a
  * structured error payload via `promotedAmrRetryStatusPayload`.
  */
-export function isAcpRetryStatus(update: JsonObject): boolean {
+export function isAcpRetryStatus(update: UnknownRecord): boolean {
   return acpUpdateStatus(update) === 'retry';
 }
 /**
@@ -136,12 +136,12 @@ export function acpUpdateDiagnosticText(value: unknown, depth = 0): string[] {
  * @returns A structured error payload with `message` and `error`, or `null`.
  */
 export function promotedAmrRetryStatusPayload(
-  update: JsonObject,
+  update: UnknownRecord,
   classifier: AccountFailureClassifier = noopAccountFailureClassifier,
 ) {
   if (!isAcpRetryStatus(update)) return null;
   const diagnosticText = acpUpdateDiagnosticText(update).join('\n');
-  const failure = classifier.classify(diagnosticText);
+  const failure = classifier.classify({ text: diagnosticText });
   if (!failure) return null;
   return {
     message: failure.message,
@@ -173,7 +173,7 @@ export function promotedAmrStderrPayload(
 ) {
   if (!/opencode_event_stream_failure|session\.status/i.test(chunk)) return null;
   if (!/\bretry\b/i.test(chunk)) return null;
-  const failure = classifier.classify(chunk);
+  const failure = classifier.classify({ text: chunk });
   if (!failure) return null;
   return {
     message: failure.message,
@@ -195,7 +195,7 @@ export function promotedAmrStderrPayload(
  *
  * @param update - A parsed ACP `session/update` params object.
  */
-export function acpToolCallId(update: JsonObject): string | null {
+export function acpToolCallId(update: UnknownRecord): string | null {
   return typeof update.toolCallId === 'string' && update.toolCallId.trim()
     ? update.toolCallId.trim()
     : null;
@@ -208,7 +208,7 @@ export function acpToolCallId(update: JsonObject): string | null {
  *
  * @param update - A parsed ACP `session/update` params object.
  */
-export function isAcpArtifactWriteLabel(update: JsonObject): boolean {
+export function isAcpArtifactWriteLabel(update: UnknownRecord): boolean {
   const label = [
     typeof update.title === 'string' ? update.title : '',
     typeof update.name === 'string' ? update.name : '',
@@ -224,7 +224,7 @@ export function isAcpArtifactWriteLabel(update: JsonObject): boolean {
  * @param update - A parsed ACP `session/update` params object.
  * @param writeToolCallIds - The set of tool call ids identified as artifact writes so far.
  */
-export function isAcpArtifactWriteUpdate(update: JsonObject, writeToolCallIds: Set<string>): boolean {
+export function isAcpArtifactWriteUpdate(update: UnknownRecord, writeToolCallIds: Set<string>): boolean {
   if (!isAcpCompletedStatus(update)) return false;
   const toolCallId = acpToolCallId(update);
   return isAcpArtifactWriteLabel(update) || (toolCallId ? writeToolCallIds.has(toolCallId) : false);
@@ -247,7 +247,7 @@ export function isAcpArtifactWriteUpdate(update: JsonObject, writeToolCallIds: S
  * @param update - A parsed ACP `session/update` params object.
  * @returns An absolute or relative file path string, or `null` when absent.
  */
-export function acpArtifactWritePath(update: JsonObject): string | null {
+export function acpArtifactWritePath(update: UnknownRecord): string | null {
   // 1. ACP `locations: [{ path }]` and `content: [{ path }]` (diff entries).
   for (const field of [update.locations, update.content]) {
     if (!Array.isArray(field)) continue;

@@ -34,4 +34,4 @@ export interface SqliteOpenOptions {
 }
 
 /** The consumer's way to open a connection with ITS copy of better-sqlite3: `(p, o) => new Database(p, o)`. */
-export type SqliteOpener = (filePath: string, options: SqliteOpenOptions) => SqliteClient;
+export type SqliteOpener<Connection extends SqliteClient = SqliteClient> = (filePath: string, options: SqliteOpenOptions) => Connection;

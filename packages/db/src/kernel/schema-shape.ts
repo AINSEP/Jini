@@ -116,7 +116,7 @@ async function postgresShape(kernel: StorageKernel<unknown>): Promise<SchemaShap
 }
 
 /** The main database file of a SQLite kernel; null for an in-memory database or a Postgres kernel. */
-export async function databaseFile(kernel: StorageKernel<unknown>): Promise<string | null> {
+export async function databaseFile<DB>(kernel: StorageKernel<DB>): Promise<string | null> {
   if (kernel.dialect !== "sqlite") return null;
   const rows = await kernel.query<{ file: string }>(sql`SELECT file FROM pragma_database_list WHERE name = 'main'`);
   return rows[0]?.file ? rows[0].file : null;

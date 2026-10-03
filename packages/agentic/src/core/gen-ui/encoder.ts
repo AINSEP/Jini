@@ -1,29 +1,32 @@
+import type { Clock } from "@jini-ai/core/primitives";
 /**
- * @module agui/encoder
+ * @module gen-ui/encoder
  *
- * Encodes `@jini-ai/protocol`'s `RunProtocolEvent` stream into AG-UI wire events (see
+ * Encodes `@jini-ai/protocol`'s `RunProtocolEvent` stream into custom gen-ui wire events (see
  * `./events.ts`'s module doc). Rewritten from scratch against `@jini-ai/protocol`'s actual
  * current shape — the ported adapter's original encoder targeted a different, product-specific
  * event union with no direct correspondence to `RunProtocolEvent`/`RunAgentPayload`; only the
  * *shape* of the job (a big per-event-kind switch, unrecognized events silently dropped) carried
- * over. See `source-map.md` for the full old→new field-mapping table and the generalization
+ * over. See `archived provenance ledger` for the full old→new field-mapping table and the generalization
  * writeup for the six event kinds that had no generic equivalent before this task.
  *
  * Folded in 2026-07-26 from the standalone `@jini-ai/agui` package (plan §3a) into this `src/gen-ui/`
  * subdirectory — kept out of the flat `ag-ui.ts` namespace because that file is a different
  * projection ({@link CapabilityDef} → an AG-UI *frontend tool*); this one turns a run's event
- * stream into AG-UI *wire* events. Same protocol, two unrelated halves of it.
+ * stream into Jini's own gen-ui *wire* events. These are separate protocols; the old package name
+ * did not make this custom event vocabulary compatible with external AG-UI.
  */
 import type { RunAgentPayload, RunProtocolEvent } from '@jini-ai/protocol';
 import type { GenUiEvent } from './events.js';
+
 
 export interface GenUiEncodeContext {
   /** The run this event belongs to — stamped onto every produced `GenUiEvent`. */
   readonly runId: string;
   /** Passed through onto the produced event's `seq`, when the caller tracks one (e.g. an SSE `Last-Event-ID`-shaped cursor). Omitted entirely (not set to `undefined`) when absent, matching the original adapter's own base-field construction. */
-  readonly seq?: number;
-  /** Injectable clock for the produced event's `ts`. Defaults to `Date.now`. Test-only hook. */
-  readonly now?: () => number;
+  readonly seq?: number | undefined;
+  /** Optional clock override for this event; the factory's required clock supplies the default. */
+  readonly now?: ((required: Record<string, never>) => number) | undefined;
 }
 
 interface PendingToolCall {
@@ -32,7 +35,7 @@ interface PendingToolCall {
 }
 
 /**
- * A stateful AG-UI encoder for one run's event stream. Stateful because `tool_use`/`tool_result`
+ * A stateful gen-ui encoder for one run's event stream. Stateful because `tool_use`/`tool_result`
  * correlation requires remembering each in-flight tool call's name/args between the two protocol
  * events that describe its start and end — a pure per-event function cannot do this alone. Create
  * one instance per run (e.g. one per `RunLifecycle.stream(runId, ...)` subscription); do not share
@@ -41,11 +44,11 @@ interface PendingToolCall {
  */
 export interface GenUiEncoder {
   /**
-   * Encodes one `RunProtocolEvent` into an `GenUiEvent`, or `null` if this event has no AG-UI
+   * Encodes one `RunProtocolEvent` into a `GenUiEvent`, or `null` if this event has no gen-ui
    * equivalent (an unrecognized/not-yet-generalized event kind — silently dropped by the relay,
    * matching the original adapter's own default behavior).
    */
-  encode(event: RunProtocolEvent, ctx: GenUiEncodeContext): GenUiEvent | null;
+  encode(required: { event: RunProtocolEvent; runId: string }, optional?: { seq?: number | undefined; now?: ((required: Record<string, never>) => number) | undefined }): GenUiEvent | null;
 }
 
 /**
@@ -54,11 +57,11 @@ export interface GenUiEncoder {
  * of currently in-flight (not yet resolved) tool calls for the run this instance encodes.
  * @overallScore 100/100
  */
-export function createGenUiEncoder(): GenUiEncoder {
+export function createGenUiEncoder({ clock }: { clock: Clock }, _optional: Record<string, never> = {}): GenUiEncoder {
   const pendingToolCalls = new Map<string, PendingToolCall>();
 
   function baseFields(ctx: GenUiEncodeContext): { runId: string; ts: number; seq?: number } {
-    const ts = ctx.now ? ctx.now() : Date.now();
+    const ts = ctx.now ? ctx.now({}) : clock.nowMs();
     return ctx.seq !== undefined ? { runId: ctx.runId, ts, seq: ctx.seq } : { runId: ctx.runId, ts };
   }
 
@@ -93,7 +96,7 @@ export function createGenUiEncoder(): GenUiEncoder {
         };
       }
 
-      // Generalization (see source-map.md): pipeline_stage_started/completed generalized into a
+      // Generalization (see archived provenance ledger): pipeline_stage_started/completed generalized into a
       // named-stage boundary any multi-step driver can emit, flowing through the same 'agent'
       // channel as tool_use/tool_result.
       case 'stage_start':
@@ -113,7 +116,7 @@ export function createGenUiEncoder(): GenUiEncoder {
           ...(payload.iteration !== undefined ? { iteration: payload.iteration } : {}),
         };
 
-      // Generalization (see source-map.md): genui_surface_request/response generalized into a
+      // Generalization (see archived provenance ledger): genui_surface_request/response generalized into a
       // generic human-in-the-loop ask/answer pair.
       case 'surface_request':
         return { ...base, kind: 'ui.surface_requested', surfaceId: payload.surfaceId, surfaceKind: payload.surfaceKind, payload: payload.payload };
@@ -121,13 +124,14 @@ export function createGenUiEncoder(): GenUiEncoder {
         return { ...base, kind: 'ui.surface_responded', surfaceId: payload.surfaceId, value: payload.value, respondedBy: payload.respondedBy };
 
       // 'status' / 'thinking_start' / 'thinking_delta' / 'tool_input_delta' / 'usage' / 'raw':
-      // no AG-UI equivalent — silently dropped, matching the original adapter's default behavior.
+      // no gen-ui equivalent — silently dropped, matching the original adapter's default behavior.
       default:
         return null;
     }
   }
 
-  function encode(event: RunProtocolEvent, ctx: GenUiEncodeContext): GenUiEvent | null {
+  function encode({ event, runId }: { event: RunProtocolEvent; runId: string }, { seq, now }: { seq?: number | undefined; now?: ((required: Record<string, never>) => number) | undefined } = {}): GenUiEvent | null {
+    const ctx = { runId, seq, now };
     switch (event.kind) {
       case 'start':
         return { ...baseFields(ctx), kind: 'run.lifecycle', status: 'started' };
@@ -147,7 +151,7 @@ export function createGenUiEncoder(): GenUiEncoder {
       case 'agent':
         return encodeAgentPayload(event.payload, ctx);
 
-      // 'stdout' / 'stderr' / 'error': no AG-UI equivalent — silently dropped, matching the
+      // 'stdout' / 'stderr' / 'error': no gen-ui equivalent — silently dropped, matching the
       // original adapter's default behavior for unrecognized event kinds.
       default:
         return null;

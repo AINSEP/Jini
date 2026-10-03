@@ -228,7 +228,7 @@ export function ExecutionTab({
               title={disabled ? localCliUnavailableReason : undefined}
               className={'jini-seg-btn' + (config.mode === mode.id ? ' active' : '')}
               onClick={() => setMode(mode.id)}
-              {...agentHandleProps(agentHandle, { action: `mode-${mode.id}`, role: 'button', label: mode.title })}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: `mode-${mode.id}`, role: 'button', label: mode.title }) })}
             >
               <span className="jini-seg-title">{mode.title}</span>
               <span className="jini-seg-meta">
@@ -264,7 +264,7 @@ export function ExecutionTab({
           }
           renderAgentIcon={renderAgentIcon}
           scopeLabel={localCliScopeLabel}
-          {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'local-cli') } : {})}
+          {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'local-cli' }) } : {})}
         />
       ) : (
         <section className="jini-settings-section jini-settings-byok">
@@ -276,7 +276,7 @@ export function ExecutionTab({
             onSelect={selectPreset}
             configuredLabel={t('Configured')}
             unsetLabel={t('Not configured')}
-            {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'protocol') } : {})}
+            {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'protocol' }) } : {})}
           />
           <ProviderChipGroup
             label={t('Gateways')}
@@ -286,13 +286,13 @@ export function ExecutionTab({
             onSelect={selectPreset}
             configuredLabel={t('Configured')}
             unsetLabel={t('Not configured')}
-            {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'gateway') } : {})}
+            {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'gateway' }) } : {})}
           />
           <ByokProviderForm
             config={config.byok}
             onConfigChange={(byok) => onConfigChange({ ...config, byok })}
             preset={selectedPreset}
-            {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'byok') } : {})}
+            {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'byok' }) } : {})}
             // The WHOLE catalog, not the `protocols`/`gateways` halves the chip rows take: the card
             // only reads it to recognise a pasted key as some other row's, and a key pasted from a
             // gateway into a protocol field is exactly the mistake worth naming.

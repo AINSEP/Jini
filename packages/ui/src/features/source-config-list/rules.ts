@@ -1,6 +1,6 @@
 /**
  * Pure logic for the generic source-config-list primitive. No React, no
- * transport, no DOM — see `packages/ui/source-map.md` for full provenance.
+ * transport, no DOM — see `packages/ui/archived provenance ledger` for full provenance.
  */
 import { isAllowedEndpointUrl } from '../../utils/endpoint-policy.js';
 import { MASK_CHAR, MASKED_VALUE_MIN_MASK_LENGTH, MASKED_VALUE_VISIBLE_SUFFIX_LENGTH } from './constants.js';
@@ -25,7 +25,7 @@ export function emptySourceDraft(fieldSpecs: readonly SourceFieldSpec[]): Source
  *  a scheme-only check accepted private address space. See
  *  `utils/endpoint-policy.ts`. */
 function isValidHttpUrl(value: string): boolean {
-  return isAllowedEndpointUrl(value);
+  return isAllowedEndpointUrl({ raw: value });
 }
 
 /**
@@ -35,7 +35,7 @@ function isValidHttpUrl(value: string): boolean {
  * `PluginsView.tsx`'s marketplace-URL add flow). Protocol-specific API-key
  * shape validation (the origin `byok/validation.ts`'s Anthropic/OpenAI/
  * Google key-format detection) is deliberately NOT ported here — see
- * `source-map.md`'s dropped-behavior list; a host that needs it supplies its
+ * `archived provenance ledger`'s dropped-behavior list; a host that needs it supplies its
  * own extra validation before calling `addSource`.
  *
  * **Applies to the EDIT path as well as the add path.** That was once true only

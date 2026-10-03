@@ -133,7 +133,7 @@ function trimCjkTitle(input: string): string {
  *
  * @complexity O(n) in prompt length; no allocation beyond the intermediate strings.
  */
-export function deriveConversationTitle(prompt: string): string {
+export function deriveConversationTitle({ prompt }: { prompt: string }): string {
   const cleaned = cleanPrompt(prompt);
   if (!cleaned) return '';
   const firstClause = cleaned.split(/[\n\r。！？!?]/)[0]?.trim() ?? cleaned;

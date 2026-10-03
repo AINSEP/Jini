@@ -5,7 +5,7 @@ import { createRunLifecycle } from '../run-lifecycle.js';
 import { createRemoteToolEventRecorder } from '../remote-tool-bridge.js';
 
 function makeLifecycle() {
-  const eventLog = createInMemoryEventLog();
+  const eventLog = createInMemoryEventLog({});
   return createRunLifecycle({ eventLog });
 }
 
@@ -15,7 +15,7 @@ describe('createRemoteToolEventRecorder', () => {
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
     const recorder = createRemoteToolEventRecorder({ lifecycle });
 
-    const recorded = await recorder.recordToolUse(run.id, { toolUseId: 'tu-1', toolId: 'echo', input: { city: 'nyc' } });
+    const recorded = await recorder.recordToolUse({ runId: run.id, record: { toolUseId: 'tu-1', toolId: 'echo', input: { city: 'nyc' } } });
     expect(recorded).toMatchObject({
       runId: run.id,
       kind: 'agent',
@@ -27,9 +27,9 @@ describe('createRemoteToolEventRecorder', () => {
     const lifecycle = makeLifecycle();
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
     const recorder = createRemoteToolEventRecorder({ lifecycle });
-    await recorder.recordToolUse(run.id, { toolUseId: 'tu-1', toolId: 'echo', input: null });
+    await recorder.recordToolUse({ runId: run.id, record: { toolUseId: 'tu-1', toolId: 'echo', input: null } });
 
-    const recorded = await recorder.recordToolResult(run.id, { toolUseId: 'tu-1', content: 'ok' });
+    const recorded = await recorder.recordToolResult({ runId: run.id, record: { toolUseId: 'tu-1', content: 'ok' } });
     expect(recorded).toMatchObject({ runId: run.id, kind: 'agent', payload: { type: 'tool_result', toolUseId: 'tu-1', content: 'ok' } });
     if (recorded.kind === 'agent') {
       expect(recorded.payload).not.toHaveProperty('isError');
@@ -41,7 +41,7 @@ describe('createRemoteToolEventRecorder', () => {
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
     const recorder = createRemoteToolEventRecorder({ lifecycle });
 
-    const recorded = await recorder.recordToolResult(run.id, { toolUseId: 'tu-1', content: 'boom', isError: true });
+    const recorded = await recorder.recordToolResult({ runId: run.id, record: { toolUseId: 'tu-1', content: 'boom', isError: true } });
     expect(recorded).toMatchObject({ payload: { type: 'tool_result', toolUseId: 'tu-1', content: 'boom', isError: true } });
   });
 
@@ -51,10 +51,10 @@ describe('createRemoteToolEventRecorder', () => {
     const recorder = createRemoteToolEventRecorder({ lifecycle });
 
     const seen: RunProtocolEvent[] = [];
-    await lifecycle.stream(run.id, (event) => seen.push(event));
+    await lifecycle.stream({ runId: run.id, onEvent: (event) => seen.push(event) });
 
-    await recorder.recordToolUse(run.id, { toolUseId: 'tu-1', toolId: 'echo', input: 1 });
-    await recorder.recordToolResult(run.id, { toolUseId: 'tu-1', content: 'done' });
+    await recorder.recordToolUse({ runId: run.id, record: { toolUseId: 'tu-1', toolId: 'echo', input: 1 } });
+    await recorder.recordToolResult({ runId: run.id, record: { toolUseId: 'tu-1', content: 'done' } });
 
     const kinds = seen.map((e) => (e.kind === 'agent' ? e.payload.type : e.kind));
     expect(kinds).toEqual(['start', 'tool_use', 'tool_result']);
@@ -63,7 +63,7 @@ describe('createRemoteToolEventRecorder', () => {
   it('propagates RunLifecycle.emit()\'s own throw for an unknown run', async () => {
     const lifecycle = makeLifecycle();
     const recorder = createRemoteToolEventRecorder({ lifecycle });
-    await expect(recorder.recordToolUse('never-started', { toolUseId: 'tu-1', toolId: 'echo', input: null })).rejects.toThrow();
+    await expect(recorder.recordToolUse({ runId: 'never-started', record: { toolUseId: 'tu-1', toolId: 'echo', input: null } })).rejects.toThrow();
   });
 
   it('propagates RunLifecycle.emit()\'s own throw for an already-terminal run', async () => {
@@ -71,6 +71,6 @@ describe('createRemoteToolEventRecorder', () => {
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
     await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
     const recorder = createRemoteToolEventRecorder({ lifecycle });
-    await expect(recorder.recordToolResult(run.id, { toolUseId: 'tu-1', content: 'too late' })).rejects.toThrow(/terminal/);
+    await expect(recorder.recordToolResult({ runId: run.id, record: { toolUseId: 'tu-1', content: 'too late' } })).rejects.toThrow(/terminal/);
   });
 });

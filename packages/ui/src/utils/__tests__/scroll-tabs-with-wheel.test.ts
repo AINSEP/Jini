@@ -34,7 +34,7 @@ describe('scrollTabsWithWheel', () => {
     const tabBar = createTabBar({ clientWidth: 200, scrollWidth: 500 });
     const event = createWheelEvent({ deltaY: 40 });
 
-    scrollTabsWithWheel(tabBar, event);
+    scrollTabsWithWheel({ tabBar, event });
 
     expect(tabBar.scrollLeft).toBe(40);
     expect(event.preventDefault).toHaveBeenCalledTimes(1);
@@ -44,7 +44,7 @@ describe('scrollTabsWithWheel', () => {
     const tabBar = createTabBar({ clientWidth: 200, scrollWidth: 500, scrollLeft: 100 });
     const event = createWheelEvent({ deltaY: -30 });
 
-    scrollTabsWithWheel(tabBar, event);
+    scrollTabsWithWheel({ tabBar, event });
 
     expect(tabBar.scrollLeft).toBe(70);
     expect(event.preventDefault).toHaveBeenCalledTimes(1);
@@ -54,7 +54,7 @@ describe('scrollTabsWithWheel', () => {
     const tabBar = createTabBar({ clientWidth: 200, scrollWidth: 500 });
     const event = createWheelEvent({ deltaY: 2, deltaMode: 1 });
 
-    scrollTabsWithWheel(tabBar, event);
+    scrollTabsWithWheel({ tabBar, event });
 
     expect(tabBar.scrollLeft).toBe(32);
   });
@@ -63,7 +63,7 @@ describe('scrollTabsWithWheel', () => {
     const tabBar = createTabBar({ clientWidth: 200, scrollWidth: 500 });
     const event = createWheelEvent({ deltaY: 1, deltaMode: 2 });
 
-    scrollTabsWithWheel(tabBar, event);
+    scrollTabsWithWheel({ tabBar, event });
 
     expect(tabBar.scrollLeft).toBe(160);
   });
@@ -72,7 +72,7 @@ describe('scrollTabsWithWheel', () => {
     const tabBar = createTabBar({ clientWidth: 200, scrollWidth: 500 });
     const event = createWheelEvent({ deltaY: 25, deltaMode: 99 });
 
-    scrollTabsWithWheel(tabBar, event);
+    scrollTabsWithWheel({ tabBar, event });
 
     expect(tabBar.scrollLeft).toBe(25);
   });
@@ -81,7 +81,7 @@ describe('scrollTabsWithWheel', () => {
     const tabBar = createTabBar({ clientWidth: 200, scrollWidth: 500 });
     const event = createWheelEvent({ deltaY: 40, ctrlKey: true });
 
-    scrollTabsWithWheel(tabBar, event);
+    scrollTabsWithWheel({ tabBar, event });
 
     expect(tabBar.scrollLeft).toBe(0);
     expect(event.preventDefault).not.toHaveBeenCalled();
@@ -91,7 +91,7 @@ describe('scrollTabsWithWheel', () => {
     const tabBar = createTabBar({ clientWidth: 200, scrollWidth: 500 });
     const event = createWheelEvent({ deltaY: 10, deltaX: 20 });
 
-    scrollTabsWithWheel(tabBar, event);
+    scrollTabsWithWheel({ tabBar, event });
 
     expect(tabBar.scrollLeft).toBe(0);
     expect(event.preventDefault).not.toHaveBeenCalled();
@@ -101,7 +101,7 @@ describe('scrollTabsWithWheel', () => {
     const tabBar = createTabBar({ clientWidth: 200, scrollWidth: 500 });
     const event = createWheelEvent({ deltaY: 15, deltaX: 15 });
 
-    scrollTabsWithWheel(tabBar, event);
+    scrollTabsWithWheel({ tabBar, event });
 
     expect(tabBar.scrollLeft).toBe(0);
     expect(event.preventDefault).not.toHaveBeenCalled();
@@ -111,7 +111,7 @@ describe('scrollTabsWithWheel', () => {
     const tabBar = createTabBar({ clientWidth: 500, scrollWidth: 500 });
     const event = createWheelEvent({ deltaY: 40 });
 
-    scrollTabsWithWheel(tabBar, event);
+    scrollTabsWithWheel({ tabBar, event });
 
     expect(tabBar.scrollLeft).toBe(0);
     expect(event.preventDefault).not.toHaveBeenCalled();
@@ -121,7 +121,7 @@ describe('scrollTabsWithWheel', () => {
     const tabBar = createTabBar({ clientWidth: 200, scrollWidth: 500, scrollLeft: 300 });
     const event = createWheelEvent({ deltaY: 40 });
 
-    scrollTabsWithWheel(tabBar, event);
+    scrollTabsWithWheel({ tabBar, event });
 
     expect(tabBar.scrollLeft).toBe(300);
     expect(event.preventDefault).not.toHaveBeenCalled();

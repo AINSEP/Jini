@@ -38,7 +38,7 @@ const OL_ITEM_RE = /^\s*\d+\.\s+/;
  * continuation (e.g. `<artifactual`) is a prefix-shared literal that must
  * not be treated as a tag.
  */
-export function isRealArtifactOpenAt(content: string, idx: number): boolean {
+export function isRealArtifactOpenAt({ content, idx }: { content: string; idx: number }): boolean {
   const next = content.charAt(idx + '<artifact'.length);
   return next !== '' && /\s/.test(next);
 }
@@ -59,7 +59,7 @@ export type Range = readonly [number, number];
  * @complexity O(n) in `buffer.length` — one line-by-line scan plus one
  *   backtick scan per accumulated paragraph block.
  */
-export function computeSkipRanges(buffer: string): {
+export function computeSkipRanges({ buffer }: { buffer: string }): {
   ranges: Range[];
   unclosedFenceStart: number | null;
 } {
@@ -121,7 +121,7 @@ export function computeSkipRanges(buffer: string): {
 }
 
 /** `true` when position `p` falls inside one of `ranges` (half-open intervals). */
-export function rangeContains(ranges: ReadonlyArray<Range>, p: number): boolean {
+export function rangeContains({ ranges, p }: { ranges: ReadonlyArray<Range>; p: number }): boolean {
   for (const [s, e] of ranges) {
     if (p >= s && p < e) return true;
   }

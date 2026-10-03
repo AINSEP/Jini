@@ -24,11 +24,11 @@ function makeTool(overrides: Partial<McpToolDef> = {}): McpToolDef {
 
 describe('okResult', () => {
   it('wraps a string payload as-is (no JSON-stringify quoting)', () => {
-    expect(okResult('hello')).toEqual({ content: [{ type: 'text', text: 'hello' }] });
+    expect(okResult({ payload: 'hello' })).toEqual({ content: [{ type: 'text', text: 'hello' }] });
   });
 
   it('JSON-stringifies a non-string payload compactly — no indentation on the wire (a person-facing view pretty-prints at render time)', () => {
-    expect(okResult({ a: 1, b: { c: [1, 2] } })).toEqual({ content: [{ type: 'text', text: '{"a":1,"b":{"c":[1,2]}}' }] });
+    expect(okResult({ payload: { a: 1, b: { c: [1, 2] } } })).toEqual({ content: [{ type: 'text', text: '{"a":1,"b":{"c":[1,2]}}' }] });
   });
 
   it('passes a well-formed MCP content envelope through verbatim, preserving a typed image block', () => {
@@ -41,12 +41,12 @@ describe('okResult', () => {
         { type: 'image', mimeType: 'image/png', data: 'AAAA' },
       ],
     };
-    expect(okResult(payload)).toEqual({ content: payload.content });
+    expect(okResult({ payload })).toEqual({ content: payload.content });
   });
 
   it('still JSON-stringifies a `content` array holding one malformed block — fails closed, does not forward it as protocol output', () => {
-    const payload = { content: [{ type: 'image', mimeType: 'image/png' /* missing data */ }] };
-    expect(okResult(payload)).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload) }] });
+    const payload = { content: [{ type: 'image', mimeType: 'image/png' /* missing data */  }] };
+    expect(okResult({ payload })).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload) }] });
   });
 
   it('still JSON-stringifies a `content` array holding a malformed resource block (missing required text/blob)', () => {
@@ -55,13 +55,13 @@ describe('okResult', () => {
     // both `text` and `blob` cannot be carrying withheld payload data in the first place, so falling
     // back to stringify here is safe: there is nothing sensitive in this shape to leak.
     const payload = { content: [{ type: 'resource', resource: { uri: 'ui://x' } }] };
-    expect(okResult(payload)).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload) }] });
+    expect(okResult({ payload })).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload) }] });
   });
 
   it('passes a well-formed `resource` content block through verbatim (ADR-053 Decision 5 regression)', () => {
     // This is the exact shape that leaked in the traced incident: a confirmation token embedded in a
     // resource block's `text`, alongside an ordinary text acknowledgment. Before this fix, `resource`
-    // was not in okResult()'s hand-rolled allowlist (only `text`/`image`), so the whole envelope fell
+    // was not in okResult's hand-rolled allowlist (only `text`/`image`), so the whole envelope fell
     // to JSON.stringify and the token reached the model as plain text. It must now reach the client as
     // a real `resource` block instead of being flattened.
     const payload = {
@@ -73,7 +73,7 @@ describe('okResult', () => {
         },
       ],
     };
-    expect(okResult(payload)).toEqual({ content: payload.content });
+    expect(okResult({ payload })).toEqual({ content: payload.content });
   });
 
   it('passes a well-formed `resource_link` content block through verbatim', () => {
@@ -81,59 +81,59 @@ describe('okResult', () => {
     // rather than a hand-maintained per-type list — `resource_link` was never named in the incident,
     // but a schema-driven check picks it up for free the same way `resource` is.
     const payload = { content: [{ type: 'resource_link', uri: 'ui://x', name: 'widget' }] };
-    expect(okResult(payload)).toEqual({ content: payload.content });
+    expect(okResult({ payload })).toEqual({ content: payload.content });
   });
 
   it('passes a well-formed `audio` content block through verbatim', () => {
     const payload = { content: [{ type: 'audio', data: 'AAAA', mimeType: 'audio/wav' }] };
-    expect(okResult(payload)).toEqual({ content: payload.content });
+    expect(okResult({ payload })).toEqual({ content: payload.content });
   });
 
   it('JSON-stringifies a plain object whose `content` field is not an array', () => {
     const payload = { content: 'just a string field named content' };
-    expect(okResult(payload)).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload) }] });
+    expect(okResult({ payload })).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload) }] });
   });
 
   it('passes through an empty content array as a valid, empty result', () => {
-    expect(okResult({ content: [] })).toEqual({ content: [] });
+    expect(okResult({ payload: { content: [] } })).toEqual({ content: [] });
   });
 });
 
 describe('errorResult', () => {
   it('marks isError and wraps the message as text content', () => {
-    expect(errorResult('boom')).toEqual({ isError: true, content: [{ type: 'text', text: 'boom' }] });
+    expect(errorResult({ message: 'boom' })).toEqual({ isError: true, content: [{ type: 'text', text: 'boom' }] });
   });
 });
 
 describe('requireString', () => {
   it('does not throw for a non-empty string', () => {
-    expect(() => requireString('x', 'field')).not.toThrow();
+    expect(() => requireString({ value: 'x', name: 'field' })).not.toThrow();
   });
 
   it('throws for undefined', () => {
-    expect(() => requireString(undefined, 'field')).toThrow('field is required (string).');
+    expect(() => requireString({ value: undefined, name: 'field' })).toThrow('field is required (string).');
   });
 
   it('throws for an empty string', () => {
-    expect(() => requireString('', 'field')).toThrow('field is required (string).');
+    expect(() => requireString({ value: '', name: 'field' })).toThrow('field is required (string).');
   });
 
   it('throws for a non-string value', () => {
-    expect(() => requireString(42, 'field')).toThrow('field is required (string).');
+    expect(() => requireString({ value: 42, name: 'field' })).toThrow('field is required (string).');
   });
 });
 
 describe('toolsToList', () => {
   it('projects name/description/inputSchema and omits annotations when unset', () => {
     const tool = makeTool();
-    expect(toolsToList([tool])).toEqual([
+    expect(toolsToList({ tools: [tool] })).toEqual([
       { name: 'noop', description: 'does nothing', inputSchema: tool.inputSchema },
     ]);
   });
 
   it('includes annotations when set', () => {
     const tool = makeTool({ annotations: { readOnlyHint: true } });
-    expect(toolsToList([tool])[0]).toEqual({
+    expect(toolsToList({ tools: [tool] })[0]).toEqual({
       name: 'noop',
       description: 'does nothing',
       inputSchema: tool.inputSchema,
@@ -146,14 +146,14 @@ describe('buildToolIndex', () => {
   it('indexes tools by name', () => {
     const a = makeTool({ name: 'a' });
     const b = makeTool({ name: 'b' });
-    const index = buildToolIndex([a, b]);
+    const index = buildToolIndex({ tools: [a, b] });
     expect(index.get('a')).toBe(a);
     expect(index.get('b')).toBe(b);
     expect(index.size).toBe(2);
   });
 
   it('throws on a duplicate tool name', () => {
-    expect(() => buildToolIndex([makeTool({ name: 'dup' }), makeTool({ name: 'dup' })])).toThrow(
+    expect(() => buildToolIndex({ tools: [makeTool({ name: 'dup' }), makeTool({ name: 'dup' })] })).toThrow(
       'createMcpToolServer: duplicate tool name "dup"',
     );
   });
@@ -161,70 +161,70 @@ describe('buildToolIndex', () => {
 
 describe('handleToolCall', () => {
   it('returns an error result for an unknown tool name', async () => {
-    const result = await handleToolCall('missing', {}, buildToolIndex([]), ctx);
+    const result = await handleToolCall({ name: 'missing', tools: buildToolIndex({ tools: [] }), ctx }, { rawArgs: {} });
     expect(result).toEqual({ isError: true, content: [{ type: 'text', text: 'unknown tool: missing' }] });
   });
 
   it('invokes the matched handler with args defaulted to {} and wraps a successful result', async () => {
-    const handler = (args: Record<string, unknown>) => ({ received: args });
-    const tools = buildToolIndex([makeTool({ name: 't', handler })]);
-    const result = await handleToolCall('t', undefined, tools, ctx);
-    expect(result).toEqual(okResult({ received: {} }));
+    const handler = ({ args }: { args: Record<string, unknown> }) => ({ received: args });
+    const tools = buildToolIndex({ tools: [makeTool({ name: 't', handler })] });
+    const result = await handleToolCall({ name: 't', tools, ctx }, { rawArgs: undefined });
+    expect(result).toEqual(okResult({ payload: { received: {} } }));
   });
 
   it('passes through the raw arguments and context to the handler', async () => {
     let seenArgs: unknown;
     let seenCtx: unknown;
-    const tools = buildToolIndex([
+    const tools = buildToolIndex({ tools: [
       makeTool({
         name: 't',
         inputSchema: { type: 'object', properties: { runId: { type: 'string' } }, additionalProperties: false },
-        handler: (args, toolCtx) => { seenArgs = args; seenCtx = toolCtx; return 'ok'; },
+        handler: ({ args: args, ctx: toolCtx }) => { seenArgs = args; seenCtx = toolCtx; return 'ok'; },
       }),
-    ]);
-    await handleToolCall('t', { runId: 'r1' }, tools, ctx);
+    ] });
+    await handleToolCall({ name: 't', tools, ctx }, { rawArgs: { runId: 'r1' } });
     expect(seenArgs).toEqual({ runId: 'r1' });
     expect(seenCtx).toBe(ctx);
   });
 
   it('rejects arguments missing a required field before the handler ever runs, as an isError result', async () => {
     const handler = () => { throw new Error('handler must not run'); };
-    const tools = buildToolIndex([
+    const tools = buildToolIndex({ tools: [
       makeTool({
         name: 't',
         inputSchema: { type: 'object', properties: { runId: { type: 'string' } }, required: ['runId'], additionalProperties: false },
         handler,
       }),
-    ]);
-    const result = await handleToolCall('t', {}, tools, ctx);
+    ] });
+    const result = await handleToolCall({ name: 't', tools, ctx }, { rawArgs: {} });
     expect(result.isError).toBe(true);
     expect((result.content[0] as { text: string }).text).toContain('invalid arguments for t');
   });
 
   it('rejects an undeclared property under additionalProperties:false before the handler ever runs', async () => {
     const handler = () => { throw new Error('handler must not run'); };
-    const tools = buildToolIndex([
+    const tools = buildToolIndex({ tools: [
       makeTool({
         name: 't',
         inputSchema: { type: 'object', properties: { runId: { type: 'string' } }, additionalProperties: false },
         handler,
       }),
-    ]);
-    const result = await handleToolCall('t', { runId: 'r1', extra: 'nope' }, tools, ctx);
+    ] });
+    const result = await handleToolCall({ name: 't', tools, ctx }, { rawArgs: { runId: 'r1', extra: 'nope' } });
     expect(result.isError).toBe(true);
     expect((result.content[0] as { text: string }).text).toContain('invalid arguments for t');
   });
 
   it('rejects a wrong-typed argument before the handler ever runs', async () => {
     const handler = () => { throw new Error('handler must not run'); };
-    const tools = buildToolIndex([
+    const tools = buildToolIndex({ tools: [
       makeTool({
         name: 't',
         inputSchema: { type: 'object', properties: { limit: { type: 'number' } }, additionalProperties: false },
         handler,
       }),
-    ]);
-    const result = await handleToolCall('t', { limit: 'not-a-number' }, tools, ctx);
+    ] });
+    const result = await handleToolCall({ name: 't', tools, ctx }, { rawArgs: { limit: 'not-a-number' } });
     expect(result.isError).toBe(true);
     expect((result.content[0] as { text: string }).text).toContain('invalid arguments for t');
   });
@@ -239,15 +239,15 @@ describe('handleToolCall', () => {
     // calling it directly (or through an injected server implementation) can reach
     // this with an optional property explicitly set to `undefined`.
     const handler = () => { throw new Error('handler must not run'); };
-    const tools = buildToolIndex([
+    const tools = buildToolIndex({ tools: [
       makeTool({
         name: 't',
         inputSchema: { type: 'object', properties: { note: { type: 'string' } }, additionalProperties: false },
         handler,
       }),
-    ]);
+    ] });
 
-    const result = await handleToolCall('t', { note: undefined }, tools, ctx);
+    const result = await handleToolCall({ name: 't', tools, ctx }, { rawArgs: { note: undefined } });
 
     expect(result.isError).toBe(true);
     expect((result.content[0] as { text: string }).text).toContain('invalid arguments for t');
@@ -255,7 +255,7 @@ describe('handleToolCall', () => {
 
   it('does not run the handler when the schema validator throws', async () => {
     let ran = false;
-    const tools = buildToolIndex([
+    const tools = buildToolIndex({ tools: [
       makeTool({
         name: 't',
         inputSchema: { type: 'object', properties: { note: { type: 'string' } }, additionalProperties: false },
@@ -264,52 +264,52 @@ describe('handleToolCall', () => {
           return { ok: true };
         },
       }),
-    ]);
+    ] });
 
-    await handleToolCall('t', { note: undefined }, tools, ctx);
+    await handleToolCall({ name: 't', tools, ctx }, { rawArgs: { note: undefined } });
 
     expect(ran).toBe(false);
   });
 
   it('reuses the compiled schema validator across repeated calls to the same tool', async () => {
-    const handler = (args: Record<string, unknown>) => ({ received: args });
-    const tools = buildToolIndex([
+    const handler = ({ args }: { args: Record<string, unknown> }) => ({ received: args });
+    const tools = buildToolIndex({ tools: [
       makeTool({
         name: 't',
         inputSchema: { type: 'object', properties: { runId: { type: 'string' } }, additionalProperties: false },
         handler,
       }),
-    ]);
-    const first = await handleToolCall('t', { runId: 'r1' }, tools, ctx);
-    const second = await handleToolCall('t', { runId: 'r2' }, tools, ctx);
-    expect(first).toEqual(okResult({ received: { runId: 'r1' } }));
-    expect(second).toEqual(okResult({ received: { runId: 'r2' } }));
+    ] });
+    const first = await handleToolCall({ name: 't', tools, ctx }, { rawArgs: { runId: 'r1' } });
+    const second = await handleToolCall({ name: 't', tools, ctx }, { rawArgs: { runId: 'r2' } });
+    expect(first).toEqual(okResult({ payload: { received: { runId: 'r1' } } }));
+    expect(second).toEqual(okResult({ payload: { received: { runId: 'r2' } } }));
   });
 
   it('converts a thrown Error into an isError result with the (sanitized) message', async () => {
-    const tools = buildToolIndex([makeTool({ name: 't', handler: () => { throw new Error('runId is required (string).'); } })]);
-    const result = await handleToolCall('t', {}, tools, ctx);
+    const tools = buildToolIndex({ tools: [makeTool({ name: 't', handler: () => { throw new Error('runId is required (string).'); } })] });
+    const result = await handleToolCall({ name: 't', tools, ctx }, { rawArgs: {} });
     expect(result).toEqual({ isError: true, content: [{ type: 'text', text: 'runId is required (string).' }] });
   });
 
   it('converts a thrown non-Error value into an isError result via String()', async () => {
     // eslint-disable-next-line @typescript-eslint/only-throw-error
-    const tools = buildToolIndex([makeTool({ name: 't', handler: () => { throw 'oops'; } })]);
-    const result = await handleToolCall('t', {}, tools, ctx);
+    const tools = buildToolIndex({ tools: [makeTool({ name: 't', handler: () => { throw 'oops'; } })] });
+    const result = await handleToolCall({ name: 't', tools, ctx }, { rawArgs: {} });
     expect(result).toEqual({ isError: true, content: [{ type: 'text', text: 'oops' }] });
   });
 
   it('sanitizes a secret-looking thrown message before it reaches the result', async () => {
-    const tools = buildToolIndex([
+    const tools = buildToolIndex({ tools: [
       makeTool({ name: 't', handler: () => { throw new Error('daemon 400: apikey=abcdefghijklmnopqrstuvwxyz123456'); } }),
-    ]);
-    const result = await handleToolCall('t', {}, tools, ctx);
+    ] });
+    const result = await handleToolCall({ name: 't', tools, ctx }, { rawArgs: {} });
     expect((result.content[0] as { text: string }).text).toContain('[redacted]');
   });
 
   it('awaits an async handler', async () => {
-    const tools = buildToolIndex([makeTool({ name: 't', handler: async () => Promise.resolve('async-ok') })]);
-    const result = await handleToolCall('t', {}, tools, ctx);
-    expect(result).toEqual(okResult('async-ok'));
+    const tools = buildToolIndex({ tools: [makeTool({ name: 't', handler: async () => Promise.resolve('async-ok') })] });
+    const result = await handleToolCall({ name: 't', tools, ctx }, { rawArgs: {} });
+    expect(result).toEqual(okResult({ payload: 'async-ok' }));
   });
 });

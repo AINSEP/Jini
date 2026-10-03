@@ -1,4 +1,4 @@
-import type { UUID } from "../core/ports.js";
+import type { UUID } from "@jini-ai/core/primitives";
 import type { SettingDefinitionRecord, SettingRevisionRecord, SettingValueRecord } from "./types.js";
 
 /**
@@ -6,15 +6,16 @@ import type { SettingDefinitionRecord, SettingRevisionRecord, SettingValueRecord
  *
  * Purpose:
  * Dependency-inversion seam (port/adapter rule-of-two) for the 5 settings tables.
- * Deliberately does NOT declare a principal-lookup method — REQ-13's
- * target-principal check reuses `identity.PrincipalRepoPort.findById`
- * directly (reuse, not a new port).
+ * Persistence deliberately has no principal-lookup method: target-principal checks use
+ * the separate host-owned SettingsPrincipalLookupPort, keeping membership/status policy
+ * outside the settings persistence contract.
  *
  * `transaction` gives `write-service.ts`/`purge-service.ts` the same-tx
- * guarantee INV-01/INV-06 depend on (value/definition row + its revision row
+ * guarantee depend on (value/definition row + its revision row
  * must commit together, or not at all).
  *
  * Interfaces and types only — no feature logic.
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
  */
 export interface SettingsRepoPort {
   findActiveDefinition(required: {

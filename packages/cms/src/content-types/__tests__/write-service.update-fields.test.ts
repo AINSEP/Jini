@@ -6,20 +6,21 @@ import { VersionConflictError } from "../errors.js";
 import { updateContentTypeFields } from "../write-service.js";
 
 /**
- * @file CIC U-004 — `expectedVersion`-checked-first ordering (C-402; REQ-26, AC-56).
+ * @file `expectedVersion`-checked-first ordering.
  *
- * Binding constraint U-004-B1: `expectedVersion` match is evaluated BEFORE the `fields_empty`
+ * Binding constraint : `expectedVersion` match is evaluated BEFORE the `fields_empty`
  * check and before any per-field guard. A stale `expectedVersion` combined with `fields: []` must
  * be rejected with `VERSION_CONFLICT`, never `VALIDATION_ERROR` (`details.reason='fields_empty'`)
  * — this is the exact audit-fixed error code (v1.4.0 revision registered `VERSION_CONFLICT` after
  * three independent auditors found it was referenced in prose but never defined).
  *
- * Also covers REQ-26's full-replace semantics generally: AC-41 (full-replace omission), AC-42
- * (queryable cap checked against submitted array alone), AC-51 (empty-array floor rejection).
+ * Also covers full-replace semantics generally: (full-replace omission), 
+ * (queryable cap checked against submitted array alone), (empty-array floor rejection).
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 
 const NOW = "2026-07-15T00:00:00.000Z";
-const clock = { nowIso: () => NOW };
+const clock = { nowMs: () => Date.parse(NOW)};
 // `ContentTypeWriteServiceDeps.ids` is required by the type but is never read anywhere in this
 // module (verified by grep across `content-types/`), so this generator is never invoked. It is
 // supplied because the package typechecks its tests; the host this was ported from did not.
@@ -55,7 +56,7 @@ function fakeRepo(seed: ReturnType<typeof existingContentType>) {
     appendRevision: async (rev: unknown) => {
       revisions.push(rev);
     },
-    transaction: async <T>(fn: () => Promise<T>) => fn(),
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn(),
   };
 }
 

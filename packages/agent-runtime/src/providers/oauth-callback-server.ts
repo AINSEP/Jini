@@ -9,7 +9,7 @@
  * Ported from OD's `integrations/xai-oauth-server.ts`, de-branded: the
  * origin hardcoded xAI's fixed callback port/host/path as module constants
  * and had the origin product's own name baked into the result-page HTML
- * (see `source-map.md` for the exact original strings). Both are now
+ * (see `archived provenance ledger` for the exact original strings). Both are now
  * caller-supplied — `host`/`port`/
  * `path` are required input fields instead of defaulted constants (a
  * provider whose OAuth client_id is locked to a specific redirect URI, like
@@ -50,9 +50,9 @@ export interface OAuthCallbackListener {
  * via `onCallback`. The listener self-closes after the first matching
  * callback OR after `timeoutMs` (default 30 min), whichever comes first.
  */
-export async function startOAuthCallbackListener(
-  input: StartOAuthCallbackListenerInput,
+export async function startOAuthCallbackListener(requiredArgs: Pick<StartOAuthCallbackListenerInput, "host" | "port" | "path" | "expectedState" | "onCallback">, optionalArgs: Omit<StartOAuthCallbackListenerInput, "host" | "port" | "path" | "expectedState" | "onCallback"> = {}
 ): Promise<OAuthCallbackListener> {
+  const input: StartOAuthCallbackListenerInput = { ...optionalArgs, ...requiredArgs };
   const { host, port, path: callbackPath } = input;
   const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 

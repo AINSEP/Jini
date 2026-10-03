@@ -35,9 +35,9 @@ export const DEFAULT_SIDEBAR_RAIL_STORAGE_KEY = 'jini-admin-sidebar-rail-collaps
  * it collapsed again on every reload, because their explicit `'0'` would be indistinguishable from
  * never having chosen. A stored value always wins over the default; only its absence defers.
  */
-function readPersisted(storageKey: string): boolean | undefined {
+function readPersisted(storageKey: string, storage: Pick<Storage, 'getItem'>): boolean | undefined {
   try {
-    const raw = localStorage.getItem(storageKey);
+    const raw = storage.getItem(storageKey);
     if (raw === null) return undefined;
     return raw === '1';
   } catch {
@@ -45,9 +45,9 @@ function readPersisted(storageKey: string): boolean | undefined {
   }
 }
 
-function writePersisted(storageKey: string, collapsed: boolean): void {
+function writePersisted(storageKey: string, collapsed: boolean, storage: Pick<Storage, 'setItem'>): void {
   try {
-    localStorage.setItem(storageKey, collapsed ? '1' : '0');
+    storage.setItem(storageKey, collapsed ? '1' : '0');
   } catch {
     // Best-effort — a user who cannot persist the preference still gets a working toggle for the
     // current tab; failing loudly here would break the rail over a non-essential preference write.
@@ -72,18 +72,18 @@ export interface SidebarRail {
  * @complexity O(1) — one state read/write per toggle, no derived computation.
  */
 export function useSidebarRail(
-  storageKey: string = DEFAULT_SIDEBAR_RAIL_STORAGE_KEY,
-  defaultCollapsed = false,
+  { storage, events }: { readonly storage: Pick<Storage, 'getItem' | 'setItem'>; readonly events: Pick<Window, 'addEventListener' | 'removeEventListener'> },
+  { storageKey = DEFAULT_SIDEBAR_RAIL_STORAGE_KEY, defaultCollapsed = false }: { readonly storageKey?: string | undefined; readonly defaultCollapsed?: boolean | undefined } = {},
 ): SidebarRail {
-  const [collapsed, setCollapsed] = useState<boolean>(() => readPersisted(storageKey) ?? defaultCollapsed);
+  const [collapsed, setCollapsed] = useState<boolean>(() => readPersisted(storageKey, storage) ?? defaultCollapsed);
 
   const toggle = useCallback(() => {
     setCollapsed((current) => {
       const next = !current;
-      writePersisted(storageKey, next);
+      writePersisted(storageKey, next, storage);
       return next;
     });
-  }, [storageKey]);
+  }, [storageKey, storage]);
 
   /** Cross-tab sync: two admin tabs open side by side should agree on the rail state rather than
    *  silently diverging the moment either one is toggled. */
@@ -96,9 +96,9 @@ export function useSidebarRail(
       // collapsed-by-default host in every other one.
       setCollapsed(event.newValue === null ? defaultCollapsed : event.newValue === '1');
     }
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, [storageKey, defaultCollapsed]);
+    events.addEventListener('storage', onStorage);
+    return () => events.removeEventListener('storage', onStorage);
+  }, [storageKey, defaultCollapsed, events]);
 
   return { collapsed, toggle };
 }

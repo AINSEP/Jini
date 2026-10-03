@@ -7,7 +7,7 @@
  * `runtime/tool-renderers.ts`) — that is a presentational, React-facing
  * extension point that belongs to `@jini-ai/chat-react` (or
  * `@jini-ai/renderers-react`), not this framework-free package. See
- * source-map.md.
+ * archived provenance ledger.
  */
 import type { ToolResultEvent, ToolResultMediaBlock, ToolUseEvent } from './events.js';
 
@@ -44,10 +44,7 @@ export interface ToolRenderProps {
  * @param runSucceeded - Whether the (already-terminal) run succeeded. Ignored while `runStreaming` is true.
  * @complexity O(1).
  */
-export function deriveToolStatus(
-  result: ToolResultEvent | undefined,
-  runStreaming: boolean,
-  runSucceeded = false,
+export function deriveToolStatus({ result, runStreaming }: { result: ToolResultEvent | undefined; runStreaming: boolean }, { runSucceeded = false }: { runSucceeded?: (boolean) | undefined } = {}
 ): ToolStatus {
   if (result) return result.isError ? 'error' : 'complete';
   if (runStreaming) return 'executing';
@@ -60,14 +57,10 @@ export function deriveToolStatus(
  *
  * @complexity O(1) — delegates its only branching to {@link deriveToolStatus}.
  */
-export function toRenderProps(
-  use: ToolUseEvent,
-  result: ToolResultEvent | undefined,
-  runStreaming: boolean,
-  runSucceeded = false,
+export function toRenderProps({ use, result, runStreaming }: { use: ToolUseEvent; result: ToolResultEvent | undefined; runStreaming: boolean }, { runSucceeded = false }: { runSucceeded?: (boolean) | undefined } = {}
 ): ToolRenderProps {
   return {
-    status: deriveToolStatus(result, runStreaming, runSucceeded),
+    status: deriveToolStatus({ result: result, runStreaming: runStreaming }, { runSucceeded: runSucceeded }),
     name: use.name,
     args: use.input,
     result: result?.content,

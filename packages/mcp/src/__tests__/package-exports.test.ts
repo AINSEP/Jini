@@ -28,6 +28,14 @@ describe('@jini-ai/mcp package exports', () => {
     expect(manifest.exports['./bin']?.default).toBe(manifest.bin['jini-mcp']);
   });
 
+  it('publishes declarations and the library import alongside the executable locator', () => {
+    expect(readManifest().exports['./bin']).toEqual({
+      types: './dist/bin/serve.d.ts',
+      import: './dist/bin/serve.js',
+      default: './dist/bin/serve.js',
+    });
+  });
+
   // `dist/bin/serve.js` only exists after a build, so assert against the source file that produces
   // it — this still fails loudly if the bin is moved or renamed without updating the manifest.
   it('resolves to a path backed by a real source file', () => {

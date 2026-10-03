@@ -1,3 +1,4 @@
+import type { RequiredArgs, OptionalArgs } from '../../args.js';
 /**
  * The media dispatch engine — validates a generation request against the
  * catalogue, clamps registry-bound numeric inputs, resolves per-provider
@@ -6,7 +7,7 @@
  * wired up for the pair). Generalized from Open Design's
  * `apps/daemon/src/media/index.ts` `generateMedia` orchestration — see
  * `types.ts`'s module doc for the boundary redesign (no filesystem I/O,
- * no OD project resolution) and `source-map.md` for the full port record.
+ * no OD project resolution) and `archived provenance ledger` for the full port record.
  *
  * 2026-07-21: renderer resolution now checks `vendor-registry.ts`'s
  * `mediaVendorRegistry` first (populated by every vendor migrated onto the
@@ -23,7 +24,7 @@
  * therefore empty right now — kept as the fallback mechanism `resolveRenderer`
  * still checks second, for whichever vendor is ported next without going
  * through the registry (e.g. one of the async-polling vendors in
- * `source-map.md`'s deferred bucket, if a future pass chooses not to build
+ * `archived provenance ledger`'s deferred bucket, if a future pass chooses not to build
  * its own polling-aware adapter shape).
  */
 import { AUDIO_DURATIONS_SEC, VIDEO_LENGTHS_SEC, findMediaModel, findProvider, modelsForSurface } from '../providers.js';
@@ -95,13 +96,13 @@ function clampWithWarning(
   return { value: clamped, warning: null };
 }
 
-export type Renderer = (ctx: RenderContext, credentials: ProviderCredentials) => Promise<RenderResult>;
+export type Renderer = (required: { ctx: RenderContext; credentials: ProviderCredentials }) => Promise<RenderResult>;
 
 /**
  * Routing table: `providerId` -> `surface` (or `surface:audioKind` for
  * audio) -> renderer, for vendors NOT yet migrated onto the generic
  * vendor-adapter dispatch engine. Mirrors the origin's if/else-if dispatch
- * chain — see `source-map.md` for exactly which (provider, surface) pairs
+ * chain — see `archived provenance ledger` for exactly which (provider, surface) pairs
  * from the origin are ported here vs deferred to a later pass.
  *
  * Empty as of 2026-07-21: every vendor previously listed here
@@ -143,18 +144,20 @@ export function lookupRoute(routes: Readonly<Record<string, Readonly<Record<stri
  * falling back to the static `ROUTES` table for everything else.
  */
 function resolveRenderer(providerId: string, routeKey: string): Renderer | undefined {
-  const adapter = mediaVendorRegistry.get(providerId, routeKey);
+  const adapter = mediaVendorRegistry.get({ providerId: providerId, routeKey: routeKey });
   if (adapter) {
-    return (ctx, credentials) => dispatchVendorRequest(adapter, ctx, credentials);
+    return ({ ctx, credentials }) => dispatchVendorRequest({ adapter, ctx, credentials });
   }
   return lookupRoute(ROUTES, providerId, routeKey);
 }
 
-export function createMediaDispatchEngine(options: MediaDispatchEngineOptions = {}): MediaDispatchEngine {
+export function createMediaDispatchEngine(_required: Record<string, never>, optional: MediaDispatchEngineOptions = {}): MediaDispatchEngine {
+    const options = optional;
   const allowStubFallback = options.allowStubFallback === true;
 
   return {
-    async generate(request: MediaGenerationRequest): Promise<MediaGenerationResult> {
+    async generate(required: RequiredArgs<MediaGenerationRequest>, optional: OptionalArgs<MediaGenerationRequest> = {}): Promise<MediaGenerationResult> {
+      const request = { ...required, ...optional };
       const { surface, model } = request;
       if (!SURFACES.has(surface)) {
         throw new Error(`unsupported surface: ${String(surface)}`);
@@ -166,12 +169,12 @@ export function createMediaDispatchEngine(options: MediaDispatchEngineOptions = 
         throw new Error(`unsupported audioKind: ${request.audioKind}. Allowed: music | speech | sfx.`);
       }
 
-      const def: MediaModel | null = findMediaModel(model);
+      const def: MediaModel | null = findMediaModel({ id: model });
       if (!def) {
         throw new Error(`unknown model: ${model}. Pass a model from the registered catalogue (see @jini-ai/integrations/media-providers's modelsForSurface()).`);
       }
       const resolvedAudioKind = surface === 'audio' ? request.audioKind || 'music' : undefined;
-      const allowed = modelsForSurface(surface, resolvedAudioKind);
+      const allowed = modelsForSurface({ surface: surface }, { audioKind: resolvedAudioKind });
       if (!allowed.some((m) => m.id === model)) {
         const ids = allowed.map((m) => m.id).join(', ');
         const where = surface === 'audio' ? `audio · ${resolvedAudioKind}` : surface;
@@ -197,8 +200,13 @@ export function createMediaDispatchEngine(options: MediaDispatchEngineOptions = 
       // MEDIA_PROVIDERS" catalogue-integrity test, given `def` itself is
       // already a real catalogued model at this point (findMediaModel
       // above didn't throw). Not re-guarded with a runtime null check.
-      const provider: MediaProvider = findProvider(def.provider)!;
-      const ctx: RenderContext = buildRenderContext(request, resolvedAudioKind, length, duration);
+      const provider: MediaProvider = findProvider({ id: def.provider })!;
+      const ctx: RenderContext = {
+        ...buildRenderContext({ request: request, resolvedAudioKind: resolvedAudioKind, length: length, duration: duration }),
+        ...(options.httpClient === undefined ? {} : { httpClient: options.httpClient }),
+        ...(options.allowPrivateNetwork === undefined ? {} : { allowPrivateNetwork: options.allowPrivateNetwork }),
+        ...(options.outboundMessages === undefined ? {} : { outboundMessages: options.outboundMessages }),
+      };
 
       const credentials = options.credentials?.[def.provider] ?? {};
 
@@ -210,10 +218,11 @@ export function createMediaDispatchEngine(options: MediaDispatchEngineOptions = 
       let effectiveCredentials = credentials;
       if (def.provider === 'openai' && surface === 'image') {
         const customImageCredentials = options.credentials?.['custom-image'] ?? null;
-        if (customImageOverridesOpenAIModel(ctx, customImageCredentials)) {
+        const override = { ctx, credentials: customImageCredentials };
+        if (customImageOverridesOpenAIModel(override)) {
           providerId = 'custom-image';
           renderer = renderCustomOpenAIImage;
-          effectiveCredentials = customImageCredentials;
+          effectiveCredentials = override.credentials;
         }
       }
       if (!renderer) {
@@ -226,11 +235,11 @@ export function createMediaDispatchEngine(options: MediaDispatchEngineOptions = 
             `no renderer configured for provider "${def.provider}" / surface "${routeKeyFor(surface, resolvedAudioKind)}" — pass allowStubFallback: true to get placeholder bytes instead, or wire up a real integration for this pair.`,
           );
         }
-        const stub = await renderStub(ctx, providerId, provider.integrated);
+        const stub = await renderStub({ ctx: ctx, providerId: providerId, integrated: provider.integrated });
         return { ...stub, providerId, usedStubFallback: true, warnings };
       }
 
-      const result = await renderer(ctx, effectiveCredentials);
+      const result = await renderer({ ctx, credentials: effectiveCredentials });
       return { ...result, providerId, usedStubFallback: false, warnings };
     },
   };

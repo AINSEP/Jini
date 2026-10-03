@@ -18,6 +18,16 @@ import {
 import { pinnedFetch } from '../connection-guard.js';
 import { createRoleMarkerGuard } from '../../role-marker-guard.js';
 
+// Replace DNS I/O, keeping the fail-closed guard real and rejecting unknown fixture hosts.
+vi.mock('node:dns', () => ({
+  promises: {
+    lookup: async (hostname: string) => {
+      if (hostname !== 'generativelanguage.googleapis.com') throw new Error(`ENOTFOUND ${hostname}`);
+      return [{ address: '8.8.8.8', family: 4 }];
+    },
+  },
+}));
+
 /**
  * `pinnedFetch` (the transport `runSingleGoogleRequest` actually calls, since the DNS-rebinding
  * fix — see `connection-guard.ts`) is mocked instead of global `fetch`: it dials via
@@ -29,10 +39,11 @@ vi.mock('../connection-guard.js', async (importOriginal) => {
   return { ...actual, pinnedFetch: vi.fn() };
 });
 
-function sseBody(...lines: string[]): AsyncIterable<string> {
+function sseBody(...lines: string[]): AsyncIterable<Uint8Array> {
   return {
     async *[Symbol.asyncIterator]() {
-      for (const line of lines) yield line;
+      // Mirror the byte chunks returned by the pinned HTTP transport.
+      for (const line of lines) yield new TextEncoder().encode(line);
     },
   };
 }
@@ -68,14 +79,14 @@ function usageChunk(usageMetadata: Record<string, unknown>): string {
   return chunk({ usageMetadata });
 }
 
-function okResponse(body: AsyncIterable<string>) {
+function okResponse(body: AsyncIterable<Uint8Array>) {
   return { ok: true, status: 200, body, text: async () => '' };
 }
 
 const baseContents: GoogleContent[] = [{ role: 'user', parts: [{ text: 'hi' }] }];
 
 function freshGoogleState(): GoogleStreamState {
-  return { guard: createRoleMarkerGuard('test'), toolCalls: [], fullText: '', finishReason: null, usage: null };
+  return { guard: createRoleMarkerGuard({ messageId: 'test' }), toolCalls: [], fullText: '', finishReason: null, usage: null };
 }
 
 describe('runGoogleToolTurn', () => {
@@ -88,13 +99,7 @@ describe('runGoogleToolTurn', () => {
     const fetchMock = vi.fn();
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: GoogleTurnEvent[] = [];
-    const result = await runGoogleToolTurn({
-      apiKey: 'goog-test',
-      baseUrl: 'http://10.0.0.5',
-      model: 'gemini-2.5-flash',
-      contents: baseContents,
-      onEvent: (e) => events.push(e),
-    });
+    const result = await runGoogleToolTurn({ apiKey: 'goog-test', model: 'gemini-2.5-flash', contents: baseContents, onEvent: (e) => events.push(e) }, { baseUrl: 'http://10.0.0.5' });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(events.filter((e) => e.type === 'end')).toEqual([{ type: 'end', reason: 'error' }]);
     expect(result.finishReason).toBeNull();
@@ -103,12 +108,7 @@ describe('runGoogleToolTurn', () => {
   it('reports a network error redacted', async () => {
     vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockRejectedValue(new Error('fetch failed: ECONNRESET')));
     const events: GoogleTurnEvent[] = [];
-    await runGoogleToolTurn({
-      apiKey: 'goog-secret',
-      model: 'gemini-2.5-flash',
-      contents: baseContents,
-      onEvent: (e) => events.push(e),
-    });
+    await runGoogleToolTurn({ apiKey: 'goog-secret', model: 'gemini-2.5-flash', contents: baseContents, onEvent: (e) => events.push(e) });
     expect(events).toEqual([
       { type: 'error', message: 'fetch failed: ECONNRESET' },
       { type: 'end', reason: 'error' },
@@ -124,14 +124,9 @@ describe('runGoogleToolTurn', () => {
       }),
     );
     const events: GoogleTurnEvent[] = [];
-    await runGoogleToolTurn({
-      apiKey: 'goog-secret',
-      model: 'gemini-2.5-flash',
-      contents: baseContents,
-      onEvent: (e) => events.push(e),
-    });
+    await runGoogleToolTurn({ apiKey: 'goog-secret', model: 'gemini-2.5-flash', contents: baseContents, onEvent: (e) => events.push(e) });
     expect(events).toEqual([
-      { type: 'error', message: 'API key not valid: [REDACTED]', code: '400' },
+      { type: 'error', message: 'API key not valid: [REDACTED:exact_secret]', code: '400' },
       { type: 'end', reason: 'error' },
     ]);
   });
@@ -158,12 +153,7 @@ describe('runGoogleToolTurn', () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(body));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: GoogleTurnEvent[] = [];
-    const result = await runGoogleToolTurn({
-      apiKey: 'goog-key',
-      model: 'gemini-2.5-flash',
-      contents: baseContents,
-      onEvent: (e) => events.push(e),
-    });
+    const result = await runGoogleToolTurn({ apiKey: 'goog-key', model: 'gemini-2.5-flash', contents: baseContents, onEvent: (e) => events.push(e) });
     expect(events).toEqual([
       { type: 'status', label: 'requesting' },
       { type: 'text_delta', delta: 'Hello' },
@@ -171,7 +161,7 @@ describe('runGoogleToolTurn', () => {
       { type: 'end', reason: 'stop' },
     ]);
     expect(result).toEqual({ finishReason: 'STOP', toolTurns: 0 });
-    const [url, init] = fetchMock.mock.calls[0]!;
+    const [{ url, init }] = fetchMock.mock.calls[0]!;
     expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse');
     expect(init.headers['x-goog-api-key']).toBe('goog-key');
     expect(init.headers.authorization).toBeUndefined();
@@ -181,14 +171,8 @@ describe('runGoogleToolTurn', () => {
   it('merges caller-supplied extraHeaders verbatim (never a hardcoded product-identity header)', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(textCandidate('hi', 'STOP'))));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
-    await runGoogleToolTurn({
-      apiKey: 'k',
-      model: 'gemini-2.5-flash',
-      contents: baseContents,
-      onEvent: () => {},
-      extraHeaders: { 'X-Caller-App': 'my-app' },
-    });
-    const [, init] = fetchMock.mock.calls[0]!;
+    await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: () => {} }, { extraHeaders: { 'X-Caller-App': 'my-app' } });
+    const [{ init }] = fetchMock.mock.calls[0]!;
     expect(init.headers['X-Caller-App']).toBe('my-app');
     expect(Object.keys(init.headers)).not.toContain('X-Title');
   });
@@ -197,18 +181,8 @@ describe('runGoogleToolTurn', () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(textCandidate('hi', 'STOP'))));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const controller = new AbortController();
-    await runGoogleToolTurn({
-      apiKey: 'k',
-      model: 'gemini-2.5-flash',
-      system: 'be terse',
-      temperature: 0.5,
-      maxOutputTokens: 512,
-      tools: [{ functionDeclarations: [{ name: 'get_weather', parameters: { type: 'object', properties: {} } }] }],
-      contents: baseContents,
-      onEvent: () => {},
-      signal: controller.signal,
-    });
-    const [, init] = fetchMock.mock.calls[0]!;
+    await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: () => {} }, { system: 'be terse', temperature: 0.5, maxOutputTokens: 512, tools: [{ functionDeclarations: [{ name: 'get_weather', parameters: { type: 'object', properties: {} } }] }], signal: controller.signal });
+    const [{ init }] = fetchMock.mock.calls[0]!;
     expect(init.signal).toBe(controller.signal);
     const requestBody = JSON.parse(init.body);
     expect(requestBody.systemInstruction).toEqual({ parts: [{ text: 'be terse' }] });
@@ -217,7 +191,7 @@ describe('runGoogleToolTurn', () => {
 
     fetchMock.mockClear();
     await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: () => {} });
-    const [, initNoExtras] = fetchMock.mock.calls[0]!;
+    const [{ init: initNoExtras }] = fetchMock.mock.calls[0]!;
     expect(initNoExtras.signal).toBeUndefined();
     const bodyNoExtras = JSON.parse(initNoExtras.body);
     expect(bodyNoExtras.systemInstruction).toBeUndefined();
@@ -317,15 +291,9 @@ describe('runGoogleToolTurn', () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
-    await runGoogleToolTurn({
-      apiKey: 'k',
-      model: 'gemini-2.5-flash',
-      contents: baseContents,
-      executeTool: vi.fn().mockResolvedValue({ content: '72F sunny' }),
-      onEvent: () => {},
-    });
+    await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: () => {} }, { executeTool: vi.fn().mockResolvedValue({ content: '72F sunny' }) });
 
-    expect(JSON.parse(fetchMock.mock.calls[1]![1].body).contents[1]).toEqual({
+    expect(JSON.parse(fetchMock.mock.calls[1]![0].init.body).contents[1]).toEqual({
       role: 'model',
       parts: [{ text: 'Let me check. ' }, { functionCall: { name: 'get_weather', args: { location: 'SF' }, id: 'fc_1' } }],
     });
@@ -341,13 +309,7 @@ describe('runGoogleToolTurn', () => {
 
     const events: GoogleTurnEvent[] = [];
     const executeTool = vi.fn().mockResolvedValue({ content: '72F sunny' });
-    const result = await runGoogleToolTurn({
-      apiKey: 'k',
-      model: 'gemini-2.5-flash',
-      contents: baseContents,
-      executeTool,
-      onEvent: (e) => events.push(e),
-    });
+    const result = await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: (e) => events.push(e) }, { executeTool });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(executeTool).toHaveBeenCalledTimes(1);
@@ -357,7 +319,7 @@ describe('runGoogleToolTurn', () => {
     expect(events).toContainEqual({ type: 'tool_use', id: 'fc_1', name: 'get_weather', input: { location: 'SF' } });
     expect(events).toContainEqual({ type: 'tool_result', toolUseId: 'fc_1', content: '72F sunny', isError: false });
 
-    const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![0].init.body);
     expect(secondCallBody.contents).toHaveLength(3);
     expect(secondCallBody.contents[1]).toEqual({
       role: 'model',
@@ -394,14 +356,7 @@ describe('runGoogleToolTurn', () => {
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'again' });
     const events: GoogleTurnEvent[] = [];
-    const result = await runGoogleToolTurn({
-      apiKey: 'k',
-      model: 'gemini-2.5-flash',
-      maxToolTurns: 1,
-      contents: baseContents,
-      executeTool,
-      onEvent: (e) => events.push(e),
-    });
+    const result = await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: (e) => events.push(e) }, { maxToolTurns: 1, executeTool });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(executeTool).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ finishReason: 'STOP', toolTurns: 1 });
@@ -415,9 +370,9 @@ describe('runGoogleToolTurn', () => {
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'boom', isError: true });
     const events: GoogleTurnEvent[] = [];
-    await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, executeTool, onEvent: (e) => events.push(e) });
+    await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: (e) => events.push(e) }, { executeTool });
     expect(events).toContainEqual({ type: 'tool_result', toolUseId: 'fc_1', content: 'boom', isError: true });
-    const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![0].init.body);
     expect(secondCallBody.contents[2].parts[0].functionResponse.response).toEqual({ content: 'boom', isError: true });
   });
 
@@ -450,7 +405,7 @@ describe('runGoogleToolTurn', () => {
         { role: 'user', parts: [{ text: "what's in this image?" }, { inlineData: { mimeType: 'image/png', data: pngBase64 } }] },
       ];
       await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents, onEvent: () => {} });
-      const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
+      const body = JSON.parse(fetchMock.mock.calls[0]![0].init.body);
       expect(body.contents[0]).toEqual({
         role: 'user',
         parts: [{ text: "what's in this image?" }, { inlineData: { mimeType: 'image/png', data: pngBase64 } }],
@@ -461,7 +416,7 @@ describe('runGoogleToolTurn', () => {
       const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(textCandidate('hi', 'STOP'))));
       vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: () => {} });
-      const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
+      const body = JSON.parse(fetchMock.mock.calls[0]![0].init.body);
       expect(body.contents).toEqual([{ role: 'user', parts: [{ text: 'hi' }] }]);
     });
 
@@ -474,9 +429,9 @@ describe('runGoogleToolTurn', () => {
         content: [{ text: 'here is the current render' }, { inlineData: { mimeType: 'image/png', data: pngBase64 } }],
       });
       const events: GoogleTurnEvent[] = [];
-      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, executeTool, onEvent: (e) => events.push(e) });
+      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: (e) => events.push(e) }, { executeTool });
 
-      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![0].init.body);
       expect(secondCallBody.contents).toHaveLength(3);
       expect(secondCallBody.contents[2]).toEqual({
         role: 'user',
@@ -521,9 +476,9 @@ describe('runGoogleToolTurn', () => {
         .mockResolvedValueOnce({ content: '72F sunny' })
         .mockResolvedValueOnce({ content: [{ inlineData: { mimeType: 'image/png', data: pngBase64 } }] })
         .mockResolvedValueOnce({ content: [{ inlineData: { mimeType: 'image/png', data: `${pngBase64}2` } }] });
-      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, executeTool, onEvent: () => {} });
+      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: () => {} }, { executeTool });
 
-      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![0].init.body);
       // contents: [baseContents, model(3 functionCalls), user(3 functionResponses + one batched labeled image section)]
       expect(secondCallBody.contents).toHaveLength(3);
       expect(secondCallBody.contents[2]).toEqual({
@@ -558,8 +513,8 @@ describe('runGoogleToolTurn', () => {
       const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
       vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       const executeTool = vi.fn().mockResolvedValue({ content: [{ inlineData: { mimeType: 'image/png', data: pngBase64 } }] });
-      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, executeTool, onEvent: () => {} });
-      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: () => {} }, { executeTool });
+      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![0].init.body);
       expect(secondCallBody.contents[2].parts[0].functionResponse.response.content).toBe(
         '(tool result included only non-text content; see the accompanying image parts)',
       );
@@ -571,7 +526,7 @@ describe('runGoogleToolTurn', () => {
       vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       const executeTool = vi.fn().mockResolvedValue({ content: [{ inlineData: { mimeType: 'image/tiff', data: 'AAAA' } }] });
       const events: GoogleTurnEvent[] = [];
-      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, executeTool, onEvent: (e) => events.push(e) });
+      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: (e) => events.push(e) }, { executeTool });
       const toolResultEvent = events.find((e) => e.type === 'tool_result');
       expect(toolResultEvent).toMatchObject({ isError: true });
       expect((toolResultEvent as { content: string }).content).toContain('unsupported image mimeType');
@@ -584,7 +539,7 @@ describe('runGoogleToolTurn', () => {
       const oversized = 'A'.repeat(Math.ceil((20 * 1024 * 1024 * 4) / 3) + 100);
       const executeTool = vi.fn().mockResolvedValue({ content: [{ inlineData: { mimeType: 'image/png', data: oversized } }] });
       const events: GoogleTurnEvent[] = [];
-      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, executeTool, onEvent: (e) => events.push(e) });
+      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: (e) => events.push(e) }, { executeTool });
       const toolResultEvent = events.find((e) => e.type === 'tool_result');
       expect(toolResultEvent).toMatchObject({ isError: true });
       expect((toolResultEvent as { content: string }).content).toContain('20 MB inline-data base64 size guard');
@@ -596,7 +551,7 @@ describe('runGoogleToolTurn', () => {
       vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       const executeTool = vi.fn().mockResolvedValue({ content: 'plain error text', isError: true });
       const events: GoogleTurnEvent[] = [];
-      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, executeTool, onEvent: (e) => events.push(e) });
+      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: (e) => events.push(e) }, { executeTool });
       expect(events).toContainEqual({ type: 'tool_result', toolUseId: 'fc_1', content: 'plain error text', isError: true });
     });
   });
@@ -622,18 +577,14 @@ describe('runGoogleToolTurn', () => {
     it('echoes the thoughtSignature back on the continuation, verbatim and as a sibling of functionCall', async () => {
       const SIGNATURE = 'EukCCuYCARFNMg+HEX+iufpVJfgG/opaque==';
       const firstBody = sseBody(signedFunctionCallCandidate('render_preview', {}, 'fc_1', SIGNATURE), textCandidate('', 'STOP'));
-      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(sseBody(textCandidate('done', 'STOP'))));
+      const fetchMock = vi.fn<typeof pinnedFetch>().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(sseBody(textCandidate('done', 'STOP'))));
       vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
-      await runGoogleToolTurn({
-        apiKey: 'k',
-        model: 'gemini-2.5-flash',
-        contents: baseContents,
-        executeTool: vi.fn().mockResolvedValue({ content: 'ok' }),
-        onEvent: () => {},
-      });
+      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: () => {} }, { executeTool: vi.fn().mockResolvedValue({ content: 'ok' }) });
 
-      const continuation = JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string) as { contents: GoogleContent[] };
+      const continuationBody = fetchMock.mock.calls[1]?.[0].init.body;
+      if (typeof continuationBody !== 'string') throw new Error('Expected a tool continuation request body');
+      const continuation = JSON.parse(continuationBody) as { contents: GoogleContent[] };
       const modelContent = continuation.contents.find((c) => c.role === 'model');
       const callPart = modelContent?.parts.find((p) => 'functionCall' in p) as unknown as Record<string, unknown>;
 
@@ -648,18 +599,14 @@ describe('runGoogleToolTurn', () => {
       // signature is NOT — the API reads it as malformed rather than as "absent", so "absent" and
       // "empty" must stay distinguishable all the way to the wire.
       const firstBody = sseBody(functionCallCandidate('render_preview', {}, 'fc_1'), textCandidate('', 'STOP'));
-      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(sseBody(textCandidate('done', 'STOP'))));
+      const fetchMock = vi.fn<typeof pinnedFetch>().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(sseBody(textCandidate('done', 'STOP'))));
       vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
-      await runGoogleToolTurn({
-        apiKey: 'k',
-        model: 'gemini-2.5-flash',
-        contents: baseContents,
-        executeTool: vi.fn().mockResolvedValue({ content: 'ok' }),
-        onEvent: () => {},
-      });
+      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: () => {} }, { executeTool: vi.fn().mockResolvedValue({ content: 'ok' }) });
 
-      const continuation = JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string) as { contents: GoogleContent[] };
+      const continuationBody = fetchMock.mock.calls[1]?.[0].init.body;
+      if (typeof continuationBody !== 'string') throw new Error('Expected a tool continuation request body');
+      const continuation = JSON.parse(continuationBody) as { contents: GoogleContent[] };
       const callPart = continuation.contents.find((c) => c.role === 'model')?.parts.find((p) => 'functionCall' in p) as unknown as Record<string, unknown>;
       expect('thoughtSignature' in callPart).toBe(false);
     });
@@ -670,7 +617,7 @@ describe('unit: applyGoogleUsage', () => {
   it('records usage and emits a usage event when usageMetadata is present', () => {
     const state = freshGoogleState();
     const events: GoogleTurnEvent[] = [];
-    applyGoogleUsage(state, { usageMetadata: { totalTokenCount: 42 } }, (e) => events.push(e));
+    applyGoogleUsage({ state: state, data: { usageMetadata: { totalTokenCount: 42 } }, onEvent: (e) => events.push(e) });
     expect(state.usage).toEqual({ totalTokenCount: 42 });
     expect(events).toEqual([{ type: 'usage', usage: { totalTokenCount: 42 } }]);
   });
@@ -678,8 +625,8 @@ describe('unit: applyGoogleUsage', () => {
   it('is a no-op when usageMetadata is absent or not a record', () => {
     const state = freshGoogleState();
     const events: GoogleTurnEvent[] = [];
-    applyGoogleUsage(state, {}, (e) => events.push(e));
-    applyGoogleUsage(state, { usageMetadata: 'not-a-record' }, (e) => events.push(e));
+    applyGoogleUsage({ state: state, data: {}, onEvent: (e) => events.push(e) });
+    applyGoogleUsage({ state: state, data: { usageMetadata: 'not-a-record' }, onEvent: (e) => events.push(e) });
     expect(state.usage).toBeNull();
     expect(events).toHaveLength(0);
   });
@@ -688,20 +635,20 @@ describe('unit: applyGoogleUsage', () => {
 describe('unit: handleGoogleBlockedPrompt', () => {
   it('emits an error event and reports blocked when promptFeedback.blockReason is a string', () => {
     const events: GoogleTurnEvent[] = [];
-    const blocked = handleGoogleBlockedPrompt({ promptFeedback: { blockReason: 'SAFETY' } }, (e) => events.push(e));
+    const blocked = handleGoogleBlockedPrompt({ data: { promptFeedback: { blockReason: 'SAFETY' } }, onEvent: (e) => events.push(e) });
     expect(blocked).toBe(true);
     expect(events).toEqual([{ type: 'error', message: 'prompt blocked: SAFETY', code: 'SAFETY' }]);
   });
 
   it('reports not-blocked and emits nothing when promptFeedback is absent', () => {
     const events: GoogleTurnEvent[] = [];
-    expect(handleGoogleBlockedPrompt({}, (e) => events.push(e))).toBe(false);
+    expect(handleGoogleBlockedPrompt({ data: {}, onEvent: (e) => events.push(e) })).toBe(false);
     expect(events).toHaveLength(0);
   });
 
   it('reports not-blocked when promptFeedback is present but blockReason is not a string', () => {
     const events: GoogleTurnEvent[] = [];
-    expect(handleGoogleBlockedPrompt({ promptFeedback: { blockReason: 42 } }, (e) => events.push(e))).toBe(false);
+    expect(handleGoogleBlockedPrompt({ data: { promptFeedback: { blockReason: 42 } }, onEvent: (e) => events.push(e) })).toBe(false);
     expect(events).toHaveLength(0);
   });
 });
@@ -710,7 +657,7 @@ describe('unit: handleGoogleTextPart', () => {
   it('appends safe text to fullText and emits a text_delta event', () => {
     const state = freshGoogleState();
     const events: GoogleTurnEvent[] = [];
-    const result = handleGoogleTextPart(state, 'hello', (e) => events.push(e));
+    const result = handleGoogleTextPart({ state: state, text: 'hello', onEvent: (e) => events.push(e) });
     expect(result).toBe('continue');
     expect(state.fullText).toBe('hello');
     expect(events).toEqual([{ type: 'text_delta', delta: 'hello' }]);
@@ -719,7 +666,7 @@ describe('unit: handleGoogleTextPart', () => {
   it('returns "break" and emits a warning once a fabricated role marker contaminates the text', () => {
     const state = freshGoogleState();
     const events: GoogleTurnEvent[] = [];
-    const result = handleGoogleTextPart(state, 'safe text\n## user\nmalicious continuation', (e) => events.push(e));
+    const result = handleGoogleTextPart({ state: state, text: 'safe text\n## user\nmalicious continuation', onEvent: (e) => events.push(e) });
     expect(result).toBe('break');
     expect(events.some((e) => e.type === 'fabricated_role_marker')).toBe(true);
   });
@@ -729,10 +676,7 @@ describe('unit: handleGoogleFunctionCallPart', () => {
   it('pushes a tool call and emits tool_use, carrying thoughtSignature only when non-empty', () => {
     const state = freshGoogleState();
     const events: GoogleTurnEvent[] = [];
-    handleGoogleFunctionCallPart(
-      state,
-      { functionCall: { name: 'render', args: { a: 1 }, id: 'call_1' }, thoughtSignature: 'sig' },
-      (e) => events.push(e),
+    handleGoogleFunctionCallPart({ state: state, rawPart: { functionCall: { name: 'render', args: { a: 1 }, id: 'call_1' }, thoughtSignature: 'sig' }, onEvent: (e) => events.push(e) }
     );
     expect(state.toolCalls).toEqual([{ id: 'call_1', name: 'render', input: { a: 1 }, thoughtSignature: 'sig' }]);
     expect(events).toEqual([{ type: 'tool_use', id: 'call_1', name: 'render', input: { a: 1 } }]);
@@ -741,19 +685,19 @@ describe('unit: handleGoogleFunctionCallPart', () => {
   it('synthesizes a call id from the current toolCalls length when the part omits one', () => {
     const state = freshGoogleState();
     state.toolCalls.push({ id: 'existing', name: 'x', input: {} });
-    handleGoogleFunctionCallPart(state, { functionCall: { name: 'render', args: {} } }, () => {});
+    handleGoogleFunctionCallPart({ state: state, rawPart: { functionCall: { name: 'render', args: {} } }, onEvent: () => {} });
     expect(state.toolCalls[1]?.id).toBe('call_1');
   });
 
   it('omits thoughtSignature entirely when the part carries an empty string (absent and empty must stay distinguishable)', () => {
     const state = freshGoogleState();
-    handleGoogleFunctionCallPart(state, { functionCall: { name: 'render', args: {} }, thoughtSignature: '' }, () => {});
+    handleGoogleFunctionCallPart({ state: state, rawPart: { functionCall: { name: 'render', args: {} }, thoughtSignature: '' }, onEvent: () => {} });
     expect('thoughtSignature' in state.toolCalls[0]!).toBe(false);
   });
 
   it('is a no-op when functionCall.name is missing', () => {
     const state = freshGoogleState();
-    handleGoogleFunctionCallPart(state, { functionCall: { args: {} } }, () => {});
+    handleGoogleFunctionCallPart({ state: state, rawPart: { functionCall: { args: {} } }, onEvent: () => {} });
     expect(state.toolCalls).toHaveLength(0);
   });
 });
@@ -761,31 +705,31 @@ describe('unit: handleGoogleFunctionCallPart', () => {
 describe('unit: processGoogleRawPart', () => {
   it('returns "continue" for a non-record part', () => {
     const state = freshGoogleState();
-    expect(processGoogleRawPart(state, 'not-a-record', () => {})).toBe('continue');
+    expect(processGoogleRawPart({ state: state, rawPart: 'not-a-record', onEvent: () => {} })).toBe('continue');
   });
 
   it('dispatches a text part to handleGoogleTextPart and returns its outcome', () => {
     const state = freshGoogleState();
-    const result = processGoogleRawPart(state, { text: 'hi' }, () => {});
+    const result = processGoogleRawPart({ state: state, rawPart: { text: 'hi' }, onEvent: () => {} });
     expect(result).toBe('continue');
     expect(state.fullText).toBe('hi');
   });
 
   it('ignores an empty-string text part (falls through to the functionCall check, finds none, continues)', () => {
     const state = freshGoogleState();
-    expect(processGoogleRawPart(state, { text: '' }, () => {})).toBe('continue');
+    expect(processGoogleRawPart({ state: state, rawPart: { text: '' }, onEvent: () => {} })).toBe('continue');
     expect(state.fullText).toBe('');
   });
 
   it('dispatches a functionCall part to handleGoogleFunctionCallPart', () => {
     const state = freshGoogleState();
-    processGoogleRawPart(state, { functionCall: { name: 'f', args: {} } }, () => {});
+    processGoogleRawPart({ state: state, rawPart: { functionCall: { name: 'f', args: {} } }, onEvent: () => {} });
     expect(state.toolCalls).toHaveLength(1);
   });
 
   it('is a no-op for a part with neither text nor functionCall (an unrecognized part kind)', () => {
     const state = freshGoogleState();
-    expect(processGoogleRawPart(state, { inlineData: { mimeType: 'image/png', data: 'x' } }, () => {})).toBe('continue');
+    expect(processGoogleRawPart({ state: state, rawPart: { inlineData: { mimeType: 'image/png', data: 'x' } }, onEvent: () => {} })).toBe('continue');
     expect(state.toolCalls).toHaveLength(0);
     expect(state.fullText).toBe('');
   });
@@ -795,25 +739,25 @@ describe('unit: processGoogleFrame', () => {
   it('reports "end"/"error" when candidates is empty and promptFeedback carries a block reason', () => {
     const state = freshGoogleState();
     const events: GoogleTurnEvent[] = [];
-    const outcome = processGoogleFrame(state, { candidates: [], promptFeedback: { blockReason: 'SAFETY' } }, (e) => events.push(e));
+    const outcome = processGoogleFrame({ state: state, data: { candidates: [], promptFeedback: { blockReason: 'SAFETY' } }, onEvent: (e) => events.push(e) });
     expect(outcome).toEqual({ action: 'end', reason: 'error' });
     expect(events.some((e) => e.type === 'error')).toBe(true);
   });
 
   it('reports "continue" when there is no candidate and no block reason', () => {
     const state = freshGoogleState();
-    expect(processGoogleFrame(state, {}, () => {})).toEqual({ action: 'continue' });
+    expect(processGoogleFrame({ state: state, data: {}, onEvent: () => {} })).toEqual({ action: 'continue' });
   });
 
   it('reports "continue" and skips entirely when the first candidate is present but not a record (a malformed frame)', () => {
     const state = freshGoogleState();
-    expect(processGoogleFrame(state, { candidates: ['not-a-record'] }, () => {})).toEqual({ action: 'continue' });
+    expect(processGoogleFrame({ state: state, data: { candidates: ['not-a-record'] }, onEvent: () => {} })).toEqual({ action: 'continue' });
     expect(state.finishReason).toBeNull();
   });
 
   it('records finishReason from the candidate even with no content/parts', () => {
     const state = freshGoogleState();
-    const outcome = processGoogleFrame(state, { candidates: [{ finishReason: 'STOP' }] }, () => {});
+    const outcome = processGoogleFrame({ state: state, data: { candidates: [{ finishReason: 'STOP' }] }, onEvent: () => {} });
     expect(outcome).toEqual({ action: 'continue' });
     expect(state.finishReason).toBe('STOP');
   });
@@ -821,10 +765,7 @@ describe('unit: processGoogleFrame', () => {
   it('reports "end"/"contaminated" when a part in the candidate trips the role-marker guard', () => {
     const state = freshGoogleState();
     const events: GoogleTurnEvent[] = [];
-    const outcome = processGoogleFrame(
-      state,
-      { candidates: [{ content: { parts: [{ text: 'safe\n## user\nmalicious' }] } }] },
-      (e) => events.push(e),
+    const outcome = processGoogleFrame({ state: state, data: { candidates: [{ content: { parts: [{ text: 'safe\n## user\nmalicious' }] } }] }, onEvent: (e) => events.push(e) }
     );
     expect(outcome).toEqual({ action: 'end', reason: 'contaminated' });
   });
@@ -832,7 +773,7 @@ describe('unit: processGoogleFrame', () => {
   it('also applies usageMetadata alongside a candidate in the same frame', () => {
     const state = freshGoogleState();
     const events: GoogleTurnEvent[] = [];
-    processGoogleFrame(state, { usageMetadata: { totalTokenCount: 7 }, candidates: [{ finishReason: 'STOP' }] }, (e) => events.push(e));
+    processGoogleFrame({ state: state, data: { usageMetadata: { totalTokenCount: 7 }, candidates: [{ finishReason: 'STOP' }] }, onEvent: (e) => events.push(e) });
     expect(state.usage).toEqual({ totalTokenCount: 7 });
     expect(events.some((e) => e.type === 'usage')).toBe(true);
   });
@@ -840,23 +781,23 @@ describe('unit: processGoogleFrame', () => {
 
 describe('unit: googleLoopExitReason', () => {
   it('returns "stop" when there are no tool calls', () => {
-    expect(googleLoopExitReason({ finishReason: 'STOP', toolCalls: [], text: '' }, 0, 8)).toBe('stop');
+    expect(googleLoopExitReason({ outcome: { finishReason: 'STOP', toolCalls: [], text: '' }, toolTurns: 0, maxToolTurns: 8 })).toBe('stop');
   });
 
   it('returns "max_tool_turns" once toolTurns reaches the ceiling', () => {
     const outcome = { finishReason: null, toolCalls: [{ id: '1', name: 'f', input: {} }], text: '' };
-    expect(googleLoopExitReason(outcome, 8, 8)).toBe('max_tool_turns');
+    expect(googleLoopExitReason({ outcome: outcome, toolTurns: 8, maxToolTurns: 8 })).toBe('max_tool_turns');
   });
 
   it('returns null (continue the loop) when there are pending tool calls under the ceiling', () => {
     const outcome = { finishReason: null, toolCalls: [{ id: '1', name: 'f', input: {} }], text: '' };
-    expect(googleLoopExitReason(outcome, 2, 8)).toBeNull();
+    expect(googleLoopExitReason({ outcome: outcome, toolTurns: 2, maxToolTurns: 8 })).toBeNull();
   });
 });
 
 describe('unit: buildGoogleAssistantParts', () => {
   it('omits the text part entirely when text is empty', () => {
-    const parts = buildGoogleAssistantParts('', []);
+    const parts = buildGoogleAssistantParts({ text: '', toolCalls: [] });
     expect(parts).toEqual([]);
   });
 
@@ -865,7 +806,7 @@ describe('unit: buildGoogleAssistantParts', () => {
       { id: 'c1', name: 'f1', input: { a: 1 }, thoughtSignature: 'sig' },
       { id: 'c2', name: 'f2', input: {} },
     ];
-    const parts = buildGoogleAssistantParts('thinking...', calls);
+    const parts = buildGoogleAssistantParts({ text: 'thinking...', toolCalls: calls });
     expect(parts).toEqual([
       { text: 'thinking...' },
       { functionCall: { name: 'f1', args: { a: 1 }, id: 'c1' }, thoughtSignature: 'sig' },
@@ -880,7 +821,7 @@ describe('unit: executeGoogleToolCalls', () => {
     const events: GoogleTurnEvent[] = [];
     const executeTool = vi.fn().mockResolvedValue({ content: 'ok result' });
     const calls: GoogleToolCall[] = [{ id: 'c1', name: 'f1', input: {} }];
-    const outcome = await executeGoogleToolCalls(executeTool, calls, (e) => events.push(e));
+    const outcome = await executeGoogleToolCalls({ executeTool: executeTool, calls: calls, onEvent: (e) => events.push(e) });
     expect(outcome.functionResponseParts).toEqual([
       { functionResponse: { name: 'f1', id: 'c1', response: { content: 'ok result', isError: false } } },
     ]);
@@ -893,7 +834,7 @@ describe('unit: executeGoogleToolCalls', () => {
       .fn()
       .mockResolvedValue({ content: [{ inlineData: { mimeType: 'image/png', data: 'YQ==' } }] });
     const calls: GoogleToolCall[] = [{ id: 'c1', name: 'shot', input: {} }];
-    const outcome = await executeGoogleToolCalls(executeTool, calls, () => {});
+    const outcome = await executeGoogleToolCalls({ executeTool: executeTool, calls: calls, onEvent: () => {} });
     expect(outcome.followUpParts[0]).toEqual({ text: "Image output from tool `shot` (tool_call_id: c1):" });
     expect(outcome.followUpParts[1]).toEqual({ inlineData: { mimeType: 'image/png', data: 'YQ==' } });
   });
@@ -902,7 +843,7 @@ describe('unit: executeGoogleToolCalls', () => {
     const executeTool = vi.fn().mockResolvedValue({ content: [{ inlineData: { mimeType: 'image/heic-invalid', data: 'x' } }] });
     const events: GoogleTurnEvent[] = [];
     const calls: GoogleToolCall[] = [{ id: 'c1', name: 'shot', input: {} }];
-    const outcome = await executeGoogleToolCalls(executeTool, calls, (e) => events.push(e));
+    const outcome = await executeGoogleToolCalls({ executeTool: executeTool, calls: calls, onEvent: (e) => events.push(e) });
     expect(events[0]).toMatchObject({ type: 'tool_result', isError: true });
     expect(outcome.functionResponseParts[0]).toMatchObject({
       functionResponse: { response: { isError: true } },
@@ -918,7 +859,7 @@ describe('unit: executeGoogleToolCalls', () => {
       { id: 'c1', name: 'f1', input: {} },
       { id: 'c2', name: 'f2', input: {} },
     ];
-    const outcome = await executeGoogleToolCalls(executeTool, calls, () => {});
+    const outcome = await executeGoogleToolCalls({ executeTool: executeTool, calls: calls, onEvent: () => {} });
     expect(outcome.functionResponseParts).toHaveLength(2);
     expect(outcome.followUpParts).toHaveLength(2); // label + inlineData, only for c2
   });

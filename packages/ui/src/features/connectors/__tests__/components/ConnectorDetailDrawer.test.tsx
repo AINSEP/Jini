@@ -5,7 +5,7 @@ import { ConnectorDetailDrawer } from '../../components/ConnectorDetailDrawer.js
 import type { Connector } from '../../types.js';
 
 function makeConnector(overrides: Partial<Connector> = {}): Connector {
-  return { id: 'slack', name: 'Slack', provider: 'Composio', category: 'communication', status: 'available', tools: [], ...overrides };
+  return { id: 'slack', name: 'Slack', provider: 'Connector Provider', category: 'communication', status: 'available', tools: [], ...overrides };
 }
 
 const noop = () => {};

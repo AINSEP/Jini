@@ -10,7 +10,7 @@ import { planMergeTerm } from "../merge-term.js";
  * plan's overlap-loss disclosure) — the plan/confirm/execute ordering itself, token TTL,
  * and actor-class rule are `core/gated-mutations`' own certified contract (see
  * `src/core/gated-mutations/__tests__/unit/gateway.unit.test.ts`), consumed here via a fake
- * `core/gated-mutations.plan()` seam, not re-tested.
+ * `core/gated-mutations.plan` seam, not re-tested.
  *
  * Assumed seam design:
  *
@@ -18,17 +18,17 @@ import { planMergeTerm } from "../merge-term.js";
  * export class SameTermMergeError extends Error {}
  *
  * export async function planMergeTerm(
- *   required: {
- *     principalId: string; principalKind: "user" | "agent" | "api_key";
- *     fromTermId: string; intoTermId: string;
- *     computeOverlap: () => Promise<{ overlappingContentCount: number }>;
- *     gatewayPlan: (details: unknown) => Promise<{ planId: string; planHash: string; details: unknown }>;
- *   },
- *   optional?: {}
+ * required: {
+ * principalId: string; principalKind: "user" | "agent" | "api_key";
+ * fromTermId: string; intoTermId: string;
+ * computeOverlap: => Promise<{ overlappingContentCount: number }>;
+ * gatewayPlan: (details: unknown) => Promise<{ planId: string; planHash: string; details: unknown }>;
+ * },
+ * optional?: {}
  * ): Promise<{ planId: string; planHash: string; details: { overlapLossDisclosed: boolean; overlappingContentCount: number } }>;
- * // throws SameTermMergeError if fromTermId === intoTermId, BEFORE computeOverlap is ever called
+ * throws SameTermMergeError if fromTermId === intoTermId, BEFORE computeOverlap is ever called
  * ```
- */
+ */ 
 
 test("AC-22a / REQ-15a / INV-08: planMergeTerm rejects fromTermId === intoTermId with SameTermMergeError before any overlap computation runs", async () => {
   let overlapComputed = false;

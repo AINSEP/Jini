@@ -1,4 +1,4 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/trae-cli.ts` (import path adjusted only). See `source-map.md`. */
+/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/trae-cli.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
@@ -8,8 +8,8 @@ export const traeCliAgentDef = {
     bin: 'traecli',
     versionArgs: ['--version'],
     versionProbeTimeoutMs: 10_000,
-    fetchModels: async (resolvedBin, env) =>
-      detectAcpModels({
+    fetchModels: async ({ resolvedBin, env }) =>
+      (({ bin, args, ...optionalArgs }: Parameters<typeof detectAcpModels>[0] & NonNullable<Parameters<typeof detectAcpModels>[1]>) => detectAcpModels({ bin, args }, optionalArgs))({
         bin: resolvedBin,
         args: ['acp', 'serve'],
         env,
@@ -19,7 +19,7 @@ export const traeCliAgentDef = {
     fallbackModels: [DEFAULT_MODEL_OPTION],
     // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
     // behavior) unless a caller explicitly opts into a restricted run.
-    buildArgs: (_prompt, _imagePaths, _extra, options = {}) =>
+    buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs: _extra, options = {} } = {}) =>
       options.permissionMode === 'restricted' ? ['acp', 'serve'] : ['acp', 'serve', '--yolo'],
     streamFormat: 'acp-json-rpc',
     mcpDiscovery: 'mature-acp',

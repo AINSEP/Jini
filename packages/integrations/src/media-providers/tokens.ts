@@ -11,6 +11,6 @@ import type { CapabilityRegistry } from './capability-registry.js';
 import type { MediaPolicy } from './policy.js';
 import type { MediaTaskStore } from './task-store.js';
 
-export const CapabilityRegistryToken = token<CapabilityRegistry>('jini.media.capabilityRegistry');
-export const MediaTaskStoreToken = token<MediaTaskStore>('jini.media.taskStore');
-export const MediaPolicyToken = token<MediaPolicy>('jini.media.policy');
+export const CapabilityRegistryToken = token<CapabilityRegistry>({ id: 'jini.media.capabilityRegistry' });
+export const MediaTaskStoreToken = token<MediaTaskStore>({ id: 'jini.media.taskStore' });
+export const MediaPolicyToken = token<MediaPolicy>({ id: 'jini.media.policy' });

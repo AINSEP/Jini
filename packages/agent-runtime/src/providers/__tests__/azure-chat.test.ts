@@ -12,6 +12,16 @@ import {
 } from '../azure-chat.js';
 import { pinnedFetch } from '../connection-guard.js';
 
+// Replace DNS I/O, keeping the fail-closed guard real and rejecting unknown fixture hosts.
+vi.mock('node:dns', () => ({
+  promises: {
+    lookup: async (hostname: string) => {
+      if (hostname !== 'my-resource.openai.azure.com') throw new Error(`ENOTFOUND ${hostname}`);
+      return [{ address: '8.8.8.8', family: 4 }];
+    },
+  },
+}));
+
 /**
  * `pinnedFetch` (the transport `runOpenAiCompatibleRequest` actually calls on Azure's behalf,
  * since the DNS-rebinding fix — see `connection-guard.ts`) is mocked instead of global `fetch`: it
@@ -81,13 +91,7 @@ describe('runAzureToolTurn', () => {
     const fetchMock = vi.fn();
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: AzureTurnEvent[] = [];
-    const result = await runAzureToolTurn({
-      apiKey: 'azure-key',
-      baseUrl: 'http://10.0.0.5',
-      model: 'gpt-4o-deployment',
-      messages: baseMessages,
-      onEvent: (e) => events.push(e),
-    });
+    const result = await runAzureToolTurn({ apiKey: 'azure-key', baseUrl: 'http://10.0.0.5', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(events.filter((e) => e.type === 'end')).toEqual([{ type: 'end', reason: 'error' }]);
     expect(result.finishReason).toBeNull();
@@ -96,13 +100,7 @@ describe('runAzureToolTurn', () => {
   it('reports a network error redacted', async () => {
     vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockRejectedValue(new Error('ECONNRESET')));
     const events: AzureTurnEvent[] = [];
-    await runAzureToolTurn({
-      apiKey: 'azure-secret',
-      baseUrl: 'https://my-resource.openai.azure.com',
-      model: 'gpt-4o-deployment',
-      messages: baseMessages,
-      onEvent: (e) => events.push(e),
-    });
+    await runAzureToolTurn({ apiKey: 'azure-secret', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toEqual([
       { type: 'error', message: 'ECONNRESET' },
       { type: 'end', reason: 'error' },
@@ -118,15 +116,9 @@ describe('runAzureToolTurn', () => {
       }),
     );
     const events: AzureTurnEvent[] = [];
-    await runAzureToolTurn({
-      apiKey: 'azure-secret',
-      baseUrl: 'https://my-resource.openai.azure.com',
-      model: 'gpt-4o-deployment',
-      messages: baseMessages,
-      onEvent: (e) => events.push(e),
-    });
+    await runAzureToolTurn({ apiKey: 'azure-secret', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toEqual([
-      { type: 'error', message: 'Access denied due to invalid subscription key: [REDACTED]', code: '401' },
+      { type: 'error', message: 'Access denied due to invalid subscription key: [REDACTED:exact_secret]', code: '401' },
       { type: 'end', reason: 'error' },
     ]);
   });
@@ -134,13 +126,7 @@ describe('runAzureToolTurn', () => {
   it('reports a missing response body as an error, using the Azure OpenAI provider label', async () => {
     vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue({ ok: true, status: 200, body: null, text: async () => '' }));
     const events: AzureTurnEvent[] = [];
-    await runAzureToolTurn({
-      apiKey: 'k',
-      baseUrl: 'https://my-resource.openai.azure.com',
-      model: 'gpt-4o-deployment',
-      messages: baseMessages,
-      onEvent: (e) => events.push(e),
-    });
+    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toEqual([
       { type: 'error', message: 'Azure OpenAI response had no body' },
       { type: 'end', reason: 'error' },
@@ -152,13 +138,7 @@ describe('runAzureToolTurn', () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(body));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: AzureTurnEvent[] = [];
-    const result = await runAzureToolTurn({
-      apiKey: 'azure-key',
-      baseUrl: 'https://my-resource.openai.azure.com',
-      model: 'gpt-4o-deployment',
-      messages: baseMessages,
-      onEvent: (e) => events.push(e),
-    });
+    const result = await runAzureToolTurn({ apiKey: 'azure-key', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toEqual([
       { type: 'status', label: 'requesting' },
       { type: 'text_delta', delta: 'Hello' },
@@ -166,7 +146,7 @@ describe('runAzureToolTurn', () => {
       { type: 'end', reason: 'stop' },
     ]);
     expect(result).toEqual({ finishReason: 'stop', toolTurns: 0 });
-    const [url, init] = fetchMock.mock.calls[0]!;
+    const [{ url, init }] = fetchMock.mock.calls[0]!;
     expect(url).toBe('https://my-resource.openai.azure.com/openai/deployments/gpt-4o-deployment/chat/completions?api-version=2024-10-21');
     expect(init.headers['api-key']).toBe('azure-key');
     expect(init.headers.authorization).toBeUndefined();
@@ -176,16 +156,8 @@ describe('runAzureToolTurn', () => {
   it('uses a caller-supplied apiVersion instead of the default, and merges extraHeaders with no hardcoded product-identity header', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
-    await runAzureToolTurn({
-      apiKey: 'k',
-      baseUrl: 'https://my-resource.openai.azure.com/',
-      apiVersion: '2099-01-01',
-      model: 'gpt-4o-deployment',
-      messages: baseMessages,
-      onEvent: () => {},
-      extraHeaders: { 'X-Caller-App': 'my-app' },
-    });
-    const [url, init] = fetchMock.mock.calls[0]!;
+    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com/', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: () => {} }, { apiVersion: '2099-01-01', extraHeaders: { 'X-Caller-App': 'my-app' } });
+    const [{ url, init }] = fetchMock.mock.calls[0]!;
     expect(url).toBe('https://my-resource.openai.azure.com/openai/deployments/gpt-4o-deployment/chat/completions?api-version=2099-01-01');
     expect(init.headers['X-Caller-App']).toBe('my-app');
     expect(Object.keys(init.headers)).not.toContain('X-Title');
@@ -196,17 +168,17 @@ describe('runAzureToolTurn', () => {
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: () => {} });
-    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toMatchObject({ max_tokens: 8192 });
+    expect(JSON.parse(fetchMock.mock.calls[0]![0].init.body)).toMatchObject({ max_tokens: 8192 });
 
     fetchMock.mockClear();
-    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', maxTokens: 1024, messages: baseMessages, onEvent: () => {} });
-    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toMatchObject({ max_tokens: 1024 });
+    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: () => {} }, { maxTokens: 1024 });
+    expect(JSON.parse(fetchMock.mock.calls[0]![0].init.body)).toMatchObject({ max_tokens: 1024 });
 
     // Even a deployment named after a newer model family still gets the legacy field first — Azure
     // deployment names are caller-defined strings, not necessarily matching OpenAI's own scheme.
     fetchMock.mockClear();
     await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'my-gpt-5-deployment', messages: baseMessages, onEvent: () => {} });
-    const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
+    const body = JSON.parse(fetchMock.mock.calls[0]![0].init.body);
     expect(body.max_tokens).toBe(8192);
     expect(body.max_completion_tokens).toBeUndefined();
   });
@@ -215,43 +187,43 @@ describe('runAzureToolTurn', () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
-    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', temperature: 0.2, messages: baseMessages, onEvent: () => {} });
-    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).temperature).toBe(0.2);
+    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', messages: baseMessages, onEvent: () => {} }, { temperature: 0.2 });
+    expect(JSON.parse(fetchMock.mock.calls[0]![0].init.body).temperature).toBe(0.2);
 
     // Omitted rather than sent as null/undefined: some deployments reject an explicit null, and a
     // reasoning deployment rejects the parameter outright.
     fetchMock.mockClear();
     await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', messages: baseMessages, onEvent: () => {} });
-    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).not.toHaveProperty('temperature');
+    expect(JSON.parse(fetchMock.mock.calls[0]![0].init.body)).not.toHaveProperty('temperature');
   });
 
   it('sends temperature 0 rather than treating it as absent', async () => {
     // `0` is the most useful value a caller can pick and the easiest to lose to a truthiness check.
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
-    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', temperature: 0, messages: baseMessages, onEvent: () => {} });
-    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).temperature).toBe(0);
+    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', messages: baseMessages, onEvent: () => {} }, { temperature: 0 });
+    expect(JSON.parse(fetchMock.mock.calls[0]![0].init.body).temperature).toBe(0);
   });
 
   it('forwards a non-empty tools array verbatim, and omits the field for an empty one', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const tools = [{ type: 'function' as const, function: { name: 'get_weather', description: 'w', parameters: { type: 'object' } } }];
-    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', tools, messages: baseMessages, onEvent: () => {} });
-    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).tools).toEqual(tools);
+    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', messages: baseMessages, onEvent: () => {} }, { tools });
+    expect(JSON.parse(fetchMock.mock.calls[0]![0].init.body).tools).toEqual(tools);
 
     // Azure rejects `tools: []` with a 400, so an empty list must be indistinguishable from no list.
     fetchMock.mockClear();
-    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', tools: [], messages: baseMessages, onEvent: () => {} });
-    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).not.toHaveProperty('tools');
+    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', messages: baseMessages, onEvent: () => {} }, { tools: [] });
+    expect(JSON.parse(fetchMock.mock.calls[0]![0].init.body)).not.toHaveProperty('tools');
   });
 
   it('passes a caller AbortSignal through to fetch so a cancelled turn actually cancels the request', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const controller = new AbortController();
-    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', signal: controller.signal, messages: baseMessages, onEvent: () => {} });
-    expect(fetchMock.mock.calls[0]![1].signal).toBe(controller.signal);
+    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', messages: baseMessages, onEvent: () => {} }, { signal: controller.signal });
+    expect(fetchMock.mock.calls[0]![0].init.signal).toBe(controller.signal);
   });
 
   it('retries once with max_completion_tokens when the deployment rejects the legacy max_tokens field with a 400 — matches OD\'s real [proxy:azure] retry', async () => {
@@ -263,24 +235,18 @@ describe('runAzureToolTurn', () => {
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     const events: AzureTurnEvent[] = [];
-    const result = await runAzureToolTurn({
-      apiKey: 'k',
-      baseUrl: 'https://my-resource.openai.azure.com',
-      model: 'my-gpt-5-deployment',
-      messages: baseMessages,
-      onEvent: (e) => events.push(e),
-    });
+    const result = await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'my-gpt-5-deployment', messages: baseMessages, onEvent: (e) => events.push(e) });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    const firstBody = JSON.parse(fetchMock.mock.calls[0]![1].body);
+    const firstBody = JSON.parse(fetchMock.mock.calls[0]![0].init.body);
     expect(firstBody.max_tokens).toBe(8192);
     expect(firstBody.max_completion_tokens).toBeUndefined();
-    const secondBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    const secondBody = JSON.parse(fetchMock.mock.calls[1]![0].init.body);
     expect(secondBody.max_completion_tokens).toBe(8192);
     expect(secondBody.max_tokens).toBeUndefined();
     // The retry reuses the same URL/headers — only the body's token-limit field changes.
-    expect(fetchMock.mock.calls[1]![0]).toBe(fetchMock.mock.calls[0]![0]);
-    expect(fetchMock.mock.calls[1]![1].headers).toEqual(fetchMock.mock.calls[0]![1].headers);
+    expect(fetchMock.mock.calls[1]![0].url).toBe(fetchMock.mock.calls[0]![0].url);
+    expect(fetchMock.mock.calls[1]![0].init.headers).toEqual(fetchMock.mock.calls[0]![0].init.headers);
 
     expect(result).toEqual({ finishReason: 'stop', toolTurns: 0 });
     expect(events).toEqual([
@@ -299,13 +265,7 @@ describe('runAzureToolTurn', () => {
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     const events: AzureTurnEvent[] = [];
-    await runAzureToolTurn({
-      apiKey: 'azure-retry-key',
-      baseUrl: 'https://my-resource.openai.azure.com',
-      model: 'my-gpt-5-deployment',
-      messages: baseMessages,
-      onEvent: (e) => events.push(e),
-    });
+    await runAzureToolTurn({ apiKey: 'azure-retry-key', baseUrl: 'https://my-resource.openai.azure.com', model: 'my-gpt-5-deployment', messages: baseMessages, onEvent: (e) => events.push(e) });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(events).toEqual([
@@ -319,13 +279,7 @@ describe('runAzureToolTurn', () => {
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     const events: AzureTurnEvent[] = [];
-    await runAzureToolTurn({
-      apiKey: 'k',
-      baseUrl: 'https://my-resource.openai.azure.com',
-      model: 'gpt-4o-deployment',
-      messages: baseMessages,
-      onEvent: (e) => events.push(e),
-    });
+    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: (e) => events.push(e) });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(events).toEqual([
@@ -347,14 +301,7 @@ describe('runAzureToolTurn', () => {
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: '72F sunny' });
     const events: AzureTurnEvent[] = [];
-    const result = await runAzureToolTurn({
-      apiKey: 'k',
-      baseUrl: 'https://my-resource.openai.azure.com',
-      model: 'gpt-4o-deployment',
-      messages: baseMessages,
-      executeTool,
-      onEvent: (e) => events.push(e),
-    });
+    const result = await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: (e) => events.push(e) }, { executeTool });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(executeTool).toHaveBeenCalledWith({ id: 'call_1', name: 'get_weather', input: { location: 'SF' } });
     expect(result).toEqual({ finishReason: 'stop', toolTurns: 1 });
@@ -369,15 +316,7 @@ describe('runAzureToolTurn', () => {
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'again' });
     const events: AzureTurnEvent[] = [];
-    const result = await runAzureToolTurn({
-      apiKey: 'k',
-      baseUrl: 'https://my-resource.openai.azure.com',
-      model: 'gpt-4o-deployment',
-      maxToolTurns: 1,
-      messages: baseMessages,
-      executeTool,
-      onEvent: (e) => events.push(e),
-    });
+    const result = await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: (e) => events.push(e) }, { maxToolTurns: 1, executeTool });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(executeTool).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ finishReason: 'tool_calls', toolTurns: 1 });
@@ -394,13 +333,7 @@ describe('runAzureToolTurn', () => {
     );
     vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: AzureTurnEvent[] = [];
-    const result = await runAzureToolTurn({
-      apiKey: 'k',
-      baseUrl: 'https://my-resource.openai.azure.com',
-      model: 'gpt-4o-deployment',
-      messages: baseMessages,
-      onEvent: (e) => events.push(e),
-    });
+    const result = await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: (e) => events.push(e) });
     const endEvents = events.filter((e) => e.type === 'end');
     expect(endEvents).toEqual([{ type: 'end', reason: 'contaminated' }]);
     expect(events.filter((e) => e.type === 'fabricated_role_marker')).toHaveLength(1);
@@ -413,13 +346,7 @@ describe('runAzureToolTurn', () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(body));
     vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: AzureTurnEvent[] = [];
-    const result = await runAzureToolTurn({
-      apiKey: 'k',
-      baseUrl: 'https://my-resource.openai.azure.com',
-      model: 'gpt-4o-deployment',
-      messages: baseMessages,
-      onEvent: (e) => events.push(e),
-    });
+    const result = await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ finishReason: 'tool_calls', toolTurns: 0 });
     expect(events.filter((e) => e.type === 'end')).toEqual([{ type: 'end', reason: 'stop' }]);
@@ -444,7 +371,7 @@ describe('runAzureToolTurn', () => {
         },
       ];
       await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages, onEvent: () => {} });
-      const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
+      const body = JSON.parse(fetchMock.mock.calls[0]![0].init.body);
       expect(body.messages[0]).toEqual({
         role: 'user',
         content: [
@@ -458,7 +385,7 @@ describe('runAzureToolTurn', () => {
       const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
       vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: () => {} });
-      const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
+      const body = JSON.parse(fetchMock.mock.calls[0]![0].init.body);
       expect(body.messages).toEqual([{ role: 'user', content: 'hi' }]);
     });
 
@@ -474,16 +401,9 @@ describe('runAzureToolTurn', () => {
         ],
       });
       const events: AzureTurnEvent[] = [];
-      await runAzureToolTurn({
-        apiKey: 'k',
-        baseUrl: 'https://my-resource.openai.azure.com',
-        model: 'gpt-4o-deployment',
-        messages: baseMessages,
-        executeTool,
-        onEvent: (e) => events.push(e),
-      });
+      await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: (e) => events.push(e) }, { executeTool });
 
-      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![0].init.body);
       expect(secondCallBody.messages).toHaveLength(4);
       expect(secondCallBody.messages[2]).toEqual({
         role: 'tool',
@@ -514,14 +434,7 @@ describe('runAzureToolTurn', () => {
       vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       const executeTool = vi.fn().mockResolvedValue({ content: [{ type: 'image_url', image_url: { url: 'data:image/tiff;base64,AAAA' } }] });
       const events: AzureTurnEvent[] = [];
-      await runAzureToolTurn({
-        apiKey: 'k',
-        baseUrl: 'https://my-resource.openai.azure.com',
-        model: 'gpt-4o-deployment',
-        messages: baseMessages,
-        executeTool,
-        onEvent: (e) => events.push(e),
-      });
+      await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: (e) => events.push(e) }, { executeTool });
       const toolResultEvent = events.find((e) => e.type === 'tool_result');
       expect(toolResultEvent).toMatchObject({ isError: true });
       expect((toolResultEvent as { content: string }).content).toContain('unsupported image media type');
@@ -546,16 +459,9 @@ describe('runAzureToolTurn', () => {
         .mockResolvedValueOnce({ content: '72F sunny' })
         .mockResolvedValueOnce({ content: [{ type: 'image_url', image_url: { url: pngDataUri } }] })
         .mockResolvedValueOnce({ content: [{ type: 'image_url', image_url: { url: `${pngDataUri}2` } }] });
-      await runAzureToolTurn({
-        apiKey: 'k',
-        baseUrl: 'https://my-resource.openai.azure.com',
-        model: 'gpt-4o-deployment',
-        messages: baseMessages,
-        executeTool,
-        onEvent: () => {},
-      });
+      await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: () => {} }, { executeTool });
 
-      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![0].init.body);
       expect(secondCallBody.messages).toHaveLength(6);
       expect(secondCallBody.messages[2]).toEqual({ role: 'tool', content: '72F sunny', tool_call_id: 'call_1' });
       expect(secondCallBody.messages[3].role).toBe('tool');
@@ -575,32 +481,32 @@ describe('runAzureToolTurn', () => {
 
 describe('unit: azureLoopExitReason', () => {
   it('returns "stop" when finishReason is not "tool_calls"', () => {
-    expect(azureLoopExitReason({ finishReason: 'stop', toolCalls: [], text: '' }, 0, 8)).toBe('stop');
+    expect(azureLoopExitReason({ outcome: { finishReason: 'stop', toolCalls: [], text: '' }, toolTurns: 0, maxToolTurns: 8 })).toBe('stop');
   });
 
   it('returns "stop" when finishReason is "tool_calls" but toolCalls is empty', () => {
-    expect(azureLoopExitReason({ finishReason: 'tool_calls', toolCalls: [], text: '' }, 0, 8)).toBe('stop');
+    expect(azureLoopExitReason({ outcome: { finishReason: 'tool_calls', toolCalls: [], text: '' }, toolTurns: 0, maxToolTurns: 8 })).toBe('stop');
   });
 
   it('returns "max_tool_turns" once toolTurns reaches the ceiling', () => {
     const outcome = { finishReason: 'tool_calls', toolCalls: [{ id: '1', name: 'f', input: {} }], text: '' };
-    expect(azureLoopExitReason(outcome, 8, 8)).toBe('max_tool_turns');
+    expect(azureLoopExitReason({ outcome: outcome, toolTurns: 8, maxToolTurns: 8 })).toBe('max_tool_turns');
   });
 
   it('returns null (continue the loop) when there are pending tool calls under the ceiling', () => {
     const outcome = { finishReason: 'tool_calls', toolCalls: [{ id: '1', name: 'f', input: {} }], text: '' };
-    expect(azureLoopExitReason(outcome, 2, 8)).toBeNull();
+    expect(azureLoopExitReason({ outcome: outcome, toolTurns: 2, maxToolTurns: 8 })).toBeNull();
   });
 });
 
 describe('unit: buildAzureAssistantToolCalls', () => {
   it('builds one { id, type: "function", function: { name, arguments } } entry per call, JSON-stringifying input', () => {
     const calls: AzureToolCall[] = [{ id: 'c1', name: 'f1', input: { a: 1 } }];
-    expect(buildAzureAssistantToolCalls(calls)).toEqual([{ id: 'c1', type: 'function', function: { name: 'f1', arguments: '{"a":1}' } }]);
+    expect(buildAzureAssistantToolCalls({ toolCalls: calls })).toEqual([{ id: 'c1', type: 'function', function: { name: 'f1', arguments: '{"a":1}' } }]);
   });
 
   it('returns an empty array for no calls', () => {
-    expect(buildAzureAssistantToolCalls([])).toEqual([]);
+    expect(buildAzureAssistantToolCalls({ toolCalls: [] })).toEqual([]);
   });
 });
 
@@ -609,7 +515,7 @@ describe('unit: executeAzureToolCalls', () => {
     const executeTool = vi.fn().mockResolvedValue({ content: 'ok' });
     const calls: AzureToolCall[] = [{ id: 'c1', name: 'f1', input: {} }];
     const events: AzureTurnEvent[] = [];
-    const outcome = await executeAzureToolCalls(executeTool, calls, (e) => events.push(e));
+    const outcome = await executeAzureToolCalls({ executeTool: executeTool, calls: calls, onEvent: (e) => events.push(e) });
     expect(outcome.toolResultMessages).toEqual([{ role: 'tool', content: 'ok', tool_call_id: 'c1' }]);
     expect(outcome.followUpParts).toEqual([]);
     expect(events).toEqual([{ type: 'tool_result', toolUseId: 'c1', content: 'ok', isError: false }]);
@@ -619,7 +525,7 @@ describe('unit: executeAzureToolCalls', () => {
     const imagePart: AzureContentPart = { type: 'image_url', image_url: { url: 'data:image/png;base64,YQ==' } };
     const executeTool = vi.fn().mockResolvedValue({ content: [imagePart] });
     const calls: AzureToolCall[] = [{ id: 'c1', name: 'shot', input: {} }];
-    const outcome = await executeAzureToolCalls(executeTool, calls, () => {});
+    const outcome = await executeAzureToolCalls({ executeTool: executeTool, calls: calls, onEvent: () => {} });
     expect(outcome.toolResultMessages[0]).toMatchObject({ role: 'tool', tool_call_id: 'c1' });
     expect(outcome.followUpParts[0]).toEqual({ type: 'text', text: 'Image output from tool `shot` (tool_call_id: c1):' });
     expect(outcome.followUpParts[1]).toEqual(imagePart);
@@ -630,7 +536,7 @@ describe('unit: executeAzureToolCalls', () => {
     const executeTool = vi.fn().mockResolvedValue({ content: [badPart] });
     const events: AzureTurnEvent[] = [];
     const calls: AzureToolCall[] = [{ id: 'c1', name: 'shot', input: {} }];
-    const outcome = await executeAzureToolCalls(executeTool, calls, (e) => events.push(e));
+    const outcome = await executeAzureToolCalls({ executeTool: executeTool, calls: calls, onEvent: (e) => events.push(e) });
     expect(events[0]).toMatchObject({ isError: true });
     expect(outcome.toolResultMessages[0]).toMatchObject({ role: 'tool' });
   });
@@ -642,7 +548,7 @@ describe('unit: executeAzureToolCalls', () => {
       { id: 'c1', name: 'f1', input: {} },
       { id: 'c2', name: 'f2', input: {} },
     ];
-    const outcome = await executeAzureToolCalls(executeTool, calls, () => {});
+    const outcome = await executeAzureToolCalls({ executeTool: executeTool, calls: calls, onEvent: () => {} });
     expect(outcome.toolResultMessages).toHaveLength(2);
     expect(outcome.followUpParts).toHaveLength(2); // label + image, only for c2
   });
@@ -651,7 +557,7 @@ describe('unit: executeAzureToolCalls', () => {
 describe('unit: buildAzureToolExchangeMessages', () => {
   it('appends no follow-up message when followUpParts is empty', () => {
     const toolMessages: AzureMessageParam[] = [{ role: 'tool', content: 'ok', tool_call_id: 'c1' }];
-    expect(buildAzureToolExchangeMessages(toolMessages, [])).toEqual(toolMessages);
+    expect(buildAzureToolExchangeMessages({ toolResultMessages: toolMessages, followUpParts: [] })).toEqual(toolMessages);
   });
 
   it('appends exactly one user-role follow-up message carrying every followUpParts entry when non-empty', () => {
@@ -660,7 +566,7 @@ describe('unit: buildAzureToolExchangeMessages', () => {
       { type: 'text', text: 'label' },
       { type: 'image_url', image_url: { url: 'data:image/png;base64,YQ==' } },
     ];
-    const result = buildAzureToolExchangeMessages(toolMessages, followUpParts);
+    const result = buildAzureToolExchangeMessages({ toolResultMessages: toolMessages, followUpParts: followUpParts });
     expect(result).toEqual([...toolMessages, { role: 'user', content: followUpParts }]);
   });
 });

@@ -11,7 +11,9 @@
  */
 import net from 'node:net';
 import type { NextFunction, Request, Response } from 'express';
-import { sendApiError } from './compat.js';
+import { isLoopbackHostname } from '@jini-ai/platform/net';
+import { createCompatApiError } from './compat.js';
+import { sendApiError } from './response.js';
 
 interface LocalAuthority {
   hostname: string;
@@ -29,14 +31,16 @@ interface LocalDaemonValidationError {
   details: Record<string, string>;
 }
 
-/** Parses a `Host`-header-shaped authority string, rejecting anything with a path/userinfo/query. */
-export function normalizeLocalAuthority(value: unknown): LocalAuthority | null {
+/** Parses a `Host`-header-shaped authority string, rejecting anything with a path/userinfo/query/fragment. */
+export function normalizeLocalAuthority({ value }: { readonly value: unknown }, _optional: Record<string, never> = {}): LocalAuthority | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  if (!trimmed || /[\s/@]/.test(trimmed) || trimmed.includes(',')) return null;
+  if (!trimmed || /[\s/@?\\#]/.test(trimmed) || trimmed.includes(',')) return null;
 
   try {
-    // The guard above already rejects any `/`, `@`, or whitespace in `trimmed`, and the WHATWG
+    // Reject delimiters before parsing: WHATWG URL parsing would otherwise silently discard a
+    // query/fragment (including a bare `?`/`#`) or turn a backslash into a path separator.
+    // The guard above already rejects any path delimiter, `@`, or whitespace in `trimmed`, and the WHATWG
     // URL parser requires a non-empty host for an `http:` URL — so `parsed.hostname` is always
     // non-empty and `parsed.pathname` is always `/` for every `trimmed` value that reaches this
     // line without throwing. `hostname` below can still end up empty after stripping a trailing
@@ -50,31 +54,19 @@ export function normalizeLocalAuthority(value: unknown): LocalAuthority | null {
   }
 }
 
-/** True when `hostname` is `localhost`, an IPv6 loopback literal, or a `127.0.0.0/8` IPv4 literal. */
-export function isLoopbackHostname(hostname: unknown): boolean {
-  const normalized = String(hostname || '')
-    .toLowerCase()
-    .replace(/^\[|\]$/g, '')
-    .replace(/\.$/, '');
-  if (normalized === 'localhost') return true;
-  if (normalized === '::1' || normalized === '0:0:0:0:0:0:0:1') return true;
-  if (net.isIP(normalized) === 4) return normalized === '127.0.0.1' || normalized.startsWith('127.');
-  return false;
-}
-
 /** True when `address` (typically `req.socket.remoteAddress`) is a loopback peer, unwrapping an IPv4-mapped IPv6 prefix first. */
-export function isLoopbackPeerAddress(address: unknown): boolean {
+export function isLoopbackPeerAddress({ address }: { readonly address: unknown }, _optional: Record<string, never> = {}): boolean {
   if (typeof address !== 'string') return false;
   const normalized = address.trim().toLowerCase().replace(/^\[|\]$/g, '');
   if (!normalized) return false;
-  if (normalized.startsWith('::ffff:')) return isLoopbackPeerAddress(normalized.slice('::ffff:'.length));
+  if (normalized.startsWith('::ffff:')) return isLoopbackPeerAddress({ address: normalized.slice('::ffff:'.length) });
   if (normalized === '::1' || normalized === '0:0:0:0:0:0:0:1') return true;
   if (net.isIP(normalized) === 4) return normalized === '127.0.0.1' || normalized.startsWith('127.');
   return false;
 }
 
 /** Parses an `Origin` header value into its origin string, requiring a bare `scheme://loopback-host[:port]` with no path/query/userinfo. */
-export function localOriginFromHeader(value: unknown): string | null {
+export function localOriginFromHeader({ value }: { readonly value: unknown }, _optional: Record<string, never> = {}): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (!trimmed || trimmed === 'null' || trimmed.includes(',')) return null;
@@ -83,7 +75,7 @@ export function localOriginFromHeader(value: unknown): string | null {
     const parsed = new URL(trimmed);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
     if (parsed.pathname !== '/' || parsed.search || parsed.hash || parsed.username || parsed.password) return null;
-    if (!isLoopbackHostname(parsed.hostname)) return null;
+    if (!isLoopbackHostname({ hostname: parsed.hostname })) return null;
     return parsed.origin;
   } catch {
     return null;
@@ -100,8 +92,8 @@ export function localOriginFromHeader(value: unknown): string | null {
  *   `null` when the request carried none); otherwise `{ ok: false, message, details }` naming which
  *   check failed.
  */
-export function validateLocalDaemonRequest(req: Request): LocalDaemonValidation | LocalDaemonValidationError {
-  if (!isLoopbackPeerAddress(req.socket?.remoteAddress)) {
+export function validateLocalDaemonRequest({ req }: { readonly req: Request }, _optional: Record<string, never> = {}): LocalDaemonValidation | LocalDaemonValidationError {
+  if (!isLoopbackPeerAddress({ address: req.socket?.remoteAddress })) {
     return {
       ok: false,
       message: 'request peer must be a loopback address',
@@ -109,8 +101,8 @@ export function validateLocalDaemonRequest(req: Request): LocalDaemonValidation 
     };
   }
 
-  const host = normalizeLocalAuthority(req.get('host'));
-  if (!host || !isLoopbackHostname(host.hostname)) {
+  const host = normalizeLocalAuthority({ value: req.get('host') });
+  if (!host || !isLoopbackHostname({ hostname: host.hostname })) {
     return {
       ok: false,
       message: 'request host must be a loopback daemon address',
@@ -119,7 +111,7 @@ export function validateLocalDaemonRequest(req: Request): LocalDaemonValidation 
   }
 
   const originHeader = req.get('origin');
-  if (originHeader !== undefined && !localOriginFromHeader(originHeader)) {
+  if (originHeader !== undefined && !localOriginFromHeader({ value: originHeader })) {
     return {
       ok: false,
       message: 'request origin must be a loopback daemon origin',
@@ -127,7 +119,7 @@ export function validateLocalDaemonRequest(req: Request): LocalDaemonValidation 
     };
   }
 
-  return { ok: true, origin: localOriginFromHeader(originHeader) };
+  return { ok: true, origin: localOriginFromHeader({ value: originHeader }) };
 }
 
 /**
@@ -138,10 +130,11 @@ export function validateLocalDaemonRequest(req: Request): LocalDaemonValidation 
  * @param res - The response to reject on, or set CORS headers on before continuing.
  * @param next - Called when the request validates as loopback.
  */
-export function requireLocalDaemonRequest(req: Request, res: Response, next: NextFunction): void | Response {
-  const validation = validateLocalDaemonRequest(req);
+export function requireLocalDaemonRequest({ req, res, next }: { readonly req: Request; readonly res: Response; readonly next: NextFunction }, _optional: Record<string, never> = {}): void | Response {
+  const validation = validateLocalDaemonRequest({ req });
   if (!validation.ok) {
-    return sendApiError(res, 403, 'FORBIDDEN', validation.message, { details: validation.details });
+    sendApiError({ res, status: 403, error: createCompatApiError({ code: 'FORBIDDEN', message: validation.message }, { details: validation.details }) });
+    return;
   }
 
   res.setHeader('Vary', 'Origin');

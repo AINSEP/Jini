@@ -2,7 +2,7 @@
  * Provider: ImageRouter — OpenAI-compatible image + video generation
  * routing (`https://api.imagerouter.io/v1/openai`). Ported near-verbatim
  * from Open Design's `apps/daemon/src/media/index.ts`
- * `renderImageRouterImage`/`renderImageRouterVideo` — see `source-map.md`.
+ * `renderImageRouterImage`/`renderImageRouterVideo` — see `archived provenance ledger`.
  *
  * 2026-07-21: migrated onto the generic vendor-adapter dispatch engine
  * (`vendor-adapter.ts`/`vendor-registry.ts`) — two adapters registered on
@@ -30,7 +30,7 @@ import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
 import { mediaVendorRegistry } from '../vendor-registry.js';
 
 /** ImageRouter's image/video generation `size` string for a given aspect ratio. */
-export function imageRouterSizeFor(aspect: string | undefined, surface: 'image' | 'video'): string {
+export function imageRouterSizeFor({ aspect, surface }: { aspect: string | undefined; surface: 'image' | 'video' }): string {
   if (surface === 'video') {
     if (aspect === '1:1') return '1024x1024';
     if (aspect === '9:16') return '576x1024';
@@ -53,13 +53,13 @@ interface ImageRouterMeta {
 }
 
 const imageRouterImageAdapter: VendorAdapter<ImageRouterMeta> = {
-  requireCredential: requireApiKey(NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<ImageRouterMeta> {
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<ImageRouterMeta> {
     const apiKey = credentials.apiKey!; // requireCredential already validated this.
     const baseUrl = (credentials.baseUrl || 'https://api.imagerouter.io/v1/openai').trim();
     const wireModel = (credentials.model || ctx.wireModel).trim();
-    const size = imageRouterSizeFor(ctx.aspect, 'image');
+    const size = imageRouterSizeFor({ aspect: ctx.aspect, surface: 'image' });
     const body: Record<string, unknown> = {
       prompt: ctx.prompt || 'A high-quality reference image.',
       model: wireModel,
@@ -83,9 +83,9 @@ const imageRouterImageAdapter: VendorAdapter<ImageRouterMeta> = {
     };
   },
 
-  async parseResponse(resp: Response, ctx: RenderContext, request: VendorRequest<ImageRouterMeta>): Promise<RenderResult> {
+  async parseResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<ImageRouterMeta> }): Promise<RenderResult> {
     const data = await parseOpenAICompatibleJson(resp, 'imagerouter image');
-    const bytes = await bytesFromOpenAICompatibleData(data, 'imagerouter image', ctx.requestInit);
+    const bytes = await bytesFromOpenAICompatibleData({ data, providerTag: 'imagerouter image' }, ctx);
     return {
       bytes,
       providerNote: `imagerouter/${request.meta.wireModel} · ${request.meta.size} · ${bytes.length} bytes`,
@@ -94,10 +94,10 @@ const imageRouterImageAdapter: VendorAdapter<ImageRouterMeta> = {
   },
 };
 
-mediaVendorRegistry.register('imagerouter', 'image', imageRouterImageAdapter);
+mediaVendorRegistry.register({ providerId: 'imagerouter', routeKey: 'image', adapter: imageRouterImageAdapter });
 
-export async function renderImageRouterImage(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(imageRouterImageAdapter, ctx, credentials);
+export async function renderImageRouterImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: imageRouterImageAdapter, ctx: ctx, credentials: credentials });
 }
 
 interface ImageRouterVideoMeta {
@@ -107,14 +107,14 @@ interface ImageRouterVideoMeta {
 }
 
 const imageRouterVideoAdapter: VendorAdapter<ImageRouterVideoMeta> = {
-  requireCredential: requireApiKey(NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<ImageRouterVideoMeta> {
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<ImageRouterVideoMeta> {
     const apiKey = credentials.apiKey!; // requireCredential already validated this.
     const baseUrl = (credentials.baseUrl || 'https://api.imagerouter.io/v1/openai').trim();
     const wireModel = (credentials.model || ctx.wireModel).trim();
     const seconds = typeof ctx.length === 'number' ? ctx.length : 'auto';
-    const size = imageRouterSizeFor(ctx.aspect, 'video');
+    const size = imageRouterSizeFor({ aspect: ctx.aspect, surface: 'video' });
     const body: Record<string, unknown> = {
       prompt: ctx.prompt || 'A short cinematic clip.',
       model: wireModel,
@@ -137,9 +137,9 @@ const imageRouterVideoAdapter: VendorAdapter<ImageRouterVideoMeta> = {
     };
   },
 
-  async parseResponse(resp: Response, ctx: RenderContext, request: VendorRequest<ImageRouterVideoMeta>): Promise<RenderResult> {
+  async parseResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<ImageRouterVideoMeta> }): Promise<RenderResult> {
     const data = await parseOpenAICompatibleJson(resp, 'imagerouter video');
-    const bytes = await bytesFromOpenAICompatibleData(data, 'imagerouter video', ctx.requestInit);
+    const bytes = await bytesFromOpenAICompatibleData({ data, providerTag: 'imagerouter video' }, ctx);
     const { wireModel, size, seconds } = request.meta;
     return {
       bytes,
@@ -149,8 +149,8 @@ const imageRouterVideoAdapter: VendorAdapter<ImageRouterVideoMeta> = {
   },
 };
 
-mediaVendorRegistry.register('imagerouter', 'video', imageRouterVideoAdapter);
+mediaVendorRegistry.register({ providerId: 'imagerouter', routeKey: 'video', adapter: imageRouterVideoAdapter });
 
-export async function renderImageRouterVideo(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(imageRouterVideoAdapter, ctx, credentials);
+export async function renderImageRouterVideo({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: imageRouterVideoAdapter, ctx: ctx, credentials: credentials });
 }

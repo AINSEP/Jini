@@ -1,49 +1,27 @@
 /*
- * Tailwind entry point for interactive-ui only — NOT loaded by the rest of `ui`, and this file
- * scans no further than `providers/**` (see `@source` below), not the whole package. A consumer
- * who wants a registry provider's real styling imports "@jini-ai/ui/interactive-ui.css"
- * explicitly; nothing else in this package depends on Tailwind existing at all.
+ * This Tailwind entry point is opt-in through "@jini-ai/ui/interactive-ui.css";
+ * the rest of ui does not load it or require Tailwind. Restrict source scanning
+ * to providers so importing their real styles does not scan the whole package.
  */
+@import "../../styles/variables.css";
 @import "tailwindcss" source(none);
 @source "./providers/**/*.{ts,tsx}";
 
-/* shadcn's default theme tokens (New York style, zinc base) — ported verbatim so a provider's
- * component source (pulled via the real shadcn CLI, see providers/shadcn/) needs no adaptation. */
-@theme {
-  --color-border: hsl(240 5.9% 90%);
-  --color-input: hsl(240 5.9% 90%);
-  --color-ring: hsl(240 5.9% 10%);
-  --color-background: hsl(0 0% 100%);
-  --color-foreground: hsl(240 10% 3.9%);
-  --color-primary: hsl(240 5.9% 10%);
-  --color-primary-foreground: hsl(0 0% 98%);
-  --color-secondary: hsl(240 4.8% 95.9%);
-  --color-secondary-foreground: hsl(240 5.9% 10%);
-  --color-muted: hsl(240 4.8% 95.9%);
-  --color-muted-foreground: hsl(240 3.8% 46.1%);
-  --color-accent: hsl(240 4.8% 95.9%);
-  --color-accent-foreground: hsl(240 5.9% 10%);
-  --color-destructive: hsl(0 84.2% 60.2%);
-  --color-destructive-foreground: hsl(0 0% 98%);
-  --radius: 0.5rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  @theme {
-    --color-border: hsl(240 3.7% 15.9%);
-    --color-input: hsl(240 3.7% 15.9%);
-    --color-ring: hsl(240 4.9% 83.9%);
-    --color-background: hsl(240 10% 3.9%);
-    --color-foreground: hsl(0 0% 98%);
-    --color-primary: hsl(0 0% 98%);
-    --color-primary-foreground: hsl(240 5.9% 10%);
-    --color-secondary: hsl(240 3.7% 15.9%);
-    --color-secondary-foreground: hsl(0 0% 98%);
-    --color-muted: hsl(240 3.7% 15.9%);
-    --color-muted-foreground: hsl(240 5% 64.9%);
-    --color-accent: hsl(240 3.7% 15.9%);
-    --color-accent-foreground: hsl(0 0% 98%);
-    --color-destructive: hsl(0 62.8% 30.6%);
-    --color-destructive-foreground: hsl(0 0% 98%);
-  }
+@theme inline {
+  --color-border: var(--jini-border);
+  --color-input: var(--jini-border);
+  --color-ring: var(--jini-primary);
+  --color-background: var(--jini-bg);
+  --color-foreground: var(--jini-text);
+  --color-primary: var(--jini-primary);
+  --color-primary-foreground: var(--jini-primary-ink);
+  --color-secondary: var(--jini-surface);
+  --color-secondary-foreground: var(--jini-text);
+  --color-muted: var(--jini-surface);
+  --color-muted-foreground: var(--jini-muted);
+  --color-accent: var(--jini-surface);
+  --color-accent-foreground: var(--jini-text);
+  --color-destructive: var(--jini-danger);
+  --color-destructive-foreground: var(--jini-bg);
+  --radius: var(--jini-radius);
 }

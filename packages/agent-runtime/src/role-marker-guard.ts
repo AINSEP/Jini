@@ -13,7 +13,7 @@
  * Ported verbatim from OD's `apps/daemon/src/role-marker-guard.ts` (a
  * top-level daemon file, not under `runtimes/`, but consumed by
  * `claude-stream.ts` and self-contained with no product coupling — see
- * `source-map.md`).
+ * `archived provenance ledger`).
  */
 
 // Regex matching fabricated role-marker lines injected by the model into
@@ -147,7 +147,7 @@ export interface RoleMarkerGuard {
   /** Feed a text delta for the current message. Returns the safe portion
    *  to emit (may be shorter than `text` if a marker was found mid-chunk,
    *  or empty string if the entire chunk is past the cut point). */
-  feedText(text: string): string;
+  feedText(requiredArgs: { text: string }): string;
   /** Whether a fabricated marker was detected (further text is dropped). */
   readonly contaminated: boolean;
   /** If contaminated, the warning event to emit. `null` if clean. */
@@ -163,9 +163,9 @@ export interface RoleMarkerGuard {
  *
  * Usage in a stream handler:
  *
- *   const guard = createRoleMarkerGuard(messageId);
+ *   const guard = createRoleMarkerGuard({ messageId });
  *   for (const delta of deltas) {
- *     const safe = guard.feedText(delta.text);
+ *     const safe = guard.feedText({ text: delta.text });
  *     if (safe.length > 0) onEvent({ type: 'text_delta', delta: safe });
  *     if (guard.contaminated) {
  *       onEvent(guard.warningEvent()!);
@@ -173,7 +173,7 @@ export interface RoleMarkerGuard {
  *     }
  *   }
  */
-export function createRoleMarkerGuard(messageId: string): RoleMarkerGuard {
+export function createRoleMarkerGuard({ messageId }: { messageId: string }): RoleMarkerGuard {
   // Rolling tail of the bytes we have ALREADY EMITTED, capped at
   // TAIL_BUFFER_SIZE. Used as the prefix when matching against new
   // text so we catch markers that straddle a chunk boundary.
@@ -211,7 +211,7 @@ export function createRoleMarkerGuard(messageId: string): RoleMarkerGuard {
       return _contaminated;
     },
 
-    feedText(text: string): string {
+    feedText({ text }: { text: string }): string {
       if (_contaminated) return '';
       if (text.length === 0) return '';
 

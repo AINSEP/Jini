@@ -10,9 +10,9 @@
  * drops the three OD-self-referential entries the origin had for `amr`,
  * `pi`, and `hermes` (an install URL and two docs URLs that pointed at
  * OD's own site/fork rather than at the third-party CLI vendor — see
- * `source-map.md` for the exact original URLs), so they don't belong in a
+ * `archived provenance ledger` for the exact original URLs), so they don't belong in a
  * product-neutral default. Every other agent's real third-party vendor
- * link is unchanged. See `source-map.md`.
+ * link is unchanged. See `archived provenance ledger`.
  */
 export type AgentInstallMeta = { installUrl?: string; docsUrl?: string };
 
@@ -128,9 +128,7 @@ function sanitizeHttpsUrl(value: string | undefined): string | undefined {
   }
 }
 
-export function installMetaForAgent(
-  agentId: string,
-  table: Record<string, AgentInstallMeta> = DEFAULT_AGENT_INSTALL_LINKS,
+export function installMetaForAgent({ agentId }: { agentId: string }, { table = DEFAULT_AGENT_INSTALL_LINKS }: { table?: Record<string, AgentInstallMeta> } = {}
 ): AgentInstallMeta {
   const meta = table[agentId];
   if (!meta) return {};

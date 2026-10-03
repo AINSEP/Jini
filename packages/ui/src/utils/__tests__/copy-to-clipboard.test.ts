@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { copyToClipboard } from '../copy-to-clipboard.js';
 
 // This package has no jsdom/happy-dom test environment wired up yet (see
-// packages/ui/source-map.md), so DOM globals are stubbed by hand here with
+// packages/ui/archived provenance ledger), so DOM globals are stubbed by hand here with
 // the minimum surface `copyToClipboard` actually touches, rather than
 // pulling in a full DOM test environment for one function.
 
@@ -47,7 +47,7 @@ describe('copyToClipboard', () => {
     vi.stubGlobal('navigator', { clipboard: { writeText } });
     const { appendChild } = installFakeDom({ execCommandResult: true });
 
-    await expect(copyToClipboard('hello')).resolves.toBe(true);
+    await expect(copyToClipboard({ text: 'hello' })).resolves.toBe(true);
     expect(writeText).toHaveBeenCalledWith('hello');
     expect(appendChild).not.toHaveBeenCalled();
   });
@@ -64,7 +64,7 @@ describe('copyToClipboard', () => {
         execCommandResult: true,
       });
 
-      await expect(copyToClipboard('fallback text')).resolves.toBe(true);
+      await expect(copyToClipboard({ text: 'fallback text' })).resolves.toBe(true);
       expect(appendChild).toHaveBeenCalledTimes(1);
       expect(execCommand).toHaveBeenCalledWith('copy');
       expect(removeChild).toHaveBeenCalledTimes(1);
@@ -73,12 +73,12 @@ describe('copyToClipboard', () => {
 
     it('returns false when execCommand reports failure', async () => {
       installFakeDom({ execCommandResult: false });
-      await expect(copyToClipboard('x')).resolves.toBe(false);
+      await expect(copyToClipboard({ text: 'x' })).resolves.toBe(false);
     });
 
     it('returns false when execCommand throws', async () => {
       const { removeChild } = installFakeDom({ execCommandResult: 'throw' });
-      await expect(copyToClipboard('x')).resolves.toBe(false);
+      await expect(copyToClipboard({ text: 'x' })).resolves.toBe(false);
       // Cleanup still runs even when execCommand throws.
       expect(removeChild).toHaveBeenCalledTimes(1);
     });
@@ -95,7 +95,7 @@ describe('copyToClipboard', () => {
         body: { appendChild, removeChild },
       });
 
-      await expect(copyToClipboard('x')).resolves.toBe(true);
+      await expect(copyToClipboard({ text: 'x' })).resolves.toBe(true);
       expect(removeChild).toHaveBeenCalledTimes(1);
     });
 
@@ -114,7 +114,7 @@ describe('copyToClipboard', () => {
         body: { appendChild, removeChild },
       });
 
-      await expect(copyToClipboard('x')).resolves.toBe(true);
+      await expect(copyToClipboard({ text: 'x' })).resolves.toBe(true);
       expect(focusSpy).not.toHaveBeenCalled();
     });
 
@@ -136,7 +136,7 @@ describe('copyToClipboard', () => {
         body: { appendChild, removeChild },
       });
 
-      await expect(copyToClipboard('x')).resolves.toBe(true);
+      await expect(copyToClipboard({ text: 'x' })).resolves.toBe(true);
       expect(focusCalls).toEqual([{ preventScroll: true }, undefined]);
     });
   });

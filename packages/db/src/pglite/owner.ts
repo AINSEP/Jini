@@ -10,6 +10,7 @@ import {
   openSync,
   readFileSync,
   renameSync,
+  rmdirSync,
   rmSync,
   statSync,
   unlinkSync,
@@ -20,14 +21,14 @@ import { dirname, join, resolve } from "node:path";
 
 import type { PGlite } from "@electric-sql/pglite";
 
-import { PGLITE_SOCKET_FILE } from "../kernel/index.js";
+import { PGLITE_SOCKET_FILE } from "../core/index.js";
 import { PgliteSocketServer } from "./socket-server.js";
 import type { PgliteClass } from "./types.js";
 
 /**
  * @file The PGlite OWNER: the one process that opens a PGlite data dir and serves it on a private
  * Unix socket, so several processes share one database as ordinary Postgres clients
- * (`@jini-ai/db/postgres`'s `openPgliteSocketKernel`).
+ * (`@jini-ai/db/kernel/postgres`'s `openPgliteSocketKernel`).
  *
  * The consumer passes its own `PGlite` class (this package never imports `@electric-sql/pglite`)
  * and names its lock file and run directory, so two apps never share either.
@@ -62,7 +63,6 @@ export function pgliteLowMemoryStartParams(pglite: Pick<PgliteClass, "defaultSta
   return [...pglite.defaultStartParams, ...PGLITE_LOW_MEMORY_SETTINGS];
 }
 
-export { PGLITE_SOCKET_FILE };
 /** `sun_path` is 104 bytes on macOS including the terminating NUL. */
 const MAX_SOCKET_PATH_BYTES = 103;
 
@@ -187,14 +187,6 @@ function parsePid(text: string): number | undefined {
   return Number.isSafeInteger(pid) && pid > 0 ? pid : undefined;
 }
 
-function readLockPid(lockPath: string): number | undefined {
-  try {
-    return parsePid(readFileSync(lockPath, "utf8"));
-  } catch {
-    return undefined;
-  }
-}
-
 /** A lock with no pid in it (left by an older build between create and write) is stale only after this long. */
 const EMPTY_LOCK_STALE_MS = 10_000;
 
@@ -241,7 +233,7 @@ function tryCreateLock(lockPath: string): boolean {
  * inode, so a lock another starter took over in the meantime is put back, not deleted.
  * @throws PgliteOwnerLockedError when the lock moved aside was a newer one.
  */
-function removeStaleLock(dataDir: string, lockPath: string, seen: LockSeen): void {
+function moveStaleLock(dataDir: string, lockPath: string, seen: LockSeen): void {
   const aside = `${lockPath}.stale.${process.pid}.${randomBytes(4).toString("hex")}`;
   try {
     renameSync(lockPath, aside);
@@ -264,10 +256,45 @@ function removeStaleLock(dataDir: string, lockPath: string, seen: LockSeen): voi
   throw new PgliteOwnerLockedError(dataDir, moved?.pid);
 }
 
+/** Whether an observed lock is eligible for takeover; a fresh empty file remains contended. */
+function isStaleLock(seen: LockSeen): boolean {
+  if (seen.pid === undefined) return Date.now() - seen.mtimeMs > EMPTY_LOCK_STALE_MS;
+  return !pidAlive(seen.pid);
+}
+
+/**
+ * Serializes removal of one observed inode, then rechecks it before renaming. Without this guard,
+ * a delayed reaper can rename a newer live lock and let a third starter into that temporary gap.
+ * @throws PgliteOwnerLockedError if another reaper holds the guard or the lock became live.
+ * @complexity O(L) time/space for L bytes in the pid file, with a bounded number of filesystem calls.
+ * @tradeoffs An interrupted reaper can leave this empty guard directory. Fail closed: an operator
+ * must confirm no starter is running before removing it; automatic guard takeover would recreate
+ * the same compare/rename race on the guard itself.
+ */
+function removeStaleLock(dataDir: string, lockPath: string, seen: LockSeen): void {
+  const guard = `${lockPath}.reaping-${seen.ino}`;
+  try {
+    mkdirSync(guard, { mode: 0o700 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new PgliteOwnerLockedError(dataDir, undefined);
+    throw error;
+  }
+  try {
+    const current = inspectLock(lockPath);
+    if (current?.ino !== seen.ino) return; // a previous reaper already removed this inode
+    if (!isStaleLock(current)) throw new PgliteOwnerLockedError(dataDir, current.pid);
+    moveStaleLock(dataDir, lockPath, current);
+  } finally {
+    rmdirSync(guard);
+  }
+}
+
 /**
  * Takes the data dir's owner lock: created atomically with our pid in it. A lock whose pid is dead
  * (or that has had no pid for {@link EMPTY_LOCK_STALE_MS}) is taken over; a live one — including
- * this process's own — or a fresh one with no pid yet refuses. Returns the release function.
+ * this process's own — or a fresh one with no pid yet refuses. Returns an idempotent release
+ * function that only removes the inode acquired by this call.
+ * @complexity O(L) time/space for L bytes in a pid file; at most five acquisition attempts.
  */
 export function acquireOwnerLock(required: { dataDir: string; lockFileName: string }): () => void {
   const { dataDir } = required;
@@ -275,15 +302,18 @@ export function acquireOwnerLock(required: { dataDir: string; lockFileName: stri
   const lockPath = join(dataDir, required.lockFileName);
   for (let attempt = 0; attempt < 5; attempt += 1) {
     if (tryCreateLock(lockPath)) {
+      const acquiredInode = statSync(lockPath).ino;
+      let released = false;
       return () => {
-        if (readLockPid(lockPath) === process.pid) rmSync(lockPath, { force: true });
+        if (released) return;
+        released = true;
+        const current = inspectLock(lockPath);
+        if (current?.ino === acquiredInode && current.pid === process.pid) rmSync(lockPath, { force: true });
       };
     }
     const seen = inspectLock(lockPath);
     if (seen === undefined) continue; // released in between
-    const stale =
-      seen.pid === undefined ? Date.now() - seen.mtimeMs > EMPTY_LOCK_STALE_MS : !pidAlive(seen.pid);
-    if (!stale) throw new PgliteOwnerLockedError(dataDir, seen.pid);
+    if (!isStaleLock(seen)) throw new PgliteOwnerLockedError(dataDir, seen.pid);
     removeStaleLock(dataDir, lockPath, seen);
   }
   throw new Error(`could not take the PGlite owner lock ${lockPath}`);

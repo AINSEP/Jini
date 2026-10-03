@@ -139,11 +139,11 @@ describe('ArtifactView', () => {
     // change canRender/supportsStreaming) without also supplying a
     // renderPartial — ArtifactView must still safely convert the content
     // itself rather than passing raw markdown through unconverted.
-    const customRegistry = registry.register({
+    const customRegistry = registry.register({ renderer: {
       id: 'markdown',
       supportsStreaming: false,
       canRender: ({ file }) => file.name.endsWith('.md'),
-    });
+    } });
     const file: ArtifactFile = { name: 'notes.md', kind: 'text', content: '# Fallback works', manifest: markdownManifest };
     const { container } = render(<ArtifactView file={file} registry={customRegistry} />);
     expect(container.querySelector('h1')).toHaveTextContent('Fallback works');
@@ -155,11 +155,11 @@ describe('ArtifactView', () => {
     // has one), so they never exercise the `file.content ?? ''` fallback on
     // the *other* branch of that ternary — the one taken when the resolved
     // renderer has no renderPartial of its own.
-    const customRegistry = registry.register({
+    const customRegistry = registry.register({ renderer: {
       id: 'markdown',
       supportsStreaming: false,
       canRender: ({ file }) => file.name.endsWith('.md'),
-    });
+    } });
     const file: ArtifactFile = { name: 'notes.md', kind: 'text', manifest: markdownManifest };
     const { container } = render(<ArtifactView file={file} registry={customRegistry} />);
     expect(container.textContent).not.toContain('undefined');

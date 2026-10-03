@@ -44,6 +44,10 @@ export interface BuildMcpInstallPayloadInputs {
    *  propagated into the snippet. The caller decides what's worth
    *  propagating; this builder just merges. */
   sidecarEnv: Record<string, string>;
+}
+
+/** Optional launch settings, separated from required runtime facts. */
+export interface BuildMcpInstallPayloadOptions {
   /** Browser-facing base URL (e.g. `http://127.0.0.1:65321`). Used by MCP
    *  clients to build deep links so the outer agent can suggest a URL. Null
    *  when the daemon was launched without a known web port (headless). */
@@ -81,8 +85,9 @@ export interface McpInstallPayload {
  */
 export function buildMcpInstallPayload(
   inputs: BuildMcpInstallPayloadInputs,
+  options: BuildMcpInstallPayloadOptions = {},
 ): McpInstallPayload {
-  const subcommand = inputs.subcommand ?? 'mcp';
+  const subcommand = options.subcommand ?? 'mcp';
   const hints: string[] = [];
   if (!inputs.cliExists) {
     hints.push(
@@ -101,8 +106,8 @@ export function buildMcpInstallPayload(
   // per-cwd data dir which for packaged installs can be a read-only app
   // bundle that trips EPERM.
   const env: Record<string, string> = {
-    [inputs.dataDirEnvVar]: inputs.dataDir,
     ...inputs.sidecarEnv,
+    [inputs.dataDirEnvVar]: inputs.dataDir,
   };
   if (inputs.electronAsNode) {
     env.ELECTRON_RUN_AS_NODE = '1';
@@ -125,8 +130,8 @@ export function buildMcpInstallPayload(
     env,
     daemonUrl: `http://127.0.0.1:${inputs.port}`,
     webBaseUrl:
-      typeof inputs.webBaseUrl === 'string' && inputs.webBaseUrl.length > 0
-        ? inputs.webBaseUrl
+      typeof options.webBaseUrl === 'string' && options.webBaseUrl.length > 0
+        ? options.webBaseUrl
         : null,
     // Surface platform so the install panel can localize path hints
     // (~/.cursor vs %USERPROFILE%\.cursor) and keyboard shortcuts

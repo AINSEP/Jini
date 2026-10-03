@@ -12,7 +12,7 @@ const events: AgentEvent[] = [
 
 describe('useToolTimeline', () => {
   it('pairs tool_use with its tool_result and derives status', () => {
-    const { result } = renderHook(() => useToolTimeline(events, { runStreaming: true }));
+    const { result } = renderHook(() => useToolTimeline({ events: events }, { runStreaming: true }));
     expect(result.current.rows).toHaveLength(2);
     expect(result.current.rows[0]).toMatchObject({ id: 't1', name: 'Bash', status: 'complete' });
     // t2 has no result yet and the run is still streaming -> executing.
@@ -20,7 +20,7 @@ describe('useToolTimeline', () => {
   });
 
   it('marks unresolved tool calls as error once the run finishes unsuccessfully', () => {
-    const { result } = renderHook(() => useToolTimeline(events, { runStreaming: false, runSucceeded: false }));
+    const { result } = renderHook(() => useToolTimeline({ events: events }, { runStreaming: false, runSucceeded: false }));
     expect(result.current.rows[1]?.status).toBe('error');
   });
 
@@ -30,12 +30,12 @@ describe('useToolTimeline', () => {
       { kind: 'tool_use', id: 't1', name: 'Bash', input: { command: 'ls' } },
       { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false },
     ];
-    const { result } = renderHook(() => useToolTimeline(duplicated));
+    const { result } = renderHook(() => useToolTimeline({ events: duplicated }));
     expect(result.current.rows).toHaveLength(1);
   });
 
   it('toggle() flips a single row expanded state without affecting others', () => {
-    const { result } = renderHook(() => useToolTimeline(events, { defaultExpanded: false }));
+    const { result } = renderHook(() => useToolTimeline({ events: events }, { defaultExpanded: false }));
     expect(result.current.rows.every((r) => !r.expanded)).toBe(true);
     act(() => result.current.toggle('t1'));
     expect(result.current.rows.find((r) => r.id === 't1')?.expanded).toBe(true);
@@ -43,7 +43,7 @@ describe('useToolTimeline', () => {
   });
 
   it('expandAll()/collapseAll() apply to every row', () => {
-    const { result } = renderHook(() => useToolTimeline(events));
+    const { result } = renderHook(() => useToolTimeline({ events: events }));
     act(() => result.current.expandAll());
     expect(result.current.rows.every((r) => r.expanded)).toBe(true);
     act(() => result.current.collapseAll());
@@ -51,7 +51,7 @@ describe('useToolTimeline', () => {
   });
 
   it('returns no rows for undefined/empty events', () => {
-    const { result } = renderHook(() => useToolTimeline(undefined));
+    const { result } = renderHook(() => useToolTimeline({ events: undefined }));
     expect(result.current.rows).toEqual([]);
   });
 });

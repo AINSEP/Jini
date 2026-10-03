@@ -23,7 +23,7 @@ export interface Rgb {
  * channel dropped. Returns `null` if `value` is undefined or contains no
  * hex-color-shaped substring.
  */
-export function normalizeHex(value: string | undefined): string | null {
+export function normalizeHex({ value }: { value: string | undefined }): string | null {
   const match = value?.match(/#[0-9a-fA-F]{3}\b|#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{8}\b/);
   if (!match) return null;
   const raw = match[0].toLowerCase();
@@ -35,8 +35,8 @@ export function normalizeHex(value: string | undefined): string | null {
 }
 
 /** Decodes a hex color string to `{ r, g, b }` (0-255 each), or `null` if it doesn't normalize to a valid hex color. */
-export function hexToRgb(hex: string): Rgb | null {
-  const normalized = normalizeHex(hex);
+export function hexToRgb({ hex }: { hex: string }): Rgb | null {
+  const normalized = normalizeHex({ value: hex });
   if (!normalized) return null;
   return {
     r: parseInt(normalized.slice(1, 3), 16),
@@ -51,14 +51,14 @@ export function hexToRgb(hex: string): Rgb | null {
  * see the module doc comment. Returns `1` (treated as "light") if `hex`
  * doesn't decode to a valid color.
  */
-export function luminance(hex: string): number {
-  const rgb = hexToRgb(hex);
+export function luminance({ hex }: { hex: string }): number {
+  const rgb = hexToRgb({ hex });
   if (!rgb) return 1;
   return (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255;
 }
 
 /** Clamps `value` to `[0, 255]` and formats it as a 2-digit lowercase hex byte. */
-export function toHexByte(value: number): string {
+export function toHexByte({ value }: { value: number }): string {
   return Math.max(0, Math.min(255, value)).toString(16).padStart(2, '0');
 }
 
@@ -68,19 +68,19 @@ export function toHexByte(value: number): string {
  * `other`). A color that fails to decode falls back to black (`hex`) or
  * white (`other`) respectively, so the mix is still well-defined.
  */
-export function mixHex(hex: string, other: string, weight: number): string {
-  const a = hexToRgb(hex) ?? { r: 0, g: 0, b: 0 };
-  const b = hexToRgb(other) ?? { r: 255, g: 255, b: 255 };
+export function mixHex({ hex, other, weight }: { hex: string; other: string; weight: number }): string {
+  const a = hexToRgb({ hex }) ?? { r: 0, g: 0, b: 0 };
+  const b = hexToRgb({ hex: other }) ?? { r: 255, g: 255, b: 255 };
   const clampedWeight = Math.max(0, Math.min(1, weight));
   const mixed = {
     r: Math.round(a.r * clampedWeight + b.r * (1 - clampedWeight)),
     g: Math.round(a.g * clampedWeight + b.g * (1 - clampedWeight)),
     b: Math.round(a.b * clampedWeight + b.b * (1 - clampedWeight)),
   };
-  return `#${toHexByte(mixed.r)}${toHexByte(mixed.g)}${toHexByte(mixed.b)}`;
+  return `#${toHexByte({ value: mixed.r })}${toHexByte({ value: mixed.g })}${toHexByte({ value: mixed.b })}`;
 }
 
 /** Picks `#111111` (near-black) or `#ffffff` (white) as the more readable text color for a `hex` background, using {@link luminance}. */
-export function readableTextColor(hex: string): string {
-  return luminance(hex) > 0.56 ? '#111111' : '#ffffff';
+export function readableTextColor({ hex }: { hex: string }): string {
+  return luminance({ hex }) > 0.56 ? '#111111' : '#ffffff';
 }

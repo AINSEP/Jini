@@ -17,8 +17,10 @@ not in your bundle.
 |---|---|---|
 | `@jini-ai/admin/core` | contracts, panel registry, route matching, transport, ports | nothing |
 | `@jini-ai/admin/browser` | `window`-bound navigation, link interception | a DOM |
-| `@jini-ai/admin/server` | Composio integration: catalog, OAuth, tool execution | Node.js |
-| `@jini-ai/admin/react` | Presentational primitives (`Sidebar`, `DataTable`, `RowMenu`, `ConfirmButton`, `ConfirmDialog`, `InteractiveHtmlEditor`) and hooks; `<AdminShell>` and panels are not built yet | React (optional peer) |
+| `@jini-ai/admin/react` | Primitives, hooks, shell and entity screens | React and React DOM (optional peers) |
+| `@jini-ai/admin/react/shell` | Session gate, panel rendering and persistent assistant slot | React and injected session/navigation |
+| `@jini-ai/admin/react/entities` | Schema-driven index, list, detail and create/edit screens | React and injected registry/translation/navigation |
+| `@jini-ai/admin/browser/shell-navigation` | Query-preserving History API adapter for the shell | Injected browser window/document/location |
 
 `/core` is the layer a panel author codes against: no React, no DOM, no I/O. That boundary is
 enforced at runtime — this package's vitest config runs `src/core/**` without a jsdom environment,
@@ -60,10 +62,10 @@ Three properties carry decisions worth not re-deriving:
 ```ts
 import { resolvePanels, buildNav, buildAgentPageMap, matchRoute } from '@jini-ai/admin/core';
 
-const mounted   = resolvePanels(ALL_PANELS, { capabilities: wiredPorts, permissions: me.permissions });
-const nav       = buildNav(mounted);
-const agentPages = buildAgentPageMap(mounted);   // pass the RESOLVED set, never the raw one
-const route     = matchRoute('/users/u1', mounted);
+const mounted   = resolvePanels({ panels: ALL_PANELS }, { capabilities: wiredPorts, permissions: me.permissions });
+const nav       = buildNav({ panels: mounted });
+const agentPages = buildAgentPageMap({ panels: mounted });   // pass the RESOLVED set, never the raw one
+const route     = matchRoute({ routePath: '/users/u1', panels: mounted });
 // -> { panelId: 'users', view: 'user-detail', params: { userId: 'u1' }, query }
 ```
 
@@ -71,31 +73,28 @@ Route matching is registry-driven: a panel declares its own detail routes and th
 generic. Unregistered paths return `panelId: null` so the shell can fall through to the dashboard,
 matching the ported behaviour — a typo should look like a bad URL, not an empty screen.
 
-## Adding your own routes alongside the shipped ones
+## Adding host routes
 
-Every route group is `(transport) => port`. Jini's and yours are the same shape, so they compose
-into one client with one auth policy, one error class, and one place to add retries or tracing:
+Route groups are host-owned factories taking `({ transport })`. The package ships
+contracts and an HTTP transport; it does not ship identity or media route factories.
 
 ```ts
 import { createAdminClient, createHttpTransport } from '@jini-ai/admin/core';
 
-const transport = createHttpTransport({ baseUrl: '/api/admin/v1' });
-
-const client = createAdminClient(transport, {
-  identity: createIdentityRoutes,   // shipped by @jini-ai/admin
-  media:    createMediaRoutes,      // shipped by @jini-ai/admin
-  posts:    createHostPostRoutes,   // yours, same signature
-  widgets:  createHostWidgetRoutes, // yours
+const transport = createHttpTransport({
+  baseUrl: '/api/admin/v1',
+  fetch: ({ url }, init) => fetch(url, init),
 });
-
-await client.identity.listUsers();
-await client.posts.list();
-await client.transport.request('/one-off');   // escape hatch for un-wrapped routes
+const createStatusRoutes = ({ transport }) => ({
+  read: ({}) => transport.request({ path: '/status' }),
+});
+const client = createAdminClient({ transport, groups: { status: createStatusRoutes } });
+await client.status.read({});
+await client.transport.request({ path: '/one-off' });
 ```
 
-`AdminTransport` is an interface rather than a bare function so a host can supply a non-HTTP
-implementation — an in-process direct dispatch for a multi-instance runner, or a fixture-returning
-fake in tests — without any route group knowing.
+`AdminTransport` also supports non-HTTP adapters. Hosts bind authentication,
+workspace scope and error handling at that boundary.
 
 ## Errors
 
@@ -111,14 +110,13 @@ the server. A bug here can only show or hide a control; it cannot grant or block
 operation, because every mutation must be independently re-checked server-side. Do not import
 these into server code.
 
-## Composio integration has moved
+## Connector integrations
 
-`@jini-ai/admin/server` no longer exists. Composio started as its own standalone package
-(`@jini-ai/composio`), was folded into this package as `./server` on 2026-08-01, and has since
-moved back out — now `@jini-ai/integrations/composio`, one of two subpaths (alongside
-`@jini-ai/integrations/media-providers`) under the single `@jini-ai/integrations` package
-(`packages/integrations/`). See that package's own `README.md` and `src/composio/source-map.md`
-for full provenance. Import it directly rather than through `@jini-ai/admin`.
+`@jini-ai/admin/server` no longer exists. The former embedded connector backend
+was extracted and subsequently removed by the owner. Hosts supply connector data
+and authorization through the UI ports; there is no built-in connector vendor
+adapter to import. See `@jini-ai/integrations` for the supported webhook and
+media-provider capabilities.
 
 ## Before writing a panel: check `@jini-ai/ui-core` first
 
@@ -131,11 +129,47 @@ Panels that reuse `ui-core` take the dependency in `/react/panels/*`. **`/core` 
 zero-dependency** — otherwise every consumer of the contracts layer pulls in 6,000+ lines of
 unrelated domain features to get a type.
 
-## Status
+## API arguments and integration status
 
-Slice 1: `/core` (75 tests) and `/browser` (no test files). `/server` (Composio, folded in
-2026-08-01, moved back out to `@jini-ai/integrations/composio`) no longer exists in this package.
-`/react` has real content — presentational primitives and hooks (147 tests) — but no `<AdminShell>`
-or panels yet. `src/core/ports/` now specifies 16 ports (`identity`, `menus`, `integrations`,
-`workspace`, `redirects`, `analytics`, `settings`, `forms`, `seo`, `database`, `members`,
-`recovery`, `auth`, `media`, `plugins`, `comments`), not just `AdminIdentityPort`.
+Public helpers and factories take a required argument object and an optional
+options object. Pass `{}` before optional-only arguments. React props and native
+framework callbacks retain their framework contracts.
+
+```ts
+hasPermission({ permissions, permission: 'records.read' });
+adminHref({ routePath: '/records' }, { base: '/console' });
+new AdminApiError({ message: 'Unavailable', status: 503 }, { code: 'unavailable' });
+createAdminShellNavigation({ location: window.location, window, document });
+```
+
+The shell requires `apiBase`, `workspace`, `adminBase`, `defaultPanelId`,
+`railStorageKey`, title, labels, session/navigation ports, panels and slots. A host
+supplies every product value. Its session port exposes `read(context)`,
+`logout(context)` and `onUnauthenticated({ ...context, onUnauthenticated })`.
+
+Entity screens consume the existing entity port through `EntityRegistryPort` and
+require translation and navigation ports. `createEntityPanel({ adminBase,
+panelId, navigate, registry, translate }, options)` returns an `AdminShellPanel`.
+It contributes list, create, detail and edit routes; agent reachability is opt-in.
+Its translation port takes `{ key }`, and `navigate` takes `{ routePath }`.
+
+The HTML editor's direct marker helpers take `{ el }`; its React component adapts
+those calls to the upstream editor callbacks. Marker bytes and labels are unchanged.
+
+The export map and barrels include all these slices. The package typecheck includes
+test sources and passes after the upstream agentic and UI declarations are rebuilt.
+Runtime tests and packing remain deferred under the owner's execution directive. Active owners
+must still update Sidebar/RowMenu callers and the entity/menu port APIs before the
+package can be released. The integration handoff records the remaining changes.
+
+## Kernel contracts
+
+Admin editor and menu contracts document host integration without repository-specific paths.
+`RedirectMatchType` retains `regex` because callers can submit that rejected request shape;
+its presence does not imply matcher support. Hosts must verify support before offering it.
+
+## Agent-addressable React controls
+
+React controls keep importing `agentHandle` and `buildAgentListHandles` from
+`@jini-ai/agentic`; this is an allowed UI-to-agentic layer dependency. The helpers
+have not moved and consumers continue to use their original exports.

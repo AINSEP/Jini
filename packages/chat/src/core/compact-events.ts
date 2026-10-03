@@ -26,7 +26,7 @@ function isDelta(event: AgentEvent): event is DeltaEvent {
  * @param events - A turn's events, in arrival order.
  * @complexity O(number of events + total text length).
  */
-export function mergeAdjacentTextEvents(events: readonly AgentEvent[] | undefined): AgentEvent[] {
+export function mergeAdjacentTextEvents({ events }: { events: readonly AgentEvent[] | undefined }): AgentEvent[] {
   const out: AgentEvent[] = [];
   for (const event of events ?? []) {
     const last = out[out.length - 1];

@@ -1,3 +1,4 @@
+import { redactSecrets } from '@jini-ai/core';
 /**
  * @module providers/connection-test
  *
@@ -19,7 +20,7 @@
  */
 
 import type { DnsLookupFn } from './connection-guard.js';
-import { defaultDnsLookup, redactSecrets, validateBaseUrlResolved } from './connection-guard.js';
+import { defaultDnsLookup, validateBaseUrlResolved } from './connection-guard.js';
 import { googleGenerateContentUrl } from './google.js';
 import { buildOpenAIChatTokenParam, buildLegacyMaxTokensParam, buildMaxCompletionTokensParam } from './token-params.js';
 import type { ConnectionTestKind, ConnectionTestProtocol } from './types.js';
@@ -236,7 +237,7 @@ function buildProviderCall(input: ProviderConnectionTestRequest & { protocol: Su
         },
         body: {
           model,
-          ...buildOpenAIChatTokenParam(model, CONNECTION_TEST_MAX_TOKENS),
+          ...buildOpenAIChatTokenParam({ model: model, maxTokens: CONNECTION_TEST_MAX_TOKENS }),
           messages: [{ role: 'user', content: SMOKE_PROMPT }],
           stream: false,
         },
@@ -256,7 +257,7 @@ function buildProviderCall(input: ProviderConnectionTestRequest & { protocol: Su
         headers: { 'content-type': 'application/json', 'api-key': apiKey },
         body: {
           ...(usesVersionedOpenAIPath ? { model } : {}),
-          ...buildLegacyMaxTokensParam(CONNECTION_TEST_MAX_TOKENS),
+          ...buildLegacyMaxTokensParam({ maxTokens: CONNECTION_TEST_MAX_TOKENS }),
           messages: [{ role: 'user', content: SMOKE_PROMPT }],
           stream: false,
         },
@@ -266,7 +267,7 @@ function buildProviderCall(input: ProviderConnectionTestRequest & { protocol: Su
     case 'google': {
       const effectiveBaseUrl = baseUrl.trim() || 'https://generativelanguage.googleapis.com';
       return {
-        url: googleGenerateContentUrl(effectiveBaseUrl, model),
+        url: googleGenerateContentUrl({ baseUrl: effectiveBaseUrl, model: model }),
         headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
         body: {
           contents: [{ role: 'user', parts: [{ text: SMOKE_PROMPT }] }],
@@ -296,7 +297,7 @@ function buildProviderCall(input: ProviderConnectionTestRequest & { protocol: Su
 // rejected `max_tokens` param; this smoke test keeps the simpler single-shot
 // legacy param (a connection test failing on a param-name mismatch on a
 // reasoning-tier Azure deployment is a known, narrow gap — see this
-// package's `source-map.md`) rather than porting OD's full retry-on-400 loop.
+// package's `archived provenance ledger`) rather than porting OD's full retry-on-400 loop.
 void buildMaxCompletionTokensParam;
 
 /**
@@ -312,7 +313,8 @@ void buildMaxCompletionTokensParam;
  * @complexity O(1) — one bounded-size HTTP request with a hard timeout.
  * @overallScore 100
  */
-export async function testProviderConnection(input: ProviderConnectionTestInput): Promise<ConnectionTestResponse> {
+export async function testProviderConnection(requiredArgs: Pick<ProviderConnectionTestInput, "protocol" | "baseUrl" | "apiKey" | "model">, optionalArgs: Omit<ProviderConnectionTestInput, "protocol" | "baseUrl" | "apiKey" | "model"> = {}): Promise<ConnectionTestResponse> {
+  const input: ProviderConnectionTestInput = { ...optionalArgs, ...requiredArgs };
   const start = Date.now();
   const model = input.model.trim();
 
@@ -343,7 +345,7 @@ export async function testProviderConnection(input: ProviderConnectionTestInput)
     };
   }
 
-  const validated = await validateBaseUrlResolved(input.baseUrl, input.dnsLookup ?? defaultDnsLookup);
+  const validated = await validateBaseUrlResolved({ baseUrl: input.baseUrl, lookup: input.dnsLookup ?? defaultDnsLookup });
   if (validated.error || !validated.parsed) {
     return {
       ok: false,
@@ -363,7 +365,7 @@ export async function testProviderConnection(input: ProviderConnectionTestInput)
       kind: 'unknown',
       latencyMs: Date.now() - start,
       model,
-      detail: redactSecrets(err instanceof Error ? err.message : String(err), [input.apiKey]),
+      detail: redactSecrets({ input: err instanceof Error ? err.message : String(err) }, { exactSecrets: [input.apiKey] }),
     };
   }
 
@@ -396,7 +398,7 @@ export async function testProviderConnection(input: ProviderConnectionTestInput)
     }
 
     if (!response.ok) {
-      const redactedDetail = redactSecrets(extractProviderErrorDetail(data, rawText).slice(0, 240), [input.apiKey]);
+      const redactedDetail = redactSecrets({ input: extractProviderErrorDetail(data, rawText).slice(0, 240) }, { exactSecrets: [input.apiKey] });
       result = {
         ok: false,
         kind: statusToKind(response.status, redactedDetail),
@@ -418,7 +420,7 @@ export async function testProviderConnection(input: ProviderConnectionTestInput)
         // header puts the operator's key in `detail` verbatim. Two independent
         // audits reproduced that, each from a different call boundary; the
         // redaction was simply missing on this one branch.
-        const sample = truncateSample(redactSecrets(text, [input.apiKey]));
+        const sample = truncateSample(redactSecrets({ input: text }, { exactSecrets: [input.apiKey] }));
         // Naming the stop reason turns an unactionable "it returned nothing" into a diagnosis:
         // `MAX_TOKENS` means the smoke budget was too small (usually a thinking model), a safety or
         // content-filter reason means the probe was blocked, not that the endpoint is broken.
@@ -443,7 +445,7 @@ export async function testProviderConnection(input: ProviderConnectionTestInput)
       kind: networkErrorToKind(err),
       latencyMs: Date.now() - start,
       model,
-      detail: redactSecrets(err instanceof Error ? err.message : String(err), [input.apiKey]),
+      detail: redactSecrets({ input: err instanceof Error ? err.message : String(err) }, { exactSecrets: [input.apiKey] }),
     };
   } finally {
     clearTimeout(timer);

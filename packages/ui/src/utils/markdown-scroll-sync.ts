@@ -124,10 +124,10 @@ export function measureEditorBlockOffsets(
   // would require either reintroducing this package's own documented
   // `@vitest/coverage-v8` jsdom/node branch-merge bug (see
   // `features/html-viewer/dependencies`'s precedent in
-  // packages/ui/source-map.md) or hand-faking this function's full
+  // packages/ui/archived provenance ledger) or hand-faking this function's full
   // `innerHTML`/`querySelectorAll`/`getComputedStyle` surface under plain
   // Node — disproportionate to a defensive guard with no reachable path.
-  // See packages/ui/source-map.md's 2026-07-22 dated entry.
+  // See packages/ui/archived provenance ledger's 2026-07-22 dated entry.
   if (blockLines.length === 0 || typeof document === 'undefined') return null;
   const computed = window.getComputedStyle(textarea);
   const mirror = document.createElement('div');
@@ -270,7 +270,7 @@ export function mapScrollPosition(value: number, source: number[], target: numbe
   // sourceLow` always, and a `span > 0 ? ... : 0` guard against
   // division-by-zero was dead code for every possible call, not a real
   // defensive branch — removed rather than tested around (see
-  // packages/ui/source-map.md's 2026-07-22 dated entry for the full proof).
+  // packages/ui/archived provenance ledger's 2026-07-22 dated entry for the full proof).
   const span = sourceHigh - sourceLow;
   const fraction = (value - sourceLow) / span;
   return targetLow + fraction * (targetHigh - targetLow);

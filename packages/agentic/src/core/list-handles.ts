@@ -40,7 +40,7 @@
  * search then walks the full used-set for each collision); n is a list's row/card count, which is
  * operator- or user-authored content and stays small in practice. Space O(n).
  */
-export function buildAgentListHandles(prefix: string, ids: readonly string[]): string[] {
+export function buildAgentListHandles({ prefix, ids }: { prefix: string; ids: readonly string[] }, _optional: Record<string, never> = {}): string[] {
   const used = new Set<string>();
   return ids.map((id, index) => {
     const slug = id.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');

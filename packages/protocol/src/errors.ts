@@ -1,4 +1,4 @@
-import type { JsonValue } from './common.js';
+import type { JsonValue } from '@jini-ai/core/primitives';
 
 /**
  * Cross-product error codes meaningful to any @jini-ai/* consumer. Kept small and
@@ -67,13 +67,12 @@ export interface RunErrorPayload {
 }
 
 export function createApiError(
-  code: ApiErrorCode,
-  message: string,
-  init: Omit<ApiError, 'code' | 'message'> = {},
+  { code, message }: Pick<ApiError, 'code' | 'message'>,
+  optionalArgs: Omit<ApiError, 'code' | 'message'> = {},
 ): ApiError {
-  return { code, message, ...init };
+  return { code, message, ...optionalArgs };
 }
 
-export function createApiErrorResponse(error: ApiError): ApiErrorResponse {
+export function createApiErrorResponse({ error }: { error: ApiError }): ApiErrorResponse {
   return { error };
 }

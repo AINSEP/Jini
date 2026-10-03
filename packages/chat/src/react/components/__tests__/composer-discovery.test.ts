@@ -10,42 +10,42 @@ import {
 
 /**
  * Regression coverage for the argument grammar added to serve debate 2 ("Composer slash
- * commands", ADS-memory/reports/swarm-consensus/runs/2026-08-12-tovu-six-debates-FINAL.md §2).
+ * commands", ADS-memory/reports/swarm-consensus/runs/2026-08-12-host-six-debates-FINAL.md §2).
  * `Composer.test.tsx` already exercises the integrated keyboard/select flow through these
  * functions; this file isolates the pure parser/filter contract so the argument grammar and the
  * exact-match-after-separator rule are provable without a DOM.
  */
 describe('parseComposerSlashQuery', () => {
   it('returns null for a non-trigger draft', () => {
-    expect(parseComposerSlashQuery('hello')).toBeNull();
-    expect(parseComposerSlashQuery('')).toBeNull();
+    expect(parseComposerSlashQuery({ draft: 'hello' })).toBeNull();
+    expect(parseComposerSlashQuery({ draft: '' })).toBeNull();
   });
 
   it('parses a bare command with no separator typed yet', () => {
-    expect(parseComposerSlashQuery('/mcp')).toEqual({ command: 'mcp', argument: null });
+    expect(parseComposerSlashQuery({ draft: '/mcp' })).toEqual({ command: 'mcp', argument: null });
   });
 
   it('commits to a command the instant a trailing space is typed, argument becomes empty string', () => {
-    expect(parseComposerSlashQuery('/mcp ')).toEqual({ command: 'mcp', argument: '' });
+    expect(parseComposerSlashQuery({ draft: '/mcp ' })).toEqual({ command: 'mcp', argument: '' });
   });
 
   it('captures a multi-word argument verbatim, including internal spaces and slashes', () => {
-    expect(parseComposerSlashQuery('/search site:example.com/a/b open design')).toEqual({
+    expect(parseComposerSlashQuery({ draft: '/search site:example.com/a/b open design' })).toEqual({
       command: 'search',
       argument: 'site:example.com/a/b open design',
     });
   });
 
   it('stays anchored end-to-end: a second slash in the command position is rejected', () => {
-    expect(parseComposerSlashQuery('/mc/p')).toBeNull();
+    expect(parseComposerSlashQuery({ draft: '/mc/p' })).toBeNull();
   });
 
   it('stays anchored end-to-end: text before the leading slash is rejected', () => {
-    expect(parseComposerSlashQuery('hi /mcp')).toBeNull();
+    expect(parseComposerSlashQuery({ draft: 'hi /mcp' })).toBeNull();
   });
 
   it('parses the bare-slash empty command (the existing zero-query behavior)', () => {
-    expect(parseComposerSlashQuery('/')).toEqual({ command: '', argument: null });
+    expect(parseComposerSlashQuery({ draft: '/' })).toEqual({ command: '', argument: null });
   });
 });
 
@@ -63,13 +63,13 @@ describe('filterComposerDiscovery', () => {
   ];
 
   it('fuzzy-matches every item, command-bearing or not, while the command word is still being typed', () => {
-    const query = parseComposerSlashQuery('/mcp')!;
-    expect(filterComposerDiscovery(groups, query).map((m) => m.item.id).sort()).toEqual(['mcp', 'mcp-docs']);
+    const query = parseComposerSlashQuery({ draft: '/mcp' })!;
+    expect(filterComposerDiscovery({ groups, query }).map((m) => m.item.id).sort()).toEqual(['mcp', 'mcp-docs']);
   });
 
   it('shows everything on a bare slash, matching the existing zero-query behavior', () => {
-    const query = parseComposerSlashQuery('/')!;
-    expect(filterComposerDiscovery(groups, query).map((m) => m.item.id)).toEqual(['mcp', 'mcp-docs', 'word-count']);
+    const query = parseComposerSlashQuery({ draft: '/' })!;
+    expect(filterComposerDiscovery({ groups, query }).map((m) => m.item.id)).toEqual(['mcp', 'mcp-docs', 'word-count']);
   });
 
   it(
@@ -77,19 +77,19 @@ describe('filterComposerDiscovery', () => {
       '"mcp" is a substring of "mcp-docs" (regression: a fuzzy match here could hand a typed ' +
       'argument to the wrong item)',
     () => {
-      const query = parseComposerSlashQuery('/mcp supabase')!;
-      expect(filterComposerDiscovery(groups, query).map((m) => m.item.id)).toEqual(['mcp']);
+      const query = parseComposerSlashQuery({ draft: '/mcp supabase' })!;
+      expect(filterComposerDiscovery({ groups, query }).map((m) => m.item.id)).toEqual(['mcp']);
     },
   );
 
   it('drops every command-less item once an argument separator is typed — they cannot take one', () => {
-    const query = parseComposerSlashQuery('/word count')!;
-    expect(filterComposerDiscovery(groups, query)).toEqual([]);
+    const query = parseComposerSlashQuery({ draft: '/word count' })!;
+    expect(filterComposerDiscovery({ groups, query })).toEqual([]);
   });
 
   it('is case-insensitive on the command word', () => {
-    const query = parseComposerSlashQuery('/MCP supabase')!;
-    expect(filterComposerDiscovery(groups, query).map((m) => m.item.id)).toEqual(['mcp']);
+    const query = parseComposerSlashQuery({ draft: '/MCP supabase' })!;
+    expect(filterComposerDiscovery({ groups, query }).map((m) => m.item.id)).toEqual(['mcp']);
   });
 });
 
@@ -110,60 +110,60 @@ describe('resolveComposerSlashInvocation', () => {
   };
 
   it('a plain item (no command) always invokes, unaffected by the argument grammar', () => {
-    expect(resolveComposerSlashInvocation('/ux', plainItem)).toEqual({ type: 'invoke' });
+    expect(resolveComposerSlashInvocation({ draft: '/ux', item: plainItem })).toEqual({ type: 'invoke' });
   });
 
   it('returns null for a draft the parser itself rejects', () => {
-    expect(resolveComposerSlashInvocation('hello', plainItem)).toBeNull();
+    expect(resolveComposerSlashInvocation({ draft: 'hello', item: plainItem })).toBeNull();
   });
 
   it('completes a fuzzy/prefix match to the exact command word rather than guessing', () => {
-    expect(resolveComposerSlashInvocation('/mc', noArgCommand)).toEqual({ type: 'complete', draft: '/mcp' });
+    expect(resolveComposerSlashInvocation({ draft: '/mc', item: noArgCommand })).toEqual({ type: 'complete', draft: '/mcp' });
   });
 
   it('invokes a no-argument command the instant its exact word is typed, with no separator required', () => {
-    expect(resolveComposerSlashInvocation('/mcp', noArgCommand)).toEqual({ type: 'invoke', argument: null });
+    expect(resolveComposerSlashInvocation({ draft: '/mcp', item: noArgCommand })).toEqual({ type: 'invoke', argument: null });
   });
 
   it('completes (does not invoke) an argument-taking command until a separator is typed', () => {
-    expect(resolveComposerSlashInvocation('/mcp', optionalArgCommand)).toEqual({ type: 'complete', draft: '/mcp ' });
+    expect(resolveComposerSlashInvocation({ draft: '/mcp', item: optionalArgCommand })).toEqual({ type: 'complete', draft: '/mcp ' });
   });
 
   it('invokes an optional-argument command with argument "" once a bare separator is typed', () => {
-    expect(resolveComposerSlashInvocation('/mcp ', optionalArgCommand)).toEqual({ type: 'invoke', argument: '' });
+    expect(resolveComposerSlashInvocation({ draft: '/mcp ', item: optionalArgCommand })).toEqual({ type: 'invoke', argument: '' });
   });
 
   it('invokes an optional-argument command with the typed value once one is present', () => {
-    expect(resolveComposerSlashInvocation('/mcp supabase', optionalArgCommand)).toEqual({
+    expect(resolveComposerSlashInvocation({ draft: '/mcp supabase', item: optionalArgCommand })).toEqual({
       type: 'invoke',
       argument: 'supabase',
     });
   });
 
   it('never invokes a required-argument command with a missing or blank argument', () => {
-    expect(resolveComposerSlashInvocation('/search', requiredArgCommand)).toEqual({
+    expect(resolveComposerSlashInvocation({ draft: '/search', item: requiredArgCommand })).toEqual({
       type: 'complete',
       draft: '/search ',
     });
-    expect(resolveComposerSlashInvocation('/search ', requiredArgCommand)).toEqual({
+    expect(resolveComposerSlashInvocation({ draft: '/search ', item: requiredArgCommand })).toEqual({
       type: 'complete',
       draft: '/search ',
     });
-    expect(resolveComposerSlashInvocation('/search   ', requiredArgCommand)).toEqual({
+    expect(resolveComposerSlashInvocation({ draft: '/search   ', item: requiredArgCommand })).toEqual({
       type: 'complete',
       draft: '/search ',
     });
   });
 
   it('invokes a required-argument command once non-blank text follows the separator', () => {
-    expect(resolveComposerSlashInvocation('/search open design composer', requiredArgCommand)).toEqual({
+    expect(resolveComposerSlashInvocation({ draft: '/search open design composer', item: requiredArgCommand })).toEqual({
       type: 'invoke',
       argument: 'open design composer',
     });
   });
 
   it('preserves internal whitespace/slashes in the argument verbatim', () => {
-    expect(resolveComposerSlashInvocation('/search site:example.com/a/b', requiredArgCommand)).toEqual({
+    expect(resolveComposerSlashInvocation({ draft: '/search site:example.com/a/b', item: requiredArgCommand })).toEqual({
       type: 'invoke',
       argument: 'site:example.com/a/b',
     });
@@ -205,7 +205,7 @@ describe('composerDiscoveryMenuPosition / composerSlashMenuPosition', () => {
   it('discovery menu: always renders position: fixed, escaping any overflow: hidden ancestor', () => {
     stubViewport(1024, 768);
     const composerRect = { top: 600, left: 40, width: 320 };
-    expect(composerDiscoveryMenuPosition(composerRect)).toMatchObject({
+    expect(composerDiscoveryMenuPosition({ composerRect })).toMatchObject({
       position: 'fixed',
       zIndex: 8,
     });
@@ -217,7 +217,7 @@ describe('composerDiscoveryMenuPosition / composerSlashMenuPosition', () => {
     // engage, so this must match the CSS default exactly: `inset-inline-start: 8px`,
     // `width: min(280px, 100vw - 32px)`, `bottom: calc(100% + 6px)`.
     const composerRect = { top: 600, left: 40, width: 320 };
-    const position = composerDiscoveryMenuPosition(composerRect);
+    const position = composerDiscoveryMenuPosition({ composerRect });
     expect(position.left).toBe(48); // composerRect.left (40) + 8px inset
     expect(position.width).toBe(280); // under the 1024 - 32 = 992px cap
     expect(position.bottom).toBe(768 - 600 + 6); // innerHeight - top + gap
@@ -229,7 +229,7 @@ describe('composerDiscoveryMenuPosition / composerSlashMenuPosition', () => {
     // the sheet's own top edge. Available space above it is far under the CSS's flat 280px cap.
     stubViewport(400, 700);
     const composerRect = { top: 120, left: 8, width: 384 };
-    const position = composerDiscoveryMenuPosition(composerRect);
+    const position = composerDiscoveryMenuPosition({ composerRect });
     // 120 - 6 (gap) - 8 (margin) = 106px available — must clamp below the 280px default, not
     // render a 280px-tall box that the ancestor then has to hard-clip.
     expect(position.maxHeight).toBe(106);
@@ -239,13 +239,13 @@ describe('composerDiscoveryMenuPosition / composerSlashMenuPosition', () => {
   it('discovery menu: never asks for a negative maxHeight when the composer has no room above it at all', () => {
     stubViewport(400, 700);
     const composerRect = { top: 4, left: 8, width: 384 };
-    expect(composerDiscoveryMenuPosition(composerRect).maxHeight).toBe(0);
+    expect(composerDiscoveryMenuPosition({ composerRect }).maxHeight).toBe(0);
   });
 
   it('slash palette: always renders position: fixed and spans the composer width minus its 8px insets', () => {
     stubViewport(1024, 768);
     const composerRect = { top: 600, left: 40, width: 320 };
-    const position = composerSlashMenuPosition(composerRect);
+    const position = composerSlashMenuPosition({ composerRect });
     expect(position.position).toBe('fixed');
     expect(position.left).toBe(48); // composerRect.left (40) + 8px inset
     expect(position.width).toBe(304); // composerRect.width (320) - 2 * 8px inset
@@ -254,6 +254,6 @@ describe('composerDiscoveryMenuPosition / composerSlashMenuPosition', () => {
   it('slash palette: clamps maxHeight the same way the discovery menu does', () => {
     stubViewport(400, 700);
     const composerRect = { top: 120, left: 8, width: 384 };
-    expect(composerSlashMenuPosition(composerRect).maxHeight).toBe(106);
+    expect(composerSlashMenuPosition({ composerRect }).maxHeight).toBe(106);
   });
 });

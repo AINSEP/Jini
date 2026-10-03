@@ -1,0 +1,117 @@
+/** The sole variable contract. Products override it through AdminTheme data. */
+:root, [data-admin-theme], [data-color-scheme="light"] {
+  color-scheme: light;
+  --jini-bg: var(--jini-theme-light-bg, #ffffff);
+  --jini-surface: var(--jini-theme-light-surface, #f5f5f5);
+  --jini-text: var(--jini-theme-light-text, #202020);
+  --jini-muted: var(--jini-theme-light-muted, #666666);
+  --jini-border: var(--jini-theme-light-border, #d9d9d9);
+  --jini-primary: var(--jini-theme-light-primary, #363636);
+  --jini-primary-ink: var(--jini-theme-light-primary-ink, #ffffff);
+  --jini-danger: var(--jini-theme-light-danger, #b42318);
+  --jini-success: var(--jini-theme-light-success, #18763b);
+  --jini-warning: var(--jini-theme-light-warning, #845800);
+}
+
+[data-color-scheme="dark"] {
+  color-scheme: dark;
+  --jini-bg: var(--jini-theme-dark-bg, #171717);
+  --jini-surface: var(--jini-theme-dark-surface, #242424);
+  --jini-text: var(--jini-theme-dark-text, #f0f0f0);
+  --jini-muted: var(--jini-theme-dark-muted, #b3b3b3);
+  --jini-border: var(--jini-theme-dark-border, #454545);
+  --jini-primary: var(--jini-theme-dark-primary, #e0e0e0);
+  --jini-primary-ink: var(--jini-theme-dark-primary-ink, #202020);
+  --jini-danger: var(--jini-theme-dark-danger, #ff8b80);
+  --jini-success: var(--jini-theme-dark-success, #79d69b);
+  --jini-warning: var(--jini-theme-dark-warning, #ebc36b);
+}
+
+:root {
+  --jini-font-body: system-ui, sans-serif;
+  --jini-font-heading: system-ui, sans-serif;
+  --jini-font-mono: ui-monospace, monospace;
+  --jini-radius: 8px;
+  --jini-density: 1;
+}
+
+:root, [data-admin-theme], [data-color-scheme] {
+  --jini-bg-panel: var(--jini-surface);
+  --jini-bg-subtle: color-mix(in srgb, var(--jini-surface) 75%, var(--jini-bg));
+  --jini-bg-elevated: var(--jini-surface);
+  --jini-border-soft: var(--jini-border);
+  --jini-border-strong: color-mix(in srgb, var(--jini-border) 75%, var(--jini-text));
+  --jini-backdrop: color-mix(in srgb, var(--jini-text) 42%, transparent);
+  --jini-text-strong: var(--jini-text);
+  --jini-text-secondary: color-mix(in srgb, var(--jini-text) 80%, var(--jini-bg));
+  --jini-text-muted: var(--jini-muted);
+  --jini-text-faint: color-mix(in srgb, var(--jini-muted) 75%, var(--jini-bg));
+  --jini-text-disabled: color-mix(in srgb, var(--jini-muted) 60%, var(--jini-bg));
+  --jini-accent: var(--jini-primary);
+  --jini-accent-hover: color-mix(in srgb, var(--jini-primary) 88%, var(--jini-text));
+  --jini-accent-strong: color-mix(in srgb, var(--jini-primary) 85%, var(--jini-bg));
+  --jini-accent-ink: var(--jini-primary-ink);
+  --jini-accent-soft: color-mix(in srgb, var(--jini-primary) 10%, transparent);
+  --jini-accent-ring: color-mix(in srgb, var(--jini-primary) 22%, transparent);
+  --jini-neutral-accent: var(--jini-text);
+  --jini-neutral-accent-hover: var(--jini-muted);
+  --jini-neutral-accent-ink: var(--jini-bg);
+  --jini-neutral-accent-text: var(--jini-text);
+  --jini-neutral-accent-soft: color-mix(in srgb, var(--jini-text) 7%, transparent);
+  --jini-neutral-accent-ring: color-mix(in srgb, var(--jini-text) 16%, transparent);
+  --jini-link: var(--jini-primary);
+  --jini-link-ink: var(--jini-primary-ink);
+  --jini-success-bg: color-mix(in srgb, var(--jini-success) 12%, var(--jini-bg));
+  --jini-success-solid: var(--jini-success);
+  --jini-success-solid-ink: var(--jini-bg);
+  --jini-danger-bg: color-mix(in srgb, var(--jini-danger) 12%, var(--jini-bg));
+  --jini-warning-bg: color-mix(in srgb, var(--jini-warning) 12%, var(--jini-bg));
+  --jini-font-ui: var(--jini-font-body);
+  --jini-font-display: var(--jini-font-heading);
+  --jini-shadow-xs: 0 1px 0 color-mix(in srgb, var(--jini-text) 4%, transparent);
+  --jini-shadow-sm: 0 1px 3px color-mix(in srgb, var(--jini-text) 10%, transparent);
+  --jini-shadow-md: 0 6px 24px color-mix(in srgb, var(--jini-text) 15%, transparent);
+  --jini-shadow-lg: 0 24px 60px color-mix(in srgb, var(--jini-text) 22%, transparent);
+  --jini-radius-xs: calc(var(--jini-radius) * 0.5);
+  --jini-radius-sm: calc(var(--jini-radius) * 0.75);
+  /* The middle radius keeps compact rows/popovers distinct from generic cards and modal chrome:
+     at the default 8px base it is 10px, between the 8px card and 12px modal steps. */
+  --jini-radius-md: calc(var(--jini-radius) * 1.25);
+  --jini-radius-lg: calc(var(--jini-radius) * 1.5);
+  --jini-radius-pill: 999px;
+  --jini-space-1: calc(0.25rem * var(--jini-density));
+  --jini-space-2: calc(0.5rem * var(--jini-density));
+  --jini-space-3: calc(0.75rem * var(--jini-density));
+  --jini-space-4: calc(1rem * var(--jini-density));
+  --jini-space-5: calc(1.25rem * var(--jini-density));
+  --jini-space-6: calc(1.5rem * var(--jini-density));
+  --jini-space-7: calc(2rem * var(--jini-density));
+  --jini-space-8: calc(2.5rem * var(--jini-density));
+  --jini-font-size-2xs: 0.6875rem;
+  --jini-font-size-xs: 0.75rem;
+  --jini-font-size-sm: 0.8125rem;
+  --jini-font-size-base: 0.875rem;
+  --jini-font-size-md: 0.95rem;
+  --jini-font-size-lg: 1.05rem;
+  --jini-font-size-xl: 1.65rem;
+  --jini-font-weight-normal: 400;
+  --jini-font-weight-medium: 500;
+  --jini-font-weight-semibold: 600;
+  --jini-font-weight-bold: 700;
+  --jini-line-tight: 1.25;
+  --jini-line-normal: 1.5;
+  --jini-line-relaxed: 1.7;
+  --jini-duration-fast: 120ms;
+  --jini-duration-base: 200ms;
+  --jini-duration-slow: 320ms;
+  --jini-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --jini-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --jini-transition-base: var(--jini-duration-base) var(--jini-ease-out);
+  --jini-z-dropdown: 100;
+  --jini-z-sticky: 200;
+  --jini-z-overlay: 300;
+  --jini-z-modal: 400;
+  --jini-z-toast: 500;
+  --jini-modal-padding: 24px;
+  --jini-sidebar-width: 240px;
+}

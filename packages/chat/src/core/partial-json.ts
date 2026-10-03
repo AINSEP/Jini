@@ -24,7 +24,7 @@
  *   depth `d` — one linear scan plus a bounded fixed-point cleanup loop over
  *   the (already shrinking) tail.
  */
-export function repairJsonPrefix(buf: string): string {
+export function repairJsonPrefix({ buf }: { buf: string }): string {
   const stack: string[] = []; // closers owed, e.g. ['}', ']']
   let inStr = false;
   let esc = false;
@@ -99,11 +99,11 @@ export function repairJsonPrefix(buf: string): string {
  *   parse failure — callers should fall back to their last good value.
  * @complexity O(n) — dominated by {@link repairJsonPrefix}.
  */
-export function parsePartialJson(buf: string): unknown {
+export function parsePartialJson({ buf }: { buf: string }): unknown {
   const trimmed = buf.trim();
   if (!trimmed) return null;
   try {
-    return JSON.parse(repairJsonPrefix(trimmed));
+    return JSON.parse(repairJsonPrefix({ buf: trimmed }));
   } catch {
     return null;
   }

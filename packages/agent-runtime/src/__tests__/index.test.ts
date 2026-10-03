@@ -27,7 +27,7 @@ describe('@jini-ai/agent-runtime root barrel', () => {
     // `detectAcpModels` (the real ACP transport, from agent-protocol/) and
     // `probeAcpModels` (acp-model-probe.ts's injectable no-op-by-default
     // seam, used internally by defs/shared.ts) are two different functions
-    // kept under two different names — see source-map.md's "Barrel merge"
+    // kept under two different names — see archived provenance ledger's "Barrel merge"
     // section.
     expect(pkgBarrel.detectAcpModels).not.toBe(pkgBarrel.probeAcpModels);
     expect(typeof pkgBarrel.probeAcpModels).toBe('function');
@@ -42,6 +42,6 @@ describe('@jini-ai/agent-runtime root barrel', () => {
     // Both are verified-identical ports of the same origin function, so
     // they must still agree on behavior for the same input.
     const stdout = 'provider model\nopenai gpt-5\nanthropic claude\n';
-    expect(pkgBarrel.parsePiModels(stdout)).toEqual(pkgBarrel.parsePiRpcModels(stdout));
+    expect(pkgBarrel.parsePiModels({ stdout })).toEqual(pkgBarrel.parsePiRpcModels({ stdout }));
   });
 });

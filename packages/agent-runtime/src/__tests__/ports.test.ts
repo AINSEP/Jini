@@ -20,13 +20,13 @@ import { devinAgentDef } from '../defs/devin.js';
 
 describe('port satisfaction: AmrProfileResolver', () => {
   it('the no-op default resolves a constant scope', () => {
-    expect(noopAmrProfileResolver.resolveProfile({})).toBe('default');
+    expect(noopAmrProfileResolver.resolveProfile({ env: {} })).toBe('default');
   });
 
   it('a custom resolver satisfies the interface and can be threaded through detectAgents()', async () => {
     let calls = 0;
     const stub: AmrProfileResolver = {
-      resolveProfile: (env) => {
+      resolveProfile: ({ env }) => {
         calls += 1;
         return env.MY_PROFILE ?? 'unscoped';
       },
@@ -48,7 +48,7 @@ describe('port satisfaction: AmrProfileResolver', () => {
     process.env.AGENT_RUNTIME_HOME = dir;
     process.env.PATH = dir;
     try {
-      const results = await detectAgents({}, stub);
+      const results = await detectAgents({  }, { configuredEnvByAgent: {}, amrProfileResolver: stub });
       expect(results.length).toBeGreaterThan(20);
       expect(results.every((agent) => typeof agent.available === 'boolean')).toBe(true);
       expect(calls).toBeGreaterThanOrEqual(0);
@@ -69,7 +69,7 @@ describe('port satisfaction: AmrProfileResolver', () => {
 
 describe('port satisfaction: AcpModelProbe', () => {
   afterEach(() => {
-    setAcpModelProbe(null);
+    setAcpModelProbe({ probe: null });
   });
 
   it('the no-op default resolves to an empty list', async () => {
@@ -79,12 +79,13 @@ describe('port satisfaction: AcpModelProbe', () => {
   it('a custom probe installed via setAcpModelProbe is reached by detectAcpModels() directly', async () => {
     const seen: Array<{ bin: string; args: string[] }> = [];
     const stub: AcpModelProbe = {
-      detectModels: async (request) => {
+      detectModels: async (required, optional = {}) => {
+        const request = { ...optional, ...required };
         seen.push({ bin: request.bin, args: request.args });
         return [{ id: 'stub-model', label: 'Stub Model' }];
       },
     };
-    setAcpModelProbe(stub);
+    setAcpModelProbe({ probe: stub });
     const models = await detectAcpModels({ bin: 'hermes', args: ['acp'] });
     expect(models).toEqual([{ id: 'stub-model', label: 'Stub Model' }]);
     expect(seen).toEqual([{ bin: 'hermes', args: ['acp'] }]);
@@ -93,16 +94,17 @@ describe('port satisfaction: AcpModelProbe', () => {
   it('a custom probe is reached transitively through a real def literal\'s fetchModels (devin)', async () => {
     const seen: Array<{ bin: string; args: string[] }> = [];
     const stub: AcpModelProbe = {
-      detectModels: async (request) => {
+      detectModels: async (required, optional = {}) => {
+        const request = { ...optional, ...required };
         seen.push({ bin: request.bin, args: request.args });
         return [{ id: 'adaptive', label: 'adaptive' }];
       },
     };
-    setAcpModelProbe(stub);
+    setAcpModelProbe({ probe: stub });
     // devinAgentDef.fetchModels calls detectAcpModels(...) internally (via
     // defs/shared.ts's re-export) — this proves the port is actually wired
     // through a def literal's closure, not just callable in isolation.
-    const models = await devinAgentDef.fetchModels!('devin', {});
+    const models = await devinAgentDef.fetchModels!({ resolvedBin: 'devin', env: {} });
     expect(models).toEqual([{ id: 'adaptive', label: 'adaptive' }]);
     expect(seen).toHaveLength(1);
     expect(seen[0]?.bin).toBe('devin');
@@ -110,8 +112,8 @@ describe('port satisfaction: AcpModelProbe', () => {
   });
 
   it('restoring the default (setAcpModelProbe(null)) reverts to the no-op', async () => {
-    setAcpModelProbe({ detectModels: async () => [{ id: 'x', label: 'x' }] });
-    setAcpModelProbe(null);
+    setAcpModelProbe({ probe: { detectModels: async () => [{ id: 'x', label: 'x' }] } });
+    setAcpModelProbe({ probe: null });
     await expect(detectAcpModels({ bin: 'x', args: [] })).resolves.toEqual([]);
   });
 });
@@ -148,17 +150,17 @@ describe('port satisfaction: PromptAugmenter', () => {
 
 describe('port satisfaction: ArtifactTaxonomy', () => {
   it('the no-op default classifies nothing as an artifact', () => {
-    expect(noopArtifactTaxonomy.isArtifact('index.html')).toBe(false);
+    expect(noopArtifactTaxonomy.isArtifact({ path: 'index.html' })).toBe(false);
   });
 
   it('a custom taxonomy satisfies the interface', () => {
     const stub: ArtifactTaxonomy = {
-      isArtifact: (path) => /\.(html|svg)$/i.test(path),
-      classify: (path) => (path.endsWith('.svg') ? 'sketch' : null),
+      isArtifact: ({ path }) => /\.(html|svg)$/i.test(path),
+      classify: ({ path }) => (path.endsWith('.svg') ? 'sketch' : null),
     };
-    expect(stub.isArtifact('deck/slide-1.html')).toBe(true);
-    expect(stub.isArtifact('notes.md')).toBe(false);
-    expect(stub.classify!('logo.svg')).toBe('sketch');
+    expect(stub.isArtifact({ path: 'deck/slide-1.html' })).toBe(true);
+    expect(stub.isArtifact({ path: 'notes.md' })).toBe(false);
+    expect(stub.classify!({ path: 'logo.svg' })).toBe('sketch');
   });
 });
 

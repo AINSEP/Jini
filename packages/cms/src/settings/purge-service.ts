@@ -1,4 +1,5 @@
-import type { ClockPort, UUID } from "../core/ports.js";
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
+import type { Clock, UUID } from "@jini-ai/core/primitives";
 import { ForbiddenError } from "./errors.js";
 import type { SettingsRepoPort } from "./ports.js";
 import { invalidateWorkspaceSettingsCache } from "./settings.js";
@@ -11,7 +12,7 @@ import type { AuthorizeFn } from "./write-service.js";
  * A host's value-table FKs (`setting_values_workspace`/`_user` -> `workspaces`)
  * are typically `ON DELETE RESTRICT`, not `CASCADE` — a raw workspace delete
  * cannot silently drop value rows without a ledgered revision. This module is
- * the explicit, ledgered alternative that requires: `authorize()` once
+ * the explicit, ledgered alternative that requires: `authorize` once
  * -> enumerate every affected row -> append a redacted `op='purge'` revision
  * per row -> delete the row, all in ONE transaction. The `setting_revisions`
  * ledger itself is NEVER touched by a purge — only value rows are removed,
@@ -20,14 +21,15 @@ import type { AuthorizeFn } from "./write-service.js";
  *
  * Deviation from the outline's `SettingsWriteServiceDeps`: purge needs
  * neither `ids` (no new definition/value rows are created) nor `principals`
- * (REQ-13's target-principal check is a write-time guard; purge only removes
+ * ( target-principal check is a write-time guard; purge only removes
  * pre-existing rows, it never writes a new user-scope row for an unverified
  * principal) — so it declares its own smaller `PurgeServiceDeps`.
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
  */
 
 export interface PurgeServiceDeps {
   repo: SettingsRepoPort;
-  clock: ClockPort;
+  clock: Clock;
   authorize: AuthorizeFn;
 }
 
@@ -72,7 +74,7 @@ export async function purgeTenantSettings(
   }
 
   const result = await deps.repo.transaction(async () => {
-    const now = deps.clock.nowIso();
+    const now = kernelNowIso({ clock: deps.clock });
     let purgedCount = 0;
 
     if (input.principalId) {
@@ -157,6 +159,6 @@ export async function purgeTenantSettings(
     return { purgedCount };
   });
 
-  invalidateWorkspaceSettingsCache(deps.repo, input.workspaceId, input.principalId);
+  invalidateWorkspaceSettingsCache({ repo: deps.repo, workspaceId: input.workspaceId }, { principalId: input.principalId });
   return result;
 }

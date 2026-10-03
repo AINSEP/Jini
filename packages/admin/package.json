@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/admin",
-  "version": "0.3.10",
+  "version": "0.4.0",
   "description": "Composable admin surface for Jini-hosted products: framework-free contracts, panel registry, and route model in `/core`; React shell and panels in `/react`. Import only the layers you need.",
   "license": "Apache-2.0",
   "repository": {
@@ -16,7 +16,10 @@
       ".": "universal",
       "./core": "universal",
       "./browser": "browser",
-      "./react": "browser"
+      "./react": "browser",
+      "./react/shell": "browser",
+      "./react/entities": "browser",
+      "./browser/shell-navigation": "browser"
     }
   },
   "type": "module",
@@ -43,10 +46,28 @@
       "types": "./dist/react/index.d.ts",
       "import": "./dist/react/index.js",
       "default": "./dist/react/index.js"
+    },
+    "./react/shell": {
+      "types": "./dist/react/shell/index.d.ts",
+      "import": "./dist/react/shell/index.js",
+      "default": "./dist/react/shell/index.js"
+    },
+    "./react/entities": {
+      "types": "./dist/react/entities/index.d.ts",
+      "import": "./dist/react/entities/index.js",
+      "default": "./dist/react/entities/index.js"
+    },
+    "./browser/shell-navigation": {
+      "types": "./dist/browser/shell-navigation.d.ts",
+      "import": "./dist/browser/shell-navigation.js",
+      "default": "./dist/browser/shell-navigation.js"
     }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",

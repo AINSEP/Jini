@@ -4,7 +4,7 @@
  * (`renderSenseAudioImage`, `POST /v1/image/sync`), both synchronous.
  * Ported near-verbatim from Open Design's
  * `apps/daemon/src/media/index.ts` `renderSenseAudioTTS`/
- * `renderSenseAudioImage` — see `source-map.md`.
+ * `renderSenseAudioImage` — see `archived provenance ledger`.
  *
  * 2026-07-21: migrated onto the generic vendor-adapter dispatch engine
  * (`vendor-adapter.ts`/`vendor-registry.ts`). External behavior (URLs,
@@ -63,9 +63,9 @@ const SENSEAUDIO_TTS_MODEL_MAP: Record<string, string> = {
 const NO_CREDENTIAL_MESSAGE = 'no SenseAudio credential — configure an API key or set SENSEAUDIO_API_KEY.';
 
 const senseAudioTTSAdapter: VendorAdapter<HexEnvelopeAudioMeta> = {
-  requireCredential: requireApiKey(NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<HexEnvelopeAudioMeta> {
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<HexEnvelopeAudioMeta> {
     const apiKey = credentials.apiKey!; // requireCredential already validated this.
     const baseUrl = (credentials.baseUrl || SENSEAUDIO_DEFAULT_BASE_URL).replace(/\/$/, '');
     const wireModel = SENSEAUDIO_TTS_MODEL_MAP[ctx.model] || ctx.model;
@@ -107,10 +107,10 @@ const senseAudioTTSAdapter: VendorAdapter<HexEnvelopeAudioMeta> = {
   parseResponse: createHexEnvelopeAudioParser<HexEnvelopeAudioMeta>({ errorTag: 'senseaudio tts', providerId: 'senseaudio' }),
 };
 
-mediaVendorRegistry.register('senseaudio', 'audio:speech', senseAudioTTSAdapter);
+mediaVendorRegistry.register({ providerId: 'senseaudio', routeKey: 'audio:speech', adapter: senseAudioTTSAdapter });
 
-export async function renderSenseAudioTTS(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(senseAudioTTSAdapter, ctx, credentials);
+export async function renderSenseAudioTTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: senseAudioTTSAdapter, ctx: ctx, credentials: credentials });
 }
 
 /** SenseAudio's image gateway rejects non-standard pixel sizes with a 400; keep this mapping in sync with any other SenseAudio-image call site a future host adds. */
@@ -139,9 +139,9 @@ interface SenseAudioImageResponse {
 }
 
 const senseAudioImageAdapter: VendorAdapter<SenseAudioImageMeta> = {
-  requireCredential: requireApiKey(NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<SenseAudioImageMeta> {
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<SenseAudioImageMeta> {
     const apiKey = credentials.apiKey!; // requireCredential already validated this.
     const baseUrl = (credentials.baseUrl || SENSEAUDIO_DEFAULT_BASE_URL).replace(/\/$/, '');
     const promptRaw = (ctx.prompt && ctx.prompt.trim()) || 'A high-quality reference image.';
@@ -177,7 +177,7 @@ const senseAudioImageAdapter: VendorAdapter<SenseAudioImageMeta> = {
     };
   },
 
-  async parseResponse(resp: Response, ctx: RenderContext, request: VendorRequest<SenseAudioImageMeta>): Promise<RenderResult> {
+  async parseResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<SenseAudioImageMeta> }): Promise<RenderResult> {
     const respText = await resp.text();
     if (!resp.ok) {
       throw new Error(`senseaudio image ${resp.status}: ${truncate(respText, 240)}`);
@@ -198,7 +198,7 @@ const senseAudioImageAdapter: VendorAdapter<SenseAudioImageMeta> = {
     if (!url) {
       throw new Error('senseaudio image response missing url');
     }
-    const imgResp = await assertAndFetchExternalAsset(url, withRequestInit(ctx));
+    const imgResp = await assertAndFetchExternalAsset({ url: url }, { ...ctx, init: withRequestInit(ctx) });
     if (!imgResp.ok) {
       throw new Error(`senseaudio image fetch ${imgResp.status}`);
     }
@@ -215,8 +215,8 @@ const senseAudioImageAdapter: VendorAdapter<SenseAudioImageMeta> = {
   },
 };
 
-mediaVendorRegistry.register('senseaudio', 'image', senseAudioImageAdapter);
+mediaVendorRegistry.register({ providerId: 'senseaudio', routeKey: 'image', adapter: senseAudioImageAdapter });
 
-export async function renderSenseAudioImage(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(senseAudioImageAdapter, ctx, credentials);
+export async function renderSenseAudioImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: senseAudioImageAdapter, ctx: ctx, credentials: credentials });
 }

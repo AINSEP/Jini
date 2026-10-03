@@ -8,10 +8,16 @@
  * kit every domain's agent-tool layer builds on. No Express, no `node:*`, no DOM, no concrete
  * adapters.
  *
- * ## What belongs in `../server`
+ * ## What belongs in Node-bound domain entries
  *
  * Only the Node-bound half: concrete repository implementations (SQLite/Postgres), filesystem blob
- * stores, and anything importing `node:*`.
+ * stores, image transformers, and anything importing `node:*` or a native dependency. These
+ * adapters depend on core; the reverse is a boundary violation. User-management tool registration
+ * composition belongs to its own server entry point.
+ *
+ * HTTP routing and request/response handling belong in domain HTTP entries, composed through
+ * `@jini-ai/http-kit` and `@jini-ai/server`. The source runtime's Express composition root stays
+ * out of this kernel: putting its routes here would reproduce the coupling described below.
  *
  * ## Why the split is drawn here, and why it is enforced by `exports` rather than convention
  *
@@ -26,7 +32,7 @@
  * A package's `exports` map is exactly the enforcement a single `src/` tree cannot provide: a
  * consumer of `@jini-ai/cms/core` physically cannot reach a Node adapter, and `/core` physically
  * cannot import a transport type, because the module resolver refuses it. Keep it that way — if a
- * core module wants something from `/server`, the dependency is pointing the wrong way and the fix
+ * core module wants something from a Node-bound adapter, the dependency points the wrong way and the fix
  * is a port (interface) in core, not a widened export.
  *
  * ## Why the barrel does not re-export `./commands/appliers`
@@ -40,18 +46,10 @@
  */
 
 export type {
-  UUID,
-  ISODateTime,
-  JsonPrimitive,
-  JsonValue,
-  JsonObject,
-  JsonArray,
   DomainEvent,
   EventBusPort,
   OutboxRecord,
   OutboxPort,
-  ClockPort,
-  IdGeneratorPort,
 } from './ports.js';
 
 export type {
@@ -65,4 +63,6 @@ export type {
 
 export * from './commands/command.js';
 export * from './entity-liveness.js';
-export * from './tools/registration-kit.js';
+export * from './tools/args.js';
+
+export type { AuthorizationPort, AuthorizationRequired, AuthorizationOptional } from './authorization.js';

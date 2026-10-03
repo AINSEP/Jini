@@ -157,44 +157,34 @@ describe('normalizeModels', () => {
   const defaultOption = { id: 'default', label: 'Default (CLI config)' };
 
   it('prefers configOptions when it yields more than one option', () => {
-    const result = normalizeModels(
-      {},
-      defaultOption,
-      [{ id: 'model', category: 'model', options: [{ value: 'gpt' }] }],
+    const result = normalizeModels({ models: {}, defaultModelOption: defaultOption }, { configOptions: [{ id: 'model', category: 'model', options: [{ value: 'gpt' }] }] }
     );
     expect(result.map((m) => m.id)).toEqual(['default', 'gpt']);
   });
 
   it('falls back to models.availableModels when configOptions yields <= 1 option', () => {
-    const result = normalizeModels(
-      { availableModels: [{ modelId: 'claude', name: 'Claude' }], currentModelId: 'claude' },
-      defaultOption,
+    const result = normalizeModels({ models: { availableModels: [{ modelId: 'claude', name: 'Claude' }], currentModelId: 'claude' }, defaultModelOption: defaultOption }
     );
     expect(result).toEqual([{ id: 'default', label: 'Default (CLI config)' }, { id: 'claude', label: 'Claude (claude) • current' }]);
   });
 
   it('returns just the default when neither source has any usable models', () => {
-    expect(normalizeModels(null, defaultOption, null)).toEqual([defaultOption]);
+    expect(normalizeModels({ models: null, defaultModelOption: defaultOption }, { configOptions: null })).toEqual([defaultOption]);
   });
 
   it('skips an availableModels entry with no modelId', () => {
-    const result = normalizeModels({ availableModels: [{ name: 'x' }] }, defaultOption);
+    const result = normalizeModels({ models: { availableModels: [{ name: 'x' }] }, defaultModelOption: defaultOption });
     expect(result).toEqual([defaultOption]);
   });
 
   it('deduplicates availableModels entries by id', () => {
-    const result = normalizeModels(
-      { availableModels: [{ modelId: 'a' }, { modelId: 'a' }] },
-      defaultOption,
+    const result = normalizeModels({ models: { availableModels: [{ modelId: 'a' }, { modelId: 'a' }] }, defaultModelOption: defaultOption }
     );
     expect(result.map((m) => m.id)).toEqual(['default', 'a']);
   });
 
   it('falls back to configModels.models when the availableModels path yields only the default and configModels exists', () => {
-    const result = normalizeModels(
-      { availableModels: [] },
-      defaultOption,
-      [{ id: 'model', category: 'model', currentValue: 'solo', options: [{ value: 'solo' }] }],
+    const result = normalizeModels({ models: { availableModels: [] }, defaultModelOption: defaultOption }, { configOptions: [{ id: 'model', category: 'model', currentValue: 'solo', options: [{ value: 'solo' }] }] }
     );
     // configOptions yielded exactly 1 option (default + solo = 2 total, but
     // wait: defaultOption + solo = length 2, so config path already wins via
@@ -204,10 +194,7 @@ describe('normalizeModels', () => {
   });
 
   it('uses configModels.models as the final fallback when config yields exactly 1 (default-only) and availableModels also yields none', () => {
-    const result = normalizeModels(
-      {},
-      defaultOption,
-      [{ id: 'model', category: 'model', options: [] }],
+    const result = normalizeModels({ models: {}, defaultModelOption: defaultOption }, { configOptions: [{ id: 'model', category: 'model', options: [] }] }
     );
     expect(result).toEqual([defaultOption]);
   });
@@ -437,7 +424,7 @@ describe('detectAcpModels', () => {
     vi.useFakeTimers();
     const child = new FakeChild();
     (spawn as unknown as ReturnType<typeof vi.fn>).mockReturnValue(child);
-    const promise = detectAcpModels({ bin: 'bin', args: [], timeoutMs: 50 });
+    const promise = detectAcpModels({ bin: 'bin', args: [] }, { timeoutMs: 50 });
     const assertion = expect(promise).rejects.toThrow(/timed out after/);
     await vi.advanceTimersByTimeAsync(60);
     await assertion;
@@ -483,7 +470,7 @@ describe('detectAcpModels', () => {
   it('does not schedule a timer when effectiveTimeoutMs is 0', async () => {
     const child = new FakeChild();
     (spawn as unknown as ReturnType<typeof vi.fn>).mockReturnValue(child);
-    const promise = detectAcpModels({ bin: 'bin', args: [], timeoutMs: 0 });
+    const promise = detectAcpModels({ bin: 'bin', args: [] }, { timeoutMs: 0 });
     child.stdout.emit('data', `${JSON.stringify({ jsonrpc: '2.0', id: 1, result: {} })}\n`);
     await Promise.resolve();
     child.stdout.emit(

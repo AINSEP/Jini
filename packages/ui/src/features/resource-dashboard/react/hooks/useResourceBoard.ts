@@ -85,7 +85,7 @@ export interface ResourceBoardController<TItem extends ResourceBoardItem> {
  * derivation. Interactive rename (which needs a text input the origin
  * collects via its own `Dialog`) is deliberately NOT handled here — see
  * `ResourceBoard.tsx`'s `onRenameRequest` prop and
- * `packages/ui/source-map.md`'s "Dropped" list.
+ * `packages/ui/archived provenance ledger`'s "Dropped" list.
  */
 export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseResourceBoardParams<TItem>): ResourceBoardController<TItem> {
   const { port, refreshToken } = params;

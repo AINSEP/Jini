@@ -35,7 +35,7 @@ export interface UseMarkdownScrollSyncResult {
  * measured). This is the generic mechanism behind the source component's
  * split-pane markdown viewer — ported without its artifact-status gate, its
  * autosave/upload pipeline, and its shiki-based syntax highlighting (all
- * genuinely OD/product-specific; see `packages/ui/source-map.md`).
+ * genuinely OD/product-specific; see `packages/ui/archived provenance ledger`).
  */
 export function useMarkdownScrollSync(options: UseMarkdownScrollSyncOptions): UseMarkdownScrollSyncResult {
   const { mode, sourceText, editorRef, previewRef, previewSelector, resyncKey } = options;

@@ -63,8 +63,8 @@ export type AgentSlug = (typeof AGENT_SLUGS)[number];
  * @param value The string to test.
  * @returns `true` if `value` is a valid `AgentSlug`, `false` otherwise.
  */
-export function isAgentSlug(value: string): value is AgentSlug {
-  return (AGENT_SLUGS as readonly string[]).includes(value);
+export function isAgentSlug(args: { value: string }): args is { value: AgentSlug } {
+  return (AGENT_SLUGS as readonly string[]).includes(args.value);
 }
 
 /** The resolved stdio launch spec — mirrors the relevant fields of
@@ -177,9 +177,8 @@ function jsonEntry(
  * executor. Throws on an unknown slug so callers surface a clear error.
  */
 export function planAgentInstall(
-  slug: AgentSlug,
-  spec: McpLaunchSpec,
-  ctx: PlanContext,
+  { slug, spec, ctx }: { slug: AgentSlug; spec: McpLaunchSpec; ctx: PlanContext },
+  { env = process.env }: { env?: NodeJS.ProcessEnv } = {},
 ): InstallPlan {
   const { home, platform, serverName } = ctx;
 
@@ -252,7 +251,7 @@ export function planAgentInstall(
       return {
         kind: 'json',
         slug,
-        configPath: clineConfigPath(home, platform),
+        configPath: clineConfigPath(home, platform, env.APPDATA),
         keyPath: ['mcpServers'],
         serverKey: serverName,
         entry: jsonEntry(spec, { disabled: false, autoApprove: [] }),
@@ -298,7 +297,7 @@ export function planAgentInstall(
       return {
         kind: 'json',
         slug,
-        configPath: traeConfigPath(home, platform),
+        configPath: traeConfigPath(home, platform, env.APPDATA),
         keyPath: ['mcpServers'],
         serverKey: serverName,
         entry: jsonEntry(spec),
@@ -347,7 +346,7 @@ export function planAgentInstall(
   }
 }
 
-function clineConfigPath(home: string, platform: NodeJS.Platform): string {
+function clineConfigPath(home: string, platform: NodeJS.Platform, suppliedAppData: string | undefined): string {
   const rel = path.join(
     'globalStorage',
     'saoudrizwan.claude-dev',
@@ -358,18 +357,18 @@ function clineConfigPath(home: string, platform: NodeJS.Platform): string {
     return path.join(home, 'Library', 'Application Support', 'Code', 'User', rel);
   }
   if (platform === 'win32') {
-    const appData = process.env.APPDATA ?? path.join(home, 'AppData', 'Roaming');
+    const appData = suppliedAppData ?? path.join(home, 'AppData', 'Roaming');
     return path.join(appData, 'Code', 'User', rel);
   }
   return path.join(home, '.config', 'Code', 'User', rel);
 }
 
-function traeConfigPath(home: string, platform: NodeJS.Platform): string {
+function traeConfigPath(home: string, platform: NodeJS.Platform, suppliedAppData: string | undefined): string {
   if (platform === 'darwin') {
     return path.join(home, 'Library', 'Application Support', 'Trae', 'User', 'mcp.json');
   }
   if (platform === 'win32') {
-    const appData = process.env.APPDATA ?? path.join(home, 'AppData', 'Roaming');
+    const appData = suppliedAppData ?? path.join(home, 'AppData', 'Roaming');
     return path.join(appData, 'Trae', 'User', 'mcp.json');
   }
   return path.join(home, '.config', 'Trae', 'User', 'mcp.json');
@@ -414,7 +413,7 @@ function assertSafeJsonInstallPlan(plan: JsonInstallPlan): void {
  * (caller decides whether to bail or back up), or if `plan.keyPath` /
  * `plan.serverKey` contains a dangerous object-path segment (CR-007).
  */
-export function applyJsonInstall(existingText: string | null, plan: JsonInstallPlan): string {
+export function applyJsonInstall({ existingText, plan }: { existingText: string | null; plan: JsonInstallPlan }): string {
   assertSafeJsonInstallPlan(plan);
   const root = parseJsonObject(existingText, plan.configPath);
   let cursor: Record<string, unknown> = root;
@@ -435,7 +434,7 @@ export function applyJsonInstall(existingText: string | null, plan: JsonInstallP
  * if `plan.keyPath` / `plan.serverKey` contains a dangerous object-path
  * segment (CR-007).
  */
-export function removeJsonInstall(existingText: string | null, plan: JsonInstallPlan): string | null {
+export function removeJsonInstall({ existingText, plan }: { existingText: string | null; plan: JsonInstallPlan }): string | null {
   assertSafeJsonInstallPlan(plan);
   if (existingText == null || existingText.trim() === '') return null;
   const root = parseJsonObject(existingText, plan.configPath);

@@ -131,7 +131,7 @@ export function SkillRow({
           onClick={onToggleExpanded}
           aria-expanded={expanded}
           title={expanded ? collapseLabel : expandLabel}
-          {...agentHandleProps(agentHandle, { action: 'expand', role: 'button', label: name })}
+          {...agentHandleProps({}, { base: agentHandle, ...({ action: 'expand', role: 'button', label: name }) })}
         >
           <Icon name="puzzle" size={14} aria-hidden="true" />
           <span className="jini-skills-row-summary">
@@ -158,7 +158,7 @@ export function SkillRow({
                 className="jini-button jini-button-danger"
                 onClick={onCommitDelete}
                 data-testid="skills-delete-confirm"
-                {...agentHandleProps(agentHandle, { action: 'delete-confirm', role: 'button', label: deleteConfirmLabel })}
+                {...agentHandleProps({}, { base: agentHandle, ...({ action: 'delete-confirm', role: 'button', label: deleteConfirmLabel }) })}
               >
                 {deleteConfirmLabel}
               </button>
@@ -166,7 +166,7 @@ export function SkillRow({
                 type="button"
                 className="jini-button jini-button-ghost"
                 onClick={onCancelDelete}
-                {...agentHandleProps(agentHandle, { action: 'delete-cancel', role: 'button', label: cancelLabel })}
+                {...agentHandleProps({}, { base: agentHandle, ...({ action: 'delete-cancel', role: 'button', label: cancelLabel }) })}
               >
                 {cancelLabel}
               </button>
@@ -180,7 +180,7 @@ export function SkillRow({
                 aria-label={builtIn ? overrideCreateLabel : editLabel}
                 title={builtIn ? overrideCreateLabel : editLabel}
                 data-testid="skills-edit"
-                {...agentHandleProps(agentHandle, { action: 'edit', role: 'button', label: builtIn ? overrideCreateLabel : editLabel })}
+                {...agentHandleProps({}, { base: agentHandle, ...({ action: 'edit', role: 'button', label: builtIn ? overrideCreateLabel : editLabel }) })}
               >
                 <Icon name="edit" size={13} />
               </button>
@@ -192,7 +192,7 @@ export function SkillRow({
                   aria-label={deleteLabel}
                   title={deleteLabel}
                   data-testid="skills-delete"
-                  {...agentHandleProps(agentHandle, { action: 'delete', role: 'button', label: deleteLabel })}
+                  {...agentHandleProps({}, { base: agentHandle, ...({ action: 'delete', role: 'button', label: deleteLabel }) })}
                 >
                   <Icon name="close" size={13} />
                 </button>
@@ -213,7 +213,7 @@ export function SkillRow({
               checked={enabled}
               onChange={(event) => onToggleEnabled(event.target.checked)}
               aria-label={enableToggleLabel}
-              {...agentHandleProps(agentHandle, { action: 'enabled', role: 'checkbox', label: enableToggleLabel })}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'enabled', role: 'checkbox', label: enableToggleLabel }) })}
             />
             <span className="toggle-slider" />
           </label>
@@ -229,7 +229,7 @@ export function SkillRow({
               className="jini-button jini-button-ghost"
               onClick={onCancelBuiltInEdit}
               data-testid="skills-edit-builtin-cancel"
-              {...agentHandleProps(agentHandle, { action: 'builtin-edit-cancel', role: 'button', label: cancelLabel })}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'builtin-edit-cancel', role: 'button', label: cancelLabel }) })}
             >
               {cancelLabel}
             </button>
@@ -238,7 +238,7 @@ export function SkillRow({
               className="jini-button jini-button-primary"
               onClick={onConfirmBuiltInEdit}
               data-testid="skills-edit-builtin-confirm"
-              {...agentHandleProps(agentHandle, { action: 'builtin-edit-confirm', role: 'button', label: overrideCreateLabel })}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'builtin-edit-confirm', role: 'button', label: overrideCreateLabel }) })}
             >
               {overrideCreateLabel}
             </button>
@@ -288,7 +288,7 @@ export function SkillRow({
           onCancel={onCancelEdit}
           onSubmit={onSubmitEdit}
           labels={labels}
-          {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'edit-form') } : {})}
+          {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'edit-form' }) } : {})}
         />
       ) : null}
     </div>

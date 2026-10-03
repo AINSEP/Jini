@@ -183,7 +183,7 @@ export interface ParseSuccess {
  * `ParseFailure` instead, mirroring how a real renderer must degrade on the wire: reject the one
  * bad message with a specific reason, not crash the whole connection.
  */
-export function parseAgentToRendererMessage(raw: unknown): ParseSuccess | ParseFailure {
+export function parseAgentToRendererMessage({ raw }: { raw: unknown }, _optional: Record<string, never> = {}): ParseSuccess | ParseFailure {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     return { ok: false, code: 'VALIDATION_FAILED', message: 'envelope must be a JSON object' };
   }

@@ -35,7 +35,7 @@ export type VisitorAuthConfigurationErrorCode =
 export class VisitorAuthConfigurationError extends Error {
   readonly code: VisitorAuthConfigurationErrorCode;
 
-  constructor(code: VisitorAuthConfigurationErrorCode, message: string) {
+  constructor({ code, message }: { code: VisitorAuthConfigurationErrorCode; message: string }) {
     super(message);
     this.name = 'VisitorAuthConfigurationError';
     this.code = code;
@@ -52,15 +52,12 @@ function parsedSecureUrl(value: string, label: string, allowLoopbackHttp: boolea
   try {
     url = new URL(value);
   } catch {
-    throw new VisitorAuthConfigurationError('invalid-input', `${label} must be an absolute URL`);
+    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: `${label} must be an absolute URL` });
   }
 
   const secure = isSecureProtocol(url, allowLoopbackHttp);
   if (!secure || url.username || url.password || url.hash) {
-    throw new VisitorAuthConfigurationError(
-      'insecure-url',
-      `${label} must use HTTPS without credentials or a fragment`,
-    );
+    throw new VisitorAuthConfigurationError({ code: 'insecure-url', message: `${label} must use HTTPS without credentials or a fragment` });
   }
   return url;
 }
@@ -72,7 +69,7 @@ function isSecureProtocol(url: URL, allowLoopbackHttp: boolean): boolean {
 
 function assertNonEmpty(value: string, label: string): void {
   if (!value.trim()) {
-    throw new VisitorAuthConfigurationError('invalid-input', `${label} must not be empty`);
+    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: `${label} must not be empty` });
   }
 }
 
@@ -85,20 +82,14 @@ function assertProviderAlignment(required: {
     required.provider.id !== required.server.providerId ||
     required.provider.id !== required.registration.providerId
   ) {
-    throw new VisitorAuthConfigurationError(
-      'provider-mismatch',
-      'provider definition, authorization server, and client registration must match',
-    );
+    throw new VisitorAuthConfigurationError({ code: 'provider-mismatch', message: 'provider definition, authorization server, and client registration must match' });
   }
 }
 
 function validatedTransactionTtl(ttlMs: number | undefined): number {
   const resolved = ttlMs ?? DEFAULT_TRANSACTION_TTL_MS;
   if (!Number.isInteger(resolved) || resolved <= 0 || resolved > MAX_TRANSACTION_TTL_MS) {
-    throw new VisitorAuthConfigurationError(
-      'invalid-input',
-      `ttlMs must be an integer between 1 and ${MAX_TRANSACTION_TTL_MS}`,
-    );
+    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: `ttlMs must be an integer between 1 and ${MAX_TRANSACTION_TTL_MS}` });
   }
   return resolved;
 }
@@ -115,7 +106,7 @@ function assertPlanContext(required: {
     assertNonEmpty(required.registration.clientSecretRef.id, 'clientSecretRef.id');
   }
   if (!Number.isFinite(required.nowMs)) {
-    throw new VisitorAuthConfigurationError('invalid-input', 'nowMs must be finite');
+    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: 'nowMs must be finite' });
   }
 }
 
@@ -124,22 +115,16 @@ function validatedOidcNonce(
   security: VisitorAuthSecurityArtifacts,
 ): string | undefined {
   if (!OPAQUE_SECURITY_VALUE.test(security.state)) {
-    throw new VisitorAuthConfigurationError('invalid-input', 'state is malformed or too short');
+    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: 'state is malformed or too short' });
   }
   if (!PKCE_VALUE.test(security.codeVerifier) || !PKCE_VALUE.test(security.codeChallenge)) {
-    throw new VisitorAuthConfigurationError(
-      'invalid-input',
-      'PKCE verifier and S256 challenge must be 43-128 URL-safe characters',
-    );
+    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: 'PKCE verifier and S256 challenge must be 43-128 URL-safe characters' });
   }
   if (protocol !== 'oidc') return undefined;
 
   const nonce = security.nonce;
   if (!nonce || !OPAQUE_SECURITY_VALUE.test(nonce)) {
-    throw new VisitorAuthConfigurationError(
-      'invalid-input',
-      'OIDC authorization requires a strong nonce',
-    );
+    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: 'OIDC authorization requires a strong nonce' });
   }
   return nonce;
 }
@@ -149,22 +134,13 @@ function assertAuthorizationServerSecurity(required: {
   readonly server: VisitorAuthAuthorizationServer;
 }): void {
   if (!required.server.supportsPkceS256) {
-    throw new VisitorAuthConfigurationError(
-      'pkce-s256-required',
-      'visitor-auth requires authorization servers that support PKCE S256',
-    );
+    throw new VisitorAuthConfigurationError({ code: 'pkce-s256-required', message: 'visitor-auth requires authorization servers that support PKCE S256' });
   }
   if (required.provider.protocol === 'oidc' && !required.server.issuer) {
-    throw new VisitorAuthConfigurationError(
-      'invalid-input',
-      'OIDC authorization server metadata must declare an issuer',
-    );
+    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: 'OIDC authorization server metadata must declare an issuer' });
   }
   if (required.server.requiresAuthorizationResponseIssuer && !required.server.issuer) {
-    throw new VisitorAuthConfigurationError(
-      'invalid-input',
-      'authorization response issuer validation requires a configured issuer',
-    );
+    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: 'authorization response issuer validation requires a configured issuer' });
   }
 }
 
@@ -184,18 +160,12 @@ function configuredAuthorizationUrl(required: {
   );
   for (const key of authorizationUrl.searchParams.keys()) {
     if (RESERVED_AUTHORIZATION_PARAMETERS.has(key)) {
-      throw new VisitorAuthConfigurationError(
-        'reserved-parameter',
-        `authorizationEndpoint must not preconfigure reserved parameter "${key}"`,
-      );
+      throw new VisitorAuthConfigurationError({ code: 'reserved-parameter', message: `authorizationEndpoint must not preconfigure reserved parameter "${key}"` });
     }
   }
   for (const [key, value] of Object.entries(required.extraParameters ?? {})) {
     if (RESERVED_AUTHORIZATION_PARAMETERS.has(key)) {
-      throw new VisitorAuthConfigurationError(
-        'reserved-parameter',
-        `extraParameters must not override reserved parameter "${key}"`,
-      );
+      throw new VisitorAuthConfigurationError({ code: 'reserved-parameter', message: `extraParameters must not override reserved parameter "${key}"` });
     }
     authorizationUrl.searchParams.set(key, value);
   }
@@ -420,10 +390,7 @@ export type VisitorAuthIdentityClaimsDecision =
 function validatedClockSkew(clockSkewSeconds: number | undefined): number {
   const skew = clockSkewSeconds ?? 60;
   if (!Number.isFinite(skew) || skew < 0 || skew > 300) {
-    throw new VisitorAuthConfigurationError(
-      'invalid-input',
-      'clockSkewSeconds must be between 0 and 300',
-    );
+    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: 'clockSkewSeconds must be between 0 and 300' });
   }
   return skew;
 }

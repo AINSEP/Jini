@@ -4,10 +4,10 @@
  * arbitrary preview content. No React import: React-specific prop shapes
  * (anything carrying a `ReactNode`, e.g. the per-view `custom` stage or the
  * sidebar's `content`) live in `react/components/PreviewModalShell.tsx`
- * instead — see the React-layout policy note in `../source-map.md`.
+ * instead — see the React-layout policy note in `../archived provenance ledger`.
  *
  * Origin: `apps/web/src/components/PreviewModal.tsx`. See
- * `../source-map.md`'s `preview-modal-shell` classification section for the
+ * `../archived provenance ledger`'s `preview-modal-shell` classification section for the
  * full generic-vs-OD-specific breakdown.
  */
 
@@ -38,7 +38,7 @@ export interface PreviewModalPrimaryAction {
  * Shown in the content stage in place of the loading/error/rendered states
  * when a view genuinely has nothing to preview (generalized from the
  * origin's closed `'skill' | 'plugin' | 'template'` noun vocabulary — see
- * `../source-map.md`). The caller owns the copy; the shell just displays it.
+ * `../archived provenance ledger`). The caller owns the copy; the shell just displays it.
  */
 export interface PreviewModalUnavailable {
   message: string;

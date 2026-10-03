@@ -3,7 +3,7 @@
 // transport, command, args, env) using the generic `SourceFieldSpec[]` seam
 // `features/source-config-list/types.ts` documents. That primitive's own
 // provenance notes are explicit that the MCP-server shape has no trust
-// concept at all (`packages/ui/source-map.md`'s "the specific trust
+// concept at all (`packages/ui/archived provenance ledger`'s "the specific trust
 // vocabulary ... never hardcoded ... the origin MCP-server shape has none"),
 // so this feature defines no `SourceTrustOption[]` to go with it.
 import type { SourceFieldSpec } from '../source-config-list/types.js';

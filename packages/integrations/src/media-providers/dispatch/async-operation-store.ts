@@ -1,3 +1,4 @@
+import type { RequiredArgs, OptionalArgs } from '../../args.js';
 /**
  * `AsyncOperationStore` — the durable operation row behind submit-then-poll media generation.
  *
@@ -187,17 +188,17 @@ export interface AsyncOperationReconcileResult {
 }
 
 export interface AsyncOperationStore {
-  create(input: AsyncOperationCreateInput): Promise<AsyncOperationRecord>;
-  get(id: string): Promise<AsyncOperationRecord | null>;
+  create(required: RequiredArgs<AsyncOperationCreateInput>, optional?: OptionalArgs<AsyncOperationCreateInput>): Promise<AsyncOperationRecord>;
+  get(required: { id: string }): Promise<AsyncOperationRecord | null>;
   /**
    * Applies `patch`. Pass `options.leaseOwner` to fence the write to a lease the caller believes it
    * holds — see `AsyncOperationUpdateOptions`. Omitted, the write applies unconditionally (the
    * pre-lease case, e.g. `startOperation`'s initial persistence).
    */
-  update(id: string, patch: AsyncOperationPatch, options?: AsyncOperationUpdateOptions): Promise<AsyncOperationRecord | null>;
-  listByOwner(ownerRef: string): Promise<AsyncOperationRecord[]>;
+  update(required: { id: string; patch: AsyncOperationPatch }, optional?: { options?: AsyncOperationUpdateOptions | undefined }): Promise<AsyncOperationRecord | null>;
+  listByOwner(required: { ownerRef: string }): Promise<AsyncOperationRecord[]>;
   /** Atomically leases every due, unleased, non-terminal operation and returns the leased rows. */
-  claimDue(options: AsyncOperationClaimOptions): Promise<AsyncOperationRecord[]>;
+  claimDue(required: RequiredArgs<AsyncOperationClaimOptions>, optional?: OptionalArgs<AsyncOperationClaimOptions>): Promise<AsyncOperationRecord[]>;
   /**
    * Releases a lease this caller believes it holds. Fenced on `leaseOwner`: a release only takes
    * effect while the row's current `leaseOwner` still equals the one passed here (the equivalent
@@ -208,7 +209,7 @@ export interface AsyncOperationStore {
    * never claimed it, or another worker has since reclaimed it — is a no-op, not an error: the
    * caller's intent ("I'm done, let someone else have it") is already satisfied either way.
    */
-  releaseLease(id: string, leaseOwner: string): Promise<void>;
+  releaseLease(required: { id: string; leaseOwner: string }): Promise<void>;
   /**
    * Boot-time recovery. Unlike `MediaTaskStore.reconcileOnBoot`, this does NOT terminate in-flight
    * work: a vendor-side job outlives our process, so the row stays pollable and only its dead
@@ -228,7 +229,7 @@ export interface AsyncOperationStore {
  * @complexity O(n) in the total number of keys, bounded by `MAX_STATE_DEPTH` against a cyclic or
  *   pathologically nested object.
  */
-export function assertNoCredentialMaterial(state: Readonly<Record<string, unknown>> | null | undefined): void {
+export function assertNoCredentialMaterial({ state }: { state: Readonly<Record<string, unknown>> | null | undefined }): void {
   if (state == null) return;
   const seen = new Set<unknown>();
   const walk = (value: unknown, depth: number): void => {
@@ -267,7 +268,7 @@ export function assertNoCredentialMaterial(state: Readonly<Record<string, unknow
  * @throws When `schemaVersion` is newer than this build understands.
  * @complexity O(1).
  */
-export function hydrateAsyncOperationRecord(raw: Record<string, unknown>): AsyncOperationRecord {
+export function hydrateAsyncOperationRecord({ raw }: { raw: Record<string, unknown> }): AsyncOperationRecord {
   const stored = typeof raw.schemaVersion === 'number' ? raw.schemaVersion : 0;
   if (stored > ASYNC_OPERATION_SCHEMA_VERSION) {
     throw new Error(
@@ -328,7 +329,8 @@ export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
   const requireRow = (id: string): AsyncOperationRecord | undefined => rows.get(id);
 
   return {
-    async create(input: AsyncOperationCreateInput): Promise<AsyncOperationRecord> {
+    async create(required: RequiredArgs<AsyncOperationCreateInput>, optional: OptionalArgs<AsyncOperationCreateInput> = {}): Promise<AsyncOperationRecord> {
+      const input = { ...required, ...optional };
       if (rows.has(input.id)) {
         throw new Error(`async operation "${input.id}" already exists`);
       }
@@ -338,7 +340,7 @@ export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
       if (!Number.isFinite(input.deadlineAt)) {
         throw new RangeError(`Invalid deadlineAt: ${input.deadlineAt} must be a finite epoch-ms timestamp`);
       }
-      assertNoCredentialMaterial(input.state);
+      assertNoCredentialMaterial({ state: input.state });
 
       const now = Date.now();
       const row: AsyncOperationRecord = {
@@ -364,12 +366,12 @@ export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
       return cloneRecord(row);
     },
 
-    async get(id: string): Promise<AsyncOperationRecord | null> {
+    async get({ id }: { id: string }): Promise<AsyncOperationRecord | null> {
       const row = requireRow(id);
       return row ? cloneRecord(row) : null;
     },
 
-    async update(id: string, patch: AsyncOperationPatch, options?: AsyncOperationUpdateOptions): Promise<AsyncOperationRecord | null> {
+    async update({ id, patch }: { id: string; patch: AsyncOperationPatch } , { options }: { options?: AsyncOperationUpdateOptions | undefined } = {}): Promise<AsyncOperationRecord | null> {
       const existing = requireRow(id);
       if (!existing) return null;
       // Fenced, like releaseLease: a caller writing against a lease it no longer holds gets a
@@ -377,7 +379,7 @@ export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
       if (options?.leaseOwner !== undefined && existing.leaseOwner !== options.leaseOwner) {
         return cloneRecord(existing);
       }
-      if ('state' in patch) assertNoCredentialMaterial(patch.state);
+      if ('state' in patch) assertNoCredentialMaterial({ state: patch.state });
 
       const status = patch.status ?? existing.status;
       assertTransition(existing.status, status);
@@ -399,14 +401,15 @@ export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
       return cloneRecord(next);
     },
 
-    async listByOwner(ownerRef: string): Promise<AsyncOperationRecord[]> {
+    async listByOwner({ ownerRef }: { ownerRef: string }): Promise<AsyncOperationRecord[]> {
       return [...rows.values()]
         .filter((row) => row.ownerRef === ownerRef)
         .sort((a, b) => a.createdAt - b.createdAt)
         .map(cloneRecord);
     },
 
-    async claimDue(options: AsyncOperationClaimOptions): Promise<AsyncOperationRecord[]> {
+    async claimDue(required: RequiredArgs<AsyncOperationClaimOptions>, optional: OptionalArgs<AsyncOperationClaimOptions> = {}): Promise<AsyncOperationRecord[]> {
+      const options = { ...required, ...optional };
       const { now, leaseOwner, leaseMs } = options;
       const limit = options.limit ?? 10;
       const claimed: AsyncOperationRecord[] = [];
@@ -431,7 +434,7 @@ export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
       return claimed;
     },
 
-    async releaseLease(id: string, leaseOwner: string): Promise<void> {
+    async releaseLease({ id, leaseOwner }: { id: string; leaseOwner: string }): Promise<void> {
       const row = requireRow(id);
       if (!row) return;
       // Fenced: a stale owner's late release must not clear a lease another worker has since

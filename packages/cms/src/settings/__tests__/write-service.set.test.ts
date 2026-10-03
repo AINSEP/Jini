@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { InMemoryPrincipalRepo } from "../../identity/index.js";
+import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import {
   DefinitionTombstonedError,
   ForbiddenError,
@@ -12,7 +12,7 @@ import { InMemorySettingsRepo } from "../repo.memory.js";
 import { clear, set } from "../write-service.js";
 import type { SettingDefinitionRecord } from "../types.js";
 
-const clock = { nowIso: () => "2026-07-11T00:00:00.000Z" };
+const clock = { nowMs: () => Date.parse("2026-07-11T00:00:00.000Z")};
 let idCounter = 0;
 const ids = { newId: () => `id-${++idCounter}` };
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
@@ -45,7 +45,7 @@ function definition(overrides: Partial<SettingDefinitionRecord> = {}): SettingDe
 test("set writes exactly one workspace value row and one op='set' revision, same call (AC-07)", async () => {
   const def = definition();
   const repo = new InMemorySettingsRepo({ definitions: [def] });
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
 
   const result = await set({
     deps: { repo, clock, ids, authorize: alwaysAllow, principals },
@@ -71,7 +71,7 @@ test("set writes exactly one workspace value row and one op='set' revision, same
 test("set is rejected FORBIDDEN and writes nothing when the caller is unauthorized (AC-08)", async () => {
   const def = definition();
   const repo = new InMemorySettingsRepo({ definitions: [def] });
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
 
   await assert.rejects(
     () =>
@@ -95,7 +95,7 @@ test("set is rejected FORBIDDEN and writes nothing when the caller is unauthoriz
 test("set rejects a scope not declared in the definition's scopes bitmask (EC-02)", async () => {
   const def = definition({ scopes: 1 }); // global only
   const repo = new InMemorySettingsRepo({ definitions: [def] });
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
 
   await assert.rejects(
     () =>
@@ -118,7 +118,7 @@ test("set rejects a scope not declared in the definition's scopes bitmask (EC-02
 test("set rejects a value that fails the definition schema", async () => {
   const def = definition({ schema: { type: "enum", values: ["paper", "atlas"] } });
   const repo = new InMemorySettingsRepo({ definitions: [def] });
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
 
   await assert.rejects(
     () =>
@@ -139,7 +139,7 @@ test("set rejects a value that fails the definition schema", async () => {
 test("set rejects a write to a tombstoned definition", async () => {
   const def = definition({ status: "tombstone" });
   const repo = new InMemorySettingsRepo({ definitions: [def] });
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
 
   await assert.rejects(
     () =>
@@ -160,7 +160,7 @@ test("set rejects a write to a tombstoned definition", async () => {
 test("clear is rejected FORBIDDEN and writes nothing when the caller is unauthorized and skipAuthorize is not set", async () => {
   const def = definition();
   const repo = new InMemorySettingsRepo({ definitions: [def] });
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
 
   await set({
     deps: { repo, clock, ids, authorize: alwaysAllow, principals },
@@ -189,7 +189,7 @@ test("clear is rejected FORBIDDEN and writes nothing when the caller is unauthor
 test("clear writes state='cleared' and a same-call op='clear' revision", async () => {
   const def = definition();
   const repo = new InMemorySettingsRepo({ definitions: [def] });
-  const principals = new InMemoryPrincipalRepo([]);
+  const principals = new InMemorySettingsPrincipalLookup([]);
 
   await set({
     deps: { repo, clock, ids, authorize: alwaysAllow, principals },

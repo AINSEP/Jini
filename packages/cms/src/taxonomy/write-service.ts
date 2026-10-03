@@ -1,3 +1,5 @@
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
+import type { Clock, IdGenerator } from "@jini-ai/core/primitives";
 import { ForbiddenError } from "../core/commands/command.js";
 import { validateContentJoin, validateHierarchyAssignment, wouldCreateCycle } from "./validation-chain.js";
 // Type-only — `list.ts` imports `Taxonomy`/`Term` back from this file, so a value-level import
@@ -70,12 +72,12 @@ export interface Term {
 }
 
 export interface TaxonomyRepoPort {
-  findById(id: string): Promise<{ id: string; hierarchical: boolean; allowList?: string[] | undefined } | null>;
+  findById({ id }: { id: string }): Promise<{ id: string; hierarchical: boolean; allowList?: string[] | undefined } | null>;
   insert(row: Taxonomy): Promise<unknown>;
 }
 
 export interface TermRepoPort {
-  findById(id: string): Promise<{ id: string; taxonomyId: string; name?: string | undefined } | null>;
+  findById({ id }: { id: string }): Promise<{ id: string; taxonomyId: string; name?: string | undefined } | null>;
   insert(row: Term): Promise<unknown>;
   update(row: Term): Promise<unknown>;
 }
@@ -95,9 +97,11 @@ export interface ContentLookupPort {
   resolve(params: { contentType: string; contentId: string }): Promise<{ workspaceId: string; kind: string } | null>;
 }
 
-/** ADR-044: the content_types registry's per-type taxonomy allow-list for Collections entries
- *  (parallel to, never folded into, TAXONOMY_ALLOWED_CONTENT_TYPES — see the decision note).
- *  `null` = not a live registry type (not applicable). */
+/** : the content_types registry's per-type taxonomy allow-list for Collections entries
+ * (parallel to, never folded into, TAXONOMY_ALLOWED_CONTENT_TYPES — see the decision note).
+ * `null` = not a live registry type (not applicable).
+ * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
+ */
 export interface ContentTypeTaxonomyPolicyPort {
   taxonomiesFor(params: { contentType: string }): Promise<"all" | ReadonlySet<string> | null>;
 }
@@ -110,7 +114,8 @@ export interface ContentTypeTaxonomyPolicyPort {
  * `content_types` registry. */
 export const TAXONOMY_ALLOWED_CONTENT_TYPES: ReadonlySet<string> = new Set(["post", "page"]);
 
-export function isContentTypeOnAllowList(contentType: string): boolean {
+export function isContentTypeOnAllowList(requiredArgs: { contentType: string }, optionalArgs: Record<string, never> = {}): boolean {
+  const { contentType } = requiredArgs;
   return TAXONOMY_ALLOWED_CONTENT_TYPES.has(contentType);
 }
 
@@ -130,18 +135,11 @@ export interface TaxonomyRevisionRepoPort {
   insert(row: TaxonomyRevisionRow): Promise<unknown>;
 }
 
-export interface ClockPort {
-  nowIso(): string;
-}
-
-export interface IdGeneratorPort {
-  newId(): string;
-}
 
 export interface WriteServiceDeps {
   authorize: AuthorizeFn;
-  clock: ClockPort;
-  idGen: IdGeneratorPort;
+  clock: Clock;
+  idGen: IdGenerator;
   taxonomies: TaxonomyRepoPort;
   terms: TermRepoPort;
   entryTerms: EntryTermRepoPort;
@@ -149,8 +147,8 @@ export interface WriteServiceDeps {
   /** `core/gated-mutations.stampWatermark`-shaped, injected — same-transaction stamp per mutation.
    * May be sync (SQLite) or async (PGlite/Postgres); every call site awaits it, so an async stamp
    * finishes, and its failure fails the write, before the mutation returns. */
-  stampWatermark: (tx?: unknown) => Promise<void> | void;
-  outbox: { enqueue: (event: unknown) => Promise<void> };
+  stampWatermark: (required: Record<string, never>, optional?: { tx?: unknown }) => Promise<void> | void;
+  outbox: { enqueue: ({ event }: { event: unknown }) => Promise<void> };
   /** The caller's own workspace — `validateContentJoin`'s `callerWorkspaceId` (Finding 1 fix). */
   workspaceId: string;
   /** Resolves a `(contentType, contentId)` pair's real workspace/kind for `assignTerms`'s
@@ -163,14 +161,16 @@ export interface WriteServiceDeps {
 }
 
 export class TaxonomyRecordNotFoundError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "TaxonomyRecordNotFoundError";
   }
 }
 
 export class TermRecordNotFoundError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "TermRecordNotFoundError";
   }
@@ -178,7 +178,8 @@ export class TermRecordNotFoundError extends Error {
 
 /** Finding 1 fix — the target of an `assignTerms` call does not resolve to any real content row. */
 export class ContentRecordNotFoundError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "ContentRecordNotFoundError";
   }
@@ -193,7 +194,8 @@ export class ContentRecordNotFoundError extends Error {
  * "catch the one it actually called into" rule.
  */
 export class TaxonomyVersionConflictError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "TaxonomyVersionConflictError";
   }
@@ -204,11 +206,11 @@ export class TaxonomyVersionConflictError extends Error {
 async function authorizeTaxonomyManage(deps: WriteServiceDeps, principalId: string): Promise<void> {
   const result = await deps.authorize({ principalId, permission: "admin.taxonomy.manage" });
   if (!result.allowed) {
-    throw new ForbiddenError(
-      `principal '${principalId}' is not authorized for 'admin.taxonomy.manage' (${result.reason})`,
-      "admin.taxonomy.manage",
-      result.reason
-    );
+    throw new ForbiddenError({
+      message: `principal '${principalId}' is not authorized for 'admin.taxonomy.manage' (${result.reason})`,
+      permission: "admin.taxonomy.manage",
+      reason: result.reason,
+    });
   }
 }
 
@@ -228,7 +230,7 @@ export async function createTaxonomy(
   const { deps, principalId, name, hierarchical } = required;
   await authorizeTaxonomyManage(deps, principalId);
 
-  const now = deps.clock.nowIso();
+  const now = kernelNowIso({ clock: deps.clock });
   const taxonomy: Taxonomy = {
     id: deps.idGen.newId(),
     name,
@@ -246,8 +248,8 @@ export async function createTaxonomy(
     actorId: principalId,
     recordedAt: now,
   });
-  await deps.stampWatermark();
-  await deps.outbox.enqueue({ name: "taxonomy.created", taxonomyId: taxonomy.id, actorId: principalId, occurredAt: now });
+  await deps.stampWatermark({});
+  await deps.outbox.enqueue({ event: { name: "taxonomy.created", taxonomyId: taxonomy.id, actorId: principalId, occurredAt: now } });
 
   return taxonomy;
 }
@@ -257,29 +259,35 @@ export interface CreateTermRequired {
   principalId: string;
   taxonomyId: string;
   name: string;
+}
+
+export interface CreateTermOptional {
   parentId?: string | null | undefined;
 }
 
-/** AC-03/AC-13/EC-04 — validates `parentId` via `validateHierarchyAssignment` before writing. A
+/** — validates `parentId` via `validateHierarchyAssignment` before writing. A
  * freshly-created term has no descendants yet, so it structurally cannot be a cycle source; the
- * cycle check is therefore always a no-op (`() => false`) here, unlike a reparent of an existing
- * term (not yet built — no certified test in this slice exercises it). */
+ * cycle check is therefore always a no-op (` => false`) here, unlike a reparent of an existing
+ * term (not yet built — no certified test in this slice exercises it).
+ * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
+ */
 export async function createTerm(
   required: CreateTermRequired,
-  _optional: Record<string, never> = {}
+  optional: CreateTermOptional = {}
 ): Promise<Term> {
-  const { deps, principalId, taxonomyId, name, parentId } = required;
+  const { deps, principalId, taxonomyId, name } = required;
+  const { parentId } = optional;
   await authorizeTaxonomyManage(deps, principalId);
 
-  const taxonomy = await deps.taxonomies.findById(taxonomyId);
+  const taxonomy = await deps.taxonomies.findById({ id: taxonomyId });
   if (!taxonomy) {
-    throw new TaxonomyRecordNotFoundError(`taxonomy '${taxonomyId}' was not found`);
+    throw new TaxonomyRecordNotFoundError({ message: `taxonomy '${taxonomyId}' was not found` });
   }
 
   const candidateParentId = parentId ?? null;
   let resolvedParent: { id: string; taxonomyId: string } | null | "not-applicable" = "not-applicable";
   if (candidateParentId !== null) {
-    const parentTerm = await deps.terms.findById(candidateParentId);
+    const parentTerm = await deps.terms.findById({ id: candidateParentId });
     resolvedParent = parentTerm ? { id: parentTerm.id, taxonomyId: parentTerm.taxonomyId } : null;
   }
 
@@ -292,7 +300,7 @@ export async function createTerm(
     termId: "__new__",
   });
 
-  const now = deps.clock.nowIso();
+  const now = kernelNowIso({ clock: deps.clock });
   const term: Term = {
     id: deps.idGen.newId(),
     taxonomyId,
@@ -305,8 +313,8 @@ export async function createTerm(
 
   await deps.terms.insert(term);
   await deps.revisions.insert({ taxonomyId, op: "create", previousState: null, actorId: principalId, recordedAt: now });
-  await deps.stampWatermark();
-  await deps.outbox.enqueue({ name: "taxonomy.term_created", termId: term.id, actorId: principalId, occurredAt: now });
+  await deps.stampWatermark({});
+  await deps.outbox.enqueue({ event: { name: "taxonomy.term_created", termId: term.id, actorId: principalId, occurredAt: now } });
 
   return term;
 }
@@ -318,7 +326,7 @@ export async function createTerm(
  * write an existing row back. Same beyond-the-certified-port precedent as `DeletableTaxonomyRepoPort`.
  */
 export interface ImportableTaxonomyRepoPort {
-  findByIdFull(id: string): Promise<Taxonomy | null>;
+  findByIdFull({ id }: { id: string }): Promise<Taxonomy | null>;
   update(row: Taxonomy): Promise<unknown>;
 }
 
@@ -355,21 +363,21 @@ export async function importTaxonomy(
   const { deps, principalId, id, name, hierarchical, expectedVersion } = required;
   await authorizeTaxonomyManage(deps, principalId);
 
-  const existing = await deps.taxonomies.findByIdFull(id);
+  const existing = await deps.taxonomies.findByIdFull({ id: id });
   if (expectedVersion === undefined) {
     if (existing) {
-      throw new TaxonomyVersionConflictError(`taxonomy '${id}' already exists, but no expectedVersion was supplied for import`);
+      throw new TaxonomyVersionConflictError({ message: `taxonomy '${id}' already exists, but no expectedVersion was supplied for import` });
     }
   } else {
     if (!existing) {
-      throw new TaxonomyVersionConflictError(`expected version ${expectedVersion} for taxonomy '${id}', but no such taxonomy exists`);
+      throw new TaxonomyVersionConflictError({ message: `expected version ${expectedVersion} for taxonomy '${id}', but no such taxonomy exists` });
     }
     if (existing.version !== expectedVersion) {
-      throw new TaxonomyVersionConflictError(`expected version ${expectedVersion} for taxonomy '${id}', found ${existing.version}`);
+      throw new TaxonomyVersionConflictError({ message: `expected version ${expectedVersion} for taxonomy '${id}', found ${existing.version}` });
     }
   }
 
-  const now = deps.clock.nowIso();
+  const now = kernelNowIso({ clock: deps.clock });
   const taxonomy: Taxonomy = {
     id,
     name,
@@ -391,8 +399,8 @@ export async function importTaxonomy(
     actorId: principalId,
     recordedAt: now,
   });
-  await deps.stampWatermark();
-  await deps.outbox.enqueue({ name: "taxonomy.imported", taxonomyId: taxonomy.id, actorId: principalId, occurredAt: now });
+  await deps.stampWatermark({});
+  await deps.outbox.enqueue({ event: { name: "taxonomy.imported", taxonomyId: taxonomy.id, actorId: principalId, occurredAt: now } });
 
   return taxonomy;
 }
@@ -403,7 +411,7 @@ export async function importTaxonomy(
  * `TermRepoPort` already has `update`, unlike taxonomies, so no additive `update` is needed here.
  */
 export interface ImportableTermRepoPort {
-  findByIdFull(id: string): Promise<Term | null>;
+  findByIdFull({ id }: { id: string }): Promise<Term | null>;
 }
 
 /**
@@ -418,7 +426,7 @@ async function loadAncestorChain(terms: ImportableTermRepoPort, startId: string)
   const chain = new Map<string, string | null>();
   let current: string | null = startId;
   while (current !== null && !chain.has(current)) {
-    const parentId: string | null = (await terms.findByIdFull(current))?.parentId ?? null;
+    const parentId: string | null = (await terms.findByIdFull({ id: current }))?.parentId ?? null;
     chain.set(current, parentId);
     current = parentId;
   }
@@ -432,9 +440,12 @@ export interface ImportTermRequired {
   id: string;
   taxonomyId: string;
   name: string;
-  parentId?: string | null | undefined;
   /** Same three-way CAS contract as `importTaxonomy.expectedVersion`. */
   expectedVersion: number | undefined;
+}
+
+export interface ImportTermOptional {
+  parentId?: string | null | undefined;
 }
 
 /**
@@ -452,38 +463,39 @@ export interface ImportTermRequired {
  */
 export async function importTerm(
   required: ImportTermRequired,
-  _optional: Record<string, never> = {}
+  optional: ImportTermOptional = {}
 ): Promise<Term> {
-  const { deps, principalId, id, taxonomyId, name, parentId, expectedVersion } = required;
+  const { deps, principalId, id, taxonomyId, name, expectedVersion } = required;
+  const { parentId } = optional;
   await authorizeTaxonomyManage(deps, principalId);
 
-  const taxonomy = await deps.taxonomies.findById(taxonomyId);
+  const taxonomy = await deps.taxonomies.findById({ id: taxonomyId });
   if (!taxonomy) {
-    throw new TaxonomyRecordNotFoundError(`taxonomy '${taxonomyId}' was not found`);
+    throw new TaxonomyRecordNotFoundError({ message: `taxonomy '${taxonomyId}' was not found` });
   }
 
-  const existing = await deps.terms.findByIdFull(id);
+  const existing = await deps.terms.findByIdFull({ id: id });
   if (expectedVersion === undefined) {
     if (existing) {
-      throw new TaxonomyVersionConflictError(`term '${id}' already exists, but no expectedVersion was supplied for import`);
+      throw new TaxonomyVersionConflictError({ message: `term '${id}' already exists, but no expectedVersion was supplied for import` });
     }
   } else {
     if (!existing) {
-      throw new TaxonomyVersionConflictError(`expected version ${expectedVersion} for term '${id}', but no such term exists`);
+      throw new TaxonomyVersionConflictError({ message: `expected version ${expectedVersion} for term '${id}', but no such term exists` });
     }
     if (existing.version !== expectedVersion) {
-      throw new TaxonomyVersionConflictError(`expected version ${expectedVersion} for term '${id}', found ${existing.version}`);
+      throw new TaxonomyVersionConflictError({ message: `expected version ${expectedVersion} for term '${id}', found ${existing.version}` });
     }
     // A cross-taxonomy move would leave the term's children parented across taxonomies.
     if (existing.taxonomyId !== taxonomyId) {
-      throw new TaxonomyVersionConflictError(`term '${id}' belongs to taxonomy '${existing.taxonomyId}', not '${taxonomyId}'; an import cannot move a term between taxonomies`);
+      throw new TaxonomyVersionConflictError({ message: `term '${id}' belongs to taxonomy '${existing.taxonomyId}', not '${taxonomyId}'; an import cannot move a term between taxonomies` });
     }
   }
 
   const candidateParentId = parentId ?? null;
   let resolvedParent: { id: string; taxonomyId: string } | null | "not-applicable" = "not-applicable";
   if (candidateParentId !== null) {
-    const parentTerm = await deps.terms.findById(candidateParentId);
+    const parentTerm = await deps.terms.findById({ id: candidateParentId });
     resolvedParent = parentTerm ? { id: parentTerm.id, taxonomyId: parentTerm.taxonomyId } : null;
   }
   const ancestors = candidateParentId === null ? new Map<string, string | null>() : await loadAncestorChain(deps.terms, candidateParentId);
@@ -493,11 +505,11 @@ export async function importTerm(
     taxonomyIsHierarchical: taxonomy.hierarchical,
     candidateParentId,
     resolvedParent,
-    wouldCreateCycle: (parent) => wouldCreateCycle({ termId: id, candidateParentId: parent, tree: { getParentId: (termId) => ancestors.get(termId) ?? null } }),
+    wouldCreateCycle: ({ candidateParentId }) => wouldCreateCycle({ termId: id, candidateParentId, tree: { getParentId: ({ termId }) => ancestors.get(termId) ?? null } }),
     termId: existing ? id : "__new__",
   });
 
-  const now = deps.clock.nowIso();
+  const now = kernelNowIso({ clock: deps.clock });
   const term: Term = {
     id,
     taxonomyId,
@@ -520,22 +532,29 @@ export async function importTerm(
     actorId: principalId,
     recordedAt: now,
   });
-  await deps.stampWatermark();
-  await deps.outbox.enqueue({ name: "taxonomy.term_imported", termId: term.id, actorId: principalId, occurredAt: now });
+  await deps.stampWatermark({});
+  await deps.outbox.enqueue({ event: { name: "taxonomy.term_imported", termId: term.id, actorId: principalId, occurredAt: now } });
 
   return term;
 }
 
 export interface RenameTermRequired {
-  deps: WriteServiceDeps;
+  deps: WriteServiceDeps & {
+    /** Required shared transaction. All repos, the watermark and outbox
+     * must share the store/connection opened by this port. */
+    transaction: TransactionalRepoPort["transaction"];
+  };
   principalId: string;
   termId: string;
   newName: string;
 }
 
-/** AC-15/AC-19/AC-25/REQ-12/REQ-17 — same-tx rename + revision (carrying the pre-rename state) +
- * watermark + outbox. `authorize()` runs before the term lookup, so a denied caller produces zero
- * side effects of any kind. */
+/** — same-tx rename + revision (carrying the pre-rename state) +
+ * watermark + outbox. `authorize` runs before the term lookup, so a denied caller produces zero
+ * side effects of any kind. A missing transaction capability fails closed before any lookup
+ * or write; a caller must supply a real shared transaction for durable atomicity.
+ * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
+ */
 export async function renameTerm(
   required: RenameTermRequired,
   _optional: Record<string, never> = {}
@@ -543,34 +562,39 @@ export async function renameTerm(
   const { deps, principalId, termId, newName } = required;
   await authorizeTaxonomyManage(deps, principalId);
 
-  const current = await deps.terms.findById(termId);
-  if (!current) {
-    throw new TermRecordNotFoundError(`term '${termId}' was not found`);
-  }
+  // The narrow taxonomy repo stays independent; the host binds the shared transaction explicitly.
+  const transaction = deps.transaction;
+  if (!transaction) throw new Error("term rename requires a transaction port");
+  return transaction({ fn: async () => {
+    const current = await deps.terms.findById({ id: termId });
+    if (!current) {
+      throw new TermRecordNotFoundError({ message: `term '${termId}' was not found` });
+    }
 
-  const now = deps.clock.nowIso();
-  const updated: Term = {
-    id: current.id,
-    taxonomyId: current.taxonomyId,
-    parentId: (current as { parentId?: string | null }).parentId ?? null,
-    name: newName,
-    status: (current as { status?: string }).status ?? "active",
-    updatedAt: now,
-    version: ((current as { version?: number }).version ?? 1) + 1,
-  };
+    const now = kernelNowIso({ clock: deps.clock });
+    const updated: Term = {
+      id: current.id,
+      taxonomyId: current.taxonomyId,
+      parentId: (current as { parentId?: string | null }).parentId ?? null,
+      name: newName,
+      status: (current as { status?: string }).status ?? "active",
+      updatedAt: now,
+      version: ((current as { version?: number }).version ?? 1) + 1,
+    };
 
-  await deps.terms.update(updated);
-  await deps.revisions.insert({
-    taxonomyId: current.taxonomyId,
-    op: "rename",
-    previousState: { name: current.name },
-    actorId: principalId,
-    recordedAt: now,
-  });
-  await deps.stampWatermark();
-  await deps.outbox.enqueue({ name: "taxonomy.term_renamed", termId, actorId: principalId, occurredAt: now });
+    await deps.terms.update(updated);
+    await deps.revisions.insert({
+      taxonomyId: current.taxonomyId,
+      op: "rename",
+      previousState: { name: current.name },
+      actorId: principalId,
+      recordedAt: now,
+    });
+    await deps.stampWatermark({});
+    await deps.outbox.enqueue({ event: { name: "taxonomy.term_renamed", termId, actorId: principalId, occurredAt: now } });
 
-  return updated;
+    return updated;
+  } });
 }
 
 export interface AssignTermsRequired {
@@ -581,8 +605,8 @@ export interface AssignTermsRequired {
   termIds: string[];
 }
 
-/** AC-17/AC-20/INV-05/REQ-13/REQ-14 — upserts every `entry_terms` row (idempotent on-conflict per
- * `entry_terms_unique`, EC-09), then stamps the watermark and enqueues the outbox event exactly
+/** — upserts every `entry_terms` row (idempotent on-conflict per
+ * `entry_terms_unique`), then stamps the watermark and enqueues the outbox event exactly
  * ONCE per call regardless of `termIds.length` — never once per term. Never produces a
  * `taxonomy_revisions` row (see this file's header for the disclosed narrowing this implements).
  *
@@ -593,6 +617,7 @@ export interface AssignTermsRequired {
  * Validation runs for ALL termIds before ANY write, so a failure partway through never leaves a
  * partial assignment. Content is resolved once per call (not once per term) since every term in
  * one call shares the same `(contentType, contentId)` target.
+ * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
  */
 /**
  * A1 (taxonomy plan) — shared by `assignTerms` and `unassignTerms`: resolves whether
@@ -602,11 +627,12 @@ export interface AssignTermsRequired {
  * re-derived copy that could drift.
  *
  * `post`/`page` keep today's behavior exactly: `isPostOrPage` short-circuits before
- * `contentTypeTaxonomyPolicy` is ever consulted (AC-08). A non-post/page `contentType` is
+ * `contentTypeTaxonomyPolicy` is ever consulted. A non-post/page `contentType` is
  * resolvable only when a policy is wired AND that policy doesn't return `null` (not applicable) —
  * an unknown `contentType` (no policy, or a policy returning `null`) stays unresolvable, so it
  * still fails at `validateContentJoin`'s allow-list check (`TaxonomyNotApplicableError`), not a
  * `ContentRecordNotFoundError` — this is what keeps `"product"` a 400, not a 404.
+ * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
  */
 async function validateAssignmentTarget(
   deps: WriteServiceDeps,
@@ -614,7 +640,7 @@ async function validateAssignmentTarget(
   contentId: string,
   termIds: string[]
 ): Promise<void> {
-  const isPostOrPage = isContentTypeOnAllowList(contentType);
+  const isPostOrPage = isContentTypeOnAllowList({ contentType: contentType });
   const policy = isPostOrPage
     ? null
     : deps.contentTypeTaxonomyPolicy
@@ -624,13 +650,13 @@ async function validateAssignmentTarget(
 
   const content = isResolvable ? await deps.contentLookup.resolve({ contentType, contentId }) : null;
   if (isResolvable && !content) {
-    throw new ContentRecordNotFoundError(`content '${contentType}:${contentId}' was not found`);
+    throw new ContentRecordNotFoundError({ message: `content '${contentType}:${contentId}' was not found` });
   }
 
   for (const termId of termIds) {
-    const term = await deps.terms.findById(termId);
+    const term = await deps.terms.findById({ id: termId });
     if (!term) {
-      throw new TermRecordNotFoundError(`term '${termId}' was not found`);
+      throw new TermRecordNotFoundError({ message: `term '${termId}' was not found` });
     }
     const isOnAllowList = isPostOrPage || policy === "all" || (policy instanceof Set && policy.has(term.taxonomyId));
     validateContentJoin({
@@ -657,20 +683,20 @@ export async function assignTerms(
 
   await validateAssignmentTarget(deps, contentType, contentId, termIds);
 
-  const now = deps.clock.nowIso();
+  const now = kernelNowIso({ clock: deps.clock });
   for (const termId of termIds) {
     await deps.entryTerms.upsert({ contentType, contentId, termId, addedAt: now });
   }
 
-  await deps.stampWatermark();
-  await deps.outbox.enqueue({
+  await deps.stampWatermark({});
+  await deps.outbox.enqueue({ event: {
     name: "taxonomy.terms_assigned",
     contentType,
     contentId,
     termIds,
     actorId: principalId,
     occurredAt: now,
-  });
+  } });
 }
 
 /** A2 (taxonomy plan) — the removal half of `assignTerms`. `remove()` lives on an additive port
@@ -688,14 +714,16 @@ export interface UnassignTermsRequired {
   termIds: string[];
 }
 
-/** SPEC-018 REQ-07/REQ-13/REQ-14/REQ-17/REQ-22 — spec debt this codebase never built (the spec
+/** — spec debt this codebase never built (the spec
  * always named "assign/unassign tools"; only `assignTerms` shipped). Same
  * authorize -> validateAssignmentTarget -> write -> stamp -> outbox chokepoint as `assignTerms`,
- * and — like `assignTerms` — never produces a `taxonomy_revisions` row (REQ-13/INV-05's disclosed
+ * and — like `assignTerms` — never produces a `taxonomy_revisions` row ( disclosed
  * narrowing applies equally to removal). Idempotent: unassigning a row that isn't there is a no-op,
- * not an error (`remove()`'s 0-vs-1 return is intentionally not surfaced to the caller). Chosen over
+ * not an error (`remove`'s 0-vs-1 return is intentionally not surfaced to the caller). Chosen over
  * a "set terms" replace call — see the taxonomy plan's "What the docs settle" #3 for why replace
- * risks silently erasing a concurrent assignment. */
+ * risks silently erasing a concurrent assignment.
+ * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
+ */
 export async function unassignTerms(
   required: UnassignTermsRequired,
   _optional: Record<string, never> = {}
@@ -709,16 +737,16 @@ export async function unassignTerms(
     await deps.entryTerms.remove({ contentType, contentId, termId });
   }
 
-  const now = deps.clock.nowIso();
-  await deps.stampWatermark();
-  await deps.outbox.enqueue({
+  const now = kernelNowIso({ clock: deps.clock });
+  await deps.stampWatermark({});
+  await deps.outbox.enqueue({ event: {
     name: "taxonomy.terms_unassigned",
     contentType,
     contentId,
     termIds,
     actorId: principalId,
     occurredAt: now,
-  });
+  } });
 }
 
 export interface EntryTermsCleanupPort {
@@ -734,17 +762,29 @@ export interface OnContentDeletedRequired {
  * `entry_terms` row that is inert on read; a periodic/boot reconciliation sweep — modeled by
  * re-invoking this same function for the orphan — is the backstop, never a hard failure). A
  * no-op for content with no
- * assigned terms, never an error. */
+ * assigned terms, never an error. Repository failures are warnings through the optional
+ * logger port; logger failure also cannot turn cleanup into a hard failure. Hosts should
+ * wire the logger for diagnostics; legacy callers without it remain silent. */
 export async function onContentDeleted(
   required: OnContentDeletedRequired,
-  _optional: Record<string, never> = {}
+  optional: { logger?: {
+    warn(required: { message: string; error: unknown; event: OnContentDeletedRequired["event"] }): void | Promise<void>;
+  } } = {}
 ): Promise<void> {
   const { event, entryTerms } = required;
-  await entryTerms.deleteByContent({
-    workspaceId: event.workspaceId,
-    contentType: event.contentType,
-    contentId: event.contentId,
-  });
+  try {
+    await entryTerms.deleteByContent({
+      workspaceId: event.workspaceId,
+      contentType: event.contentType,
+      contentId: event.contentId,
+    });
+  } catch (error) {
+    try {
+      await optional.logger?.warn({ message: "content-deletion taxonomy cleanup failed", error, event });
+    } catch {
+      // Cleanup is best effort even when its diagnostic sink is unavailable.
+    }
+  }
 }
 
 /**
@@ -756,11 +796,11 @@ export async function onContentDeleted(
  * SQLite adapter of its own — see this file's header and `repo.memory.ts`'s header for why).
  */
 export interface DeletableTaxonomyRepoPort {
-  delete(id: string): Promise<void>;
+  delete({ id }: { id: string }): Promise<void>;
 }
 
 export interface DeletableTermRepoPort {
-  delete(id: string): Promise<void>;
+  delete({ id }: { id: string }): Promise<void>;
   /** Direct-child count for `termId` as a parent. `deleteTerm` refuses to delete a term with
    * children still pointing `parentId` at it — that reference would otherwise dangle the moment
    * the parent row is gone, corrupting the hierarchy `validateHierarchyAssignment` polices on the
@@ -786,8 +826,11 @@ export interface AssignmentCountEntryTermRepoPort {
  * assigned. Carries `assignedCount` so a caller (route/UI) can render "N items are still
  * assigned" instead of a generic failure. */
 export class TermHasAssignedContentError extends Error {
-  constructor(message: string, public readonly assignedCount: number) {
+  public readonly assignedCount: number;
+  constructor(requiredArgs: { message: string; assignedCount: number }, _optionalArgs: Record<string, never> = {}) {
+    const { message, assignedCount } = requiredArgs;
     super(message);
+    this.assignedCount = assignedCount;
     this.name = "TermHasAssignedContentError";
   }
 }
@@ -795,8 +838,11 @@ export class TermHasAssignedContentError extends Error {
 /** See `DeletableTermRepoPort.countChildren`'s doc comment for why this guard exists. Carries
  * `childCount` for the same reason `TermHasAssignedContentError` carries `assignedCount`. */
 export class TermHasChildTermsError extends Error {
-  constructor(message: string, public readonly childCount: number) {
+  public readonly childCount: number;
+  constructor(requiredArgs: { message: string; childCount: number }, _optionalArgs: Record<string, never> = {}) {
+    const { message, childCount } = requiredArgs;
     super(message);
+    this.childCount = childCount;
     this.name = "TermHasChildTermsError";
   }
 }
@@ -804,8 +850,11 @@ export class TermHasChildTermsError extends Error {
 /** `deleteTaxonomy`'s content-assignment guard — `assignedCount` is the sum across every member
  * term, not a single term's count. */
 export class TaxonomyHasAssignedContentError extends Error {
-  constructor(message: string, public readonly assignedCount: number) {
+  public readonly assignedCount: number;
+  constructor(requiredArgs: { message: string; assignedCount: number }, _optionalArgs: Record<string, never> = {}) {
+    const { message, assignedCount } = requiredArgs;
     super(message);
+    this.assignedCount = assignedCount;
     this.name = "TaxonomyHasAssignedContentError";
   }
 }
@@ -836,7 +885,7 @@ export class TaxonomyHasAssignedContentError extends Error {
  * kind of backend they're running against.
  */
 export interface TransactionalRepoPort {
-  transaction<T>(fn: () => Promise<T>): Promise<T>;
+  transaction<T>({ fn }: { fn: () => Promise<T> }): Promise<T>;
 }
 
 export interface DeleteTermRequired {
@@ -881,28 +930,26 @@ export async function deleteTerm(
   const { deps, principalId, termId } = required;
   await authorizeTaxonomyManage(deps, principalId);
 
-  return deps.transaction(async () => {
-    const current = await deps.terms.findById(termId);
+  return deps.transaction({ fn: async () => {
+    const current = await deps.terms.findById({ id: termId });
     if (!current) {
-      throw new TermRecordNotFoundError(`term '${termId}' was not found`);
+      throw new TermRecordNotFoundError({ message: `term '${termId}' was not found` });
     }
 
     const childCount = await deps.terms.countChildren({ parentId: termId });
     if (childCount > 0) {
-      throw new TermHasChildTermsError(`term '${termId}' has ${childCount} child term(s) and cannot be deleted`, childCount);
+      throw new TermHasChildTermsError({ message: `term '${termId}' has ${childCount} child term(s) and cannot be deleted`, childCount: childCount });
     }
 
     const assignedCount = await deps.entryTerms.countByTerm({ termId });
     if (assignedCount > 0) {
-      throw new TermHasAssignedContentError(
-        `term '${termId}' is assigned to ${assignedCount} content item(s) and cannot be deleted`,
-        assignedCount
+      throw new TermHasAssignedContentError({ message: `term '${termId}' is assigned to ${assignedCount} content item(s) and cannot be deleted`, assignedCount: assignedCount }
       );
     }
 
-    await deps.terms.delete(termId);
+    await deps.terms.delete({ id: termId });
 
-    const now = deps.clock.nowIso();
+    const now = kernelNowIso({ clock: deps.clock });
     await deps.revisions.insert({
       taxonomyId: current.taxonomyId,
       op: "delete",
@@ -910,17 +957,17 @@ export async function deleteTerm(
       actorId: principalId,
       recordedAt: now,
     });
-    await deps.stampWatermark();
-    await deps.outbox.enqueue({
+    await deps.stampWatermark({});
+    await deps.outbox.enqueue({ event: {
       name: "taxonomy.term_deleted",
       termId,
       taxonomyId: current.taxonomyId,
       actorId: principalId,
       occurredAt: now,
-    });
+    } });
 
     return { deletedTermId: termId };
-  });
+  } });
 }
 
 export interface DeleteTaxonomyRequired {
@@ -961,10 +1008,10 @@ export async function deleteTaxonomy(
   const { deps, principalId, taxonomyId } = required;
   await authorizeTaxonomyManage(deps, principalId);
 
-  return deps.transaction(async () => {
-    const taxonomy = await deps.taxonomies.findById(taxonomyId);
+  return deps.transaction({ fn: async () => {
+    const taxonomy = await deps.taxonomies.findById({ id: taxonomyId });
     if (!taxonomy) {
-      throw new TaxonomyRecordNotFoundError(`taxonomy '${taxonomyId}' was not found`);
+      throw new TaxonomyRecordNotFoundError({ message: `taxonomy '${taxonomyId}' was not found` });
     }
 
     const memberTerms = await deps.terms.listByTaxonomy({ taxonomyId });
@@ -974,18 +1021,16 @@ export async function deleteTaxonomy(
       totalAssigned += await deps.entryTerms.countByTerm({ termId: term.id });
     }
     if (totalAssigned > 0) {
-      throw new TaxonomyHasAssignedContentError(
-        `taxonomy '${taxonomyId}' has ${totalAssigned} content assignment(s) across its terms and cannot be deleted`,
-        totalAssigned
+      throw new TaxonomyHasAssignedContentError({ message: `taxonomy '${taxonomyId}' has ${totalAssigned} content assignment(s) across its terms and cannot be deleted`, assignedCount: totalAssigned }
       );
     }
 
     for (const term of memberTerms) {
-      await deps.terms.delete(term.id);
+      await deps.terms.delete({ id: term.id });
     }
-    await deps.taxonomies.delete(taxonomyId);
+    await deps.taxonomies.delete({ id: taxonomyId });
 
-    const now = deps.clock.nowIso();
+    const now = kernelNowIso({ clock: deps.clock });
     const deletedTermIds = memberTerms.map((term) => term.id);
     await deps.revisions.insert({
       taxonomyId,
@@ -994,15 +1039,15 @@ export async function deleteTaxonomy(
       actorId: principalId,
       recordedAt: now,
     });
-    await deps.stampWatermark();
-    await deps.outbox.enqueue({
+    await deps.stampWatermark({});
+    await deps.outbox.enqueue({ event: {
       name: "taxonomy.deleted",
       taxonomyId,
       deletedTermIds,
       actorId: principalId,
       occurredAt: now,
-    });
+    } });
 
     return { deletedTaxonomyId: taxonomyId, deletedTermIds };
-  });
+  } });
 }

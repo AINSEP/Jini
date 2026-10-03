@@ -46,7 +46,7 @@ export interface ResolvedRunInput {
    * has an auto-approve flag (`bypassPermissions` / `--yolo` / `--dangerously-skip-permissions`) uses
    * it by default when this is absent. So a host that had been passing `'restricted'` to
    * `AgentExecutor.run()` by hand and then adopted `createDefaultRunStartHandler` would silently have
-   * started auto-approving every action — a security regression wearing the clothes of a refactor.
+   * started auto-approving every action — the historical security regression this field prevented.
    * This field is what makes that host's existing posture expressible through the default handler.
    */
   readonly permissionMode?: 'bypass' | 'restricted';
@@ -115,21 +115,8 @@ export function createDefaultRunStartHandler(
       ...(context.request.agentId !== undefined ? { agentId: context.request.agentId } : {}),
     });
     // Each optional field is spread only when present, never passed as an explicit `undefined`:
-    // `AgentExecutor.run()` distinguishes absent from undefined for `permissionMode` in particular,
-    // where absent means "use the def's own auto-approve default".
-    await options.agentExecutor.run({
-      runId: context.run.id,
-      agentId: resolved.agentId,
-      prompt: resolved.prompt,
-      cwd: resolved.cwd,
-      ...(resolved.env !== undefined ? { env: resolved.env } : {}),
-      ...(resolved.permissionMode !== undefined ? { permissionMode: resolved.permissionMode } : {}),
-      ...(resolved.model !== undefined ? { model: resolved.model } : {}),
-      ...(resolved.reasoning !== undefined ? { reasoning: resolved.reasoning } : {}),
-      ...(resolved.credentialEnv !== undefined ? { credentialEnv: resolved.credentialEnv } : {}),
-      ...(resolved.imagePaths !== undefined ? { imagePaths: resolved.imagePaths } : {}),
-      ...(resolved.extraAllowedDirs !== undefined ? { extraAllowedDirs: resolved.extraAllowedDirs } : {}),
-      ...(resolved.uploadRoot !== undefined ? { uploadRoot: resolved.uploadRoot } : {}),
-    });
+    // Keep absent optional fields absent on the runtime port; permission mode now defaults restricted,
+    // where absent now selects the daemon's fail-closed restricted default.
+    await options.agentExecutor.run({ runId: context.run.id, agentId: resolved.agentId, prompt: resolved.prompt, cwd: resolved.cwd }, { ...(resolved.env !== undefined ? { env: resolved.env } : {}), ...(resolved.permissionMode !== undefined ? { permissionMode: resolved.permissionMode } : {}), ...(resolved.model !== undefined ? { model: resolved.model } : {}), ...(resolved.reasoning !== undefined ? { reasoning: resolved.reasoning } : {}), ...(resolved.credentialEnv !== undefined ? { credentialEnv: resolved.credentialEnv } : {}), ...(resolved.imagePaths !== undefined ? { imagePaths: resolved.imagePaths } : {}), ...(resolved.extraAllowedDirs !== undefined ? { extraAllowedDirs: resolved.extraAllowedDirs } : {}), ...(resolved.uploadRoot !== undefined ? { uploadRoot: resolved.uploadRoot } : {}) });
   };
 }

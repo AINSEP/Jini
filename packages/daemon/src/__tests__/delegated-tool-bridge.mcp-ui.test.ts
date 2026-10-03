@@ -33,28 +33,22 @@ const CONFIRMATION_RESOURCE = {
 
 async function collectEvents(lifecycle: ReturnType<typeof createRunLifecycle>, runId: string): Promise<RunProtocolEvent[]> {
   const events: RunProtocolEvent[] = [];
-  await lifecycle.stream(runId, (event) => events.push(event));
+  await lifecycle.stream({ runId: runId, onEvent: (event) => events.push(event) });
   return events;
 }
 
 async function runDeleteLikeTool(output: unknown) {
-  const registry = createToolRegistry();
+  const registry = createToolRegistry({});
   registry.register({
     descriptor: { id: 'content_post_delete' },
     handler: async () => output,
     policy: { authorize: () => 'allow' },
   });
-  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog() });
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
   const { run } = await lifecycle.start({ contextRef: 'mcp-ui' });
 
-  const result = await bridge.execute({
-    runId: run.id,
-    toolUseId: 'call-1',
-    toolId: 'content_post_delete',
-    principal: { id: 'user-1' },
-    input: { id: 'post-1', kind: 'post' },
-  });
+  const result = await bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'content_post_delete', principal: { id: 'user-1' }, input: { id: 'post-1', kind: 'post' } });
 
   return { result, events: await collectEvents(lifecycle, run.id) };
 }
@@ -116,7 +110,7 @@ describe('DelegatedToolBridge — MCP-UI surface split', () => {
 });
 
 /**
- * `ctx.emitSurface` — showing a surface the call then WAITS on.
+ * `emitSurface` in the handler options — showing a surface the call then WAITS on.
  *
  * The fork tested above reads surfaces out of a COMPLETED result, which is exactly why a handler
  * that must block on a human cannot use it: parking first means the dialog never renders, so the
@@ -126,27 +120,22 @@ describe('DelegatedToolBridge — MCP-UI surface split', () => {
  */
 describe('emitSurface', () => {
   async function runWithEmitter(handler: (emit: SurfaceEmitter) => Promise<unknown>) {
-    const registry = createToolRegistry();
+    const registry = createToolRegistry({});
     let captured: SurfaceEmitter | undefined;
     registry.register({
       descriptor: { id: 'assistant_demo_choices' },
-      handler: async (ctx) => {
-        captured = ctx.emitSurface;
-        return handler(ctx.emitSurface!);
+      handler: async (_ctx, { emitSurface } = {}) => {
+        captured = emitSurface;
+        if (emitSurface === undefined) throw new Error("Expected a surface emitter");
+        return handler(emitSurface);
       },
       policy: { authorize: () => 'allow' },
     });
-    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog() });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
     const { run } = await lifecycle.start({ contextRef: 'mcp-ui' });
 
-    const result = await bridge.execute({
-      runId: run.id,
-      toolUseId: 'call-9',
-      toolId: 'assistant_demo_choices',
-      principal: { id: 'user-1' },
-      input: {},
-    });
+    const result = await bridge.execute({ runId: run.id, toolUseId: 'call-9', toolId: 'assistant_demo_choices', principal: { id: 'user-1' }, input: {} });
 
     return { result, events: await collectEvents(lifecycle, run.id), emitAfterSettle: captured! };
   }
@@ -257,18 +246,18 @@ describe('emitSurface', () => {
   });
 
   it('is absent when the executor is called without one, so a handler can tell it must not park', async () => {
-    const registry = createToolRegistry();
+    const registry = createToolRegistry({});
     let seen: unknown = 'unset';
     registry.register({
       descriptor: { id: 't' },
-      handler: async (ctx) => {
-        seen = ctx.emitSurface;
+      handler: async (_ctx, { emitSurface } = {}) => {
+        seen = emitSurface;
         return 'ok';
       },
       policy: { authorize: () => 'allow' },
     });
 
-    await createToolExecutor({ registry }).execute({ id: 'u' }, { id: 'r' }, 't', {});
+    await createToolExecutor({ registry }).execute({ principal: { id: 'u' }, run: { id: 'r' }, toolId: 't', input: {} });
 
     // An always-present no-op would read as "yes, someone will see this" and let a handler park
     // forever on a surface nobody was shown.

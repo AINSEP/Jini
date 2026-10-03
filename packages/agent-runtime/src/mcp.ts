@@ -9,7 +9,7 @@
  * function was hardwired to inject exactly one product feature — a
  * specifically-named, specifically-branded MCP server spawned via that
  * product's own CLI binary, with a fixed args tail baked in (see
- * `source-map.md` for the exact literal). That's a specific product's MCP
+ * `archived provenance ledger` for the exact literal). That's a specific product's MCP
  * tool, not a generic runtime concern, so it is not ported. What genuinely
  * is generic — and is kept
  * here — is the *gating + env-shape* mechanism: only attach a server when
@@ -17,7 +17,7 @@
  * field as an array (`[{name, value}]`) or a map (`{KEY: value}`) per
  * `def.acpMcpEnvFormat`, since different ACP implementations expect
  * different shapes there. The host application supplies the actual server
- * name/command/args. See `source-map.md`.
+ * name/command/args. See `archived provenance ledger`.
  */
 import type { RuntimeAgentDef } from './types.js';
 
@@ -40,9 +40,7 @@ export type AcpMcpServerEntry = {
   env: Record<string, string> | Array<{ name: string; value: string }>;
 };
 
-export function buildAcpMcpServersForAgent(
-  def: Pick<RuntimeAgentDef, 'mcpDiscovery' | 'acpMcpEnvFormat'>,
-  spec: AcpMcpServerSpec,
+export function buildAcpMcpServersForAgent({ def, spec }: { def: Pick<RuntimeAgentDef, 'mcpDiscovery' | 'acpMcpEnvFormat'>; spec: AcpMcpServerSpec }
 ): AcpMcpServerEntry[] {
   const { name, command, args = [], extraEnv = {}, enabled = true } = spec;
   if (!enabled || def?.mcpDiscovery !== 'mature-acp') return [];

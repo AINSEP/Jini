@@ -22,8 +22,8 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 export interface SidecarProcessHandle {
   readonly pid: number | undefined;
-  onExit(listener: (code: number | null, signal: NodeJS.Signals | null) => void): void;
-  kill(signal?: NodeJS.Signals): boolean;
+  onExit({ listener }: { listener: (args: { code: number | null; signal: NodeJS.Signals | null }) => void }): void;
+  kill(requiredArgs: Record<string, never>, optionalArgs?: { signal?: NodeJS.Signals }): boolean;
 }
 
 export interface SidecarLaunchOptions {
@@ -36,7 +36,7 @@ export interface SidecarLaunchOptions {
 
 export interface SidecarReadyOptions<T> {
   probe: () => Promise<T>;
-  isReady: (status: T) => boolean;
+  isReady: (args: { status: T }) => boolean;
   timeoutMs?: number;
   pollIntervalMs?: number;
 }
@@ -49,12 +49,12 @@ export interface SidecarShutdownOptions {
 export interface SidecarHandle {
   readonly process: SidecarProcessHandle;
   readonly logPath: string | null;
-  waitUntilReady<T>(options: SidecarReadyOptions<T>): Promise<T>;
-  shutdown(options?: SidecarShutdownOptions): Promise<void>;
+  waitUntilReady<T>(requiredArgs: Pick<SidecarReadyOptions<T>, 'probe' | 'isReady'>, optionalArgs?: Omit<SidecarReadyOptions<T>, 'probe' | 'isReady'>): Promise<T>;
+  shutdown(requiredArgs: Record<string, never>, options?: SidecarShutdownOptions): Promise<void>;
 }
 
 export interface SidecarLauncherPort {
-  launch(options: SidecarLaunchOptions): Promise<SidecarHandle>;
+  launch(requiredArgs: Pick<SidecarLaunchOptions, 'command'>, optionalArgs?: Omit<SidecarLaunchOptions, 'command'>): Promise<SidecarHandle>;
 }
 
 const DEFAULT_READY_TIMEOUT_MS = 35_000;
@@ -83,37 +83,49 @@ async function waitUntilReady<T>(
 ): Promise<T> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
-  const startedAt = Date.now();
   let lastError: unknown;
-  let exited: { code: number | null; signal: NodeJS.Signals | null } | null =
-    child.exitCode !== null || child.signalCode !== null ? { code: child.exitCode, signal: child.signalCode } : null;
+  const exitError = (code: number | null, signal: NodeJS.Signals | null) => new Error(
+    `sidecar exited before reporting ready (code=${code}, signal=${signal ?? 'none'})${
+      logPath == null ? '' : `; see ${logPath} for details`
+    }`,
+  );
+  const timeoutError = () => new Error(
+    `timed out waiting for sidecar to become ready${lastError instanceof Error ? ` (${lastError.message})` : ''}`,
+  );
+  if (child.exitCode !== null || child.signalCode !== null) throw exitError(child.exitCode, child.signalCode);
+  if (timeoutMs <= 0) throw timeoutError();
 
-  const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
-    exited = { code, signal };
-  };
-  child.once('exit', onExit);
-
-  try {
-    while (Date.now() - startedAt < timeoutMs) {
-      if (exited !== null) {
-        throw new Error(
-          `sidecar exited before reporting ready (code=${exited.code}, signal=${exited.signal ?? 'none'})${
-            logPath == null ? '' : `; see ${logPath} for details`
-          }`,
-        );
-      }
+  let onExit!: (code: number | null, signal: NodeJS.Signals | null) => void;
+  const exited = new Promise<never>((_resolve, reject) => {
+    onExit = (code, signal) => reject(exitError(code, signal));
+    child.once('exit', onExit);
+  });
+  let timer!: ReturnType<typeof setTimeout>;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(timeoutError()), timeoutMs);
+  });
+  let stopped = false;
+  const controller = new AbortController();
+  const poll = async (): Promise<T> => {
+    while (!stopped) {
       try {
         const status = await options.probe();
-        if (options.isReady(status)) return status;
+        if (!stopped && options.isReady({ status })) return status;
       } catch (error) {
         lastError = error;
       }
-      await sleep(pollIntervalMs);
+      if (!stopped) await sleep(pollIntervalMs, undefined, { signal: controller.signal });
     }
-    throw new Error(
-      `timed out waiting for sidecar to become ready${lastError instanceof Error ? ` (${lastError.message})` : ''}`,
-    );
+    throw timeoutError();
+  };
+
+  try {
+    // Race the whole polling task, including a probe or sleep that has not settled yet.
+    return await Promise.race([exited, deadline, poll()]);
   } finally {
+    stopped = true;
+    controller.abort();
+    clearTimeout(timer);
     child.off('exit', onExit);
   }
 }
@@ -138,9 +150,10 @@ async function openLogHandle(logPath: string | undefined): Promise<FileHandle | 
   return await open(logPath, 'a');
 }
 
-export function createNodeSidecarLauncher(): SidecarLauncherPort {
+export function createNodeSidecarLauncher(_requiredArgs: Record<string, never>): SidecarLauncherPort {
   return {
-    async launch(options: SidecarLaunchOptions): Promise<SidecarHandle> {
+    async launch(requiredArgs: Pick<SidecarLaunchOptions, 'command'>, optionalArgs: Omit<SidecarLaunchOptions, 'command'> = {}): Promise<SidecarHandle> {
+      const options = { ...optionalArgs, ...requiredArgs };
       const logHandle = await openLogHandle(options.logPath);
       const child = spawn(options.command, options.args ?? [], {
         cwd: options.cwd,
@@ -154,10 +167,10 @@ export function createNodeSidecarLauncher(): SidecarLauncherPort {
 
       const processHandle: SidecarProcessHandle = {
         pid: child.pid,
-        onExit(listener) {
-          child.on('exit', listener);
+        onExit({ listener }) {
+          child.on('exit', (code, signal) => listener({ code, signal }));
         },
-        kill(signal) {
+        kill(_requiredArgs, { signal } = {}) {
           return child.kill(signal);
         },
       };
@@ -165,8 +178,8 @@ export function createNodeSidecarLauncher(): SidecarLauncherPort {
       return {
         process: processHandle,
         logPath: options.logPath ?? null,
-        waitUntilReady: (readyOptions) => waitUntilReady(child, options.logPath ?? null, readyOptions),
-        async shutdown(shutdownOptions) {
+        waitUntilReady: (requiredArgs, optionalArgs = {}) => waitUntilReady(child, options.logPath ?? null, { ...optionalArgs, ...requiredArgs }),
+        async shutdown(_requiredArgs, shutdownOptions) {
           try {
             await shutdownChild(child, shutdownOptions);
           } finally {
@@ -178,7 +191,7 @@ export function createNodeSidecarLauncher(): SidecarLauncherPort {
   };
 }
 
-export async function appendSidecarLifecycleLog(logPath: string, message: string): Promise<void> {
+export async function appendSidecarLifecycleLog({ logPath, message }: { logPath: string; message: string }): Promise<void> {
   await mkdir(dirname(logPath), { recursive: true });
   await appendFile(logPath, `${message}\n`, 'utf8').catch(() => undefined);
 }

@@ -1,4 +1,93 @@
-# @jini-ai/http
+# @jini-ai/http-kit
+
+## 0.4.0 — 2026-10-02
+
+### BREAKING
+
+- Domain settings and daemon route packs moved to cms/http/settings and daemon/http. Origin validation is canonical in core and the read-only tool gate belongs to daemon.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased
+
+### Build compatibility
+
+- Align HTTP pack test registrars with core's second-argument contributions API
+  and supply the required origin environment variable names in the guard fixture.
+
+### BREAKING — capability-owned HTTP
+
+- Daemon route packs, helpers and the live route manifest move to `@jini-ai/daemon/http`.
+- Read-only policy moves to `@jini-ai/daemon/read-only-tools`; delegated policy facades and
+  `./read-only-tools` / `./run-credentials` entries are removed.
+- Runtime dependencies no longer include daemon or agent-runtime. Generic request, response
+  and origin primitives are public for capability-owned packs.
+
+### HTTP transport consolidation
+
+- BREAKING: Move settings routes, contracts and CMS adapters from `./settings` and the
+  root barrel to `@jini-ai/cms/http/settings`; remove the CMS dependency.
+- BREAKING: Origin helpers now use core's `{ config, env }` API. Guard contexts require
+  explicit environments and host-selected allowed-origin, web-port and bind-host variable names.
+  Bearer middleware requires its environment and token configuration in argument one.
+  Strict bearer options contain only path exemptions; ambient environment defaults are removed.
+- BREAKING: Remove the compat `sendApiError` and root `sendCompatApiError` writer.
+  Use `sendApiError({ res, status, error })` with the retained error constructors.
+- BREAKING: Rename verified-origin's `OriginContext` to `VerifiedOriginRequestContext`;
+  rate limiter clocks implement core `nowMs()` instead of `nowIso()`.
+- Reuse core `Result` and bind core's timing-safe comparison port to Node crypto under
+  the existing public `timingSafeTokenMatch` name.
+- BREAKING: DB tool registration reads only operations from argument one; policy,
+  confirmation and timeout come exclusively from argument two.
+- Preserve async limiting and invalid-key rejection. Regression and parity tests written;
+  verification deferred by owner directive.
+
+### HTTP contract corrections
+
+- Fix delegated-tool read-only preflight forwarding so unverified registrations
+  retain the shared fail-closed refusal.
+- Reject query, fragment and backslash delimiters in local daemon authorities
+  before URL parsing can discard or reinterpret them.
+- Finish the DB, memory and tool-catalog argument conversion, including route
+  handlers and helper/port calls. Native event-emitter methods retain their ABI.
+  DB factory options now work in argument two; inline options remain supported.
+- Return isolated route-inventory entries and use the documented default of 20
+  for negative routine-history limits instead of clamping them to 1.
+- Correct pack callback, route-spec construction and attachment rejection docs;
+  classified server failures remain redacted. Regression tests are written but
+  unrun under the owner's directive. No version bump.
+
+### Integration of extracted subpaths
+
+- Complete the Node export/runtime map and root barrels for `./rate-limit`,
+  `./middleware`, `./read-only-tools`, `./settings`, `./verified-origin`,
+  `./run-credentials`, and `./observability`. Settings uses the existing CMS
+  contracts through a new `@jini-ai/cms` dependency; lockfile reconciliation is pending.
+- Add Express adapters for daemon authorization, delegated-body binding, ownership
+  and scoped listing over injected policies, plus request tracking over injected hooks.
+- Reconcile protocol error helpers, core read-only classification, payment options,
+  media-generation options and cancellation context forwarding. No version bump.
+
+### BREAKING
+
+- Existing public functions, factories, constructors, route handlers and local
+  ports now use required argument objects and optional argument objects. Call
+  handlers with `({ input, deps }, { signal? })`; call registrars with
+  `({ app, deps, adapter })`. Export names and response/event formats remain unchanged.
+  The earlier signature-compatibility note above predates this conversion.
+- Payment ports accept charge fields followed by optional description; media
+  engines accept `{ surface, model }` followed by generation options. Read-only
+  ID generators accept `{}`. Verified-origin errors take `{ message }`.
+- Protected `db-ops.ts`, `memory.ts` and `tool-catalog.ts` previously required
+  their owner-lane conversion; the HTTP contract corrections above complete it.
+  This source integration has not been tested or built; resolve the remaining
+  consumer handoff in `INTEGRATION-http-kit.md` before publishing.
+
+- Add `./rate-limit` with fixed-window budgets, periodic stale-key eviction,
+  required clock/async counter-store ports, and explicit client-IP trust policy.
+- Add `./middleware` with a parsed-JSON byte limit and required host response wording.
+- Add `./read-only-tools` with required registry, executor, denial-ID and message
+  ports. Consolidate route and nested-dispatch checks into one fail-closed rule;
+  existing delegated-tool names, signatures and messages remain compatible.
 
 ## 0.2.1
 

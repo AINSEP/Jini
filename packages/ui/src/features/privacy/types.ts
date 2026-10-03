@@ -4,7 +4,7 @@
  * telemetry-consent card (share/decline + two per-category toggles) over a
  * generic `{ metrics, content }` shape, plus an installation-id
  * generate/rotate flow. Verified generic for this task (see
- * `packages/ui/source-map.md` for the full note): the only OD coupling was
+ * `packages/ui/archived provenance ledger` for the full note): the only OD coupling was
  * the `AppConfig`/`TelemetryConfig` type import (replaced by the local
  * types below) and the analytics tracking calls (dropped, same as every
  * other tab in this feature).

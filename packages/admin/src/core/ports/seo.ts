@@ -146,12 +146,12 @@ export interface AdminSeoSettings {
 }
 
 export interface AdminSeoPort {
-  getSeoEntry(entryId: string): Promise<AdminSeoMeta>;
+  getSeoEntry(requiredArgs: { entryId: string }): Promise<AdminSeoMeta>;
   /** Merge-patches the override bag and returns the newly-resolved meta — see file header. */
-  putSeoEntry(entryId: string, patch: AdminSeoOverrides): Promise<AdminSeoMeta>;
-  analyzeSeoEntry(entryId: string): Promise<AdminSeoAnalysis>;
-  getSeoSettings(): Promise<AdminSeoSettings>;
-  putSeoSettings(patch: Partial<AdminSeoSettings>): Promise<AdminSeoSettings>;
+  putSeoEntry(requiredArgs: { entryId: string }, optionalArgs?: AdminSeoOverrides): Promise<AdminSeoMeta>;
+  analyzeSeoEntry(requiredArgs: { entryId: string }): Promise<AdminSeoAnalysis>;
+  getSeoSettings(requiredArgs: Record<string, never>): Promise<AdminSeoSettings>;
+  putSeoSettings(requiredArgs: Record<string, never>, optionalArgs?: Partial<AdminSeoSettings>): Promise<AdminSeoSettings>;
   /** Fire-and-accept trigger, not a trackable job — see file header. */
-  regenerateSeoSitemap(): Promise<{ accepted: boolean }>;
+  regenerateSeoSitemap(requiredArgs: Record<string, never>): Promise<{ accepted: boolean }>;
 }

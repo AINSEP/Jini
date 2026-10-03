@@ -1,8 +1,9 @@
-import type { ClockPort } from "../core/ports.js";
+import type { Clock } from "@jini-ai/core/primitives";
 import { deprecateContentType, reactivateContentType, tombstoneContentType } from "./lifecycle.js";
 import type { AuthorizeFn, ContentTypeRepoPort, OutboxPort } from "./write-service.js";
 import type { TeardownIndexProvisionerPort } from "./lifecycle.js";
-import type { ActorPrincipalKind, ContentTypeRecord, Result } from "./types.js";
+import type { Result } from "@jini-ai/core/primitives";
+import type { ActorPrincipalKind, ContentTypeRecord } from "./types.js";
 
 /**
  * @file Content-type lifecycle `op` dispatch (the closed-union-dispatch convention,
@@ -19,7 +20,8 @@ export const CONTENT_TYPE_LIFECYCLE_OP_NAMES = ["deprecate", "reactivate", "tomb
 export type ContentTypeLifecycleOp = (typeof CONTENT_TYPE_LIFECYCLE_OP_NAMES)[number];
 
 /** Narrows an untrusted `op` string to {@link ContentTypeLifecycleOp}, or `null` if it isn't one. */
-export function parseContentTypeLifecycleOp(op: unknown): ContentTypeLifecycleOp | null {
+export function parseContentTypeLifecycleOp(requiredArgs: { op: unknown }, optionalArgs: Record<string, never> = {}): ContentTypeLifecycleOp | null {
+  const { op } = requiredArgs;
   return typeof op === "string" && (CONTENT_TYPE_LIFECYCLE_OP_NAMES as readonly string[]).includes(op)
     ? (op as ContentTypeLifecycleOp)
     : null;
@@ -27,7 +29,7 @@ export function parseContentTypeLifecycleOp(op: unknown): ContentTypeLifecycleOp
 
 export interface LifecycleDispatchDeps {
   repo: ContentTypeRepoPort;
-  clock: ClockPort;
+  clock: Clock;
   authorize: AuthorizeFn;
   outbox: OutboxPort;
   indexProvisioner: TeardownIndexProvisionerPort;
@@ -43,17 +45,17 @@ export interface LifecycleDispatchInput {
 }
 
 export type ContentTypeLifecycleHandler = (
-  deps: LifecycleDispatchDeps,
-  input: LifecycleDispatchInput
+  required: { deps: LifecycleDispatchDeps; input: LifecycleDispatchInput },
+  optional?: Record<string, never>
 ) => Promise<Result<{ contentType: ContentTypeRecord }, Error>>;
 
 /** Op name -> handler, keyed only by {@link ContentTypeLifecycleOp}, `Object.create(null)`-based
  * (defense-in-depth against a prototype-chain key ever resolving, matching the settings
  * dispatch table's own convention). */
 const contentTypeLifecycleOps = {
-  deprecate: (deps, input) => deprecateContentType({ deps, input }),
-  reactivate: (deps, input) => reactivateContentType({ deps: { repo: deps.repo, clock: deps.clock, authorize: deps.authorize }, input }),
-  tombstone: (deps, input) => tombstoneContentType({ deps, input }),
+  deprecate: ({ deps, input }) => deprecateContentType({ deps, input }),
+  reactivate: ({ deps, input }) => reactivateContentType({ deps: { repo: deps.repo, clock: deps.clock, authorize: deps.authorize }, input }),
+  tombstone: ({ deps, input }) => tombstoneContentType({ deps, input }),
 } satisfies Record<ContentTypeLifecycleOp, ContentTypeLifecycleHandler>;
 
 export const CONTENT_TYPE_LIFECYCLE_OPS: Record<ContentTypeLifecycleOp, ContentTypeLifecycleHandler> = Object.assign(

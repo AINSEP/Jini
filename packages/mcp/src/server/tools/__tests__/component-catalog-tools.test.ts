@@ -17,31 +17,31 @@ describe('COMPONENT_CATALOG_TOOLS', () => {
 
 describe('searchComponentsTool', () => {
   it('requires query', async () => {
-    await expect(searchComponentsTool.handler({}, ctx)).rejects.toThrow('query is required (string).');
+    await expect(searchComponentsTool.handler({ args: {}, ctx: ctx })).rejects.toThrow('query is required (string).');
   });
 
   it('omits limit from the query string when not supplied', async () => {
     getDaemonJson.mockResolvedValueOnce({ hits: [] });
-    await searchComponentsTool.handler({ query: 'tabular data' }, ctx);
-    expect(getDaemonJson).toHaveBeenCalledWith('http://d.example', '/api/components/search?q=tabular+data', { fetchImpl: ctx.fetchImpl });
+    await searchComponentsTool.handler({ args: { query: 'tabular data' }, ctx: ctx });
+    expect(getDaemonJson).toHaveBeenCalledWith({ baseUrl: 'http://d.example', route: '/api/components/search?q=tabular+data' }, { fetchImpl: ctx.fetchImpl });
   });
 
   it('includes limit in the query string when supplied as a number', async () => {
     getDaemonJson.mockResolvedValueOnce({ hits: [] });
-    await searchComponentsTool.handler({ query: 'tabular data', limit: 5 }, ctx);
-    expect(getDaemonJson).toHaveBeenCalledWith('http://d.example', '/api/components/search?q=tabular+data&limit=5', { fetchImpl: ctx.fetchImpl });
+    await searchComponentsTool.handler({ args: { query: 'tabular data', limit: 5 }, ctx: ctx });
+    expect(getDaemonJson).toHaveBeenCalledWith({ baseUrl: 'http://d.example', route: '/api/components/search?q=tabular+data&limit=5' }, { fetchImpl: ctx.fetchImpl });
   });
 
   it('returns the hits array from the daemon response', async () => {
     const hits = [{ id: 'native.data-table', provider: 'native', capabilities: ['data-table'], score: 0.9 }];
     getDaemonJson.mockResolvedValueOnce({ hits });
-    const result = await searchComponentsTool.handler({ query: 'table' }, ctx);
+    const result = await searchComponentsTool.handler({ args: { query: 'table' }, ctx: ctx });
     expect(result).toBe(hits);
   });
 });
 
 describe('searchComponentsTool.inputSchema limit bounds', () => {
-  const tools = buildToolIndex([searchComponentsTool]);
+  const tools = buildToolIndex({ tools: [searchComponentsTool] });
 
   beforeEach(() => {
     getDaemonJson.mockReset();
@@ -49,7 +49,7 @@ describe('searchComponentsTool.inputSchema limit bounds', () => {
 
   async function call(limit: unknown) {
     getDaemonJson.mockResolvedValueOnce({ hits: [] });
-    return handleToolCall('search_components', { query: 'q', limit }, tools, ctx);
+    return handleToolCall({ name: 'search_components', tools, ctx }, { rawArgs: { query: 'q', limit } });
   }
 
   it('describes limit as an integer in the range the route actually accepts', () => {
@@ -68,22 +68,20 @@ describe('searchComponentsTool.inputSchema limit bounds', () => {
     const result = await call(limit);
     expect(result.isError).toBeUndefined();
     expect(getDaemonJson).toHaveBeenCalledWith(
-      'http://d.example',
-      `/api/components/search?q=q&limit=${limit}`,
-      { fetchImpl: ctx.fetchImpl },
+      { baseUrl: 'http://d.example', route: `/api/components/search?q=q&limit=${limit}` }, { fetchImpl: ctx.fetchImpl },
     );
   });
 });
 
 describe('describeComponentTool', () => {
   it('requires id', async () => {
-    await expect(describeComponentTool.handler({}, ctx)).rejects.toThrow('id is required (string).');
+    await expect(describeComponentTool.handler({ args: {}, ctx: ctx })).rejects.toThrow('id is required (string).');
   });
 
   it('fetches the component descriptor by id, URI-encoded', async () => {
     getDaemonJson.mockResolvedValueOnce({ id: 'native.data-table', provider: 'native' });
-    const result = await describeComponentTool.handler({ id: 'native.data-table' }, ctx);
-    expect(getDaemonJson).toHaveBeenCalledWith('http://d.example', '/api/components/native.data-table', { fetchImpl: ctx.fetchImpl });
+    const result = await describeComponentTool.handler({ args: { id: 'native.data-table' }, ctx: ctx });
+    expect(getDaemonJson).toHaveBeenCalledWith({ baseUrl: 'http://d.example', route: '/api/components/native.data-table' }, { fetchImpl: ctx.fetchImpl });
     expect(result).toEqual({ id: 'native.data-table', provider: 'native' });
   });
 });

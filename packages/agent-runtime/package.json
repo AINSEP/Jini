@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/agent-runtime",
-  "version": "0.3.10",
+  "version": "0.4.0",
   "description": "Coding-agent runtime adapters: runtime registry, detection, launch, stream parsers, and the ACP/pi-rpc subprocess transport.",
   "license": "Apache-2.0",
   "repository": {
@@ -11,7 +11,13 @@
   "jini": {
     "domain": "agent",
     "kind": "runtime",
-    "runtime": "node"
+    "runtime": "node",
+    "entries": {
+      ".": "node",
+      "./providers/tool-turn": "node",
+      "./model-catalog/cache": "universal",
+      "./providers/sse-decode": "universal"
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -22,10 +28,41 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./providers/tool-turn": {
+      "types": "./dist/providers/tool-turn.d.ts",
+      "import": "./dist/providers/tool-turn.js",
+      "default": "./dist/providers/tool-turn.js"
+    },
+    "./model-catalog/cache": {
+      "types": "./dist/model-catalog-cache.d.ts",
+      "import": "./dist/model-catalog-cache.js",
+      "default": "./dist/model-catalog-cache.js"
+    },
+    "./providers/sse-decode": {
+      "types": "./dist/providers/sse-decode.d.ts",
+      "import": "./dist/providers/sse-decode.js",
+      "default": "./dist/providers/sse-decode.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "providers/tool-turn": [
+        "./dist/providers/tool-turn.d.ts"
+      ],
+      "model-catalog/cache": [
+        "./dist/model-catalog-cache.d.ts"
+      ],
+      "providers/sse-decode": [
+        "./dist/providers/sse-decode.d.ts"
+      ]
     }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -44,8 +81,10 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@jini-ai/oauth": "workspace:*",
     "@jini-ai/platform": "workspace:*",
-    "@jini-ai/protocol": "workspace:*"
+    "@jini-ai/protocol": "workspace:*",
+    "@jini-ai/core": "^0.4.0"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9"

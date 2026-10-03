@@ -238,7 +238,7 @@ export function useConnectorAuthorization(
           // this stale-sweep success path with a real `pending[id]` entry,
           // `authError[id]` is guaranteed already absent. Left in place
           // (not stripped) as a guard against a future refactor breaking
-          // that invariant — see packages/ui/source-map.md's 2026-07-22
+          // that invariant — see packages/ui/archived provenance ledger's 2026-07-22
           // dated entry for the full proof.
           setAuthError((curr) => {
             if (curr[connectorId] === undefined) return curr;

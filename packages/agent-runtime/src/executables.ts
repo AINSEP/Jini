@@ -10,14 +10,14 @@
  *
  * 1. `wellKnownUserToolchainBins` now comes from `@jini-ai/platform` instead of
  *    the OD workspace package it originally shipped from (same function,
- *    already verbatim-lifted — see `@jini-ai/platform`'s own `source-map.md`).
+ *    already verbatim-lifted — see `@jini-ai/platform`'s own `archived provenance ledger`).
  * 2. De-branded: the origin's product-prefixed agent-home / resource-root
  *    env var names and its sandbox-runtime-config integration (an
  *    OD-daemon-level subsystem out of this package's charter) are replaced
  *    by `configureExecutableResolutionEnv()` — an injectable pair of
  *    env-var names, defaulting to `AGENT_RUNTIME_HOME` /
  *    `AGENT_RUNTIME_RESOURCE_ROOT`, with no sandbox dependency. See
- *    `source-map.md` for the exact original names.
+ *    `archived provenance ledger` for the exact original names.
  */
 import { accessSync, constants, existsSync, statSync } from 'node:fs';
 import { delimiter } from 'node:path';
@@ -69,10 +69,10 @@ const executableResolutionEnv = {
  * at startup if it wants its own namespaced env vars instead of the
  * generic defaults.
  */
-export function configureExecutableResolutionEnv(overrides: {
+export function configureExecutableResolutionEnv({ overrides }: { overrides: {
   agentHomeEnvVar?: string;
   resourceRootEnvVar?: string;
-}): void {
+} }): void {
   if (overrides.agentHomeEnvVar) executableResolutionEnv.agentHomeEnvVar = overrides.agentHomeEnvVar;
   if (overrides.resourceRootEnvVar) executableResolutionEnv.resourceRootEnvVar = overrides.resourceRootEnvVar;
 }
@@ -157,12 +157,12 @@ export function agentSearchDirs(): string[] {
 // The `*_BIN` environment variable that overrides PATH detection for a given
 // agent id (e.g. `cursor-agent` → `CURSOR_AGENT_BIN`), or null when the agent
 // has no override key. Drives the `setEnv` / `clearEnv` fix intents.
-export function agentBinEnvKey(agentId: string | undefined): string | null {
+export function agentBinEnvKey({ agentId }: { agentId: string | undefined }): string | null {
   if (!agentId) return null;
   return AGENT_BIN_ENV_KEYS.get(agentId) ?? null;
 }
 
-export function resolveOnPath(bin: string): string | null {
+export function resolveOnPath({ bin }: { bin: string }): string | null {
   const exts =
     process.platform === 'win32'
       ? (process.env.PATHEXT || '.EXE;.CMD;.BAT').split(';')
@@ -189,7 +189,7 @@ function looksExecutableOnWindows(filePath: string): boolean {
 
 function executableFilePath(raw: string | undefined): string | null {
   if (typeof raw !== 'string' || raw.trim().length === 0) return null;
-  const expanded = expandHomePath(raw.trim());
+  const expanded = expandHomePath({ value: raw.trim() });
   if (!path.isAbsolute(expanded)) return null;
   try {
     if (!statSync(expanded).isFile()) return null;
@@ -217,8 +217,7 @@ function configuredExecutableOverride(
   return executableFilePath(configuredEnv?.[envKey]);
 }
 
-export function resolveAmrOpenCodeExecutable(
-  env: Record<string, string | undefined> = process.env,
+export function resolveAmrOpenCodeExecutable({  }: {  }, { env = process.env }: { env?: Record<string, string | undefined> } = {}
 ): string | null {
   const configured = executableFilePath(env.VELA_OPENCODE_BIN);
   if (configured) return configured;
@@ -241,7 +240,7 @@ export function resolveAmrOpenCodeExecutable(
       if (bundled) return bundled;
     }
   }
-  return resolveOnPath('opencode-cli') ?? resolveOnPath('opencode');
+  return resolveOnPath({ bin: 'opencode-cli' }) ?? resolveOnPath({ bin: 'opencode' });
 }
 
 // The AMR (vela) OpenCode companion ships as a
@@ -278,7 +277,7 @@ function packagedBuiltInExecutable(
   const resourceRoot = process.env[executableResolutionEnv.resourceRootEnvVar]?.trim();
   if (!resourceRoot) return null;
   if (
-    !resolveAmrOpenCodeExecutable({ ...process.env, ...configuredEnv }) &&
+    !resolveAmrOpenCodeExecutable({  }, { env: { ...process.env, ...configuredEnv } }) &&
     !packagedVelaOpenCodeCompanionTree(resourceRoot)
   ) {
     return null;
@@ -342,16 +341,12 @@ export function codexAppBundleCandidates(): string[] {
   return candidates;
 }
 
-export function resolveAgentExecutable(
-  def: RuntimeAgentDef,
-  configuredEnv: Record<string, string> = {},
+export function resolveAgentExecutable({ def }: { def: RuntimeAgentDef }, { configuredEnv = {} }: { configuredEnv?: Record<string, string> } = {}
 ): string | null {
-  return inspectAgentExecutableResolution(def, configuredEnv).selectedPath;
+  return inspectAgentExecutableResolution({ def: def }, { configuredEnv: configuredEnv }).selectedPath;
 }
 
-export function inspectAgentExecutableResolution(
-  def: RuntimeAgentDef,
-  configuredEnv: Record<string, string> = {},
+export function inspectAgentExecutableResolution({ def }: { def: RuntimeAgentDef }, { configuredEnv = {} }: { configuredEnv?: Record<string, string> } = {}
 ): {
   configuredOverridePath: string | null;
   pathResolvedPath: string | null;
@@ -371,7 +366,7 @@ export function inspectAgentExecutableResolution(
   ];
   let pathResolvedPath: string | null = null;
   for (const bin of candidates) {
-    const resolved = resolveOnPath(bin);
+    const resolved = resolveOnPath({ bin: bin });
     if (resolved) {
       pathResolvedPath = resolved;
       break;

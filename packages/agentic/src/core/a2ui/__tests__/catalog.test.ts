@@ -15,12 +15,12 @@ function propsOf(catalog: Catalog, type: string) {
 }
 
 function accepts(type: string, props: unknown): boolean {
-  return propsOf(createLabCatalog(), type).safeParse(props).success;
+  return propsOf(createLabCatalog({}), type).safeParse(props).success;
 }
 
 /** Returns the parsed (defaulted) props, failing loudly rather than returning a half-value. */
 function parseProps(type: string, props: unknown): Record<string, unknown> {
-  const result = propsOf(createLabCatalog(), type).safeParse(props);
+  const result = propsOf(createLabCatalog({}), type).safeParse(props);
   if (!result.success) throw new Error(`expected ${type} props to be valid: ${result.error.issues[0]!.message}`);
   return result.data as Record<string, unknown>;
 }
@@ -62,37 +62,37 @@ const MINIMAL_VALID_PROPS: Record<(typeof ALL_COMPONENT_TYPES)[number], Record<s
 
 describe('createLabCatalog', () => {
   it('whitelists all 18 real basic-catalog component types', () => {
-    const catalog = createLabCatalog();
+    const catalog = createLabCatalog({});
     for (const type of ALL_COMPONENT_TYPES) {
-      expect(isComponentAllowed(catalog, type), type).toBe(true);
+      expect(isComponentAllowed({ catalog, componentType: type }), type).toBe(true);
     }
     expect(catalog.components.size).toBe(18);
   });
 
   it('adversarial: a component type not in the real basic catalog is not allowed', () => {
-    const catalog = createLabCatalog();
+    const catalog = createLabCatalog({});
     // 'Checkbox'/'Textfield' are real casing traps — the spec's names are 'CheckBox'/'TextField'.
     for (const type of ['TotallyMadeUp', 'Checkbox', 'Textfield', 'Div', 'Script', '']) {
-      expect(isComponentAllowed(catalog, type), type).toBe(false);
+      expect(isComponentAllowed({ catalog, componentType: type }), type).toBe(false);
     }
   });
 
   it('exposes all three callableFrom values across its function set', () => {
-    const catalog = createLabCatalog();
-    expect(callableFromOf(catalog, 'adminReset')).toBe('rendererOnly');
-    expect(callableFromOf(catalog, 'logServerEvent')).toBe('agentOnly');
-    expect(callableFromOf(catalog, 'greetUser')).toBe('rendererOrAgent');
+    const catalog = createLabCatalog({});
+    expect(callableFromOf({ catalog, functionName: 'adminReset' })).toBe('rendererOnly');
+    expect(callableFromOf({ catalog, functionName: 'logServerEvent' })).toBe('agentOnly');
+    expect(callableFromOf({ catalog, functionName: 'greetUser' })).toBe('rendererOrAgent');
   });
 
   it('an unregistered function defaults to rendererOnly per the spec (absent == explicit rendererOnly)', () => {
-    const catalog = createLabCatalog();
-    expect(isFunctionRegistered(catalog, 'nope')).toBe(false);
-    expect(callableFromOf(catalog, 'nope')).toBe('rendererOnly');
+    const catalog = createLabCatalog({});
+    expect(isFunctionRegistered({ catalog, functionName: 'nope' })).toBe(false);
+    expect(callableFromOf({ catalog, functionName: 'nope' })).toBe('rendererOnly');
   });
 
   it('produces a fresh, independently-mutable catalog on every call', () => {
-    const a = createLabCatalog();
-    const b = createLabCatalog();
+    const a = createLabCatalog({});
+    const b = createLabCatalog({});
     expect(a.functions).not.toBe(b.functions);
     expect(a.components).not.toBe(b.components);
   });

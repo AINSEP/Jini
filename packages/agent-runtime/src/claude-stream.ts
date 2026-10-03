@@ -3,7 +3,7 @@
  *
  * Ported verbatim from OD's `apps/daemon/src/runtimes/claude-stream.ts`
  * (only the `role-marker-guard` import path changed — it now resolves
- * within this package instead of two directories up). See `source-map.md`.
+ * within this package instead of two directories up). See `archived provenance ledger`.
  *
  * Parses Claude Code's `--output-format stream-json --verbose` JSONL stream
  * (with or without `--include-partial-messages`) into a small set of
@@ -162,7 +162,7 @@ function nextGeneratedRuntimeTaskId(counter: RuntimeTaskIdCounter): string {
   // increases, it can never equal an id already present in the map at
   // this point. Removed per the coverage skill's Phase 6.5 "dead
   // branch" classification rather than fake a test for an unreachable
-  // loop; see source-map.md.
+  // loop; see archived provenance ledger.
   const id = String(counter.next);
   counter.next += 1;
   return id;
@@ -245,7 +245,7 @@ export function emitCanonicalTaskSnapshot(
   // reaching here (so the "changed" flag those returns guarded was
   // always true here). Removed the dead double-guard per the coverage
   // skill's Phase 6.5 "dead branch" classification rather than fake a
-  // test for an unreachable condition; see source-map.md.
+  // test for an unreachable condition; see archived provenance ledger.
   registry.seenToolUseIds.add(toolUseId);
   onEvent({
     type: 'tool_use',
@@ -280,7 +280,7 @@ export function isFileWriteToolUse(name: unknown, input: unknown): boolean {
 // already made. Removed the runtime early-return per the coverage
 // skill's Phase 6.5 "dead branch" classification rather than fake a
 // test with a non-record `input` neither function can ever actually
-// receive (see source-map.md), replaced by a one-line type assertion
+// receive (see archived provenance ledger), replaced by a one-line type assertion
 // (classification 4: TS-required, no real runtime path) so the
 // parameter can stay `unknown` without disturbing the call sites.
 export function fileWriteContent(input: unknown): string | null {
@@ -447,9 +447,7 @@ interface ClaudeStreamHandlerOptions {
   suppressHtmlArtifactsAfterFileWrite?: boolean;
 }
 
-export function createClaudeStreamHandler(
-  onEvent: EventSink,
-  options: ClaudeStreamHandlerOptions = {},
+export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, options: ClaudeStreamHandlerOptions = {}
 ) {
   let buffer = '';
 
@@ -559,7 +557,7 @@ export function createClaudeStreamHandler(
   function getOrCreateRoleGuard(msgId: string): RoleMarkerGuard {
     let guard = roleGuards.get(msgId);
     if (!guard) {
-      guard = createRoleMarkerGuard(msgId);
+      guard = createRoleMarkerGuard({ messageId: msgId });
       roleGuards.set(msgId, guard);
     }
     return guard;
@@ -577,7 +575,7 @@ export function createClaudeStreamHandler(
     const guard = getOrCreateRoleGuard(msgId);
     if (guard.contaminated) return;
 
-    const safe = guard.feedText(text);
+    const safe = guard.feedText({ text: text });
     if (safe.length > 0) {
       onEvent({ type: eventType, delta: safe });
     }
@@ -656,7 +654,7 @@ export function createClaudeStreamHandler(
     return startDuplicateArtifactCandidate(current, openIndex);
   }
 
-  function feed(chunk: string) {
+  function feed({ chunk }: { chunk: string }) {
     buffer += chunk;
     let nl;
     while ((nl = buffer.indexOf('\n')) !== -1) {

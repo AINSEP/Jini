@@ -14,42 +14,42 @@ function entry(id: string, capabilities: string[]): InteractiveComponentEntry {
 
 describe('InteractiveUiRegistry', () => {
   it('resolves by id', () => {
-    const registry = new InteractiveUiRegistry([entry('a', ['table'])]);
-    expect(registry.resolveById('a')?.id).toBe('a');
+    const registry = new InteractiveUiRegistry({ entries: [entry('a', ['table'])] });
+    expect(registry.resolveById({ id: 'a' })?.id).toBe('a');
   });
 
   it('returns null for an unknown id', () => {
-    const registry = new InteractiveUiRegistry([]);
-    expect(registry.resolveById('missing')).toBeNull();
+    const registry = new InteractiveUiRegistry({ entries: [] });
+    expect(registry.resolveById({ id: 'missing' })).toBeNull();
   });
 
   it('resolves by capability in registration order (fallback chain)', () => {
-    const registry = new InteractiveUiRegistry([entry('preferred', ['table']), entry('fallback', ['table'])]);
-    expect(registry.resolveByCapability('table').map((item) => item.id)).toEqual(['preferred', 'fallback']);
+    const registry = new InteractiveUiRegistry({ entries: [entry('preferred', ['table']), entry('fallback', ['table'])] });
+    expect(registry.resolveByCapability({ capability: 'table' }).map((item) => item.id)).toEqual(['preferred', 'fallback']);
   });
 
   it('returns an empty list for an unmatched capability', () => {
-    const registry = new InteractiveUiRegistry([entry('a', ['table'])]);
-    expect(registry.resolveByCapability('chart')).toEqual([]);
+    const registry = new InteractiveUiRegistry({ entries: [entry('a', ['table'])] });
+    expect(registry.resolveByCapability({ capability: 'chart' })).toEqual([]);
   });
 
   it('list returns every registered entry', () => {
-    const registry = new InteractiveUiRegistry([entry('a', ['table']), entry('b', ['form'])]);
+    const registry = new InteractiveUiRegistry({ entries: [entry('a', ['table']), entry('b', ['form'])] });
     expect(registry.list().map((item) => item.id)).toEqual(['a', 'b']);
   });
 
   it('register appends a new entry without mutating the original registry', () => {
-    const original = new InteractiveUiRegistry([entry('a', ['table'])]);
-    const updated = original.register(entry('b', ['form']));
+    const original = new InteractiveUiRegistry({ entries: [entry('a', ['table'])] });
+    const updated = original.register({ entry: entry('b', ['form']) });
     expect(original.list().map((item) => item.id)).toEqual(['a']);
     expect(updated.list().map((item) => item.id)).toEqual(['a', 'b']);
   });
 
   it('register replaces an existing entry with the same id', () => {
-    const original = new InteractiveUiRegistry([entry('a', ['table'])]);
-    const updated = original.register(entry('a', ['form']));
+    const original = new InteractiveUiRegistry({ entries: [entry('a', ['table'])] });
+    const updated = original.register({ entry: entry('a', ['form']) });
     expect(updated.list()).toHaveLength(1);
-    expect(updated.resolveByCapability('form')).toHaveLength(1);
-    expect(updated.resolveByCapability('table')).toHaveLength(0);
+    expect(updated.resolveByCapability({ capability: 'form' })).toHaveLength(1);
+    expect(updated.resolveByCapability({ capability: 'table' })).toHaveLength(0);
   });
 });

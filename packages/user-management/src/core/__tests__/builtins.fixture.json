@@ -1,0 +1,509 @@
+{
+  "permissions": [
+    {
+      "id": "content.read",
+      "owner": "core",
+      "description": "Read content entries."
+    },
+    {
+      "id": "content.write",
+      "owner": "core",
+      "description": "Create and edit content entries."
+    },
+    {
+      "id": "content.publish",
+      "owner": "core",
+      "description": "Publish/unpublish content entries."
+    },
+    {
+      "id": "content.delete",
+      "owner": "core",
+      "description": "Delete content entries."
+    },
+    {
+      "id": "media.write",
+      "owner": "core",
+      "description": "DEPRECATED — superseded by the flat media.* permission set registered below. Retained (not deleted) — see the media.* registration block's own comment and docs/decisions/permission-catalog-migration.md for the same migration contract this repo's other permission renames (navigation.manage, integration.manage) have used. Do not register a new dependency on this string."
+    },
+    {
+      "id": "theme.set",
+      "owner": "core",
+      "description": "Change the active theme/presentation settings."
+    },
+    {
+      "id": "theme.edit",
+      "owner": "core",
+      "description": "Create and edit the source files inside a theme package (templates, tokens, styles, manifest). Distinct from theme.set, which only chooses among already-validated themes: editing a theme's files can take that theme to status:'invalid', degrading its pages to the built-in fallback body until corrected. Granted to admin (and owner via '*'), not to editor."
+    },
+    {
+      "id": "plugin.read",
+      "owner": "core",
+      "description": "List installed plugins and their state."
+    },
+    {
+      "id": "plugin.enable",
+      "owner": "core",
+      "description": "Enable a plugin."
+    },
+    {
+      "id": "plugin.disable",
+      "owner": "core",
+      "description": "Disable a plugin."
+    },
+    {
+      "id": "changeset.read",
+      "owner": "core",
+      "description": "Read the change-set audit trail."
+    },
+    {
+      "id": "changeset.revert",
+      "owner": "core",
+      "description": "Revert an applied change set."
+    },
+    {
+      "id": "member.manage",
+      "owner": "core",
+      "description": "Manage front-end members and subscriptions."
+    },
+    {
+      "id": "user.manage",
+      "owner": "core",
+      "description": "Create/disable operator users and principals."
+    },
+    {
+      "id": "role.manage",
+      "owner": "core",
+      "description": "Manage roles, policies, and grants."
+    },
+    {
+      "id": "settings.write",
+      "owner": "core",
+      "description": "DEPRECATED — superseded by the fine-grained settings.* catalog below. Retained until the data migration that maps existing grants to settings.workspace.write + settings.definitions.manage completes and is verified; do not reuse this string for anything else afterward. See docs/decisions/permission-catalog-migration.md for the migration's completion criteria."
+    },
+    {
+      "id": "apikey.manage",
+      "owner": "core",
+      "description": "Issue and revoke API keys."
+    },
+    {
+      "id": "settings.global.write",
+      "owner": "settings",
+      "description": "Set/clear a setting's global-layer value."
+    },
+    {
+      "id": "settings.workspace.write",
+      "owner": "settings",
+      "description": "Set/clear a setting's workspace-layer value."
+    },
+    {
+      "id": "settings.user.self.write",
+      "owner": "settings",
+      "description": "Set/clear a setting's own user-layer value."
+    },
+    {
+      "id": "settings.user.write",
+      "owner": "settings",
+      "description": "Set/clear another principal's user-layer value."
+    },
+    {
+      "id": "settings.user.read",
+      "owner": "settings",
+      "description": "Read another principal's user-layer value. The read-side counterpart of settings.user.write — gates the ?principalId= cross-principal path on the settings read routes (get-raw/get-effective), which previously had no read permission of its own and borrowed settings.user.write."
+    },
+    {
+      "id": "settings.definitions.manage",
+      "owner": "settings",
+      "description": "Register/rename/retype/deprecate/tombstone setting definitions; also gates the purge service and authorizes the background coerce repair job."
+    },
+    {
+      "id": "settings.reset.global",
+      "owner": "settings",
+      "description": "Reset a namespace's global-layer values to defaults."
+    },
+    {
+      "id": "settings.reset.workspace",
+      "owner": "settings",
+      "description": "Reset a namespace's workspace-layer values to defaults."
+    },
+    {
+      "id": "settings.reset.user",
+      "owner": "settings",
+      "description": "Reset a namespace's user-layer values to defaults."
+    },
+    {
+      "id": "settings.read",
+      "owner": "settings",
+      "description": "Read effective setting values (getEffective)."
+    },
+    {
+      "id": "settings.read.raw",
+      "owner": "settings",
+      "description": "Read per-layer raw setting values. Reserved for a future API surface."
+    },
+    {
+      "id": "settings.read.revisions",
+      "owner": "settings",
+      "description": "Read the setting_revisions ledger. Reserved for a future API surface."
+    },
+    {
+      "id": "settings.read.definitions",
+      "owner": "settings",
+      "description": "List setting definitions grouped by namespace."
+    },
+    {
+      "id": "navigation.manage",
+      "owner": "navigation",
+      "description": "DEPRECATED — superseded by the admin.menus.* catalog below. Retained (not deleted) until the Point of No Return: a persistent identity store shipping plus a real deprecation window with observed zero reliance on this string, gated on authorize()-decision logging existing first to measure that. See docs/decisions/permission-catalog-migration.md. Do not register a new dependency on this string."
+    },
+    {
+      "id": "admin.menus.read",
+      "owner": "navigation",
+      "description": "Read menus and their location bindings."
+    },
+    {
+      "id": "admin.menus.create",
+      "owner": "navigation",
+      "description": "Create a new menu."
+    },
+    {
+      "id": "admin.menus.update",
+      "owner": "navigation",
+      "description": "Replace a menu's item tree."
+    },
+    {
+      "id": "admin.menus.delete",
+      "owner": "navigation",
+      "description": "Trash a menu, and attempt an ordinary (non-forced) hard purge."
+    },
+    {
+      "id": "admin.menus.delete.force",
+      "owner": "navigation",
+      "description": "Force-purge a menu past the dangling-location-binding guard — split from admin.menus.delete so force-purge is not reachable with only the ordinary delete grant."
+    },
+    {
+      "id": "admin.menus.assign",
+      "owner": "navigation",
+      "description": "Assign (or reassign) a menu to a theme location."
+    },
+    {
+      "id": "admin.menus.manage",
+      "owner": "navigation",
+      "description": "Umbrella grant covering every admin.menus.* action (mirrors owner-tier convenience grants)."
+    },
+    {
+      "id": "integration.manage",
+      "owner": "integrations",
+      "description": "DEPRECATED — superseded by admin.integrations.manage below, mirroring the navigation.manage -> admin.menus.* precedent. Retained (not deleted) — see admin.integrations.manage's own comment and docs/decisions/permission-catalog-migration.md for the same migration contract this repo's other permission renames have used."
+    },
+    {
+      "id": "admin.integrations.manage",
+      "owner": "integrations",
+      "description": "Create, update, pause, and delete webhook subscriptions; read delivery logs."
+    },
+    {
+      "id": "admin.seo.manage",
+      "owner": "seo",
+      "description": "Read and write per-entry SEO overrides, site-level SEO settings, and the sitemap cache."
+    },
+    {
+      "id": "admin.assistant.manage",
+      "owner": "assistant",
+      "description": "Read and change the visitor-facing AI assistant's settings, including its master on/off switch."
+    },
+    {
+      "id": "analytics.read",
+      "owner": "analytics",
+      "description": "Read recent ingested analytics hits."
+    },
+    {
+      "id": "admin.redirects.manage",
+      "owner": "redirects",
+      "description": "Create, update, tombstone, import, and read hit stats for redirect rules."
+    },
+    {
+      "id": "admin.forms.manage",
+      "owner": "forms",
+      "description": "Create, update, and disable/enable form definitions."
+    },
+    {
+      "id": "admin.forms.submissions.read",
+      "owner": "forms",
+      "description": "List and view form submissions."
+    },
+    {
+      "id": "admin.forms.submissions.delete",
+      "owner": "forms",
+      "description": "Permanently delete a form submission."
+    },
+    {
+      "id": "admin.newsletter.read",
+      "owner": "newsletter",
+      "description": "List and read newsletter campaigns, lists, and the send log."
+    },
+    {
+      "id": "admin.newsletter.campaign.compose",
+      "owner": "newsletter",
+      "description": "Create/edit/cancel a newsletter campaign in draft or scheduled state."
+    },
+    {
+      "id": "admin.newsletter.campaign.schedule",
+      "owner": "newsletter",
+      "description": "Schedule a draft newsletter campaign to send at a future time."
+    },
+    {
+      "id": "admin.newsletter.campaign.send",
+      "owner": "newsletter",
+      "description": "Send, pause, or resume a newsletter campaign — real outbound mail."
+    },
+    {
+      "id": "admin.newsletter.campaign.send_test",
+      "owner": "newsletter",
+      "description": "Send a test copy of a newsletter campaign to a small address list."
+    },
+    {
+      "id": "admin.newsletter.list.manage",
+      "owner": "newsletter",
+      "description": "Create and archive newsletter subscriber lists."
+    },
+    {
+      "id": "admin.newsletter.subscriber.read",
+      "owner": "newsletter",
+      "description": "Read newsletter subscriptions and the per-campaign send log."
+    },
+    {
+      "id": "admin.newsletter.subscriber.manage",
+      "owner": "newsletter",
+      "description": "Add, import, remove newsletter subscriptions, and resend confirmation emails."
+    },
+    {
+      "id": "admin.newsletter.settings.manage",
+      "owner": "newsletter",
+      "description": "Reserved for a future API surface (no route uses this yet)."
+    },
+    {
+      "id": "admin.newsletter.manage",
+      "owner": "newsletter",
+      "description": "Umbrella newsletter permission. Reserved for a future API surface (no route uses this yet)."
+    },
+    {
+      "id": "storage.read",
+      "owner": "database",
+      "description": "DEPRECATED — superseded by database.read below, mirroring this catalog's integration.manage -> admin.integrations.manage precedent. Retained (not deleted) — see database.read's own comment and docs/decisions/permission-catalog-migration.md for the same migration contract this repo's other permission renames have used."
+    },
+    {
+      "id": "database.read",
+      "owner": "database",
+      "description": "Read the Database Timeline, schema drift status, and restore points."
+    },
+    {
+      "id": "system.read",
+      "owner": "server",
+      "description": "Read boot/readiness module lifecycle status."
+    },
+    {
+      "id": "storage.migrate",
+      "owner": "database",
+      "description": "DEPRECATED — superseded by database.migrate below, mirroring this catalog's integration.manage -> admin.integrations.manage precedent. Retained (not deleted) — see database.migrate's own comment and docs/decisions/permission-catalog-migration.md for the same migration contract this repo's other permission renames have used."
+    },
+    {
+      "id": "database.migrate",
+      "owner": "database",
+      "description": "Plan, confirm, and execute a forward schema migration."
+    },
+    {
+      "id": "backup.read",
+      "owner": "recovery",
+      "description": "Read restore points and the workspace's restore capability."
+    },
+    {
+      "id": "backup.create",
+      "owner": "recovery",
+      "description": "Mint a restore point independent of any migration."
+    },
+    {
+      "id": "backup.restore",
+      "owner": "recovery",
+      "description": "Confirm and execute a restore to a prior restore point."
+    },
+    {
+      "id": "comments.read",
+      "owner": "comments",
+      "description": "Read comments and the moderation queue."
+    },
+    {
+      "id": "comments.moderate",
+      "owner": "comments",
+      "description": "Approve, mark spam, or restore a comment."
+    },
+    {
+      "id": "comments.reply",
+      "owner": "comments",
+      "description": "Post an operator reply to a comment thread."
+    },
+    {
+      "id": "comments.delete",
+      "owner": "comments",
+      "description": "Trash a comment (soft delete, recoverable)."
+    },
+    {
+      "id": "comments.delete.force",
+      "owner": "comments",
+      "description": "Purge a comment permanently (hard delete, not recoverable)."
+    },
+    {
+      "id": "comments.submit",
+      "owner": "comments",
+      "description": "Reserved for a future member-only submission gate; the anonymous path is ingress-governed, not authorize()-gated."
+    },
+    {
+      "id": "comments.configure",
+      "owner": "comments",
+      "description": "Change Comments settings (moderation defaults, spam threshold, depth cap)."
+    },
+    {
+      "id": "admin.collections.read",
+      "owner": "content-types",
+      "description": "List Collections content types and their entries."
+    },
+    {
+      "id": "admin.collections.manage",
+      "owner": "content-types",
+      "description": "Create/edit content types and entries; deprecate/reactivate/tombstone a content type; publish/unpublish an entry."
+    },
+    {
+      "id": "admin.taxonomy.manage",
+      "owner": "taxonomy",
+      "description": "Read and write taxonomies, terms, and term assignments (one permission for this whole domain, no .read/.write split)."
+    },
+    {
+      "id": "media.read",
+      "owner": "media",
+      "description": "List and read media assets."
+    },
+    {
+      "id": "media.upload",
+      "owner": "media",
+      "description": "Upload a new media asset."
+    },
+    {
+      "id": "media.update",
+      "owner": "media",
+      "description": "Edit a media asset's metadata (title/alt/caption/credit)."
+    },
+    {
+      "id": "media.delete",
+      "owner": "media",
+      "description": "Trash (soft-delete) a media asset."
+    },
+    {
+      "id": "media.delete.force",
+      "owner": "media",
+      "description": "Permanently purge a trashed media asset, past the still-referenced guard."
+    },
+    {
+      "id": "media.download_original",
+      "owner": "media",
+      "description": "Mint a short-TTL signed URL to download a media asset's original bytes. Reserved for a future API surface — no route uses this yet."
+    },
+    {
+      "id": "media.upload_svg",
+      "owner": "media",
+      "description": "Upload an SVG asset (sanitized at ingest, served origin-isolated)."
+    },
+    {
+      "id": "media.manage",
+      "owner": "media",
+      "description": "Umbrella grant covering every media.* action (mirrors owner-tier convenience grants like admin.menus.manage)."
+    },
+    {
+      "id": "widgets.read",
+      "owner": "widgets",
+      "description": "Read widget instances, widget_area regions, and their revision history."
+    },
+    {
+      "id": "widgets.create",
+      "owner": "widgets",
+      "description": "Create a new widget instance."
+    },
+    {
+      "id": "widgets.update",
+      "owner": "widgets",
+      "description": "Update an existing widget instance's config."
+    },
+    {
+      "id": "widgets.place",
+      "owner": "widgets",
+      "description": "Bind/reorder/disable a widget in a region's widget_area, or insert/remove/reorder a widgetEmbed node."
+    },
+    {
+      "id": "widgets.delete",
+      "owner": "widgets",
+      "description": "Trash a widget instance."
+    },
+    {
+      "id": "widgets.delete.force",
+      "owner": "widgets",
+      "description": "Force-purge a widget instance past the still-referenced guard, flagging any resulting dangling references."
+    },
+    {
+      "id": "workspace.manage",
+      "owner": "workspace",
+      "description": "List/view/rename/delete the workspace."
+    }
+  ],
+  "migrations": [
+    {
+      "from": "settings.user.write",
+      "to": [
+        "settings.user.read"
+      ],
+      "reason": "Internal audit F2 remediation (2026-07-29): the cross-principal settings read path was gated on settings.user.write for lack of a read-side permission. settings.user.read now gates it; every existing write-holder gains the explicit read grant so no operator loses a shipped capability. Unlike this file's other pairs, `from` is not deprecated — it stays live for writes."
+    },
+    {
+      "from": "navigation.manage",
+      "to": [
+        "admin.menus.read",
+        "admin.menus.create",
+        "admin.menus.update",
+        "admin.menus.delete",
+        "admin.menus.delete.force",
+        "admin.menus.assign"
+      ],
+      "reason": "navigation.manage split into per-action admin.menus.* strings; every policy holding the old flat permission must not be silently narrowed by the split."
+    },
+    {
+      "from": "integration.manage",
+      "to": [
+        "admin.integrations.manage"
+      ],
+      "reason": "integration.manage renamed to admin.integrations.manage; every policy holding the old flat permission must not be silently locked out by the rename."
+    },
+    {
+      "from": "storage.read",
+      "to": [
+        "database.read"
+      ],
+      "reason": "Naming-correction: storage.read renamed to database.read; every policy holding the old flat permission must not be silently locked out by the rename."
+    },
+    {
+      "from": "storage.migrate",
+      "to": [
+        "database.migrate"
+      ],
+      "reason": "Naming-correction: storage.migrate renamed to database.migrate; every policy holding the old flat permission must not be silently locked out by the rename."
+    },
+    {
+      "from": "media.write",
+      "to": [
+        "media.read",
+        "media.upload",
+        "media.update",
+        "media.delete",
+        "media.delete.force",
+        "media.download_original",
+        "media.upload_svg"
+      ],
+      "reason": "media.write replaced by the flat media.* permission set; every policy holding the old flat permission must not be silently narrowed by the split."
+    }
+  ]
+}

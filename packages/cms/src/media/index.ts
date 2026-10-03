@@ -141,9 +141,6 @@ export { sniffContentType, type SniffedContentType } from "./content-type-sniffe
 /** The agent-tool catalog for this domain (see `agent-tools.ts` for what is deliberately omitted). */
 export {
   mediaAgentToolCatalog,
-  type AgentToolDefinition as MediaAgentToolDefinition,
-  type AgentToolSideEffect as MediaAgentToolSideEffect,
-  type AgentToolActorClassRule as MediaAgentToolActorClassRule,
 } from "./agent-tools.js";
 
 /**
@@ -158,3 +155,12 @@ export {
   mediaDerivedRisk,
   type MediaToolDeps,
 } from "./tool-registrations.js";
+
+// Named argument contracts for consumer adapters.
+export type { UploadMediaRequired, UploadMediaOptional, ListMediaRequired, GetMediaByIdRequired, UpdateMediaMetadataRequired, TrashMediaRequired, PurgeMediaRequired, RollbackUploadedMediaRequired } from "./media-service.js";
+export type { ResolveMediaRenditionRequired } from "./rendition-service.js";
+export type { RegisterTransformRequired, GetLatestTransformDefinitionRequired, IsLatestTransformVersionRequired } from "./transform-registry.js";
+export type { IsBlobUnreferencedRequired, TombstoneBlobRequired, RunBlobGcDeletePassRequired, RunBlobGcUnlinkPassRequired, RunBlobGcCycleRequired } from "./blob-gc.js";
+
+export { rollbackUploadedMedia } from "./media-service.js";
+export type { MediaRowCleanupDeps } from "./media-service.js";

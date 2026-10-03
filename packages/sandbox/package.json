@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/sandbox",
-  "version": "0.3.0",
-  "description": "Execution/sandbox sibling to @jini-ai/vibecoding's edit loop: boot an environment, mount files, install deps, run commands, preview, and tear down — behind one interface with a driver-neutral core. Import `./core` with no adapter installed; add `./e2b` for the E2B (Firecracker microVM) backend.",
+  "version": "0.4.0",
+  "description": "Execution/sandbox sibling to @jini-ai/vibecoding's edit loop: boot an environment, mount files, install deps, run commands, preview, and tear down \u2014 behind one interface with a driver-neutral core. Import `./core` with no adapter installed; add `./e2b` for the E2B (Firecracker microVM) backend.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -11,6 +11,11 @@
   "jini": {
     "domain": "capability",
     "kind": "execution-adapter",
+    "entries": {
+      "./core": "universal",
+      "./e2b": "node",
+      "./node-worker": "node"
+    },
     "runtime": "node",
     "neutralEntries": [
       "src/core"
@@ -38,6 +43,16 @@
         "types": "./dist/cjs/e2b/index.d.ts",
         "default": "./dist/cjs/e2b/index.js"
       }
+    },
+    "./node-worker": {
+      "import": {
+        "types": "./dist/node-worker.d.ts",
+        "default": "./dist/node-worker.js"
+      },
+      "require": {
+        "types": "./dist/cjs/node-worker.d.ts",
+        "default": "./dist/cjs/node-worker.js"
+      }
     }
   },
   "typesVersions": {
@@ -47,11 +62,17 @@
       ],
       "e2b": [
         "./dist/e2b/index.d.ts"
+      ],
+      "node-worker": [
+        "./dist/node-worker.d.ts"
       ]
     }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",

@@ -53,8 +53,8 @@ describe('useComposer', () => {
         await result.current.addAttachments([fileA, fileB]);
       });
 
-      expect(getAttachmentPreviewSource('attachment:a')).toBe(fileA);
-      expect(getAttachmentPreviewSource('attachment:b')).toBe(fileB);
+      expect(getAttachmentPreviewSource({ path: 'attachment:a' })).toBe(fileA);
+      expect(getAttachmentPreviewSource({ path: 'attachment:b' })).toBe(fileB);
     });
 
     it('does not cache anything when the upload rejects, so a failed batch leaves no stale entries', async () => {
@@ -66,7 +66,7 @@ describe('useComposer', () => {
         await expect(result.current.addAttachments([file])).rejects.toThrow('upload failed');
       });
 
-      expect(getAttachmentPreviewSource('attachment:a')).toBeUndefined();
+      expect(getAttachmentPreviewSource({ path: 'attachment:a' })).toBeUndefined();
     });
   });
 

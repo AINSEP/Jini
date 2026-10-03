@@ -53,18 +53,18 @@ That last one is a real, named asymmetry, not a hidden gap — see below.
 
 ```ts
 interface SandboxProviderPort {
-  boot(options?: BootOptions): Promise<SandboxSession>;
+  boot(requiredArgs: Record<string, never>, optionalArgs?: BootOptions): Promise<SandboxSession>;
 }
 
 interface SandboxSession {
-  mountFiles(files: readonly SandboxFile[]): Promise<void>;
-  readFile(path: string): Promise<Uint8Array>;
-  listFiles(directory?: string): Promise<readonly string[]>;
-  runCommand(command: string, args?: readonly string[], options?: RunCommandOptions): Promise<CommandResult>;
-  installDependencies(packages?: readonly string[], options?: RunCommandOptions): Promise<CommandResult>;
-  startProcess(command: string, args?: readonly string[]): Promise<ProcessHandle>;
+  mountFiles(requiredArgs: { files: readonly SandboxFile[] }): Promise<void>;
+  readFile(requiredArgs: { path: string }): Promise<Uint8Array>;
+  listFiles(requiredArgs: Record<string, never>, optionalArgs?: { directory?: string }): Promise<readonly string[]>;
+  runCommand(requiredArgs: { command: string }, optionalArgs?: RunCommandOptions & { args?: readonly string[] }): Promise<CommandResult>;
+  installDependencies(requiredArgs: Record<string, never>, optionalArgs?: RunCommandOptions & { packages?: readonly string[] }): Promise<CommandResult>;
+  startProcess(requiredArgs: { command: string }, optionalArgs?: { args?: readonly string[] }): Promise<ProcessHandle>;
   getPreview(): Promise<PreviewTarget>;
-  onFileChange(listener: (event: FileChangeEvent) => void): Unsubscribe;
+  onFileChange(requiredArgs: { listener: (event: FileChangeEvent) => void }): Unsubscribe;
   teardown(): Promise<void>;
 }
 ```
@@ -149,7 +149,7 @@ backend-neutral interface:
 
 ## `./e2b`
 
-`createE2bSandboxProvider(config?)` implements `SandboxProviderPort` against a real E2B
+`createE2bSandboxProvider({}, config?)` implements `SandboxProviderPort` against a real E2B
 Firecracker microVM. `@e2b/code-interpreter` is an **optional peer dependency** — installing
 `@jini-ai/sandbox` alone pulls no E2B SDK code, and `pnpm guard`'s R12 check (opted in via
 `jini.neutralEntries` in `package.json`, the same mechanism `@jini-ai/infra` uses for its
@@ -203,3 +203,7 @@ natively, `files.watchDir`'s event types being lowercase, `Sandbox.kill()` retur
 `boolean`) was checked against the installed `@e2b/code-interpreter`/`e2b` package's own `.d.ts`,
 not inferred from open-lovable's source or paraphrased docs — several of those checks caught
 real mistakes in earlier drafts before they shipped.
+
+## Worker execution
+
+`./node-worker` provides bounded per-call workers with explicit entry paths, payload/result codecs, clocks and resource budgets. See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/sandbox/API.md) for composition and migration. `./core` remains universal and imports no adapter; `./e2b` and `./node-worker` use Node.

@@ -14,7 +14,7 @@
  * `packages/contracts/src/api/app-config.ts` (`AgentModelPrefs`),
  * `apps/web/src/components/providerModelsCache.ts`, and
  * `apps/web/src/components/agentModelSelection.ts` — see
- * `packages/agent-runtime/source-map.md` for the full per-symbol mapping.
+ * `packages/agent-runtime/archived provenance ledger` for the full per-symbol mapping.
  * No OD product-identity strings or OD-specific gating (e.g. the original's
  * hardcoded `agent.id === 'amr'` carve-out) survived the port.
  *
@@ -50,9 +50,7 @@ export interface AgentModelChoice {
  * doesn't require credentials is always `available`; otherwise the status
  * depends on whether a credential has actually been stored.
  */
-export function resolveCredentialStatus(
-  provider: Pick<ModelProvider, 'credentialsRequired'>,
-  hasStoredCredential: boolean,
+export function resolveCredentialStatus({ provider, hasStoredCredential }: { provider: Pick<ModelProvider, 'credentialsRequired'>; hasStoredCredential: boolean }
 ): CredentialStatus {
   if (provider.credentialsRequired === false) return 'available';
   return hasStoredCredential ? 'configured' : 'unconfigured';
@@ -63,9 +61,7 @@ export function resolveCredentialStatus(
  * fetched entries first and deduping by id (first write wins). Blank ids are
  * dropped; blank labels fall back to the id.
  */
-export function mergeModelOptions(
-  fetchedModels: readonly ModelCatalogOption[],
-  suggestedModels: readonly ModelCatalogOption[],
+export function mergeModelOptions({ fetchedModels, suggestedModels }: { fetchedModels: readonly ModelCatalogOption[]; suggestedModels: readonly ModelCatalogOption[] }
 ): ModelCatalogOption[] {
   const seen = new Set<string>();
   const merged: ModelCatalogOption[] = [];
@@ -81,7 +77,7 @@ export function mergeModelOptions(
 }
 
 /** Deterministic, non-reversible fingerprint — never persist or transmit the raw credential. */
-export function fingerprintCredential(value: string): string {
+export function fingerprintCredential({ value }: { value: string }): string {
   let hash = 0x811c9dc5;
   for (let i = 0; i < value.length; i += 1) {
     hash ^= value.charCodeAt(i);
@@ -96,17 +92,15 @@ export function fingerprintCredential(value: string): string {
  * misses the cache instead of silently reusing another provider's list.
  * `variant` covers protocols that key on more than credential + endpoint
  * (e.g. an API version).
+ * @throws {TypeError} When a supplied variant is not a string.
  */
-export function modelCatalogCacheKey(
-  providerId: string,
-  baseUrl: string,
-  credential: string,
-  variant = '',
+export function modelCatalogCacheKey({ providerId, baseUrl, credential }: { providerId: string; baseUrl: string; credential: string }, { variant = '' }: { variant?: unknown } = {}
 ): string {
+  if (typeof variant !== 'string') throw new TypeError('Model catalog variant must be a string');
   return [
     providerId,
     baseUrl.trim().replace(/\/+$/, ''),
-    fingerprintCredential(credential.trim()),
+    fingerprintCredential({ value: credential.trim() }),
     variant.trim(),
   ].join('\n');
 }
@@ -117,9 +111,7 @@ export function modelCatalogCacheKey(
  * normalization is needed (nothing to change) or possible (no configured
  * model, or the agent has no models to fall back to).
  */
-export function normalizeAgentModelChoice(
-  agent: Pick<AgentDefinition, 'models'> | null | undefined,
-  choice: AgentModelChoice | undefined,
+export function normalizeAgentModelChoice({ agent, choice }: { agent: Pick<AgentDefinition, 'models'> | null | undefined; choice: AgentModelChoice | undefined }
 ): AgentModelChoice | null {
   const configuredModel = typeof choice?.model === 'string' && choice.model ? choice.model : null;
   if (!configuredModel) return null;
@@ -133,11 +125,9 @@ export function normalizeAgentModelChoice(
 }
 
 /** `normalizeAgentModelChoice`'s result if normalization applied, else the original choice. */
-export function effectiveAgentModelChoice(
-  agent: Pick<AgentDefinition, 'models'> | null | undefined,
-  choice: AgentModelChoice | undefined,
+export function effectiveAgentModelChoice({ agent, choice }: { agent: Pick<AgentDefinition, 'models'> | null | undefined; choice: AgentModelChoice | undefined }
 ): AgentModelChoice | undefined {
-  return normalizeAgentModelChoice(agent, choice) ?? choice;
+  return normalizeAgentModelChoice({ agent: agent, choice: choice }) ?? choice;
 }
 
 /**

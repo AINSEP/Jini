@@ -36,7 +36,11 @@ import { mimeForTransformFormat } from "./transform-types.js";
 const require = createRequire(import.meta.url);
 
 /** Thrown by {@link SharpImageTransformer.transform} when the `sharp` package cannot be loaded. */
-export class ImageTransformUnavailableError extends Error {}
+export class ImageTransformUnavailableError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
 
 /**
  * Thrown by {@link SharpImageTransformer.transform} when `sharp` itself rejects the SOURCE bytes —
@@ -52,7 +56,11 @@ export class ImageTransformUnavailableError extends Error {}
  * error, never a silently faked/passed-through image" discipline this file's own header already
  * states for the sibling `ImageTransformUnavailableError` case.
  */
-export class ImageSourceCorruptError extends Error {}
+export class ImageSourceCorruptError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
 
 /** The narrow slice of `sharp`'s fluent API this adapter calls. */
 interface SharpInstance {
@@ -87,11 +95,10 @@ function loadSharpFactory(): SharpFactory {
   try {
     return require("sharp") as SharpFactory;
   } catch (err) {
-    throw new ImageTransformUnavailableError(
-      "the 'sharp' npm package is not installed in this environment (run `npm install sharp`) — " +
+    throw new ImageTransformUnavailableError({ message: "the 'sharp' npm package is not installed in this environment (run `npm install sharp`) — " +
         "SharpImageTransformer cannot perform a real pixel transform without it. This is a " +
         "disclosed, optional-dependency blocker, not a silent stub: no bytes are faked or passed " +
-        "through unmodified."
+        "through unmodified." }
     );
   }
 }
@@ -176,12 +183,11 @@ export class SharpImageTransformer implements ImageTransformerPort {
 
       return {
         bytes: new Uint8Array(outBuffer),
-        contentType: mimeForTransformFormat(input.params.format),
+        contentType: mimeForTransformFormat({ format: input.params.format }),
       };
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      throw new ImageSourceCorruptError(
-        `the source image could not be decoded/re-encoded (target format '${input.params.format}'): ${detail}`
+      throw new ImageSourceCorruptError({ message: `the source image could not be decoded/re-encoded (target format '${input.params.format}'): ${detail}` }
       );
     }
   }

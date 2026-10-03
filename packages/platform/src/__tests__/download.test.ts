@@ -37,7 +37,7 @@ const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
 // `vi.spyOn` cannot redefine, and download.ts calls them as plain destructured
 // imports (not `fsp.stat(x)`), so a property-mutation spy on an imported
 // namespace object never reaches those call sites either (verified
-// empirically — see packages/platform/source-map.md's 2026-07-22 entry).
+// empirically — see packages/platform/archived provenance ledger's 2026-07-22 entry).
 // `vi.mock` replaces the module for every importer before any of them load,
 // so a per-test `.mockImplementationOnce` on the wrapped `vi.fn()` reaches
 // the real call site deterministically, without any OS permission

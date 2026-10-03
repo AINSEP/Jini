@@ -12,7 +12,7 @@ const hoisted = vi.hoisted(() => ({
 vi.mock('../../server/daemon-client.js', () => hoisted);
 
 import type { McpToolDef } from '../../server/tool-protocol.js';
-import type { McpToolServerHandle, McpToolServerOptions } from '../../server/tool-server.js';
+import type { McpToolServerHandle, McpToolServerRequiredArgs, McpToolServerOptions } from '../../server/tool-server.js';
 import { DEFAULT_DELEGATED_TOOL_TIMEOUT_MS } from '../../server/tools/delegated-tool.js';
 import { DELEGATED_TOOL_TIMEOUT_ENV_VAR, RUN_ID_ENV_VAR, serve, type ServeDeps } from '../serve.js';
 
@@ -32,29 +32,30 @@ beforeEach(() => {
  * `serve()` never read the variable.
  */
 async function timeoutSeenVia(env: Record<string, string>): Promise<number | undefined> {
-  let seen: McpToolServerOptions | undefined;
+  let seen: (McpToolServerRequiredArgs & McpToolServerOptions) | undefined;
   const deps: ServeDeps = {
     env: { [RUN_ID_ENV_VAR]: 'run-1', ...env },
     writeErr: () => {},
-    exit: (code: number): never => {
+    exit: ({ code }: { code: number }): never => {
       throw new Error(`unexpected exit ${code}`);
     },
     // Cast through `unknown` rather than `ServeDeps['createMcpToolServer']`: that indexed type
     // includes `undefined` under `exactOptionalPropertyTypes`, which is not assignable back to the
     // property. Same pattern as `serve.test.ts`'s `castMcpToolServer`.
-    createMcpToolServer: ((options: McpToolServerOptions): McpToolServerHandle => {
+    createMcpToolServer: ((requiredArgs: McpToolServerRequiredArgs, optionalArgs: McpToolServerOptions = {}): McpToolServerHandle => {
+      const options = { ...requiredArgs, ...optionalArgs };
       seen = options;
       return { run: async () => {} };
-    }) as unknown as (options: McpToolServerOptions) => McpToolServerHandle,
+    }) as unknown as (requiredArgs: McpToolServerRequiredArgs, optionalArgs?: McpToolServerOptions) => McpToolServerHandle,
   };
-  await serve(deps);
+  await serve({}, deps);
 
   const tool = seen?.tools.find((t: McpToolDef) => t.name === 'execute_delegated_tool');
   if (!tool) throw new Error('serve() registered no execute_delegated_tool def');
 
   hoisted.postDaemonJson.mockResolvedValueOnce({ result: { executionId: 'e1', status: 'completed' } });
-  await tool.handler({ toolId: 't1' }, ctx);
-  return ((hoisted.postDaemonJson.mock.calls[0] as unknown[])[3] as { timeoutMs?: number }).timeoutMs;
+  await tool.handler({ args: { toolId: 't1' }, ctx: ctx });
+  return ((hoisted.postDaemonJson.mock.calls[0] as unknown[])[1] as { timeoutMs?: number }).timeoutMs;
 }
 
 describe('JINI_DELEGATED_TOOL_TIMEOUT_MS (REF-002: the option must be reachable from the real spawn path)', () => {

@@ -13,35 +13,36 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
-export type WindowsRegistryExec = (command: string, args: string[], options: { windowsHide: true }) => Promise<unknown>;
+export type WindowsRegistryExec = (requiredArgs: { command: string; args: string[] }, optionalArgs?: { windowsHide?: true }) => Promise<unknown>;
 
 export interface SyncWindowsUninstallDisplayVersionInput {
-  resolveUninstallRegistryKey: (namespace: string) => string;
+  resolveUninstallRegistryKey: (args: { namespace: string }) => string;
   namespace: string;
   version: string | null;
   exec?: WindowsRegistryExec;
   platform?: NodeJS.Platform;
 }
 
-export function windowsUninstallRegistryQueryArgs(registryKey: string): string[] {
+export function windowsUninstallRegistryQueryArgs({ registryKey }: { registryKey: string }): string[] {
   return ['query', `HKCU\\${registryKey}`];
 }
 
-export function windowsUninstallDisplayVersionRegistryArgs(registryKey: string, version: string): string[] {
+export function windowsUninstallDisplayVersionRegistryArgs({ registryKey, version }: { registryKey: string; version: string }): string[] {
   return ['add', `HKCU\\${registryKey}`, '/v', 'DisplayVersion', '/t', 'REG_SZ', '/d', version, '/f'];
 }
 
-export async function syncWindowsUninstallDisplayVersion(input: SyncWindowsUninstallDisplayVersionInput): Promise<boolean> {
+export async function syncWindowsUninstallDisplayVersion(requiredArgs: Pick<SyncWindowsUninstallDisplayVersionInput, 'resolveUninstallRegistryKey' | 'namespace' | 'version'>, optionalArgs: Omit<SyncWindowsUninstallDisplayVersionInput, 'resolveUninstallRegistryKey' | 'namespace' | 'version'> = {}): Promise<boolean> {
+  const input = { ...optionalArgs, ...requiredArgs };
   if ((input.platform ?? process.platform) !== 'win32') return false;
   const version = input.version?.trim();
   if (version == null || version.length === 0) return false;
-  const run = input.exec ?? execFileAsync;
-  const registryKey = input.resolveUninstallRegistryKey(input.namespace);
+  const run: WindowsRegistryExec = input.exec ?? (({ command, args }, options = {}) => execFileAsync(command, args, options));
+  const registryKey = input.resolveUninstallRegistryKey({ namespace: input.namespace });
   try {
-    await run('reg.exe', windowsUninstallRegistryQueryArgs(registryKey), { windowsHide: true });
+    await run({ command: 'reg.exe', args: windowsUninstallRegistryQueryArgs({ registryKey }) }, { windowsHide: true });
   } catch {
     return false;
   }
-  await run('reg.exe', windowsUninstallDisplayVersionRegistryArgs(registryKey, version), { windowsHide: true });
+  await run({ command: 'reg.exe', args: windowsUninstallDisplayVersionRegistryArgs({ registryKey, version }) }, { windowsHide: true });
   return true;
 }

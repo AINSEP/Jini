@@ -23,8 +23,8 @@ function makeDeps(overrides: Partial<DaemonCommandDeps> = {}): DaemonCommandDeps
   const errWritten: string[] = [];
   return {
     resolveBaseUrl: () => 'http://d.example',
-    write: (text: string) => { written.push(text); },
-    writeErr: (text: string) => { errWritten.push(text); },
+    write: ({ text }: { text: string }) => { written.push(text); },
+    writeErr: ({ text }: { text: string }) => { errWritten.push(text); },
     written,
     errWritten,
     ...overrides,
@@ -33,7 +33,7 @@ function makeDeps(overrides: Partial<DaemonCommandDeps> = {}): DaemonCommandDeps
 
 function exitingDeps(overrides: Partial<DaemonCommandDeps> = {}) {
   const deps = makeDeps(overrides);
-  const exit = vi.fn((code: number): never => { throw new ExitSentinel(code); });
+  const exit = vi.fn(({ code }: { code: number }): never => { throw new ExitSentinel(code); });
   return { ...deps, exit };
 }
 
@@ -41,7 +41,7 @@ describe('daemonStatusCommand', () => {
   it('prints --help usage via process.stdout.write when no write is injected', async () => {
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
-      await daemonStatusCommand(['--help'], { resolveBaseUrl: () => 'http://d.example' });
+      await daemonStatusCommand({ args: ['--help'], resolveBaseUrl: () => 'http://d.example' });
       expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Usage:'));
     } finally {
       stdoutSpy.mockRestore();
@@ -51,7 +51,7 @@ describe('daemonStatusCommand', () => {
   it('prints usage and returns for --help without making a request', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await daemonStatusCommand(['--help'], { ...deps, fetchImpl });
+    await daemonStatusCommand({ args: ['--help'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(deps.written.join('')).toContain('Usage:');
   });
@@ -59,7 +59,7 @@ describe('daemonStatusCommand', () => {
   it('prints usage and returns for -h without making a request', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await daemonStatusCommand(['-h'], { ...deps, fetchImpl });
+    await daemonStatusCommand({ args: ['-h'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(deps.written.join('')).toContain('Usage:');
   });
@@ -71,7 +71,7 @@ describe('daemonStatusCommand', () => {
       expect(String(url)).toBe('http://d.example/api/daemon/status');
       return jsonResponse(200, statusBody);
     });
-    await daemonStatusCommand([], { ...deps, fetchImpl });
+    await daemonStatusCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(deps.written[0]).toBe(`${JSON.stringify(statusBody)}\n`);
   });
@@ -80,15 +80,15 @@ describe('daemonStatusCommand', () => {
     const resolveBaseUrl = vi.fn(() => 'http://d.example');
     const deps = makeDeps({ resolveBaseUrl });
     const fetchImpl = vi.fn(async () => jsonResponse(200, { ok: true }));
-    await daemonStatusCommand([], { ...deps, fetchImpl });
-    await daemonStatusCommand([], { ...deps, fetchImpl });
+    await daemonStatusCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
+    await daemonStatusCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(resolveBaseUrl).toHaveBeenCalledTimes(2);
   });
 
   it('exits through the structured-error path on a non-2xx daemon response', async () => {
     const deps = exitingDeps();
     const fetchImpl = vi.fn(async () => jsonResponse(500, {}));
-    await expect(daemonStatusCommand([], { ...deps, fetchImpl })).rejects.toThrow(ExitSentinel);
+    await expect(daemonStatusCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } })).rejects.toThrow(ExitSentinel);
   });
 
   it('defaults writeErr/exit to process.stderr/process.exit on a structured error when nothing is injected', async () => {
@@ -98,7 +98,7 @@ describe('daemonStatusCommand', () => {
     }) as never);
     const fetchImpl = vi.fn(async () => jsonResponse(500, {}));
     try {
-      await expect(daemonStatusCommand([], { resolveBaseUrl: () => 'http://d.example', fetchImpl })).rejects.toThrow(ExitSentinel);
+      await expect(daemonStatusCommand({ args: [], resolveBaseUrl: ({ resolveBaseUrl: () => 'http://d.example', fetchImpl }).resolveBaseUrl }, { ...{ resolveBaseUrl: () => 'http://d.example', fetchImpl } })).rejects.toThrow(ExitSentinel);
       expect(stderrSpy).toHaveBeenCalled();
     } finally {
       stderrSpy.mockRestore();
@@ -111,7 +111,7 @@ describe('daemonStatusCommand', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(200, statusBody) as Response);
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
-      await daemonStatusCommand([], { resolveBaseUrl: () => 'http://d.example' });
+      await daemonStatusCommand({ args: [], resolveBaseUrl: () => 'http://d.example' });
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       expect(stdoutSpy).toHaveBeenCalledWith(`${JSON.stringify(statusBody)}\n`);
     } finally {
@@ -123,7 +123,7 @@ describe('daemonStatusCommand', () => {
   it('passes exit/exitCodes through transportOptions on a success path when both are set', async () => {
     const deps = makeDeps({ exit: vi.fn() as never, exitCodes: { custom: 5 } });
     const fetchImpl = vi.fn(async () => jsonResponse(200, { ok: true }));
-    await daemonStatusCommand([], { ...deps, fetchImpl });
+    await daemonStatusCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });
@@ -132,7 +132,7 @@ describe('daemonStopCommand', () => {
   it('prints --help usage via process.stdout.write when no write is injected', async () => {
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
-      await daemonStopCommand(['--help'], { resolveBaseUrl: () => 'http://d.example' });
+      await daemonStopCommand({ args: ['--help'], resolveBaseUrl: () => 'http://d.example' });
       expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Usage:'));
     } finally {
       stdoutSpy.mockRestore();
@@ -142,7 +142,7 @@ describe('daemonStopCommand', () => {
   it('prints usage and returns for --help without making a request', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await daemonStopCommand(['--help'], { ...deps, fetchImpl });
+    await daemonStopCommand({ args: ['--help'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(deps.written.join('')).toContain('Usage:');
   });
@@ -155,7 +155,7 @@ describe('daemonStopCommand', () => {
       expect(JSON.parse(String(init?.body))).toEqual({});
       return jsonResponse(200, { ok: true, scheduled: true });
     });
-    await daemonStopCommand([], { ...deps, fetchImpl });
+    await daemonStopCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(deps.written[0]).toBe(`${JSON.stringify({ ok: true, scheduled: true })}\n`);
   });
@@ -163,7 +163,7 @@ describe('daemonStopCommand', () => {
   it('exits through the structured-error path when the daemon rejects the shutdown request', async () => {
     const deps = exitingDeps();
     const fetchImpl = vi.fn(async () => jsonResponse(403, { error: { code: 'FORBIDDEN', message: 'cross-origin request rejected' } }));
-    await expect(daemonStopCommand([], { ...deps, fetchImpl })).rejects.toThrow(ExitSentinel);
+    await expect(daemonStopCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } })).rejects.toThrow(ExitSentinel);
   });
 });
 
@@ -172,24 +172,24 @@ describe('registerDaemonCommands', () => {
     const registry = new CommandRegistry();
     const deps = makeDeps();
     const fetchImpl = vi.fn(async () => jsonResponse(200, { ok: true }));
-    registerDaemonCommands(registry, { ...deps, fetchImpl });
+    registerDaemonCommands({ registry, resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
 
-    await registry.dispatch(['daemon', 'status']);
+    await registry.dispatch({ argv: ['daemon', 'status'] });
     expect(fetchImpl).toHaveBeenCalledWith('http://d.example/api/daemon/status', expect.anything());
 
     fetchImpl.mockClear();
-    await registry.dispatch(['daemon', 'stop']);
+    await registry.dispatch({ argv: ['daemon', 'stop'] });
     expect(fetchImpl).toHaveBeenCalledWith('http://d.example/api/daemon/shutdown', expect.anything());
   });
 
   it('prints root usage for no subcommand, --help, and -h', async () => {
     const registry = new CommandRegistry();
     const deps = makeDeps();
-    registerDaemonCommands(registry, deps);
+    registerDaemonCommands({ registry, resolveBaseUrl: (deps).resolveBaseUrl }, { ...deps });
 
-    await registry.dispatch(['daemon']);
-    await registry.dispatch(['daemon', '--help']);
-    await registry.dispatch(['daemon', '-h']);
+    await registry.dispatch({ argv: ['daemon'] });
+    await registry.dispatch({ argv: ['daemon', '--help'] });
+    await registry.dispatch({ argv: ['daemon', '-h'] });
     expect(deps.written.filter((line) => line.includes('Usage:')).length).toBe(3);
   });
 
@@ -197,8 +197,8 @@ describe('registerDaemonCommands', () => {
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
       const registry = new CommandRegistry();
-      registerDaemonCommands(registry, { resolveBaseUrl: () => 'http://d.example' });
-      await registry.dispatch(['daemon']);
+      registerDaemonCommands({ registry, resolveBaseUrl: () => 'http://d.example' });
+      await registry.dispatch({ argv: ['daemon'] });
       expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Usage:'));
     } finally {
       stdoutSpy.mockRestore();
@@ -208,17 +208,17 @@ describe('registerDaemonCommands', () => {
   it('exits with invalid-flag on an unknown subcommand', async () => {
     const registry = new CommandRegistry();
     const deps = exitingDeps();
-    registerDaemonCommands(registry, deps);
-    await expect(registry.dispatch(['daemon', 'bogus'])).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['invalid-flag']);
+    registerDaemonCommands({ registry, resolveBaseUrl: (deps).resolveBaseUrl }, { ...deps });
+    await expect(registry.dispatch({ argv: ['daemon', 'bogus'] })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['invalid-flag'] });
   });
 
   it('passes a caller-supplied exitCodes table through errorOptions on an unknown subcommand', async () => {
     const registry = new CommandRegistry();
     const deps = exitingDeps({ exitCodes: { 'invalid-flag': 77 } });
-    registerDaemonCommands(registry, deps);
-    await expect(registry.dispatch(['daemon', 'bogus'])).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(77);
+    registerDaemonCommands({ registry, resolveBaseUrl: (deps).resolveBaseUrl }, { ...deps });
+    await expect(registry.dispatch({ argv: ['daemon', 'bogus'] })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: 77 });
   });
 
   it('defaults writeErr/exit to process.stderr/process.exit on an unknown subcommand when nothing is injected', async () => {
@@ -227,9 +227,9 @@ describe('registerDaemonCommands', () => {
       throw new ExitSentinel(code ?? 0);
     }) as never);
     const registry = new CommandRegistry();
-    registerDaemonCommands(registry, { resolveBaseUrl: () => 'http://d.example' });
+    registerDaemonCommands({ registry, resolveBaseUrl: () => 'http://d.example' });
     try {
-      await expect(registry.dispatch(['daemon', 'bogus'])).rejects.toThrow(ExitSentinel);
+      await expect(registry.dispatch({ argv: ['daemon', 'bogus'] })).rejects.toThrow(ExitSentinel);
       expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('bogus'));
       expect(exitSpy).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['invalid-flag']);
     } finally {

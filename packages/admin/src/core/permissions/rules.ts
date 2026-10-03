@@ -29,6 +29,6 @@
  * @complexity O(n) array scan, n = `permissions.length` (a handful of grant strings for a real
  * principal; never a caller-unbounded collection).
  */
-export function hasPermission(permissions: readonly string[], permission: string): boolean {
+export function hasPermission({ permissions, permission }: { readonly permissions: readonly string[]; readonly permission: string }): boolean {
   return permissions.includes('*') || permissions.includes(permission);
 }

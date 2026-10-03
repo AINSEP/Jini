@@ -4,7 +4,7 @@
 // Pure UI state with no transport and — deliberately — NO effects: the
 // effects that READ this state (reload-on-`activeTab`, the SSE stream, the
 // OAuth subscriptions) stay in the single-instance host orchestrator per the
-// ADR-0002 effect-placement rule, so they can't double-fire. That keeps this
+// effect-placement rule, so they can't double-fire. That keeps this. See docs/decisions/DR-001-state-hooks-effect-ownership.md.
 // hook a plain state container a host re-exposes, and it's driveable with
 // `renderHook` to assert the tab/modal transitions in isolation.
 import { useCallback, useRef, useState } from 'react';

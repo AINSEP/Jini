@@ -17,3 +17,6 @@ export {
   SETTINGS_DIALOG_DICTIONARIES,
 } from './dictionaries/index.js';
 export type { SettingsDialogDict } from './dictionaries/index.js';
+export { createDictionaryTranslator } from './dictionary-translator.js';
+export type { Translate, DictionaryTranslator, LocaleDictionary } from './dictionary-translator.js';
+export { interpolate, splitOnPlaceholders, pickPlural } from './template-i18n.js';

@@ -2,7 +2,7 @@
  * @module flags
  *
  * Generic `argv` → flags parsing, ported from OD's `apps/daemon/src/cli.ts`
- * `parseFlags`/`positionalArgs`/`collectCliPositionals` (see `source-map.md`).
+ * `parseFlags`/`positionalArgs`/`collectCliPositionals` (see `archived provenance ledger`).
  * Zero product nouns: callers declare which `--flag` names take a string
  * value vs. are booleans, and get back a flat map plus the leftover
  * positional tokens.
@@ -32,7 +32,7 @@ export interface ParseFlagsOptions {
  * `--flag` is accepted and a heuristic decides string-vs-boolean: if the
  * next token doesn't itself look like a flag, it's consumed as the value.
  */
-export function parseFlags(argv: readonly string[], opts: ParseFlagsOptions = {}): ParsedFlags {
+export function parseFlags({ argv }: { argv: readonly string[] }, opts: ParseFlagsOptions = {}): ParsedFlags {
   const stringFlags = opts.string ?? new Set<string>();
   const booleanFlags = opts.boolean ?? new Set<string>();
   const knownFlags = new Set<string>([...stringFlags, ...booleanFlags]);
@@ -95,7 +95,7 @@ export interface PositionalArgsOptions {
  * follows a known string flag (so `od run start --project p1 foo` yields
  * `['foo']`, not `['p1', 'foo']`).
  */
-export function positionalArgs(argv: readonly string[], opts: PositionalArgsOptions = {}): string[] {
+export function positionalArgs({ argv }: { argv: readonly string[] }, opts: PositionalArgsOptions = {}): string[] {
   const stringFlags = opts.string ?? new Set<string>();
   const out: string[] = [];
 
@@ -127,12 +127,12 @@ const NUMERIC_LITERAL_RE = /^-?\d+(\.\d+)?$/;
  * Coerce a raw `--flag <value>` string into its likely native type:
  * `'true'`/`'false'` become booleans, a numeric-looking string becomes a
  * `number`, and anything else passes through unchanged. Ported from OD's
- * `cli.ts` `coerceCliValue` (see `source-map.md`) — used wherever a CLI
+ * `cli.ts` `coerceCliValue` (see `archived provenance ledger`) — used wherever a CLI
  * accepts an untyped string flag value that application code should receive
  * as its natural type (e.g. a config `set` command, or a plugin's dynamic
  * `--input` flags forwarded as a JSON-typed payload).
  */
-export function coerceCliValue(raw: string): CoercedCliValue {
+export function coerceCliValue({ raw }: { raw: string }): CoercedCliValue {
   if (raw === 'true') return true;
   if (raw === 'false') return false;
   if (NUMERIC_LITERAL_RE.test(raw)) return Number(raw);

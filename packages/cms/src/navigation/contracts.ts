@@ -10,7 +10,7 @@
  *
  * INTERFACES + DATA CATALOGS ONLY. No feature logic.
  */
-import type { UUID } from "../core/ports.js";
+import type { UUID } from "@jini-ai/core/primitives";
 import type {
   NavItemNode,
   NavLocationKey,

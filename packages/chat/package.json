@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/chat",
-  "version": "0.3.11",
+  "version": "0.5.0",
   "description": "Jini's chat/artifact frontend, consolidated into one package with two subpaths: framework-free chat vocabulary and pure parsers in `/core`, headless hooks + presentational components + slots in `/react`. Import only the layer you need.",
   "license": "Apache-2.0",
   "repository": {
@@ -17,11 +17,29 @@
       "./core": "universal",
       "./react": "browser",
       "./react/chat-pane": "browser",
-      "./react/styles/reference.css": "browser"
-    }
+      "./react/styles/reference.css": "browser",
+      "./store": "universal",
+      "./store/sqlite": "node",
+      "./store/pglite": "node",
+      "./store/postgres": "node",
+      "./store/legacy": "universal",
+      "./store/legacy/sqlite": "node",
+      "./core/run-events": "universal",
+      "./core/ag-ui": "universal",
+      "./server/run-finalizer": "universal",
+      "./react/embed": "browser",
+      "./transports/fetch-sse": "universal",
+      "./browser/session-store": "browser",
+      "./browser/page-actions": "browser"
+    },
+    "neutralEntries": [
+      "src/store/contracts"
+    ]
   },
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/**/*.css"
+  ],
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
@@ -45,15 +63,81 @@
       "import": "./dist/react/chat-pane.js",
       "default": "./dist/react/chat-pane.js"
     },
-    "./react/styles/reference.css": "./dist/react/styles/reference.css"
+    "./react/styles/reference.css": "./dist/react/styles/reference.css",
+    "./store": {
+      "types": "./dist/store/index.d.ts",
+      "import": "./dist/store/index.js"
+    },
+    "./store/sqlite": {
+      "types": "./dist/store/sqlite/index.d.ts",
+      "import": "./dist/store/sqlite/index.js"
+    },
+    "./store/pglite": {
+      "types": "./dist/store/pglite/index.d.ts",
+      "import": "./dist/store/pglite/index.js"
+    },
+    "./store/postgres": {
+      "types": "./dist/store/postgres/index.d.ts",
+      "import": "./dist/store/postgres/index.js"
+    },
+    "./store/legacy": {
+      "types": "./dist/store/legacy/index.d.ts",
+      "import": "./dist/store/legacy/index.js",
+      "default": "./dist/store/legacy/index.js"
+    },
+    "./store/legacy/sqlite": {
+      "types": "./dist/store/legacy/sqlite/index.d.ts",
+      "import": "./dist/store/legacy/sqlite/index.js",
+      "default": "./dist/store/legacy/sqlite/index.js"
+    },
+    "./core/run-events": {
+      "types": "./dist/core/run-events/entry.d.ts",
+      "import": "./dist/core/run-events/entry.js",
+      "default": "./dist/core/run-events/entry.js"
+    },
+    "./core/ag-ui": {
+      "types": "./dist/core/ag-ui/entry.d.ts",
+      "import": "./dist/core/ag-ui/entry.js",
+      "default": "./dist/core/ag-ui/entry.js"
+    },
+    "./server/run-finalizer": {
+      "types": "./dist/server/run-finalizer/entry.d.ts",
+      "import": "./dist/server/run-finalizer/entry.js",
+      "default": "./dist/server/run-finalizer/entry.js"
+    },
+    "./react/embed": {
+      "types": "./dist/embed-widget/react/embed.d.ts",
+      "import": "./dist/embed-widget/react/embed.js",
+      "default": "./dist/embed-widget/react/embed.js"
+    },
+    "./transports/fetch-sse": {
+      "types": "./dist/embed-widget/transports/fetch-sse.d.ts",
+      "import": "./dist/embed-widget/transports/fetch-sse.js",
+      "default": "./dist/embed-widget/transports/fetch-sse.js"
+    },
+    "./browser/session-store": {
+      "types": "./dist/embed-widget/browser/session-store.d.ts",
+      "import": "./dist/embed-widget/browser/session-store.js",
+      "default": "./dist/embed-widget/browser/session-store.js"
+    },
+    "./browser/page-actions": {
+      "types": "./dist/embed-widget/browser/page-actions.d.ts",
+      "import": "./dist/embed-widget/browser/page-actions.js",
+      "default": "./dist/embed-widget/browser/page-actions.js"
+    }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
     "!dist/**/__tests__/**",
+    "!dist/react/poc-mcp-ui-official/**",
+    "!dist/react/features/model-picker/**",
     "!dist/**/*.map"
   ],
   "publishConfig": {
@@ -64,19 +148,31 @@
     "build": "tsc -p tsconfig.json && mkdir -p dist/react/styles && cp src/react/styles/reference.css dist/react/styles/",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:postgres": "vitest run --config vitest.postgres.config.ts src/store/__tests__/postgres.postgres.test.ts"
   },
   "dependencies": {
     "@jini-ai/agentic": "workspace:*",
-    "@jini-ai/platform": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
     "@jini-ai/ui": "workspace:*",
+    "@jini-ai/core": "workspace:*",
     "@mcp-ui/client": "7.1.1",
-    "@mcp-ui/server": "6.1.0"
+    "@radix-ui/react-checkbox": "^1.3.11",
+    "@radix-ui/react-label": "^2.1.15",
+    "@radix-ui/react-radio-group": "^1.4.7",
+    "@radix-ui/react-select": "^2.3.7",
+    "@radix-ui/react-slot": "^1.3.3",
+    "recharts": "^3.10.1"
   },
   "peerDependencies": {
     "react": "^18.3.0 || ^19.0.0",
-    "react-dom": "^18.3.0 || ^19.0.0"
+    "react-dom": "^18.3.0 || ^19.0.0",
+    "@jini-ai/db": "^0.2.0",
+    "kysely": "^0.29.6",
+    "better-sqlite3": "^13.0.0",
+    "@electric-sql/pglite": "0.5.8",
+    "pg": "^8.23.0",
+    "@ag-ui/core": "0.0.58"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -84,17 +180,90 @@
     },
     "react-dom": {
       "optional": true
+    },
+    "@jini-ai/db": {
+      "optional": true
+    },
+    "kysely": {
+      "optional": true
+    },
+    "better-sqlite3": {
+      "optional": true
+    },
+    "@electric-sql/pglite": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "@ag-ui/core": {
+      "optional": true
     }
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.5.0",
+    "@types/better-sqlite3": "7.6.13",
+    "@types/jsdom": "^21.1.7",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitest/coverage-v8": "^2.1.9",
     "jsdom": "^25.0.1",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "@jini-ai/db": "workspace:*",
+    "kysely": "0.29.6",
+    "better-sqlite3": "13.0.3",
+    "@electric-sql/pglite": "0.5.8",
+    "pg": "8.23.0",
+    "@ag-ui/core": "0.0.58",
+    "@jini-ai/agent-runtime": "workspace:*"
+  },
+  "typesVersions": {
+    "*": {
+      "core": [
+        "./dist/core/index.d.ts"
+      ],
+      "react": [
+        "./dist/react/index.d.ts"
+      ],
+      "store": [
+        "./dist/store/index.d.ts"
+      ],
+      "store/sqlite": [
+        "./dist/store/sqlite/index.d.ts"
+      ],
+      "store/pglite": [
+        "./dist/store/pglite/index.d.ts"
+      ],
+      "store/postgres": [
+        "./dist/store/postgres/index.d.ts"
+      ],
+      "react/chat-pane": [
+        "./dist/react/chat-pane.d.ts"
+      ],
+      "core/run-events": [
+        "./dist/core/run-events/entry.d.ts"
+      ],
+      "core/ag-ui": [
+        "./dist/core/ag-ui/entry.d.ts"
+      ],
+      "server/run-finalizer": [
+        "./dist/server/run-finalizer/entry.d.ts"
+      ],
+      "react/embed": [
+        "./dist/embed-widget/react/embed.d.ts"
+      ],
+      "transports/fetch-sse": [
+        "./dist/embed-widget/transports/fetch-sse.d.ts"
+      ],
+      "browser/session-store": [
+        "./dist/embed-widget/browser/session-store.d.ts"
+      ],
+      "browser/page-actions": [
+        "./dist/embed-widget/browser/page-actions.d.ts"
+      ]
+    }
   }
 }

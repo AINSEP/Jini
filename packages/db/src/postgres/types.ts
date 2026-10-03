@@ -1,5 +1,3 @@
-import type { PostgresPool } from "kysely";
-
 /**
  * @file The slice of node-postgres (`pg`) this package uses, written structurally: the consumer
  * passes its own `pg` module (`import pg from "pg"`), so this package needs neither `pg` nor its
@@ -18,10 +16,34 @@ export interface PgPoolOptions {
   types?: { getTypeParser(oid: number, format?: "text" | "binary"): (value: string) => unknown };
 }
 
-/** A `pg.Pool`: Kysely's pool contract plus the idle-error event. */
-export type PgPool = PostgresPool & {
+/** The result shape used by a Postgres connection; independent of query builders. */
+export interface PgQueryResult<Row> {
+  command: "UPDATE" | "DELETE" | "INSERT" | "SELECT" | "MERGE";
+  rowCount: number;
+  rows: Row[];
+}
+
+/** A cursor accepted by a Postgres connection. */
+export interface PgCursor<Row> {
+  read(rowsCount: number): Promise<Row[]>;
+  close(): Promise<void>;
+}
+
+/** A checked-out pool connection, described structurally rather than through Kysely. */
+export interface PgPoolClient {
+  processID?: number;
+  query<Row>(sql: string, parameters: ReadonlyArray<unknown>): Promise<PgQueryResult<Row>>;
+  query<Row>(cursor: PgCursor<Row>): PgCursor<Row>;
+  release(): void;
+}
+
+/** The pool operations used by the kernel binding plus the idle-error event. */
+export interface PgPool {
+  connect(): Promise<PgPoolClient>;
+  end(): Promise<void>;
+  options: object;
   on(event: "error", listener: (err: Error) => void): unknown;
-};
+}
 
 /** The `pg` module's default export: `import pg from "pg"`, passed as `{ pg }`. */
 export interface PgModule {

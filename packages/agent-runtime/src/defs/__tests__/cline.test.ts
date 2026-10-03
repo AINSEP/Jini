@@ -6,20 +6,21 @@ import { clineAgentDef } from '../cline.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 afterEach(() => {
-  setAcpModelProbe(null);
+  setAcpModelProbe({ probe: null });
 });
 
 describe('clineAgentDef.fetchModels', () => {
   it('delegates to detectAcpModels with the ACP handshake args for the resolved binary', async () => {
     const seen: Array<{ bin: string; args: string[] }> = [];
     const stub: AcpModelProbe = {
-      detectModels: async (request) => {
+      detectModels: async (required, optional = {}) => {
+        const request = { ...optional, ...required };
         seen.push({ bin: request.bin, args: request.args });
         return [{ id: 'x', label: 'x' }];
       },
     };
-    setAcpModelProbe(stub);
-    const models = await clineAgentDef.fetchModels!('cline', {});
+    setAcpModelProbe({ probe: stub });
+    const models = await clineAgentDef.fetchModels!({ resolvedBin: 'cline', env: {} });
     expect(models).toEqual([{ id: 'x', label: 'x' }]);
     expect(seen).toEqual([{ bin: 'cline', args: ['--acp'] }]);
   });
@@ -28,7 +29,7 @@ describe('clineAgentDef.fetchModels', () => {
 describe('clineAgentDef.buildArgs', () => {
   it('always returns the ACP argv, ignoring any input params', () => {
     const buildArgs: RuntimeAgentDef['buildArgs'] = clineAgentDef.buildArgs;
-    expect(buildArgs('prompt', ['img.png'], ['/extra'], { model: 'x', permissionMode: 'restricted' }, { cwd: '/a' })).toEqual(['--acp']);
+    expect(buildArgs({ prompt: 'prompt', imagePaths: ['img.png'] }, { extraAllowedDirs: ['/extra'], options: { model: 'x', permissionMode: 'restricted' }, runtimeContext: { cwd: '/a' } })).toEqual(['--acp']);
   });
 });
 
@@ -44,6 +45,6 @@ describe('clineAgentDef shape', () => {
   });
 
   it('is registered in the built-in catalog', () => {
-    expect(getAgentDef('cline')).toBe(clineAgentDef);
+    expect(getAgentDef({ id: 'cline' })).toBe(clineAgentDef);
   });
 });

@@ -33,7 +33,7 @@ afterEach(() => {
 describe('launchAgentInSystemTerminal — darwin', () => {
   it('returns ok:true via osascript on success', async () => {
     mockState.execFileImpl = (_file, _args, _options, cb) => cb(null, { stdout: '', stderr: '' });
-    const result = await launchAgentInSystemTerminal('agy', 'darwin');
+    const result = await launchAgentInSystemTerminal({ command: 'agy' }, { platform: 'darwin' });
     expect(result).toEqual({ ok: true, platform: 'darwin', via: 'osascript' });
   });
 
@@ -43,19 +43,19 @@ describe('launchAgentInSystemTerminal — darwin', () => {
       capturedScript = String(args[1]);
       cb(null, { stdout: '', stderr: '' });
     };
-    await launchAgentInSystemTerminal('echo "hi"', 'darwin');
+    await launchAgentInSystemTerminal({ command: 'echo "hi"' }, { platform: 'darwin' });
     expect(capturedScript).toContain('echo \\"hi\\"');
   });
 
   it('returns ok:false with the Error message when osascript fails', async () => {
     mockState.execFileImpl = (_file, _args, _options, cb) => cb(new Error('boom'));
-    const result = await launchAgentInSystemTerminal('agy', 'darwin');
+    const result = await launchAgentInSystemTerminal({ command: 'agy' }, { platform: 'darwin' });
     expect(result).toEqual({ ok: false, platform: 'darwin', reason: 'osascript failed: boom' });
   });
 
   it('stringifies a non-Error rejection', async () => {
     mockState.execFileImpl = (_file, _args, _options, cb) => cb('plain failure' as unknown as Error);
-    const result = await launchAgentInSystemTerminal('agy', 'darwin');
+    const result = await launchAgentInSystemTerminal({ command: 'agy' }, { platform: 'darwin' });
     expect(result).toEqual({ ok: false, platform: 'darwin', reason: 'osascript failed: plain failure' });
   });
 });
@@ -70,7 +70,7 @@ describe('launchAgentInSystemTerminal — linux', () => {
       queueMicrotask(() => emitter.emit('spawn'));
       return emitter;
     };
-    const result = await launchAgentInSystemTerminal('agy', 'linux');
+    const result = await launchAgentInSystemTerminal({ command: 'agy' }, { platform: 'linux' });
     expect(result).toEqual({ ok: true, platform: 'linux', via: 'x-terminal-emulator' });
     expect(seen).toEqual(['x-terminal-emulator']);
   });
@@ -88,7 +88,7 @@ describe('launchAgentInSystemTerminal — linux', () => {
       }
       return emitter;
     };
-    const result = await launchAgentInSystemTerminal('agy', 'linux');
+    const result = await launchAgentInSystemTerminal({ command: 'agy' }, { platform: 'linux' });
     expect(result).toEqual({ ok: true, platform: 'linux', via: 'konsole' });
     expect(seen).toEqual(['x-terminal-emulator', 'gnome-terminal', 'konsole']);
   });
@@ -100,7 +100,7 @@ describe('launchAgentInSystemTerminal — linux', () => {
       queueMicrotask(() => emitter.emit('error', new Error(`${bin} not found`)));
       return emitter;
     };
-    const result = await launchAgentInSystemTerminal('agy', 'linux');
+    const result = await launchAgentInSystemTerminal({ command: 'agy' }, { platform: 'linux' });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.reason).toContain('no system terminal worked');
@@ -116,7 +116,7 @@ describe('launchAgentInSystemTerminal — linux', () => {
       queueMicrotask(() => emitter.emit('error', 'raw string error'));
       return emitter;
     };
-    const result = await launchAgentInSystemTerminal('agy', 'linux');
+    const result = await launchAgentInSystemTerminal({ command: 'agy' }, { platform: 'linux' });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toContain('x-terminal-emulator: raw string error');
   });
@@ -129,7 +129,7 @@ describe('launchAgentInSystemTerminal — win32', () => {
       capturedArgs = args;
       cb(null, { stdout: '', stderr: '' });
     };
-    const result = await launchAgentInSystemTerminal('agy', 'win32');
+    const result = await launchAgentInSystemTerminal({ command: 'agy' }, { platform: 'win32' });
     expect(result).toEqual({ ok: true, platform: 'win32', via: 'cmd /c start' });
     expect(capturedArgs).toEqual(['/c', 'start', 'Agent Sign-in', 'cmd.exe', '/k', 'agy']);
   });
@@ -140,26 +140,26 @@ describe('launchAgentInSystemTerminal — win32', () => {
       capturedArgs = args;
       cb(null, { stdout: '', stderr: '' });
     };
-    await launchAgentInSystemTerminal('agy', 'win32', 'Custom Title');
+    await launchAgentInSystemTerminal({ command: 'agy' }, { platform: 'win32', windowTitle: 'Custom Title' });
     expect(capturedArgs).toEqual(['/c', 'start', 'Custom Title', 'cmd.exe', '/k', 'agy']);
   });
 
   it('returns ok:false with the Error message when cmd /c start fails', async () => {
     mockState.execFileImpl = (_file, _args, _options, cb) => cb(new Error('access denied'));
-    const result = await launchAgentInSystemTerminal('agy', 'win32');
+    const result = await launchAgentInSystemTerminal({ command: 'agy' }, { platform: 'win32' });
     expect(result).toEqual({ ok: false, platform: 'win32', reason: 'cmd /c start failed: access denied' });
   });
 
   it('stringifies a non-Error rejection', async () => {
     mockState.execFileImpl = (_file, _args, _options, cb) => cb('plain failure' as unknown as Error);
-    const result = await launchAgentInSystemTerminal('agy', 'win32');
+    const result = await launchAgentInSystemTerminal({ command: 'agy' }, { platform: 'win32' });
     expect(result).toEqual({ ok: false, platform: 'win32', reason: 'cmd /c start failed: plain failure' });
   });
 });
 
 describe('launchAgentInSystemTerminal — unsupported platform', () => {
   it('returns ok:false without attempting any spawn', async () => {
-    const result = await launchAgentInSystemTerminal('agy', 'sunos');
+    const result = await launchAgentInSystemTerminal({ command: 'agy' }, { platform: 'sunos' });
     expect(result).toEqual({
       ok: false,
       platform: 'sunos',
@@ -175,7 +175,7 @@ describe('launchAgentInSystemTerminal — unsupported platform', () => {
       queueMicrotask(() => emitter.emit('spawn'));
       return emitter;
     };
-    const result = await launchAgentInSystemTerminal('agy');
+    const result = await launchAgentInSystemTerminal({ command: 'agy' });
     expect(result.platform).toBe(process.platform);
   });
 });

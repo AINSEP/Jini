@@ -3,8 +3,8 @@
  *
  * `execute_delegated_tool` and its read-only companion `execute_readonly_delegated_tool` — the
  * MCP-callback half of gap 3's continuation transport (see
- * `packages/daemon/source-map.md`'s "run/chat orchestration gap 3, part 1" addition and this
- * package's own dated section in `source-map.md` for the rest of the spike). The swarm-consensus
+ * `packages/daemon/archived provenance ledger`'s "run/chat orchestration gap 3, part 1" addition and this
+ * package's own dated section in `archived provenance ledger` for the rest of the spike). The swarm-consensus
  * Final Recommendation asked for exactly this: "inject the already-shipped MCP host into one
  * MCP-capable CLI's launch config, prove a tool round-trip through the existing
  * `delegated-tool-bridge.ts`." Where `../tools/run-tools.js`'s tools proxy generic
@@ -99,11 +99,15 @@ function unwrapMcpContentEnvelope(result: unknown): unknown {
  */
 export const DEFAULT_DELEGATED_TOOL_TIMEOUT_MS = 6 * 60 * 1000;
 
-export interface CreateExecuteDelegatedToolToolOptions {
+export interface CreateExecuteDelegatedToolToolRequiredArgs {
   /** The one run this MCP server process — and therefore this tool instance — is scoped to. */
   readonly runId: string;
+}
+
+/** Optional correlation-id source and deadline override. */
+export interface CreateExecuteDelegatedToolToolOptions {
   /** Generates each call's `toolUseId`. @default node:crypto randomUUID */
-  readonly generateToolUseId?: () => string;
+  readonly generateToolUseId?: (required: Record<string, never>) => string;
   /**
    * Request deadline for one delegated tool call, in milliseconds. Set this to match the host's
    * own exchange total-lifetime ceiling plus headroom, so the exchange — not this request — is
@@ -144,10 +148,10 @@ interface DelegatedGatewayVariant {
  */
 function createDelegatedGateway(
   variant: DelegatedGatewayVariant,
+  { runId }: CreateExecuteDelegatedToolToolRequiredArgs,
   options: CreateExecuteDelegatedToolToolOptions,
 ): McpToolDef {
-  const { runId } = options;
-  const generateToolUseId = options.generateToolUseId ?? randomUUID;
+  const generateToolUseId = options.generateToolUseId ?? ((_required: Record<string, never>) => randomUUID());
   const requested = options.delegatedToolTimeoutMs;
   const timeoutMs =
     typeof requested === 'number' && Number.isFinite(requested) && requested > 0
@@ -190,17 +194,17 @@ function createDelegatedGateway(
       openWorldHint: false,
       title: variant.title,
     },
-    handler: async (args, ctx) => {
-      requireString(args.toolId, 'toolId');
+    handler: async ({ args, ctx }) => {
+      const toolId = requireString({ value: args.toolId, name: 'toolId' });
       const body: Record<string, unknown> = {
         runId,
-        toolUseId: generateToolUseId(),
-        toolId: args.toolId,
+        toolUseId: generateToolUseId({}),
+        toolId: toolId,
         input: args.input,
         ...(variant.requireReadOnly === undefined ? {} : { requireReadOnly: variant.requireReadOnly }),
       };
-      const data = await postDaemonJson<DelegatedToolExecuteResponse>(ctx.baseUrl, '/api/delegated-tool-calls', body, {
-        ...daemonCallOptions(ctx),
+      const data = await postDaemonJson<DelegatedToolExecuteResponse>({ baseUrl: ctx.baseUrl, route: '/api/delegated-tool-calls', body: body }, {
+        ...daemonCallOptions({ ctx }),
         timeoutMs,
       });
       return unwrapMcpContentEnvelope(data.result);
@@ -218,7 +222,7 @@ function createDelegatedGateway(
  * registry — reads and writes alike. See {@link createExecuteReadonlyDelegatedToolTool} for what
  * that costs under a host that gates on the annotation, and for the companion that answers it.
  */
-export function createExecuteDelegatedToolTool(options: CreateExecuteDelegatedToolToolOptions): McpToolDef {
+export function createExecuteDelegatedToolTool(requiredArgs: CreateExecuteDelegatedToolToolRequiredArgs, options: CreateExecuteDelegatedToolToolOptions = {}): McpToolDef {
   return createDelegatedGateway(
     {
       name: 'execute_delegated_tool',
@@ -228,6 +232,7 @@ export function createExecuteDelegatedToolTool(options: CreateExecuteDelegatedTo
       readOnlyHint: false,
       idempotentHint: false,
     },
+    requiredArgs,
     options,
   );
 }
@@ -260,7 +265,7 @@ export function createExecuteDelegatedToolTool(options: CreateExecuteDelegatedTo
  * Flipping the existing tool's annotation instead was rejected for the same reason: it would lie to
  * every caller, including the ones the annotation exists to protect.
  */
-export function createExecuteReadonlyDelegatedToolTool(options: CreateExecuteDelegatedToolToolOptions): McpToolDef {
+export function createExecuteReadonlyDelegatedToolTool(requiredArgs: CreateExecuteDelegatedToolToolRequiredArgs, options: CreateExecuteDelegatedToolToolOptions = {}): McpToolDef {
   return createDelegatedGateway(
     {
       name: 'execute_readonly_delegated_tool',
@@ -274,6 +279,7 @@ export function createExecuteReadonlyDelegatedToolTool(options: CreateExecuteDel
       idempotentHint: true,
       requireReadOnly: true,
     },
+    requiredArgs,
     options,
   );
 }

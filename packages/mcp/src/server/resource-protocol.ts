@@ -9,7 +9,7 @@
  * `ReadResourceRequestSchema` handlers, exactly as `tool-protocol.js` is
  * wired to `ListToolsRequestSchema`/`CallToolRequestSchema`.
  */
-import { sanitizeUntrustedText } from '@jini-ai/cli';
+import { sanitizeUntrustedText } from '@jini-ai/core/text';
 import type { ReadResourceResult, Resource } from '@modelcontextprotocol/sdk/types.js';
 import type { McpToolContext } from './tool-protocol.js';
 
@@ -31,11 +31,11 @@ export interface McpResourceDef {
   readonly name: string;
   readonly description?: string;
   readonly mimeType?: string;
-  readonly read: (ctx: McpToolContext) => Promise<McpResourceReadResult> | McpResourceReadResult;
+  readonly read: (requiredArgs: { ctx: McpToolContext }) => Promise<McpResourceReadResult> | McpResourceReadResult;
 }
 
 /** Projects a resource list into the `Resource[]` shape `resources/list` returns. */
-export function resourcesToList(resources: readonly McpResourceDef[]): Resource[] {
+export function resourcesToList({ resources }: { resources: readonly McpResourceDef[] }): Resource[] {
   return resources.map((resource) => ({
     uri: resource.uri,
     name: resource.name,
@@ -45,7 +45,7 @@ export function resourcesToList(resources: readonly McpResourceDef[]): Resource[
 }
 
 /** Builds a uri -> def lookup, throwing if two resources in `resources` share a uri (a caller-configuration bug, surfaced eagerly at server-construction time rather than letting the second registration shadow the first). */
-export function buildResourceIndex(resources: readonly McpResourceDef[]): Map<string, McpResourceDef> {
+export function buildResourceIndex({ resources }: { resources: readonly McpResourceDef[] }): Map<string, McpResourceDef> {
   const index = new Map<string, McpResourceDef>();
   for (const resource of resources) {
     if (index.has(resource.uri)) {
@@ -68,9 +68,7 @@ export function buildResourceIndex(resources: readonly McpResourceDef[]): Map<st
  * implementation may re-throw text that traces back to an untrusted daemon response.
  */
 export async function handleResourceRead(
-  uri: string,
-  resources: ReadonlyMap<string, McpResourceDef>,
-  ctx: McpToolContext,
+  { uri, resources, ctx }: { uri: string; resources: ReadonlyMap<string, McpResourceDef>; ctx: McpToolContext },
 ): Promise<ReadResourceResult> {
   const resource = resources.get(uri);
   if (resource === undefined) {
@@ -78,10 +76,10 @@ export async function handleResourceRead(
   }
   let result: McpResourceReadResult;
   try {
-    result = await resource.read(ctx);
+    result = await resource.read({ ctx: ctx });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(sanitizeUntrustedText(message));
+    throw new Error(sanitizeUntrustedText({ text: message }));
   }
   const mimeType = result.mimeType ?? resource.mimeType;
   return {

@@ -49,7 +49,7 @@ export interface ChangeFeedViewer {
  * @complexity O(1).
  * @overallScore 100
  */
-export function isRevisionVisibleTo(revision: SettingRevisionRecord, viewer: ChangeFeedViewer): boolean {
+export function isRevisionVisibleTo({ revision, viewer }: { revision: SettingRevisionRecord; viewer: ChangeFeedViewer }, _optional: Record<string, never> = {}): boolean {
   if (revision.entityKind === "definition") {
     return revision.workspaceId === null || revision.workspaceId === viewer.workspaceId;
   }
@@ -91,17 +91,20 @@ export interface ChangeFeedBatch {
  * @overallScore 100
  */
 export async function collectChangedNamespaces(
-  revisions: readonly SettingRevisionRecord[],
-  viewer: ChangeFeedViewer,
-  resolveNamespace: (settingId: string) => Promise<string | null>,
+  { revisions, viewer, resolveNamespace }: {
+    revisions: readonly SettingRevisionRecord[];
+    viewer: ChangeFeedViewer;
+    resolveNamespace: (required: { settingId: string }) => Promise<string | null>;
+  },
+  _optional: Record<string, never> = {},
 ): Promise<ChangeFeedBatch> {
   const namespaces = new Set<string>();
   let cursor = 0;
 
   for (const revision of revisions) {
     if (revision.seq > cursor) cursor = revision.seq;
-    if (!isRevisionVisibleTo(revision, viewer)) continue;
-    const namespace = await resolveNamespace(revision.settingId);
+    if (!isRevisionVisibleTo({ revision, viewer })) continue;
+    const namespace = await resolveNamespace({ settingId: revision.settingId });
     if (namespace) namespaces.add(namespace);
   }
 

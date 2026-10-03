@@ -5,20 +5,21 @@ import { kiloAgentDef } from '../kilo.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 afterEach(() => {
-  setAcpModelProbe(null);
+  setAcpModelProbe({ probe: null });
 });
 
 describe('kiloAgentDef.fetchModels', () => {
   it('delegates to detectAcpModels with the ACP handshake args for the resolved binary', async () => {
     const seen: Array<{ bin: string; args: string[] }> = [];
     const stub: AcpModelProbe = {
-      detectModels: async (request) => {
+      detectModels: async (required, optional = {}) => {
+        const request = { ...optional, ...required };
         seen.push({ bin: request.bin, args: request.args });
         return [{ id: 'x', label: 'x' }];
       },
     };
-    setAcpModelProbe(stub);
-    const models = await kiloAgentDef.fetchModels!('kilo', {});
+    setAcpModelProbe({ probe: stub });
+    const models = await kiloAgentDef.fetchModels!({ resolvedBin: 'kilo', env: {} });
     expect(models).toEqual([{ id: 'x', label: 'x' }]);
     expect(seen).toEqual([{ bin: 'kilo', args: ['acp'] }]);
   });
@@ -27,7 +28,7 @@ describe('kiloAgentDef.fetchModels', () => {
 describe('kiloAgentDef.buildArgs', () => {
   it('always returns the ACP argv, ignoring any input params', () => {
     const buildArgs: RuntimeAgentDef['buildArgs'] = kiloAgentDef.buildArgs;
-    expect(buildArgs('prompt', ['img.png'], ['/extra'], { model: 'x' }, { cwd: '/a' })).toEqual(['acp']);
+    expect(buildArgs({ prompt: 'prompt', imagePaths: ['img.png'] }, { extraAllowedDirs: ['/extra'], options: { model: 'x' }, runtimeContext: { cwd: '/a' } })).toEqual(['acp']);
   });
 });
 

@@ -10,7 +10,7 @@
  * Correction to an earlier framing: this is NOT multi-user
  * presence/collaboration (no cursors-of-other-users, no realtime presence
  * state exist in the source) — it is a single-user lasso-select tool. See
- * `packages/ui/source-map.md`'s `html-viewer` classification section.
+ * `packages/ui/archived provenance ledger`'s `html-viewer` classification section.
  *
  * Only the geometry primitives ship here — the source's own
  * `buildPodSnapshot`/`pruneContainerSelections`/`podOverlayWeights` (which

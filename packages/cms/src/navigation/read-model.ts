@@ -14,7 +14,7 @@
  * "cannot resolve" here until a host wires its real implementation in. Swap the default in this
  * one place once routing ships in the host.
  */
-import type { UUID } from "../core/ports.js";
+import type { UUID } from "@jini-ai/core/primitives";
 import type { NavLocationBindingRepoPort, NavMenuReadModel, NavResolveContext } from "./ports.js";
 import type { MenuRepoPort } from "./repo.memory.js";
 import { resolveForLocation, type ResolveTargetHrefFn } from "./resolver.js";
@@ -23,14 +23,17 @@ import type { NavLocationKey, NavMenuEntry } from "./types.js";
 export interface NavMenuReadModelDeps {
   menuRepo: MenuRepoPort;
   bindingRepo: NavLocationBindingRepoPort;
+}
+
+export interface NavMenuReadModelOptions {
   /** Overridable for tests / once a host's routing library lands; defaults to the honest placeholder documented above. */
   resolveTargetHref?: ResolveTargetHrefFn | undefined;
 }
 
 const DEFAULT_RESOLVE_TARGET_HREF: ResolveTargetHrefFn = async () => null;
 
-export function createNavMenuReadModel(deps: NavMenuReadModelDeps): NavMenuReadModel {
-  const resolveTargetHref = deps.resolveTargetHref ?? DEFAULT_RESOLVE_TARGET_HREF;
+export function createNavMenuReadModel(deps: NavMenuReadModelDeps, optional: NavMenuReadModelOptions = {}): NavMenuReadModel {
+  const resolveTargetHref = optional.resolveTargetHref ?? DEFAULT_RESOLVE_TARGET_HREF;
 
   return {
     async getMenu(required: { workspaceId: UUID; menuId: UUID }): Promise<NavMenuEntry | null> {

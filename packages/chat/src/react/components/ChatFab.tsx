@@ -15,7 +15,7 @@ export interface ChatFabProps {
 }
 
 export function ChatFab({ open, onToggle, label = 'chat' }: ChatFabProps) {
-  const { buttonRef, position, onPointerDown, onPointerMove, onPointerUp, onPointerCancel } = useChatFabDrag(onToggle);
+  const { buttonRef, position, onPointerDown, onPointerMove, onPointerUp, onPointerCancel } = useChatFabDrag({ onClick: onToggle });
 
   return (
     <button

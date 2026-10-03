@@ -1,4 +1,4 @@
-import type { JsonValue } from './common.js';
+import type { JsonValue } from '@jini-ai/core/primitives';
 
 /**
  * `RunCreateRequest.contextRef` (see `@jini-ai/http-kit`'s `runs.ts`) is deliberately opaque at
@@ -36,7 +36,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /** Encodes `payload` into a `contextRef` string carrying the `jini-run-context:` prefix {@link decodeRunContextRef} checks for. */
-export function encodeRunContextRef(payload: RunContextPayload): string {
+export function encodeRunContextRef({ payload }: { payload: RunContextPayload }): string {
   return `${RUN_CONTEXT_PREFIX}${JSON.stringify(payload)}`;
 }
 
@@ -48,7 +48,7 @@ export function encodeRunContextRef(payload: RunContextPayload): string {
  * doesn't own), or if the prefixed payload fails to parse as valid JSON, or doesn't match
  * {@link RunContextPayload}'s shape.
  */
-export function decodeRunContextRef(contextRef: string): RunContextPayload | undefined {
+export function decodeRunContextRef({ contextRef }: { contextRef: string }): RunContextPayload | undefined {
   if (!contextRef.startsWith(RUN_CONTEXT_PREFIX)) return undefined;
   let parsed: unknown;
   try {

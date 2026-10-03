@@ -13,6 +13,7 @@
  * Driver-side implementation of `@jini-ai/sandbox/core`'s `SandboxProviderPort`/`SandboxSession`
  * ports. Imports from `../core/*`, never the reverse.
  */
+import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
 
 import { SandboxOperationError } from '../core/errors.js';
@@ -61,20 +62,20 @@ const EXCLUDED_DIR_NAMES = new Set(['node_modules', '.git', 'dist', 'build', '.n
 /** Thrown by `getPreview` when a single check finds nothing listening on `previewPort` yet. Not
  *  a retry loop — callers that want to poll do so by calling `getPreview` again. */
 function previewNotReadyError(url: string, cause: unknown): SandboxOperationError {
-  return new SandboxOperationError('timeout', `Sandbox preview at ${url} is not responding yet`, {
+  return new SandboxOperationError({ category: 'timeout', message: `Sandbox preview at ${url} is not responding yet` }, {
     cause,
   });
 }
 
 /** Wraps anything caught from an `E2bSandboxHandle` call into a `SandboxOperationError`. */
 function wrapE2bError(error: unknown, message: string): SandboxOperationError {
-  return new SandboxOperationError(categorizeE2bError(error), message, { cause: error });
+  return new SandboxOperationError({ category: categorizeE2bError({ error }), message }, { cause: error });
 }
 
 /** Builds one shell command string from a program name and shell-quoted arguments. The program
  *  name itself is not quoted — see `shell-quote.ts` for why. */
 function buildCommand(command: string, args: readonly string[]): string {
-  return args.length === 0 ? command : `${command} ${args.map(shellQuote).join(' ')}`;
+  return args.length === 0 ? command : `${command} ${args.map((value) => shellQuote({ value })).join(' ')}`;
 }
 
 function toCommandResult(result: { stdout: string; stderr: string; exitCode: number }): CommandResult {
@@ -84,7 +85,7 @@ function toCommandResult(result: { stdout: string; stderr: string; exitCode: num
 /** Converts `SandboxFile.content` into what E2B's `files.write` actually accepts (`string |
  *  ArrayBuffer`, no `Uint8Array` overload). */
 function toE2bWriteData(content: string | Uint8Array): string | ArrayBuffer {
-  return typeof content === 'string' ? content : toArrayBuffer(content);
+  return typeof content === 'string' ? content : toArrayBuffer({ bytes: content });
 }
 
 /**
@@ -98,8 +99,8 @@ function streamingOptsFor(options: RunCommandOptions | undefined) {
   const onOutput = options?.onOutput;
   if (!onOutput) return {};
   return {
-    onStdout: (text: string) => onOutput({ stream: 'stdout', text }),
-    onStderr: (text: string) => onOutput({ stream: 'stderr', text }),
+    onStdout: ({ data }: { data: string }) => onOutput({ stream: 'stdout', text: data }),
+    onStderr: ({ data }: { data: string }) => onOutput({ stream: 'stderr', text: data }),
   };
 }
 
@@ -111,7 +112,7 @@ function streamingOptsFor(options: RunCommandOptions | undefined) {
  * pair — a wrong create-or-delete guess would be more misleading than the conservative
  * "something at this path changed."
  */
-export function mapE2bFileChangeKind(type: E2bFilesystemEventType): FileChangeKind | null {
+export function mapE2bFileChangeKind({ type }: { type: E2bFilesystemEventType }): FileChangeKind | null {
   switch (type) {
     case 'create':
       return 'created';
@@ -147,68 +148,105 @@ function isExcludedPath(relativePath: string): boolean {
 }
 
 export async function wrapE2bSandbox(
-  handle: E2bSandboxHandle,
-  config: E2bSessionConfig,
+  { handle, config }: { handle: E2bSandboxHandle; config: E2bSessionConfig },
+  { fetchImpl = fetch }: { fetchImpl?: typeof fetch } = {},
 ): Promise<SandboxSession> {
   const { projectRoot, previewPort, previewCheckTimeoutMs } = config;
 
   try {
-    await handle.commands.run(`mkdir -p ${shellQuote(projectRoot)}`);
+    await handle.commands.run({ command: `mkdir -p ${shellQuote({ value: projectRoot })}` });
   } catch (error) {
     throw wrapE2bError(error, 'Failed to create the sandbox project root');
   }
 
   const fileChangeListeners = new Set<(event: FileChangeEvent) => void>();
+  // The watcher carries no writer identity and can deliver echoes after write() resolves.
+  // Keep content fingerprints, not file bodies, to suppress those delayed host echoes while
+  // still reporting subsequent sandbox edits. Same-content rewrites are indistinguishable.
+  const mountedFiles = new Map<string, { fingerprint: string }>();
+  const mountingPaths = new Map<string, number>();
+  const fingerprint = (content: string | Uint8Array) => createHash('sha256').update(content).digest('hex');
   let watchHandle: Awaited<ReturnType<E2bSandboxHandle['files']['watchDir']>>;
   try {
-    watchHandle = await handle.files.watchDir(
-      projectRoot,
-      (event) => {
-        const kind = mapE2bFileChangeKind(event.type);
+    watchHandle = await handle.files.watchDir({ path: projectRoot, onEvent: (event) => {
+        const kind = mapE2bFileChangeKind({ type: event.type });
         if (kind === null) return;
-        const changeEvent: FileChangeEvent = { path: event.name, kind };
-        for (const listener of fileChangeListeners) listener(changeEvent);
-      },
-      { recursive: true },
-    );
+        const path = posix.normalize(event.name);
+        const deliver = () => {
+          const changeEvent: FileChangeEvent = { path: event.name, kind };
+          for (const listener of fileChangeListeners) listener(changeEvent);
+        };
+        if (mountingPaths.has(path) && (event.type === 'create' || event.type === 'write')) return;
+        if (mountedFiles.has(path) && (event.type === 'create' || event.type === 'write')) {
+          void handle.files.read({ path: posix.join(projectRoot, path), format: 'bytes' }).then(bytes => {
+            if (mountingPaths.has(path)) return;
+            if (mountedFiles.get(path)?.fingerprint === fingerprint(bytes)) return;
+            mountedFiles.delete(path);
+            deliver();
+          }, () => {
+            if (mountingPaths.has(path)) return;
+            mountedFiles.delete(path);
+            deliver();
+          });
+          return;
+        }
+        mountedFiles.delete(path);
+        deliver();
+      } }, { recursive: true });
   } catch (error) {
     throw wrapE2bError(error, 'Failed to start watching the sandbox project root');
   }
 
   /** Every process this session has started via `startProcess`, so `teardown` can kill them
    *  all — see `SandboxSession.teardown`'s doc for why an orphaned dev server on `local` is a
-   *  real liability, not just untidy. A process removes itself once its own `kill()` has been
-   *  attempted (succeeded or not), so `teardown` doesn't redundantly re-kill it. */
+   *  real liability, not just untidy. A process removes itself once its own `kill()` succeeds,
+   *  so `teardown` doesn't redundantly re-kill it; failed kills stay tracked for a retry. */
   const trackedProcesses = new Set<ProcessHandle>();
 
   return {
-    async mountFiles(files) {
+    async mountFiles({ files }) {
       if (files.length === 0) return;
+      const mounted = new Map<string, { fingerprint: string }>();
+      for (const file of files) {
+        const path = relativeToRoot(posix.join(projectRoot, file.path), projectRoot);
+        mounted.set(path, { fingerprint: fingerprint(file.content) });
+      }
+      for (const [path, entry] of mounted) {
+        mountedFiles.set(path, entry);
+        mountingPaths.set(path, (mountingPaths.get(path) ?? 0) + 1);
+      }
       try {
-        await handle.files.write(
-          files.map((file) => ({
+        await handle.files.write({ files: files.map((file) => ({
             path: posix.join(projectRoot, file.path),
             data: toE2bWriteData(file.content),
-          })),
-        );
+          })) });
       } catch (error) {
+        for (const [path, entry] of mounted) {
+          if (mountedFiles.get(path) === entry) mountedFiles.delete(path);
+        }
         throw wrapE2bError(error, 'Failed to write files into the sandbox');
+      } finally {
+        for (const path of mounted.keys()) {
+          const remaining = mountingPaths.get(path)! - 1;
+          if (remaining === 0) mountingPaths.delete(path);
+          else mountingPaths.set(path, remaining);
+        }
       }
     },
 
-    async readFile(path) {
+    async readFile({ path }) {
       try {
-        return await handle.files.read(posix.join(projectRoot, path), { format: 'bytes' });
+        return await handle.files.read({ path: posix.join(projectRoot, path), format: 'bytes' });
       } catch (error) {
         throw wrapE2bError(error, `Failed to read ${path}`);
       }
     },
 
-    async listFiles(directory) {
+    async listFiles(_required, { directory } = {}) {
       const base = directory ? posix.join(projectRoot, directory) : projectRoot;
       let entries;
       try {
-        entries = await handle.files.list(base, { depth: MAX_LIST_DEPTH });
+        entries = await handle.files.list({ path: base }, { depth: MAX_LIST_DEPTH });
       } catch (error) {
         throw wrapE2bError(error, `Failed to list files under ${directory ?? '.'}`);
       }
@@ -218,9 +256,9 @@ export async function wrapE2bSandbox(
         .filter((relativePath) => !isExcludedPath(relativePath));
     },
 
-    async runCommand(command, args = [], options) {
+    async runCommand({ command }, options = {}) {
       try {
-        const result = await handle.commands.run(buildCommand(command, args), {
+        const result = await handle.commands.run({ command: buildCommand(command, options.args ?? []) }, {
           cwd: projectRoot,
           ...streamingOptsFor(options),
         });
@@ -230,13 +268,14 @@ export async function wrapE2bSandbox(
       }
     },
 
-    async installDependencies(packages, options) {
+    async installDependencies(_required, options = {}) {
+      const { packages } = options;
       const command =
         packages && packages.length > 0
-          ? `npm install ${packages.map(shellQuote).join(' ')}`
+          ? `npm install ${packages.map((value) => shellQuote({ value })).join(' ')}`
           : 'npm install';
       try {
-        const result = await handle.commands.run(command, {
+        const result = await handle.commands.run({ command }, {
           cwd: projectRoot,
           ...streamingOptsFor(options),
         });
@@ -246,18 +285,17 @@ export async function wrapE2bSandbox(
       }
     },
 
-    async startProcess(command, args = []): Promise<ProcessHandle> {
+    async startProcess({ command }, { args = [] } = {}): Promise<ProcessHandle> {
       const outputListeners = new Set<(chunk: ProcessOutputChunk) => void>();
       let e2bHandle;
       try {
-        e2bHandle = await handle.commands.run(buildCommand(command, args), {
+        e2bHandle = await handle.commands.run({ command: buildCommand(command, args), background: true }, {
           cwd: projectRoot,
-          background: true,
-          onStdout: (text) => {
-            for (const listener of outputListeners) listener({ stream: 'stdout', text });
+          onStdout: ({ data }) => {
+            for (const listener of outputListeners) listener({ stream: 'stdout', text: data });
           },
-          onStderr: (text) => {
-            for (const listener of outputListeners) listener({ stream: 'stderr', text });
+          onStderr: ({ data }) => {
+            for (const listener of outputListeners) listener({ stream: 'stderr', text: data });
           },
         });
       } catch (error) {
@@ -266,14 +304,14 @@ export async function wrapE2bSandbox(
 
       const processHandle: ProcessHandle = {
         async kill() {
-          trackedProcesses.delete(processHandle);
           try {
             await e2bHandle.kill();
+            trackedProcesses.delete(processHandle);
           } catch (error) {
             throw wrapE2bError(error, 'Failed to kill process');
           }
         },
-        onOutput(listener): Unsubscribe {
+        onOutput({ listener }): Unsubscribe {
           outputListeners.add(listener);
           return () => outputListeners.delete(listener);
         },
@@ -283,11 +321,11 @@ export async function wrapE2bSandbox(
     },
 
     async getPreview(): Promise<PreviewTarget> {
-      const url = `https://${handle.getHost(previewPort)}`;
+      const url = `https://${handle.getHost({ port: previewPort })}`;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), previewCheckTimeoutMs);
       try {
-        await fetch(url, { method: 'HEAD', signal: controller.signal });
+        await fetchImpl(url, { method: 'HEAD', signal: controller.signal });
       } catch (error) {
         throw previewNotReadyError(url, error);
       } finally {
@@ -296,7 +334,7 @@ export async function wrapE2bSandbox(
       return { url };
     },
 
-    onFileChange(listener): Unsubscribe {
+    onFileChange({ listener }): Unsubscribe {
       fileChangeListeners.add(listener);
       return () => fileChangeListeners.delete(listener);
     },
@@ -317,6 +355,9 @@ export async function wrapE2bSandbox(
 
       try {
         await handle.kill();
+        // Successful VM termination also confirms any remaining processes are gone.
+        trackedProcesses.clear();
+        mountedFiles.clear();
       } catch (error) {
         // The sandbox failing to terminate is the more severe of the two possible failures
         // here (an un-torn-down VM vs. a watch handle that didn't clean up) — surfaced first.

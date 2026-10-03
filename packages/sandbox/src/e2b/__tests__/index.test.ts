@@ -24,9 +24,9 @@ describe('@jini-ai/sandbox/e2b barrel', () => {
     expect(typeof e2b.createE2bSandboxProvider).toBe('function');
     expect(typeof e2b.wrapE2bSandbox).toBe('function');
     expect(e2b.DEFAULT_VITE_REACT_TEMPLATE.length).toBeGreaterThan(0);
-    expect(e2b.shellQuote('a b')).toBe("'a b'");
-    expect(e2b.mapE2bFileChangeKind('create')).toBe('created');
-    expect(e2b.categorizeE2bError(new Error('boom'))).toBe('unknown');
-    expect(e2b.toArrayBuffer(new Uint8Array([1, 2, 3])).byteLength).toBe(3);
+    expect(e2b.shellQuote({ value: 'a b' })).toBe("'a b'");
+    expect(e2b.mapE2bFileChangeKind({ type: 'create' })).toBe('created');
+    expect(e2b.categorizeE2bError({ error: new Error('boom') })).toBe('unknown');
+    expect(e2b.toArrayBuffer({ bytes: new Uint8Array([1, 2, 3]) }).byteLength).toBe(3);
   });
 });

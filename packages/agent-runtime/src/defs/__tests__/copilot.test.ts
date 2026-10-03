@@ -14,34 +14,34 @@ describe('copilotAgentDef shape', () => {
 
 describe('copilotAgentDef.buildArgs', () => {
   it('produces the base argv with no model and no extra dirs', () => {
-    const args = copilotAgentDef.buildArgs('hi', [], []);
+    const args = copilotAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] });
     expect(args).toEqual(['--allow-all-tools', '--output-format', 'json']);
   });
 
   it('omits --model when options.model is the synthetic "default" sentinel', () => {
-    const args = copilotAgentDef.buildArgs('hi', [], [], { model: 'default' });
+    const args = copilotAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'default' } });
     expect(args).not.toContain('--model');
   });
 
   it('omits --model when options.model is falsy', () => {
-    const args = copilotAgentDef.buildArgs('hi', [], [], { model: '' });
+    const args = copilotAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: '' } });
     expect(args).not.toContain('--model');
   });
 
   it('includes --model <id> when a concrete model is selected', () => {
-    const args = copilotAgentDef.buildArgs('hi', [], [], { model: 'gpt-5.2' });
+    const args = copilotAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'gpt-5.2' } });
     expect(args).toContain('--model');
     expect(args[args.indexOf('--model') + 1]).toBe('gpt-5.2');
   });
 
   it('appends --add-dir once per non-empty extraAllowedDirs entry, filtering out non-string/empty entries', () => {
-    const args = copilotAgentDef.buildArgs('hi', [], [
+    const args = copilotAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [
       '/dir-a',
       '',
       // @ts-expect-error deliberately exercising the runtime string-type guard
       42,
       '/dir-b',
-    ]);
+    ] });
     const addDirIndices = args.reduce<number[]>((acc, v, i) => (v === '--add-dir' ? [...acc, i] : acc), []);
     expect(addDirIndices).toHaveLength(2);
     expect(args[addDirIndices[0]! + 1]).toBe('/dir-a');
@@ -49,23 +49,23 @@ describe('copilotAgentDef.buildArgs', () => {
   });
 
   it('emits no --add-dir flags when extraAllowedDirs is omitted/empty', () => {
-    const args = copilotAgentDef.buildArgs('hi', []);
+    const args = copilotAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] });
     expect(args).not.toContain('--add-dir');
   });
 
   it('tolerates an explicit null extraAllowedDirs (the `|| []` fallback, distinct from the default param)', () => {
-    const args = copilotAgentDef.buildArgs('hi', [], null as unknown as string[]);
+    const args = copilotAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: null as unknown as string[] });
     expect(args).not.toContain('--add-dir');
   });
 
   it('omits --allow-all-tools entirely when permissionMode is "restricted"', () => {
-    const args = copilotAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' });
+    const args = copilotAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { permissionMode: 'restricted' } });
     expect(args).not.toContain('--allow-all-tools');
     expect(args).toEqual(['--output-format', 'json']);
   });
 
   it('still emits --allow-all-tools when permissionMode is explicitly "bypass"', () => {
-    expect(copilotAgentDef.buildArgs('hi', [], [], { permissionMode: 'bypass' })).toEqual([
+    expect(copilotAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { permissionMode: 'bypass' } })).toEqual([
       '--allow-all-tools',
       '--output-format',
       'json',
@@ -73,10 +73,10 @@ describe('copilotAgentDef.buildArgs', () => {
   });
 
   it('still adds --model and --add-dir after omitting --allow-all-tools in restricted mode', () => {
-    const args = copilotAgentDef.buildArgs('hi', [], ['/dir-a'], {
+    const args = copilotAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: ['/dir-a'], options: {
       permissionMode: 'restricted',
       model: 'gpt-5.2',
-    });
+    } });
     expect(args).toEqual(['--output-format', 'json', '--model', 'gpt-5.2', '--add-dir', '/dir-a']);
   });
 });

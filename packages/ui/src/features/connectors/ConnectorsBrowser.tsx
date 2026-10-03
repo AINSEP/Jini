@@ -146,14 +146,14 @@ export function ConnectorsBrowser({
             tabs={providerTabs}
             selectedId={selectedProvider}
             onSelect={handleProviderTabSelect}
-            {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'provider') } : {})}
+            {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'provider' }) } : {})}
           />
           <ConnectorSearchBar
             value={filter}
             onChange={setFilter}
             disabled={!unlocked}
             onFocus={() => onProviderTabClick?.('search_connectors')}
-            {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'search') } : {})}
+            {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'search' }) } : {})}
           />
         </div>
       </div>
@@ -180,7 +180,7 @@ export function ConnectorsBrowser({
           {...(getCategoryLabel ? { getCategoryLabel } : {})}
           onClearSearch={() => setFilter('')}
           {...(gate ? { gate: { ...gate, onClick: handleGateClick } } : {})}
-          {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'connector') } : {})}
+          {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'connector' }) } : {})}
         />
       )}
 
@@ -206,7 +206,7 @@ export function ConnectorsBrowser({
           onOpenExternalUrl={(url) => void deps.data.openExternalUrl(url)}
           {...(getCategoryLabel ? { getCategoryLabel } : {})}
           {...(getDisplayableAccountLabel ? { getDisplayableAccountLabel } : {})}
-          {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'detail') } : {})}
+          {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'detail' }) } : {})}
         />
       ) : null}
     </div>

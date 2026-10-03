@@ -4,7 +4,7 @@
  * Open Design's `apps/daemon/src/media/index.ts` `renderNanoBananaImage`
  * (plus its `nanoBananaHeaders`/`usesOfficialGoogleApiKeyHeader`/
  * `nanoBananaAspectFor`/`inlineImageBytesFromGenerateContent` helpers) —
- * see `source-map.md`.
+ * see `archived provenance ledger`.
  *
  * Not OpenAI-images-wire-compatible — Gemini's `generateContent` request
  * shape (`contents[].parts[].text` + `generationConfig`) and response shape
@@ -97,9 +97,9 @@ interface NanoBananaImageMeta {
 }
 
 const nanoBananaImageAdapter: VendorAdapter<NanoBananaImageMeta> = {
-  requireCredential: requireApiKey(NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<NanoBananaImageMeta> {
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<NanoBananaImageMeta> {
     const apiKey = credentials.apiKey!; // requireCredential already validated this.
     const baseUrl = (credentials.baseUrl || NANOBANANA_DEFAULT_BASE_URL).replace(/\/$/, '');
     const wireModel = (credentials.model || ctx.wireModel || NANOBANANA_DEFAULT_MODEL).trim();
@@ -126,7 +126,7 @@ const nanoBananaImageAdapter: VendorAdapter<NanoBananaImageMeta> = {
     };
   },
 
-  async parseResponse(resp: Response, _ctx: RenderContext, request: VendorRequest<NanoBananaImageMeta>): Promise<RenderResult> {
+  async parseResponse({ resp, ctx: _ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<NanoBananaImageMeta> }): Promise<RenderResult> {
     const text = await resp.text();
     if (!resp.ok) {
       throw new Error(`nano-banana image ${resp.status}: ${truncate(text, 240)}`);
@@ -146,8 +146,8 @@ const nanoBananaImageAdapter: VendorAdapter<NanoBananaImageMeta> = {
   },
 };
 
-mediaVendorRegistry.register('nanobanana', 'image', nanoBananaImageAdapter);
+mediaVendorRegistry.register({ providerId: 'nanobanana', routeKey: 'image', adapter: nanoBananaImageAdapter });
 
-export async function renderNanoBananaImage(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(nanoBananaImageAdapter, ctx, credentials);
+export async function renderNanoBananaImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: nanoBananaImageAdapter, ctx: ctx, credentials: credentials });
 }

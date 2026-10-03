@@ -118,7 +118,7 @@ export type RunAgentPayload =
    * for any driver that structures its work into stages (a build pipeline, a multi-pass review,
    * a plan/execute/verify loop), not tied to any one product's own pipeline concept. Added for
    * `@jini-ai/agui`'s generalization of OD's `pipeline_stage_started`/`pipeline_stage_completed`
-   * events — see `packages/agentic/source-map.md` for the full reasoning and two-consumer
+   * events — see `packages/agentic/archived provenance ledger` for the full reasoning and two-consumer
    * justification. Flows through the existing `RunLifecycle.emit('agent', ...)` channel exactly
    * like `tool_use`/`tool_result` already do; no driver in this codebase produces these yet.
    */
@@ -130,7 +130,7 @@ export type RunAgentPayload =
    * "the agent needs the user to answer something mid-run" — not a UI component/data-binding
    * protocol (see the real, much larger A2UI spec at a2ui.org for that different, out-of-scope
    * problem). Added for `@jini-ai/agui`'s generalization of OD's `genui_surface_request`/
-   * `genui_surface_response`/`genui_surface_timeout` events — see `packages/agentic/source-map.md`.
+   * `genui_surface_response`/`genui_surface_timeout` events — see `packages/agentic/archived provenance ledger`.
    * A timeout is represented as a `surface_response` with `respondedBy: 'auto'`, mirroring OD's
    * own collapsing of its two response-shaped event kinds into one. No driver in this codebase
    * produces these yet.
@@ -163,8 +163,9 @@ export type RunAgentPayload =
    * model-visible remainder as the usual `tool_result`.
    *
    * Why it cannot simply stay in the result: a tool call's return value is definitionally what the
-   * model receives, and `@jini-ai/mcp`'s `okResult()` JSON.stringifies a whole result into one text
-   * block. A confirmation dialog left in the result therefore hands the model the very token the
+   * model receives, and `@jini-ai/mcp`'s `okResult()` forwards valid MCP content arrays or
+   * JSON-stringifies other results into one text block. Either path can expose a confirmation
+   * dialog left in the result, handing the model the very token the
    * dialog exists to withhold — after which the model can approve its own destructive action with
    * no human involved. Emitting out-of-band is what makes that structurally impossible rather than
    * merely discouraged.

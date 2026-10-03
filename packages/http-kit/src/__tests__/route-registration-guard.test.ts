@@ -34,44 +34,44 @@ function makeApp() {
 describe('guardedRouteKey', () => {
   it('returns the METHOD PATH key when the path is a guarded string', () => {
     const guarded = new Set(['POST /api/runs']);
-    expect(guardedRouteKey('post', '/api/runs', guarded)).toBe('POST /api/runs');
+    expect(guardedRouteKey({ method: 'post', path: '/api/runs', guardedRouteKeys: guarded })).toBe('POST /api/runs');
   });
 
   it('is case-insensitive on the method', () => {
     const guarded = new Set(['GET /api/x']);
-    expect(guardedRouteKey('GeT', '/api/x', guarded)).toBe('GET /api/x');
+    expect(guardedRouteKey({ method: 'GeT', path: '/api/x', guardedRouteKeys: guarded })).toBe('GET /api/x');
   });
 
   it('returns null when the path is not in the guarded set', () => {
     const guarded = new Set(['POST /api/runs']);
-    expect(guardedRouteKey('post', '/api/other', guarded)).toBeNull();
+    expect(guardedRouteKey({ method: 'post', path: '/api/other', guardedRouteKeys: guarded })).toBeNull();
   });
 
   it('returns null for a non-string path (e.g. a RegExp route)', () => {
     const guarded = new Set(['GET /api/x']);
-    expect(guardedRouteKey('get', /\/api\/.*/, guarded)).toBeNull();
+    expect(guardedRouteKey({ method: 'get', path: /\/api\/.*/, guardedRouteKeys: guarded })).toBeNull();
   });
 
   it('returns null against an empty guarded set', () => {
-    expect(guardedRouteKey('get', '/anything', new Set())).toBeNull();
+    expect(guardedRouteKey({ method: 'get', path: '/anything', guardedRouteKeys: new Set() })).toBeNull();
   });
 });
 
 describe('installRouteRegistrationGuard', () => {
   it('records every string-path registration across all eight guarded methods, in call order', () => {
     const { app } = makeApp();
-    installRouteRegistrationGuard(app as any);
+    installRouteRegistrationGuard({ app: app as any });
 
-    app.get('/a', () => {});
-    app.post('/b', () => {});
-    app.put('/c', () => {});
-    app.patch('/d', () => {});
-    app.delete('/e', () => {});
-    app.options('/f', () => {});
-    app.all('/g', () => {});
-    app.use('/h', () => {});
+    app.get('/a', () => { });
+    app.post('/b', () => { });
+    app.put('/c', () => { });
+    app.patch('/d', () => { });
+    app.delete('/e', () => { });
+    app.options('/f', () => { });
+    app.all('/g', () => { });
+    app.use('/h', () => { });
 
-    expect(getRouteRegistrationInventory(app as any)).toEqual([
+    expect(getRouteRegistrationInventory({ app: app as any })).toEqual([
       { method: 'GET', path: '/a' },
       { method: 'POST', path: '/b' },
       { method: 'PUT', path: '/c' },
@@ -85,9 +85,9 @@ describe('installRouteRegistrationGuard', () => {
 
   it('still forwards the call to the original method with the same arguments', () => {
     const { app, calls } = makeApp();
-    installRouteRegistrationGuard(app as any);
+    installRouteRegistrationGuard({ app: app as any });
 
-    const handler = () => {};
+    const handler = () => { };
     app.get('/a', handler);
 
     expect(calls.get).toEqual([{ path: '/a', handlers: [handler] }]);
@@ -95,70 +95,83 @@ describe('installRouteRegistrationGuard', () => {
 
   it('does not record a non-string path in the inventory (e.g. a RegExp route)', () => {
     const { app } = makeApp();
-    installRouteRegistrationGuard(app as any);
+    installRouteRegistrationGuard({ app: app as any });
 
-    app.get(/\/api\/.*/, () => {});
+    app.get(/\/api\/.*/, () => { });
 
-    expect(getRouteRegistrationInventory(app as any)).toEqual([]);
+    expect(getRouteRegistrationInventory({ app: app as any })).toEqual([]);
   });
 
   it('defaults to an empty guarded set: the same route can be registered any number of times without throwing', () => {
     const { app } = makeApp();
-    installRouteRegistrationGuard(app as any);
+    installRouteRegistrationGuard({ app: app as any });
 
     expect(() => {
-      app.post('/api/runs', () => {});
-      app.post('/api/runs', () => {});
+      app.post('/api/runs', () => { });
+      app.post('/api/runs', () => { });
     }).not.toThrow();
   });
 
   it('throws on a second registration of a guarded route key', () => {
     const { app } = makeApp();
-    installRouteRegistrationGuard(app as any, { guardedRouteKeys: new Set(['POST /api/runs']) });
+    installRouteRegistrationGuard({ app: app as any }, { guardedRouteKeys: new Set(['POST /api/runs']) });
 
-    app.post('/api/runs', () => {});
-    expect(() => app.post('/api/runs', () => {})).toThrowError(
+    app.post('/api/runs', () => { });
+    expect(() => app.post('/api/runs', () => { })).toThrowError(
       'duplicate guarded route registration: POST /api/runs',
     );
   });
 
   it('does not guard a route with the same path but a different method', () => {
     const { app } = makeApp();
-    installRouteRegistrationGuard(app as any, { guardedRouteKeys: new Set(['POST /api/runs']) });
+    installRouteRegistrationGuard({ app: app as any }, { guardedRouteKeys: new Set(['POST /api/runs']) });
 
     expect(() => {
-      app.post('/api/runs', () => {});
-      app.get('/api/runs', () => {});
+      app.post('/api/runs', () => { });
+      app.get('/api/runs', () => { });
     }).not.toThrow();
   });
 
   it('allows an unguarded route to be registered repeatedly alongside a guarded one', () => {
     const { app } = makeApp();
-    installRouteRegistrationGuard(app as any, { guardedRouteKeys: new Set(['POST /api/runs']) });
+    installRouteRegistrationGuard({ app: app as any }, { guardedRouteKeys: new Set(['POST /api/runs']) });
 
     expect(() => {
-      app.get('/api/status', () => {});
-      app.get('/api/status', () => {});
-      app.post('/api/runs', () => {});
+      app.get('/api/status', () => { });
+      app.get('/api/status', () => { });
+      app.post('/api/runs', () => { });
     }).not.toThrow();
   });
 });
 
 describe('getRouteRegistrationInventory', () => {
+  it('isolates entry mutations as well as array mutations from later inventory reads', () => {
+    const { app } = makeApp();
+    installRouteRegistrationGuard({ app: app as any });
+    app.get('/original', () => { });
+    const first = getRouteRegistrationInventory({ app: app as any });
+    const second = getRouteRegistrationInventory({ app: app as any });
+    expect(first[0]).not.toBe(second[0]);
+    first[0]!.method = 'DELETE';
+    first[0]!.path = '/changed';
+    expect(second).toEqual([{ method: 'GET', path: '/original' }]);
+    app.post('/later', () => { });
+    expect(getRouteRegistrationInventory({ app: app as any })).toEqual([{ method: 'GET', path: '/original' }, { method: 'POST', path: '/later' }]);
+  });
   it('returns an empty array for an app the guard was never installed on', () => {
     const { app } = makeApp();
-    expect(getRouteRegistrationInventory(app as any)).toEqual([]);
+    expect(getRouteRegistrationInventory({ app: app as any })).toEqual([]);
   });
 
   it('returns a fresh copy each call — mutating the returned array never leaks into the guard state', () => {
     const { app } = makeApp();
-    installRouteRegistrationGuard(app as any);
-    app.get('/a', () => {});
+    installRouteRegistrationGuard({ app: app as any });
+    app.get('/a', () => { });
 
-    const first = getRouteRegistrationInventory(app as any);
+    const first = getRouteRegistrationInventory({ app: app as any });
     first.push({ method: 'GET', path: '/injected' });
 
-    const second = getRouteRegistrationInventory(app as any);
+    const second = getRouteRegistrationInventory({ app: app as any });
     expect(second).toEqual([{ method: 'GET', path: '/a' }]);
   });
 });

@@ -9,7 +9,7 @@
  * Adapters only — dumb collections scoped by `workspaceId`. No
  * validation or business rules live here (that's `media-service.ts`'s job).
  */
-import type { UUID } from "../core/ports.js";
+import type { UUID } from "@jini-ai/core/primitives";
 import type {
   AssetBlobRepoPort,
   AssetRenditionRepoPort,
@@ -23,7 +23,8 @@ import type { TransformDefinitionRecord } from "./transform-types.js";
 export class InMemoryMediaRepo implements MediaRepoPort {
   private rows: MediaRecord[];
 
-  constructor(initialRows: MediaRecord[] = []) {
+  constructor(requiredArgs: Record<string, never>, optionalArgs: { initialRows?: MediaRecord[] } = {}) {
+    const { initialRows = [] } = optionalArgs;
     this.rows = [...initialRows];
   }
 
@@ -66,7 +67,8 @@ export class InMemoryMediaRepo implements MediaRepoPort {
 export class InMemoryAssetBlobRepo implements AssetBlobRepoPort {
   private rows: AssetBlobRecord[];
 
-  constructor(initialRows: AssetBlobRecord[] = []) {
+  constructor(requiredArgs: Record<string, never>, optionalArgs: { initialRows?: AssetBlobRecord[] } = {}) {
+    const { initialRows = [] } = optionalArgs;
     this.rows = [...initialRows];
   }
 
@@ -103,7 +105,8 @@ export class InMemoryAssetBlobRepo implements AssetBlobRepoPort {
 export class InMemoryAssetRenditionRepo implements AssetRenditionRepoPort {
   private rows: AssetRenditionRecord[];
 
-  constructor(initialRows: AssetRenditionRecord[] = []) {
+  constructor(requiredArgs: Record<string, never>, optionalArgs: { initialRows?: AssetRenditionRecord[] } = {}) {
+    const { initialRows = [] } = optionalArgs;
     this.rows = [...initialRows];
   }
 
@@ -147,16 +150,18 @@ export class InMemoryAssetRenditionRepo implements AssetRenditionRepoPort {
 }
 
 /**
- * In-memory `blob_gc_journal` adapter (INV-1 two-phase protocol —
+ * In-memory `blob_gc_journal` adapter ( two-phase protocol —
  * see `blob-gc.ts`). Same disclosed limit as every other repo in this file:
  * rows do not survive a process restart, so a real crash between the
  * delete-pass and unlink-pass loses the journal entry in this build (a real
  * database-backed table would not).
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 export class InMemoryBlobGcJournalRepo implements BlobGcJournalRepoPort {
   private rows: BlobGcJournalEntry[];
 
-  constructor(initialRows: BlobGcJournalEntry[] = []) {
+  constructor(requiredArgs: Record<string, never>, optionalArgs: { initialRows?: BlobGcJournalEntry[] } = {}) {
+    const { initialRows = [] } = optionalArgs;
     this.rows = [...initialRows];
   }
 
@@ -190,7 +195,8 @@ export class InMemoryBlobGcJournalRepo implements BlobGcJournalRepoPort {
 export class InMemoryTransformDefinitionRepo implements TransformDefinitionRepoPort {
   private rows: TransformDefinitionRecord[];
 
-  constructor(initialRows: TransformDefinitionRecord[] = []) {
+  constructor(requiredArgs: Record<string, never>, optionalArgs: { initialRows?: TransformDefinitionRecord[] } = {}) {
+    const { initialRows = [] } = optionalArgs;
     this.rows = [...initialRows];
   }
 

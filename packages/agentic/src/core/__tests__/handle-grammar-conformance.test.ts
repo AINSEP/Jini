@@ -68,11 +68,11 @@ describe('data-agent-element handle grammar is identical in @jini-ai/agentic and
   ];
 
   it.each(CASES)('agrees on %j', (handle) => {
-    expect(region.test(handle)).toBe(isValidElementHandle(handle));
+    expect(region.test(handle)).toBe(isValidElementHandle({ handle }));
   });
 
   it('covers both verdicts, so a grammar that accepted or rejected everything would not pass silently', () => {
-    const verdicts = CASES.map((h) => isValidElementHandle(h));
+    const verdicts = CASES.map((h) => isValidElementHandle({ handle: h }));
     expect(verdicts).toContain(true);
     expect(verdicts).toContain(false);
   });

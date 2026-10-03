@@ -162,7 +162,7 @@ function confirmDialogAgentProps(
   action: typeof CONFIRM_HANDLE_ACTION | typeof CANCEL_HANDLE_ACTION,
   options: { role: AgentElementRole; label: string },
 ) {
-  return base === undefined ? {} : agentHandle(`${base}-${action}`, options);
+  return base === undefined ? {} : agentHandle({ handle: `${base}-${action}` }, options);
 }
 
 /**
@@ -181,13 +181,12 @@ export function ConfirmDialog({
   ...props
 }: ConfirmDialogProps) {
   const { titleId, dialogRef, cancelRef, handleNativeCancel, handleBackdropClick } = useDialog(
-    props.open,
-    props.pending,
-    props.onCancel,
+    { open: props.open, onCancel: props.onCancel, document },
+    { pending: props.pending },
   );
 
-  const tone = resolveTone(props);
-  const cancelLabel = useConfirmDialogCancelLabel(props.cancelLabel);
+  const tone = resolveTone({}, props);
+  const cancelLabel = useConfirmDialogCancelLabel({}, { explicit: props.cancelLabel });
 
   return (
     <dialog
@@ -215,9 +214,9 @@ export function ConfirmDialog({
         </button>
         <button
           type="button"
-          className={toneClassName(tone)}
+          className={toneClassName({ tone })}
           disabled={props.pending}
-          onClick={props.onConfirm}
+          onClick={() => props.onConfirm()}
           {...confirmDialogAgentProps(agentMayConfirm ? baseHandle : undefined, CONFIRM_HANDLE_ACTION, {
             role: 'button',
             label: confirmDialogConfirmLabel(props.confirmLabel, props.title, tone),

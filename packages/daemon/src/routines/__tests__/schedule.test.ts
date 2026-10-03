@@ -36,7 +36,7 @@ describe('nextRunAtForSchedule DST handling', () => {
     // scheduled at 02:30 has no valid wall clock that day. The fixed scheduler must instead
     // advance to a valid post-gap instant on the same day.
     const now = new Date('2026-03-08T05:00:00Z');
-    const next = nextRunAtForSchedule({ kind: 'daily', time: '02:30', timezone: 'America/New_York' }, now);
+    const next = nextRunAtForSchedule({ schedule: { kind: 'daily', time: '02:30', timezone: 'America/New_York' } }, { now: now });
     expect(next).not.toBeNull();
     if (!next) return;
 
@@ -54,7 +54,7 @@ describe('nextRunAtForSchedule DST handling', () => {
     // 06:30Z (EST) after clocks fall back. Checking at 05:45Z (between the two occurrences), a
     // daily routine at 01:30 must still fire today at 06:30Z, not skip to the next day.
     const now = new Date('2026-11-01T05:45:00Z');
-    const next = nextRunAtForSchedule({ kind: 'daily', time: '01:30', timezone: 'America/New_York' }, now);
+    const next = nextRunAtForSchedule({ schedule: { kind: 'daily', time: '01:30', timezone: 'America/New_York' } }, { now: now });
     expect(next).not.toBeNull();
     if (!next) return;
 
@@ -69,7 +69,7 @@ describe('nextRunAtForSchedule DST handling', () => {
 
   it('returns the first occurrence in the repeated hour when now is before either instance', () => {
     const now = new Date('2026-11-01T05:00:00Z');
-    const next = nextRunAtForSchedule({ kind: 'daily', time: '01:30', timezone: 'America/New_York' }, now);
+    const next = nextRunAtForSchedule({ schedule: { kind: 'daily', time: '01:30', timezone: 'America/New_York' } }, { now: now });
     expect(next).not.toBeNull();
     if (!next) return;
     expect(next.getTime()).toBe(Date.UTC(2026, 10, 1, 5, 30));
@@ -79,7 +79,7 @@ describe('nextRunAtForSchedule DST handling', () => {
     // For a daily routine at 02:30, the only valid instance on the fall-back day is 02:30 EST
     // (07:30Z) — must pick that one regardless of candidate ordering.
     const now = new Date('2026-11-01T05:00:00Z');
-    const next = nextRunAtForSchedule({ kind: 'daily', time: '02:30', timezone: 'America/New_York' }, now);
+    const next = nextRunAtForSchedule({ schedule: { kind: 'daily', time: '02:30', timezone: 'America/New_York' } }, { now: now });
     expect(next).not.toBeNull();
     if (!next) return;
 
@@ -93,7 +93,7 @@ describe('nextRunAtForSchedule DST handling', () => {
 
   it('returns the requested wall time on non-transition days', () => {
     const now = new Date('2026-05-01T00:00:00Z');
-    const next = nextRunAtForSchedule({ kind: 'daily', time: '02:30', timezone: 'America/New_York' }, now);
+    const next = nextRunAtForSchedule({ schedule: { kind: 'daily', time: '02:30', timezone: 'America/New_York' } }, { now: now });
     expect(next).not.toBeNull();
     if (!next) return;
 
@@ -104,7 +104,7 @@ describe('nextRunAtForSchedule DST handling', () => {
 
   it('returns the next hourly slot strictly after now', () => {
     const now = new Date('2026-05-13T10:45:30Z');
-    const next = nextRunAtForSchedule({ kind: 'hourly', minute: 15 }, now);
+    const next = nextRunAtForSchedule({ schedule: { kind: 'hourly', minute: 15 } }, { now: now });
     expect(next).not.toBeNull();
     if (!next) return;
     expect(next.toISOString()).toBe('2026-05-13T11:15:00.000Z');
@@ -114,13 +114,13 @@ describe('nextRunAtForSchedule DST handling', () => {
     // Exercises nextHourlyRunAt's default `now = new Date()` parameter directly, and the
     // "already passed this hour" branch without depending on wall-clock timing races.
     const now = new Date('2026-05-13T10:30:00Z');
-    const next = nextHourlyRunAt(15, now);
+    const next = nextHourlyRunAt({ minute: 15 }, { now: now });
     expect(next.toISOString()).toBe('2026-05-13T11:15:00.000Z');
   });
 
   it('returns the next weekday occurrence for weekday schedules', () => {
     const now = new Date('2026-05-16T00:00:00Z'); // Saturday
-    const next = nextRunAtForSchedule({ kind: 'weekdays', time: '09:00', timezone: 'UTC' }, now);
+    const next = nextRunAtForSchedule({ schedule: { kind: 'weekdays', time: '09:00', timezone: 'UTC' } }, { now: now });
     expect(next).not.toBeNull();
     if (!next) return;
 
@@ -134,7 +134,7 @@ describe('nextRunAtForSchedule DST handling', () => {
 
   it('returns the next requested weekday for weekly schedules', () => {
     const now = new Date('2026-05-13T10:00:00Z'); // Wednesday
-    const next = nextRunAtForSchedule({ kind: 'weekly', weekday: 5, time: '08:30', timezone: 'UTC' }, now);
+    const next = nextRunAtForSchedule({ schedule: { kind: 'weekly', weekday: 5, time: '08:30', timezone: 'UTC' } }, { now: now });
     expect(next).not.toBeNull();
     if (!next) return;
 
@@ -147,18 +147,18 @@ describe('nextRunAtForSchedule DST handling', () => {
   });
 
   it('returns null for a schedule kind not covered by any branch (defensive fallback)', () => {
-    const next = nextRunAtForSchedule({ kind: 'never' } as unknown as Parameters<typeof nextRunAtForSchedule>[0]);
+    const next = Reflect.apply(nextRunAtForSchedule, undefined, [{ schedule: { kind: 'never' } }]);
     expect(next).toBeNull();
   });
 
   it('returns null when the wall-time regex does not match', () => {
-    const next = nextRunAtForSchedule({ kind: 'daily', time: 'not-a-time', timezone: 'UTC' });
+    const next = nextRunAtForSchedule({ schedule: { kind: 'daily', time: 'not-a-time', timezone: 'UTC' } });
     expect(next).toBeNull();
   });
 
   it('returns null when the parsed hour or minute is out of range', () => {
-    expect(nextRunAtForSchedule({ kind: 'daily', time: '99:00', timezone: 'UTC' })).toBeNull();
-    expect(nextRunAtForSchedule({ kind: 'daily', time: '10:99', timezone: 'UTC' })).toBeNull();
+    expect(nextRunAtForSchedule({ schedule: { kind: 'daily', time: '99:00', timezone: 'UTC' } })).toBeNull();
+    expect(nextRunAtForSchedule({ schedule: { kind: 'daily', time: '10:99', timezone: 'UTC' } })).toBeNull();
   });
 
   it('continues to the next day when the spring-forward gap fallback itself is not after now', () => {
@@ -166,7 +166,7 @@ describe('nextRunAtForSchedule DST handling', () => {
     // Pick `now` already past the 02:15 post-gap fallback instant on that same day, so the walk
     // must roll to the next day's ordinary 02:15 instead of re-firing the gap-day fallback.
     const now = new Date('2026-03-08T08:00:00Z');
-    const next = nextRunAtForSchedule({ kind: 'daily', time: '02:15', timezone: 'America/New_York' }, now);
+    const next = nextRunAtForSchedule({ schedule: { kind: 'daily', time: '02:15', timezone: 'America/New_York' } }, { now: now });
     expect(next).not.toBeNull();
     if (!next) return;
     const parts = partsIn('America/New_York', next);
@@ -180,31 +180,31 @@ describe('nextRunAtForSchedule DST handling', () => {
     // No public schedule kind can construct a predicate that never matches (weekly/weekdays
     // always match within 7 days) — this proves the walk-exhaustion fallback directly instead of
     // leaving it structurally unreachable dead code.
-    const next = nextWallTimeMatching('UTC', '09:00', () => false, new Date('2026-05-01T00:00:00Z'));
+    const next = nextWallTimeMatching({ timezone: 'UTC', time: '09:00', predicate: () => false, now: new Date('2026-05-01T00:00:00Z') });
     expect(next).toBeNull();
   });
 
   it('nextWallTimeMatching returns null when the time string fails the HH:MM regex', () => {
-    expect(nextWallTimeMatching('UTC', 'garbage', () => true, new Date())).toBeNull();
+    expect(nextWallTimeMatching({ timezone: 'UTC', time: 'garbage', predicate: () => true, now: new Date() })).toBeNull();
   });
 
   it('tzWallToUtcCandidates returns [] for an invalid timezone instead of throwing', () => {
-    expect(tzWallToUtcCandidates('Not/AZone', 2026, 5, 1, 9, 0)).toEqual([]);
+    expect(tzWallToUtcCandidates({ timezone: 'Not/AZone', year: 2026, month: 5, day: 1, hour: 9, minute: 0 })).toEqual([]);
   });
 
   it('tzWallToUtcGapFallback returns null for an invalid timezone instead of throwing', () => {
-    expect(tzWallToUtcGapFallback('Not/AZone', 2026, 5, 1, 9, 0)).toBeNull();
+    expect(tzWallToUtcGapFallback({ timezone: 'Not/AZone', year: 2026, month: 5, day: 1, hour: 9, minute: 0 })).toBeNull();
   });
 
   it('tzWallToUtcGapFallback picks the later of the two probe candidates on a gap day where candidate1 > candidate2 (America/New_York)', () => {
-    const fallback = tzWallToUtcGapFallback('America/New_York', 2026, 3, 8, 2, 30);
+    const fallback = tzWallToUtcGapFallback({ timezone: 'America/New_York', year: 2026, month: 3, day: 8, hour: 2, minute: 30 });
     expect(fallback?.toISOString()).toBe('2026-03-08T07:30:00.000Z');
   });
 
   it('tzWallToUtcGapFallback picks the later of the two probe candidates on a gap day where candidate2 > candidate1 (Europe/London)', () => {
     // Europe/London's 2026-03-29 spring-forward gap resolves with the two candidates in the
     // opposite order from the America/New_York case above, exercising the ternary's other arm.
-    const fallback = tzWallToUtcGapFallback('Europe/London', 2026, 3, 29, 1, 30);
+    const fallback = tzWallToUtcGapFallback({ timezone: 'Europe/London', year: 2026, month: 3, day: 29, hour: 1, minute: 30 });
     expect(fallback?.toISOString()).toBe('2026-03-29T01:30:00.000Z');
   });
 
@@ -213,7 +213,7 @@ describe('nextRunAtForSchedule DST handling', () => {
     // `isValidTimezone`, which wraps the same `Intl.DateTimeFormat` construction in try/catch) —
     // this is inherited, faithfully-ported behavior, not introduced by this port. In practice a
     // schedule reaches here only after `validateSchedule` has already rejected a bad timezone.
-    expect(() => nextRunAtForSchedule({ kind: 'daily', time: '09:00', timezone: 'Not/AZone' })).toThrow(
+    expect(() => nextRunAtForSchedule({ schedule: { kind: 'daily', time: '09:00', timezone: 'Not/AZone' } })).toThrow(
       /Invalid time zone/,
     );
   });
@@ -228,31 +228,31 @@ describe('nextRunAtForSchedule DST handling', () => {
     // is perfectly valid, and it must degrade to `null` rather than throw or spin all 14 days.
     const maxDate = new Date(8_640_000_000_000_000);
     expect(maxDate.getTime()).toBe(8_640_000_000_000_000); // sanity: still a valid Date
-    expect(nextWallTimeMatching('UTC', '23:59', () => true, maxDate)).toBeNull();
+    expect(nextWallTimeMatching({ timezone: 'UTC', time: '23:59', predicate: () => true, now: maxDate })).toBeNull();
   });
 });
 
 describe('isValidWallTime / isValidTimezone', () => {
   it('accepts well-formed HH:MM within range', () => {
-    expect(isValidWallTime('00:00')).toBe(true);
-    expect(isValidWallTime('23:59')).toBe(true);
+    expect(isValidWallTime({ time: '00:00' })).toBe(true);
+    expect(isValidWallTime({ time: '23:59' })).toBe(true);
   });
 
   it('rejects malformed or out-of-range wall times', () => {
-    expect(isValidWallTime('9:00')).toBe(false);
-    expect(isValidWallTime('24:00')).toBe(false);
-    expect(isValidWallTime('10:60')).toBe(false);
-    expect(isValidWallTime('not-a-time')).toBe(false);
+    expect(isValidWallTime({ time: '9:00' })).toBe(false);
+    expect(isValidWallTime({ time: '24:00' })).toBe(false);
+    expect(isValidWallTime({ time: '10:60' })).toBe(false);
+    expect(isValidWallTime({ time: 'not-a-time' })).toBe(false);
   });
 
   it('accepts a real IANA timezone and rejects an invalid one', () => {
-    expect(isValidTimezone('America/New_York')).toBe(true);
-    expect(isValidTimezone('Not/AZone')).toBe(false);
+    expect(isValidTimezone({ tz: 'America/New_York' })).toBe(true);
+    expect(isValidTimezone({ tz: 'Not/AZone' })).toBe(false);
   });
 
   it('rejects an empty or non-string timezone', () => {
-    expect(isValidTimezone('')).toBe(false);
-    expect(isValidTimezone(null as unknown as string)).toBe(false);
+    expect(isValidTimezone({ tz: '' })).toBe(false);
+    expect(isValidTimezone({ tz: null as unknown as string })).toBe(false);
   });
 });
 
@@ -271,7 +271,7 @@ describe('partsInTimezone — defensive Intl-output fallbacks', () => {
       { type: 'second', value: '00' },
       { type: 'weekday', value: 'Fri' },
     ] as Intl.DateTimeFormatPart[]);
-    expect(partsInTimezone('UTC', new Date()).hour).toBe(0);
+    expect(partsInTimezone({ timezone: 'UTC', atUtc: new Date() }).hour).toBe(0);
   });
 
   it('defaults an unrecognized weekday abbreviation to 0, and a missing part type to "0"', () => {
@@ -284,7 +284,7 @@ describe('partsInTimezone — defensive Intl-output fallbacks', () => {
       // no 'second' part at all — exercises the `get()` helper's own `?? '0'` fallback.
       { type: 'weekday', value: 'Xyz' },
     ] as Intl.DateTimeFormatPart[]);
-    const parts = partsInTimezone('UTC', new Date());
+    const parts = partsInTimezone({ timezone: 'UTC', atUtc: new Date() });
     expect(parts.second).toBe(0);
     expect(parts.weekday).toBe(0);
   });
@@ -292,46 +292,46 @@ describe('partsInTimezone — defensive Intl-output fallbacks', () => {
 
 describe('validateSchedule / validateTarget', () => {
   it('accepts valid schedule and target shapes', () => {
-    expect(() => validateSchedule({ kind: 'weekly', weekday: 1, time: '09:00', timezone: 'UTC' })).not.toThrow();
-    expect(() => validateSchedule({ kind: 'hourly', minute: 30 })).not.toThrow();
-    expect(() => validateSchedule({ kind: 'daily', time: '09:00', timezone: 'UTC' })).not.toThrow();
-    expect(() => validateSchedule({ kind: 'weekdays', time: '09:00', timezone: 'UTC' })).not.toThrow();
-    expect(() => validateTarget({ mode: 'create_each_run' })).not.toThrow();
-    expect(() => validateTarget({ mode: 'reuse', projectId: 'proj-1' })).not.toThrow();
+    expect(() => validateSchedule({ schedule: { kind: 'weekly', weekday: 1, time: '09:00', timezone: 'UTC' } })).not.toThrow();
+    expect(() => validateSchedule({ schedule: { kind: 'hourly', minute: 30 } })).not.toThrow();
+    expect(() => validateSchedule({ schedule: { kind: 'daily', time: '09:00', timezone: 'UTC' } })).not.toThrow();
+    expect(() => validateSchedule({ schedule: { kind: 'weekdays', time: '09:00', timezone: 'UTC' } })).not.toThrow();
+    expect(() => validateTarget({ target: { mode: 'create_each_run' } })).not.toThrow();
+    expect(() => validateTarget({ target: { mode: 'reuse', projectId: 'proj-1' } })).not.toThrow();
   });
 
   it('rejects a missing/non-object schedule', () => {
-    expect(() => validateSchedule(null as unknown as Parameters<typeof validateSchedule>[0])).toThrow('schedule is required');
+    expect(() => Reflect.apply(validateSchedule, undefined, [{ schedule: null }])).toThrow('schedule is required');
   });
 
   it('rejects an out-of-range hourly minute', () => {
-    expect(() => validateSchedule({ kind: 'hourly', minute: 60 })).toThrow(/hourly\.minute/);
-    expect(() => validateSchedule({ kind: 'hourly', minute: 1.5 })).toThrow(/hourly\.minute/);
+    expect(() => validateSchedule({ schedule: { kind: 'hourly', minute: 60 } })).toThrow(/hourly\.minute/);
+    expect(() => validateSchedule({ schedule: { kind: 'hourly', minute: 1.5 } })).toThrow(/hourly\.minute/);
   });
 
   it('rejects invalid wall times and timezones', () => {
-    expect(() => validateSchedule({ kind: 'daily', time: '25:00', timezone: 'UTC' })).toThrow(/Invalid time/);
-    expect(() => validateSchedule({ kind: 'daily', time: '09:00', timezone: 'Mars/Olympus' })).toThrow(/Invalid timezone/);
+    expect(() => validateSchedule({ schedule: { kind: 'daily', time: '25:00', timezone: 'UTC' } })).toThrow(/Invalid time/);
+    expect(() => validateSchedule({ schedule: { kind: 'daily', time: '09:00', timezone: 'Mars/Olympus' } })).toThrow(/Invalid timezone/);
   });
 
   it('rejects invalid weekday and unsupported target mode', () => {
-    expect(() => validateSchedule({ kind: 'weekly', weekday: 9 as 0, time: '09:00', timezone: 'UTC' })).toThrow(/weekly\.weekday/);
+    expect(() => validateSchedule({ schedule: { kind: 'weekly', weekday: 9 as 0, time: '09:00', timezone: 'UTC' } })).toThrow(/weekly\.weekday/);
     expect(() =>
-      validateTarget({ mode: 'teleport' } as unknown as Parameters<typeof validateTarget>[0]),
+      Reflect.apply(validateTarget, undefined, [{ target: { mode: 'teleport' } }]),
     ).toThrow(/Unsupported routine target mode/);
   });
 
   it('rejects an unsupported schedule kind', () => {
     expect(() =>
-      validateSchedule({ kind: 'never' } as unknown as Parameters<typeof validateSchedule>[0]),
+      Reflect.apply(validateSchedule, undefined, [{ schedule: { kind: 'never' } }]),
     ).toThrow(/Unsupported schedule kind/);
   });
 
   it('rejects a missing/non-object target', () => {
-    expect(() => validateTarget(null as unknown as Parameters<typeof validateTarget>[0])).toThrow('target is required');
+    expect(() => Reflect.apply(validateTarget, undefined, [{ target: null }])).toThrow('target is required');
   });
 
   it('rejects reuse targets without a project id', () => {
-    expect(() => validateTarget({ mode: 'reuse', projectId: '' })).toThrow(/projectId/);
+    expect(() => validateTarget({ target: { mode: 'reuse', projectId: '' } })).toThrow(/projectId/);
   });
 });

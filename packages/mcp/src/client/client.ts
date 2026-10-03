@@ -12,9 +12,20 @@
 // timer and never touch the network or filesystem, so they unit-test against
 // plain values.
 
+/** Scheduling boundary for hosts that manage their own timer lifecycle. */
+export interface McpIdleTimerPort {
+  schedule(args: { callback: () => void; delayMs: number }): ReturnType<typeof setTimeout>;
+  cancel(args: { handle: ReturnType<typeof setTimeout> }): void;
+}
+
+const defaultTimers: McpIdleTimerPort = {
+  schedule: ({ callback, delayMs }) => setTimeout(callback, delayMs),
+  cancel: ({ handle }) => clearTimeout(handle),
+};
+
 interface McpIdleExitControllerOptions {
   idleMs: number;
-  onIdle: () => void;
+  onIdle: (required: Record<string, never>) => void;
 }
 
 // SEC-RB-011: an unvalidated `idleMs` (negative, `NaN`, `Infinity`, or a
@@ -38,7 +49,7 @@ function normalizeIdleMs(idleMs: number): number {
 
 /**
  * Create an idle-exit controller that calls `onIdle` after `idleMs` of
- * inactivity. Activity is tracked via `noteActivity()` and `trackRequest()`;
+ * inactivity. Activity is tracked via `noteActivity({})` and `trackRequest({ fn })`;
  * in-flight requests defer the idle timer. Used to auto-close a long-running
  * stdio MCP server process after a period of no tool calls.
  * @param options Idle duration in ms (finite positive integer, clamped to a
@@ -48,7 +59,7 @@ function normalizeIdleMs(idleMs: number): number {
 export function createMcpIdleExitController({
   idleMs,
   onIdle,
-}: McpIdleExitControllerOptions) {
+}: McpIdleExitControllerOptions, { timers = defaultTimers }: { timers?: McpIdleTimerPort } = {}) {
   const effectiveIdleMs = normalizeIdleMs(idleMs);
   let timer: ReturnType<typeof setTimeout> | null = null;
   let inFlight = 0;
@@ -56,7 +67,7 @@ export function createMcpIdleExitController({
 
   const clear = () => {
     if (timer) {
-      clearTimeout(timer);
+      timers.cancel({ handle: timer });
       timer = null;
     }
   };
@@ -64,8 +75,8 @@ export function createMcpIdleExitController({
   const schedule = () => {
     if (disposed) return;
     clear();
-    timer = setTimeout(() => {
-      // `dispose()` always clears the pending timer and `schedule()` bails when
+    timer = timers.schedule({ callback: () => {
+      // `dispose({})` always clears the pending timer and `schedule()` bails when
       // already disposed, so this callback can only fire while live.
       timer = null;
       if (inFlight > 0) {
@@ -73,19 +84,19 @@ export function createMcpIdleExitController({
         return;
       }
       disposed = true;
-      onIdle();
-    }, effectiveIdleMs);
+      onIdle({});
+    }, delayMs: effectiveIdleMs });
   };
 
   schedule();
 
   return {
-    noteActivity() {
+    noteActivity(_required: Record<string, never>) {
       schedule();
     },
-    async trackRequest<T>(fn: () => T | Promise<T>): Promise<T> {
+    async trackRequest<T>({ fn }: { fn: (required: Record<string, never>) => T | Promise<T> }): Promise<T> {
       if (disposed) {
-        return fn();
+        return fn({});
       }
       inFlight += 1;
       // Deliberately does NOT call `schedule()` here (SEC-RB-011): a request
@@ -96,7 +107,7 @@ export function createMcpIdleExitController({
       // on every concurrent request start instead caused needless
       // clearTimeout/setTimeout churn under load with no behavioral benefit.
       try {
-        return await fn();
+        return await fn({});
       } finally {
         inFlight -= 1;
         if (inFlight === 0) {
@@ -104,7 +115,7 @@ export function createMcpIdleExitController({
         }
       }
     },
-    dispose() {
+    dispose(_required: Record<string, never>) {
       disposed = true;
       clear();
     },
@@ -131,7 +142,7 @@ const TEXTUAL_MIME_PATTERNS = [
  * @param mime The MIME type string to classify (undefined counts as non-textual).
  * @returns Whether the content should be treated as text.
  */
-export function isTextualMime(mime: string | undefined): boolean {
+export function isTextualMime({ mime }: { mime: string | undefined }): boolean {
   if (!mime) return false;
   return TEXTUAL_MIME_PATTERNS.some((re) => re.test(mime));
 }
@@ -190,7 +201,7 @@ function isHtmlLike(mime: string | undefined, fromPath: string): boolean {
  * @param fromMime The MIME type of the file (used to select reference-extraction patterns).
  * @returns Deduplicated root-relative paths of all referenced files found.
  */
-export function extractRelativeRefs(text: string, fromPath: string, fromMime: string): string[] {
+export function extractRelativeRefs({ text, fromPath, fromMime }: { text: string; fromPath: string; fromMime: string }): string[] {
   if (!text) return [];
   const refs = new Set<string>();
   const runPatterns: RegExp[] = [];

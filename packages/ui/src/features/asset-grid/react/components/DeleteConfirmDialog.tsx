@@ -21,7 +21,7 @@ export function DeleteConfirmDialog({ count, onCancel, onConfirm }: DeleteConfir
   const titleId = useId();
   const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
 
-  useDismissOnOutsideOrEscape(onCancel);
+  useDismissOnOutsideOrEscape({ onDismiss: onCancel });
 
   useEffect(() => {
     confirmBtnRef.current?.focus();

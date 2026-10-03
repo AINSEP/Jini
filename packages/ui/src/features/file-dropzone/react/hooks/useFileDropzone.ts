@@ -53,7 +53,7 @@ function runAfterNextPaint(callback: () => void): void {
  * cancel-vs-still-loading detection heuristic, via `useFileDialogTracking`),
  * an optional page-wide clipboard-paste listener, and the shared
  * large-selection loading-affordance heuristic that gates all of the above
- * except paste. See `packages/ui/source-map.md` for the full consolidation
+ * except paste. See `packages/ui/archived provenance ledger` for the full consolidation
  * writeup and which origin file contributed which piece.
  */
 export function useFileDropzone({

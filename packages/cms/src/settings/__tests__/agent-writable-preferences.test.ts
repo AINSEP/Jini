@@ -42,9 +42,9 @@ async function registeredByBoot(): Promise<Map<string, SettingDefinitionRecord>>
   await ensureSettingsUiTabDefinitions(
     {
       settingsRepo,
-      clock: { nowIso: () => NOW },
+      clock: { nowMs: () => Date.parse(NOW)},
       ids: { newId: () => `setting-${++nextId}` },
-      principals: { findById: async () => null },
+      principals: { findActiveById: async () => null },
     } as unknown as Parameters<typeof ensureSettingsUiTabDefinitions>[0],
     { systemPrincipalId: SYSTEM_PRINCIPAL_ID as never },
   );
@@ -78,7 +78,7 @@ test("every agent-writable preference is registered at a scope that permits the 
   }
 });
 
-test("the consent and self-instruction keys stay off the allowlist", async () => {
+test("consent and self-instructions stay off the unconfirmed display-preference allowlist", async () => {
   const registered = await registeredByBoot();
 
   // These ARE registered by the same boot call, so their absence here is a deliberate withholding
@@ -93,7 +93,7 @@ test("the consent and self-instruction keys stay off the allowlist", async () =>
 
   for (const id of withheld) {
     assert.ok(registered.has(id), `sanity: '${id}' should still be registered by boot — update this test if the tab was removed`);
-    assert.equal(resolveAgentWritablePreference(id), undefined, `'${id}' must not be agent-writable — see agent-writable-preferences.ts`);
+    assert.equal(resolveAgentWritablePreference(id), undefined, `'${id}' must stay off the display-preference tool; generic value writes require a human card`);
     assert.equal(AGENT_WRITABLE_PREFERENCE_IDS.includes(id), false);
   }
 });

@@ -14,12 +14,13 @@
 import type { Charge, ChargeInput, PaymentsProvider } from '../payments.js';
 
 /** Creates the in-memory reference `PaymentsProvider`. No persistence, no real money movement. */
-export function createInMemoryPaymentsProvider(): PaymentsProvider {
+export function createInMemoryPaymentsProvider(_required: Record<string, never>, optional: { now?: () => number } = {}): PaymentsProvider {
+  const now = optional.now ?? Date.now;
   const charges = new Map<string, Charge>();
   let nextChargeId = 1;
 
   return {
-    async charge(input: ChargeInput): Promise<Charge> {
+    async charge(input: ChargeInput, optional: { description?: string } = {}): Promise<Charge> {
       if (input.amountCents <= 0) {
         throw new Error('amountCents must be positive');
       }
@@ -29,17 +30,17 @@ export function createInMemoryPaymentsProvider(): PaymentsProvider {
         amountCents: input.amountCents,
         currency: input.currency,
         customerRef: input.customerRef,
-        createdAt: Date.now(),
+        createdAt: now(),
       };
       charges.set(record.id, record);
       return record;
     },
 
-    async getCharge(id: string): Promise<Charge | null> {
+    async getCharge({ id }: { id: string }): Promise<Charge | null> {
       return charges.get(id) ?? null;
     },
 
-    async refund(id: string): Promise<Charge> {
+    async refund({ id }: { id: string }): Promise<Charge> {
       const existing = charges.get(id);
       if (!existing) {
         throw new Error(`unknown charge: ${id}`);

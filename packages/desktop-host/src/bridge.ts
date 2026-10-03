@@ -72,8 +72,8 @@ export interface JiniHostBridge {
   version: typeof JINI_HOST_VERSION;
   client: JiniHostClient;
   shell: {
-    openExternal(url: string): Promise<JiniHostActionResult>;
-    openPath(path: string): Promise<JiniHostActionResult>;
+    openExternal({ url }: { url: string }): Promise<JiniHostActionResult>;
+    openPath({ path }: { path: string }): Promise<JiniHostActionResult>;
   };
   updater?: JiniHostUpdaterNamespace;
 }
@@ -93,7 +93,7 @@ function hasFunction(record: Record<string, unknown>, key: string): boolean {
 // that file (and every call site here) only ever supplies `reason` — the
 // `details` plumbing is exercised solely by OD's `normalize.ts` (a
 // project-import-result normalizer, an explicitly out-of-scope OD product
-// concept per source-map.md). With no caller in this file ever passing
+// concept per archived provenance ledger). With no caller in this file ever passing
 // `details`, keeping the parameter here would be untestable dead code, so
 // it's dropped; `JiniHostFailure.details` remains part of the public type
 // for any external implementer that wants to populate it directly.
@@ -101,7 +101,8 @@ function failure(reason: string): JiniHostFailure {
   return { ok: false, reason };
 }
 
-export function isJiniHostBridge(value: unknown): value is JiniHostBridge {
+export function isJiniHostBridge(requiredArgs: { value: unknown }): requiredArgs is { value: JiniHostBridge } {
+  const { value } = requiredArgs;
   if (!isRecord(value)) return false;
   if (value.version !== JINI_HOST_VERSION) return false;
 
@@ -130,47 +131,46 @@ function candidateFromScope(scope: JiniHostGlobalScope): unknown {
   return undefined;
 }
 
-export function getJiniHost(scope: JiniHostGlobalScope = globalThis): JiniHostBridge | null {
-  const candidate = candidateFromScope(scope);
-  return isJiniHostBridge(candidate) ? candidate : null;
+export function getJiniHost(_requiredArgs: Record<string, never>, { scope = globalThis }: { scope?: JiniHostGlobalScope } = {}): JiniHostBridge | null {
+  const candidate = { value: candidateFromScope(scope) };
+  return isJiniHostBridge(candidate) ? candidate.value : null;
 }
 
-export function isJiniHostAvailable(scope: JiniHostGlobalScope = globalThis): boolean {
-  return getJiniHost(scope) != null;
+export function isJiniHostAvailable(_requiredArgs: Record<string, never>, { scope = globalThis }: { scope?: JiniHostGlobalScope } = {}): boolean {
+  return getJiniHost({}, { scope }) != null;
 }
 
-export function detectJiniHostClientType(scope: JiniHostGlobalScope = globalThis): JiniHostClientType | 'web' {
-  return getJiniHost(scope)?.client.type ?? 'web';
+export function detectJiniHostClientType(_requiredArgs: Record<string, never>, { scope = globalThis }: { scope?: JiniHostGlobalScope } = {}): JiniHostClientType | 'web' {
+  return getJiniHost({}, { scope })?.client.type ?? 'web';
 }
 
 function unavailable(reason = 'jini host is not available'): JiniHostFailure {
   return failure(reason);
 }
 
-export async function openHostExternalUrl(url: string, scope: JiniHostGlobalScope = globalThis): Promise<JiniHostActionResult> {
-  const host = getJiniHost(scope);
+export async function openHostExternalUrl({ url }: { url: string }, { scope = globalThis }: { scope?: JiniHostGlobalScope } = {}): Promise<JiniHostActionResult> {
+  const host = getJiniHost({}, { scope });
   if (host == null) return unavailable();
   try {
-    return await host.shell.openExternal(url);
+    return await host.shell.openExternal({ url });
   } catch (error) {
     return unavailable(error instanceof Error ? error.message : String(error));
   }
 }
 
-export async function openHostPath(path: string, scope: JiniHostGlobalScope = globalThis): Promise<JiniHostActionResult> {
-  const host = getJiniHost(scope);
+export async function openHostPath({ path }: { path: string }, { scope = globalThis }: { scope?: JiniHostGlobalScope } = {}): Promise<JiniHostActionResult> {
+  const host = getJiniHost({}, { scope });
   if (host == null) return unavailable();
   try {
-    return await host.shell.openPath(path);
+    return await host.shell.openPath({ path });
   } catch (error) {
     return unavailable(error instanceof Error ? error.message : String(error));
   }
 }
 
-export async function checkJiniHostUpdaterAvailability(
-  scope: JiniHostGlobalScope = globalThis,
+export async function checkJiniHostUpdaterAvailability(_requiredArgs: Record<string, never>, { scope = globalThis }: { scope?: JiniHostGlobalScope } = {}
 ): Promise<JiniHostUpdaterAvailability | JiniHostFailure> {
-  const host = getJiniHost(scope);
+  const host = getJiniHost({}, { scope });
   if (host == null) return unavailable();
   if (host.updater == null) return unavailable('host build does not support the updater extension point');
   try {

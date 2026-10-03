@@ -1,4 +1,4 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/codebuddy.ts` (import path adjusted only). See `source-map.md`. */
+/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/codebuddy.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { agentCapabilities } from '../capabilities.js';
 import { buildClaudeMcpConfigArgs, DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
@@ -80,7 +80,7 @@ export const codebuddyAgentDef = {
       { id: 'xhigh', label: 'XHigh' },
       { id: 'max', label: 'Max' },
     ],
-    buildArgs: (_prompt, _imagePaths, extraAllowedDirs = [], options = {}, runtimeContext = {}) => {
+    buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}) => {
       const caps = agentCapabilities.get('codebuddy') || {};
       // Same stdin strategy as Claude Code: `--input-format stream-json`
       // enables JSONL stdin so the daemon can answer AskUserQuestion tool

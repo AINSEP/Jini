@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/cms",
-  "version": "0.3.11",
-  "description": "Content-model capability for Jini-hosted products: framework-free contracts, ports, and domain services in `/core` and per-domain subpaths; Node-bound persistence adapters in `/server`.",
+  "version": "0.4.0",
+  "description": "Content-model capability for Jini-hosted products: framework-free contracts, ports, and domain services in `/core` and per-domain subpaths; Node-bound adapters in domain-specific subpaths.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -15,24 +15,22 @@
     "entries": {
       ".": "universal",
       "./core": "universal",
-      "./identity": "node",
-      "./server": "node",
-      "./identity/hasher": "node",
       "./navigation": "universal",
-      "./media": "universal",
+      "./media": "node",
       "./settings": "universal",
       "./workspace": "universal",
       "./entries": "universal",
       "./content-types": "universal",
       "./taxonomy": "universal",
-      "./widgets": "universal",
-      "./presentation": "universal"
+      "./presentation": "universal",
+      "./media/import": "universal",
+      "./core/tools": "universal",
+      "./http/settings": "node",
+      "./trash": "universal"
     }
   },
   "type": "module",
-  "sideEffects": [
-    "./dist/identity/permissions.js"
-  ],
+  "sideEffects": false,
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
@@ -45,21 +43,6 @@
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js",
       "default": "./dist/core/index.js"
-    },
-    "./server": {
-      "types": "./dist/server/index.d.ts",
-      "import": "./dist/server/index.js",
-      "default": "./dist/server/index.js"
-    },
-    "./identity": {
-      "types": "./dist/identity/index.d.ts",
-      "import": "./dist/identity/index.js",
-      "default": "./dist/identity/index.js"
-    },
-    "./identity/hasher": {
-      "types": "./dist/identity/hasher.d.ts",
-      "import": "./dist/identity/hasher.js",
-      "default": "./dist/identity/hasher.js"
     },
     "./navigation": {
       "types": "./dist/navigation/index.d.ts",
@@ -96,19 +79,39 @@
       "import": "./dist/taxonomy/index.js",
       "default": "./dist/taxonomy/index.js"
     },
-    "./widgets": {
-      "types": "./dist/widgets/index.d.ts",
-      "import": "./dist/widgets/index.js",
-      "default": "./dist/widgets/index.js"
-    },
     "./presentation": {
       "types": "./dist/presentation/index.d.ts",
       "import": "./dist/presentation/index.js",
       "default": "./dist/presentation/index.js"
+    },
+    "./core/tools": {
+      "types": "./dist/core/tools/index.d.ts",
+      "import": "./dist/core/tools/index.js",
+      "default": "./dist/core/tools/index.js"
+    },
+    "./media/import": {
+      "types": "./dist/media/import/index.d.ts",
+      "import": "./dist/media/import/index.js",
+      "default": "./dist/media/import/index.js"
+    },
+    "./http/settings": {
+      "types": "./dist/http/settings/index.d.ts",
+      "import": "./dist/http/settings/index.js",
+      "default": "./dist/http/settings/index.js"
+    },
+    "./trash": {
+      "types": "./dist/trash/index.d.ts",
+      "import": "./dist/trash/index.js",
+      "default": "./dist/trash/index.js"
     }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "!forms/**",
+    "!dist/identity/**",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -129,21 +132,24 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
-    "argon2": "^0.44.0",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.3",
+    "@jini-ai/http-kit": "workspace:*",
+    "express": "^4.21.0",
+    "@types/express": "^4.17.21",
+    "typescript": "^5.6.0"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:*"
   },
   "peerDependencies": {
-    "argon2": "^0.44.0",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.3",
+    "express": "^4.21.0"
   },
   "peerDependenciesMeta": {
-    "argon2": {
+    "sharp": {
       "optional": true
     },
-    "sharp": {
+    "express": {
       "optional": true
     }
   }

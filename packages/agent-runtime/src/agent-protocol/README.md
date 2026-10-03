@@ -8,9 +8,9 @@ adapters used to drive external AI agent CLIs.
 ## What this is
 
 Ported from an upstream product's `agent-protocol/` capability barrel (see
-`source-map.md` for the exact origin fork/branch/commit and file-by-file
+the archived provenance ledger for the exact origin fork/branch/commit and file-by-file
 transform table — this file intentionally stays free of that product's name;
-provenance lives in source-map.md instead). The module was already split
+provenance lives in the archived provenance ledger instead). The module was already split
 into a `core/` foundation kernel plus `acp/` and `pi-rpc/` concern
 subdirectories at the source, each with a barrel `index.ts` and `@module`
 docblocks — this port keeps that internal shape identical (path-mirrored,
@@ -70,7 +70,7 @@ seam exports (`AccountFailure`, `AccountFailureClassifier`,
 
 Porting this module out of its origin product required de-branding a handful
 of real coupling points, each turned into an explicit, documented seam
-rather than silently dropped. Full reasoning in `source-map.md` § Design
+rather than silently dropped. Full reasoning in the archived provenance ledger § Design
 decisions; summary:
 
 1. **`AccountFailureClassifier`** (`acp/account-failure.ts`) — a small
@@ -150,6 +150,6 @@ not itself implement a real, product-specific `AccountFailureClassifier` —
 that belongs to a future product-adapter package, per `AGENTS.md`'s boundary
 that `packages/@jini-ai/**` must contain zero product-identity strings.
 
-See `source-map.md` for the full origin commit, file-by-file transform
+See the archived provenance ledger for the full origin commit, file-by-file transform
 table, and the documented discrepancy about which upstream branch this module
 actually lives on.

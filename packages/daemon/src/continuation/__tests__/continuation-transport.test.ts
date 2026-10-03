@@ -7,10 +7,13 @@ const MCP_CALLBACK_IDS = [
   // Joined this set once its externalMcpInjection moved from undefined to 'env-passthrough' —
   // see `@jini-ai/agent-runtime`'s `defs/antigravity.ts` own doc for why that strategy is safe.
   'antigravity',
+  'auggie',
   'claude',
+  'cline',
   'codebuddy',
   'codex',
   'devin',
+  'goose',
   'kilo',
   'opencode',
   'mimo',
@@ -26,19 +29,19 @@ const STDIN_INJECTION_ONLY_IDS: string[] = [];
 
 describe('resolveContinuationTransport', () => {
   it("resolves every def declaring externalMcpInjection to 'mcp-callback', including claude/codebuddy which also declare stream-json stdin", () => {
-    const resolved = AGENT_DEFS.filter((def) => resolveContinuationTransport(def) === 'mcp-callback')
+    const resolved = AGENT_DEFS.filter((def) => resolveContinuationTransport({ def: def }) === 'mcp-callback')
       .map((def) => def.id)
       .sort();
     expect(resolved).toEqual(MCP_CALLBACK_IDS);
   });
 
   it("resolves no def to 'stdin-injection' as primary, since claude/codebuddy (the only stream-json+promptViaStdin defs) both also declare externalMcpInjection", () => {
-    const resolved = AGENT_DEFS.filter((def) => resolveContinuationTransport(def) === 'stdin-injection').map((def) => def.id);
+    const resolved = AGENT_DEFS.filter((def) => resolveContinuationTransport({ def: def }) === 'stdin-injection').map((def) => def.id);
     expect(resolved).toEqual(STDIN_INJECTION_ONLY_IDS);
   });
 
   it("resolves every remaining def (plain/text-stdin/argv/ACP-without-mcp) to 'none'", () => {
-    const noneCount = AGENT_DEFS.filter((def) => resolveContinuationTransport(def) === 'none').length;
+    const noneCount = AGENT_DEFS.filter((def) => resolveContinuationTransport({ def: def }) === 'none').length;
     expect(noneCount).toBe(AGENT_DEFS.length - MCP_CALLBACK_IDS.length - STDIN_INJECTION_ONLY_IDS.length);
   });
 
@@ -47,7 +50,7 @@ describe('resolveContinuationTransport', () => {
     expect(amp).toBeDefined();
     expect(amp?.streamFormat).toBe('claude-stream-json');
     expect(amp?.promptInputFormat).not.toBe('stream-json');
-    expect(resolveContinuationTransport(amp!)).toBe('none');
+    expect(resolveContinuationTransport({ def: amp! })).toBe('none');
   });
 
   it('resolves a synthetic def with only promptInputFormat: stream-json + promptViaStdin (no externalMcpInjection) to stdin-injection', () => {
@@ -63,12 +66,12 @@ describe('resolveContinuationTransport', () => {
       promptViaStdin: true,
       promptInputFormat: 'stream-json',
     } as const;
-    expect(resolveContinuationTransport(synthetic as never)).toBe('stdin-injection');
+    expect(resolveContinuationTransport({ def: synthetic as never })).toBe('stdin-injection');
   });
 
   it('resolves a def with neither field to none', () => {
     const plain = AGENT_DEFS.find((def) => def.id === 'aider');
     expect(plain).toBeDefined();
-    expect(resolveContinuationTransport(plain!)).toBe('none');
+    expect(resolveContinuationTransport({ def: plain! })).toBe('none');
   });
 });

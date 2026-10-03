@@ -20,11 +20,9 @@ export type AgentLaunchResolution = ReturnType<typeof inspectAgentExecutableReso
   diagnostic: string | null;
 };
 
-export function resolveAgentLaunch(
-  def: RuntimeAgentDef,
-  configuredEnv: Record<string, string> = {},
+export function resolveAgentLaunch({ def }: { def: RuntimeAgentDef }, { configuredEnv = {} }: { configuredEnv?: Record<string, string> } = {}
 ): AgentLaunchResolution {
-  const resolution = inspectAgentExecutableResolution(def, configuredEnv);
+  const resolution = inspectAgentExecutableResolution({ def: def }, { configuredEnv: configuredEnv });
   if (!resolution.selectedPath) {
     return { ...resolution, launchPath: null, launchKind: 'selected', childPathPrepend: [], diagnostic: null };
   }
@@ -44,11 +42,7 @@ export function resolveAgentLaunch(
   };
 }
 
-export function applyAgentLaunchEnv(
-  env: NodeJS.ProcessEnv,
-  launch: Pick<AgentLaunchResolution, 'childPathPrepend'>,
-  nodeBinDir: string = path.dirname(process.execPath),
-  appendPathDirs: string[] = userToolchainBinDirs(),
+export function applyAgentLaunchEnv({ env, launch }: { env: NodeJS.ProcessEnv; launch: Pick<AgentLaunchResolution, 'childPathPrepend'> }, { nodeBinDir = path.dirname(process.execPath), appendPathDirs = userToolchainBinDirs() }: { nodeBinDir?: string; appendPathDirs?: string[] } = {}
 ): NodeJS.ProcessEnv {
   // Build the ordered list of directories to guarantee are at the front of
   // PATH: the running Node binary directory first (so npm .cmd shims on

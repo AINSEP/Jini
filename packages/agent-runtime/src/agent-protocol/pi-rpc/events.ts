@@ -17,7 +17,7 @@ export type PiRpcContext = {
 type PiRpcEventHandler = (raw: JsonRecord, send: SendAgentEvent, ctx: PiRpcContext) => 'agent_end' | null;
 
 export function handleAgentStart(_raw: JsonRecord, send: SendAgentEvent): null {
-  send('agent', { type: 'status', label: 'working' });
+  send({ event: 'agent', payload: { type: 'status', label: 'working' } });
   return null;
 }
 
@@ -26,7 +26,7 @@ export function handleAgentEnd(): 'agent_end' {
 }
 
 export function handleTurnStart(_raw: JsonRecord, send: SendAgentEvent): null {
-  send('agent', { type: 'status', label: 'thinking' });
+  send({ event: 'agent', payload: { type: 'status', label: 'thinking' } });
   return null;
 }
 
@@ -45,12 +45,12 @@ export function emitTurnEndUsage(u: JsonRecord, send: SendAgentEvent, ctx: PiRpc
   const usage = buildTokenUsage(u);
   if (Object.keys(usage).length === 0) return;
   const cost = getRecord(u.cost);
-  send('agent', {
+  send({ event: 'agent', payload: {
     type: 'usage',
     usage,
     costUsd: cost?.total ?? cost?.totalCost ?? null,
     durationMs: Date.now() - ctx.runStartedAt,
-  });
+  } });
 }
 
 export function emitTurnEndErrorIfPresent(message: JsonRecord | undefined, raw: JsonRecord, send: SendAgentEvent): void {
@@ -59,7 +59,7 @@ export function emitTurnEndErrorIfPresent(message: JsonRecord | undefined, raw: 
     typeof message.errorMessage === 'string' && message.errorMessage.length > 0
       ? message.errorMessage
       : 'Pi agent error';
-  send('agent', { type: 'error', message: messageText, raw });
+  send({ event: 'agent', payload: { type: 'error', message: messageText, raw } });
 }
 
 export function handleTurnEnd(raw: JsonRecord, send: SendAgentEvent, ctx: PiRpcContext): null {
@@ -74,26 +74,26 @@ export function handleAssistantTextDelta(ev: JsonRecord, send: SendAgentEvent, c
   if (typeof ev.delta !== 'string') return;
   if (!ctx.sentFirstToken.value) {
     ctx.sentFirstToken.value = true;
-    send('agent', {
+    send({ event: 'agent', payload: {
       type: 'status',
       label: 'streaming',
       ttftMs: Date.now() - ctx.runStartedAt,
-    });
+    } });
   }
-  send('agent', { type: 'text_delta', delta: ev.delta });
+  send({ event: 'agent', payload: { type: 'text_delta', delta: ev.delta } });
 }
 
 export function handleAssistantThinkingDelta(ev: JsonRecord, send: SendAgentEvent): void {
   if (typeof ev.delta !== 'string') return;
-  send('agent', { type: 'thinking_delta', delta: ev.delta });
+  send({ event: 'agent', payload: { type: 'thinking_delta', delta: ev.delta } });
 }
 
 export function handleAssistantThinkingStart(_ev: JsonRecord, send: SendAgentEvent): void {
-  send('agent', { type: 'thinking_start' });
+  send({ event: 'agent', payload: { type: 'thinking_start' } });
 }
 
 export function handleAssistantThinkingEnd(_ev: JsonRecord, send: SendAgentEvent): void {
-  send('agent', { type: 'thinking_end' });
+  send({ event: 'agent', payload: { type: 'thinking_end' } });
 }
 
 // pi's RPC protocol emits a message_update with error delta when
@@ -107,7 +107,7 @@ export function handleAssistantError(ev: JsonRecord, send: SendAgentEvent, _ctx:
       : typeof ev.delta === 'string' && ev.delta.length > 0
         ? ev.delta
         : 'Agent error';
-  send('agent', { type: 'error', message, raw });
+  send({ event: 'agent', payload: { type: 'error', message, raw } });
 }
 
 /** One `assistantMessageEvent.type` handler in the message_update sub-dispatch. */
@@ -138,12 +138,12 @@ export function handleMessageEnd(): null {
 }
 
 export function handleToolExecutionStart(raw: JsonRecord, send: SendAgentEvent): null {
-  send('agent', {
+  send({ event: 'agent', payload: {
     type: 'tool_use',
     id: raw.toolCallId ?? null,
     name: raw.toolName ?? null,
     input: raw.args ?? null,
-  });
+  } });
   return null;
 }
 
@@ -161,12 +161,12 @@ export function handleToolExecutionEnd(raw: JsonRecord, send: SendAgentEvent): n
       : typeof content === 'string'
         ? content
         : '';
-  send('agent', {
+  send({ event: 'agent', payload: {
     type: 'tool_result',
     toolUseId: raw.toolCallId ?? null,
     content: text,
     isError: raw.isError === true,
-  });
+  } });
   return null;
 }
 
@@ -179,17 +179,17 @@ export function handleExtensionError(raw: JsonRecord, send: SendAgentEvent): nul
     typeof raw.error === 'string' && raw.error.length > 0
       ? raw.error
       : 'Extension error';
-  send('agent', { type: 'error', message, raw });
+  send({ event: 'agent', payload: { type: 'error', message, raw } });
   return null;
 }
 
 export function handleCompactionStart(_raw: JsonRecord, send: SendAgentEvent): null {
-  send('agent', { type: 'status', label: 'compacting' });
+  send({ event: 'agent', payload: { type: 'status', label: 'compacting' } });
   return null;
 }
 
 export function handleAutoRetryStart(_raw: JsonRecord, send: SendAgentEvent): null {
-  send('agent', { type: 'status', label: 'retrying' });
+  send({ event: 'agent', payload: { type: 'status', label: 'retrying' } });
   return null;
 }
 
@@ -202,7 +202,7 @@ export function handleAutoRetryEnd(raw: JsonRecord, send: SendAgentEvent): null 
     typeof raw.finalError === 'string' && raw.finalError.length > 0
       ? raw.finalError
       : 'Auto-retry exhausted';
-  send('agent', { type: 'error', message, raw });
+  send({ event: 'agent', payload: { type: 'error', message, raw } });
   return null;
 }
 
@@ -231,10 +231,7 @@ const PI_RPC_EVENT_HANDLERS: Record<string, PiRpcEventHandler> = {
  * @param ctx  - Per-run context: start timestamp and first-token sentinel.
  * @returns `'agent_end'` on run completion, `null` otherwise.
  */
-export function mapPiRpcEvent(
-  raw: JsonRecord,
-  send: SendAgentEvent,
-  ctx: PiRpcContext,
+export function mapPiRpcEvent({ raw, send, ctx }: { raw: JsonRecord; send: SendAgentEvent; ctx: PiRpcContext }
 ): 'agent_end' | null {
   const handler = typeof raw.type === 'string' ? PI_RPC_EVENT_HANDLERS[raw.type] : undefined;
   return handler ? handler(raw, send, ctx) : null;

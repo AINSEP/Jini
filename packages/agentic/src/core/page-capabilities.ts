@@ -9,6 +9,7 @@
  * button has), so the surface stays narrow and the page decides what is reachable by choosing
  * what to tag. Nothing here scans a whole document: a host names the container to search.
  */
+import { defaultAgenticMessages } from './messages.js';
 import type { CapabilityDef } from './capability.js';
 
 /** Handle argument shared by every element-addressed verb. */
@@ -137,7 +138,7 @@ export const PAGE_CAPABILITIES: readonly CapabilityDef[] = [
   {
     id: 'page.navigate',
     description:
-      'Move to another page of this site, named by its data-agent-page id. Only pages the host has published are reachable; arbitrary URLs are refused. Returns which page was showing before and after, and how many controls each publishes — call page.find_elements again afterwards, since every handle you hold may belong to the page you just left.',
+      defaultAgenticMessages.pageNavigateDescription(),
     inputSchema: {
       type: 'object',
       properties: {

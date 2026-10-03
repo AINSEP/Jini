@@ -18,4 +18,4 @@
 import { token } from '@jini-ai/core';
 import type { ArtifactStore } from './store.js';
 
-export const ArtifactStoreToken = token<ArtifactStore>('jini.artifactStore');
+export const ArtifactStoreToken = token<ArtifactStore>({ id: 'jini.artifactStore' });

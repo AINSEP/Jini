@@ -9,7 +9,7 @@
  * CSS tweaks palette, manual-edit overlay, snapshot/export-capture) — those
  * are that product's own UI protocols. They become `SrcDocBridge` plugins a
  * host registers via `bridges` (see `bridge.ts`), not built-ins. See
- * `source-map.md` for the full file-by-file breakdown.
+ * `archived provenance ledger` for the full file-by-file breakdown.
  */
 import { applySrcDocBridges, type SrcDocBridge, type SrcDocBridgeContext } from './bridge.js';
 

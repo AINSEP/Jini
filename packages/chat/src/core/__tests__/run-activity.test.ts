@@ -6,7 +6,7 @@ const t = (key: string, vars?: Record<string, string | number>) =>
   vars ? key.replace(/\{(\w+)\}/g, (_m, name: string) => String(vars[name])) : key;
 
 function line(events: AgentEvent[], seconds = 0, idleMs = 0): string {
-  return describeRunActivity(deriveRunActivity(events).activity, { seconds, idleMs }, t);
+  return describeRunActivity({ activity: deriveRunActivity({ events: events }).activity, clock: { seconds, idleMs }, t: t });
 }
 
 describe('run activity line — one table, exact words', () => {
@@ -40,7 +40,7 @@ describe('run activity line — one table, exact words', () => {
       { kind: 'tool_use', id: 'x', name: 'page.fill', input: {} },
       { kind: 'status', label: 'tool_progress', code: 'tool_progress', data: { elapsedSeconds: 90 } },
     ];
-    const state = deriveRunActivity(events);
+    const state = deriveRunActivity({ events: events });
     expect(state.activity).toEqual({ kind: 'running-tool', tool: 'Page Fill', reportedSeconds: 90 });
   });
 
@@ -64,19 +64,19 @@ describe('run activity line — one table, exact words', () => {
   });
 
   it('formats the clock', () => {
-    expect(formatActivityClock(0)).toBe('0 s');
-    expect(formatActivityClock(59.9)).toBe('59 s');
-    expect(formatActivityClock(120)).toBe('2 m 0 s');
-    expect(humanizeToolName('daemon.db.vacuum')).toBe('Daemon Db Vacuum');
+    expect(formatActivityClock({ totalSeconds: 0 })).toBe('0 s');
+    expect(formatActivityClock({ totalSeconds: 59.9 })).toBe('59 s');
+    expect(formatActivityClock({ totalSeconds: 120 })).toBe('2 m 0 s');
+    expect(humanizeToolName({ name: 'daemon.db.vacuum' })).toBe('Daemon Db Vacuum');
   });
 
   it('restarts the clock key per signal and counts only visible events', () => {
-    const a = deriveRunActivity([{ kind: 'tool_use', id: 't1', name: 'Bash', input: {} }]);
-    const b = deriveRunActivity([
+    const a = deriveRunActivity({ events: [{ kind: 'tool_use', id: 't1', name: 'Bash', input: {} }] });
+    const b = deriveRunActivity({ events: [
       { kind: 'tool_use', id: 't1', name: 'Bash', input: {} },
       { kind: 'raw', line: 'x' },
       { kind: 'status', label: 'thinking', code: 'thinking' },
-    ]);
+    ] });
     expect(a.key).toBe('tool:t1');
     expect(b.key).toBe('tool:t1');
     expect(b.visibleCount).toBe(1);

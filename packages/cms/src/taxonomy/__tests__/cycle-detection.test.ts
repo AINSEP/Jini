@@ -10,21 +10,22 @@ import { wouldCreateCycle } from "../validation-chain.js";
  *
  * ```ts
  * export interface TermTreeLookup {
- *   getParentId(termId: string): string | null; // null = root
+ * getParentId(termId: string): string | null; null = root
  * }
  * export function wouldCreateCycle(
- *   required: { termId: string; candidateParentId: string; tree: TermTreeLookup },
- *   optional?: {}
- * ): boolean; // true if termId appears anywhere in candidateParentId's ancestor chain, or candidateParentId === termId
+ * required: { termId: string; candidateParentId: string; tree: TermTreeLookup },
+ * optional?: {}
+ * ): boolean; true if termId appears anywhere in candidateParentId's ancestor chain, or candidateParentId === termId
  * ```
  *
- * U-002-B1 requires a FULL recursive descendant/ancestor walk, not a fixed-depth or
+ * requires a FULL recursive descendant/ancestor walk, not a fixed-depth or
  * immediate-parent-only comparison — the exact shape a naive implementation gets wrong.
+ * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
  */
 
 function treeFromEdges(edges: Record<string, string | null>) {
   return {
-    getParentId(termId: string) {
+    getParentId({ termId }: { termId: string }) {
       return edges[termId] ?? null;
     },
   };

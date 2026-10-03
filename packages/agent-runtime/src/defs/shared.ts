@@ -10,7 +10,7 @@
  * Ported from OD's `apps/daemon/src/runtimes/defs/shared.ts` — the origin
  * imported `detectAcpModels` from `../../acp.js` and `parsePiModels` from
  * `../../pi-rpc.js` directly; here they come from this package's own
- * port/vendor modules instead. See `source-map.md`.
+ * port/vendor modules instead. See `archived provenance ledger`.
  */
 import { detectAcpModels } from '../acp-model-probe.js';
 import { parsePiModels } from '../pi-models.js';
@@ -76,7 +76,7 @@ export function clampCodexReasoning(modelId: string | null | undefined, effort: 
 
 // Parse one-id-per-line stdout from `<cli> models` and prepend the synthetic
 // default option. Used by opencode / cursor-agent.
-export function parseLineSeparatedModels(stdout: string): RuntimeModelOption[] {
+export function parseLineSeparatedModels({ stdout }: { stdout: string }): RuntimeModelOption[] {
   const ids = String(stdout || '')
     .split('\n')
     .map((line) => line.trim())

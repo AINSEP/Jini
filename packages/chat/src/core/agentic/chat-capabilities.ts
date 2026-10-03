@@ -11,7 +11,7 @@
  * This is a genuine chat product surface, not vocabulary — unlike its former siblings here
  * (capability.ts, page-capabilities.ts, …), which moved to `@jini-ai/agentic` on 2026-07-26 so a
  * non-chat consumer could depend on the vocabulary without depending on chat. This file stayed
- * behind on purpose: it's the proof the split is real (see `@jini-ai/agentic`'s source-map.md).
+ * behind on purpose: it's the proof the split is real (see `@jini-ai/agentic`'s archived provenance ledger).
  */
 import type { CapabilityDef } from '@jini-ai/agentic';
 

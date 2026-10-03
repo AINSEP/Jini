@@ -4,7 +4,7 @@
  * performs no I/O; depends only on acp/types and acp/constants.
  * Consumed by acp/rpc.ts, acp/session.ts, acp/models.ts, and acp/updates.ts.
  */
-import type { JsonObject } from './types.js';
+import type { UnknownRecord } from './types.js';
 import { MAX_TIMEOUT_MS } from './constants.js';
 
 /** Default environment variable name `resolveAcpTimeoutMs` reads when the
@@ -45,15 +45,15 @@ export function resolveAcpTimeoutMs(
   return Math.min(MAX_TIMEOUT_MS, Math.max(0, Math.floor(raw)));
 }
 /**
- * Coerces an unknown value to a `JsonObject` if it is a non-null, non-array
+ * Coerces an unknown value to a `UnknownRecord` if it is a non-null, non-array
  * plain object, or returns `null` otherwise. The primary guard used throughout
  * the ACP layer before accessing named properties on parsed JSON frames.
  *
  * @param value - Any value from a JSON parse result.
- * @returns The value cast as `JsonObject`, or `null` when the cast is unsafe.
+ * @returns The value cast as `UnknownRecord`, or `null` when the cast is unsafe.
  */
-export function asObject(value: unknown): JsonObject | null {
-  return value && typeof value === 'object' ? value as JsonObject : null;
+export function asObject(value: unknown): UnknownRecord | null {
+  return value && typeof value === 'object' ? value as UnknownRecord : null;
 }
 /**
  * Returns a short diagnostic string describing the JSON kind of `value`:
@@ -69,7 +69,7 @@ export function acpValueKind(value: unknown): string {
 }
 /**
  * Returns a sorted array of own string keys from `value` if it is a
- * `JsonObject`, or an empty array otherwise. Used to snapshot object
+ * `UnknownRecord`, or an empty array otherwise. Used to snapshot object
  * structure for diagnostic payloads without risking a throw.
  *
  * @param value - Any value from a parsed ACP update object.
@@ -128,7 +128,7 @@ export function extractAcpTextValue(value: unknown, depth = 0): string | null {
  * @param update - A parsed ACP `session/update` params object.
  * @returns The first non-empty text string, or `null` when none is present.
  */
-export function extractAcpUpdateText(update: JsonObject): string | null {
+export function extractAcpUpdateText(update: UnknownRecord): string | null {
   for (const key of [
     'content',
     'text',

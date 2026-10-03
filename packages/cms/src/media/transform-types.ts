@@ -21,7 +21,7 @@
  * solves the identical "who registered this, extensibly" problem for the
  * permission catalog.
  */
-import type { ISODateTime, UUID } from "../core/ports.js";
+import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
 
 /** Resize behavior, mirrors `sharp`'s `fit` vocabulary (a deliberately small subset). */
 export type TransformFit = "cover" | "contain" | "fill" | "inside" | "outside";
@@ -64,7 +64,11 @@ export interface TransformDefinitionRecord {
   createdAt: ISODateTime;
 }
 
-export class TransformValidationError extends Error {}
+export class TransformValidationError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
 
 /** Maps a {@link TransformFormat} to the MIME type served on the rendition response. */
 const MIME_BY_TRANSFORM_FORMAT: Record<TransformFormat, string> = {
@@ -78,7 +82,8 @@ const MIME_BY_TRANSFORM_FORMAT: Record<TransformFormat, string> = {
  * @complexity O(1).
  * @overallScore 100
  */
-export function mimeForTransformFormat(format: TransformFormat): string {
+export function mimeForTransformFormat(requiredArgs: { format: TransformFormat }, optionalArgs: Record<string, never> = {}): string {
+  const { format } = requiredArgs;
   return MIME_BY_TRANSFORM_FORMAT[format];
 }
 
@@ -95,10 +100,10 @@ export const MAX_TRANSFORM_DIMENSION_PX = 8000;
  * @complexity O(1).
  * @overallScore 100
  */
-export function assertValidTransformParams(params: TransformParams): void {
+export function assertValidTransformParams(required: Pick<TransformParams, "format">, optional: Omit<TransformParams, "format"> = {}): void {
+  const params: TransformParams = { format: required.format, ...optional };
   if (!params.format || !(params.format in MIME_BY_TRANSFORM_FORMAT)) {
-    throw new TransformValidationError(
-      `transform params.format must be one of ${Object.keys(MIME_BY_TRANSFORM_FORMAT).join(", ")}`
+    throw new TransformValidationError({ message: `transform params.format must be one of ${Object.keys(MIME_BY_TRANSFORM_FORMAT).join(", ")}` }
     );
   }
   for (const [key, value] of [
@@ -107,12 +112,11 @@ export function assertValidTransformParams(params: TransformParams): void {
   ] as const) {
     if (value === undefined) continue;
     if (!Number.isInteger(value) || value < 1 || value > MAX_TRANSFORM_DIMENSION_PX) {
-      throw new TransformValidationError(
-        `transform params.${key} must be an integer between 1 and ${MAX_TRANSFORM_DIMENSION_PX}`
+      throw new TransformValidationError({ message: `transform params.${key} must be an integer between 1 and ${MAX_TRANSFORM_DIMENSION_PX}` }
       );
     }
   }
   if (params.fit !== undefined && !(params.width && params.height)) {
-    throw new TransformValidationError("transform params.fit requires both width and height");
+    throw new TransformValidationError({ message: "transform params.fit requires both width and height" });
   }
 }

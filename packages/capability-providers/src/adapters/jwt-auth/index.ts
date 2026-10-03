@@ -119,6 +119,9 @@ function verifySessionJwt(token: string, secret: string): SessionJwtVerifyResult
 export interface JwtAuthProviderOptions {
   /** HMAC-SHA256 signing secret for session tokens. Required and explicit — never read from an environment variable inside this adapter. */
   readonly secret: string;
+}
+
+export interface JwtAuthProviderOptionalArgs {
   /** Session lifetime in ms. Defaults to 1 hour, matching the in-memory reference adapter's default. */
   readonly sessionTtlMs?: number;
   /** Injectable clock for deterministic tests; defaults to `Date.now`. */
@@ -139,7 +142,7 @@ interface StoredUser extends AuthUser {
  *
  * 1. **User storage is in-process memory, not durable.** `AuthProvider`'s interface has no
  *    concept of user persistence beyond what `signUp`/`signIn`/`verifySession` need — pair this
- *    with `SqliteDbProvider`/`BlobStorageProvider` at the binding site (per `source-map.md`'s
+ *    with `SqliteDbProvider`/`BlobStorageProvider` at the binding site (per `archived provenance ledger`'s
  *    "composition happens at the binding site, not in this package" design decision) if a host
  *    needs users to survive a process restart. A session JWT signed by one `JwtAuthProvider`
  *    instance verifies its *signature* successfully against any instance sharing the same
@@ -161,13 +164,13 @@ export class JwtAuthProvider implements AuthProvider {
   private readonly revokedJti = new Set<string>();
   private nextId = 1;
 
-  constructor(options: JwtAuthProviderOptions) {
+  constructor(options: JwtAuthProviderOptions, optional: JwtAuthProviderOptionalArgs = {}) {
     if (!options.secret) {
       throw new Error('JwtAuthProvider requires a non-empty options.secret');
     }
     this.secret = options.secret;
-    this.sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
-    this.now = options.now ?? Date.now;
+    this.sessionTtlMs = optional.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
+    this.now = optional.now ?? Date.now;
   }
 
   async signUp(credentials: AuthCredentials): Promise<AuthUser> {
@@ -204,14 +207,14 @@ export class JwtAuthProvider implements AuthProvider {
     return { token, userId: user.id, expiresAt };
   }
 
-  async signOut(token: string): Promise<void> {
+  async signOut({ token }: { token: string }): Promise<void> {
     const result = verifySessionJwt(token, this.secret);
     if (result.ok) {
       this.revokedJti.add(result.payload.jti);
     }
   }
 
-  async verifySession(token: string): Promise<AuthUser | null> {
+  async verifySession({ token }: { token: string }): Promise<AuthUser | null> {
     const result = verifySessionJwt(token, this.secret);
     if (!result.ok) return null;
     if (this.revokedJti.has(result.payload.jti)) return null;

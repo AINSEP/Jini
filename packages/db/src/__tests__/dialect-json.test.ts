@@ -5,8 +5,8 @@ import Database from "better-sqlite3";
 import { type RawBuilder, sql } from "kysely";
 
 import { jsonScalarEquals, jsonSortKey } from "../kernel/index.js";
-import { openPgliteKernel } from "../pglite/index.js";
-import { sqliteKernel } from "../sqlite/index.js";
+import { openPgliteKernel } from "../kernel/pglite/index.js";
+import { sqliteKernel } from "../kernel/sqlite/index.js";
 import type { StorageKernel } from "../kernel/index.js";
 import { PGlite } from "@electric-sql/pglite";
 

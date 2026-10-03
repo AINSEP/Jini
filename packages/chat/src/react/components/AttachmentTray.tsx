@@ -38,7 +38,7 @@ export function AttachmentTray({ attachments, onRemove, renderItem }: Attachment
 }
 
 function DefaultAttachmentChip({ attachment }: { attachment: ChatAttachment }) {
-  const size = formatAttachmentSize(attachment.size);
+  const size = formatAttachmentSize({ size: attachment.size });
   return (
     <span className="jini-attachment-chip-body">
       <span className={`jini-attachment-chip-icon is-${attachment.kind}`}>
@@ -55,7 +55,7 @@ function DefaultAttachmentChip({ attachment }: { attachment: ChatAttachment }) {
 }
 
 /** Formats optional byte counts for the compact composer attachment chip. */
-export function formatAttachmentSize(size: number | undefined): string | null {
+export function formatAttachmentSize({ size }: { size: number | undefined }): string | null {
   if (size === undefined || !Number.isFinite(size) || size < 0) return null;
   if (size < 1_024) return `${Math.round(size)} B`;
   const units = ['KB', 'MB', 'GB'] as const;

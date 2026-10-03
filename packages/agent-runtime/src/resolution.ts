@@ -11,8 +11,8 @@ import { resolveAgentExecutable } from './executables.js';
 // Used by the chat handler so spawn() gets the same executable that
 // detection reported as available — fixes Windows ENOENT when the bare
 // bin name isn't on the child process's PATH.
-export function resolveAgentBin(id: string, configuredEnv: Record<string, string> = {}) {
-  const def = getAgentDef(id);
+export function resolveAgentBin({ id }: { id: string }, { configuredEnv = {} }: { configuredEnv?: Record<string, string> } = {}) {
+  const def = getAgentDef({ id: id });
   if (!def?.bin) return null;
-  return resolveAgentExecutable(def, configuredEnv);
+  return resolveAgentExecutable({ def: def }, { configuredEnv: configuredEnv });
 }

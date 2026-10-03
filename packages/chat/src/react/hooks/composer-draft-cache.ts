@@ -221,7 +221,7 @@ function rememberInMemory(conversationId: string, draft: string): void {
  * treat `null` as "nothing to restore".
  * @complexity Time/space: O(1) on an in-memory hit, O(n) in the stored draft's length otherwise.
  */
-export function readCachedDraft(conversationId: string | null | undefined): string | null {
+export function readCachedDraft({ conversationId }: { conversationId: string | null | undefined }): string | null {
   if (!conversationId) return null;
   const remembered = drafts.get(conversationId);
   if (remembered !== undefined) return remembered;
@@ -241,7 +241,7 @@ export function readCachedDraft(conversationId: string | null | undefined): stri
  * writes `''` here.
  * @complexity Time/space: O(n) in the draft's length; see {@link writeStoredDraft}.
  */
-export function writeCachedDraft(conversationId: string | null | undefined, draft: string): void {
+export function writeCachedDraft({ conversationId, draft }: { conversationId: string | null | undefined; draft: string }): void {
   if (!conversationId) return;
   if (draft.trim() === '') {
     drafts.delete(conversationId);
@@ -259,11 +259,11 @@ export function writeCachedDraft(conversationId: string | null | undefined, draf
  * follow-up caller, out of scope here (that flow lives outside this package).
  * @complexity Time/space: O(1).
  */
-export function clearCachedDraft(conversationId: string | null | undefined): void {
+export function clearCachedDraft({ conversationId }: { conversationId: string | null | undefined }): void {
   if (!conversationId) return;
   drafts.delete(conversationId);
   writeStoredDraft(conversationId, '');
-  writeCachedAttachments(conversationId, []);
+  writeCachedAttachments({ conversationId: conversationId, attachments: [] });
 }
 
 /**
@@ -337,8 +337,7 @@ function readStoredAttachments(conversationId: string): readonly ChatAttachment[
  * @returns The cached references, or `null` when there are none.
  * @complexity Time/space: O(1) on an in-memory hit, O(n) in the stored count otherwise.
  */
-export function readCachedAttachments(
-  conversationId: string | null | undefined,
+export function readCachedAttachments({ conversationId }: { conversationId: string | null | undefined }
 ): readonly ChatAttachment[] | null {
   if (!conversationId) return null;
   const remembered = stagedAttachments.get(conversationId);
@@ -356,9 +355,7 @@ export function readCachedAttachments(
  * restore — the same rule the draft text follows.
  * @complexity Time/space: O(n) in the number of references.
  */
-export function writeCachedAttachments(
-  conversationId: string | null | undefined,
-  attachments: readonly ChatAttachment[],
+export function writeCachedAttachments({ conversationId, attachments }: { conversationId: string | null | undefined; attachments: readonly ChatAttachment[] }
 ): void {
   if (!conversationId) return;
   const key = `${COMPOSER_ATTACHMENTS_STORAGE_PREFIX}${conversationId}`;

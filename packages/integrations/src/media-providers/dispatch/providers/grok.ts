@@ -3,7 +3,7 @@
  * `/images/generations` endpoint (`renderGrokImage`), plus text-to-speech
  * via a dedicated `/tts` endpoint (`renderXAITTS`). Ported near-verbatim
  * from Open Design's `apps/daemon/src/media/index.ts` `renderGrokImage`/
- * `renderXAITTS` — see `source-map.md`.
+ * `renderXAITTS` — see `archived provenance ledger`.
  *
  * Image response shape (`{ data: [{ b64_json | url }] }`) is identical to
  * OpenAI's images API, so `renderGrokImage` routes through
@@ -53,7 +53,7 @@ import { mediaVendorRegistry } from '../vendor-registry.js';
  * (see `imagerouter.ts`'s `imageRouterSizeFor`) — same input -> output
  * mapping for every case, not a behavior change.
  */
-export function grokAspectFor(aspect: string | undefined): string {
+export function grokAspectFor({ aspect }: { aspect: string | undefined }): string {
   if (aspect === '1:1') return '1:1';
   if (aspect === '16:9') return '16:9';
   if (aspect === '9:16') return '9:16';
@@ -70,12 +70,12 @@ interface GrokImageMeta {
 }
 
 const grokImageAdapter: VendorAdapter<GrokImageMeta> = {
-  requireCredential: requireApiKey(NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<GrokImageMeta> {
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<GrokImageMeta> {
     const apiKey = credentials.apiKey!; // requireCredential already validated this.
     const baseUrl = (credentials.baseUrl || 'https://api.x.ai/v1').replace(/\/$/, '');
-    const aspectRatio = grokAspectFor(ctx.aspect);
+    const aspectRatio = grokAspectFor({ aspect: ctx.aspect });
     const body: Record<string, unknown> = {
       model: ctx.wireModel,
       prompt: ctx.prompt || 'A high-quality reference image.',
@@ -98,9 +98,9 @@ const grokImageAdapter: VendorAdapter<GrokImageMeta> = {
     };
   },
 
-  async parseResponse(resp: Response, ctx: RenderContext, request: VendorRequest<GrokImageMeta>): Promise<RenderResult> {
+  async parseResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<GrokImageMeta> }): Promise<RenderResult> {
     const data = await parseOpenAICompatibleJson(resp, 'grok image');
-    const bytes = await bytesFromOpenAICompatibleData(data, 'grok image', ctx.requestInit);
+    const bytes = await bytesFromOpenAICompatibleData({ data, providerTag: 'grok image' }, ctx);
     return {
       bytes,
       providerNote: `grok/${request.meta.wireModel} · ${request.meta.aspectRatio} · ${bytes.length} bytes`,
@@ -109,10 +109,10 @@ const grokImageAdapter: VendorAdapter<GrokImageMeta> = {
   },
 };
 
-mediaVendorRegistry.register('grok', 'image', grokImageAdapter);
+mediaVendorRegistry.register({ providerId: 'grok', routeKey: 'image', adapter: grokImageAdapter });
 
-export async function renderGrokImage(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(grokImageAdapter, ctx, credentials);
+export async function renderGrokImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: grokImageAdapter, ctx: ctx, credentials: credentials });
 }
 
 const XAI_TTS_DEFAULT_VOICE_ID = 'eve';
@@ -133,9 +133,9 @@ interface XAITTSMeta {
  * set it with.
  */
 const xaiTTSAdapter: VendorAdapter<XAITTSMeta> = {
-  requireCredential: requireApiKey(NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<XAITTSMeta> {
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<XAITTSMeta> {
     const apiKey = credentials.apiKey!; // requireCredential already validated this.
     const baseUrl = (credentials.baseUrl || 'https://api.x.ai/v1').replace(/\/$/, '');
     const text = (ctx.prompt && ctx.prompt.trim()) || 'This is a test.';
@@ -160,13 +160,13 @@ const xaiTTSAdapter: VendorAdapter<XAITTSMeta> = {
   parseResponse: createRawBytesParser<XAITTSMeta>({
     errorTag: 'xai tts',
     zeroBytesMessage: 'xai tts response had zero bytes',
-    note: (bytes, meta) => `xai/${meta.wireModel} · voice=${meta.voiceId} · ${meta.language} · ${bytes.length} bytes`,
+    note: ({ bytes, meta }) => `xai/${meta.wireModel} · voice=${meta.voiceId} · ${meta.language} · ${bytes.length} bytes`,
     suggestedExt: '.mp3',
   }),
 };
 
-mediaVendorRegistry.register('grok', 'audio:speech', xaiTTSAdapter);
+mediaVendorRegistry.register({ providerId: 'grok', routeKey: 'audio:speech', adapter: xaiTTSAdapter });
 
-export async function renderXAITTS(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(xaiTTSAdapter, ctx, credentials);
+export async function renderXAITTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: xaiTTSAdapter, ctx: ctx, credentials: credentials });
 }

@@ -1,7 +1,7 @@
 /**
  * `DbProvider` — a swappable, minimal document-store port (collection +
  * record id, not a query language). Speculative port-design exploration
- * (see `source-map.md`) — no OD source; the capability
+ * (see `archived provenance ledger`) — no OD source; the capability
  * `ADS-memory/reports/jini-port/recon/r5b-consumers-matrix.md` §3.3 names as the one Zana
  * (Supabase→db+auth+storage+realtime) and a fleet orchestrator (ports+sqlite/memory)
  * both built explicitly.

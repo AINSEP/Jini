@@ -66,7 +66,7 @@ export function LocalCliAgentList({
   const t = useT();
   const installed = agents.filter((agent) => agent.installed);
   const scope = scopeLabel ?? t('Runs a code-agent CLI detected by the host.');
-  const cardHandles = agentHandle ? buildAgentListHandles(agentHandle, agents.map((agent) => agent.id)) : undefined;
+  const cardHandles = agentHandle ? buildAgentListHandles({ prefix: agentHandle, ids: agents.map((agent) => agent.id) }) : undefined;
 
   return (
     <section className="jini-settings-section jini-local-cli">
@@ -83,7 +83,7 @@ export function LocalCliAgentList({
             className="jini-btn jini-local-cli-rescan"
             disabled={scan.status === 'scanning'}
             onClick={onRescan}
-            {...agentHandleProps(agentHandle, { action: 'rescan', role: 'button', label: t('Rescan') })}
+            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'rescan', role: 'button', label: t('Rescan') }) })}
           >
             {scan.status === 'scanning' ? t('Scanning…') : t('↻ Rescan')}
           </button>

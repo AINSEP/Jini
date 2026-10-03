@@ -175,7 +175,7 @@ export function resolveProviderBaseUrl(
 export function isProviderBaseUrlInvalid(entry: MediaProviderCredentials | null | undefined): boolean {
   const typed = entry?.baseUrl?.trim();
   if (!typed) return false;
-  return !isAllowedEndpointUrl(typed);
+  return !isAllowedEndpointUrl({ raw: typed });
 }
 
 /** Every provider id in the map whose typed base URL is unacceptable — the save gate's input. */

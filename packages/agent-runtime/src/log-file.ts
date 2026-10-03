@@ -21,7 +21,7 @@
  * No OD provenance: OD's daemon derived antigravity's `--log-file` path
  * inline in `server.ts` rather than through a reusable helper. Extracted as
  * one here so the staging is testable on its own and so a second adapter with
- * a log-file flag needs no new code — see `source-map.md`.
+ * a log-file flag needs no new code — see `archived provenance ledger`.
  */
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
@@ -49,9 +49,7 @@ export type PreparedAgentLogFile = {
  * @complexity One `mkdtemp` syscall; `null` return path does no I/O at all.
  * @overallScore 100/100
  */
-export async function prepareAgentLogFile(
-  def: RuntimeAgentDef | null | undefined,
-  label: string,
+export async function prepareAgentLogFile({ def, label }: { def: RuntimeAgentDef | null | undefined; label: string }
 ): Promise<PreparedAgentLogFile | null> {
   if (!def?.needsAgentLogFile) return null;
 

@@ -55,7 +55,7 @@ describe('createVisitorAuthProviderRegistry', () => {
       defaultScopes: ['profile'],
       implementation: 'metadata-only',
     };
-    const registry = createVisitorAuthProviderRegistry({
+    const registry = createVisitorAuthProviderRegistry({}, {
       seed: [source, ...BUILT_IN_VISITOR_AUTH_PROVIDERS],
     });
 
@@ -65,30 +65,30 @@ describe('createVisitorAuthProviderRegistry', () => {
       'facebook',
       'linkedin',
     ]);
-    expect(registry.get('custom')).not.toBe(source);
-    expect(Object.isFrozen(registry.get('custom'))).toBe(true);
-    expect(Object.isFrozen(registry.get('custom')?.credentialSchema)).toBe(true);
+    expect(registry.get({ providerId: 'custom' })).not.toBe(source);
+    expect(Object.isFrozen(registry.get({ providerId: 'custom' }))).toBe(true);
+    expect(Object.isFrozen(registry.get({ providerId: 'custom' })?.credentialSchema)).toBe(true);
   });
 
   it('rejects duplicate providers and malformed schema entries', () => {
-    const registry = createVisitorAuthProviderRegistry({
+    const registry = createVisitorAuthProviderRegistry({}, {
       seed: [GOOGLE_VISITOR_AUTH_PROVIDER],
     });
-    expect(() => registry.register(GOOGLE_VISITOR_AUTH_PROVIDER)).toThrowError(
+    expect(() => registry.register({ definition: GOOGLE_VISITOR_AUTH_PROVIDER })).toThrowError(
       expect.objectContaining<Partial<VisitorAuthRegistryError>>({
         code: 'duplicate-provider',
       }),
     );
 
     expect(() =>
-      registry.register({
+      registry.register({ definition: {
         id: 'bad provider',
         label: 'Bad',
         protocol: 'oauth2',
         credentialSchema: [],
         defaultScopes: [],
         implementation: 'metadata-only',
-      }),
+      } }),
     ).toThrowError(
       expect.objectContaining<Partial<VisitorAuthRegistryError>>({
         code: 'invalid-provider',
@@ -97,10 +97,10 @@ describe('createVisitorAuthProviderRegistry', () => {
   });
 
   it('creates isolated registries rather than shared ambient state', () => {
-    const first = createVisitorAuthProviderRegistry();
-    const second = createVisitorAuthProviderRegistry();
-    first.register(GOOGLE_VISITOR_AUTH_PROVIDER);
-    expect(first.has('google')).toBe(true);
-    expect(second.has('google')).toBe(false);
+    const first = createVisitorAuthProviderRegistry({}, {});
+    const second = createVisitorAuthProviderRegistry({}, {});
+    first.register({ definition: GOOGLE_VISITOR_AUTH_PROVIDER });
+    expect(first.has({ providerId: 'google' })).toBe(true);
+    expect(second.has({ providerId: 'google' })).toBe(false);
   });
 });

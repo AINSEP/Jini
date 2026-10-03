@@ -34,7 +34,6 @@
  *   {@link FrontendSessionBridge.bindToken} answers "what is valid now", and only the latter
  *   belongs in a run request.
  */
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import { CHAT_CAPABILITIES } from '../../core/index.js';
 import { PAGE_CAPABILITIES, executePageCapability, type PageDriver } from '@jini-ai/agentic';
 
@@ -44,8 +43,6 @@ import type { ChatPaneAgentBridgeAccess, ChatPaneAgentToolAction } from '../feat
 const EXECUTED_MEMORY = 256;
 
 export interface FrontendSessionBridgeOptions {
-  /** Daemon origin. Defaults to same-origin, which is how the dev server proxies `/api`. */
-  readonly baseUrl?: string;
   /** Supplying one claims the six `page.*` verbs. Omit for a chat-only surface. */
   readonly pageDriver?: PageDriver;
   /**
@@ -57,6 +54,15 @@ export interface FrontendSessionBridgeOptions {
   readonly onInvocation?: (action: ChatPaneAgentToolAction) => void;
   /** Reported for failures that are nobody's tool call: stream errors, malformed frames. */
   readonly onError?: (error: unknown) => void;
+}
+
+/** The host supplies its origin and stream transport; native fetch defaults may be overridden. */
+export interface FrontendSessionBridgeArgs {
+  /** Pass an empty string for the same-origin proxy used by a browser host. */
+  readonly baseUrl: string;
+  readonly openStream: (args: { url: string }) => EventSource;
+  readonly fetch?: typeof globalThis.fetch;
+  readonly request?: (args: { url: string; init: RequestInit; timeoutMs: number }) => Promise<Response>;
 }
 
 export interface FrontendSessionBridge {
@@ -99,9 +105,16 @@ function errorMessage(error: unknown): string {
  * @param options - What this page can serve and where the daemon is.
  * @returns The pane's bridge, the attach result, and a teardown.
  */
-export function createFrontendSessionBridge(options: FrontendSessionBridgeOptions = {}): FrontendSessionBridge {
-  const base = options.baseUrl ?? '';
+export function createFrontendSessionBridge(
+  { baseUrl: base, openStream, request, fetch }: FrontendSessionBridgeArgs,
+  options: FrontendSessionBridgeOptions = {},
+): FrontendSessionBridge {
   const capabilities = claimedCapabilities(options);
+  const send = request ?? (({ url, init, timeoutMs }: { url: string; init: RequestInit; timeoutMs: number }) => {
+    const timeout = AbortSignal.timeout(timeoutMs);
+    const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+    return (fetch ?? globalThis.fetch)(url, { ...init, signal });
+  });
 
   let sessionId: string | undefined;
   /** Replaced on every reattach; a promise resolved once could never carry this. */
@@ -122,15 +135,15 @@ export function createFrontendSessionBridge(options: FrontendSessionBridgeOption
   const executed = new Set<string>();
 
   const query = capabilities.map((id) => `capability=${encodeURIComponent(id)}`).join('&');
-  const source = new EventSource(`${base}/api/frontend-sessions/stream?${query}`);
+  const source = openStream({ url: `${base}/api/frontend-sessions/stream?${query}` });
 
   async function respond(invocationId: string, body: Record<string, unknown>): Promise<void> {
     if (sessionId === undefined) throw new Error('the surface is not attached yet');
-    const response = await fetchWithTimeout(
-      `${base}/api/frontend-sessions/${encodeURIComponent(sessionId)}/responses`,
-      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ invocationId, ...body }) },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-    );
+    const response = await send({
+      url: `${base}/api/frontend-sessions/${encodeURIComponent(sessionId)}/responses`,
+      init: { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ invocationId, ...body }) },
+      timeoutMs: 15_000,
+    });
     if (!response.ok) throw new Error(`answering "${invocationId}" failed: ${response.status}`);
   }
 
@@ -144,7 +157,7 @@ export function createFrontendSessionBridge(options: FrontendSessionBridgeOption
     let output: unknown;
     try {
       if (options.pageDriver !== undefined && action.capabilityId.startsWith('page.')) {
-        output = await executePageCapability(options.pageDriver, action.capabilityId, action.input);
+        output = await executePageCapability({ driver: options.pageDriver, capabilityId: action.capabilityId, input: action.input });
       } else {
         const entry = Object.entries(options.executors ?? {})
           .find(([prefix]) => action.capabilityId.startsWith(prefix));

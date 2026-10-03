@@ -16,8 +16,8 @@ describe('renderTokenBlock', () => {
   });
 
   it('derives hover, tint and ring shades with color-mix over the base tokens rather than second literals', () => {
-    expect(block).toContain('--jini-mcpui-accent-hover: color-mix(in srgb, var(--jini-mcpui-accent) 88%, #000);');
-    expect(block).toContain('--jini-mcpui-danger-hover: color-mix(in srgb, var(--jini-mcpui-danger) 88%, #000);');
+    expect(block).toContain('--jini-mcpui-accent-hover: color-mix(in srgb, var(--jini-mcpui-accent) 88%, var(--jini-mcpui-text));');
+    expect(block).toContain('--jini-mcpui-danger-hover: color-mix(in srgb, var(--jini-mcpui-danger) 88%, var(--jini-mcpui-text));');
     // Every derived value must resolve through a base token — that is what makes one override reskin
     // the whole ramp. A literal hex in a derived declaration would break that silently.
     const derived = block.split('\n').filter((line) => line.includes('color-mix'));
@@ -28,14 +28,14 @@ describe('renderTokenBlock', () => {
   it('applies overrides to base tokens while leaving derived ones pointing at them', () => {
     const reskinned = renderTokenBlock({ '--jini-mcpui-accent': '#0055ff' });
     expect(reskinned).toContain('--jini-mcpui-accent: #0055ff;');
-    expect(reskinned).not.toContain('--jini-mcpui-accent: #c96442;');
-    expect(reskinned).toContain('--jini-mcpui-accent-hover: color-mix(in srgb, var(--jini-mcpui-accent) 88%, #000);');
+    expect(reskinned).not.toContain(`--jini-mcpui-accent: ${SURFACE_TOKENS['--jini-mcpui-accent']};`);
+    expect(reskinned).toContain('--jini-mcpui-accent-hover: color-mix(in srgb, var(--jini-mcpui-accent) 88%, var(--jini-mcpui-text));');
   });
 
   it('loads no external font — a sandboxed frame has no network to fetch one over', () => {
     expect(block).not.toContain('@import');
     expect(block).not.toContain('http');
-    expect(SURFACE_TOKENS['--jini-mcpui-font']).toContain('-apple-system');
+    expect(SURFACE_TOKENS['--jini-mcpui-font']).toBe('system-ui, sans-serif');
   });
 
   it('pins the light palette and drops the dark media query while FORCE_LIGHT_SURFACE_THEME is set', () => {

@@ -76,3 +76,13 @@ export function isMcpManifest(value: unknown): value is McpManifest {
   const servers = (value as Record<string, unknown>).mcpServers;
   return typeof servers === 'object' && servers !== null && !Array.isArray(servers);
 }
+
+/** Object-argument facade for the legacy structural validator. */
+export function validatePluginManifest(required: { readonly value: unknown }): boolean {
+  return isPluginManifest(required.value);
+}
+
+/** Object-argument facade for the legacy structural validator. */
+export function validateMcpManifest(required: { readonly value: unknown }): boolean {
+  return isMcpManifest(required.value);
+}

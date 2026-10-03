@@ -139,7 +139,7 @@ export function sourceConfigAddFormHandle(listBase: string): string {
  * @complexity See {@link buildAgentListHandles}.
  */
 export function sourceConfigItemHandles(listBase: string, sourceIds: readonly string[]): string[] {
-  return buildAgentListHandles(`${listBase}${HANDLE_SEPARATOR}${LIST_ITEM_NAMESPACE}`, sourceIds);
+  return buildAgentListHandles({ prefix: `${listBase}${HANDLE_SEPARATOR}${LIST_ITEM_NAMESPACE}`, ids: sourceIds });
 }
 
 /** What to publish about one sub-element — see {@link sourceConfigAgentProps}. */
@@ -178,5 +178,5 @@ export function sourceConfigAgentProps(
 ): AgentHandleProps | Record<string, never> {
   if (base === undefined) return {};
   const handle = options.action === undefined ? base : sourceConfigActionHandle(base, options.action);
-  return agentHandle(handle, { role: options.role, label: options.label });
+  return agentHandle({ handle: handle }, { ...(options.role === undefined ? {} : { role: options.role }), ...(options.label === undefined ? {} : { label: options.label }) });
 }

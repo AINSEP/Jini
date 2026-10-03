@@ -3,6 +3,18 @@ import type { InteractiveUiRegistry } from '../interactive-ui/registry.js';
 import type { A2uiInterpreter } from './protocol.js';
 import { useA2uiSurfaceRoot } from './use-a2ui-surface.js';
 
+// Explicit provider contracts, not a guessed common callback. Display-only cards/charts
+// have no action callback; custom interactive entries can declare their own `actionProp`.
+const PROVIDER_ACTION_PROPS: ReadonlyMap<string, string> = new Map([
+  ['native.data-table', 'onRowClick'],
+  ['shadcn.data-table', 'onRowClick'],
+  ['shadcn.button', 'onPress'],
+  ['shadcn.checkbox', 'onCheckedChange'],
+  ['shadcn.radio-group', 'onValueChange'],
+  ['shadcn.text-input', 'onValueChange'],
+  ['shadcn.select', 'onValueChange'],
+]);
+
 export interface A2uiSurfaceRendererProps {
   readonly interpreter: A2uiInterpreter;
   readonly surfaceId: string;
@@ -41,7 +53,7 @@ function RenderNode({ interpreter, surfaceId, registry, componentId, ancestors, 
       </span>
     );
   }
-  const surface = interpreter.getSurface(surfaceId);
+  const surface = interpreter.getSurface({ surfaceId });
   const component = surface?.components.get(componentId);
   if (!component) {
     return (
@@ -56,7 +68,7 @@ function RenderNode({ interpreter, surfaceId, registry, componentId, ancestors, 
   const childProps = { interpreter, surfaceId, registry, ancestors: nextAncestors, onAction };
 
   function resolveText(value: unknown): string {
-    const result = interpreter.resolve(surfaceId, value as Parameters<A2uiInterpreter['resolve']>[1]);
+    const result = interpreter.resolve({ surfaceId, value: value as Parameters<A2uiInterpreter['resolve']>[0]['value'] });
     if (!result.ok) return `⚠ unresolved (${result.reason})`;
     return typeof result.value === 'string' ? result.value : JSON.stringify(result.value);
   }
@@ -109,7 +121,7 @@ function RenderNode({ interpreter, surfaceId, registry, componentId, ancestors, 
         </button>
       );
     default: {
-      const entry = registry.resolveById(component.component);
+      const entry = registry.resolveById({ id: component.component });
       if (!entry) {
         return (
           <span className="a2ui-placeholder" data-a2ui-status="unrenderable-type" data-a2ui-component-id={componentId}>
@@ -118,10 +130,12 @@ function RenderNode({ interpreter, surfaceId, registry, componentId, ancestors, 
         );
       }
       const RegistryComponent = entry.Component;
-      // See module doc: `onRowClick` is the one registry component that exists today
-      // (`native.data-table`/`shadcn.data-table`), not a generic per-component-type feedback
-      // convention — a future non-table provider needs its own decision here, not a guess.
-      return <RegistryComponent {...component.props} onRowClick={() => onAction(componentId)} />;
+      // `onRowClick` belongs to `native.data-table`/`shadcn.data-table`, not a generic
+      // per-component-type feedback convention — each non-table provider needs an explicit
+      // callback contract, supplied by the built-in map or its registry entry, not a guess.
+      // Unannotated custom entries retain the old table callback for compatibility.
+      const actionProp = entry.actionProp ?? PROVIDER_ACTION_PROPS.get(entry.id) ?? 'onRowClick';
+      return <RegistryComponent {...component.props} {...{ [actionProp]: () => onAction(componentId) }} />;
     }
   }
 }
@@ -132,12 +146,12 @@ function RenderNode({ interpreter, surfaceId, registry, componentId, ancestors, 
  * for coverage and the fallback resolution order.
  */
 export function A2uiSurfaceRenderer({ interpreter, surfaceId, registry, fallback }: A2uiSurfaceRendererProps) {
-  const root = useA2uiSurfaceRoot(interpreter, surfaceId);
+  const root = useA2uiSurfaceRoot({ interpreter: interpreter, surfaceId: surfaceId });
   if (!root) return fallback ?? null;
 
   const onAction = (componentId: string) => {
-    const component = interpreter.getSurface(surfaceId)?.components.get(componentId);
-    if (component?.props.action !== undefined) interpreter.buildAction(surfaceId, componentId);
+    const component = interpreter.getSurface({ surfaceId })?.components.get(componentId);
+    if (component?.props.action !== undefined) interpreter.buildAction({ surfaceId, componentId });
   };
 
   return (

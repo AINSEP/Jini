@@ -146,7 +146,7 @@ export function useMemoryEntries(port: MemoryEntriesPort, coord: MemoryEntriesCo
     // BOTH paths fail (e.g. a locked-down document). Check the boolean
     // instead of catching a throw, but preserve the original intent: a total
     // failure must not claim success with a copy flash.
-    const copied = await copyToClipboard(rootDir);
+    const copied = await copyToClipboard({ text: rootDir });
     if (copied) {
       fireFlash('pathCopied');
     } else {

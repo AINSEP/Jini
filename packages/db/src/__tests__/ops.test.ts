@@ -7,10 +7,10 @@ import { afterAll as after, test } from "vitest";
 import Database from "better-sqlite3";
 import { sql } from "kysely";
 
-import { closeSqliteConnection, openSqliteFileKernel, sqliteKernel, sqliteOps } from "../sqlite/index.js";
-import { openPgliteKernel, pgliteOps } from "../pglite/index.js";
+import { closeSqliteConnection, openSqliteFileKernel, sqliteKernel, sqliteOps } from "../kernel/sqlite/index.js";
+import { openPgliteKernel, pgliteOps } from "../kernel/pglite/index.js";
 import { startPgliteOwner } from "../pglite/index.js";
-import { openPgliteSocketKernel, postgresOps } from "../postgres/index.js";
+import { openPgliteSocketKernel, postgresOps } from "../kernel/postgres/index.js";
 import { StorageOpError, StorageOpNotSupportedError } from "../kernel/index.js";
 import type { StorageKernel } from "../kernel/index.js";
 import { PGlite } from "@electric-sql/pglite";

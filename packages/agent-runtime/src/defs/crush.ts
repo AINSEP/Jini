@@ -21,7 +21,7 @@ export const crushAgentDef = {
     // Models come from the providers the user configured in Crush; there is no stable default
     // list to ship, so the picker offers the CLI default and accepts any typed id.
     fallbackModels: [DEFAULT_MODEL_OPTION],
-    buildArgs: (_prompt, _imagePaths, _extra, options = {}) => {
+    buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs: _extra, options = {} } = {}) => {
       const args = ['run', '--quiet'];
       // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
       // behavior) unless a caller explicitly opts into a restricted run.

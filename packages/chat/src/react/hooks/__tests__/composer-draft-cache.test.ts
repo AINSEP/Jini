@@ -12,57 +12,57 @@ describe('composer-draft-cache', () => {
   beforeEach(() => __resetComposerDraftCacheForTests());
 
   it('returns null for a conversation that was never written', () => {
-    expect(readCachedDraft('never-touched')).toBeNull();
+    expect(readCachedDraft({ conversationId: 'never-touched' })).toBeNull();
   });
 
   it('round-trips a written draft', () => {
-    writeCachedDraft('convo-a', 'hello there');
-    expect(readCachedDraft('convo-a')).toBe('hello there');
+    writeCachedDraft({ conversationId: 'convo-a', draft: 'hello there' });
+    expect(readCachedDraft({ conversationId: 'convo-a' })).toBe('hello there');
   });
 
   it('is a no-op read/write for a null or undefined conversation id', () => {
-    writeCachedDraft(null, 'x');
-    writeCachedDraft(undefined, 'y');
-    expect(readCachedDraft(null)).toBeNull();
-    expect(readCachedDraft(undefined)).toBeNull();
+    writeCachedDraft({ conversationId: null, draft: 'x' });
+    writeCachedDraft({ conversationId: undefined, draft: 'y' });
+    expect(readCachedDraft({ conversationId: null })).toBeNull();
+    expect(readCachedDraft({ conversationId: undefined })).toBeNull();
   });
 
   it('deletes the entry when the draft is written back as blank or whitespace-only', () => {
-    writeCachedDraft('convo-a', 'hello there');
-    writeCachedDraft('convo-a', '   ');
-    expect(readCachedDraft('convo-a')).toBeNull();
+    writeCachedDraft({ conversationId: 'convo-a', draft: 'hello there' });
+    writeCachedDraft({ conversationId: 'convo-a', draft: '   ' });
+    expect(readCachedDraft({ conversationId: 'convo-a' })).toBeNull();
   });
 
   it('evicts the oldest tracked conversation once the cap is exceeded', () => {
     for (let i = 0; i < MAX_CACHED_CONVERSATION_DRAFTS; i += 1) {
-      writeCachedDraft(`convo-${i}`, `draft ${i}`);
+      writeCachedDraft({ conversationId: `convo-${i}`, draft: `draft ${i}` });
     }
-    expect(readCachedDraft('convo-0')).toBe('draft 0');
+    expect(readCachedDraft({ conversationId: 'convo-0' })).toBe('draft 0');
 
-    writeCachedDraft('convo-overflow', 'one more than the cap');
+    writeCachedDraft({ conversationId: 'convo-overflow', draft: 'one more than the cap' });
 
-    expect(readCachedDraft('convo-0')).toBeNull();
-    expect(readCachedDraft('convo-overflow')).toBe('one more than the cap');
+    expect(readCachedDraft({ conversationId: 'convo-0' })).toBeNull();
+    expect(readCachedDraft({ conversationId: 'convo-overflow' })).toBe('one more than the cap');
   });
 
   it('does not evict anything when overwriting an already-tracked conversation at the cap', () => {
     for (let i = 0; i < MAX_CACHED_CONVERSATION_DRAFTS; i += 1) {
-      writeCachedDraft(`convo-${i}`, `draft ${i}`);
+      writeCachedDraft({ conversationId: `convo-${i}`, draft: `draft ${i}` });
     }
-    writeCachedDraft('convo-0', 'draft 0 edited');
-    expect(readCachedDraft('convo-0')).toBe('draft 0 edited');
-    expect(readCachedDraft('convo-1')).toBe('draft 1');
+    writeCachedDraft({ conversationId: 'convo-0', draft: 'draft 0 edited' });
+    expect(readCachedDraft({ conversationId: 'convo-0' })).toBe('draft 0 edited');
+    expect(readCachedDraft({ conversationId: 'convo-1' })).toBe('draft 1');
   });
 
   it('clearCachedDraft removes an entry explicitly', () => {
-    writeCachedDraft('convo-a', 'hello there');
-    clearCachedDraft('convo-a');
-    expect(readCachedDraft('convo-a')).toBeNull();
+    writeCachedDraft({ conversationId: 'convo-a', draft: 'hello there' });
+    clearCachedDraft({ conversationId: 'convo-a' });
+    expect(readCachedDraft({ conversationId: 'convo-a' })).toBeNull();
   });
 
   it('clearCachedDraft is a no-op for a null or undefined conversation id', () => {
-    expect(() => clearCachedDraft(null)).not.toThrow();
-    expect(() => clearCachedDraft(undefined)).not.toThrow();
+    expect(() => clearCachedDraft({ conversationId: null })).not.toThrow();
+    expect(() => clearCachedDraft({ conversationId: undefined })).not.toThrow();
   });
 });
 
@@ -75,42 +75,42 @@ describe('composer-draft-cache durability across a reload', () => {
   beforeEach(() => __resetComposerDraftCacheForTests());
 
   it('still has the draft after a reload drops this module scope but not storage', () => {
-    writeCachedDraft('convo-a', 'half a sentence the operator was still typing');
+    writeCachedDraft({ conversationId: 'convo-a', draft: 'half a sentence the operator was still typing' });
     __resetComposerDraftCacheForTests({ keepStorage: true });
-    expect(readCachedDraft('convo-a')).toBe('half a sentence the operator was still typing');
+    expect(readCachedDraft({ conversationId: 'convo-a' })).toBe('half a sentence the operator was still typing');
   });
 
   it('keeps each conversation separate across a reload', () => {
-    writeCachedDraft('convo-a', 'draft for A');
-    writeCachedDraft('convo-b', 'draft for B');
+    writeCachedDraft({ conversationId: 'convo-a', draft: 'draft for A' });
+    writeCachedDraft({ conversationId: 'convo-b', draft: 'draft for B' });
     __resetComposerDraftCacheForTests({ keepStorage: true });
-    expect(readCachedDraft('convo-a')).toBe('draft for A');
-    expect(readCachedDraft('convo-b')).toBe('draft for B');
-    expect(readCachedDraft('convo-never-typed-in')).toBeNull();
+    expect(readCachedDraft({ conversationId: 'convo-a' })).toBe('draft for A');
+    expect(readCachedDraft({ conversationId: 'convo-b' })).toBe('draft for B');
+    expect(readCachedDraft({ conversationId: 'convo-never-typed-in' })).toBeNull();
   });
 
   it('does not resurrect a sent draft after a reload', () => {
-    writeCachedDraft('convo-a', 'about to be sent');
-    writeCachedDraft('convo-a', '');
+    writeCachedDraft({ conversationId: 'convo-a', draft: 'about to be sent' });
+    writeCachedDraft({ conversationId: 'convo-a', draft: '' });
     __resetComposerDraftCacheForTests({ keepStorage: true });
-    expect(readCachedDraft('convo-a')).toBeNull();
+    expect(readCachedDraft({ conversationId: 'convo-a' })).toBeNull();
   });
 
   it('does not resurrect an explicitly cleared draft after a reload', () => {
-    writeCachedDraft('convo-a', 'cleared by the host');
-    clearCachedDraft('convo-a');
+    writeCachedDraft({ conversationId: 'convo-a', draft: 'cleared by the host' });
+    clearCachedDraft({ conversationId: 'convo-a' });
     __resetComposerDraftCacheForTests({ keepStorage: true });
-    expect(readCachedDraft('convo-a')).toBeNull();
+    expect(readCachedDraft({ conversationId: 'convo-a' })).toBeNull();
   });
 
   it('bounds how many conversations it keeps in storage, oldest first', () => {
     for (let i = 0; i < MAX_CACHED_CONVERSATION_DRAFTS; i += 1) {
-      writeCachedDraft(`convo-${i}`, `draft ${i}`);
+      writeCachedDraft({ conversationId: `convo-${i}`, draft: `draft ${i}` });
     }
-    writeCachedDraft('convo-overflow', 'one more than the cap');
+    writeCachedDraft({ conversationId: 'convo-overflow', draft: 'one more than the cap' });
     __resetComposerDraftCacheForTests({ keepStorage: true });
-    expect(readCachedDraft('convo-0')).toBeNull();
-    expect(readCachedDraft('convo-overflow')).toBe('one more than the cap');
+    expect(readCachedDraft({ conversationId: 'convo-0' })).toBeNull();
+    expect(readCachedDraft({ conversationId: 'convo-overflow' })).toBe('one more than the cap');
   });
 });
 
@@ -145,28 +145,28 @@ describe('composer-draft-cache when storage misbehaves', () => {
 
   it('degrades to in-memory only rather than throwing when storage is blocked', () => {
     stubThrowingStorage();
-    expect(() => writeCachedDraft('convo-a', 'typed with storage blocked')).not.toThrow();
-    expect(readCachedDraft('convo-a')).toBe('typed with storage blocked');
-    expect(() => clearCachedDraft('convo-a')).not.toThrow();
-    expect(readCachedDraft('convo-a')).toBeNull();
+    expect(() => writeCachedDraft({ conversationId: 'convo-a', draft: 'typed with storage blocked' })).not.toThrow();
+    expect(readCachedDraft({ conversationId: 'convo-a' })).toBe('typed with storage blocked');
+    expect(() => clearCachedDraft({ conversationId: 'convo-a' })).not.toThrow();
+    expect(readCachedDraft({ conversationId: 'convo-a' })).toBeNull();
   });
 
   it('survives a storage read that returns something this module did not write', () => {
     localStorage.setItem(`${COMPOSER_DRAFT_STORAGE_PREFIX}convo-a`, 'not json at all');
     __resetComposerDraftCacheForTests({ keepStorage: true });
-    expect(readCachedDraft('convo-a')).toBeNull();
+    expect(readCachedDraft({ conversationId: 'convo-a' })).toBeNull();
     expect(localStorage.getItem(`${COMPOSER_DRAFT_STORAGE_PREFIX}convo-a`)).toBeNull();
   });
 
   it('survives a stored envelope whose draft field is the wrong type', () => {
     localStorage.setItem(`${COMPOSER_DRAFT_STORAGE_PREFIX}convo-a`, JSON.stringify({ v: 1, t: 1, d: 42 }));
     __resetComposerDraftCacheForTests({ keepStorage: true });
-    expect(readCachedDraft('convo-a')).toBeNull();
+    expect(readCachedDraft({ conversationId: 'convo-a' })).toBeNull();
   });
 
   it('keeps serving the in-memory draft when a later storage read fails', () => {
-    writeCachedDraft('convo-a', 'already in memory');
+    writeCachedDraft({ conversationId: 'convo-a', draft: 'already in memory' });
     stubThrowingStorage();
-    expect(readCachedDraft('convo-a')).toBe('already in memory');
+    expect(readCachedDraft({ conversationId: 'convo-a' })).toBe('already in memory');
   });
 });

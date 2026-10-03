@@ -7,10 +7,10 @@
  * consume — in particular the `check` text `verify.ts`'s
  * `ActiveRuleForVerify.check` expects a host to supply. Ported from the
  * `memory-capability-barrel` branch's `memory/rules/rules.ts`
- * `parseRuleBody` (see `source-map.md`'s "Barrel branch reconciliation"
+ * `parseRuleBody` (see `archived provenance ledger`'s "Barrel branch reconciliation"
  * section) — a standalone, zero-product-noun text parser with no coupling
  * to that file's annotation/LLM distillation machinery, which was not
- * ported (see `source-map.md`).
+ * ported (see `archived provenance ledger`).
  *
  * Tolerant by design: a body with no recognized labels falls back to
  * treating its first line as the assertion, since a user may type a rule's
@@ -41,7 +41,7 @@ const LABELED_LINE_RE = /^([A-Za-z][A-Za-z ]*?):\s*(.*)$/;
  *   `Check:` line is present, and `assertion` defaults to the body's first
  *   line when no `Assertion:` line is present.
  */
-export function parseRuleBody(body: string): ParsedRuleBody {
+export function parseRuleBody({ body }: { body: string }): ParsedRuleBody {
   let assertion = '';
   let check = '';
   let rationale = '';

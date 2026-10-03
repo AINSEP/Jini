@@ -12,7 +12,7 @@ const panels: AdminPanel<null>[] = [
   { id: 'billing', render: null, nav: { label: 'Billing', group: 'Content', order: 3, soon: true } },
 ];
 
-const groups = buildNav(panels);
+const groups = buildNav({ panels });
 
 /** The full composition, as a host would write it. Individual tests compose less on purpose. */
 function renderSidebar(
@@ -153,7 +153,7 @@ describe('Sidebar.Nav', () => {
     ];
     render(
       <Sidebar activeId="posts">
-        <Sidebar.Nav groups={buildNav(previewablePanels)} />
+        <Sidebar.Nav groups={buildNav({ panels: previewablePanels })} />
       </Sidebar>,
     );
     const link = screen.getByRole('link', { name: /Deployment/ });
@@ -166,6 +166,44 @@ describe('Sidebar.Nav', () => {
     // `AdminNavEntry.icon` is optional so a panel can be listed before anyone has drawn it one.
     expect(() => renderSidebar()).not.toThrow();
     expect(screen.getByRole('link', { name: 'Posts' })).toBeInTheDocument();
+  });
+
+  it('renders a legitimate multi-shape icon but drops anything that could execute', () => {
+    // `AdminNavEntry.icon` is host-authored today, but the same field is the seam a future
+    // descriptor-driven panel would fill — so it has to survive markup nobody reviewed. This
+    // mixes a real icon (grouped path + circle, matching the documented "inner SVG markup"
+    // contract) with every injection shape `dangerouslySetInnerHTML` used to accept.
+    const hostileIcon =
+      '<g transform="translate(1,1)"><path d="M1 1 L9 9" /><circle cx="9" cy="9" r="2" /></g>' +
+      '<script>window.__pwned = true;</script>' +
+      '<image href="javascript:window.__pwned = true" />' +
+      '<path d="M2 2" onclick="window.__pwned = true" style="background:url(javascript:0)" />' +
+      '<foreignObject><body xmlns="http://www.w3.org/1999/xhtml"><img src="x" onerror="window.__pwned = true" /></body></foreignObject>';
+    const hostilePanels: AdminPanel<null>[] = [
+      { id: 'posts', render: null, nav: { label: 'Posts', icon: hostileIcon } },
+    ];
+    const { container } = render(
+      <Sidebar activeId="posts">
+        <Sidebar.Nav groups={buildNav({ panels: hostilePanels })} />
+      </Sidebar>,
+    );
+    // Scoped to the icon's own `<svg>` — the row's `<a href="...">` legitimately has an `href`,
+    // so asserting against the whole container would conflate that with the sanitizer's job.
+    const icon = container.querySelector('svg');
+    expect(icon).not.toBeNull();
+
+    // The legitimate shapes are still there.
+    expect(icon!.querySelector('g[transform="translate(1,1)"] > path[d="M1 1 L9 9"]')).not.toBeNull();
+    expect(icon!.querySelector('g > circle[cx="9"][cy="9"][r="2"]')).not.toBeNull();
+
+    // None of the injection vectors made it into the DOM.
+    expect(icon!.querySelector('script')).toBeNull();
+    expect(icon!.querySelector('image')).toBeNull();
+    expect(icon!.querySelector('foreignObject')).toBeNull();
+    expect(icon!.querySelector('[onclick]')).toBeNull();
+    expect(icon!.querySelector('[style]')).toBeNull();
+    expect(icon!.querySelector('[href]')).toBeNull();
+    expect((window as unknown as { __pwned?: boolean }).__pwned).toBeUndefined();
   });
 
   it('hands rendering to renderItem when supplied, with active/href/collapsed precomputed', () => {

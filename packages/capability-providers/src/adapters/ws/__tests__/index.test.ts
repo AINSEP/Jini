@@ -14,9 +14,22 @@ import {
  * convention. A real `ws.WebSocket`/`ws.WebSocketServer` satisfies the same narrow structural
  * shape (proven separately below by the one real end-to-end smoke test).
  */
-class FakeServer extends EventEmitter implements RealtimeWebSocketServerLike {}
+class FakeServer implements RealtimeWebSocketServerLike {
+  private readonly events = new EventEmitter();
+  on({ event, listener }: { event: 'connection'; listener: (socket: RealtimeWebSocketLike) => void }): void {
+    this.events.on(event, listener);
+  }
+  emit(event: string, ...args: unknown[]): boolean { return this.events.emit(event, ...args); }
+}
 
-class FakeSocket extends EventEmitter implements RealtimeWebSocketLike {
+class FakeSocket implements RealtimeWebSocketLike {
+  private readonly events = new EventEmitter();
+  on(required: { event: 'message'; listener: (data: unknown) => void } |
+    { event: 'close'; listener: () => void } |
+    { event: 'error'; listener: (err: Error) => void }): void {
+    this.events.on(required.event, required.listener);
+  }
+  emit(event: string, ...args: unknown[]): boolean { return this.events.emit(event, ...args); }
   readyState = 1; // OPEN
   send = vi.fn();
 }
@@ -39,31 +52,31 @@ describe('WebSocketRealtimeProvider — in-process subscribe/publish (no sockets
   it('delivers a published event to an in-process subscriber on the same channel', async () => {
     const provider = new WebSocketRealtimeProvider({ server: new FakeServer() });
     const handler = vi.fn();
-    provider.subscribe('room:1', handler);
-    await provider.publish('room:1', { text: 'hi' });
-    expect(handler).toHaveBeenCalledWith({ text: 'hi' });
+    provider.subscribe({ channel: 'room:1', handler });
+    await provider.publish({ channel: 'room:1', event: { text: 'hi' } });
+    expect(handler).toHaveBeenCalledWith({ event: { text: 'hi' } });
   });
 
   it('does not deliver to a subscriber on a different channel', async () => {
     const provider = new WebSocketRealtimeProvider({ server: new FakeServer() });
     const handler = vi.fn();
-    provider.subscribe('room:1', handler);
-    await provider.publish('room:2', 'event');
+    provider.subscribe({ channel: 'room:1', handler });
+    await provider.publish({ channel: 'room:2', event: 'event' });
     expect(handler).not.toHaveBeenCalled();
   });
 
   it('publish on a channel with no subscribers resolves without error', async () => {
     const provider = new WebSocketRealtimeProvider({ server: new FakeServer() });
-    await expect(provider.publish('empty', 'event')).resolves.toBeUndefined();
+    await expect(provider.publish({ channel: 'empty', event: 'event' })).resolves.toBeUndefined();
   });
 
   it('unsubscribe stops further delivery and is idempotent', async () => {
     const provider = new WebSocketRealtimeProvider({ server: new FakeServer() });
     const handler = vi.fn();
-    const unsubscribe = provider.subscribe('room:1', handler);
+    const unsubscribe = provider.subscribe({ channel: 'room:1', handler });
     unsubscribe();
     expect(() => unsubscribe()).not.toThrow();
-    await provider.publish('room:1', 'event');
+    await provider.publish({ channel: 'room:1', event: 'event' });
     expect(handler).not.toHaveBeenCalled();
   });
 });
@@ -75,9 +88,9 @@ describe('WebSocketRealtimeProvider — remote WebSocket subscribers (fake trans
     const socket = connect(server);
 
     socket.emit('message', subscribeMessage('chat'));
-    await provider.publish('chat', { hello: 'world' });
+    await provider.publish({ channel: 'chat', event: { hello: 'world' } });
 
-    expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: 'event', channel: 'chat', event: { hello: 'world' } }));
+    expect(socket.send).toHaveBeenCalledWith({ data: JSON.stringify({ type: 'event', channel: 'chat', event: { hello: 'world' } }) });
   });
 
   it('does not send to a socket that never subscribed', async () => {
@@ -85,7 +98,7 @@ describe('WebSocketRealtimeProvider — remote WebSocket subscribers (fake trans
     const provider = new WebSocketRealtimeProvider({ server });
     const socket = connect(server);
 
-    await provider.publish('chat', { hello: 'world' });
+    await provider.publish({ channel: 'chat', event: { hello: 'world' } });
     expect(socket.send).not.toHaveBeenCalled();
   });
 
@@ -96,7 +109,7 @@ describe('WebSocketRealtimeProvider — remote WebSocket subscribers (fake trans
 
     socket.emit('message', subscribeMessage('chat'));
     socket.emit('message', unsubscribeMessage('chat'));
-    await provider.publish('chat', 'event');
+    await provider.publish({ channel: 'chat', event: 'event' });
 
     expect(socket.send).not.toHaveBeenCalled();
   });
@@ -108,7 +121,7 @@ describe('WebSocketRealtimeProvider — remote WebSocket subscribers (fake trans
 
     socket.emit('message', subscribeMessage('chat'));
     socket.emit('close');
-    await provider.publish('chat', 'event');
+    await provider.publish({ channel: 'chat', event: 'event' });
 
     expect(socket.send).not.toHaveBeenCalled();
   });
@@ -123,7 +136,7 @@ describe('WebSocketRealtimeProvider — remote WebSocket subscribers (fake trans
     socketB.emit('message', subscribeMessage('chat'));
     expect(() => socketA.emit('error', new Error('boom'))).not.toThrow();
 
-    await provider.publish('chat', 'event');
+    await provider.publish({ channel: 'chat', event: 'event' });
     expect(socketB.send).toHaveBeenCalled();
   });
 
@@ -134,7 +147,7 @@ describe('WebSocketRealtimeProvider — remote WebSocket subscribers (fake trans
     socket.readyState = 3; // CLOSED
 
     socket.emit('message', subscribeMessage('chat'));
-    await provider.publish('chat', 'event');
+    await provider.publish({ channel: 'chat', event: 'event' });
 
     expect(socket.send).not.toHaveBeenCalled();
   });
@@ -145,11 +158,11 @@ describe('WebSocketRealtimeProvider — remote WebSocket subscribers (fake trans
     const socket = connect(server);
     const handler = vi.fn();
 
-    provider.subscribe('chat', handler);
+    provider.subscribe({ channel: 'chat', handler });
     socket.emit('message', subscribeMessage('chat'));
-    await provider.publish('chat', 'event');
+    await provider.publish({ channel: 'chat', event: 'event' });
 
-    expect(handler).toHaveBeenCalledWith('event');
+    expect(handler).toHaveBeenCalledWith({ event: 'event' });
     expect(socket.send).toHaveBeenCalled();
   });
 
@@ -160,7 +173,7 @@ describe('WebSocketRealtimeProvider — remote WebSocket subscribers (fake trans
 
     socket.emit('message', subscribeMessage('chat'));
     socket.emit('message', unsubscribeMessage('chat'));
-    await expect(provider.publish('chat', 'event')).resolves.toBeUndefined();
+    await expect(provider.publish({ channel: 'chat', event: 'event' })).resolves.toBeUndefined();
   });
 
   it.each([
@@ -172,7 +185,7 @@ describe('WebSocketRealtimeProvider — remote WebSocket subscribers (fake trans
     const socket = connect(server);
 
     socket.emit('message', raw);
-    await provider.publish('chat', 'event');
+    await provider.publish({ channel: 'chat', event: 'event' });
     expect(socket.send).toHaveBeenCalled();
   });
 
@@ -189,7 +202,7 @@ describe('WebSocketRealtimeProvider — remote WebSocket subscribers (fake trans
     const socket = connect(server);
 
     expect(() => socket.emit('message', raw)).not.toThrow();
-    await provider.publish('chat', 'event');
+    await provider.publish({ channel: 'chat', event: 'event' });
     expect(socket.send).not.toHaveBeenCalled();
   });
 });
@@ -214,7 +227,7 @@ describe('createWebSocketRealtimeProvider — real ws.WebSocketServer end-to-end
     // Give the server a moment to process the subscribe message before publishing.
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    await provider.publish('chat', { hello: 'world' });
+    await provider.publish({ channel: 'chat', event: { hello: 'world' } });
     await expect(nextMessage).resolves.toEqual({ type: 'event', channel: 'chat', event: { hello: 'world' } });
 
     client.close();

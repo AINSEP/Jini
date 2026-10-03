@@ -1,3 +1,4 @@
+import { splitServerFixture } from '../../__tests__/args-fixtures.js';
 /**
  * @module @jini/mcp/server/__tests__/tool-server.wire
  *
@@ -31,6 +32,7 @@
  * a real stdio transport. Covering that needs a genuinely serializing
  * transport, not this pair.
  */
+import { adaptSdkTransport } from '../sdk-transport.js';
 import { EventEmitter } from 'node:events';
 import type { Readable } from 'node:stream';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -42,26 +44,26 @@ import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
 // controller's own scheduling semantics (schedule/reschedule/dispose) are
 // exhaustively unit-tested in `../../client/__tests__/client.test.ts`.
 // Mocking it here lets every test in this file deterministically fire "went
-// idle" (`hoisted.onIdleRef.current()`) to wind the *real* transport pair
+// idle" (`hoisted.onIdleRef.current({})`) to wind the *real* transport pair
 // down, instead of racing — or actually waiting out — a real 30-minute
 // timer just to end a test.
 const hoisted = vi.hoisted(() => ({
-  onIdleRef: { current: null as (() => void) | null },
+  onIdleRef: { current: null as ((required: Record<string, never>) => void) | null },
   noteActivity: vi.fn(),
   dispose: vi.fn(),
 }));
 vi.mock('../../client/client.js', () => ({
-  createMcpIdleExitController: vi.fn(({ onIdle }: { idleMs: number; onIdle: () => void }) => {
+  createMcpIdleExitController: vi.fn(({ onIdle }: { idleMs: number; onIdle: (required: Record<string, never>) => void }) => {
     hoisted.onIdleRef.current = onIdle;
     return {
       noteActivity: hoisted.noteActivity,
-      trackRequest: async (fn: () => unknown) => fn(),
+      trackRequest: async ({ fn }: { fn: (required: Record<string, never>) => unknown }) => fn({}),
       dispose: hoisted.dispose,
     };
   }),
 }));
 
-import { createMcpToolServer, type McpToolServerOptions, type McpTransportLike } from '../tool-server.js';
+import { createMcpToolServer, type McpToolServerRequiredArgs, type McpToolServerOptions, type McpTransportLike } from '../tool-server.js';
 import type { McpToolDef } from '../tool-protocol.js';
 import type { McpResourceDef } from '../resource-protocol.js';
 
@@ -76,7 +78,7 @@ function echoTool(overrides: Partial<McpToolDef> = {}): McpToolDef {
     name: 'echo',
     description: 'echoes its arguments back',
     inputSchema: { type: 'object', properties: { value: { type: 'string' } }, additionalProperties: false },
-    handler: (args) => args,
+    handler: ({ args: args }) => args,
     ...overrides,
   };
 }
@@ -123,10 +125,10 @@ function throwingResource(overrides: Partial<McpResourceDef> = {}): McpResourceD
  * pending until a caller winds it down via {@link closeDown}.
  */
 async function bootWireServer(
-  overrides: Partial<McpToolServerOptions> = {},
+  overrides: Partial<McpToolServerRequiredArgs & McpToolServerOptions> = {},
 ): Promise<{ client: Client; runPromise: Promise<void> }> {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const handle = createMcpToolServer({
+  const handle = createMcpToolServer(...splitServerFixture({
     name: 'wire-test-server',
     version: '1.2.3',
     tools: [echoTool()],
@@ -135,10 +137,10 @@ async function bootWireServer(
     // Same cast `tool-server.ts`'s own `defaultCreateTransport` uses to hand a real SDK transport
     // (whose `onmessage`/`onclose` are typed against concrete SDK message types) through the
     // narrower, test-friendly `McpTransportLike` seam (`message: unknown`).
-    createTransport: () => serverTransport as unknown as McpTransportLike,
+    createTransport: () => adaptSdkTransport({ transport: serverTransport }),
     ...overrides,
-  });
-  const runPromise = handle.run();
+  }));
+  const runPromise = handle.run({});
   const client = new Client({ name: 'wire-test-client', version: '0.0.0' });
   await client.connect(clientTransport);
   return { client, runPromise };
@@ -146,7 +148,7 @@ async function bootWireServer(
 
 /** Fires the (mocked) idle-exit controller to close the real transport pair down, and awaits `run()`'s resolution. */
 async function closeDown(runPromise: Promise<void>): Promise<void> {
-  hoisted.onIdleRef.current?.();
+  hoisted.onIdleRef.current?.({});
   await runPromise;
 }
 
@@ -176,7 +178,7 @@ describe('createMcpToolServer — wire-level (real SDK Client + Server + InMemor
   it('round-trips a tools/call result through the real SDK request-dispatch path, with the handler observing a schema-parsed (not identity-shared) arguments object', async () => {
     let seenArgs: unknown;
     const tool = echoTool({
-      handler: (args) => {
+      handler: ({ args: args }) => {
         seenArgs = args;
         return { received: args };
       },
@@ -223,7 +225,7 @@ describe('createMcpToolServer — wire-level (real SDK Client + Server + InMemor
     let handlerCalled = false;
     const tool = echoTool({
       inputSchema: { type: 'object', properties: { value: { type: 'string' } }, additionalProperties: false },
-      handler: (args) => {
+      handler: ({ args: args }) => {
         handlerCalled = true;
         return 'ok';
       },

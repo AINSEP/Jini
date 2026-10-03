@@ -1,3 +1,5 @@
+import { createSystemClock } from "@jini-ai/core/primitives";
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 /**
  * @file `media` write/read service — walking-skeleton build.
  *
@@ -53,7 +55,7 @@
 import { createHash } from "node:crypto";
 
 import { assertEntityLive } from "../core/entity-liveness.js";
-import type { ClockPort, IdGeneratorPort, UUID } from "../core/ports.js";
+import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
 import {
   MediaConflictError,
   MediaNotFoundError,
@@ -83,7 +85,7 @@ export const DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MiB
 /**
  * Renders a byte count as a human-readable MB figure for the size-cap rejection below (2026-09-21).
  * Every real caller passes a MiB-scale `maxUploadBytes` (10 MiB default, or a host override such as
- * Tovu's 50 MiB), so one decimal place is enough precision without ever showing a raw byte count —
+ * a host's 50 MiB), so one decimal place is enough precision without ever showing a raw byte count —
  * the whole point of this fix (see `uploadMedia`'s size-cap check, and `agent-tools.ts`'s file header
  * for why the catalog description can no longer state a specific number either). `toFixed(1)`'s
  * trailing `.0` is trimmed so a clean multiple of 1 MB (the common case) reads as `10 MB`, not `10.0
@@ -153,8 +155,7 @@ export function resolveWriteOnceSource(
 ): MediaSource {
   const { existing, requestedSha256 } = required;
   if (existing && existing.sha256 !== requestedSha256) {
-    throw new MediaSourceImmutableError(
-      `source.sha256 is write-once: cannot change '${existing.sha256}' to '${requestedSha256}'`
+    throw new MediaSourceImmutableError({ message: `source.sha256 is write-once: cannot change '${existing.sha256}' to '${requestedSha256}'` }
     );
   }
   return { sha256: requestedSha256 };
@@ -200,7 +201,8 @@ const MEDIA_SLUG_UUID_SHAPE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
  *  "coerce, don't fail" convention `deriveTitleFromFilename`/`slugifyMediaTitle` already use. */
 const MEDIA_MAX_SLUG_LENGTH = 120;
 
-export function isValidMediaSlugFormat(slug: string): boolean {
+export function isValidMediaSlugFormat(requiredArgs: { slug: string }, optionalArgs: Record<string, never> = {}): boolean {
+  const { slug } = requiredArgs;
   return MEDIA_SLUG_FORMAT_PATTERN.test(slug) && !MEDIA_SLUG_UUID_SHAPE_PATTERN.test(slug);
 }
 
@@ -285,8 +287,8 @@ export interface UploadMediaInput {
 }
 
 export interface UploadMediaDeps {
-  clock: ClockPort;
-  idGen: IdGeneratorPort;
+  clock: Clock;
+  idGen: IdGenerator;
   mediaRepo: MediaRepoPort;
   blobRepo: AssetBlobRepoPort;
   renditionRepo: AssetRenditionRepoPort;
@@ -305,7 +307,7 @@ export interface UploadMediaOptional {
 
 /**
  * Validates, hashes, dedups by `(workspaceId, sha256)`, and writes a new media
- * asset. Ordering (INV-1a): bytes are written (or found already
+ * asset. Ordering : bytes are written (or found already
  * present via dedup) BEFORE the media row is saved — a media row never exists
  * without corresponding bytes.
  *
@@ -324,6 +326,7 @@ export interface UploadMediaOptional {
  * overhead, not a scan) — plus {@link deriveUniqueMediaSlug}'s own O(n) in the number of prior
  * same-base-slug collisions (see that function's doc).
  * @overallScore 100
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 export async function uploadMedia(
   required: UploadMediaRequired,
@@ -334,28 +337,26 @@ export async function uploadMedia(
   const allowedMimeTypes = optional.allowedMimeTypes ?? DEFAULT_ALLOWED_MIME_TYPES;
 
   if (!allowedMimeTypes.has(input.contentType)) {
-    throw new MediaValidationError(
-      `content type '${input.contentType}' is not allowed for upload`
+    throw new MediaValidationError({ message: `content type '${input.contentType}' is not allowed for upload` }
     );
   }
   if (input.bytes.byteLength === 0) {
-    throw new MediaValidationError("uploaded file is empty");
+    throw new MediaValidationError({ message: "uploaded file is empty" });
   }
   if (input.bytes.byteLength > maxUploadBytes) {
-    throw new MediaValidationError(
-      `uploaded file exceeds the ${formatMaxUploadBytesAsMb(maxUploadBytes)} size cap`
+    throw new MediaValidationError({ message: `uploaded file exceeds the ${formatMaxUploadBytesAsMb(maxUploadBytes)} size cap` }
     );
   }
 
   const sha256 = createHash("sha256").update(input.bytes).digest("hex");
-  const nowIso = deps.clock.nowIso();
+  const nowIso = kernelNowIso({ clock: deps.clock });
 
-  const storageKey = await withSha256Lock(sha256, async () => {
+  const storageKey = await withSha256Lock({ key: sha256, criticalSection: async () => {
     const existingBlob = await deps.blobRepo.findByHash({ workspaceId: input.workspaceId, sha256 });
     if (existingBlob) {
       if (existingBlob.status === "tombstoned") {
         // Resurrect: cancel the pending GC in the same locked section rather
-        // than writing a duplicate blob (INV-1 dedup rule).
+        // than writing a duplicate blob ( dedup rule). See docs/decisions/DR-004-journaled-blob-gc.md.
         await deps.blobRepo.save({ ...existingBlob, status: "active", tombstonedAt: undefined });
       }
       return existingBlob.storageKey;
@@ -376,7 +377,7 @@ export async function uploadMedia(
       createdAt: nowIso,
     });
     return written.storageKey;
-  });
+  } });
 
   const title = deriveTitleFromFilename(input.filename);
   const slug = await deriveUniqueMediaSlug(deps.mediaRepo, input.workspaceId, title);
@@ -460,7 +461,7 @@ export async function getMediaById(
 ): Promise<{ media: MediaRecord }> {
   const { workspaceId, id } = required.input;
   const media = await required.deps.mediaRepo.findById({ workspaceId, id });
-  if (!media) throw new MediaNotFoundError(`media '${id}' was not found`);
+  if (!media) throw new MediaNotFoundError({ message: `media '${id}' was not found` });
   return { media };
 }
 
@@ -486,11 +487,12 @@ export interface FindMediaByIdOrSlugRequired {
  * falls through.
  *
  * Never throws (unlike {@link getMediaById}): every call site that needs this (an embed resolver, a
- * public rendition route) already has its own REQ-27-style non-throwing-miss contract, so this
+ * public rendition route) already has its own -style non-throwing-miss contract, so this
  * returns `null` on failure and lets the caller apply its own not-found handling rather than forcing
  * one shape on every caller.
  *
  * @complexity O(1) — at most two indexed repo lookups, short-circuited on the first hit.
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 export async function findMediaByIdOrSlug(
   required: FindMediaByIdOrSlugRequired,
@@ -547,7 +549,7 @@ export interface UpdateMediaMetadataInput {
 }
 
 export interface UpdateMediaMetadataDeps {
-  clock: ClockPort;
+  clock: Clock;
   mediaRepo: MediaRepoPort;
 }
 
@@ -572,7 +574,7 @@ export interface UpdateMediaMetadataRequired {
  *  `undefined` (leave unchanged) both bypass this — only a real provided number is checked. */
 function assertPositiveIntegerOrThrow(value: number, field: "width" | "height"): void {
   if (!Number.isInteger(value) || value <= 0) {
-    throw new MediaValidationError(`media.${field} must be a positive integer, got ${value}`);
+    throw new MediaValidationError({ message: `media.${field} must be a positive integer, got ${value}` });
   }
 }
 
@@ -589,20 +591,19 @@ function assertPositiveIntegerOrThrow(value: number, field: "width" | "height"):
  */
 async function resolveSlugForUpdate(mediaRepo: MediaRepoPort, workspaceId: UUID, id: UUID, rawSlug: string): Promise<string> {
   const slug = rawSlug.trim().toLowerCase();
-  if (!slug || !isValidMediaSlugFormat(slug)) {
-    throw new MediaValidationError(
-      "slug must use lowercase letters, numbers, and dashes, and must not be shaped like a UUID"
+  if (!slug || !isValidMediaSlugFormat({ slug: slug })) {
+    throw new MediaValidationError({ message: "slug must use lowercase letters, numbers, and dashes, and must not be shaped like a UUID" }
     );
   }
   // Same bound and rejection style as `post.ts`'s `resolveExplicitSlug` — a human typed this value,
   // so it is refused with a clear reason rather than silently truncated (unlike the derived-on-
   // upload path, see `MEDIA_MAX_SLUG_LENGTH`'s doc).
   if (slug.length > MEDIA_MAX_SLUG_LENGTH) {
-    throw new MediaValidationError(`slug must be ${MEDIA_MAX_SLUG_LENGTH} characters or fewer`);
+    throw new MediaValidationError({ message: `slug must be ${MEDIA_MAX_SLUG_LENGTH} characters or fewer` });
   }
   const duplicate = await mediaRepo.findBySlug({ workspaceId, slug });
   if (duplicate && duplicate.id !== id) {
-    throw new MediaConflictError(`slug '${slug}' is already used by media '${duplicate.id}'`);
+    throw new MediaConflictError({ message: `slug '${slug}' is already used by media '${duplicate.id}'` });
   }
   return slug;
 }
@@ -620,9 +621,9 @@ async function resolveSlugForUpdate(mediaRepo: MediaRepoPort, workspaceId: UUID,
 function resolveHtmlAttributesForUpdate(rawValue: string): string | null {
   const trimmed = rawValue.trim();
   if (trimmed === "") return null;
-  const parsed = parseMediaHtmlAttributes(trimmed);
+  const parsed = parseMediaHtmlAttributes({ text: trimmed });
   if (parsed.error) {
-    throw new MediaValidationError(`media.htmlAttributes: ${describeMediaHtmlAttributeError(parsed.error)}`);
+    throw new MediaValidationError({ message: `media.htmlAttributes: ${describeMediaHtmlAttributeError(parsed.error)}` });
   }
   return trimmed;
 }
@@ -633,7 +634,7 @@ export async function updateMediaMetadata(
 ): Promise<{ media: MediaRecord }> {
   const { deps, input } = required;
   const existing = await deps.mediaRepo.findById({ workspaceId: input.workspaceId, id: input.id });
-  if (!existing) throw new MediaNotFoundError(`media '${input.id}' was not found`);
+  if (!existing) throw new MediaNotFoundError({ message: `media '${input.id}' was not found` });
   assertEntityLive({ entityType: "media", entityId: input.id, state: existing.status === "trashed" ? "trashed" : "live" });
 
   if (input.width !== undefined && input.width !== null) assertPositiveIntegerOrThrow(input.width, "width");
@@ -664,7 +665,7 @@ export async function updateMediaMetadata(
     height: input.height !== undefined ? input.height : existing.height,
     cssClass: input.cssClass !== undefined ? (input.cssClass === null ? null : input.cssClass.trim() || null) : existing.cssClass,
     htmlAttributes,
-    updatedAt: deps.clock.nowIso(),
+    updatedAt: kernelNowIso({ clock: deps.clock }),
     version: existing.version + 1,
   };
   await deps.mediaRepo.save(media);
@@ -676,7 +677,7 @@ export async function updateMediaMetadata(
 // ---------------------------------------------------------------------------
 
 export interface TrashMediaDeps {
-  clock: ClockPort;
+  clock: Clock;
   mediaRepo: MediaRepoPort;
 }
 
@@ -698,13 +699,13 @@ export async function trashMedia(
 ): Promise<{ media: MediaRecord }> {
   const { deps, input } = required;
   const existing = await deps.mediaRepo.findById(input);
-  if (!existing) throw new MediaNotFoundError(`media '${input.id}' was not found`);
+  if (!existing) throw new MediaNotFoundError({ message: `media '${input.id}' was not found` });
   if (existing.status === "trashed") return { media: existing };
 
   const media: MediaRecord = {
     ...existing,
     status: "trashed" as MediaStatus,
-    updatedAt: deps.clock.nowIso(),
+    updatedAt: kernelNowIso({ clock: deps.clock }),
     version: existing.version + 1,
   };
   await deps.mediaRepo.save(media);
@@ -723,7 +724,7 @@ export interface PurgeMediaDeps {
    * that doesn't wire a clock into `PurgeMediaDeps` keeps compiling and
    * behaving correctly unchanged.
    */
-  clock?: ClockPort | undefined;
+  clock?: Clock | undefined;
 }
 
 export interface PurgeMediaRequired {
@@ -769,15 +770,13 @@ export async function purgeMedia(
 ): Promise<{ purged: true }> {
   const { deps, input } = required;
   const existing = await deps.mediaRepo.findById(input);
-  if (!existing) throw new MediaNotFoundError(`media '${input.id}' was not found`);
+  if (!existing) throw new MediaNotFoundError({ message: `media '${input.id}' was not found` });
 
   if (existing.status !== "trashed") {
-    throw new MediaStillReferencedError(
-      `media '${input.id}' must be trashed before it can be purged`,
-      [
+    throw new MediaStillReferencedError({ message: `media '${input.id}' must be trashed before it can be purged`, referencing: [
         `media '${input.id}' is still active (stand-in for the real entry_refs ` +
           `where-used index, which is not implemented — see purgeMedia's doc comment)`,
-      ]
+      ] }
     );
   }
 
@@ -798,7 +797,7 @@ export interface MediaRowCleanupDeps {
   blobRepo: AssetBlobRepoPort;
   renditionRepo: AssetRenditionRepoPort;
   /** Optional — see `PurgeMediaDeps.clock`'s identical doc. */
-  clock?: ClockPort | undefined;
+  clock?: Clock | undefined;
 }
 
 /**
@@ -818,7 +817,7 @@ async function removeMediaRowsAndTombstoneBlob(
   await deps.renditionRepo.removeByAsset({ workspaceId: input.workspaceId, assetId: input.id });
   await deps.mediaRepo.remove({ workspaceId: input.workspaceId, id: input.id });
 
-  const clock = deps.clock ?? { nowIso: () => new Date().toISOString() };
+  const clock = deps.clock ?? createSystemClock();
   await tombstoneBlobIfUnreferenced({
     deps: { mediaRepo: deps.mediaRepo, blobRepo: deps.blobRepo, clock },
     input: { workspaceId: input.workspaceId, sha256: input.sha256 },

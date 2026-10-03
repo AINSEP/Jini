@@ -3,32 +3,32 @@ import { composeRuntimeCompatNormalizers, noopRuntimeCompatNormalizer, type Runt
 
 describe('noopRuntimeCompatNormalizer', () => {
   it('returns the body unchanged', () => {
-    expect(noopRuntimeCompatNormalizer('index.html', 'body')).toBe('body');
+    expect(noopRuntimeCompatNormalizer({ name: 'index.html', body: 'body' })).toBe('body');
     const obj = { x: 1 };
-    expect(noopRuntimeCompatNormalizer('index.html', obj)).toBe(obj);
+    expect(noopRuntimeCompatNormalizer({ name: 'index.html', body: obj })).toBe(obj);
   });
 });
 
 describe('composeRuntimeCompatNormalizers', () => {
   it('applies each normalizer in order, threading the output forward', () => {
-    const appendA: RuntimeCompatNormalizer = (_name, body) => `${body as string}-A`;
-    const appendB: RuntimeCompatNormalizer = (_name, body) => `${body as string}-B`;
-    const composed = composeRuntimeCompatNormalizers([appendA, appendB]);
-    expect(composed('index.html', 'start')).toBe('start-A-B');
+    const appendA: RuntimeCompatNormalizer = ({ body }) => `${body as string}-A`;
+    const appendB: RuntimeCompatNormalizer = ({ body }) => `${body as string}-B`;
+    const composed = composeRuntimeCompatNormalizers({ normalizers: [appendA, appendB] });
+    expect(composed({ name: 'index.html', body: 'start' })).toBe('start-A-B');
   });
 
   it('with zero normalizers, returns the body unchanged', () => {
-    const composed = composeRuntimeCompatNormalizers([]);
-    expect(composed('index.html', 'unchanged')).toBe('unchanged');
+    const composed = composeRuntimeCompatNormalizers({ normalizers: [] });
+    expect(composed({ name: 'index.html', body: 'unchanged' })).toBe('unchanged');
   });
 
   it('passes the name through to every normalizer', () => {
     const seen: string[] = [];
-    const record: RuntimeCompatNormalizer = (name, body) => {
+    const record: RuntimeCompatNormalizer = ({ name, body }) => {
       seen.push(name);
       return body;
     };
-    composeRuntimeCompatNormalizers([record, record])('a.html', 'x');
+    composeRuntimeCompatNormalizers({ normalizers: [record, record] })({ name: 'a.html', body: 'x' });
     expect(seen).toEqual(['a.html', 'a.html']);
   });
 });

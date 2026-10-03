@@ -7,13 +7,15 @@ import type { Response } from 'express';
 import { createApiErrorResponse, type ApiError, type ApiErrorCode } from '@jini-ai/protocol';
 
 /** Writes `body` as JSON with the given status code. */
-export function sendJson(res: Response, status: number, body: unknown): void {
+export function sendJson({ res, status, body }: { readonly res: Response; readonly status: number; readonly body: unknown }, _optional: Record<string, never> = {}): void {
   res.status(status).json(body);
 }
 
-/** Writes an `ApiError`, wrapped in the standard `{ error }` envelope, with the given status code. */
-export function sendApiError(res: Response, status: number, error: ApiError): void {
-  res.status(status).json(createApiErrorResponse(error));
+/** Writes an `ApiError`, wrapped in the standard `{ error }` envelope, with the given status code.
+ * Older hand-mounted routes supplied code/message and metadata separately; construct their
+ * ApiError first so both generations now share one serialization and envelope policy. */
+export function sendApiError({ res, status, error }: { readonly res: Response; readonly status: number; readonly error: ApiError }, _optional: Record<string, never> = {}): void {
+  res.status(status).json(createApiErrorResponse({ error: error }));
 }
 
 /**
@@ -50,6 +52,6 @@ const ERROR_STATUS_BY_CODE: Partial<Record<ApiErrorCode, number>> = {
 };
 
 /** Resolves the HTTP status to send for an `ApiError`, defaulting to 500 for unmapped codes. */
-export function statusForError(error: ApiError): number {
+export function statusForError({ error }: { readonly error: ApiError }, _optional: Record<string, never> = {}): number {
   return ERROR_STATUS_BY_CODE[error.code] ?? 500;
 }

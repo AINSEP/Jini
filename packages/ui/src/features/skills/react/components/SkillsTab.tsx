@@ -93,7 +93,7 @@ export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'e
   const noResultsLabel = labels?.noResultsLabel ?? t('No skills match these filters.');
   const loadErrorLabel = labels?.loadErrorLabel ?? t('Could not load skills: {error}', { error: loadError ?? '' });
   const rowHandles = agentHandle
-    ? buildAgentListHandles(agentSubHandle(agentHandle, 'skill'), filteredSkills.map((skill) => skill.id))
+    ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action: 'skill' }), ids: filteredSkills.map((skill) => skill.id) })
     : undefined;
 
   return (
@@ -107,14 +107,14 @@ export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'e
             value={filters.search}
             onChange={(event) => setSearch(event.target.value)}
             aria-label={searchPlaceholder}
-            {...agentHandleProps(agentHandle, { action: 'search', role: 'field', label: searchPlaceholder })}
+            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'search', role: 'field', label: searchPlaceholder }) })}
           />
           <button
             type="button"
             className="jini-button jini-button-primary"
             onClick={startCreate}
             data-testid="skills-new"
-            {...agentHandleProps(agentHandle, { action: 'new', role: 'button', label: newSkillLabel })}
+            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'new', role: 'button', label: newSkillLabel }) })}
           >
             <Icon name="plus" size={13} />
             <span>{newSkillLabel}</span>
@@ -127,7 +127,7 @@ export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'e
             <select
               value={filters.source}
               onChange={(event) => setSourceFilter(event.target.value as typeof filters.source)}
-              {...agentHandleProps(agentHandle, { action: 'filter-source', role: 'field', label: sourceFilterLabel })}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'filter-source', role: 'field', label: sourceFilterLabel }) })}
             >
               <option value="all">
                 {allLabel} ({sourceOptions.all})
@@ -145,7 +145,7 @@ export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'e
             <select
               value={filters.mode}
               onChange={(event) => setModeFilter(event.target.value)}
-              {...agentHandleProps(agentHandle, { action: 'filter-mode', role: 'field', label: modeFilterLabel })}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'filter-mode', role: 'field', label: modeFilterLabel }) })}
             >
               <option value="all">
                 {allLabel} ({modeOptions.all})
@@ -164,7 +164,7 @@ export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'e
               <select
                 value={filters.category}
                 onChange={(event) => setCategoryFilter(event.target.value)}
-                {...agentHandleProps(agentHandle, { action: 'filter-category', role: 'field', label: categoryFilterLabel })}
+                {...agentHandleProps({}, { base: agentHandle, ...({ action: 'filter-category', role: 'field', label: categoryFilterLabel }) })}
               >
                 <option value="all">
                   {allLabel} ({categoryOptions.all})
@@ -197,7 +197,7 @@ export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'e
           onCancel={cancelDraft}
           onSubmit={submitDraft}
           labels={labels}
-          {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'create-form') } : {})}
+          {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'create-form' }) } : {})}
         />
       ) : null}
 

@@ -47,8 +47,8 @@ export interface ArtifactRenderMatch {
 }
 
 /**
- * A minimal ordered registry of `ArtifactRenderer`s: first-registered,
- * first-matched (later registrations can still override by registering
+ * A minimal ordered registry of `ArtifactRenderer`s: newest-registered,
+ * first-matched (later registrations override earlier matches by registering
  * before resolution, mirroring the tool-renderer registry's "last writer
  * wins on the same id" convention is intentionally NOT used here — artifact
  * renderers are matched by predicate, not by name, so ordering is the
@@ -66,7 +66,7 @@ export class RendererRegistry {
     };
   }
 
-  /** The first registered renderer whose `canRender` accepts `ctx`, or `null`. */
+  /** The newest registered renderer whose `canRender` accepts `ctx`, or `null`. */
   resolve(ctx: ArtifactRenderContext): ArtifactRenderMatch | null {
     for (const renderer of this.renderers) {
       if (renderer.canRender(ctx)) return { renderer, file: ctx.file };

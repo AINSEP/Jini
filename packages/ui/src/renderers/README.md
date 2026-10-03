@@ -7,7 +7,7 @@ storage/focus-guard shim, Markdown through `micromark` + GFM with Shiki syntax h
 ships an annotation-canvas overlay, new-tab preview, and a preview-modal shell.
 
 Formerly the standalone `@jini-ai/renderers-react` package; folded into `@jini-ai/ui` as this
-`./renderers` subpath (2026-08-09) — see [source-map.md](./source-map.md) for the move.
+`./renderers` subpath (2026-08-09) — see the archived provenance ledger for the move.
 
 ## Install
 
@@ -70,7 +70,7 @@ function Preview({ file }: { file: ArtifactFile }) {
 }
 
 // `resolveArtifactManifest` does not infer a manifest from `name`'s
-// extension (that was removed — see "What's swappable" and source-map.md's
+// extension (that was removed — see "What's swappable" and the archived provenance ledger's
 // 2026-08-09 entry): a file needs an explicit `manifest` for the registry
 // to resolve a renderer for it.
 const markdownFile: ArtifactFile = {
@@ -90,7 +90,7 @@ const markdownFile: ArtifactFile = {
 
 ## What's swappable
 
-`RendererRegistry` is the seam: `.register(renderer)` adds or replaces a renderer by `id` (e.g. a
+`RendererRegistry` is the seam: `.register({ renderer })` adds or replaces a renderer by `id` (e.g. a
 host's own `deck-html` or a custom kind), and `createDefaultRendererRegistry()` is a convenience
 default, not a fixed set. `ArtifactView`'s `slots` and `annotation` props are likewise real
 injection points. Fixed: the two sandboxed-iframe cores' CSP/shim mechanics themselves, and the
@@ -110,5 +110,5 @@ ESM only — ships `"type": "module"` with no CommonJS `require` build.
 
 ## Provenance
 
-See [source-map.md](./source-map.md) for per-file provenance and scope decisions. Apache-2.0,
+See the archived provenance ledger for per-file provenance and scope decisions. Apache-2.0,
 inherited from Open Design — see the repo `NOTICE`.

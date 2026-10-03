@@ -1,4 +1,4 @@
-import type { JsonValue, UUID } from "../core/ports.js";
+import type { JsonValue, UUID } from "@jini-ai/core/primitives";
 import type { SettingOwnerKind, SettingValueSchema } from "./types.js";
 import { renameDefinition, retypeDefinition, deprecateDefinition, tombstoneDefinition } from "./write-service.js";
 import type { SettingsWriteServiceDeps } from "./write-service.js";
@@ -37,7 +37,10 @@ export interface DefinitionOpContext {
   authWorkspaceId: UUID;
 }
 
-export type DefinitionOpHandler = (ctx: DefinitionOpContext, item: DefinitionOpRequestItem) => Promise<void>;
+export type DefinitionOpHandler = (
+  required: { ctx: DefinitionOpContext; item: DefinitionOpRequestItem },
+  optional?: Record<string, never>
+) => Promise<void>;
 
 /** `coercionJson` may arrive as a bare coercer tag string or `{tag}`; defaults to the identity coercer. */
 function resolveCoercionTag(coercionJson: string | { tag?: string } | undefined): string {
@@ -56,7 +59,7 @@ export const NON_REGISTER_DEFINITION_OP_NAMES = ["rename", "retype", "deprecate"
 export type NonRegisterDefinitionOp = (typeof NON_REGISTER_DEFINITION_OP_NAMES)[number];
 
 /** Narrows an untrusted `op` string to {@link NonRegisterDefinitionOp}, or `null` if it isn't one. */
-export function parseNonRegisterDefinitionOp(op: string): NonRegisterDefinitionOp | null {
+export function parseNonRegisterDefinitionOp({ op }: { op: string }, _optional: Record<string, never> = {}): NonRegisterDefinitionOp | null {
   return (NON_REGISTER_DEFINITION_OP_NAMES as readonly string[]).includes(op)
     ? (op as NonRegisterDefinitionOp)
     : null;
@@ -70,7 +73,7 @@ export function parseNonRegisterDefinitionOp(op: string): NonRegisterDefinitionO
  * future regression that skips the parse step.
  */
 const nonRegisterDefinitionOps = {
-  rename: async (ctx, item) => {
+  rename: async ({ ctx, item }) => {
     await renameDefinition({
       deps: ctx.deps,
       input: {
@@ -84,7 +87,7 @@ const nonRegisterDefinitionOps = {
       },
     });
   },
-  retype: async (ctx, item) => {
+  retype: async ({ ctx, item }) => {
     await retypeDefinition({
       deps: ctx.deps,
       input: {
@@ -101,7 +104,7 @@ const nonRegisterDefinitionOps = {
       },
     });
   },
-  deprecate: async (ctx, item) => {
+  deprecate: async ({ ctx, item }) => {
     await deprecateDefinition({
       deps: ctx.deps,
       input: {
@@ -113,7 +116,7 @@ const nonRegisterDefinitionOps = {
       },
     });
   },
-  tombstone: async (ctx, item) => {
+  tombstone: async ({ ctx, item }) => {
     await tombstoneDefinition({
       deps: ctx.deps,
       input: {

@@ -1,5 +1,6 @@
-import type { ClockPort, IdGeneratorPort, JsonValue, UUID } from "../core/ports.js";
-import type { PrincipalRepoPort } from "../identity/index.js";
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
+import type { Clock, IdGenerator, JsonValue, UUID } from "@jini-ai/core/primitives";
+import type { SettingsPrincipalLookupPort } from "./principal-lookup.js";
 import {
   AliasDepthExceededError,
   DefinitionInvalidError,
@@ -22,7 +23,7 @@ import {
 import { SCOPE_BIT, type SettingDefinitionRecord, type SettingScope, type SettingValueSchema } from "./types.js";
 
 /**
- * @file `SettingsWriteService` — the single write chokepoint (REQ-04).
+ * @file `SettingsWriteService` — the single write chokepoint.
  *
  * Purpose:
  * The ONLY value/definition-mutation path. Repo write methods
@@ -30,13 +31,14 @@ import { SCOPE_BIT, type SettingDefinitionRecord, type SettingScope, type Settin
  * be called from outside this file (Code Review enforces this as a file-
  * boundary check).
  *
- * Every export here: `authorize()` first (fail-closed, INV-07) -> validate ->
- * write value/definition row + revision in one transaction (INV-01).
+ * Every export here: `authorize` first (fail-closed) -> validate ->
+ * write value/definition row + revision in one transaction.
  *
  * `deriveRequiredPermission` is the sole source of truth for the self-vs-
- * other permission rule (behavior.spec.md §1.3) — closes Red-Team RT-003.
- * REQ-13's target-principal check reuses `identity.PrincipalRepoPort`
- * directly — no new port (closes RT-001/RT-002 at the implementation level).
+ * other permission rule (behavior.spec.md §1.3) — closes Red-Team.
+ * target-principal checks use a host-supplied active-principal lookup over core Principal;
+ * identity and membership policy remain at the host boundary.
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
  */
 
 /** Matches `core/commands/command.ts`'s `AuthorizeFn` shape structurally — no import, kept decoupled. */
@@ -50,23 +52,24 @@ export type AuthorizeFn = (params: {
 
 export interface SettingsWriteServiceDeps {
   repo: SettingsRepoPort;
-  clock: ClockPort;
-  ids: IdGeneratorPort;
+  clock: Clock;
+  ids: IdGenerator;
   authorize: AuthorizeFn;
-  /** REQ-13 — reused directly from `identity`, not duplicated. */
-  principals: PrincipalRepoPort;
+  /** Host lookup must hide disabled and out-of-workspace principals. See docs/decisions/DR-003-settings-ledger-invariants.md. */
+  principals: SettingsPrincipalLookupPort;
 }
 
 /**
- * behavior.spec.md §1.3 / REQ-06 `[internal-invariant]` — the self-vs-other
+ * behavior.spec.md §1.3 / `[internal-invariant]` — the self-vs-other
  * permission derivation. `targetPrincipalId` omitted or equal to the caller
  * -> `settings.user.self.write`; any other principal -> `settings.user.write`.
  * A divergence between this function and any other implementation of the
- * rule is a fail-open authorization bug (Red-Team RT-003) — this is the only
+ * rule is a fail-open authorization bug (Red-Team ) — this is the only
  * place the rule may be encoded.
  *
  * @complexity O(1), pure.
  * @overallScore 100
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
  */
 export function deriveRequiredPermission(input: {
   scope: SettingScope;
@@ -89,7 +92,7 @@ export interface RegisterDefinitionsRequired {
   };
 }
 
-/** REQ-02/REQ-09 chokepoint write: authorize `settings.definitions.manage` -> validate -> write + revision, one per definition, each its own tx. */
+/** chokepoint write: authorize `settings.definitions.manage` -> validate -> write + revision, one per definition, each its own tx. See docs/decisions/DR-003-settings-ledger-invariants.md. */
 export async function registerDefinitions(
   required: RegisterDefinitionsRequired
 ): Promise<{ registered: string[] }> {
@@ -113,7 +116,7 @@ export async function registerDefinitions(
     if (!validation.valid) throw validation.error;
 
     await deps.repo.transaction(async () => {
-      const now = deps.clock.nowIso();
+      const now = kernelNowIso({ clock: deps.clock });
       const settingId = deps.ids.newId();
       await deps.repo.saveDefinition({
         settingId,
@@ -190,9 +193,10 @@ export interface SetValueRequired {
      * additive: omitted, behavior is unchanged (every pre-existing caller still gets the
      * scope-derived permission). When a domain-settings module supplies this, the chokepoint
      * authorizes THIS permission instead of the scope-derived one — still a mandatory
-     * `authorize()` call before any write (INV-07 fail-closed discipline is not relaxed, only
+     * `authorize` call before any write ( fail-closed discipline is not relaxed, only
      * which permission string is checked).
-     */
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
+ */
     requiredPermissionOverride?: string | undefined;
   };
 }
@@ -256,10 +260,11 @@ function assertTargetWorkspaceMatchesAuth(input: {
 }
 
 /**
- * REQ-13/INV-09 — for scope=user writes targeting another principal, verify
+ * — for scope=user writes targeting another principal, verify
  * that principal resolves to an active user whose own `workspace_id` equals
  * the request's `workspaceId` (structural scoping — a principal
  * belongs to exactly one workspace, not a membership join).
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
  */
 async function assertTargetPrincipalInWorkspace(
   deps: SettingsWriteServiceDeps,
@@ -269,8 +274,8 @@ async function assertTargetPrincipalInWorkspace(
   if (!input.principalId || input.principalId === input.callerPrincipalId) return;
   if (!input.workspaceId) return;
 
-  const principal = await deps.principals.findById({ workspaceId: input.workspaceId, id: input.principalId });
-  if (!principal || principal.status === "disabled") {
+  const principal = await deps.principals.findActiveById({ workspaceId: input.workspaceId, id: input.principalId });
+  if (!principal) {
     throw new PrincipalNotFoundError(
       `principal '${input.principalId}' was not found in workspace '${input.workspaceId}'`,
       input.principalId,
@@ -279,7 +284,7 @@ async function assertTargetPrincipalInWorkspace(
   }
 }
 
-/** REQ-04/REQ-13 chokepoint write: authorize -> validate -> value + revision, same tx. */
+/** chokepoint write: authorize -> validate -> value + revision, same tx. See docs/decisions/DR-003-settings-ledger-invariants.md. */
 export async function set(required: SetValueRequired): Promise<{ value: JsonValue; revisionSeq: number }> {
   const { deps, input } = required;
 
@@ -315,7 +320,7 @@ export async function set(required: SetValueRequired): Promise<{ value: JsonValu
   await assertTargetPrincipalInWorkspace(deps, input);
 
   const result = await deps.repo.transaction(async () => {
-    const now = deps.clock.nowIso();
+    const now = kernelNowIso({ clock: deps.clock });
     const revisionSeq = await deps.repo.appendRevision({
       entityKind: "value",
       settingId: definition.settingId,
@@ -375,7 +380,7 @@ export interface ClearValueRequired {
     workspaceId?: UUID | undefined;
     principalId?: UUID | undefined;
     callerPrincipalId: UUID;
-    /** Set by `resetNamespace` when looping `clear()` in its own reset-authorized context (R3-01) — bypasses the inner authorize() re-check, still writes a normal revision. */
+    /** Set by `resetNamespace` when looping `clear` in its own reset-authorized context — bypasses the inner authorize re-check, still writes a normal revision. See docs/decisions/DR-003-settings-ledger-invariants.md. */
     skipAuthorize?: boolean | undefined;
     /** Set by a caller that has ALREADY opened a transaction around this write —
      *  see `resetNamespace`. Explicit rather than an ambient depth counter,
@@ -387,7 +392,7 @@ export interface ClearValueRequired {
   };
 }
 
-/** REQ-04/REQ-13 chokepoint write: authorize -> value + revision (state='cleared'), same tx. */
+/** chokepoint write: authorize -> value + revision (state='cleared'), same tx. See docs/decisions/DR-003-settings-ledger-invariants.md. */
 export async function clear(required: ClearValueRequired): Promise<{ revisionSeq: number }> {
   const { deps, input } = required;
 
@@ -416,7 +421,7 @@ export async function clear(required: ClearValueRequired): Promise<{ revisionSeq
   await assertTargetPrincipalInWorkspace(deps, input);
 
   const runClear = async () => {
-    const now = deps.clock.nowIso();
+    const now = kernelNowIso({ clock: deps.clock });
     const revisionSeq = await deps.repo.appendRevision({
       entityKind: "value",
       settingId: definition.settingId,
@@ -485,15 +490,16 @@ export interface ResetNamespaceRequired {
 }
 
 /**
- * EC-09/R3-01 — an explicit, human-invoked orchestrator: authorize
- * the matching `settings.reset.*` permission once, then loop `clear()` for
+ * — an explicit, human-invoked orchestrator: authorize
+ * the matching `settings.reset.*` permission once, then loop `clear` for
  * every setting in the namespace in the reset-authorized internal context
  * (`skipAuthorize: true`) — the outer reset permission is sufficient on its
  * own; each inner clear still emits its own `op='clear'` revision.
  *
- * `revisionSeqs` collects each inner `clear()` call's own `revisionSeq` so a
+ * `revisionSeqs` collects each inner `clear` call's own `revisionSeq` so a
  * host's admin HTTP route can surface the full contract without a second
  * read. Existing callers that only read `.clearedCount` are unaffected.
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
  */
 export async function resetNamespace(
   required: ResetNamespaceRequired,
@@ -619,7 +625,7 @@ export interface RenameDefinitionRequired {
 }
 
 /**
- * The rename mechanism (AC-09, EC-06): a same-tx pair —
+ * The rename mechanism : a same-tx pair —
  * (1) UPDATE the active definition row's `(namespace,key)` to the new name,
  * same `setting_id`/`version` (ledgered `op='alias'`); (2) INSERT a fresh v1
  * alias marker at the OLD name pointing at the new name. Because identity
@@ -633,6 +639,7 @@ export interface RenameDefinitionRequired {
  * Never touches `schema`/`defaultValue`/`scopes` -- a pure rename can never
  * trigger `RENAME_RETYPE_CONFLICT` by construction; that guard lives in
  * `retypeDefinition` ("no rename+retype in one op").
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
  */
 export async function renameDefinition(
   required: RenameDefinitionRequired
@@ -663,7 +670,7 @@ export async function renameDefinition(
   }
 
   const result = await deps.repo.transaction(async () => {
-    const now = deps.clock.nowIso();
+    const now = kernelNowIso({ clock: deps.clock });
 
     // Step 1: move the active row to the new name -- same setting_id, same version.
     await deps.repo.saveDefinition({ ...current, namespace: input.newNamespace, key: input.newKey, updatedAt: now });
@@ -741,7 +748,7 @@ export interface RetypeDefinitionRequired {
     workspaceId: UUID | null;
     schema: SettingValueSchema;
     defaultValue: JsonValue | null;
-    /** A total coercer id/tag (EC-08 registry in `settings.ts`) for reading values recorded under any prior version. */
+    /** A total coercer id/tag ( registry in `settings.ts`) for reading values recorded under any prior version. See docs/decisions/DR-003-settings-ledger-invariants.md. */
     coercionTag: string;
     /**
      * Present only to detect a combined rename+retype request;
@@ -758,7 +765,7 @@ export interface RetypeDefinitionRequired {
 }
 
 /**
- * The retype mechanism (AC-10, EC-05): a same-tx pair --
+ * The retype mechanism : a same-tx pair --
  * (1) UPDATE the prior active version's `status` to `deprecated` FIRST (else
  * the insert in step 2 collides with the one-active-row-per-slot
  * invariant); (2) INSERT the new `version+1` row as `active`, same
@@ -766,6 +773,7 @@ export interface RetypeDefinitionRequired {
  * (2..N) already carries a total coercer -- `coercionTag` is `null` only for
  * version 1 by construction (`types.ts`), so this walks 2..N and requires
  * each to be non-null.
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
  */
 export async function retypeDefinition(
   required: RetypeDefinitionRequired
@@ -795,7 +803,7 @@ export async function retypeDefinition(
   }
 
   const result = await deps.repo.transaction(async () => {
-    const now = deps.clock.nowIso();
+    const now = kernelNowIso({ clock: deps.clock });
     const newVersion = current.version + 1;
 
     // Step 1: deprecate the prior active version first.
@@ -917,7 +925,7 @@ export async function reconcileDefinitionDefault(
   }
 
   await deps.repo.transaction(async () => {
-    const now = deps.clock.nowIso();
+    const now = kernelNowIso({ clock: deps.clock });
 
     await deps.repo.saveDefinition({ ...current, defaultValue: input.defaultValue, updatedAt: now });
 
@@ -981,7 +989,7 @@ async function transitionDefinitionStatus(
   const current = await resolveActiveDefinitionOrThrow(deps, input, target.revisionOp);
 
   const result = await deps.repo.transaction(async () => {
-    const now = deps.clock.nowIso();
+    const now = kernelNowIso({ clock: deps.clock });
     await deps.repo.saveDefinition({ ...current, status: target.status, updatedAt: now });
     await deps.repo.appendRevision({
       entityKind: "definition",

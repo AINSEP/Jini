@@ -33,11 +33,11 @@ describe('createDefaultRendererRegistry', () => {
   });
 
   it('a host can register its own deck-html renderer', () => {
-    const withDeck = registry.register({
+    const withDeck = registry.register({ renderer: {
       id: 'deck-html',
       supportsStreaming: false,
       canRender: ({ file }) => file.name === 'deck.html',
-    });
+    } });
     // resolve() gates on a resolvable manifest before it ever consults a
     // renderer's own canRender, so the file needs an explicit manifest even
     // though this custom deck-html renderer's canRender does not read one.

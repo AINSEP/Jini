@@ -8,7 +8,8 @@ import { useRowMenu } from './RowMenu.hooks.js';
  * so a row can grow more actions (Edit, Disable, Delete, …) without widening the table or producing
  * the wall of buttons that pattern turns into.
  *
- * Portaled to `document.body` and positioned with `getBoundingClientRect()` rather than rendered as
+ * Portaled to `document.body` by default (or the host's `portalContainer`) and positioned with
+ * `getBoundingClientRect()` rather than rendered as
  * an in-flow absolutely-positioned child of the trigger — an admin table normally sits inside a
  * horizontal scroller (`overflow-x: auto`), and per the CSS overflow spec, setting either axis to a
  * non-`visible` value forces the *other* axis to compute as `auto` as well, so a menu positioned to
@@ -77,6 +78,9 @@ export interface RowMenuProps {
   /** This row's own agent handle — see this file's "Agent handles" doc comment for the full
    *  scheme. Omit and no `data-agent-*` markup is emitted at all. */
   agentHandle?: string;
+  /** Host-owned popup container, outside the row's clipping scroller. Use a container within
+   *  the page driver's root when its agent must reach menu items. Defaults to `document.body`. */
+  portalContainer?: Element | DocumentFragment;
 }
 
 /**
@@ -91,7 +95,7 @@ export interface RowMenuProps {
  * @complexity O(1).
  */
 function rowMenuAgentProps(handle: string | undefined, options: { role: AgentElementRole; label: string }) {
-  return handle === undefined ? {} : agentHandle(handle, options);
+  return handle === undefined ? {} : agentHandle({ handle }, options);
 }
 
 export function RowMenu({
@@ -109,13 +113,13 @@ export function RowMenu({
     onTriggerKeyDown,
     onMenuKeyDown,
     selectItem,
-  } = useRowMenuState(props.items.length);
+  } = useRowMenuState({ itemCount: props.items.length, window, document });
 
   // One base handle per item, positionally aligned with `props.items` — undefined (rather than an
   // empty array) when the caller published no `agentHandle` at all, so the render below can tell
   // "opted out" apart from "an empty item list" without a second flag.
   const itemHandles = baseHandle
-    ? buildAgentListHandles(`${baseHandle}-item`, props.items.map((item) => item.key))
+    ? buildAgentListHandles({ prefix: `${baseHandle}-item`, ids: props.items.map((item) => item.key) })
     : undefined;
 
   return (
@@ -164,7 +168,7 @@ export function RowMenu({
               onKeyDown={onMenuKeyDown}
             >
               {props.items.map((item, index) => {
-                const toneClass = toneClassName(resolveTone(item));
+                const toneClass = toneClassName({ tone: resolveTone({}, item) });
                 return (
                   <button
                     key={item.key}
@@ -175,7 +179,7 @@ export function RowMenu({
                     role="menuitem"
                     tabIndex={-1}
                     className={['row-menu-item', toneClass].filter(Boolean).join(' ')}
-                    onClick={() => selectItem(item.onSelect)}
+                    onClick={() => selectItem({ onSelect: item.onSelect })}
                     {...rowMenuAgentProps(itemHandles?.[index], { role: 'button', label: item.label })}
                   >
                     {item.label}
@@ -183,7 +187,7 @@ export function RowMenu({
                 );
               })}
             </div>,
-            document.body,
+            props.portalContainer ?? document.body,
           )
         : null}
     </>

@@ -1,0 +1,807 @@
+{
+  "legacyAssistantContentFromEvents": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "repairJsonPrefix": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "parsePartialJson": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "deriveConversationTitle": {
+    "host": {
+      "admin/src/hooks/assistant-chats-dependencies.hooks.ts": 2,
+      "admin/src/components/AssistantDock/__tests__/composer-selected-skills.unit.test.tsx": 1,
+      "website/src/server/runtime/composition/modules/assistant-chats.ts": 1
+    },
+    "engine": {},
+    "secondConsumer": {
+      "admin/src/hooks/assistant-chats-dependencies.hooks.ts": 2
+    }
+  },
+  "formatFormAnswers": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "formOptionLabelForValue": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "formOptionValueForLabel": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "mapRawQuestion": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "isRenderableColor": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "splitOnQuestionForms": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "findFirstQuestionForm": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "parseQuestionForm": {
+    "host": {},
+    "engine": {
+      "packages/chat/src/core/question-form/scan.ts": 1
+    },
+    "secondConsumer": {}
+  },
+  "stripTrailingOpenQuestionForm": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "hasUnterminatedQuestionForm": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "parsePartialQuestionForm": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "humanizeToolName": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "deriveRunActivity": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "formatActivityClock": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "describeRunActivity": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "isTodoWriteToolName": {
+    "host": {},
+    "engine": {
+      "packages/ui/src/features/progress-card/__tests__/reference-adapters.test.ts": 5,
+      "packages/ui/src/features/progress-card/reference-adapters.ts": 2
+    },
+    "secondConsumer": {}
+  },
+  "parseTodoWriteInput": {
+    "host": {},
+    "engine": {
+      "packages/ui/src/features/progress-card/__tests__/reference-adapters.test.ts": 2,
+      "packages/ui/src/features/progress-card/reference-adapters.ts": 2
+    },
+    "secondConsumer": {}
+  },
+  "latestTodosFromEvents": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "unfinishedTodosFromEvents": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "latestTodoWriteInputFromMessages": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "latestTodoWriteInputForPinnedCard": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "dedupeToolUsesById": {
+    "host": {},
+    "engine": {
+      "packages/ui/src/features/progress-card/__tests__/reference-adapters.test.ts": 4,
+      "packages/ui/src/features/progress-card/reference-adapters.ts": 2
+    },
+    "secondConsumer": {}
+  },
+  "formatToolOutputForDisplay": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "deriveToolStatus": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "toRenderProps": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "latestUserPromptFromHistory": {
+    "host": {
+      "site-chat/src/site-assistant-transport.ts": 1,
+      "site-chat/src/__tests__/site-assistant-transport.test.ts": 1,
+      "admin/src/lib/assistant-transport.ts": 2,
+      "admin/src/lib/__tests__/assistant-transport.transcript.test.ts": 2
+    },
+    "engine": {},
+    "secondConsumer": {
+      "admin/src/lib/assistant-transport.ts": 2
+    }
+  },
+  "sanitizePriorAssistantTurn": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "buildTranscript": {
+    "host": {
+      "admin/src/lib/assistant-transport.ts": 1,
+      "admin/src/lib/__tests__/assistant-transport.transcript.test.ts": 4,
+      "desktop/src/renderer/workspace-chat-transport.ts": 1
+    },
+    "engine": {
+      "examples/reference-web/src/daemon-transport.ts": 1
+    },
+    "secondConsumer": {
+      "vibecoding/src/data/chatTransport.ts": 1,
+      "admin/src/lib/assistant-transport.ts": 1
+    }
+  },
+  "artifactManifestNameFor": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "serializeArtifactManifest": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "parseArtifactManifest": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "isRealArtifactOpenAt": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "computeSkipRanges": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "rangeContains": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "parseQuotedAttrs": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "parseArtifacts": {
+    "host": {},
+    "engine": {
+      "packages/chat/src/core/__tests__/util/parser.test.ts": 1,
+      "packages/chat/src/core/util/parser.ts": 1
+    },
+    "secondConsumer": {}
+  },
+  "recoverStandaloneHtmlDocument": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "recoverHtmlDocumentFromMarkdownFence": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "stripArtifact": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "stripRecoveredHtmlFallbackForDisplay": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "matchPersistedArtifactFile": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "summarizeArtifactsForTranscript": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "splitStreamingArtifact": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "validateHtmlArtifact": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "looksLikeImageAttachment": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "useAttachmentPreviewModal": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "formatAttachmentSize": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "replaceComposerSlashTrigger": {
+    "host": {
+      "admin/src/features/plugins/composer-capabilities.ts": 1
+    },
+    "engine": {},
+    "secondConsumer": {
+      "admin/src/features/plugins/composer-capabilities.ts": 1
+    }
+  },
+  "appendComposerDiscovery": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "resolveComposerSlashKeyAction": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "runtimeAgentStatus": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "createDaemonAttachmentUploader": {
+    "host": {
+      "admin/src/lib/__tests__/attachment-uploader-quotas.unit.test.ts": 4,
+      "admin/src/components/AssistantDock/hooks/AssistantDock.hooks.tsx": 1
+    },
+    "engine": {
+      "examples/reference-web/src/attachment-uploader.ts": 1
+    },
+    "secondConsumer": {
+      "admin/src/components/AssistantDock/hooks/AssistantDock.hooks.tsx": 1
+    }
+  },
+  "createMcpUiToolCaller": {
+    "host": {
+      "admin/src/components/AssistantDock/AssistantDock.tsx": 2
+    },
+    "engine": {},
+    "secondConsumer": {
+      "admin/src/components/AssistantDock/AssistantDock.tsx": 2
+    }
+  },
+  "runtimeOptionLabel": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "runtimePopoverPosition": {
+    "host": {},
+    "engine": {
+      "packages/chat/src/react/components/__tests__/composer-discovery.test.ts": 1,
+      "packages/chat/src/react/components/composer-discovery.ts": 1
+    },
+    "secondConsumer": {}
+  },
+  "resolveTabWrapIndex": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "resolveRovingIndex": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "resolvePopoverKeyAction": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "runtimeSummaryText": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "byokSummaryText": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "useChatPaneAgentControl": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "useChatPaneComposerPlaceholder": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "defaultChatPaneSelection": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "resolveChatPaneSelection": {
+    "host": {
+      "admin/src/components/AssistantDock/local-cli-selection-echo.ts": 2
+    },
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "isChatPaneQueueableBlocker": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "orderChatPaneAgents": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "groupModelsByProvider": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "matchesModelQuery": {
+    "host": {},
+    "engine": {
+      "packages/ui/src/features/execution/rules.ts": 2
+    },
+    "secondConsumer": {}
+  },
+  "filterModelGroups": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "findSelectedModel": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "isCustomModelId": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "firstAvailableModelId": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "readCachedDraft": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "writeCachedDraft": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "clearCachedDraft": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "readCachedAttachments": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "writeCachedAttachments": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "useArtifactStream": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "clampChatFabToViewport": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "useChatFabDrag": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "useExtEventGroups": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "normalizeOperationError": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "usePinnedTodos": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "useQuestionForms": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "parseSubmittedAnswers": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "useRunActivity": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "useToolTimeline": {
+    "host": {},
+    "engine": {
+      "packages/chat/src/react/components/MessageRow.tsx": 1
+    },
+    "secondConsumer": {}
+  },
+  "registerToolRenderer": {
+    "host": {},
+    "engine": {
+      "examples/reference-web/src/McpUiLabHost.tsx": 1,
+      "examples/reference-web/src/McpUiLab.tsx": 1
+    },
+    "secondConsumer": {}
+  },
+  "getToolRenderer": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "definedProps": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "chatAdditionalContract": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "allChatContracts": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "chatIsolationContract": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "chatPagingContract": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "chatParityContract": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "chatTransactionContract": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "twoConnectionContract": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "compileContract": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "missingRequiredTable": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "listConversations": {
+    "host": {
+      "admin/src/hooks/use-assistant-chats.hooks.ts": 1,
+      "admin/src/hooks/assistant-chats-dependencies.hooks.ts": 1,
+      "admin/src/lib/__tests__/assistant-chats.unit.test.ts": 3,
+      "admin/src/hooks/__tests__/use-assistant-chats.unit.test.ts": 7,
+      "admin/src/lib/assistant-chats.ts": 1,
+      "admin/src/hooks/assistant-chats-port.hooks.ts": 1,
+      "desktop/src/renderer/App.hooks.ts": 1
+    },
+    "engine": {
+      "packages/server/src/storage/__tests__/legacy-sqlite.test.ts": 2
+    },
+    "secondConsumer": {
+      "admin/src/lib/assistant-chats.ts": 1,
+      "admin/src/hooks/use-assistant-chats.hooks.ts": 1,
+      "admin/src/hooks/assistant-chats-port.hooks.ts": 1,
+      "admin/src/hooks/assistant-chats-dependencies.hooks.ts": 1
+    }
+  },
+  "getConversation": {
+    "host": {},
+    "engine": {
+      "packages/server/src/storage/__tests__/legacy-sqlite.test.ts": 14
+    },
+    "secondConsumer": {}
+  },
+  "normalizeConversationSessionMode": {
+    "host": {},
+    "engine": {
+      "packages/server/src/storage/__tests__/legacy-sqlite.test.ts": 5
+    },
+    "secondConsumer": {}
+  },
+  "insertConversation": {
+    "host": {},
+    "engine": {
+      "packages/server/src/storage/__tests__/legacy-sqlite.test.ts": 34
+    },
+    "secondConsumer": {}
+  },
+  "updateConversation": {
+    "host": {},
+    "engine": {
+      "packages/server/src/storage/__tests__/legacy-sqlite.test.ts": 4
+    },
+    "secondConsumer": {}
+  },
+  "deleteConversation": {
+    "host": {
+      "admin/src/lib/__tests__/assistant-chats.unit.test.ts": 2,
+      "admin/src/lib/assistant-chats.ts": 1,
+      "desktop/src/renderer/App.hooks.ts": 1,
+      "admin/src/hooks/use-assistant-chats.hooks.ts": 1,
+      "admin/src/hooks/__tests__/use-assistant-chats.unit.test.ts": 1,
+      "admin/src/hooks/assistant-chats-port.hooks.ts": 1,
+      "admin/src/hooks/assistant-chats-dependencies.hooks.ts": 1
+    },
+    "engine": {
+      "packages/server/src/storage/__tests__/legacy-sqlite.test.ts": 1
+    },
+    "secondConsumer": {
+      "admin/src/hooks/use-assistant-chats.hooks.ts": 1,
+      "admin/src/hooks/assistant-chats-port.hooks.ts": 1,
+      "admin/src/lib/assistant-chats.ts": 1,
+      "admin/src/hooks/assistant-chats-dependencies.hooks.ts": 1
+    }
+  },
+  "listMessages": {
+    "host": {},
+    "engine": {
+      "packages/sqlite/src/__tests__/loads-without-driver.test.ts": 1,
+      "packages/server/src/storage/__tests__/legacy-sqlite.test.ts": 6
+    },
+    "secondConsumer": {}
+  },
+  "upsertMessage": {
+    "host": {
+      "admin/src/hooks/__tests__/assistant-chats-dependencies.unit.test.ts": 4,
+      "admin/src/hooks/assistant-chats-dependencies.hooks.ts": 3
+    },
+    "engine": {
+      "packages/server/src/storage/__tests__/legacy-sqlite.test.ts": 30
+    },
+    "secondConsumer": {
+      "admin/src/hooks/assistant-chats-dependencies.hooks.ts": 3
+    }
+  },
+  "getMessageTelemetryFinalizationState": {
+    "host": {},
+    "engine": {
+      "packages/server/src/storage/__tests__/legacy-sqlite.test.ts": 6
+    },
+    "secondConsumer": {}
+  },
+  "appendMessageStatusEvent": {
+    "host": {},
+    "engine": {
+      "packages/server/src/storage/__tests__/legacy-sqlite.test.ts": 8
+    },
+    "secondConsumer": {}
+  },
+  "appendMessageAgentEvent": {
+    "host": {},
+    "engine": {
+      "packages/server/src/storage/__tests__/legacy-sqlite.test.ts": 8
+    },
+    "secondConsumer": {}
+  },
+  "deleteMessage": {
+    "host": {},
+    "engine": {
+      "packages/chat/src/store/__tests__/paging-contract.ts": 1,
+      "packages/chat/src/store/__tests__/fixtures.ts": 1,
+      "packages/server/src/storage/__tests__/legacy-sqlite.test.ts": 1
+    },
+    "secondConsumer": {}
+  },
+  "validateKernel": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "copyScope": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "atStoreBoundary": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "runChatQuery": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "pageLimit": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "encodeCursor": {
+    "host": {
+      "website/src/platform/db/sqlite/database-journal-repo.ts": 1
+    },
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "decodeCursor": {
+    "host": {
+      "website/src/platform/db/sqlite/database-journal-repo.ts": 2
+    },
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "createChatHistoryStore": {
+    "host": {
+      "website/src/platform/db/migrations/__tests__/chat-pre-adoption.fixture.ts": 1,
+      "website/src/platform/db/migrations/__tests__/chat-package-adoption.test.ts": 1,
+      "website/src/assistant/persistence/__tests__/ddl-parity.test.ts": 2,
+      "website/src/assistant/persistence/__tests__/package-adapters.dialects.test.ts": 3,
+      "website/src/assistant/persistence/__tests__/chat-expiry-sweep.dialects.test.ts": 2,
+      "website/src/assistant/persistence/tenant-scope.ts": 1,
+      "website/src/assistant/persistence/__tests__/chat-history-store.dialects.test.ts": 3,
+      "website/src/assistant/persistence/chat-history-store.ts": 1
+    },
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "createChatHistoryMaintenance": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "ensureChatHistoryTables": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "latestTodoWriteInput": {
+    "host": {},
+    "engine": {
+      "packages/chat/src/core/todos.ts": 1
+    },
+    "secondConsumer": {}
+  },
+  "ChatStoreError": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "MessageConversationMismatchError": {
+    "host": {},
+    "engine": {},
+    "secondConsumer": {}
+  },
+  "createFrontendSessionBridge": {
+    "host": {},
+    "engine": {
+      "packages/chat/src/react/agent-bridge/frontend-session-bridge.ts": 1
+    },
+    "secondConsumer": {}
+  },
+  "createArtifactParser": {
+    "engine": {
+      "packages/chat/src/core/util/parser.ts": 1
+    },
+    "host": {},
+    "secondConsumer": {}
+  },
+  "clearToolRenderers": {
+    "engine": {
+      "packages/chat/src/react/__tests__/tool-renderer-registry.test.ts": 1,
+      "packages/chat/src/react/tool-renderer-registry.ts": 1
+    },
+    "host": {},
+    "secondConsumer": {}
+  },
+  "useLatestOperation": {
+    "engine": {
+      "packages/chat/src/react/hooks/useLatestOperation.ts": 1
+    },
+    "host": {},
+    "secondConsumer": {}
+  }
+}

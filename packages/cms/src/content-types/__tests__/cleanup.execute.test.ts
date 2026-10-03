@@ -2,20 +2,21 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 
 import { executeCleanup } from "../cleanup.js";
-import type { Result } from "../types.js";
+import type { Result } from "@jini-ai/core/primitives";
 
 /**
- * @file REQ-21 — a successful cleanup `execute()` permanently and atomically removes
+ * @file a successful cleanup `execute` permanently and atomically removes
  * the target `content_types` row and every scoped `entries`/`entry_revisions`/
- * `content_type_revisions` row, in one transaction (C-405; INV-07).
+ * `content_type_revisions` row, in one transaction.
  *
- * Covers: AC-34 (atomic multi-table removal), EC-10 (second execute() attempt against an
+ * Covers: (atomic multi-table removal), (second execute attempt against an
  * already-cleaned-up token is rejected per the gated-mutation gateway's own token/plan-staleness rules — this
  * package does not re-implement that rejection, only proves it forwards to the gateway
  * correctly and never attempts a second removal locally).
  *
  * Integration-level: exercises the repo's multi-table removal as one unit rather than mocking
- * each table write individually, since REQ-21's atomicity is the property under test.
+ * each table write individually, since atomicity is the property under test.
+ * See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
  */
 
 function fakeMultiTableRepo(seed: { contentTypeKey: string; entryCount: number; entryRevisionCount: number; contentTypeRevisionCount: number }) {
@@ -27,7 +28,7 @@ function fakeMultiTableRepo(seed: { contentTypeKey: string; entryCount: number; 
       removed = true;
       return { removedEntryCount: seed.entryCount };
     },
-    transaction: async <T>(fn: () => Promise<T>) => fn(),
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn(),
   };
 }
 

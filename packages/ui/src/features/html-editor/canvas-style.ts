@@ -1,3 +1,6 @@
+import { defaultAdminTheme } from '../../theme/default.js';
+import { renderAdminThemeVariables } from '../../theme/stylesheet.js';
+import type { AdminTheme, ColorScheme } from '../../theme/types.js';
 /**
  * @file Builds the `canvas.frameStyle` GrapesJS injects into its editing canvas, so a host that
  * supplies its own canvas styling is not silently overruled by GrapesJS's own defaults.
@@ -32,6 +35,9 @@ export interface CanvasContentWrapperNode {
 /** What a host wants the canvas document styled with. All fields optional; supplying none is the
  *  "GrapesJS defaults" case. */
 export interface CanvasStyling {
+  /** Explicit theme data for isolated editor chrome; edited page styles remain host-owned. */
+  adminTheme?: AdminTheme;
+  colorScheme?: ColorScheme;
   /** Stylesheet URLs, appended to the canvas document's `<head>` as `<link>` elements by GrapesJS
    *  (`canvas.styles`). Not included in the editor's exported HTML. */
   stylesheets?: readonly string[];
@@ -57,14 +63,14 @@ export interface CanvasStyling {
 /** GrapesJS's own default scrollbar chrome for the canvas, restated verbatim from its
  *  `canvas.frameStyle` default so overriding that option does not silently drop it. */
 const CANVAS_SCROLLBAR_STYLE = [
-  "* ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1) }",
-  "* ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2) }",
+  "* ::-webkit-scrollbar-track { background: color-mix(in srgb, var(--jini-text) 10%, transparent) }",
+  "* ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--jini-bg) 20%, transparent) }",
   "* ::-webkit-scrollbar { width: 10px }",
 ].join("\n");
 
 /** The half of GrapesJS's default `canvas.frameStyle` this module conditionally drops — see the file
  *  header for why it cannot simply be left in place. */
-const CANVAS_DEFAULT_BODY_BACKGROUND = "body { background-color: #fff }";
+const CANVAS_DEFAULT_BODY_BACKGROUND = 'body { background-color: var(--jini-bg) }';
 
 /**
  * CSS class the canvas body carries while `react/hooks/useInteractiveHtmlEditor.ts`'s
@@ -98,7 +104,8 @@ function hostStylesTheCanvas(styling: CanvasStyling): boolean {
  * and followed by the host's raw `css` when supplied.
  */
 function buildCanvasFrameStyle(styling: CanvasStyling): string {
-  const rules = [CANVAS_SCROLLBAR_STYLE, CANVAS_STYLES_PENDING_RULE];
+  const rules = [renderAdminThemeVariables({ theme: styling.adminTheme ?? defaultAdminTheme },
+    { ...(styling.colorScheme ? { colorScheme: styling.colorScheme } : {}) }), CANVAS_SCROLLBAR_STYLE, CANVAS_STYLES_PENDING_RULE];
   if (!hostStylesTheCanvas(styling)) rules.unshift(CANVAS_DEFAULT_BODY_BACKGROUND);
   if (styling.css) rules.push(styling.css);
   return rules.join("\n");

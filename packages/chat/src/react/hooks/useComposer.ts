@@ -108,7 +108,7 @@ const EMPTY_MENTION: MentionPopoverState = { open: false, query: '', results: []
 export function useComposer(options: UseComposerOptions = {}): UseComposerResult {
   const { project, composerSlots, persistence, conversationId, validateAttachments } = options;
   const [draft, setDraftState] = useState<string>(
-    () => options.initialDraft ?? persistence?.read() ?? readCachedDraft(conversationId) ?? '',
+    () => options.initialDraft ?? persistence?.read() ?? readCachedDraft({ conversationId: conversationId }) ?? '',
   );
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [agent, setAgent] = useState<AgentSelection | undefined>(options.initialAgent);
@@ -118,7 +118,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
     (next: string) => {
       setDraftState(next);
       persistence?.write(next);
-      writeCachedDraft(conversationId, next);
+      writeCachedDraft({ conversationId: conversationId, draft: next });
     },
     [persistence, conversationId],
   );
@@ -138,7 +138,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
     const previousConversationId = previousConversationIdRef.current;
     if (conversationId === previousConversationIdRef.current) return;
     previousConversationIdRef.current = conversationId;
-    const restored = readCachedDraft(conversationId);
+    const restored = readCachedDraft({ conversationId: conversationId });
 
     // An id arriving where there was none is NOT a switch between two conversations — it is the one
     // the operator is already looking at finally getting a key (a new chat created server-side
@@ -150,7 +150,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
     // message into another. Attachments and the mention popover are left alone here for the same
     // reason — nothing was switched away from.
     if (previousConversationId == null && conversationId != null && restored === null && draftRef.current.trim() !== '') {
-      writeCachedDraft(conversationId, draftRef.current);
+      writeCachedDraft({ conversationId: conversationId, draft: draftRef.current });
       return;
     }
 
@@ -179,7 +179,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
       attachmentsHydratedForRef.current = conversationId;
       return;
     }
-    const cached = readCachedAttachments(conversationId);
+    const cached = readCachedAttachments({ conversationId: conversationId });
     if (cached === null || cached.length === 0) {
       attachmentsHydratedForRef.current = conversationId;
       return;
@@ -201,7 +201,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
         setAttachments((prev) => (prev.length === 0 ? [...valid] : prev));
       } else {
         // Every reference was dead. Purge them so the next load does not pay for this again.
-        writeCachedAttachments(conversationId, []);
+        writeCachedAttachments({ conversationId: conversationId, attachments: [] });
       }
       attachmentsHydratedForRef.current = conversationId;
     })();
@@ -217,7 +217,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
   useEffect(() => {
     if (!validateAttachmentsRef.current || !conversationId) return;
     if (attachmentsHydratedForRef.current !== conversationId) return;
-    writeCachedAttachments(conversationId, attachments);
+    writeCachedAttachments({ conversationId: conversationId, attachments: attachments });
   }, [attachments, conversationId]);
 
   const addAttachment = useCallback((attachment: ChatAttachment) => {
@@ -240,7 +240,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
       // `attachment-preview-cache.ts`'s module doc for why the server cannot hand it back.
       uploaded.forEach((a, i) => {
         const file = files[i];
-        if (file) cacheAttachmentPreviewSource(a.path, file);
+        if (file) cacheAttachmentPreviewSource({ path: a.path, file });
       });
       for (const a of uploaded) composerSlots?.onAttach?.(a);
     },

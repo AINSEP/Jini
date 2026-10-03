@@ -38,37 +38,37 @@ function revision(overrides: Partial<SettingRevisionRecord> = {}): SettingRevisi
 // --- visibility ------------------------------------------------------------
 
 test("global-scope changes are visible to everyone", () => {
-  assert.equal(isRevisionVisibleTo(revision({ scope: "global", workspaceId: null }), VIEWER), true);
+  assert.equal(isRevisionVisibleTo({ revision: revision({ scope: "global", workspaceId: null }), viewer: VIEWER }), true);
 });
 
 test("workspace-scope changes are visible only within their own workspace", () => {
-  assert.equal(isRevisionVisibleTo(revision({ scope: "workspace", workspaceId: "ws-1" }), VIEWER), true);
+  assert.equal(isRevisionVisibleTo({ revision: revision({ scope: "workspace", workspaceId: "ws-1" }), viewer: VIEWER }), true);
   assert.equal(
-    isRevisionVisibleTo(revision({ scope: "workspace", workspaceId: "ws-2" }), VIEWER),
+    isRevisionVisibleTo({ revision: revision({ scope: "workspace", workspaceId: "ws-2" }), viewer: VIEWER }),
     false,
     "another tenant's workspace change must not be disclosed",
   );
 });
 
 test("user-scope changes are visible ONLY to the principal they belong to", () => {
-  assert.equal(isRevisionVisibleTo(revision({ scope: "user", workspaceId: "ws-1", principalId: "p-1" }), VIEWER), true);
+  assert.equal(isRevisionVisibleTo({ revision: revision({ scope: "user", workspaceId: "ws-1", principalId: "p-1" }), viewer: VIEWER }), true);
   assert.equal(
-    isRevisionVisibleTo(revision({ scope: "user", workspaceId: "ws-1", principalId: "p-2" }), VIEWER),
+    isRevisionVisibleTo({ revision: revision({ scope: "user", workspaceId: "ws-1", principalId: "p-2" }), viewer: VIEWER }),
     false,
     "another operator's preference change must not be disclosed — it reveals that principal is active",
   );
   assert.equal(
-    isRevisionVisibleTo(revision({ scope: "user", workspaceId: "ws-2", principalId: "p-1" }), VIEWER),
+    isRevisionVisibleTo({ revision: revision({ scope: "user", workspaceId: "ws-2", principalId: "p-1" }), viewer: VIEWER }),
     false,
     "a same-id principal in another workspace is a different principal",
   );
 });
 
 test("definition revisions follow the definition's own workspace, with null meaning platform-wide", () => {
-  assert.equal(isRevisionVisibleTo(revision({ entityKind: "definition", scope: null, workspaceId: null }), VIEWER), true);
-  assert.equal(isRevisionVisibleTo(revision({ entityKind: "definition", scope: null, workspaceId: "ws-1" }), VIEWER), true);
+  assert.equal(isRevisionVisibleTo({ revision: revision({ entityKind: "definition", scope: null, workspaceId: null }), viewer: VIEWER }), true);
+  assert.equal(isRevisionVisibleTo({ revision: revision({ entityKind: "definition", scope: null, workspaceId: "ws-1" }), viewer: VIEWER }), true);
   assert.equal(
-    isRevisionVisibleTo(revision({ entityKind: "definition", scope: null, workspaceId: "ws-2" }), VIEWER),
+    isRevisionVisibleTo({ revision: revision({ entityKind: "definition", scope: null, workspaceId: "ws-2" }), viewer: VIEWER }),
     false,
     "another workspace's site-owned definition is not this viewer's business",
   );
@@ -78,22 +78,20 @@ test("an unrecognized scope is withheld, not passed through", () => {
   // The allowlist's whole point: a scope added to `SettingScope` later is invisible until someone
   // decides what it should mean, rather than silently broadcast.
   const unknown = revision({ scope: "future-scope" as never, workspaceId: "ws-1" });
-  assert.equal(isRevisionVisibleTo(unknown, VIEWER), false);
+  assert.equal(isRevisionVisibleTo({ revision: unknown, viewer: VIEWER }), false);
 });
 
 // --- batching --------------------------------------------------------------
 
-const resolver = (map: Record<string, string | null>) => async (settingId: string) => map[settingId] ?? null;
+const resolver = (map: Record<string, string | null>) => async ({ settingId }: { settingId: string }) => map[settingId] ?? null;
 
 test("collects the namespaces of visible revisions, deduplicated", async () => {
-  const batch = await collectChangedNamespaces(
+  const batch = await collectChangedNamespaces({ revisions:
     [
       revision({ seq: 5, settingId: "s-lang" }),
       revision({ seq: 6, settingId: "s-lang" }),
       revision({ seq: 7, settingId: "s-theme" }),
-    ],
-    VIEWER,
-    resolver({ "s-lang": "core.language", "s-theme": "core.appearance" }),
+    ], viewer: VIEWER, resolveNamespace: resolver({ "s-lang": "core.language", "s-theme": "core.appearance" }), }
   );
 
   assert.deepEqual([...batch.namespaces].sort(), ["core.appearance", "core.language"]);
@@ -101,13 +99,11 @@ test("collects the namespaces of visible revisions, deduplicated", async () => {
 });
 
 test("advances the cursor past invisible revisions so they are never re-examined", async () => {
-  const batch = await collectChangedNamespaces(
+  const batch = await collectChangedNamespaces({ revisions:
     [
       revision({ seq: 10, scope: "user", principalId: "p-2", settingId: "s-lang" }),
       revision({ seq: 11, scope: "workspace", workspaceId: "ws-2", settingId: "s-lang" }),
-    ],
-    VIEWER,
-    resolver({ "s-lang": "core.language" }),
+    ], viewer: VIEWER, resolveNamespace: resolver({ "s-lang": "core.language" }), }
   );
 
   assert.deepEqual(batch.namespaces, [], "nothing visible changed");
@@ -115,20 +111,18 @@ test("advances the cursor past invisible revisions so they are never re-examined
 });
 
 test("a revision whose definition cannot be resolved advances the cursor but names nothing", async () => {
-  const batch = await collectChangedNamespaces([revision({ seq: 3, settingId: "s-deleted" })], VIEWER, resolver({}));
+  const batch = await collectChangedNamespaces({ revisions: [revision({ seq: 3, settingId: "s-deleted" })], viewer: VIEWER, resolveNamespace: resolver({}) });
 
   assert.deepEqual(batch.namespaces, [], "there is no namespace to name for a deleted definition");
   assert.equal(batch.cursor, 3);
 });
 
 test("mixes visible and invisible revisions without leaking the invisible ones", async () => {
-  const batch = await collectChangedNamespaces(
+  const batch = await collectChangedNamespaces({ revisions:
     [
       revision({ seq: 1, scope: "user", principalId: "p-1", settingId: "s-mine" }),
       revision({ seq: 2, scope: "user", principalId: "p-2", settingId: "s-theirs" }),
-    ],
-    VIEWER,
-    resolver({ "s-mine": "core.language", "s-theirs": "core.privacy" }),
+    ], viewer: VIEWER, resolveNamespace: resolver({ "s-mine": "core.language", "s-theirs": "core.privacy" }), }
   );
 
   assert.deepEqual(batch.namespaces, ["core.language"]);
@@ -137,7 +131,7 @@ test("mixes visible and invisible revisions without leaking the invisible ones",
 });
 
 test("an empty batch is not an error", async () => {
-  const batch = await collectChangedNamespaces([], VIEWER, resolver({}));
+  const batch = await collectChangedNamespaces({ revisions: [], viewer: VIEWER, resolveNamespace: resolver({}) });
   assert.deepEqual(batch.namespaces, []);
   assert.equal(batch.cursor, 0);
 });

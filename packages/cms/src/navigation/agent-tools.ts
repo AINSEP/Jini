@@ -1,3 +1,4 @@
+import type { AgentToolDefinition, AgentToolSideEffect, AgentToolActorClassRule } from "@jini-ai/core";
 /**
  * @file The Navigation (Menus) agent-tool catalog — this domain's instance of the
  * per-domain `agent-tools.ts` convention `forms/agent-tools.ts` and `identity/agent-tools.ts`
@@ -58,29 +59,21 @@
 
 import { ALLOWED_HREF_SHAPES_DESCRIPTION } from "./menu-service.js";
 
-export type AgentToolSideEffect = "none" | "mutates-durable-state" | "mints-token";
 
-export type AgentToolActorClassRule = "confirmer-must-equal-own-delegatedBy" | "user-only" | "none";
 
-export interface AgentToolDefinition {
-  name: string;
-  description: string;
-  sideEffects: AgentToolSideEffect;
-  authorization: { permission: string };
-  actorClassRule?: AgentToolActorClassRule;
-  /**
+
+
+/**
    * JSON Schema for this tool's `input`, published to the model via `ToolDescriptor.inputSchema`
    * (a host's own tool-registration layer, which refuses to wire any tool lacking one).
    *
    * Deliberately not widened to `| undefined` (unlike most optional fields in this port) — this
-   * type flows into `core/tools/registration-kit.ts`'s `WirableToolDefinition`, which declares both
+   * type flows into `@jini-ai/core`'s `registration-kit.ts`'s `AgentToolDefinition`, which declares both
    * this field and `actorClassRule` below without `| undefined`. Widening only this catalog's copy
    * would make it structurally incompatible with that shared interface under
    * `exactOptionalPropertyTypes`, which is exactly what identity's own `agent-tools.ts` avoids for
    * the same reason.
    */
-  inputSchema?: Readonly<Record<string, unknown>>;
-}
 
 const MENU_ID_SCHEMA = {
   type: "string",
@@ -182,7 +175,7 @@ const ITEMS_TREE_SCHEMA = {
 export const menusAgentToolCatalog: AgentToolDefinition[] = [
   {
     name: "menus_list_menus",
-    description: "Lists every menu in the workspace (id, slug, title, status, item tree, locations, version). Read-only.",
+    description: "Lists every menu in the workspace (id, slug, title, status, item tree, locations, version). Read-only. To delete a menu, use trash_item with entityType 'menu' (it moves to the Trash and can be restored).",
     sideEffects: "none",
     authorization: { permission: "admin.menus.read" },
     inputSchema: {
@@ -208,7 +201,8 @@ export const menusAgentToolCatalog: AgentToolDefinition[] = [
     name: "menus_create_menu",
     description:
       "Creates a new menu in 'draft' status with no location assigned yet — it has no effect on the live site until " +
-      "menus_assign_location binds it somewhere. Rejects a duplicate slug within the workspace.",
+      "menus_assign_location binds it somewhere. Rejects a duplicate slug within the workspace. " +
+      "To delete a menu, use trash_item with entityType 'menu' (it moves to the Trash and can be restored).",
     sideEffects: "mutates-durable-state",
     authorization: { permission: "admin.menus.create" },
     inputSchema: {
@@ -227,7 +221,7 @@ export const menusAgentToolCatalog: AgentToolDefinition[] = [
     description:
       "Replaces an existing menu's whole item tree (and optionally its title/slug) in one version-guarded write. " +
       "Always a whole-tree replace — there is no per-item patch operation, so the submitted tree must include every " +
-      "item the menu keeps.",
+      "item the menu keeps. To delete a menu, use trash_item with entityType 'menu' (it moves to the Trash and can be restored).",
     sideEffects: "mutates-durable-state",
     authorization: { permission: "admin.menus.update" },
     inputSchema: {

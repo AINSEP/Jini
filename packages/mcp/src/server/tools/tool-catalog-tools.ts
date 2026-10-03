@@ -82,11 +82,11 @@ export const searchToolsTool: McpToolDef = {
     additionalProperties: false,
   },
   annotations: { ...READ_ANNOTATIONS, title: 'Search the tool catalog' },
-  handler: async (args, ctx) => {
-    requireString(args.query, 'query');
-    const params = new URLSearchParams({ q: args.query });
+  handler: async ({ args, ctx }) => {
+    const query = requireString({ value: args.query, name: 'query' });
+    const params = new URLSearchParams({ q: query });
     if (typeof args.limit === 'number') params.set('limit', String(args.limit));
-    const data = await getDaemonJson<ToolCatalogSearchResponse>(ctx.baseUrl, `/api/tools/search?${params.toString()}`, daemonCallOptions(ctx));
+    const data = await getDaemonJson<ToolCatalogSearchResponse>({ baseUrl: ctx.baseUrl, route: `/api/tools/search?${params.toString()}` }, daemonCallOptions({ ctx }));
     return data.hits;
   },
 };
@@ -105,9 +105,9 @@ export const describeToolTool: McpToolDef = {
     additionalProperties: false,
   },
   annotations: { ...READ_ANNOTATIONS, title: 'Describe a tool' },
-  handler: async (args, ctx) => {
-    requireString(args.id, 'id');
-    return getDaemonJson(ctx.baseUrl, `/api/tools/${encodeURIComponent(args.id)}`, daemonCallOptions(ctx));
+  handler: async ({ args, ctx }) => {
+    const id = requireString({ value: args.id, name: 'id' });
+    return getDaemonJson({ baseUrl: ctx.baseUrl, route: `/api/tools/${encodeURIComponent(id)}` }, daemonCallOptions({ ctx }));
   },
 };
 

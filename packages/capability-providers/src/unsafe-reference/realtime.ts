@@ -14,7 +14,7 @@
 import type { RealtimeHandler, RealtimeProvider, RealtimeUnsubscribe } from '../realtime.js';
 
 /** Creates the in-memory reference `RealtimeProvider`. Delivery is in-process only — no cross-process fan-out. */
-export function createInMemoryRealtimeProvider(): RealtimeProvider {
+export function createInMemoryRealtimeProvider(_required: Record<string, never>): RealtimeProvider {
   const channels = new Map<string, Set<RealtimeHandler>>();
 
   function subscribersFor(channel: string): Set<RealtimeHandler> {
@@ -27,15 +27,15 @@ export function createInMemoryRealtimeProvider(): RealtimeProvider {
   }
 
   return {
-    async publish<T>(channel: string, event: T): Promise<void> {
+    async publish<T>({ channel, event }: { channel: string; event: T }): Promise<void> {
       const subscribers = channels.get(channel);
       if (!subscribers) return;
       for (const handler of [...subscribers]) {
-        handler(event);
+        handler({ event });
       }
     },
 
-    subscribe<T>(channel: string, handler: RealtimeHandler<T>): RealtimeUnsubscribe {
+    subscribe<T>({ channel, handler }: { channel: string; handler: RealtimeHandler<T> }): RealtimeUnsubscribe {
       const subscribers = subscribersFor(channel);
       subscribers.add(handler as RealtimeHandler);
       let unsubscribed = false;

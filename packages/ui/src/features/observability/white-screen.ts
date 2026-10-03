@@ -90,7 +90,7 @@ export function installWhiteScreenDetector(options: WhiteScreenDetectorOptions =
   // its callback afterward. So by the time either callback runs at all,
   // `cancelled` is guaranteed to still be its initial `false`. Left in
   // place (not stripped) as a guard against a future refactor silently
-  // breaking that invariant — see packages/ui/source-map.md's 2026-07-22
+  // breaking that invariant — see packages/ui/archived provenance ledger's 2026-07-22
   // dated entry for the full proof, same pattern as this package's
   // `stuck-run.ts` `emitStuck` precedent.
   const timer = window.setTimeout(() => {
@@ -134,7 +134,7 @@ function checkAppMounted(options: CheckAppMountedOptions): boolean {
   // `installWhiteScreenDetector`, itself only ever reachable after that
   // function's own `typeof document === 'undefined'` guard has already
   // passed — a second check here was dead code for every real call,
-  // removed rather than tested around (see packages/ui/source-map.md's
+  // removed rather than tested around (see packages/ui/archived provenance ledger's
   // 2026-07-22 dated entry).
   // Primary signal: the host's root-mount effect ran.
   if (document.documentElement.getAttribute(options.mountedAttribute) === options.mountedAttributeValue) {
@@ -156,7 +156,7 @@ function checkAppMounted(options: CheckAppMountedOptions): boolean {
     // only for `Document`/`DocumentType` nodes — for any `Element` it is
     // always a string (possibly `''`). The `?? ''` fallback this used to
     // have was dead code for every real entry here, removed rather than
-    // tested around (see packages/ui/source-map.md's 2026-07-22 dated
+    // tested around (see packages/ui/archived provenance ledger's 2026-07-22 dated
     // entry).
     .map((el) => (el as HTMLElement).innerText ?? (el.textContent as string))
     .join('')
@@ -185,7 +185,7 @@ function monitorMount(isAppMounted: () => boolean, onMounted: () => void): () =>
   // about): two synchronous body mutations followed by two microtask
   // flushes produced exactly one callback invocation with `stopped` still
   // `false` at its start, and a further post-disconnect mutation produced
-  // zero more. See packages/ui/source-map.md's 2026-07-22 dated entry for
+  // zero more. See packages/ui/archived provenance ledger's 2026-07-22 dated entry for
   // the full record.
   const observer = new MutationObserver(() => {
     if (stopped) return;

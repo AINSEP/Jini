@@ -1,3 +1,5 @@
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
+import type { Clock } from "@jini-ai/core/primitives";
 import type { ContentLookupPort, EntryTermRepoPort, TaxonomyRepoPort, TaxonomyRevisionRepoPort, TaxonomyRevisionRow, Term, TermRepoPort, UnassignableEntryTermRepoPort } from "./write-service.js";
 import type { Taxonomy } from "./write-service.js";
 import type { TaxonomyListPort, TermListPort } from "./list.js";
@@ -15,14 +17,14 @@ export class InMemoryTaxonomyRepo implements TaxonomyRepoPort, TaxonomyListPort 
     return row;
   }
 
-  async findById(id: string): Promise<{ id: string; hierarchical: boolean; allowList?: string[] | undefined } | null> {
+  async findById({ id }: { id: string }): Promise<{ id: string; hierarchical: boolean; allowList?: string[] | undefined } | null> {
     const row = this.rows.get(id);
     return row ? { id: row.id, hierarchical: row.hierarchical } : null;
   }
 
   /** `ImportableTaxonomyRepoPort` — additive capability for `importTaxonomy`'s CAS check and
    * update-in-place, see `write-service.ts`'s doc comment on that interface. */
-  async findByIdFull(id: string): Promise<Taxonomy | null> {
+  async findByIdFull({ id }: { id: string }): Promise<Taxonomy | null> {
     const row = this.rows.get(id);
     return row ? { ...row } : null;
   }
@@ -39,7 +41,7 @@ export class InMemoryTaxonomyRepo implements TaxonomyRepoPort, TaxonomyListPort 
 
   /** `DeletableTaxonomyRepoPort` — additive capability for `deleteTaxonomy`, see
    * `write-service.ts`'s doc comment on that interface. */
-  async delete(id: string): Promise<void> {
+  async delete({ id }: { id: string }): Promise<void> {
     this.rows.delete(id);
   }
 
@@ -59,7 +61,7 @@ export class InMemoryTaxonomyRepo implements TaxonomyRepoPort, TaxonomyListPort 
    * app.ts`'s hermetic composition), never the host of a real workspace's real content, which is
    * why this gap is accepted here rather than closed.
    */
-  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+  async transaction<T>({ fn }: { fn: () => Promise<T> }): Promise<T> {
     return fn();
   }
 }
@@ -77,14 +79,14 @@ export class InMemoryTermRepo implements TermRepoPort, TermListPort {
     return row;
   }
 
-  async findById(id: string): Promise<{ id: string; taxonomyId: string; name?: string | undefined } | null> {
+  async findById({ id }: { id: string }): Promise<{ id: string; taxonomyId: string; name?: string | undefined } | null> {
     const row = this.rows.get(id);
     return row ? { id: row.id, taxonomyId: row.taxonomyId, name: row.name } : null;
   }
 
   /** `ImportableTermRepoPort` — additive capability for `importTerm`'s CAS check, see
    * `write-service.ts`'s doc comment on that interface. */
-  async findByIdFull(id: string): Promise<Term | null> {
+  async findByIdFull({ id }: { id: string }): Promise<Term | null> {
     const row = this.rows.get(id);
     return row ? { ...row } : null;
   }
@@ -96,13 +98,13 @@ export class InMemoryTermRepo implements TermRepoPort, TermListPort {
   /** Ancestor-chain lookup for `validation-chain.ts`'s `wouldCreateCycle` — not required by any
    * currently-wired route (reparent has no route this pass, design-spec.md §2.8), kept here so a
    * future reparent route has a ready-made `TermTreeLookup` to inject. */
-  getParentId(termId: string): string | null {
+  getParentId({ termId }: { termId: string }): string | null {
     return this.rows.get(termId)?.parentId ?? null;
   }
 
   /** `DeletableTermRepoPort` — additive capability for `deleteTerm`/`deleteTaxonomy`, see
    * `write-service.ts`'s doc comment on that interface. */
-  async delete(id: string): Promise<void> {
+  async delete({ id }: { id: string }): Promise<void> {
     this.rows.delete(id);
   }
 
@@ -203,11 +205,12 @@ export class InMemoryTaxonomyRevisionRepo implements TaxonomyRevisionRepoPort {
 export class InMemoryContentLookup implements ContentLookupPort {
   private readonly rows: Map<string, { workspaceId: string; kind: string }>;
 
-  constructor(seed: Array<{ contentType: string; contentId: string; workspaceId: string; kind: string }> = []) {
+  constructor(requiredArgs: Record<string, never>, optionalArgs: { seed?: Array<{ contentType: string; contentId: string; workspaceId: string; kind: string }> } = {}) {
+    const { seed = [] } = optionalArgs;
     this.rows = new Map(seed.map((s) => [`${s.contentType}::${s.contentId}`, { workspaceId: s.workspaceId, kind: s.kind }]));
   }
 
-  set(contentType: string, contentId: string, value: { workspaceId: string; kind: string }): void {
+  set({ contentType, contentId, value }: { contentType: string; contentId: string; value: { workspaceId: string; kind: string } }): void {
     this.rows.set(`${contentType}::${contentId}`, value);
   }
 
@@ -236,18 +239,18 @@ export function toTaxonomyOutbox(deps: {
       payload: Record<string, unknown>;
     }): Promise<void>;
   };
-  clock: { nowIso(): string };
+  clock: Clock;
   idGen: { newId(): string };
   /** Required — see `entries/repo.memory.ts`'s `toEntryOutbox` for the full rationale. Taxonomy is
    * the case that rules out reading the tenant off the event: its own event objects
    * (`{name, taxonomyId, actorId, occurredAt}`) carry no `workspaceId` at all. */
   workspaceId: string;
-}): { enqueue: (event: unknown) => Promise<void> } {
+}): { enqueue: ({ event }: { event: unknown }) => Promise<void> } {
   return {
-    enqueue: async (event) => {
+    enqueue: async ({ event }) => {
       const record = event as Record<string, unknown>;
       const name = typeof record.name === "string" ? record.name : "taxonomy.event";
-      const occurredAt = typeof record.occurredAt === "string" ? record.occurredAt : deps.clock.nowIso();
+      const occurredAt = typeof record.occurredAt === "string" ? record.occurredAt : kernelNowIso({ clock: deps.clock });
       await deps.outbox.enqueue({ id: deps.idGen.newId(), workspaceId: deps.workspaceId, name, occurredAt, payload: record });
     },
   };

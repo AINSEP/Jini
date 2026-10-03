@@ -200,47 +200,47 @@ describe('classifyJsonCandidate', () => {
 describe('createJsonLineStream', () => {
   it('parses a single complete JSON line', () => {
     const messages: unknown[] = [];
-    const stream = createJsonLineStream((msg) => messages.push(msg));
-    stream.feed('{"a":1}\n');
+    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) });
+    stream.feed({ chunk: '{"a":1}\n' });
     expect(messages).toEqual([{ a: 1 }]);
   });
 
   it('parses multiple lines fed in one chunk', () => {
     const messages: unknown[] = [];
-    const stream = createJsonLineStream((msg) => messages.push(msg));
-    stream.feed('{"a":1}\n{"b":2}\n');
+    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) });
+    stream.feed({ chunk: '{"a":1}\n{"b":2}\n' });
     expect(messages).toEqual([{ a: 1 }, { b: 2 }]);
   });
 
   it('buffers a partial line across feed() calls', () => {
     const messages: unknown[] = [];
-    const stream = createJsonLineStream((msg) => messages.push(msg));
-    stream.feed('{"a":');
+    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) });
+    stream.feed({ chunk: '{"a":' });
     expect(messages).toEqual([]);
-    stream.feed('1}\n');
+    stream.feed({ chunk: '1}\n' });
     expect(messages).toEqual([{ a: 1 }]);
   });
 
   it('splits a chunk containing multiple lines and a trailing partial line', () => {
     const messages: unknown[] = [];
-    const stream = createJsonLineStream((msg) => messages.push(msg));
-    stream.feed('{"a":1}\n{"b":2}\n{"c":');
+    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) });
+    stream.feed({ chunk: '{"a":1}\n{"b":2}\n{"c":' });
     expect(messages).toEqual([{ a: 1 }, { b: 2 }]);
-    stream.feed('3}\n');
+    stream.feed({ chunk: '3}\n' });
     expect(messages).toEqual([{ a: 1 }, { b: 2 }, { c: 3 }]);
   });
 
   it('ignores blank lines', () => {
     const messages: unknown[] = [];
-    const stream = createJsonLineStream((msg) => messages.push(msg));
-    stream.feed('\n\n{"a":1}\n\n');
+    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) });
+    stream.feed({ chunk: '\n\n{"a":1}\n\n' });
     expect(messages).toEqual([{ a: 1 }]);
   });
 
   it('flush() drains a residual buffered line with no trailing newline', () => {
     const messages: unknown[] = [];
-    const stream = createJsonLineStream((msg) => messages.push(msg));
-    stream.feed('{"a":1}');
+    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) });
+    stream.feed({ chunk: '{"a":1}' });
     expect(messages).toEqual([]);
     stream.flush();
     expect(messages).toEqual([{ a: 1 }]);
@@ -248,102 +248,102 @@ describe('createJsonLineStream', () => {
 
   it('flush() on an empty buffer is a no-op', () => {
     const messages: unknown[] = [];
-    const stream = createJsonLineStream((msg) => messages.push(msg));
+    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) });
     expect(() => stream.flush()).not.toThrow();
     expect(messages).toEqual([]);
   });
 
   it('ignores a non-JSON trailing log line on flush', () => {
     const messages: unknown[] = [];
-    const stream = createJsonLineStream((msg) => messages.push(msg));
-    stream.feed('not json at all');
+    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) });
+    stream.feed({ chunk: 'not json at all' });
     stream.flush();
     expect(messages).toEqual([]);
   });
 
   it('passes the raw reassembled line as the second callback argument', () => {
     const raws: string[] = [];
-    const stream = createJsonLineStream((_msg, raw) => raws.push(raw));
-    stream.feed('{"a":1}\n');
+    const stream = createJsonLineStream({ onMessage: ({ message: _msg, rawLine: raw }) => raws.push(raw) });
+    stream.feed({ chunk: '{"a":1}\n' });
     expect(raws).toEqual(['{"a":1}']);
   });
 
   it('reassembles a pretty-printed multiline JSON object', () => {
     const messages: unknown[] = [];
-    const stream = createJsonLineStream((msg) => messages.push(msg));
-    stream.feed('{\n');
-    stream.feed('  "a": 1,\n');
-    stream.feed('  "b": 2\n');
-    stream.feed('}\n');
+    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) });
+    stream.feed({ chunk: '{\n' });
+    stream.feed({ chunk: '  "a": 1,\n' });
+    stream.feed({ chunk: '  "b": 2\n' });
+    stream.feed({ chunk: '}\n' });
     expect(messages).toEqual([{ a: 1, b: 2 }]);
   });
 
   it('reassembles a pretty-printed multiline JSON object whose final line has no trailing newline, via flush()', () => {
     const messages: unknown[] = [];
-    const stream = createJsonLineStream((msg) => messages.push(msg));
+    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) });
     // No trailing newline after the closing brace, so it stays buffered
     // until flush() drains it.
-    stream.feed('{\n  "a": 1\n}');
+    stream.feed({ chunk: '{\n  "a": 1\n}' });
     stream.flush();
     expect(messages).toEqual([{ a: 1 }]);
   });
 
   it('abandons a multiline candidate that exceeds 256 lines and retries the current line fresh', () => {
     const messages: unknown[] = [];
-    const stream = createJsonLineStream((msg) => messages.push(msg));
+    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) });
     // Open an object that never legally closes within the line budget.
-    stream.feed('{\n');
+    stream.feed({ chunk: '{\n' });
     for (let i = 0; i < 260; i += 1) {
-      stream.feed(`"k${i}": ${i},\n`);
+      stream.feed({ chunk: `"k${i}": ${i},\n` });
     }
     // A fresh valid line should still parse after the pending candidate is abandoned.
-    stream.feed('{"fresh":true}\n');
+    stream.feed({ chunk: '{"fresh":true}\n' });
     expect(messages).toContainEqual({ fresh: true });
   });
 
   it('abandons a multiline candidate that exceeds the byte budget and retries the current line fresh', () => {
     const messages: unknown[] = [];
-    const stream = createJsonLineStream((msg) => messages.push(msg));
-    stream.feed('{\n');
+    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) });
+    stream.feed({ chunk: '{\n' });
     // A single huge line pushes the candidate over 128_000 chars immediately.
     const hugeLine = `"pad": "${'x'.repeat(129_000)}"\n`;
-    stream.feed(hugeLine);
-    stream.feed('{"fresh":true}\n');
+    stream.feed({ chunk: hugeLine });
+    stream.feed({ chunk: '{"fresh":true}\n' });
     expect(messages).toContainEqual({ fresh: true });
   });
 
   it('starts a pending multiline candidate only for lines beginning with { or [', () => {
     const messages: unknown[] = [];
     const raws: string[] = [];
-    const stream = createJsonLineStream((msg, raw) => {
+    const stream = createJsonLineStream({ onMessage: ({ message: msg, rawLine: raw }) => {
       messages.push(msg);
       raws.push(raw);
-    });
+    } });
     // Not JSON and doesn't start with { or [ -> should be silently dropped,
     // not accumulated into a pending candidate.
-    stream.feed('hello world\n');
-    stream.feed('{"a":1}\n');
+    stream.feed({ chunk: 'hello world\n' });
+    stream.feed({ chunk: '{"a":1}\n' });
     expect(messages).toEqual([{ a: 1 }]);
   });
 
   it('treats a line starting with { that is already invalid (not just incomplete) as a dropped line', () => {
     const messages: unknown[] = [];
-    const stream = createJsonLineStream((msg) => messages.push(msg));
+    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) });
     // `{]` is invalid, not incomplete, so it must not start a pending candidate.
-    stream.feed('{]\n');
-    stream.feed('{"a":1}\n');
+    stream.feed({ chunk: '{]\n' });
+    stream.feed({ chunk: '{"a":1}\n' });
     expect(messages).toEqual([{ a: 1 }]);
   });
 
   it('recovers when a pending multiline candidate resolves to invalid JSON on the next line and the next line parses standalone', () => {
     const messages: unknown[] = [];
-    const stream = createJsonLineStream((msg) => messages.push(msg));
-    stream.feed('{\n');
+    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) });
+    stream.feed({ chunk: '{\n' });
     // Appending this makes the candidate `{\nbad line here` which is invalid
     // (starts a value with 'b'), forcing handleLine to retry the current
     // line fresh.
-    stream.feed('bad line here\n');
-    stream.feed('{"a":1}\n');
+    stream.feed({ chunk: 'bad line here\n' });
+    stream.feed({ chunk: '{"a":1}\n' });
     expect(messages).toEqual([{ a: 1 }]);
   });
 });
@@ -781,7 +781,7 @@ describe('emitJsonLine', () => {
   it('parses valid JSON, calls onMessage, and returns true', () => {
     const onMessage = vi.fn();
     expect(emitJsonLine('{"a":1}', onMessage)).toBe(true);
-    expect(onMessage).toHaveBeenCalledWith({ a: 1 }, '{"a":1}');
+    expect(onMessage).toHaveBeenCalledWith({ message: { a: 1 }, rawLine: '{"a":1}' });
   });
 
   it('returns false and does not call onMessage for invalid JSON', () => {
@@ -796,7 +796,7 @@ describe('continuePendingJsonLine', () => {
     const onMessage = vi.fn();
     const state = accumulatorState({ pendingJson: '{"a":1,', pendingJsonLineCount: 1 });
     continuePendingJsonLine(state, '"b":2}', onMessage);
-    expect(onMessage).toHaveBeenCalledWith({ a: 1, b: 2 }, '{"a":1,\n"b":2}');
+    expect(onMessage).toHaveBeenCalledWith({ message: { a: 1, b: 2 }, rawLine: '{"a":1,\n"b":2}' });
     expect(state.pendingJson).toBe('');
     expect(state.pendingJsonLineCount).toBe(0);
   });
@@ -893,14 +893,14 @@ describe('handleJsonLine', () => {
     const onMessage = vi.fn();
     const state = accumulatorState({ pendingJson: '{"a":1', pendingJsonLineCount: 1 });
     handleJsonLine(state, '}', onMessage);
-    expect(onMessage).toHaveBeenCalledWith({ a: 1 }, '{"a":1\n}');
+    expect(onMessage).toHaveBeenCalledWith({ message: { a: 1 }, rawLine: '{"a":1\n}' });
   });
 
   it('emits a line that parses standalone', () => {
     const onMessage = vi.fn();
     const state = accumulatorState();
     handleJsonLine(state, '{"a":1}', onMessage);
-    expect(onMessage).toHaveBeenCalledWith({ a: 1 }, '{"a":1}');
+    expect(onMessage).toHaveBeenCalledWith({ message: { a: 1 }, rawLine: '{"a":1}' });
   });
 
   it('falls through to tryStartPendingJsonLine when the line does not parse standalone', () => {

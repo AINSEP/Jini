@@ -13,7 +13,7 @@ import {
 } from "../types.js";
 
 /**
- * @file U-001-B1 / U-002-B1 — the indexable-vs-storage-only field-kind split.
+ * @file the indexable-vs-storage-only field-kind split.
  *
  * Companion to `index-provisioning.ddl-safety.test.ts`, which stays the certified owner of the
  * original DDL-injection properties. This file owns the properties the split introduces, and its
@@ -21,13 +21,14 @@ import {
  * reach a `CAST(... AS {type})` position must be exactly the four it has always been. The table
  * gaining a key is not a security event; the table gaining a VALUE would be, and only a test that
  * pins the value set can tell those two apart.
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 
 /** The complete set of CAST literals reachable before `relation` existed. Must never grow. */
 const HISTORICAL_DDL_ALPHABET = ["BOOLEAN", "INTEGER", "REAL", "TEXT"] as const;
 
 test("U-001-B1 (THE security property): the set of DISTINCT CAST literals reachable from any indexable kind is exactly the historical four — a new KEY may be added, a new VALUE may not", () => {
-  const reachable = new Set(INDEXABLE_FIELD_KINDS.map((kind) => mapFieldKindToCast(kind)));
+  const reachable = new Set(INDEXABLE_FIELD_KINDS.map((kind) => mapFieldKindToCast({ kind: kind })));
 
   assert.deepEqual(
     [...reachable].sort(),
@@ -38,37 +39,37 @@ test("U-001-B1 (THE security property): the set of DISTINCT CAST literals reacha
 
 test("U-001-B1 (property, auto-covering future additions): every indexable kind maps to a plain uppercase SQL type token with no injection-shaped characters", () => {
   for (const kind of INDEXABLE_FIELD_KINDS) {
-    const literal = mapFieldKindToCast(kind);
+    const literal = mapFieldKindToCast({ kind: kind });
     assert.match(literal, /^[A-Z]+$/, `CAST literal for '${kind}' must be a plain uppercase token, got: ${literal}`);
     assert.equal(/['";()\s]/.test(literal), false, `CAST literal for '${kind}' must contain no injection-shaped characters`);
   }
 });
 
 test("'relation' maps to the literal already used by 'text' — it adds a key, not a value", () => {
-  assert.equal(mapFieldKindToCast("relation"), "TEXT");
-  assert.equal(mapFieldKindToCast("relation"), mapFieldKindToCast("text"));
-  assert.equal(mapFieldKindToCast("relation"), mapFieldKindToCast("datetime"));
+  assert.equal(mapFieldKindToCast({ kind: "relation" }), "TEXT");
+  assert.equal(mapFieldKindToCast({ kind: "relation" }), mapFieldKindToCast({ kind: "text" }));
+  assert.equal(mapFieldKindToCast({ kind: "relation" }), mapFieldKindToCast({ kind: "datetime" }));
 });
 
 test("the five original scalars still map to their original literals, unchanged", () => {
   assert.deepEqual(
-    CONTENT_TYPE_SCALAR_KINDS.map((kind) => mapFieldKindToCast(kind)),
+    CONTENT_TYPE_SCALAR_KINDS.map((kind) => mapFieldKindToCast({ kind: kind })),
     ["TEXT", "INTEGER", "REAL", "BOOLEAN", "TEXT"],
   );
 });
 
 test("U-001-B1: every storage-only kind is REJECTED by mapFieldKindToCast — a legal kind to declare is not thereby a legal kind to CAST", () => {
   for (const kind of STORAGE_ONLY_FIELD_KINDS) {
-    assert.throws(() => mapFieldKindToCast(kind), InvalidFieldKindError, `'${kind}' must never yield a CAST literal`);
+    assert.throws(() => mapFieldKindToCast({ kind: kind }), InvalidFieldKindError, `'${kind}' must never yield a CAST literal`);
   }
 });
 
 test("U-001-B1 (exhaustive over the enum): every declared kind either maps to a literal in the historical alphabet or throws — there is no third outcome", () => {
   for (const kind of CONTENT_TYPE_FIELD_KINDS) {
-    if (isIndexableFieldKind(kind)) {
-      assert.ok((HISTORICAL_DDL_ALPHABET as readonly string[]).includes(mapFieldKindToCast(kind)));
+    if (isIndexableFieldKind({ value: kind })) {
+      assert.ok((HISTORICAL_DDL_ALPHABET as readonly string[]).includes(mapFieldKindToCast({ kind: kind })));
     } else {
-      assert.throws(() => mapFieldKindToCast(kind), InvalidFieldKindError);
+      assert.throws(() => mapFieldKindToCast({ kind: kind }), InvalidFieldKindError);
     }
   }
 });
@@ -123,7 +124,7 @@ test("'relation' is a first-class indexable kind through the transition resolver
 /* ------------------------------------------------------------------ write-service guard 4b */
 
 const NOW = "2026-09-05T00:00:00.000Z";
-const clock = { nowIso: () => NOW };
+const clock = { nowMs: () => Date.parse(NOW)};
 const ids = { newId: () => "ct-1" };
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
 const outbox = { enqueue: async () => undefined };
@@ -135,7 +136,7 @@ function fakeRepo(current?: unknown) {
     save: async (row: unknown) => { rows.push(row); },
     appendRevision: async () => undefined,
     findByKey: async () => (current ?? null) as never,
-    transaction: async <T>(fn: () => Promise<T>) => fn(),
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn(),
   };
 }
 
@@ -184,7 +185,7 @@ test("U-002-B1 guard 4b: update-fields rejects the same pairing", async () => {
 });
 
 test("the guard-4b error is an InvalidFieldKindError SUBCLASS, so every existing boundary `instanceof` list maps it to 400 rather than falling through to 500", () => {
-  const error = new StorageOnlyFieldNotQueryableError("x");
+  const error = new StorageOnlyFieldNotQueryableError({ message: "x" });
   assert.ok(error instanceof InvalidFieldKindError, "an unmapped sibling class would become a 500 at boundaries this package cannot edit");
   assert.ok(error instanceof Error);
   assert.equal(error.name, "StorageOnlyFieldNotQueryableError", "the finer signal must still be available by name");

@@ -15,7 +15,7 @@ import type { AgentEvent } from './events.js';
  *   `k` is the number of distinct `tool_use` ids seen — one linear pass with
  *   a `Set` membership check.
  */
-export function dedupeToolUsesById(events: AgentEvent[] | undefined): AgentEvent[] {
+export function dedupeToolUsesById({ events }: { events: AgentEvent[] | undefined }): AgentEvent[] {
   if (!events || events.length === 0) return [];
 
   const seen = new Set<string>();

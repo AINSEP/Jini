@@ -5,7 +5,7 @@
  * {@link McpUiToolCallHandler} that relays a View's `tools/call` to an HTTP endpoint.
  *
  * ```tsx
- * registerMcpUiSurfaceRenderer({ onToolCall: createMcpUiToolCaller('') });
+ * registerMcpUiSurfaceRenderer({ onToolCall: createMcpUiToolCaller({ baseUrl: '', fetch }) });
  * ```
  *
  * That one line completes the loop. `@jini-ai/daemon`'s `delegated-tool-bridge.ts` splits a UI
@@ -96,9 +96,7 @@ function errorFrom(body: unknown, status: number): Error {
  *   proxied to its own API.
  * @complexity O(1) — one request per call.
  */
-export function createMcpUiToolCaller(
-  baseUrl: string,
-  options: CreateMcpUiToolCallerOptions = {},
+export function createMcpUiToolCaller({ baseUrl, fetch }: { baseUrl: string; fetch: typeof globalThis.fetch }, options: CreateMcpUiToolCallerOptions = {}
 ): McpUiToolCallHandler {
   const path = options.path ?? DEFAULT_PATH;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;

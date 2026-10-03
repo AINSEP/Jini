@@ -49,7 +49,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
     const body = bodyWith('<div data-marker="Media" data-id="m1"></div>');
     applyCanvasEmbedPlaceholders(body, describeMarked);
 
-    const card = body.querySelector('[data-tovu-embed-placeholder-root]');
+    const card = body.querySelector('[data-jini-embed-placeholder-root]');
     expect(card).not.toBeNull();
     expect(card!.textContent).toContain('Placeholder — Media');
     expect(card!.textContent).toContain('id m1');
@@ -84,7 +84,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
 
     const children = Array.from(body.children);
     expect(children.map((c) => c.tagName)).toEqual(['P', 'DIV', 'P']);
-    expect(children[1]!.hasAttribute('data-tovu-embed-placeholder-root')).toBe(true);
+    expect(children[1]!.hasAttribute('data-jini-embed-placeholder-root')).toBe(true);
     expect(children[1]!.querySelector('[data-marker]')).not.toBeNull();
   });
 
@@ -92,7 +92,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
     const body = bodyWith('<div data-marker="media" data-id="m1" style="max-width: 600px;"></div>');
     applyCanvasEmbedPlaceholders(body, describeMarked);
 
-    const card = body.querySelector('[data-tovu-embed-placeholder-root]')!;
+    const card = body.querySelector('[data-jini-embed-placeholder-root]')!;
     expect(card.getAttribute('style')).toContain('max-width: 600px');
     // The card's own chrome still applies too — the authored style doesn't blot it out.
     expect(card.getAttribute('style')).toContain('border:2px dashed');
@@ -102,7 +102,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
     const body = bodyWith('<div data-marker="media" data-id="m1"></div>');
     applyCanvasEmbedPlaceholders(body, describeMarked);
 
-    const card = body.querySelector('[data-tovu-embed-placeholder-root]')!;
+    const card = body.querySelector('[data-jini-embed-placeholder-root]')!;
     expect(card.getAttribute('style')).not.toMatch(/^;/);
     expect(card.getAttribute('style')).toContain('border:2px dashed');
   });
@@ -130,7 +130,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
 
       applyCanvasEmbedPlaceholders(document.body, describeMarked);
 
-      const card = document.body.querySelector('[data-tovu-embed-placeholder-root]') as HTMLElement;
+      const card = document.body.querySelector('[data-jini-embed-placeholder-root]') as HTMLElement;
       expect(card.style.maxWidth).toBe('480px');
       expect(card.hasAttribute('style')).toBe(true); // Still carries the card's own base chrome too.
     });
@@ -140,7 +140,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
 
       applyCanvasEmbedPlaceholders(document.body, describeMarked);
 
-      const card = document.body.querySelector('[data-tovu-embed-placeholder-root]') as HTMLElement;
+      const card = document.body.querySelector('[data-jini-embed-placeholder-root]') as HTMLElement;
       expect(card.style.maxWidth).toBe('');
     });
   });
@@ -151,7 +151,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
     );
     applyCanvasEmbedPlaceholders(body, describeMarked);
 
-    const cards = body.querySelectorAll('[data-tovu-embed-placeholder-root]');
+    const cards = body.querySelectorAll('[data-jini-embed-placeholder-root]');
     expect(cards).toHaveLength(2);
     expect(cards[0]!.textContent).toContain('Placeholder — media');
     expect(cards[0]!.textContent).toContain('id m1');
@@ -164,7 +164,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
     applyCanvasEmbedPlaceholders(body, describeMarked);
     applyCanvasEmbedPlaceholders(body, describeMarked);
 
-    expect(body.querySelectorAll('[data-tovu-embed-placeholder-root]')).toHaveLength(1);
+    expect(body.querySelectorAll('[data-jini-embed-placeholder-root]')).toHaveLength(1);
     expect(body.querySelectorAll('[data-marker]')).toHaveLength(1);
   });
 
@@ -179,7 +179,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
 
     // The card's own children (icon, heading, identity, note) ARE walked by the second pass's
     // `querySelectorAll('*')`, but every one of them — including the relocated marker itself — sits
-    // under `[data-tovu-embed-placeholder-root]` by then, so the re-entrancy guard skips them before
+    // under `[data-jini-embed-placeholder-root]` by then, so the re-entrancy guard skips them before
     // `describe` is ever called on any of them.
     expect(spy).not.toHaveBeenCalled();
     expect(callsAfterFirstPass).toBeGreaterThan(0);
@@ -189,7 +189,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
     const body = bodyWith('<div data-marker="&lt;script&gt;" data-id="m1"></div>');
     applyCanvasEmbedPlaceholders(body, describeMarked);
 
-    const card = body.querySelector('[data-tovu-embed-placeholder-root]')!;
+    const card = body.querySelector('[data-jini-embed-placeholder-root]')!;
     expect(card.querySelector('script')).toBeNull();
     expect(card.textContent).toContain('Placeholder — <script>');
   });
@@ -200,7 +200,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
 // together with the embed). The card makes the marker a transparent overlay over its own box, and a
 // later pass repairs cards a structural edit (delete, move, clone, undo) left stale.
 describe('applyCanvasEmbedPlaceholders — the marker is the card\'s clickable surface', () => {
-  const OVERLAY_STYLE = 'style[data-tovu-embed-placeholder-style]';
+  const OVERLAY_STYLE = 'style[data-jini-embed-placeholder-style]';
 
   afterEach(() => {
     document.head.querySelectorAll(OVERLAY_STYLE).forEach((el) => el.remove());
@@ -210,8 +210,8 @@ describe('applyCanvasEmbedPlaceholders — the marker is the card\'s clickable s
     const body = bodyWith('<div data-marker="media" data-id="m1"></div>');
     applyCanvasEmbedPlaceholders(body, describeMarked);
 
-    const card = body.querySelector('[data-tovu-embed-placeholder-root]')!;
-    const unflagged = Array.from(card.children).filter((c) => !c.hasAttribute('data-tovu-embed-placeholder-chrome'));
+    const card = body.querySelector('[data-jini-embed-placeholder-root]')!;
+    const unflagged = Array.from(card.children).filter((c) => !c.hasAttribute('data-jini-embed-placeholder-chrome'));
     expect(unflagged).toEqual([body.querySelector('[data-marker]')]);
     expect(card.getAttribute('style')).toContain('position:relative');
   });
@@ -224,7 +224,7 @@ describe('applyCanvasEmbedPlaceholders — the marker is the card\'s clickable s
     const styles = document.head.querySelectorAll(OVERLAY_STYLE);
     expect(styles).toHaveLength(1);
     expect(styles[0]!.textContent).toBe(
-      '[data-tovu-embed-placeholder-root] > :not([data-tovu-embed-placeholder-chrome])' +
+      '[data-jini-embed-placeholder-root] > :not([data-jini-embed-placeholder-chrome])' +
         ' { position: absolute !important; inset: 0 !important; margin: 0 !important; width: auto !important;' +
         ' height: auto !important; min-width: 0 !important; max-width: none !important; min-height: 0 !important;' +
         ' display: block !important; background: transparent !important; }'
@@ -254,7 +254,7 @@ describe('applyCanvasEmbedPlaceholders — the marker is the card\'s clickable s
 
     applyCanvasEmbedPlaceholders(body, describeMarked);
 
-    const cards = body.querySelectorAll('[data-tovu-embed-placeholder-root]');
+    const cards = body.querySelectorAll('[data-jini-embed-placeholder-root]');
     expect(cards).toHaveLength(1);
     expect(marker.parentElement).toBe(cards[0]);
     expect(Array.from(body.children).map((c) => c.tagName)).toEqual(['P', 'DIV']);

@@ -57,7 +57,7 @@ export function ConnectorGrid({
     emptyNoMatchTitle ?? ((query: string) => t('No connectors match "{query}"', { query }));
   const resolvedEmptyNoMatchBody = emptyNoMatchBody ?? t('Try a different search term.');
   const resolvedEmptyNoMatchAction = emptyNoMatchAction ?? t('Clear search');
-  const cardHandles = agentHandle ? buildAgentListHandles(agentHandle, connectors.map((c) => c.id)) : undefined;
+  const cardHandles = agentHandle ? buildAgentListHandles({ prefix: agentHandle, ids: connectors.map((c) => c.id) }) : undefined;
   return (
     <div className={`connector-grid-wrap${locked ? ' is-masked' : ''}`} data-testid="connector-grid-wrap">
       {hasNoResults && !locked ? (
@@ -68,7 +68,7 @@ export function ConnectorGrid({
             type="button"
             className="ghost connectors-empty-action"
             onClick={onClearSearch}
-            {...agentHandleProps(agentHandle, { action: 'clear-search', role: 'button', label: resolvedEmptyNoMatchAction })}
+            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'clear-search', role: 'button', label: resolvedEmptyNoMatchAction }) })}
           >
             {resolvedEmptyNoMatchAction}
           </button>

@@ -6,7 +6,7 @@ import { useDebouncedValue } from '../useDebouncedValue.js';
 describe('useDebouncedValue', () => {
   it('updates only after the delay elapses', () => {
     vi.useFakeTimers();
-    const { result, rerender } = renderHook(({ value }) => useDebouncedValue(value, 250), {
+    const { result, rerender } = renderHook(({ value }) => useDebouncedValue({ value, delayMs: 250 }), {
       initialProps: { value: 'a' },
     });
     expect(result.current).toBe('a');
@@ -26,7 +26,7 @@ describe('useDebouncedValue', () => {
 
   it('resets the timer on rapid successive changes (only the last value lands)', () => {
     vi.useFakeTimers();
-    const { result, rerender } = renderHook(({ value }) => useDebouncedValue(value, 250), {
+    const { result, rerender } = renderHook(({ value }) => useDebouncedValue({ value, delayMs: 250 }), {
       initialProps: { value: 'a' },
     });
 

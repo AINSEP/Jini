@@ -35,11 +35,11 @@ function fakeTaxonomiesRepo(seed: Taxonomy[] = []) {
   const rows = new Map(seed.map((t) => [t.id, { ...t }]));
   return {
     rows,
-    async findById(id: string) {
+    async findById({ id }: { id: string }) {
       const row = rows.get(id);
       return row ? { id: row.id, hierarchical: row.hierarchical } : null;
     },
-    async findByIdFull(id: string) {
+    async findByIdFull({ id }: { id: string }) {
       const row = rows.get(id);
       return row ? { ...row } : null;
     },
@@ -58,11 +58,11 @@ function fakeTermsRepo(seed: Term[] = []) {
   const rows = new Map(seed.map((t) => [t.id, { ...t }]));
   return {
     rows,
-    async findById(id: string) {
+    async findById({ id }: { id: string }) {
       const row = rows.get(id);
       return row ? { id: row.id, taxonomyId: row.taxonomyId, name: row.name } : null;
     },
-    async findByIdFull(id: string) {
+    async findByIdFull({ id }: { id: string }) {
       const row = rows.get(id);
       return row ? { ...row } : null;
     },
@@ -87,14 +87,14 @@ function baseDeps(overrides: { authorize?: typeof alwaysAllow; taxonomies?: Retu
     get watermarkStamps() { return watermarkStamps; },
     deps: {
       authorize: overrides.authorize ?? alwaysAllow,
-      clock: { nowIso: () => NOW },
+      clock: { nowMs: () => Date.parse(NOW)},
       idGen: { newId: () => "unused" },
       taxonomies: overrides.taxonomies ?? fakeTaxonomiesRepo([{ id: "tax-1", name: "seed", hierarchical: false, status: "active", updatedAt: NOW, version: 1 }]),
       terms: overrides.terms ?? fakeTermsRepo(),
       entryTerms: { upsert: async () => undefined },
       revisions: { insert: async (row: unknown) => { revisions.push(row); } },
       stampWatermark: () => { watermarkStamps += 1; },
-      outbox: { enqueue: async (event: unknown) => { outboxEvents.push(event); } },
+      outbox: { enqueue: async ({ event }: { event: unknown }) => { outboxEvents.push(event); } },
       workspaceId: "ws-1",
       contentLookup: { resolve: async () => null },
     },
@@ -112,7 +112,7 @@ test("importTaxonomy creates a row preserving the given id when no expectedVersi
 
   assert.equal(taxonomy.id, "src-tax-1", "the source id must be preserved");
   assert.equal(taxonomy.version, 1);
-  assert.equal((await deps.taxonomies.findByIdFull("src-tax-1"))?.name, "Cuisine");
+  assert.equal((await deps.taxonomies.findByIdFull({ id: "src-tax-1" }))?.name, "Cuisine");
   assert.equal(outboxEvents.length, 1);
   assert.equal((outboxEvents[0] as { name: string }).name, "taxonomy.imported");
 });
@@ -189,7 +189,7 @@ test("an unauthorized principal cannot import a taxonomy — FORBIDDEN, no write
 test("importTerm creates a row preserving the given id when no expectedVersion is supplied and none exists", async () => {
   const { deps } = baseDeps();
 
-  const term = await importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "tax-1", name: "Mexican", parentId: null, expectedVersion: undefined });
+  const term = await importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "tax-1", name: "Mexican", expectedVersion: undefined }, { parentId: null });
 
   assert.equal(term.id, "src-term-1");
   assert.equal(term.version, 1);
@@ -199,7 +199,7 @@ test("importTerm updates an existing row in place when expectedVersion matches, 
   const terms = fakeTermsRepo([{ id: "src-term-1", taxonomyId: "tax-1", parentId: null, name: "Mexican", status: "active", updatedAt: "2026-01-01T00:00:00.000Z", version: 1 }]);
   const { deps } = baseDeps({ terms });
 
-  const term = await importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "tax-1", name: "Mexican Food", parentId: null, expectedVersion: 1 });
+  const term = await importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "tax-1", name: "Mexican Food", expectedVersion: 1 }, { parentId: null });
 
   assert.equal(term.version, 2);
   assert.equal(term.name, "Mexican Food");
@@ -211,7 +211,7 @@ test("importTerm: expectedVersion undefined but the id already exists is a versi
   const { deps } = baseDeps({ terms });
 
   await assert.rejects(
-    importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "tax-1", name: "Mexican", parentId: null, expectedVersion: undefined }),
+    importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "tax-1", name: "Mexican", expectedVersion: undefined }, { parentId: null }),
     (err: unknown) => {
       assert.ok(err instanceof TaxonomyVersionConflictError);
       assert.equal(err.message, "term 'src-term-1' already exists, but no expectedVersion was supplied for import");
@@ -224,7 +224,7 @@ test("importTerm: expectedVersion set but no such term exists is a version confl
   const { deps } = baseDeps();
 
   await assert.rejects(
-    importTerm({ deps, principalId: "user-1", id: "ghost", taxonomyId: "tax-1", name: "Mexican", parentId: null, expectedVersion: 3 }),
+    importTerm({ deps, principalId: "user-1", id: "ghost", taxonomyId: "tax-1", name: "Mexican", expectedVersion: 3 }, { parentId: null }),
     (err: unknown) => {
       assert.ok(err instanceof TaxonomyVersionConflictError);
       assert.equal(err.message, "expected version 3 for term 'ghost', but no such term exists");
@@ -237,7 +237,7 @@ test("importTerm refuses when its owning taxonomy does not exist", async () => {
   const { deps } = baseDeps({ taxonomies: fakeTaxonomiesRepo() });
 
   await assert.rejects(
-    importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "ghost-tax", name: "Mexican", parentId: null, expectedVersion: undefined }),
+    importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "ghost-tax", name: "Mexican", expectedVersion: undefined }, { parentId: null }),
     (err: unknown) => {
       assert.ok(err instanceof TaxonomyRecordNotFoundError);
       return true;
@@ -249,7 +249,7 @@ test("an unauthorized principal cannot import a term — FORBIDDEN, no write", a
   const { deps } = baseDeps({ authorize: alwaysDeny });
 
   await assert.rejects(
-    importTerm({ deps, principalId: "intruder", id: "src-term-1", taxonomyId: "tax-1", name: "Mexican", parentId: null, expectedVersion: undefined }),
+    importTerm({ deps, principalId: "intruder", id: "src-term-1", taxonomyId: "tax-1", name: "Mexican", expectedVersion: undefined }, { parentId: null }),
     (err: unknown) => {
       assert.ok(err instanceof ForbiddenError);
       return true;
@@ -274,7 +274,7 @@ test("importTerm refuses to reparent an existing term under its own grandchild �
   const { deps, revisions, outboxEvents } = baseDeps({ taxonomies, terms });
 
   await assert.rejects(
-    importTerm({ deps, principalId: "user-1", id: "a", taxonomyId: "tax-h", name: "a", parentId: "c", expectedVersion: 1 }),
+    importTerm({ deps, principalId: "user-1", id: "a", taxonomyId: "tax-h", name: "a", expectedVersion: 1 }, { parentId: "c" }),
     (err: unknown) => {
       assert.ok(err instanceof HierarchyCycleDetectedError);
       assert.equal(err.message, "assigning 'c' as parent would create a hierarchy cycle");
@@ -292,7 +292,7 @@ test("importTerm refuses to make an existing term its own parent", async () => {
   const { deps } = baseDeps({ taxonomies, terms });
 
   await assert.rejects(
-    importTerm({ deps, principalId: "user-1", id: "b", taxonomyId: "tax-h", name: "b", parentId: "b", expectedVersion: 1 }),
+    importTerm({ deps, principalId: "user-1", id: "b", taxonomyId: "tax-h", name: "b", expectedVersion: 1 }, { parentId: "b" }),
     (err: unknown) => {
       assert.ok(err instanceof HierarchyCycleDetectedError);
       assert.equal(err.message, "assigning 'b' as parent would create a hierarchy cycle");
@@ -306,7 +306,7 @@ test("importTerm allows reparenting an existing term under a non-descendant", as
   const { taxonomies, terms } = hierarchicalTree();
   const { deps } = baseDeps({ taxonomies, terms });
 
-  const moved = await importTerm({ deps, principalId: "user-1", id: "b", taxonomyId: "tax-h", name: "b", parentId: "d", expectedVersion: 1 });
+  const moved = await importTerm({ deps, principalId: "user-1", id: "b", taxonomyId: "tax-h", name: "b", expectedVersion: 1 }, { parentId: "d" });
 
   assert.equal(moved.parentId, "d");
   assert.equal(terms.rows.get("b")?.parentId, "d");
@@ -319,7 +319,7 @@ test("importTerm's ancestor walk terminates on a pre-existing malformed loop abo
   const terms = fakeTermsRepo([term("x", "y"), term("y", "x"), term("z", null)]);
   const { deps } = baseDeps({ taxonomies, terms });
 
-  const moved = await importTerm({ deps, principalId: "user-1", id: "z", taxonomyId: "tax-h", name: "z", parentId: "x", expectedVersion: 1 });
+  const moved = await importTerm({ deps, principalId: "user-1", id: "z", taxonomyId: "tax-h", name: "z", expectedVersion: 1 }, { parentId: "x" });
 
   assert.equal(moved.parentId, "x");
 });
@@ -333,7 +333,7 @@ test("an import-as-update cannot move an existing term to another taxonomy — v
   const { deps, revisions } = baseDeps({ taxonomies, terms });
 
   await assert.rejects(
-    importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "tax-2", name: "Mexican", parentId: null, expectedVersion: 1 }),
+    importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "tax-2", name: "Mexican", expectedVersion: 1 }, { parentId: null }),
     (err: unknown) => {
       assert.ok(err instanceof TaxonomyVersionConflictError);
       assert.equal(err.message, "term 'src-term-1' belongs to taxonomy 'tax-1', not 'tax-2'; an import cannot move a term between taxonomies");
@@ -349,7 +349,7 @@ test("importTerm: expectedVersion mismatched against the current row is a versio
   const { deps, revisions } = baseDeps({ terms });
 
   await assert.rejects(
-    importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "tax-1", name: "Renamed", parentId: null, expectedVersion: 2 }),
+    importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "tax-1", name: "Renamed", expectedVersion: 2 }, { parentId: null }),
     (err: unknown) => {
       assert.ok(err instanceof TaxonomyVersionConflictError);
       assert.equal(err.message, "expected version 2 for term 'src-term-1', found 4");
@@ -365,7 +365,7 @@ test("importTerm runs the hierarchy chain: a parentId in a non-hierarchical taxo
   const { deps } = baseDeps({ terms });
 
   await assert.rejects(
-    importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "tax-1", name: "Mexican", parentId: "p", expectedVersion: undefined }),
+    importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "tax-1", name: "Mexican", expectedVersion: undefined }, { parentId: "p" }),
     (err: unknown) => {
       assert.ok(err instanceof TaxonomyNotHierarchicalError);
       assert.equal(err.message, "taxonomy 'tax-1' is not hierarchical; parentId must be null");

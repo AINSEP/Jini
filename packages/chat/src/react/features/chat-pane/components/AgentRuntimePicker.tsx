@@ -20,7 +20,7 @@ import type {
 // pure and now live beside the hook that consumes them.
 export { runtimeOptionLabel, runtimePopoverPosition };
 
-export function runtimeAgentStatus(agent: ChatPaneAgent): string {
+export function runtimeAgentStatus({ agent }: { agent: ChatPaneAgent }): string {
   if (agent.available === false) return agent.diagnostic ?? 'Not found on PATH';
   if (agent.authStatus === 'missing') return 'Installed · sign-in required';
   return agent.version ?? 'Installed';
@@ -97,7 +97,7 @@ function RuntimeAgentList({
     <>
       {orderedAgents.map((agent) => {
         const active = agent.id === value.agentId;
-        const status = runtimeAgentStatus(agent);
+        const status = runtimeAgentStatus({ agent: agent });
         return (
           <button
             type="button"
@@ -107,7 +107,7 @@ function RuntimeAgentList({
             key={agent.id}
             aria-current={active ? 'true' : undefined}
             aria-label={`${agent.name} · ${status}`}
-            onClick={() => onChange(defaultChatPaneSelection(agent))}
+            onClick={() => onChange(defaultChatPaneSelection({ agent: agent }))}
           >
             <AgentIcon
               id={agent.id}

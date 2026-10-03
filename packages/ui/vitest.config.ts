@@ -5,7 +5,7 @@ export default defineConfig({
     // Package-wide default is jsdom (most tests in this package touch the
     // DOM). The few tests that assert real SSR/no-DOM behavior (e.g.
     // utils/dom-subscriptions, utils/zip) opt back into Node per-file via a
-    // `// @vitest-environment node` pragma — see packages/ui/source-map.md.
+    // `// @vitest-environment node` pragma — see packages/ui/archived provenance ledger.
     environment: 'jsdom',
     // `src/__tests__/features/**`, `src/__tests__/utils/**`, and
     // `src/__tests__/rules.test.ts` are the former `@jini-ai/ui-core`
@@ -83,7 +83,7 @@ export default defineConfig({
         // the package, each re-verified zero-runtime-declaration via the
         // same `grep -nE '^(export )?(const|function|class|let|var) '`
         // check (plus a broader `enum|default` sweep) before being added
-        // here — see packages/ui/source-map.md's dated entry for the full
+        // here — see packages/ui/archived provenance ledger's dated entry for the full
         // file-by-file record.
         'src/features/asset-grid/ports.ts',
         'src/features/asset-grid/types.ts',
@@ -161,7 +161,7 @@ export default defineConfig({
       // every genuinely reachable gap with real tests or real refactors;
       // the handful of residual uncovered branches are each individually
       // documented as provably unreachable (with proof, not just "hard to
-      // hit") right at the call site and in this package's source-map.md's
+      // hit") right at the call site and in this package's archived provenance ledger's
       // dated entry: `browser/useGlobalKeydown.ts` (React DOM itself
       // requires `window` to exist before this hook's effect can ever
       // run), `hooks/useConnectorAuthorization.ts` (`authError[id]` and

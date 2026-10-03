@@ -23,7 +23,7 @@
  *
  * Interfaces only — no feature logic.
  */
-import type { UUID } from "../core/ports.js";
+import type { UUID } from "@jini-ai/core/primitives";
 import type { AssetBlobRecord, AssetRenditionRecord, BlobGcJournalEntry, MediaRecord } from "./types.js";
 import type { TransformDefinitionRecord } from "./transform-types.js";
 
@@ -48,8 +48,9 @@ export interface AssetBlobRepoPort {
 }
 
 /**
- * `blob_gc_journal` repo (INV-1 two-phase protocol). See
+ * `blob_gc_journal` repo ( two-phase protocol). See
  * {@link BlobGcJournalEntry} for what a row represents.
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 export interface BlobGcJournalRepoPort {
   save(entry: BlobGcJournalEntry): Promise<void>;

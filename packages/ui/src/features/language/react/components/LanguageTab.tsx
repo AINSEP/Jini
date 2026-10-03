@@ -22,7 +22,7 @@ export interface LanguageTabProps {
 export function LanguageTab({ locales, selectedLocale, onSelectLocale, ariaLabel, agentHandle }: LanguageTabProps) {
   const t = useT();
   const resolvedAriaLabel = ariaLabel ?? t('Language');
-  const tileHandles = agentHandle ? buildAgentListHandles(agentHandle, locales.map((l) => l.code)) : undefined;
+  const tileHandles = agentHandle ? buildAgentListHandles({ prefix: agentHandle, ids: locales.map((l) => l.code) }) : undefined;
 
   return (
     <section className="jini-settings-section jini-settings-language">
@@ -37,7 +37,7 @@ export function LanguageTab({ locales, selectedLocale, onSelectLocale, ariaLabel
               aria-checked={active}
               className={`jini-settings-language-tile${active ? ' active' : ''}`}
               onClick={() => onSelectLocale(code)}
-              {...agentHandleProps(tileHandles?.[index], { role: 'button', label })}
+              {...agentHandleProps({}, { base: tileHandles?.[index], ...({ role: 'button', label }) })}
             >
               <span className="jini-settings-language-tile-text">
                 <span className="jini-settings-language-tile-title">{label}</span>

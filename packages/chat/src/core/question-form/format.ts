@@ -16,7 +16,7 @@ import type { FormOption, QuestionForm } from './types.js';
  *
  * @complexity O(q) in the number of questions on the form.
  */
-export function formatFormAnswers(form: QuestionForm, answers: Record<string, string | string[]>): string {
+export function formatFormAnswers({ form, answers }: { form: QuestionForm; answers: Record<string, string | string[]> }): string {
   const lines: string[] = [];
   lines.push(`[form answers — ${form.id}]`);
   for (const q of form.questions) {
@@ -42,13 +42,13 @@ function formOptionDisplayForValue(question: { options?: FormOption[] | undefine
 }
 
 /** Resolve a submitted answer value back to its display label, or the value itself when unmatched. */
-export function formOptionLabelForValue(question: { options?: FormOption[] | undefined }, value: string): string {
+export function formOptionLabelForValue({ question, value }: { question: { options?: FormOption[] | undefined }; value: string }): string {
   const match = question.options?.find((option) => option.value === value || option.label === value);
   return match?.label ?? value;
 }
 
 /** Resolve a label or value to the canonical option `value`, or the input itself when unmatched. */
-export function formOptionValueForLabel(question: { options?: FormOption[] | undefined }, labelOrValue: string): string {
+export function formOptionValueForLabel({ question, labelOrValue }: { question: { options?: FormOption[] | undefined }; labelOrValue: string }): string {
   const match = question.options?.find((option) => option.value === labelOrValue || option.label === labelOrValue);
   return match?.value ?? labelOrValue;
 }

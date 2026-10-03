@@ -62,7 +62,7 @@ describe('redactAntigravityAuthUrls', () => {
     'Error: authentication timed out.\n';
 
   it('removes the real agy sign-in URL while keeping the surrounding text', () => {
-    const redacted = redactAntigravityAuthUrls(REAL_AUTH_PROMPT);
+    const redacted = redactAntigravityAuthUrls({ fullText: REAL_AUTH_PROMPT });
     expect(redacted).not.toContain('accounts.google.com');
     expect(redacted).not.toContain('client_id=12345');
     expect(redacted).not.toContain('antigravity-redirect');
@@ -72,8 +72,7 @@ describe('redactAntigravityAuthUrls', () => {
   });
 
   it('redacts every occurrence, not just the first', () => {
-    const redacted = redactAntigravityAuthUrls(
-      'first https://accounts.google.com/o/oauth2/auth?a=1 then https://accounts.google.com/o/oauth2/auth?b=2 end',
+    const redacted = redactAntigravityAuthUrls({ fullText: 'first https://accounts.google.com/o/oauth2/auth?a=1 then https://accounts.google.com/o/oauth2/auth?b=2 end' }
     );
     expect(redacted).toBe('first [redacted sign-in URL] then [redacted sign-in URL] end');
   });
@@ -82,7 +81,7 @@ describe('redactAntigravityAuthUrls', () => {
     // Degrades to "redacted" rather than "leaked" if upstream ever moves off
     // accounts.google.com.
     for (const param of ['client_id', 'code_challenge', 'code_verifier', 'access_token', 'id_token', 'refresh_token']) {
-      expect(redactAntigravityAuthUrls(`go to https://login.example.test/authorize?${param}=abc123`)).toBe(
+      expect(redactAntigravityAuthUrls({ fullText: `go to https://login.example.test/authorize?${param}=abc123` })).toBe(
         'go to [redacted sign-in URL]',
       );
     }
@@ -93,11 +92,11 @@ describe('redactAntigravityAuthUrls', () => {
       'Here is the fix. See the docs at https://example.test/guide/auth-setup and\n' +
       'the Google Cloud console at https://console.cloud.google.com/apis.\n' +
       'The client identifier is configured server-side.\n';
-    expect(redactAntigravityAuthUrls(ordinary)).toBe(ordinary);
+    expect(redactAntigravityAuthUrls({ fullText: ordinary })).toBe(ordinary);
   });
 
   it('returns empty text unchanged', () => {
-    expect(redactAntigravityAuthUrls('')).toBe('');
+    expect(redactAntigravityAuthUrls({ fullText: '' })).toBe('');
   });
 });
 
@@ -122,7 +121,7 @@ describe('parseAgyModels', () => {
     'gpt-oss-120b-medium\tGPT-OSS 120B (Medium)\n';
 
   it('drops the leading progress line and parses all 14 real entries', () => {
-    const result = parseAgyModels(REAL_STDOUT);
+    const result = parseAgyModels({ stdout: REAL_STDOUT });
     expect(result?.map((m) => m.id)).toEqual([
       'default',
       'gemini-3.8-flash-high',
@@ -143,7 +142,7 @@ describe('parseAgyModels', () => {
   });
 
   it('splits id and label on the first tab, matching agy\'s real labels verbatim', () => {
-    const result = parseAgyModels(REAL_STDOUT);
+    const result = parseAgyModels({ stdout: REAL_STDOUT });
     expect(result?.find((m) => m.id === 'gemini-3.1-pro-high')).toEqual({
       id: 'gemini-3.1-pro-high',
       label: 'Gemini 3.1 Pro (High)',
@@ -155,12 +154,12 @@ describe('parseAgyModels', () => {
   });
 
   it('drops the progress line case-insensitively regardless of surrounding whitespace', () => {
-    const result = parseAgyModels('  Fetching Available Models...  \nfoo\tFoo Label\n');
+    const result = parseAgyModels({ stdout: '  Fetching Available Models...  \nfoo\tFoo Label\n' });
     expect(result?.map((m) => m.id)).toEqual(['default', 'foo']);
   });
 
   it('splits on the FIRST tab only, so a label containing extra tabs is preserved intact and never bleeds into the id', () => {
-    const result = parseAgyModels('gemini-3.1-pro-high\tGemini 3.1 Pro\t(High)\textra\n');
+    const result = parseAgyModels({ stdout: 'gemini-3.1-pro-high\tGemini 3.1 Pro\t(High)\textra\n' });
     expect(result).toEqual([
       { id: 'default', label: 'Default (CLI config)' },
       { id: 'gemini-3.1-pro-high', label: 'Gemini 3.1 Pro\t(High)\textra' },
@@ -168,7 +167,7 @@ describe('parseAgyModels', () => {
   });
 
   it('trims surrounding whitespace from both id and label without corrupting either', () => {
-    const result = parseAgyModels('  gemini-3.1-pro-high  \t   Gemini 3.1 Pro (High)   \n');
+    const result = parseAgyModels({ stdout: '  gemini-3.1-pro-high  \t   Gemini 3.1 Pro (High)   \n' });
     expect(result).toEqual([
       { id: 'default', label: 'Default (CLI config)' },
       { id: 'gemini-3.1-pro-high', label: 'Gemini 3.1 Pro (High)' },
@@ -176,32 +175,32 @@ describe('parseAgyModels', () => {
   });
 
   it('skips a line with no tab at all rather than mis-parsing it', () => {
-    const result = parseAgyModels('Fetching available models...\nno-tab-here\ngemini-3.1-pro-high\tGemini 3.1 Pro (High)\n');
+    const result = parseAgyModels({ stdout: 'Fetching available models...\nno-tab-here\ngemini-3.1-pro-high\tGemini 3.1 Pro (High)\n' });
     expect(result?.map((m) => m.id)).toEqual(['default', 'gemini-3.1-pro-high']);
   });
 
   it('de-duplicates a repeated id, keeping the first occurrence', () => {
-    const result = parseAgyModels('foo\tFirst\nfoo\tSecond\n');
+    const result = parseAgyModels({ stdout: 'foo\tFirst\nfoo\tSecond\n' });
     expect(result?.filter((m) => m.id === 'foo')).toHaveLength(1);
     expect(result?.find((m) => m.id === 'foo')?.label).toBe('First');
   });
 
   it('returns null for empty stdout, so detection.ts falls back rather than showing an empty picker', () => {
-    expect(parseAgyModels('')).toBeNull();
+    expect(parseAgyModels({ stdout: '' })).toBeNull();
   });
 
   it('returns null for whitespace-only stdout', () => {
-    expect(parseAgyModels('   \n  \n')).toBeNull();
+    expect(parseAgyModels({ stdout: '   \n  \n' })).toBeNull();
   });
 
   it('returns null when stdout is only the progress line (offline/errored fetch never yielded a real entry)', () => {
-    expect(parseAgyModels('Fetching available models...\n')).toBeNull();
+    expect(parseAgyModels({ stdout: 'Fetching available models...\n' })).toBeNull();
   });
 });
 
 describe('antigravityAgentDef.listModels.parse', () => {
   it('delegates to parseAgyModels for real output', () => {
-    const result = antigravityAgentDef.listModels!.parse('gemini-3.1-pro-high\tGemini 3.1 Pro (High)\n');
+    const result = antigravityAgentDef.listModels!.parse({ stdout: 'gemini-3.1-pro-high\tGemini 3.1 Pro (High)\n' });
     expect(result).toEqual([
       { id: 'default', label: 'Default (CLI config)' },
       { id: 'gemini-3.1-pro-high', label: 'Gemini 3.1 Pro (High)' },
@@ -209,7 +208,7 @@ describe('antigravityAgentDef.listModels.parse', () => {
   });
 
   it('returns null for blank stdout', () => {
-    expect(antigravityAgentDef.listModels!.parse('   ')).toBeNull();
+    expect(antigravityAgentDef.listModels!.parse({ stdout: '   ' })).toBeNull();
   });
 });
 
@@ -222,21 +221,21 @@ describe('antigravityAgentDef.buildArgs', () => {
   // agy's own project memory instead of an answer. Asserting the prompt is
   // present in argv is what makes that failure visible from a unit test.
   it('passes the prompt as the value of -p', () => {
-    const args = antigravityAgentDef.buildArgs('Reply with PONG', [], [], {}, {});
+    const args = antigravityAgentDef.buildArgs({ prompt: 'Reply with PONG', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} });
     expect(args).toEqual(['-p', 'Reply with PONG']);
   });
 
   it('never emits a bare `-` stdin sentinel in place of the prompt', () => {
-    const args = antigravityAgentDef.buildArgs('Reply with PONG', [], [], {}, {
+    const args = antigravityAgentDef.buildArgs({ prompt: 'Reply with PONG', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {
       agentLogFilePath: '/tmp/agy.log',
-    });
+    } });
     expect(args).not.toContain('-');
     expect(args[args.indexOf('-p') + 1]).toBe('Reply with PONG');
   });
 
   it('keeps a multi-line transcript prompt intact as a single argv entry', () => {
     const transcript = 'user: first\n\nassistant: second\n\nuser: third';
-    const args = antigravityAgentDef.buildArgs(transcript, [], [], {}, {});
+    const args = antigravityAgentDef.buildArgs({ prompt: transcript, imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} });
     expect(args).toEqual(['-p', transcript]);
   });
 
@@ -245,17 +244,17 @@ describe('antigravityAgentDef.buildArgs', () => {
   // file write. `--model` is a Go flag whose value is the immediately-following argv token — the
   // same shape as `-p` and `--log-file` above — so it must precede `-p` (always last).
   it('emits --model <id> before -p when a concrete model is chosen', () => {
-    const args = antigravityAgentDef.buildArgs('hi', [], [], { model: 'gemini-3.1-pro-high' }, {});
+    const args = antigravityAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'gemini-3.1-pro-high' }, runtimeContext: {} });
     expect(args).toEqual(['--model', 'gemini-3.1-pro-high', '-p', 'hi']);
   });
 
   it('omits --model when options.model is the "default" sentinel', () => {
-    const args = antigravityAgentDef.buildArgs('hi', [], [], { model: 'default' }, {});
+    const args = antigravityAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'default' }, runtimeContext: {} });
     expect(args).toEqual(['-p', 'hi']);
   });
 
   it('omits --model when options.model is falsy/absent', () => {
-    const args = antigravityAgentDef.buildArgs('hi', [], [], {}, {});
+    const args = antigravityAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} });
     expect(args).toEqual(['-p', 'hi']);
   });
 
@@ -263,12 +262,12 @@ describe('antigravityAgentDef.buildArgs', () => {
   // so `--log-file` has to come first or the log path becomes part of the
   // prompt and the diagnostic log is never written.
   it('prepends --log-file <path> before -p when agentLogFilePath is set', () => {
-    const args = antigravityAgentDef.buildArgs('hi', [], [], {}, { agentLogFilePath: '/tmp/agy.log' });
+    const args = antigravityAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { agentLogFilePath: '/tmp/agy.log' } });
     expect(args).toEqual(['--log-file', '/tmp/agy.log', '-p', 'hi']);
   });
 
   it('omits --log-file entirely when agentLogFilePath is absent', () => {
-    const args = antigravityAgentDef.buildArgs('hi', [], [], {}, {});
+    const args = antigravityAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} });
     expect(args).toEqual(['-p', 'hi']);
   });
 
@@ -276,9 +275,9 @@ describe('antigravityAgentDef.buildArgs', () => {
   // (--model, then --log-file) — pinned so a future edit that reorders the pushes has to
   // consciously re-decide this, not silently flip it.
   it('emits --model then --log-file, both before -p, when both are present', () => {
-    const args = antigravityAgentDef.buildArgs('hi', [], [], { model: 'claude-opus-4-6-thinking' }, {
+    const args = antigravityAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'claude-opus-4-6-thinking' }, runtimeContext: {
       agentLogFilePath: '/tmp/agy.log',
-    });
+    } });
     expect(args).toEqual(['--model', 'claude-opus-4-6-thinking', '--log-file', '/tmp/agy.log', '-p', 'hi']);
   });
 
@@ -286,16 +285,16 @@ describe('antigravityAgentDef.buildArgs', () => {
   // (`-c`/`--continue`, or `--conversation <id>`). Never emitting either is
   // what keeps each Runner-initiated turn a genuinely fresh conversation.
   it('never asks agy to continue or resume a conversation', () => {
-    const args = antigravityAgentDef.buildArgs('hi', [], [], { model: 'gemini-3.1-pro-high' }, {
+    const args = antigravityAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'gemini-3.1-pro-high' }, runtimeContext: {
       agentLogFilePath: '/tmp/agy.log',
-    });
+    } });
     for (const resumeFlag of ['-c', '--continue', '--conversation']) {
       expect(args).not.toContain(resumeFlag);
     }
   });
 
   it('defaults extraAllowedDirs/options/runtimeContext when omitted entirely', () => {
-    expect(() => antigravityAgentDef.buildArgs('hi', [])).not.toThrow();
+    expect(() => antigravityAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] })).not.toThrow();
   });
 });
 
@@ -324,10 +323,10 @@ describe('antigravityAgentDef reasoning-effort declaration', () => {
   });
 
   it('emits no extra argv for a reasoning selection — the effort is already inside --model', () => {
-    const args = antigravityAgentDef.buildArgs('hi', [], [], {
+    const args = antigravityAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {
       model: 'gemini-3.1-pro-high',
       reasoning: 'high',
-    });
+    } });
     expect(args).toEqual(['--model', 'gemini-3.1-pro-high', '-p', 'hi']);
     expect(args.join(' ')).not.toContain('--effort');
     expect(args.join(' ')).not.toContain('reasoning');

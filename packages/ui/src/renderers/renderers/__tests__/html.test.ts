@@ -23,7 +23,7 @@ describe('HtmlRenderer', () => {
 
   it('falls back to the isDeckHint hint when the manifest is neither html nor deck', () => {
     const manifest = { version: 1 as const, kind: 'mini-app' as const, title: 't', entry: 'a', renderer: 'mini-app' as const, exports: [] };
-    expect(HtmlRenderer.canRender({ file: file({ manifest }), hints: { isDeckHint: true } })).toBe(false);
+    expect(HtmlRenderer.canRender({ file: file({ manifest }) }, { hints: { isDeckHint: true } })).toBe(false);
     expect(HtmlRenderer.canRender({ file: file({ manifest }) })).toBe(true);
   });
 

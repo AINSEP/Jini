@@ -3,7 +3,7 @@ import { decodeSseStream } from '../sse-decode.js';
 
 async function collect(source: AsyncIterable<Uint8Array | string>) {
   const out: Array<{ event: string | null; data: string }> = [];
-  for await (const frame of decodeSseStream(source)) out.push(frame);
+  for await (const frame of decodeSseStream({ source: source })) out.push(frame);
   return out;
 }
 

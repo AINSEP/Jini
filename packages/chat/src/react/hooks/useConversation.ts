@@ -60,7 +60,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   const { transport, conversationId = null, agentId, createMessageId = defaultCreateMessageId } = options;
   const [messages, setMessagesState] = useState<ChatMessage[]>(options.initialMessages ?? []);
   const [scrollIntent, setScrollIntent] = useState(false);
-  const run = useRunStream(transport);
+  const run = useRunStream({ transport });
   // The assistant message id the currently-active run is writing into.
   const activeAssistantIdRef = useRef<string | null>(null);
   const messagesRef = useRef(messages);
@@ -68,6 +68,57 @@ export function useConversation(options: UseConversationOptions): UseConversatio
 
   const setMessages = useCallback((updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
     setMessagesState((prev) => (typeof updater === 'function' ? (updater as (p: ChatMessage[]) => ChatMessage[])(prev) : updater));
+  }, []);
+
+  /**
+   * The mount-time snapshot of `initialMessages`, captured once — the same "read once, never react
+   * to a later identity change" contract `messages`'s own `useState` initializer above already has
+   * for this same prop. A host's `initialMessages` array is expected to be a fresh identity on every
+   * render (`ChatPane` remounts the whole pane with a fresh `key` on a real conversation switch
+   * rather than pushing a new array into a live one), so depending on it directly in the effect below
+   * would re-fire on every render of a host that does not itself memoize the prop.
+   */
+  const initialMessagesRef = useRef(options.initialMessages);
+
+  /**
+   * Resumes an interrupted run on mount instead of leaving it frozen forever.
+   *
+   * `run.reattach` (`useRunStream.ts`) has existed since 2026-07-29 and is fully implemented —
+   * generation-guarded against double-subscription, abortable, race-safe — but until this effect,
+   * nothing in this package or any host ever called it. The gap it left: once a browser's live
+   * subscription to a run is torn down for ANY reason (this hook unmounting, a host remount, an HMR
+   * reload, a daemon restart), the run keeps going server-side and nothing ever tells the browser
+   * about it again — no more events, no more persistence, no error, just a frozen pane. The 2026-09-11 incident showed that teardown without remount reattachment
+   * leaves a running server task invisible to the browser. Reattaching needs a durably-recorded, non-terminal `runId` to find
+   * in `initialMessages` in the first place — the host is responsible for that half by persisting the run stub before starting the subscription.
+   *
+   * Mount-only (`[]` deps), by design: `useConversation` owns exactly one `useRunStream` instance for
+   * its whole lifetime, and a host that wants a different transcript remounts the pane with a fresh
+   * `key` rather than pushing a new `initialMessages` into a live one (see `initialMessagesRef`'s own
+   * doc) — so "the moment this hook mounts" IS "the moment a stale subscription needs recovering",
+   * and there is no later point in this hook's life that also needs this check.
+   *
+   * `activeAssistantIdRef.current` is set BEFORE calling `reattach`, not after: the reconciliation
+   * effect below (`applyRunToAssistantMessage`) no-ops whenever that ref is `null` — a reattach whose
+   * first event arrived before this assignment landed would be silently dropped on the floor instead
+   * of reaching the message it belongs to.
+   *
+   * A message with a `runId` but no `runStatus` at all is treated as nothing to reattach to, not as
+   * "assume non-terminal" — `useConversation`'s own reconciliation always writes both together, so
+   * the combination only arises from data this hook did not itself produce (a host's legacy rows, a
+   * different producer entirely), and there is no positive evidence there of an in-flight run worth
+   * the network round trip.
+   */
+  useEffect(() => {
+    const last = initialMessagesRef.current?.at(-1);
+    if (!last || last.role !== 'assistant') return;
+    if (last.runId === undefined || last.runStatus === undefined) return;
+    if (isTerminalRunStatus({ status: last.runStatus })) return;
+    activeAssistantIdRef.current = last.id;
+    void run.reattach(last.runId, last.events);
+    // Mount-only: see this effect's own doc for why `run` is deliberately not listed — it is a
+    // `useCallback` (`useRunStream.ts`), stable for this hook instance's whole lifetime, so omitting
+    // it changes nothing about correctness.
   }, []);
 
   const applyRunToAssistantMessage = useCallback(() => {
@@ -95,9 +146,9 @@ export function useConversation(options: UseConversationOptions): UseConversatio
           ...m,
           ...(nextRunId !== undefined ? { runId: nextRunId } : {}),
           events: run.events,
-          content: assistantContentFromEvents(run.events),
+          content: assistantContentFromEvents({ events: run.events }),
           runStatus,
-          ...(isTerminalRunStatus(runStatus) ? { endedAt: Date.now() } : {}),
+          ...(isTerminalRunStatus({ status: runStatus }) ? { endedAt: Date.now() } : {}),
         };
       }),
     );
@@ -141,7 +192,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       // the same commit as the reconciliation effect that just marked the previous turn terminal.
       // Replacing the array with the snapshot threw that pending update away, leaving the finished
       // turn `running` forever — and never persisted, since hosts persist only terminal turns
-      // (Tovu stuck-chat investigation, 2026-09-27).
+      // (host stuck-chat investigation, 2026-09-27).
       setMessagesState((prev) => [...prev, userMessage, assistantMessage]);
       setScrollIntent(true);
       await run.start({

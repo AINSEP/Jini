@@ -81,10 +81,10 @@
  * byte-identical to pre-gap-4 behavior — every `'failed'` outcome
  * resumable:false). OD's ~20-vendor-CLI text-matching failure classifier was
  * deliberately never ported (see `run/core/failure-taxonomy.ts`'s own doc and
- * `source-map.md`). The real zero-config classifier lives in `@jini-ai/daemon`'s
+ * `archived provenance ledger`). The real zero-config classifier lives in `@jini-ai/daemon`'s
  * `run/core/retry.ts` (`resumableFromProcessExit`/`classifyProcessExitFailure`)
  * and is wired in by `@jini-ai/server`'s `createLocalNodeDaemon` — see that
- * package's own source-map.md, and `run/core/retry.ts`'s own doc for the
+ * package's own archived provenance ledger, and `run/core/retry.ts`'s own doc for the
  * classification policy and its 2026-07-22 merge-time reconciliation against
  * a second, independently-built (and rejected) classifier that once lived in
  * this module.
@@ -149,7 +149,7 @@ import type { RunLifecycle } from './run-lifecycle.js';
  * four stream-parser factories — each parser's `onEvent` callback receives
  * `Record<string, unknown>` with a `type` discriminant, not a typed union.
  */
-type StreamHandler = { feed(chunk: string): void; flush(): void };
+type StreamHandler = { feed(args: { chunk: string }): void; flush(): void };
 
 const SUPPORTED_STREAM_FORMATS = [
   'claude-stream-json',
@@ -186,7 +186,8 @@ type ChildDrivenStreamFormat = JsonStreamFormat | 'plain';
  * @complexity O(1) — fixed membership check.
  * @overallScore 100/100
  */
-export function isSupportedStreamFormat(value: string): value is SupportedStreamFormat {
+export function isSupportedStreamFormat(args: { readonly value: string }): args is { readonly value: SupportedStreamFormat } {
+  const { value } = args;
   return (SUPPORTED_STREAM_FORMATS as readonly string[]).includes(value);
 }
 
@@ -221,14 +222,15 @@ export type AgentExecutorCompatibility =
  * @complexity O(1) — fixed field checks.
  * @overallScore 100/100
  */
-export function assessAgentExecutorCompatibility(def: RuntimeAgentDef): AgentExecutorCompatibility {
-  const streamFormat = def.streamFormat;
-  if (!isSupportedStreamFormat(streamFormat)) {
+export function assessAgentExecutorCompatibility({ def }: { readonly def: RuntimeAgentDef }): AgentExecutorCompatibility {
+  const format = { value: def.streamFormat };
+  if (!isSupportedStreamFormat(format)) {
     return {
       supported: false,
-      reason: `AgentExecutor: agent "${def.id}" has streamFormat "${streamFormat}", which is not implemented in v1 — only ${SUPPORTED_STREAM_FORMATS.join(', ')} are supported`,
+      reason: `AgentExecutor: agent "${def.id}" has streamFormat "${format.value}", which is not implemented in v1 — only ${SUPPORTED_STREAM_FORMATS.join(', ')} are supported`,
     };
   }
+  const streamFormat = format.value;
   if (
     streamFormat !== 'acp-json-rpc' &&
     def.promptViaStdin !== true &&
@@ -253,8 +255,8 @@ export function assessAgentExecutorCompatibility(def: RuntimeAgentDef): AgentExe
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function isAgentExecutorSupported(def: RuntimeAgentDef): boolean {
-  return assessAgentExecutorCompatibility(def).supported;
+export function isAgentExecutorSupported({ def }: { readonly def: RuntimeAgentDef }): boolean {
+  return assessAgentExecutorCompatibility({ def: def }).supported;
 }
 
 /**
@@ -281,13 +283,13 @@ function createStreamHandlerForDef(
 ): StreamHandler {
   switch (streamFormat) {
     case 'claude-stream-json':
-      return createClaudeStreamHandler(onEvent);
+      return createClaudeStreamHandler({ onEvent: onEvent });
     case 'copilot-stream-json':
-      return createCopilotStreamHandler(onEvent);
+      return createCopilotStreamHandler({ onEvent: onEvent });
     case 'qoder-stream-json':
-      return createQoderStreamHandler(onEvent);
+      return createQoderStreamHandler({ onEvent: onEvent });
     case 'json-event-stream':
-      return createJsonEventStreamHandler(def.eventParser ?? '', onEvent);
+      return createJsonEventStreamHandler({ kind: def.eventParser ?? '', onEvent: onEvent });
   }
 }
 
@@ -316,7 +318,7 @@ function createStreamHandlerForDef(
  * `tool_use` block in the same assistant message has already been
  * translated (so a caller can decide whether to keep stdin open before
  * closing it), but v1 (pre-gap-3) discarded it and closed stdin
- * unconditionally on any `turn-end` — see `packages/daemon/source-map.md`'s
+ * unconditionally on any `turn-end` — see `packages/daemon/archived provenance ledger`'s
  * "Design decision 2" note. `wireChildLifecycle` now reads it to decide
  * whether `stop_reason: 'tool_use'` means "inject a tool result and keep
  * going" (gap 3, gated — see `ContinuationOptions`) or "close stdin as
@@ -353,8 +355,7 @@ function asOptionalNumber(value: unknown): number | undefined {
  * original "omit the whole `usage` field rather than emit an empty object" behavior.
  * @complexity O(1).
  */
-export function extractUsageTokens(
-  rawUsage: Record<string, unknown> | undefined,
+export function extractUsageTokens({ rawUsage }: { readonly rawUsage: Record<string, unknown> | undefined }
 ): { input_tokens?: number; output_tokens?: number } | undefined {
   if (!rawUsage) return undefined;
   const inputTokens = asOptionalNumber(rawUsage.input_tokens);
@@ -380,7 +381,7 @@ export function extractUsageTokens(
  */
 function translateUsagePayload(rawEvent: Record<string, unknown>): RunAgentPayload {
   const rawUsage = isRecord(rawEvent.usage) ? rawEvent.usage : undefined;
-  const usage = extractUsageTokens(rawUsage);
+  const usage = extractUsageTokens({ rawUsage: rawUsage });
   const costUsd = asOptionalNumber(rawEvent.costUsd);
   const durationMs = asOptionalNumber(rawEvent.durationMs);
   return {
@@ -391,7 +392,7 @@ function translateUsagePayload(rawEvent: Record<string, unknown>): RunAgentPaylo
   };
 }
 
-export function translateStatusEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
+export function translateStatusEvent({ rawEvent }: { readonly rawEvent: Record<string, unknown> }): AgentRuntimeEventTranslation {
   const model = asOptionalString(rawEvent.model);
   const ttftMs = asOptionalNumber(rawEvent.ttftMs);
   const detail = asOptionalString(rawEvent.detail);
@@ -445,7 +446,7 @@ function translateToolInputDeltaEvent(rawEvent: Record<string, unknown>): AgentR
   };
 }
 
-export function translateToolResultEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
+export function translateToolResultEvent({ rawEvent }: { readonly rawEvent: Record<string, unknown> }): AgentRuntimeEventTranslation {
   const isError = typeof rawEvent.isError === 'boolean' ? rawEvent.isError : undefined;
   return {
     kind: 'agent',
@@ -466,7 +467,7 @@ function translateRawEvent(rawEvent: Record<string, unknown>): AgentRuntimeEvent
   return { kind: 'agent', payload: { type: 'raw', line: asString(rawEvent.line) } };
 }
 
-export function translateErrorEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
+export function translateErrorEvent({ rawEvent }: { readonly rawEvent: Record<string, unknown> }): AgentRuntimeEventTranslation {
   const code = asOptionalString(rawEvent.code);
   const message = asString(rawEvent.message, 'Unknown agent error');
   return {
@@ -475,7 +476,7 @@ export function translateErrorEvent(rawEvent: Record<string, unknown>): AgentRun
   };
 }
 
-export function translateTurnEndEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
+export function translateTurnEndEvent({ rawEvent }: { readonly rawEvent: Record<string, unknown> }): AgentRuntimeEventTranslation {
   // Claude-specific per-turn boundary. Not forwarded as an 'agent'
   // event (no RunAgentPayload variant represents it) — run() reacts to
   // it directly to close stdin (or, for gap 3, decide whether to inject
@@ -492,17 +493,17 @@ export function translateTurnEndEvent(rawEvent: Record<string, unknown>): AgentR
  * `translateAgentRuntimeEvent` itself is just a lookup plus the two upfront guards.
  */
 const EVENT_TYPE_TRANSLATORS: Readonly<Record<string, (rawEvent: Record<string, unknown>) => AgentRuntimeEventTranslation>> = {
-  status: translateStatusEvent,
+  status: rawEvent => translateStatusEvent({ rawEvent }),
   text_delta: translateTextDeltaEvent,
   thinking_start: translateThinkingStartEvent,
   thinking_delta: translateThinkingDeltaEvent,
   tool_use: translateToolUseEvent,
   tool_input_delta: translateToolInputDeltaEvent,
-  tool_result: translateToolResultEvent,
+  tool_result: rawEvent => translateToolResultEvent({ rawEvent }),
   usage: translateUsageEvent,
   raw: translateRawEvent,
-  error: translateErrorEvent,
-  turn_end: translateTurnEndEvent,
+  error: rawEvent => translateErrorEvent({ rawEvent }),
+  turn_end: rawEvent => translateTurnEndEvent({ rawEvent }),
 };
 
 /**
@@ -527,7 +528,7 @@ const EVENT_TYPE_TRANSLATORS: Readonly<Record<string, (rawEvent: Record<string, 
  * @complexity O(1) — one table lookup, no iteration.
  * @overallScore 100/100
  */
-export function translateAgentRuntimeEvent(rawEvent: unknown): AgentRuntimeEventTranslation {
+export function translateAgentRuntimeEvent({ rawEvent }: { readonly rawEvent: unknown }): AgentRuntimeEventTranslation {
   if (!isRecord(rawEvent) || typeof rawEvent.type !== 'string') {
     return { kind: 'ignored' };
   }
@@ -537,6 +538,7 @@ export function translateAgentRuntimeEvent(rawEvent: unknown): AgentRuntimeEvent
 
 /** Machine-readable failure reasons `run()` can reject with — every one is preceded by a `lifecycle.finish({status:'failed'})` call (see module doc's Invariant section). */
 export type AgentExecutorErrorCode =
+  | 'AGENT_PERMISSION_MODE_INVALID'
   | 'AGENT_NOT_FOUND'
   | 'AGENT_RUNTIME_UNSUPPORTED'
   | 'AGENT_BINARY_NOT_RESOLVED'
@@ -547,7 +549,7 @@ export type AgentExecutorErrorCode =
 export class AgentExecutorError extends Error {
   readonly code: AgentExecutorErrorCode;
 
-  constructor(code: AgentExecutorErrorCode, message: string) {
+  constructor({ code, message }: { readonly code: AgentExecutorErrorCode; readonly message: string }) {
     super(message);
     this.name = 'AgentExecutorError';
     this.code = code;
@@ -566,9 +568,10 @@ export interface AgentExecutorRunInput {
   /**
    * Forwarded verbatim to `RuntimeBuildOptions.permissionMode` (see `@jini-ai/agent-runtime`'s
    * `types.ts`). Every def that has an auto-approve flag (`bypassPermissions` / `--yolo` /
-   * `--dangerously-skip-permissions`) uses it by default when this is omitted — unchanged
-   * behavior, since there is no TTY on a spawned subprocess to answer an interactive prompt.
-   * A host that wants a run to NOT auto-approve every action passes `'restricted'` here.
+   * `--dangerously-skip-permissions`) historically enabled it when omitted because a spawned
+   * subprocess has no TTY for interactive approval. That rationale explains the old behavior;
+   * the daemon now fails closed with 'restricted'. A host must explicitly select 'bypass' to
+   * delegate auto-approval, and any unknown mode is rejected before launching a process.
    */
   readonly permissionMode?: 'bypass' | 'restricted';
   /**
@@ -646,7 +649,7 @@ export interface AgentExecutor {
    * underlying run is always already transitioned to `'failed'` via
    * `lifecycle.finish()` before this rejects (see module doc's Invariant).
    */
-  run(input: AgentExecutorRunInput): Promise<void>;
+  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "model" | "reasoning" | "permissionMode" | "imagePaths" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings">): Promise<void>;
 }
 
 function errorMessage(err: unknown): string {
@@ -685,7 +688,8 @@ const BASELINE_AGENT_ENV_KEYS = [
   // run /login" despite real credentials existing on disk/keychain. Confirmed by bisection against
   // a real authenticated `claude` install: `BASELINE_AGENT_ENV_KEYS` alone fails, adding back every
   // `CLAUDE_CODE_*`/`CLAUDECODE` var still fails, `LOGNAME`/`SSH_AUTH_SOCK` alone still fail, but
-  // `USER` alone flips it to success. See tovu-learnings.md §9 for the full investigation trail.
+  // `USER` alone flips it to success. Login lookup requires the user identity
+  // as well as the home directory.
   'USER',
   'SystemRoot', 'windir', 'ComSpec', 'PATHEXT', // Windows-only; harmless no-ops elsewhere
 ] as const;
@@ -724,10 +728,14 @@ function waitForSpawnOrError(child: ChildProcess): Promise<void> {
   });
 }
 
+/** Process discovery is a getter; process collection and stopping accept explicit host inputs. */
+export type CollectProcessTreePidsPort = (args: { readonly processes: ProcessSnapshot[]; readonly rootPids: Array<number | null | undefined> }) => number[];
+export type StopProcessesPort = (args: { readonly pids: Array<number | null | undefined> }) => Promise<StopProcessesResult>;
+
 interface TerminateChildTreeDeps {
   readonly listProcessSnapshots: () => Promise<ProcessSnapshot[]>;
-  readonly collectProcessTreePids: typeof collectProcessTreePids;
-  readonly stopProcesses: (pids: Array<number | null | undefined>) => Promise<StopProcessesResult>;
+  readonly collectProcessTreePids: CollectProcessTreePidsPort;
+  readonly stopProcesses: StopProcessesPort;
 }
 
 /**
@@ -742,8 +750,8 @@ interface TerminateChildTreeDeps {
 async function terminateChildTree(deps: TerminateChildTreeDeps, child: ChildProcess): Promise<void> {
   if (child.pid == null) return;
   const processes = await deps.listProcessSnapshots();
-  const pids = deps.collectProcessTreePids(processes, [child.pid]);
-  await deps.stopProcesses(pids);
+  const pids = deps.collectProcessTreePids({ processes, rootPids: [child.pid] });
+  await deps.stopProcesses({ pids });
 }
 
 /**
@@ -779,7 +787,7 @@ function defaultCleanupFailureSink(context: AgentCleanupFailureContext): void {
   // eslint-disable-next-line no-console
   console.error(
     `[@jini-ai/daemon] agent-executor: process-tree cleanup failed for run "${context.runId}" (${context.phase}, pid=${context.pid})`,
-    redactSecrets(errorMessage(context.error)),
+    redactSecrets({ input: errorMessage(context.error) }),
   );
 }
 
@@ -1006,11 +1014,11 @@ export interface McpJsonInjectionOptions {
    * @throws Anything the host's own minting throws. `run()` turns a rejection into a pre-spawn
    * `AGENT_SPAWN_FAILED` failure rather than spawning a child that cannot authenticate.
    */
-  readonly credential?: (runId: string) => string | Promise<string>;
+  readonly credential?: ({ runId }: { readonly runId: string }) => string | Promise<string>;
   /** Reads the project's own `cwd/.mcp.json` so this driver merges its servers in rather than dropping them. Rejecting (ENOENT or otherwise) is treated as "no existing file" — see `writeMcpJsonForRun`. This file is only ever *read*. @default the real `fs.promises.readFile` (utf8) */
-  readonly readFile?: (path: string) => Promise<string>;
+  readonly readFile?: ({ path }: { readonly path: string }) => Promise<string>;
   /** Writes the merged content to this run's own config path (see {@link mcpJsonPathForRun}), never to the project's `.mcp.json`. @default the real `fs.promises.writeFile` (utf8) */
-  readonly writeFile?: (path: string, content: string) => Promise<void>;
+  readonly writeFile?: ({ path, content }: { readonly path: string; readonly content: string }) => Promise<void>;
   /**
    * Removes this run's config file once the run is over — it holds a live per-run bearer token, so
    * leaving it behind is the same class of confidentiality gap as a leaked prompt file (see
@@ -1018,7 +1026,7 @@ export interface McpJsonInjectionOptions {
    * pre-spawn/spawn-failure path, and a rejection is reported rather than allowed to strand the run.
    * @default `fs.promises.rm(path, { force: true })` — already-gone is success, not an error.
    */
-  readonly removeFile?: (path: string) => Promise<void>;
+  readonly removeFile?: ({ path }: { readonly path: string }) => Promise<void>;
   /**
    * `'codex-toml'` only. Creates a fresh, randomly-named directory `prepareCodexHomeForRun` stages
    * as a run's scratch `CODEX_HOME`. **Must be non-deterministic (a real `mkdtemp`, not a
@@ -1033,14 +1041,14 @@ export interface McpJsonInjectionOptions {
    * template; the real suffix mkdtemp appends is what makes the path unpredictable.
    * @default `fs.mkdtemp(path.join(os.tmpdir(), prefix))`
    */
-  readonly mkdtemp?: (prefix: string) => Promise<string>;
+  readonly mkdtemp?: ({ prefix }: { readonly prefix: string }) => Promise<string>;
   /**
    * `'codex-toml'` only. Recursively removes the scratch `CODEX_HOME` directory `mkdtemp` above
    * created — the directory-level analogue of `removeFile`, needed because this mechanism stages a
    * whole directory (`config.toml` plus a copied `auth.json`), not one file.
    * @default `fs.rm(path, { recursive: true, force: true })` — already-gone is success, not an error.
    */
-  readonly removeDir?: (path: string) => Promise<void>;
+  readonly removeDir?: ({ path }: { readonly path: string }) => Promise<void>;
 }
 
 const JINI_MCP_SERVER_KEY = 'jini';
@@ -1058,7 +1066,7 @@ export const MCP_BRIDGE_UNAVAILABLE = 'MCP_BRIDGE_UNAVAILABLE';
  * @param rawEvent - One parsed stream event, as `@jini-ai/agent-runtime`'s parser emits it.
  * @complexity O(n) in the number of reported servers.
  */
-export function unavailableJiniBridgeStatus(rawEvent: unknown): string | undefined {
+export function unavailableJiniBridgeStatus({ rawEvent }: { readonly rawEvent: unknown }): string | undefined {
   if (!isRecord(rawEvent) || rawEvent.type !== 'status' || rawEvent.label !== 'initializing') return undefined;
   if (!Array.isArray(rawEvent.mcpServers)) return undefined;
   const bridge = rawEvent.mcpServers.find((server) => isRecord(server) && server.name === JINI_MCP_SERVER_KEY);
@@ -1096,10 +1104,7 @@ interface McpJsonServerEntry {
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function buildMcpJsonServerEntry(
-  runId: string,
-  options: Pick<McpJsonInjectionOptions, 'command' | 'args' | 'daemonUrl' | 'env'>,
-  credential?: string,
+export function buildMcpJsonServerEntry({ runId, options }: { readonly runId: string; readonly options: Pick<McpJsonInjectionOptions, 'command' | 'args' | 'daemonUrl' | 'env'> }, { credential }: { readonly credential?: string } = {}
 ): McpJsonServerEntry {
   const hostEnv = Object.entries(options.env ?? {}).filter(([key]) => !key.startsWith('JINI_'));
   return {
@@ -1125,7 +1130,7 @@ export function buildMcpJsonServerEntry(
  * @complexity O(1) plus `JSON.parse`/`JSON.stringify`'s own cost on a small config file.
  * @overallScore 100/100
  */
-export function mergeMcpJsonContent(existingRaw: string | undefined, serverEntry: McpJsonServerEntry): string {
+export function mergeMcpJsonContent({ existingRaw, serverEntry }: { readonly existingRaw: string | undefined; readonly serverEntry: McpJsonServerEntry }): string {
   let doc: Record<string, unknown> = {};
   if (existingRaw !== undefined) {
     try {
@@ -1161,7 +1166,7 @@ export function mergeMcpJsonContent(existingRaw: string | undefined, serverEntry
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function buildAcpMcpBridgeServers(entry: McpJsonServerEntry): AcpMcpServerInput[] {
+export function buildAcpMcpBridgeServers({ entry }: { readonly entry: McpJsonServerEntry }): AcpMcpServerInput[] {
   return [
     {
       type: 'stdio',
@@ -1211,7 +1216,7 @@ const ENV_CONTENT_VAR_BY_STRATEGY: Readonly<Record<'opencode-env-content' | 'mim
  * @complexity O(1) plus `JSON.parse`/`JSON.stringify` over a small config document.
  * @overallScore 100/100
  */
-export function mergeEnvContentMcpConfig(existingRaw: string | undefined, entry: McpJsonServerEntry): string {
+export function mergeEnvContentMcpConfig({ existingRaw, entry }: { readonly existingRaw: string | undefined; readonly entry: McpJsonServerEntry }): string {
   let doc: Record<string, unknown> = {};
   if (existingRaw !== undefined && existingRaw.length > 0) {
     try {
@@ -1271,7 +1276,7 @@ export function mergeEnvContentMcpConfig(existingRaw: string | undefined, entry:
  * @complexity O(1) plus `JSON.parse`/`JSON.stringify` over a small config document.
  * @overallScore 100/100
  */
-export function mergeEnvContentInstructions(existingRaw: string | undefined, instructionsFilePath: string): string {
+export function mergeEnvContentInstructions({ existingRaw, instructionsFilePath }: { readonly existingRaw: string | undefined; readonly instructionsFilePath: string }): string {
   let doc: Record<string, unknown> = {};
   if (existingRaw !== undefined && existingRaw.length > 0) {
     try {
@@ -1341,13 +1346,13 @@ const CODEX_TOOL_TIMEOUT_SEC = 6 * 60 + 40;
  * Confirmed against a real installed Codex CLI (0.151.0), not assumed from docs: round-tripping
  * `codex mcp add <name> --env K=V -- <cmd> <args>` against a scratch `CODEX_HOME` and reading back
  * `config.toml` produced exactly this shape (`command`/`args` as TOML strings/array in the main
- * table, env vars in a nested `.env` table) — see `source-map.md` for the transcript.
+ * table, env vars in a nested `.env` table) — see `archived provenance ledger` for the transcript.
  * @param entry - The shared bridge entry from {@link buildMcpJsonServerEntry}.
  * @returns A TOML fragment with no leading/trailing blank-line padding — {@link buildCodexHomeConfigToml} owns spacing when combining it with existing content.
  * @complexity O(n) in the number of argv/env entries.
  * @overallScore 100/100
  */
-export function buildCodexMcpServerToml(entry: McpJsonServerEntry): string {
+export function buildCodexMcpServerToml({ entry }: { readonly entry: McpJsonServerEntry }): string {
   const argsLiteral = entry.args.map(tomlString).join(', ');
   const serverTable =
     `[mcp_servers.${JINI_MCP_SERVER_KEY}]\ncommand = ${tomlString(entry.command)}\nargs = [${argsLiteral}]\n` +
@@ -1472,10 +1477,10 @@ function stripExistingJiniMcpServerTable(existingRaw: string): string {
  * @returns The full text to write to the scratch `CODEX_HOME`'s `config.toml`.
  * @complexity O(n) in the existing config's length.
  */
-export function buildCodexHomeConfigToml(existingRaw: string | undefined, entry: McpJsonServerEntry): string {
+export function buildCodexHomeConfigToml({ existingRaw, entry }: { readonly existingRaw: string | undefined; readonly entry: McpJsonServerEntry }): string {
   const base = stripExistingJiniMcpServerTable(existingRaw ?? '');
   const separator = base.length === 0 ? '' : base.endsWith('\n') ? '\n' : '\n\n';
-  return `${base}${separator}${buildCodexMcpServerToml(entry)}`;
+  return `${base}${separator}${buildCodexMcpServerToml({ entry: entry })}`;
 }
 
 /**
@@ -1490,7 +1495,7 @@ export function buildCodexHomeConfigToml(existingRaw: string | undefined, entry:
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function resolveSourceCodexHomeDir(hostEnv: NodeJS.ProcessEnv): string {
+export function resolveSourceCodexHomeDir({ hostEnv }: { readonly hostEnv: NodeJS.ProcessEnv }): string {
   const override = hostEnv.CODEX_HOME;
   return override !== undefined && override.trim().length > 0 ? override : join(homedir(), '.codex');
 }
@@ -1554,12 +1559,12 @@ export function buildMcpBridgeDelivery(input: {
 }): McpBridgeDelivery | null {
   const { cwd, runId, strategy, options, credential } = input;
   if (options === undefined || strategy === undefined) return null;
-  const serverEntry = buildMcpJsonServerEntry(runId, options, credential);
+  const serverEntry = buildMcpJsonServerEntry({ runId: runId, options: options }, credential === undefined ? {} : { credential });
   switch (strategy) {
     case 'claude-mcp-json':
       return { kind: 'claude-mcp-json', mcpJsonPath: mcpJsonPathForRun(cwd, runId), serverEntry };
     case 'acp-merge':
-      return { kind: 'acp-merge', mcpServers: buildAcpMcpBridgeServers(serverEntry) };
+      return { kind: 'acp-merge', mcpServers: buildAcpMcpBridgeServers({ entry: serverEntry }) };
     case 'opencode-env-content':
     case 'mimo-env-content':
       return { kind: 'env-content', envVarName: ENV_CONTENT_VAR_BY_STRATEGY[strategy], serverEntry };
@@ -1570,15 +1575,15 @@ export function buildMcpBridgeDelivery(input: {
   }
 }
 
-function defaultReadMcpJsonFile(path: string): Promise<string> {
+function defaultReadMcpJsonFile({ path }: { readonly path: string }): Promise<string> {
   return fsPromises.readFile(path, 'utf8');
 }
 
-function defaultWriteMcpJsonFile(path: string, content: string): Promise<void> {
+function defaultWriteMcpJsonFile({ path, content }: { readonly path: string; readonly content: string }): Promise<void> {
   return fsPromises.writeFile(path, content, 'utf8');
 }
 
-function defaultRemoveMcpJsonFile(path: string): Promise<void> {
+function defaultRemoveMcpJsonFile({ path }: { readonly path: string }): Promise<void> {
   return fsPromises.rm(path, { force: true });
 }
 
@@ -1644,13 +1649,13 @@ async function writeMcpJsonForRun(
   const writeFileFn = options.writeFile ?? defaultWriteMcpJsonFile;
   let existingRaw: string | undefined;
   try {
-    existingRaw = await readFileFn(join(cwd, '.mcp.json'));
+    existingRaw = await readFileFn({ path: join(cwd, '.mcp.json') });
   } catch {
     // No existing file (ENOENT — the common case) or unreadable for any other reason: both
     // degrade to "start fresh", matching mergeMcpJsonContent's own doc.
     existingRaw = undefined;
   }
-  await writeFileFn(delivery.mcpJsonPath, mergeMcpJsonContent(existingRaw, delivery.serverEntry));
+  await writeFileFn({ path: delivery.mcpJsonPath, content: mergeMcpJsonContent({ existingRaw: existingRaw, serverEntry: delivery.serverEntry }) });
 }
 
 /** A staged, run-scoped Codex `CODEX_HOME` — the directory-holding analogue of {@link PreparedPromptFile}/{@link PreparedAgentLogFile} from `@jini-ai/agent-runtime`. */
@@ -1661,20 +1666,20 @@ export type PreparedCodexHome = {
   readonly cleanup: () => Promise<void>;
 };
 
-function defaultMkdtempCodexHome(prefix: string): Promise<string> {
+function defaultMkdtempCodexHome({ prefix }: { readonly prefix: string }): Promise<string> {
   return fsPromises.mkdtemp(join(tmpdir(), prefix));
 }
 
-function defaultRemoveCodexHomeDir(path: string): Promise<void> {
+function defaultRemoveCodexHomeDir({ path }: { readonly path: string }): Promise<void> {
   return fsPromises.rm(path, { recursive: true, force: true });
 }
 
 /** The `'codex-toml'` mechanism's injectable filesystem seams, real by default — see {@link McpJsonInjectionOptions}'s `mkdtemp`/`removeDir`/`readFile`/`writeFile` docs. */
 interface CodexHomeSeams {
-  readonly mkdtemp: (prefix: string) => Promise<string>;
-  readonly readFile: (path: string) => Promise<string>;
-  readonly writeFile: (path: string, content: string) => Promise<void>;
-  readonly removeDir: (path: string) => Promise<void>;
+  readonly mkdtemp: ({ prefix }: { readonly prefix: string }) => Promise<string>;
+  readonly readFile: ({ path }: { readonly path: string }) => Promise<string>;
+  readonly writeFile: ({ path, content }: { readonly path: string; readonly content: string }) => Promise<void>;
+  readonly removeDir: ({ path }: { readonly path: string }) => Promise<void>;
 }
 
 function resolveCodexHomeSeams(options: McpJsonInjectionOptions): CodexHomeSeams {
@@ -1727,26 +1732,26 @@ async function prepareCodexHomeForRun(
   // too, not just path separators, so a run id like `../../etc/evil` cannot leave even a cosmetic
   // `..` substring in the mkdtemp prefix.
   const safeRunId = runId.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80) || 'run';
-  const dir = await seams.mkdtemp(`jini-codex-home-${safeRunId}-`);
+  const dir = await seams.mkdtemp({ prefix: `jini-codex-home-${safeRunId}-` });
   try {
     let existingConfigRaw: string | undefined;
     try {
-      existingConfigRaw = await seams.readFile(join(sourceCodexHomeDir, 'config.toml'));
+      existingConfigRaw = await seams.readFile({ path: join(sourceCodexHomeDir, 'config.toml') });
     } catch {
       // No config yet (fresh Codex install) or unreadable — start from just this run's block,
       // matching writeMcpJsonForRun's identical "missing file" handling.
       existingConfigRaw = undefined;
     }
-    await seams.writeFile(join(dir, 'config.toml'), buildCodexHomeConfigToml(existingConfigRaw, entry));
+    await seams.writeFile({ path: join(dir, 'config.toml'), content: buildCodexHomeConfigToml({ existingRaw: existingConfigRaw, entry: entry }) });
     try {
-      const authRaw = await seams.readFile(join(sourceCodexHomeDir, 'auth.json'));
-      await seams.writeFile(join(dir, 'auth.json'), authRaw);
+      const authRaw = await seams.readFile({ path: join(sourceCodexHomeDir, 'auth.json') });
+      await seams.writeFile({ path: join(dir, 'auth.json'), content: authRaw });
     } catch {
       // No stored login (or unreadable) — the spawned CLI runs unauthenticated. Confirmed above:
       // this fails the run fast and observably, never as a hang.
     }
   } catch (err) {
-    await seams.removeDir(dir).catch(() => {
+    await seams.removeDir({ path: dir }).catch(() => {
       // Best-effort only — the original error below is what the caller must see either way.
     });
     throw err;
@@ -1754,7 +1759,7 @@ async function prepareCodexHomeForRun(
   return {
     path: dir,
     cleanup: async () => {
-      await seams.removeDir(dir);
+      await seams.removeDir({ path: dir });
     },
   };
 }
@@ -1776,20 +1781,20 @@ export type PreparedClaudeConfigDir = {
   readonly cleanup: () => Promise<void>;
 };
 
-function defaultMkdtempClaudeConfigDir(prefix: string): Promise<string> {
+function defaultMkdtempClaudeConfigDir({ prefix }: { readonly prefix: string }): Promise<string> {
   return fsPromises.mkdtemp(join(tmpdir(), prefix));
 }
 
-function defaultRemoveClaudeConfigDir(path: string): Promise<void> {
+function defaultRemoveClaudeConfigDir({ path }: { readonly path: string }): Promise<void> {
   return fsPromises.rm(path, { recursive: true, force: true });
 }
 
 /** The Claude-config-dir mechanism's injectable filesystem seams, real by default — the directory-staging analogue of {@link CodexHomeSeams}, kept as its own small options bag (see {@link CreateAgentExecutorOptions.claudeConfigDirIsolation}) rather than folded into {@link McpJsonInjectionOptions}: isolating the operator's personal config is an env-hygiene concern independent of whether this host configured MCP federation at all, and must not be gated on that unrelated flag. */
 export interface ClaudeConfigDirSeams {
-  readonly mkdtemp: (prefix: string) => Promise<string>;
-  readonly readFile: (path: string) => Promise<string>;
-  readonly writeFile: (path: string, content: string) => Promise<void>;
-  readonly removeDir: (path: string) => Promise<void>;
+  readonly mkdtemp: ({ prefix }: { readonly prefix: string }) => Promise<string>;
+  readonly readFile: ({ path }: { readonly path: string }) => Promise<string>;
+  readonly writeFile: ({ path, content }: { readonly path: string; readonly content: string }) => Promise<void>;
+  readonly removeDir: ({ path }: { readonly path: string }) => Promise<void>;
 }
 
 /**
@@ -1803,13 +1808,13 @@ export interface ClaudeConfigDirSeams {
  */
 export interface ClaudeConfigDirIsolationOptions {
   /** @default the real `fs.promises.mkdtemp(path.join(os.tmpdir(), prefix))` */
-  readonly mkdtemp?: (prefix: string) => Promise<string>;
+  readonly mkdtemp?: ({ prefix }: { readonly prefix: string }) => Promise<string>;
   /** Reads the operator's real `.credentials.json`, if any — see {@link prepareClaudeConfigDirForRun}'s own doc. @default the real `fs.promises.readFile` (utf8) */
-  readonly readFile?: (path: string) => Promise<string>;
+  readonly readFile?: ({ path }: { readonly path: string }) => Promise<string>;
   /** Writes the copied `.credentials.json` into the scratch directory. @default the real `fs.promises.writeFile` (utf8) */
-  readonly writeFile?: (path: string, content: string) => Promise<void>;
+  readonly writeFile?: ({ path, content }: { readonly path: string; readonly content: string }) => Promise<void>;
   /** @default `fs.promises.rm(path, { recursive: true, force: true })` — already-gone is success, not an error. */
-  readonly removeDir?: (path: string) => Promise<void>;
+  readonly removeDir?: ({ path }: { readonly path: string }) => Promise<void>;
 }
 
 function resolveClaudeConfigDirSeams(options: ClaudeConfigDirIsolationOptions | undefined): ClaudeConfigDirSeams {
@@ -1833,7 +1838,7 @@ function resolveClaudeConfigDirSeams(options: ClaudeConfigDirIsolationOptions | 
  * default, `~/.claude`.
  * @complexity O(1).
  */
-export function resolveSourceClaudeConfigDir(hostEnv: NodeJS.ProcessEnv): string {
+export function resolveSourceClaudeConfigDir({ hostEnv }: { readonly hostEnv: NodeJS.ProcessEnv }): string {
   const override = hostEnv.CLAUDE_CONFIG_DIR;
   return override !== undefined && override.trim().length > 0 ? override : join(homedir(), '.claude');
 }
@@ -1891,22 +1896,22 @@ async function prepareClaudeConfigDirForRun(
   seams: ClaudeConfigDirSeams,
 ): Promise<PreparedClaudeConfigDir> {
   const safeRunId = runId.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80) || 'run';
-  const dir = await seams.mkdtemp(`jini-claude-config-${safeRunId}-`);
+  const dir = await seams.mkdtemp({ prefix: `jini-claude-config-${safeRunId}-` });
   try {
     const credentialsPath = join(sourceConfigDir, '.credentials.json');
     let credentialsRaw: string | undefined;
     try {
-      credentialsRaw = await seams.readFile(credentialsPath);
+      credentialsRaw = await seams.readFile({ path: credentialsPath });
     } catch {
       // No file-based credential to copy (the common macOS-Keychain-only case) — see this
       // function's own doc for why that is an accepted, documented outcome, not a failure here.
       credentialsRaw = undefined;
     }
     if (credentialsRaw !== undefined) {
-      await seams.writeFile(join(dir, '.credentials.json'), credentialsRaw);
+      await seams.writeFile({ path: join(dir, '.credentials.json'), content: credentialsRaw });
     }
   } catch (err) {
-    await seams.removeDir(dir).catch(() => {
+    await seams.removeDir({ path: dir }).catch(() => {
       // Best-effort only — the original error below is what the caller must see either way.
     });
     throw err;
@@ -1914,7 +1919,7 @@ async function prepareClaudeConfigDirForRun(
   return {
     path: dir,
     cleanup: async () => {
-      await seams.removeDir(dir);
+      await seams.removeDir({ path: dir });
     },
   };
 }
@@ -2054,7 +2059,7 @@ interface WireChildLifecycleContext extends TerminateChildTreeDeps {
  * **Deliberately un-hygiened for v1**: no ANSI/terminal-control-sequence
  * stripping is applied (there is no Jini equivalent of OD's
  * `TerminalControlSequenceStripper` yet) — a documented decision, not an
- * oversight; see `packages/daemon/source-map.md`'s 2026-07-21 addition for
+ * oversight; see `packages/daemon/archived provenance ledger`'s 2026-07-21 addition for
  * the reasoning.
  *
  * *When* those chunks leave is the def's call, via `def.stdoutPolicy`:
@@ -2154,7 +2159,7 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
       message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content, ...(isError ? { is_error: true } : {}) }] },
     });
     stdin.write(`${line}\n`, 'utf8');
-    if (journal) enqueueEmit(() => journal.record(runId, sentJournalEntry(content)));
+    if (journal) enqueueEmit(() => journal.record({ runId: runId, entry: sentJournalEntry(content) }));
   }
 
   /**
@@ -2169,7 +2174,7 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
       stopReason === 'tool_use' &&
       toolUse !== undefined &&
       continuation !== undefined &&
-      resolveContinuationTransport(def) === 'stdin-injection' &&
+      resolveContinuationTransport({ def: def }) === 'stdin-injection' &&
       continuation.autonomousToolNames.has(toolUse.name);
     if (!shouldInject) {
       closeStdinOnce();
@@ -2192,19 +2197,19 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
       // the CPU-starved-and-silent condition the watchdog exists to catch. Resumed in `finally` so a
       // genuinely stalled stretch *after* this tool settles is still caught — see
       // `RunLifecycle.suspendSlowRunNotice`'s own doc.
-      lifecycle.suspendSlowRunNotice(runId);
+      lifecycle.suspendSlowRunNotice({ runId: runId });
       try {
-        const result = await continuation.toolExecutor.execute(continuation.principal, run, toolUse.name, toolUse.input);
-        content = resultContent(result);
+        const result = await continuation.toolExecutor.execute({ principal: continuation.principal, run: run, toolId: toolUse.name, input: toolUse.input });
+        content = resultContent({ result: result });
         isError = result.status !== 'completed';
-        media = extractResultMedia(result.output).media;
+        media = extractResultMedia({ output: result.output }).media;
       } catch (error) {
         content = errorMessage(error);
         isError = true;
       } finally {
-        lifecycle.resumeSlowRunNotice(runId);
+        lifecycle.resumeSlowRunNotice({ runId: runId });
       }
-      await lifecycle.emit(runId, {
+      await lifecycle.emit({ runId: runId, input: {
         event: 'agent',
         data: {
           type: 'tool_result',
@@ -2213,7 +2218,7 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
           ...(isError ? { isError: true } : {}),
           ...(media.length > 0 ? { media } : {}),
         },
-      });
+      } });
       injectToolResultLine(toolUse.id, content, isError);
     });
   }
@@ -2223,12 +2228,12 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
       ? null
       : createStreamHandlerForDef(def, streamFormat, (rawEvent) => {
           if (bridgeUnavailable) return;
-          const translation = translateAgentRuntimeEvent(rawEvent);
+          const translation = translateAgentRuntimeEvent({ rawEvent: rawEvent });
           if (translation.kind === 'agent') {
             if (translation.sessionId !== undefined) capturedSessionId = translation.sessionId;
             if (!bridgeChecked && translation.payload.type === 'status' && translation.payload.label === 'initializing') {
               bridgeChecked = true;
-              const bridgeStatus = unavailableJiniBridgeStatus(rawEvent);
+              const bridgeStatus = unavailableJiniBridgeStatus({ rawEvent: rawEvent });
               if (bridgeStatus !== undefined) {
                 stopForUnavailableBridge(translation.payload, bridgeStatus);
                 return;
@@ -2243,9 +2248,9 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
             ) {
               userVisibleOutputSeen = true;
             }
-            enqueueEmit(() => lifecycle.emit(runId, { event: 'agent', data: translation.payload }));
+            enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: translation.payload } }));
           } else if (translation.kind === 'error') {
-            enqueueEmit(() => lifecycle.emit(runId, { event: 'error', data: translation.payload }));
+            enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translation.payload } }));
           } else if (translation.kind === 'turn-end') {
             handleTurnEnd(translation.stopReason);
           }
@@ -2260,8 +2265,8 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
   function stopForUnavailableBridge(initStatus: RunAgentPayload, bridgeStatus: string): void {
     bridgeUnavailable = true;
     const message = bridgeUnavailableMessage(bridgeStatus);
-    enqueueEmit(() => lifecycle.emit(runId, { event: 'agent', data: initStatus }));
-    enqueueEmit(() => lifecycle.emit(runId, { event: 'error', data: { message, error: { code: MCP_BRIDGE_UNAVAILABLE, message } } }));
+    enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: initStatus } }));
+    enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: { message, error: { code: MCP_BRIDGE_UNAVAILABLE, message } } } }));
     void terminateChildTreeBestEffort(ctx, child, runId, 'cancel', ctx.onCleanupFailure);
   }
 
@@ -2278,7 +2283,7 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
    */
   function flushBufferedStdout(): void {
     if (bufferedStdout.length === 0 && droppedStdoutBytes === 0) return;
-    const safe = sanitizeBufferedStdout ? sanitizeBufferedStdout(bufferedStdout) : bufferedStdout;
+    const safe = sanitizeBufferedStdout ? sanitizeBufferedStdout({ fullText: bufferedStdout }) : bufferedStdout;
     bufferedStdout = '';
     bufferedStdoutBytes = 0;
     const text =
@@ -2287,13 +2292,13 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
         : safe;
     droppedStdoutBytes = 0;
     if (text.length === 0) return;
-    enqueueEmit(() => lifecycle.emit(runId, { event: 'stdout', data: { chunk: text } }));
-    enqueueEmit(() => lifecycle.emit(runId, { event: 'agent', data: { type: 'text_delta', delta: text } }));
+    enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'stdout', data: { chunk: text } } }));
+    enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: { type: 'text_delta', delta: text } } }));
   }
 
   child.stdout?.on('data', (chunk: Buffer | string) => {
     const text = chunk.toString('utf8');
-    if (journal) enqueueEmit(() => journal.record(runId, receivedJournalEntry('stdout', text)));
+    if (journal) enqueueEmit(() => journal.record({ runId: runId, entry: receivedJournalEntry('stdout', text) }));
     if (streamFormat === 'plain') {
       if (text.length > 0) userVisibleOutputSeen = true;
       if (bufferStdoutUntilClose) {
@@ -2314,20 +2319,20 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
         bufferedStdoutBytes += chunkBytes;
         return;
       }
-      enqueueEmit(() => lifecycle.emit(runId, { event: 'stdout', data: { chunk: text } }));
-      enqueueEmit(() => lifecycle.emit(runId, { event: 'agent', data: { type: 'text_delta', delta: text } }));
+      enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'stdout', data: { chunk: text } } }));
+      enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: { type: 'text_delta', delta: text } } }));
       return;
     }
-    enqueueEmit(() => lifecycle.emit(runId, { event: 'stdout', data: { chunk: text } }));
+    enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'stdout', data: { chunk: text } } }));
     // Non-null: `streamHandler` is only ever null when `streamFormat === 'plain'` (see its
     // construction above), the branch this statement is provably unreachable from.
-    streamHandler!.feed(text);
+    streamHandler!.feed({ chunk: text });
   });
 
   child.stderr?.on('data', (chunk: Buffer | string) => {
     const text = chunk.toString('utf8');
-    if (journal) enqueueEmit(() => journal.record(runId, receivedJournalEntry('stderr', text)));
-    enqueueEmit(() => lifecycle.emit(runId, { event: 'stderr', data: { chunk: text } }));
+    if (journal) enqueueEmit(() => journal.record({ runId: runId, entry: receivedJournalEntry('stderr', text) }));
+    enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'stderr', data: { chunk: text } } }));
   });
 
   // EPIPE-tolerant: a fast-exiting child that closes its stdin read end
@@ -2341,10 +2346,10 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
   // is still decided by 'close' below.
   child.on('error', () => {});
 
-  const unsubscribeCancel = lifecycle.onCancelRequested(runId, () => {
+  const unsubscribeCancel = lifecycle.onCancelRequested({ runId: runId, listener: () => {
     cancelRequested = true;
     void terminateChildTreeBestEffort(ctx, child, runId, 'cancel', ctx.onCleanupFailure);
-  });
+  } });
 
   child.on('close', (code, signal) => {
     void (async () => {
@@ -2365,7 +2370,7 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
       // Both of the next two steps are guarded: neither a failed cleanup nor a rejecting host
       // classifier may prevent the terminal transition below — see each helper's own doc.
       await cleanupStagedFilesSafely(ctx);
-      const status = bridgeUnavailable ? 'failed' : classifyRunCloseStatus({ cancelRequested, code, signal });
+      const status = bridgeUnavailable ? 'failed' : classifyRunCloseStatus({ cancelRequested, code }, { signal });
       // A bridge failure is not resumable: resuming would start the same CLI with the same bridge.
       const resumable =
         status === 'failed' && !bridgeUnavailable && classifyFailure !== undefined
@@ -2377,21 +2382,14 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
               sideEffects: { userVisibleOutputSeen, toolCallSeen },
             })
           : false;
-      await lifecycle.finish({
-        runId,
-        status,
-        code,
-        signal: signal ?? null,
-        resumable,
-        ...(capturedSessionId !== undefined ? { sessionRef: capturedSessionId } : {}),
-      });
+      await lifecycle.finish({ runId, status, code, signal: signal ?? null, resumable }, { ...(capturedSessionId !== undefined ? { sessionRef: capturedSessionId } : {}) });
     })();
   });
 
   return {
     closeStdinOnce,
     recordSentBytes(content: string): void {
-      if (journal) enqueueEmit(() => journal.record(runId, sentJournalEntry(content)));
+      if (journal) enqueueEmit(() => journal.record({ runId: runId, entry: sentJournalEntry(content) }));
     },
   };
 }
@@ -2457,7 +2455,7 @@ function translateAcpError(payload: unknown): RunErrorPayload {
 
 /** The side-effect signals {@link applyAgentTranslationSideEffects} reports through, one callback per signal so a caller only wires the ones it actually tracks. */
 interface AgentTranslationSideEffectSink {
-  readonly onSessionId: (sessionId: string) => void;
+  readonly onSessionId: (args: { readonly sessionId: string }) => void;
   readonly onToolCall: () => void;
   readonly onUserVisibleOutput: () => void;
 }
@@ -2474,12 +2472,9 @@ interface AgentTranslationSideEffectSink {
  * @param sink - The driver-specific effects to apply.
  * @complexity O(1).
  */
-export function applyAgentTranslationSideEffects(
-  payload: RunAgentPayload,
-  sessionId: string | undefined,
-  sink: AgentTranslationSideEffectSink,
+export function applyAgentTranslationSideEffects({ payload, sessionId, sink }: { readonly payload: RunAgentPayload; readonly sessionId: string | undefined; readonly sink: AgentTranslationSideEffectSink }
 ): void {
-  if (sessionId !== undefined) sink.onSessionId(sessionId);
+  if (sessionId !== undefined) sink.onSessionId({ sessionId });
   if (payload.type === 'tool_use') {
     sink.onToolCall();
   } else if ((payload.type === 'text_delta' || payload.type === 'thinking_delta') && payload.delta.length > 0) {
@@ -2519,23 +2514,23 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
 
   child.stdout?.on('data', (chunk: Buffer | string) => {
     const text = chunk.toString('utf8');
-    if (journal) enqueueEmit(() => journal.record(runId, receivedJournalEntry('stdout', text)));
-    enqueueEmit(() => lifecycle.emit(runId, { event: 'stdout', data: { chunk: text } }));
+    if (journal) enqueueEmit(() => journal.record({ runId: runId, entry: receivedJournalEntry('stdout', text) }));
+    enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'stdout', data: { chunk: text } } }));
   });
   child.stderr?.on('data', (chunk: Buffer | string) => {
     const text = chunk.toString('utf8');
-    if (journal) enqueueEmit(() => journal.record(runId, receivedJournalEntry('stderr', text)));
-    enqueueEmit(() => lifecycle.emit(runId, { event: 'stderr', data: { chunk: text } }));
+    if (journal) enqueueEmit(() => journal.record({ runId: runId, entry: receivedJournalEntry('stderr', text) }));
+    enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'stderr', data: { chunk: text } } }));
   });
   child.stdin?.on('error', () => {});
   child.on('error', () => {});
 
   let controller: AcpSessionController | null = null;
-  const unsubscribeCancel = lifecycle.onCancelRequested(runId, () => {
+  const unsubscribeCancel = lifecycle.onCancelRequested({ runId: runId, listener: () => {
     cancelRequested = true;
     controller?.abort();
     void terminateChildTreeBestEffort(ctx, child, runId, 'cancel', ctx.onCleanupFailure);
-  });
+  } });
 
   child.on('close', (code, signal) => {
     void (async () => {
@@ -2554,49 +2549,33 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
               sideEffects: { userVisibleOutputSeen, toolCallSeen },
             })
           : false;
-      await lifecycle.finish({
-        runId,
-        status,
-        code,
-        signal: signal ?? null,
-        resumable,
-        ...(capturedSessionId !== undefined ? { sessionRef: capturedSessionId } : {}),
-      });
+      await lifecycle.finish({ runId, status, code, signal: signal ?? null, resumable }, { ...(capturedSessionId !== undefined ? { sessionRef: capturedSessionId } : {}) });
     })();
   });
 
-  controller = ctx.attachAcpSession({
-    child,
-    prompt: ctx.prompt,
-    cwd: ctx.cwd,
-    ...(ctx.model !== undefined ? { model: ctx.model } : {}),
-    ...(ctx.imagePaths.length > 0 ? { imagePaths: [...ctx.imagePaths] } : {}),
-    ...(ctx.envFormat !== undefined ? { envFormat: ctx.envFormat } : {}),
-    // Spread-when-present rather than always: passing `mcpServers: []` is not the same as passing
-    // nothing for every downstream ACP agent, and "no bridge configured" must stay byte-identical
-    // to before this field existed.
-    ...(ctx.mcpServers !== undefined && ctx.mcpServers.length > 0 ? { mcpServers: [...ctx.mcpServers] } : {}),
-    ...(ctx.onPermissionRequest !== undefined ? { onPermissionRequest: ctx.onPermissionRequest } : {}),
-    send(event, payload) {
+  controller = ctx.attachAcpSession({ child, prompt: ctx.prompt, send({ event, payload }) {
       if (event === 'agent') {
-        const translation = translateAgentRuntimeEvent(payload);
+        const translation = translateAgentRuntimeEvent({ rawEvent: payload });
         if (translation.kind === 'agent') {
-          applyAgentTranslationSideEffects(translation.payload, translation.sessionId, {
-            onSessionId: (sessionId) => { capturedSessionId = sessionId; },
+          applyAgentTranslationSideEffects({ payload: translation.payload, sessionId: translation.sessionId, sink: {
+            onSessionId: ({ sessionId }) => { capturedSessionId = sessionId; },
             onToolCall: () => { toolCallSeen = true; },
             onUserVisibleOutput: () => { userVisibleOutputSeen = true; },
-          });
-          enqueueEmit(() => lifecycle.emit(runId, { event: 'agent', data: translation.payload }));
+          } });
+          enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: translation.payload } }));
         } else if (translation.kind === 'error') {
-          enqueueEmit(() => lifecycle.emit(runId, { event: 'error', data: translation.payload }));
+          enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translation.payload } }));
         }
         return;
       }
       if (event === 'error') {
-        enqueueEmit(() => lifecycle.emit(runId, { event: 'error', data: translateAcpError(payload) }));
+        enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translateAcpError(payload) } }));
       }
-    },
-  });
+    } }, { cwd: ctx.cwd, ...(ctx.model !== undefined ? { model: ctx.model } : {}), ...(ctx.imagePaths.length > 0 ? { imagePaths: [...ctx.imagePaths] } : {}), ...(ctx.envFormat !== undefined ? { envFormat: ctx.envFormat } : {}),
+    // Spread-when-present rather than always: passing `mcpServers: []` is not the same as passing
+    // nothing for every downstream ACP agent, and "no bridge configured" must stay byte-identical
+    // to before this field existed.
+    ...(ctx.mcpServers !== undefined && ctx.mcpServers.length > 0 ? { mcpServers: [...ctx.mcpServers] } : {}), ...(ctx.onPermissionRequest !== undefined ? { onPermissionRequest: ctx.onPermissionRequest } : {}) });
   return controller;
 }
 
@@ -2662,23 +2641,23 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
 
   child.stdout?.on('data', (chunk: Buffer | string) => {
     const text = chunk.toString('utf8');
-    if (journal) enqueueEmit(() => journal.record(runId, receivedJournalEntry('stdout', text)));
-    enqueueEmit(() => lifecycle.emit(runId, { event: 'stdout', data: { chunk: text } }));
+    if (journal) enqueueEmit(() => journal.record({ runId: runId, entry: receivedJournalEntry('stdout', text) }));
+    enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'stdout', data: { chunk: text } } }));
   });
   child.stderr?.on('data', (chunk: Buffer | string) => {
     const text = chunk.toString('utf8');
-    if (journal) enqueueEmit(() => journal.record(runId, receivedJournalEntry('stderr', text)));
-    enqueueEmit(() => lifecycle.emit(runId, { event: 'stderr', data: { chunk: text } }));
+    if (journal) enqueueEmit(() => journal.record({ runId: runId, entry: receivedJournalEntry('stderr', text) }));
+    enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'stderr', data: { chunk: text } } }));
   });
   child.stdin?.on('error', () => {});
   child.on('error', () => {});
 
   let session: PiRpcSession | null = null;
-  const unsubscribeCancel = lifecycle.onCancelRequested(runId, () => {
+  const unsubscribeCancel = lifecycle.onCancelRequested({ runId: runId, listener: () => {
     cancelRequested = true;
     session?.abort();
     void terminateChildTreeBestEffort(ctx, child, runId, 'cancel', ctx.onCleanupFailure);
-  });
+  } });
 
   child.on('close', (code, signal) => {
     void (async () => {
@@ -2697,26 +2676,12 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
               sideEffects: { userVisibleOutputSeen, toolCallSeen },
             })
           : false;
-      await lifecycle.finish({
-        runId,
-        status,
-        code,
-        signal: signal ?? null,
-        resumable,
-        ...(capturedSessionId !== undefined ? { sessionRef: capturedSessionId } : {}),
-      });
+      await lifecycle.finish({ runId, status, code, signal: signal ?? null, resumable }, { ...(capturedSessionId !== undefined ? { sessionRef: capturedSessionId } : {}) });
     })();
   });
 
-  session = ctx.attachPiRpcSession({
-    child: ctx.child,
-    prompt: ctx.prompt,
-    cwd: ctx.cwd,
-    ...(ctx.model !== undefined ? { model: ctx.model } : {}),
-    ...(ctx.imagePaths.length > 0 ? { imagePaths: [...ctx.imagePaths] } : {}),
-    ...(ctx.uploadRoot !== undefined ? { uploadRoot: ctx.uploadRoot } : {}),
-    send(_channel, payload) {
-      const translation = translateAgentRuntimeEvent(payload);
+  session = ctx.attachPiRpcSession({ child: ctx.child, prompt: ctx.prompt, send({ payload }) {
+      const translation = translateAgentRuntimeEvent({ rawEvent: payload });
       if (translation.kind === 'agent') {
         if (translation.sessionId !== undefined) capturedSessionId = translation.sessionId;
         if (translation.payload.type === 'tool_use') {
@@ -2727,12 +2692,11 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
         ) {
           userVisibleOutputSeen = true;
         }
-        enqueueEmit(() => lifecycle.emit(runId, { event: 'agent', data: translation.payload }));
+        enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: translation.payload } }));
       } else if (translation.kind === 'error') {
-        enqueueEmit(() => lifecycle.emit(runId, { event: 'error', data: translation.payload }));
+        enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translation.payload } }));
       }
-    },
-  });
+    } }, { cwd: ctx.cwd, ...(ctx.model !== undefined ? { model: ctx.model } : {}), ...(ctx.imagePaths.length > 0 ? { imagePaths: [...ctx.imagePaths] } : {}), ...(ctx.uploadRoot !== undefined ? { uploadRoot: ctx.uploadRoot } : {}) });
   return session;
 }
 
@@ -2812,9 +2776,9 @@ export interface CreateAgentExecutorOptions {
   /** @default the real `@jini-ai/platform` process-snapshot enumerator */
   readonly listProcessSnapshots?: typeof listProcessSnapshots;
   /** @default the real `@jini-ai/platform` descendant-PID collector */
-  readonly collectProcessTreePids?: typeof collectProcessTreePids;
+  readonly collectProcessTreePids?: CollectProcessTreePidsPort;
   /** @default the real `@jini-ai/platform` SIGTERM→SIGKILL escalator */
-  readonly stopProcesses?: typeof stopProcesses;
+  readonly stopProcesses?: StopProcessesPort;
   /** Host-owned sink for a process-tree cleanup failure (SEC-007) — e.g. EPERM stopping descendants. @default logs a redacted diagnostic via `console.error` */
   readonly onCleanupFailure?: (context: AgentCleanupFailureContext) => void;
   /**
@@ -2923,7 +2887,7 @@ export interface CreateAgentExecutorOptions {
  * @overallScore 100/100
  */
 /** `createAgentExecutor`'s internal `failBeforeSpawn` — a nested closure over `lifecycle`, so every extracted `run()` phase below takes it as an explicit injected collaborator rather than reaching for a module-level one. */
-type FailBeforeSpawn = (runId: string, code: AgentExecutorErrorCode, message: string) => Promise<never>;
+type FailBeforeSpawn = (args: { readonly runId: string; readonly code: AgentExecutorErrorCode; readonly message: string }) => Promise<never>;
 
 interface ResolvedAgentRuntimeDeps {
   readonly getAgentDef: typeof getAgentDef;
@@ -2962,8 +2926,8 @@ interface ResolvedProcessDeps {
   readonly createCommandInvocation: typeof createCommandInvocation;
   readonly spawn: typeof nodeSpawn;
   readonly listProcessSnapshots: typeof listProcessSnapshots;
-  readonly collectProcessTreePids: typeof collectProcessTreePids;
-  readonly stopProcesses: typeof stopProcesses;
+  readonly collectProcessTreePids: CollectProcessTreePidsPort;
+  readonly stopProcesses: StopProcessesPort;
 }
 
 /** Resolves the OS-process-facing collaborator seams — see {@link resolveAgentRuntimeDeps}'s doc. Pure. */
@@ -2972,8 +2936,8 @@ function resolveProcessDeps(options: CreateAgentExecutorOptions): ResolvedProces
     createCommandInvocation: options.createCommandInvocation ?? createCommandInvocation,
     spawn: options.spawn ?? nodeSpawn,
     listProcessSnapshots: options.listProcessSnapshots ?? listProcessSnapshots,
-    collectProcessTreePids: options.collectProcessTreePids ?? collectProcessTreePids,
-    stopProcesses: options.stopProcesses ?? stopProcesses,
+    collectProcessTreePids: options.collectProcessTreePids ?? (({ processes, rootPids }) => collectProcessTreePids(processes, rootPids)),
+    stopProcesses: options.stopProcesses ?? (({ pids }) => stopProcesses(pids)),
   };
 }
 
@@ -3014,36 +2978,32 @@ interface ResolvedDefAndFormat {
 }
 
 /** Phase 1: registry lookup + `assessAgentExecutorCompatibility` guard. */
-export async function resolveDefAndStreamFormat(
-  input: Pick<AgentExecutorRunInput, 'runId' | 'agentId'>,
-  deps: { readonly getAgentDef: typeof getAgentDef; readonly failBeforeSpawn: FailBeforeSpawn },
+export async function resolveDefAndStreamFormat({ input, deps }: { readonly input: Pick<AgentExecutorRunInput, 'runId' | 'agentId'>; readonly deps: { readonly getAgentDef: typeof getAgentDef; readonly failBeforeSpawn: FailBeforeSpawn } }
 ): Promise<ResolvedDefAndFormat> {
-  const def = deps.getAgentDef(input.agentId);
+  const def = deps.getAgentDef({ id: input.agentId });
   if (!def) {
-    return deps.failBeforeSpawn(input.runId, 'AGENT_NOT_FOUND', `AgentExecutor: unknown agentId "${input.agentId}"`);
+    return deps.failBeforeSpawn({ runId: input.runId, code: 'AGENT_NOT_FOUND', message: `AgentExecutor: unknown agentId "${input.agentId}"` });
   }
-  const compatibility = assessAgentExecutorCompatibility(def);
+  const compatibility = assessAgentExecutorCompatibility({ def: def });
   if (!compatibility.supported) {
-    return deps.failBeforeSpawn(input.runId, 'AGENT_RUNTIME_UNSUPPORTED', compatibility.reason);
+    return deps.failBeforeSpawn({ runId: input.runId, code: 'AGENT_RUNTIME_UNSUPPORTED', message: compatibility.reason });
   }
   return { def, streamFormat: compatibility.streamFormat };
 }
 
 /** Phase 2: image-prompt-delivery augmentation + argv-budget guard for argv-bound defs. */
-export async function resolveImageDeliveryAndArgvBudget(
-  input: {
+export async function resolveImageDeliveryAndArgvBudget({ input, deps }: { readonly input: {
     readonly runId: string;
     readonly def: RuntimeAgentDef;
     readonly prompt: string;
     readonly imagePaths: readonly string[] | undefined;
     readonly extraAllowedDirs: readonly string[] | undefined;
-  },
-  deps: { readonly failBeforeSpawn: FailBeforeSpawn },
+  }; readonly deps: { readonly failBeforeSpawn: FailBeforeSpawn } }
 ): Promise<ImagePromptDelivery> {
-  const imageDelivery = applyImagePromptDelivery(input.def.imageDelivery, input.prompt, input.imagePaths, input.extraAllowedDirs);
-  const argvBudgetError = checkPromptArgvBudget(input.def, imageDelivery.prompt);
+  const imageDelivery = applyImagePromptDelivery({ imageDelivery: input.def.imageDelivery, prompt: input.prompt, imagePaths: input.imagePaths, extraAllowedDirs: input.extraAllowedDirs });
+  const argvBudgetError = checkPromptArgvBudget({ def: input.def, composed: imageDelivery.prompt });
   if (argvBudgetError) {
-    return deps.failBeforeSpawn(input.runId, 'AGENT_PROMPT_TOO_LARGE', argvBudgetError.message);
+    return deps.failBeforeSpawn({ runId: input.runId, code: 'AGENT_PROMPT_TOO_LARGE', message: argvBudgetError.message });
   }
   return imageDelivery;
 }
@@ -3053,9 +3013,7 @@ export async function resolveImageDeliveryAndArgvBudget(
  * caller-supplied escape hatch verbatim, or the deny-by-default `BASELINE_AGENT_ENV_KEYS` allowlist.
  * Pure.
  */
-export function resolveRunEnv(
-  input: Pick<AgentExecutorRunInput, 'env' | 'credentialEnv'>,
-  hostEnv: NodeJS.ProcessEnv,
+export function resolveRunEnv({ input, hostEnv }: { readonly input: Pick<AgentExecutorRunInput, 'env' | 'credentialEnv'>; readonly hostEnv: NodeJS.ProcessEnv }
 ): Record<string, string> {
   return input.env !== undefined ? toStringEnvRecord(input.env) : buildAgentEnv(hostEnv, input.credentialEnv);
 }
@@ -3064,16 +3022,12 @@ export function resolveRunEnv(
 type ConfirmedAgentLaunchResolution = AgentLaunchResolution & { readonly launchPath: string };
 
 /** Phase 3b: launch-path resolution + binary-not-resolved guard. */
-export async function resolveLaunch(
-  input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly resolvedEnv: Record<string, string> },
-  deps: { readonly resolveAgentLaunch: typeof resolveAgentLaunch; readonly failBeforeSpawn: FailBeforeSpawn },
+export async function resolveLaunch({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly resolvedEnv: Record<string, string> }; readonly deps: { readonly resolveAgentLaunch: typeof resolveAgentLaunch; readonly failBeforeSpawn: FailBeforeSpawn } }
 ): Promise<ConfirmedAgentLaunchResolution> {
-  const launch = deps.resolveAgentLaunch(input.def, input.resolvedEnv);
+  const launch = deps.resolveAgentLaunch({ def: input.def }, { configuredEnv: input.resolvedEnv });
   if (!launch.launchPath) {
     return deps.failBeforeSpawn(
-      input.runId,
-      'AGENT_BINARY_NOT_RESOLVED',
-      `AgentExecutor: could not resolve an executable for agent "${input.def.id}" (bin "${input.def.bin}")`,
+      { runId: input.runId, code: 'AGENT_BINARY_NOT_RESOLVED', message: `AgentExecutor: could not resolve an executable for agent "${input.def.id}" (bin "${input.def.bin}")` },
     );
   }
   // Narrowed by the guard above; `resolveAgentLaunch`'s own return type still declares
@@ -3082,51 +3036,41 @@ export async function resolveLaunch(
 }
 
 /** Phase 4a: stage a `promptViaFile` def's prompt to a temp file (a no-op for every other def). */
-export async function stagePromptFile(
-  input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly prompt: string },
-  deps: { readonly preparePromptFileForAgent: typeof preparePromptFileForAgent; readonly failBeforeSpawn: FailBeforeSpawn },
+export async function stagePromptFile({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly prompt: string }; readonly deps: { readonly preparePromptFileForAgent: typeof preparePromptFileForAgent; readonly failBeforeSpawn: FailBeforeSpawn } }
 ): Promise<PreparedPromptFile | null> {
   try {
-    return await deps.preparePromptFileForAgent(input.def, input.prompt, input.runId);
+    return await deps.preparePromptFileForAgent({ def: input.def, prompt: input.prompt, label: input.runId });
   } catch (err) {
     return deps.failBeforeSpawn(
-      input.runId,
-      'AGENT_SPAWN_FAILED',
-      `AgentExecutor: could not stage a prompt file for agent "${input.def.id}": ${errorMessage(err)}`,
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a prompt file for agent "${input.def.id}": ${errorMessage(err)}` },
     );
   }
 }
 
 /** Phase 4b: stage a `needsAgentLogFile` def's diagnostic-log path (a no-op for every other def). */
-export async function stageLogFile(
-  input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly preparedPromptFile: PreparedPromptFile | null },
-  deps: { readonly prepareAgentLogFile: typeof prepareAgentLogFile; readonly failBeforeSpawn: FailBeforeSpawn },
+export async function stageLogFile({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly preparedPromptFile: PreparedPromptFile | null }; readonly deps: { readonly prepareAgentLogFile: typeof prepareAgentLogFile; readonly failBeforeSpawn: FailBeforeSpawn } }
 ): Promise<PreparedAgentLogFile | null> {
   try {
-    return await deps.prepareAgentLogFile(input.def, input.runId);
+    return await deps.prepareAgentLogFile({ def: input.def, label: input.runId });
   } catch (err) {
     await (input.preparedPromptFile ? input.preparedPromptFile.cleanup() : Promise.resolve());
     return deps.failBeforeSpawn(
-      input.runId,
-      'AGENT_SPAWN_FAILED',
-      `AgentExecutor: could not stage a log file for agent "${input.def.id}": ${errorMessage(err)}`,
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a log file for agent "${input.def.id}": ${errorMessage(err)}` },
     );
   }
 }
 
 /** Phase 5: resolves this run's MCP bridge delivery (credential resolution + {@link buildMcpBridgeDelivery}). */
-export async function resolveMcpBridgeForRun(
-  input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef },
-  deps: {
+export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef }; readonly deps: {
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
     readonly cleanupStagedFiles: () => Promise<void>;
     readonly failBeforeSpawn: FailBeforeSpawn;
-  },
+  } }
 ): Promise<McpBridgeDelivery | null> {
   try {
     // Awaited here rather than inside `buildMcpBridgeDelivery` so that function stays pure and
     // synchronous. `undefined` when the host supplied no resolver, which omits the token entirely.
-    const credential = deps.mcpJsonInjection !== undefined ? await deps.mcpJsonInjection.credential?.(input.runId) : undefined;
+    const credential = deps.mcpJsonInjection !== undefined ? await deps.mcpJsonInjection.credential?.({ runId: input.runId }) : undefined;
     return buildMcpBridgeDelivery({
       cwd: input.cwd,
       runId: input.runId,
@@ -3139,9 +3083,7 @@ export async function resolveMcpBridgeForRun(
     // 401s, so a rejecting credential resolver fails the run before spawn instead.
     await deps.cleanupStagedFiles();
     return deps.failBeforeSpawn(
-      input.runId,
-      'AGENT_SPAWN_FAILED',
-      `AgentExecutor: could not resolve the MCP bridge credential for agent "${input.def.id}": ${errorMessage(err)}`,
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not resolve the MCP bridge credential for agent "${input.def.id}": ${errorMessage(err)}` },
     );
   }
 }
@@ -3167,19 +3109,13 @@ export async function resolveMcpBridgeForRun(
  * @complexity O(1) plus `mergeEnvContentMcpConfig`'s and `mergeEnvContentInstructions`'s own `JSON.parse`/`JSON.stringify` cost.
  * @overallScore 100/100
  */
-export function computeChildEnv(
-  spawnEnv: NodeJS.ProcessEnv,
-  mcpBridge: McpBridgeDelivery | null,
-  codexHomeDir?: string,
-  systemPromptEnvOverrides?: Readonly<Record<string, string>>,
-  stagedInstructionsFile?: { readonly varName: string; readonly path: string },
-  claudeConfigDir?: string,
+export function computeChildEnv({ spawnEnv, mcpBridge }: { readonly spawnEnv: NodeJS.ProcessEnv; readonly mcpBridge: McpBridgeDelivery | null }, { codexHomeDir, systemPromptEnvOverrides, stagedInstructionsFile, claudeConfigDir }: { readonly codexHomeDir?: string; readonly systemPromptEnvOverrides?: Readonly<Record<string, string>>; readonly stagedInstructionsFile?: { readonly varName: string; readonly path: string }; readonly claudeConfigDir?: string } = {}
 ): NodeJS.ProcessEnv {
   const envContentApplied =
     mcpBridge?.kind === 'env-content'
       ? {
           ...spawnEnv,
-          [mcpBridge.envVarName]: mergeEnvContentMcpConfig(spawnEnv[mcpBridge.envVarName], mcpBridge.serverEntry),
+          [mcpBridge.envVarName]: mergeEnvContentMcpConfig({ existingRaw: spawnEnv[mcpBridge.envVarName], entry: mcpBridge.serverEntry }),
         }
       : spawnEnv;
   // `'env-passthrough'` (antigravity): no document, no named carrier variable — the bridge
@@ -3194,9 +3130,7 @@ export function computeChildEnv(
       ? envPassthroughApplied
       : {
           ...envPassthroughApplied,
-          [stagedInstructionsFile.varName]: mergeEnvContentInstructions(
-            envPassthroughApplied[stagedInstructionsFile.varName],
-            stagedInstructionsFile.path,
+          [stagedInstructionsFile.varName]: mergeEnvContentInstructions({ existingRaw: envPassthroughApplied[stagedInstructionsFile.varName], instructionsFilePath: stagedInstructionsFile.path }
           ),
         };
   const codexHomeApplied = codexHomeDir === undefined ? instructionsApplied : { ...instructionsApplied, CODEX_HOME: codexHomeDir };
@@ -3220,12 +3154,7 @@ export function computeChildEnv(
  * session id, with no prompt/log file staged and no claude-mcp-json bridge, is exactly the common
  * case for a resumed turn.
  */
-export function computeRuntimeContext(
-  preparedPromptFile: PreparedPromptFile | null,
-  preparedLogFile: PreparedAgentLogFile | null,
-  mcpBridge: McpBridgeDelivery | null,
-  resumeSessionId?: string | null,
-  newSessionId?: string,
+export function computeRuntimeContext({ preparedPromptFile, preparedLogFile, mcpBridge }: { readonly preparedPromptFile: PreparedPromptFile | null; readonly preparedLogFile: PreparedAgentLogFile | null; readonly mcpBridge: McpBridgeDelivery | null }, { resumeSessionId, newSessionId }: { readonly resumeSessionId?: string | null; readonly newSessionId?: string } = {}
 ): RuntimeContext | undefined {
   // Matches claude.ts buildArgs' own `typeof x === 'string' && x` truthiness check, so an empty
   // string or explicit `null` (no resume target yet) is treated as absent here too, rather than
@@ -3276,16 +3205,19 @@ function computeSystemPromptOverlay(
   });
 }
 
-/** Phase 9a: the def's `buildArgs` 4th argument — `undefined` when the run selects no model/reasoning/permissionMode/overlay/tool-restriction at all (byte-identical to omitting the argument). Pure. */
-export function buildAgentBuildArgsOptions(
-  input: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode' | 'disallowedTools' | 'allowedTools' | 'settingSources' | 'settings'>,
-  systemPromptOverlay: string | null | undefined,
+/** Phase 9a: the def's `buildArgs` 4th argument. Historically omitted when every override was absent;
+ * that let defs silently enable auto-approval. Always supply the validated restricted default now. Pure. */
+export function buildAgentBuildArgsOptions({ input, systemPromptOverlay }: { readonly input: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode' | 'disallowedTools' | 'allowedTools' | 'settingSources' | 'settings'>; readonly systemPromptOverlay: string | null | undefined }
 ): RuntimeBuildOptions | undefined {
+  const permissionMode = input.permissionMode ?? 'restricted';
+  if (permissionMode !== 'restricted' && permissionMode !== 'bypass') {
+    throw new AgentExecutorError({ code: 'AGENT_PERMISSION_MODE_INVALID', message: 'AgentExecutor: permissionMode must be restricted or bypass' });
+  }
   const hasOverlay = systemPromptOverlay !== undefined && systemPromptOverlay !== null;
   const options: RuntimeBuildOptions = {
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
-    ...(input.permissionMode !== undefined ? { permissionMode: input.permissionMode } : {}),
+    permissionMode,
     ...(input.disallowedTools !== undefined ? { disallowedTools: input.disallowedTools } : {}),
     ...(input.allowedTools !== undefined ? { allowedTools: input.allowedTools } : {}),
     ...(input.settingSources !== undefined ? { settingSources: input.settingSources } : {}),
@@ -3460,8 +3392,7 @@ export function resolveSystemPromptOverlayDelivery(input: {
  * therefore only ever reach the 7 defs whose `buildArgs` reads its first argument at all — the
  * other 17 declare it `_prompt` and discard it, which is exactly how the overlay used to go missing.
  */
-export async function buildRunArgs(
-  input: {
+export async function buildRunArgs({ input, deps }: { readonly input: {
     readonly runId: string;
     readonly def: RuntimeAgentDef;
     readonly imageDelivery: ImagePromptDelivery;
@@ -3470,17 +3401,17 @@ export async function buildRunArgs(
     readonly systemPromptOverlay: string | null | undefined;
     readonly overlayDelivery: SystemPromptOverlayDelivery;
     readonly runtimeContext: RuntimeContext | undefined;
-  },
-  deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn },
+  }; readonly deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn } }
 ): Promise<{ readonly args: string[]; readonly envOverrides: Readonly<Record<string, string>> }> {
   try {
     const delivery = input.overlayDelivery;
+    const options = buildAgentBuildArgsOptions({ input: input.runInput, systemPromptOverlay: input.systemPromptOverlay });
     const args = input.def.buildArgs(
-      delivery.prompt,
-      [...(input.imagePaths ?? [])],
-      input.imageDelivery.extraAllowedDirs === undefined ? undefined : [...input.imageDelivery.extraAllowedDirs],
-      buildAgentBuildArgsOptions(input.runInput, input.systemPromptOverlay),
-      input.runtimeContext,
+      { prompt: delivery.prompt, imagePaths: [...(input.imagePaths ?? [])] }, {
+        ...(input.imageDelivery.extraAllowedDirs === undefined ? {} : { extraAllowedDirs: [...input.imageDelivery.extraAllowedDirs] }),
+        ...(options === undefined ? {} : { options }),
+        ...(input.runtimeContext === undefined ? {} : { runtimeContext: input.runtimeContext }),
+      },
     );
     // `'append-flag'` delivery's extra argv (empty for every other def/strategy) is appended after
     // whatever the def's own `buildArgs` returned — safe because it is only ever non-empty for a
@@ -3493,21 +3424,17 @@ export async function buildRunArgs(
   } catch (err) {
     await deps.releaseStagedResources();
     return deps.failBeforeSpawn(
-      input.runId,
-      'AGENT_SPAWN_FAILED',
-      `AgentExecutor: could not build launch arguments for agent "${input.def.id}": ${errorMessage(err)}`,
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not build launch arguments for agent "${input.def.id}": ${errorMessage(err)}` },
     );
   }
 }
 
 /** Phase 10: mechanism 1 of 5's one effect — stages this run's own `.mcp.json`, returning the path `cleanupStagedFiles` should later remove (`undefined` for every other mechanism / unconfigured host). */
-export async function writeMcpJsonIfNeeded(
-  input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null },
-  deps: {
+export async function writeMcpJsonIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null }; readonly deps: {
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
     readonly releaseStagedResources: () => Promise<void>;
     readonly failBeforeSpawn: FailBeforeSpawn;
-  },
+  } }
 ): Promise<string | undefined> {
   if (input.mcpBridge?.kind !== 'claude-mcp-json' || deps.mcpJsonInjection === undefined) {
     return undefined;
@@ -3518,9 +3445,7 @@ export async function writeMcpJsonIfNeeded(
   } catch (err) {
     await deps.releaseStagedResources();
     return deps.failBeforeSpawn(
-      input.runId,
-      'AGENT_SPAWN_FAILED',
-      `AgentExecutor: could not write .mcp.json for agent "${input.def.id}": ${errorMessage(err)}`,
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not write .mcp.json for agent "${input.def.id}": ${errorMessage(err)}` },
     );
   }
 }
@@ -3551,9 +3476,7 @@ export type PreparedSystemPromptOverlayFile = {
  * @complexity O(1) plus one directory creation and one file write.
  * @overallScore 100/100
  */
-export async function prepareSystemPromptOverlayFileIfNeeded(
-  input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly overlay: string | null | undefined },
-  deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn },
+export async function prepareSystemPromptOverlayFileIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly overlay: string | null | undefined }; readonly deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn } }
 ): Promise<PreparedSystemPromptOverlayFile | null> {
   if (
     input.def.systemPromptDelivery?.strategy !== 'config-instructions-file' ||
@@ -3576,9 +3499,7 @@ export async function prepareSystemPromptOverlayFileIfNeeded(
   } catch (err) {
     await deps.releaseStagedResources();
     return deps.failBeforeSpawn(
-      input.runId,
-      'AGENT_SPAWN_FAILED',
-      `AgentExecutor: could not stage a system-prompt overlay file for agent "${input.def.id}": ${errorMessage(err)}`,
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a system-prompt overlay file for agent "${input.def.id}": ${errorMessage(err)}` },
     );
   }
 }
@@ -3593,14 +3514,12 @@ export async function prepareSystemPromptOverlayFileIfNeeded(
  * @complexity O(1) plus {@link prepareCodexHomeForRun}'s own cost.
  * @overallScore 100/100
  */
-export async function prepareCodexHomeIfNeeded(
-  input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null },
-  deps: {
+export async function prepareCodexHomeIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null }; readonly deps: {
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
     readonly hostEnv: NodeJS.ProcessEnv;
     readonly releaseStagedResources: () => Promise<void>;
     readonly failBeforeSpawn: FailBeforeSpawn;
-  },
+  } }
 ): Promise<PreparedCodexHome | null> {
   if (input.mcpBridge?.kind !== 'codex-toml' || deps.mcpJsonInjection === undefined) {
     return null;
@@ -3609,15 +3528,13 @@ export async function prepareCodexHomeIfNeeded(
     return await prepareCodexHomeForRun(
       input.runId,
       input.mcpBridge.serverEntry,
-      resolveSourceCodexHomeDir(deps.hostEnv),
+      resolveSourceCodexHomeDir({ hostEnv: deps.hostEnv }),
       resolveCodexHomeSeams(deps.mcpJsonInjection),
     );
   } catch (err) {
     await deps.releaseStagedResources();
     return deps.failBeforeSpawn(
-      input.runId,
-      'AGENT_SPAWN_FAILED',
-      `AgentExecutor: could not stage a CODEX_HOME for agent "${input.def.id}": ${errorMessage(err)}`,
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a CODEX_HOME for agent "${input.def.id}": ${errorMessage(err)}` },
     );
   }
 }
@@ -3645,15 +3562,13 @@ export async function prepareCodexHomeIfNeeded(
  * @param deps.hostEnv - The daemon's own environment, threaded through to {@link resolveSourceClaudeConfigDir} rather than read from a module-level `process.env`, matching {@link prepareCodexHomeIfNeeded}'s identical testability reasoning.
  * @complexity O(1) plus {@link prepareClaudeConfigDirForRun}'s own cost.
  */
-export async function prepareClaudeConfigDirIfNeeded(
-  input: { readonly runId: string; readonly def: RuntimeAgentDef },
-  deps: {
+export async function prepareClaudeConfigDirIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef }; readonly deps: {
     readonly enabled: boolean;
     readonly claudeConfigDirIsolation: ClaudeConfigDirIsolationOptions | undefined;
     readonly hostEnv: NodeJS.ProcessEnv;
     readonly releaseStagedResources: () => Promise<void>;
     readonly failBeforeSpawn: FailBeforeSpawn;
-  },
+  } }
 ): Promise<PreparedClaudeConfigDir | null> {
   if (input.def.id !== 'claude' || !deps.enabled) {
     return null;
@@ -3661,30 +3576,26 @@ export async function prepareClaudeConfigDirIfNeeded(
   try {
     return await prepareClaudeConfigDirForRun(
       input.runId,
-      resolveSourceClaudeConfigDir(deps.hostEnv),
+      resolveSourceClaudeConfigDir({ hostEnv: deps.hostEnv }),
       resolveClaudeConfigDirSeams(deps.claudeConfigDirIsolation),
     );
   } catch (err) {
     await deps.releaseStagedResources();
     return deps.failBeforeSpawn(
-      input.runId,
-      'AGENT_SPAWN_FAILED',
-      `AgentExecutor: could not stage a CLAUDE_CONFIG_DIR for agent "${input.def.id}": ${errorMessage(err)}`,
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a CLAUDE_CONFIG_DIR for agent "${input.def.id}": ${errorMessage(err)}` },
     );
   }
 }
 
 /** Phase 11: post-`buildArgs` guard for argv-bound defs whose resolved binary is a Windows shim/.exe — a no-op off-Windows and for non-argv-bound defs. */
-export async function guardWindowsCommandLineBudget(
-  input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly launchPath: string; readonly args: readonly string[] },
-  deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn },
+export async function guardWindowsCommandLineBudget({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly launchPath: string; readonly args: readonly string[] }; readonly deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn } }
 ): Promise<void> {
   const windowsBudgetError =
-    checkWindowsCmdShimCommandLineBudget(input.def, input.launchPath, input.args) ??
-    checkWindowsDirectExeCommandLineBudget(input.def, input.launchPath, input.args);
+    checkWindowsCmdShimCommandLineBudget({ def: input.def, resolvedBin: input.launchPath, args: input.args }) ??
+    checkWindowsDirectExeCommandLineBudget({ def: input.def, resolvedBin: input.launchPath, args: input.args });
   if (windowsBudgetError) {
     await deps.releaseStagedResources();
-    await deps.failBeforeSpawn(input.runId, 'AGENT_PROMPT_TOO_LARGE', windowsBudgetError.message);
+    await deps.failBeforeSpawn({ runId: input.runId, code: 'AGENT_PROMPT_TOO_LARGE', message: windowsBudgetError.message });
   }
 }
 
@@ -3712,13 +3623,11 @@ export type SpawnAgentChildProcessResult =
  * which are safe to make asynchronous since no child (and hence no listener race) exists yet.
  * @complexity O(1) plus `spawn`'s own cost.
  */
-export function spawnAgentChildProcess(
-  input: {
+export function spawnAgentChildProcess({ input, deps }: { readonly input: {
     readonly cwd: string;
     readonly childEnv: NodeJS.ProcessEnv;
     readonly invocation: ReturnType<typeof createCommandInvocation>;
-  },
-  deps: { readonly spawn: typeof nodeSpawn },
+  }; readonly deps: { readonly spawn: typeof nodeSpawn } }
 ): SpawnAgentChildProcessResult {
   try {
     return {
@@ -3736,32 +3645,26 @@ export function spawnAgentChildProcess(
 }
 
 /** Named predicate replacing an inline `streamFormat === 'acp-json-rpc' || streamFormat === 'pi-rpc'` check — the two formats that own their own prompt/event protocol and skip `wireChildLifecycle`. */
-export function isStdinDrivenFormat(streamFormat: SupportedStreamFormat): streamFormat is ChildDrivenStreamFormat {
+export function isStdinDrivenFormat(args: { readonly streamFormat: SupportedStreamFormat }): args is { readonly streamFormat: ChildDrivenStreamFormat } {
+  const { streamFormat } = args;
   return streamFormat !== 'acp-json-rpc' && streamFormat !== 'pi-rpc';
 }
 
 /** Phase 13: awaits spawn confirmation, routing a failure through the same `failBeforeSpawn` shape every earlier guard uses. */
-export async function confirmChildSpawned(
-  input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly child: ChildProcess },
-  deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn },
+export async function confirmChildSpawned({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly child: ChildProcess }; readonly deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn } }
 ): Promise<void> {
   try {
     await waitForSpawnOrError(input.child);
   } catch (err) {
     await deps.releaseStagedResources();
     await deps.failBeforeSpawn(
-      input.runId,
-      'AGENT_SPAWN_FAILED',
-      `AgentExecutor: failed to spawn agent "${input.def.id}": ${errorMessage(err)}`,
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: failed to spawn agent "${input.def.id}": ${errorMessage(err)}` },
     );
   }
 }
 
 /** Phase 14: starts a `runtimeLock` def's handoff watcher once a live process exists to consume the locked side effect — a no-op when the def declared no `waitForHandoff`. Deliberately not awaited; see `RuntimeLockHold.waitForHandoff`'s own doc. */
-export function armHandoffWatcher(
-  runtimeLockHold: RuntimeLockHold | undefined,
-  handoffInput: { readonly logFilePath: string | undefined; readonly model: string | undefined; readonly processExited: AbortSignal },
-  release: () => void,
+export function armHandoffWatcher({ runtimeLockHold, handoffInput, release }: { readonly runtimeLockHold: RuntimeLockHold | undefined; readonly handoffInput: { readonly logFilePath: string | undefined; readonly model: string | undefined; readonly processExited: AbortSignal }; readonly release: () => void }
 ): void {
   if (!runtimeLockHold?.waitForHandoff) return;
   void runtimeLockHold.waitForHandoff(handoffInput).then(release, release);
@@ -3792,7 +3695,7 @@ interface RunAcpDispatchDeps extends TerminateChildTreeDeps {
 }
 
 /** Phase 15 (ACP branch): attaches the ACP session, escalating process-tree teardown and failing the run through `failBeforeSpawn` on an attach-time throw. */
-export async function runAcpDispatch(input: RunAcpDispatchInput, deps: RunAcpDispatchDeps): Promise<void> {
+export async function runAcpDispatch({ input, deps }: { readonly input: RunAcpDispatchInput; readonly deps: RunAcpDispatchDeps }): Promise<void> {
   try {
     wireAcpLifecycle({
       runId: input.runId,
@@ -3830,9 +3733,7 @@ export async function runAcpDispatch(input: RunAcpDispatchInput, deps: RunAcpDis
     );
     await deps.releaseStagedResources();
     await deps.failBeforeSpawn(
-      input.runId,
-      'AGENT_SPAWN_FAILED',
-      `AgentExecutor: could not attach ACP session for agent "${input.agentId}": ${errorMessage(err)}`,
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not attach ACP session for agent "${input.agentId}": ${errorMessage(err)}` },
     );
   }
 }
@@ -3860,7 +3761,7 @@ interface RunPiRpcDispatchDeps extends TerminateChildTreeDeps {
 }
 
 /** Phase 15 (pi-rpc branch): same discipline as {@link runAcpDispatch}, for the one `'pi-rpc'` def. */
-export async function runPiRpcDispatch(input: RunPiRpcDispatchInput, deps: RunPiRpcDispatchDeps): Promise<void> {
+export async function runPiRpcDispatch({ input, deps }: { readonly input: RunPiRpcDispatchInput; readonly deps: RunPiRpcDispatchDeps }): Promise<void> {
   try {
     wirePiRpcLifecycle({
       runId: input.runId,
@@ -3893,14 +3794,13 @@ export async function runPiRpcDispatch(input: RunPiRpcDispatchInput, deps: RunPi
     );
     await deps.releaseStagedResources();
     await deps.failBeforeSpawn(
-      input.runId,
-      'AGENT_SPAWN_FAILED',
-      `AgentExecutor: could not attach pi-rpc session for agent "${input.agentId}": ${errorMessage(err)}`,
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not attach pi-rpc session for agent "${input.agentId}": ${errorMessage(err)}` },
     );
   }
 }
 
-export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentExecutor {
+export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "getAgentDef" | "resolveAgentLaunch" | "ensureAgentCapabilities" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
+  const options: CreateAgentExecutorOptions = { ...requiredArgs, ...optionalArgs };
   const lifecycle = options.lifecycle;
   const {
     getAgentDef: getAgentDefFn,
@@ -3940,16 +3840,16 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
    * @complexity O(1) plus `lifecycle.finish()`'s own cost.
    * @overallScore 100/100
    */
-  async function failBeforeSpawn(runId: string, code: AgentExecutorErrorCode, message: string): Promise<never> {
+  async function failBeforeSpawn({ runId, code, message }: { readonly runId: string; readonly code: AgentExecutorErrorCode; readonly message: string }): Promise<never> {
     // The reason goes on the run's own stream before `end`, not only into the thrown error: the
     // thrown error reaches the server log, while a chat client sees only this stream. Without it
     // the user got a bare "Run failed". Best-effort: a stream that will not take the event must not
     // stop the run from finishing.
     await lifecycle
-      .emit(runId, { event: 'error', data: { message: `The assistant could not start: ${message.replace(/^AgentExecutor:\s*/, '')}` } })
+      .emit({ runId: runId, input: { event: 'error', data: { message: `The assistant could not start: ${message.replace(/^AgentExecutor:\s*/, '')}` } } })
       .catch(() => undefined);
     await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: false });
-    throw new AgentExecutorError(code, message);
+    throw new AgentExecutorError({ code: code, message: message });
   }
 
   /**
@@ -3963,10 +3863,12 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
    * @complexity O(1) setup (registry lookup, launch resolution, one spawn call); steady-state cost thereafter belongs to {@link wireChildLifecycle}.
    * @overallScore 100/100
    */
-  async function run(input: AgentExecutorRunInput): Promise<void> {
-    const { def, streamFormat } = await resolveDefAndStreamFormat(
-      { runId: input.runId, agentId: input.agentId },
-      { getAgentDef: getAgentDefFn, failBeforeSpawn },
+  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "model" | "reasoning" | "permissionMode" | "imagePaths" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings"> = {}): Promise<void> {
+  const input: AgentExecutorRunInput = { ...requiredArgs, ...optionalArgs, permissionMode: optionalArgs.permissionMode ?? 'restricted' };
+    if (input.permissionMode !== 'restricted' && input.permissionMode !== 'bypass') {
+      return failBeforeSpawn({ runId: input.runId, code: 'AGENT_PERMISSION_MODE_INVALID', message: 'AgentExecutor: permissionMode must be restricted or bypass' });
+    }
+    const { def, streamFormat } = await resolveDefAndStreamFormat({ input: { runId: input.runId, agentId: input.agentId }, deps: { getAgentDef: getAgentDefFn, failBeforeSpawn } }
     );
 
     // Computed once, before anything downstream ever looks at "the prompt" or "the allowed
@@ -3979,9 +3881,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // calls further down deliberately keep reading `input.prompt` verbatim, since those two
     // defs' own native protocol already delivers the image and must never also get this
     // treatment (the double-delivery hazard this mechanism exists to avoid).
-    const imageDelivery = await resolveImageDeliveryAndArgvBudget(
-      { runId: input.runId, def, prompt: input.prompt, imagePaths: input.imagePaths, extraAllowedDirs: input.extraAllowedDirs },
-      { failBeforeSpawn },
+    const imageDelivery = await resolveImageDeliveryAndArgvBudget({ input: { runId: input.runId, def, prompt: input.prompt, imagePaths: input.imagePaths, extraAllowedDirs: input.extraAllowedDirs }, deps: { failBeforeSpawn } }
     );
 
     // Phase 8, hoisted deliberately above EVERY step that writes or sends the prompt. Four
@@ -4002,7 +3902,10 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // because every `PromptAugmenter.systemOverlay()` implementation this seam has today wants the
     // same overlay on every turn, not a first-turn-only one; a caller that needs finer-grained turn
     // numbering can track it itself and ignore this arg.
-    const preStagingRuntimeContext = computeRuntimeContext(null, null, null, input.resumeSessionId, input.newSessionId);
+    const preStagingRuntimeContext = computeRuntimeContext({ preparedPromptFile: null, preparedLogFile: null, mcpBridge: null }, {
+      ...(input.resumeSessionId === undefined ? {} : { resumeSessionId: input.resumeSessionId }),
+      ...(input.newSessionId === undefined ? {} : { newSessionId: input.newSessionId }),
+    });
     const systemPromptOverlay = computeSystemPromptOverlay(promptAugmenter, def.id, preStagingRuntimeContext);
     const overlayDelivery = resolveSystemPromptOverlayDelivery({
       defId: def.id,
@@ -4017,18 +3920,16 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // The def's own declared env (e.g. claude's `ENABLE_TOOL_SEARCH=false`) is a default the run's
     // env can override. Detection already spawns with it (`detection.ts`); without this the run
     // spawn silently dropped it. Declared by the def itself, so it never widens SEC-001's allowlist.
-    const resolvedEnv = { ...(def.env ?? {}), ...resolveRunEnv(input, process.env) };
-    const launch = await resolveLaunch(
-      { runId: input.runId, def, resolvedEnv },
-      { resolveAgentLaunch: resolveAgentLaunchFn, failBeforeSpawn },
+    const resolvedEnv = { ...(def.env ?? {}), ...resolveRunEnv({ input: input, hostEnv: process.env }) };
+    const launch = await resolveLaunch({ input: { runId: input.runId, def, resolvedEnv }, deps: { resolveAgentLaunch: resolveAgentLaunchFn, failBeforeSpawn } }
     );
 
-    const spawnEnv = applyAgentLaunchEnvFn({ ...resolvedEnv }, launch);
+    const spawnEnv = applyAgentLaunchEnvFn({ env: { ...resolvedEnv }, launch });
     // Fill the def's `--help` capability gate before `buildArgs` reads it. Without this, only a
     // host that happened to call `detectAgents` in THIS process ever had the gate filled, so e.g.
     // `claude` never got `--include-partial-messages` (no streamed text). Probes once per binary;
     // never rejects (a failed probe keeps the safe no-optional-flags baseline).
-    await ensureAgentCapabilitiesFn(def, launch.launchPath, spawnEnv);
+    await ensureAgentCapabilitiesFn({ def, launchPath: launch.launchPath, env: spawnEnv });
 
     // Stage a promptViaFile def's (grok-build) prompt to a temp file before buildArgs runs — its
     // buildArgs throws without runtimeContext.promptFilePath. A no-op (returns null) for every
@@ -4037,18 +3938,14 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // `overlayDelivery.prompt`, not `imageDelivery.prompt`: for a `promptViaFile` def this file IS
     // the prompt transport — its `buildArgs` declares `_prompt` and passes only the path — so the
     // overlay has to be in the bytes written here or the CLI never sees it at all.
-    const preparedPromptFile = await stagePromptFile(
-      { runId: input.runId, def, prompt: overlayDelivery.prompt },
-      { preparePromptFileForAgent: preparePromptFileForAgentFn, failBeforeSpawn },
+    const preparedPromptFile = await stagePromptFile({ input: { runId: input.runId, def, prompt: overlayDelivery.prompt }, deps: { preparePromptFileForAgent: preparePromptFileForAgentFn, failBeforeSpawn } }
     );
     // Stage a needsAgentLogFile def's (antigravity) diagnostic-log path, on the same terms and at
     // the same point as the prompt file above: before buildArgs, since buildArgs is what turns the
     // path into a `--log-file <path>` argument. A no-op (returns null) for every def without
     // `needsAgentLogFile: true` (prepareAgentLogFile's own guard). Sequenced after the prompt file
     // rather than concurrently so the failure path above has exactly one thing to clean up.
-    const preparedLogFile = await stageLogFile(
-      { runId: input.runId, def, preparedPromptFile },
-      { prepareAgentLogFile: prepareAgentLogFileFn, failBeforeSpawn },
+    const preparedLogFile = await stageLogFile({ input: { runId: input.runId, def, preparedPromptFile }, deps: { prepareAgentLogFile: prepareAgentLogFileFn, failBeforeSpawn } }
     );
 
     // Cleaned up after the child exits (wireChildLifecycle/wireAcpLifecycle/wirePiRpcLifecycle's
@@ -4093,7 +3990,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       if (writtenMcpJsonPath !== undefined) {
         const mcpJsonFileToRemove = writtenMcpJsonPath;
         writtenMcpJsonPath = undefined;
-        await removeMcpJsonFileFn(mcpJsonFileToRemove);
+        await removeMcpJsonFileFn({ path: mcpJsonFileToRemove });
       }
       if (preparedCodexHome) {
         const codexHomeToRemove = preparedCodexHome;
@@ -4116,17 +4013,13 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // resolving here means the per-run bearer credential is minted exactly once no matter which of
     // the five mechanisms ends up carrying it. `null` for an unconfigured host or a def declaring
     // no strategy — see `buildMcpBridgeDelivery`'s doc.
-    const mcpBridge = await resolveMcpBridgeForRun(
-      { runId: input.runId, cwd: input.cwd, def },
-      { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn },
+    const mcpBridge = await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn } }
     );
 
-    const runtimeContext = computeRuntimeContext(
-      preparedPromptFile,
-      preparedLogFile,
-      mcpBridge,
-      input.resumeSessionId,
-      input.newSessionId,
+    const runtimeContext = computeRuntimeContext({ preparedPromptFile: preparedPromptFile, preparedLogFile: preparedLogFile, mcpBridge: mcpBridge }, {
+      ...(input.resumeSessionId === undefined ? {} : { resumeSessionId: input.resumeSessionId }),
+      ...(input.newSessionId === undefined ? {} : { newSessionId: input.newSessionId }),
+    }
     );
 
     // A `runtimeLock` def's buildArgs mutates process-global state its own CLI reads back at
@@ -4160,9 +4053,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // `Error` — breaking this driver's "never a bare throw, always an `AgentExecutorError`" contract
     // — and left the run `'running'` forever while still holding the process-global mutex and both
     // staged files, so no later run of that def could ever acquire the lock either.
-    const { args, envOverrides: systemPromptEnvOverrides } = await buildRunArgs(
-      { runId: input.runId, def, imageDelivery, imagePaths: input.imagePaths, runInput: input, systemPromptOverlay, overlayDelivery, runtimeContext },
-      { releaseStagedResources, failBeforeSpawn },
+    const { args, envOverrides: systemPromptEnvOverrides } = await buildRunArgs({ input: { runId: input.runId, def, imageDelivery, imagePaths: input.imagePaths, runInput: input, systemPromptOverlay, overlayDelivery, runtimeContext }, deps: { releaseStagedResources, failBeforeSpawn } }
     );
 
     // Mechanism 1 of 5's one effect — stage this run's own MCP config file (run-scoped, see
@@ -4170,9 +4061,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // points at a real file. Skipped entirely for the other four mechanisms and whenever no bridge
     // was resolved at all. `writtenMcpJsonPath` is set only once the write actually happens, so
     // `cleanupStagedFiles` knows there is a live-token file to remove afterward.
-    writtenMcpJsonPath = await writeMcpJsonIfNeeded(
-      { runId: input.runId, cwd: input.cwd, def, mcpBridge },
-      { mcpJsonInjection, releaseStagedResources, failBeforeSpawn },
+    writtenMcpJsonPath = await writeMcpJsonIfNeeded({ input: { runId: input.runId, cwd: input.cwd, def, mcpBridge }, deps: { mcpJsonInjection, releaseStagedResources, failBeforeSpawn } }
     );
 
     // Mechanism 5 of 5's one effect — stage this run's scratch `CODEX_HOME` directory. Skipped
@@ -4180,9 +4069,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // `codex.ts`'s `buildArgs` needs no argv change for this (CODEX_HOME is an env var, not a flag),
     // so — unlike the `.mcp.json` staging above — this can run after `buildArgs` with no ordering
     // constraint of its own; it is placed here only to keep the two staging steps adjacent.
-    preparedCodexHome = await prepareCodexHomeIfNeeded(
-      { runId: input.runId, def, mcpBridge },
-      { mcpJsonInjection, hostEnv: process.env, releaseStagedResources, failBeforeSpawn },
+    preparedCodexHome = await prepareCodexHomeIfNeeded({ input: { runId: input.runId, def, mcpBridge }, deps: { mcpJsonInjection, hostEnv: process.env, releaseStagedResources, failBeforeSpawn } }
     );
     // Finding 1 of SEC-assistant-env-isolation-2026-09-07's one effect — stage this run's scratch
     // `CLAUDE_CONFIG_DIR` directory. Unconditional for a `claude`-id run (unlike CODEX_HOME above,
@@ -4190,15 +4077,13 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // `prepareClaudeConfigDirIfNeeded`'s own doc for why). Placed here only to stay adjacent to the
     // other pre-`computeChildEnv` staging steps; `claude.ts`'s `buildArgs` needs no argv change for
     // this (CLAUDE_CONFIG_DIR is an env var, not a flag), same as CODEX_HOME.
-    preparedClaudeConfigDir = await prepareClaudeConfigDirIfNeeded(
-      { runId: input.runId, def },
-      {
+    preparedClaudeConfigDir = await prepareClaudeConfigDirIfNeeded({ input: { runId: input.runId, def }, deps: {
         enabled: claudeConfigDirIsolationEnabled,
         claudeConfigDirIsolation,
         hostEnv: process.env,
         releaseStagedResources,
         failBeforeSpawn,
-      },
+      } }
     );
     // `'config-instructions-file'`'s one effect — stage the overlay to a temp file so
     // `computeChildEnv` below has a real path to merge into that def's `instructions` array. A
@@ -4206,33 +4091,28 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // `mcpBridge`/`preparedCodexHome` above (a different strategy field entirely), so placed here
     // only to stay adjacent to the other pre-`computeChildEnv` staging steps, not for any ordering
     // requirement between them.
-    preparedSystemPromptOverlayFile = await prepareSystemPromptOverlayFileIfNeeded(
-      { runId: input.runId, def, overlay: systemPromptOverlay },
-      { releaseStagedResources, failBeforeSpawn },
+    preparedSystemPromptOverlayFile = await prepareSystemPromptOverlayFileIfNeeded({ input: { runId: input.runId, def, overlay: systemPromptOverlay }, deps: { releaseStagedResources, failBeforeSpawn } }
     );
     // Computed only now, not right after `mcpBridge` resolution: mechanism 5's directory path is
     // not known until the staging step directly above actually runs `mkdtemp` (see
     // `McpBridgeDelivery`'s `'codex-toml'` variant doc for why it cannot be pre-computed the way
     // `'claude-mcp-json'`'s deterministic path is). Nothing between the old, earlier call site and
     // here ever read `childEnv`, so moving the call cost nothing.
-    const childEnv = computeChildEnv(
-      spawnEnv,
-      mcpBridge,
-      preparedCodexHome?.path,
+    const childEnv = computeChildEnv({ spawnEnv: spawnEnv, mcpBridge: mcpBridge }, {
+      ...(preparedCodexHome === null ? {} : { codexHomeDir: preparedCodexHome.path }),
       systemPromptEnvOverrides,
-      preparedSystemPromptOverlayFile && def.systemPromptDelivery?.strategy === 'config-instructions-file'
-        ? { varName: def.systemPromptDelivery.varName, path: preparedSystemPromptOverlayFile.path }
-        : undefined,
-      preparedClaudeConfigDir?.path,
+      ...(preparedSystemPromptOverlayFile && def.systemPromptDelivery?.strategy === 'config-instructions-file'
+        ? { stagedInstructionsFile: { varName: def.systemPromptDelivery.varName, path: preparedSystemPromptOverlayFile.path } }
+        : {}),
+      ...(preparedClaudeConfigDir === null ? {} : { claudeConfigDir: preparedClaudeConfigDir.path }),
+    }
     );
 
     // Post-buildArgs guard for argv-bound defs whose resolved binary is a
     // Windows .cmd/.bat shim or a direct .exe: a prompt under the raw byte
     // budget can still expand past CreateProcess's command-line cap once
     // quote-escaped. Both are no-ops off-Windows / for non-argv-bound defs.
-    await guardWindowsCommandLineBudget(
-      { runId: input.runId, def, launchPath: launch.launchPath, args },
-      { releaseStagedResources, failBeforeSpawn },
+    await guardWindowsCommandLineBudget({ input: { runId: input.runId, def, launchPath: launch.launchPath, args }, deps: { releaseStagedResources, failBeforeSpawn } }
     );
 
     const invocation = createCommandInvocationFn({ command: launch.launchPath, args, env: childEnv });
@@ -4240,13 +4120,11 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // Kept a synchronous call (no `await`) on purpose — see `spawnAgentChildProcess`'s own doc for
     // the microtask-timing race this avoids. The error branch's own cleanup/failBeforeSpawn calls are
     // async, which is fine: no child exists yet on that path, so nothing is racing a listener.
-    const spawnResult = spawnAgentChildProcess({ cwd: input.cwd, childEnv, invocation }, { spawn: spawnFn });
+    const spawnResult = spawnAgentChildProcess({ input: { cwd: input.cwd, childEnv, invocation }, deps: { spawn: spawnFn } });
     if (spawnResult.kind === 'error') {
       await releaseStagedResources();
       return failBeforeSpawn(
-        input.runId,
-        'AGENT_SPAWN_FAILED',
-        `AgentExecutor: spawn threw synchronously for agent "${def.id}": ${errorMessage(spawnResult.error)}`,
+        { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: spawn threw synchronously for agent "${def.id}": ${errorMessage(spawnResult.error)}` },
       );
     }
     const child = spawnResult.child;
@@ -4259,11 +4137,12 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // all emits no `'exit'`, and is covered instead by `releaseStagedResources` on the reject path.
     child.once('exit', releaseRuntimeLock);
 
-    const stdinHandle = isStdinDrivenFormat(streamFormat)
+    const formatForStdin = { streamFormat };
+    const stdinHandle = isStdinDrivenFormat(formatForStdin)
       ? wireChildLifecycle({
           runId: input.runId,
           def,
-          streamFormat,
+          streamFormat: formatForStdin.streamFormat,
           child,
           lifecycle,
           listProcessSnapshots: listProcessSnapshotsFn,
@@ -4279,22 +4158,18 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
         })
       : null;
 
-    await confirmChildSpawned({ runId: input.runId, def, child }, { releaseStagedResources, failBeforeSpawn });
+    await confirmChildSpawned({ input: { runId: input.runId, def, child }, deps: { releaseStagedResources, failBeforeSpawn } });
 
     // Now — and only now — is there a live process that could consume the locked side effect, so
     // this is where a def's handoff watcher starts. Deliberately not awaited: the whole point is to
     // release the lock as soon as the child confirms the handoff, in parallel with this run
     // continuing. Rejection releases too — a lock stuck open because a watcher threw is strictly
     // worse than releasing early (see `RuntimeLockHold.waitForHandoff`'s own doc).
-    armHandoffWatcher(
-      runtimeLockHold,
-      { logFilePath: preparedLogFile?.path, model: selectedModel, processExited: processExitedController.signal },
-      releaseRuntimeLock,
+    armHandoffWatcher({ runtimeLockHold: runtimeLockHold, handoffInput: { logFilePath: preparedLogFile?.path, model: selectedModel, processExited: processExitedController.signal }, release: releaseRuntimeLock }
     );
 
     if (streamFormat === 'acp-json-rpc') {
-      await runAcpDispatch(
-        {
+      await runAcpDispatch({ input: {
           runId: input.runId,
           agentId: def.id,
           child,
@@ -4311,8 +4186,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           imagePaths: input.imagePaths ?? [],
           envFormat: def.acpMcpEnvFormat,
           mcpBridge,
-        },
-        {
+        }, deps: {
           lifecycle,
           attachAcpSession: attachAcpSessionFn,
           onPermissionRequest: options.acpPermissionHandler,
@@ -4325,14 +4199,13 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           classifyFailure,
           releaseStagedResources,
           failBeforeSpawn,
-        },
+        } }
       );
       return;
     }
 
     if (streamFormat === 'pi-rpc') {
-      await runPiRpcDispatch(
-        {
+      await runPiRpcDispatch({ input: {
           runId: input.runId,
           agentId: def.id,
           child,
@@ -4344,8 +4217,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           model: input.model,
           imagePaths: input.imagePaths ?? [],
           uploadRoot: input.uploadRoot,
-        },
-        {
+        }, deps: {
           lifecycle,
           attachPiRpcSession: attachPiRpcSessionFn,
           listProcessSnapshots: listProcessSnapshotsFn,
@@ -4357,7 +4229,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           classifyFailure,
           releaseStagedResources,
           failBeforeSpawn,
-        },
+        } }
       );
       return;
     }

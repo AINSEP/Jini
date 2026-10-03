@@ -1,3 +1,51 @@
+## Unreleased
+
+- Type store fixtures with the shared storage kernel and chat contracts, including host-owned tables;
+  align construction, reopening, paging and message fixtures with current API shapes.
+- Declare jsdom and better-sqlite3 development types for package-wide test compilation.
+
+- Update the A2UI chat renderer and its catalog fixture to the agentic/UI object-argument APIs.
+  Supply the shared system clock and preserve the existing action-ID sequence and timestamp format;
+  adapt interpreter unsubscribe to React cleanup without type assertions.
+- Include tests in package typechecking; align capability/barrel calls, run-event fixtures and the
+  finalizer's asynchronous daemon mock with their current contracts.
+
+- Remove the unexported MCP-UI proof of concept, its fixtures and tests, and the unused internal
+  model picker with its tests. Neither directory was reachable from a public entry point.
+- Exclude both directories' stale compiled output from distribution when rebuilding over an old dist.
+- Drop chat's direct `@mcp-ui/client` and `@mcp-ui/server` dependencies; the live MCP-UI surface
+  continues to use the shared UI implementation. Public exports and runtime behavior are unchanged.
+
+## 0.5.0 — 2026-10-02
+
+### BREAKING
+
+- Browser fetch is injected; run activity/finalization use canonical ports and embed/browser surfaces are isolated. CSS imports remain side effects for bundlers.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+- Browser bridge/uploader fetch ports default to global fetch. Partial-upload cleanup now uses the injected uploader fetch; quick deadlines stay 15 seconds. Remove platform dependency and retain native timeout reasons.
+
+- Adopt shared kernel contracts and preserve the module rationale in neutral documentation.
+- Add run-event folding, injected run settlement and the optional AG-UI projection on isolated subpaths.
+- Add opt-in embeddable chat composition, injected fetch/SSE transport, bounded browser session storage and host-controlled page actions on isolated subpaths.
+- Convert public helper and compatibility factory argument shapes to required and optional objects while preserving transcript storage, ownership checks and renderer priority.
+- Correct renderer priority and opt-in stylesheet documentation; retain the layout rationale with neutral provenance.
+- BREAKING: replace the local finalizer Clock with core Clock.nowMs(); core/React helpers and ext-event slot-key callbacks take required objects.
+
+
+- BREAKING: ChatStore methods use required argument objects; paging options move to the second bag. ChatHistoryMaintenance and ChatStoreFactory follow the same convention.
+- BREAKING: SQLite/Postgres/PGlite factories use core `Clock` through `{ clock }` rather than `{ now }`; system-time defaults and SQL behavior are preserved.
+
+## 0.4.0 (unpublished release candidate)
+
+- Owner-scoped transcript adapters and paging live on store subpaths; the host supplies the migrated kernel.
+
+## Unreleased
+
+- Add neutral owner-scoped ChatStore, structured errors and bounded keyset pages.
+- Add SQLite, embedded/socket PGlite and Postgres adapters over the same borrowed kernel SQL body.
+- Preserve the eight-method ChatHistoryStore contract and existing stored schema/projection.
+
 # @jini-ai/chat-core
 
 ## @jini-ai/chat 0.3.11
@@ -72,3 +120,7 @@
 
 - Updated dependencies
   - @jini-ai/agentic@0.1.1
+
+### C2 storage ownership
+- Added `./store/legacy` and `./store/legacy/sqlite`; preserved sync local project chat CRUD and schema.
+- Retained the original owner-isolation suite on the concern adapter after draining the old package.

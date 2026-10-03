@@ -31,7 +31,7 @@ export class StripePaymentsProviderError extends Error {
   /** Stripe's `error.code`, when present. */
   readonly stripeCode?: string;
 
-  constructor(message: string, status: number, stripeType?: string, stripeCode?: string) {
+  constructor({ message, status }: { message: string; status: number }, { stripeType, stripeCode }: { stripeType?: string; stripeCode?: string } = {}) {
     super(message);
     this.name = 'StripePaymentsProviderError';
     this.status = status;
@@ -43,6 +43,11 @@ export class StripePaymentsProviderError extends Error {
 export interface StripePaymentsProviderOptions {
   /** Stripe secret key (`sk_live_...`/`sk_test_...`). Required and explicit — never read from an environment variable inside this adapter. */
   readonly secretKey: string;
+}
+
+export interface StripePaymentsProviderOptionalArgs {
+  /** Clock used when a response omits its creation timestamp. */
+  readonly now?: () => number;
   /** Pluggable fetch for tests. Defaults to `globalThis.fetch`, matching `S3BlobStorage`/`netlify.ts`'s precedent in this repo. */
   readonly fetchFn?: typeof fetch;
   /** Overrides Stripe's API base URL. Tests only — production leaves this unset. */
@@ -69,7 +74,7 @@ function mapStripeChargeStatus(raw: unknown, refunded: unknown): ChargeStatus {
 /**
  * `PaymentsProvider` adapter against Stripe's real Charges/Refunds REST API. No mock/simulated
  * money movement — every `charge`/`getCharge`/`refund` call is a real HTTP request to
- * `api.stripe.com` (or `options.apiBase` in tests), authenticated the way Stripe's own docs
+ * `api.stripe.com` (or `optional.apiBase` in tests), authenticated the way Stripe's own docs
  * specify: HTTP Basic auth with the secret key as the username and an empty password
  * (`Authorization: Basic base64("sk_...:")`), request bodies form-encoded
  * (`application/x-www-form-urlencoded`), not JSON.
@@ -82,34 +87,36 @@ function mapStripeChargeStatus(raw: unknown, refunded: unknown): ChargeStatus {
 export class StripePaymentsProvider implements PaymentsProvider {
   private readonly fetchFn: typeof fetch;
   private readonly apiBase: string;
+  private readonly now: () => number;
 
-  constructor(private readonly options: StripePaymentsProviderOptions) {
+  constructor(private readonly options: StripePaymentsProviderOptions, optional: StripePaymentsProviderOptionalArgs = {}) {
     if (!options.secretKey) {
-      throw new StripePaymentsProviderError('StripePaymentsProvider requires a non-empty options.secretKey', 401);
+      throw new StripePaymentsProviderError({ message: 'StripePaymentsProvider requires a non-empty options.secretKey', status: 401 });
     }
-    const fn = options.fetchFn ?? globalThis.fetch;
+    const fn = optional.fetchFn ?? globalThis.fetch;
     if (!fn) {
-      throw new StripePaymentsProviderError('StripePaymentsProvider requires a fetch implementation', 500);
+      throw new StripePaymentsProviderError({ message: 'StripePaymentsProvider requires a fetch implementation', status: 500 });
     }
     this.fetchFn = fn;
-    this.apiBase = (options.apiBase ?? STRIPE_API_BASE).replace(/\/+$/, '');
+    this.now = optional.now ?? Date.now;
+    this.apiBase = (optional.apiBase ?? STRIPE_API_BASE).replace(/\/+$/, '');
   }
 
-  async charge(input: ChargeInput): Promise<Charge> {
+  async charge(input: ChargeInput, optional: { description?: string } = {}): Promise<Charge> {
     if (input.amountCents <= 0) {
-      throw new StripePaymentsProviderError('amountCents must be positive', 400);
+      throw new StripePaymentsProviderError({ message: 'amountCents must be positive', status: 400 });
     }
     const body = new URLSearchParams({
       amount: String(input.amountCents),
       currency: input.currency,
       customer: input.customerRef,
     });
-    if (input.description !== undefined) body.set('description', input.description);
+    if (optional.description !== undefined) body.set('description', optional.description);
     const json = await this.request('POST', '/charges', body);
     return this.toCharge(json);
   }
 
-  async getCharge(id: string): Promise<Charge | null> {
+  async getCharge({ id }: { id: string }): Promise<Charge | null> {
     try {
       const json = await this.request('GET', `/charges/${encodeURIComponent(id)}`);
       return this.toCharge(json);
@@ -129,28 +136,25 @@ export class StripePaymentsProvider implements PaymentsProvider {
    * "refund settled" should track Stripe's own refund object separately — out of scope for this
    * port's `Charge`-shaped return value.
    */
-  async refund(id: string): Promise<Charge> {
-    const existing = await this.getCharge(id);
+  async refund({ id }: { id: string }): Promise<Charge> {
+    const existing = await this.getCharge({ id });
     if (!existing) {
-      throw new StripePaymentsProviderError(`unknown charge: ${id}`, 404);
+      throw new StripePaymentsProviderError({ message: `unknown charge: ${id}`, status: 404 });
     }
     if (existing.status !== 'succeeded') {
-      throw new StripePaymentsProviderError(`charge ${id} is not refundable from status "${existing.status}"`, 400);
+      throw new StripePaymentsProviderError({ message: `charge ${id} is not refundable from status "${existing.status}"`, status: 400 });
     }
     const json = await this.request('POST', '/refunds', new URLSearchParams({ charge: id }));
     const refundStatus = json.status;
     if (refundStatus === 'failed' || refundStatus === 'canceled') {
-      throw new StripePaymentsProviderError(
-        `Stripe refund ${String(refundStatus)} for charge ${id}`,
-        402,
-        'api_error',
-      );
+      throw new StripePaymentsProviderError({ message: `Stripe refund ${String(refundStatus)} for charge ${id}`, status: 402 }, { stripeType: 'api_error' });
     }
     return { ...existing, status: 'refunded' };
   }
 
   private authHeader(): string {
-    return `Basic ${Buffer.from(`${this.options.secretKey}:`).toString('base64')}`;
+    const bytes = new TextEncoder().encode(`${this.options.secretKey}:`);
+    return `Basic ${btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(''))}`;
   }
 
   private async request(method: 'GET' | 'POST', path: string, formBody?: URLSearchParams): Promise<Record<string, unknown>> {
@@ -180,7 +184,10 @@ export class StripePaymentsProvider implements PaymentsProvider {
     const message = typeof errorObj.message === 'string' && errorObj.message ? errorObj.message : `Stripe request failed (${status}).`;
     const stripeType = typeof errorObj.type === 'string' ? errorObj.type : undefined;
     const stripeCode = typeof errorObj.code === 'string' ? errorObj.code : undefined;
-    return new StripePaymentsProviderError(message, status, stripeType, stripeCode);
+    return new StripePaymentsProviderError({ message, status }, {
+      ...(stripeType === undefined ? {} : { stripeType }),
+      ...(stripeCode === undefined ? {} : { stripeCode }),
+    });
   }
 
   private toCharge(json: Record<string, unknown>): Charge {
@@ -191,7 +198,7 @@ export class StripePaymentsProvider implements PaymentsProvider {
       currency: typeof json.currency === 'string' ? json.currency : '',
       customerRef: typeof json.customer === 'string' ? json.customer : '',
       // Stripe's `created` is Unix seconds; this port's `createdAt` is epoch milliseconds.
-      createdAt: typeof json.created === 'number' ? json.created * 1000 : Date.now(),
+      createdAt: typeof json.created === 'number' ? json.created * 1000 : this.now(),
     };
   }
 }

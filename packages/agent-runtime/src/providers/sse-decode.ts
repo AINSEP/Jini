@@ -45,8 +45,7 @@ export interface DecodedSseEvent {
  * source iterable ends, so a provider closing the connection immediately
  * after its last byte never silently loses that last record.
  */
-export async function* decodeSseStream(
-  source: AsyncIterable<Uint8Array | string>,
+export async function* decodeSseStream({ source }: { source: AsyncIterable<Uint8Array | string> }
 ): AsyncGenerator<DecodedSseEvent> {
   const decoder = new TextDecoder();
   let buffer = '';

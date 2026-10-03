@@ -5,7 +5,7 @@
  * `ChatPaneProps['uploadAttachments']` that talks to `POST`/`DELETE /api/attachments`.
  *
  * ```tsx
- * <ChatPane transport={transport} uploadAttachments={createDaemonAttachmentUploader(daemonUrl)} />
+ * <ChatPane transport={transport} uploadAttachments={createDaemonAttachmentUploader({ baseUrl: daemonUrl, fetch })} />
  * ```
  *
  * That one line is the whole wire-up for composer drag-and-drop and the file picker — `ChatPane`
@@ -28,7 +28,6 @@
  * daemon then claims, draining the request stream before the upload route can read a byte. A fixed
  * octet-stream type is immune to every body parser.
  */
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import type { ChatAttachment } from '@jini-ai/chat';
 import type { ChatPaneAttachmentUploadOptions, ChatPaneProps } from './types.js';
 
@@ -114,9 +113,7 @@ async function messageForFailedUpload(response: Response, fallback: string): Pro
  * @param baseUrl Origin (or same-origin path prefix) the daemon's API is reachable at. Pass `''`
  * when the page is served through a proxy that already forwards `/api`.
  */
-export function createDaemonAttachmentUploader(
-  baseUrl: string,
-  options: CreateDaemonAttachmentUploaderOptions = {},
+export function createDaemonAttachmentUploader({ baseUrl, fetch }: { baseUrl: string; fetch?: typeof globalThis.fetch }, options: CreateDaemonAttachmentUploaderOptions = {}
 ): NonNullable<ChatPaneProps['uploadAttachments']> {
   const maxAttachmentBytes = options.maxAttachmentBytes ?? DEFAULTS.maxAttachmentBytes;
   const maxAttachmentCount = options.maxAttachmentCount ?? DEFAULTS.maxAttachmentCount;
@@ -129,7 +126,7 @@ export function createDaemonAttachmentUploader(
 
   async function uploadOne(file: File, batchId: string, signal: AbortSignal): Promise<ChatAttachment> {
     const query = new URLSearchParams({ batch: batchId, name: file.name });
-    const response = await fetch(`${endpoint}?${query}`, {
+    const response = await (fetch ?? globalThis.fetch)(`${endpoint}?${query}`, {
       method: 'POST',
       // Fixed, not `file.type` — see this module's doc.
       headers: { 'content-type': 'application/octet-stream' },
@@ -156,14 +153,14 @@ export function createDaemonAttachmentUploader(
       // caller-supplied signal to compose with and no large body — it is a small best-effort JSON
       // DELETE, and an unprotected `fetch` here would hang `uploadAttachments`'s rejection (the
       // `await` below) on a stalled daemon instead of surfacing `firstError` promptly.
-      await fetchWithTimeout(
+      await (fetch ?? globalThis.fetch)(
         endpoint,
         {
           method: 'DELETE',
+          signal: AbortSignal.timeout(15_000),
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ batchId, paths: attachments.map((attachment) => attachment.path) }),
         },
-        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
       );
     } catch {
       // Best effort by design: the daemon expires unclaimed uploads on its own, so a failed cleanup

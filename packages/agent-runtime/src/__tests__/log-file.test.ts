@@ -23,7 +23,7 @@ describe('prepareAgentLogFile', () => {
   it('returns null for a def that did not opt in, without touching the filesystem', async () => {
     const mkdtemp = vi.spyOn(fs, 'mkdtemp');
     try {
-      expect(await prepareAgentLogFile(defWith(), 'run-1')).toBeNull();
+      expect(await prepareAgentLogFile({ def: defWith(), label: 'run-1' })).toBeNull();
       expect(mkdtemp).not.toHaveBeenCalled();
     } finally {
       mkdtemp.mockRestore();
@@ -34,11 +34,11 @@ describe('prepareAgentLogFile', () => {
     ['null', null],
     ['undefined', undefined],
   ])('returns null for a %s def, so a caller can invoke it unconditionally', async (_label, def) => {
-    expect(await prepareAgentLogFile(def, 'run-1')).toBeNull();
+    expect(await prepareAgentLogFile({ def: def, label: 'run-1' })).toBeNull();
   });
 
   it('stages a path inside a fresh 0o700 temp directory, and does NOT pre-create the file itself', async () => {
-    const staged = await prepareAgentLogFile(defWith({ needsAgentLogFile: true }), 'run-42');
+    const staged = await prepareAgentLogFile({ def: defWith({ needsAgentLogFile: true }), label: 'run-42' });
     expect(staged).not.toBeNull();
     try {
       const dir = path.dirname(staged!.path);
@@ -59,7 +59,7 @@ describe('prepareAgentLogFile', () => {
   });
 
   it('cleanup removes the directory along with whatever the CLI wrote into it', async () => {
-    const staged = await prepareAgentLogFile(defWith({ needsAgentLogFile: true }), 'run-cleanup');
+    const staged = await prepareAgentLogFile({ def: defWith({ needsAgentLogFile: true }), label: 'run-cleanup' });
     const dir = path.dirname(staged!.path);
     await fs.writeFile(staged!.path, 'E log.go:398] some diagnostic the CLI emitted\n', 'utf8');
     expect(existsSync(staged!.path)).toBe(true);
@@ -71,13 +71,13 @@ describe('prepareAgentLogFile', () => {
   });
 
   it('cleanup is safe to call twice (the executor releases on more than one path)', async () => {
-    const staged = await prepareAgentLogFile(defWith({ needsAgentLogFile: true }), 'run-twice');
+    const staged = await prepareAgentLogFile({ def: defWith({ needsAgentLogFile: true }), label: 'run-twice' });
     await staged!.cleanup();
     await expect(staged!.cleanup()).resolves.toBeUndefined();
   });
 
   it('sanitizes path separators out of the label so a run id cannot escape os.tmpdir()', async () => {
-    const staged = await prepareAgentLogFile(defWith({ needsAgentLogFile: true }), '../../etc/passwd');
+    const staged = await prepareAgentLogFile({ def: defWith({ needsAgentLogFile: true }), label: '../../etc/passwd' });
     try {
       const dir = path.dirname(staged!.path);
       // The decisive assertion: the staged directory is a *direct* child of
@@ -90,7 +90,7 @@ describe('prepareAgentLogFile', () => {
   });
 
   it('truncates an overlong label to 80 characters rather than blowing the path limit', async () => {
-    const staged = await prepareAgentLogFile(defWith({ needsAgentLogFile: true }), 'x'.repeat(200));
+    const staged = await prepareAgentLogFile({ def: defWith({ needsAgentLogFile: true }), label: 'x'.repeat(200) });
     try {
       // Anchored at both ends around `mkdtemp`'s own six random characters, so
       // an 81st `x` would fail this rather than slipping past a prefix match.
@@ -103,7 +103,7 @@ describe('prepareAgentLogFile', () => {
   });
 
   it("falls back to the 'agent' label when the caller passes an empty one", async () => {
-    const staged = await prepareAgentLogFile(defWith({ needsAgentLogFile: true }), '');
+    const staged = await prepareAgentLogFile({ def: defWith({ needsAgentLogFile: true }), label: '' });
     try {
       expect(path.basename(path.dirname(staged!.path))).toMatch(/^agent-runtime-fake-log-agent-agent-log-/);
     } finally {

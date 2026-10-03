@@ -25,7 +25,7 @@ function defaultHost(): JiniHostBridge {
   };
 }
 
-export function createMockJiniHost(overrides: MockJiniHost = {}): JiniHostBridge {
+export function createMockJiniHost(_requiredArgs: Record<string, never>, overrides: MockJiniHost = {}): JiniHostBridge {
   const base = defaultHost();
   return {
     ...base,
@@ -35,9 +35,9 @@ export function createMockJiniHost(overrides: MockJiniHost = {}): JiniHostBridge
   };
 }
 
-export function installMockJiniHost(options: MockJiniHostOptions = {}): () => void {
+export function installMockJiniHost(_requiredArgs: Record<string, never>, options: MockJiniHostOptions = {}): () => void {
   const scope = (options.scope ?? globalThis) as JiniHostGlobalScope;
-  const host = createMockJiniHost(options.host);
+  const host = createMockJiniHost({}, options.host);
   const windowValue = scope.window;
   const targets = [
     scope,

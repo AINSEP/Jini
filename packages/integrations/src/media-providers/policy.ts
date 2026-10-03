@@ -1,3 +1,4 @@
+import type { RequiredArgs, OptionalArgs } from '../args.js';
 /**
  * `MediaPolicy` — a host-injected gate on media generation. Generalized from
  * OD's `apps/daemon/src/media/policy.ts`, which is a thin wrapper
@@ -49,7 +50,7 @@ export const DEFAULT_MEDIA_EXECUTION_POLICY: MediaExecutionPolicy = { mode: 'dis
  * dispatching generation and honors a non-null denial.
  */
 export interface MediaPolicy {
-  evaluate(target: MediaPolicyTarget): MediaPolicyDenial | null;
+  evaluate(required: RequiredArgs<MediaPolicyTarget>, optional?: OptionalArgs<MediaPolicyTarget>): MediaPolicyDenial | null;
 }
 
 /**
@@ -58,9 +59,11 @@ export interface MediaPolicy {
  * missing/empty `allowedSurfaces`/`allowedModels` means "no restriction on
  * that dimension" (matches the origin's `Array.isArray(...) && length > 0` guard).
  */
-export function createAllowlistMediaPolicy(policy: MediaExecutionPolicy = DEFAULT_MEDIA_EXECUTION_POLICY): MediaPolicy {
+export function createAllowlistMediaPolicy(_required: Record<string, never>, optional: Partial<MediaExecutionPolicy> = {}): MediaPolicy {
+  const policy: MediaExecutionPolicy = { ...DEFAULT_MEDIA_EXECUTION_POLICY, ...optional };
   return {
-    evaluate(target: MediaPolicyTarget): MediaPolicyDenial | null {
+    evaluate(required: RequiredArgs<MediaPolicyTarget>, optional: OptionalArgs<MediaPolicyTarget> = {}): MediaPolicyDenial | null {
+      const target = { ...required, ...optional };
       if (policy.mode === 'disabled') {
         return { code: 'MEDIA_EXECUTION_DISABLED', message: 'media generation is disabled for this run' };
       }

@@ -42,7 +42,7 @@ afterEach(() => {
 
 describe('McpUiSurfaceCard', () => {
   describe('a question nobody can answer any more is shown closed, not answerable', () => {
-    const card = [resourceEvent('ui://tovu/ask-choice/x/1', '<form>pick one</form>')];
+    const card = [resourceEvent('ui://consumer/ask-choice/x/1', '<form>pick one</form>')];
     const askCall = { name: 'assistant_ask_choice', input: { title: 'Pick a plan' } };
 
     it('shows "Answered" once its tool call has the answer, with no live frame', () => {
@@ -81,7 +81,7 @@ describe('McpUiSurfaceCard', () => {
       const { container } = render(
         <McpUiSurfaceCard
           {...BASE_PROPS}
-          events={[...card, resourceEvent('ui://tovu/ask-choice/x/1', '<p>Saved.</p>')]}
+          events={[...card, resourceEvent('ui://consumer/ask-choice/x/1', '<p>Saved.</p>')]}
           call={{ ...askCall, result: { content: '{"saved":true}', isError: false } }}
         />,
       );
@@ -158,12 +158,12 @@ describe('McpUiSurfaceCard', () => {
       const { container } = render(
         <McpUiSurfaceCard
           {...BASE_PROPS}
-          events={[resourceEvent('ui://tovu/deployment-execute-static-publish/abc123', '<p>a</p>', { [MCP_UI_ACTION_PLAN_META_KEY]: PLAN })]}
+          events={[resourceEvent('ui://consumer/deployment-execute-static-publish/abc123', '<p>a</p>', { [MCP_UI_ACTION_PLAN_META_KEY]: PLAN })]}
         />,
       );
       const mirror = container.querySelector('[data-agent-role="status"]');
       expect(mirror).not.toBeNull();
-      expect(mirror).toHaveAttribute('data-agent-element', 'mcp-ui-pending-ui-tovu-deployment-execute-static-publish-abc123');
+      expect(mirror).toHaveAttribute('data-agent-element', 'mcp-ui-pending-ui-consumer-deployment-execute-static-publish-abc123');
       expect(mirror).toHaveAttribute('aria-hidden', 'true');
       expect(mirror?.getAttribute('data-agent-label')).toContain('Publish the site?');
       expect(mirror?.getAttribute('data-agent-label')).toContain('Publish');
@@ -220,35 +220,35 @@ describe('registerMcpUiSurfaceRenderer', () => {
     const onOpenLink = vi.fn();
     const unregister = registerMcpUiSurfaceRenderer({ sandboxProxyUrl: SANDBOX_URL, onToolCall, onOpenLink });
 
-    const renderer = getExtEventRenderer(MCP_UI_EXT_EVENT_NAME);
+    const renderer = getExtEventRenderer({ name: MCP_UI_EXT_EVENT_NAME });
     expect(renderer).toBeTypeOf('function');
     const { container } = render(<>{renderer!({ ...BASE_PROPS, events: [resourceEvent('ui://a/1', '<p>a</p>')] })}</>);
     await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull());
 
     unregister();
-    expect(getExtEventRenderer(MCP_UI_EXT_EVENT_NAME)).toBeUndefined();
+    expect(getExtEventRenderer({ name: MCP_UI_EXT_EVENT_NAME })).toBeUndefined();
   });
 
   it('registers with only the required sandboxProxyUrl', async () => {
     registerMcpUiSurfaceRenderer({ sandboxProxyUrl: SANDBOX_URL });
-    const renderer = getExtEventRenderer(MCP_UI_EXT_EVENT_NAME)!;
+    const renderer = getExtEventRenderer({ name: MCP_UI_EXT_EVENT_NAME })!;
     const { container } = render(<>{renderer({ ...BASE_PROPS, events: [resourceEvent('ui://a/1', '<p>a</p>')] })}</>);
     await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull());
   });
 
-  // Tovu stuck-chat investigation, 2026-09-27: each MCP-UI resource is its own card, so each gets
+  // host stuck-chat investigation, 2026-09-27: each MCP-UI resource is its own card, so each gets
   // its own transcript slot, keyed by URI; a non-resource payload stays in the shared slot.
   it('keys each MCP-UI resource into its own slot by URI', () => {
     registerMcpUiSurfaceRenderer({ sandboxProxyUrl: SANDBOX_URL });
 
-    expect(extEventSlot(MCP_UI_EXT_EVENT_NAME, resourceEvent('ui://tovu/ask-choice/1', '<p>a</p>'))).toBe('mcp-ui:ui://tovu/ask-choice/1');
-    expect(extEventSlot(MCP_UI_EXT_EVENT_NAME, { not: 'a resource' })).toBe('mcp-ui');
-    expect(mcpUiSurfaceSlotKey(resourceEvent('ui://x/2', '<p>b</p>'))).toBe('ui://x/2');
+    expect(extEventSlot({ name: MCP_UI_EXT_EVENT_NAME, data: resourceEvent('ui://consumer/ask-choice/1', '<p>a</p>') })).toBe('mcp-ui:ui://consumer/ask-choice/1');
+    expect(extEventSlot({ name: MCP_UI_EXT_EVENT_NAME, data: { not: 'a resource' } })).toBe('mcp-ui');
+    expect(mcpUiSurfaceSlotKey({ data: resourceEvent('ui://x/2', '<p>b</p>') })).toBe('ui://x/2');
   });
 
   it('can claim a different name for a host multiplexing two streams', () => {
     registerMcpUiSurfaceRenderer({ sandboxProxyUrl: SANDBOX_URL, name: 'mcp-ui-secondary' });
-    expect(getExtEventRenderer('mcp-ui-secondary')).toBeTypeOf('function');
-    expect(getExtEventRenderer(MCP_UI_EXT_EVENT_NAME)).toBeUndefined();
+    expect(getExtEventRenderer({ name: 'mcp-ui-secondary' })).toBeTypeOf('function');
+    expect(getExtEventRenderer({ name: MCP_UI_EXT_EVENT_NAME })).toBeUndefined();
   });
 });

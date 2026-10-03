@@ -85,9 +85,9 @@ describe('renderOutcomeDocument', () => {
 
 describe('buildOutcomeSurface', () => {
   it('wraps the document in a ui:// EmbeddedResource at the SAME URI a caller supplies', () => {
-    const resource = buildOutcomeSurface({ ...PUBLISH_SUCCESS, uri: 'ui://tovu/deployment-execute-static-publish/exchange-1' });
+    const resource = buildOutcomeSurface({ ...PUBLISH_SUCCESS, uri: 'ui://consumer/deployment-execute-static-publish/exchange-1' });
     expect(resource.type).toBe('resource');
-    expect(resource.resource.uri).toBe('ui://tovu/deployment-execute-static-publish/exchange-1');
+    expect(resource.resource.uri).toBe('ui://consumer/deployment-execute-static-publish/exchange-1');
     expect(resource.resource.mimeType).toBe('text/html;profile=mcp-app');
     expect(resource.resource.text).toContain('<h1 class="mcpui-title">Site published</h1>');
   });

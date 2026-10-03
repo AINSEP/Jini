@@ -112,7 +112,7 @@ function emitStuck(runId: string): void {
   // time this callback runs, its entry is guaranteed to both exist and
   // have `emitted === false`. Left in place (not stripped) as a guard
   // against a future refactor silently breaking that invariant — see
-  // packages/ui/source-map.md's 2026-07-22 dated entry for the full proof,
+  // packages/ui/archived provenance ledger's 2026-07-22 dated entry for the full proof,
   // matching this task's own standard for documenting provable
   // unreachability instead of forcing a test.
   if (!entry || entry.emitted) return;

@@ -15,7 +15,10 @@ import type {
   AppIpcPathRequest,
   AppRuntimePathRequest,
   BaseResolutionOptions,
+  BaseResolutionOptionsOptionalArgs,
+  AppIpcPathRequestOptionalArgs,
   NamespaceResolutionOptions,
+  NamespaceOptionalArgs,
   ProjectRuntimePathRequest,
   RuntimePathRequest,
   RuntimeRootRequest,
@@ -29,19 +32,17 @@ import type {
  * the contract, or the contract default — then normalize it.
  * @returns The normalized namespace.
  */
-export function resolveNamespace<TStamp extends SidecarStampShape>(options: NamespaceResolutionOptions<TStamp>): string {
-  return options.contract.normalizeNamespace(
-    options.namespace ??
-      options.env?.[options.contract.env.namespace] ??
-      options.contract.defaults.namespace,
-  );
+export function resolveNamespace<TStamp extends SidecarStampShape>({ contract }: Pick<NamespaceResolutionOptions<TStamp>, "contract">, options: NamespaceOptionalArgs = {}): string {
+  return contract.normalizeNamespace({ namespace: options.namespace ??
+      options.env?.[contract.env.namespace] ??
+      contract.defaults.namespace });
 }
 
 /**
  * Validate and resolve a project root to an absolute path.
  * @returns The resolved absolute project root.
  */
-export function resolveProjectRoot(projectRoot: string): string {
+export function resolveProjectRoot({ projectRoot }: { projectRoot: string }): string {
   if (typeof projectRoot !== "string" || projectRoot.trim().length === 0) {
     throw new Error("projectRoot must be a non-empty string");
   }
@@ -59,7 +60,7 @@ export function resolveProjectTmpRoot<TStamp extends SidecarStampShape>({
   contract: SidecarContractDescriptor<TStamp>;
   projectRoot: string;
 }): string {
-  return join(resolveProjectRoot(projectRoot), contract.defaults.projectTmpDirName);
+  return join(resolveProjectRoot({ projectRoot }), contract.defaults.projectTmpDirName);
 }
 
 /**
@@ -71,7 +72,7 @@ export function resolveSourceRuntimeRoot<TStamp extends SidecarStampShape>({
   projectRoot,
   source,
 }: ProjectRuntimePathRequest<TStamp>): string {
-  return join(resolveProjectTmpRoot({ contract, projectRoot }), contract.normalizeSource(source));
+  return join(resolveProjectTmpRoot({ contract, projectRoot }), contract.normalizeSource({ source }));
 }
 
 /**
@@ -80,12 +81,9 @@ export function resolveSourceRuntimeRoot<TStamp extends SidecarStampShape>({
  * @returns The resolved absolute base path.
  */
 export function resolveSidecarBase<TStamp extends SidecarStampShape>({
-  base,
   contract,
-  env = process.env,
-  projectRoot = process.cwd(),
   source,
-}: BaseResolutionOptions<TStamp>): string {
+}: BaseResolutionOptions<TStamp>, { base, env = process.env, projectRoot = process.cwd() }: BaseResolutionOptionsOptionalArgs = {}): string {
   return resolve(base ?? env[contract.env.base] ?? resolveSourceRuntimeRoot({ contract, projectRoot, source }));
 }
 
@@ -98,7 +96,7 @@ export function resolveNamespaceRoot<TStamp extends SidecarStampShape>({
   contract,
   namespace,
 }: RuntimePathRequest<TStamp>): string {
-  return join(resolve(base), contract.normalizeNamespace(namespace));
+  return join(resolve(base), contract.normalizeNamespace({ namespace }));
 }
 
 /**
@@ -185,7 +183,7 @@ export function resolveLogsDir<TStamp extends SidecarStampShape>({
   contract: SidecarContractDescriptor<TStamp>;
   runtimeRoot: string;
 }): string {
-  return join(runtimeRoot, "logs", contract.normalizeApp(app));
+  return join(runtimeRoot, "logs", contract.normalizeApp({ app }));
 }
 
 /**
@@ -195,14 +193,12 @@ export function resolveLogsDir<TStamp extends SidecarStampShape>({
 export function resolveLogFilePath<TStamp extends SidecarStampShape>({
   app,
   contract,
-  fileName = "latest.log",
   runtimeRoot,
 }: {
   app: TStamp["app"] | string;
   contract: SidecarContractDescriptor<TStamp>;
-  fileName?: string;
   runtimeRoot: string;
-}): string {
+}, { fileName = "latest.log" }: { fileName?: string } = {}): string {
   return join(resolveLogsDir({ app, contract, runtimeRoot }), fileName);
 }
 
@@ -215,7 +211,7 @@ export function resolveAppRuntimeDir<TStamp extends SidecarStampShape>({
   contract,
   namespaceRoot,
 }: AppRuntimePathRequest<TStamp>): string {
-  return join(namespaceRoot, contract.normalizeApp(app));
+  return join(namespaceRoot, contract.normalizeApp({ app }));
 }
 
 /**
@@ -242,11 +238,10 @@ export function resolveAppRuntimePath<TStamp extends SidecarStampShape>({
 export function resolveAppIpcPath<TStamp extends SidecarStampShape>({
   app,
   contract,
-  env = process.env,
   namespace,
-}: AppIpcPathRequest<TStamp>): string {
-  const normalizedApp = contract.normalizeApp(app);
-  const normalizedNamespace = contract.normalizeNamespace(namespace);
+}: AppIpcPathRequest<TStamp>, { env = process.env }: AppIpcPathRequestOptionalArgs = {}): string {
+  const normalizedApp = contract.normalizeApp({ app });
+  const normalizedNamespace = contract.normalizeNamespace({ namespace });
 
   if (process.platform === "win32") {
     return `\\\\.\\pipe\\${contract.defaults.windowsPipePrefix}-${normalizedNamespace}-${normalizedApp}`;

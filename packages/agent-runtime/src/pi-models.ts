@@ -10,7 +10,7 @@
  */
 import type { RuntimeModelOption } from './types.js';
 
-export function parsePiModels(stdout: unknown): RuntimeModelOption[] | null {
+export function parsePiModels({ stdout }: { stdout: unknown }): RuntimeModelOption[] | null {
   const lines = String(stdout || '')
     .split('\n')
     .map((l) => l.trim())
@@ -28,7 +28,7 @@ export function parsePiModels(stdout: unknown): RuntimeModelOption[] | null {
     // defined; the non-null assertion documents that runtime invariant
     // instead of a `noUncheckedIndexedAccess`-driven guard that could never
     // actually trigger (same treatment as this function's other port,
-    // `agent-protocol/pi-rpc/models.ts` — see source-map.md's "Barrel
+    // `agent-protocol/pi-rpc/models.ts` — see archived provenance ledger's "Barrel
     // merge" section for why two copies of this function exist).
     const line = lines[i]!;
     const parts = line.split(/\s+/);

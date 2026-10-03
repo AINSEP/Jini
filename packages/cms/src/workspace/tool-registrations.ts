@@ -14,29 +14,19 @@
  * `workspace.manage` check.
  */
 import type { AuthorizeFn } from "../core/commands/command.js";
-import {
-  buildDomainRegistrations,
-  indexCatalogById,
-  optionalString,
-  requireInputRecord,
-  requireNoInput,
-  requireToolPermission,
-  type AgentToolSideEffect,
-  type DerivedRiskByToolId,
-  type ToolHandler,
-  type ToolRegistration,
-} from "../core/tools/registration-kit.js";
+import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireNoInput, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { getWorkspaceAgentToolCatalog } from "./agent-tools.js";
 import { updateWorkspace } from "./update.js";
 import type { WorkspaceRepoPort } from "./create.js";
 
-const CATALOG_BY_ID = indexCatalogById(getWorkspaceAgentToolCatalog());
+const CATALOG_BY_ID = indexCatalogById({ catalog: getWorkspaceAgentToolCatalog() });
 
 /**
  * The exact slice of a host's route-deps bag Workspace's tool handlers read. Declared structurally
  * (rather than importing any host's `RouteDeps`) so this module carries no back-edge into a
  * composition root. A host satisfies this structurally by passing its existing deps object;
- * nothing there changes.
+ * hosts bind the declared repository and authorization ports.
  */
 export interface WorkspaceToolDeps {
   authorize: AuthorizeFn;
@@ -56,7 +46,7 @@ export const workspaceDerivedRisk: DerivedRiskByToolId = new Map<string, AgentTo
   ["workspace_get", "none"],
   // -> updateWorkspace (update.ts) -> repo.findById + repo.findBySlug + repo.update: validates,
   //    checks slug uniqueness excluding the row itself, writes. No domain event enqueued (matches
-  //    update.ts's own header: REQ-04 doesn't ask for one).
+  // update.ts's own header: doesn't ask for one). See docs/decisions/DR-007-workspace-and-owner-floors.md.
   ["workspace_update", "mutates-durable-state"],
 ]);
 
@@ -66,7 +56,7 @@ const UNWIRED_WORKSPACE_TOOL_IDS = new Set([
   // resolves strictly against the boot-wired `workspaceId`) — zero utility, non-zero
   // orphaned-row/clutter surface.
   "workspace_create",
-  // EXCLUDED BY DESIGN: INV-03-guarded to always refuse today, but the lever removes the only
+  // EXCLUDED BY DESIGN: -guarded to always refuse today, but the lever removes the only. See docs/decisions/DR-007-workspace-and-owner-floors.md.
   // addressable workspace scope the moment that guard's precondition ever changes — whole-scope,
   // no per-domain undo, same exclusion class as a forward database migration or a backup restore.
   "workspace_delete",
@@ -75,10 +65,10 @@ const UNWIRED_WORKSPACE_TOOL_IDS = new Set([
 export function buildWorkspaceRegistrations(routeDeps: WorkspaceToolDeps): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
     workspace_get: async (ctx) => {
-      requireNoInput(ctx.input);
-      await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "workspace.manage", entityType: "workspace" });
+      requireNoInput({ input: ctx.input });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "workspace.manage" }, { entityType: "workspace" });
 
-      const workspace = await routeDeps.workspaceRepo.findById(routeDeps.workspaceId);
+      const workspace = await routeDeps.workspaceRepo.findById({ id: routeDeps.workspaceId });
       if (!workspace) {
         // Defensive: the boot-wired workspaceId always resolves to a real row by construction.
         // Not an expected runtime path.
@@ -88,8 +78,8 @@ export function buildWorkspaceRegistrations(routeDeps: WorkspaceToolDeps): ToolR
     },
 
     workspace_update: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
-      await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "workspace.manage", entityType: "workspace" });
+      const input = requireInputRecord({ input: ctx.input });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "workspace.manage" }, { entityType: "workspace" });
 
       // WorkspaceValidationError/WorkspaceConflictError/WorkspaceNotFoundError (all real `Error`
       // subclasses, see `create.ts`) propagate as-is — a `ToolExecutor` treats any thrown error as
@@ -99,8 +89,8 @@ export function buildWorkspaceRegistrations(routeDeps: WorkspaceToolDeps): ToolR
         deps: { repo: routeDeps.workspaceRepo },
         input: {
           id: routeDeps.workspaceId,
-          name: optionalString(input, "name"),
-          slug: optionalString(input, "slug"),
+          name: optionalString({ input, key: "name" }),
+          slug: optionalString({ input, key: "slug" }),
         },
       });
       return { workspace };
@@ -113,6 +103,5 @@ export function buildWorkspaceRegistrations(routeDeps: WorkspaceToolDeps): ToolR
     catalog: CATALOG_BY_ID,
     handlers,
     derivedRisk: workspaceDerivedRisk,
-    unwiredToolIds: UNWIRED_WORKSPACE_TOOL_IDS,
-  });
+  }, { unwiredToolIds: UNWIRED_WORKSPACE_TOOL_IDS });
 }

@@ -4,15 +4,16 @@ import { test } from "vitest";
 import { deprecateContentType, reactivateContentType, tombstoneContentType } from "../lifecycle.js";
 
 /**
- * @file REQ-09/10/11/12 — content-type lifecycle state machine `active ⇄ deprecated →
- * tombstone` (C-404; INV-06).
+ * @file content-type lifecycle state machine `active ⇄ deprecated →
+ * tombstone`.
  *
- * Covers: AC-13 (active<->deprecated reversible), AC-14 (tombstone terminal), AC-17 (tombstone
- * tears down indexes), AC-19/AC-20 (outbox events on deprecate/tombstone), EC-05/EC-06/EC-09.
+ * Covers: (active<->deprecated reversible), (tombstone terminal), (tombstone
+ * tears down indexes), (outbox events on deprecate/tombstone),.
+ * See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
  */
 
 const NOW = "2026-07-15T00:00:00.000Z";
-const clock = { nowIso: () => NOW };
+const clock = { nowMs: () => Date.parse(NOW)};
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
 
 function contentType(status: "active" | "deprecated" | "tombstone", version = 1) {
@@ -32,7 +33,7 @@ function fakeRepo(seed: ReturnType<typeof contentType>) {
     appendRevision: async (rev: unknown) => {
       revisions.push(rev);
     },
-    transaction: async <T>(fn: () => Promise<T>) => fn(),
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn(),
   };
 }
 

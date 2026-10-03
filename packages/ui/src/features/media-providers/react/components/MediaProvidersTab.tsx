@@ -129,7 +129,7 @@ export function MediaProvidersTab({
 
   const orderedCatalog = sortProvidersByConfigured(catalog, providers, pinnedProviderIds);
   const providerHandles = agentHandle
-    ? buildAgentListHandles(agentHandle, orderedCatalog.map((option) => option.id))
+    ? buildAgentListHandles({ prefix: agentHandle, ids: orderedCatalog.map((option) => option.id) })
     : undefined;
   // Membership check against the ALREADY-ORDERED result, not `pinnedProviderIds` directly: a
   // pinned id absent from `catalog` never appears in `orderedCatalog` either (see
@@ -153,7 +153,7 @@ export function MediaProvidersTab({
           className="jini-button jini-button-ghost"
           onClick={reload}
           disabled={load.status === 'loading'}
-          {...agentHandleProps(agentHandle, { action: 'reload', role: 'button', label: reloadLabel })}
+          {...agentHandleProps({}, { base: agentHandle, ...({ action: 'reload', role: 'button', label: reloadLabel }) })}
         >
           <Icon name="refresh" size={13} />
           <span>{load.status === 'loading' ? reloadingLabel : reloadLabel}</span>
@@ -222,7 +222,7 @@ export function MediaProvidersTab({
                     aria-label={`${option.label} ${apiKeyLabel}`}
                     value={entry.apiKey ?? ''}
                     onChange={(event) => updateProvider(option.id, { apiKey: event.target.value })}
-                    {...agentHandleProps(providerHandle, { action: 'api-key', role: 'field', label: `${option.label} ${apiKeyLabel}` })}
+                    {...agentHandleProps({}, { base: providerHandle, ...({ action: 'api-key', role: 'field', label: `${option.label} ${apiKeyLabel}` }) })}
                   />
                   <button
                     type="button"
@@ -230,7 +230,7 @@ export function MediaProvidersTab({
                     aria-pressed={keyVisible}
                     aria-label={`${option.label} ${keyVisible ? hideKeyLabel : showKeyLabel}`}
                     onClick={() => toggleKeyVisible(option.id)}
-                    {...agentHandleProps(providerHandle, { action: 'reveal-key', role: 'button', label: `${option.label} ${showKeyLabel}` })}
+                    {...agentHandleProps({}, { base: providerHandle, ...({ action: 'reveal-key', role: 'button', label: `${option.label} ${showKeyLabel}` }) })}
                   >
                     <Icon name={keyVisible ? 'eye-off' : 'eye'} size={14} />
                   </button>
@@ -248,7 +248,7 @@ export function MediaProvidersTab({
                     value={rawBaseUrl}
                     aria-invalid={baseUrlInvalid || undefined}
                     onChange={(event) => updateProvider(option.id, { baseUrl: event.target.value })}
-                    {...agentHandleProps(providerHandle, { action: 'base-url', role: 'field', label: `${option.label} ${baseUrlLabel}` })}
+                    {...agentHandleProps({}, { base: providerHandle, ...({ action: 'base-url', role: 'field', label: `${option.label} ${baseUrlLabel}` }) })}
                   />
                 </label>
 
@@ -263,7 +263,7 @@ export function MediaProvidersTab({
                       aria-label={`${option.label} ${modelLabel}`}
                       value={entry.model ?? ''}
                       onChange={(event) => updateProvider(option.id, { model: event.target.value })}
-                      {...agentHandleProps(providerHandle, { action: 'model', role: 'field', label: `${option.label} ${modelLabel}` })}
+                      {...agentHandleProps({}, { base: providerHandle, ...({ action: 'model', role: 'field', label: `${option.label} ${modelLabel}` }) })}
                     />
                     <datalist id={modelListId}>
                       {option.models.map((model) => (
@@ -279,7 +279,7 @@ export function MediaProvidersTab({
                   disabled={!clearable}
                   aria-label={`${option.label} ${clearLabel}`}
                   onClick={() => clearProvider(option.id)}
-                  {...agentHandleProps(providerHandle, { action: 'clear', role: 'button', label: `${option.label} ${clearLabel}` })}
+                  {...agentHandleProps({}, { base: providerHandle, ...({ action: 'clear', role: 'button', label: `${option.label} ${clearLabel}` }) })}
                 >
                   {clearLabel}
                 </button>
@@ -304,7 +304,7 @@ export function MediaProvidersTab({
           className="jini-button"
           onClick={saveChanges}
           disabled={save.status === 'saving' || !hasPendingChanges || blockedByInvalidBaseUrl}
-          {...agentHandleProps(agentHandle, { action: 'save', role: 'button', label: saveChangesLabel })}
+          {...agentHandleProps({}, { base: agentHandle, ...({ action: 'save', role: 'button', label: saveChangesLabel }) })}
         >
           {save.status === 'saving' ? savingLabel : saveChangesLabel}
         </button>

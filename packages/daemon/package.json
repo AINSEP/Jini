@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/daemon",
-  "version": "0.3.8",
+  "version": "0.5.0",
   "description": "The stateful agent daemon runtime: run lifecycle, durable event-log port, the tool-execution boundary, agent executor, terminal sessions, and routines.",
   "license": "Apache-2.0",
   "repository": {
@@ -11,7 +11,22 @@
   "jini": {
     "domain": "server",
     "kind": "runtime",
-    "runtime": "node"
+    "runtime": "node",
+    "entries": {
+      ".": "node",
+      "./store/event-log/sqlite": "node",
+      "./store/agent-sessions": "universal",
+      "./store/agent-sessions/sqlite": "node",
+      "./store/agent-sessions/pglite": "node",
+      "./store/agent-sessions/postgres": "node",
+      "./http": "node",
+      "./read-only-tools": "node",
+      "./scheduler": "universal",
+      "./tool-audit": "universal",
+      "./surface-exchanges": "universal",
+      "./session-coordination": "universal",
+      "./run-credentials": "node"
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -22,10 +37,73 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./store/event-log/sqlite": {
+      "types": "./dist/store/event-log/sqlite.d.ts",
+      "import": "./dist/store/event-log/sqlite.js",
+      "default": "./dist/store/event-log/sqlite.js"
+    },
+    "./store/agent-sessions": {
+      "types": "./dist/store/agent-sessions/index.d.ts",
+      "import": "./dist/store/agent-sessions/index.js",
+      "default": "./dist/store/agent-sessions/index.js"
+    },
+    "./store/agent-sessions/sqlite": {
+      "types": "./dist/store/agent-sessions/sqlite.d.ts",
+      "import": "./dist/store/agent-sessions/sqlite.js",
+      "default": "./dist/store/agent-sessions/sqlite.js"
+    },
+    "./store/agent-sessions/pglite": {
+      "types": "./dist/store/agent-sessions/pglite.d.ts",
+      "import": "./dist/store/agent-sessions/pglite.js",
+      "default": "./dist/store/agent-sessions/pglite.js"
+    },
+    "./store/agent-sessions/postgres": {
+      "types": "./dist/store/agent-sessions/postgres.d.ts",
+      "import": "./dist/store/agent-sessions/postgres.js",
+      "default": "./dist/store/agent-sessions/postgres.js"
+    },
+    "./http": {
+      "types": "./dist/http/index.d.ts",
+      "import": "./dist/http/index.js",
+      "default": "./dist/http/index.js"
+    },
+    "./read-only-tools": {
+      "types": "./dist/read-only-tools.d.ts",
+      "import": "./dist/read-only-tools.js",
+      "default": "./dist/read-only-tools.js"
+    },
+    "./scheduler": {
+      "types": "./dist/scheduler.d.ts",
+      "import": "./dist/scheduler.js",
+      "default": "./dist/scheduler.js"
+    },
+    "./tool-audit": {
+      "types": "./dist/tool-audit.d.ts",
+      "import": "./dist/tool-audit.js",
+      "default": "./dist/tool-audit.js"
+    },
+    "./surface-exchanges": {
+      "types": "./dist/surface-exchanges.d.ts",
+      "import": "./dist/surface-exchanges.js",
+      "default": "./dist/surface-exchanges.js"
+    },
+    "./session-coordination": {
+      "types": "./dist/session-coordination.d.ts",
+      "import": "./dist/session-coordination.js",
+      "default": "./dist/session-coordination.js"
+    },
+    "./run-credentials": {
+      "types": "./dist/run-credentials.d.ts",
+      "import": "./dist/run-credentials.js",
+      "default": "./dist/run-credentials.js"
     }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -41,7 +119,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:postgres": "vitest run --config vitest.postgres.config.ts src/store/agent-sessions/__tests__/postgres.postgres.test.ts"
   },
   "dependencies": {
     "@jini-ai/agent-runtime": "workspace:*",
@@ -51,13 +130,52 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
-    "node-pty": "^1.1.0"
+    "node-pty": "^1.1.0",
+    "@jini-ai/db": "workspace:*",
+    "better-sqlite3": "^13.0.0",
+    "@types/better-sqlite3": "^7.6.11",
+    "kysely": "0.29.6",
+    "@electric-sql/pglite": "0.5.8",
+    "pg": "^8.23.0",
+    "@types/pg": "8.23.1",
+    "@jini-ai/http-kit": "workspace:*",
+    "express": "^4.21.0",
+    "@jini-ai/chat": "workspace:*",
+    "@types/express": "^4.17.21"
   },
   "peerDependencies": {
-    "node-pty": "^1.1.0"
+    "node-pty": "^1.1.0",
+    "@jini-ai/db": "^0.2.0",
+    "kysely": "^0.29.6",
+    "better-sqlite3": "^13.0.0",
+    "@electric-sql/pglite": "0.5.8",
+    "pg": "^8.23.0",
+    "@jini-ai/http-kit": "^0.4.0",
+    "express": "^4.21.0"
   },
   "peerDependenciesMeta": {
     "node-pty": {
+      "optional": true
+    },
+    "@jini-ai/db": {
+      "optional": true
+    },
+    "kysely": {
+      "optional": true
+    },
+    "better-sqlite3": {
+      "optional": true
+    },
+    "@electric-sql/pglite": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "@jini-ai/http-kit": {
+      "optional": true
+    },
+    "express": {
       "optional": true
     }
   }

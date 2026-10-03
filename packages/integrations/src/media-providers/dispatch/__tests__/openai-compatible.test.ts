@@ -224,24 +224,24 @@ describe('parseOpenAICompatibleJson', () => {
 describe('bytesFromOpenAICompatibleData', () => {
   it('decodes a plain base64 b64_json entry', async () => {
     const b64 = Buffer.from('hello').toString('base64');
-    const bytes = await bytesFromOpenAICompatibleData({ data: [{ b64_json: b64 }] }, 'test');
+    const bytes = await bytesFromOpenAICompatibleData({ data: { data: [{ b64_json: b64 }] }, providerTag: 'test' });
     expect(bytes.toString('utf8')).toBe('hello');
   });
 
   it('strips a data-URL prefix from b64_json before decoding', async () => {
     const b64 = Buffer.from('hello').toString('base64');
-    const bytes = await bytesFromOpenAICompatibleData({ data: [{ b64_json: `data:image/png;base64,${b64}` }] }, 'test');
+    const bytes = await bytesFromOpenAICompatibleData({ data: { data: [{ b64_json: `data:image/png;base64,${b64}` }] }, providerTag: 'test' });
     expect(bytes.toString('utf8')).toBe('hello');
   });
 
   it('fetches from a url entry when b64_json is absent', async () => {
     const fetchMock = vi.fn(async () => new Response(Buffer.from('bytes-from-url'), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
-    const bytes = await bytesFromOpenAICompatibleData({ data: [{ url: 'https://example.com/x.png' }] }, 'test');
+    const bytes = await bytesFromOpenAICompatibleData({ data: { data: [{ url: 'https://example.com/x.png' }] }, providerTag: 'test' });
     expect(bytes.toString('utf8')).toBe('bytes-from-url');
-    // Not an exact-equality match on the whole init object: fetchWithTimeout (2026-08-16, Finding 2
-    // of the failure-mode audit) always adds its own `signal` even when the caller passed none, so
-    // asserting on the URL plus the signal's presence is what actually matters here.
+    // Not an exact-equality match on the whole init object: the guarded client forwards its
+    // deadline `signal` even when the caller passed none, preserving the backstop introduced by
+    // the 2026-08-16 failure-mode audit (Finding 2). Assert URL plus signal presence here.
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const call = fetchMock.mock.calls[0] as [string, RequestInit] | undefined;
     if (!call) throw new Error('expected fetch to have been called');
@@ -252,15 +252,21 @@ describe('bytesFromOpenAICompatibleData', () => {
 
   it('throws when the url fetch fails', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 502 })));
-    await expect(bytesFromOpenAICompatibleData({ data: [{ url: 'https://example.com/x.png' }] }, 'test')).rejects.toThrow(/media fetch 502/);
+    await expect(bytesFromOpenAICompatibleData({ data: { data: [{ url: 'https://example.com/x.png' }] }, providerTag: 'test' })).rejects.toThrow(/media fetch 502/);
   });
 
   it('throws when data[0] is missing', async () => {
-    await expect(bytesFromOpenAICompatibleData({ data: [] }, 'test')).rejects.toThrow(/no data\[0\]/);
-    await expect(bytesFromOpenAICompatibleData({}, 'test')).rejects.toThrow(/no data\[0\]/);
+    await expect(bytesFromOpenAICompatibleData({ data: { data: [] }, providerTag: 'test' })).rejects.toThrow(/no data\[0\]/);
+    await expect(bytesFromOpenAICompatibleData({ data: {}, providerTag: 'test' })).rejects.toThrow(/no data\[0\]/);
   });
 
   it('throws when the entry has neither b64_json nor url', async () => {
-    await expect(bytesFromOpenAICompatibleData({ data: [{}] }, 'test')).rejects.toThrow(/neither b64_json nor url/);
+    await expect(bytesFromOpenAICompatibleData({ data: { data: [{}] }, providerTag: 'test' })).rejects.toThrow(/neither b64_json nor url/);
   });
+});
+
+vi.mock('@jini-ai/platform/http/guarded', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@jini-ai/platform/http/guarded')>();
+  const { testNodeGuardedHttpPorts } = await import('./outbound-fixtures.js');
+  return { ...original, createNodeGuardedHttpPorts: testNodeGuardedHttpPorts };
 });

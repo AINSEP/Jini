@@ -13,7 +13,6 @@ export const SETTINGS_DIALOG_HU: Record<string, string> = {
   "MCP server": "MCP-szerver",
   "Connect an MCP client. Showing sample output — not yet wired to a live server.": "Csatlakoztass egy MCP-klienst. Egy minta kimenet látható — még nincs élő szerverhez kapcsolva.",
   "API keys for image, video, and audio generation.": "API-kulcsok kép-, videó- és hanggeneráláshoz.",
-  "Third-party accounts and APIs via Composio.": "Harmadik féltől származó fiókok és API-k a Composión keresztül.",
   "Memory": "Memória",
   "Saved facts and context for future chats.": "Mentett tények és kontextus a jövőbeli beszélgetésekhez.",
   "External MCP": "Külső MCP",

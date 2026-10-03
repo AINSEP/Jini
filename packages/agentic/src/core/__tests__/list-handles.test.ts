@@ -11,22 +11,22 @@ import { buildAgentListHandles } from '../index.js';
  */
 describe('buildAgentListHandles', () => {
   it('derives a legible handle from each id, not its position', () => {
-    expect(buildAgentListHandles('mcp-server', ['higgsfield', 'github'])).toEqual([
+    expect(buildAgentListHandles({ prefix: 'mcp-server', ids: ['higgsfield', 'github'] })).toEqual([
       'mcp-server-higgsfield',
       'mcp-server-github',
     ]);
   });
 
   it('slugifies an id that is not already handle-shaped, since a handle is [a-z0-9-] only', () => {
-    expect(buildAgentListHandles('mcp-server', ['My_Server.1'])).toEqual(['mcp-server-my-server-1']);
+    expect(buildAgentListHandles({ prefix: 'mcp-server', ids: ['My_Server.1'] })).toEqual(['mcp-server-my-server-1']);
   });
 
   it('falls back to the position for an id with nothing sluggable left in it', () => {
-    expect(buildAgentListHandles('mcp-server', ['***', '…'])).toEqual(['mcp-server-1', 'mcp-server-2']);
+    expect(buildAgentListHandles({ prefix: 'mcp-server', ids: ['***', '…'] })).toEqual(['mcp-server-1', 'mcp-server-2']);
   });
 
   it('keeps two ids that slugify identically apart', () => {
-    expect(buildAgentListHandles('mcp-server', ['My_Server', 'my.server'])).toEqual([
+    expect(buildAgentListHandles({ prefix: 'mcp-server', ids: ['My_Server', 'my.server'] })).toEqual([
       'mcp-server-my-server',
       'mcp-server-my-server-2',
     ]);
@@ -37,24 +37,24 @@ describe('buildAgentListHandles', () => {
   // they make every `page.click`/`page.fill` aimed at either card resolve to whichever the DOM
   // reaches first. This is why the suffix search is a loop.
   it('keeps a de-duplication suffix from colliding with an id that already looks like one', () => {
-    const handles = buildAgentListHandles('mcp-server', ['x', 'x-3', 'x']);
+    const handles = buildAgentListHandles({ prefix: 'mcp-server', ids: ['x', 'x-3', 'x'] });
     expect(new Set(handles).size).toBe(3);
     expect(handles).toEqual(['mcp-server-x', 'mcp-server-x-3', 'mcp-server-x-2']);
   });
 
   it('never repeats a handle, however adversarial the id list', () => {
     const ids = ['x', 'x-2', 'x', 'x-3', 'x', 'X', 'x_', '-x-', 'x-2-2'];
-    const handles = buildAgentListHandles('mcp-server', ids);
+    const handles = buildAgentListHandles({ prefix: 'mcp-server', ids });
     expect(handles).toHaveLength(ids.length);
     expect(new Set(handles).size).toBe(ids.length);
   });
 
   it('returns nothing for an empty list', () => {
-    expect(buildAgentListHandles('mcp-server', [])).toEqual([]);
+    expect(buildAgentListHandles({ prefix: 'mcp-server', ids: [] })).toEqual([]);
   });
 
   it('works under a different prefix, since the policy is not specific to any one feature', () => {
-    expect(buildAgentListHandles('form-field', ['about-us', 'contact'])).toEqual([
+    expect(buildAgentListHandles({ prefix: 'form-field', ids: ['about-us', 'contact'] })).toEqual([
       'form-field-about-us',
       'form-field-contact',
     ]);

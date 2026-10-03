@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/diagnostics",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Diagnostics-bundle tooling: JSON/text secret redaction, log-source collection, manifest building, and zip packaging for support exports.",
   "license": "Apache-2.0",
   "repository": {
@@ -11,6 +11,14 @@
   "jini": {
     "domain": "tooling",
     "kind": "diagnostics",
+    "entries": {
+      ".": "node",
+      "./redaction/secrets-only": "universal",
+      "./observability": "universal",
+      "./web-evidence": "universal",
+      "./web-evidence/playwright": "node",
+      "./domain-dns": "node"
+    },
     "runtime": "node"
   },
   "type": "module",
@@ -22,10 +30,38 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./redaction/secrets-only": {
+      "types": "./dist/redaction/secrets-only.d.ts",
+      "import": "./dist/redaction/secrets-only.js",
+      "default": "./dist/redaction/secrets-only.js"
+    },
+    "./observability": {
+      "types": "./dist/observability/index.d.ts",
+      "import": "./dist/observability/index.js",
+      "default": "./dist/observability/index.js"
+    },
+    "./web-evidence": {
+      "types": "./dist/web-evidence/index.d.ts",
+      "import": "./dist/web-evidence/index.js",
+      "default": "./dist/web-evidence/index.js"
+    },
+    "./web-evidence/playwright": {
+      "types": "./dist/web-evidence/playwright-browser.d.ts",
+      "import": "./dist/web-evidence/playwright-browser.js",
+      "default": "./dist/web-evidence/playwright-browser.js"
+    },
+    "./domain-dns": {
+      "types": "./dist/domain-dns/index.d.ts",
+      "import": "./dist/domain-dns/index.js",
+      "default": "./dist/domain-dns/index.js"
     }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -44,6 +80,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@jini-ai/core": "workspace:*",
     "jszip": "^3.10.1"
   },
   "devDependencies": {

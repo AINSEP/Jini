@@ -29,32 +29,33 @@ import {
  * export class TermNotFoundError extends Error {}
  * export class HierarchyCycleDetectedError extends Error {}
  *
- * // Content-join chain: allow-list -> workspace -> lens (U-001-ORD1, U-001-ORD2)
+ * Content-join chain: allow-list -> workspace -> lens 
  * export function validateContentJoin(
- *   required: {
- *     taxonomyId: string; isOnAllowList: boolean;
- *     callerWorkspaceId: string; resolvedTermWorkspaceId: string; resolvedContentWorkspaceId: string;
- *     suppliedContentType: string; resolvedContentKind: string;
- *   },
- *   optional?: {}
- * ): void; // throws the first-failing check's typed error, in fixed order
+ * required: {
+ * taxonomyId: string; isOnAllowList: boolean;
+ * callerWorkspaceId: string; resolvedTermWorkspaceId: string; resolvedContentWorkspaceId: string;
+ * suppliedContentType: string; resolvedContentKind: string;
+ * },
+ * optional?: {}
+ * ): void; throws the first-failing check's typed error, in fixed order
  *
- * // Hierarchy chain: hierarchical-mode -> same-taxonomy (incl. not-found) -> cycle (U-001-B2/B3/ORD3)
+ * Hierarchy chain: hierarchical-mode -> same-taxonomy (incl. not-found) -> cycle (B3/ORD3)
  * export function validateHierarchyAssignment(
- *   required: {
- *     childTaxonomyId: string; taxonomyIsHierarchical: boolean;
- *     candidateParentId: string | null;
- *     resolvedParent: { id: string; taxonomyId: string } | null | "not-applicable";
- *     wouldCreateCycle: (candidateParentId: string) => boolean;
- *     termId: string;
- *   },
- *   optional?: {}
- * ): void; // throws the first-failing check's typed error, in fixed order
+ * required: {
+ * childTaxonomyId: string; taxonomyIsHierarchical: boolean;
+ * candidateParentId: string | null;
+ * resolvedParent: { id: string; taxonomyId: string } | null | "not-applicable";
+ * wouldCreateCycle: (candidateParentId: string) => boolean;
+ * termId: string;
+ * },
+ * optional?: {}
+ * ): void; throws the first-failing check's typed error, in fixed order
  * ```
+ * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
  */
 
 // ---------------------------------------------------------------------------
-// U-001-B1 / U-001-ORD1 / U-001-ORD2 — content-join chain: allow-list -> workspace -> lens
+// — content-join chain: allow-list -> workspace -> lens. See docs/decisions/DR-005-ordered-taxonomy-validation.md.
 // ---------------------------------------------------------------------------
 
 test("U-001-B1 / AC-07: allow-list check runs first — a not-on-allow-list taxonomy is rejected with zero downstream checks reached", () => {
@@ -160,8 +161,8 @@ test("AC-10: a fully valid content-join (on allow-list, matching workspace, matc
 });
 
 // ---------------------------------------------------------------------------
-// U-001-B2 / U-001-B3 / U-001-ORD3 — hierarchy chain: hierarchical-mode -> same-taxonomy (incl.
-// not-found) -> cycle (this is the RT-001 regression this unit exists to prevent)
+// — hierarchy chain: hierarchical-mode -> same-taxonomy (incl. See docs/decisions/DR-005-ordered-taxonomy-validation.md.
+// not-found) -> cycle (this is the regression this unit exists to prevent). See docs/decisions/DR-005-ordered-taxonomy-validation.md.
 // ---------------------------------------------------------------------------
 
 test("U-001-B2 / U-001-ORD3 / AC-13 / EC-04: hierarchical-mode check runs first — a non-null parentId on a flat (non-hierarchical) taxonomy is rejected with TAXONOMY_NOT_HIERARCHICAL", () => {

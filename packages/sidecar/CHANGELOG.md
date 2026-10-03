@@ -1,5 +1,27 @@
 # @jini-ai/sidecar
 
+## 0.4.0 — 2026-10-02
+
+### BREAKING
+
+- Atomic filesystem handling is canonical in platform and Node supervisor defaults are isolated in ./supervisor/node.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased
+
+- Fix supervisor test compilation by checking event-array emptiness without narrowing later lifecycle events to `never`.
+
+- BREAKING: Node supervisor defaults and their types are available only from `./supervisor/node`, no longer the root or generic supervisor. The generic supervisor keeps its injected process ports and universal runtime entry.
+
+- Adopt shared kernel contracts and preserve the module rationale in neutral documentation.
+- Runtime JSON writes now preserve destination modes and fsync file plus parent directory, reject unserializable JSON, and clean failed owned temp writes.
+
+
+- **BREAKING:** Existing public helpers and data-bearing ports now take required and optional argument objects. Registry adapters and supervisor event/kill ports follow the same convention; migrate callers using `API.md` and the archived migration inventory.
+- Expose the respawn policy and supervisor from the library barrel; declare runtimes for all subpaths.
+
+- Add respawn-policy and supervisor subpaths with injected lifecycle ports, platform process/tree adapters and shared daemon registry support.
+
 ## 0.1.2
 
 ### Patch Changes

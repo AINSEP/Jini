@@ -3,7 +3,7 @@
  * §8 task 6). This is **new design work, not a port**: OD only *observes*
  * `tool_use` (`apps/daemon/src/runtimes/tool-loop-guard.ts` watches for
  * runaway repetition; it never gates a call before it runs), so there is
- * no upstream source to lift here — see `source-map.md` for the fuller
+ * no upstream source to lift here — see `archived provenance ledger` for the fuller
  * account of why and where this diverges from every other file in this
  * repo.
  *
@@ -55,7 +55,7 @@ import {
   type ToolDescriptor,
   type ToolRegistry,
 } from '@jini-ai/core';
-import { authorizeToolInvocation } from '@jini-ai/core/internal';
+import { authorizeToolInvocation } from '@jini-ai/core/composition';
 
 export type ConfirmationDecision = 'confirm' | 'deny';
 
@@ -169,19 +169,13 @@ export interface ToolExecutor {
    * see `@jini-ai/core`'s `SurfaceEmitter` for why a handler that waits on a human needs it.
    * @throws If `toolId` isn't registered — a routing/programming error, distinct from the denial/confirmation-denial states `ToolExecutionResult.status` covers.
    */
-  execute(
-    principal: Principal,
-    run: RunRef,
-    toolId: string,
-    input: unknown,
-    signal?: AbortSignal,
-    emitSurface?: SurfaceEmitter,
+  execute(args: { readonly principal: Principal; readonly run: RunRef; readonly toolId: string; readonly input: unknown }, optionalArgs?: { readonly signal?: AbortSignal; readonly emitSurface?: SurfaceEmitter }
   ): Promise<ToolExecutionResult>;
   /** @throws If `executionId` has no confirmation currently pending (already resumed, never required one, or unknown). */
-  resumeConfirmation(executionId: string, decision: ConfirmationDecision): void;
+  resumeConfirmation(args: { readonly executionId: string; readonly decision: ConfirmationDecision }): void;
   /** Aborts an in-flight handler, or resolves a still-pending confirmation as denied. No-op if `executionId` is already terminal or unknown. */
-  cancel(executionId: string): void;
-  getAuditRecord(executionId: string): ToolExecutionAuditRecord | null;
+  cancel(args: { readonly executionId: string }): void;
+  getAuditRecord(args: { readonly executionId: string }): ToolExecutionAuditRecord | null;
 }
 
 export interface CreateToolExecutorOptions {
@@ -216,17 +210,18 @@ function truncateOutput(output: unknown, maxOutputBytes: number | undefined): { 
  * in-memory gate over a `ToolRegistry`. No persistence — a real host that
  * needs audit records to survive a restart layers a durable store behind
  * `getAuditRecord`/an append hook later; out of this task's scope (see
- * `source-map.md`).
+ * `archived provenance ledger`).
  *
  * @param options.registry - The `ToolRegistry` to resolve and authorize
- * tools against, via `@jini-ai/core/internal`'s `authorizeToolInvocation`
+ * tools against, via `@jini-ai/core/composition`'s `authorizeToolInvocation`
  * — the one and only caller of that internal export.
  * @param options.delegate - Transport-supplied authorize/confirm UI seam;
  * omit for a headless caller whose tools never need interactive gating.
  * @complexity `execute` is O(1) plus the handler's own cost; `resumeConfirmation`/`cancel`/`getAuditRecord` are O(1) map lookups.
  * @overallScore 100/100
  */
-export function createToolExecutor(options: CreateToolExecutorOptions): ToolExecutor {
+export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions, "registry">, optionalArgs: Pick<CreateToolExecutorOptions, "delegate" | "now"> = {}): ToolExecutor {
+  const options: CreateToolExecutorOptions = { ...requiredArgs, ...optionalArgs };
   const { registry, delegate = {} } = options;
   const now = options.now ?? Date.now;
 
@@ -287,13 +282,7 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     // to `createToolExecutor`) so a delegate that gains `onAuthorize` after construction still
     // gets consulted, matching the pre-`authorizeToolInvocation` behaviour.
     const onAuthorize = delegate.onAuthorize?.bind(delegate);
-    return authorizeToolInvocation(
-      registry,
-      toolId,
-      principal,
-      run,
-      input,
-      onAuthorize ? { onAuthorize } : undefined,
+    return authorizeToolInvocation({ registry: registry, toolId: toolId, principal: principal, run: run, input: input }, onAuthorize === undefined ? {} : { delegate: { onAuthorize } }
     );
   }
 
@@ -337,13 +326,7 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     return { executionId, status: 'failed', error: message, errorKind };
   }
 
-  async function execute(
-    principal: Principal,
-    run: RunRef,
-    toolId: string,
-    input: unknown,
-    signal?: AbortSignal,
-    emitSurface?: SurfaceEmitter,
+  async function execute({ principal, run, toolId, input }: { readonly principal: Principal; readonly run: RunRef; readonly toolId: string; readonly input: unknown }, { signal, emitSurface }: { readonly signal?: AbortSignal; readonly emitSurface?: SurfaceEmitter } = {}
   ): Promise<ToolExecutionResult> {
     // Existence is checked separately from — and before — authorization so the audit record can
     // be opened before the (possibly slow, possibly throwing) authorization gate runs, matching
@@ -351,7 +334,7 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     // policy that hangs or throws used to still leave a record behind. `has()` only confirms
     // existence, never returns a handler, so this doesn't reopen the leak authorizeToolInvocation
     // closed — that gate still runs, still unconditionally, inside the call below.
-    if (!registry.has(toolId)) {
+    if (!registry.has({ toolId })) {
       throw new Error(`ToolExecutor: unknown tool "${toolId}"`);
     }
 
@@ -374,7 +357,7 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
         appendEvent(executionId, 'cancelled');
         return { executionId, status: 'cancelled' };
       }
-      onTransportAbort = () => cancel(executionId);
+      onTransportAbort = () => cancel({ executionId: executionId });
       signal.addEventListener('abort', onTransportAbort, { once: true });
     }
 
@@ -406,7 +389,7 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
       appendEvent(executionId, 'cancelled');
       return { executionId, status: 'cancelled' };
     }
-    // `registry.has(toolId)` above already confirmed the tool exists, and `ToolRegistry` is
+    // `registry.has({ toolId })` above already confirmed the tool exists, and `ToolRegistry` is
     // append-only (no unregister — see `createToolRegistry`'s doc), so `authorizeToolInvocation`
     // resolving the same `toolId` against the same `registry` cannot come back `undefined` here.
     const { descriptor } = resolved!;
@@ -474,7 +457,7 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     appendEvent(executionId, 'started');
     try {
       // `emitSurface` is spread in only when the transport supplied one, so a handler can test
-      // `ctx.emitSurface` and get a truthful answer about whether a surface it emits would actually
+      // `options.emitSurface` and get a truthful answer about whether a surface it emits would actually
       // reach anybody. An always-present no-op would read as "yes" and let a handler park forever.
       const rawOutput = await handler({
         executionId,
@@ -482,8 +465,7 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
         run,
         input,
         signal: controller.signal,
-        ...(emitSurface !== undefined ? { emitSurface } : {}),
-      });
+      }, { ...(emitSurface !== undefined ? { emitSurface } : {}) });
       // A handler is not OBLIGED to honour `signal` — it is handed one, not policed by one. A
       // handler that ignores it and resolves normally after the timer fired (or after `cancel`)
       // used to land here and be recorded `completed`, because the timeout/abort state was only
@@ -513,7 +495,7 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     }
   }
 
-  function resumeConfirmation(executionId: string, decision: ConfirmationDecision): void {
+  function resumeConfirmation({ executionId, decision }: { readonly executionId: string; readonly decision: ConfirmationDecision }): void {
     const resolve = pendingConfirmations.get(executionId);
     if (!resolve) {
       throw new Error(`ToolExecutor: no pending confirmation for execution "${executionId}"`);
@@ -522,7 +504,7 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     resolve(decision);
   }
 
-  function cancel(executionId: string): void {
+  function cancel({ executionId }: { readonly executionId: string }): void {
     const controller = activeControllers.get(executionId);
     if (controller) {
       controller.abort();
@@ -536,7 +518,7 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     }
   }
 
-  function getAuditRecord(executionId: string): ToolExecutionAuditRecord | null {
+  function getAuditRecord({ executionId }: { readonly executionId: string }): ToolExecutionAuditRecord | null {
     return audits.get(executionId) ?? null;
   }
 

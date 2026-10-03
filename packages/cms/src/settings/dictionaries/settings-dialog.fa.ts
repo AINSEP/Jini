@@ -13,7 +13,6 @@ export const SETTINGS_DIALOG_FA: Record<string, string> = {
   "MCP server": "سرور MCP",
   "Connect an MCP client. Showing sample output — not yet wired to a live server.": "یک کلاینت MCP متصل کنید. خروجی نمونه نمایش داده می‌شود — هنوز به سرور واقعی متصل نشده است.",
   "API keys for image, video, and audio generation.": "کلیدهای API برای تولید تصویر، ویدئو و صدا.",
-  "Third-party accounts and APIs via Composio.": "حساب‌ها و APIهای شخص ثالث از طریق Composio.",
   "Memory": "حافظه",
   "Saved facts and context for future chats.": "واقعیت‌ها و زمینهٔ ذخیره‌شده برای گفتگوهای آینده.",
   "External MCP": "MCP خارجی",

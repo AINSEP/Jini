@@ -17,8 +17,8 @@ export const gooseAgentDef = {
     name: 'goose',
     bin: 'goose',
     versionArgs: ['--version'],
-    fetchModels: async (resolvedBin, env) =>
-      detectAcpModels({
+    fetchModels: async ({ resolvedBin, env }) =>
+      (({ bin, args, ...optionalArgs }: Parameters<typeof detectAcpModels>[0] & NonNullable<Parameters<typeof detectAcpModels>[1]>) => detectAcpModels({ bin, args }, optionalArgs))({
         bin: resolvedBin,
         args: ['acp'],
         env,

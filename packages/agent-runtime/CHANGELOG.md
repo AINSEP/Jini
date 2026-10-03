@@ -1,5 +1,39 @@
 # @jini-ai/agent-runtime
 
+## 0.4.0 — 2026-10-02
+
+### BREAKING
+
+- Use isolated provider and cache subpaths, including ./providers/sse-decode for browsers; core clock/redaction and canonical platform address classifiers replace local contracts. Unloaded bundled skill/craft documents are archived outside the package.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased
+
+### Fixes
+
+- Align parser parity and default-option fixtures with current argument objects and exact optional-property contracts. Preserve manifest fixture tuples and type Google continuation mocks with checked request bodies for strict indexed access.
+- Omit the probe environment's absent proxy override so the existing system-proxy default remains active.
+
+### BREAKING — canonical OAuth, redaction and network primitives
+
+- Provider PKCE uses the main OAuth API, explicitly retaining 64-byte verifier entropy; normalized tokens are adapted to the existing persisted provider wire DTO. Main OAuth now guards/bounds fixed-issuer HTTP and returns typed errors; deriveCodeChallenge validates RFC verifiers.
+- Remove runtime classifier/redactor exports and local implementations. Import hostname policies from `@jini-ai/platform/net` and `redactSecrets({ input }, { exactSecrets })` from core. Conservative masking keeps model/request identifiers and uses categorized markers; diagnostics never opt into opaque-run masking.
+- Model catalog clocks use core `Clock.nowMs()`; ACP unknown-value records are named `UnknownRecord`, not JSON objects.
+- Callback payload caches use the main bounded store while retaining exclusive TTL and unref timer behavior. Neutralize host-settings wording and host identity comments. Drop the conversion report from published files; the document remains for later relocation.
+
+
+- Preserve host environment customization after CLI housekeeping; correct the hook documentation.
+- Keep DNS resolver injection required and reject lookup failures or empty answers instead of allowing unpinned fallback.
+- Validate model catalogue variants with an explicit `TypeError` before trimming.
+- Tag ACP failures before resume acknowledgement with `error.details.kind: 'resume_failed'`, preserving original codes and nesting original details under `cause`.
+
+- Add `./providers/tool-turn` with injected provider adapters, normalized tool results and termination reasons, and Gemini schema adaptation. Existing provider loops and exports are preserved.
+- Add `./model-catalog/cache` for instance-owned live discovery, TTL success/failure caching, tenant-safe key tuples, and injected clock/merge ports. Share the single-flight loader with the existing AMR cache.
+- Complete the runtime subpaths (`./providers/tool-turn`, `./model-catalog/cache`, and `./providers/sse-decode`) with runtime metadata, declaration mappings, root barrel exports for turns/cache, and API documentation. The cache and SSE decoder can be imported independently in universal runtimes; the provider adapters and root require Node.
+- Delegate provider PKCE and pending authorization primitives to `@jini-ai/oauth`, retaining provider contracts and wire formats.
+- **BREAKING:** Convert existing public runtime/provider helpers, session factories, cache constructors and methods, runtime-definition callbacks, custom DNS/HTTP/event ports, and stream-feed methods to `(requiredArgs, optionalArgs)` objects. Required inputs are in the first object; optional controls are in the second. Update hosts and port implementations together using `API-CONVERSION-w7.md`. Existing export names and package version are retained; no positional compatibility adapters are provided. React props and upstream standard-library callable contracts are unchanged.
+- **BREAKING:** `AcpModelProbe.detectModels` now separates required `{ bin, args }` from optional probe controls, matching `detectAcpModels` and its `probeAcpModels` alias. Custom probes must read environment, timeout, client identity and default model from the second object.
+
 ## 0.2.1
 
 ### Patch Changes

@@ -22,7 +22,7 @@
  *
  * INTERFACES ONLY. No feature logic lives here.
  */
-import type { ISODateTime, UUID } from "../core/ports.js";
+import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
 import type {
   NavLocationBindingRow,
   NavLocationDescriptor,

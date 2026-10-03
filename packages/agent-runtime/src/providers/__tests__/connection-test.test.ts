@@ -21,7 +21,7 @@ describe('testProviderConnection', () => {
   it('reports an unsupported protocol without making any request', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const result = await testProviderConnection(baseInput({ protocol: 'ollama' }));
+    const result = await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({ protocol: 'ollama' }));
     expect(result).toMatchObject({ ok: false, kind: 'unknown' });
     expect(result.detail).toMatch(/not supported/i);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -30,7 +30,7 @@ describe('testProviderConnection', () => {
   it('rejects an invalid base url before making any request', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const result = await testProviderConnection(baseInput({ baseUrl: 'not a url' }));
+    const result = await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({ baseUrl: 'not a url' }));
     expect(result).toMatchObject({ ok: false, kind: 'invalid_base_url' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -43,7 +43,7 @@ describe('testProviderConnection', () => {
     it(`rejects an empty api key locally for ${protocol} before making any request`, async () => {
       const fetchMock = vi.fn();
       vi.stubGlobal('fetch', fetchMock);
-      const result = await testProviderConnection(baseInput({ protocol, apiKey: '' }));
+      const result = await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({ protocol, apiKey: '' }));
       expect(result).toMatchObject({ ok: false, kind: 'auth_failed' });
       expect(result.detail).toMatch(/no api key/i);
       expect(fetchMock).not.toHaveBeenCalled();
@@ -53,7 +53,7 @@ describe('testProviderConnection', () => {
   it('rejects a whitespace-only api key locally, checked before the base-url guard', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const result = await testProviderConnection(baseInput({ apiKey: '   ', baseUrl: 'not a url' }));
+    const result = await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({ apiKey: '   ', baseUrl: 'not a url' }));
     expect(result).toMatchObject({ ok: false, kind: 'auth_failed' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -61,7 +61,7 @@ describe('testProviderConnection', () => {
   it('reports forbidden for an internal base url without making any request', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const result = await testProviderConnection(baseInput({ baseUrl: 'http://10.0.0.5' }));
+    const result = await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({ baseUrl: 'http://10.0.0.5' }));
     expect(result).toMatchObject({ ok: false, kind: 'forbidden' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -75,7 +75,7 @@ describe('testProviderConnection', () => {
         text: async () => JSON.stringify({ content: [{ type: 'text', text: 'ok' }] }),
       }),
     );
-    const result = await testProviderConnection(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({}));
     expect(result).toMatchObject({ ok: true, kind: 'success', status: 200 });
   });
 
@@ -86,7 +86,7 @@ describe('testProviderConnection', () => {
       text: async () => JSON.stringify({ content: [{ type: 'text', text: 'ok' }] }),
     });
     vi.stubGlobal('fetch', fetchMock);
-    await testProviderConnection(baseInput({}));
+    await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({}));
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.anthropic.com/v1/messages');
     expect(init.headers).toMatchObject({ 'x-api-key': 'sk-ant-test', 'anthropic-version': '2023-06-01' });
@@ -103,7 +103,7 @@ describe('testProviderConnection', () => {
         text: async () => JSON.stringify({ content: [{ type: 'text', text: 'Hello there!' }] }),
       }),
     );
-    const result = await testProviderConnection(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({}));
     expect(result.ok).toBe(false);
     expect(result.detail).toMatch(/Hello there!/);
   });
@@ -122,10 +122,10 @@ describe('testProviderConnection', () => {
           JSON.stringify({ content: [{ type: 'text', text: 'your key was: sk-ant-test' }] }),
       }),
     );
-    const result = await testProviderConnection(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({}));
     expect(result.ok).toBe(false);
     expect(result.detail).not.toContain('sk-ant-test');
-    expect(result.detail).toContain('[REDACTED]');
+    expect(result.detail).toContain('[REDACTED:exact_secret]');
   });
 
   it('redacts BEFORE truncating, so a key past the sample cutoff cannot leak as a prefix', async () => {
@@ -143,7 +143,7 @@ describe('testProviderConnection', () => {
           JSON.stringify({ content: [{ type: 'text', text: `${filler} sk-ant-test` }] }),
       }),
     );
-    const result = await testProviderConnection(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({}));
     expect(result.detail).not.toMatch(/sk-ant/);
   });
 
@@ -156,20 +156,20 @@ describe('testProviderConnection', () => {
         text: async () => JSON.stringify({ error: { message: 'invalid x-api-key: sk-ant-test' } }),
       }),
     );
-    const result = await testProviderConnection(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({}));
     expect(result).toMatchObject({ ok: false, kind: 'auth_failed', status: 401 });
     expect(result.detail).not.toContain('sk-ant-test');
   });
 
   it('classifies a 429 as rate_limited', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 429, text: async () => '{}' }));
-    const result = await testProviderConnection(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({}));
     expect(result).toMatchObject({ ok: false, kind: 'rate_limited', status: 429 });
   });
 
   it('classifies a 500 as upstream_unavailable', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500, text: async () => '{}' }));
-    const result = await testProviderConnection(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({}));
     expect(result).toMatchObject({ ok: false, kind: 'upstream_unavailable', status: 500 });
   });
 
@@ -177,7 +177,7 @@ describe('testProviderConnection', () => {
     const err = new TypeError('fetch failed');
     (err as { cause?: unknown }).cause = { code: 'ECONNREFUSED' };
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(err));
-    const result = await testProviderConnection(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({}));
     expect(result).toMatchObject({ ok: false, kind: 'invalid_base_url' });
   });
 
@@ -188,7 +188,7 @@ describe('testProviderConnection', () => {
       text: async () => JSON.stringify({ choices: [{ message: { content: 'ok' } }] }),
     });
     vi.stubGlobal('fetch', fetchMock);
-    await testProviderConnection(baseInput({ protocol: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o' }));
+    await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({ protocol: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o' }));
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.openai.com/v1/chat/completions');
     expect(init.headers).toMatchObject({ authorization: 'Bearer sk-ant-test' });
@@ -201,9 +201,7 @@ describe('testProviderConnection', () => {
       text: async () => JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
     });
     vi.stubGlobal('fetch', fetchMock);
-    const result = await testProviderConnection(
-      baseInput({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini-2.5-flash' }),
-    );
+    const result = await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini-2.5-flash' }));
     expect(result).toMatchObject({ ok: true, kind: 'success' });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain('gemini-2.5-flash');
@@ -221,9 +219,7 @@ describe('testProviderConnection', () => {
       text: async () => JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
     });
     vi.stubGlobal('fetch', fetchMock);
-    await testProviderConnection(
-      baseInput({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini-flash-latest' }),
-    );
+    await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini-flash-latest' }));
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(String(init.body)) as { generationConfig: { maxOutputTokens: number } };
     // Gemini 2.5's dynamic thinking budget alone routinely exceeds the old 64.
@@ -250,9 +246,7 @@ describe('testProviderConnection', () => {
         }),
     });
     vi.stubGlobal('fetch', fetchMock);
-    const result = await testProviderConnection(
-      baseInput({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini-flash-latest' }),
-    );
+    const result = await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini-flash-latest' }));
     // Unfiltered, the join produced "The user wants…ok", which the exact-match smoke check rejects.
     expect(result).toMatchObject({ ok: true, kind: 'success' });
   });
@@ -266,9 +260,7 @@ describe('testProviderConnection', () => {
       text: async () => JSON.stringify({ candidates: [{ finishReason: 'MAX_TOKENS' }] }),
     });
     vi.stubGlobal('fetch', fetchMock);
-    const result = await testProviderConnection(
-      baseInput({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini-flash-latest' }),
-    );
+    const result = await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini-flash-latest' }));
     expect(result.ok).toBe(false);
     // The old message named only the symptom; an operator could not tell a too-small budget from a
     // safety block from a broken endpoint.
@@ -282,9 +274,7 @@ describe('testProviderConnection', () => {
       text: async () => JSON.stringify({ choices: [{ message: { content: 'ok' } }] }),
     });
     vi.stubGlobal('fetch', fetchMock);
-    await testProviderConnection(
-      baseInput({ protocol: 'azure', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment' }),
-    );
+    await (({ protocol, baseUrl, apiKey, model, ...optionalArgs }: Parameters<typeof testProviderConnection>[0] & NonNullable<Parameters<typeof testProviderConnection>[1]>) => testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs))(baseInput({ protocol: 'azure', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment' }));
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain('/openai/deployments/gpt-4o-deployment/chat/completions');
     expect(url).toContain('api-version=2024-10-21');

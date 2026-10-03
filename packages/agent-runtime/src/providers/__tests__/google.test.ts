@@ -10,51 +10,51 @@ import {
 
 describe('googleGenerativeLanguageBaseUrl', () => {
   it('strips a trailing /v1beta segment', () => {
-    expect(googleGenerativeLanguageBaseUrl('https://generativelanguage.googleapis.com/v1beta')).toBe(
+    expect(googleGenerativeLanguageBaseUrl({ baseUrl: 'https://generativelanguage.googleapis.com/v1beta' })).toBe(
       'https://generativelanguage.googleapis.com',
     );
   });
 
   it('strips a trailing /v1 segment', () => {
-    expect(googleGenerativeLanguageBaseUrl('https://example.com/v1')).toBe('https://example.com');
+    expect(googleGenerativeLanguageBaseUrl({ baseUrl: 'https://example.com/v1' })).toBe('https://example.com');
   });
 
   it('strips trailing slashes and query/hash', () => {
-    expect(googleGenerativeLanguageBaseUrl('https://example.com/base/?x=1#frag')).toBe(
+    expect(googleGenerativeLanguageBaseUrl({ baseUrl: 'https://example.com/base/?x=1#frag' })).toBe(
       'https://example.com/base',
     );
   });
 
   it('keeps the root path as empty (not a bare slash) after normalization', () => {
-    expect(googleGenerativeLanguageBaseUrl('https://example.com/')).toBe('https://example.com');
+    expect(googleGenerativeLanguageBaseUrl({ baseUrl: 'https://example.com/' })).toBe('https://example.com');
   });
 });
 
 describe('normalizeGoogleModelId', () => {
   it('strips the models/ prefix', () => {
-    expect(normalizeGoogleModelId('models/gemini-2.0-flash')).toBe('gemini-2.0-flash');
+    expect(normalizeGoogleModelId({ model: 'models/gemini-2.0-flash' })).toBe('gemini-2.0-flash');
   });
 
   it('trims whitespace and leaves a bare id unchanged', () => {
-    expect(normalizeGoogleModelId('  gemini-2.0-flash  ')).toBe('gemini-2.0-flash');
+    expect(normalizeGoogleModelId({ model: '  gemini-2.0-flash  ' })).toBe('gemini-2.0-flash');
   });
 });
 
 describe('googleModelPathSegment', () => {
   it('url-encodes a normalized model id', () => {
-    expect(googleModelPathSegment('models/gemini 2.0')).toBe('gemini%202.0');
+    expect(googleModelPathSegment({ model: 'models/gemini 2.0' })).toBe('gemini%202.0');
   });
 });
 
 describe('googleGenerateContentUrl / googleStreamGenerateContentUrl', () => {
   it('builds the non-streaming endpoint', () => {
-    expect(googleGenerateContentUrl('https://generativelanguage.googleapis.com', 'gemini-2.0-flash')).toBe(
+    expect(googleGenerateContentUrl({ baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini-2.0-flash' })).toBe(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
     );
   });
 
   it('builds the streaming endpoint with alt=sse', () => {
-    expect(googleStreamGenerateContentUrl('https://generativelanguage.googleapis.com', 'gemini-2.0-flash')).toBe(
+    expect(googleStreamGenerateContentUrl({ baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini-2.0-flash' })).toBe(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse',
     );
   });
@@ -62,7 +62,7 @@ describe('googleGenerateContentUrl / googleStreamGenerateContentUrl', () => {
 
 describe('googleProviderModelsUrl', () => {
   it('attaches the api key as a query param', () => {
-    const url = googleProviderModelsUrl('https://generativelanguage.googleapis.com', 'secret-key');
+    const url = googleProviderModelsUrl({ baseUrl: 'https://generativelanguage.googleapis.com', apiKey: 'secret-key' });
     expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models?key=secret-key');
   });
 });

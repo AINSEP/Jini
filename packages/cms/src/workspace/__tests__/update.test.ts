@@ -6,42 +6,43 @@ import { InMemoryWorkspaceRepo } from "../repo.memory.js";
 import { updateWorkspace } from "../update.js";
 
 /**
- * Specification tests for the update-workspace slice (`UPDATE_WORKSPACE`) — AC-05, EC-01, EC-02.
+ * Specification tests for the update-workspace slice (`UPDATE_WORKSPACE`) —.
+ * See docs/decisions/DR-007-workspace-and-owner-floors.md.
  */
 test("updateWorkspace renames name and persists it (AC-05)", async () => {
-  const repo = new InMemoryWorkspaceRepo([{ id: "ws-1", name: "Old Name", slug: "old-slug", createdAt: "t0" }]);
+  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [{ id: "ws-1", name: "Old Name", slug: "old-slug", createdAt: "t0" }] });
 
   const { workspace } = await updateWorkspace({ deps: { repo }, input: { id: "ws-1", name: "New Name" } });
 
   assert.equal(workspace.name, "New Name");
   assert.equal(workspace.slug, "old-slug", "slug is unchanged when not provided");
-  const stored = await repo.findById("ws-1");
+  const stored = await repo.findById({ id: "ws-1" });
   assert.equal(stored?.name, "New Name");
 });
 
 test("updateWorkspace rejects a slug colliding with a different workspace row (AC-05)", async () => {
-  const repo = new InMemoryWorkspaceRepo([
+  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [
     { id: "ws-1", name: "A", slug: "a-slug", createdAt: "t0" },
     { id: "ws-2", name: "B", slug: "b-slug", createdAt: "t0" },
-  ]);
+  ] });
 
   await assert.rejects(
     () => updateWorkspace({ deps: { repo }, input: { id: "ws-1", slug: "b-slug" } }),
     WorkspaceConflictError
   );
-  const stored = await repo.findById("ws-1");
+  const stored = await repo.findById({ id: "ws-1" });
   assert.equal(stored?.slug, "a-slug", "no change on conflict");
 });
 
 test("updateWorkspace accepts a slug identical to the workspace's own current slug (EC-02)", async () => {
-  const repo = new InMemoryWorkspaceRepo([{ id: "ws-1", name: "A", slug: "a-slug", createdAt: "t0" }]);
+  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [{ id: "ws-1", name: "A", slug: "a-slug", createdAt: "t0" }] });
 
   const { workspace } = await updateWorkspace({ deps: { repo }, input: { id: "ws-1", slug: "a-slug" } });
   assert.equal(workspace.slug, "a-slug");
 });
 
 test("updateWorkspace rejects an invalid slug pattern", async () => {
-  const repo = new InMemoryWorkspaceRepo([{ id: "ws-1", name: "A", slug: "a-slug", createdAt: "t0" }]);
+  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [{ id: "ws-1", name: "A", slug: "a-slug", createdAt: "t0" }] });
 
   await assert.rejects(
     () => updateWorkspace({ deps: { repo }, input: { id: "ws-1", slug: "Not A Slug" } }),
@@ -50,13 +51,13 @@ test("updateWorkspace rejects an invalid slug pattern", async () => {
 });
 
 test("updateWorkspace rejects an empty-object update (EC-01, no name and no slug)", async () => {
-  const repo = new InMemoryWorkspaceRepo([{ id: "ws-1", name: "A", slug: "a-slug", createdAt: "t0" }]);
+  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [{ id: "ws-1", name: "A", slug: "a-slug", createdAt: "t0" }] });
 
   await assert.rejects(() => updateWorkspace({ deps: { repo }, input: { id: "ws-1" } }), WorkspaceValidationError);
 });
 
 test("updateWorkspace throws WorkspaceNotFoundError for an unknown id", async () => {
-  const repo = new InMemoryWorkspaceRepo([]);
+  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [] });
 
   await assert.rejects(
     () => updateWorkspace({ deps: { repo }, input: { id: "missing", name: "X" } }),

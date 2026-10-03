@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/protocol",
-  "version": "0.3.1",
-  "description": "The Jini wire contract: run, event, journal, registry, and error types shared by every other package. Zod-validated, no other dependencies.",
+  "version": "0.4.0",
+  "description": "The Jini wire contract: run, event, journal, registry, and error types shared by every other package. Zod-validated, with shared primitives from the dependency-free core.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -11,7 +11,10 @@
   "jini": {
     "domain": "engine",
     "kind": "contract",
-    "runtime": "universal"
+    "runtime": "universal",
+    "entries": {
+      ".": "universal"
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -26,6 +29,9 @@
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -44,7 +50,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@jini-ai/core": "workspace:*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9"

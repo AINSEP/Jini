@@ -2,7 +2,7 @@
  * Generic "add a source by URL/key, set trust, list, per-item test/refresh/
  * remove" domain types. This shape recurs independently at least 4 times in
  * the origin product's `apps/web/src/components/` tree — see
- * `packages/ui/source-map.md`'s `features/source-config-list/` section for
+ * `packages/ui/archived provenance ledger`'s `features/source-config-list/` section for
  * full per-source provenance (which behaviors came from which file, and what
  * did NOT make it into this generic primitive).
  *

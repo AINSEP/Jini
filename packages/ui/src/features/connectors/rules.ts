@@ -2,7 +2,7 @@
  * Pure logic ported from OD's ConnectorsBrowser.tsx + the two small pure
  * helpers it imported from EntryView.tsx (isTrustedConnectorCallbackOrigin,
  * sortConnectorsForSearch/getConnectorSearchScore/sortConnectorsForDisplay).
- * No React, no transport, no DOM — see `packages/ui/source-map.md`.
+ * No React, no transport, no DOM — see `packages/ui/archived provenance ledger`.
  */
 import type {
   Connector,
@@ -362,7 +362,7 @@ export function connectorPanelAlerts(
 
 /**
  * Default `getDisplayableAccountLabel` — shows any account label the host
- * supplies. The origin hid this for one specific provider (Composio) with no
+ * supplies. The origin hid this for one specific provider (Connector Provider) with no
  * documented rationale; that's provider-specific policy, not generic logic,
  * so it's now a host-overridable default rather than baked in here. A host
  * that wants to hide the label for a specific provider passes its own

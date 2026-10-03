@@ -1,16 +1,9 @@
-/**
- * @file `@jini-ai/db/sqlite`: the better-sqlite3 driver. Never imports better-sqlite3 — pass your own
- * client to {@link sqliteKernel}, or your own opener to {@link openSqliteFileKernel}.
- */
-export {
-  closeSqliteConnection,
-  openMemorySqliteKernel,
-  openSqliteFileKernel,
-  sqliteClientOf,
-  type SqliteConnectionSource,
-  sqliteConnectionOf,
-  sqliteKernel,
-  type SqliteKernel,
-} from "./driver.js";
-export { sqliteOps } from "./ops.js";
+/** SQLite connection policy and restore operations; inject the consumer's opener. */
 export type { SqliteClient, SqliteOpener, SqliteOpenOptions, SqliteStatement } from "./types.js";
+export { openSqliteConnection, DEFAULT_PRAGMAS } from "./open.js";
+export { SqliteDbOpsAdapter, type SqliteDbOpsAdapterDeps } from "./db-ops.js";
+export type { SqliteBackupSource, SqliteRecoveryHook, OpenSqliteConnectionOptions } from "./restore-types.js";
+
+export type { SqliteSyncClient, SqliteSyncStatement, SqliteSyncTransaction, SqliteSyncOpener, SqliteDb } from "./sync-types.js";
+export { inspectSqliteDatabase, verifySqliteIntegrity } from "./inspect.js";
+export type { DaemonDbTableInfo, DaemonDbStatusReport, DbIntegrityIssueKind, DbIntegrityIssue, DbIntegrityReport, VerifyDbOptions } from "./inspect.js";

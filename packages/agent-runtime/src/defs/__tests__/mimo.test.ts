@@ -4,15 +4,15 @@ import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 describe('mimoAgentDef.buildArgs', () => {
   it('builds the base run/json argv with no model selected', () => {
-    expect(mimoAgentDef.buildArgs('hi', [], [], {})).toEqual(['run', '--format', 'json']);
+    expect(mimoAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {} })).toEqual(['run', '--format', 'json']);
   });
 
   it('defaults options to {} when omitted entirely', () => {
-    expect(mimoAgentDef.buildArgs('hi', [], [])).toEqual(['run', '--format', 'json']);
+    expect(mimoAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] })).toEqual(['run', '--format', 'json']);
   });
 
   it('adds --model when a non-default model is selected', () => {
-    expect(mimoAgentDef.buildArgs('hi', [], [], { model: 'mimo-large' })).toEqual([
+    expect(mimoAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'mimo-large' } })).toEqual([
       'run',
       '--format',
       'json',
@@ -22,7 +22,7 @@ describe('mimoAgentDef.buildArgs', () => {
   });
 
   it('omits --model when the model is the literal string "default"', () => {
-    expect(mimoAgentDef.buildArgs('hi', [], [], { model: 'default' })).toEqual([
+    expect(mimoAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'default' } })).toEqual([
       'run',
       '--format',
       'json',

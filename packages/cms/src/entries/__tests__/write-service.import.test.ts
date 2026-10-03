@@ -22,7 +22,7 @@ import type { EntryRecord } from "../types.js";
  */
 
 const NOW = "2026-07-15T00:00:00.000Z";
-const clock = { nowIso: () => NOW };
+const clock = { nowMs: () => Date.parse(NOW)};
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
 const alwaysDeny = async () => ({ allowed: false, reason: "no grant confers admin.collections.manage" });
 
@@ -55,7 +55,7 @@ function fakeEntryRepo(seed: EntryRecord[] = []) {
     appendRevision: async (rev: EntryRevisionInput) => {
       revisions.push(rev as unknown as Record<string, unknown>);
     },
-    transaction: async <T>(fn: () => Promise<T>) => fn(),
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn(),
   };
 }
 

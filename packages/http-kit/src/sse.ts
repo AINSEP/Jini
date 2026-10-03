@@ -4,7 +4,7 @@
  * Before this file, the only SSE machinery in this package was inlined
  * directly inside `runs.ts`'s `registerRunEventStream` (a bounded-queue,
  * backpressure-aware `res.write`/`'drain'` state machine with Last-Event-ID
- * replay support) — see `source-map.md`'s 2026-07-19 "generic lifecycle SSE
+ * replay support) — see `archived provenance ledger`'s 2026-07-19 "generic lifecycle SSE
  * projection" note and the many "requires SSE (deferred)" verdicts against
  * `chat.ts`/`memory.ts`/`terminal.ts` in the routes-classification table.
  * `createSseChannel` below is that same state machine, generalized over any
@@ -49,11 +49,11 @@ export interface CreateSseChannelOptions<E extends SseEvent> {
   /** Queued-event ceiling before the connection is dropped. Defaults to {@link DEFAULT_MAX_QUEUED_SSE_EVENTS}. */
   readonly maxQueuedEvents?: number;
   /** When true for a given event, the channel ends the stream immediately after writing it (matches `runs.ts`'s `'end'`-kind auto-close). Omit for a channel that only ends on client disconnect/overflow/explicit `end()`. */
-  readonly isEndEvent?: (event: E) => boolean;
+  readonly isEndEvent?: ({ event }: { event: E }) => boolean;
   /** Overrides the wire format. Defaults to {@link defaultFormatEvent}. */
-  readonly formatEvent?: (event: E) => string;
+  readonly formatEvent?: ({ event }: { event: E }) => string;
   /** Invoked once, synchronously, if `res.write` throws mid-flush — lets a caller log the real error without it crossing back into whatever produced the event (mirrors `runs.ts`'s `RunHttpDeps.onInternalError` seam, but this primitive itself stays logging-free: silent by default, matching a transport channel's "never throw back through the producer" contract). */
-  readonly onWriteError?: (error: unknown) => void;
+  readonly onWriteError?: ({ error }: { error: unknown }) => void;
 }
 
 export interface SseChannel<E extends SseEvent> {
@@ -64,7 +64,7 @@ export interface SseChannel<E extends SseEvent> {
    * replay history before opening the stream — the client's very first
    * flush then already contains that backlog.
    */
-  readonly enqueue: (event: E) => void;
+  readonly enqueue: ({ event }: { readonly event: E }, _optional?: Record<string, never>) => void;
   /**
    * Writes SSE headers (`200`, `text/event-stream`, `Cache-Control: no-cache,
    * no-transform`, `Connection: keep-alive`) and starts draining the queue.
@@ -102,7 +102,7 @@ export interface SseChannel<E extends SseEvent> {
    * overflow/write failure). Safe to call after the channel is already
    * closed — the callback then runs immediately, synchronously.
    */
-  readonly onClose: (callback: () => void) => void;
+  readonly onClose: ({ callback }: { readonly callback: () => void }, _optional?: Record<string, never>) => void;
 }
 
 /**
@@ -132,12 +132,10 @@ export interface SseChannel<E extends SseEvent> {
  * @complexity `enqueue`/`open`/`end` are O(1) amortized; a full queue drain is O(events written).
  * @overallScore 100/100
  */
-export function createSseChannel<E extends SseEvent>(
-  res: ServerResponse,
-  options: CreateSseChannelOptions<E> = {},
+export function createSseChannel<E extends SseEvent>({ res }: { readonly res: ServerResponse }, options: CreateSseChannelOptions<E> = {}
 ): SseChannel<E> {
   const maxQueuedEvents = options.maxQueuedEvents ?? DEFAULT_MAX_QUEUED_SSE_EVENTS;
-  const formatEvent = options.formatEvent ?? defaultFormatEvent;
+  const formatEvent = options.formatEvent ?? (({ event }: { event: E }) => defaultFormatEvent(event));
 
   const queue: E[] = [];
   let flowing = false;
@@ -165,23 +163,23 @@ export function createSseChannel<E extends SseEvent>(
       const event = queue.shift()!;
       let wroteOk: boolean;
       try {
-        wroteOk = res.write(formatEvent(event));
+        wroteOk = res.write(formatEvent({ event }));
       } catch (error) {
         // A dead/broken transport must never throw back through whatever is producing events —
         // stop this channel only.
-        options.onWriteError?.(error);
+        options.onWriteError?.({ error });
         end();
         return;
       }
       if (wroteOk === false) writable = false;
-      if (options.isEndEvent?.(event)) {
+      if (options.isEndEvent?.({ event })) {
         end();
         return;
       }
     }
   };
 
-  const enqueue = (event: E): void => {
+  const enqueue = ({ event }: { readonly event: E }): void => {
     if (closed) return;
     if (queue.length >= maxQueuedEvents) {
       // Slow/stalled consumer — disconnect rather than grow memory without bound.
@@ -213,7 +211,7 @@ export function createSseChannel<E extends SseEvent>(
   // failed needs `isClosed()` to be observable without the response having been touched yet).
   res.on('close', markClosed);
 
-  const onClose = (callback: () => void): void => {
+  const onClose = ({ callback }: { readonly callback: () => void }): void => {
     if (closed) {
       callback();
       return;
@@ -246,11 +244,11 @@ export function requestedAfterCursor(req: {
  * Writes an `ApiError`, wrapped in the standard `{ error }` envelope, directly onto a raw
  * `ServerResponse` — for the narrow window before an `SseChannel` has opened (so Express's own
  * `res.json()` response wrapper isn't safe to use yet). Produces the identical
- * `createApiErrorResponse(error)` envelope shape `response.ts`'s `sendApiError`/`sendJson` do —
+ * `createApiErrorResponse({ error: error })` envelope shape `response.ts`'s `sendApiError`/`sendJson` do —
  * this just writes that same shape without going through Express's response helper.
  */
-export function sendRawApiError(res: ServerResponse, status: number, error: ApiError): void {
+export function sendRawApiError({ res, status, error }: { readonly res: ServerResponse; readonly status: number; readonly error: ApiError }, _optional: Record<string, never> = {}): void {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.end(JSON.stringify(createApiErrorResponse(error)));
+  res.end(JSON.stringify(createApiErrorResponse({ error: error })));
 }

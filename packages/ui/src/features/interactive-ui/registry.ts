@@ -9,6 +9,9 @@ import type { InteractiveComponentManifest } from './types.js';
  */
 export interface InteractiveComponentEntry<Props = Record<string, unknown>> extends InteractiveComponentManifest {
   readonly Component: ComponentType<Props>;
+  /** Host-wired action callback prop for custom providers; never part of the agent's wire schema.
+   * Built-in providers use their documented callback; other entries retain the legacy `onRowClick` default. */
+  readonly actionProp?: string;
 }
 
 /**
@@ -18,23 +21,27 @@ export interface InteractiveComponentEntry<Props = Record<string, unknown>> exte
  * instead of one manifest-match predicate).
  */
 export class InteractiveUiRegistry {
-  constructor(private readonly entries: readonly InteractiveComponentEntry[]) {}
+  private readonly entries: readonly InteractiveComponentEntry[];
+
+  constructor({ entries }: { entries: readonly InteractiveComponentEntry[] }) {
+    this.entries = entries;
+  }
 
   list(): readonly InteractiveComponentEntry[] {
     return this.entries;
   }
 
-  resolveById(id: string): InteractiveComponentEntry | null {
+  resolveById({ id }: { id: string }): InteractiveComponentEntry | null {
     return this.entries.find((entry) => entry.id === id) ?? null;
   }
 
-  resolveByCapability(capability: string): readonly InteractiveComponentEntry[] {
+  resolveByCapability({ capability }: { capability: string }): readonly InteractiveComponentEntry[] {
     return this.entries.filter((entry) => entry.capabilities.includes(capability));
   }
 
   /** Returns a new registry with `entry` appended (or replacing an existing entry of the same id). */
-  register(entry: InteractiveComponentEntry): InteractiveUiRegistry {
+  register({ entry }: { entry: InteractiveComponentEntry }): InteractiveUiRegistry {
     const withoutExisting = this.entries.filter((item) => item.id !== entry.id);
-    return new InteractiveUiRegistry([...withoutExisting, entry]);
+    return new InteractiveUiRegistry({ entries: [...withoutExisting, entry] });
   }
 }

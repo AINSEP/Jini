@@ -14,7 +14,7 @@
  * dead, unreachable code would force either a contrived test or a
  * coverage-suppression comment to satisfy this package's >=99% bar, and this
  * repo's coverage-discipline convention calls for refactoring dead branches
- * away rather than either of those. See source-map.md.
+ * away rather than either of those. See archived provenance ledger.
  */
 
 /** A single streamed text delta event, as consumed by `emitWithTextSuppressor`. */

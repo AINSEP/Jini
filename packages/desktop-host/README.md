@@ -16,7 +16,7 @@ npm install @jini-ai/desktop-host
 ```
 
 No peer dependencies, and — importantly — **no dependency on `electron` or `@tauri-apps/api`**. Both
-assemblies take their native surfaces as injected objects (`ElectronAppLike`,
+assemblies take object-argument bindings for their native surfaces as injected objects (`ElectronAppLike`,
 `ElectronBrowserWindowFactory`, `TauriWindowFactory`, …), so this package installs and typechecks with
 neither framework present, and the whole shell is testable without launching one. `@jini-ai/core` is a
 regular dependency, for the DI tokens.
@@ -30,14 +30,14 @@ individual port types `SingleInstanceLockPort`, `WindowLifecyclePort`, `Protocol
 (`SingleInstanceLockToken`, `WindowLifecycleToken`, `ProtocolHandlerToken`, `SidecarLauncherToken`,
 `RenderServiceToken`, `ShellToken`).
 
-**Shell-agnostic implementations you can use directly** — `createNodeSidecarLauncher()` and
+**Shell-agnostic implementations you can use directly** — `createNodeSidecarLauncher({})` and
 `appendSidecarLifecycleLog` (a sidecar launcher needs no Electron at all),
 `claimSingleInstanceLock` / `createSingleInstanceLockPort`, and `withMainWindowTracking`.
 
 **Protocol handling** — `buildProtocolProxyTargetUrl`, `handleProtocolProxyRequest`,
 `schemeEntryUrl` — the custom-scheme-to-local-daemon proxy every packaged app needs.
 
-**Paths and config** — `resolveDesktopHostPathRoots(options)` → `DesktopHostPathRoots`,
+**Paths and config** — `resolveDesktopHostPathRoots(requiredArgs, optionalArgs?)` → `DesktopHostPathRoots`,
 `DesktopHostPathError`, and `loadHostConfigFile<T>(...)`.
 
 **Logging** — `createFileLogger`, `appendLogLine`, `installFatalExceptionHandlers`, and
@@ -65,32 +65,31 @@ individually (`createElectronSingleInstanceLockPort`, `createElectronWindowLifec
 `createTauriRenderService` throws `NotImplementedError` — the Tauri backend is a real but incomplete
 sibling, not a drop-in equal of the Electron one.
 
+## Argument convention
+
+Public functions and constructors take a required-arguments object, followed by an optional-arguments object when needed. Functions with only optional values receive `{}` first. Port methods use the same convention. Existing export names stay the same; there are no compatibility overloads. Native Electron/Tauri modules must be bound to the exported object-argument interfaces before injection. Event callbacks deliver payloads in the object shapes documented by those interfaces.
+
+See [API-CONVENTION.md](./API-CONVENTION.md) for the full before/after inventory and consumer ledger.
+
 ## Usage
 
 ```ts
-import { app, BrowserWindow, protocol, shell, dialog } from 'electron';
 import { createElectronDesktopHost } from '@jini-ai/desktop-host/electron';
 import { createFileLogger, installFatalExceptionHandlers } from '@jini-ai/desktop-host';
 
-const logger = createFileLogger('/Users/me/Library/Logs/example/main.log', { echoToConsole: true });
-installFatalExceptionHandlers(logger);
+const logger = createFileLogger({ logPath: '/Users/me/Library/Logs/example/main.log' }, { echoToConsole: true });
+installFatalExceptionHandlers({ logger });
 
-// The surface interfaces (ElectronAppLike, ElectronBrowserWindowFactory, …) are structural
-// subsets of Electron's real API, so the real modules satisfy them directly.
-const host = createElectronDesktopHost({
-  app,
-  createBrowserWindow: (options) => new BrowserWindow(options),
-  protocol,
-  shell,
-  dialog,
-});
+// Supply object-argument bindings around native Electron operations. See the
+// exported Electron* interfaces for each binding's full contract.
+const host = createElectronDesktopHost(electronPorts);
 
-if (!host.ports.singleInstance.claim(() => host.ports.windowLifecycle.showMainWindow())) {
-  app.quit();
+if (!host.ports.singleInstance.claim({ onSecondInstance: () => host.ports.windowLifecycle.showMainWindow() })) {
+  electronPorts.app.quit();
 }
 
-const window = await host.ports.windowLifecycle.createWindow({ /* see WindowCreateOptions */ });
-const sidecar = await host.ports.sidecarLauncher.launch({ /* see SidecarLaunchOptions */ });
+const window = await host.ports.windowLifecycle.createWindow({ url: 'https://example.test/' }, { width: 1024 });
+const sidecar = await host.ports.sidecarLauncher.launch({ command: '/absolute/sidecar' }, { args: ['--port', '0'] });
 ```
 
 In the renderer, detect and call the host without importing any Electron code:
@@ -98,8 +97,8 @@ In the renderer, detect and call the host without importing any Electron code:
 ```ts
 import { detectJiniHostClientType, openHostExternalUrl } from '@jini-ai/desktop-host';
 
-if (detectJiniHostClientType() !== 'web') {
-  await openHostExternalUrl('https://example.com');
+if (detectJiniHostClientType({}) !== 'web') {
+  await openHostExternalUrl({ url: 'https://example.com' });
 }
 ```
 
@@ -116,6 +115,15 @@ before calling through. The ports are small: `SingleInstanceLockPort` is just `c
 | `./bridge-testing` | `createMockJiniHost` / `installMockJiniHost` for testing renderer code against the host bridge. | none |
 | `./electron` | The full Electron assembly + per-port factories + fakes. | none — `electron` is injected, not imported |
 | `./tauri` | The full Tauri assembly + per-port factories + fakes. `createTauriRenderService` throws `NotImplementedError`. | none — the Tauri API is injected, not imported |
+| `./shutdown` | Pending teardown tracking, quit/drain decisions and signal routing. | none |
+| `./electron/navigation-policy` | Window/renderer origin boundaries and guest admission. | none |
+| `./electron/updates` | Updater policy/controller and file-backed multi-instance presence. | none |
+| `./node-toolchain` | Node/npm/npx shims and caller-named environment variables. | none |
+| `./electron/usability` | Find, zoom, spelling menus and remembered bounds through host ports. | none |
+| `./speech` | Transcription contracts, mono PCM/WAV encoding, validated IPC and preload bridge. | none |
+| `./speech/macos` | On-device helper compilation and transcription through filesystem/process ports. | none; host supplies Swift compiler |
+| `./speech/macos/speech-helper.swift` | Native Swift source asset copied into the published dist tree. | none |
+
 
 ## What's swappable
 
@@ -124,7 +132,7 @@ Nearly all of it. Every one of the six ports is an interface with a DI token, an
 so any single port can be replaced without abandoning the assembly. One level down, the *native
 surfaces* are injected too — `ElectronAppLike`, `ElectronBrowserWindowFactory`, `TauriWindowFactory`
 and friends are structural interfaces, which is why the shipped fakes can drive a complete host in a
-plain unit test. `createFileLogger` returns a `HostLogger` that `installFatalExceptionHandlers`
+plain unit test. `createFileLogger` returns core `Logger` that `installFatalExceptionHandlers`
 accepts, so logging is replaceable too. Fixed: the `window.__jini__` bridge contract itself (that is a
 wire contract between host and renderer), the protocol-proxy URL construction, and the path-root
 resolution rules.
@@ -138,5 +146,49 @@ configured for ESM to import it.
 
 ## Provenance
 
-See [source-map.md](./source-map.md) for per-file provenance and scope decisions. Apache-2.0,
+See the archived provenance ledger for per-file provenance and scope decisions. Apache-2.0,
 inherited from Open Design — see the repo `NOTICE`.
+
+## Desktop policies and speech
+
+All additional entries keep application channels, labels, paths, locale, messages
+and persistence keys in required objects supplied by the host. No dependency was
+added. [API-USABILITY-SPEECH.md](./API-USABILITY-SPEECH.md) documents each usability
+and speech function, injected port, native binding and asset location. The four
+policy/toolchain subpaths are documented in [API.md](./API.md).
+
+The root and native shell entry points retain their existing export names. The
+object-argument conversion is a breaking caller change: bind native methods to the
+exported port interfaces, including usability and speech callbacks, before injecting
+SDK objects. Find/zoom renderer hooks remain application-owned pending a separate
+React entry; the current additions cover main-process behavior and the speech bridge.
+
+Verification for this integration is not run by owner directive. The exact per-file
+commands and later consumer rewiring requests are in
+[INTEGRATION-desktop-host.md](./INTEGRATION-desktop-host.md).
+
+## Native updater and navigation callbacks
+
+`./electron/updates` accepts the structural native electron-updater surface directly: `on(event, listener)` and `quitAndInstall(isSilent?, isForceRunAfter?)`. `createElectronUpdaterAdapter({ updater })` forwards mutable flags and retains the native receiver without importing Electron. Controllers take a core `Clock` in `clock`; effects remain required. Timer, timing and message overrides go in the second options object:
+
+```ts
+import { createSystemClock } from '@jini-ai/core/primitives';
+import { createAutoUpdateController } from '@jini-ai/desktop-host/electron/updates';
+
+const controller = createAutoUpdateController({
+  updater, platform, pid, presence, clock: createSystemClock(),
+  promptUpdateReady, explainOthersOpen, quit, log,
+}, { timing: { firstCheckDelayMs: 30_000 } });
+```
+
+The default Node timer adapter is also exported as `createNodeUpdateTimers()`. Default timing is 30 seconds before the first check, 15-minute ticks, four-hour checks, 45-minute stale presence and a two-minute install fallback. Partial timing overrides inherit the other values. `defaultUpdateMessages` is the single exported controller copy object; a host can replace it as a whole through `options.messages`. Options override legacy settings in the dependency object.
+
+`./electron/navigation-policy` accepts raw `webContents`, including `setWindowOpenHandler(handler)` and native navigation/redirect listeners. Origin and scheme checks stay the same.
+
+`UpdaterLike` and `NavigableContents` are unions with the existing object registration types, exported as `LegacyUpdaterLike` and `LegacyNavigableContents`. The legacy controller `now` callback and dependency-object timers/timing/messages also remain accepted during migration. Native `on` implementations have two parameters (or a rest tuple); the old object registration has one. Custom one-parameter native updater facades should use `createElectronUpdaterAdapter`. Popup-only contents receive a callable handler that also supports the old `{ handler }` destructuring ABI. Hosts can remove their registration wrappers when ready.
+
+File logging uses core `Logger`; `error` in the optional bag is normalized into the JSON metadata alongside `meta`, consistently across all three levels.
+
+## Native speech runtime asset
+
+`@jini-ai/desktop-host/speech/macos/speech-helper.swift` exports the Swift source used by the macOS speech adapter. The build copies it into `dist/speech/macos`; desktop hosts bundle or compile that source on macOS alongside the adapter. It is a required runtime asset, not a TypeScript entry.

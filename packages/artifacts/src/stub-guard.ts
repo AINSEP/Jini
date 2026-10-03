@@ -14,9 +14,7 @@
  * baking in OD's own file-kind taxonomy (per the task brief, kept
  * adapter-owned elsewhere in this port). `siblingExtensions` is now a
  * caller-supplied config field. `readArtifactStubGuardConfigFromEnv` read
- * three product-prefixed env vars (see `source-map.md` for the exact
- * original names); the names are now `ARTIFACT_STUB_GUARD*` (no product
- * prefix) — same three-var shape and defaults, just de-branded.
+ * host-supplied environment values under explicit caller-supplied names.
  *
  * This file is genuinely runtime-universal — no `node:fs` (or any other
  * Node-only API). The one thing that needs real disk I/O, scanning a
@@ -66,8 +64,7 @@ export class ArtifactRegressionError extends Error {
   readonly priorName: string;
 
   constructor(
-    message: string,
-    details: { identifier: string; newSize: number; priorSize: number; priorName: string },
+    { message, details }: { message: string; details: { identifier: string; newSize: number; priorSize: number; priorName: string } },
   ) {
     super(message);
     this.name = 'ArtifactRegressionError';
@@ -86,7 +83,7 @@ export const DEFAULT_ARTIFACT_STUB_GUARD_CONFIG: ArtifactStubGuardConfig = {
 };
 
 /** Slugifies a free-form identifier into a filename-safe basename (lowercase, `[a-z0-9_-]`, max 60 chars). */
-export function slugifyArtifactIdentifier(value: string): string {
+export function slugifyArtifactIdentifier({ value }: { value: string }): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, '-')
@@ -106,30 +103,30 @@ export const EMPTY_SLUG_FALLBACK_NAME = 'artifact';
  * form of the other avoids that while still bridging e.g. "Landing Page" and
  * "landing-page".
  */
-export function artifactIdentifiersMatch(a: string, b: string): boolean {
+export function artifactIdentifiersMatch({ a, b }: { a: string; b: string }): boolean {
   if (a === b) return true;
-  const slugA = slugifyArtifactIdentifier(a);
+  const slugA = slugifyArtifactIdentifier({ value: a });
   if (slugA.length === 0) return false;
-  const slugB = slugifyArtifactIdentifier(b);
+  const slugB = slugifyArtifactIdentifier({ value: b });
   if (slugA !== slugB) return false;
   return a === slugA || b === slugB;
 }
 
-/** Reads guard config from `ARTIFACT_STUB_GUARD` / `ARTIFACT_STUB_GUARD_MIN_RATIO` / `ARTIFACT_STUB_GUARD_MIN_PRIOR_BYTES`, falling back to `defaults` for any unset/invalid value. */
+/** Reads guard configuration from explicit environment values and host-owned names, using optional defaults for unset or invalid values. */
 export function readArtifactStubGuardConfigFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
-  defaults: ArtifactStubGuardConfig = DEFAULT_ARTIFACT_STUB_GUARD_CONFIG,
+  { env, names }: { env: Readonly<Record<string, string | undefined>>; names: { mode: string; minRatio: string; minPriorBytes: string } },
+  { defaults = DEFAULT_ARTIFACT_STUB_GUARD_CONFIG }: { defaults?: ArtifactStubGuardConfig } = {},
 ): ArtifactStubGuardConfig {
-  const rawMode = (env.ARTIFACT_STUB_GUARD ?? '').toLowerCase();
+  const rawMode = (env[names.mode] ?? '').toLowerCase();
   const mode: ArtifactStubGuardMode =
     rawMode === 'reject' || rawMode === 'warn' || rawMode === 'off' ? rawMode : defaults.mode;
 
-  const ratioRaw = Number(env.ARTIFACT_STUB_GUARD_MIN_RATIO);
+  const ratioRaw = Number(env[names.minRatio]);
   // Accept (0, 1] so a caller can set 1 to reject any shrinkage. Values <=0 or >1 fall back to default.
   const minRetainedRatio =
     Number.isFinite(ratioRaw) && ratioRaw > 0 && ratioRaw <= 1 ? ratioRaw : defaults.minRetainedRatio;
 
-  const minPriorBytesRaw = Number(env.ARTIFACT_STUB_GUARD_MIN_PRIOR_BYTES);
+  const minPriorBytesRaw = Number(env[names.minPriorBytes]);
   const minPriorBytes =
     Number.isInteger(minPriorBytesRaw) && minPriorBytesRaw > 0 ? minPriorBytesRaw : defaults.minPriorBytes;
 
@@ -153,10 +150,7 @@ function buildWarning(identifier: string, newSize: number, prior: PriorArtifactS
 
 /** Pure decision function: given the prior siblings on disk, decides whether the new body is a stub regression. Split from the disk scan so unit tests stay fast and can pre-fetch siblings. */
 export function classifyArtifactStubGuard(
-  priors: readonly PriorArtifactSibling[],
-  identifier: string,
-  newSize: number,
-  config: ArtifactStubGuardConfig,
+  { priors, identifier, newSize, config }: { priors: readonly PriorArtifactSibling[]; identifier: string; newSize: number; config: ArtifactStubGuardConfig },
 ): EvaluateArtifactStubGuardResult {
   if (config.mode === 'off') return { outcome: 'pass' };
   if (identifier.length === 0) return { outcome: 'pass' };

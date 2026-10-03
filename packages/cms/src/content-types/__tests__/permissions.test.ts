@@ -4,17 +4,18 @@ import { test } from "vitest";
 import { registerContentType } from "../write-service.js";
 
 /**
- * @file REQ-23 — every Collections route/tool is gated by exactly one of
+ * @file every Collections route/tool is gated by exactly one of
  * `admin.collections.read` (read-class operations) or `admin.collections.manage` (mutating
  * operations).
  *
- * Covers: AC-36 (read-only principal denied on a mutating call), AC-37 (read-only principal
+ * Covers: (read-only principal denied on a mutating call), (read-only principal
  * allowed on a read call — asserted here at the write-side negative case; the positive read case
  * is exercised implicitly by every other unit test's use of `alwaysAllow` for read-only actions).
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 
 const NOW = "2026-07-15T00:00:00.000Z";
-const clock = { nowIso: () => NOW };
+const clock = { nowMs: () => Date.parse(NOW)};
 let idCounter = 0;
 const ids = { newId: () => `ct-perm-${++idCounter}` };
 
@@ -27,7 +28,7 @@ function fakeRepo() {
     },
     appendRevision: async () => undefined,
     findByKey: async () => null,
-    transaction: async <T>(fn: () => Promise<T>) => fn(),
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn(),
   };
 }
 

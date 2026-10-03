@@ -52,7 +52,7 @@ const MAX_HANDLE_LENGTH = 128;
  * @param handle - Candidate handle, typically caller-supplied.
  * @returns True when it is safe to interpolate into an attribute selector.
  */
-export function isValidElementHandle(handle: string): boolean {
+export function isValidElementHandle({ handle }: { handle: string }, _optional: Record<string, never> = {}): boolean {
   return handle.length > 0 && handle.length <= MAX_HANDLE_LENGTH && HANDLE_PATTERN.test(handle);
 }
 
@@ -63,8 +63,8 @@ export function isValidElementHandle(handle: string): boolean {
  * @returns The attribute selector for that handle.
  * @throws If the handle is not valid — never fall back to treating it as a raw selector.
  */
-export function resolveHandleSelector(handle: string): string {
-  if (!isValidElementHandle(handle)) {
+export function resolveHandleSelector({ handle }: { handle: string }, _optional: Record<string, never> = {}): string {
+  if (!isValidElementHandle({ handle })) {
     throw new Error(
       `invalid element handle "${handle.slice(0, MAX_HANDLE_LENGTH)}": `
       + 'handles are lowercase words joined by single hyphens, and are never CSS selectors',

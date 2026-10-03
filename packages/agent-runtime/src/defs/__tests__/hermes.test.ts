@@ -5,20 +5,21 @@ import { hermesAgentDef } from '../hermes.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 afterEach(() => {
-  setAcpModelProbe(null);
+  setAcpModelProbe({ probe: null });
 });
 
 describe('hermesAgentDef.fetchModels', () => {
   it('delegates to detectAcpModels with the ACP handshake args for the resolved binary', async () => {
     const seen: Array<{ bin: string; args: string[]; env?: unknown; timeoutMs?: number; defaultModelOption?: unknown }> = [];
     const stub: AcpModelProbe = {
-      detectModels: async (request) => {
+      detectModels: async (required, optional = {}) => {
+        const request = { ...optional, ...required };
         seen.push(request);
         return [{ id: 'grok-4.3', label: 'grok-4.3' }];
       },
     };
-    setAcpModelProbe(stub);
-    const models = await hermesAgentDef.fetchModels!('hermes', { FOO: 'bar' });
+    setAcpModelProbe({ probe: stub });
+    const models = await hermesAgentDef.fetchModels!({ resolvedBin: 'hermes', env: { FOO: 'bar' } });
     expect(models).toEqual([{ id: 'grok-4.3', label: 'grok-4.3' }]);
     expect(seen).toHaveLength(1);
     expect(seen[0]).toMatchObject({
@@ -34,11 +35,11 @@ describe('hermesAgentDef.fetchModels', () => {
 describe('hermesAgentDef.buildArgs', () => {
   it('always returns the ACP handshake argv, ignoring any input params', () => {
     const buildArgs: RuntimeAgentDef['buildArgs'] = hermesAgentDef.buildArgs;
-    expect(buildArgs('prompt', ['img.png'], ['/extra'], { model: 'x' }, { cwd: '/a' })).toEqual([
+    expect(buildArgs({ prompt: 'prompt', imagePaths: ['img.png'] }, { extraAllowedDirs: ['/extra'], options: { model: 'x' }, runtimeContext: { cwd: '/a' } })).toEqual([
       'acp',
       '--accept-hooks',
     ]);
-    expect(buildArgs('', [], [], {}, {})).toEqual(['acp', '--accept-hooks']);
+    expect(buildArgs({ prompt: '', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} })).toEqual(['acp', '--accept-hooks']);
   });
 });
 

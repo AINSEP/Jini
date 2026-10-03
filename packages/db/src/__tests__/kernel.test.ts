@@ -5,8 +5,8 @@ import Database from "better-sqlite3";
 import { Kysely, type RawBuilder, sql, SqliteDialect } from "kysely";
 
 import { jsonSet, jsonText, listColumns, listTables, nowIso, tableExists, toBool, toBytes } from "../kernel/index.js";
-import { openPgliteKernel } from "../pglite/index.js";
-import { sqliteKernel } from "../sqlite/index.js";
+import { openPgliteKernel } from "../kernel/pglite/index.js";
+import { sqliteKernel } from "../kernel/sqlite/index.js";
 import { buildKernel } from "../kernel/index.js";
 import { type StorageKernel, UnsupportedCapabilityError } from "../kernel/index.js";
 import { TurnLock } from "../kernel/index.js";

@@ -17,17 +17,17 @@ import type { ToolRegistration, ToolRegistry } from './tool-registry.js';
 type AnyPack = Pack<any, any, string>;
 
 /**
- * Registers `pack.tools(services)` for every pack in `packs` that declares one, in pack order,
+ * Registers `pack.tools({ services })` for every pack in `packs` that declares one, in pack order,
  * into the single shared `registry`.
  *
  * Order matters and is deliberately the caller's to choose: `ToolRegistry.register` throws on a
- * duplicate descriptor id, so whichever pack registers second is the one named in the error. A
- * composition root that wants a host's own tools to win that message registers the host's packs
- * last.
+ * duplicate descriptor id, so whichever pack registers second triggers the error. The registry
+ * message names only the tool ID, not either pack. A composition root that wants a host's own
+ * contribution to trigger the duplicate failure registers the host's packs last.
  *
- * @param registry - The shared registry every composed pack contributes into.
- * @param packs - The composed packs, in composition order.
- * @param daemon - The `createDaemon` result holding each pack's already-built services.
+ * @param required.registry - The shared registry every composed pack contributes into.
+ * @param required.packs - The composed packs, in composition order.
+ * @param required.daemon - The `createDaemon` result holding each pack's already-built services.
  * @returns Every registration that was added, in the order it was added — so a caller can seed a
  * catalog, log an inventory, or assert on the composition without re-deriving it.
  * @throws Whatever `ToolRegistry.register` throws (notably a duplicate descriptor id), at the
@@ -36,14 +36,12 @@ type AnyPack = Pack<any, any, string>;
  * @complexity O(t) in total contributed tools.
  */
 export function registerPackTools<const Packs extends readonly AnyPack[]>(
-  registry: ToolRegistry,
-  packs: Packs,
-  daemon: Daemon<Packs>,
+  { registry, packs, daemon }: { registry: ToolRegistry; packs: Packs; daemon: Daemon<Packs> },
 ): readonly ToolRegistration[] {
   const services = daemon.services as Record<string, unknown>;
   const registered: ToolRegistration[] = [];
   for (const pack of packs) {
-    for (const registration of pack.tools?.(services[pack.name]) ?? []) {
+    for (const registration of pack.tools?.({ services: services[pack.name] }) ?? []) {
       registry.register(registration);
       registered.push(registration);
     }
@@ -58,7 +56,7 @@ export interface PackDisposalFailure {
 }
 
 /**
- * Runs `pack.dispose(services)` for every pack that declares one, in **reverse** composition order
+ * Runs `pack.dispose({ services })` for every pack that declares one, in **reverse** composition order
  * (a pack composed later may depend on an earlier pack's resources, so it must release first).
  *
  * Best-effort by design: one pack throwing must never prevent the rest from disposing, or a single
@@ -66,14 +64,13 @@ export interface PackDisposalFailure {
  * and returned rather than thrown, leaving the composition root free to decide whether a teardown
  * failure is worth surfacing to its own caller.
  *
- * @param packs - The composed packs, in composition order (this function reverses them itself).
- * @param daemon - The `createDaemon` result holding each pack's already-built services.
+ * @param required.packs - The composed packs, in composition order (this function reverses them itself).
+ * @param required.daemon - The `createDaemon` result holding each pack's already-built services.
  * @returns The failures, in the order they occurred. Empty when every pack disposed cleanly.
  * @complexity O(p) in pack count, plus each pack's own teardown cost.
  */
 export async function disposePacks<const Packs extends readonly AnyPack[]>(
-  packs: Packs,
-  daemon: Daemon<Packs>,
+  { packs, daemon }: { packs: Packs; daemon: Daemon<Packs> },
 ): Promise<readonly PackDisposalFailure[]> {
   const services = daemon.services as Record<string, unknown>;
   const failures: PackDisposalFailure[] = [];
@@ -81,7 +78,7 @@ export async function disposePacks<const Packs extends readonly AnyPack[]>(
     const pack = packs[index]!;
     if (!pack.dispose) continue;
     try {
-      await pack.dispose(services[pack.name]);
+      await pack.dispose({ services: services[pack.name] });
     } catch (error) {
       failures.push({ pack: pack.name, error });
     }

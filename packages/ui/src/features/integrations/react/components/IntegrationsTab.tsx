@@ -104,13 +104,13 @@ export function IntegrationsTab({
           onSelect={setClientId}
           methodLabel={methodLabel}
           methodLabels={methodLabels}
-          {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'client') } : {})}
+          {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'client' }) } : {})}
         />
 
         {resolved ? <p className="jini-mcp-instruction">{t(resolved.instructionTemplate, resolved.instructionVars)}</p> : null}
 
         {client?.id === 'codex' ? (
-          <CodexInstallToggleButton port={resolvedPort} {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'codex-toggle') } : {})} />
+          <CodexInstallToggleButton port={resolvedPort} {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'codex-toggle' }) } : {})} />
         ) : null}
 
         {resolved?.deeplink && info ? (
@@ -130,7 +130,7 @@ export function IntegrationsTab({
                 if (isMcpInstallPrerequisiteMissing(info)) event.preventDefault();
               }}
               rel="noopener noreferrer"
-              {...agentHandleProps(agentHandle, { action: 'one-click-install', role: 'link', label: t('One-click install') })}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'one-click-install', role: 'link', label: t('One-click install') }) })}
             >
               {t('One-click install')}
             </a>

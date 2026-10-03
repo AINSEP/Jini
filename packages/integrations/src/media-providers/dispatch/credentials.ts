@@ -12,7 +12,7 @@ import { PROVIDER_CREDENTIAL_ENV_VARS } from '../providers.js';
 import type { ProviderCredentials } from './types.js';
 
 /** Resolves `{ apiKey }` for `providerId` from the first set environment variable in its priority list, or `{}` if none are set / the provider has no known env vars. */
-export function resolveProviderCredentialsFromEnv(providerId: string, env: NodeJS.ProcessEnv = process.env): ProviderCredentials {
+export function resolveProviderCredentialsFromEnv({ providerId, env }: { providerId: string; env: NodeJS.ProcessEnv }): ProviderCredentials {
   const candidates = PROVIDER_CREDENTIAL_ENV_VARS[providerId];
   if (!candidates) return {};
   for (const name of candidates) {

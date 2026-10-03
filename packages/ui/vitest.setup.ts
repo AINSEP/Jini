@@ -4,7 +4,7 @@ import { cleanup } from '@testing-library/react';
 // etc.) on vitest's `expect` — added alongside `features/viewer-shell`
 // (2026-07-17), the first task in this package to want those matchers;
 // prior feature tests asserted against raw DOM/text-content instead. See
-// `packages/ui/source-map.md`. (Independently re-added for the
+// `packages/ui/archived provenance ledger`. (Independently re-added for the
 // settings-dialog feature's tests too, same reasoning — this augments
 // `expect` globally, so it's harmless either way.)
 import '@testing-library/jest-dom/vitest';

@@ -9,16 +9,16 @@ afterEach(() => {
 
 describe('opencodeAgentDef.buildArgs', () => {
   it('builds the base run/json argv with no capability flags, resume id, or model', () => {
-    expect(opencodeAgentDef.buildArgs('hi', [], [], {}, {})).toEqual(['run', '--format', 'json']);
+    expect(opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} })).toEqual(['run', '--format', 'json']);
   });
 
   it('defaults options and runtimeContext to {} when omitted entirely', () => {
-    expect(opencodeAgentDef.buildArgs('hi', [], [])).toEqual(['run', '--format', 'json']);
+    expect(opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] })).toEqual(['run', '--format', 'json']);
   });
 
   it('adds the skip-permissions flag when the capability is recorded as enabled', () => {
     agentCapabilities.set('opencode', { skipPermissions: true });
-    expect(opencodeAgentDef.buildArgs('hi', [], [], {}, {})).toEqual([
+    expect(opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} })).toEqual([
       'run',
       '--format',
       'json',
@@ -28,7 +28,7 @@ describe('opencodeAgentDef.buildArgs', () => {
 
   it('does not add the skip-permissions flag when permissionMode is "restricted", even if the CLI supports it', () => {
     agentCapabilities.set('opencode', { skipPermissions: true });
-    expect(opencodeAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' }, {})).toEqual([
+    expect(opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { permissionMode: 'restricted' }, runtimeContext: {} })).toEqual([
       'run',
       '--format',
       'json',
@@ -37,16 +37,16 @@ describe('opencodeAgentDef.buildArgs', () => {
 
   it('does not add the skip-permissions flag when the capability is recorded as disabled', () => {
     agentCapabilities.set('opencode', { skipPermissions: false });
-    expect(opencodeAgentDef.buildArgs('hi', [], [], {}, {})).toEqual(['run', '--format', 'json']);
+    expect(opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} })).toEqual(['run', '--format', 'json']);
   });
 
   it('does not add the skip-permissions flag when no capabilities were ever recorded for opencode', () => {
     expect(agentCapabilities.has('opencode')).toBe(false);
-    expect(opencodeAgentDef.buildArgs('hi', [], [], {}, {})).toEqual(['run', '--format', 'json']);
+    expect(opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} })).toEqual(['run', '--format', 'json']);
   });
 
   it('adds -s <id> when runtimeContext.resumeSessionId is a non-empty string', () => {
-    expect(opencodeAgentDef.buildArgs('hi', [], [], {}, { resumeSessionId: 'ses_123' })).toEqual([
+    expect(opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { resumeSessionId: 'ses_123' } })).toEqual([
       'run',
       '--format',
       'json',
@@ -56,7 +56,7 @@ describe('opencodeAgentDef.buildArgs', () => {
   });
 
   it('omits -s when resumeSessionId is an empty string', () => {
-    expect(opencodeAgentDef.buildArgs('hi', [], [], {}, { resumeSessionId: '' })).toEqual([
+    expect(opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { resumeSessionId: '' } })).toEqual([
       'run',
       '--format',
       'json',
@@ -64,7 +64,7 @@ describe('opencodeAgentDef.buildArgs', () => {
   });
 
   it('omits -s when resumeSessionId is null', () => {
-    expect(opencodeAgentDef.buildArgs('hi', [], [], {}, { resumeSessionId: null })).toEqual([
+    expect(opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { resumeSessionId: null } })).toEqual([
       'run',
       '--format',
       'json',
@@ -72,11 +72,11 @@ describe('opencodeAgentDef.buildArgs', () => {
   });
 
   it('omits -s when resumeSessionId is undefined', () => {
-    expect(opencodeAgentDef.buildArgs('hi', [], [], {}, {})).toEqual(['run', '--format', 'json']);
+    expect(opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} })).toEqual(['run', '--format', 'json']);
   });
 
   it('adds -m <model> when a non-default model is selected', () => {
-    expect(opencodeAgentDef.buildArgs('hi', [], [], { model: 'openai/gpt-5' }, {})).toEqual([
+    expect(opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'openai/gpt-5' }, runtimeContext: {} })).toEqual([
       'run',
       '--format',
       'json',
@@ -86,7 +86,7 @@ describe('opencodeAgentDef.buildArgs', () => {
   });
 
   it('omits -m when the model is the literal string "default"', () => {
-    expect(opencodeAgentDef.buildArgs('hi', [], [], { model: 'default' }, {})).toEqual([
+    expect(opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'default' }, runtimeContext: {} })).toEqual([
       'run',
       '--format',
       'json',
@@ -95,12 +95,7 @@ describe('opencodeAgentDef.buildArgs', () => {
 
   it('composes all optional flags together in order', () => {
     agentCapabilities.set('opencode', { skipPermissions: true });
-    const args = opencodeAgentDef.buildArgs(
-      'hi',
-      [],
-      [],
-      { model: 'openai/gpt-5' },
-      { resumeSessionId: 'ses_abc' },
+    const args = opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'openai/gpt-5' }, runtimeContext: { resumeSessionId: 'ses_abc' } }
     );
     expect(args).toEqual([
       'run',

@@ -44,12 +44,12 @@ export interface ExtractionLog {
   startExtraction(input: { userMessage: string; kind: string }): string;
   recordSkip(input: { userMessage: string; reason: string; kind: string }): string;
   recordHeuristic(input: { userMessage: string; kind: string; writtenCount: number; writtenIds: string[] }): string;
-  markProvider(id: string, provider: ExtractionProvider): void;
-  markProposed(id: string, proposedCount: number): void;
-  markSuccess(id: string, outcome: { writtenCount: number; writtenIds: string[] }): void;
-  markFailed(id: string, error: unknown): void;
+  markProvider(required: { id: string; provider: ExtractionProvider }): void;
+  markProposed(required: { id: string; proposedCount: number }): void;
+  markSuccess(required: { id: string; outcome: { writtenCount: number; writtenIds: string[] } }): void;
+  markFailed(required: { id: string; error: unknown }): void;
   list(): ExtractionRecord[];
-  remove(id: string): number;
+  remove(required: { id: string }): number;
   clear(): number;
 }
 
@@ -72,7 +72,10 @@ function clone(record: ExtractionRecord): ExtractionRecord {
  *
  * @returns A fresh, independent `ExtractionLog`.
  */
-export function createExtractionLog(): ExtractionLog {
+export function createExtractionLog(_required: Record<string, never>, optional: { now?: () => number; ids?: () => string; defer?: (required: { callback: () => void }) => void } = {}): ExtractionLog {
+  const nowMs = optional.now ?? Date.now;
+  const nextId = optional.ids ?? randomUUID;
+  const defer = optional.defer ?? (({ callback }: { callback: () => void }) => { setImmediate(callback); });
   const records: ExtractionRecord[] = []; // newest first
   const events = new EventEmitter();
   events.setMaxListeners(64);
@@ -80,13 +83,13 @@ export function createExtractionLog(): ExtractionLog {
   function emit(record: ExtractionRecord | { id: string; phase: ExtractionPhase; startedAt: number; finishedAt: number }): void {
     // Deferred so a synchronous follow-up update in the same call doesn't
     // fire two events back-to-back within one tick.
-    setImmediate(() => {
+    defer({ callback: () => {
       try {
         events.emit('attempt', { ...record });
       } catch {
         // A listener throwing is not this module's problem.
       }
-    });
+    } });
   }
 
   function pushNewest(record: ExtractionRecord): void {
@@ -100,9 +103,9 @@ export function createExtractionLog(): ExtractionLog {
 
   function startExtraction(input: { userMessage: string; kind: string }): string {
     const record: ExtractionRecord = {
-      id: randomUUID(),
+      id: nextId(),
       kind: input.kind,
-      startedAt: Date.now(),
+      startedAt: nowMs(),
       phase: 'running',
       userMessagePreview: trim(input.userMessage, PREVIEW_CAP),
     };
@@ -112,9 +115,9 @@ export function createExtractionLog(): ExtractionLog {
   }
 
   function recordSkip(input: { userMessage: string; reason: string; kind: string }): string {
-    const now = Date.now();
+    const now = nowMs();
     const record: ExtractionRecord = {
-      id: randomUUID(),
+      id: nextId(),
       kind: input.kind,
       startedAt: now,
       finishedAt: now,
@@ -129,9 +132,9 @@ export function createExtractionLog(): ExtractionLog {
 
   function recordHeuristic(input: { userMessage: string; kind: string; writtenCount: number; writtenIds: string[] }): string {
     const written = Number.isFinite(input.writtenCount) ? Math.max(0, Math.floor(input.writtenCount)) : 0;
-    const now = Date.now();
+    const now = nowMs();
     const record: ExtractionRecord = {
-      id: randomUUID(),
+      id: nextId(),
       kind: input.kind,
       startedAt: now,
       finishedAt: now,
@@ -146,37 +149,37 @@ export function createExtractionLog(): ExtractionLog {
     return record.id;
   }
 
-  function markProvider(id: string, provider: ExtractionProvider): void {
+  function markProvider({ id, provider }: { id: string; provider: ExtractionProvider }): void {
     const rec = findById(id);
     if (!rec) return;
     rec.provider = { kind: provider.kind, model: provider.model, credentialSource: provider.credentialSource ?? null };
     emit(rec);
   }
 
-  function markProposed(id: string, proposedCount: number): void {
+  function markProposed({ id, proposedCount }: { id: string; proposedCount: number }): void {
     const rec = findById(id);
     if (!rec) return;
     rec.proposedCount = proposedCount;
     emit(rec);
   }
 
-  function markSuccess(id: string, outcome: { writtenCount: number; writtenIds: string[] }): void {
+  function markSuccess({ id, outcome }: { id: string; outcome: { writtenCount: number; writtenIds: string[] } }): void {
     const rec = findById(id);
     if (!rec) return;
     rec.phase = 'success';
     rec.writtenCount = outcome.writtenCount;
     rec.writtenIds = outcome.writtenIds.slice(0, 12);
-    rec.finishedAt = Date.now();
+    rec.finishedAt = nowMs();
     emit(rec);
   }
 
-  function markFailed(id: string, error: unknown): void {
+  function markFailed({ id, error }: { id: string; error: unknown }): void {
     const rec = findById(id);
     if (!rec) return;
     rec.phase = 'failed';
     const message = error instanceof Error ? error.message : String(error ?? 'unknown error');
     rec.error = trimError(message);
-    rec.finishedAt = Date.now();
+    rec.finishedAt = nowMs();
     emit(rec);
   }
 
@@ -184,17 +187,17 @@ export function createExtractionLog(): ExtractionLog {
     return records.map(clone);
   }
 
-  function remove(id: string): number {
+  function remove({ id }: { id: string }): number {
     const idx = records.findIndex((r) => r.id === id);
     if (idx < 0) return 0;
     const [removed] = records.splice(idx, 1);
-    setImmediate(() => {
+    defer({ callback: () => {
       try {
         events.emit('attempt', { ...removed, phase: 'deleted' });
       } catch {
         // A listener throwing is not this module's problem.
       }
-    });
+    } });
     return 1;
   }
 
@@ -202,14 +205,14 @@ export function createExtractionLog(): ExtractionLog {
     const removed = records.length;
     records.length = 0;
     if (removed > 0) {
-      const now = Date.now();
-      setImmediate(() => {
+      const now = nowMs();
+      defer({ callback: () => {
         try {
           events.emit('attempt', { id: 'all', phase: 'cleared', startedAt: now, finishedAt: now });
         } catch {
           // A listener throwing is not this module's problem.
         }
-      });
+      } });
     }
     return removed;
   }

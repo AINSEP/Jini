@@ -5,20 +5,21 @@ import { kiroAgentDef } from '../kiro.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 afterEach(() => {
-  setAcpModelProbe(null);
+  setAcpModelProbe({ probe: null });
 });
 
 describe('kiroAgentDef.fetchModels', () => {
   it('delegates to detectAcpModels with the ACP handshake args for the resolved binary', async () => {
     const seen: Array<{ bin: string; args: string[] }> = [];
     const stub: AcpModelProbe = {
-      detectModels: async (request) => {
+      detectModels: async (required, optional = {}) => {
+        const request = { ...optional, ...required };
         seen.push({ bin: request.bin, args: request.args });
         return [{ id: 'x', label: 'x' }];
       },
     };
-    setAcpModelProbe(stub);
-    const models = await kiroAgentDef.fetchModels!('kiro-cli', {});
+    setAcpModelProbe({ probe: stub });
+    const models = await kiroAgentDef.fetchModels!({ resolvedBin: 'kiro-cli', env: {} });
     expect(models).toEqual([{ id: 'x', label: 'x' }]);
     expect(seen).toEqual([{ bin: 'kiro-cli', args: ['acp'] }]);
   });
@@ -27,7 +28,7 @@ describe('kiroAgentDef.fetchModels', () => {
 describe('kiroAgentDef.buildArgs', () => {
   it('always returns the ACP argv, ignoring any input params', () => {
     const buildArgs: RuntimeAgentDef['buildArgs'] = kiroAgentDef.buildArgs;
-    expect(buildArgs('prompt', ['img.png'], ['/extra'], { model: 'x' }, { cwd: '/a' })).toEqual(['acp']);
+    expect(buildArgs({ prompt: 'prompt', imagePaths: ['img.png'] }, { extraAllowedDirs: ['/extra'], options: { model: 'x' }, runtimeContext: { cwd: '/a' } })).toEqual(['acp']);
   });
 });
 

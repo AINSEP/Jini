@@ -1,0 +1,37 @@
+package,file_relative_to_packages,line,import_text
+devops,devops/src/deploy/__tests__/tool.test.ts,1,import { createToolExecutor } from '@jini-ai/daemon';
+http-kit,http-kit/src/__tests__/db-ops.test.ts,5,"import { createToolExecutor, type ToolExecutor } from '@jini-ai/daemon';"
+http-kit,http-kit/src/__tests__/delegated-tools-host-described-internal-error.test.ts,3,"import { createInMemoryEventLog, createRunLifecycle, createToolExecutor, type ToolExecutionResult, type ToolExecutor, } from '@jini-ai/daemon';"
+http-kit,http-kit/src/__tests__/delegated-tools-host-safe-failure.test.ts,3,"import { createInMemoryEventLog, createRunLifecycle, createToolExecutor, type ToolExecutionResult, type ToolExecutor, } from '@jini-ai/daemon';"
+http-kit,http-kit/src/__tests__/delegated-tools.test.ts,3,"import { createInMemoryEventLog, createRunLifecycle, createToolExecutor, type RunLifecycle, type ToolExecutor, } from '@jini-ai/daemon';"
+http-kit,http-kit/src/__tests__/frontend-sessions.test.ts,6,"import { createFrontendSessionRegistry, type FrontendSessionRegistry } from '@jini-ai/daemon';"
+http-kit,http-kit/src/__tests__/read-only-tools.test.ts,4,"import { createToolExecutor, type ToolExecutor } from '@jini-ai/daemon';"
+http-kit,http-kit/src/__tests__/remote-run-events.test.ts,2,"import { createInMemoryEventLog, createRemoteToolEventRecorder, createRunLifecycle, type RunLifecycle } from '@jini-ai/daemon';"
+http-kit,http-kit/src/__tests__/routines.test.ts,5,"import { createInMemoryRoutineStore, validateSchedule, type Routine, type RoutineRun, type RoutineStore, } from '@jini-ai/daemon';"
+http-kit,http-kit/src/__tests__/runs.test.ts,2,"import { createInMemoryEventLog, createRunLifecycle, type RunLifecycle } from '@jini-ai/daemon';"
+http-kit,http-kit/src/__tests__/terminals.test.ts,3,"import { createTerminalSessionManager, createTerminalToolRegistrations, createToolExecutor, TERMINAL_CREATE_TOOL_ID, type TerminalSessionManager, type ToolExecutor, } from '@jini-ai/daemon';"
+http-kit,http-kit/src/db-ops.ts,42,"import type { ToolExecutionResult, ToolExecutor } from '@jini-ai/daemon';"
+http-kit,http-kit/src/delegated-tools.ts,32,"import { createDelegatedToolBridge, type RunLifecycle, type ToolExecutionResult, type ToolExecutor } from '@jini-ai/daemon';"
+http-kit,http-kit/src/frontend-control.ts,39,"import { createFrontendCapabilityRegistrations, createFrontendSessionRegistry, type FrontendCapabilitySpec, } from '@jini-ai/daemon';"
+http-kit,http-kit/src/frontend-sessions.ts,34,"import type { FrontendSessionHandle, FrontendSessionRegistry } from '@jini-ai/daemon';"
+http-kit,http-kit/src/read-only-tools.ts,2,import type { ToolExecutor } from '@jini-ai/daemon';
+http-kit,http-kit/src/remote-run-events.ts,28,"import type { RemoteToolEventRecorder, RunLifecycle } from '@jini-ai/daemon';"
+http-kit,http-kit/src/routines.ts,67,"import { validateSchedule, validateTarget, type Routine, type RoutineContextSelection, type RoutineCreateInput, type RoutineProjectTarget, type RoutineRun, type RoutineSchedule, type RoutineService, type RoutineStore, type RoutineUpdateInput, } from '@jini-ai/daemon';"
+http-kit,http-kit/src/runs.ts,9,"import type { RunLifecycle, StartRunInput, Unsubscribe } from '@jini-ai/daemon';"
+http-kit,http-kit/src/terminals.ts,31,"import type { TerminalSessionActionResult, TerminalSessionInfo, TerminalSessionManager, TerminalSseSink, } from '@jini-ai/daemon';"
+http-kit,http-kit/src/terminals.ts,37,import { TERMINAL_CREATE_TOOL_ID } from '@jini-ai/daemon';
+http-kit,http-kit/src/terminals.ts,38,"import type { ToolExecutionResult, ToolExecutor } from '@jini-ai/daemon';"
+server,server/src/__tests__/compose-jini-kernel.test.ts,609,import('@jini-ai/daemon/store/event-log/sqlite')
+server,server/src/__tests__/create-local-node-daemon.test.ts,9,import { AgentExecutorToken } from '@jini-ai/daemon';
+server,server/src/__tests__/create-local-node-daemon.test.ts,13,import * as SqliteModule from '@jini-ai/daemon/store/event-log/sqlite';
+server,server/src/__tests__/kernel-base.test.ts,6,import * as SqliteModule from '@jini-ai/daemon/store/event-log/sqlite';
+server,server/src/builtin-features.ts,24,"import { createDefaultRunStartHandler, createRemoteToolEventRecorder, isAgentExecutorSupported, createTerminalSessionManager, createTerminalToolRegistrations, type ResolveRunInput, type TerminalSessionManager, } from '@jini-ai/daemon';"
+server,server/src/compose-jini-kernel.ts,43,"import { AgentExecutorToken, EventLogToken, RunLifecycleToken } from '@jini-ai/daemon';"
+server,server/src/create-local-node-daemon.ts,41,"import type { ResolveRunInput, RunLifecycle } from '@jini-ai/daemon';"
+server,server/src/kernel-base.ts,20,"import { createAgentExecutor, createInMemoryEventLog, createRunByteJournal, createRunLifecycle, createToolExecutor, resumableFromProcessExit, type AgentExecutor, type EventLog, type RunLifecycle, type RunRetrySideEffectState, type ToolExecutor, } from '@jini-ai/daemon';"
+server,server/src/kernel-base.ts,33,import { openSqliteEventLog } from '@jini-ai/daemon/store/event-log/sqlite';
+server,server/src/storage/__tests__/legacy-sqlite.test.ts,10,"import { getAgentSession,upsertAgentSession,getAgentSessionRecord,latestCompletedAssistantMessageId,updateAgentSessionStableHash,clearAgentSession } from '@jini-ai/daemon/store/agent-sessions/sqlite';"
+server,server/src/storage/legacy/sqlite.ts,6,import { LEGACY_AGENT_SESSIONS_DDL } from '@jini-ai/daemon/store/agent-sessions/sqlite';
+sqlite,sqlite/src/index.ts,2,"export { createSqliteEventLog, DEFAULT_MAX_ENTRIES_PER_RUN } from '@jini-ai/daemon/store/event-log/sqlite';"
+sqlite,sqlite/src/index.ts,3,"export type { SqliteEventLog, SqliteEventLogOptions } from '@jini-ai/daemon/store/event-log/sqlite';"
+sqlite,sqlite/src/index.ts,16,"export { clearAgentSession, getAgentSession, getAgentSessionRecord, latestCompletedAssistantMessageId, updateAgentSessionStableHash, upsertAgentSession } from '@jini-ai/daemon/store/agent-sessions/sqlite';"

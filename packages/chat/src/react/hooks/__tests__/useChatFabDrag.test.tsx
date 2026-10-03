@@ -44,28 +44,28 @@ afterEach(() => {
 
 describe('clampChatFabToViewport', () => {
   it('clamps a position above/left of the margin up to the margin', () => {
-    const result = clampChatFabToViewport({ x: -50, y: -50 }, { width: 40, height: 40 });
+    const result = clampChatFabToViewport({ position: { x: -50, y: -50 }, size: { width: 40, height: 40 } });
     expect(result).toEqual({ x: CHAT_FAB_EDGE_MARGIN_PX, y: CHAT_FAB_EDGE_MARGIN_PX });
   });
 
   it('clamps a position beyond the viewport down to the far edge minus the margin', () => {
     vi.stubGlobal('innerWidth', 200);
     vi.stubGlobal('innerHeight', 150);
-    const result = clampChatFabToViewport({ x: 1000, y: 1000 }, { width: 40, height: 40 });
+    const result = clampChatFabToViewport({ position: { x: 1000, y: 1000 }, size: { width: 40, height: 40 } });
     expect(result).toEqual({ x: 200 - 40 - CHAT_FAB_EDGE_MARGIN_PX, y: 150 - 40 - CHAT_FAB_EDGE_MARGIN_PX });
   });
 
   it('leaves an already-in-bounds position unchanged', () => {
     vi.stubGlobal('innerWidth', 1024);
     vi.stubGlobal('innerHeight', 768);
-    const result = clampChatFabToViewport({ x: 300, y: 400 }, { width: 40, height: 40 });
+    const result = clampChatFabToViewport({ position: { x: 300, y: 400 }, size: { width: 40, height: 40 } });
     expect(result).toEqual({ x: 300, y: 400 });
   });
 
   it('falls back to the margin when the element is larger than the viewport', () => {
     vi.stubGlobal('innerWidth', 100);
     vi.stubGlobal('innerHeight', 100);
-    const result = clampChatFabToViewport({ x: 50, y: 50 }, { width: 500, height: 500 });
+    const result = clampChatFabToViewport({ position: { x: 50, y: 50 }, size: { width: 500, height: 500 } });
     expect(result).toEqual({ x: CHAT_FAB_EDGE_MARGIN_PX, y: CHAT_FAB_EDGE_MARGIN_PX });
   });
 });
@@ -76,7 +76,7 @@ interface HarnessHandle {
 
 const Harness = forwardRef<HarnessHandle, { onClick: () => void; mountButton?: boolean }>(
   function Harness({ onClick, mountButton = true }, ref) {
-    const drag = useChatFabDrag(onClick);
+    const drag = useChatFabDrag({ onClick: onClick });
     useImperativeHandle(ref, () => ({ position: drag.position }), [drag.position]);
     if (!mountButton) return null;
     return (

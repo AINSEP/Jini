@@ -1,4 +1,4 @@
-import { readdir, stat } from "node:fs/promises";
+import type { DiagnosticsFilesystemPort } from "./ports.js";
 import { join } from "node:path";
 
 import type { LogSource } from "./sources.js";
@@ -14,10 +14,10 @@ const DEFAULT_MAX_FILES_PER_AGENT = 3;
 
 const SAFE_DIR_ENTRY = /^[A-Za-z0-9._-]+$/u;
 
-async function statSafe(path: string): Promise<{ mtimeMs: number; isFile: boolean } | null> {
+async function statSafe(path: string, filesystem: DiagnosticsFilesystemPort): Promise<{ mtimeMs: number; isFile: boolean } | null> {
   try {
-    const info = await stat(path);
-    return { mtimeMs: info.mtimeMs, isFile: info.isFile() };
+    const info = await filesystem.stat({ absolutePath: path });
+    return { mtimeMs: info.mtimeMs, isFile: info.isFile };
   } catch {
     return null;
   }
@@ -32,7 +32,7 @@ async function statSafe(path: string): Promise<{ mtimeMs: number; isFile: boolea
  * IPC export bundle the same data.
  */
 export async function buildRunEventLogSources(
-  runsDir: string | null | undefined,
+  { runsDir, filesystem }: { runsDir: string | null | undefined; filesystem: DiagnosticsFilesystemPort },
   options: { maxRuns?: number; tailBytes?: number } = {},
 ): Promise<LogSource[]> {
   if (!runsDir) return [];
@@ -41,17 +41,17 @@ export async function buildRunEventLogSources(
 
   let entries;
   try {
-    entries = await readdir(runsDir, { withFileTypes: true });
+    entries = await filesystem.readDirectory({ absolutePath: runsDir });
   } catch {
     return [];
   }
 
   const candidates: Array<{ runId: string; absolutePath: string; mtimeMs: number }> = [];
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+    if (!entry.isDirectory) continue;
     if (!SAFE_DIR_ENTRY.test(entry.name)) continue;
     const absolutePath = join(runsDir, entry.name, "events.jsonl");
-    const info = await statSafe(absolutePath);
+    const info = await statSafe(absolutePath, filesystem);
     if (!info || !info.isFile) continue;
     candidates.push({ runId: entry.name, absolutePath, mtimeMs: info.mtimeMs });
   }
@@ -68,19 +68,20 @@ export async function buildRunEventLogSources(
 async function latestLogFilesIn(
   dir: string,
   max: number,
+  filesystem: DiagnosticsFilesystemPort,
 ): Promise<Array<{ name: string; absolutePath: string }>> {
-  let names: string[];
+  let names: Array<{ name: string; isDirectory: boolean }>;
   try {
-    names = await readdir(dir);
+    names = await filesystem.readDirectory({ absolutePath: dir });
   } catch {
     return [];
   }
   const candidates: Array<{ name: string; absolutePath: string; mtimeMs: number }> = [];
-  for (const name of names) {
+  for (const { name } of names) {
     if (!name.endsWith(".log")) continue;
     if (!SAFE_DIR_ENTRY.test(name)) continue;
     const absolutePath = join(dir, name);
-    const info = await statSafe(absolutePath);
+    const info = await statSafe(absolutePath, filesystem);
     if (!info || !info.isFile) continue;
     candidates.push({ name, absolutePath, mtimeMs: info.mtimeMs });
   }
@@ -89,8 +90,6 @@ async function latestLogFilesIn(
 }
 
 export interface AgentCliLogOptions {
-  /** User home directory; CLI configs/logs live under here. */
-  homeDir: string;
   /** Host application data dir; fallback location of an AMR-style OpenCode home. */
   dataDir?: string | null;
   /**
@@ -130,8 +129,11 @@ export interface AgentCliLogOptions {
  * or session transcripts — and the collected text still passes through the
  * bundle's redaction pass.
  */
-export async function buildAgentCliLogSources(options: AgentCliLogOptions): Promise<LogSource[]> {
-  const home = options.homeDir?.trim();
+export async function buildAgentCliLogSources(
+  { homeDir, filesystem }: { homeDir: string; filesystem: DiagnosticsFilesystemPort },
+  options: AgentCliLogOptions = {},
+): Promise<LogSource[]> {
+  const home = homeDir?.trim();
   if (!home) return [];
   const maxFiles = options.maxFilesPerAgent ?? DEFAULT_MAX_FILES_PER_AGENT;
   const tailBytes = options.tailBytes ?? DEFAULT_AGENT_LOG_TAIL_BYTES;
@@ -177,7 +179,7 @@ export async function buildAgentCliLogSources(options: AgentCliLogOptions): Prom
 
   const sources: LogSource[] = [];
   for (const { agent, dir } of agentDirs) {
-    const files = await latestLogFilesIn(dir, maxFiles);
+    const files = await latestLogFilesIn(dir, maxFiles, filesystem);
     for (const file of files) {
       sources.push({
         name: `agent-cli-logs/${agent}/${file.name}`,

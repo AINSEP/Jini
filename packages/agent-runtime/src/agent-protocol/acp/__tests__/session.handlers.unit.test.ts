@@ -32,7 +32,7 @@ import {
 } from '../session.js';
 import { createDsmlArtifactTextSuppressor, createToolCallTextSuppressor } from '../text-suppression.js';
 import { noopAccountFailureClassifier, type AccountFailureClassifier } from '../account-failure.js';
-import type { JsonObject } from '../types.js';
+import type { UnknownRecord } from '../types.js';
 
 function fakeEffects(overrides: Partial<AcpSessionEffects> = {}): AcpSessionEffects {
   return {
@@ -121,14 +121,14 @@ describe('handleRpcError', () => {
   it('promotes a matching opencode session error via failWithPayload', () => {
     const state = createAcpSessionState();
     const effects = fakeEffects();
-    const obj: JsonObject = {
+    const obj: UnknownRecord = {
       id: 3,
       error: {
         code: -32000,
         data: { kind: 'opencode_session_error', source: 'opencode', code: 'ROLE_MARKER_HALLUCINATION' },
       },
     };
-    handleRpcError({ state, effects, obj, error: obj.error as JsonObject, rpcErr: 'role marker' });
+    handleRpcError({ state, effects, obj, error: obj.error as UnknownRecord, rpcErr: 'role marker' });
     expect(effects.failWithPayload).toHaveBeenCalledOnce();
     expect(effects.fail).not.toHaveBeenCalled();
   });
@@ -143,8 +143,8 @@ describe('handleRpcError', () => {
   it('fails with retryable forwarded when error.data carries a retryable field', () => {
     const state = createAcpSessionState();
     const effects = fakeEffects();
-    const obj: JsonObject = { id: 1, error: { code: -32001, data: { retryable: true } } };
-    handleRpcError({ state, effects, obj, error: obj.error as JsonObject, rpcErr: 'protocol failure' });
+    const obj: UnknownRecord = { id: 1, error: { code: -32001, data: { retryable: true } } };
+    handleRpcError({ state, effects, obj, error: obj.error as UnknownRecord, rpcErr: 'protocol failure' });
     expect(effects.fail).toHaveBeenCalledWith('protocol failure', { details: { retryable: true }, retryable: true });
   });
 });
@@ -183,9 +183,9 @@ describe('handleThoughtChunkUpdate', () => {
     const effects = fakeEffects();
     handleThoughtChunkUpdate({ state, effects, update: { content: { text: 'first' } } });
     handleThoughtChunkUpdate({ state, effects, update: { content: { text: 'second' } } });
-    expect(effects.send).toHaveBeenNthCalledWith(1, 'agent', { type: 'thinking_start' });
-    expect(effects.send).toHaveBeenNthCalledWith(2, 'agent', { type: 'thinking_delta', delta: 'first' });
-    expect(effects.send).toHaveBeenNthCalledWith(3, 'agent', { type: 'thinking_delta', delta: 'second' });
+    expect(effects.send).toHaveBeenNthCalledWith(1, { event: 'agent', payload: { type: 'thinking_start' } });
+    expect(effects.send).toHaveBeenNthCalledWith(2, { event: 'agent', payload: { type: 'thinking_delta', delta: 'first' } });
+    expect(effects.send).toHaveBeenNthCalledWith(3, { event: 'agent', payload: { type: 'thinking_delta', delta: 'second' } });
     expect(state.emittedThinkingStart).toBe(true);
   });
 });
@@ -415,8 +415,8 @@ describe('mirrorArtifactWriteToolEvent', () => {
       update: { title: 'Write file.html', status: 'completed', locations: [{ path: 'file.html' }] },
       toolCallId: 'tc-1',
     });
-    expect(effects.send).toHaveBeenCalledWith('agent', { type: 'tool_use', id: 'tc-1', name: 'Write', input: { file_path: 'file.html' } });
-    expect(effects.send).toHaveBeenCalledWith('agent', { type: 'tool_result', toolUseId: 'tc-1', isError: false });
+    expect(effects.send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'tool_use', id: 'tc-1', name: 'Write', input: { file_path: 'file.html' } } });
+    expect(effects.send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'tool_result', toolUseId: 'tc-1', isError: false } });
     expect(state.emittedConcreteToolEvent).toBe(true);
   });
 
@@ -424,8 +424,8 @@ describe('mirrorArtifactWriteToolEvent', () => {
     const state = createAcpSessionState();
     const effects = fakeEffects();
     mirrorArtifactWriteToolEvent({ state, effects, update: { title: 'edit', status: 'failed' }, toolCallId: 'tc-9' });
-    expect(effects.send).toHaveBeenCalledWith('agent', expect.objectContaining({ type: 'tool_result', isError: true }));
-    expect(effects.send).toHaveBeenCalledWith('agent', expect.objectContaining({ input: { file_path: 'tc-9' } }));
+    expect(effects.send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ type: 'tool_result', isError: true }) });
+    expect(effects.send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ input: { file_path: 'tc-9' } }) });
   });
 
   it('does not double-emit for the same toolCallId once already emitted', () => {
@@ -491,7 +491,7 @@ describe('handleToolCallUpdate', () => {
       update: { toolCallId: 'tc-1', title: 'Write out.txt', status: 'completed', locations: [{ path: 'out.txt' }] },
     });
     expect(state.emittedToolCall).toBe(true);
-    expect(effects.send).toHaveBeenCalledWith('agent', expect.objectContaining({ type: 'tool_use' }));
+    expect(effects.send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ type: 'tool_use' }) });
   });
 });
 
@@ -508,22 +508,22 @@ describe('handleSessionUpdate', () => {
     const state = createAcpSessionState();
     const effects = fakeEffects();
     handleSessionUpdate({ state, effects, update: { sessionUpdate: 'plan' } });
-    expect(effects.send).toHaveBeenCalledWith('agent', expect.objectContaining({ type: 'status', label: 'plan' }));
+    expect(effects.send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ type: 'status', label: 'plan' }) });
   });
 
   it('falls back to "session_update" as the label when sessionUpdate is missing', () => {
     const state = createAcpSessionState();
     const effects = fakeEffects();
     handleSessionUpdate({ state, effects, update: {} });
-    expect(effects.send).toHaveBeenCalledWith('agent', expect.objectContaining({ label: 'session_update' }));
+    expect(effects.send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ label: 'session_update' }) });
   });
 
   it('routes agent_thought_chunk to the thought handler without a generic status event', () => {
     const state = createAcpSessionState();
     const effects = fakeEffects();
     handleSessionUpdate({ state, effects, update: { sessionUpdate: 'agent_thought_chunk', content: { text: 'thinking' } } });
-    expect(effects.send).toHaveBeenCalledWith('agent', { type: 'thinking_start' });
-    expect(effects.send).not.toHaveBeenCalledWith('agent', expect.objectContaining({ type: 'status' }));
+    expect(effects.send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'thinking_start' } });
+    expect(effects.send).not.toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ type: 'status' }) });
   });
 
   it('routes agent_message_chunk to the message handler without a generic status event', () => {
@@ -720,7 +720,7 @@ describe('handleModelSetAck', () => {
     const effects = fakeEffects({ model: 'gpt-5' });
     handleModelSetAck({ state, effects, result: {} });
     expect(state.activeModel).toBe('gpt-5');
-    expect(effects.send).toHaveBeenCalledWith('agent', { type: 'status', label: 'model', model: 'gpt-5' });
+    expect(effects.send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'status', label: 'model', model: 'gpt-5' } });
     expect(effects.sendPrompt).toHaveBeenCalledOnce();
   });
 

@@ -64,7 +64,7 @@ function exportsForKind(kind: ArtifactKind): ArtifactExportKind[] {
 }
 
 /** The manifest sidecar file name convention for a given artifact entry file name. */
-export function artifactManifestNameFor(entry: string): string {
+export function artifactManifestNameFor({ entry }: { entry: string }): string {
   return `${entry}.artifact.json`;
 }
 
@@ -94,7 +94,7 @@ export function createHtmlArtifactManifest(input: {
   };
 }
 
-export function serializeArtifactManifest(manifest: ArtifactManifest): string {
+export function serializeArtifactManifest({ manifest }: { manifest: ArtifactManifest }): string {
   return JSON.stringify(manifest, null, 2);
 }
 
@@ -107,7 +107,7 @@ export function serializeArtifactManifest(manifest: ArtifactManifest): string {
  * @returns The validated manifest, or `null` on any parse/shape failure.
  * @complexity O(k) in the manifest's own field/array count — no I/O.
  */
-export function parseArtifactManifest(raw: string): ArtifactManifest | null {
+export function parseArtifactManifest({ raw }: { raw: string }): ArtifactManifest | null {
   try {
     const parsed = JSON.parse(raw) as Partial<ArtifactManifest>;
     if (parsed?.version !== MANIFEST_VERSION) return null;

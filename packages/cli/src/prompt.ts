@@ -7,7 +7,7 @@
  *
  * `readPromptFromFlags` is the `--prompt <text>` / `--prompt-file <path>` /
  * `--prompt-file -` convention, ported from OD's `apps/daemon/src/cli.ts`
- * `readPromptFromFlags` (see `source-map.md`). This exact pattern recurred
+ * `readPromptFromFlags` (see `archived provenance ledger`). This exact pattern recurred
  * verbatim across many of OD's product commands (`brand create`, `run
  * start`, `files version-create`, `automation source ingest`, …) with zero
  * product nouns in the reading logic itself, which is what makes it a
@@ -16,7 +16,7 @@
  *
  * `readBodyFromFlags` is the sibling `--body`/`--body-file` convention,
  * ported from the `cli-capability-barrels` branch's `cli/core/io.ts`
- * `readMemoryBodyFromFlags` (see `source-map.md`'s "Barrel branch
+ * `readMemoryBodyFromFlags` (see `archived provenance ledger`'s "Barrel branch
  * reconciliation" section). Despite the origin name, it has no memory-domain
  * coupling — that module's own docblock confirms it is reused verbatim by
  * both the memory and automation domains — so it is ported here under a
@@ -35,7 +35,7 @@
 
 /** Thrown by the default readers when a file or stdin stream exceeds its configured byte cap. */
 export class PayloadTooLargeError extends Error {
-  constructor(message: string) {
+  constructor({ message }: { message: string }) {
     super(message);
     this.name = 'PayloadTooLargeError';
   }
@@ -51,7 +51,7 @@ export interface PromptFlags {
 
 export interface ReadPromptFromFlagsOptions {
   /** Defaults to a bounded, cancellable `node:fs` stream read; inject for tests. */
-  readFile?: (path: string) => Promise<string>;
+  readFile?: (requiredArgs: { path: string }) => Promise<string>;
   /** Defaults to a bounded, cancellable read of `process.stdin` to EOF as utf8; inject for tests. */
   readStdin?: () => Promise<string>;
   /** Maximum bytes the default readFile/readStdin will read before rejecting. Defaults to 10 MiB. No effect on an injected reader. */
@@ -66,7 +66,7 @@ export interface ReadPromptFromFlagsOptions {
  * caller can fall back to its own default.
  */
 export async function readPromptFromFlags(
-  flags: PromptFlags,
+  { flags }: { flags: PromptFlags },
   options: ReadPromptFromFlagsOptions = {},
 ): Promise<string | null> {
   if (typeof flags.prompt === 'string' && flags.prompt.length > 0) {
@@ -81,8 +81,8 @@ export async function readPromptFromFlags(
     const readStdin = options.readStdin ?? ((): Promise<string> => defaultReadStdin(readLimits));
     return await readStdin();
   }
-  const readFile = options.readFile ?? ((path: string): Promise<string> => defaultReadFile(path, readLimits));
-  return await readFile(promptFile);
+  const readFile = options.readFile ?? (({ path }: { path: string }): Promise<string> => defaultReadFile(path, readLimits));
+  return await readFile({ path: promptFile });
 }
 
 interface ReadLimits {
@@ -104,7 +104,7 @@ async function defaultReadFile(path: string, limits: ReadLimits): Promise<string
     // suppress any further 'error' from the destroy path itself). Kept as
     // real protection against a future/third-party stream implementation
     // bug, not something this module's own real `createReadStream` usage
-    // can trigger — see `source-map.md`'s dated entry for the full
+    // can trigger — see `archived provenance ledger`'s dated entry for the full
     // re-verification record (a single terminal event is all this file's
     // own usage can ever produce).
     const finish = (fn: () => void): void => {
@@ -125,7 +125,7 @@ async function defaultReadFile(path: string, limits: ReadLimits): Promise<string
       total += chunk.length;
       if (total > limits.maxBytes) {
         stream.destroy();
-        finish(() => reject(new PayloadTooLargeError(`file exceeded the ${limits.maxBytes}-byte limit: ${path}`)));
+        finish(() => reject(new PayloadTooLargeError({ message: `file exceeded the ${limits.maxBytes}-byte limit: ${path}` })));
         return;
       }
       chunks.push(chunk);
@@ -158,7 +158,7 @@ async function defaultReadStdin(limits: ReadLimits): Promise<string> {
       if (total > limits.maxBytes) {
         cleanup();
         pauseStdin();
-        reject(new PayloadTooLargeError(`stdin exceeded the ${limits.maxBytes}-byte limit`));
+        reject(new PayloadTooLargeError({ message: `stdin exceeded the ${limits.maxBytes}-byte limit` }));
         return;
       }
       buffer += chunk;
@@ -184,7 +184,7 @@ export interface BodyFlags {
 
 export interface ReadBodyFromFlagsOptions {
   /** Defaults to a bounded, cancellable `node:fs` stream read; inject for tests. */
-  readFile?: (path: string) => Promise<string>;
+  readFile?: (requiredArgs: { path: string }) => Promise<string>;
   /** Defaults to a bounded, cancellable drain of `process.stdin`'s async iterator as utf8; inject for tests. */
   readStdin?: () => Promise<string>;
   /** Maximum bytes the default readFile/readStdin will read before rejecting. Defaults to 10 MiB. No effect on an injected reader. */
@@ -203,7 +203,7 @@ export interface ReadBodyFromFlagsOptions {
  * a body to an empty string.
  */
 export async function readBodyFromFlags(
-  flags: BodyFlags,
+  { flags }: { flags: BodyFlags },
   options: ReadBodyFromFlagsOptions = {},
 ): Promise<string | undefined> {
   if (typeof flags.body === 'string') return flags.body;
@@ -214,8 +214,8 @@ export async function readBodyFromFlags(
     const readStdin = options.readStdin ?? ((): Promise<string> => defaultReadBodyStdin(readLimits));
     return await readStdin();
   }
-  const readFile = options.readFile ?? ((path: string): Promise<string> => defaultReadFile(path, readLimits));
-  return await readFile(bodyFile);
+  const readFile = options.readFile ?? (({ path }: { path: string }): Promise<string> => defaultReadFile(path, readLimits));
+  return await readFile({ path: bodyFile });
 }
 
 async function defaultReadBodyStdin(limits: ReadLimits): Promise<string> {
@@ -232,7 +232,7 @@ async function defaultReadBodyStdin(limits: ReadLimits): Promise<string> {
       total += Buffer.byteLength(text, 'utf8');
       if (total > limits.maxBytes) {
         stdin.destroy?.();
-        throw new PayloadTooLargeError(`stdin exceeded the ${limits.maxBytes}-byte limit`);
+        throw new PayloadTooLargeError({ message: `stdin exceeded the ${limits.maxBytes}-byte limit` });
       }
       body += text;
     }

@@ -56,9 +56,7 @@ export interface CapabilityDef {
  * @param id - Capability id to resolve.
  * @returns The definition, or `undefined` when the id is not in the manifest.
  */
-export function findCapability(
-  capabilities: readonly CapabilityDef[],
-  id: string,
+export function findCapability({ capabilities, id }: { capabilities: readonly CapabilityDef[]; id: string }, _optional: Record<string, never> = {}
 ): CapabilityDef | undefined {
   return capabilities.find((capability) => capability.id === id);
 }
@@ -76,9 +74,7 @@ export function findCapability(
  * @param input - Raw caller-supplied arguments.
  * @returns An error message, or `null` when the input is acceptable.
  */
-export function findCapabilityInputError(
-  capability: CapabilityDef,
-  input: Record<string, unknown>,
+export function findCapabilityInputError({ capability, input }: { capability: CapabilityDef; input: Record<string, unknown> }, _optional: Record<string, never> = {}
 ): string | null {
   const { properties, required, additionalProperties } = capability.inputSchema;
 
@@ -121,9 +117,7 @@ export function findCapabilityInputError(
  * @param hasSession - Whether a live frontend session is attached.
  * @returns Only the capabilities that can actually be satisfied right now.
  */
-export function availableCapabilities(
-  capabilities: readonly CapabilityDef[],
-  hasSession: boolean,
+export function availableCapabilities({ capabilities, hasSession }: { capabilities: readonly CapabilityDef[]; hasSession: boolean }, _optional: Record<string, never> = {}
 ): readonly CapabilityDef[] {
   return hasSession ? capabilities : capabilities.filter((c) => c.surface === 'server');
 }

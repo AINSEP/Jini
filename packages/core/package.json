@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/core",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "The Jini kernel: typed DI tokens, pack composition and lifecycle, the tool registry, redaction, and origin/API-token auth primitives. Zero dependencies.",
   "license": "Apache-2.0",
   "repository": {
@@ -11,7 +11,17 @@
   "jini": {
     "domain": "engine",
     "kind": "kernel",
-    "runtime": "universal"
+    "runtime": "universal",
+    "entries": {
+      ".": "universal",
+      "./composition": "universal",
+      "./gated-mutations": "universal",
+      "./model-facing-tool-errors": "universal",
+      "./contribution-registry": "universal",
+      "./naming": "universal",
+      "./primitives": "universal",
+      "./text": "universal"
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -23,20 +33,53 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./internal": {
-      "types": "./dist/internal.d.ts",
-      "import": "./dist/internal.js",
-      "default": "./dist/internal.js"
+    "./composition": {
+      "types": "./dist/composition.d.ts",
+      "import": "./dist/composition.js",
+      "default": "./dist/composition.js"
+    },
+    "./gated-mutations": {
+      "types": "./dist/gated-mutations.d.ts",
+      "import": "./dist/gated-mutations.js",
+      "default": "./dist/gated-mutations.js"
+    },
+    "./model-facing-tool-errors": {
+      "types": "./dist/model-facing-tool-errors.d.ts",
+      "import": "./dist/model-facing-tool-errors.js",
+      "default": "./dist/model-facing-tool-errors.js"
+    },
+    "./contribution-registry": {
+      "types": "./dist/contribution-registry.d.ts",
+      "import": "./dist/contribution-registry.js",
+      "default": "./dist/contribution-registry.js"
+    },
+    "./naming": {
+      "types": "./dist/naming.d.ts",
+      "import": "./dist/naming.js",
+      "default": "./dist/naming.js"
+    },
+    "./primitives": {
+      "types": "./dist/primitives/index.d.ts",
+      "import": "./dist/primitives/index.js",
+      "default": "./dist/primitives/index.js"
+    },
+    "./text": {
+      "types": "./dist/text/index.d.ts",
+      "import": "./dist/text/index.js",
+      "default": "./dist/text/index.js"
     }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
     "!dist/**/__tests__/**",
-    "!dist/**/*.map"
+    "!dist/**/*.typecheck.*"
   ],
   "publishConfig": {
     "access": "public",

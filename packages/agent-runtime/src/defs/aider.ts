@@ -1,4 +1,4 @@
-/** Ported from OD's `apps/daemon/src/runtimes/defs/aider.ts` (one de-branded comment; see `source-map.md`). */
+/** Ported from OD's `apps/daemon/src/runtimes/defs/aider.ts` (one de-branded comment; see `archived provenance ledger`). */
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
@@ -51,7 +51,7 @@ export const aiderAgentDef = {
     //   --no-show-model-warnings           — suppresses model-compat banners
     //                                        that would otherwise prefix every
     //                                        run with noise
-    buildArgs: (prompt, _imagePaths, _extra, options = {}) => {
+    buildArgs: ({ prompt, imagePaths: _imagePaths }, { extraAllowedDirs: _extra, options = {} } = {}) => {
       const args = [
         // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
         // behavior) unless a caller explicitly opts into a restricted run. Without

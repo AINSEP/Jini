@@ -52,7 +52,7 @@ describe('resolveAgentLaunch', () => {
 
   it('returns launchPath: null when the def has no resolvable executable', () => {
     const def = makeDef({ bin: 'definitely-not-a-real-binary-xyz' });
-    const result = resolveAgentLaunch(def, {});
+    const result = resolveAgentLaunch({ def: def }, { configuredEnv: {} });
     expect(result.launchPath).toBeNull();
     expect(result.launchKind).toBe('selected');
     expect(result.childPathPrepend).toEqual([]);
@@ -63,7 +63,7 @@ describe('resolveAgentLaunch', () => {
     const binPath = path.join(dir, 'claude');
     makeExecutable(binPath);
     const def = makeDef({ id: 'claude', bin: 'claude' });
-    const result = resolveAgentLaunch(def, { CLAUDE_BIN: binPath });
+    const result = resolveAgentLaunch({ def: def }, { configuredEnv: { CLAUDE_BIN: binPath } });
     expect(result.launchPath).toBe(binPath);
     expect(result.launchKind).toBe('selected');
     expect(result.childPathPrepend).toEqual([path.dirname(binPath)]);
@@ -74,7 +74,7 @@ describe('resolveAgentLaunch', () => {
     const binPath = path.join(dir, 'codex');
     makeExecutable(binPath, 'this is a totally unrelated binary blob with no matching keywords');
     const def = makeDef({ id: 'codex', bin: 'codex' });
-    const result = resolveAgentLaunch(def, { CODEX_BIN: binPath });
+    const result = resolveAgentLaunch({ def: def }, { configuredEnv: { CODEX_BIN: binPath } });
     expect(result.launchKind).toBe('selected');
     expect(result.launchPath).toBe(binPath);
     expect(result.diagnostic).toBeNull();
@@ -84,7 +84,7 @@ describe('resolveAgentLaunch', () => {
     const binPath = path.join(dir, 'codex');
     makeExecutable(binPath, '#!/usr/bin/env node\nrequire("@openai/codex-cli");\n');
     const def = makeDef({ id: 'codex', bin: 'codex' });
-    const result = resolveAgentLaunch(def, { CODEX_BIN: binPath });
+    const result = resolveAgentLaunch({ def: def }, { configuredEnv: { CODEX_BIN: binPath } });
     expect(result.launchKind).toBe('selected');
     expect(result.launchPath).toBe(binPath);
     expect(result.diagnostic).toContain('Codex native binary was not found');
@@ -107,7 +107,7 @@ describe('resolveAgentLaunch', () => {
     makeExecutable(wrapperPath, '#!/usr/bin/env node\nrequire("@openai/codex-cli");\n');
 
     const def = makeDef({ id: 'codex', bin: 'codex' });
-    const result = resolveAgentLaunch(def, { CODEX_BIN: wrapperPath });
+    const result = resolveAgentLaunch({ def: def }, { configuredEnv: { CODEX_BIN: wrapperPath } });
 
     expect(result.launchKind).toBe('codex-native');
     expect(result.launchPath).toBe(nativeBinary);
@@ -123,7 +123,7 @@ describe('resolveAgentLaunch', () => {
     process.env.PATH = [relDir, originalPath].filter(Boolean).join(path.delimiter);
     try {
       const def = makeDef({ id: 'relative-path-agent', bin: binName });
-      const result = resolveAgentLaunch(def, {});
+      const result = resolveAgentLaunch({ def: def }, { configuredEnv: {} });
       expect(result.launchPath).not.toBeNull();
       expect(path.isAbsolute(result.launchPath!)).toBe(false);
       expect(result.childPathPrepend).toEqual([]);
@@ -149,7 +149,7 @@ describe('resolveAgentLaunch', () => {
       makeExecutable(binPath, '#!/usr/bin/env node\n// wrapper\n');
       chmodSync(binPath, 0o111); // execute-only: accessSync(X_OK) still passes, but openSync('r') fails.
       const def = makeDef({ id: 'codex', bin: 'codex' });
-      const result = resolveAgentLaunch(def, { CODEX_BIN: binPath });
+      const result = resolveAgentLaunch({ def: def }, { configuredEnv: { CODEX_BIN: binPath } });
       expect(result.launchKind).toBe('selected');
       expect(result.launchPath).toBe(binPath);
       expect(result.diagnostic).toBeNull();
@@ -185,7 +185,7 @@ describe('resolveAgentLaunch', () => {
       makeExecutable(wrapperPath, '#!/usr/bin/env node\nrequire("@openai/codex-cli");\n');
 
       const def = makeDef({ id: 'codex', bin: 'codex' });
-      const result = resolveAgentLaunch(def, { CODEX_BIN: wrapperPath });
+      const result = resolveAgentLaunch({ def: def }, { configuredEnv: { CODEX_BIN: wrapperPath } });
 
       expect(result.launchKind).toBe('codex-native');
       expect(result.launchPath).toBe(nativeBinary);
@@ -208,7 +208,7 @@ describe('resolveAgentLaunch', () => {
     makeExecutable(wrapperPath, '#!/usr/bin/env node\nrequire("@openai/codex-cli");\n');
 
     const def = makeDef({ id: 'codex', bin: 'codex' });
-    const result = resolveAgentLaunch(def, { CODEX_BIN: wrapperPath });
+    const result = resolveAgentLaunch({ def: def }, { configuredEnv: { CODEX_BIN: wrapperPath } });
 
     // No real native binary anywhere -> falls back to the wrapper with a diagnostic.
     expect(result.launchKind).toBe('selected');
@@ -229,7 +229,7 @@ describe('resolveAgentLaunch', () => {
     makeExecutable(wrapperPath, '#!/usr/bin/env node\nrequire("@openai/codex-cli");\n');
 
     const def = makeDef({ id: 'codex', bin: 'codex' });
-    const result = resolveAgentLaunch(def, { CODEX_BIN: wrapperPath });
+    const result = resolveAgentLaunch({ def: def }, { configuredEnv: { CODEX_BIN: wrapperPath } });
 
     expect(result.launchKind).toBe('codex-native');
     expect(result.launchPath).toBe(nativeBinary);
@@ -239,62 +239,62 @@ describe('resolveAgentLaunch', () => {
 describe('applyAgentLaunchEnv', () => {
   it('returns env unchanged when there is nothing to prepend or append', () => {
     const env = { PATH: '/usr/bin' };
-    const result = applyAgentLaunchEnv(env, { childPathPrepend: [] }, '', []);
+    const result = applyAgentLaunchEnv({ env: env, launch: { childPathPrepend: [] } }, { nodeBinDir: '', appendPathDirs: [] });
     expect(result).toBe(env);
   });
 
   it('prepends the node bin dir and childPathPrepend dirs to PATH', () => {
     const env = { PATH: '/usr/bin' };
-    const result = applyAgentLaunchEnv(env, { childPathPrepend: ['/agent/dir'] }, '/node/bin', []);
+    const result = applyAgentLaunchEnv({ env: env, launch: { childPathPrepend: ['/agent/dir'] } }, { nodeBinDir: '/node/bin', appendPathDirs: [] });
     expect(result.PATH).toBe(['/node/bin', '/agent/dir', '/usr/bin'].join(path.delimiter));
   });
 
   it('finds a case-insensitive PATH key (Windows "Path")', () => {
     const env = { Path: 'C:\\Windows\\System32' };
-    const result = applyAgentLaunchEnv(env, { childPathPrepend: ['C:\\agent'] }, 'C:\\node', []);
+    const result = applyAgentLaunchEnv({ env: env, launch: { childPathPrepend: ['C:\\agent'] } }, { nodeBinDir: 'C:\\node', appendPathDirs: [] });
     expect(result.Path).toBe(['C:\\node', 'C:\\agent', 'C:\\Windows\\System32'].join(path.delimiter));
     expect(result.PATH).toBeUndefined();
   });
 
   it('defaults to a "PATH" key when no existing path-shaped key is present', () => {
     const env = {};
-    const result = applyAgentLaunchEnv(env, { childPathPrepend: [] }, '/node/bin', ['/append/dir']);
+    const result = applyAgentLaunchEnv({ env: env, launch: { childPathPrepend: [] } }, { nodeBinDir: '/node/bin', appendPathDirs: ['/append/dir'] });
     expect(result.PATH).toBe(['/node/bin', '/append/dir'].join(path.delimiter));
   });
 
   it('deduplicates directories that already appear in PATH, keeping the first occurrence', () => {
     const env = { PATH: ['/dup', '/other'].join(path.delimiter) };
-    const result = applyAgentLaunchEnv(env, { childPathPrepend: ['/dup'] }, '', []);
+    const result = applyAgentLaunchEnv({ env: env, launch: { childPathPrepend: ['/dup'] } }, { nodeBinDir: '', appendPathDirs: [] });
     expect(result.PATH).toBe(['/dup', '/other'].join(path.delimiter));
   });
 
   it('filters out empty PATH segments from the existing value', () => {
     const env = { PATH: ['', '/real', ''].join(path.delimiter) };
-    const result = applyAgentLaunchEnv(env, { childPathPrepend: ['/new'] }, '', []);
+    const result = applyAgentLaunchEnv({ env: env, launch: { childPathPrepend: ['/new'] } }, { nodeBinDir: '', appendPathDirs: [] });
     expect(result.PATH).toBe(['/new', '/real'].join(path.delimiter));
   });
 
   it('appends appendPathDirs after the existing PATH entries', () => {
     const env = { PATH: '/existing' };
-    const result = applyAgentLaunchEnv(env, { childPathPrepend: [] }, '', ['/appended']);
+    const result = applyAgentLaunchEnv({ env: env, launch: { childPathPrepend: [] } }, { nodeBinDir: '', appendPathDirs: ['/appended'] });
     expect(result.PATH).toBe(['/existing', '/appended'].join(path.delimiter));
   });
 
   it('treats a non-string existing PATH value as empty', () => {
     const env = { PATH: undefined } as unknown as NodeJS.ProcessEnv;
-    const result = applyAgentLaunchEnv(env, { childPathPrepend: ['/new'] }, '', []);
+    const result = applyAgentLaunchEnv({ env: env, launch: { childPathPrepend: ['/new'] } }, { nodeBinDir: '', appendPathDirs: [] });
     expect(result.PATH).toBe('/new');
   });
 
   it('omits the node bin dir from the prepend list when nodeBinDir is an empty string', () => {
     const env = { PATH: '/existing' };
-    const result = applyAgentLaunchEnv(env, { childPathPrepend: ['/agent'] }, '', []);
+    const result = applyAgentLaunchEnv({ env: env, launch: { childPathPrepend: ['/agent'] } }, { nodeBinDir: '', appendPathDirs: [] });
     expect(result.PATH).toBe(['/agent', '/existing'].join(path.delimiter));
   });
 
   it('defaults nodeBinDir to the dirname of process.execPath and appendPathDirs to the real user toolchain dirs', () => {
     const env = { PATH: '/existing' };
-    const result = applyAgentLaunchEnv(env, { childPathPrepend: [] });
+    const result = applyAgentLaunchEnv({ env: env, launch: { childPathPrepend: [] } });
     expect(result.PATH).toContain(path.dirname(process.execPath));
   });
 
@@ -309,7 +309,7 @@ describe('applyAgentLaunchEnv', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
     try {
       const env = { PATH: '\\\\server\\share\\Foo\\Bar\\' };
-      const result = applyAgentLaunchEnv(env, { childPathPrepend: ['\\\\server\\share\\FOO\\BAR'] }, '', []);
+      const result = applyAgentLaunchEnv({ env: env, launch: { childPathPrepend: ['\\\\server\\share\\FOO\\BAR'] } }, { nodeBinDir: '', appendPathDirs: [] });
       // Same directory once case/trailing-slash normalized -> deduped to one entry.
       expect(result.PATH).toBe('\\\\server\\share\\FOO\\BAR');
     } finally {

@@ -12,7 +12,7 @@
  * `callAnthropic`/`callOpenAI`/`callAzure`/`callGoogle`, plus the
  * `appendVersionedApiPath`/`withTimeout`/`describeFetchError` plumbing they
  * shared and the fence-tolerant JSON-extraction half of `parseEntries`. See
- * `source-map.md`'s 2026-07-21 addition for exactly what was carried over
+ * `archived provenance ledger`'s 2026-07-21 addition for exactly what was carried over
  * and what was deliberately left behind (provider auto-selection, the
  * memory-specific system prompts, the `entries`/`MEMORY_TYPES` schema
  * validation, and the local coding-agent-CLI transport) — none of that is a
@@ -29,11 +29,8 @@
 export type LlmProviderId = 'anthropic' | 'openai' | 'azure' | 'google';
 
 /**
- * Configuration for one {@link callLlmProvider} call. Every field beyond
- * `provider`/`apiKey`/`model` is optional and, when omitted, either falls
- * back to that vendor's public API host (anthropic/openai/google — azure
- * has no public host and always requires an explicit `baseUrl`) or is
- * simply not sent.
+ * Required vendor, credential and model configuration. Transport and endpoint
+ * overrides are supplied separately through {@link LlmProviderOptions}.
  */
 export interface LlmProviderConfig {
   /** Which vendor HTTP wire shape to speak. */
@@ -42,6 +39,14 @@ export interface LlmProviderConfig {
   apiKey: string;
   /** The model name (for `azure`, the deployment name) to request. This module has no default-model opinion; the caller always supplies one. */
   model: string;
+}
+
+/** Optional transport, endpoint and timeout settings for one LLM call. */
+export interface LlmProviderOptions {
+  /** Injectable HTTP transport; uses the native fetch implementation when omitted. */
+  fetchFn?: typeof fetch;
+  /** Injectable deadline signal for deterministic transport tests. */
+  timeoutSignal?: (required: { timeoutMs: number }) => AbortSignal;
   /**
    * The vendor API host. Defaults to that vendor's public API host for
    * `anthropic`/`openai`/`google`. `azure` has no public host — a tenant's
@@ -66,10 +71,10 @@ export interface LlmProviderConfig {
   timeoutMs?: number;
 }
 
-/** Fallback Azure OpenAI `api-version` used when {@link LlmProviderConfig.apiVersion} is omitted. */
+/** Fallback Azure OpenAI `api-version` used when {@link LlmProviderOptions.apiVersion} is omitted. */
 export const AZURE_DEFAULT_API_VERSION = '2024-10-21';
 
-/** Fallback request timeout (ms) used when {@link LlmProviderConfig.timeoutMs} is omitted or invalid. Matches the origin's 30s ceiling. */
+/** Fallback request timeout (ms) used when {@link LlmProviderOptions.timeoutMs} is omitted or invalid. Matches the origin's 30s ceiling. */
 export const DEFAULT_TIMEOUT_MS = 30_000;
 
 /**
@@ -87,6 +92,8 @@ const DEFAULT_BASE_URLS: Record<Exclude<LlmProviderId, 'azure'>, string> = {
 };
 
 interface ResolvedLlmCall {
+  fetchFn: typeof fetch;
+  timeoutSignal: (required: { timeoutMs: number }) => AbortSignal;
   provider: LlmProviderId;
   apiKey: string;
   model: string;
@@ -97,7 +104,7 @@ interface ResolvedLlmCall {
   timeoutMs: number;
 }
 
-function resolveConfig(config: LlmProviderConfig): ResolvedLlmCall {
+function resolveConfig(config: LlmProviderConfig & LlmProviderOptions): ResolvedLlmCall {
   const apiKey = config.apiKey.trim();
   if (!apiKey) throw new Error('llm-provider: apiKey is required');
   const model = config.model.trim();
@@ -114,6 +121,8 @@ function resolveConfig(config: LlmProviderConfig): ResolvedLlmCall {
   }
 
   return {
+    fetchFn: config.fetchFn ?? globalThis.fetch,
+    timeoutSignal: config.timeoutSignal ?? (({ timeoutMs }) => AbortSignal.timeout(timeoutMs)),
     provider: config.provider,
     apiKey,
     model,
@@ -134,7 +143,7 @@ function resolveConfig(config: LlmProviderConfig): ResolvedLlmCall {
  * both follow this `/v1/<resource>` convention; `azure`/`google` build
  * their URLs differently and don't need it.
  */
-export function appendVersionedApiPath(baseUrl: string, suffix: string): string {
+export function appendVersionedApiPath({ baseUrl, suffix }: { baseUrl: string; suffix: string }): string {
   const url = new URL(baseUrl);
   const pathname = url.pathname.replace(/\/+$/, '');
   url.pathname = /\/v\d+(\/|$)/.test(pathname) ? `${pathname}${suffix}` : `${pathname}/v1${suffix}`;
@@ -174,7 +183,7 @@ function googleCandidateParts(json: unknown): unknown[] | undefined {
  * read "fetch failed" with no indication of whether DNS broke, the
  * connection was reset, or the request timed out.
  */
-export function describeFetchError(err: unknown): string {
+export function describeFetchError({ err }: { err: unknown }): string {
   const message = err instanceof Error ? err.message : String(err);
   const cause = err instanceof Error ? err.cause : undefined;
   if (!cause || typeof cause !== 'object') return message;
@@ -214,15 +223,15 @@ function mergedHeaders(required: Record<string, string>, extra: Record<string, s
 async function postJson(url: string, headers: Record<string, string>, body: unknown, resolved: ResolvedLlmCall, providerTag: string): Promise<unknown> {
   let resp: Response;
   try {
-    resp = await fetch(url, {
+    resp = await resolved.fetchFn(url, {
       ...resolved.requestInit,
       method: 'POST',
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(resolved.timeoutMs),
+      signal: resolved.timeoutSignal({ timeoutMs: resolved.timeoutMs }),
     });
   } catch (err) {
-    throw new Error(describeFetchError(err));
+    throw new Error(describeFetchError({ err }));
   }
   const text = await resp.text().catch(() => '');
   if (!resp.ok) {
@@ -236,7 +245,7 @@ async function postJson(url: string, headers: Record<string, string>, body: unkn
 }
 
 async function callAnthropic(resolved: ResolvedLlmCall, system: string, user: string): Promise<string> {
-  const url = appendVersionedApiPath(resolved.baseUrl, '/messages');
+  const url = appendVersionedApiPath({ baseUrl: resolved.baseUrl, suffix: '/messages' });
   const headers = mergedHeaders(
     {
       'content-type': 'application/json',
@@ -264,7 +273,7 @@ async function callAnthropic(resolved: ResolvedLlmCall, system: string, user: st
 }
 
 async function callOpenAI(resolved: ResolvedLlmCall, system: string, user: string): Promise<string> {
-  const url = appendVersionedApiPath(resolved.baseUrl, '/chat/completions');
+  const url = appendVersionedApiPath({ baseUrl: resolved.baseUrl, suffix: '/chat/completions' });
   const headers = mergedHeaders(
     {
       'content-type': 'application/json',
@@ -362,8 +371,11 @@ async function callGoogle(resolved: ResolvedLlmCall, system: string, user: strin
  * @returns The model's raw text output (untouched — see
  *   {@link callLlmProviderForJson} to also parse it as JSON).
  */
-export async function callLlmProvider(config: LlmProviderConfig, systemPrompt: string, userPrompt: string): Promise<string> {
-  const resolved = resolveConfig(config);
+export async function callLlmProvider(
+  { config, systemPrompt, userPrompt }: { config: LlmProviderConfig; systemPrompt: string; userPrompt: string },
+  optional: LlmProviderOptions = {},
+): Promise<string> {
+  const resolved = resolveConfig({ ...optional, ...config });
   switch (resolved.provider) {
     case 'anthropic':
       return callAnthropic(resolved, systemPrompt, userPrompt);
@@ -409,7 +421,7 @@ const JSON_OBJECT_RE = /\{[\s\S]*\}/;
  * @throws if `rawText` cannot be parsed as JSON even after fence-stripping
  *   and `{...}`-block extraction.
  */
-export function parseStrictJson<T = unknown>(rawText: string): T {
+export function parseStrictJson<T = unknown>({ rawText }: { rawText: string }): T {
   let text = rawText.trim();
   if (text.startsWith('```')) {
     text = text.replace(CODE_FENCE_START_RE, '').replace(CODE_FENCE_END_RE, '').trim();
@@ -441,7 +453,10 @@ export function parseStrictJson<T = unknown>(rawText: string): T {
  * @param userPrompt - The user-turn prompt.
  * @returns The model's output parsed as JSON, typed as `T` (unchecked).
  */
-export async function callLlmProviderForJson<T = unknown>(config: LlmProviderConfig, systemPrompt: string, userPrompt: string): Promise<T> {
-  const raw = await callLlmProvider(config, systemPrompt, userPrompt);
-  return parseStrictJson<T>(raw);
+export async function callLlmProviderForJson<T = unknown>(
+  required: { config: LlmProviderConfig; systemPrompt: string; userPrompt: string },
+  optional: LlmProviderOptions = {},
+): Promise<T> {
+  const raw = await callLlmProvider(required, optional);
+  return parseStrictJson<T>({ rawText: raw });
 }

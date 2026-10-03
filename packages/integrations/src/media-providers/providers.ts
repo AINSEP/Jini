@@ -4,7 +4,7 @@
  * `apps/daemon/src/media/models.ts`; every provider id/label/hint here names
  * a real third-party vendor (OpenAI, Fal.ai, ElevenLabs, ...), not an OD
  * concept, so per the AGENTS.md boundary rule (no product-identity strings)
- * it ports as data. See `source-map.md` for exactly what was dropped.
+ * it ports as data. See `archived provenance ledger` for exactly what was dropped.
  */
 import type { AudioKind, MediaModel, MediaProvider, MediaSurface } from './types.js';
 
@@ -155,7 +155,7 @@ export const VIDEO_LENGTHS_SEC: readonly number[] = [3, 5, 8, 10, 15, 30];
 export const AUDIO_DURATIONS_SEC: readonly number[] = [5, 10, 15, 30, 60, 120];
 
 /** Finds a model by id across every surface (image, video, and all three audio kinds). */
-export function findMediaModel(id: string): MediaModel | null {
+export function findMediaModel({ id }: { id: string }): MediaModel | null {
   const all = [
     ...IMAGE_MODELS,
     ...VIDEO_MODELS,
@@ -167,12 +167,12 @@ export function findMediaModel(id: string): MediaModel | null {
 }
 
 /** Finds a provider by id in `MEDIA_PROVIDERS`. */
-export function findProvider(id: string): MediaProvider | null {
+export function findProvider({ id }: { id: string }): MediaProvider | null {
   return MEDIA_PROVIDERS.find((p) => p.id === id) ?? null;
 }
 
 /** Returns the model list for a surface; `audioKind` selects which audio sub-list (defaults to `'music'`). */
-export function modelsForSurface(surface: MediaSurface, audioKind?: AudioKind): readonly MediaModel[] {
+export function modelsForSurface({ surface }: { surface: MediaSurface }, { audioKind }: { audioKind?: AudioKind | undefined } = {}): readonly MediaModel[] {
   if (surface === 'image') return IMAGE_MODELS;
   if (surface === 'video') return VIDEO_MODELS;
   // AUDIO_MODELS_BY_KIND is a Record<AudioKind, ...>, so indexing with a

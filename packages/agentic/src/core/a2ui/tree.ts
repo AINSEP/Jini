@@ -10,7 +10,7 @@
  * Scope: only the *static array* form of `ChildList` (`common_types.json#/$defs/ChildList`'s
  * first `oneOf` branch) is walked here. The *template* form (`{componentId, path}`, generating N
  * children from a data-model list) is accepted by the wire schema (`ChildListSchema`) but not
- * expanded by this port — see `../source-map.md` for why (a distinct, substantially larger
+ * expanded by this port — see `../archived provenance ledger` for why (a distinct, substantially larger
  * rendering feature: item-scoped relative-path resolution, `@index`, per-item React keys for one
  * shared component definition rendered N times). A `getChildIds` callback that always returns
  * `[]` for a template-shaped `children` value is a safe, honest way to consume this module without
@@ -66,10 +66,7 @@ export const MAX_RENDER_NODES = 50_000;
  * which is both what makes the iterative form equivalent (an ancestor set IS the path from the
  * root) and what removes the old walk's quadratic set-copying cost.
  */
-export function flattenRenderTree<C extends ComponentLike>(
-  components: ReadonlyMap<string, C>,
-  rootId: string,
-  getChildIds: (component: C) => readonly string[],
+export function flattenRenderTree<C extends ComponentLike>({ components, rootId, getChildIds }: { components: ReadonlyMap<string, C>; rootId: string; getChildIds: (required: { component: C }) => readonly string[] }, _optional: Record<string, never> = {}
 ): RenderNode[] {
   const output: RenderNode[] = [];
   /** Ids on the path from the root to the node being visited — the recursive walk's `ancestors`. */
@@ -102,7 +99,7 @@ export function flattenRenderTree<C extends ComponentLike>(
     ancestors.add(id);
     stack.push({ leave: id });
     // Pushed in reverse so the first child is popped first, preserving pre-order.
-    const childIds = getChildIds(component);
+    const childIds = getChildIds({ component });
     for (let index = childIds.length - 1; index >= 0; index -= 1) {
       stack.push({ id: childIds[index]!, depth: depth + 1 });
     }

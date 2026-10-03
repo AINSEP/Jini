@@ -105,7 +105,7 @@ export const DEFAULT_SKETCH_DARK_TOOL_COLOR = '#ffffff';
  * Matches the Mermaid-dialog "Insert" button's rendered label (English
  * only). The source product's own pattern also matched a hardcoded Chinese
  * translation (`/^(Insert|插入)/i`) — dropped as real translated copy, not a
- * mechanism (see `packages/ui/source-map.md`); a host running Excalidraw in
+ * mechanism (see `packages/ui/archived provenance ledger`); a host running Excalidraw in
  * a locale where this button's label differs should pass its own pattern via
  * `SketchEditorProps.mermaidInsertLabelPattern`.
  */

@@ -3,7 +3,7 @@
  *
  * Covers every literal `t()` key actually called by the 13 tabs the reference
  * implementation (the first host to adopt this) mounts in its admin settings panel, plus every
- * component those tabs compose (see `packages/ui/source-map.md` companion
+ * component those tabs compose (see `packages/ui/archived provenance ledger` companion
  * note in `dictionaries/README` for the enumeration method: a full read of
  * each mounted component's source, cross-checked with a regex extraction
  * pass over every `t('...')`/`t("...")` call site, plus manual tracing of

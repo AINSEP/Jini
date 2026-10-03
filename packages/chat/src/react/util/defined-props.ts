@@ -27,7 +27,7 @@ export type DefinedProps<T> =
  *
  * @complexity Time: O(n) in the key count; space: O(n) for the returned object.
  */
-export function definedProps<T extends object>(source: T): DefinedProps<T> {
+export function definedProps<T extends object>({ source }: { source: T }): DefinedProps<T> {
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(source)) {
     if (value !== undefined) result[key] = value;

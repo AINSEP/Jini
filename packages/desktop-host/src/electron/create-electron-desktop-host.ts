@@ -21,11 +21,11 @@ export function createElectronDesktopHost(
   overrides: Partial<DesktopHostPorts> = {},
 ): DesktopHost {
   const ports: DesktopHostPorts = {
-    singleInstance: overrides.singleInstance ?? createElectronSingleInstanceLockPort(surfaces.app),
-    windowLifecycle: overrides.windowLifecycle ?? createElectronWindowLifecyclePort(surfaces.createBrowserWindow),
-    protocolHandler: overrides.protocolHandler ?? createElectronProtocolHandlerPort(surfaces.protocol),
-    sidecarLauncher: overrides.sidecarLauncher ?? createNodeSidecarLauncher(),
-    renderService: overrides.renderService ?? createElectronRenderService(surfaces.createBrowserWindow),
+    singleInstance: overrides.singleInstance ?? createElectronSingleInstanceLockPort({ app: surfaces.app }),
+    windowLifecycle: overrides.windowLifecycle ?? createElectronWindowLifecyclePort({ createBrowserWindow: surfaces.createBrowserWindow }),
+    protocolHandler: overrides.protocolHandler ?? createElectronProtocolHandlerPort({ electronProtocol: surfaces.protocol }),
+    sidecarLauncher: overrides.sidecarLauncher ?? createNodeSidecarLauncher({}),
+    renderService: overrides.renderService ?? createElectronRenderService({ createBrowserWindow: surfaces.createBrowserWindow }),
     shell: overrides.shell ?? createElectronShellPort({ shell: surfaces.shell, app: surfaces.app, dialog: surfaces.dialog }),
   };
   return { backend: 'electron', ports };

@@ -40,7 +40,7 @@ describe('createMcpUiToolCaller', () => {
   it('posts {toolName, params} derived from the View\'s {name, arguments} call', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ deleted: true }));
     globalThis.fetch = fetchMock;
-    const call = createMcpUiToolCaller('');
+    const call = createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) });
 
     await call({ name: 'content_post_delete', arguments: { id: 'post-1', confirmationToken: 'tok' } });
 
@@ -57,7 +57,7 @@ describe('createMcpUiToolCaller', () => {
 
   it('copies arguments into a fresh object rather than aliasing the View-supplied one', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(jsonResponse({}));
-    const call = createMcpUiToolCaller('');
+    const call = createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) });
     const args = { id: 'post-1' };
 
     await call({ name: 'content_post_delete', arguments: args });
@@ -75,27 +75,27 @@ describe('createMcpUiToolCaller', () => {
     // been read" on the second `.text()`.
     globalThis.fetch = vi.fn().mockImplementation(() => jsonResponse({}));
 
-    await createMcpUiToolCaller('')({ name: 'content_post_delete', arguments: {} });
+    await createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })({ name: 'content_post_delete', arguments: {} });
     expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toBe('/api/mcp-ui/tool-calls');
 
-    await createMcpUiToolCaller('', { path: '/api/admin/v1/mcp-ui/tool-calls' })({ name: 'content_post_delete', arguments: {} });
+    await createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) }, { path: '/api/admin/v1/mcp-ui/tool-calls' })({ name: 'content_post_delete', arguments: {} });
     expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[1]?.[0]).toBe('/api/admin/v1/mcp-ui/tool-calls');
   });
 
   it('targets a same-origin path when the base URL is empty, and tolerates a trailing slash on a real origin', async () => {
     globalThis.fetch = vi.fn().mockImplementation(() => jsonResponse({}));
 
-    await createMcpUiToolCaller('')({ name: 'x', arguments: {} });
+    await createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })({ name: 'x', arguments: {} });
     expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toBe('/api/mcp-ui/tool-calls');
 
-    await createMcpUiToolCaller('http://127.0.0.1:4317/')({ name: 'x', arguments: {} });
+    await createMcpUiToolCaller({ baseUrl: 'http://127.0.0.1:4317/' , fetch: (...args) => globalThis.fetch(...args) })({ name: 'x', arguments: {} });
     expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[1]?.[0]).toBe('http://127.0.0.1:4317/api/mcp-ui/tool-calls');
   });
 
   it('merges caller-supplied headers but never lets them override content-type', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(jsonResponse({}));
 
-    await createMcpUiToolCaller('', { headers: { 'x-csrf-token': 'abc', 'content-type': 'text/plain' } })({
+    await createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) }, { headers: { 'x-csrf-token': 'abc', 'content-type': 'text/plain' } })({
       name: 'x',
       arguments: {},
     });
@@ -109,7 +109,7 @@ describe('createMcpUiToolCaller', () => {
   it('returns the parsed JSON response on success', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(jsonResponse({ deleted: true, cancelled: false }));
 
-    await expect(createMcpUiToolCaller('')({ name: 'content_post_delete', arguments: {} })).resolves.toEqual({
+    await expect(createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })({ name: 'content_post_delete', arguments: {} })).resolves.toEqual({
       deleted: true,
       cancelled: false,
     });
@@ -118,13 +118,13 @@ describe('createMcpUiToolCaller', () => {
   it('returns raw text when a successful response body is not valid JSON', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(new Response('ok', { status: 200 }));
 
-    await expect(createMcpUiToolCaller('')({ name: 'x', arguments: {} })).resolves.toBe('ok');
+    await expect(createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })({ name: 'x', arguments: {} })).resolves.toBe('ok');
   });
 
   it('resolves to an empty string for an empty successful body (e.g. 204) rather than throwing on the empty JSON parse', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
 
-    await expect(createMcpUiToolCaller('')({ name: 'x', arguments: {} })).resolves.toBe('');
+    await expect(createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })({ name: 'x', arguments: {} })).resolves.toBe('');
   });
 
   it('rejects with the server\'s own message from a {error} envelope — the shape this endpoint uses', async () => {
@@ -132,7 +132,7 @@ describe('createMcpUiToolCaller', () => {
       jsonResponse({ error: 'this confirmation has expired', code: 'TOOL_CALL_FAILED' }, 400),
     );
 
-    await expect(createMcpUiToolCaller('')({ name: 'content_post_delete', arguments: {} })).rejects.toThrow(
+    await expect(createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })({ name: 'content_post_delete', arguments: {} })).rejects.toThrow(
       'this confirmation has expired',
     );
   });
@@ -142,7 +142,7 @@ describe('createMcpUiToolCaller', () => {
       jsonResponse({ error: 'that dialog is no longer waiting for an answer', code: 'SURFACE_NOT_PENDING' }, 409),
     );
 
-    const failure = await Promise.resolve(createMcpUiToolCaller('')({ name: 'x', arguments: {} })).catch((error: unknown) => error);
+    const failure = await Promise.resolve(createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })({ name: 'x', arguments: {} })).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(Error);
     expect((failure as Error).message).toBe('that dialog is no longer waiting for an answer');
     expect((failure as Error & { data?: unknown }).data).toEqual({ code: 'SURFACE_NOT_PENDING' });
@@ -150,7 +150,7 @@ describe('createMcpUiToolCaller', () => {
 
   it('sets no error.data when the rejection body names no code', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(jsonResponse({ error: 'Not authorized' }, 403));
-    const failure = await Promise.resolve(createMcpUiToolCaller('')({ name: 'x', arguments: {} })).catch((error: unknown) => error);
+    const failure = await Promise.resolve(createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })({ name: 'x', arguments: {} })).catch((error: unknown) => error);
     expect((failure as Error).message).toBe('Not authorized');
     expect(failure).not.toHaveProperty('data');
   });
@@ -158,19 +158,19 @@ describe('createMcpUiToolCaller', () => {
   it('also accepts a bare {message} envelope', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(jsonResponse({ message: 'Not authorized' }, 403));
 
-    await expect(createMcpUiToolCaller('')({ name: 'x', arguments: {} })).rejects.toThrow('Not authorized');
+    await expect(createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })({ name: 'x', arguments: {} })).rejects.toThrow('Not authorized');
   });
 
   it('surfaces a non-JSON rejection body verbatim rather than a generic status message — a proxy error page is more useful than "invalid JSON"', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(new Response('<html>502</html>', { status: 502 }));
 
-    await expect(createMcpUiToolCaller('')({ name: 'x', arguments: {} })).rejects.toThrow('<html>502</html>');
+    await expect(createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })({ name: 'x', arguments: {} })).rejects.toThrow('<html>502</html>');
   });
 
   it('falls back to a status-coded message only when the rejection body is empty', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 502 }));
 
-    await expect(createMcpUiToolCaller('')({ name: 'x', arguments: {} })).rejects.toThrow(
+    await expect(createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })({ name: 'x', arguments: {} })).rejects.toThrow(
       'Request failed with status 502.',
     );
   });
@@ -178,7 +178,7 @@ describe('createMcpUiToolCaller', () => {
   it('falls back to a status-coded message when the rejection body is JSON with neither envelope field', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(jsonResponse({ unrelated: true }, 500));
 
-    await expect(createMcpUiToolCaller('')({ name: 'x', arguments: {} })).rejects.toThrow(
+    await expect(createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })({ name: 'x', arguments: {} })).rejects.toThrow(
       'Request failed with status 500.',
     );
   });
@@ -192,7 +192,7 @@ describe('createMcpUiToolCaller', () => {
         });
       })) as unknown as typeof fetch;
 
-    const pending = createMcpUiToolCaller('', { timeoutMs: 5_000 })({ name: 'x', arguments: {} });
+    const pending = createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) }, { timeoutMs: 5_000 })({ name: 'x', arguments: {} });
     const rejects = expect(pending).rejects.toThrow('Timed out after 5000ms waiting for the server.');
 
     await vi.advanceTimersByTimeAsync(5_000);
@@ -209,7 +209,7 @@ describe('createMcpUiToolCaller', () => {
         });
       })) as unknown as typeof fetch;
 
-    const pending = createMcpUiToolCaller('')({ name: 'x', arguments: {} });
+    const pending = createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })({ name: 'x', arguments: {} });
     const rejects = expect(pending).rejects.toThrow('Timed out after 30000ms waiting for the server.');
 
     await vi.advanceTimersByTimeAsync(30_000);
@@ -220,6 +220,6 @@ describe('createMcpUiToolCaller', () => {
   it('propagates a non-abort network failure unchanged', async () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new Error('network down'));
 
-    await expect(createMcpUiToolCaller('')({ name: 'x', arguments: {} })).rejects.toThrow('network down');
+    await expect(createMcpUiToolCaller({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) })({ name: 'x', arguments: {} })).rejects.toThrow('network down');
   });
 });

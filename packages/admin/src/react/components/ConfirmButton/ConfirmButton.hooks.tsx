@@ -16,7 +16,10 @@ import { useEffect, useRef, useState } from 'react';
  * @complexity O(1) per render/interaction. The two document-level listeners are attached only while
  * armed, not for the component's whole mounted lifetime.
  */
-export function useConfirmButton(pending: boolean | undefined, disabled: boolean | undefined, onConfirm: () => void) {
+export function useConfirmButton(
+  { onConfirm, document }: { readonly onConfirm: () => void; readonly document: Pick<Document, 'addEventListener' | 'removeEventListener'> },
+  { pending, disabled }: { readonly pending?: boolean | undefined; readonly disabled?: boolean | undefined } = {},
+) {
   const [confirming, setConfirming] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -40,7 +43,7 @@ export function useConfirmButton(pending: boolean | undefined, disabled: boolean
       document.removeEventListener('mousedown', onDocMouseDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [confirming]);
+  }, [confirming, document]);
 
   function handleClick() {
     if (pending || disabled) return;

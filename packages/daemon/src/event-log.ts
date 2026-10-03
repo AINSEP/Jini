@@ -14,27 +14,30 @@
  * JSONL tail file that nothing ever reads back for replay. Because the durable half lives outside
  * any port, a non-OD consumer that only wires the in-memory ring silently loses in-flight output
  * on a long-run reload. `EventLog` is the fix: a single, storage-agnostic port that any adapter
- * (this module's in-memory reference implementation, or `@jini-ai/sqlite`'s durable adapter)
+ * (this module's in-memory reference implementation, or `@jini-ai/daemon/store/event-log/sqlite`'s durable adapter)
  * can satisfy.
  */
 export type {
   EventLog,
   EventLogAppendInput,
+  EventLogAppendOptions,
   EventLogEntry,
   EventLogReplayResult,
 } from '@jini-ai/protocol';
 
-import type { EventLog, EventLogAppendInput, EventLogEntry, EventLogReplayResult } from '@jini-ai/protocol';
+import type { EventLog, EventLogAppendInput, EventLogAppendOptions, EventLogEntry, EventLogReplayResult } from '@jini-ai/protocol';
 
 export interface InMemoryEventLogOptions {
   /**
    * Maximum entries retained per run before the oldest are evicted. Eviction is opt-in: if
    * omitted, retention is unbounded and nothing is ever silently dropped. Pass an explicit
-   * value only when bounded memory (or, for `@jini-ai/sqlite`, bounded disk) is a deliberate
+   * value only when bounded memory (or, for `@jini-ai/daemon/store/event-log/sqlite`, bounded disk) is a deliberate
    * choice — the caller then owns the tradeoff, rather than inheriting a hidden 2000-entry
    * cap OD's own in-memory ring happened to use.
    */
   readonly maxEntriesPerRun?: number;
+  /** Host clock; defaults to Date.now to preserve recorded timestamps. */
+  readonly now?: () => number;
 }
 
 interface RunLog {
@@ -48,7 +51,7 @@ interface RunLog {
  * `maxEntriesPerRun` (opt-in — see {@link InMemoryEventLogOptions}), functionally a ring
  * buffer once a cap is set (oldest entries evicted once the cap is exceeded) without needing
  * an actual circular-index structure at this scale. This is the in-memory half only — no
- * durable copy — matching this task's scope (a real persistent adapter is `@jini-ai/sqlite`'s
+ * durable copy — matching this task's scope (a real persistent adapter is `@jini-ai/daemon/store/event-log/sqlite`'s
  * job).
  *
  * @param options.maxEntriesPerRun - Retention cap per run, see {@link InMemoryEventLogOptions}.
@@ -57,8 +60,9 @@ interface RunLog {
  * splice, k = entries over cap, which is normally 1). `replay` is O(n) in
  * the number of retained entries for the run.
  */
-export function createInMemoryEventLog(options: InMemoryEventLogOptions = {}): EventLog {
+export function createInMemoryEventLog(_requiredArgs: Record<string, never>, options: InMemoryEventLogOptions = {}): EventLog {
   const maxEntriesPerRun = options.maxEntriesPerRun;
+  const now = options.now ?? Date.now;
   const runs = new Map<string, RunLog>();
 
   function getOrCreateRunLog(runId: string): RunLog {
@@ -71,10 +75,10 @@ export function createInMemoryEventLog(options: InMemoryEventLogOptions = {}): E
   }
 
   return {
-    async append<Payload>(input: EventLogAppendInput<Payload>): Promise<EventLogEntry<Payload>> {
+    async append<Payload>(input: EventLogAppendInput<Payload>, options: EventLogAppendOptions = {}): Promise<EventLogEntry<Payload>> {
       const runLog = getOrCreateRunLog(input.runId);
-      if (input.dedupeKey !== undefined) {
-        const existing = runLog.dedupeIndex.get(input.dedupeKey);
+      if (options.dedupeKey !== undefined) {
+        const existing = runLog.dedupeIndex.get(options.dedupeKey);
         if (existing) {
           return existing as EventLogEntry<Payload>;
         }
@@ -83,12 +87,12 @@ export function createInMemoryEventLog(options: InMemoryEventLogOptions = {}): E
         id: String(runLog.nextId),
         event: input.event,
         data: input.data,
-        recordedAt: Date.now(),
+        recordedAt: now(),
       };
       runLog.nextId += 1;
       runLog.entries.push(entry as EventLogEntry);
-      if (input.dedupeKey !== undefined) {
-        runLog.dedupeIndex.set(input.dedupeKey, entry as EventLogEntry);
+      if (options.dedupeKey !== undefined) {
+        runLog.dedupeIndex.set(options.dedupeKey, entry as EventLogEntry);
       }
       if (maxEntriesPerRun !== undefined && runLog.entries.length > maxEntriesPerRun) {
         runLog.entries.splice(0, runLog.entries.length - maxEntriesPerRun);
@@ -96,7 +100,7 @@ export function createInMemoryEventLog(options: InMemoryEventLogOptions = {}): E
       return entry;
     },
 
-    async replay(runId: string, afterCursor: string | null): Promise<EventLogReplayResult> {
+    async replay({ runId, afterCursor }: { runId: string; afterCursor: string | null }): Promise<EventLogReplayResult> {
       const runLog = runs.get(runId);
       if (!runLog) {
         return { kind: 'unknown-run' };
@@ -129,11 +133,11 @@ export function createInMemoryEventLog(options: InMemoryEventLogOptions = {}): E
       };
     },
 
-    async listRunIds(): Promise<readonly string[]> {
+    async listRunIds(_requiredArgs: Record<string, never>): Promise<readonly string[]> {
       return Array.from(runs.keys()).sort();
     },
 
-    async drop(runId: string): Promise<void> {
+    async drop({ runId }: { runId: string }): Promise<void> {
       runs.delete(runId);
     },
   };

@@ -27,7 +27,7 @@ describe('interleaveMessageBlocks', () => {
     const events = [text('Looking for a tool. '), toolUse('t1'), toolResult('t1'), text('Done — it is English now.')];
     const rows: Row[] = [{ id: 't1' }];
 
-    const blocks = interleaveMessageBlocks(events, contentOf(events), rows);
+    const blocks = interleaveMessageBlocks({ events, content: contentOf(events), rows });
 
     expect(blocks).not.toBeNull();
     expect(blocks!.map((b) => b.kind)).toEqual(['text', 'tools', 'text']);
@@ -37,7 +37,7 @@ describe('interleaveMessageBlocks', () => {
 
   it('accepts content saved with a paragraph break between steps (assistantContentFromEvents), not only the old glued shape', () => {
     const events = [text('Need project id.'), toolUse('t1'), toolResult('t1'), text('Done.')];
-    const blocks = interleaveMessageBlocks(events, 'Need project id.\n\nDone.', [{ id: 't1' }]);
+    const blocks = interleaveMessageBlocks({ events, content: 'Need project id.\n\nDone.', rows: [{ id: 't1' }] });
     expect(blocks?.map((b) => b.kind)).toEqual(['text', 'tools', 'text']);
     expect(blocks?.[0]).toMatchObject({ kind: 'text', text: 'Need project id.' });
     expect(blocks?.[2]).toMatchObject({ kind: 'text', text: 'Done.' });
@@ -56,7 +56,7 @@ describe('interleaveMessageBlocks', () => {
     ];
     const rows: Row[] = [{ id: 't1' }, { id: 't2' }, { id: 't3' }];
 
-    const blocks = interleaveMessageBlocks(events, contentOf(events), rows)!;
+    const blocks = interleaveMessageBlocks({ events, content: contentOf(events), rows })!;
 
     expect(blocks.map((b) => b.kind)).toEqual(['text', 'tools', 'text']);
     const tools = blocks[1] as { kind: 'tools'; rows: readonly Row[] };
@@ -67,14 +67,14 @@ describe('interleaveMessageBlocks', () => {
     const events = [toolUse('t1'), toolResult('t1'), text('Interim thought.'), toolUse('t2'), toolResult('t2')];
     const rows: Row[] = [{ id: 't1' }, { id: 't2' }];
 
-    const blocks = interleaveMessageBlocks(events, contentOf(events), rows)!;
+    const blocks = interleaveMessageBlocks({ events, content: contentOf(events), rows })!;
 
     expect(blocks.map((b) => b.kind)).toEqual(['tools', 'text', 'tools']);
   });
 
   it('handles a message that opens with a tool call and has no leading text', () => {
     const events = [toolUse('t1'), toolResult('t1'), text('Result explained.')];
-    const blocks = interleaveMessageBlocks(events, contentOf(events), [{ id: 't1' }])!;
+    const blocks = interleaveMessageBlocks({ events, content: contentOf(events), rows: [{ id: 't1' }] })!;
 
     expect(blocks.map((b) => b.kind)).toEqual(['tools', 'text']);
   });
@@ -83,7 +83,7 @@ describe('interleaveMessageBlocks', () => {
     const events = [text('alpha '), toolUse('t1'), text('beta '), toolUse('t2'), text('gamma')];
     const content = contentOf(events);
 
-    const blocks = interleaveMessageBlocks(events, content, [{ id: 't1' }, { id: 't2' }])!;
+    const blocks = interleaveMessageBlocks({ events, content, rows: [{ id: 't1' }, { id: 't2' }] })!;
     const rejoined = blocks
       .filter((b): b is { kind: 'text'; text: string; key: string } => b.kind === 'text')
       .map((b) => b.text)
@@ -97,33 +97,33 @@ describe('interleaveMessageBlocks', () => {
   it('refuses when the text events do not reproduce content byte for byte', () => {
     const events = [text('from events'), toolUse('t1')];
     // A message whose content was assembled some other way, or persisted before events existed.
-    expect(interleaveMessageBlocks(events, 'a completely different stored content', [{ id: 't1' }])).toBeNull();
+    expect(interleaveMessageBlocks({ events, content: 'a completely different stored content', rows: [{ id: 't1' }] })).toBeNull();
   });
 
   it('refuses on a whitespace-only difference rather than accepting a close-enough match', () => {
     const events = [text('hello '), toolUse('t1')];
-    expect(interleaveMessageBlocks(events, 'hello', [{ id: 't1' }])).toBeNull();
+    expect(interleaveMessageBlocks({ events, content: 'hello', rows: [{ id: 't1' }] })).toBeNull();
   });
 
   it('refuses when a row never gets placed, rather than rendering a message missing its card', () => {
     // `t2` is in the timeline but has no `tool_use` in the event stream.
     const events = [text('hi'), toolUse('t1'), toolResult('t1')];
-    expect(interleaveMessageBlocks(events, contentOf(events), [{ id: 't1' }, { id: 't2' }])).toBeNull();
+    expect(interleaveMessageBlocks({ events, content: contentOf(events), rows: [{ id: 't1' }, { id: 't2' }] })).toBeNull();
   });
 
   it('skips a tool_use the timeline deduped away, and still succeeds when all rows are placed', () => {
     // `t1` appears twice on the wire; `useToolTimeline` dedupes to one row.
     const events = [text('a'), toolUse('t1'), toolUse('t1'), text('b')];
-    const blocks = interleaveMessageBlocks(events, contentOf(events), [{ id: 't1' }])!;
+    const blocks = interleaveMessageBlocks({ events, content: contentOf(events), rows: [{ id: 't1' }] })!;
 
     expect(blocks.map((b) => b.kind)).toEqual(['text', 'tools', 'text']);
     expect((blocks[1] as { rows: readonly Row[] }).rows).toHaveLength(1);
   });
 
   it('returns null when there is nothing to interleave, so the caller keeps its flat path', () => {
-    expect(interleaveMessageBlocks(undefined, 'text', [{ id: 't1' }])).toBeNull();
-    expect(interleaveMessageBlocks([], '', [{ id: 't1' }])).toBeNull();
-    expect(interleaveMessageBlocks([text('just prose')], 'just prose', [])).toBeNull();
+    expect(interleaveMessageBlocks({ events: undefined, content: 'text', rows: [{ id: 't1' }] })).toBeNull();
+    expect(interleaveMessageBlocks({ events: [], content: '', rows: [{ id: 't1' }] })).toBeNull();
+    expect(interleaveMessageBlocks({ events: [text('just prose')], content: 'just prose', rows: [] })).toBeNull();
   });
 
   // --- ext (MCP-UI / A2UI) surfaces ------------------------------------------
@@ -132,7 +132,7 @@ describe('interleaveMessageBlocks', () => {
     const events = [text('Opening the form. '), toolUse('t1'), ext('mcp-ui', { uri: 'ui://x' }), text('You picked: pro.')];
     const rows: Row[] = [{ id: 't1' }];
 
-    const blocks = interleaveMessageBlocks(events, contentOf(events), rows)!;
+    const blocks = interleaveMessageBlocks({ events, content: contentOf(events), rows })!;
 
     expect(blocks.map((b) => b.kind)).toEqual(['text', 'tools', 'ext', 'text']);
     expect(blocks[2]).toMatchObject({ kind: 'ext', name: 'mcp-ui' });
@@ -146,13 +146,13 @@ describe('interleaveMessageBlocks', () => {
     const events = [
       text("I'll open the form."),
       toolUse('demo', 'assistant_demo_choices'),
-      ext('mcp-ui', { uri: 'ui://tovu/demo-choices' }),
+      ext('mcp-ui', { uri: 'ui://consumer/demo-choices' }),
       toolResult('demo'),
       text('You picked: Pro + Analytics.'),
     ];
     const rows: Row[] = [{ id: 'demo' }];
 
-    const blocks = interleaveMessageBlocks(events, contentOf(events), rows)!;
+    const blocks = interleaveMessageBlocks({ events, content: contentOf(events), rows })!;
 
     expect(blocks.map((b) => b.kind)).toEqual(['text', 'tools', 'ext', 'text']);
     expect(blocks[3]).toMatchObject({ text: 'You picked: Pro + Analytics.' });
@@ -163,7 +163,7 @@ describe('interleaveMessageBlocks', () => {
     // same name must not create a second block or split the surrounding text.
     const events = [ext('a2ui'), text('working'), ext('a2ui'), text(' more'), ext('a2ui')];
 
-    const blocks = interleaveMessageBlocks(events, contentOf(events), [])!;
+    const blocks = interleaveMessageBlocks({ events, content: contentOf(events), rows: [] })!;
 
     expect(blocks.map((b) => b.kind)).toEqual(['ext', 'text']);
     expect(blocks[1]).toMatchObject({ text: 'working more' });
@@ -172,10 +172,10 @@ describe('interleaveMessageBlocks', () => {
   it('does not refuse purely for having no tool rows, when an ext event exists to interleave', () => {
     const events = [text('a'), ext('mcp-ui'), text('b')];
 
-    expect(interleaveMessageBlocks(events, contentOf(events), [])).not.toBeNull();
+    expect(interleaveMessageBlocks({ events, content: contentOf(events), rows: [] })).not.toBeNull();
   });
 
-  // Tovu stuck-chat investigation, 2026-09-27: a run showed a Supabase connect card, answered one
+  // host stuck-chat investigation, 2026-09-27: a run showed a Supabase connect card, answered one
   // choice card, then asked a second. Every `mcp-ui` event shared ONE slot at the first card's
   // position, so the second card rendered far above the spinning tool row the human was looking at
   // and the run waited on a card nobody could see.
@@ -197,7 +197,7 @@ describe('interleaveMessageBlocks', () => {
     const rows: Row[] = [{ id: 't1' }, { id: 't2' }, { id: 't3' }];
     const slotOf = (ev: { name: string; data: unknown }) => `${ev.name}:${(ev.data as { uri: string }).uri}`;
 
-    const blocks = interleaveMessageBlocks(events, contentOf(events), rows, slotOf)!;
+    const blocks = interleaveMessageBlocks({ events, content: contentOf(events), rows }, { slotOf: slotOf })!;
 
     expect(blocks.map((b) => (b.kind === 'ext' ? `ext ${b.slot}` : b.kind))).toEqual([
       'tools',
@@ -214,7 +214,7 @@ describe('interleaveMessageBlocks', () => {
   it('keeps one slot per name when no slot key is given', () => {
     const events = [ext('mcp-ui', { uri: 'a' }), text('x'), ext('mcp-ui', { uri: 'b' })];
 
-    const blocks = interleaveMessageBlocks(events, contentOf(events), [])!;
+    const blocks = interleaveMessageBlocks({ events, content: contentOf(events), rows: [] })!;
 
     expect(blocks.map((b) => (b.kind === 'ext' ? `ext ${b.slot}` : b.kind))).toEqual(['ext mcp-ui', 'text']);
   });
@@ -229,7 +229,7 @@ describe('interleaveMessageBlocks', () => {
       text('b'),
     ];
 
-    const blocks = interleaveMessageBlocks(events, 'ab', [{ id: 't1' }])!;
+    const blocks = interleaveMessageBlocks({ events, content: 'ab', rows: [{ id: 't1' }] })!;
 
     expect(blocks.map((b) => b.kind)).toEqual(['text', 'tools', 'text']);
     expect(blocks[0]).toMatchObject({ text: 'a' });

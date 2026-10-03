@@ -16,7 +16,7 @@ describe('@jini-ai/sandbox/core barrel', () => {
   });
 
   it('re-exports a working implementation, not just the name', () => {
-    const error = new core.SandboxOperationError('timeout', 'took too long');
+    const error = new core.SandboxOperationError({ category: 'timeout', message: 'took too long' });
     expect(error).toBeInstanceOf(Error);
     expect(error.category).toBe('timeout');
   });

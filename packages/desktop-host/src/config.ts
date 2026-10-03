@@ -32,9 +32,9 @@ export interface LoadHostConfigFileOptions {
   env?: NodeJS.ProcessEnv;
 }
 
-export async function loadHostConfigFile<T extends Record<string, unknown>>(
-  options: LoadHostConfigFileOptions,
+export async function loadHostConfigFile<T extends Record<string, unknown>>(requiredArgs: Pick<LoadHostConfigFileOptions, 'candidatePaths'>, optionalArgs: Omit<LoadHostConfigFileOptions, 'candidatePaths'> = {}
 ): Promise<T> {
+  const options = { ...optionalArgs, ...requiredArgs };
   const env = options.env ?? process.env;
   const explicit = options.explicitPathEnvVar == null ? undefined : env[options.explicitPathEnvVar];
   if (explicit != null && explicit.length > 0) {

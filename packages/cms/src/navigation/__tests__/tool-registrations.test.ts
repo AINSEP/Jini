@@ -26,11 +26,11 @@ function fakeDeps(): MenusToolDeps {
   return {
     authorize: async () => ({ allowed: true, reason: "matched" }),
     workspaceId: WORKSPACE_ID,
-    clock: { nowIso: () => NOW },
+    clock: { nowMs: () => Date.parse(NOW)},
     idGen: { newId: () => `id-${++counter}` },
     outbox: { enqueue: async () => undefined, claimPending: async () => [], markDelivered: async () => {}, markFailed: async () => {} },
-    menuRepo: new InMemoryMenuRepo(),
-    navLocationBindingRepo: new InMemoryNavLocationBindingRepo(),
+    menuRepo: new InMemoryMenuRepo({}),
+    navLocationBindingRepo: new InMemoryNavLocationBindingRepo({}),
   };
 }
 

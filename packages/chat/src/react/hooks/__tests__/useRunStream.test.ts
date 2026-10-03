@@ -7,7 +7,7 @@ import { createFakeChatTransport } from '../testing/fake-transport.js';
 describe('useRunStream', () => {
   it('starts idle', () => {
     const transport = createFakeChatTransport();
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
     expect(result.current.status).toBe('idle');
     expect(result.current.events).toEqual([]);
     expect(result.current.runId).toBeNull();
@@ -15,7 +15,7 @@ describe('useRunStream', () => {
 
   it('streams events from start() and accumulates them in order', async () => {
     const transport = createFakeChatTransport();
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
 
     await act(async () => {
       await result.current.start({ history: [] });
@@ -35,7 +35,7 @@ describe('useRunStream', () => {
 
   it('buffers live tool-input deltas by tool id, ephemeral only', async () => {
     const transport = createFakeChatTransport();
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
     await act(async () => {
       await result.current.start({ history: [] });
     });
@@ -51,7 +51,7 @@ describe('useRunStream', () => {
 
   it('surfaces transport errors via onError', async () => {
     const transport = createFakeChatTransport();
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
     await act(async () => {
       await result.current.start({ history: [] });
     });
@@ -62,7 +62,7 @@ describe('useRunStream', () => {
 
   it('cancel() stops the run via the transport and marks status canceled', async () => {
     const transport = createFakeChatTransport();
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
     await act(async () => {
       await result.current.start({ history: [] });
     });
@@ -79,7 +79,7 @@ describe('useRunStream', () => {
 
   it('reattach() resumes an existing run, seeded with prior persisted events, then keeps streaming', async () => {
     const transport = createFakeChatTransport();
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
     const priorEvents = [{ kind: 'text' as const, text: 'earlier' }];
 
     await act(async () => {
@@ -100,7 +100,7 @@ describe('useRunStream', () => {
 
   it('a second start() supersedes the first — stale-generation events from the first are dropped', async () => {
     const transport = createFakeChatTransport();
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
 
     await act(async () => {
       await result.current.start({ history: [] });
@@ -122,7 +122,7 @@ describe('useRunStream', () => {
 
   it('reset() clears state back to idle without calling the transport', async () => {
     const transport = createFakeChatTransport();
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
     await act(async () => {
       await result.current.start({ history: [] });
     });
@@ -141,7 +141,7 @@ describe('useRunStream', () => {
       stopRun: vi.fn(),
       fetchRunStatus: vi.fn(),
     } as unknown as ChatTransport;
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
 
     await act(async () => {
       await result.current.start({ history: [] });
@@ -162,7 +162,7 @@ describe('useRunStream', () => {
       stopRun: vi.fn(),
       fetchRunStatus: vi.fn(),
     } as unknown as ChatTransport;
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
 
     await act(async () => {
       await result.current.reattach('run-x');
@@ -191,7 +191,7 @@ describe('useRunStream', () => {
       stopRun: vi.fn(),
       fetchRunStatus: vi.fn(),
     } as unknown as ChatTransport;
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
 
     let firstCall!: Promise<{ runId: string } | null>;
     act(() => {
@@ -235,7 +235,7 @@ describe('useRunStream', () => {
       stopRun: vi.fn(),
       fetchRunStatus: vi.fn(),
     } as unknown as ChatTransport;
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
 
     let startCall!: Promise<{ runId: string } | null>;
     act(() => {
@@ -272,7 +272,7 @@ describe('useRunStream', () => {
       stopRun: vi.fn(),
       fetchRunStatus: vi.fn(),
     } as unknown as ChatTransport;
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
 
     let firstCall!: Promise<{ runId: string } | null>;
     act(() => {
@@ -296,7 +296,7 @@ describe('useRunStream', () => {
 
   it('onDone after onError keeps status "error" rather than overwriting it to "done"', async () => {
     const transport = createFakeChatTransport();
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
     await act(async () => {
       await result.current.start({ history: [] });
     });
@@ -310,7 +310,7 @@ describe('useRunStream', () => {
 
   it('stale-generation onToolInputDelta/onError/onDone callbacks from a superseded start() are all dropped', async () => {
     const transport = createFakeChatTransport();
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
 
     await act(async () => {
       await result.current.start({ history: [] });
@@ -351,7 +351,7 @@ describe('useRunStream', () => {
       stopRun: vi.fn(),
       fetchRunStatus: vi.fn(),
     } as unknown as ChatTransport;
-    const { result, unmount } = renderHook(() => useRunStream(transport));
+    const { result, unmount } = renderHook(() => useRunStream({ transport }));
 
     act(() => {
       void result.current.reattach('run-a');
@@ -383,7 +383,7 @@ describe('useRunStream', () => {
       stopRun: vi.fn().mockRejectedValue(failure),
       fetchRunStatus: vi.fn(),
     } as unknown as ChatTransport;
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
 
     try {
       await act(async () => {
@@ -422,7 +422,7 @@ describe('useRunStream', () => {
       stopRun: vi.fn().mockRejectedValue(failure),
       fetchRunStatus: vi.fn(),
     } as unknown as ChatTransport;
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
 
     try {
       let startCall!: Promise<{ runId: string } | null>;
@@ -462,7 +462,7 @@ describe('useRunStream', () => {
       stopRun: vi.fn(),
       fetchRunStatus: vi.fn(),
     } as unknown as ChatTransport;
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
 
     act(() => {
       void result.current.reattach('run-a');
@@ -487,7 +487,7 @@ describe('useRunStream', () => {
       stopRun: vi.fn(),
       fetchRunStatus: vi.fn(),
     } as unknown as ChatTransport;
-    const { result } = renderHook(() => useRunStream(transport));
+    const { result } = renderHook(() => useRunStream({ transport }));
 
     act(() => {
       void result.current.reattach('run-a');

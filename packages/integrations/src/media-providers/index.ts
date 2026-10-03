@@ -5,7 +5,7 @@
  * async task-tracking port, a host-injected policy port, a generic
  * attachment-staging port, and (as of the dispatch engine) a real
  * multi-vendor REST dispatch engine covering an initial vendor slice — see
- * `source-map.md` for full provenance, exactly which vendors are ported vs
+ * `archived provenance ledger` for full provenance, exactly which vendors are ported vs
  * deferred, and this package's not-yet-locked status.
  */
 export * from './types.js';
