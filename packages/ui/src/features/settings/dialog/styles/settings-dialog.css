@@ -122,9 +122,11 @@
    controls use this family instead of `.jini-btn`. `<a>` is included
    alongside `<button>` because the MCP server tab's "One-click install"
    deep link renders as an anchor styled as a button, not a real button. */
-.jini-btn,
-.jini-button,
-a.jini-button {
+/* These primitives belong to settings tab content, including standalone sections.
+   Scope them so loading this stylesheet cannot style another package's buttons. */
+.jini-settings-section .jini-btn,
+.jini-settings-section .jini-button,
+.jini-settings-section a.jini-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -142,13 +144,13 @@ a.jini-button {
   transition: border-color 120ms var(--jini-ease-out), background-color 120ms var(--jini-ease-out);
 }
 
-.jini-btn:hover:not(:disabled),
-.jini-button:hover:not(:disabled) {
+.jini-settings-section .jini-btn:hover:not(:disabled),
+.jini-settings-section .jini-button:hover:not(:disabled) {
   border-color: var(--jini-border-strong);
 }
 
-.jini-btn:disabled,
-.jini-button:disabled {
+.jini-settings-section .jini-btn:disabled,
+.jini-settings-section .jini-button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -160,18 +162,18 @@ a.jini-button {
    `disabled` (it drops `href` instead — see `IntegrationsTab.tsx`), so the
    component sets this class in the same case a real `disabled` attribute
    would apply. */
-.jini-button-primary {
+.jini-settings-section .jini-button-primary {
   color: var(--jini-accent-ink);
   background: var(--jini-accent);
   border-color: var(--jini-accent);
 }
 
-.jini-button-primary:hover {
+.jini-settings-section .jini-button-primary:hover {
   background: var(--jini-accent-hover);
   border-color: var(--jini-accent-hover);
 }
 
-.jini-button-disabled {
+.jini-settings-section .jini-button-disabled {
   opacity: 0.55;
   cursor: not-allowed;
   pointer-events: none;
@@ -843,8 +845,8 @@ a.jini-button {
   gap: 8px;
 }
 
-.jini-btn-ghost,
-.jini-button-ghost {
+.jini-settings-section .jini-btn-ghost,
+.jini-settings-section .jini-button-ghost {
   background: transparent;
 }
 
@@ -863,8 +865,8 @@ a.jini-button {
    button:disabled` (above, line ~150) already dims via `opacity: 0.55`; restoring the ordinary
    `var(--jini-text)` here just gives that opacity something visible to dim, same as every other
    disabled `.jini-button` variant that doesn't hit this host-specific collision. */
-.jini-btn-ghost:disabled,
-.jini-button-ghost:disabled {
+.jini-settings-section .jini-btn-ghost:disabled,
+.jini-settings-section .jini-button-ghost:disabled {
   background: transparent;
   color: var(--jini-text);
 }

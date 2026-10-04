@@ -62,20 +62,23 @@ describe('provider environment parity', () => {
     unmount();
   });
 
-  it('retries an initial failure with loading and a cleared error through the hook', async () => {
+  it('retries an initial failure with loading and retains the error until success through the hook', async () => {
     const env = environmentFixture();
     let resolve!: (value: string) => void;
     const next = new Promise<string>(yes => { resolve = yes; });
+    const error = new Error('failed');
     const fetch = vi.fn<() => Promise<string>>()
-      .mockRejectedValueOnce(new Error('failed'))
+      .mockRejectedValueOnce(error)
       .mockImplementationOnce(() => next);
     const wrapper = ({ children }: { children: ReactNode }) => <FetchQueryProvider environment={env.environment}>{children}</FetchQueryProvider>;
     const { result, unmount } = renderHook(() => useFetchQuery({ key: ['rows'], fetch }), { wrapper });
     await waitFor(() => expect(result.current.status).toBe('error'));
     act(() => { result.current.refetch(); });
-    expect(result.current).toMatchObject({ status: 'loading', error: null, isFetching: true });
+    expect(result.current).toMatchObject({ data: undefined, status: 'loading', error, isFetching: true });
+    expect(result.current.error).toBe(error);
     await act(async () => { resolve('recovered'); });
     await waitFor(() => expect(result.current.data).toBe('recovered'));
+    expect(result.current).toMatchObject({ data: 'recovered', status: 'success', error: null, isFetching: false });
     unmount();
   });
 

@@ -12,6 +12,8 @@ export {
   resolveProviderBaseUrl,
   shouldSyncLocalProvidersToDaemon,
   sortProvidersByConfigured,
+  isProviderBaseUrlInvalid,
+  invalidBaseUrlProviderIds,
 } from './rules.js';
 export type {
   MediaProviderCredentials,

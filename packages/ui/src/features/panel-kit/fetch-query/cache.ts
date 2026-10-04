@@ -177,7 +177,10 @@ export class FetchQueryCache {
     entry.pending = pending;
     // Mark handled even when a UI caller deliberately discards the promise.
     void pending.catch(() => {});
-    const state = entry.state.data === undefined ? { ...entry.state, status: 'pending' as const, error: null } : entry.state;
+    // Like TanStack's background refetches, retain the last error until success clears it
+    // or another failure replaces it. Extend that rule to retries without cached data:
+    // starting a request is not evidence of recovery; isFetching reports its progress.
+    const state = entry.state.data === undefined ? { ...entry.state, status: 'pending' as const } : entry.state;
     this.publish(entry, { ...state, isFetching: this.online });
     return pending;
   }

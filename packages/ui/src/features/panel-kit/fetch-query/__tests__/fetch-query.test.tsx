@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 
@@ -74,6 +74,51 @@ describe("useFetchQuery", () => {
   it("normalises a non-Error rejection into an Error, so callers can rely on .message", async () => {
     wrap(<Reader fetch={async () => Promise.reject("just a string")} />);
     await waitFor(() => expect(screen.getByTestId("error")).toHaveTextContent("just a string"));
+  });
+
+  it.each([false, true])("exposes the last error while refetching, replaces it on failure and clears it on success (cached data: %s)", async cached => {
+    const firstError = new Error("first failure");
+    const secondError = new Error("second failure");
+    const failed = deferred<string>();
+    const recovered = deferred<string>();
+    const fetch = vi.fn<() => Promise<string>>();
+    if (cached) fetch.mockResolvedValueOnce("cached");
+    fetch.mockRejectedValueOnce(firstError).mockImplementationOnce(() => failed.promise).mockImplementationOnce(() => recovered.promise);
+    const { result } = renderHook(() => useFetchQuery({ key: ["retry-error"], fetch }), { wrapper: FetchQueryProvider });
+    if (cached) {
+      await waitFor(() => expect(result.current.data).toBe("cached"));
+      act(() => result.current.refetch());
+    }
+    await waitFor(() => expect(result.current.status).toBe("error"));
+    const data = cached ? "cached" : undefined;
+    expect(result.current.data).toBe(data);
+    expect(result.current.error).toBe(firstError);
+    expect(result.current.isFetching).toBe(false);
+
+    act(() => result.current.refetch());
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(cached ? 3 : 2));
+    expect(result.current.data).toBe(data);
+    expect(result.current.error).toBe(firstError);
+    expect(result.current.status).toBe(cached ? "error" : "loading");
+    expect(result.current.isFetching).toBe(true);
+
+    await act(async () => failed.reject(secondError));
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    expect(result.current.data).toBe(data);
+    expect(result.current.error).toBe(secondError);
+    expect(result.current.status).toBe("error");
+
+    act(() => result.current.refetch());
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(cached ? 4 : 3));
+    expect(result.current.data).toBe(data);
+    expect(result.current.error).toBe(secondError);
+    expect(result.current.status).toBe(cached ? "error" : "loading");
+    expect(result.current.isFetching).toBe(true);
+    await act(async () => recovered.resolve("recovered"));
+    await waitFor(() => expect(result.current.status).toBe("success"));
+    expect(result.current.data).toBe("recovered");
+    expect(result.current.error).toBeNull();
+    expect(result.current.isFetching).toBe(false);
   });
 
   it("does not run while disabled, and runs once enabled — the lazy-cell contract", async () => {

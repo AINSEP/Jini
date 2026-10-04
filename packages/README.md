@@ -91,6 +91,7 @@ barrel then costs nothing extra, and the subpath tells you exactly what to add i
 | `@jini-ai/ui` | `@radix-ui/react-checkbox`, `@radix-ui/react-label`, `@radix-ui/react-radio-group`, `@radix-ui/react-select`, `@radix-ui/react-slot` | `./interactive-ui` (shadcn provider components) |
 | `@jini-ai/ui` | `recharts` | `./interactive-ui` (chart provider components) |
 | `@jini-ai/ui` | `@mcp-ui/client` | `./mcp-ui` (`McpUiHost`) |
+| `@jini-ai/chat` | `@radix-ui/react-checkbox`, `@radix-ui/react-label`, `@radix-ui/react-radio-group`, `@radix-ui/react-select`, `@radix-ui/react-slot`, `recharts`, `@mcp-ui/client` | `./react*` surface cards (reachable through `./react`; `./react/chat-pane` and `./react/embed` do not import these cards) |
 | `@jini-ai/registry` | `better-sqlite3` | `DatabaseRegistryBackend` |
 | `@jini-ai/daemon` | `node-pty` | Terminal sessions (`loadRealSpawnPty`) |
 

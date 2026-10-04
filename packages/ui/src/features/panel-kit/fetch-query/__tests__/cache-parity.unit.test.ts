@@ -106,16 +106,35 @@ describe('fetch-query cache parity', () => {
     cache.dispose();
   });
 
-  it('clears the error and reports pending while retrying a failed initial read', async () => {
+  it.each([false, true])('retains the last error until a retry settles (cached data: %s)', async cached => {
     const { cache } = fixture();
     const entry = cache.entry({ key: ['rows'] });
-    await expect(cache.load({ entry, fetch: async () => { throw new Error('failed'); }, staleTime: 0 })).rejects.toThrow('failed');
+    if (cached) cache.replace({ entry, data: 'cached' });
+    const firstError = new Error('first failure');
+    const secondError = new Error('second failure');
+    await expect(cache.load({ entry, fetch: async () => { throw firstError; }, staleTime: 0 })).rejects.toBe(firstError);
+    const data = cached ? 'cached' : undefined;
+    expect(entry.state).toEqual({ data, error: firstError, status: 'error', isFetching: false });
+    const failed = deferred<string>();
+    const retry = cache.load({ entry, fetch: () => failed.promise, staleTime: 0 }, { force: true });
+    const fetchingState = { data, error: firstError, status: cached ? 'error' : 'pending', isFetching: true };
+    expect(entry.state).toEqual(fetchingState);
+    expect(entry.state.error).toBe(firstError);
+    await Promise.resolve();
+    expect(entry.state).toEqual(fetchingState);
+    expect(entry.state.error).toBe(firstError);
+    failed.reject(secondError);
+    await expect(retry).rejects.toBe(secondError);
+    expect(entry.state).toEqual({ data, error: secondError, status: 'error', isFetching: false });
+    expect(entry.state.error).toBe(secondError);
+
     const next = deferred<string>();
-    const retry = cache.load({ entry, fetch: () => next.promise, staleTime: 0 });
-    expect(entry.state).toEqual({ data: undefined, error: null, status: 'pending', isFetching: true });
+    const recovery = cache.load({ entry, fetch: () => next.promise, staleTime: 0 }, { force: true });
+    expect(entry.state).toEqual({ ...fetchingState, error: secondError });
+    expect(entry.state.error).toBe(secondError);
     next.resolve('recovered');
-    await retry;
-    expect(entry.state.status).toBe('success');
+    await expect(recovery).resolves.toBe('recovered');
+    expect(entry.state).toEqual({ data: 'recovered', error: null, status: 'success', isFetching: false });
     cache.dispose();
   });
 

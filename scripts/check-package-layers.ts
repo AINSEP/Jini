@@ -11,7 +11,7 @@ import { packageSourceFiles, parseSource, sourcePackages, type SourcePackage } f
 
 export interface LayerViolation { rule: string; file: string; reason: string }
 const layers: Readonly<Record<string, number>> = {
-  core: 0, protocol: 1,
+  core: 0, protocol: 1, 'ui-kit': 1,
   platform: 2, oauth: 2, db: 2, diagnostics: 2, sandbox: 2, memory: 2,
   artifacts: 2, 'desktop-host': 2, vibecoding: 2,
   'http-kit': 3, sidecar: 3, 'agent-runtime': 3, cli: 3, agentic: 3,
@@ -22,6 +22,26 @@ const layers: Readonly<Record<string, number>> = {
   server: 6, sqlite: 6, infra: 6,
 };
 const sameLayerEdges = new Set(['cli→sidecar', 'cms-forms→cms', 'admin→ui']);
+
+function isPublicEntry(
+  required: { spec: string; pkg: SourcePackage | undefined },
+  _optional: Record<string, never> = {},
+): boolean {
+  const exports = required.pkg?.manifest.exports;
+  if (!exports) return false;
+  const subpath = required.spec.slice('@jini-ai/admin'.length);
+  // An export wildcard must not turn traversal or package internals into a public API.
+  if (subpath.split('/').some(segment => ['.', '..', 'node_modules'].includes(segment))) return false;
+  const key = subpath ? `.${subpath}` : '.';
+  if (Object.hasOwn(exports, key)) return exports[key] != null;
+  const pattern = Object.keys(exports).filter(entry => entry.includes('*'))
+    .sort((a, b) => b.indexOf('*') - a.indexOf('*') || b.length - a.length)
+    .find(entry => {
+      const [prefix, suffix] = entry.split('*');
+      return key.startsWith(prefix!) && key.endsWith(suffix!) && key.length >= entry.length;
+    });
+  return pattern !== undefined && exports[pattern] != null;
+}
 
 export function checkPackageLayers(
   required: { repoRoot: string } = { repoRoot: REPO_ROOT },
@@ -46,13 +66,21 @@ export function checkPackageLayers(
     }
     // Public self-imports select an isolated entry of the same package, not a dependency edge.
     if (owner === target && sourcePath !== undefined) return;
-    const optionalPeer = declaredPeer || pkg.manifest.peerDependenciesMeta?.[`@jini-ai/${target}`]?.optional === true;
+    // Optional metadata must not exempt a required dependency in the manifest.
+    const optionalPeer = declaredPeer || (sourcePath !== undefined
+      && pkg.manifest.peerDependencies?.[`@jini-ai/${target}`] !== undefined
+      && pkg.manifest.peerDependenciesMeta?.[`@jini-ai/${target}`]?.optional === true);
     // React integrations compose UI peers in their React subtree. Chat's declared UI
     // dependency covers its components/hooks/helpers, never its framework-free code.
     const reactIntegration = ((owner === 'user-management' && ['ui', 'admin', 'agentic'].includes(target)
       && optionalPeer) || (owner === 'chat' && target === 'ui'))
       && (sourcePath === undefined || /^src\/react\//.test(sourcePath));
-    if (targetLayer >= ownerLayer && !sameLayerEdges.has(`${owner}→${target}`) && !reactIntegration) {
+    // User management owns an optional admin integration; only its admin subtree may
+    // compose published admin entries, keeping server/core and private imports isolated.
+    const adminIntegration = owner === 'user-management' && target === 'admin' && optionalPeer
+      && sourcePath !== undefined && /^src\/admin\//.test(sourcePath)
+      && isPublicEntry({ spec, pkg: byName.get('@jini-ai/admin') });
+    if (targetLayer >= ownerLayer && !sameLayerEdges.has(`${owner}→${target}`) && !reactIntegration && !adminIntegration) {
       violations.push({ rule: 'L1-layer-edge', file, reason: `${reason}: L${ownerLayer} cannot depend on L${targetLayer}` });
     }
     if (sourcePath !== undefined && ['ui', 'chat'].includes(owner) && target === 'platform'
