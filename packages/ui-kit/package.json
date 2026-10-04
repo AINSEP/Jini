@@ -1,0 +1,98 @@
+{
+  "name": "@jini-ai/ui-kit",
+  "version": "0.1.0",
+  "description": "Framework-free UI contract, injected React facades and native defaults.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/ui-kit"
+  },
+  "jini": {
+    "domain": "ui",
+    "kind": "state",
+    "runtime": "universal",
+    "entries": {
+      ".": "universal",
+      "./react": "browser",
+      "./react/native": "browser",
+      "./react/native/styles.css": "browser",
+      "./react/testing": "browser"
+    }
+  },
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js",
+      "default": "./dist/react/index.js"
+    },
+    "./react/native": {
+      "types": "./dist/react/native/index.d.ts",
+      "import": "./dist/react/native/index.js",
+      "default": "./dist/react/native/index.js"
+    },
+    "./react/native/styles.css": "./src/react/native/styles.css",
+    "./react/testing": {
+      "types": "./dist/react/testing/index.d.ts",
+      "import": "./dist/react/testing/index.js",
+      "default": "./dist/react/testing/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src/react/native/styles.css",
+    "README.md",
+    "docs",
+    "LICENSE",
+    "!dist/**/__tests__/**",
+    "!dist/**/*.test.*",
+    "!dist/**/*.typecheck.*"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:headless": "pnpm run build && node scripts/headless-smoke.mjs"
+  },
+  "peerDependencies": {
+    "react": "^18.3.0 || ^19.0.0",
+    "react-dom": "^18.3.0 || ^19.0.0",
+    "vue": "^3.5.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@testing-library/react": "^16.3.0",
+    "jsdom": "^25.0.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "vue": "^3.5.0",
+    "vitest": "^2.1.0",
+    "typescript": "^5.6.0"
+  }
+}
