@@ -77,6 +77,14 @@ function maxLengthErrors(descriptor: FieldDescriptor, label: string): FieldError
   return [];
 }
 
+function checkboxValueErrors(descriptor: FieldDescriptor, label: string): FieldError[] {
+  if (descriptor.checkboxValue === undefined) return [];
+  if (descriptor.type !== "checkbox" || typeof descriptor.checkboxValue !== "string") {
+    return [{ field: label, reason: "checkboxValue must be a string on a checkbox field" }];
+  }
+  return [];
+}
+
 // HTML-escaped class names are inert; only their length is bounded. Check type defensively
 // because real inputs include parsed request bodies, regardless of the descriptor's static type.
 function classNameErrors(descriptor: FieldDescriptor, label: string): FieldError[] {
@@ -147,6 +155,7 @@ export function validateFieldDescriptors({ fields }: { fields: FieldDescriptor[]
       ...fieldTypeErrors(descriptor, label),
       ...labelLengthErrors(descriptor, label),
       ...maxLengthErrors(descriptor, label),
+      ...checkboxValueErrors(descriptor, label),
       ...classNameErrors(descriptor, label),
       ...attributeErrors(descriptor, label),
     );
@@ -198,7 +207,8 @@ function resolveTextValue(field: FieldDescriptor, value: unknown): SubmittedValu
 // An unticked native checkbox omits its key; submission resolution treats that as absence.
 const HTML_CHECKBOX_ON_VALUE = "on";
 
-function resolveCheckboxValue(value: unknown): SubmittedValue {
+function resolveCheckboxValue(field: FieldDescriptor, value: unknown): SubmittedValue {
+  if (field.checkboxValue !== undefined && typeof value === "string") return { kind: "accepted", value };
   if (typeof value === "boolean") return { kind: "accepted", value };
   if (value === HTML_CHECKBOX_ON_VALUE) return { kind: "accepted", value: true };
   return { kind: "rejected", reason: "must be a boolean" };
@@ -210,7 +220,7 @@ function resolveSubmittedValue(field: FieldDescriptor, value: unknown): Submitte
   if (value === undefined || value === null) {
     return field.required ? { kind: "rejected", reason: "required" } : { kind: "absent" };
   }
-  if (field.type === "checkbox") return resolveCheckboxValue(value);
+  if (field.type === "checkbox") return resolveCheckboxValue(field, value);
   return resolveTextValue(field, value);
 }
 

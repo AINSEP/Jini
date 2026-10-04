@@ -62,6 +62,8 @@ export type ReservedNavTargetKind = "dynamicQuery" | "content";
 /** A link to another content entry (page/post/media/…). Integrity-tracked. */
 export interface NavEntryTarget {
   readonly kind: "entryRef";
+  /** Optional content-type hint for editors; reference integrity and routing still use entryId. */
+  readonly entryType?: string;
   /** Target entry id. Extracted to `entry_refs` at the write chokepoint. */
   readonly entryId: UUID;
 }

@@ -12,6 +12,8 @@ export interface FieldDescriptor {
   type: FieldType;
   required: boolean;
   maxLength?: number | null;
+  /** Presence distinguishes an authored checkbox value (even "") from the native boolean default. */
+  checkboxValue?: string;
 
   /** Length-bounded and HTML-escaped at rendering; class names are inert after escaping. */
   className?: string;
