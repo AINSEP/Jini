@@ -44,6 +44,10 @@ export interface MediaSource {
 export interface MediaRecord {
   id: UUID;
   workspaceId: UUID;
+  /** Acting principal at asset creation, independent of the producer/model and editable credit.
+   * Optional/null for records written before attribution existed. Never inferred from a shared
+   * blob's owner: identical bytes may have been uploaded by different principals. */
+  createdBy?: string | null | undefined;
   title: string;
   /**
    * Human-memorable, unique-per-workspace lookup key (owner-directed, 2026-09-07) — an ADDITIONAL

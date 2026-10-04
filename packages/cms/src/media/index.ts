@@ -40,6 +40,7 @@ export type {
 } from "./ports.js";
 
 export { computeBlobStorageKey } from "./blob-key.js";
+export { preserveMediaCreator, mediaRepoWithCreator } from "./created-by.js";
 
 export {
   MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES,

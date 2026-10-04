@@ -10,6 +10,7 @@
  * validation or business rules live here (that's `media-service.ts`'s job).
  */
 import type { UUID } from "@jini-ai/core/primitives";
+import { preserveMediaCreator } from "./created-by.js";
 import type {
   AssetBlobRepoPort,
   AssetRenditionRepoPort,
@@ -54,7 +55,7 @@ export class InMemoryMediaRepo implements MediaRepoPort {
       this.rows.push(record);
       return;
     }
-    this.rows[index] = record;
+    this.rows[index] = preserveMediaCreator({ record, original: this.rows[index]! });
   }
 
   async remove(required: { workspaceId: UUID; id: UUID }): Promise<void> {

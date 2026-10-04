@@ -282,7 +282,7 @@ export interface UploadMediaInput {
   alt?: string | undefined;
   caption?: string | undefined;
   credit?: string | undefined;
-  /** Attributed on the `asset_blobs` row (required attribution). */
+  /** Acting principal, stamped on each media row and on a newly created asset_blobs row. */
   createdByPrincipal: string;
 }
 
@@ -385,6 +385,7 @@ export async function uploadMedia(
   const media: MediaRecord = {
     id: deps.idGen.newId(),
     workspaceId: input.workspaceId,
+    createdBy: input.createdByPrincipal,
     title,
     slug,
     alt: input.alt?.trim() ?? "",
