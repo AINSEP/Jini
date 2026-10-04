@@ -125,7 +125,7 @@ export function createPluginMemory({ filesystem: fs, contain, workspaceRoot, plu
       write: ({ entryPath, text }, optional = {}) => write({ kind: 'learned', entryPath, text }, optional) } };
 }
 
-/** Interrupted moves are resumable; conflicts and malformed installs are kept and reported. */
+/** Interrupted moves are resumable; refused legacy entries are kept in quarantine and reported. */
 export async function migratePluginLayout({ filesystem: fs, contain, workspaceRoot, parsePluginId, withLock, onEvent }, _optional = {}) {
   await fs.mkdir(workspaceRoot, { recursive: true, mode: 0o700 });
   // Containment returns canonical paths; relative moves must use the same root (e.g. /var -> /private/var).
@@ -137,42 +137,90 @@ export async function migratePluginLayout({ filesystem: fs, contain, workspaceRo
     try { if (JSON.parse(await fs.readFile(marker, 'utf8')).layoutVersion === 2) return { complete: true, moved: 0 }; }
     catch (error) { if (code(error) !== 'ENOENT') emit('migration-marker-invalid', String(error)); }
     let complete = true, moved = 0;
+    let quarantineRoot;
     async function entries(directory) {
       try { return await fs.readdir(directory, { withFileTypes: true }); }
       catch (error) { if (code(error) === 'ENOENT') return []; throw error; }
     }
-    async function move(source, destination, frozen = false) {
-      await contain({ root: workspaceRoot, entryPath: path.relative(workspaceRoot, source) });
-      await assertPluginStatePath({ filesystem: fs, contain, workspaceRoot, entryPath: path.relative(workspaceRoot, destination) });
-      try { await fs.stat(destination); throw new Error('Migration destination already exists; both copies kept'); }
-      catch (error) { if (code(error) !== 'ENOENT') throw error; }
+    async function renameEntry({ source, destination, frozen }, _optional = {}) {
       await fs.mkdir(path.dirname(destination), { recursive: true, mode: 0o700 });
-      const mode = (await fs.stat(source)).mode & 0o777;
+      const mode = frozen ? (await fs.stat(source)).mode & 0o777 : undefined;
       if (frozen) await fs.chmod(source, mode | 0o700);
       try { await fs.rename(source, destination); }
       catch (error) { if (frozen) await fs.chmod(source, mode).catch(() => undefined); throw error; }
       if (frozen) await fs.chmod(destination, mode);
+    }
+    async function quarantine({ source, reason, frozen = false }, _optional = {}) {
+      // Validate ancestors, then rename the entry itself: even an unsafe symlink is preserved,
+      // never followed into another plugin or outside the workspace.
+      await assertPluginStatePath({ filesystem: fs, contain, workspaceRoot, entryPath: path.relative(workspaceRoot, path.dirname(source)) });
+      if (!quarantineRoot) {
+        const base = await assertPluginStatePath({ filesystem: fs, contain, workspaceRoot, entryPath: 'staging/legacy-quarantine' });
+        await fs.mkdir(base, { recursive: true, mode: 0o700 });
+        const candidate = path.join(base, `${new Date().toISOString().replaceAll(':', '-')}-${randomUUID()}`);
+        // Exclusive creation prevents a retry or another boot from overwriting saved bytes.
+        await fs.mkdir(candidate, { mode: 0o700 });
+        quarantineRoot = candidate;
+      }
+      const destinationParent = await assertPluginStatePath({ filesystem: fs, contain, workspaceRoot,
+        entryPath: path.relative(workspaceRoot, path.join(quarantineRoot, path.relative(workspaceRoot, path.dirname(source)))) });
+      // Keep the native directory-entry name verbatim, even if it is not a valid portable package
+      // path (e.g. a literal backslash on POSIX). The fresh quarantine tree has no existing leaf.
+      const destination = path.join(destinationParent, path.basename(source));
+      await renameEntry({ source, destination, frozen });
+      emit('migration-quarantined', `${source} -> ${destination}: ${reason}`);
+    }
+    async function move(source, destination, frozen = false) {
+      await contain({ root: workspaceRoot, entryPath: path.relative(workspaceRoot, source) });
+      await assertPluginStatePath({ filesystem: fs, contain, workspaceRoot, entryPath: path.relative(workspaceRoot, destination) });
+      let exists = false;
+      try { await fs.stat(destination); exists = true; }
+      catch (error) { if (code(error) !== 'ENOENT') throw error; }
+      if (exists) {
+        // The Layout B copy wins. This runs under the plugin lock, so no in-flight move is discarded.
+        await quarantine({ source, frozen, reason: 'Migration destination already exists; Layout B copy kept' });
+        return;
+      }
+      await renameEntry({ source, destination, frozen });
       moved++;
       emit('migration-moved', `${source} -> ${destination}`);
     }
     const oldPackages = path.join(workspaceRoot, 'packages', 'sha256');
     for (const entry of await entries(oldPackages)) {
+      const source = path.join(oldPackages, entry.name);
       try {
-        if (!DIGEST.test(entry.name) || !entry.isDirectory()) throw new Error('Unrecognized legacy package entry; kept');
-        const source = await contain({ root: workspaceRoot, entryPath: `packages/sha256/${entry.name}` });
-        const manifestPath = await contain({ root: source, entryPath: 'plugin.json' });
-        const pluginId = parsePluginId({ value: JSON.parse(await fs.readFile(manifestPath, 'utf8')) });
-        const paths = pluginStatePaths({ workspaceRoot, pluginId });
+        if (!DIGEST.test(entry.name) || !entry.isDirectory()) {
+          await quarantine({ source, frozen: entry.isDirectory(), reason: 'Unrecognized legacy package entry' });
+          continue;
+        }
+        let pluginId, paths;
+        try {
+          await contain({ root: workspaceRoot, entryPath: `packages/sha256/${entry.name}` });
+          const manifestPath = await contain({ root: source, entryPath: 'plugin.json' });
+          pluginId = parsePluginId({ value: JSON.parse(await fs.readFile(manifestPath, 'utf8')) });
+          paths = pluginStatePaths({ workspaceRoot, pluginId });
+        } catch (error) {
+          // Missing/invalid manifests are refused entries; filesystem failures remain resumable.
+          if (code(error) && !['ENOENT', 'EISDIR'].includes(code(error))) throw error;
+          await quarantine({ source, frozen: true, reason: String(error) });
+          continue;
+        }
         await withPluginStateLock({ filesystem: fs, contain, workspaceRoot, pluginId, withLock, run: () => move(source, path.join(paths.packages, entry.name), true) });
       } catch (error) { complete = false; emit('migration-failed', `${entry.name}: ${String(error)}`); }
     }
     // Layout A memory and PLUGIN_DATA may exist without an installed package; migrate them too.
     for (const bucket of ['memory', 'data']) {
       for (const entry of await entries(path.join(workspaceRoot, bucket))) {
+        const source = path.join(workspaceRoot, bucket, entry.name);
         try {
-          if (!entry.isDirectory()) throw new Error('Legacy state is not a directory; kept');
-          const paths = pluginStatePaths({ workspaceRoot, pluginId: entry.name });
-          await withPluginStateLock({ filesystem: fs, contain, workspaceRoot, pluginId: entry.name, withLock, run: () => move(path.join(workspaceRoot, bucket, entry.name), bucket === 'data' ? paths.data : path.join(paths.root, 'memory')) });
+          if (!entry.isDirectory()) {
+            await quarantine({ source, reason: 'Legacy state is not a directory' });
+            continue;
+          }
+          let paths;
+          try { paths = pluginStatePaths({ workspaceRoot, pluginId: entry.name }); }
+          catch (error) { await quarantine({ source, reason: String(error) }); continue; }
+          await withPluginStateLock({ filesystem: fs, contain, workspaceRoot, pluginId: entry.name, withLock, run: () => move(source, bucket === 'data' ? paths.data : path.join(paths.root, 'memory')) });
         } catch (error) { complete = false; emit('migration-failed', `${bucket}/${entry.name}: ${String(error)}`); }
       }
     }
