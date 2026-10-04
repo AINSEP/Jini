@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — Trash host adoption
+
+- Preserve `adapter-unavailable` for absent domains before checking entity policy; selected purge
+  still checks resolved-row authorization first. Added regression coverage for both manual and
+  retention purge outcomes.
+- Restore shared rationale for atomic marker/index changes, keyset pagination, retention promises,
+  restore races, leases and follow-up no-ops. Move the cursor wire/Unicode/malformed-input suite
+  into `src/trash/__tests__/cursor.test.ts`. Move the nine in-memory repository contract cases
+  and nine pure sweep decision cases alongside their shared implementations; native timer and
+  SQL/dialect integration coverage remains with the host adapters.
+
 ## 0.4.0 — 2026-10-02
 
 ### BREAKING

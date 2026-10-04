@@ -108,3 +108,10 @@ pnpm --filter @jini-ai/cms test
 - [Mutation, audit record and outbox intent share a commit boundary](docs/decisions/DR-006-mutation-audit-atomicity.md).
 - [Workspace administration preserves tenancy and ownership floors](docs/decisions/DR-007-workspace-and-owner-floors.md).
 - [Navigation mutations enqueue one event only on success](docs/decisions/DR-008-navigation-event-intent.md).
+
+The `./trash` surface owns snapshot-only listing, keyset cursors, atomic marker/index writes,
+transactional follow-ups and the retention sweeper. Hosts inject their table adapters, reentrant
+transaction runner, `IdGenerator`, entity policy, `Clock` and scheduler. Native timer `unref` and
+error logging belong to the host. Actor/prior-marker/list filters are passed in the optional second
+object. Purge callers own human confirmation and must authorize each resolved index row; unavailable
+domains remain `adapter-unavailable` after authorization even when their entity policy denies them.

@@ -92,3 +92,17 @@ test("prior marker from the adapter wins; fallback and index-only cleanup remain
   await bindForgetRemovedEntity({ repo: h.repo, entityType: "record" })({ workspaceId: WS, id: "record-1" });
   assert.equal(h.repo.all({}).length, 0);
 });
+
+// REGRESSION: fails if the entityPolicy denial is moved ahead of the missing-adapter branch.
+test("authorized missing-domain purge remains adapter-unavailable with a deny policy", async () => {
+  const h = harness();
+  await h.trash.trash(removal);
+  h.adapters.clear();
+  const trash = createTrashService({ ...h.deps, entityPolicy: () => false });
+  const denied = await trash.purgeSelected({ workspaceId: WS, ids: ["trash-1"], actor: ACTOR, authorizeItem: async () => false });
+  assert.deepEqual(denied.results, [{ id: "trash-1", outcome: "forbidden" }]);
+  const allowed = await trash.purgeSelected({ workspaceId: WS, ids: ["trash-1"], actor: ACTOR, authorizeItem: async () => true });
+  assert.deepEqual(allowed.results, [{ id: "trash-1", outcome: "adapter-unavailable" }]);
+  assert.equal(h.repo.all({}).length, 1);
+  assert.ok(h.records.records.has("record-1"));
+});

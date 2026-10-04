@@ -1,29 +1,41 @@
-/** Record-store adapter: pure marker transforms; optional physical delete is verified by a read. */
+/**
+ * @file Marker adapter for record stores in compositions without column SQL.
+ * Persistent adapters must flip marker columns without parsing payloads so corrupt rows remain
+ * removable. A host backed by memory records supplies the same three operations through its store.
+ * This adapter has no trash-index knowledge: the service owns indexing and transactions, and this
+ * supplies only the domain half of the marker flip.
+ */
 import type { TrashAdapter, TrashMarkerResult, TrashPurgeOutcome } from "../ports.js";
 
-export interface TrashRecordStore<T extends { version: number }> {
-  findById(required: { workspaceId: string; id: string }): Promise<T | null>;
-  save(required: { record: T }): Promise<void>;
+/** The narrowest shape a marker flip needs. Host in-memory repositories supply it. */
+export interface TrashRecordStore<T extends { version: number; }> {
+  findById(required: { workspaceId: string; id: string; }): Promise<T | null>;
+  save(required: { record: T; }): Promise<void>;
 }
 
-export interface RecordStoreTrashAdapterDeps<T extends { version: number }> {
+export interface RecordStoreTrashAdapterDeps<T extends { version: number; }> {
   entityType: string;
   store: TrashRecordStore<T>;
 
-  hidden(required: { record: T; at: string }): T;
+  /** Pure: set the hidden marker and stamp the caller-supplied timestamp. */
+  hidden(required: { record: T; at: string; }): T;
 
-  shown(required: { record: T; at: string }): T;
+  /** Pure: clear the marker, preserving the stored payload. */
+  shown(required: { record: T; at: string; }): T;
 
-  isHidden(required: { record: T }): boolean;
+  /** Detect repeated flips so a no-op cannot re-fire transactional follow-ups. */
+  isHidden(required: { record: T; }): boolean;
 
 }
 
-export function createRecordStoreTrashAdapter<T extends { version: number }>(
+/** @complexity O(1) to build; every method is one store read plus at most one store write. */
+export function createRecordStoreTrashAdapter<T extends { version: number; }>(
   deps: RecordStoreTrashAdapterDeps<T>,
-  optional: { hardDelete?: (required: { workspaceId: string; id: string }) => Promise<void> } = {}
+  /** Without physical deletion, purge stands down and never claims a removal it did not make. */
+  optional: { hardDelete?: (required: { workspaceId: string; id: string; }) => Promise<void>; } = {}
 ): TrashAdapter {
   async function flip(
-    required: { workspaceId: string; entityId: string; at: string; expectedVersion: number | null },
+    required: { workspaceId: string; entityId: string; at: string; expectedVersion: number | null; },
     direction: "hide" | "unhide"
   ): Promise<TrashMarkerResult> {
     const existing = await deps.store.findById({ workspaceId: required.workspaceId, id: required.entityId });

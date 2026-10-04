@@ -83,3 +83,14 @@ test("a full batch reschedules immediately and reporting failures retain the idl
   assert.equal(scheduled[0]!.delayMs, 120);
   await loop.stop({});
 });
+
+// REGRESSION: fails if the entityPolicy denial is moved ahead of the missing-adapter branch.
+test("missing-domain sweep retains adapter-unavailable even when policy denies it", async () => {
+  const h = harness();
+  await h.trash.trash(removal);
+  h.adapters.clear();
+  const report = await createTrashSweep({ ...h.deps, entityPolicy: () => false })(claim);
+  assert.deepEqual(report.results, [{ id: "trash-1", outcome: "adapter-unavailable" }]);
+  assert.equal(h.repo.all({}).length, 1);
+  assert.ok(h.records.records.has("record-1"));
+});
