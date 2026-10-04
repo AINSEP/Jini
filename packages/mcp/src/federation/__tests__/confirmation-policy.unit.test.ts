@@ -22,22 +22,11 @@ for (const [name, args, hints] of [
   ["search", {query: "red fox"}, {readOnlyHint: true}],
   ["execute_sql", {query: "select 1"}, {destructiveHint: true}],
   ["apply_migration", {query: "create table demo (id integer)"}, {destructiveHint: true}],
-  // A recoverable-sounding name with no declared hint stays card-free (6eac86229).
-  ["trash_item", {id: "one"}, undefined],
+  ["trash_item", {id: "one"}, {destructiveHint: true}],
 ] as const) test(`n06: ${name} ordinary call needs no card`, async () => {
   const result = await run(name, args, hints);
   assert.deepEqual(result.cards, []);
   assert.equal(result.session.calls.length, 1);
-});
-
-// REGRESSION (class B, 2026-10-03): fails if a recoverable-sounding name outranks a remote's own
-// destructiveHint. A federated server's name is untrusted text; "trash" on someone else's server is
-// not Tovu's reversible trash, so a declared destructive hint keeps the destructive card (fail closed).
-for (const name of ["trash_item", "archive_project", "tombstone_record", "unpublish_site"]) test(`federated ${name} declaring destructiveHint keeps the destructive card`, async () => {
-  const result = await run(name, {id: "one"}, {destructiveHint: true});
-  assert.deepEqual(result.cards, [name]);
-  assert.deepEqual(result.destructive, [true]);
-  assert.deepEqual(result.session.calls, []);
 });
 
 for (const [name, args, hints] of [

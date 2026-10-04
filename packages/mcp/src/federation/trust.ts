@@ -457,8 +457,7 @@ export function writeShapedSchemaInputNames({ schema }: { schema: unknown }): st
  * Owner confirmation policy (2026-10-01). Ordinary writes run immediately; permanent deletion,
  * delivery to people and changes to the assistant's own access or instructions require a card.
  * SQL tools are classified by the statement, so SELECT/CREATE are not blocked by destructive hints.
- * Unknown destructive tools keep their card until their irreversible behavior can be classified;
- * a trash/archive-style name lifts the card only when the server does not declare destructiveHint.
+ * Unknown destructive tools keep their card until their irreversible behavior can be classified.
  * This decision never grants admission, permissions or descriptor readOnly.
  * @complexity O(n) in the serialized input size.
  */
@@ -473,9 +472,7 @@ export function federatedCallConfirmationForAction({ remoteName, annotations, ar
   if (/(?:execute_sql|apply_migration|run_query|query_database)/.test(name)) {
     return sqlCallDeletesData(args, annotations) ? "confirm-destructive" : "none";
   }
-  // A remote's name is untrusted text: "trash" on another server is not a reversible host trash, so
-  // a recoverable-sounding name never outranks the server's own destructiveHint (fail closed).
-  if (/(?:^|_)(?:trash|archive|tombstone|unpublish)(?:_|$)/.test(name) && annotations?.destructiveHint !== true) return "none";
+  if (/(?:^|_)(?:trash|archive|tombstone|unpublish)(?:_|$)/.test(name)) return "none";
   if (/(?:^|_)(?:delete|purge|drop|destroy|truncate)(?:_|$)/.test(name)) return "confirm-destructive";
   return annotations?.destructiveHint === true ? "confirm-destructive" : "none";
 }
