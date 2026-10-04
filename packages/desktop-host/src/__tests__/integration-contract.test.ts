@@ -57,13 +57,13 @@ it('maps object-argument speech invocation to the unchanged native payload', asy
   expect(speechChannels({ channelNamespace: 'other:voice' }).transcribe).toBe('other:voice:transcribe');
 });
 
-it('compiles the native helper through object-argument filesystem and process ports', () => {
+it('compiles the native helper through object-argument filesystem and process ports', async () => {
   const calls: unknown[] = [];
-  expect(ensureHelperCompiled({
+  expect(await ensureHelperCompiled({
     fs: { existsSync: ({ path }) => { calls.push({ path }); return false; }, mkdirSync: (args, options) => { calls.push([args, options]); } },
-    spawnSync: args => { calls.push(args); return { status: 0 }; },
+    execFileAsync: async args => { calls.push(args); return { stdout: '' }; },
     sourcePath: '/host/helper.swift', binaryPath: '/host/bin/helper', compilerPath: '/usr/bin/swiftc',
     messages: { compilerMissing: 'missing', compilerFailed: ({ stderr }) => stderr, invalidOutput: ({ stdout }) => stdout, cannotTranscribe: ({ reason }) => reason, recognitionFailed: ({ reason }) => reason },
   })).toEqual({ ok: true });
-  expect(calls).toEqual([{ path: '/host/bin/helper' }, [{ path: '/host/bin' }, { recursive: true }], { command: '/usr/bin/swiftc', args: ['-O', '/host/helper.swift', '-o', '/host/bin/helper'] }]);
+  expect(calls).toEqual([{ path: '/host/bin/helper' }, [{ path: '/host/bin' }, { recursive: true }], { file: '/usr/bin/swiftc', args: ['-O', '/host/helper.swift', '-o', '/host/bin/helper'] }]);
 });

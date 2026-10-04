@@ -9,6 +9,8 @@
 
 ## Unreleased
 
+- Compile the macOS speech helper through the asynchronous `execFileAsync` port, and await it in availability/transcription. Concurrent first-use calls share compilation so Electron's main thread stays responsive while Swift builds the helper.
+- **BREAKING:** `ensureHelperCompiled` now returns `Promise<CompileResult>` and requires `execFileAsync`. Its optional legacy `spawnSync` dependency is accepted for source compatibility but never invoked.
 - Repair desktop-host test fixture types for filesystem options, legacy popup registration, mutable updater flags, single-instance notifications, IPC rejections and native toolchain errors without changing their assertions.
 - **BREAKING:** Replace `HostLogger` with core `Logger`; import the type from `@jini-ai/core/primitives`. File logging accepts the optional `error` bag and records its normalized value.
 - Accept native Electron navigation and electron-updater callback ABIs directly. Keep the existing object registrations as union members (`LegacyNavigableContents`, `LegacyUpdaterLike`) while hosts remove their glue.

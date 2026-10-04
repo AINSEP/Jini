@@ -337,19 +337,19 @@ const availability = await speech.isAvailable();
 
 | Current signature | Return |
 |---|---|
-| `ensureHelperCompiled(required:CompileDeps)` | `CompileResult = {ok:true}|{ok:false,error:string}` |
+| `ensureHelperCompiled(required:CompileDeps, optional = {})` | `Promise<CompileResult>` where `CompileResult = {ok:true}|{ok:false,error:string}` |
 | `parseHelperJson({stdout,invalidOutput:MacTranscriberMessages['invalidOutput']})` | `HelperPayload` |
 | `checkAvailability(required:AvailabilityDeps)` | `Promise<TranscriptionAvailability>` |
 | `transcribeWav(required:MacTranscriberDeps & {wavBuffer:Buffer})` | `Promise<TranscriptionResult>` |
 | `createMacOnDeviceTranscriptionPort(required:MacTranscriberDeps)` | `TranscriptionPort` |
 
-Compile dependencies: `{fs,spawnSync:({command,args:string[]})=>SpawnResult,sourcePath,binaryPath,compilerPath,messages:MacTranscriberMessages}`. FS needs object-bound exists/mkdir, plus write/remove for transcription. Availability adds `{locale,execFileAsync:({file,args:string[]})=>Promise<{stdout:string}>}`. Transcription adds `tempFilePath:()=>string`; caller must supply collision-free scratch names. Messages supply compiler-missing, compiler-failed `{stderr}`, invalid-output `{stdout}`, cannot-transcribe `{reason}`, recognition-failed `{reason}`. `SpawnResult` has `status:number|null`, optional `stderr:Buffer|string` and Node error.
+Compile dependencies: `{fs,execFileAsync:({file,args:string[]})=>Promise<{stdout:string}>,sourcePath,binaryPath,compilerPath,messages:MacTranscriberMessages}`. The same asynchronous process port compiles and invokes the helper; compilation never blocks the host's main thread. Concurrent requests sharing a filesystem port and binary path await one in-flight compilation, including when the compiler has already created its output file. Failed attempts release the in-flight entry for retry. Process rejections carrying `code: "ENOENT"` report compiler-missing; other rejections use trimmed `stderr` (string or Buffer). FS needs object-bound exists/mkdir, plus write/remove for transcription. Availability adds `{locale}`. Transcription adds `tempFilePath:()=>string`; caller must supply collision-free scratch names. Messages supply compiler-missing, compiler-failed `{stderr}`, invalid-output `{stdout}`, cannot-transcribe `{reason}`, recognition-failed `{reason}`. The optional deprecated `spawnSync` property and `SpawnResult` type remain accepted for host source compatibility but are never used by compilation. Standalone compilation callers must provide `execFileAsync` and await the result.
 
 `HelperPayload` is an object with optional availability/reason/ok/text/elapsed/error fields; parsing alone validates object shape, while availability/transcription validate relevant fields. The Swift asset has no exported TypeScript signature: consumers locate the source, compile it through their process adapter, then invoke `check <locale>` or `transcribe <audio-path> <locale>`. It emits JSON to stdout and exits 0 for successful commands/unavailable checks, 1 for transcription failures, 2 for usage failures.
 
 ```ts
 import { createMacOnDeviceTranscriptionPort } from '@jini-ai/desktop-host/speech/macos';
-const port = createMacOnDeviceTranscriptionPort({ fs, spawnSync, execFileAsync, sourcePath, binaryPath,
+const port = createMacOnDeviceTranscriptionPort({ fs, execFileAsync, sourcePath, binaryPath,
   compilerPath, locale:'en-US', messages, tempFilePath });
 const available = await port.isAvailable();
 ```

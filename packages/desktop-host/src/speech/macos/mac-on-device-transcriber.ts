@@ -30,7 +30,9 @@ interface TranscriberFs {
 
 interface CompileDeps {
   fs: Pick<TranscriberFs, "existsSync" | "mkdirSync">;
-  spawnSync: (args: { command: string; args: string[] }) => SpawnResult;
+  /** @deprecated Accepted for host compatibility; never called. Use execFileAsync. */
+  spawnSync?: (args: { command: string; args: string[] }) => SpawnResult;
+  execFileAsync: (args: { file: string; args: string[] }) => Promise<{ stdout: string }>;
   sourcePath: string;
   binaryPath: string;
   compilerPath: string;
@@ -43,7 +45,6 @@ type CompileResult = { ok: true; error?: undefined } | { ok: false; error: strin
 
 interface AvailabilityDeps extends CompileDeps {
   locale: string;
-  execFileAsync: (args: { file: string; args: string[] }) => Promise<{ stdout: string }>;
 }
 
 interface MacTranscriberDeps extends AvailabilityDeps {
@@ -62,21 +63,49 @@ interface HelperPayload {
 
 // An existing binary is a cache hit, not a rebuild check; remove the cached output after
 // editing the Swift source to force recompilation.
-/** Compile once at the caller-supplied source and binary paths. */
-function ensureHelperCompiled({ fs, spawnSync, sourcePath, binaryPath, compilerPath, messages }: CompileDeps): CompileResult {
-  if (fs.existsSync({ path: binaryPath })) return { ok: true };
+// Availability and transcription can arrive together on first use. Share the compiler by output
+// path within one filesystem port; separate injected filesystems must not share fake/cache state.
+const compilations = new WeakMap<CompileDeps["fs"], Map<string, Promise<CompileResult>>>();
 
+/** Compile asynchronously so swiftc's first-use work cannot freeze an Electron main thread. */
+async function compileHelper({ fs, execFileAsync, sourcePath, binaryPath, compilerPath, messages }: CompileDeps): Promise<CompileResult> {
   fs.mkdirSync({ path: path.dirname(binaryPath) }, { recursive: true });
-  const result = spawnSync({ command: compilerPath, args: ["-O", sourcePath, "-o", binaryPath] });
+  try {
+    await execFileAsync({ file: compilerPath, args: ["-O", sourcePath, "-o", binaryPath] });
+    return { ok: true };
+  } catch (error) {
+    const failure = error !== null && typeof error === "object"
+      ? error as { code?: unknown; stderr?: unknown }
+      : null;
+    if (failure?.code === "ENOENT") return { ok: false, error: messages.compilerMissing };
+    const diagnostic = failure?.stderr;
+    const stderr = typeof diagnostic === "string" || Buffer.isBuffer(diagnostic)
+      ? diagnostic.toString().trim()
+      : "";
+    return { ok: false, error: messages.compilerFailed({ stderr }) };
+  }
+}
 
-  if (result.error && result.error.code === "ENOENT") {
-    return { ok: false, error: messages.compilerMissing };
+/** Compile once at the caller-supplied source and binary paths; retry after a failed attempt. */
+async function ensureHelperCompiled(deps: CompileDeps, _optionalArgs: Record<string, never> = {}): Promise<CompileResult> {
+  let pendingByPath = compilations.get(deps.fs);
+  const key = path.resolve(deps.binaryPath);
+  const pending = pendingByPath?.get(key);
+  // swiftc may create its output before it exits. In-flight work takes precedence over existsSync,
+  // or a second caller could execute a partially linked binary while the first still compiles.
+  if (pending) return pending;
+  if (deps.fs.existsSync({ path: deps.binaryPath })) return { ok: true };
+  if (!pendingByPath) {
+    pendingByPath = new Map();
+    compilations.set(deps.fs, pendingByPath);
   }
-  if (result.status !== 0) {
-    const stderr = result.stderr ? result.stderr.toString() : "";
-    return { ok: false, error: messages.compilerFailed({ stderr: stderr.trim() }) };
+  const compiling = compileHelper(deps);
+  pendingByPath.set(key, compiling);
+  try {
+    return await compiling;
+  } finally {
+    pendingByPath.delete(key);
   }
-  return { ok: true };
 }
 
 // Include the raw helper stdout in malformed-output errors so the payload is debuggable
@@ -111,7 +140,7 @@ async function runHelperJson({ execFileAsync, binaryPath, args, messages }: Pick
 
 /** Probe compiled helper capability without recording audio. */
 async function checkAvailability(deps: AvailabilityDeps): Promise<TranscriptionAvailability> {
-  const compiled = ensureHelperCompiled(deps);
+  const compiled = await ensureHelperCompiled(deps);
   if (!compiled.ok) return { available: false, reason: compiled.error };
 
   const result = await runHelperJson({ execFileAsync: deps.execFileAsync, binaryPath: deps.binaryPath, args: ["check", deps.locale], messages: deps.messages });
@@ -121,7 +150,7 @@ async function checkAvailability(deps: AvailabilityDeps): Promise<TranscriptionA
 
 /** Transcribe scratch WAV input and remove the recording on every completion path. */
 async function transcribeWav({ wavBuffer, ...deps }: MacTranscriberDeps & { wavBuffer: Buffer }): Promise<TranscriptionResult> {
-  const compiled = ensureHelperCompiled(deps);
+  const compiled = await ensureHelperCompiled(deps);
   if (!compiled.ok) throw new Error(deps.messages.cannotTranscribe({ reason: compiled.error }));
 
   const tempPath = deps.tempFilePath();
