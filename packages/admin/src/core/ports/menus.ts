@@ -117,6 +117,9 @@ export type NavTargetKind = "entryRef" | "termRef" | "url" | "route" | (string &
 export interface AdminMenuEntryTarget {
   readonly kind: "entryRef";
   readonly entryId: string;
+  readonly entryType?: string;
+  /** Last URL known to the author; the host resolves entryId first and preserves availability checks. */
+  readonly lastKnownHref?: string;
 }
 
 /** A link to a taxonomy term (category/tag archive, or a host's closest equivalent grouping). */

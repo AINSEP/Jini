@@ -285,6 +285,12 @@ function validateTarget(target: NavTarget): void {
   if (!VALID_TARGET_KINDS.has(kind)) {
     throw new MenuValidationError({ message: `unknown target kind '${kind}'` });
   }
+  if (kind === "entryRef" && target.lastKnownHref !== undefined) {
+    const rawHref = target.lastKnownHref;
+    if (typeof rawHref !== "string" || !rawHref.trim() || !isAllowedHref({ rawHref })) {
+      throw new MenuValidationError({ message: `entryRef lastKnownHref must be ${ALLOWED_HREF_SHAPES_DESCRIPTION}.` });
+    }
+  }
   if (kind === "url") {
     const rawHref = (target as NavUrlTarget).href;
     if (typeof rawHref !== "string" || !rawHref.trim()) {

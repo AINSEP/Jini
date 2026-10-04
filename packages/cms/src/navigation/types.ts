@@ -64,6 +64,9 @@ export interface NavEntryTarget {
   readonly kind: "entryRef";
   /** Optional content-type hint for editors; reference integrity and routing still use entryId. */
   readonly entryType?: string;
+  /** Author's last known URL, retained for exports and routing misses. A known unavailable
+   * entry must remain hidden; this snapshot never overrides an availability decision. */
+  readonly lastKnownHref?: string;
   /** Target entry id. Extracted to `entry_refs` at the write chokepoint. */
   readonly entryId: UUID;
 }
