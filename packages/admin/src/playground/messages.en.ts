@@ -1,0 +1,1 @@
+export const playgroundMessagesEn = Object.freeze({ title: 'Playground', studio: 'Studio', canvas: 'Canvas', description: 'Ask the assistant to build anything — try “Show a pie chart of my data.”', empty: 'Nothing drawn yet — ask the assistant.', denied: 'Permission denied' });

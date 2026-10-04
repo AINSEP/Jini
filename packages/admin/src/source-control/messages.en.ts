@@ -1,0 +1,1 @@
+export const sourceControlMessagesEn = Object.freeze({ title: 'Source Control', providers: 'Providers', description: 'Connect an account to read repositories and push to them later. Content versioning is a separate feature.', denied: 'Permission denied', saved: 'Token saved', replace: 'Replace token', manage: 'Create access token', loading: 'Loading connections…' });
