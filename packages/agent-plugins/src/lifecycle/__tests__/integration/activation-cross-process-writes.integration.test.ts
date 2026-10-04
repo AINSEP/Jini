@@ -83,7 +83,8 @@ function killIfAlive(child: ChildProcess): void {
   if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
 }
 
-test("X1: a second process's write during a first process's paused rename is not erased once the write is locked cross-process", async () => {
+// Ported from node:test (no default timeout): the per-test budget is its own waitForSignal bound, not vitest's 5s default.
+test("X1: a second process's write during a first process's paused rename is not erased once the write is locked cross-process", { timeout: 30_000 }, async () => {
   const { root, signalDir } = await freshRoots();
   let childA: ChildProcess | undefined;
   let childB: ChildProcess | undefined;
@@ -130,7 +131,8 @@ test("X1: a second process's write during a first process's paused rename is not
   }
 });
 
-test("X2: an 80-write burst across two processes loses nothing and leaves no lock behind", async () => {
+// Ported from node:test (no default timeout): the per-test budget is its own waitForExit bound, not vitest's 5s default.
+test("X2: an 80-write burst across two processes loses nothing and leaves no lock behind", { timeout: 60_000 }, async () => {
   const { root, signalDir } = await freshRoots();
   let childA: ChildProcess | undefined;
   let childB: ChildProcess | undefined;
@@ -168,7 +170,8 @@ test("X2: an 80-write burst across two processes loses nothing and leaves no loc
   }
 });
 
-test("X3: a lock left by a SIGKILLed holder is recovered by liveness, not by waiting out the age threshold", async () => {
+// Ported from node:test (no default timeout): the per-test budget is its own waitForSignal bound, not vitest's 5s default.
+test("X3: a lock left by a SIGKILLed holder is recovered by liveness, not by waiting out the age threshold", { timeout: 30_000 }, async () => {
   const { root, signalDir } = await freshRoots();
   let childA: ChildProcess | undefined;
   try {
