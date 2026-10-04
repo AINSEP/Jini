@@ -118,7 +118,7 @@ describe('annotated browser actions', () => {
     const s = await setup('<button type="button" data-toolname="toggle" data-tooldescription="Toggle panel">Toggle</button>');
     const oldTool = s.tools.get('toggle')!;
     window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
-    expect(s.signals[0].aborted).toBe(true);
+    expect(s.signals[0]?.aborted).toBe(true);
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
     expect(s.registerTool).toHaveBeenCalledTimes(2);
     await expect(oldTool.execute({})).rejects.toThrow('unavailable');
