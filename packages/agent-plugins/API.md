@@ -14,3 +14,20 @@ inode/device/bytes/mtime before removal; publication checks `assertHeld({})` bef
 The lifecycle maps shared timeout/lost errors to AgentPluginActivationsBusyError.
 
 Only neutral bundled plugin assets are shipped; product-specific theme assets belong to products.
+
+## Partial lifecycle composition
+
+`createAgentPluginActivations(required, optional)` needs only the native filesystem,
+clock, id and process effects. Bind it once and retain the returned object so every
+writer shares the same per-workspace queue. Its readers take `{ workspaceRoot }`,
+activation verdicts take `{ workspaceRoot, pluginId }`, and filters take
+`{ activations, items, pluginIdOf: ({ item }) => item.pluginId }`. `onEvent` belongs
+to the second object and receives stale-lock diagnostics. Strict capability verdicts,
+raw sibling preservation, lock ownership checks and fsync behavior are unchanged.
+
+The optional manifest `readServerMetadata` reader receives `{ serverId, value, server }`.
+`value` is the declared extension object or an empty object; `server` is the raw transport
+entry. A host can translate legacy metadata without changing the generic parser. Every
+translated field still passes through the bounded metadata validators. A malformed
+non-object declared extension excludes that server before the reader runs. With no
+reader, transport-entry metadata remains ignored.

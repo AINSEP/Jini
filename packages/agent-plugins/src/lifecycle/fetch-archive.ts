@@ -1,10 +1,44 @@
+/**
+ * Historical lifecycle rationale, carried with the implementation during consumer adoption.
+ * @file The missing front half of the Agent Plugin install pipeline: URL -> verified bytes.
+ *
+ * `install.ts` deliberately takes `archive: Uint8Array` and never a URL — it is a pure
+ * verify/extract/publish step with no network surface at all. This module is the one place that
+ * talks to the network, and it hands `install.ts` exactly what it already accepts. The split is
+ * kept on purpose: every hostile-archive guard in `install.ts` (`DIGEST_MISMATCH`, zip-slip,
+ * decompression caps) stays reachable from a plain in-memory buffer in tests, with no fetch mock.
+ *
+ * What this module does NOT do:
+ * - It does not decide whether a digest is trustworthy. `expectedSha256` is verified by
+ *   `install.ts`, not here; {@link fetchAgentPluginArchive} only reports the digest of what
+ *   actually arrived so a caller can pin it.
+ * - It does not follow a redirect chain by hand. `fetch` handles redirects; the scheme guard below
+ *   re-runs on the FINAL response URL so an `https://` start cannot be redirected onto a
+ *   non-network scheme.
+ * - It does not trust `Content-Length`. That header is attacker-controlled for a hostile host; the
+ *   cap below is enforced against bytes actually read, and `Content-Length` is used only as an
+ *   early reject so an obviously-oversized download is not started at all.
+ */
 import type { AgentPluginOutboundGuardPort, AgentPluginFetchPort } from "./ports.js";
 
 import { createHash } from "node:crypto";
 import { STATUS_CODES } from "node:http";
 
+/**
+ * Mirrors `install.ts`'s own `LIMITS.maxArchiveBytes` — a download this module would accept but
+ * `installAgentPlugin` would then reject with `ARCHIVE_TOO_LARGE` is wasted bandwidth, so the cap
+ * is enforced at the earliest point it can be. Kept as its own constant rather than imported so
+ * this module has no dependency on `install.ts`; the pairing is asserted by a unit test instead.
+ */
 const MAX_ARCHIVE_BYTES = 32 * 1024 * 1024;
 
+/**
+ * `http:` is permitted alongside `https:` because a self-hosted the host's first registry is realistically
+ * a machine on its own network (and because the local end-to-end proof of this pipeline serves over
+ * loopback). Transport confidentiality is NOT what protects an install here — `expectedSha256` is.
+ * Every other scheme is refused: `file:`/`data:` would turn a "download a plugin" call into an
+ * arbitrary local-file read reachable from whatever supplies the URL.
+ */
 const ALLOWED_PROTOCOLS: ReadonlySet<string> = new Set(["https:", "http:"]);
 
 export type AgentPluginFetchErrorCode =
@@ -19,6 +53,18 @@ export type AgentPluginFetchErrorCode =
 
   | "EMPTY_BODY";
 
+/**
+ * The URL did not parse, or its scheme is not in {@link ALLOWED_PROTOCOLS}.
+ *
+ * The request never produced a response — DNS failure, connection refused, TLS failure, abort.
+ *
+ * A response arrived with a non-2xx status.
+ *
+ * The response body exceeded {@link MAX_ARCHIVE_BYTES}, by header or by bytes actually read.
+ *
+ * A 2xx response with no body at all — never a valid archive, and a clearer error than letting
+ * the zip reader fail on zero bytes.
+ */
 export class AgentPluginFetchError extends Error {
   readonly code: AgentPluginFetchErrorCode;
 
@@ -36,6 +82,9 @@ export interface FetchAgentPluginArchiveRequired {
   readonly outboundGuard: AgentPluginOutboundGuardPort;
 }
 
+/**
+ * Absolute `https:` or `http:` URL of a plugin `.zip`.
+ */
 export interface FetchAgentPluginArchiveOptional {
 
   readonly maxBytes?: (number) | undefined;
@@ -43,6 +92,14 @@ export interface FetchAgentPluginArchiveOptional {
   readonly signal?: (AbortSignal) | undefined;
 }
 
+/**
+ * Injectable for tests and for a caller that needs its own agent/proxy. Defaults to global `fetch`.
+ *
+ * Lowered by a caller that wants a tighter cap than the module default. Never raised above
+ * {@link MAX_ARCHIVE_BYTES} — a larger value is clamped, because `install.ts` would reject it anyway.
+ *
+ * Forwarded to `fetch`, so a caller can time out or cancel a slow download.
+ */
 export interface FetchedAgentPluginArchive {
   readonly archive: Uint8Array;
 
@@ -51,10 +108,26 @@ export interface FetchedAgentPluginArchive {
   readonly resolvedUrl: string;
 }
 
+/**
+ * Lowercase hex SHA-256 of `archive` as received. Pass to `installAgentPlugin` as
+ * `expectedSha256` only if the caller has independently decided to trust these bytes — this value
+ * is computed from the download itself and therefore proves nothing about origin on its own.
+ *
+ * The FINAL URL after redirects, which may differ from the requested one.
+ *
+ * Downloads one Agent Plugin archive into memory, bounded and digested.
+ *
+ * @throws {AgentPluginFetchError} For every expected failure. A caller distinguishes them by `code`.
+ * @complexity O(b) in bytes downloaded, bounded by `maxBytes`.
+ */
 export async function fetchAgentPluginArchive(
   required: FetchAgentPluginArchiveRequired,
   optional: FetchAgentPluginArchiveOptional = {},
 ): Promise<FetchedAgentPluginArchive> {
+  /**
+   * Re-checked against the FINAL url: `redirect: "follow"` means the scheme validated above is not
+   * necessarily the scheme the bytes came from.
+   */
   const maxBytes = Math.min(optional.maxBytes ?? MAX_ARCHIVE_BYTES, MAX_ARCHIVE_BYTES);
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new RangeError("maxBytes must be a positive integer");
 
@@ -108,6 +181,10 @@ export async function fetchAgentPluginArchive(
   };
 }
 
+/**
+ * The module's own cap, exported so a caller (or a test pinning it against `install.ts`'s
+ * `LIMITS.maxArchiveBytes`) can read it without duplicating the number.
+ */
 export function maxAgentPluginArchiveBytes(_required: Record<string, never>): number {
   return MAX_ARCHIVE_BYTES;
 }
@@ -124,6 +201,10 @@ function assertAllowedUrl(value: string, position: "requested" | "redirected-to"
   }
 }
 
+/**
+ * Early reject on a self-declared oversized body. Advisory only — {@link readBodyWithinCap} is the
+ * enforcement, because a hostile host can under-report or omit this header entirely.
+ */
 function assertDeclaredSizeWithinCap(response: Response, maxBytes: number, url: string): void {
   const header = response.headers.get("content-length");
   if (header === null) return;
@@ -133,12 +214,21 @@ function assertDeclaredSizeWithinCap(response: Response, maxBytes: number, url: 
   }
 }
 
+/**
+ * Reads the body chunk by chunk, aborting the moment the running total would exceed the cap — so a
+ * hostile endpoint streaming an unbounded body cannot drive this process out of memory. Buffering
+ * the whole response first (`await response.arrayBuffer()`) would defeat the cap entirely.
+ */
 async function readBodyWithinCap(response: Response, maxBytes: number, url: string): Promise<Uint8Array> {
   if (response.body === null) return new Uint8Array(0);
 
   const chunks: Uint8Array[] = [];
   let total = 0;
 
+  /**
+   * Releases the connection on the throw path too; without it an aborted oversized download
+   * leaves the socket held until GC.
+   */
   const reader = response.body.getReader();
   try {
     for (;;) {

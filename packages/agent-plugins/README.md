@@ -254,3 +254,8 @@ factories are implementation details and are not package exports.
 
 See [integration-extraction.md](integration-extraction.md) for the reconciliation, source mapping,
 rewire ledger and verification commands. All verification is deferred by owner directive.
+
+For a host that needs only activation, use `createAgentPluginActivations` with
+`createNodeAgentPluginEffects({})` instead of supplying unused network/provisioning
+ports. Retain one returned object for the process lifetime. See `API.md` for the
+object-shaped reads, filters and optional legacy metadata reader.

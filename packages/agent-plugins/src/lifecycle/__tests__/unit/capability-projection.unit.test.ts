@@ -112,10 +112,11 @@ test("readInstalledMcpServers reads a real mcp.json and returns each server's fu
     );
 
     const servers = await readInstalledMcpServers(root);
-    assert.deepEqual(servers, {
+    // A null-prototype map, so a hostile server id such as "__proto__" stays an ordinary key.
+    assert.deepEqual(servers, Object.assign(Object.create(null), {
       "fly-cli": { type: "stdio", command: "fly-mcp", args: ["deploy"] },
       remote: { type: "streamable-http", url: "https://mcp.example.com/mcp" },
-    });
+    }));
   } finally {
     await rm(root, { recursive: true, force: true });
   }

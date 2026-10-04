@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — lifecycle consumer adoption
+
+- Expose narrow `createAgentPluginActivations(required, optional)` composition without
+  requiring unrelated network, layout or federation ports.
+- Supply raw transport entries to the optional metadata reader, including servers with
+  no declared extension, so hosts can translate legacy fields through the shared validators.
+  Malformed declared extensions still exclude the server before translation.
+- Preserve the original lifecycle validation, integrity, streaming, symlink and durability
+  rationale alongside the canonical implementations; move the URL-install real-HTTP/ZIP
+  integration suite into the package and add paired metadata-translation regression cases.
+
+
 ## Unreleased — lifecycle test compilation
 
 - Preserve copied test timeouts and conditional skips through Vitest registration.

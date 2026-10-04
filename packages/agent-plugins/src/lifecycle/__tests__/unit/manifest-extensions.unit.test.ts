@@ -57,3 +57,39 @@ test('host metadata readers translate custom extension keys before the generic v
   if (!parsed.ok) throw new Error('invalid fixture');
   expect(parsed.config.servers.remote).toMatchObject({ authMode: 'oauth', defaultTools: { write: [], read: ['inspect'] } });
 });
+
+// REGRESSION: fails if readServerMetadata is skipped when the server has no plugin.json extension.
+test('host translates legacy transport metadata only through an explicit reader', () => {
+  const input = { value: { ...value, mcpServers: { remote: { ...value.mcpServers.remote, clientAuth: 'oauth', grants: { allow: ['inspect'] } } } }, extensionNamespace: 'org.legacy.host' };
+  const baseline = parseAgentPluginMcpConfig(input);
+  const treatment = parseAgentPluginMcpConfig(input, {
+    readServerMetadata: ({ server }) => ({ authMode: server.clientAuth, defaultTools: server.grants }),
+  });
+  if (!baseline.ok || !treatment.ok) throw new Error('valid transport required for both probes');
+  const before = baseline.config.servers.remote;
+  const after = treatment.config.servers.remote;
+  if (!before || before.type === 'stdio' || !after || after.type === 'stdio') throw new Error('remote transport expected');
+  expect(before.authMode).toBeUndefined();
+  expect(before.defaultTools).toBeUndefined();
+  expect(after.authMode).toBe('oauth');
+  expect(after.defaultTools).toEqual({ allow: ['inspect'], write: [], read: [] });
+  // Both reach parsed output; only the explicit host reader explains the differing metadata.
+});
+
+// REGRESSION: fails if translated metadata bypasses the bounded generic validators.
+test('legacy translation cannot hide malformed grants or a malformed declared extension', () => {
+  const malformed = parseAgentPluginMcpConfig({ value, extensionNamespace: 'org.legacy.host' }, {
+    readServerMetadata: () => ({ defaultTools: { allow: ['inspect'], read: ['ungranted'] } }),
+  });
+  if (!malformed.ok) throw new Error('valid transport required');
+  expect(malformed.config.serverIds).toEqual(['remote']);
+  expect(malformed.config.servers.remote).toBeUndefined();
+  let readerCalls = 0;
+  const invalidExtension = parseAgentPluginMcpConfig({ value, extensionNamespace: 'org.legacy.host' }, {
+    pluginManifest: { $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'fixture', extensions: { 'org.legacy.host': { mcpServers: { remote: 'malformed' } } } },
+    readServerMetadata: () => { readerCalls++; return {}; },
+  });
+  if (!invalidExtension.ok) throw new Error('valid transport required');
+  expect(readerCalls).toBe(0);
+  expect(invalidExtension.config.servers.remote).toBeUndefined();
+});
