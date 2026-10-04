@@ -12,7 +12,7 @@ import type { Clock } from "@jini-ai/core/primitives";
 import type { AuthorizeFn } from "../core/commands/command.js";
 import { buildSettingsValueWriteHandler, type SettingsWriteConfirmation } from "./agent-value-write-tools.js";
 import { AGENT_WRITE_CONFIRMATION_SETTINGS, AGENT_WRITE_DENIED_SETTINGS, findAgentWriteRule, type AgentSettingWriteRule } from "./agent-write-denylist.js";
-import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireNoInput, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireNoInput, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolExecutionOptions, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { requireToolPermission } from "../core/tools/index.js";
 import type { JsonValue } from "@jini-ai/core/primitives";
 import type { SettingsPrincipalLookupPort } from "./principal-lookup.js";
@@ -53,8 +53,10 @@ export interface SettingsToolDeps {
   /** Host extensions: explicit deny or human-confirmation rules, never agent inputs. */
   extraDeniedSettings?: readonly AgentSettingWriteRule[];
   extraConfirmationSettings?: readonly AgentSettingWriteRule[];
-  /** Must obtain an authenticated human card decision; absent means protected keys fail closed. */
-  confirmWrite?: (request: SettingsWriteConfirmation) => Promise<boolean>;
+  /** Must obtain an authenticated human card decision; absent means protected keys fail closed.
+   * `options` is the invoking transport's execution options (its `emitSurface`), forwarded from the
+   * tool handler's second argument: the card can only reach a human through that seam. */
+  confirmWrite?: (request: SettingsWriteConfirmation, options?: ToolExecutionOptions) => Promise<boolean>;
   /** Host's validation wrapper; defaults to the package's existing set chokepoint. */
   setValue?: typeof setSettingValue;
 }

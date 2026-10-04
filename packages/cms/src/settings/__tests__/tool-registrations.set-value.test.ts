@@ -77,6 +77,21 @@ test("protected write confirms once; ordinary writes never request confirmation"
   assert.equal((await f.settingsRepo.getWorkspaceValue({ workspaceId: "ws-1", settingId: "private" }))?.valueJson, true);
 });
 
+test("confirmWrite receives the invoking transport's execution options (its emitSurface)", async () => {
+  const seen: unknown[] = [];
+  const f = fixture([definition({ namespace: "core.instructions", key: "custom" })], {
+    confirmWrite: async (_request: unknown, options?: unknown) => { seen.push(options); return true; },
+  } as any);
+  const emitSurface = async () => {};
+  const registration = f.registrations.find((r) => r.descriptor.id === "settings_set_value")!;
+  await registration.handler(
+    { executionId: "exec-1", principal: { id: "caller" }, run: { id: "run-1" }, input: { namespace: "core.instructions", key: "custom", value: "x" }, signal: new AbortController().signal },
+    { emitSurface },
+  );
+  assert.equal(seen.length, 1);
+  assert.equal((seen[0] as { emitSurface?: unknown } | undefined)?.emitSurface, emitSurface);
+});
+
 test("declined confirmation and denied host rules cannot write", async () => {
   const f = fixture([definition({ namespace: "core.instructions", key: "custom" })], { confirmWrite: async () => false } as any);
   await assert.rejects(() => f.call("settings_set_value", { namespace: "core.instructions", key: "custom", value: "x" }), { name: "ToolInputError", message: "settings_set_value: the human did not confirm the change. Nothing was changed." });

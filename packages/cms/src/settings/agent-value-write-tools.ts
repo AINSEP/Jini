@@ -1,5 +1,5 @@
 import { adaptLegacyAuthorize } from "../core/tools/index.js";
-import { ToolInputError, type ToolExecutionContext, type ToolHandler } from "@jini-ai/core";
+import { ToolInputError, type ToolExecutionContext, type ToolExecutionOptions, type ToolHandler } from "@jini-ai/core";
 import { ForbiddenError as PermissionDeniedError } from "../core/commands/command.js";
 import { requireToolPermission } from "../core/tools/index.js";
 import type { JsonValue } from "@jini-ai/core/primitives";
@@ -110,7 +110,7 @@ function rethrowWriteError(error: unknown, toolId: SettingsValueWriteToolId, tar
  * @complexity O(value size + rule count) plus bounded repository calls and a human wait.
  * @throws ToolInputError for invalid input, denied keys, absent/declined/stale confirmation. */
 export function buildSettingsValueWriteHandler(deps: SettingsToolDeps, toolId: SettingsValueWriteToolId): ToolHandler {
-  return async (ctx) => {
+  return async (ctx, options?: ToolExecutionOptions) => {
     const target = parseTarget(toolId, ctx.input);
     const permission = deriveRequiredPermission({ scope: target.scope, callerPrincipalId: ctx.principal.id });
     const isSet = toolId === "settings_set_value";
@@ -128,7 +128,7 @@ export function buildSettingsValueWriteHandler(deps: SettingsToolDeps, toolId: S
       if (ctx.signal.aborted) throw new ToolInputError({ message: `${toolId}: the run ended before the change could be applied. Nothing was changed.` });
       if (rule) {
         if (!deps.confirmWrite) throw new ToolInputError({ message: `${toolId}: '${rule.namespace}.${rule.key}' requires a human confirmation card: ${rule.reason}. The owner can change it in Settings.` });
-        const confirmed = await deps.confirmWrite({ ctx, toolId, namespace: rule.namespace, key: rule.key, scope: target.scope, previous: structuredClone(previous), ...(isSet ? { value: structuredClone(target.value!) } : {}), reason: rule.reason });
+        const confirmed = await deps.confirmWrite({ ctx, toolId, namespace: rule.namespace, key: rule.key, scope: target.scope, previous: structuredClone(previous), ...(isSet ? { value: structuredClone(target.value!) } : {}), reason: rule.reason }, options);
         if (confirmed !== true) throw new ToolInputError({ message: `${toolId}: the human did not confirm the change. Nothing was changed.` });
         const current = await resolveTarget(deps, target, isSet);
         const currentLayer = await readLayer(deps, target, current.settingId, ctx.principal.id);
