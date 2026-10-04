@@ -47,6 +47,10 @@ export type AgentPluginArchiveEntry =
   | { readonly kind: "directory"; readonly entryPath: string }
   | { readonly kind: "symlink" | "hardlink" | "device" | "fifo"; readonly entryPath: string; readonly linkTarget?: string | undefined };
 
+/**
+ * `entries` must be a pure function of the archive bytes: an install iterates it twice, once to
+ * check entry-count limits from metadata alone and once to extract.
+ */
 export interface AgentPluginArchiveReaderPort {
   entries(required: { readonly archive: Uint8Array }): AsyncIterable<AgentPluginArchiveEntry>;
 }
@@ -116,6 +120,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     }
 
     await mkdir(workspaceLayout.staging, { recursive: true, mode: 0o700 });
+    await assertEntryCountWithinCap(archiveReader.entries({ archive }));
     const transactionRoot = await mkdtemp(path.join(workspaceLayout.staging, "install-"));
     const extractionRoot = path.join(transactionRoot, "root");
     await mkdir(extractionRoot, { mode: 0o700 });
@@ -199,6 +204,25 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     return totalBytes;
   }
 
+  /**
+   * Refuses a "million small files" archive from entry metadata alone, before a staging
+   * transaction exists. Checking only inside the extraction loop meant an over-cap archive first
+   * had the cap's worth of files contained, written and then deleted again. Every reader derives
+   * its entries from the archive bytes, so a second iteration costs one central-directory walk
+   * and opens no content stream.
+   */
+  async function assertEntryCountWithinCap(entries: AsyncIterable<AgentPluginArchiveEntry>): Promise<void> {
+    let entryCount = 0;
+    for await (const _entry of entries) {
+      entryCount += 1;
+      if (entryCount > LIMITS.maxEntries) throw tooManyEntriesError();
+    }
+  }
+
+  function tooManyEntriesError(): AgentPluginInstallError {
+    return new AgentPluginInstallError({ code: "TOO_MANY_ENTRIES", message: `archive exceeds the ${LIMITS.maxEntries}-entry cap` });
+  }
+
   async function extractEntries(
     entries: AsyncIterable<AgentPluginArchiveEntry>,
     extractionRoot: string,
@@ -210,9 +234,8 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 
     for await (const entry of entries) {
       entryCount += 1;
-      if (entryCount > LIMITS.maxEntries) {
-        throw new AgentPluginInstallError({ code: "TOO_MANY_ENTRIES", message: `archive exceeds the ${LIMITS.maxEntries}-entry cap` });
-      }
+      // Still enforced here: the pre-pass trusts the reader to yield the same entries twice.
+      if (entryCount > LIMITS.maxEntries) throw tooManyEntriesError();
 
       totalBytes = await extractOneEntry({ entry, extractionRoot, seen, executablePaths, totalBytesSoFar: totalBytes });
     }

@@ -68,6 +68,35 @@ function validPackageEntries(): AgentPluginArchiveEntry[] {
   ];
 }
 
+/**
+ * A reader over {@link validPackageEntries} that counts extractions. An install iterates `entries`
+ * twice (a metadata-only limits pass, then extraction), so an extraction is counted when the
+ * manifest's content is actually read, not when `entries` is called.
+ */
+function extractionCountingReader(): { reader: AgentPluginArchiveReaderPort; extractions: () => number } {
+  let extractions = 0;
+  return {
+    reader: {
+      async *entries() {
+        for (const entry of validPackageEntries()) {
+          if (entry.kind !== "file" || entry.entryPath !== "plugin.json") {
+            yield entry;
+            continue;
+          }
+          yield {
+            ...entry,
+            openReadStream(options: Record<string, never>) {
+              extractions += 1;
+              return entry.openReadStream(options);
+            },
+          };
+        }
+      },
+    },
+    extractions: () => extractions,
+  };
+}
+
 async function freshLayout() {
   const cwd = await mkdtemp(path.join(tmpdir(), "host-agent-plugin-install-test-"));
   const instanceLayout = resolveAgentPluginLayout({ cwd, env: {} });
@@ -325,14 +354,27 @@ test("the total-extracted-bytes cap is enforced across many small files (the 'ma
   }
 });
 
-test("the entry-count cap is enforced", async () => {
+test("the entry-count cap is enforced before any entry is extracted", async () => {
   const { cwd, instanceLayout, layout } = await freshLayout();
   try {
     const archive = new Uint8Array(Buffer.from("archive-bytes-many-entries"));
     const digest = createHash("sha256").update(archive).digest("hex");
 
-    const manyEntries: AgentPluginArchiveEntry[] = [fileEntry("plugin.json", VALID_MANIFEST)];
-    for (let i = 0; i < 5000; i += 1) manyEntries.push(fileEntry(`skills/a/refs/f${i}.md`, "x"));
+    // Counts content reads: the "million small files" archive must be refused from entry metadata
+    // alone, not after the cap's worth of files has already been written to staging.
+    let streamsOpened = 0;
+    const countedFile = (entryPath: string, content: string): AgentPluginArchiveEntry => {
+      const entry = fileEntry(entryPath, content);
+      return {
+        ...entry,
+        openReadStream(options: Record<string, never>) {
+          streamsOpened += 1;
+          return (entry as Extract<AgentPluginArchiveEntry, { kind: "file" }>).openReadStream(options);
+        },
+      } as AgentPluginArchiveEntry;
+    };
+    const manyEntries: AgentPluginArchiveEntry[] = [countedFile("plugin.json", VALID_MANIFEST)];
+    for (let i = 0; i < 5000; i += 1) manyEntries.push(countedFile(`skills/a/refs/f${i}.md`, "x"));
 
     await assert.rejects(
       () =>
@@ -345,6 +387,7 @@ test("the entry-count cap is enforced", async () => {
         }),
       (error: unknown) => error instanceof AgentPluginInstallError && error.code === "TOO_MANY_ENTRIES",
     );
+    assert.equal(streamsOpened, 0, "an over-cap archive must be rejected before any entry content is read");
     assert.deepEqual(await readdir(layout.packages), [], "rejection must not publish a package");
     assert.deepEqual(await readdir(layout.staging), [], "rejection must remove the staging transaction");
   } finally {
@@ -389,13 +432,7 @@ test("installing the identical archive twice extracts only once (content-address
     const archive = new Uint8Array(Buffer.from("archive-bytes-dedup"));
     const digest = createHash("sha256").update(archive).digest("hex");
 
-    let extractCount = 0;
-    const countingReader: AgentPluginArchiveReaderPort = {
-      async *entries() {
-        extractCount += 1;
-        yield* validPackageEntries();
-      },
-    };
+    const { reader: countingReader, extractions } = extractionCountingReader();
 
     const first = await installAgentPlugin({
       archive,
@@ -412,7 +449,7 @@ test("installing the identical archive twice extracts only once (content-address
       workspaceId: WORKSPACE_ID,
     });
 
-    assert.equal(extractCount, 1, "the second install of byte-identical content must not re-extract");
+    assert.equal(extractions(), 1, "the second install of byte-identical content must not re-extract");
     assert.equal(first.packageRoot, second.packageRoot);
   } finally {
     await forceRemove(cwd);
@@ -482,11 +519,14 @@ test("publication failure preserves an obstructing file and cleans all staging o
     const archive = new Uint8Array(Buffer.from("archive-bytes-publication-failure"));
     const digest = createHash("sha256").update(archive).digest("hex");
     const finalRoot = path.join(layout.packages, digest);
+    let obstructed = false;
     await assert.rejects(installAgentPlugin({
       archive, expectedSha256: digest, layout: instanceLayout, workspaceId: WORKSPACE_ID,
       archiveReader: { async *entries() {
         // Obstruct publication only after the initial dedup check, using the real filesystem.
-        await writeFile(finalRoot, "existing file", { flag: "wx" });
+        // Once: the install iterates entries twice (limits pass, then extraction).
+        if (!obstructed) await writeFile(finalRoot, "existing file", { flag: "wx" });
+        obstructed = true;
         yield* validPackageEntries();
       } },
     }), (error: unknown) => error instanceof AgentPluginInstallError && error.code === "PUBLISH_FAILED");
@@ -604,13 +644,7 @@ test("TENANT-GRADE: two workspaces installing the identical archive extract INDE
     const archive = new Uint8Array(Buffer.from("archive-bytes-shared-by-two-workspaces"));
     const digest = createHash("sha256").update(archive).digest("hex");
 
-    let extractCount = 0;
-    const countingReader: AgentPluginArchiveReaderPort = {
-      async *entries() {
-        extractCount += 1;
-        yield* validPackageEntries();
-      },
-    };
+    const { reader: countingReader, extractions } = extractionCountingReader();
 
     const idA = "11111111-1111-4111-8111-111111111111";
     const idB = "22222222-2222-4222-8222-222222222222";
@@ -624,7 +658,7 @@ test("TENANT-GRADE: two workspaces installing the identical archive extract INDE
     // The tenancy property itself: byte-identical content installed by two DIFFERENT workspaces
     // is extracted TWICE, into two entirely disjoint package roots -- the opposite of
     // install.ts's own within-one-workspace dedup test above, and that contrast is the point.
-    assert.equal(extractCount, 2, "a second workspace's install must not be satisfied by the first workspace's bytes");
+    assert.equal(extractions(), 2, "a second workspace's install must not be satisfied by the first workspace's bytes");
     assert.notEqual(installedA.packageRoot, installedB.packageRoot);
     assert.equal(path.relative(workspaceB.root, installedA.packageRoot).startsWith(".."), true);
 
