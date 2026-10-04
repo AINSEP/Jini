@@ -4,7 +4,7 @@ import { createTransactionalInMemoryIdentityRepos } from "../repo.memory-transac
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { ToolExecutionContext, ToolRegistration } from "@jini-ai/core";
-import { IdentityForbiddenError, GrantExceedsIssuerError, type IdentityRepos } from "../../core/index.js";
+import { IdentityForbiddenError, GrantExceedsIssuerError, OwnerRequiredError, type IdentityRepos } from "../../core/index.js";
 import {
   identityAgentToolCatalog, Argon2PasswordHasher, loadArgon2Binding,
   InMemoryPolicyPermissionRepo, InMemoryPolicyRepo, InMemoryPrincipalPolicyRepo,
@@ -538,6 +538,38 @@ async function stateFingerprint(repos: IdentityRepos): Promise<string> {
 /** Enable must start from disabled so a no-op cannot masquerade as success. */
 
 const executionContext = asOwner;
+test("identity_user_create advertises user.manage only", () => {
+  const entry = identityAgentToolCatalog.find((tool) => tool.name === "identity_user_create");
+  assert.ok(entry);
+  assert.deepEqual(entry.authorization, { permission: "user.manage" });
+});
+
+for (const permission of ["member.manage", "user.manage"] as const) {
+  test(`identity tools enforce owner protection under ${permission}, including direct handler calls`, async () => {
+    const { deps, repos, ownerPrincipalId } = await buildHarness();
+    const caller = await addPrincipal(repos, "delegated-caller");
+    await grant(repos, caller, [permission]);
+    const before = await stateFingerprint(repos);
+    await assert.rejects(
+      () => wired(deps, "identity_user_update_email").handler(executionContext(caller, { principalId: ownerPrincipalId, email: "attacker@example.com" })),
+      (error: unknown) => permission === "member.manage"
+        ? error instanceof IdentityForbiddenError && error.message === `principal '${caller}' is not authorized for any of [user.manage]`
+        : error instanceof OwnerRequiredError && error.message === "only an owner can modify an owner principal"
+    );
+    if (permission === "member.manage") {
+      await assert.rejects(
+        () => wired(deps, "identity_user_create").handler(executionContext(caller, { username: "unauthorized-operator" })),
+        (error: unknown) => error instanceof IdentityForbiddenError && error.message === `principal '${caller}' is not authorized for any of [user.manage]`
+      );
+    }
+    assert.equal(await stateFingerprint(repos), before);
+    await wired(deps, "identity_user_update_email").handler(executionContext(caller, { principalId: caller, email: "self@example.com" }));
+    assert.equal((await repos.users.findByPrincipalId({ workspaceId: WORKSPACE_ID, principalId: caller }))?.email, "self@example.com");
+    await wired(deps, "identity_user_update_email").handler(executionContext(ownerPrincipalId, { principalId: ownerPrincipalId, email: "owner@example.com" }));
+    assert.equal((await repos.users.findByPrincipalId({ workspaceId: WORKSPACE_ID, principalId: ownerPrincipalId }))?.email, "owner@example.com");
+  });
+}
+
 function declaredPermissions(toolId: string): string[] {
   const entry = identityAgentToolCatalog.find((tool) => tool.name === toolId);
   assert.ok(entry);

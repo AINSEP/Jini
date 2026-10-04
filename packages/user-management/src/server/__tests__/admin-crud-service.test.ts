@@ -12,6 +12,7 @@ import { login } from "../auth-service.js";
 import type { AuthServiceDeps } from "../auth-service.js";
 import {
   attachPolicy,
+  assignRole,
   createPolicy,
   createRole,
   createUser,
@@ -280,7 +281,7 @@ test("AC-27: ENABLE_PRINCIPAL is denied for a caller without user.manage", async
 // UPDATE_USER. See docs/decisions/DR-002-grant-authority-and-admin-safety.md.
 // ---------------------------------------------------------------------------
 
-test("AC-28: UPDATE_USER succeeds under member.manage alone (admin onboarding gate) and sets email", async () => {
+test("SECURITY: member.manage alone cannot UPDATE_USER on another operator", async () => {
   const { deps, repos, ownerPrincipalId } = await buildSeededDeps();
   const { policy } = await createPolicy({
     deps,
@@ -305,8 +306,170 @@ test("AC-28: UPDATE_USER succeeds under member.manage alone (admin onboarding ga
     input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, username: "target4", password: "pw-valid-1234" },
   });
 
-  const { user } = await updateUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: "member-manage-caller", principalId: target.id } }, { email: "new@example.com" });
-  assert.equal(user.email, "new@example.com");
+  const before = await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: target.id });
+  await assert.rejects(
+    () => updateUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: "member-manage-caller", principalId: target.id } }, { email: "new@example.com" }),
+    (error: unknown) => error instanceof IdentityForbiddenError &&
+      error.message === "principal 'member-manage-caller' is not authorized for any of [user.manage]"
+  );
+  assert.deepEqual(await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: target.id }), before);
+});
+
+async function buildDelegatedManager(permission: "member.manage" | "user.manage" | "role.manage") {
+  const seeded = await buildSeededDeps();
+  const { deps, ownerPrincipalId } = seeded;
+  const { principal: manager } = await createUser({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, username: "manager", password: "manager-pw" },
+  });
+  const { policy } = await createPolicy({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, name: "delegated-manager" },
+  });
+  await writePolicyPermission({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, policyId: policy.id, permission } });
+  await attachPolicy({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: manager.id, policyId: policy.id } });
+  return { ...seeded, manager, policy };
+}
+
+test("SECURITY: member.manage cannot change the seeded owner's email", async () => {
+  const { deps, repos, ownerPrincipalId, manager } = await buildDelegatedManager("member.manage");
+  const before = await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: ownerPrincipalId });
+  await assert.rejects(
+    () => updateUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: manager.id, principalId: ownerPrincipalId } }, { email: "attacker@example.com" }),
+    (error: unknown) => error instanceof IdentityForbiddenError &&
+      error.message === `principal '${manager.id}' is not authorized for any of [user.manage]`
+  );
+  assert.deepEqual(await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: ownerPrincipalId }), before);
+});
+
+for (const ownerGrant of ["seeded", "role", "policy"] as const) {
+  test(`SECURITY: user.manage cannot change a ${ownerGrant} owner's email, including clearing it`, async () => {
+    const { deps, repos, ownerPrincipalId, manager } = await buildDelegatedManager("user.manage");
+    let targetId = ownerPrincipalId;
+    if (ownerGrant !== "seeded") {
+      const { principal } = await createUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, username: "other-owner", password: "owner-pw" } });
+      targetId = principal.id;
+      if (ownerGrant === "role") {
+        const ownerRole = (await repos.roles.list({ workspaceId: WORKSPACE })).find((role) => role.name === "owner");
+        assert.ok(ownerRole);
+        await assignRole({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: targetId, roleId: ownerRole.id } });
+      } else {
+        const ownerPolicy = (await repos.policies.list({ workspaceId: WORKSPACE })).find((policy) => policy.name === "owner-builtin-policy");
+        assert.ok(ownerPolicy);
+        await attachPolicy({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: targetId, policyId: ownerPolicy.id } });
+      }
+    }
+    await updateUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: targetId } }, { email: "owner@example.com" });
+    const before = await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: targetId });
+    for (const email of ["attacker@example.com", "", undefined]) {
+      await assert.rejects(
+        () => updateUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: manager.id, principalId: targetId } }, { email }),
+        (error: unknown) => error instanceof OwnerRequiredError &&
+          error.message === "only an owner can modify an owner principal"
+      );
+      assert.deepEqual(await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: targetId }), before);
+    }
+  });
+}
+
+test("UPDATE_USER: owner can edit its own email and preserves its username, password, and grants", async () => {
+  const { deps, repos, ownerPrincipalId } = await buildSeededDeps();
+  const before = await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: ownerPrincipalId });
+  assert.ok(before);
+  const rolesBefore = await repos.principalRoles.listByPrincipalId({ workspaceId: WORKSPACE, principalId: ownerPrincipalId });
+  const { user } = await updateUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: ownerPrincipalId } }, { email: "new-owner@example.com" });
+  assert.deepEqual(user, { ...before, email: "new-owner@example.com" });
+  assert.deepEqual(await repos.principalRoles.listByPrincipalId({ workspaceId: WORKSPACE, principalId: ownerPrincipalId }), rolesBefore);
+});
+
+test("user.manage can create an operator, update its email, and edit its own email", async () => {
+  const { deps, repos, ownerPrincipalId, manager } = await buildDelegatedManager("user.manage");
+  const { principal, user } = await createUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: manager.id, username: "allowed-operator", password: "operator-pw" } });
+  assert.equal(principal.kind, "user");
+  assert.equal(user.principalId, principal.id);
+  for (const principalId of [principal.id, manager.id]) {
+    const rolesBefore = await repos.principalRoles.listByPrincipalId({ workspaceId: WORKSPACE, principalId });
+    const { user: updated } = await updateUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: manager.id, principalId } }, { email: "allowed@example.com" });
+    assert.equal(updated.email, "allowed@example.com");
+    assert.deepEqual(await repos.principalRoles.listByPrincipalId({ workspaceId: WORKSPACE, principalId }), rolesBefore);
+  }
+  assert.notEqual(principal.id, ownerPrincipalId);
+});
+
+test("UPDATE_USER: member.manage keeps its existing self-profile edit without changing grants", async () => {
+  const { deps, repos, manager } = await buildDelegatedManager("member.manage");
+  const before = await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: manager.id });
+  assert.ok(before);
+  const rolesBefore = await repos.principalRoles.listByPrincipalId({ workspaceId: WORKSPACE, principalId: manager.id });
+  const policiesBefore = await repos.principalPolicies.listByPrincipalId({ workspaceId: WORKSPACE, principalId: manager.id });
+  const { user } = await updateUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: manager.id, principalId: manager.id } }, { email: "self@example.com" });
+  assert.deepEqual(user, { ...before, email: "self@example.com" });
+  assert.deepEqual(await repos.principalRoles.listByPrincipalId({ workspaceId: WORKSPACE, principalId: manager.id }), rolesBefore);
+  assert.deepEqual(await repos.principalPolicies.listByPrincipalId({ workspaceId: WORKSPACE, principalId: manager.id }), policiesBefore);
+});
+
+test("UPDATE_USER: self-edit without any management permission remains forbidden", async () => {
+  const { deps, repos, ownerPrincipalId } = await buildSeededDeps();
+  const { principal: caller } = await createUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, username: "unprivileged", password: "profile-pw" } });
+  const before = await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: caller.id });
+  await assert.rejects(
+    () => updateUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: caller.id, principalId: caller.id } }, { email: "self@example.com" }),
+    (error: unknown) => error instanceof IdentityForbiddenError &&
+      error.message === `principal '${caller.id}' is not authorized for any of [user.manage, member.manage]`
+  );
+  assert.deepEqual(await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: caller.id }), before);
+});
+
+for (const transition of ["disable", "enable", "reset", "assign", "attach"] as const) {
+  test(`SECURITY: a non-owner manager cannot ${transition} a non-seeded owner`, async () => {
+    const { deps, repos, ownerPrincipalId, manager, policy } = await buildDelegatedManager(
+      transition === "assign" || transition === "attach" ? "role.manage" : "user.manage"
+    );
+    const { principal: target } = await createUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, username: "other-owner", password: "owner-pw" } });
+    const ownerRole = (await repos.roles.list({ workspaceId: WORKSPACE })).find((role) => role.name === "owner");
+    assert.ok(ownerRole);
+    await assignRole({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: target.id, roleId: ownerRole.id } });
+    if (transition === "enable") await disablePrincipal({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: target.id, seededOwnerPrincipalId: ownerPrincipalId } });
+    const before = {
+      principal: await repos.principals.findById({ workspaceId: WORKSPACE, id: target.id }),
+      user: await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: target.id }),
+      roles: await repos.principalRoles.listByPrincipalId({ workspaceId: WORKSPACE, principalId: target.id }),
+      policies: await repos.principalPolicies.listByPrincipalId({ workspaceId: WORKSPACE, principalId: target.id }),
+    };
+    const input = { workspaceId: WORKSPACE, callerPrincipalId: manager.id, principalId: target.id };
+    const { role: emptyRole } = await createRole({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, name: "empty-role" } });
+    await assert.rejects(
+      () => {
+        switch (transition) {
+          case "disable": return disablePrincipal({ deps, input: { ...input, seededOwnerPrincipalId: ownerPrincipalId } });
+          case "enable": return enablePrincipal({ deps, input });
+          case "reset": return resetUserPassword({ deps, input: { ...input, password: "attacker-pw", seededOwnerPrincipalId: ownerPrincipalId } });
+          case "assign": return assignRole({ deps, input: { ...input, roleId: emptyRole.id } });
+          case "attach": return attachPolicy({ deps, input: { ...input, policyId: policy.id } });
+        }
+      },
+      (error: unknown) => error instanceof OwnerRequiredError &&
+        error.message === "only an owner can modify an owner principal"
+    );
+    assert.deepEqual({
+      principal: await repos.principals.findById({ workspaceId: WORKSPACE, id: target.id }),
+      user: await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: target.id }),
+      roles: await repos.principalRoles.listByPrincipalId({ workspaceId: WORKSPACE, principalId: target.id }),
+      policies: await repos.principalPolicies.listByPrincipalId({ workspaceId: WORKSPACE, principalId: target.id }),
+    }, before);
+  });
+}
+
+test("SECURITY: editing one's profile cannot grant oneself the owner role", async () => {
+  const { deps, repos, manager } = await buildDelegatedManager("role.manage");
+  const ownerRole = (await repos.roles.list({ workspaceId: WORKSPACE })).find((role) => role.name === "owner");
+  assert.ok(ownerRole);
+  await assert.rejects(
+    () => assignRole({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: manager.id, principalId: manager.id, roleId: ownerRole.id } }),
+    (error: unknown) => error instanceof GrantExceedsIssuerError &&
+      error.message === `principal '${manager.id}' cannot grant permission(s) it does not hold unconstrained: *`
+  );
+  assert.deepEqual(await repos.principalRoles.listByPrincipalId({ workspaceId: WORKSPACE, principalId: manager.id }), []);
 });
 
 test("UPDATE_USER: clears email when given an empty string (EC-17)", async () => {

@@ -7,8 +7,9 @@ All current entries are included in the unchanged 0.1.0 package version:
 |---|---|---|
 | `@jini-ai/user-management` | Universal | Records, errors, repository/runtime ports, permission catalog |
 | `@jini-ai/user-management/server` | Node | Auth, sessions, grants, administration, hashing, memory repos, seeding, migrations, tool metadata/parser and registration composition |
-| `@jini-ai/user-management/react` | Browser | Login, Users, Roles, Members, hooks, browser DTOs and typed host ports |
+| `@jini-ai/user-management/react` | Browser | Login, Users, Members, hooks, browser DTOs and typed host ports |
 | `@jini-ai/user-management/react/testing` | Browser | Generalized fake login/users/roles/members ports |
+| `@jini-ai/user-management/admin/react` | Browser | Composable roles/policies module and lazy screens using ui-kit |
 
 Every public function/factory takes a required argument object and, where needed,
 a second optional argument object. Repository `save` accepts a complete record.
@@ -21,14 +22,13 @@ formats. Native Argon2 is optional; construct its adapter with
 Server entry imports never pull in React or a native binding eagerly.
 
 React consumers install compatible React/React DOM and `@jini-ai/{ui,admin,agentic}`
-peers. These peers are optional for universal/server consumers. Mount Users/Roles
+peers. These peers are optional for universal/server consumers. Mount Users
 inside `FetchQueryProvider` from `@jini-ai/ui/panel-kit`; the current provider owns
-its cache directly. Roles imports the consolidated `TabBar` from
-`@jini-ai/ui/tab-strip`, which requires that UI entry to be exported by the peer.
+its cache directly. The roles/policies module uses `@jini-ai/ui-kit` and its React facades;
+see [roles administration wiring and cleanup](./src/admin/PORT.md).
 Member timestamps use `formatTimestamp({ iso })` from `@jini-ai/ui/panel-kit`.
 Supply `port`, `translate` and a session/workspace `queryScope`.
-Login requires `productName`; Roles also requires `usersHref` and
-`onTabChange({ tabId })`. Members optionally accepts a host-filtered refresh port.
+Login requires `productName`. Members optionally accepts a host-filtered refresh port.
 Screen ports use object IDs and separate optional fields. The fake roles port
 retains a policy's name when an update omits it or supplies `undefined`.
 Remount screens when switching sessions/workspaces. The host supplies styles and dictionaries; see

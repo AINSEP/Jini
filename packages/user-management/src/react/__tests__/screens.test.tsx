@@ -3,10 +3,9 @@ import { act, render, renderHook, screen, waitFor, within } from '@testing-libra
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { FetchQueryProvider } from '@jini-ai/ui/panel-kit';
-import { Login, Users, Roles, Members, useUsers, describeIdentityError } from '../index.js';
-import { createFakeLoginPort, createFakeUsersPort, createFakeRolesPort, createFakeMembersPort } from '../testing.js';
+import { Login, Users, Members, useUsers, describeIdentityError } from '../index.js';
+import { createFakeLoginPort, createFakeUsersPort, createFakeMembersPort } from '../testing.js';
 import type { AdminIdentityUser } from '../models.js';
-import { permissionRemoveBodyParts, rolesDescriptionParts } from '../roles/text.js';
 
 const translate = (key: string) => key;
 const alice: AdminIdentityUser = {
@@ -51,19 +50,6 @@ test('users retain the new-password autofill protection and create through their
   expect(fetch).not.toHaveBeenCalled();
 });
 
-test('roles use a host link and tab callback without reading or changing browser location', async () => {
-  const user = userEvent.setup();
-  const port = createFakeRolesPort({}, { roles: [{ id: 'editor', workspaceId: 'one', name: 'Editor', isBuiltin: false }] });
-  const onTabChange = vi.fn();
-  render(<FetchQueryProvider><Roles port={port} translate={translate} queryScope="one" usersHref="/people" onTabChange={onTabChange} /></FetchQueryProvider>);
-  const link = await screen.findByRole('link', { name: 'Users' });
-  expect(link).toHaveAttribute('href', '/people');
-  expect(screen.getByRole('button', { name: 'Create role' })).toHaveAttribute('data-agent-element', 'roles-create-submit');
-  await user.click(screen.getByRole('tab', { name: 'Policies' }));
-  expect(onTabChange).toHaveBeenCalledWith({ tabId: 'policies' });
-  expect(fetch).not.toHaveBeenCalled();
-});
-
 test('member text and confirmation cancel labels use injected translation', async () => {
   const user = userEvent.setup();
   const port = createFakeMembersPort({}, { members: [{
@@ -103,10 +89,4 @@ test('error codes supplied by independent transports use caller translations', (
   })).toBe('translated:You do not have permission to do that.');
   expect(describeIdentityError({ error: new Error('connection lost'), fallback: 'fallback', translate })).toBe('connection lost');
   expect(describeIdentityError({ error: null, fallback: 'fallback', translate })).toBe('fallback');
-});
-
-test('whole-sentence placeholders retain locale ordering and the permission-removal consequence', () => {
-  const translateSentence = (key: string) => key.includes('{users}') ? 'Open {users}, please.' : key;
-  expect(rolesDescriptionParts({ translate: translateSentence })).toEqual({ prefix: 'Open ', suffix: ', please.', linkLabel: 'Users' });
-  expect(permissionRemoveBodyParts({ translate })).toEqual({ prefix: 'Remove "', suffix: '" from this policy? Anyone with this policy loses it.' });
 });

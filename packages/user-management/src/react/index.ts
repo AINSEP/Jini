@@ -10,15 +10,8 @@ export { useUsers } from './users/hooks/use-users.hooks.js';
 export type { UsersController, UsersDependencies, UsersOptions } from './users/hooks/use-users.hooks.js';
 export { useResetPasswordFields } from './users/hooks/use-reset-password-fields.hooks.js';
 export type { ResetPasswordFieldsInput, ResetPasswordFieldsController } from './users/hooks/use-reset-password-fields.hooks.js';
-export { Roles, RolesSection, PoliciesSection, PolicyRow } from './roles/Roles.js';
-export type { RolesProps, RoleCreateFormController, RoleRowController, RolesSectionProps, PolicyRowController, PolicyPermissionController, PolicyRowProps, PolicyCreateFormController, PoliciesSectionProps } from './roles/Roles.js';
-export type { RolesTabId } from './roles/Roles.hooks.js';
-export { useRoles } from './roles/hooks/use-roles.hooks.js';
-export type { RolesController, RolesDependencies } from './roles/hooks/use-roles.hooks.js';
 export { Members } from './members/Members.js';
 export type { MembersProps } from './members/Members.js';
 export { useMembers } from './members/hooks/use-members.hooks.js';
 export type { MembersController, MembersDependencies, MembersOptions } from './members/hooks/use-members.hooks.js';
 export { describeIdentityError } from './errors.js';
-
-export type { PendingPermissionRemove } from './roles/hooks/use-roles.hooks.js';

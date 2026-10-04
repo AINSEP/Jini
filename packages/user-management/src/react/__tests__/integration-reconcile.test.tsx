@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { FormEvent, ReactNode } from 'react';
 import { expect, test, vi } from 'vitest';
 import { FetchQueryProvider } from '@jini-ai/ui/panel-kit';
-import { useRoles, useUsers } from '../index.js';
+import { useUsers } from '../index.js';
 import { createFakeRolesPort, createFakeUsersPort } from '../testing.js';
 
 const translate = (key: string) => key;
@@ -29,31 +29,6 @@ test('user creation, grants, email and status writes preserve exact port payload
   await waitFor(() => expect(result.current.users?.[0]?.status).toBe('disabled'));
   expect(result.current.formError).toBeNull();
   expect(result.current.grantError).toBeNull();
-});
-
-test('role create/delete and permission writes use the current query adapter and optional resource scope', async () => {
-  const port = createFakeRolesPort({}, { policies: [{ id: 'custom', workspaceId: 'fake-ws', name: 'Custom', isBuiltin: false, isFrozen: false }] });
-  const write = vi.spyOn(port, 'writePolicyPermission');
-  const { result } = renderHook(() => useRoles({ port, translate, queryScope: 'reconcile-roles' }), { wrapper });
-  await waitFor(() => expect(result.current.roles).toEqual([]));
-  act(() => result.current.setRoleName('Editor'));
-  await act(async () => result.current.onCreateRole(submit()));
-  await waitFor(() => expect(result.current.roles?.[0]?.name).toBe('Editor'));
-  const role = result.current.roles![0]!;
-  act(() => result.current.setPendingRoleDelete(role));
-  await act(async () => result.current.onDeleteRole());
-  await waitFor(() => expect(result.current.roles).toEqual([]));
-  act(() => result.current.togglePermissionForm({ policyId: 'custom' }));
-  await waitFor(() => expect(result.current.permissionsLoading).toBe(false));
-  act(() => { result.current.setPermissionInput('document.read'); result.current.setResourceTypeInput('document'); });
-  await act(async () => result.current.onWritePermission({ policyId: 'custom' }));
-  expect(write).toHaveBeenCalledWith({ policyId: 'custom', permission: 'document.read' }, { resourceType: 'document' });
-  expect(result.current.permissionRows).toEqual([{
-    id: 'fake-perm-1', workspaceId: 'fake-ws', policyId: 'custom', permission: 'document.read', resourceType: 'document', constraintJson: null,
-  }]);
-  await act(async () => result.current.onRemovePermission({ policyId: 'custom', policyPermissionId: 'fake-perm-1' }));
-  expect(result.current.permissionRows).toEqual([]);
-  expect(result.current.rowError).toBeNull();
 });
 
 // REGRESSION: fails if updatePolicy spreads opts without restoring the existing name for name: undefined.

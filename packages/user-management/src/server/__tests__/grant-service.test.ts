@@ -129,7 +129,7 @@ test("MF-1: CREATE_USER always mints a NEW principal — never attaches a creden
   assert.notEqual(ownerUser?.principalId, principal.id);
 });
 
-test("AC-22: a caller holding only member.manage (not user.manage) can still CREATE_USER — admin onboarding", async () => {
+test("SECURITY: member.manage alone cannot CREATE_USER, and writes no operator principal or credential", async () => {
   const { deps, repos, ownerPrincipalId } = await buildSeededDeps();
 
   // Construct a caller that holds member.manage only, via a custom policy (ATTACH_POLICY, owner-issued).
@@ -156,16 +156,22 @@ test("AC-22: a caller holding only member.manage (not user.manage) can still CRE
     },
   });
 
-  const { principal } = await createUser({
-    deps,
-    input: {
-      workspaceId: WORKSPACE,
-      callerPrincipalId: "caller-member-manage",
-      username: "onboarded",
-      password: "pw-valid-1234",
-    },
-  });
-  assert.equal(principal.kind, "user");
+  const before = await repos.principals.list({ workspaceId: WORKSPACE });
+  await assert.rejects(
+    () => createUser({
+      deps,
+      input: {
+        workspaceId: WORKSPACE,
+        callerPrincipalId: "caller-member-manage",
+        username: "onboarded",
+        password: "pw-valid-1234",
+      },
+    }),
+    (error: unknown) => error instanceof IdentityForbiddenError &&
+      error.message === "principal 'caller-member-manage' is not authorized for any of [user.manage]"
+  );
+  assert.deepEqual(await repos.principals.list({ workspaceId: WORKSPACE }), before);
+  assert.equal(await repos.users.findByUsername({ workspaceId: WORKSPACE, username: "onboarded" }), null);
 });
 
 test("CREATE_USER: a caller holding neither user.manage nor member.manage is rejected FORBIDDEN, no row written", async () => {

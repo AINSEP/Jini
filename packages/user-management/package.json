@@ -16,7 +16,12 @@
       ".": "universal",
       "./server": "node",
       "./react": "browser",
-      "./react/testing": "browser"
+      "./react/testing": "browser",
+      "./admin": "universal",
+      "./admin/react": "browser",
+      "./admin/adapters/http": "universal",
+      "./admin/adapters/memory": "universal",
+      "./admin/conformance": "universal"
     }
   },
   "type": "module",
@@ -41,6 +46,31 @@
       "types": "./dist/react/testing.d.ts",
       "import": "./dist/react/testing.js",
       "default": "./dist/react/testing.js"
+    },
+    "./admin": {
+      "types": "./dist/admin/index.d.ts",
+      "import": "./dist/admin/index.js",
+      "default": "./dist/admin/index.js"
+    },
+    "./admin/react": {
+      "types": "./dist/admin/react/index.d.ts",
+      "import": "./dist/admin/react/index.js",
+      "default": "./dist/admin/react/index.js"
+    },
+    "./admin/adapters/http": {
+      "types": "./dist/admin/adapters/http.d.ts",
+      "import": "./dist/admin/adapters/http.js",
+      "default": "./dist/admin/adapters/http.js"
+    },
+    "./admin/adapters/memory": {
+      "types": "./dist/admin/adapters/memory.d.ts",
+      "import": "./dist/admin/adapters/memory.js",
+      "default": "./dist/admin/adapters/memory.js"
+    },
+    "./admin/conformance": {
+      "types": "./dist/admin/conformance/index.d.ts",
+      "import": "./dist/admin/conformance/index.js",
+      "default": "./dist/admin/conformance/index.js"
     }
   },
   "files": [
@@ -108,6 +138,7 @@
     "@jini-ai/cms": "workspace:*"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:*"
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/ui-kit": "workspace:*"
   }
 }

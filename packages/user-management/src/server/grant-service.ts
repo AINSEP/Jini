@@ -10,6 +10,7 @@ import {
   IdentityForbiddenError,
   IdentityNotFoundError,
   IdentityValidationError,
+  OwnerRequiredError,
   type PolicyPermissionRecord,
   type PolicyRecord,
   type PrincipalPolicyRecord,
@@ -64,11 +65,41 @@ export function authorizeDepsFrom(repos: IdentityRepos): AuthorizeDeps {
   };
 }
 
+/** True iff `principalId` holds the owner wildcard `*` (unconstrained) in its effective set. */
+export async function principalHoldsOwnerWildcard(required: {
+  deps: AuthServiceDeps;
+  workspaceId: UUID;
+  principalId: UUID;
+}): Promise<boolean> {
+  const { deps, workspaceId, principalId } = required;
+  const effectiveRows = await resolveEffectivePermissions({
+    deps: authorizeDepsFrom(deps.repos),
+    principalId,
+    workspaceId,
+  });
+  return effectiveRows.some((row) => row.permission === "*" && row.resourceType == null && row.constraintJson == null);
+}
+
+/** Owner-account writes reuse the same unconstrained wildcard test as the active-owner floor. */
+export async function assertOwnerTargetMayBeModified(required: {
+  deps: AuthServiceDeps;
+  workspaceId: UUID;
+  callerPrincipalId: UUID;
+  principalId: UUID;
+}): Promise<void> {
+  const { deps, workspaceId, callerPrincipalId, principalId } = required;
+  if (!(await principalHoldsOwnerWildcard({ deps, workspaceId, principalId }))) return;
+  // Delegated management must never become authority over an owner's account or credentials.
+  if (!(await principalHoldsOwnerWildcard({ deps, workspaceId, principalId: callerPrincipalId }))) {
+    throw new OwnerRequiredError({ message: "only an owner can modify an owner principal" });
+  }
+}
+
 /**
  * Fail-closed caller-permission gate shared by every transition in this file.
  * Throws `IdentityForbiddenError` (403 `FORBIDDEN`) unless the caller holds
- * at least one of `permissions` (an OR gate — `CREATE_USER` accepts either
- * `user.manage` or `member.manage`, state.spec §3).
+ * at least one of `permissions` (an OR gate where the transition permits it;
+ * operator creation requires `user.manage`, while self-profile edits retain their existing OR).
  *
  * @complexity O(p) `authorize()` calls, p = `permissions.length` (1 or 2 in
  * every caller this pass) — each itself O(resolveEffectivePermissions), see
@@ -185,8 +216,8 @@ async function findAssignableTargetOrThrow(required: {
  * generated here, never caller-supplied, so this transition can never attach
  * a credential to a pre-existing principal (the privilege-escalation
  * class: an earlier draft let an admin bind a password to the seeded owner
- * principal and log in as owner). Gated by `user.manage` OR `member.manage`
- * (admin onboarding).
+ * principal and log in as owner). Gated by `user.manage`; front-end
+ * `member.manage` never authorizes minting an operator credential.
  *
  * "Atomically" here means structurally, not via a DB transaction — the
  * in-memory adapters have no cross-repo transaction (same disclosed gap as
@@ -213,7 +244,8 @@ export async function createUser(required: {
     deps,
     workspaceId: input.workspaceId,
     callerPrincipalId: input.callerPrincipalId,
-    permissions: ["user.manage", "member.manage"],
+    // Member administration must not mint principals that can log into the operator plane.
+    permissions: ["user.manage"],
   });
 
   const username = normalizeUsername({ raw: input.username ?? "" });
@@ -376,6 +408,13 @@ export async function assignRole(required: {
         transitionName: "ASSIGN_ROLE",
       });
 
+      await assertOwnerTargetMayBeModified({
+        deps,
+        workspaceId: input.workspaceId,
+        callerPrincipalId: input.callerPrincipalId,
+        principalId: input.principalId,
+      });
+
       const role = await deps.repos.roles.findById({ workspaceId: input.workspaceId, id: input.roleId });
       if (!role) {
         throw new IdentityNotFoundError({ message: `role '${input.roleId}' was not found` });
@@ -445,6 +484,13 @@ export async function attachPolicy(required: {
         workspaceId: input.workspaceId,
         principalId: input.principalId,
         transitionName: "ATTACH_POLICY",
+      });
+
+      await assertOwnerTargetMayBeModified({
+        deps,
+        workspaceId: input.workspaceId,
+        callerPrincipalId: input.callerPrincipalId,
+        principalId: input.principalId,
       });
 
       const policy = await deps.repos.policies.findById({ workspaceId: input.workspaceId, id: input.policyId });

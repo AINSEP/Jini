@@ -18,7 +18,7 @@ Consumer contract for the current source, including shared kernel types and requ
 | `@jini-ai/user-management/react` | Browser/React | Screens, hooks, administration DTOs/ports, error formatting |
 | `@jini-ai/user-management/react/testing` | Browser/React | Four in-memory UI port fakes and their option types |
 
-All exports resolve to compiled ESM and declarations under `dist/`. There are no public deep imports beyond these four entries. The root does not import Node or React. The server entry requires Node built-ins; the native `argon2` peer is loaded only when `loadArgon2Binding({})` is called. React consumers supply `react`, `react-dom`, `@jini-ai/ui`, `@jini-ai/admin`, and `@jini-ai/agentic` peers.
+All exports resolve to compiled ESM and declarations under `dist/`. The roles composition, React binding, adapters and conformance have separate public `./admin*` entries; see [PORT.md](../../src/admin/PORT.md). The root does not import Node or React. The server entry requires Node built-ins; the native `argon2` peer is loaded only when `loadArgon2Binding({})` is called. React consumers supply `react`, `react-dom`, `@jini-ai/ui`, `@jini-ai/admin`, and `@jini-ai/agentic` peers.
 
 ## Argument convention
 
@@ -251,35 +251,28 @@ Unannotated port input fields in this table are strings. These interface methods
 | `Login` | `(props: LoginProps): JSX.Element` | Login port, translator, brand, callback |
 | `Users` | `(props: UsersProps): JSX.Element` | Users port, translator, query scope/provider |
 | `UserManagePanel` | `(props: UserManagePanelProps): JSX.Element` | Controlled email/grant callbacks |
-| `Roles` | `(props: RolesProps): JSX.Element` | Roles port, translator, query scope/provider, navigation |
-| `RolesSection` | `(props: RolesSectionProps): JSX.Element` | Controlled create/row controllers |
-| `PoliciesSection` | `(props: PoliciesSectionProps): JSX.Element` | Controlled create/row/permission controllers |
-| `PolicyRow` | `(props: PolicyRowProps): JSX.Element` | Controlled row/permission controllers; table parent |
 | `Members` | `(props: MembersProps): JSX.Element` | Members port, translator; optional refresh subscription |
 | `useLogin` | `(required: LoginHookProps, optional: LoginOptions = {}): LoginController` | `{ port: LoginPort; translate: Translate; onLogin: (user: AdminUser) => void }`; optional `{ initialUsername?: string }` |
 | `useUsers` | `(required: UsersDependencies, optional: UsersOptions = {}): UsersController` | `{ port: UsersPort; translate: Translate; queryScope: string }`; optional `{ openOwnPasswordReset?: boolean; onOwnPasswordResetClosed?: () => void }` |
-| `useRoles` | `(required: RolesDependencies): RolesController` | `{ port: RolesPort; translate: Translate; queryScope: string }` |
 | `useMembers` | `(required: MembersDependencies, optional: MembersOptions = {}): MembersController` | `{ port: MembersPort; translate: Translate }`; optional `{ refresh?: IdentityRefreshPort }` |
 | `useResetPasswordFields` | `(required: ResetPasswordFieldsInput): ResetPasswordFieldsController` | `{ resetPasswordFor: AdminIdentityUser \| null; newPassword: string }` |
 | `describeIdentityError` | `({ error: unknown; fallback: string; translate: Translate }, optional: { messages?: Readonly<Record<string, string>> } = {}): string` | Translator and caller-selected fallback/mapping |
 
-`LoginController` returns `username/password` strings and setters, `error: string | null`, `busy: boolean`, and `submit(FormEvent): Promise<void>`. `UsersController` returns nullable user/role/policy lists, load/form/grant/status/password errors, a notice, editable drafts and setters, expanded/confirmation/reset targets, busy flags, `canManageUserTrash`, translator aliases `t/translate`, and handlers for create, grants, email, status, reset, and deletion. `RolesController` returns nullable role/policy lists, create/edit drafts and setters, errors and busy IDs, policy-permission rows/loading/form state, confirmation targets, `t/translate`, and create/save/delete/write/remove handlers. All async mutation handlers return `Promise<void>`; ID-targeted grant/email/role/policy handlers take named objects, while draft setters, row selectors, form events, and confirmation handlers use their declared React callback forms.
+`LoginController` returns `username/password` strings and setters, `error: string | null`, `busy: boolean`, and `submit(FormEvent): Promise<void>`. `UsersController` returns nullable user/role/policy lists, load/form/grant/status/password errors, a notice, editable drafts and setters, expanded/confirmation/reset targets, busy flags, `canManageUserTrash`, translator aliases `t/translate`, and handlers for create, grants, email, status, reset, and deletion. All async mutation handlers return `Promise<void>`; ID-targeted grant/email/role/policy handlers take named objects, while draft setters, row selectors, form events, and confirmation handlers use their declared React callback forms.
 
-`PendingPermissionRemove = { policyId: string; row: AdminPolicyPermission }`. `MembersController` returns `members: AdminMember[] | null`, load/detail errors, `expandedId/detailLoadingId: string | null`, `detailById: Record<string, AdminMember>`, confirmation target/setter, `t/translate`, `stateFor({ id }): { disabling: boolean; resending: boolean; error: string | null; notice: string | null }`, `onResendSignInLink(member): Promise<void>`, `onToggleDetail(member): Promise<void>`, and `confirmDisable(): Promise<void>`.
+`MembersController` returns `members: AdminMember[] | null`, load/detail errors, `expandedId/detailLoadingId: string | null`, `detailById: Record<string, AdminMember>`, confirmation target/setter, `t/translate`, `stateFor({ id }): { disabling: boolean; resending: boolean; error: string | null; notice: string | null }`, `onResendSignInLink(member): Promise<void>`, `onToggleDetail(member): Promise<void>`, and `confirmDisable(): Promise<void>`.
 
 `ResetPasswordFieldsController` returns `confirmPassword: string`, its setter, `mismatch/showNewPassword/showConfirmPassword: boolean`, and two zero-argument visibility toggles.
 
 ```tsx
 import { FetchQueryProvider } from '@jini-ai/ui/panel-kit';
-import { Login, Users, Roles, Members } from '@jini-ai/user-management/react';
+import { Login, Users, Members } from '@jini-ai/user-management/react';
 import type { IdentityAdminPort } from '@jini-ai/user-management/react';
 function Administration({ port }: { port: IdentityAdminPort }) {
   const translate = (text: string) => text;
   return <FetchQueryProvider>
     <Login port={port} translate={translate} productName="Example" onLogin={() => {}} />
     <Users port={port} translate={translate} queryScope="host:workspace:actor" />
-    <Roles port={port} translate={translate} queryScope="host:workspace:actor"
-      usersHref="/people" onTabChange={({ tabId }) => { /* host navigation */ }} />
     <Members port={port} translate={translate} />
   </FetchQueryProvider>;
 }
@@ -341,6 +334,10 @@ const registrations = buildIdentityRegistrations(identityToolDeps); // host moun
 
 `IdentityToolDeps` requires the same transaction and session-token ports used by server authentication services. Generic registration helpers come from the core root, not CMS; only domain identity policy and handlers live here.
 
+Roles screens and controller hooks are now composed through `./admin/react`; the superseded
+standalone roles exports were removed in the 2026-10-03 cleanup. See [PORT.md](../../src/admin/PORT.md).
+Role/policy DTOs and fake ports remain available for users and independent port tests.
+
 ## Supplementary public contracts
 
 These names are also reachable through the current export map. Parameter declarations below preserve source defaults, destructuring and collaborator types; linked declarations define result and DTO details. They do not add runtime validation beyond the behavior and error contracts. Types erase at runtime.
@@ -348,9 +345,8 @@ These names are also reachable through the current export map. Parameter declara
 | Additional exported names | Kind and source |
 |---|---|
 | `GrantOption`, `GrantSelectController`, `UserManageController`, `UserRowActionsController`, `UserRowProps`, `UsersTableProps` | type; [Users.tsx](../../src/react/users/Users.tsx) |
-| `PolicyCreateFormController`, `PolicyPermissionController`, `PolicyRowController`, `RoleCreateFormController`, `RoleRowController` | type; [Roles.tsx](../../src/react/roles/Roles.tsx) |
-| `RolesTabId` | type; [Roles.hooks.tsx](../../src/react/roles/Roles.hooks.tsx) |
 
 ## Current manifest boundary
 
-The current `package.json` exposes `.`, `./server`, `./react`, `./react/testing`. Internal source exports do not create additional supported import paths. The contracts above describe source, not generated output.
+The current `package.json` exposes `.`, `./server`, `./react`, `./react/testing`, `./admin`,
+`./admin/react`, `./admin/adapters/http`, `./admin/adapters/memory`, and `./admin/conformance`. Internal source exports do not create additional supported import paths. The contracts above describe source, not generated output.

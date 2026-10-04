@@ -23,6 +23,11 @@ test('publishes user management from its canonical folder and preserves runtime 
     './server': 'node',
     './react': 'browser',
     './react/testing': 'browser',
+    './admin': 'universal',
+    './admin/react': 'browser',
+    './admin/adapters/http': 'universal',
+    './admin/adapters/memory': 'universal',
+    './admin/conformance': 'universal',
   });
   expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());
   for (const [entry, value] of Object.entries(manifest.exports)) {

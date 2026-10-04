@@ -11,7 +11,7 @@ test('every published entry has matching runtime metadata and a source module', 
     expect(paths.default).toBe(paths.import);
     const source = paths.import.replace('./dist/', './src/').replace(/\.js$/, '.ts');
     expect(readFileSync(new URL(`../../${source}`, import.meta.url), 'utf8').length, entry).toBeGreaterThan(0);
-    expect(manifest.jini.entries[entry]).toBe(entry.startsWith('./react') ? 'browser' : entry === './server' ? 'node' : 'universal');
+    expect(manifest.jini.entries[entry]).toBe((entry.startsWith('./react') || entry === './admin/react') ? 'browser' : entry === './server' ? 'node' : 'universal');
   }
 });
 

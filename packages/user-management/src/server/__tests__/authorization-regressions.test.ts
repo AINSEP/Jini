@@ -5,7 +5,7 @@ import { isKnownPermission, listPermissions, registerPermission } from '../../co
 import { IdentityValidationError, IdentityNotFoundError, IdentityTransactionRequiredError, OwnerRequiredError } from '../../core/types.js';
 import type { AuthServiceDeps } from '../auth-service.js';
 import { authorize } from '../authorize.js';
-import { disablePrincipal, deleteRole, deletePolicy } from '../admin-crud-service.js';
+import { disablePrincipal, enablePrincipal, updateUser, resetUserPassword, deleteRole, deletePolicy } from '../admin-crud-service.js';
 import { assignRole, attachPolicy } from '../grant-service.js';
 import { parseIdentityToolInput } from '../agent-tool-input.js';
 import { migrateDeprecatedPermissionGrants, registerPermissionMigration } from '../permission-migrations.js';
@@ -60,14 +60,13 @@ test('concurrent disables preserve an active owner across asynchronous repositor
   const { repos, deps } = fixture();
   await ownerGrant(repos, 'owner-a');
   await ownerGrant(repos, 'owner-b');
-  await principal(repos, 'operator');
-  await repos.policies.save({ id: 'operator-policy', workspaceId, name: 'operator', isBuiltin: false, isFrozen: false });
-  await repos.policyPermissions.save({ id: 'operator-grant', workspaceId, policyId: 'operator-policy', permission: 'user.manage' });
-  await repos.principalPolicies.save({ id: 'operator-link', workspaceId, principalId: 'operator', policyId: 'operator-policy' });
-  const outcomes = await Promise.allSettled(['owner-a', 'owner-b'].map(principalId => disablePrincipal({ deps, input: { workspaceId, callerPrincipalId: 'operator', principalId, seededOwnerPrincipalId: 'seeded-elsewhere' } })));
+  // Only owners may modify owner accounts; each active owner acts on itself so the second call
+  // still passes caller authorization and must exercise the active-owner floor after the first.
+  const outcomes = await Promise.allSettled(['owner-a', 'owner-b'].map(principalId => disablePrincipal({ deps, input: { workspaceId, callerPrincipalId: principalId, principalId, seededOwnerPrincipalId: 'seeded-elsewhere' } })));
   assert.equal(outcomes.filter(result => result.status === 'fulfilled').length, 1);
   const refusal = outcomes.find(result => result.status === 'rejected');
   assert.ok(refusal?.status === 'rejected' && refusal.reason instanceof OwnerRequiredError);
+  assert.equal(refusal.reason.message, 'the workspace must keep at least one active owner-`*` principal');
   assert.equal((await repos.principals.list({ workspaceId })).filter(row => row.id.startsWith('owner-') && row.status === 'active').length, 1);
 });
 
@@ -93,6 +92,12 @@ test('protected mutations fail closed when a transaction port is missing', async
   await assert.rejects(disablePrincipal({ deps: withoutTransaction, input: { workspaceId, callerPrincipalId: 'caller', principalId: 'caller', seededOwnerPrincipalId: 'other' } }), IdentityTransactionRequiredError);
   // @ts-expect-error Deliberate JavaScript caller with the required transaction omitted.
   await assert.rejects(deleteRole({ deps: withoutTransaction, input: { workspaceId, callerPrincipalId: 'caller', roleId: 'role' } }), IdentityTransactionRequiredError);
+  // @ts-expect-error Deliberate JavaScript caller with the required transaction omitted.
+  await assert.rejects(enablePrincipal({ deps: withoutTransaction, input: { workspaceId, callerPrincipalId: 'caller', principalId: 'caller' } }), IdentityTransactionRequiredError);
+  // @ts-expect-error Deliberate JavaScript caller with the required transaction omitted.
+  await assert.rejects(updateUser({ deps: withoutTransaction, input: { workspaceId, callerPrincipalId: 'caller', principalId: 'caller' } }, { email: 'owner@example.com' }), IdentityTransactionRequiredError);
+  // @ts-expect-error Deliberate JavaScript caller with the required transaction omitted.
+  await assert.rejects(resetUserPassword({ deps: withoutTransaction, input: { workspaceId, callerPrincipalId: 'caller', principalId: 'caller', password: 'new-pw', seededOwnerPrincipalId: 'caller' } }), IdentityTransactionRequiredError);
   assert.equal((await repos.principals.findById({ workspaceId, id: 'caller' }))?.status, 'active');
 });
 

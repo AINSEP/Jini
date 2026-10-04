@@ -1,8 +1,7 @@
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import { inIdentityTransaction } from "./identity-transaction.js";
 import type { UUID } from "@jini-ai/core/primitives";
-import { resolveEffectivePermissions } from "./authorize.js";
-import { assertCallerHasAnyPermission, assertGrantClamp, authorizeDepsFrom } from "./grant-service.js";
+import { assertCallerHasAnyPermission, assertGrantClamp, assertOwnerTargetMayBeModified, principalHoldsOwnerWildcard } from "./grant-service.js";
 import { validatePasswordPolicy } from "./password-policy.js";
 import { isKnownPermission } from "../core/permissions.js";
 import type { AuthServiceDeps } from "./auth-service.js";
@@ -85,6 +84,13 @@ export async function disablePrincipal(required: {
         throw new OwnerRequiredError({ message: "the seeded owner principal can never be disabled" });
       }
 
+      await assertOwnerTargetMayBeModified({
+        deps,
+        workspaceId: input.workspaceId,
+        callerPrincipalId: input.callerPrincipalId,
+        principalId: input.principalId,
+      });
+
       if (target.status === "disabled") {
         // Idempotent — matches LOGOUT's "already revoked is a no-op" discipline (state.spec §3).
         return { principal: target };
@@ -127,32 +133,45 @@ export async function enablePrincipal(required: {
 }): Promise<{ principal: PrincipalRecord }> {
   const { deps, input } = required;
 
-  await assertCallerHasAnyPermission({
-    deps,
+  return inIdentityTransaction({
+    transactions: deps.repos.transactions,
     workspaceId: input.workspaceId,
-    callerPrincipalId: input.callerPrincipalId,
-    permissions: ["user.manage"],
+    execute: async () => {
+      await assertCallerHasAnyPermission({
+        deps,
+        workspaceId: input.workspaceId,
+        callerPrincipalId: input.callerPrincipalId,
+        permissions: ["user.manage"],
+      });
+
+      const target = await deps.repos.principals.findById({ workspaceId: input.workspaceId, id: input.principalId });
+      if (!target) throw new IdentityNotFoundError({ message: `principal '${input.principalId}' was not found` });
+
+      if (target.kind !== "user") {
+        throw new IdentityValidationError({ message: `ENABLE_PRINCIPAL target must be a human (kind='user') principal, got kind='${target.kind}'` });
+      }
+
+      await assertOwnerTargetMayBeModified({
+        deps,
+        workspaceId: input.workspaceId,
+        callerPrincipalId: input.callerPrincipalId,
+        principalId: input.principalId,
+      });
+
+      if (target.status === "active") {
+        return { principal: target };
+      }
+
+      const enabled: PrincipalRecord = { ...target, status: "active", disabledAt: undefined };
+      await deps.repos.principals.save(enabled);
+      return { principal: enabled };
+    },
   });
-
-  const target = await deps.repos.principals.findById({ workspaceId: input.workspaceId, id: input.principalId });
-  if (!target) throw new IdentityNotFoundError({ message: `principal '${input.principalId}' was not found` });
-
-  if (target.kind !== "user") {
-    throw new IdentityValidationError({ message: `ENABLE_PRINCIPAL target must be a human (kind='user') principal, got kind='${target.kind}'` });
-  }
-
-  if (target.status === "active") {
-    return { principal: target };
-  }
-
-  const enabled: PrincipalRecord = { ...target, status: "active", disabledAt: undefined };
-  await deps.repos.principals.save(enabled);
-  return { principal: enabled };
 }
 
 /**
- * `UPDATE_USER` (feature.spec.md ). Gated by `user.manage` **or** `member.manage`
- * (mirrors `CREATE_USER`'s admin-onboarding gate) — `email` only; `username`/`password` are not
+ * `UPDATE_USER` (feature.spec.md ). Gated by `user.manage`; existing self-profile edits also
+ * accept `member.manage`. Only owners may edit owner targets — `email` only; `username`/`password` are not
  * this transition's concern ( respectively). An absent or empty-string `email`
  * clears the stored value to `undefined` ( — no distinct "blank but present" state).
  *
@@ -167,28 +186,43 @@ export async function updateUser(required: {
   const { deps } = required;
   const input = { ...required.input, ...optional };
 
-  await assertCallerHasAnyPermission({
-    deps,
+  return inIdentityTransaction({
+    transactions: deps.repos.transactions,
     workspaceId: input.workspaceId,
-    callerPrincipalId: input.callerPrincipalId,
-    permissions: ["user.manage", "member.manage"],
-  });
+    execute: async () => {
+      await assertCallerHasAnyPermission({
+        deps,
+        workspaceId: input.workspaceId,
+        callerPrincipalId: input.callerPrincipalId,
+        // Preserve existing self-profile access without letting member.manage edit other operators.
+        permissions: input.callerPrincipalId === input.principalId
+          ? ["user.manage", "member.manage"]
+          : ["user.manage"],
+      });
 
-  const target = await deps.repos.users.findByPrincipalId({
-    workspaceId: input.workspaceId,
-    principalId: input.principalId,
-  });
-  if (!target) throw new IdentityNotFoundError({ message: `user '${input.principalId}' was not found` });
+      const target = await deps.repos.users.findByPrincipalId({
+        workspaceId: input.workspaceId,
+        principalId: input.principalId,
+      });
+      if (!target) throw new IdentityNotFoundError({ message: `user '${input.principalId}' was not found` });
 
-  const updated: UserRecord = { ...target, email: input.email ? input.email : undefined };
-  await deps.repos.users.save(updated);
-  return { user: updated };
+      await assertOwnerTargetMayBeModified({
+        deps,
+        workspaceId: input.workspaceId,
+        callerPrincipalId: input.callerPrincipalId,
+        principalId: input.principalId,
+      });
+
+      const updated: UserRecord = { ...target, email: input.email ? input.email : undefined };
+      await deps.repos.users.save(updated);
+      return { user: updated };
+    },
+  });
 }
 
 /**
  * `RESET_USER_PASSWORD` (feature.spec.md ). Gated by **`user.manage`** only
- * (stricter than `updateUser` — resetting a credential is at least as sensitive as disabling the
- * account, own reasoning). Hashes the new password identically to `CREATE_USER` (argon2id,
+ * (resetting a credential is at least as sensitive as disabling the account, own reasoning). Hashes the new password identically to `CREATE_USER` (argon2id,
  * ), then revokes every one of the target's active sessions (idempotent no-op if it has none,
  * ) — a reset that left old sessions alive would not actually contain a compromised account.
  *
@@ -230,53 +264,66 @@ export async function resetUserPassword(required: {
 }): Promise<{ user: UserRecord }> {
   const { deps, input } = required;
 
-  await assertCallerHasAnyPermission({
-    deps,
+  return inIdentityTransaction({
+    transactions: deps.repos.transactions,
     workspaceId: input.workspaceId,
-    callerPrincipalId: input.callerPrincipalId,
-    permissions: ["user.manage"],
+    execute: async () => {
+      await assertCallerHasAnyPermission({
+        deps,
+        workspaceId: input.workspaceId,
+        callerPrincipalId: input.callerPrincipalId,
+        permissions: ["user.manage"],
+      });
+
+      const target = await deps.repos.users.findByPrincipalId({
+        workspaceId: input.workspaceId,
+        principalId: input.principalId,
+      });
+      if (!target) throw new IdentityNotFoundError({ message: `user '${input.principalId}' was not found` });
+
+      if (target.principalId === input.seededOwnerPrincipalId && input.callerPrincipalId !== input.seededOwnerPrincipalId) {
+        // See docs/decisions/DR-002-grant-authority-and-admin-safety.md for the invariant behind this refusal; keep external identifiers out of caller-facing messages.
+        throw new OwnerRequiredError({ message: "the seeded owner's password can only be reset by the owner itself, never by another caller" });
+      }
+
+      await assertOwnerTargetMayBeModified({
+        deps,
+        workspaceId: input.workspaceId,
+        callerPrincipalId: input.callerPrincipalId,
+        principalId: input.principalId,
+      });
+
+      if (!input.password) {
+        throw new IdentityValidationError({ message: "password is required" });
+      }
+      // Same presence-and-upper-bound-only policy `createUser` applies (no minimum length). Both
+      // write paths must enforce it or neither does: a reset that accepted an empty password would be
+      // a strictly easier way to reach the state the create-side check exists to prevent. Never
+      // reaches `seed.ts`'s owner password or the login path — see `password-policy.ts`'s header for
+      // why.
+      const passwordError = validatePasswordPolicy({ password: input.password });
+      if (passwordError) {
+        throw new IdentityValidationError({ message: passwordError });
+      }
+
+      const passwordHash = await deps.hasher.hash({ password: input.password });
+      const updated: UserRecord = { ...target, passwordHash };
+      await deps.repos.users.save(updated);
+
+      const sessions = await deps.repos.sessions.listByPrincipalId({
+        workspaceId: input.workspaceId,
+        principalId: input.principalId,
+      });
+      const nowIso = kernelNowIso({ clock: deps.clock });
+      await Promise.all(
+        sessions
+          .filter((session) => !session.revokedAt)
+          .map((session) => deps.repos.sessions.revoke({ workspaceId: input.workspaceId, id: session.id, revokedAt: nowIso }))
+      );
+
+      return { user: updated };
+    },
   });
-
-  const target = await deps.repos.users.findByPrincipalId({
-    workspaceId: input.workspaceId,
-    principalId: input.principalId,
-  });
-  if (!target) throw new IdentityNotFoundError({ message: `user '${input.principalId}' was not found` });
-
-  if (target.principalId === input.seededOwnerPrincipalId && input.callerPrincipalId !== input.seededOwnerPrincipalId) {
-    // See docs/decisions/DR-002-grant-authority-and-admin-safety.md for the invariant behind this refusal; keep external identifiers out of caller-facing messages.
-    throw new OwnerRequiredError({ message: "the seeded owner's password can only be reset by the owner itself, never by another caller" });
-  }
-
-  if (!input.password) {
-    throw new IdentityValidationError({ message: "password is required" });
-  }
-  // Same presence-and-upper-bound-only policy `createUser` applies (no minimum length). Both
-  // write paths must enforce it or neither does: a reset that accepted an empty password would be
-  // a strictly easier way to reach the state the create-side check exists to prevent. Never
-  // reaches `seed.ts`'s owner password or the login path — see `password-policy.ts`'s header for
-  // why.
-  const passwordError = validatePasswordPolicy({ password: input.password });
-  if (passwordError) {
-    throw new IdentityValidationError({ message: passwordError });
-  }
-
-  const passwordHash = await deps.hasher.hash({ password: input.password });
-  const updated: UserRecord = { ...target, passwordHash };
-  await deps.repos.users.save(updated);
-
-  const sessions = await deps.repos.sessions.listByPrincipalId({
-    workspaceId: input.workspaceId,
-    principalId: input.principalId,
-  });
-  const nowIso = kernelNowIso({ clock: deps.clock });
-  await Promise.all(
-    sessions
-      .filter((session) => !session.revokedAt)
-      .map((session) => deps.repos.sessions.revoke({ workspaceId: input.workspaceId, id: session.id, revokedAt: nowIso }))
-  );
-
-  return { user: updated };
 }
 
 /**
@@ -597,21 +644,6 @@ export async function removePolicyPermission(required: {
       await deps.repos.policyPermissions.delete({ workspaceId: input.workspaceId, id: target.id });
     },
   });
-}
-
-/** True iff `principalId` holds the owner wildcard `*` (unconstrained) in its effective set. */
-async function principalHoldsOwnerWildcard(required: {
-  deps: AuthServiceDeps;
-  workspaceId: UUID;
-  principalId: UUID;
-}): Promise<boolean> {
-  const { deps, workspaceId, principalId } = required;
-  const effectiveRows = await resolveEffectivePermissions({
-    deps: authorizeDepsFrom(deps.repos),
-    principalId,
-    workspaceId,
-  });
-  return effectiveRows.some((row) => row.permission === "*" && row.resourceType == null && row.constraintJson == null);
 }
 
 /**

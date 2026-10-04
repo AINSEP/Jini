@@ -63,9 +63,8 @@ import type { AgentToolDefinition as KernelAgentToolDefinition, AgentToolSideEff
  *
  * The permission the tool's underlying service function gates on.
  *
- * `orPermission` is present only where that gate is genuinely an OR — three identity transitions
- * accept `user.manage` OR `member.manage` (the admin-onboarding gate, `grant-service.ts`'s
- * `assertCallerHasAnyPermission`). Recording only the first would make this catalog quietly
+ * `orPermission` is present where the service accepts an OR: listing users, and updating one's
+ * own email (other operator targets require `user.manage`). Recording only the first would make this catalog quietly
  * disagree with the code it describes; `__tests__/agent-tools.authorization.test.ts` derives its
  * expected permission set from BOTH fields, so an undeclared OR fails the suite.
  *
@@ -160,7 +159,7 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
     description:
       "Creates a new human operator user, minting a new principal and its credential row together. The new user starts with NO roles and therefore no permissions — grant access afterwards with identity_role_assign. Fails if the username is already taken.",
     sideEffects: "mutates-durable-state",
-    authorization: { permission: "user.manage", orPermission: "member.manage" },
+    authorization: { permission: "user.manage" },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -183,7 +182,7 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
   {
     name: "identity_user_update_email",
     description:
-      "Sets or clears an existing user's email address. Omitting 'email' (or passing an empty string) CLEARS the stored value rather than leaving it unchanged. Username and password are not editable through this tool. There is no password-reset tool. The owner resets a user's password from the Users screen in the admin (Reset password).",
+      "Sets or clears an existing user's email address. Requires user.manage for other operator users; member.manage permits only editing your own email. Only an owner may edit an owner account. Omitting 'email' (or passing an empty string) CLEARS the stored value rather than leaving it unchanged. Username and password are not editable through this tool. There is no password-reset tool. The owner resets a user's password from the Users screen in the admin (Reset password).",
     sideEffects: "mutates-durable-state",
     authorization: { permission: "user.manage", orPermission: "member.manage" },
     inputSchema: {

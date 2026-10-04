@@ -4,6 +4,11 @@ Last Edited: 2026-10-03T04:10:53Z
 Hash: sha256:af46f75aa5b00825746f5f003f937deb8c3f45da0e716e7ef7a592a697592b3f
 spec_mode: reverse_spec
 
+Cleanup note (2026-10-03): standalone `useRoles` and its screens were removed. Any
+legacy roles-hook sections below describe the earlier extraction; the current controller
+and React lifecycle are documented in [PORT.md](../../src/admin/PORT.md). Users, members
+and auth state contracts remain unchanged.
+
 
 # User management state contract
 
