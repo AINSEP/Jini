@@ -57,6 +57,7 @@ test("list() defaults to 50 rows when no limit is given", async () => {
   const result = await sink.list({});
   assert.equal(result.length, 50);
   assert.equal(result[0]!.path, "/p59"); // newest first
+  assert.equal(result.at(-1)!.path, "/p10");
 });
 
 test("list() honors an explicit limit within bounds", async () => {
@@ -74,7 +75,10 @@ test("list() clamps a requested limit above the hard cap (500) instead of return
     await sink.accept({ hit: makeHit(`/p${i}`, "2026-07-10T12:00:00.000Z") });
   }
 
-  assert.equal((await sink.list({}, { limit: 100000 })).length, 500);
+  const result = await sink.list({}, { limit: 100000 });
+  assert.equal(result.length, 500);
+  assert.equal(result[0]!.path, "/p599");
+  assert.equal(result.at(-1)!.path, "/p100");
 });
 
 test("list() clamps non-finite/invalid limit input to at least 1 rather than throwing or returning everything", async () => {
