@@ -28,6 +28,7 @@ export {
   isRetryableMediaError,
   parseOptionalPixelSize,
   formatByteSize,
+  formatUploadDate,
   countMediaTabs,
   mediaEmbedSnippet,
   mediaRowHandles,
