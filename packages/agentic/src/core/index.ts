@@ -186,3 +186,4 @@ export {
 } from './mcp-ui-apps.js';
 
 export { defaultAgenticMessages } from "./messages.js";
+export { createAnnotatedActionsScript } from './annotated-actions-script.js';
