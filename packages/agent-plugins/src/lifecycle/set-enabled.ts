@@ -29,7 +29,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   const { listInstalledPlugins } = createResolveAgentPluginRefsModule(ports);
   async function setAgentPluginEnabled(input: SetAgentPluginEnabledInput): Promise<SetAgentPluginEnabledResult> {
     const workspaceLayout = ports.layout.forWorkspace({ workspaceId: input.workspaceId });
-    const installed = await listInstalledPlugins(workspaceLayout.packages);
+    const installed = await listInstalledPlugins(workspaceLayout.root);
     if (!installed.some((plugin) => plugin.pluginId === input.pluginId)) {
       throw new AgentPluginNotInstalledError({ pluginId: input.pluginId });
     }

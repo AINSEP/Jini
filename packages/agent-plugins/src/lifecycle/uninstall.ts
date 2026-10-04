@@ -1,6 +1,8 @@
+import { createPersistentStateModule } from "./persistent-state.js";
 /** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
 import type { Dirent } from "node:fs";
 import path from "node:path";
+import { createPackagePathsModule } from "./package-paths.js";
 import { createActivationModule } from "./activation.js";
 import type { InstalledAgentPlugin } from "./install.js";
 import type { AgentPluginLayout } from "./layout.js";
@@ -28,6 +30,7 @@ export interface UninstallAgentPluginRequired {
 export interface UninstallAgentPluginOptional {
 
   readonly confirmedPreview?: (AgentPluginUninstallPreview) | undefined;
+  readonly deleteMemory?: boolean | undefined;
 
   readonly retiredBundled?: (boolean) | undefined;
 }
@@ -47,6 +50,8 @@ export interface AgentPluginUninstallPreview {
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
   const randomUUID = () => ports.ids.newId();
+  const { assertContainedOnDisk } = createPackagePathsModule(ports);
+  const rmdir = ports.filesystem.rmdir.bind(ports.filesystem);
   const chmod = ports.filesystem.chmod.bind(ports.filesystem);
   const readdir = ports.filesystem.readdir.bind(ports.filesystem);
   const rename = ports.filesystem.rename.bind(ports.filesystem);
@@ -75,12 +80,21 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     return { pluginId: required.pluginId, versions, archiveDigests: matches.map((plugin) => plugin.archiveDigest) };
   }
 
-  async function uninstallAgentPlugin(
+  async function uninstallAgentPlugin(required: UninstallAgentPluginRequired, optional: UninstallAgentPluginOptional = {}): Promise<UninstallAgentPluginResult> {
+    const workspaceRoot = required.layout.forWorkspace({ workspaceId: required.workspaceId }).root;
+    return createPersistentStateModule(ports).withPluginLock({ workspaceRoot, pluginId: required.pluginId,
+      run: () => uninstallAgentPluginUnlocked(required, optional) });
+  }
+
+  async function uninstallAgentPluginUnlocked(
     required: UninstallAgentPluginRequired,
     optional: UninstallAgentPluginOptional = {},
   ): Promise<UninstallAgentPluginResult> {
     const { workspaceRoot, packagesDir, matches } = await resolveUninstallTargets(required, optional.retiredBundled === true);
     assertUnchangedSincePreview(required.pluginId, optional.confirmedPreview, matches);
+    if (optional.deleteMemory && (!optional.confirmedPreview || optional.confirmedPreview.pluginId !== required.pluginId)) {
+      throw new Error('Deleting persistent plugin state requires a confirmed preview');
+    }
 
     const staged: StagedTree[] = [];
     try {
@@ -96,6 +110,17 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       await removeFrozenPackageTree(tree.quarantined);
     }
 
+    for (const directory of [packagesDir, path.dirname(packagesDir)]) {
+      try { await rmdir(directory); } catch (error) {
+        if (!error || typeof error !== 'object' || !('code' in error) || !['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(String(error.code))) throw error;
+      }
+    }
+    if (optional.deleteMemory) {
+      const pluginRoot = required.layout.forWorkspace({ workspaceId: required.workspaceId }).pluginRootDir({ pluginId: required.pluginId });
+      await assertContainedOnDisk(workspaceRoot, path.relative(workspaceRoot, pluginRoot));
+      if ((await listInstalledPlugins(workspaceRoot)).some(plugin => plugin.pluginId === required.pluginId)) throw new Error('Plugin was reinstalled; persistent state was kept');
+      await rm(pluginRoot, { recursive: true, force: true });
+    }
     return { pluginId: required.pluginId, removedDigests: matches.map((plugin) => plugin.archiveDigest) };
   }
 
@@ -152,7 +177,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 
     const workspaceLayout = layout.forWorkspace({ workspaceId });
 
-    const installed = await listInstalledPlugins(workspaceLayout.packages);
+    const installed = await listInstalledPlugins(workspaceLayout.root);
     const matches = installed.filter((plugin) => plugin.pluginId === pluginId);
     if (matches.length === 0) {
       throw new AgentPluginNotFoundError({ message: `Agent Plugin '${pluginId}' is not installed in this workspace — nothing to uninstall` });
@@ -166,7 +191,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       throw new AgentPluginNotUninstallableError({ message: malformedEntryRefusalMessage(pluginId) });
     }
 
-    return { workspaceRoot: workspaceLayout.root, packagesDir: workspaceLayout.packages, matches };
+    return { workspaceRoot: workspaceLayout.root, packagesDir: workspaceLayout.pluginPackagesDir({ pluginId }), matches };
   }
 
   function bundledRefusalMessage(pluginId: string): string {

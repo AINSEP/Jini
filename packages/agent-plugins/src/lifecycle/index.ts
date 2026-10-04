@@ -1,3 +1,4 @@
+import { createPersistentStateModule } from "./persistent-state.js";
 import { fetchAgentPluginArchive, maxAgentPluginArchiveBytes } from './fetch-archive.js';
 import type { FetchAgentPluginArchiveOptional } from './fetch-archive.js';
 import { createSeedBundledModule } from './seed-bundled.js';
@@ -97,7 +98,13 @@ export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequire
     readInstalledMcpServerIds: (input: { readonly packageRoot: string }) => capabilities.readInstalledMcpServerIds(input.packageRoot),
     readInstalledMcpServers: (input: { readonly packageRoot: string }) => capabilities.readInstalledMcpServers(input.packageRoot),
     resolveAgentPluginRefs: (input: { readonly pluginRefIds: readonly string[]; readonly workspaceLayout: Parameters<typeof refs.resolveAgentPluginRefs>[1] }, optional: { readonly deliveryMode?: AgentPluginDeliveryMode } = {}) => refs.resolveAgentPluginRefs(input.pluginRefIds, input.workspaceLayout, optional.deliveryMode ?? context.deliveryMode),
-    listInstalledPlugins: (input: { readonly packagesDir: string }) => refs.listInstalledPlugins(input.packagesDir),
+    pluginMemory: (input: { readonly workspaceId: string; readonly pluginId: string }) => createPersistentStateModule(context).memory({
+      workspaceRoot: context.layout.forWorkspace({ workspaceId: input.workspaceId }).root, pluginId: input.pluginId,
+    }),
+    migratePluginLayout: (input: { readonly workspaceId: string }) => createPersistentStateModule(context).migrate({
+      workspaceRoot: context.layout.forWorkspace({ workspaceId: input.workspaceId }).root,
+    }),
+    listInstalledPlugins: (input: { readonly workspaceRoot: string }) => refs.listInstalledPlugins(input.workspaceRoot),
     isInstalledDigestPresent: (input: { readonly packagesDir: string; readonly archiveDigest: string }) => refs.isInstalledDigestPresent(input.packagesDir, input.archiveDigest),
     rankInstalledAgentPlugins: (input: { readonly query: string; readonly candidates: Parameters<typeof search.rankInstalledAgentPlugins>[1]; readonly limit: number }) => search.rankInstalledAgentPlugins(input.query, input.candidates, input.limit),
     readTrustedPluginFile: (input: { readonly plugin: Parameters<typeof trusted.readTrustedPluginFile>[0]; readonly filename: string }) => trusted.readTrustedPluginFile(input.plugin, input.filename),

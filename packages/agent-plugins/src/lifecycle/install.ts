@@ -1,3 +1,4 @@
+import { createPersistentStateModule } from "./persistent-state.js";
 /** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
@@ -69,6 +70,7 @@ export interface InstallAgentPluginRequired {
 export type InstallAgentPluginOptional = {};
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
+  const persistentState = createPersistentStateModule(ports);
   const chmod = ports.filesystem.chmod.bind(ports.filesystem);
   const mkdir = ports.filesystem.mkdir.bind(ports.filesystem);
   const mkdtemp = ports.filesystem.mkdtemp.bind(ports.filesystem);
@@ -110,15 +112,8 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       throw new AgentPluginInstallError({ code: "DIGEST_MISMATCH", message: `archive SHA-256 '${digest}' does not match the expected '${expectedSha256}' — refusing to extract unverified bytes` });
     }
 
-    await mkdir(workspaceLayout.packages, { recursive: true, mode: 0o700 });
-
-    const finalRoot = path.join(workspaceLayout.packages, digest);
-    const alreadyPublished = await isRealDirectory(finalRoot);
-    if (alreadyPublished) {
-
-      return indexInstalledRoot(finalRoot, digest);
-    }
-
+    await mkdir(workspaceLayout.root, { recursive: true, mode: 0o700 });
+    await persistentState.assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: "staging" });
     await mkdir(workspaceLayout.staging, { recursive: true, mode: 0o700 });
     await assertEntryCountWithinCap(archiveReader.entries({ archive }));
     const transactionRoot = await mkdtemp(path.join(workspaceLayout.staging, "install-"));
@@ -129,9 +124,24 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       const executablePaths = await extractEntries(archiveReader.entries({ archive }), extractionRoot);
       const indexed = await indexInstalledRoot(extractionRoot, digest);
 
-      await publish(extractionRoot, finalRoot);
-      await freezeTree(finalRoot, executablePaths);
-      return { ...indexed, packageRoot: finalRoot };
+      return await persistentState.withPluginLock({ workspaceRoot: workspaceLayout.root, pluginId: indexed.pluginId, run: async () => {
+        // The manifest identifies the plugin only after bounded staging extraction (Layout B).
+        const pluginId = indexed.pluginId;
+        const packagesDir = workspaceLayout.pluginPackagesDir({ pluginId });
+        await persistentState.assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, packagesDir) });
+        await mkdir(packagesDir, { recursive: true, mode: 0o700 });
+        const finalRoot = await assertContainedOnDisk(packagesDir, digest);
+        for (const directory of [workspaceLayout.pluginDataDir({ pluginId }),
+          workspaceLayout.pluginMemoryDir({ pluginId, kind: 'learned' }),
+          workspaceLayout.pluginMemoryDir({ pluginId, kind: 'notes' })]) {
+          await persistentState.assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, directory) });
+          await mkdir(directory, { recursive: true, mode: 0o700 });
+        }
+        if (await isRealDirectory(finalRoot)) return indexInstalledRoot(finalRoot, digest);
+        await publish(extractionRoot, finalRoot);
+        await freezeTree(finalRoot, executablePaths);
+        return { ...indexed, packageRoot: finalRoot };
+      } });
     } finally {
 
       await rm(transactionRoot, { recursive: true, force: true });

@@ -7,7 +7,7 @@ import type { AgentPluginDeliveryMode, InstalledAgentPlugin } from './types.js';
  * Inject instrumented fs/promises effects directly; native handles are never rewrapped. */
 export type FilesystemPort = Pick<typeof import('node:fs/promises'),
   'chmod' | 'mkdir' | 'mkdtemp' | 'open' | 'readdir' | 'readFile' | 'rename' |
-  'rm' | 'stat' | 'realpath' | 'unlink'>;
+  'rm' | 'rmdir' | 'stat' | 'realpath' | 'unlink'>;
 export type AgentPluginFetchPort = (required: { readonly url: string }, optional?: RequestInit) => Promise<Response>;
 export type AgentPluginClockPort = Clock & {
   monotonicMs(): number;

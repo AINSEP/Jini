@@ -18,7 +18,8 @@
       "./lifecycle": "node",
       "./lifecycle/node": "node",
       "./lifecycle/yauzl": "node",
-      "./manifest": "universal"
+      "./manifest": "universal",
+      "./persistent-state": "node"
     }
   },
   "type": "module",
@@ -49,6 +50,11 @@
       "types": "./dist/lifecycle/manifest.d.ts",
       "import": "./dist/lifecycle/manifest.js",
       "default": "./dist/lifecycle/manifest.js"
+    },
+    "./persistent-state": {
+      "types": "./persistent-state.d.ts",
+      "import": "./persistent-state.js",
+      "default": "./persistent-state.js"
     }
   },
   "files": [
@@ -61,7 +67,9 @@
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
-    "!dist/**/__tests__/**"
+    "!dist/**/__tests__/**",
+    "persistent-state.js",
+    "persistent-state.d.ts"
   ],
   "publishConfig": {
     "access": "public",

@@ -289,7 +289,7 @@ test("seedBundledAgentPlugins refuses a corrupt activations file: installs nothi
     assert.match(outcome.reason ?? "", /activations\.json is not valid JSON/);
     assert.match(outcome.reason ?? "", /left untouched/);
 
-    assert.deepEqual(await listInstalledPlugins(workspaceLayout.packages), [], "nothing may be installed while the record cannot be written");
+    assert.deepEqual(await listInstalledPlugins(workspaceLayout.root), [], "nothing may be installed while the record cannot be written");
     assert.equal(await readFile(path.join(workspaceLayout.root, "activations.json"), "utf8"), CORRUPT);
   } finally {
     await forceRemove(cwd);
@@ -318,7 +318,7 @@ test("previewAgentPluginUninstall and uninstallAgentPlugin both refuse a corrupt
       AgentPluginActivationsUnreadableError,
     );
 
-    const installed = await listInstalledPlugins(instanceLayout.forWorkspace({ workspaceId: WORKSPACE_ID }).packages);
+    const installed = await listInstalledPlugins(instanceLayout.forWorkspace({ workspaceId: WORKSPACE_ID }).root);
     assert.ok(installed.some((plugin) => plugin.pluginId === "op-plugin"), "a refused uninstall must not remove the package");
   } finally {
     await forceRemove(cwd);
@@ -342,7 +342,7 @@ test("uninstallAgentPlugin refuses a corrupt file even when its (unreadable) con
       AgentPluginActivationsUnreadableError,
     );
 
-    const installed = await listInstalledPlugins(instanceLayout.forWorkspace({ workspaceId: WORKSPACE_ID }).packages);
+    const installed = await listInstalledPlugins(instanceLayout.forWorkspace({ workspaceId: WORKSPACE_ID }).root);
     assert.ok(installed.some((plugin) => plugin.pluginId === "op-plugin"), "a refused uninstall must not remove the package");
   } finally {
     await forceRemove(cwd);

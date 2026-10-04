@@ -77,7 +77,7 @@ export function parseAgentPluginMcpConfig(value: unknown, pluginManifest?: unkno
 /** Consumer-neutral projection for the copied digest-selection scenarios, never registers tools. */
 export async function loadFixturePluginSources({ workspaceId }: { workspaceId: string }) {
   const workspace = resolveAgentPluginLayout().forWorkspace({ workspaceId });
-  const preferred = preferBundledAgentPluginDigests(await listInstalledPlugins(workspace.packages), await readBundledAgentPluginDigests(workspace.root));
+  const preferred = preferBundledAgentPluginDigests(await listInstalledPlugins(workspace.root), await readBundledAgentPluginDigests(workspace.root));
   const sources: { pluginId: string; archiveDigest: string; skills: { markdown: string }[] }[] = [];
   for (const plugin of preferred) {
     if (preferred.filter(p => p.pluginId === plugin.pluginId).length !== 1) continue;

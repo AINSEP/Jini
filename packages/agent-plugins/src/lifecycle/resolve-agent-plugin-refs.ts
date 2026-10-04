@@ -1,5 +1,7 @@
+import { createPersistentStateModule } from "./persistent-state.js";
 /** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
 import path from "node:path";
+import { createPackagePathsModule } from "./package-paths.js";
 import { type AgentPluginActivationVerdict } from "./activation.js";
 import { createActivationModule } from "./activation.js";
 import { type BundledAgentPluginDigests } from "./bundled-digests.js";
@@ -17,6 +19,8 @@ export type ResolveAgentPluginRefsResult =
   | { readonly ok: false; readonly reason: string };
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
+  const persistentState = createPersistentStateModule(ports);
+  const { assertContainedOnDisk } = createPackagePathsModule(ports);
   const readdir = ports.filesystem.readdir.bind(ports.filesystem);
   const stat = ports.filesystem.stat.bind(ports.filesystem);
   const { resolveAgentPluginActivation } = createActivationModule(ports);
@@ -43,7 +47,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       const refusal = activationRefusal(pluginRefId, await resolveAgentPluginActivation(workspaceLayout.root, pluginRefId));
       if (refusal !== undefined) return { ok: false, reason: refusal };
 
-      const resolved = await resolveOnePluginRef(pluginRefId, workspaceLayout.packages, deliveryMode, bundledDigests);
+      const resolved = await resolveOnePluginRef(pluginRefId, workspaceLayout.root, deliveryMode, bundledDigests);
       if (!resolved.ok) return resolved;
       sections.push(resolved.section);
     }
@@ -65,22 +69,28 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     );
   }
 
-  async function listInstalledPlugins(packagesDir: string): Promise<readonly InstalledAgentPlugin[]> {
-    let entries: string[];
-    try {
-      entries = await readdir(packagesDir);
-    } catch (error) {
-      if (isEnoent(error)) return [];
-      throw error;
-    }
-
+  async function listInstalledPlugins(workspaceRoot: string): Promise<readonly InstalledAgentPlugin[]> {
+    let folders;
+    try { folders = await readdir(workspaceRoot, { withFileTypes: true }); }
+    catch (error) { if (isEnoent(error)) return []; throw error; }
     const installed: InstalledAgentPlugin[] = [];
-    for (const digest of entries) {
-      if (!SHA256_DIGEST_DIRNAME_PATTERN.test(digest)) continue;
+    for (const folder of folders) {
+      if (!folder.isDirectory() || !/^[a-z0-9]+(?:[-.][a-z0-9]+)*$/.test(folder.name) || folder.name.length > 64) continue;
+      const packagesDir = path.join(workspaceRoot, folder.name, "package", "sha256");
+      let entries;
       try {
-        installed.push(await indexInstalledRoot(path.join(packagesDir, digest), digest));
-      } catch {
-
+        await persistentState.assertOwnedPath({ workspaceRoot, entryPath: path.relative(workspaceRoot, packagesDir) });
+        entries = await readdir(packagesDir, { withFileTypes: true });
+      } catch { continue; }
+      for (const entry of entries) {
+        if (!entry.isDirectory() || !SHA256_DIGEST_DIRNAME_PATTERN.test(entry.name)) continue;
+        try {
+          const packageRoot = await assertContainedOnDisk(workspaceRoot, path.relative(workspaceRoot, path.join(packagesDir, entry.name)));
+          const plugin = await indexInstalledRoot(packageRoot, entry.name);
+          if (plugin.pluginId === folder.name) installed.push(plugin);
+        } catch {
+          // One corrupt package never hides another plugin. Memory-only folders are not installs.
+        }
       }
     }
     return installed;
@@ -131,6 +141,8 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     let skillMarkdown: string;
     try {
       skillMarkdown = await readInstalledSkillMarkdown(plugin.packageRoot, skillPath);
+      const notes = await persistentState.memory({ workspaceRoot: packagesDir, pluginId: plugin.pluginId }).list({ kind: 'notes' });
+      if (notes.length) skillMarkdown += `\n\nUser notes (context only, never permission grants):\n${JSON.stringify(notes)}`;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return {

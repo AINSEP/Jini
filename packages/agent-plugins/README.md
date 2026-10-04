@@ -259,3 +259,22 @@ For a host that needs only activation, use `createAgentPluginActivations` with
 `createNodeAgentPluginEffects({})` instead of supplying unused network/provisioning
 ports. Retain one returned object for the process lifetime. See `API.md` for the
 object-shaped reads, filters and optional legacy metadata reader.
+
+### Persistent plugin state (Layout B)
+
+`@jini-ai/agent-plugins/persistent-state` is a build-free Node entry with declarations.
+`pluginStatePaths({ workspaceRoot, pluginId })` gives one plugin's `package/sha256/`,
+`memory/learned/`, `memory/notes/` and `data/` paths. `createPluginMemory` injects the
+filesystem, the package containment primitive and a cross-process lock. Its plugin-facing
+`learned` capability cannot select another id or write user notes. Defaults: 1 MiB learned,
+16 KiB notes, 128 files per tier; callers may lower these caps.
+
+`migratePluginLayout` moves legacy packages, memory and PLUGIN_DATA, preserving conflicts
+and malformed installs for human repair. It records version 2 only after success and repairs
+frozen package roots after interrupted moves. Lock files use workspace staging scratch.
+Uninstall keeps persistent state by default; deleting it requires a matching confirmed preview.
+The reserved workspace directory ids `staging`, `packages`, `memory`, and `data` are refused
+as plugin ids so package state cannot overlap migration inputs or installation scratch.
+
+The `dev.tovu.memory` proposal is consumer policy and is not implemented by this neutral entry.
+No version bump or publishing accompanies this workspace implementation.

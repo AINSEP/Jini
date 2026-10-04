@@ -1,3 +1,4 @@
+import { createPersistentStateModule } from "./persistent-state.js";
 /** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
 import type { Dirent } from "node:fs";
 import path from "node:path";
@@ -51,6 +52,13 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     const { layout, workspaceId, sourceRoot } = required;
 
     const pluginDirNames = await listBundledPluginDirs(sourceRoot);
+    try {
+      const migration = await createPersistentStateModule(ports).migrate({ workspaceRoot: layout.forWorkspace({ workspaceId }).root });
+      if (!migration.complete) throw new Error('Legacy plugin migration incomplete; see migration events');
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      return { sourceRoot, outcomes: pluginDirNames.map(pluginId => ({ pluginId, status: 'failed' as const, reason })), retirements: [] };
+    }
 
     const refusal = await activationsRefusal(layout, workspaceId);
     if (refusal !== undefined) {

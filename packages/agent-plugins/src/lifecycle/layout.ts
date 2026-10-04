@@ -1,9 +1,13 @@
 import path from 'node:path';
+import { pluginStatePaths } from '../../persistent-state.js';
 
 export interface AgentPluginWorkspaceLayout {
   readonly root: string;
   readonly packages: string;
   readonly staging: string;
+  pluginRootDir(required: { readonly pluginId: string }, optional?: Record<string, never>): string;
+  pluginPackagesDir(required: { readonly pluginId: string }, optional?: Record<string, never>): string;
+  pluginMemoryDir(required: { readonly pluginId: string; readonly kind: 'learned' | 'notes' }, optional?: Record<string, never>): string;
   pluginDataDir(required: { readonly pluginId: string }): string;
 }
 export interface AgentPluginLayoutPort {
@@ -26,9 +30,15 @@ export function createAgentPluginLayout(required: { readonly root: string }): Ag
         root: workspaceRoot,
         packages: path.join(workspaceRoot, 'packages', 'sha256'),
         staging: path.join(workspaceRoot, 'staging'),
+        pluginRootDir: ({ pluginId }, _optional = {}) => pluginStatePaths({ workspaceRoot, pluginId }).root,
+        pluginPackagesDir: ({ pluginId }, _optional = {}) => pluginStatePaths({ workspaceRoot, pluginId }).packages,
+        pluginMemoryDir: ({ pluginId, kind }, _optional = {}) => {
+          if (kind !== 'learned' && kind !== 'notes') throw new Error('Invalid memory kind');
+          return pluginStatePaths({ workspaceRoot, pluginId })[kind];
+        },
         pluginDataDir({ pluginId }) {
           assertSafeSegment(pluginId);
-          return path.join(workspaceRoot, 'data', pluginId);
+          return pluginStatePaths({ workspaceRoot, pluginId }).data;
         },
       };
     },
