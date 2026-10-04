@@ -22,12 +22,14 @@ async function exerciseContract(store: BlobStorePort, label: string) {
 
   const before = await store.exists({ storageKey: computeBlobStorageKey({ workspaceId, sha256 }) });
   assert.equal(before, false, `${label}: should not exist before put`);
+  assert.equal(await store.sizeOf!({ storageKey: computeBlobStorageKey({ workspaceId, sha256 }) }), null);
 
   const { storageKey } = await store.put({ workspaceId, sha256, bytes });
   assert.equal(storageKey, computeBlobStorageKey({ workspaceId, sha256 }), `${label}: storage key shape`);
 
   const exists = await store.exists({ storageKey });
   assert.equal(exists, true, `${label}: should exist after put`);
+  assert.equal(await store.sizeOf!({ storageKey }), bytes.byteLength, `${label}: exact original byte size`);
 
   const read = await store.get({ storageKey });
   assert.deepEqual(new Uint8Array(read), bytes, `${label}: round-tripped bytes match`);
@@ -35,6 +37,7 @@ async function exerciseContract(store: BlobStorePort, label: string) {
   await store.remove({ storageKey });
   const afterRemove = await store.exists({ storageKey });
   assert.equal(afterRemove, false, `${label}: should not exist after remove`);
+  assert.equal(await store.sizeOf!({ storageKey }), null, `${label}: removed blobs have no size`);
 
   // Removing an already-absent key is idempotent, not an error.
   await store.remove({ storageKey });
@@ -113,4 +116,42 @@ test("LocalFsBlobStore.exists() surfaces a non-ENOENT stat failure instead of co
 test("computeBlobStorageKey shards by the first two hex chars of the hash", () => {
   const key = computeBlobStorageKey({ workspaceId: "ws-1", sha256: "abcd1234" });
   assert.equal(key, "ws/ws-1/blobs/ab/abcd1234");
+});
+
+test("LocalFsBlobStore.sizeOf caches immutable keys, invalidates writes/removal, and retries missing files", async (t) => {
+  const rootDir = await mkdtemp(join(tmpdir(), "media-blobstore-size-"));
+  t.onTestFinished(() => rm(rootDir, { recursive: true, force: true }));
+  const store = new LocalFsBlobStore({ rootDir });
+  const input = { workspaceId: "size-cache", sha256: "c".repeat(64), bytes: new Uint8Array(13) };
+  const storageKey = computeBlobStorageKey(input);
+  assert.equal(await store.sizeOf({ storageKey }), null);
+  await store.put(input);
+  assert.deepEqual(await Promise.all([store.sizeOf({ storageKey }), store.sizeOf({ storageKey })]), [13, 13]);
+  // Out-of-band mutation deliberately violates content addressing to prove the second lookup
+  // is memoized. Supported adapter writes/removal below must invalidate that memo.
+  await writeFile(join(rootDir, storageKey), new Uint8Array(21));
+  assert.equal(await store.sizeOf({ storageKey }), 13);
+  await store.put({ ...input, bytes: new Uint8Array(0) });
+  assert.equal(await store.sizeOf({ storageKey }), 0);
+  await store.remove({ storageKey });
+  assert.equal(await store.sizeOf({ storageKey }), null);
+  await store.putIfAbsent(input);
+  assert.equal(await store.sizeOf({ storageKey }), 13);
+});
+
+test("LocalFsBlobStore.sizeOf rethrows non-missing stat failures without caching them", async (t) => {
+  const rootDir = await mkdtemp(join(tmpdir(), "media-blobstore-size-error-"));
+  t.onTestFinished(() => rm(rootDir, { recursive: true, force: true }));
+  await writeFile(join(rootDir, "ws"), "not a directory");
+  const store = new LocalFsBlobStore({ rootDir });
+  const storageKey = "ws/retry/blobs/ab/abcd";
+  await assert.rejects(store.sizeOf({ storageKey }), { code: "ENOTDIR" });
+  await rm(join(rootDir, "ws"));
+  assert.equal(await store.sizeOf({ storageKey }), null);
+});
+
+test("InMemoryBlobStore.sizeOf distinguishes empty blobs from absent blobs", async () => {
+  const store = new InMemoryBlobStore();
+  const { storageKey } = await store.put({ workspaceId: "empty", sha256: "d".repeat(64), bytes: new Uint8Array(0) });
+  assert.equal(await store.sizeOf({ storageKey }), 0);
 });

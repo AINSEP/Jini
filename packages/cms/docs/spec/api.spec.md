@@ -212,6 +212,14 @@ interface MediaRowCleanupDeps { mediaRepo: MediaRepoPort; blobRepo: AssetBlobRep
 - `new InMemoryTransformDefinitionRepo(requiredArgs: Record<string, never>, optionalArgs: { initialRows?: TransformDefinitionRecord[] } = {})` → `InMemoryTransformDefinitionRepo`; methods implement `TransformDefinitionRepoPort`.
 - `new InMemoryBlobStore()` → `InMemoryBlobStore`; methods implement `BlobStorePort`.
 - `new LocalFsBlobStore(deps: LocalFsBlobStoreDeps)` → `LocalFsBlobStore`; methods implement `BlobStorePort`.
+
+`BlobStorePort.sizeOf?(required: { storageKey: string }, optional?: Record<string, never>)`
+returns `Promise<number | null>`: original byte count, zero for an empty blob, null for an
+absent key; other storage failures reject. Optional for older/custom adapters. Both bundled
+adapters implement it. Local filesystem uses `stat`, memoizes successful promises by
+workspace/content-addressed key, retries missing/error results, and invalidates on successful
+`put`, create-only write, and removal. Consumers must keep unsupported/unreadable sizes unknown
+rather than download payloads to count bytes.
 - `new InMemoryImageTransformer()` → `InMemoryImageTransformer`; methods implement `ImageTransformerPort`.
 - `new SharpImageTransformer()` → `SharpImageTransformer`; methods implement `ImageTransformerPort`.
 

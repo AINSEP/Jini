@@ -13,13 +13,15 @@
  *
  * `BlobStorePort`'s surface is deliberately narrower than the full
  * design: no `capabilities()`/`createPresignedUpload()` (the presign surface is
- * explicitly deferred by this task's scope). It has one method beyond the
- * task's stated minimal 3 (`put`/`get`/`exists`): `remove()`. That addition is
+ * explicitly deferred by this task's scope). It extends the original minimal
+ * 3 (`put`/`get`/`exists`) with `remove()`. That addition is
  * necessary to implement `purgeMedia`'s explicitly-requested "best-effort blob
  * unlink" (see `media-service.ts`) — without a way to delete bytes, purge could
  * only ever delete rows, never reclaim storage. This is disclosed here, not
  * silently smuggled in: it is still far short of the real journaled
  * GC protocol (no epochs, no `BEGIN IMMEDIATE`, no crash-safety guarantee).
+ * `putIfAbsent` adds atomic create-only writes; optional `sizeOf` reports original bytes
+ * without reading payloads (successful filesystem sizes are cached by content-addressed key).
  *
  * Interfaces only — no feature logic.
  */
@@ -129,6 +131,12 @@ export interface BlobStorePort {
    */
   putIfAbsent(input: PutBlobInput): Promise<{ storageKey: string; written: boolean }>;
   get(input: { storageKey: string }): Promise<Uint8Array>;
+  /**
+   * Original byte count without reading the payload; null only when the key is absent.
+   * Other storage failures reject. Optional for older/custom adapters; consumers must report
+   * unknown size when unavailable, never download an entire blob just to count bytes.
+   */
+  sizeOf?(required: { storageKey: string }, optional?: Record<string, never>): Promise<number | null>;
   exists(input: { storageKey: string }): Promise<boolean>;
   /** Idempotent — removing an already-absent key is not an error. */
   remove(input: { storageKey: string }): Promise<void>;
