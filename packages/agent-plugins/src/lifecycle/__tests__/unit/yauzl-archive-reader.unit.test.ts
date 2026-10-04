@@ -43,3 +43,15 @@ test('entry iteration failure closes the peer archive and propagates the error',
   await expect(consume()).rejects.toBe(error);
   expect(closed).toBe(true);
 });
+
+test('a directory-shaped Unix symlink is still a symlink and never streamed', async () => {
+  const stream = async () => { throw new Error('symlink content must not be read'); };
+  const reader = createYauzlAgentPluginArchiveReader({ yauzl: { fromBufferPromise: async () => ({
+    eachEntry: async function* () { yield { fileName: 'link/', versionMadeBy: 3 << 8, externalFileAttributes: 0o120777 << 16, uncompressedSize: 0 }; },
+    openReadStreamPromise: stream,
+    close: () => {},
+  }) } });
+  const entries = [];
+  for await (const entry of reader.entries({ archive: new Uint8Array() })) entries.push(entry);
+  expect(entries).toEqual([{ kind: 'symlink', entryPath: 'link/' }]);
+});

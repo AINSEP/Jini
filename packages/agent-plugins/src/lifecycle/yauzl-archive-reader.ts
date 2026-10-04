@@ -93,14 +93,15 @@ return {
          */
         const unixMode = readUnixMode(entry);
 
-        if (entry.fileName.endsWith("/")) {
-          yield { kind: "directory", entryPath: entry.fileName };
-          continue;
-        }
-
         if (unixMode !== null && (unixMode & S_IFMT) === S_IFLNK) {
 
           yield { kind: "symlink", entryPath: entry.fileName };
+          continue;
+        }
+
+        // File mode defines links even when a hostile filename masquerades as a directory.
+        if (entry.fileName.endsWith("/")) {
+          yield { kind: "directory", entryPath: entry.fileName };
           continue;
         }
 
