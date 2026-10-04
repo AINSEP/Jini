@@ -71,7 +71,7 @@ function writeSummary(rows: ReadonlyArray<readonly [string, string]>): void {
 function main(): void {
   const argv = process.argv.slice(2);
   const planOnly = argv.includes('--plan');
-  const registry = discoverJiniPackages(join(repoRoot, 'packages'));
+  const registry = discoverJiniPackages(repoRoot);
   const publicNames = computeClosure(registry, [...registry.keys()]).filter((name) => registry.get(name)!.pkg.private !== true);
   const only = parseOnly(argv, new Set(publicNames));
   const order = only ? publicNames.filter((name) => only.has(name)) : publicNames;

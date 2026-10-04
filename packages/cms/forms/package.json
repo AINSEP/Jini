@@ -1,7 +1,6 @@
 {
   "name": "@jini-ai/cms-forms",
   "version": "0.2.0",
-  "private": true,
   "description": "Framework-free configurable form validation, audited definitions, anonymous submissions and notification services with injected host ports.",
   "license": "Apache-2.0",
   "repository": {
@@ -50,5 +49,9 @@
     "vitest": "^2.1.0",
     "typescript": "^5.6.0",
     "@types/node": "^24.0.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
   }
 }

@@ -42,12 +42,49 @@ export function tarballFileName(name: string, version: string): string {
   return `${name.replace(/^@/, '').replace(/\//g, '-')}-${version}.tgz`;
 }
 
-/** Discovers every real `@jini-ai/*` package in the workspace by scanning `packages/*` — never a hardcoded list. */
-export function discoverJiniPackages(packagesDir: string): Map<string, JiniPackageEntry> {
+/**
+ * The `packages:` globs of `pnpm-workspace.yaml`, the one list of what is a workspace package.
+ * Only the two shapes the file uses are supported — `dir/*` (one level) and a literal path — and
+ * anything else throws, so a new glob shape can't silently drop packages from publishing.
+ */
+export function workspacePackageGlobs(workspaceRoot: string): string[] {
+  const lines = readFileSync(join(workspaceRoot, 'pnpm-workspace.yaml'), 'utf8').split('\n');
+  const start = lines.findIndex((line) => /^packages:\s*$/.test(line));
+  if (start === -1) throw new Error('pack-jini-packages: pnpm-workspace.yaml has no top-level "packages:" list');
+  const globs: string[] = [];
+  for (const line of lines.slice(start + 1)) {
+    if (/^\s*(#.*)?$/.test(line)) continue;
+    const item = /^\s+-\s+(.+?)\s*$/.exec(line);
+    if (!item) break;
+    globs.push(item[1]!.replace(/^(['"])(.*)\1$/, '$2'));
+  }
+  return globs;
+}
+
+/**
+ * Discovers every real `@jini-ai/*` package in the workspace from `pnpm-workspace.yaml`'s globs —
+ * never a hardcoded list. Nested members such as `packages/cms/forms` are found because the
+ * workspace file lists them; a one-level `packages/*` scan never saw them, so they never published.
+ * Private packages are included (dependency closures need them); publish paths filter them out.
+ */
+export function discoverJiniPackages(workspaceRoot: string): Map<string, JiniPackageEntry> {
+  const dirs: string[] = [];
+  for (const glob of workspacePackageGlobs(workspaceRoot)) {
+    if (glob.startsWith('!') || /[*?{[]/.test(glob.replace(/\/\*$/, ''))) {
+      throw new Error(`pack-jini-packages: unsupported pnpm-workspace.yaml glob "${glob}" — only "dir/*" and literal paths`);
+    }
+    if (!glob.endsWith('/*')) {
+      dirs.push(join(workspaceRoot, glob));
+      continue;
+    }
+    const parent = join(workspaceRoot, glob.slice(0, -2));
+    if (!existsSync(parent)) continue;
+    for (const entry of readdirSync(parent, { withFileTypes: true })) {
+      if (entry.isDirectory()) dirs.push(join(parent, entry.name));
+    }
+  }
   const registry = new Map<string, JiniPackageEntry>();
-  for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const dir = join(packagesDir, entry.name);
+  for (const dir of dirs) {
     if (!existsSync(join(dir, 'package.json'))) continue;
     const pkg = readPackageJson(dir);
     if (pkg.name?.startsWith('@jini-ai/')) registry.set(pkg.name, { dir, pkg });
@@ -72,7 +109,7 @@ export function computeClosure(registry: Map<string, JiniPackageEntry>, rootName
     }
     const entry = registry.get(name);
     if (!entry) {
-      throw new Error(`pack-jini-packages: "${name}" is a @jini-ai/* dependency but no matching packages/* directory was found`);
+      throw new Error(`pack-jini-packages: "${name}" is a @jini-ai/* dependency but no matching workspace package was found`);
     }
     for (const dep of jiniDependencyNames(entry.pkg)) visit(dep, [...chain, name]);
     visited.add(name);
@@ -150,11 +187,10 @@ export function packAndRewrite(
  */
 export function buildAndPackClosure(
   repoRoot: string,
-  packagesDir: string,
   rootNames: readonly string[],
   destDir: string,
 ): { readonly closure: readonly string[]; readonly tarballPathByName: ReadonlyMap<string, string> } {
-  const registry = discoverJiniPackages(packagesDir);
+  const registry = discoverJiniPackages(repoRoot);
   const closure = computeClosure(registry, rootNames);
 
   for (const name of closure) buildPackage(name, repoRoot);
