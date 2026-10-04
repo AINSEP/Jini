@@ -1082,8 +1082,10 @@ test("a hosted server that rejects the token is reported as a failed connection,
     assert.deepEqual(result.registeredToolIds, []);
     // Fail-open per connection, and the reason must name reconnection — a 401 here means the stored
     // authorization stopped working, which is an operator action, not a transient network fault.
+    // The package default copy is host-neutral (owner decision 2026-10-03); a host injects its own
+    // settings wording through FederationMessages.
     assert.ok(
-      messages.some((message) => message.includes("401") && message.includes("reconnect it in Settings → External MCP")),
+      messages.some((message) => message.includes("401") && message.includes("ask the administrator to reconnect this connection")),
       `expected a reported 401 naming the fix; got: ${JSON.stringify(messages)}`,
     );
   } finally {
