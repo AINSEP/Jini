@@ -6,3 +6,4 @@ export * from "./rate-limit-key.js";
 export * from "./write-service.js";
 export * from "./submit-service.js";
 export * from "./notify-subscriber.js";
+export * from "./submission-ip-retention.js";

@@ -1,8 +1,9 @@
 Spec ID: SPEC-JINI-CMS-FORMS-STATE
-Version: 2.0.0
-Last Edited: 2026-10-03T04:10:53Z
-Hash: sha256:5b0d85e61cd0e9129397ca47d91b42a04f0c8e7f839241244723ae9298eb36e1
+Version: 2.1.0
+Last Edited: 2026-10-04
+Hash: sha256:a18cf66a8b2d44d175a5d3bd0ac7a4849d098db3c34c2e1935af6f8a01be1f9a
 spec_mode: reverse_spec
+Hash basis: UTF-8 Markdown body from the first heading through EOF
 
 
 # Forms state and persistence contract
@@ -15,7 +16,7 @@ Creation persists an `active` definition with `version:1`. Status changes permit
 
 ## Submission and event lifecycle
 
-A valid non-honeypot submission creates one immutable submission record. The package exports no submission update/delete operation. Definition schema changes do not migrate historical `data`; the notification handler reads the original submission data against the current notification config.
+A valid non-honeypot submission creates one submission record. Its answers, timestamp and identity are immutable. `sweepExpiredSubmissionIps` clears only `sourceIp` after 90 days through a dedicated maintenance port; the persisted field may be null. The package exports no submission deletion operation. Definition schema changes do not migrate historical `data`; the notification handler reads the original submission data against the current notification config.
 
 Persistence order is submission → outbox enqueue → background dispatch. There is no atomic boundary between the first two effects. The outbox, dispatcher and host event bus own delivery durability, recovery and replay. Retrying submission is not deduplicated.
 
@@ -27,6 +28,6 @@ The subscriber uses the object-shaped CMS EventBusPort contract. Lifecycle behav
 
 ## Host responsibilities
 
-The host owns retention for submission contents and source IPs, trash visibility, concurrent-write constraints, limiter state, event replay, mail deduplication and shutdown ordering. No package cleanup/disposal operation applies beyond the returned unsubscriber.
+The host owns retention for submission contents, trash visibility, concurrent-write constraints, limiter state, event replay, mail deduplication and shutdown ordering. The package owns the 90-day submitter-IP policy; hosts supply the atomic maintenance adapter, boot/daily scheduling and shutdown. A sweep includes Trash rows and all workspaces, keeping the submission itself. See [DR-002](../decisions/DR-002-submission-ip-retention.md).
 
 Evidence: `src/types.ts`, `src/ports.ts`, `src/write-service.ts`, `src/submit-service.ts`, `src/notify-subscriber.ts`.

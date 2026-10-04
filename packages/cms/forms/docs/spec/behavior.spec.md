@@ -1,8 +1,9 @@
 Spec ID: SPEC-JINI-CMS-FORMS-BEHAVIOR
-Version: 2.0.0
-Last Edited: 2026-10-03T04:10:53Z
-Hash: sha256:ccdebfcc4b100e04fea7f2b455ba0efed2d88f704fcbc0de672460144668f4e0
+Version: 2.1.0
+Last Edited: 2026-10-04
+Hash: sha256:2acbf8e16b1902aac9d6000a8172887f331313953cd8ded7d36f7fed31f2604f
 spec_mode: reverse_spec
+Hash basis: UTF-8 Markdown body from the first heading through EOF
 
 
 # Forms behavior contract
@@ -41,7 +42,11 @@ Recipients are sent sequentially in stored order, using the host sender, subject
 
 ## Deliberate boundaries
 
-The package supplies no HTTP status mappings, auth sessions, UI controls, CAPTCHA, source-IP trust policy, retention/purge/delete service, response-size limits, rate window, mail sender discovery, scheduler or concrete persistent store. Typed definitions are not a general parser for arbitrary JSON; consumers validate outer request shapes before calling.
+The package supplies no HTTP status mappings, auth sessions, UI controls, CAPTCHA, source-IP trust policy, submission-content purge/delete service, response-size limits, rate window, mail sender discovery, scheduler or concrete persistent store. Typed definitions are not a general parser for arbitrary JSON; consumers validate outer request shapes before calling.
+
+## Submission IP retention
+
+`sweepExpiredSubmissionIps({ now, repo }, { batchSize? })` fixes an ISO UTC cutoff exactly 90 days before the supplied epoch milliseconds. It clears submitter IPs at or before that cutoff (inclusive), drains full batches (500 by default), and returns the total affected rows. Repeated passes clear nothing further. Invalid timestamps and non-positive/non-integer batch sizes reject before persistence. Storage errors propagate to the host timer, which logs and retries. The adapter must atomically guard non-null IPs and the cutoff, include Trash and all workspaces, and change no submission data, identity, timestamp or Trash state. See [DR-002](../decisions/DR-002-submission-ip-retention.md).
 
 Evidence: `src/forms.ts`, `src/write-service.ts`, `src/submit-service.ts`, `src/notify-subscriber.ts`; validation characterization, write, submit and subscriber tests under `src/__tests__/` were read, not executed.
 

@@ -47,7 +47,8 @@ export interface FormSubmissionRecord {
   workspaceId: UUID;
   formDefinitionId: UUID;
   data: Record<string, string | boolean>;
-  sourceIp: string;
+  /** Cleared by metadata retention; answers and the submission itself remain. */
+  sourceIp: string | null;
   submittedAt: string;
 }
 
