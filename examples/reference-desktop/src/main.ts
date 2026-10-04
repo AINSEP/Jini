@@ -12,6 +12,14 @@ import {
   resolveDesktopWorkingDirectory,
   resolveTrustedRendererUrl,
 } from './security.js';
+import {
+  bindBrowserWindow,
+  bindElectronApp,
+  bindElectronDialog,
+  bindElectronProtocol,
+  bindElectronShell,
+  toBrowserWindowOptions,
+} from './electron-surfaces.js';
 
 const rendererUrl = resolveTrustedRendererUrl(
   process.env.JINI_PLAYGROUND_URL ?? 'http://127.0.0.1:4173/?shell=desktop',
@@ -27,18 +35,14 @@ const sampleDirectories = new Set([
   resolve(repoRoot, 'examples/sample-projects/bug-hunt'),
 ]);
 
-const surfaces = {
-  app,
-  protocol,
-  shell,
-  dialog,
-  createBrowserWindow: (options: ElectronDesktopHostSurfaces['createBrowserWindow'] extends (
-    value: infer Options,
-  ) => unknown
-    ? Options
-    : never) =>
-    (() => {
-      const window = new BrowserWindow({
+const surfaces: ElectronDesktopHostSurfaces = {
+  app: bindElectronApp({ app }),
+  protocol: bindElectronProtocol({ protocol }),
+  shell: bindElectronShell({ shell }),
+  dialog: bindElectronDialog({ dialog }),
+  createBrowserWindow: (_requiredArgs, optionalArgs) => {
+    const options = toBrowserWindowOptions(optionalArgs);
+    const window = new BrowserWindow({
       ...options,
       title: 'Jini Playground',
       minWidth: 840,
@@ -52,22 +56,24 @@ const surfaces = {
         nodeIntegration: false,
         sandbox: true,
       },
-      });
-      window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-      window.webContents.on('will-navigate', (event, url) => {
-        try {
-          if (new URL(url).origin === rendererOrigin) return;
-        } catch {
-          // Invalid navigation URLs are denied.
-        }
-        event.preventDefault();
-      });
-      return window;
-    })(),
-} as unknown as ElectronDesktopHostSurfaces;
+    });
+    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    window.webContents.on('will-navigate', (event, url) => {
+      try {
+        if (new URL(url).origin === rendererOrigin) return;
+      } catch {
+        // Invalid navigation URLs are denied.
+      }
+      event.preventDefault();
+    });
+    return bindBrowserWindow(window);
+  },
+};
 
 const host = createElectronDesktopHost(surfaces);
-const ownsLock = host.ports.singleInstance.claim(() => host.ports.windowLifecycle.showMainWindow());
+const ownsLock = host.ports.singleInstance.claim({
+  onSecondInstance: () => host.ports.windowLifecycle.showMainWindow(),
+});
 
 function registerRendererBridge(): void {
   const requireTrustedRenderer = (event: Electron.IpcMainInvokeEvent) => {
@@ -78,9 +84,10 @@ function registerRendererBridge(): void {
   ipcMain.handle('jini:pick-working-directory', async (event, defaultPath?: unknown) => {
     requireTrustedRenderer(event);
     const selected = await host.ports.shell.openFolderDialog(
+      {},
       typeof defaultPath === 'string' && defaultPath.length > 0
         ? { defaultPath: resolveDesktopWorkingDirectory(repoRoot, defaultPath) }
-        : undefined,
+        : {},
     );
     if (!selected) return null;
     const granted = await grantNativeWorkingDirectory({
@@ -109,7 +116,7 @@ function registerRendererBridge(): void {
     if (!sampleDirectories.has(candidate) && !approvedDirectories.has(candidate)) {
       return Promise.resolve(false);
     }
-    return host.ports.shell.dirExists(candidate);
+    return host.ports.shell.dirExists({ path: candidate });
   });
 }
 
@@ -118,8 +125,7 @@ async function openMainWindow(): Promise<void> {
     host.ports.windowLifecycle.showMainWindow();
     return;
   }
-  await host.ports.windowLifecycle.createWindow({
-    url: rendererUrl,
+  await host.ports.windowLifecycle.createWindow({ url: rendererUrl }, {
     width: 1320,
     height: 820,
     show: true,

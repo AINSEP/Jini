@@ -8,7 +8,7 @@
  * trusted publisher, and this workflow cannot authenticate for it.
  *
  * Each package is `pnpm pack`ed (which rewrites `workspace:*` to real versions), the tarball is
- * checked for a leftover `workspace:` range and for `.map` files, and then `npm publish <tarball>
+ * checked for a leftover `workspace:` range, `.map` files and compiled tests, and then `npm publish <tarball>
  * --access public --provenance` uploads it. Authentication is npm trusted publishing (the job's
  * GitHub OIDC token), so there is no token here; the workflow must already have built `dist/`.
  * When `GITHUB_STEP_SUMMARY` is set, the outcome per package is written to the job summary.
@@ -56,8 +56,12 @@ function packAndCheck(name: string, entry: JiniPackageEntry): string {
   const tarball = join(outDir, readdirSync(outDir).find((file) => file.endsWith('.tgz'))!);
   const manifest = execFileSync('tar', ['-xzOf', tarball, 'package/package.json'], { encoding: 'utf8' });
   if (manifest.includes('workspace:')) throw new Error(`${name}: packed package.json still has a workspace: range`);
-  const maps = execFileSync('tar', ['-tzf', tarball], { encoding: 'utf8' }).split('\n').filter((path) => path.endsWith('.map'));
+  const paths = execFileSync('tar', ['-tzf', tarball], { encoding: 'utf8' }).split('\n');
+  const maps = paths.filter((path) => path.endsWith('.map'));
   if (maps.length > 0) throw new Error(`${name}: tarball contains source maps, e.g. ${maps[0]}`);
+  // tsc emits every test under src/ into dist/; each package's "files" must negate them.
+  const tests = paths.filter((path) => /\/__tests__\/|\.test\.[^/]+$/.test(path));
+  if (tests.length > 0) throw new Error(`${name}: tarball contains compiled tests, e.g. ${tests[0]}`);
   return tarball;
 }
 
