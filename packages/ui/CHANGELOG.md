@@ -1,5 +1,9 @@
 # @jini-ai/ui
 
+## 0.4.1 — 2026-10-04
+
+- `useFocusTrap` returns focus to the element that held it when the trap activated (the dialog's opener) once the trap closes or deactivates, if that element is still in the document.
+
 ## 0.4.0 — 2026-10-02
 
 ### BREAKING

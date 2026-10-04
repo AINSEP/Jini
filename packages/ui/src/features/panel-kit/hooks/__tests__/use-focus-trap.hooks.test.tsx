@@ -134,6 +134,58 @@ describe("useFocusTrap", () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
+  it("returns focus to the element that opened the dialog when the trap closes", () => {
+    const { rerender } = render(<button type="button">opener</button>);
+    button("opener").focus();
+    rerender(
+      <>
+        <button type="button">opener</button>
+        <Dialog label="A" />
+      </>,
+    );
+    button("A first").focus();
+
+    rerender(<button type="button">opener</button>);
+
+    expect(document.activeElement).toBe(button("opener"));
+  });
+
+  it("returns focus on deactivate even while the dialog stays mounted", () => {
+    const { rerender } = render(<button type="button">opener</button>);
+    button("opener").focus();
+    rerender(
+      <>
+        <button type="button">opener</button>
+        <Dialog label="A" />
+      </>,
+    );
+    button("A first").focus();
+
+    rerender(
+      <>
+        <button type="button">opener</button>
+        <Dialog label="A" trapped={false} />
+      </>,
+    );
+
+    expect(document.activeElement).toBe(button("opener"));
+  });
+
+  it("leaves focus alone on close when the opener has left the document", () => {
+    const { rerender } = render(<button key="opener" type="button">opener</button>);
+    button("opener").focus();
+    rerender(
+      <>
+        <button key="other" type="button">other</button>
+        <Dialog label="A" />
+      </>,
+    );
+    button("A first").focus();
+
+    expect(() => rerender(<button key="other" type="button">other</button>)).not.toThrow();
+    expect(document.activeElement).not.toBe(button("other"));
+  });
+
   it("ignores keys other than Tab", () => {
     render(<Dialog label="A" />);
     button("A last").focus();

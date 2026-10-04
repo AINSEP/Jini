@@ -36,10 +36,18 @@ function redirectTarget(container: HTMLElement, shiftKey: boolean): HTMLElement 
   return null;
 }
 
-/** Trap Tab/Shift+Tab in the most recently activated container; outer traps resume on cleanup. */
+/**
+ * Trap Tab/Shift+Tab in the most recently activated container; outer traps resume on cleanup, and
+ * focus goes back to whatever held it when the trap activated (the dialog's opener).
+ */
 export function useFocusTrap({ containerRef }: { containerRef: RefObject<HTMLElement | null> }, { active = true }: { active?: boolean | undefined } = {}): void {
   useEffect(() => {
     if (!active) return;
+    // Captured before anything inside the dialog takes focus, so keyboard users land back on the
+    // control they opened it from instead of at the top of the page. An element already inside the
+    // container (an autoFocus child committed first) is not the opener, so nothing is restored then.
+    const previous = document.activeElement;
+    const opener = previous instanceof HTMLElement && !containerRef.current?.contains(previous) ? previous : null;
     activeTraps.push(containerRef);
 
     function onKeyDown(event: KeyboardEvent) {
@@ -56,6 +64,7 @@ export function useFocusTrap({ containerRef }: { containerRef: RefObject<HTMLEle
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       activeTraps.splice(activeTraps.lastIndexOf(containerRef), 1);
+      if (opener?.isConnected) opener.focus();
     };
   }, [containerRef, active]);
 }
