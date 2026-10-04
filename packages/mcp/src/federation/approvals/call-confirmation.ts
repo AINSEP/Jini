@@ -25,7 +25,8 @@ export function buildFederatedCallConfirmSpec(
 ): FederatedConfirmationSpec {
   const argumentRows = Object.entries(request.arguments).map(([name, value]) => argumentDetail(name, value));
   const alternatives: NonNullable<FederatedConfirmationSpec["alternatives"]>[number][] = [];
-  if (request.writeShapedInputs.length === 0) {
+  // Permanent deletion always needs this call's explicit answer, even if a host asks for scopes.
+  if (!request.destructive && request.writeShapedInputs.length === 0) {
     if (offers.offerChat) alternatives.push({ id: "allow-chat", label: messages.allowChatLabel, choice: "chat" });
     if (offers.offerAlways && !request.destructive) alternatives.push({ id: "allow-always", label: messages.allowAlwaysLabel, choice: "always" });
   }
@@ -62,6 +63,8 @@ async function isRemembered(approvals: FederatedApprovalDeps, request: Federated
     if (saved && saved.fingerprint === keys.fingerprint && !request.destructive) return true;
     if (saved) await approvals.always.delete(keys.alwaysKey, options.scope === undefined ? {} : { scope: options.scope });
   }
+  // Neither a matching chat grant nor an always grant can authorize permanent deletion.
+  if (request.destructive) return false;
   return keys.chatKey !== undefined && approvals.chat !== undefined && await approvals.chat.has(keys.chatKey);
 }
 
@@ -75,6 +78,8 @@ async function remember(input: {
   approvals: FederatedApprovalDeps; choice: "chat" | "always"; options: FederatedCallConfirmerOptions;
 }): Promise<void> {
   const { context, request, keys, approvals, choice, options } = input;
+  // Defense in depth: a forged remember choice must not persist a destructive call's approval.
+  if (request.destructive || request.writeShapedInputs.length > 0) return;
   let grantedAt: string;
   try {
     grantedAt = nowIso({ clock: approvals.clock });
@@ -93,6 +98,12 @@ async function remember(input: {
 /** Remembered-approval orchestration over host-owned storage, presentation and permission ports.
  * The host adapts the returned object-argument function to its federation runtime callback.
  * Lookup failures fail closed. Save failures allow the approved call and are reported via a port.
+ * A destructive or write-shaped call always asks again: neither remembered scope can skip its
+ * card and no remember button is offered. The card and lookups are one mechanism for every
+ * external server, agent plugin and integration; no per-plugin consent setting is read.
+ * A stale always grant is removed so the operator's list stops claiming it is still valid.
+ * Frozen arguments shown on the card are the arguments that run; a remembered grant changes
+ * only whether a card is required, never what is sent. One explicit answer authorizes one call.
  */
 export function createFederatedCallConfirmer<Context extends FederatedConfirmationContext, Exchanges>(
   required: FederatedCallConfirmerRequired<Context, Exchanges>, options: FederatedCallConfirmerOptions = {},
@@ -101,7 +112,7 @@ export function createFederatedCallConfirmer<Context extends FederatedConfirmati
     const approvals = options.approvals;
     const keys = approvalContext(context, request, approvals, required.fingerprintDomain);
     if (approvals && await isRemembered(approvals, request, keys, options)) return { confirmed: true };
-    const rememberable = request.writeShapedInputs.length === 0;
+    const rememberable = !request.destructive && request.writeShapedInputs.length === 0;
     const offerAlways = rememberable && !request.destructive && keys.alwaysKey !== undefined && approvals !== undefined
       && await approvals.mayAlwaysAllow({ principalId: context.principal.id }, options.scope === undefined ? {} : { scope: options.scope });
     const spec = buildFederatedCallConfirmSpec({ request, messages: required.messages, errorCode: required.errorCode }, {

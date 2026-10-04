@@ -170,3 +170,8 @@ follows the host's path case policy and respects directory boundaries. A legal
 project directory beginning with `..` is accepted; escaping the managed root
 or selecting the root itself is still refused. Platform remains required for
 other Node integrations, not for this pure containment check.
+
+Permanent deletion always needs a fresh one-call confirmation. Destructive cards offer neither
+chat nor always approval; matching remembered grants cannot skip them, and forged remember choices
+are discarded. Write-shaped protected calls also remain unrememberable. The host must keep its
+persisted fingerprint domain stable when adopting federation; changing it invalidates saved grants.

@@ -59,7 +59,7 @@ test("card formatting preserves the inline threshold, destructive wording and no
   assert.equal(destructive.title, "Run send on Service?"); assert.equal(destructive.errorCode, "EXTERNAL_MCP");
   assert.equal(destructive.warning, "Service marks this tool as destructive: it can delete or overwrite data, and that may not be undoable.");
   assert.deepEqual(destructive.details[2], { label: "Arguments", value: "(none)" });
-  assert.deepEqual(destructive.alternatives, [{ id: "allow-chat", label: "Allow for this chat", choice: "chat" }]);
+  assert.equal(destructive.alternatives, undefined);
 });
 
 test("human confirmation remains pending until the host answers, with identical request values", async () => {
@@ -151,6 +151,35 @@ test("a matching always grant is invalid for a destructive call and is removed",
   assert.equal(h.specs[1]!.danger, true);
   assert.ok(!h.specs[1]!.alternatives?.some(alternative => alternative.choice === "always"));
   assert.deepEqual(await h.always.listByScope({}, { scope: "workspace" }), []);
+});
+
+// REGRESSION: fails if isRemembered returns a matching chat grant for a destructive request.
+test("destructive calls ignore matching chat grants and ask on every invocation", async () => {
+  const h = harness({ choice: "chat" });
+  const destructive = { ...request, destructive: true };
+  const fingerprint = federatedToolApprovalFingerprint({ identity: destructive, fingerprintDomain: "g3-approval-v2" });
+  await h.chat.grant({ key: { conversationId: "chat-a", principalId: "person", connectionId: "service", toolName: "send", fingerprint }, grantedAt: "2026-01-01T00:00:00.000Z" });
+  h.answer(cancelled);
+  assert.deepEqual(await h.confirm({ context, request: destructive }), cancelled);
+  assert.deepEqual(await h.confirm({ context, request: destructive }), cancelled);
+  assert.equal(h.specs.length, 2);
+  assert.ok(h.specs.every(spec => spec.alternatives === undefined && spec.danger));
+  assert.deepEqual(h.notifications, []);
+});
+
+// REGRESSION: fails if buildFederatedCallConfirmSpec restores the write-shaped-only alternatives guard.
+test("a forged chat choice for permanent deletion never becomes a remembered grant", async () => {
+  const h = harness({ choice: "chat" });
+  const destructive = { ...request, destructive: true };
+  assert.equal(buildFederatedCallConfirmSpec({ request: destructive, messages: defaultFederationMessages, errorCode: "EXTERNAL_MCP" },
+    { offers: { offerChat: true, offerAlways: true } }).alternatives, undefined);
+  await h.confirm({ context, request: destructive });
+  await h.confirm({ context, request: destructive });
+  assert.equal(h.specs.length, 2);
+  assert.equal(h.specs[0]!.alternatives, undefined);
+  assert.deepEqual(h.notifications, []);
+  assert.equal(await h.chat.has({ conversationId: "chat-a", principalId: "person", connectionId: "service", toolName: "send",
+    fingerprint: federatedToolApprovalFingerprint({ identity: destructive, fingerprintDomain: "g3-approval-v2" }) }), false);
 });
 
 test("remembered-store lookup failures fail closed before asking or granting", async () => {

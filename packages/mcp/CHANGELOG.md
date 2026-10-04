@@ -9,6 +9,10 @@
 
 ## Unreleased
 
+- Enforce fresh consent for destructive federated calls across both remembered scopes. Destructive
+  cards offer no remember buttons, matching chat grants cannot bypass them, and forged remember
+  choices are not saved. Keep ordinary, non-destructive remembered approvals and fingerprint bytes.
+
 - Repair package compilation against strict optional properties and current object-call contracts,
   including the test fixtures. Omit absent HTTP signals and approval/revocation scopes; unscoped
   memory approval records omit `scope`. Preserve supplied values, assertions and security guards.

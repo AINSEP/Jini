@@ -3,7 +3,16 @@ import { createHash } from "node:crypto";
 
 import type { FederatedConnectionOrigin, RemoteToolDescriptor } from "./ports.js";
 
-/** How long a person's answer on the card should count. `once` is the plain "Allow". */
+/**
+ * Shared remembered approvals for external servers, agent plugins and integrations; no plugin
+ * configuration is read here. Chat grants belong to a conversation AND a person, so another
+ * person's conversation id cannot reuse them. Always grants belong beside a connection in the
+ * host store, for its operator to list and revoke. A fingerprint pins both scopes to exactly the
+ * admitted tool; changes to server identity, hints, description or schema ask again.
+ * Destructive calls always require a fresh one-call answer and never use either remembered scope.
+ *
+ * How long a person's answer on the card should count. `once` is the plain "Allow".
+ */
 export type FederatedApprovalScope = "once" | "chat" | "always";
 
 /** Everything that identifies a tool for a remembered approval — change any of it and it asks again. */
@@ -102,4 +111,3 @@ export interface ConversationToolApprovalStore {
   has(key: ConversationToolApprovalKey): Promise<boolean>;
   grant(input: { key: ConversationToolApprovalKey; grantedAt: string }): Promise<void>;
 }
-
