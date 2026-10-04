@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 — 2026-10-04
+
+- Media cards show the original file size and upload date (`formatUploadDate` exported from the media barrel); a null size is hidden.
+- Menu ports accept entry targets with an optional `lastKnownHref`.
+- Internal `@jini-ai/*` dependencies are caret ranges (`workspace:^`) instead of exact pins, so a host on a newer patch resolves a single copy without an override.
+
 ## 0.4.0 — 2026-10-02
 
 ### BREAKING

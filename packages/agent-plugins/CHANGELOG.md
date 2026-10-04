@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1 — 2026-10-04
+
+- Layout B per-plugin state with a build-free `@jini-ai/agent-plugins/persistent-state` entry; migration completes after quarantining rejected entries.
+- A directory-shaped ZIP entry with a symlink mode is still treated as a symlink.
+
 ## Unreleased — lifecycle consumer adoption
 
 - Expose narrow `createAgentPluginActivations(required, optional)` composition without

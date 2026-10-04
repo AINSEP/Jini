@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/agent-plugins",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Support for Agent Plugins, the open, vendor-neutral spec (v1.0.0, published 2026-08-06, Technical Steering Committee with maintainers from Amazon, Cursor, Google, Microsoft, OpenAI, and Vercel) for bundling Agent Skills and MCP servers into one portable directory: PluginManifest/McpManifest types + structural validators on the package root, plus the bundled plugins themselves, each on a subpath named for itself (./ui-ux-design). Extracted 2026-08-18 from @jini-ai/plugins, which now only reserves the unrelated, unimplemented ./host format.",
   "license": "Apache-2.0",
   "repository": {

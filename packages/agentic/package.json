@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/agentic",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Framework-free agent-control layer: page-capability vocabulary and manifests, the data-agent-* markup convention, AG-UI projection, generative-UI streams, and A2UI.",
   "license": "Apache-2.0",
   "repository": {
@@ -79,7 +79,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/protocol": "workspace:*",
+    "@jini-ai/protocol": "workspace:^",
     "zod": "^3.25.76",
     "@jini-ai/core": "^0.4.0"
   },

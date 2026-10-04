@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/ui",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Generic, product-neutral React UI primitives and feature domains. Framework-free types, decision rules, catalogs, and host port contracts live behind ./core (no React, no DOM). The Excalidraw and Lexical editors live behind ./sketch-editor and ./lexical-rich-text-editor; the GrapesJS-backed inline HTML editor lives behind ./html-editor.",
   "license": "Apache-2.0",
   "repository": {
@@ -160,7 +160,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/agentic": "workspace:*",
+    "@jini-ai/agentic": "workspace:^",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "micromark": "^4.0.0",
@@ -169,7 +169,7 @@
     "shiki": "^1.24.4",
     "tailwind-merge": "^2.6.0",
     "zod": "^3.25.76",
-    "@jini-ai/core": "workspace:*"
+    "@jini-ai/core": "workspace:^"
   },
   "devDependencies": {
     "@excalidraw/excalidraw": "0.18.1",

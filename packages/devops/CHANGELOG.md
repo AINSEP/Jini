@@ -1,5 +1,10 @@
 # @jini-ai/devops
 
+## 0.5.1 — 2026-10-04
+
+- `@jini-ai/devops/local-dev` exports `listenServer`.
+- Internal `@jini-ai/*` dependencies are caret ranges (`workspace:^`) instead of exact pins, so a host on a newer patch resolves a single copy without an override.
+
 ## 0.5.0 — 2026-10-02
 
 ### BREAKING

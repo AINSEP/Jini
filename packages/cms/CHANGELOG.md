@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.2 — 2026-10-04
+
+- Media: optional `BlobStorePort.sizeOf` reports original blob bytes (filesystem store memoizes `stat`); `MediaRecord.createdBy` is stamped at creation and write-once.
+- Navigation: entry targets carry optional `lastKnownHref` and `entryType` hints.
+- Taxonomy: `unassignTerms` returns the removed ids. Trash: a no-op trash/restore does not notify again.
+- Internal `@jini-ai/*` dependencies are caret ranges (`workspace:^`) instead of exact pins, so a host on a newer patch resolves a single copy without an override.
+
 ## Unreleased — Trash host adoption
 
 - Preserve `adapter-unavailable` for absent domains before checking entity policy; selected purge

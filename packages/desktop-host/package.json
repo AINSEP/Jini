@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/desktop-host",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Shell-agnostic desktop-host ports: single-instance lock, window lifecycle, protocol handling, sidecar launch, paths, and config. Electron and Tauri assemblies live behind ./electron and ./tauri.",
   "license": "Apache-2.0",
   "repository": {
@@ -112,7 +112,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:*"
+    "@jini-ai/core": "workspace:^"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9"

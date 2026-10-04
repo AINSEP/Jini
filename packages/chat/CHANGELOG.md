@@ -1,3 +1,7 @@
+## 0.5.1 — 2026-10-04
+
+- Internal `@jini-ai/*` dependencies are caret ranges (`workspace:^`) instead of exact pins, so a host on `@jini-ai/agentic` 0.4.1 or on a newer patch resolves a single copy without an override.
+
 ## Unreleased
 
 - Type store fixtures with the shared storage kernel and chat contracts, including host-owned tables;

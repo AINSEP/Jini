@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/devops",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "DevOps capabilities for deployment, source control, and CI/CD, exposed through independent subpaths.",
   "license": "Apache-2.0",
   "repository": {
@@ -122,8 +122,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:*",
-    "@jini-ai/platform": "workspace:*",
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/platform": "workspace:^",
     "undici": "^7.25.0"
   },
   "devDependencies": {

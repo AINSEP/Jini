@@ -1,5 +1,9 @@
 # @jini-ai/ui
 
+## 0.4.2 — 2026-10-04
+
+- Internal `@jini-ai/*` dependencies are caret ranges (`workspace:^`) instead of exact pins, so a host on `@jini-ai/agentic` 0.4.1 or on a newer patch resolves a single copy without an override.
+
 ## 0.4.1 — 2026-10-04
 
 - `useFocusTrap` returns focus to the element that held it when the trap activated (the dialog's opener) once the trap closes or deactivates, if that element is still in the document.

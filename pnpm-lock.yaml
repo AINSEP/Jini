@@ -164,16 +164,16 @@ importers:
   packages/admin:
     dependencies:
       '@jini-ai/agent-plugins':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../agent-plugins
       '@jini-ai/agentic':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../agentic
       '@jini-ai/ui':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ui
       '@jini-ai/ui-kit':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ui-kit
     devDependencies:
       '@testing-library/jest-dom':
@@ -245,7 +245,7 @@ importers:
         specifier: ^0.4.0
         version: link:../core
       '@jini-ai/protocol':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../protocol
       zod:
         specifier: ^3.25.76
@@ -302,16 +302,16 @@ importers:
   packages/chat:
     dependencies:
       '@jini-ai/agentic':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../agentic
       '@jini-ai/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@jini-ai/protocol':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../protocol
       '@jini-ai/ui':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ui
     devDependencies:
       '@ag-ui/core':
@@ -409,7 +409,7 @@ importers:
   packages/cms:
     dependencies:
       '@jini-ai/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       '@jini-ai/http-kit':
@@ -542,7 +542,7 @@ importers:
   packages/desktop-host:
     dependencies:
       '@jini-ai/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       '@vitest/coverage-v8':
@@ -552,10 +552,10 @@ importers:
   packages/devops:
     dependencies:
       '@jini-ai/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@jini-ai/platform':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../platform
       typescript:
         specifier: ^5.6.0
@@ -808,10 +808,10 @@ importers:
   packages/ui:
     dependencies:
       '@jini-ai/agentic':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../agentic
       '@jini-ai/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       class-variance-authority:
         specifier: ^0.7.1

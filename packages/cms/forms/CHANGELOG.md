@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2 — 2026-10-04
+
+- Authored checkbox values (`checkboxValue`).
+- `sweepExpiredSubmissionIps` clears form-submitter IP addresses after 90 days.
+
 ## 0.2.1 — 2026-10-04
 
 - `@jini-ai/cms` and `@jini-ai/core` are caret ranges (`^0.4.1`, `^0.4.0`) instead of exact pins, so a host on a newer patch of either resolves a single copy without an override.
