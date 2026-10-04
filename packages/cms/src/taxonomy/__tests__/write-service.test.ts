@@ -1006,3 +1006,16 @@ test("async stamp: a rejected stamp rejects the write instead of floating", asyn
   );
   assert.equal(deps.outboxEvents.length, 0, "no outbox event may be enqueued after a failed stamp");
 });
+
+// wm S18: truthful removal result, including duplicate requests and idempotent retries.
+test("unassign returns only removed ids and suppresses no-op watermark/outbox writes", async () => {
+  const deps = Object.assign(baseDeps(), { entryTerms: removableEntryTermsDeps() });
+  await assignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] });
+  const result = await unassignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1", "term-2", "term-1"] });
+  assert.deepEqual(result, { removedTermIds: ["term-1"] });
+  assert.deepEqual((deps.outboxEvents.at(-1) as { termIds: string[] }).termIds, ["term-1"]);
+  assert.equal(deps.watermarkStamps, 2);
+  assert.deepEqual(await unassignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] }), { removedTermIds: [] });
+  assert.equal(deps.watermarkStamps, 2);
+  assert.equal(deps.outboxEvents.length, 2);
+});

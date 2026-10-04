@@ -32,7 +32,7 @@ export function MediaCard(props: MediaCardProps, _optional: Record<string, never
         <Badge className={vm.statusClassName} attrs={{ 'data-jini-part': 'media.status' }} tone={vm.statusTone}>{vm.statusLabel}</Badge>
         {vm.menuItems.length > 0 && <Menu label={vm.menuLabel} attrs={vm.menuAttrs} items={vm.menuItems} disabled={vm.busy} />}
       </div>
-      {vm.byteSize && <p className="jini-media-card-size" hidden>{vm.byteSize}</p>}
+      <p className="jini-media-card-size"><span>{vm.byteSize}</span>{vm.metadataSeparator}<time dateTime={vm.item.createdAt}>{vm.uploadDate}</time></p>
       {vm.onChoose && <Button attrs={{ 'data-jini-part': 'media.choose', 'data-agent-element': `media-choose-${vm.item.id}` }} onPress={vm.onChoose}>Choose</Button>}
     </div>
   </article>;

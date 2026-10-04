@@ -42,3 +42,38 @@ export async function listenersOn({ port, runner, listenerCommand }: {
     return [];
   }
 }
+
+/** Minimal listener port; adapters may supply HTTP, HTTPS, or a deterministic socket double. */
+export interface ServerListenerPort {
+  once(event: 'error' | 'listening', handler: (...args: unknown[]) => void): unknown;
+  off(event: 'error' | 'listening', handler: (...args: unknown[]) => void): unknown;
+  listen(input: { port: number; host?: string }): unknown;
+  address(): { port: number } | string | null;
+}
+
+/** Bind the actual listener, retaining it across boot. Only address collisions may try the next
+ * port; explicit addresses use the default single attempt. No probe/release/bind race. */
+export async function listenServer({ server, port }: { server: ServerListenerPort; port: number },
+  { host, attempts = 1 }: { host?: string; attempts?: number } = {}): Promise<number> {
+  if (!Number.isInteger(attempts) || attempts < 1 || !Number.isInteger(port) || port < 0 || port + attempts - 1 > 65535) {
+    throw new RangeError('Invalid listener port or attempt range');
+  }
+  for (let offset = 0; offset < attempts; offset++) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const cleanup = () => { server.off('error', onError); server.off('listening', onListening); };
+        const onError = (error: unknown) => { cleanup(); reject(error); };
+        const onListening = () => { cleanup(); resolve(); };
+        server.once('error', onError);
+        server.once('listening', onListening);
+        try { server.listen({ port: port + offset, ...(host === undefined ? {} : { host }) }); }
+        catch (error) { onError(error); }
+      });
+      const address = server.address();
+      return typeof address === 'object' && address !== null ? address.port : port + offset;
+    } catch (error) {
+      if ((error as { code?: string } | null)?.code !== 'EADDRINUSE' || offset === attempts - 1) throw error;
+    }
+  }
+  throw new Error('Listener range exhausted');
+}

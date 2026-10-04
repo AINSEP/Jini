@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import type { MediaAsset } from '../../models.js';
 import type { MediaApiPort } from '../../ports.js';
-import { safeMediaUrl, formatByteSize, mediaRowHandles } from '../../rules.js';
+import { safeMediaUrl, formatByteSize, formatUploadDate, mediaRowHandles } from '../../rules.js';
 export interface MediaCardProps {
   readonly item: MediaAsset;
   readonly handleBase?: string;
+  readonly locale?: string;
   readonly api: MediaApiPort;
   readonly busy?: boolean;
   readonly onEdit?: () => void;
@@ -39,10 +40,13 @@ export function useMediaCard(props: MediaCardProps, _optional: Record<string, ne
   // immediately when the versioned URL changes, including in an already-open lightbox.
   const stage = probe.src === src ? probe.stage : 'image';
   const handleBase = props.handleBase ?? mediaRowHandles({ media: [props.item] })[0]!;
+  const byteSize = props.item.byteSize === undefined ? null : formatByteSize({ bytes: props.item.byteSize }, { locale: props.locale ?? 'en-US' });
+  const uploadDate = formatUploadDate({ createdAt: props.item.createdAt }, { locale: props.locale ?? 'en-US' });
   return {
     ...props,
     busy: props.busy === true,
-    byteSize: props.item.byteSize === undefined ? null : formatByteSize({ bytes: props.item.byteSize }),
+    byteSize, uploadDate,
+    metadataSeparator: byteSize && uploadDate ? ' · ' : '',
     preview: () => props.onPreview?.(),
     canPreview: !!props.onPreview && !!src && stage !== 'unsupported',
     imagePreview: !!props.onPreview && !!src && stage === 'image',

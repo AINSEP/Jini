@@ -719,7 +719,7 @@ export interface UnassignTermsRequired {
  * authorize -> validateAssignmentTarget -> write -> stamp -> outbox chokepoint as `assignTerms`,
  * and — like `assignTerms` — never produces a `taxonomy_revisions` row ( disclosed
  * narrowing applies equally to removal). Idempotent: unassigning a row that isn't there is a no-op,
- * not an error (`remove`'s 0-vs-1 return is intentionally not surfaced to the caller). Chosen over
+ * not an error. Only removed ids are returned, stamped, and emitted; an entirely absent set is a no-op. Chosen over
  * a "set terms" replace call — see the taxonomy plan's "What the docs settle" #3 for why replace
  * risks silently erasing a concurrent assignment.
  * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
@@ -727,15 +727,17 @@ export interface UnassignTermsRequired {
 export async function unassignTerms(
   required: UnassignTermsRequired,
   _optional: Record<string, never> = {}
-): Promise<void> {
+): Promise<{ removedTermIds: string[] }> {
   const { deps, principalId, contentType, contentId, termIds } = required;
   await authorizeTaxonomyManage(deps, principalId);
 
   await validateAssignmentTarget(deps, contentType, contentId, termIds);
 
+  const removedTermIds: string[] = [];
   for (const termId of termIds) {
-    await deps.entryTerms.remove({ contentType, contentId, termId });
+    if (await deps.entryTerms.remove({ contentType, contentId, termId }) > 0) removedTermIds.push(termId);
   }
+  if (removedTermIds.length === 0) return { removedTermIds };
 
   const now = kernelNowIso({ clock: deps.clock });
   await deps.stampWatermark({});
@@ -743,10 +745,11 @@ export async function unassignTerms(
     name: "taxonomy.terms_unassigned",
     contentType,
     contentId,
-    termIds,
+    termIds: removedTermIds,
     actorId: principalId,
     occurredAt: now,
   } });
+  return { removedTermIds };
 }
 
 export interface EntryTermsCleanupPort {

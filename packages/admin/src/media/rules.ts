@@ -148,3 +148,10 @@ export function mediaRowHandles({ media }: { media: readonly Pick<MediaAsset, 'i
     return handle;
   });
 }
+
+/** A calendar date in UTC, so cards do not shift an upload to yesterday across host timezones. */
+export function formatUploadDate({ createdAt }: { createdAt: string }, { locale = 'en-US' }: { locale?: string } = {}): string | null {
+  const date = new Date(createdAt);
+  if (!Number.isFinite(date.getTime())) return null;
+  return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date);
+}
