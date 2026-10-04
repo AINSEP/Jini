@@ -165,12 +165,16 @@ export function createTrashService(deps: TrashServiceDeps, optional: TrashServic
             priorMarker: marker.priorMarker ?? trashOptional.priorMarker ?? null,
           };
           await deps.repo.insert({ row });
-          await notifyChanged(optional, {
-            workspaceId: required.workspaceId,
-            entityType: required.entityType,
-            entityId: required.entityId,
-            change: "trash",
-          });
+          // A successful noop may repair a missing index, but did not change the domain marker.
+          // Repeated removal must not emit another recovery watermark or outbox event (F1487).
+          if (!marker.noop) {
+            await notifyChanged(optional, {
+              workspaceId: required.workspaceId,
+              entityType: required.entityType,
+              entityId: required.entityId,
+              change: "trash",
+            });
+          }
           return marker;
         }
       });
@@ -203,12 +207,15 @@ export function createTrashService(deps: TrashServiceDeps, optional: TrashServic
           });
           if (!marker.ok) return marker.reason === "not-found" ? "not-found" : "version-changed";
           await deps.repo.deleteById({ workspaceId: required.workspaceId, id: row.id });
-          await notifyChanged(optional, {
-            workspaceId: required.workspaceId,
-            entityType: required.entityType,
-            entityId: required.entityId,
-            change: "restore",
-          });
+          // An already-clear marker still needs index cleanup, without a duplicate notification.
+          if (!marker.noop) {
+            await notifyChanged(optional, {
+              workspaceId: required.workspaceId,
+              entityType: required.entityType,
+              entityId: required.entityId,
+              change: "restore",
+            });
+          }
           return "restored";
         }
       });

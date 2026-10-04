@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { harness, removal, WS, AT, ACTOR, ALLOW_ALL } from "./fixture.js";
-import { createTrashService, computePurgeAfter, bindRemoveEntity, bindForgetRemovedEntity, TrashAdapterMissingError } from "../write-service.js";
+import { createTrashService, computePurgeAfter, bindRemoveEntity, bindForgetRemovedEntity, TrashAdapterMissingError, type TrashChangeEvent } from "../write-service.js";
 
 // Generalized from trash.contract, prior-marker.contract and on-changed.contract suites.
 test("hide and restore never parse or rewrite the entity payload; listing uses the snapshot", async () => {
@@ -72,6 +72,43 @@ test("notifications are in arg 2 and cannot undo a mutation when reporting fails
   assert.equal((await h.trash.purgeSelected({ workspaceId: WS, ids: ["trash-2"], actor: ACTOR, authorizeItem: ALLOW_ALL })).purged, 1);
   assert.deepEqual(seen, ["trash", "restore", "trash", "purge"]);
   assert.equal(h.records.records.size, 0);
+});
+test("repeated trash preserves the marker and index without notifying again", async () => {
+  const seen: TrashChangeEvent[] = [];
+  const h = harness({ onChanged: event => { seen.push(event); } });
+  assert.deepEqual(await h.trash.trash(removal), { ok: true, version: 2 });
+  const record = structuredClone(h.records.records.get("record-1"));
+  const index = structuredClone(h.repo.all({}));
+  assert.equal(index.length, 1);
+  const event = { workspaceId: WS, entityType: "record", entityId: "record-1", change: "trash" };
+  assert.deepEqual(seen, [event]);
+
+  // A retry is successful but explicitly noop; it must not emit a second outbox event (F1487).
+  for (const expectedVersion of [2, null]) {
+    assert.deepEqual(await h.trash.trash({ ...removal, expectedVersion, at: "2026-09-21T12:00:00.000Z" }),
+      { ok: true, version: 2, noop: true });
+    assert.deepEqual(h.records.records.get("record-1"), record);
+    assert.deepEqual(h.repo.all({}), index);
+    assert.deepEqual(seen, [event]);
+  }
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT }), "restored");
+  assert.deepEqual(seen, [event, { ...event, change: "restore" }]);
+  assert.equal(h.records.records.get("record-1")!.version, 3);
+  assert.deepEqual(h.repo.all({}), []);
+});
+test("restore cleans a stale index without notifying when the marker is already clear", async () => {
+  const seen: TrashChangeEvent[] = [];
+  const h = harness({ onChanged: event => { seen.push(event); } });
+  await h.trash.trash(removal);
+  assert.equal(h.repo.all({}).length, 1);
+  // Model a marker cleared outside Trash while its index snapshot is still present. The real
+  // record adapter returns noop, so cleanup must not claim a second domain transition (F1487).
+  const cleared = { ...h.records.records.get("record-1")!, deletedAt: null };
+  h.records.records.set("record-1", structuredClone(cleared));
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: "2026-09-21T12:00:00.000Z" }), "restored");
+  assert.deepEqual(h.records.records.get("record-1"), cleared);
+  assert.deepEqual(h.repo.all({}), []);
+  assert.deepEqual(seen, [{ workspaceId: WS, entityType: "record", entityId: "record-1", change: "trash" }]);
 });
 test("retention and entity policy are host-owned and evaluated at the operation", async () => {
   const h = harness();
