@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/cms-forms",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Framework-free configurable form validation, audited definitions, anonymous submissions and notification services with injected host ports.",
   "license": "Apache-2.0",
   "repository": {
@@ -42,8 +42,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@jini-ai/cms": "workspace:*",
-    "@jini-ai/core": "workspace:*"
+    "@jini-ai/cms": "workspace:^",
+    "@jini-ai/core": "workspace:^"
   },
   "devDependencies": {
     "vitest": "^2.1.0",

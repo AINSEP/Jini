@@ -434,10 +434,10 @@ importers:
   packages/cms/forms:
     dependencies:
       '@jini-ai/cms':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:..
       '@jini-ai/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../core
     devDependencies:
       '@types/node':
