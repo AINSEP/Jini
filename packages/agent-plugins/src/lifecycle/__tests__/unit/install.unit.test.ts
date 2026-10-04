@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmod, mkdtemp, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "../legacy-test.js";
@@ -8,8 +8,8 @@ import { test } from "../legacy-test.js";
 import { forceRemove } from "../fixtures/force-remove.js";
 import { resolveAgentPluginLayout } from "../test-support.js";
 import { type AgentPluginLayout } from "../../layout.js";
-import { installAgentPlugin } from "../test-support.js";
-import { AgentPluginInstallError, type AgentPluginArchiveEntry, type AgentPluginArchiveReaderPort, type InstallAgentPluginRequired } from "../../install.js";
+import { installAgentPlugin, ports } from "../test-support.js";
+import { createInstallModule, AgentPluginInstallError, type AgentPluginArchiveEntry, type AgentPluginArchiveReaderPort, type InstallAgentPluginRequired } from "../../install.js";
 
 /**
  * @file `installAgentPlugin()` — content-addressed extraction of one Agent Plugin archive.
@@ -191,9 +191,9 @@ test("a symlink ENTRY is rejected outright, and no package is published", async 
       (error: unknown) => error instanceof AgentPluginInstallError && error.code === "SYMLINK_ENTRY_REJECTED",
     );
 
-    const publishedDirs = await readdir(layout.packages).catch(() => []);
-    assert.deepEqual(publishedDirs, [], "no digest directory may be published after a rejected install");
-    assert.deepEqual(await readdir(layout.packages), [], "rejection must not publish a package");
+    const publishedDirs = await readdir(layout.root);
+    assert.deepEqual(publishedDirs, ["staging"], "no plugin directory may be published after a rejected install");
+    assert.deepEqual(await readdir(layout.root), ["staging"], "rejection must not create a plugin/package directory");
     assert.deepEqual(await readdir(layout.staging), [], "rejection must remove the staging transaction");
   } finally {
     await forceRemove(cwd);
@@ -218,8 +218,8 @@ test("a lexical zip-slip path ('../../..') is rejected", async () => {
       (error: unknown) => error instanceof AgentPluginInstallError && error.code === "UNSAFE_ENTRY_PATH",
     );
 
-    assert.deepEqual(await readdir(layout.packages).catch(() => []), []);
-    assert.deepEqual(await readdir(layout.packages), [], "rejection must not publish a package");
+    assert.deepEqual(await readdir(layout.root), ["staging"]);
+    assert.deepEqual(await readdir(layout.root), ["staging"], "rejection must not create a plugin/package directory");
     assert.deepEqual(await readdir(layout.staging), [], "rejection must remove the staging transaction");
   } finally {
     await forceRemove(cwd);
@@ -243,7 +243,7 @@ test("a duplicate archive entry path is rejected (never silently overwritten)", 
         }),
       (error: unknown) => error instanceof AgentPluginInstallError && error.code === "DUPLICATE_ENTRY",
     );
-    assert.deepEqual(await readdir(layout.packages), [], "rejection must not publish a package");
+    assert.deepEqual(await readdir(layout.root), ["staging"], "rejection must not create a plugin/package directory");
     assert.deepEqual(await readdir(layout.staging), [], "rejection must remove the staging transaction");
   } finally {
     await forceRemove(cwd);
@@ -270,7 +270,7 @@ test("a file exceeding the declared per-file size cap is rejected", async () => 
         }),
       (error: unknown) => error instanceof AgentPluginInstallError && error.code === "FILE_TOO_LARGE",
     );
-    assert.deepEqual(await readdir(layout.packages), [], "rejection must not publish a package");
+    assert.deepEqual(await readdir(layout.root), ["staging"], "rejection must not create a plugin/package directory");
     assert.deepEqual(await readdir(layout.staging), [], "rejection must remove the staging transaction");
   } finally {
     await forceRemove(cwd);
@@ -319,7 +319,7 @@ test("a decompression bomb (actual bytes exceed the declared size) is caught whi
     );
     assert.equal(chunksConsumed, 17, "stop at the first chunk crossing the 16 MiB cap");
     assert.equal(streamClosed, true, "the decompressor must be closed on early rejection");
-    assert.deepEqual(await readdir(layout.packages), [], "rejection must not publish a package");
+    assert.deepEqual(await readdir(layout.root), ["staging"], "rejection must not create a plugin/package directory");
     assert.deepEqual(await readdir(layout.staging), [], "rejection must remove the staging transaction");
   } finally {
     await forceRemove(cwd);
@@ -347,7 +347,7 @@ test("the total-extracted-bytes cap is enforced across many small files (the 'ma
         }),
       (error: unknown) => error instanceof AgentPluginInstallError && error.code === "TOTAL_SIZE_EXCEEDED",
     );
-    assert.deepEqual(await readdir(layout.packages), [], "rejection must not publish a package");
+    assert.deepEqual(await readdir(layout.root), ["staging"], "rejection must not create a plugin/package directory");
     assert.deepEqual(await readdir(layout.staging), [], "rejection must remove the staging transaction");
   } finally {
     await forceRemove(cwd);
@@ -388,7 +388,7 @@ test("the entry-count cap is enforced before any entry is extracted", async () =
       (error: unknown) => error instanceof AgentPluginInstallError && error.code === "TOO_MANY_ENTRIES",
     );
     assert.equal(streamsOpened, 0, "an over-cap archive must be rejected before any entry content is read");
-    assert.deepEqual(await readdir(layout.packages), [], "rejection must not publish a package");
+    assert.deepEqual(await readdir(layout.root), ["staging"], "rejection must not create a plugin/package directory");
     assert.deepEqual(await readdir(layout.staging), [], "rejection must remove the staging transaction");
   } finally {
     await forceRemove(cwd);
@@ -426,22 +426,32 @@ test("a SHA-256 digest mismatch is rejected before any extraction is attempted",
   }
 });
 
-test("installing the identical archive twice extracts only once (content-addressed dedup)", async () => {
+test("installing the identical archive twice stages twice but never refreezes the published package (Layout B dedup)", async () => {
   const { cwd, instanceLayout, layout } = await freshLayout();
   try {
     const archive = new Uint8Array(Buffer.from("archive-bytes-dedup"));
     const digest = createHash("sha256").update(archive).digest("hex");
 
     const { reader: countingReader, extractions } = extractionCountingReader();
+    let freezeWrites = 0;
+    const { installAgentPlugin: installWithFreezeCounter } = createInstallModule({
+      ...ports,
+      filesystem: { ...ports.filesystem, chmod: (async (filename, mode) => {
+        if (String(filename).includes(`/package/sha256/${digest}`)) freezeWrites++;
+        return ports.filesystem.chmod(filename, mode);
+      }) as typeof ports.filesystem.chmod },
+    });
 
-    const first = await installAgentPlugin({
+    const first = await installWithFreezeCounter({
       archive,
       expectedSha256: digest,
       archiveReader: countingReader,
       layout: instanceLayout,
       workspaceId: WORKSPACE_ID,
     });
-    const second = await installAgentPlugin({
+    const firstFreezeWrites = freezeWrites;
+    assert.ok(firstFreezeWrites > 0, "the first publication must really freeze its package");
+    const second = await installWithFreezeCounter({
       archive,
       expectedSha256: digest,
       archiveReader: countingReader,
@@ -449,7 +459,10 @@ test("installing the identical archive twice extracts only once (content-address
       workspaceId: WORKSPACE_ID,
     });
 
-    assert.equal(extractions(), 1, "the second install of byte-identical content must not re-extract");
+    // Layout B must extract to learn the manifest id before it can choose a per-plugin destination.
+    assert.equal(extractions(), 2, "each install must perform exactly one bounded staging extraction");
+    assert.equal(freezeWrites, firstFreezeWrites, "dedup must not rewrite the published package's permissions");
+    assert.deepEqual(second, first, "dedup must return exactly the original installed package");
     assert.equal(first.packageRoot, second.packageRoot);
   } finally {
     await forceRemove(cwd);
@@ -473,7 +486,7 @@ test("explicit directory entries are extracted and excluded from the file index"
     assert.deepEqual(installed.files, ["plugin.json", "skills/ui-ux-design/SKILL.md"]);
     assert.deepEqual(installed.skills, [{ name: "ui-ux-design", skillPath: "skills/ui-ux-design/SKILL.md" }]);
     assert.equal((await stat(path.join(installed.packageRoot, "empty"))).isDirectory(), true);
-    assert.deepEqual(await readdir(layout.packages), [digest]);
+    assert.deepEqual(await readdir(layout.pluginPackagesDir({ pluginId: "ui-ux-design" })), [digest]);
     assert.deepEqual(await readdir(layout.staging), []);
   } finally {
     await forceRemove(cwd);
@@ -494,7 +507,7 @@ test("an in-flight install recovers when another install publishes the same dige
       archive, expectedSha256: digest, layout: instanceLayout, workspaceId: WORKSPACE_ID,
       archiveReader: { async *entries() { entered(); await held; yield* validPackageEntries(); } },
     });
-    await extracting; // The loser has passed the dedup check and owns a staging transaction.
+    await extracting; // The loser owns staging setup; Layout B checks dedup after extraction.
     const winner = await installAgentPlugin({
       archive, expectedSha256: digest, layout: instanceLayout, workspaceId: WORKSPACE_ID,
       archiveReader: reader(validPackageEntries()),
@@ -503,7 +516,7 @@ test("an in-flight install recovers when another install publishes the same dige
     const loser = await losingInstall;
     assert.deepEqual(loser, winner);
     assert.equal(await readFile(path.join(loser.packageRoot, "plugin.json"), "utf8"), VALID_MANIFEST);
-    assert.deepEqual(await readdir(layout.packages), [digest]);
+    assert.deepEqual(await readdir(layout.pluginPackagesDir({ pluginId: "ui-ux-design" })), [digest]);
     assert.deepEqual(await readdir(layout.staging), []);
     assert.equal((await stat(loser.packageRoot)).mode & 0o777, 0o555);
   } finally {
@@ -518,20 +531,24 @@ test("publication failure preserves an obstructing file and cleans all staging o
   try {
     const archive = new Uint8Array(Buffer.from("archive-bytes-publication-failure"));
     const digest = createHash("sha256").update(archive).digest("hex");
-    const finalRoot = path.join(layout.packages, digest);
+    const finalRoot = path.join(layout.pluginPackagesDir({ pluginId: "ui-ux-design" }), digest);
     let obstructed = false;
     await assert.rejects(installAgentPlugin({
       archive, expectedSha256: digest, layout: instanceLayout, workspaceId: WORKSPACE_ID,
       archiveReader: { async *entries() {
-        // Obstruct publication only after the initial dedup check, using the real filesystem.
+        // Obstruct publication after staging setup, using the real filesystem. Layout B's dedup
+        // check happens after extraction and must refuse this file as a published directory.
         // Once: the install iterates entries twice (limits pass, then extraction).
-        if (!obstructed) await writeFile(finalRoot, "existing file", { flag: "wx" });
+        if (!obstructed) {
+          await mkdir(path.dirname(finalRoot), { recursive: true });
+          await writeFile(finalRoot, "existing file", { flag: "wx" });
+        }
         obstructed = true;
         yield* validPackageEntries();
       } },
     }), (error: unknown) => error instanceof AgentPluginInstallError && error.code === "PUBLISH_FAILED");
     assert.equal(await readFile(finalRoot, "utf8"), "existing file");
-    assert.deepEqual(await readdir(layout.packages), [digest]);
+    assert.deepEqual(await readdir(layout.pluginPackagesDir({ pluginId: "ui-ux-design" })), [digest]);
     assert.deepEqual(await readdir(layout.staging), []);
   } finally {
     await forceRemove(cwd);
@@ -548,12 +565,14 @@ test("a publication permission failure without a concurrent winner is still reje
     await assert.rejects(installAgentPlugin({
       archive, expectedSha256: digest, layout: instanceLayout, workspaceId: WORKSPACE_ID,
       archiveReader: { async *entries() {
-        await chmod(layout.packages, 0o555);
+        const packagesDir = layout.pluginPackagesDir({ pluginId: "ui-ux-design" });
+        await mkdir(packagesDir, { recursive: true });
+        await chmod(packagesDir, 0o555);
         yield* validPackageEntries();
       } },
     }), (error: unknown) => error instanceof AgentPluginInstallError && error.code === "PUBLISH_FAILED"
       && (error.cause as NodeJS.ErrnoException).code === "EACCES");
-    assert.deepEqual(await readdir(layout.packages), [], "permission denial must not masquerade as a successful publication");
+    assert.deepEqual(await readdir(layout.pluginPackagesDir({ pluginId: "ui-ux-design" })), [], "permission denial must not masquerade as a successful publication");
     assert.deepEqual(await readdir(layout.staging), []);
   } finally {
     await forceRemove(cwd);
@@ -577,7 +596,7 @@ test("a missing plugin.json is rejected", async () => {
         }),
       (error: unknown) => error instanceof AgentPluginInstallError && error.code === "MANIFEST_MISSING",
     );
-    assert.deepEqual(await readdir(layout.packages), [], "rejection must not publish a package");
+    assert.deepEqual(await readdir(layout.root), ["staging"], "rejection must not create a plugin/package directory");
     assert.deepEqual(await readdir(layout.staging), [], "rejection must remove the staging transaction");
   } finally {
     await forceRemove(cwd);
@@ -595,13 +614,13 @@ test("a manifest that fails Agent Plugins grammar validation is rejected", async
         installAgentPlugin({
           archive,
           expectedSha256: digest,
-          archiveReader: reader([fileEntry("plugin.json", JSON.stringify({ name: "Not Valid!" }))]),
+          archiveReader: reader([fileEntry("plugin.json", JSON.stringify({ $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json", name: "Not Valid!" }))]),
           layout: instanceLayout,
           workspaceId: WORKSPACE_ID,
         }),
       (error: unknown) => error instanceof AgentPluginInstallError && error.code === "MANIFEST_INVALID",
     );
-    assert.deepEqual(await readdir(layout.packages), [], "rejection must not publish a package");
+    assert.deepEqual(await readdir(layout.root), ["staging"], "rejection must not create a plugin/package directory");
     assert.deepEqual(await readdir(layout.staging), [], "rejection must remove the staging transaction");
   } finally {
     await forceRemove(cwd);

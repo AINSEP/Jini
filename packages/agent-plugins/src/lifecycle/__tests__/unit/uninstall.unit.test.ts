@@ -177,7 +177,7 @@ test("uninstalls an operator-installed plugin: removes the package root and dele
     assert.deepEqual(result.removedDigests, [installed.archiveDigest]);
 
     await assert.rejects(() => stat(installed.packageRoot), "the package root must actually be gone from disk");
-    assert.deepEqual(await readdir(workspaceLayout.packages).catch(() => []), [], "no digest directory for this plugin may remain");
+    assert.deepEqual((await readdir(workspaceLayout.pluginRootDir({ pluginId: "my-custom-plugin" }))).sort(), ["data", "memory"], "only preserved state may remain; the package tree must be removed");
 
     const activations = await readAgentPluginActivations(workspaceLayout.root);
     assert.equal(
@@ -230,7 +230,7 @@ test("a failed uninstall puts every staged package tree back — no digest is le
     const second = await installTestPackage(instanceLayout, "multi-digest", "archive-multi-digest-b");
     await setAgentPluginActivation({ workspaceRoot: workspaceLayout.root, pluginId: "multi-digest", enabled: true, actor: "op-1" });
 
-    // Freeze the workspace ROOT only. `packages/sha256/` keeps its own mode, so every digest can be
+    // Freeze the workspace ROOT only. `<pluginId>/package/sha256/` keeps its own mode, so every digest can be
     // staged successfully and the failure lands on the activation record's write-temp-then-rename —
     // the one ordering under which "did the rollback actually run?" is a real question. A rollback
     // that only ever fires on the FIRST digest (i.e. before anything is staged) is a no-op, and the
@@ -261,7 +261,7 @@ test("a failed uninstall puts every staged package tree back — no digest is le
       "staging has to unfreeze a package root to rename it; a restored tree must be frozen again, not left writable",
     );
     assert.deepEqual(
-      (await readdir(workspaceLayout.packages)).sort(),
+      (await readdir(workspaceLayout.pluginPackagesDir({ pluginId: "multi-digest" }))).sort(),
       [first.archiveDigest, second.archiveDigest].sort(),
       "the rollback must restore the original digest names and leave no staged directory behind",
     );
@@ -358,7 +358,7 @@ test("a confirmed preview refuses — removing nothing — when an archive for t
 
     assert.equal((await stat(first.packageRoot)).isDirectory(), true);
     assert.equal((await stat(second.packageRoot)).isDirectory(), true);
-    assert.deepEqual((await readdir(workspaceLayout.packages)).sort(), [first.archiveDigest, second.archiveDigest].sort());
+    assert.deepEqual((await readdir(workspaceLayout.pluginPackagesDir({ pluginId: "changed-plugin" }))).sort(), [first.archiveDigest, second.archiveDigest].sort());
     const activations = await readAgentPluginActivations(workspaceLayout.root);
     assert.equal(activations.plugins["changed-plugin"]?.enabled, false);
   } finally {

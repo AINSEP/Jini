@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "../legacy-test.js";
@@ -65,7 +65,7 @@ function manifest(name: string, version = "1.1.0"): string {
 }
 
 async function freshLayout() {
-  const cwd = await mkdtemp(path.join(tmpdir(), "host-resolve-agent-plugin-refs-test-"));
+  const cwd = await realpath(await mkdtemp(path.join(tmpdir(), "host-resolve-agent-plugin-refs-test-")));
   const instanceLayout = resolveAgentPluginLayout({ cwd, env: {} });
   return { cwd, layout: instanceLayout.forWorkspace({ workspaceId: WORKSPACE_ID }) };
 }
@@ -75,7 +75,7 @@ async function freshLayout() {
  *  produces a genuinely different digest. `cwd` must be the SAME root {@link freshLayout} resolved
  *  its workspace layout from — `installAgentPlugin` re-resolves the instance-level layout from it
  *  independently, and a mismatched `cwd` would install into a different tree than the one the
- *  test's own `layout.packages` points at. */
+ *  test's own `layout.pluginPackagesDir({ pluginId })` points at. */
 async function installRealPackage(
   cwd: string,
   pluginId: string,
@@ -115,8 +115,8 @@ test("resolves a real, genuinely installed plugin's SKILL.md content verbatim in
     assert.ok(result.ok);
     // Independent read of the installed file — proves the resolver's output is the REAL bytes on
     // disk, not a value that merely happens to match what this test itself wrote above.
-    const [digest] = await readdir(layout.packages);
-    const independentRead = await readFile(path.join(layout.packages, digest as string, "skills/ui-ux-design/SKILL.md"), "utf8");
+    const [digest] = await readdir(layout.pluginPackagesDir({ pluginId: "ui-ux-design" }));
+    const independentRead = await readFile(path.join(layout.pluginPackagesDir({ pluginId: "ui-ux-design" }), digest as string, "skills/ui-ux-design/SKILL.md"), "utf8");
     assert.equal(independentRead, REAL_SKILL_MARKDOWN);
     assert.ok(result.promptPrefix.includes(independentRead));
   } finally {
@@ -162,9 +162,9 @@ test("lists every other installed file as an absolute path, excluding the inject
 
     assert.equal(result.ok, true);
     assert.ok(result.ok);
-    const expectedAbsolutePath = path.join(layout.packages, digest, "skills/ui-ux-design/references/foundations.md");
+    const expectedAbsolutePath = path.join(layout.pluginPackagesDir({ pluginId: "ui-ux-design" }), digest, "skills/ui-ux-design/references/foundations.md");
     assert.ok(result.promptPrefix.includes(expectedAbsolutePath));
-    assert.ok(!result.promptPrefix.includes(path.join(layout.packages, digest, "skills/ui-ux-design/SKILL.md")));
+    assert.ok(!result.promptPrefix.includes(path.join(layout.pluginPackagesDir({ pluginId: "ui-ux-design" }), digest, "skills/ui-ux-design/SKILL.md")));
   } finally {
     await forceRemove(cwd);
   }
