@@ -64,3 +64,25 @@ test("async contender leaves a replacement made during its final descriptor insp
   await expect(withFileLock({ lockPath, run: () => { throw new Error("must not run"); } }, { filesystem, timeoutMs: 0, staleMs: 100 })).rejects.toThrow(FileLockTimeoutError);
   expect(fs.readFileSync(lockPath, "utf8")).toBe(`${process.pid}:replacement`);
 });
+
+// REGRESSION: fails if the wait budget is read from clock.nowMs instead of the monotonicMs option,
+// or if stale age stops using clock.nowMs. A live, fresh holder is never stale, so only the
+// monotonic reading can end the wait; the wall clock never moves.
+test("monotonicMs times the wait while clock.nowMs alone ages the holder", async () => {
+  const wallMs = Date.now();
+  const options = (reads: { n: number }) => ({
+    timeoutMs: 15_000, staleMs: 10_000, pollMs: 1,
+    clock: { nowMs: () => wallMs },
+    monotonicMs: () => (reads.n++ === 0 ? 500 : 15_500),
+  });
+  const lockPath = target(); fs.writeFileSync(lockPath, `${process.pid}:live`);
+  await expect(withFileLock({ lockPath, run: () => { throw new Error("must not run"); } }, options({ n: 0 })))
+    .rejects.toMatchObject({ name: "FileLockTimeoutError", waitedMs: 15_000 });
+  expect(() => withFileLockSync({ lockPath, run: () => { throw new Error("must not run"); } }, { ...options({ n: 0 }), sleep: () => {} }))
+    .toThrow(expect.objectContaining({ name: "FileLockTimeoutError", waitedMs: 15_000 }));
+  expect(fs.readFileSync(lockPath, "utf8")).toBe(`${process.pid}:live`);
+  // The same holder, aged past staleMs by the wall clock alone, is reclaimed even though no
+  // monotonic time passes.
+  const reclaimed = await withFileLock({ lockPath, run: () => "ran" }, { ...options({ n: 0 }), clock: { nowMs: () => wallMs + 60_000 }, monotonicMs: () => 0 });
+  expect(reclaimed).toBe("ran");
+});

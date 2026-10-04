@@ -6,16 +6,18 @@ import { createAgentPluginLifecycle, AgentPluginActivationsBusyError } from '../
 import { ports } from '../test-support.js';
 import { forceRemove } from '../fixtures/force-remove.js';
 
-// REGRESSION: fails if activation uses the old monotonic timeout instead of the canonical Clock.
+// REGRESSION: fails if the activation lock's 15s wait is not timed by the injected canonical Clock's
+// monotonic reading (for example a raw wall-clock read, or nowMs, which a clock jump can move).
 // Generalized B1: force contention through the actual lock protocol, without module mocks.
-// Advance after the stale verdict (start, ownership, stale), so a fresh owner is never evicted.
+// Only the monotonic clock advances (after the start read); the wall clock that ages the holder
+// stays put, so a fresh owner is never evicted.
 test('busy activation lock reports the holder and preserves both the lock and decisions', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'plugin-busy-'));
   const lock = path.join(root, 'activations.json.lock');
   const holder = { pid: process.pid, hostname: os.hostname(), token: 'other-writer', acquiredAt: new Date().toISOString() };
   const baselineMs = Date.now();
-  let clockReads = 0;
-  const api = createAgentPluginLifecycle({ ...ports, clock: { ...ports.clock, nowMs: () => baselineMs + (++clockReads > 3 ? 20_000 : 0) } });
+  let monotonicReads = 0;
+  const api = createAgentPluginLifecycle({ ...ports, clock: { ...ports.clock, nowMs: () => baselineMs, monotonicMs: () => (++monotonicReads > 1 ? 20_000 : 0) } });
   try {
     const bytes = JSON.stringify(holder);
     await fs.writeFile(lock, bytes);

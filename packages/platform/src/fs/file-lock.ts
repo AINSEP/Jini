@@ -31,6 +31,10 @@ export interface FileLockOptions {
   staleMs?: number;
   pollMs?: number;
   clock?: Clock;
+  /** Times the wait budget (start and timeout check). Defaults to `clock.nowMs`; hosts with a
+   * monotonic source pass it so a wall-clock jump can neither end nor stretch the wait. Stale age
+   * stays on `clock.nowMs`, because lock-file mtimes are wall-clock times. */
+  monotonicMs?: () => number;
   sleep?: (required: { durationMs: number }) => void | Promise<void>;
   process?: { pid: number; isAlive(required: { pid: number }): boolean };
   token?: () => string;
@@ -85,7 +89,8 @@ function settings(options: FileLockOptions) {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 0 || (!Number.isSafeInteger(staleMs) && staleMs !== Infinity) || staleMs <= 0 || !Number.isSafeInteger(pollMs) || pollMs <= 0) throw new RangeError((options.messages ?? defaultPlatformMessages).fileLockIntervalsInvalid());
   const processPort = options.process ?? { pid: process.pid, isAlive: ({ pid }: { pid: number }) => { try { process.kill(pid, 0); return true; } catch (error) { return errorCode(error) !== "ESRCH"; } } };
   const clock = options.clock ?? createSystemClock();
-  return { timeoutMs, staleMs, pollMs, processPort, clock, hostname: (options.hostname ?? nodeHostname)(), token: (options.token ?? randomUUID)() };
+  const monotonicMs = options.monotonicMs ?? (() => clock.nowMs());
+  return { timeoutMs, staleMs, pollMs, processPort, clock, monotonicMs, hostname: (options.hostname ?? nodeHostname)(), token: (options.token ?? randomUUID)() };
 }
 type Settings = ReturnType<typeof settings>;
 function ownership(s: Settings, options: FileLockOptions): string {
@@ -104,7 +109,7 @@ function stale(observed: LockSnapshot, current: LockSnapshot, s: Settings): bool
   return unchanged(observed, current) && isLockStale({ nowMs: s.clock.nowMs(), mtimeMs: observed.mtimeMs, staleMs: s.staleMs, ownerAlive: ownerAlive(current, s), observedInode: observed.ino, currentInode: current.ino, observedDevice: observed.dev, currentDevice: current.dev });
 }
 function checkTimeout(lockPath: string, holder: FileLockHolder | undefined, start: number, s: Settings, options: FileLockOptions): void {
-  const waitedMs = s.clock.nowMs() - start;
+  const waitedMs = s.monotonicMs() - start;
   if (waitedMs >= s.timeoutMs) {
     const message = options.timeoutMessage?.({ lockPath, waitMs: s.timeoutMs });
     throw new FileLockTimeoutError({ lockPath, holder, waitedMs }, { ...(options.messages ? { messages: options.messages } : {}), ...(message !== undefined ? { message } : {}) });
@@ -133,7 +138,7 @@ export function withFileLockSync<T>(
   { lockPath, run }: { lockPath: string; run: (lock: HeldFileLockSync) => T },
   options: Omit<FileLockOptions, "sleep"> & { sleep?: (required: { durationMs: number }) => void; filesystem?: FileLockSyncFilesystem } = {},
 ): T {
-  const filesystem = options.filesystem ?? fs, s = settings(options), start = s.clock.nowMs(), raw = ownership(s, options);
+  const filesystem = options.filesystem ?? fs, s = settings(options), start = s.monotonicMs(), raw = ownership(s, options);
   if (options.createParent) filesystem.mkdirSync(path.dirname(lockPath), { recursive: true, mode: 0o700 });
   let identity: { ino: number; dev: number };
   for (;;) {
@@ -183,7 +188,7 @@ export async function withFileLock<T>(
   { lockPath, run }: { lockPath: string; run: (lock: HeldFileLock) => Promise<T> | T },
   options: FileLockOptions & { filesystem?: FileLockAsyncFilesystem } = {},
 ): Promise<T> {
-  const filesystem = options.filesystem ?? asyncFs, s = settings(options), start = s.clock.nowMs(), raw = ownership(s, options);
+  const filesystem = options.filesystem ?? asyncFs, s = settings(options), start = s.monotonicMs(), raw = ownership(s, options);
   if (options.createParent) await filesystem.mkdir(path.dirname(lockPath), { recursive: true, mode: 0o700 });
   let identity: { ino: number; dev: number };
   for (;;) {

@@ -152,8 +152,10 @@
  * a unique token and inode/device, verifies unchanged bytes/mtime before stale removal, and
  * never treats a permission failure as proof of a dead pid. No heartbeat extends the explicit
  * 10-second stale budget; a longer live operation can lose authority and must check assertHeld
- * before publication. The shared fixed polling/wall-clock budget replaces local jitter/monotonic
- * acquisition; activation keeps its 15-second timeout and translates shared errors into busy.
+ * before publication. The shared fixed polling replaces local jitter; activation keeps its
+ * 15-second timeout, timed on the clock port's monotonic reading so a wall-clock jump can neither
+ * end nor stretch the wait (stale age stays on wall time, matching lock-file mtimes), and
+ * translates shared errors into busy.
  */
 import path from "node:path";
 import { FileLockLostError, FileLockTimeoutError, type FileLockHolder, type HeldFileLock } from "@jini-ai/platform/fs/file-lock";
@@ -908,7 +910,8 @@ function buildModule(ports: ActivationPorts) {
       try {
         return await withFileLock({ lockPath, run: write }, {
           timeoutMs: 15_000, staleMs: 10_000, pollMs: 10,
-          filesystem: ports.filesystem, clock: ports.clock, process: ports.process,
+          filesystem: ports.filesystem, clock: ports.clock, monotonicMs: () => ports.clock.monotonicMs(),
+          process: ports.process,
           token: () => ports.ids.newId(), hostname: () => ports.process.hostname({}),
           sleep: ({ durationMs }) => ports.clock.sleep({ ms: durationMs }),
           onStaleLockRemoved: ({ holder }) => warnStaleActivationsLockRemoved(lockPath, holder),
