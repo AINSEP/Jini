@@ -19,7 +19,37 @@
       "./react": "browser",
       "./react/shell": "browser",
       "./react/entities": "browser",
-      "./browser/shell-navigation": "browser"
+      "./browser/shell-navigation": "browser",
+      "./core/module": "universal",
+      "./react/bind-react": "browser",
+      "./react/use-controller": "browser",
+      "./react/overlays": "browser",
+      "./media": "universal",
+      "./media/react": "browser",
+      "./media/adapters/http": "universal",
+      "./media/adapters/memory": "universal",
+      "./media/conformance": "universal",
+      "./contracts/*": "universal",
+      "./security": "universal",
+      "./security/react": "browser",
+      "./security/adapters/http": "universal",
+      "./security/adapters/memory": "universal",
+      "./security/conformance": "universal",
+      "./playground": "universal",
+      "./playground/react": "browser",
+      "./playground/adapters/http": "universal",
+      "./playground/adapters/memory": "universal",
+      "./playground/conformance": "universal",
+      "./source-control": "universal",
+      "./source-control/react": "browser",
+      "./source-control/adapters/http": "universal",
+      "./source-control/adapters/memory": "universal",
+      "./source-control/conformance": "universal",
+      "./agent-plugins": "universal",
+      "./agent-plugins/react": "browser",
+      "./agent-plugins/adapters/http": "universal",
+      "./agent-plugins/adapters/memory": "universal",
+      "./agent-plugins/conformance": "universal"
     }
   },
   "type": "module",
@@ -61,6 +91,156 @@
       "types": "./dist/browser/shell-navigation.d.ts",
       "import": "./dist/browser/shell-navigation.js",
       "default": "./dist/browser/shell-navigation.js"
+    },
+    "./core/module": {
+      "types": "./dist/core/module/index.d.ts",
+      "import": "./dist/core/module/index.js",
+      "default": "./dist/core/module/index.js"
+    },
+    "./react/bind-react": {
+      "types": "./dist/react/bind-react.d.ts",
+      "import": "./dist/react/bind-react.js",
+      "default": "./dist/react/bind-react.js"
+    },
+    "./react/use-controller": {
+      "types": "./dist/react/use-controller.d.ts",
+      "import": "./dist/react/use-controller.js",
+      "default": "./dist/react/use-controller.js"
+    },
+    "./react/overlays": {
+      "types": "./dist/react/overlays.d.ts",
+      "import": "./dist/react/overlays.js",
+      "default": "./dist/react/overlays.js"
+    },
+    "./media": {
+      "types": "./dist/media/index.d.ts",
+      "import": "./dist/media/index.js",
+      "default": "./dist/media/index.js"
+    },
+    "./media/react": {
+      "types": "./dist/media/react/index.d.ts",
+      "import": "./dist/media/react/index.js",
+      "default": "./dist/media/react/index.js"
+    },
+    "./media/adapters/http": {
+      "types": "./dist/media/adapters/http.d.ts",
+      "import": "./dist/media/adapters/http.js",
+      "default": "./dist/media/adapters/http.js"
+    },
+    "./media/adapters/memory": {
+      "types": "./dist/media/adapters/memory.d.ts",
+      "import": "./dist/media/adapters/memory.js",
+      "default": "./dist/media/adapters/memory.js"
+    },
+    "./media/conformance": {
+      "types": "./dist/media/conformance/media-api.conformance.d.ts",
+      "import": "./dist/media/conformance/media-api.conformance.js",
+      "default": "./dist/media/conformance/media-api.conformance.js"
+    },
+    "./contracts/*": {
+      "types": "./dist/contracts/*.d.ts",
+      "import": "./dist/contracts/*.js",
+      "default": "./dist/contracts/*.js"
+    },
+    "./security": {
+      "types": "./dist/security/index.d.ts",
+      "import": "./dist/security/index.js",
+      "default": "./dist/security/index.js"
+    },
+    "./security/react": {
+      "types": "./dist/security/react/index.d.ts",
+      "import": "./dist/security/react/index.js",
+      "default": "./dist/security/react/index.js"
+    },
+    "./security/adapters/http": {
+      "types": "./dist/security/adapters/http.d.ts",
+      "import": "./dist/security/adapters/http.js",
+      "default": "./dist/security/adapters/http.js"
+    },
+    "./security/adapters/memory": {
+      "types": "./dist/security/adapters/memory.d.ts",
+      "import": "./dist/security/adapters/memory.js",
+      "default": "./dist/security/adapters/memory.js"
+    },
+    "./security/conformance": {
+      "types": "./dist/security/conformance/security-api.conformance.d.ts",
+      "import": "./dist/security/conformance/security-api.conformance.js",
+      "default": "./dist/security/conformance/security-api.conformance.js"
+    },
+    "./playground": {
+      "types": "./dist/playground/index.d.ts",
+      "import": "./dist/playground/index.js",
+      "default": "./dist/playground/index.js"
+    },
+    "./playground/react": {
+      "types": "./dist/playground/react/index.d.ts",
+      "import": "./dist/playground/react/index.js",
+      "default": "./dist/playground/react/index.js"
+    },
+    "./playground/adapters/http": {
+      "types": "./dist/playground/adapters/http.d.ts",
+      "import": "./dist/playground/adapters/http.js",
+      "default": "./dist/playground/adapters/http.js"
+    },
+    "./playground/adapters/memory": {
+      "types": "./dist/playground/adapters/memory.d.ts",
+      "import": "./dist/playground/adapters/memory.js",
+      "default": "./dist/playground/adapters/memory.js"
+    },
+    "./playground/conformance": {
+      "types": "./dist/playground/conformance/playground-api.conformance.d.ts",
+      "import": "./dist/playground/conformance/playground-api.conformance.js",
+      "default": "./dist/playground/conformance/playground-api.conformance.js"
+    },
+    "./source-control": {
+      "types": "./dist/source-control/index.d.ts",
+      "import": "./dist/source-control/index.js",
+      "default": "./dist/source-control/index.js"
+    },
+    "./source-control/react": {
+      "types": "./dist/source-control/react/index.d.ts",
+      "import": "./dist/source-control/react/index.js",
+      "default": "./dist/source-control/react/index.js"
+    },
+    "./source-control/adapters/http": {
+      "types": "./dist/source-control/adapters/http.d.ts",
+      "import": "./dist/source-control/adapters/http.js",
+      "default": "./dist/source-control/adapters/http.js"
+    },
+    "./source-control/adapters/memory": {
+      "types": "./dist/source-control/adapters/memory.d.ts",
+      "import": "./dist/source-control/adapters/memory.js",
+      "default": "./dist/source-control/adapters/memory.js"
+    },
+    "./source-control/conformance": {
+      "types": "./dist/source-control/conformance/source-control-api.conformance.d.ts",
+      "import": "./dist/source-control/conformance/source-control-api.conformance.js",
+      "default": "./dist/source-control/conformance/source-control-api.conformance.js"
+    },
+    "./agent-plugins": {
+      "types": "./dist/agent-plugins/index.d.ts",
+      "import": "./dist/agent-plugins/index.js",
+      "default": "./dist/agent-plugins/index.js"
+    },
+    "./agent-plugins/react": {
+      "types": "./dist/agent-plugins/react/index.d.ts",
+      "import": "./dist/agent-plugins/react/index.js",
+      "default": "./dist/agent-plugins/react/index.js"
+    },
+    "./agent-plugins/adapters/http": {
+      "types": "./dist/agent-plugins/adapters/http.d.ts",
+      "import": "./dist/agent-plugins/adapters/http.js",
+      "default": "./dist/agent-plugins/adapters/http.js"
+    },
+    "./agent-plugins/adapters/memory": {
+      "types": "./dist/agent-plugins/adapters/memory.d.ts",
+      "import": "./dist/agent-plugins/adapters/memory.js",
+      "default": "./dist/agent-plugins/adapters/memory.js"
+    },
+    "./agent-plugins/conformance": {
+      "types": "./dist/agent-plugins/conformance/agent-plugins-api.conformance.d.ts",
+      "import": "./dist/agent-plugins/conformance/agent-plugins-api.conformance.js",
+      "default": "./dist/agent-plugins/conformance/agent-plugins-api.conformance.js"
     }
   },
   "files": [
@@ -109,6 +289,8 @@
   },
   "dependencies": {
     "@jini-ai/agentic": "workspace:*",
-    "@jini-ai/ui": "workspace:*"
+    "@jini-ai/ui": "workspace:*",
+    "@jini-ai/ui-kit": "workspace:*",
+    "@jini-ai/agent-plugins": "workspace:*"
   }
 }
