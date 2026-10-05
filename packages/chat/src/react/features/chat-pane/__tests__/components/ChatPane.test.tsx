@@ -963,5 +963,19 @@ describe('ChatPane', () => {
     expect(typed).toEqual(['publish it']);
     expect(screen.getByRole('textbox')).toHaveValue('publish it');
     expect(transport.calls).toHaveLength(1);
+
+    // The closed question's answer reaches a new run only by the notice's explicit button.
+    act(() => {
+      transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: 'Expired', isError: false });
+      transport.finish();
+    });
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('no longer waiting'));
+    expect(transport.calls).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send as a new message' }));
+    await waitFor(() => expect(transport.calls).toHaveLength(2));
+    expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('publish it');
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

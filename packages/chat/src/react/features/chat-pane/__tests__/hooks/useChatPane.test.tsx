@@ -788,6 +788,133 @@ describe('useChatPane', () => {
       expect(result.current.composer.draft).toBe('');
     });
 
+    it('keeps a rejected answer out of the ordinary send path after the run ends: Enter again starts no run', async () => {
+      const deliverer = fakeDeliverer(async () => 'not-pending');
+      const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+      act(() => result.current.composer.setDraft('use option B'));
+      await act(() => result.current.send());
+      expect(result.current.typedAnswerNotice).toBe('not-pending');
+
+      act(() => {
+        transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: 'Expired', isError: false });
+      });
+      await act(async () => {
+        transport.finish();
+      });
+      await waitFor(() => expect(result.current.conversation.isStreaming).toBe(false));
+
+      await act(() => result.current.send());
+
+      expect(transport.calls).toHaveLength(1);
+      expect(result.current.queuedPrompt).toBeNull();
+      expect(result.current.typedAnswerNotice).toBe('not-pending');
+      expect(result.current.composer.draft).toBe('use option B');
+    });
+
+    it('holds an answer typed while the question was open but sent after it closed — never queued as a new run', async () => {
+      const deliverer = fakeDeliverer(async () => 'delivered');
+      const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+      act(() => result.current.composer.setDraft('use opt'));
+      act(() => {
+        transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: 'Expired', isError: false });
+      });
+      act(() => result.current.composer.setDraft('use option B'));
+      await act(() => result.current.send());
+
+      expect(deliverer.texts).toEqual([]);
+      expect(result.current.queuedPrompt).toBeNull();
+      expect(result.current.typedAnswerNotice).toBe('not-pending');
+      expect(result.current.composer.draft).toBe('use option B');
+      await act(async () => {
+        transport.finish();
+      });
+      await waitFor(() => expect(result.current.conversation.isStreaming).toBe(false));
+      expect(transport.calls).toHaveLength(1);
+    });
+
+    it('sends a held answer as an ordinary turn only through sendAsNewMessage', async () => {
+      const deliverer = fakeDeliverer(async () => 'not-pending');
+      const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+      act(() => result.current.composer.setDraft('use option B'));
+      await act(() => result.current.send());
+      act(() => {
+        transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: 'Expired', isError: false });
+      });
+      await act(async () => {
+        transport.finish();
+      });
+      await waitFor(() => expect(result.current.conversation.isStreaming).toBe(false));
+
+      await act(() => result.current.sendAsNewMessage());
+
+      expect(transport.calls).toHaveLength(2);
+      expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('use option B');
+      expect(result.current.typedAnswerNotice).toBeNull();
+      expect(result.current.composer.draft).toBe('');
+    });
+
+    it('releases the hold once the draft is cleared: the next text is an ordinary turn again', async () => {
+      const deliverer = fakeDeliverer(async () => 'delivered');
+      const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+      act(() => result.current.composer.setDraft('use option B'));
+      act(() => {
+        transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: 'Expired', isError: false });
+      });
+      act(() => result.current.composer.setDraft(''));
+      act(() => result.current.composer.setDraft('one more thing'));
+      await act(() => result.current.send());
+
+      expect(result.current.queuedPrompt).toBe('one more thing');
+      expect(result.current.typedAnswerNotice).toBeNull();
+    });
+
+    it('a successful delivery keeps text typed while it was in flight', async () => {
+      let release!: (outcome: Delivery) => void;
+      const deliverer = fakeDeliverer(() => new Promise<Delivery>((resolve) => { release = resolve; }));
+      const { result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+      act(() => result.current.composer.setDraft('publish it'));
+      let first!: Promise<void>;
+      act(() => {
+        first = result.current.send();
+      });
+      act(() => result.current.composer.setDraft('also update the homepage'));
+      await act(async () => {
+        release('delivered');
+        await first;
+      });
+
+      expect(deliverer.texts).toEqual(['publish it']);
+      expect(result.current.composer.draft).toBe('also update the homepage');
+    });
+
+    it('ignores a delivery that settles after reset: the fresh draft and notice stay as they are', async () => {
+      for (const outcome of ['delivered', 'not-pending'] as const) {
+        let release!: (value: Delivery) => void;
+        const deliverer = fakeDeliverer(() => new Promise<Delivery>((resolve) => { release = resolve; }));
+        const { result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+        act(() => result.current.composer.setDraft('publish it'));
+        let first!: Promise<void>;
+        act(() => {
+          first = result.current.send();
+        });
+        act(() => result.current.reset());
+        act(() => result.current.composer.setDraft('publish it'));
+        await act(async () => {
+          release(outcome);
+          await first;
+        });
+
+        expect(result.current.composer.draft).toBe('publish it');
+        expect(result.current.typedAnswerNotice).toBeNull();
+      }
+    });
+
     it('queues as before when the host supplies no deliverTypedAnswer', async () => {
       const { result } = await startRunAwaitingAnswer({});
 

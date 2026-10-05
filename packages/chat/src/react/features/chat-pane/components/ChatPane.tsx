@@ -191,6 +191,7 @@ interface ChatPaneStatusMessagesProps {
   workingDirectoryInvalid: boolean;
   runtimeInventoryError: Error | null;
   typedAnswerNotice: TypedAnswerNotice | null;
+  onSendAsNewMessage: () => void;
   t: (key: string) => string;
 }
 
@@ -211,6 +212,7 @@ function ChatPaneStatusMessages({
   workingDirectoryInvalid,
   runtimeInventoryError,
   typedAnswerNotice,
+  onSendAsNewMessage,
   t,
 }: ChatPaneStatusMessagesProps): ReactNode {
   return (
@@ -269,6 +271,16 @@ function ChatPaneStatusMessages({
       {typedAnswerNotice ? (
         <div className="jini-chat-pane__error" role="alert">
           {t(describeTypedAnswerNotice({ notice: typedAnswerNotice }))}
+          {/* The held answer's only way into a new run besides clearing the draft — an explicit
+              choice, so a closed question never turns an answer into a paid run on a second Enter. */}
+          {typedAnswerNotice === 'not-pending' ? (
+            <>
+              {' '}
+              <button type="button" className="jini-chat-pane__error-action" onClick={onSendAsNewMessage}>
+                {t('Send as a new message')}
+              </button>
+            </>
+          ) : null}
         </div>
       ) : null}
     </>
@@ -666,6 +678,7 @@ export function ChatPane({
             workingDirectoryInvalid={pane.workingDirectoryInvalid}
             runtimeInventoryError={inventory.runtimeInventoryError}
             typedAnswerNotice={pane.typedAnswerNotice}
+            onSendAsNewMessage={() => void pane.sendAsNewMessage()}
             t={t}
           />
           <ChatPaneComposerArea

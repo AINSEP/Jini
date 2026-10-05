@@ -185,8 +185,22 @@ export function isAwaitingTypedAnswer({ messages, toolName }: {
   messages: readonly ChatMessage[];
   toolName: string;
 }): boolean {
+  return findAwaitedTypedAnswerId({ messages, toolName }) !== null;
+}
+
+/**
+ * The tool-use id of the question {@link isAwaitingTypedAnswer} sees waiting, or `null` — the newest
+ * one when several are open. The id lets the pane tell one question from the next: a draft typed
+ * for a question stays tied to THAT question after it closes (see `useChatPane`'s held answer).
+ *
+ * @complexity O(e·c), as {@link isAwaitingTypedAnswer}.
+ */
+export function findAwaitedTypedAnswerId({ messages, toolName }: {
+  messages: readonly ChatMessage[];
+  toolName: string;
+}): string | null {
   const newest = messages.at(-1);
-  if (newest?.role !== 'assistant') return false;
+  if (newest?.role !== 'assistant') return null;
   // Open call id -> whether it is the question tool. Insertion-ordered, so the last entry is the
   // newest call still open; a repeat id keeps its slot and only ORs in its name.
   const openCalls = new Map<string, boolean>();
@@ -200,7 +214,7 @@ export function isAwaitingTypedAnswer({ messages, toolName }: {
     const owner = event.kind === 'ext' ? [...openCalls].at(-1) : undefined;
     if (owner?.[1] === true) awaited.add(owner[0]);
   }
-  return awaited.size > 0;
+  return [...awaited].at(-1) ?? null;
 }
 
 /**

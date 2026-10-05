@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   describeChatPaneSendBlocker,
+  findAwaitedTypedAnswerId,
   findChatPaneSendBlocker,
   isChatPaneQueueableBlocker,
   isTypedAnswerTurn,
@@ -112,10 +113,18 @@ export interface UseChatPaneResult extends UseChatPaneWorkingDirectoryResult {
   cancelQueued: () => void;
   /**
    * Why the last typed answer was NOT sent, or `null`. Set when `deliverTypedAnswer` reports the
-   * question no longer waiting or could not be reached; the draft stays in the composer. Cleared by
-   * the next send and by `reset()`.
+   * question no longer waiting or could not be reached, and when {@link send} holds back an answer
+   * whose question has since closed; the draft stays in the composer. Cleared by the next send and
+   * by `reset()`.
    */
   typedAnswerNotice: TypedAnswerNotice | null;
+  /**
+   * Sends the composer draft as an ordinary next turn (queued behind a running run, as {@link send}
+   * does) even though it was typed as an answer to a question that has since closed. The one way
+   * past {@link send}'s hold on such a draft other than clearing it: the human chose a new, possibly
+   * paid, run on purpose.
+   */
+  sendAsNewMessage: () => Promise<void>;
   /**
    * Cancels the run in flight and sends the composer draft as soon as it stops — the modifier-key
    * counterpart to {@link send}, which queues behind the run instead of ending it. Implemented as
@@ -213,6 +222,17 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   // Set across the await of one typed-answer delivery so a second Enter cannot post the same text
   // twice — the second post would find the question already answered and wrongly report it closed.
   const deliveringTypedAnswerRef = useRef(false);
+  // The question (tool-use id) the current draft was typed for, or null. Set while a non-empty draft
+  // sits in the composer as a question waits, and kept after that question closes (answered
+  // elsewhere, expired, 409), so `send` cannot slip the draft into the queue as a new paid run.
+  // Released only by an empty draft, a delivery, `reset()`, or `sendAsNewMessage`.
+  const heldAnswerQuestionIdRef = useRef<string | null>(null);
+  // The question the last delivery answered: typing more while its card is still drawn open (its
+  // tool_result has not streamed in yet) is a follow-up, not another answer to hold.
+  const answeredQuestionIdRef = useRef<string | null>(null);
+  // Bumped by `reset()` and a conversation switch; a delivery that settles under a different value
+  // belongs to a composer that no longer exists and must neither clear the draft nor set a notice.
+  const typedAnswerGenerationRef = useRef(0);
   // The conversation `queuedPrompt` was queued against. Compared with `options.conversationId` at
   // flush time so a prompt queued behind a streaming run in one conversation can never be posted
   // into a different one the caller switched to before that run finished.
@@ -312,6 +332,28 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     ...(options.apiModeConfigured === undefined ? {} : { apiModeConfigured: options.apiModeConfigured }),
   });
   const canSend = sendBlocker === null && composer.canSubmit;
+  // Read after `await` in `answerWaitingQuestion`, where the render-time `composer.draft` is stale.
+  const latestDraftRef = useRef(composer.draft);
+  latestDraftRef.current = composer.draft;
+  const awaitedQuestionId = options.deliverTypedAnswer === undefined
+    ? null
+    : findAwaitedTypedAnswerId({ messages: conversation.messages, toolName: options.deliverTypedAnswer.toolName });
+  const hasDraft = composer.draft.trim() !== '';
+
+  useEffect(() => {
+    if (!hasDraft) {
+      heldAnswerQuestionIdRef.current = null;
+      return;
+    }
+    if (awaitedQuestionId !== null && awaitedQuestionId !== answeredQuestionIdRef.current) {
+      heldAnswerQuestionIdRef.current = awaitedQuestionId;
+    }
+  }, [awaitedQuestionId, hasDraft]);
+
+  useEffect(() => {
+    typedAnswerGenerationRef.current += 1;
+    heldAnswerQuestionIdRef.current = null;
+  }, [options.conversationId]);
 
   const addAttachments = useCallback(async (files: File[]) => {
     if (files.length === 0 || options.uploadAttachments === undefined) return;
@@ -384,14 +426,39 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const answerWaitingQuestion = useCallback(async (
     { deliver, text }: { deliver: DeliverTypedAnswer; text: string },
   ) => {
+    const generation = typedAnswerGenerationRef.current;
+    const submittedDraft = latestDraftRef.current;
+    const questionId = awaitedQuestionId;
     deliveringTypedAnswerRef.current = true;
     const outcome = await deliverTypedAnswerSafely({ deliver, text });
     deliveringTypedAnswerRef.current = false;
+    if (!mountedRef.current || generation !== typedAnswerGenerationRef.current) return;
     // Anything but a delivery keeps the draft and says why — never the queue below, whose flush
     // would post the answer as a brand-new (paid) run once this one ends.
-    if (outcome === 'delivered') composer.setDraft('');
-    else setTypedAnswerNotice(outcome);
-  }, [composer]);
+    if (outcome !== 'delivered') {
+      setTypedAnswerNotice(outcome);
+      return;
+    }
+    answeredQuestionIdRef.current = questionId;
+    heldAnswerQuestionIdRef.current = null;
+    // The textarea stays editable during delivery: clear only the text that went out, never a
+    // correction or next message typed while the host answered.
+    if (latestDraftRef.current === submittedDraft) composer.setDraft('');
+  }, [awaitedQuestionId, composer]);
+
+  // The ordinary next-turn path: queue behind a running run, else send now.
+  const sendOrdinaryTurn = useCallback(async (prompt: string) => {
+    // Queue instead of no-op'ing. `setDraft('')` and NOT `composer.reset()`: reset also discards
+    // staged attachments, which this turn still needs when it finally goes out.
+    if (isChatPaneQueueableBlocker({ blocker: sendBlocker })) {
+      queuedConversationIdRef.current = options.conversationId;
+      setQueuedPrompt(prompt);
+      composer.setDraft('');
+      return;
+    }
+    if (!canSend) return;
+    await sendPrompt(prompt);
+  }, [canSend, composer, options.conversationId, sendBlocker, sendPrompt]);
 
   const send = useCallback(async () => {
     const prompt = composerPrompt(composer);
@@ -407,26 +474,33 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       await answerWaitingQuestion({ deliver, text: prompt });
       return;
     }
-    // Queue instead of no-op'ing. `setDraft('')` and NOT `composer.reset()`: reset also discards
-    // staged attachments, which this turn still needs when it finally goes out.
-    if (isChatPaneQueueableBlocker({ blocker: sendBlocker })) {
-      queuedConversationIdRef.current = options.conversationId;
-      setQueuedPrompt(prompt);
-      composer.setDraft('');
+    // Typed for a question that has since closed: the human meant an answer, so going on to the
+    // queue would start a paid run they never asked for. Attachments mark a new turn (a typed answer
+    // carries text only), the same rule `isTypedAnswerTurn` applies.
+    if (heldAnswerQuestionIdRef.current !== null && composer.attachments.length === 0) {
+      setTypedAnswerNotice('not-pending');
       return;
     }
-    if (!canSend) return;
-    await sendPrompt(prompt);
+    await sendOrdinaryTurn(prompt);
   }, [
     answerWaitingQuestion,
-    canSend,
     composer,
     conversation.messages,
-    options.conversationId,
     options.deliverTypedAnswer,
     sendBlocker,
-    sendPrompt,
+    sendOrdinaryTurn,
   ]);
+
+  const sendAsNewMessage = useCallback(async () => {
+    const prompt = composerPrompt(composer);
+    if (!prompt || deliveringTypedAnswerRef.current) return;
+    setTypedAnswerNotice(null);
+    // Mark the question answered too, so the still-non-empty draft is not re-held by the effect
+    // while that question's card is drawn open.
+    answeredQuestionIdRef.current = heldAnswerQuestionIdRef.current ?? answeredQuestionIdRef.current;
+    heldAnswerQuestionIdRef.current = null;
+    await sendOrdinaryTurn(prompt);
+  }, [composer, sendOrdinaryTurn]);
 
   const interruptSend = useCallback(() => {
     const prompt = composerPrompt(composer);
@@ -470,6 +544,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     composer.reset();
     setAttachmentError(null);
     setTypedAnswerNotice(null);
+    typedAnswerGenerationRef.current += 1;
+    heldAnswerQuestionIdRef.current = null;
     // Without this, a prompt queued behind a streaming run survives `reset()` and — once
     // `conversation.cancel()` above clears the streaming blocker — the flush effect fires it into
     // the just-reset conversation instead of discarding it like the rest of this turn's state.
@@ -496,6 +572,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     queuedPrompt,
     cancelQueued,
     typedAnswerNotice,
+    sendAsNewMessage,
     interruptSend,
     reset,
   };

@@ -212,9 +212,11 @@ export interface ChatPaneProps {
   /**
    * Called instead of queueing when the human types while the running agent is holding a question
    * open in the transcript (an interactive surface whose call to `deliverTypedAnswer.toolName` has
-   * not returned — `isAwaitingTypedAnswer`) and the turn carries no attachments. `'delivered'` clears the draft;
-   * any other outcome, or a throw, leaves the draft in place with a notice and NEVER queues it —
-   * a queued answer would go out after the run ends as a new, paid run answering nothing.
+   * not returned — `isAwaitingTypedAnswer`) and the turn carries no attachments. `'delivered'` clears the draft
+   * (only if unchanged since it went out); any other outcome, or a throw, leaves the draft in place with a
+   * notice and NEVER queues it — a queued answer would go out after the run ends as a new, paid run
+   * answering nothing. A draft typed while the question waited stays held after it closes, until the
+   * human clears it or picks "Send as a new message" (`useChatPane`'s `sendAsNewMessage`).
    *
    * Omit it and typing while a run streams queues exactly as before.
    */

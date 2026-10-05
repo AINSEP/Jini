@@ -4,6 +4,7 @@ import type { AgentEvent, ChatMessage } from '../../../../core/index.js';
 import {
   defaultChatPaneSelection,
   describeTypedAnswerNotice,
+  findAwaitedTypedAnswerId,
   findChatPaneSendBlocker,
   isAwaitingTypedAnswer,
   isTypedAnswerTurn,
@@ -312,6 +313,23 @@ describe('isAwaitingTypedAnswer', () => {
     const wrapper: AgentEvent = { kind: 'tool_use', id: 'call-1', name: 'mcp__jini__execute_delegated_tool', input: { toolId: toolName } };
     expect(isAwaitingTypedAnswer({ messages: [assistant([wrapper, askCall, surface])], toolName })).toBe(true);
     expect(isAwaitingTypedAnswer({ messages: [assistant([askCall, wrapper, surface])], toolName })).toBe(true);
+  });
+});
+
+describe('findAwaitedTypedAnswerId', () => {
+  const toolName = 'assistant_ask_choice';
+  const surface: AgentEvent = { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://ask/1' } };
+  const ask = (id: string): AgentEvent => ({ kind: 'tool_use', id, name: toolName, input: {} });
+  const assistant = (events: AgentEvent[]): ChatMessage => ({ id: 'a1', role: 'assistant', content: '', events });
+
+  it('names the waiting question, so a draft typed for it stays tied to it after it closes', () => {
+    expect(findAwaitedTypedAnswerId({ messages: [assistant([ask('call-1'), surface])], toolName })).toBe('call-1');
+  });
+
+  it('names the newest of two waiting questions, and null once nothing waits', () => {
+    expect(findAwaitedTypedAnswerId({ messages: [assistant([ask('call-1'), surface, ask('call-2'), surface])], toolName })).toBe('call-2');
+    const closed: AgentEvent = { kind: 'tool_result', toolUseId: 'call-1', content: 'expired', isError: false };
+    expect(findAwaitedTypedAnswerId({ messages: [assistant([ask('call-1'), surface, closed])], toolName })).toBeNull();
   });
 });
 
