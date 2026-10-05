@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/cms",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Content-model capability for Jini-hosted products: framework-free contracts, ports, and domain services in `/core` and per-domain subpaths; Node-bound adapters in domain-specific subpaths.",
   "license": "Apache-2.0",
   "repository": {

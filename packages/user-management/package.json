@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/user-management",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Runtime-separated user management contracts and Node authentication, authorization, and administration services.",
   "license": "Apache-2.0",
   "repository": {
@@ -138,7 +138,7 @@
     "@jini-ai/cms": "workspace:*"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:*",
-    "@jini-ai/ui-kit": "workspace:*"
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/ui-kit": "workspace:^"
   }
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2 — 2026-10-05
+
+- Catalog provider settings: on a host without `saveChanges`, a provider the last read did not return (a catalog-only provider's first key or settings) is now written instead of silently dropped while the tab reported Saved.
+- `RowMenu`: positioning and click-outside are tracked from the menu's callback ref (`trackOpenMenu`); `RowMenuState` is an exported interface and its `menuRef` accepts both callback and object refs. Behavior unchanged.
+- Entity fields: both `Select`s share one `selectTranslate` adapter, so the boolean field's `Select` copy also goes through the host dictionary.
+
 ## 0.4.1 — 2026-10-04
 
 - Media cards show the original file size and upload date (`formatUploadDate` exported from the media barrel); a null size is hidden.

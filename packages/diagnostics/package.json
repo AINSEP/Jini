@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/diagnostics",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Diagnostics-bundle tooling: JSON/text secret redaction, log-source collection, manifest building, and zip packaging for support exports.",
   "license": "Apache-2.0",
   "repository": {
@@ -86,7 +86,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:*",
+    "@jini-ai/core": "workspace:^",
     "jszip": "^3.10.1"
   },
   "devDependencies": {

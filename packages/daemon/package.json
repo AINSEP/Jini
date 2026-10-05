@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/daemon",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "The stateful agent daemon runtime: run lifecycle, durable event-log port, the tool-execution boundary, agent executor, terminal sessions, and routines.",
   "license": "Apache-2.0",
   "repository": {
@@ -123,10 +123,10 @@
     "test:postgres": "vitest run --config vitest.postgres.config.ts src/store/agent-sessions/__tests__/postgres.postgres.test.ts"
   },
   "dependencies": {
-    "@jini-ai/agent-runtime": "workspace:*",
-    "@jini-ai/core": "workspace:*",
-    "@jini-ai/platform": "workspace:*",
-    "@jini-ai/protocol": "workspace:*"
+    "@jini-ai/agent-runtime": "workspace:^",
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/platform": "workspace:^",
+    "@jini-ai/protocol": "workspace:^"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
@@ -145,7 +145,7 @@
   },
   "peerDependencies": {
     "node-pty": "^1.1.0",
-    "@jini-ai/db": "^0.2.0",
+    "@jini-ai/db": "^0.2.0 || ^0.3.0",
     "kysely": "^0.29.6",
     "better-sqlite3": "^13.0.0",
     "@electric-sql/pglite": "0.5.8",

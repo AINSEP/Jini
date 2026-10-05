@@ -1,3 +1,8 @@
+## 0.5.1 — 2026-10-05
+
+- The `@jini-ai/db` peer range is `^0.2.0 || ^0.3.0` (registry uses only db's SQLite entry, which 0.3.0 leaves unchanged), so a host on db 0.3.0 installs without a peer conflict.
+- Internal `@jini-ai/*` runtime dependencies are caret ranges (`workspace:^`) instead of exact pins.
+
 ## 0.4.0 (unpublished release candidate)
 
 ## 0.5.0 — 2026-10-02

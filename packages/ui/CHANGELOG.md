@@ -1,6 +1,6 @@
 # @jini-ai/ui
 
-## Unreleased
+## 0.4.3 — 2026-10-05
 
 - MCP-UI resources can carry an answer deadline: `createUIResource`/`buildConfirmationSurface` take `expiresAtMs`, written to `MCP_UI_EXPIRES_AT_META_KEY`; `readExpiresAt` reads it back (undefined when absent or not a finite number).
 

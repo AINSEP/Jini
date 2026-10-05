@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/db",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Database ports, connection helpers, ownership, isolated Kysely kernels and migrations. All peers are optional; drivers are injected.",
   "license": "Apache-2.0",
   "repository": {
@@ -179,6 +179,6 @@
     "@jini-ai/core": "workspace:*"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:*"
+    "@jini-ai/core": "workspace:^"
   }
 }

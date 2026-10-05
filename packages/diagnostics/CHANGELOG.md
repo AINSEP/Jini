@@ -1,5 +1,22 @@
 # @jini-ai/diagnostics
 
+## 0.5.0 — 2026-10-05
+
+### BREAKING (for hosts that implement the observability ports themselves)
+
+- `ObservabilityPort` gains `trackDbQuery`, `trackOutboundCall` and `trackAgentRun`; `TraceSpanPort` gains `addEvent`, and `setStatus` takes an optional `description`; `TracerPort.startSpan` takes `kind: 'server' | 'client' | 'internal'` and an optional `{ parent }`. Ports built with `createObservabilityPort`/`createOtelObservabilityPort` or the no-op port need no change. `RequestTracker.run` is optional, so request trackers written before scoping still satisfy the port.
+
+### Added
+
+- DB, outbound and agent-run signals: `instrumentStorageKernel` (in place, via a Kysely capture plugin; no SQL text crosses the port), `trackHttpClient`, and `trackFetch` (one outbound span per call of any fetch-shaped function; identity for the no-op port). The OTel adapter redacts: outbound URLs keep scheme/host/port only, inbound targets drop the query and blank secret shapes, errors are exported by type only.
+- `isNoopObservabilityPort` and shared frozen no-op trackers, so decorators skip wrapping when observability is off.
+- New `./observability/node` entry with `createAsyncLocalSpanScope` (`SpanScopePort` on `AsyncLocalStorage`); without a span scope every span is a root.
+
+### Fixed
+
+- The OTel adapter's `trackRequest` records the `requestId` option as the `http.request.id` span attribute (it was ignored) and returns it on the tracker.
+- Internal `@jini-ai/core` dependency is a caret range (`workspace:^`) instead of an exact pin.
+
 ## 0.4.0 — 2026-10-02
 
 ### BREAKING

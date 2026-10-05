@@ -1,7 +1,16 @@
 # Changelog
 
-## Unreleased — Menu and entry version checks
+## 0.5.0 — 2026-10-05
 
+### BREAKING
+
+- Entries: an entry's envelope owner comes from its content type, not the caller. `createEntry`/`updateEntry`/`importEntry` drop `input.owner` (a stray runtime value is ignored) and validate under `contentType.owner`; `ContentTypeRecord`/`OwningContentType` gain an optional `owner` (absent = `"site"`, so existing types are byte-identical) and `registerContentType` accepts one. Callers that passed `owner` register the type with its owner instead.
+- Entries, BREAKING for `EntryRepoPort` adapters: `save` takes `{ expectedVersion }` and must compare it atomically with the write inside the transaction (`VersionConflictError` thrown there becomes the Result's `{ ok: false }`). `expectedVersion: null` means "the id must be free" (live, trashed or another workspace); an import-as-create passes it, so two concurrent creates of one id no longer both land. New exports `EntrySaveOptions`, `entryVersionConflictError`; `InMemoryEntryRepo` implements both.
+- Navigation, BREAKING for `MenuRepoPort` adapters: `save` takes `{ expectedVersion }` and compares it atomically with the write; `updateMenuTree` and both `assignLocation` saves pass it. New exports `MenuSaveOptions`, `menuVersionConflictError`; `InMemoryMenuRepo` implements it (a trashed or missing row is "found none").
+
+### Changed
+
+- Content types: tombstoning tears down a type's indexes after the status save commits, not before, so a failed save no longer leaves a still-deprecated type with its indexes gone.
 - Entries: `updateEntry`, `publishEntry`/`unpublishEntry` and an import-as-update again refuse an `expectedVersion` that differs from the version they read (`VersionConflictError`), in addition to the save's compare-and-set. The compare-and-set alone let a record built from an older read overwrite a writer that landed the claimed version after that read.
 - Navigation: `updateMenuTree` restores the same read check. New `MenuVersionConflictError` (a `MenuConflictError` subclass) is what `menuVersionConflictError` and that check throw, so a host can tell a lost version check from a slug conflict.
 - Navigation, BREAKING for `MenuRepoPort` adapters: the port gains `transaction({ fn })`, and `assignLocation` runs both menu saves, the binding upsert and its outbox events inside it, so a conflict on the second save no longer leaves the displaced menu changed. `InMemoryMenuRepo.transaction` just runs `fn` (no rollback).

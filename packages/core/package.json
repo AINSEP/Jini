@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/core",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "The Jini kernel: typed DI tokens, pack composition and lifecycle, the tool registry, redaction, and origin/API-token auth primitives. Zero dependencies.",
   "license": "Apache-2.0",
   "repository": {
@@ -79,7 +79,8 @@
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
     "!dist/**/__tests__/**",
-    "!dist/**/*.typecheck.*"
+    "!dist/**/*.typecheck.*",
+    "!dist/**/*.map"
   ],
   "publishConfig": {
     "access": "public",

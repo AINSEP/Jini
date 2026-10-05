@@ -1,5 +1,10 @@
 # @jini-ai/core
 
+## 0.4.1 — 2026-10-05
+
+- New `readToolLimit({ input, max, fallback }, { key })`: an absent limit is `fallback`, one above `max` is capped at `max`, and a non-integer or one below 1 throws `ToolInputError` ("'limit' must be an integer between 1 and <max>").
+- New `optionalOneOf({ input, key, values })`: a value outside `values` throws `ToolInputError` ("'<key>' must be one of: ..."). Both are additive.
+
 ## 0.4.0 — 2026-10-02
 
 ### BREAKING

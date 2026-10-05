@@ -1,8 +1,4 @@
-## 0.5.1 — 2026-10-04
-
-- Internal `@jini-ai/*` dependencies are caret ranges (`workspace:^`) instead of exact pins, so a host on `@jini-ai/agentic` 0.4.1 or on a newer patch resolves a single copy without an override.
-
-## Unreleased
+## 0.5.2 — 2026-10-05
 
 - `useChatPane` holds a draft typed for a question that has since closed (answered elsewhere, expired, or refused with `'not-pending'`): `send` shows the `'not-pending'` notice instead of queueing it as a new paid run. Only clearing the draft or the new `sendAsNewMessage()` (the notice's "Send as a new message" button in `ChatPane`) lets it out as an ordinary turn. New pure `findAwaitedTypedAnswerId`.
 - A delivered typed answer clears the composer only if its text is unchanged, so a correction typed while the host answered survives; a delivery settling after `reset()`, a conversation switch or unmount changes neither the draft nor the notice.
@@ -10,6 +6,15 @@
 - `ChatPane`/`useChatPane` accept `deliverTypedAnswer`: text typed while the running agent holds a question card open (a surface whose tool call has not returned) goes to the host instead of the queue. `'delivered'` clears the draft; `'not-pending'`/`'failed'` (or a throw) keep the draft, show a notice (`typedAnswerNotice`) and never queue it, so a closed question can no longer turn an answer into a second paid run. New `createTypedAnswerPoster` posts `{toolName, params: {__typedAnswer}}` to the MCP-UI tool-call route (202 delivered, 409 not-pending). Omitting the prop keeps today's queue-while-streaming behavior.
 
 - `McpUiSurfaceCard` counts down a card's answer deadline (`MCP_UI_EXPIRES_AT_META_KEY`) under the live frame ("Expires in {time}", `role="timer"`) and closes it as "This question expired" when the deadline passes; a card answered in time still reads "Answered". New `useSurfaceExpiry` hook with an injectable `SurfaceExpiryClock` (card prop `expiryClock`), and pure `describeSurfaceExpiry`/`formatRemainingTime` in core.
+
+- A user's own send or retry re-sticks the transcript to the bottom even when they had scrolled up to read history (`MessageList`; scroll rules move to `useMessageListAutoScroll`).
+- The `@jini-ai/db` peer range is `^0.2.0 || ^0.3.0`; chat uses only db's kernel and store entries, which 0.3.0 leaves unchanged.
+
+## 0.5.1 — 2026-10-04
+
+- Internal `@jini-ai/*` dependencies are caret ranges (`workspace:^`) instead of exact pins, so a host on `@jini-ai/agentic` 0.4.1 or on a newer patch resolves a single copy without an override.
+
+### Also shipped in 0.5.1 (was listed under Unreleased)
 
 - Type store fixtures with the shared storage kernel and chat contracts, including host-owned tables;
   align construction, reopening, paging and message fixtures with current API shapes.

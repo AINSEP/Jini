@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0 — 2026-10-05
+
+### BREAKING
+
+- `PrincipalKind` adds `"member"` (a host's public-site sign-up). New `principalKindMayExercisePermission({ kind, permission })`: `authorize()` checks it right after the disabled-principal check, so a member is denied every operator permission (reason `principal_kind_denied`) even when a `*` grant reaches it, and the last-owner guard never counts a member as the remaining owner. Exhaustive switches over `PrincipalKind` need the new case.
+- Permission migrations are registered explicitly at composition: `registerPermissionMigration`/`listPermissionMigrations` (an import-time module singleton) are replaced by `createPermissionMigrationRegistry({}, { migrations })`, seeded with the built-in pairs, and `migrateDeprecatedPermissionGrants` takes the explicit `deps.migrations` list.
+
+### Changed
+
+- `seedIdentity` grants `role.manage` to the built-in admin policy, so an admin runs Roles & Permissions. `user.manage` stays owner-only and the grant-exceeds-issuer clamp is unchanged. Already-seeded workspaces are reconciled by the host.
+
+### Fixed
+
+- `describePeopleError` ignores inherited `Object.prototype` keys (an error code of `"constructor"` or `"toString"` resolved to that member instead of the message or fallback).
+- Internal `@jini-ai/core` and `@jini-ai/ui-kit` dependencies are caret ranges (`workspace:^`) instead of exact pins.
+
 ## 0.2.0 — 2026-10-02
 
 ### BREAKING

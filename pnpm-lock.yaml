@@ -459,16 +459,16 @@ importers:
   packages/daemon:
     dependencies:
       '@jini-ai/agent-runtime':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../agent-runtime
       '@jini-ai/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@jini-ai/platform':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../platform
       '@jini-ai/protocol':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../protocol
     devDependencies:
       '@electric-sql/pglite':
@@ -514,7 +514,7 @@ importers:
   packages/db:
     dependencies:
       '@jini-ai/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       '@electric-sql/pglite':
@@ -574,7 +574,7 @@ importers:
   packages/diagnostics:
     dependencies:
       '@jini-ai/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       jszip:
         specifier: ^3.10.1
@@ -696,13 +696,13 @@ importers:
   packages/registry:
     dependencies:
       '@jini-ai/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@jini-ai/platform':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../platform
       '@jini-ai/protocol':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../protocol
     devDependencies:
       '@jini-ai/db':
@@ -944,10 +944,10 @@ importers:
   packages/user-management:
     dependencies:
       '@jini-ai/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@jini-ai/ui-kit':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ui-kit
     devDependencies:
       '@jini-ai/admin':
