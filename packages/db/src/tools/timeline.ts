@@ -40,8 +40,9 @@ export interface LedgerReadPort {
 }
 
 /** The server-side row cap — no raw/unbounded query surface is ever offered. See docs/decisions/DR-001-bounded-operational-timeline.md. */
-const MAX_TIMELINE_PAGE_SIZE = 200;
-const DEFAULT_TIMELINE_PAGE_SIZE = 50;
+export const MAX_TIMELINE_PAGE_SIZE = 200;
+/** Page size when a caller names none. */
+export const DEFAULT_TIMELINE_PAGE_SIZE = 50;
 
 /** Thrown when a caller requests a page size above the server's bound. */
 class TimelineValidationError extends Error {
@@ -68,6 +69,11 @@ export async function getTimeline(
   const { ledger, filter = {} } = required;
   const limit = filter.limit ?? DEFAULT_TIMELINE_PAGE_SIZE;
 
+  if (!Number.isInteger(limit) || limit < 1) {
+    // A 0 or fractional limit reached the ledger as an empty page or a fractional SQL LIMIT; an HTTP
+    // caller's `Number("abc")` arrived as NaN.
+    throw new TimelineValidationError(`'limit' must be an integer between 1 and ${MAX_TIMELINE_PAGE_SIZE}`);
+  }
   if (limit > MAX_TIMELINE_PAGE_SIZE) {
     // See docs/decisions/DR-001-bounded-operational-timeline.md for the invariant behind this refusal; keep external identifiers out of caller-facing messages.
     throw new TimelineValidationError(`requested limit ${limit} exceeds the server cap of ${MAX_TIMELINE_PAGE_SIZE}`);

@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { createDatabaseReadTools, defaultDbMessages, type DatabaseReadToolPorts } from "../../tools/index.js";
-import type { ToolExecutionContext } from "@jini-ai/core";
+import { ToolInputError, type ToolExecutionContext } from "@jini-ai/core";
 const ctx = (input: unknown = {}): ToolExecutionContext => ({ input, principal: { id: "owner" }, run: { id: "run" }, executionId: "exec", signal: new AbortController().signal });
 it("authorizes before every portable DB effect, preserves read flags and keeps host migration handlers separate", async () => {
   let reads = 0;
@@ -76,4 +76,29 @@ it("forwards reads and persists manual restore-point provenance using host clock
   expect(captures).toEqual(["workspace"]);
   expect(saved).toEqual([{ restorePointId: result.restorePoint.id, idempotencyKey: "host-key", trigger: "manual", createdAt: "2026-10-02T00:00:00.000Z", createdBy: "owner", costClass: "cheap", kind: "file-snapshot", watermarkAtCapture: 17, artifactRef: "host-snapshot" }]);
   expect(permissions).toEqual(["database.read", "database.read", "database.read", "database.read", "database.read", "backup.create"]);
+});
+
+// REGRESSION (fix-plan C6a): the timeline tool passed `limit` straight through, so 0 queried an empty
+// page and 300 reached getTimeline's cap as a plain Error the transport redacted to INTERNAL.
+it("database_query_timeline caps an over-max limit and refuses a non-positive one before reading", async () => {
+  const limits: number[] = [];
+  const tools = new Map(createDatabaseReadTools({
+    workspaceId: "workspace", requirePermission: async () => {},
+    readers: {
+      inputRecord: input => input as Record<string, unknown>, string: (input, key) => String(input[key]), noInput: () => {},
+      isRecord: (input): input is Record<string, unknown> => input !== null && typeof input === "object" && !Array.isArray(input),
+      optionalString: (input, key) => input[key] as string | undefined, optionalNumber: (input, key) => input[key] as number | undefined, optionalBoolean: (input, key) => input[key] as boolean | undefined,
+    },
+    introspection: { getHealth: async () => ({}), getSchemaState: async () => ({}), listPendingMigrations: async () => [] },
+    ledger: { query: async filter => { limits.push(filter.limit); return { items: [], nextCursor: null }; } },
+    restorePoints: { list: async () => [], save: async () => {} },
+    dbOps: { getCapabilities: async () => ({ restorePoint: { costClass: "cheap", kind: "file-snapshot" } }), captureRestorePoint: async () => ({ artifactRef: "unused", watermarkAtCapture: 0 }) },
+    clock: { nowMs: () => 0 }, idGen: { newId: () => "key" },
+  }).map(tool => [tool.descriptor.id, tool]));
+  const timeline = tools.get("database_query_timeline")!;
+  await timeline.handler(ctx({ limit: 300 }));
+  await timeline.handler(ctx(undefined));
+  await expect(timeline.handler(ctx({ limit: 0 }))).rejects.toThrow(new ToolInputError({ message: "'limit' must be an integer between 1 and 200" }));
+  await expect(timeline.handler(ctx({ limit: 0 }))).rejects.toBeInstanceOf(ToolInputError);
+  expect(limits).toEqual([200, 50]);
 });

@@ -1,9 +1,9 @@
 /** Portable DB read/restore-point handlers; migration gateways stay host-owned. See docs/decisions/DR-001-bounded-operational-timeline.md. */
-import { ToolInputError, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { readToolLimit, ToolInputError, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { nowIso, type Clock } from "@jini-ai/core/primitives";
 import { defaultDbMessages, type DbMessages } from "../core/messages.js";
 import { getDatabaseAgentToolCatalog } from "./database-catalog.js";
-import { getTimeline, type LedgerReadPort } from "./timeline.js";
+import { DEFAULT_TIMELINE_PAGE_SIZE, getTimeline, MAX_TIMELINE_PAGE_SIZE, type LedgerReadPort } from "./timeline.js";
 import { createRestorePoint as createDatabaseRestorePoint, listRestorePoints, type RestorePointListPort, type RestorePointSavePort } from "./restore-points.js";
 import { registrations, type InputReaders } from "./registration.js";
 export interface DatabasePermissionRequest { principalId: string; permission: string; entityType: string; }
@@ -26,7 +26,7 @@ export interface DatabaseReadToolPorts {
  */
 export function createDatabaseReadTools(ports: DatabaseReadToolPorts, _optional: { messages?: DbMessages } = {}): ToolRegistration[] {
   const messages = _optional.messages ?? defaultDbMessages;
-  const { noInput: requireNoInput, isRecord, optionalString, optionalNumber, optionalBoolean } = ports.readers;
+  const { noInput: requireNoInput, isRecord, optionalString, optionalBoolean } = ports.readers;
   const handlers: Record<string, ToolHandler> = {
     database_query_timeline: async (ctx) => {
       if (ctx.input !== undefined && !isRecord(ctx.input)) throw new ToolInputError({ message: "input must be an object" });
@@ -41,7 +41,9 @@ export function createDatabaseReadTools(ports: DatabaseReadToolPorts, _optional:
           fromDate: optionalString(input, "fromDate"),
           toDate: optionalString(input, "toDate"),
           cursor: optionalString(input, "cursor"),
-          limit: optionalNumber(input, "limit"),
+          // The catalog promises "server-capped at 200, defaults to 50": cap here, and refuse 0/-1/2.5
+          // as a ToolInputError the model can read instead of getTimeline's redacted plain Error.
+          limit: readToolLimit({ input, max: MAX_TIMELINE_PAGE_SIZE, fallback: DEFAULT_TIMELINE_PAGE_SIZE }),
         },
       });
     },

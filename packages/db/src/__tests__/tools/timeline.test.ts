@@ -100,3 +100,16 @@ test("timeline cap error is descriptive without a specification prefix and never
   });
   assert.equal(queried, false);
 });
+
+// REGRESSION (fix-plan C6a): a limit of 0 or 2.5 used to reach the ledger (an empty page, or a
+// fractional SQL LIMIT); the admin route reads `?limit=` with Number(), so "abc" arrived as NaN.
+test("getTimeline refuses a non-integer or non-positive limit without querying the ledger", async () => {
+  let queried = false;
+  const ledger: LedgerReadPort = { query: async () => { queried = true; return { items: [], nextCursor: null }; } };
+  for (const limit of [0, -1, 2.5, Number.NaN]) {
+    await assert.rejects(getTimeline({ ledger, filter: { limit } }), {
+      name: "TimelineValidationError", message: "'limit' must be an integer between 1 and 200",
+    });
+  }
+  assert.equal(queried, false);
+});

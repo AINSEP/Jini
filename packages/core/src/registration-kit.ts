@@ -210,6 +210,55 @@ export function optionalBoolean(requiredArgs: { input: Record<string, unknown>; 
 }
 
 /**
+ * Reads a list tool's page-size field. A list schema's `minimum: 1, maximum: <max>` is advice to the
+ * model, not enforcement: without this a `limit` of 0, -5 or 2.5 reached the query and came back as an
+ * empty or nonsensical page the model could not tell apart from "no rows".
+ *
+ * @param required.max The schema's documented cap; a larger request is capped to it, not refused,
+ *   because the schemas promise "server-capped at <max>".
+ * @param required.fallback Returned when the key is absent.
+ * @param _optional.key The field name, `limit` by default; it is also the name the error message uses.
+ * @returns An integer in `[1, max]`.
+ * @throws {ToolInputError} when the value is present but not an integer >= 1.
+ * @complexity O(1).
+ */
+export function readToolLimit(
+  required: { input: Record<string, unknown>; max: number; fallback: number },
+  _optional: { key?: string } = {},
+): number {
+  const { input, max, fallback } = required;
+  const key = _optional.key ?? "limit";
+  const value = input[key];
+  if (value === undefined) return fallback;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+    throw new ToolInputError({ message: `'${key}' must be an integer between 1 and ${max}` });
+  }
+  return Math.min(value, max);
+}
+
+/**
+ * Reads an optional enum field (a list filter's `status`, say). An off-enum value is refused rather
+ * than passed through, because as a filter it silently matches nothing and reads as "no rows".
+ *
+ * @param required.values The schema's `enum`, in the order the error message lists them.
+ * @returns The value, or `undefined` when the key is absent.
+ * @throws {ToolInputError} naming every allowed value when the value is present but not listed.
+ * @complexity O(values).
+ */
+export function optionalOneOf<T extends string>(
+  required: { input: Record<string, unknown>; key: string; values: readonly T[] },
+  _optional: Record<string, never> = {},
+): T | undefined {
+  const { input, key, values } = required;
+  const value = input[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !(values as readonly string[]).includes(value)) {
+    throw new ToolInputError({ message: `'${key}' must be one of: ${values.join(", ")}` });
+  }
+  return value as T;
+}
+
+/**
  * The reader for a parameterless tool: `ctx.input` may be omitted entirely or passed as `{}`,
  * nothing else. Refusing a populated object is deliberate — silently ignoring keys would teach a
  * model that a filter it invented was applied.
