@@ -75,6 +75,45 @@ describe('MessageList', () => {
     expect(el.scrollTop).toBe(0);
   });
 
+  describe('re-sticking to the bottom when the user starts a new turn', () => {
+    // Owner-reported ("Chat auto-scroll still sticks"): a user who scrolled up to read history and
+    // then SENT a message stayed parked up there — the sticky-follow gate above, correct for
+    // streamed chatter, also swallowed the user's own send. A send is an explicit "I am here now".
+    function scrolledUpList(initial: ChatMessage[]) {
+      const view = render(<MessageList messages={initial} scrollIntent={false} />);
+      const el = view.container.querySelector('.jini-message-list') as HTMLDivElement;
+      Object.defineProperty(el, 'scrollHeight', { value: 300, configurable: true });
+      Object.defineProperty(el, 'clientHeight', { value: 100, configurable: true });
+      el.scrollTop = 0;
+      el.dispatchEvent(new Event('scroll'));
+      return { ...view, el };
+    }
+
+    it('scrolls back to the bottom when the user sends a message while scrolled up', () => {
+      const { el, rerender } = scrolledUpList(messages);
+      const sent: ChatMessage[] = [
+        ...messages,
+        { id: '3', role: 'user', content: 'next question' },
+        { id: '4', role: 'assistant', content: '', runStatus: 'queued' },
+      ];
+      rerender(<MessageList messages={sent} scrollIntent />);
+      expect(el.scrollTop).toBe(300);
+    });
+
+    it('scrolls back to the bottom when a retry restarts an existing assistant turn', () => {
+      const { el, rerender } = scrolledUpList(messages);
+      const retried: ChatMessage[] = [messages[0]!, { id: '2', role: 'assistant', content: '', runStatus: 'queued' }];
+      rerender(<MessageList messages={retried} scrollIntent />);
+      expect(el.scrollTop).toBe(300);
+    });
+
+    it('stays put when only an assistant message streams in', () => {
+      const { el, rerender } = scrolledUpList([...messages, { id: '3', role: 'user', content: 'q' }, { id: '4', role: 'assistant', content: '', runStatus: 'queued' }]);
+      rerender(<MessageList messages={[...messages, { id: '3', role: 'user', content: 'q' }, { id: '4', role: 'assistant', content: 'partial', runStatus: 'running' }]} scrollIntent />);
+      expect(el.scrollTop).toBe(0);
+    });
+  });
+
   describe('re-sticking to the bottom when a message ROW grows after mount', () => {
     // Reproduces the MCP-UI clipping bug: a confirmation surface mounts small (its
     // `preferredFrameSize`/`DEFAULT_INITIAL_HEIGHT` guess), the one-shot `scrollIntent` effect scrolls
