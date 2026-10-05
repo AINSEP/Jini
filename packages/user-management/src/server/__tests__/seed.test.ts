@@ -113,7 +113,8 @@ test("REQ-09/AC-12: four built-in roles map 1:1 to built-in policies with the do
   const admin = await permissionsFor("admin");
   assert.ok(admin.includes("apikey.manage"));
   assert.ok(!admin.includes("user.manage"), "admin is not owner-tier (REQ-09)");
-  assert.ok(!admin.includes("role.manage"), "admin is not owner-tier (REQ-09)");
+  // Owner decision 2026-10-05: the built-in admin runs Roles & Permissions; user.manage stays owner-only.
+  assert.ok(admin.includes("role.manage"), "admin holds role.manage (owner decision 2026-10-05)");
 
   const editor = await permissionsFor("editor");
   assert.deepEqual(editor, [

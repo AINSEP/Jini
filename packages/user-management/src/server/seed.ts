@@ -132,7 +132,12 @@ const BUILTIN_ADMIN_PERMISSIONS: readonly string[] = [
   // directly at seed — a distinct grant from settings.write, not owner-only (unlike user.manage/
   // role.manage below).
   "workspace.manage",
-  // Owner-only per : "user.manage", "role.manage" are deliberately absent. See docs/decisions/DR-001-identity-and-session-boundary.md.
+  // Roles & Permissions: admin holds role.manage (owner decision 2026-10-05, reversing DR-001's
+  // owner-only placement for this one string). The grant service's issuer clamp still refuses any
+  // grant beyond what the caller holds (GRANT_EXCEEDS_ISSUER), so an admin cannot hand out owner.
+  // Hosts reconcile already-seeded workspaces themselves; seedIdentity never revisits them.
+  "role.manage",
+  // Owner-only per DR-001: "user.manage" is deliberately absent. See docs/decisions/DR-001-identity-and-session-boundary.md.
 ];
 
 const BUILTIN_EDITOR_PERMISSIONS: readonly string[] = [

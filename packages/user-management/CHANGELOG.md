@@ -9,6 +9,13 @@
 
 ## Unreleased
 
+### The built-in admin role holds role.manage
+
+- `seedIdentity` grants `role.manage` to the built-in admin policy (owner decision, 2026-10-05), so a
+  fresh workspace's admin runs Roles & Permissions. `user.manage` stays owner-only. The issuer clamp
+  (`GRANT_EXCEEDS_ISSUER`) is unchanged. Already-seeded workspaces are not revisited by the seed; a
+  host reconciles them (e.g. a built-in-role grant applied at boot).
+
 ### Site members are barred from operator permissions
 
 - Add `"member"` to `PrincipalKind` for a host's public-site sign-ups. `authorize()` now denies a
