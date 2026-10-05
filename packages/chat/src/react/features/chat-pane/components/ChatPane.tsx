@@ -13,8 +13,9 @@ import type {
   ChatPaneRuntimeAccess,
   ChatPaneVariant,
   ChatPaneWorkingDirectoryAccess,
+  TypedAnswerNotice,
 } from '../types.js';
-import { isChatPaneApiModeConfigured } from '../rules.js';
+import { describeTypedAnswerNotice, isChatPaneApiModeConfigured } from '../rules.js';
 import { useChatPane, type UseChatPaneResult } from '../hooks/useChatPane.hooks.js';
 import { useChatPaneAgentControl } from '../hooks/useChatPaneAgentControl.hooks.js';
 import { useChatPaneComposerPlaceholder } from '../hooks/useChatPaneComposerPlaceholder.hooks.js';
@@ -189,6 +190,7 @@ interface ChatPaneStatusMessagesProps {
   workingDirectoryPending: boolean;
   workingDirectoryInvalid: boolean;
   runtimeInventoryError: Error | null;
+  typedAnswerNotice: TypedAnswerNotice | null;
   t: (key: string) => string;
 }
 
@@ -208,6 +210,7 @@ function ChatPaneStatusMessages({
   workingDirectoryPending,
   workingDirectoryInvalid,
   runtimeInventoryError,
+  typedAnswerNotice,
   t,
 }: ChatPaneStatusMessagesProps): ReactNode {
   return (
@@ -261,6 +264,11 @@ function ChatPaneStatusMessages({
       {runtimeInventoryError && !connectingAgents ? (
         <div className="jini-chat-pane__error" role="alert">
           {runtimeInventoryError.message}
+        </div>
+      ) : null}
+      {typedAnswerNotice ? (
+        <div className="jini-chat-pane__error" role="alert">
+          {t(describeTypedAnswerNotice({ notice: typedAnswerNotice }))}
         </div>
       ) : null}
     </>
@@ -496,6 +504,7 @@ export function ChatPane({
   onByokModelChange,
   initialDraft,
   validateAttachments,
+  deliverTypedAnswer,
   composerHandle,
   placeholder,
   placeholders,
@@ -555,6 +564,7 @@ export function ChatPane({
     onChangeWorkingDirectory,
     workingDirectoryAccess,
     apiModeConfigured,
+    deliverTypedAnswer,
   } }));
   // Mirrors `Composer.tsx`'s own `draftRef`: `composerHandle.insertText` (below) is called from
   // OUTSIDE any render, so it cannot close over `pane.composer.draft` directly — that would freeze
@@ -655,6 +665,7 @@ export function ChatPane({
             workingDirectoryPending={pane.workingDirectoryPending}
             workingDirectoryInvalid={pane.workingDirectoryInvalid}
             runtimeInventoryError={inventory.runtimeInventoryError}
+            typedAnswerNotice={pane.typedAnswerNotice}
             t={t}
           />
           <ChatPaneComposerArea

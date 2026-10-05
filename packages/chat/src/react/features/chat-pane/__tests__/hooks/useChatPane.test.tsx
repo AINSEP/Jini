@@ -609,4 +609,176 @@ describe('useChatPane', () => {
     expect(result.current.attachmentError).toBeNull();
     expect(result.current.composer.attachments).toEqual([{ path: '/tmp/b', name: 'b.txt', kind: 'file' }]);
   });
+
+  describe('typed answers to a question the running agent is waiting on', () => {
+    type Delivery = 'delivered' | 'not-pending' | 'failed';
+
+    /** A hand-written `deliverTypedAnswer` fake: records each text and answers with `outcome`. */
+    function fakeDeliverer(outcome: () => Promise<Delivery>) {
+      const texts: string[] = [];
+      return {
+        texts,
+        deliver: (input: { text: string }) => {
+          texts.push(input.text);
+          return outcome();
+        },
+      };
+    }
+
+    /** Starts a run and has it raise a question surface inside a still-open tool call. */
+    async function startRunAwaitingAnswer(options: {
+      deliverTypedAnswer?: (input: { text: string }) => Promise<Delivery>;
+      settled?: boolean;
+    }) {
+      const transport = createFakeChatTransport();
+      const { result } = renderHook(() => useChatPane({
+        transport,
+        agents,
+        selection: { agentId: 'codex' },
+        initialDraft: 'ship the post',
+        ...(options.deliverTypedAnswer === undefined ? {} : { deliverTypedAnswer: options.deliverTypedAnswer }),
+      }));
+      await act(() => result.current.send());
+      await waitFor(() => expect(transport.calls).toHaveLength(1));
+      act(() => {
+        transport.emit({ kind: 'tool_use', id: 'ask-1', name: 'assistant_ask_choice', input: {} });
+        transport.emit({ kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://ask/1' } });
+        if (options.settled) {
+          transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: 'Answered: Draft', isError: false });
+        }
+      });
+      expect(result.current.conversation.isStreaming).toBe(true);
+      return { transport, result };
+    }
+
+    it('delivers the typed text to the waiting question exactly once, and never starts a second run', async () => {
+      const deliverer = fakeDeliverer(async () => 'delivered');
+      const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+      act(() => result.current.composer.setDraft('  publish it now  '));
+      await act(() => result.current.send());
+
+      expect(deliverer.texts).toEqual(['publish it now']);
+      expect(result.current.queuedPrompt).toBeNull();
+      expect(result.current.composer.draft).toBe('');
+      expect(result.current.typedAnswerNotice).toBeNull();
+
+      await act(async () => {
+        transport.finish();
+      });
+      await waitFor(() => expect(result.current.conversation.isStreaming).toBe(false));
+      expect(transport.calls).toHaveLength(1);
+    });
+
+    it('drops the text with a notice when the question already closed (consumed or expired) — no queue, no new run', async () => {
+      const deliverer = fakeDeliverer(async () => 'not-pending');
+      const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+      act(() => result.current.composer.setDraft('publish it now'));
+      await act(() => result.current.send());
+
+      expect(deliverer.texts).toEqual(['publish it now']);
+      expect(result.current.queuedPrompt).toBeNull();
+      expect(result.current.typedAnswerNotice).toBe('not-pending');
+      // Left in the composer: not sent anywhere, and nothing the person typed is lost.
+      expect(result.current.composer.draft).toBe('publish it now');
+
+      await act(async () => {
+        transport.finish();
+      });
+      await waitFor(() => expect(result.current.conversation.isStreaming).toBe(false));
+      expect(transport.calls).toHaveLength(1);
+    });
+
+    it('reports a failed or throwing delivery without queueing the text behind the run', async () => {
+      for (const outcome of [async (): Promise<Delivery> => 'failed', async (): Promise<Delivery> => { throw new Error('offline'); }]) {
+        const deliverer = fakeDeliverer(outcome);
+        const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+        act(() => result.current.composer.setDraft('publish it now'));
+        await act(() => result.current.send());
+
+        expect(result.current.queuedPrompt).toBeNull();
+        expect(result.current.typedAnswerNotice).toBe('failed');
+        expect(result.current.composer.draft).toBe('publish it now');
+        expect(transport.calls).toHaveLength(1);
+      }
+    });
+
+    it('ignores a second Enter while the first delivery is still in flight', async () => {
+      let release!: (outcome: Delivery) => void;
+      const deliverer = fakeDeliverer(() => new Promise<Delivery>((resolve) => { release = resolve; }));
+      const { result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+      act(() => result.current.composer.setDraft('publish it now'));
+      let first!: Promise<void>;
+      act(() => {
+        first = result.current.send();
+      });
+      await act(() => result.current.send());
+      await act(async () => {
+        release('delivered');
+        await first;
+      });
+
+      expect(deliverer.texts).toEqual(['publish it now']);
+      expect(result.current.queuedPrompt).toBeNull();
+    });
+
+    it('clears the notice on the next send and on reset', async () => {
+      let outcome: Delivery = 'not-pending';
+      const deliverer = fakeDeliverer(async () => outcome);
+      const { result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+      act(() => result.current.composer.setDraft('publish it now'));
+      await act(() => result.current.send());
+      expect(result.current.typedAnswerNotice).toBe('not-pending');
+
+      outcome = 'delivered';
+      await act(() => result.current.send());
+      expect(result.current.typedAnswerNotice).toBeNull();
+
+      outcome = 'failed';
+      act(() => result.current.composer.setDraft('again'));
+      await act(() => result.current.send());
+      expect(result.current.typedAnswerNotice).toBe('failed');
+      act(() => result.current.reset());
+      expect(result.current.typedAnswerNotice).toBeNull();
+    });
+
+    it('queues as before when no question is waiting: the surface call already returned', async () => {
+      const deliverer = fakeDeliverer(async () => 'delivered');
+      const { result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver, settled: true });
+
+      act(() => result.current.composer.setDraft('one more thing'));
+      await act(() => result.current.send());
+
+      expect(deliverer.texts).toEqual([]);
+      expect(result.current.queuedPrompt).toBe('one more thing');
+    });
+
+    it('queues as before when the turn carries attachments, which a typed answer cannot', async () => {
+      const deliverer = fakeDeliverer(async () => 'delivered');
+      const { result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+      act(() => {
+        result.current.composer.setDraft('see attached');
+        result.current.composer.addAttachment({ path: '/tmp/a.txt', name: 'a.txt', kind: 'file' });
+      });
+      await act(() => result.current.send());
+
+      expect(deliverer.texts).toEqual([]);
+      expect(result.current.queuedPrompt).toBe('see attached');
+    });
+
+    it('queues as before when the host supplies no deliverTypedAnswer', async () => {
+      const { result } = await startRunAwaitingAnswer({});
+
+      act(() => result.current.composer.setDraft('publish it now'));
+      await act(() => result.current.send());
+
+      expect(result.current.queuedPrompt).toBe('publish it now');
+      expect(result.current.typedAnswerNotice).toBeNull();
+    });
+  });
 });

@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
+import type { AgentEvent, ChatMessage } from '../../../../core/index.js';
 import {
   defaultChatPaneSelection,
+  describeTypedAnswerNotice,
   findChatPaneSendBlocker,
+  isAwaitingTypedAnswer,
+  isTypedAnswerTurn,
   isChatPaneApiModeConfigured,
   isChatPaneQueueableBlocker,
   orderChatPaneAgents,
@@ -257,5 +261,69 @@ describe('chat-pane selection rules', () => {
         expect(isChatPaneQueueableBlocker({ blocker: blocker })).toBe(false);
       }
     });
+  });
+});
+
+describe('isAwaitingTypedAnswer', () => {
+  const surface: AgentEvent = { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://ask/1' } };
+  const askCall: AgentEvent = { kind: 'tool_use', id: 'call-1', name: 'assistant_ask_choice', input: {} };
+  const assistant = (events: AgentEvent[]): ChatMessage => ({ id: 'a1', role: 'assistant', content: '', events });
+  const user: ChatMessage = { id: 'u1', role: 'user', content: 'hi' };
+
+  it('is true while a surface raised inside a tool call is still waiting on that call', () => {
+    expect(isAwaitingTypedAnswer({ messages: [user, assistant([askCall, surface])] })).toBe(true);
+  });
+
+  it('is false once the call that raised the surface has returned (answered or expired)', () => {
+    const result: AgentEvent = { kind: 'tool_result', toolUseId: 'call-1', content: 'expired', isError: false };
+    expect(isAwaitingTypedAnswer({ messages: [user, assistant([askCall, surface, result])] })).toBe(false);
+  });
+
+  it('attributes the surface to the NEWEST open call, so an older call returning does not settle it', () => {
+    const older: AgentEvent = { kind: 'tool_use', id: 'call-0', name: 'content_post_search', input: {} };
+    const olderResult: AgentEvent = { kind: 'tool_result', toolUseId: 'call-0', content: '[]', isError: false };
+    expect(isAwaitingTypedAnswer({ messages: [assistant([older, askCall, surface, olderResult])] })).toBe(true);
+  });
+
+  it('ignores a surface that arrived outside any tool call, and a call that raised no surface', () => {
+    expect(isAwaitingTypedAnswer({ messages: [assistant([surface])] })).toBe(false);
+    expect(isAwaitingTypedAnswer({ messages: [assistant([askCall])] })).toBe(false);
+  });
+
+  it('reads only the newest message, and only when the assistant wrote it', () => {
+    expect(isAwaitingTypedAnswer({ messages: [assistant([askCall, surface]), user] })).toBe(false);
+    expect(isAwaitingTypedAnswer({ messages: [{ id: 'a2', role: 'assistant', content: 'no events' }] })).toBe(false);
+    expect(isAwaitingTypedAnswer({ messages: [] })).toBe(false);
+  });
+});
+
+describe('isTypedAnswerTurn', () => {
+  const waiting: ChatMessage[] = [{
+    id: 'a1',
+    role: 'assistant',
+    content: '',
+    events: [
+      { kind: 'tool_use', id: 'call-1', name: 'assistant_ask_choice', input: {} },
+      { kind: 'ext', name: 'mcp-ui', data: {} },
+    ],
+  }];
+
+  it('is an answer only while streaming, with no attachments, and a question waiting', () => {
+    expect(isTypedAnswerTurn({ blocker: 'streaming', attachmentCount: 0, messages: waiting })).toBe(true);
+    expect(isTypedAnswerTurn({ blocker: null, attachmentCount: 0, messages: waiting })).toBe(false);
+    expect(isTypedAnswerTurn({ blocker: 'uploads-pending', attachmentCount: 0, messages: waiting })).toBe(false);
+    expect(isTypedAnswerTurn({ blocker: 'streaming', attachmentCount: 1, messages: waiting })).toBe(false);
+    expect(isTypedAnswerTurn({ blocker: 'streaming', attachmentCount: 0, messages: [] })).toBe(false);
+  });
+});
+
+describe('describeTypedAnswerNotice', () => {
+  it('names why a typed answer was not sent, distinctly for each outcome', () => {
+    expect(describeTypedAnswerNotice({ notice: 'not-pending' })).toBe(
+      'That question is no longer waiting for an answer, so your message was not sent.',
+    );
+    expect(describeTypedAnswerNotice({ notice: 'failed' })).toBe(
+      'Your answer could not be delivered. Try sending it again.',
+    );
   });
 });

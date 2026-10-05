@@ -1,4 +1,6 @@
-import type { ByokRuntimeSummary, ChatPaneAgent, ChatPaneAgentSelection } from './types.js';
+import type { ChatMessage } from '@jini-ai/chat';
+
+import type { ByokRuntimeSummary, ChatPaneAgent, ChatPaneAgentSelection, TypedAnswerNotice } from './types.js';
 
 function preferredOptionId(
   options: readonly { id: string }[] | undefined,
@@ -156,6 +158,62 @@ export function describeChatPaneSendBlocker(blocker: ChatPaneSendBlocker): strin
  */
 export function isChatPaneQueueableBlocker({ blocker }: { blocker: ChatPaneSendBlocker | null }): boolean {
   return blocker === 'streaming';
+}
+
+/**
+ * Whether the run in flight is holding a question open for the human: the newest message is the
+ * assistant's, and it carries an interactive surface (`kind: 'ext'`, e.g. an MCP-UI card) that
+ * arrived inside a tool call which has not returned yet. That is the one moment text typed into the
+ * composer is an ANSWER rather than a next turn — the tool is parked waiting on it, and queueing the
+ * text behind the run would only deliver it after the question had expired, as a new paid run.
+ *
+ * A surface is attributed to the newest call still open when it arrived — the same rule
+ * `useExtEventGroups` uses to give a card its `call` — so an older call returning does not settle
+ * it. Once its call returns (answered, expired, abandoned), typing is a next turn again.
+ *
+ * @complexity O(e·c): e events in the newest message, c calls open at once (one or two in practice).
+ */
+export function isAwaitingTypedAnswer({ messages }: { messages: readonly ChatMessage[] }): boolean {
+  const newest = messages.at(-1);
+  if (newest?.role !== 'assistant') return false;
+  // Insertion-ordered, so the last entry is the newest call still open.
+  const openCalls = new Set<string>();
+  const awaited = new Set<string>();
+  for (const event of newest.events ?? []) {
+    if (event.kind === 'tool_use') openCalls.add(event.id);
+    if (event.kind === 'tool_result') {
+      openCalls.delete(event.toolUseId);
+      awaited.delete(event.toolUseId);
+    }
+    const owner = event.kind === 'ext' ? [...openCalls].at(-1) : undefined;
+    if (owner !== undefined) awaited.add(owner);
+  }
+  return awaited.size > 0;
+}
+
+/**
+ * Whether a composer send is an answer to a waiting question rather than a next turn: a run is
+ * streaming ({@link isChatPaneQueueableBlocker}), the turn has no attachments (a typed answer
+ * carries text only), and that run is holding a question open ({@link isAwaitingTypedAnswer}).
+ *
+ * @complexity O(e·c), from {@link isAwaitingTypedAnswer}.
+ */
+export function isTypedAnswerTurn({ blocker, attachmentCount, messages }: {
+  blocker: ChatPaneSendBlocker | null;
+  attachmentCount: number;
+  messages: readonly ChatMessage[];
+}): boolean {
+  return isChatPaneQueueableBlocker({ blocker }) && attachmentCount === 0 && isAwaitingTypedAnswer({ messages });
+}
+
+const TYPED_ANSWER_NOTICES: Record<TypedAnswerNotice, string> = {
+  'not-pending': 'That question is no longer waiting for an answer, so your message was not sent.',
+  failed: 'Your answer could not be delivered. Try sending it again.',
+};
+
+/** The English copy (and i18n key) for why a typed answer was not sent. */
+export function describeTypedAnswerNotice({ notice }: { notice: TypedAnswerNotice }): string {
+  return TYPED_ANSWER_NOTICES[notice];
 }
 
 export function orderChatPaneAgents({ agents }: { agents: readonly ChatPaneAgent[] }

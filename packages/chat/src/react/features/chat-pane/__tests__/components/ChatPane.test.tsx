@@ -931,4 +931,37 @@ describe('ChatPane', () => {
       expect(cancelRule).toMatch(/font-weight:\s*\S+/);
     });
   });
+
+  it('hands text typed while the agent waits on a question to deliverTypedAnswer, and shows why it was not sent', async () => {
+    const transport = createFakeChatTransport();
+    const typed: string[] = [];
+    render(
+      <ChatPane
+        transport={transport}
+        agents={agents}
+        initialDraft="ship the post"
+        deliverTypedAnswer={async ({ text }) => {
+          typed.push(text);
+          return 'not-pending';
+        }}
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+    act(() => {
+      transport.emit({ kind: 'tool_use', id: 'ask-1', name: 'assistant_ask_choice', input: {} });
+      transport.emit({ kind: 'ext', name: 'unregistered-question', data: {} });
+    });
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'publish it' } });
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'That question is no longer waiting for an answer, so your message was not sent.',
+    );
+    expect(typed).toEqual(['publish it']);
+    expect(screen.getByRole('textbox')).toHaveValue('publish it');
+    expect(transport.calls).toHaveLength(1);
+  });
 });

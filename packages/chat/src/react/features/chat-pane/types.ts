@@ -136,6 +136,20 @@ export interface ChatPaneComposerHandle {
   insertText: (text: string) => void;
 }
 
+/**
+ * What happened to text typed while the running agent waits on a question (see
+ * {@link ChatPaneProps.deliverTypedAnswer}): `'delivered'` — the question took it as its answer;
+ * `'not-pending'` — nothing is waiting any more (already answered, expired, or never open);
+ * `'failed'` — the host could not tell (network error, unexpected status).
+ */
+export type TypedAnswerDelivery = 'delivered' | 'not-pending' | 'failed';
+
+/** Why the pane did not send a typed answer — shown to the human until the next send or reset. */
+export type TypedAnswerNotice = Exclude<TypedAnswerDelivery, 'delivered'>;
+
+/** Delivers text typed into the composer to the question the running agent is waiting on. */
+export type DeliverTypedAnswer = (input: { text: string }) => Promise<TypedAnswerDelivery>;
+
 export interface ChatPaneProps {
   transport: ChatTransport;
   agents?: readonly ChatPaneAgent[];
@@ -186,6 +200,16 @@ export interface ChatPaneProps {
    * before the pane exists has nothing to call.
    */
   composerHandle?: RefObject<ChatPaneComposerHandle | null>;
+  /**
+   * Called instead of queueing when the human types while the running agent is holding a question
+   * open in the transcript (an interactive surface whose tool call has not returned —
+   * `isAwaitingTypedAnswer`) and the turn carries no attachments. `'delivered'` clears the draft;
+   * any other outcome, or a throw, leaves the draft in place with a notice and NEVER queues it —
+   * a queued answer would go out after the run ends as a new, paid run answering nothing.
+   *
+   * Omit it and typing while a run streams queues exactly as before.
+   */
+  deliverTypedAnswer?: DeliverTypedAnswer;
   placeholder?: string;
   /**
    * Rotating composer suggestions, cycled every few seconds in place of one fixed `placeholder` —

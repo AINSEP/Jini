@@ -4,6 +4,7 @@ import {
   describeChatPaneSendBlocker,
   findChatPaneSendBlocker,
   isChatPaneQueueableBlocker,
+  isTypedAnswerTurn,
   resolveChatPaneSelection,
   type ChatPaneSendBlocker,
 } from '../rules.js';
@@ -14,6 +15,9 @@ import type {
   ChatPaneAgentSelection,
   ChatPaneRunContext,
   ChatPaneWorkingDirectoryAccess,
+  DeliverTypedAnswer,
+  TypedAnswerDelivery,
+  TypedAnswerNotice,
 } from '../types.js';
 import type { ChatAttachment, ChatMessage } from '@jini-ai/chat';
 import type { ChatTransport } from '@jini-ai/chat';
@@ -57,6 +61,8 @@ export interface UseChatPaneOptions {
    * behavior: no selected agent always blocks sending.
    */
   apiModeConfigured?: boolean;
+  /** See `ChatPaneProps.deliverTypedAnswer`. Omitted keeps today's queue-while-streaming behavior. */
+  deliverTypedAnswer?: DeliverTypedAnswer;
 }
 
 export interface UseChatPaneResult extends UseChatPaneWorkingDirectoryResult {
@@ -105,6 +111,12 @@ export interface UseChatPaneResult extends UseChatPaneWorkingDirectoryResult {
   /** Drops the queued prompt without ever sending it. */
   cancelQueued: () => void;
   /**
+   * Why the last typed answer was NOT sent, or `null`. Set when `deliverTypedAnswer` reports the
+   * question no longer waiting or could not be reached; the draft stays in the composer. Cleared by
+   * the next send and by `reset()`.
+   */
+  typedAnswerNotice: TypedAnswerNotice | null;
+  /**
    * Cancels the run in flight and sends the composer draft as soon as it stops — the modifier-key
    * counterpart to {@link send}, which queues behind the run instead of ending it. Implemented as
    * queue-then-cancel rather than cancel-then-send so both paths share one flush, and so a cancel
@@ -127,6 +139,22 @@ function composerPrompt(composer: UseComposerResult): string {
 function createAttachmentBatchId(): string {
   return globalThis.crypto?.randomUUID?.()
     ?? `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+/**
+ * Hands one typed answer to the host. A throw counts as `'failed'`: the host could not say whether
+ * anything was waiting, and the one outcome that must never follow is queueing the text as a new run.
+ *
+ * @complexity O(1) plus the host's own request.
+ */
+async function deliverTypedAnswerSafely(
+  { deliver, text }: { deliver: DeliverTypedAnswer; text: string },
+): Promise<TypedAnswerDelivery> {
+  try {
+    return await deliver({ text });
+  } catch {
+    return 'failed';
+  }
 }
 
 /** Module scope so each branch costs 1 cognitive point instead of 2 (nested one level inside
@@ -181,6 +209,10 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const [activeUploadCount, setActiveUploadCount] = useState(0);
   const [attachmentError, setAttachmentError] = useState<Error | null>(null);
   const [queuedPrompt, setQueuedPrompt] = useState<string | null>(null);
+  const [typedAnswerNotice, setTypedAnswerNotice] = useState<TypedAnswerNotice | null>(null);
+  // Set across the await of one typed-answer delivery so a second Enter cannot post the same text
+  // twice — the second post would find the question already answered and wrongly report it closed.
+  const deliveringTypedAnswerRef = useRef(false);
   // The conversation `queuedPrompt` was queued against. Compared with `options.conversationId` at
   // flush time so a prompt queued behind a streaming run in one conversation can never be posted
   // into a different one the caller switched to before that run finished.
@@ -349,9 +381,31 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     workingDirectoryState.workingDirectory,
   ]);
 
+  const answerWaitingQuestion = useCallback(async (
+    { deliver, text }: { deliver: DeliverTypedAnswer; text: string },
+  ) => {
+    deliveringTypedAnswerRef.current = true;
+    const outcome = await deliverTypedAnswerSafely({ deliver, text });
+    deliveringTypedAnswerRef.current = false;
+    // Anything but a delivery keeps the draft and says why — never the queue below, whose flush
+    // would post the answer as a brand-new (paid) run once this one ends.
+    if (outcome === 'delivered') composer.setDraft('');
+    else setTypedAnswerNotice(outcome);
+  }, [composer]);
+
   const send = useCallback(async () => {
     const prompt = composerPrompt(composer);
-    if (!prompt) return;
+    if (!prompt || deliveringTypedAnswerRef.current) return;
+    setTypedAnswerNotice(null);
+    const deliver = options.deliverTypedAnswer;
+    if (deliver !== undefined && isTypedAnswerTurn({
+      blocker: sendBlocker,
+      attachmentCount: composer.attachments.length,
+      messages: conversation.messages,
+    })) {
+      await answerWaitingQuestion({ deliver, text: prompt });
+      return;
+    }
     // Queue instead of no-op'ing. `setDraft('')` and NOT `composer.reset()`: reset also discards
     // staged attachments, which this turn still needs when it finally goes out.
     if (isChatPaneQueueableBlocker({ blocker: sendBlocker })) {
@@ -362,7 +416,16 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     }
     if (!canSend) return;
     await sendPrompt(prompt);
-  }, [canSend, composer, options.conversationId, sendBlocker, sendPrompt]);
+  }, [
+    answerWaitingQuestion,
+    canSend,
+    composer,
+    conversation.messages,
+    options.conversationId,
+    options.deliverTypedAnswer,
+    sendBlocker,
+    sendPrompt,
+  ]);
 
   const interruptSend = useCallback(() => {
     const prompt = composerPrompt(composer);
@@ -405,6 +468,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     conversation.setMessages(options.initialMessages ?? []);
     composer.reset();
     setAttachmentError(null);
+    setTypedAnswerNotice(null);
     // Without this, a prompt queued behind a streaming run survives `reset()` and — once
     // `conversation.cancel()` above clears the streaming blocker — the flush effect fires it into
     // the just-reset conversation instead of discarding it like the rest of this turn's state.
@@ -430,6 +494,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     sendPrompt,
     queuedPrompt,
     cancelQueued,
+    typedAnswerNotice,
     interruptSend,
     reset,
   };
