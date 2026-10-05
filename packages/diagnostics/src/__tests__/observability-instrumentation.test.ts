@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { InMemorySpanExporter, createAsyncScope, createPort } from "./observability-fakes.js";
 
-import { describeQueryNode, instrumentStorageKernel, trackHttpClient } from "../observability/instrumentation.js";
+import { describeQueryNode, instrumentStorageKernel, trackFetch, trackHttpClient } from "../observability/instrumentation.js";
 import { createNoopObservabilityPort } from "../observability/noop.js";
 import type { ObservabilityConfigEnabled } from "../observability/config.js";
 import type { HttpClientPort, HttpRequest } from "@jini-ai/core/primitives";
@@ -170,5 +170,69 @@ describe("trackHttpClient", () => {
  it("returns the client itself for the disabled port", () => {
   const client = respond(200);
   expect(trackHttpClient({ client, observability: createNoopObservabilityPort({}) })).toBe(client);
+ });
+});
+
+describe("trackFetch", () => {
+ type Init = { method?: string; headers?: Record<string, string> };
+ const responding = (status: number) => {
+  const calls: Array<[unknown, Init | undefined]> = [];
+  const fetch = async (input: unknown, init?: Init) => { calls.push([input, init]); return { status }; };
+  return { fetch, calls };
+ };
+
+ it("emits one outbound span per call with the response status, passing input and init through untouched", async () => {
+  const exporter = new InMemorySpanExporter();
+  const { fetch, calls } = responding(201);
+  const init = { method: "put", headers: { authorization: "Bearer zzz" } };
+  const response = await trackFetch({ fetch, observability: createPort(CONFIG, exporter) })("https://user:pw@api.example.com:8443/v1/x?api_key=k", init);
+  expect(response.status).toBe(201);
+  expect(calls).toEqual([["https://user:pw@api.example.com:8443/v1/x?api_key=k", init]]);
+  const [span] = exporter.getFinishedSpans();
+  expect(span!.name).toBe("PUT api.example.com");
+  expect(span!.kind).toBe("client");
+  expect(span!.attributes).toEqual({ "http.request.method": "PUT", "url.scheme": "https", "server.address": "api.example.com", "server.port": 8443, "http.response.status_code": 201 });
+  expect(span!.status.code).toBe("unset");
+  expect(JSON.stringify(span)).not.toMatch(/zzz|api_key|v1|user|pw/);
+ });
+
+ it("reads the URL and method from a URL or Request-shaped input, defaulting to GET", async () => {
+  const exporter = new InMemorySpanExporter();
+  const tracked = trackFetch({ fetch: responding(200).fetch, observability: createPort(CONFIG, exporter) });
+  await tracked(new URL("https://a.example/p"));
+  await tracked({ url: "https://b.example/q", method: "DELETE" });
+  await tracked({ url: "https://c.example/r", method: "DELETE" }, { method: "PATCH" });
+  await tracked(42);
+  expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["GET a.example", "DELETE b.example", "PATCH c.example", "GET invalid-url"]);
+ });
+
+ it("marks a 4xx/5xx response as an error span", async () => {
+  const exporter = new InMemorySpanExporter();
+  await trackFetch({ fetch: responding(503).fetch, observability: createPort(CONFIG, exporter) })("https://api.example.com/");
+  expect(exporter.getFinishedSpans()[0]!.status.code).toBe("error");
+ });
+
+ it("records a rejected call by error type only and rethrows it", async () => {
+  const exporter = new InMemorySpanExporter();
+  const fetch = async (_input: unknown) => { throw Object.assign(new Error("connect to https://api.example.com/secret failed"), { code: "ECONNREFUSED" }); };
+  await expect(trackFetch({ fetch, observability: createPort(CONFIG, exporter) })("https://api.example.com/secret")).rejects.toThrow("connect");
+  const [span] = exporter.getFinishedSpans();
+  expect(span!.attributes["error.type"]).toBe("ECONNREFUSED");
+  expect(span!.status.code).toBe("error");
+  expect(JSON.stringify(span)).not.toMatch(/secret/);
+ });
+
+ it("nests spans the wrapped call starts under its own span", async () => {
+  const exporter = new InMemorySpanExporter();
+  const port = createPort(CONFIG, exporter, { scope: createAsyncScope() });
+  const fetch = async (_input: unknown) => { port.trackDbQuery({ system: "sqlite" }).end({ operation: "select" }); return { status: 200 }; };
+  await trackFetch({ fetch, observability: port })("https://api.example.com/");
+  const [inner, outer] = exporter.getFinishedSpans();
+  expect(inner!.parent).toBe(outer);
+ });
+
+ it("returns the fetch itself for the disabled port", () => {
+  const { fetch } = responding(200);
+  expect(trackFetch({ fetch, observability: createNoopObservabilityPort({}) })).toBe(fetch);
  });
 });

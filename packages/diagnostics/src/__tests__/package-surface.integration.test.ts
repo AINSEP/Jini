@@ -36,7 +36,7 @@ describe("published diagnostics surface", () => {
     const surfaces = [
       [root, ["redactJsonValue", "redactJsonText", "redactText", "collectLogSource", "collectLogSources", "findMacOSCrashReports", "buildManifest", "buildMachineInfo", "diagnosticsFileName", "buildDiagnosticsZip", "buildRunEventLogSources", "buildAgentCliLogSources", "createNodeDiagnosticsPorts"]],
       [secrets, ["redactSecretShapes"]],
-      [observability, ["resolveObservabilityConfig", "createNoopObservabilityPort", "createOtelObservabilityPort", "createHookObservabilityPort", "createObservabilityPort", "isNoopObservabilityPort", "instrumentStorageKernel", "trackHttpClient", "describeQueryNode", "errorType", "redactRequestTarget", "outboundTargetAttributes"]],
+      [observability, ["resolveObservabilityConfig", "createNoopObservabilityPort", "createOtelObservabilityPort", "createHookObservabilityPort", "createObservabilityPort", "isNoopObservabilityPort", "instrumentStorageKernel", "trackHttpClient", "trackFetch", "describeQueryNode", "errorType", "redactRequestTarget", "outboundTargetAttributes"]],
       [observabilityNode, ["createAsyncLocalSpanScope"]],
       [evidence, ["collectPageEvidence", "collectPageStructure", "normalizeSitePath", "verifiedOriginToBaseUrl", "resolveSameOriginUrl", "isSameOriginUrl"]],
       [browser, ["openPlaywrightSiteEvidenceBrowser"]],

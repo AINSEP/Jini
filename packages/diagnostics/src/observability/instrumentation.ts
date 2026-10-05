@@ -116,6 +116,37 @@ export function instrumentStorageKernel<K extends InstrumentableKernel>({ kernel
  return kernel;
 }
 
+/** Any `fetch`-shaped function: the global, a timeout wrapper, a SigV4 client's `fetch`. Structural,
+ * so this universal entry needs no DOM or undici types. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type FetchLike = (input: any, init?: any) => Promise<{ status: number }>;
+
+/** URL and method of one fetch call: `init.method` wins over a Request's own, as in `fetch` itself.
+ * Anything that is not a string, URL or Request-shaped object becomes '' (the adapter's `invalid-url`). */
+function fetchTarget(input: unknown, init: unknown): { method: string; url: string } {
+ const shaped = (typeof input === 'object' && input !== null ? input : {}) as { href?: unknown; url?: unknown; method?: unknown };
+ const raw = typeof input === 'string' ? input : shaped.href ?? shaped.url;
+ const method = (init as { method?: unknown } | undefined)?.method ?? shaped.method;
+ return { url: typeof raw === 'string' ? raw : '', method: typeof method === 'string' ? method.toUpperCase() : 'GET' };
+}
+
+/** One outbound span per call of a raw `fetch` — the egress paths that do not go through a guarded
+ * client (deploy hosts, git hosts, object stores, loopback). Input, init and the response pass through
+ * untouched; the span gets scheme/host/port and status only, like {@link trackHttpClient}.
+ * @returns `fetch` itself for the no-op port.
+ * @complexity O(1) per call. */
+export function trackFetch<F extends FetchLike>({ fetch, observability }: { fetch: F; observability: ObservabilityPort }): F {
+ if (isNoopObservabilityPort(observability)) return fetch;
+ const tracked: FetchLike = async (input, init) => {
+  const tracker = observability.trackOutboundCall(fetchTarget(input, init));
+  let response: { status: number };
+  try { response = await tracker.run(() => fetch(input, init)); } catch (error) { tracker.end({ error }); throw error; }
+  tracker.end({ statusCode: response.status });
+  return response;
+ };
+ return tracked as F;
+}
+
 /** One outbound span per `send`, with the response status or the transport failure; the call itself
  * is unchanged. Returns `client` itself for the no-op port. */
 export function trackHttpClient({ client, observability }: { client: HttpClientPort; observability: ObservabilityPort }): HttpClientPort {
