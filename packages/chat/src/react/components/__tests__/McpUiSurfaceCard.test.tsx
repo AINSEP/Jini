@@ -16,7 +16,8 @@
 import { act, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MCP_UI_EXT_EVENT_NAME, McpUiSurfaceCard, mcpUiSurfaceSlotKey, registerMcpUiSurfaceRenderer } from '../McpUiSurfaceCard.js';
-import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_MIME_TYPE, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '@jini-ai/ui/mcp-ui';
+import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_EXPIRES_AT_META_KEY, MCP_UI_MIME_TYPE, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '@jini-ai/ui/mcp-ui';
+import { fakeClock } from '../../hooks/__tests__/fake-surface-expiry-clock.js';
 import { clearExtEventRenderers, extEventSlot, getExtEventRenderer } from '../../ext-event-renderer-registry.js';
 
 const SANDBOX_URL = new URL('https://sandbox.example.test/sandbox_proxy.html');
@@ -86,6 +87,81 @@ describe('McpUiSurfaceCard', () => {
         />,
       );
       await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
+    });
+  });
+
+  describe('a card with an answer deadline counts down, then closes when it passes', () => {
+    const DEADLINE = 1_700_000_300_000;
+    const approval = [resourceEvent('ui://consumer/approve/x/1', '<p>Allow?</p>', { [MCP_UI_EXPIRES_AT_META_KEY]: DEADLINE })];
+    const approveCall = { name: 'mcp__crm__send_email', input: {} };
+
+    it('shows the time left under the live card and ticks it down', async () => {
+      const fake = fakeClock(DEADLINE - 3_000);
+      const { container, getByRole } = render(
+        <McpUiSurfaceCard {...BASE_PROPS} runStreaming events={approval} call={approveCall} expiryClock={fake.clock} />,
+      );
+      await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
+      expect(getByRole('timer').textContent).toBe('Expires in 0:03');
+      fake.advance(1_000);
+      expect(getByRole('timer').textContent).toBe('Expires in 0:02');
+    });
+
+    it('closes as "This question expired", with no live frame or buttons, once the deadline passes', () => {
+      const fake = fakeClock(DEADLINE - 1_000);
+      const { container, getByRole, queryByRole } = render(
+        <McpUiSurfaceCard {...BASE_PROPS} runStreaming events={approval} call={approveCall} expiryClock={fake.clock} />,
+      );
+      expect(queryByRole('timer')).not.toBeNull();
+      fake.advance(1_000);
+      expect(getByRole('status').textContent).toBe('This question expired');
+      expect(container.querySelector('iframe')).toBeNull();
+      expect(queryByRole('timer')).toBeNull();
+    });
+
+    it('opens already closed when the deadline passed before it rendered', () => {
+      const fake = fakeClock(DEADLINE + 5_000);
+      const { container, getByRole } = render(
+        <McpUiSurfaceCard {...BASE_PROPS} runStreaming events={approval} call={approveCall} expiryClock={fake.clock} />,
+      );
+      expect(getByRole('status').textContent).toBe('This question expired');
+      expect(container.querySelector('iframe')).toBeNull();
+    });
+
+    it('still says "Answered" for a card answered before its deadline passed', () => {
+      const fake = fakeClock(DEADLINE + 5_000);
+      const { getByRole } = render(
+        <McpUiSurfaceCard
+          {...BASE_PROPS}
+          events={approval}
+          call={{ ...approveCall, result: { content: '{"sent":true}', isError: false } }}
+          expiryClock={fake.clock}
+        />,
+      );
+      expect(getByRole('status').textContent).toBe('Answered');
+    });
+
+    it('shows no countdown for a card without a deadline', async () => {
+      const fake = fakeClock(DEADLINE);
+      const { container, queryByRole } = render(
+        <McpUiSurfaceCard {...BASE_PROPS} runStreaming events={[resourceEvent('ui://a/1', '<p>a</p>')]} expiryClock={fake.clock} />,
+      );
+      await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
+      expect(queryByRole('timer')).toBeNull();
+      expect(fake.liveTickers()).toBe(0);
+    });
+
+    it('counts nothing down for a group of several cards, which has no single deadline', async () => {
+      const fake = fakeClock(DEADLINE - 3_000);
+      const { container, queryByRole } = render(
+        <McpUiSurfaceCard
+          {...BASE_PROPS}
+          runStreaming
+          events={[...approval, resourceEvent('ui://b/2', '<p>b</p>', { [MCP_UI_EXPIRES_AT_META_KEY]: DEADLINE })]}
+          expiryClock={fake.clock}
+        />,
+      );
+      await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(2));
+      expect(queryByRole('timer')).toBeNull();
     });
   });
 

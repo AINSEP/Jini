@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- `McpUiSurfaceCard` counts down a card's answer deadline (`MCP_UI_EXPIRES_AT_META_KEY`) under the live frame ("Expires in {time}", `role="timer"`) and closes it as "This question expired" when the deadline passes; a card answered in time still reads "Answered". New `useSurfaceExpiry` hook with an injectable `SurfaceExpiryClock` (card prop `expiryClock`), and pure `describeSurfaceExpiry`/`formatRemainingTime` in core.
+
 - Type store fixtures with the shared storage kernel and chat contracts, including host-owned tables;
   align construction, reopening, paging and message fixtures with current API shapes.
 - Declare jsdom and better-sqlite3 development types for package-wide test compilation.

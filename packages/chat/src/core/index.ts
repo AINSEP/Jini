@@ -24,6 +24,7 @@ export * from './question-form.js';
 export * from './util/index.js';
 export * from './transcript.js';
 export * from './run-activity.js';
+export * from './surface-expiry.js';
 export * from './assistant-content.js';
 export * from './compact-events.js';
 /**

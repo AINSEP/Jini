@@ -419,18 +419,22 @@ ${SURFACE_SCRIPT_PRELUDE}
  * @param spec.uri - The `ui://` identifier. Key it by entity and version, never by the confirmation
  * token: a URI is something a host may log, cache, or show in devtools.
  * @param spec.preferredFrameSize - `[width, height]` hint for hosts that honor it.
+ * @param spec.expiresAtMs - When the server stops waiting for an answer (epoch ms), so a host can
+ * count it down and close the card when it passes. Omit for a dialog with no deadline.
  * @complexity O(n) in the rendered length.
  */
 export function buildConfirmationSurface(
   spec: ConfirmationSurfaceSpec & {
     uri: UIResourceUri;
     preferredFrameSize?: readonly [string, string];
+    expiresAtMs?: number;
   },
 ): UIResource {
   return createUIResource({
     uri: spec.uri,
     htmlString: renderConfirmationDocument(spec),
     ...(spec.preferredFrameSize === undefined ? {} : { preferredFrameSize: spec.preferredFrameSize }),
+    ...(spec.expiresAtMs === undefined ? {} : { expiresAtMs: spec.expiresAtMs }),
     // Same title/actions the frame itself renders (via confirmationActions) — see that function's
     // doc for why this must never be a second, independently-maintained mapping. A host reads this
     // to build a parent-DOM mirror discoverable by page.find_elements; see MCP_UI_ACTION_PLAN_META_KEY.

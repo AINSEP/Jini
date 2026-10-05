@@ -198,6 +198,13 @@ export type {
   ExtEventGroup,
 } from './hooks/useExtEventGroups.js';
 export {
+  SYSTEM_SURFACE_EXPIRY_CLOCK,
+  useSurfaceExpiry,
+} from './hooks/useSurfaceExpiry.js';
+export type {
+  SurfaceExpiryClock,
+} from './hooks/useSurfaceExpiry.js';
+export {
   usePinnedTodos,
 } from './hooks/usePinnedTodos.js';
 export type {

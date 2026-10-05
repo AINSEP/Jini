@@ -88,6 +88,17 @@ export const JINI_MCP_UI_METADATA_PREFIX = 'x-jini-mcp-ui/';
  */
 export const MCP_UI_ACTION_PLAN_META_KEY = `${JINI_MCP_UI_METADATA_PREFIX}action-plan`;
 
+/**
+ * The `_meta` key a host reads to count down how long a surface can still be answered.
+ *
+ * A held-open question (a confirmation the tool waits on) stops being answerable when the server
+ * gives up waiting, but nothing in the document said when that would be, so a person could read a
+ * card that had already expired. The value is the deadline in epoch milliseconds on the PRODUCER's
+ * clock: a host whose clock runs ahead of the server's closes the card early by that skew, never late.
+ * See `McpUiSurfaceCard` in `@jini-ai/chat` for the host-side consumer.
+ */
+export const MCP_UI_EXPIRES_AT_META_KEY = `${JINI_MCP_UI_METADATA_PREFIX}expires-at`;
+
 /** One action in a surface's plan — the `_meta`-safe subset of `surfaces/document.ts`'s `SurfaceAction` (no `type`: that field only affects in-frame `<form>` submission, which has no parent-DOM equivalent). */
 export interface McpUiActionPlanAction {
   readonly id: string;
@@ -150,8 +161,9 @@ export interface UIToolResult {
  * @param spec.preferredFrameSize - `[width, height]` CSS lengths, written to the `_meta` key mcp-ui
  * hosts read.
  * @param spec.actionPlan - See {@link McpUiActionPlan}, written to {@link MCP_UI_ACTION_PLAN_META_KEY}.
- * @param spec.meta - Extra `_meta` entries, merged after `preferredFrameSize`/`actionPlan` so a
- * caller can override either.
+ * @param spec.expiresAtMs - When the surface stops being answerable, written to {@link MCP_UI_EXPIRES_AT_META_KEY}.
+ * @param spec.meta - Extra `_meta` entries, merged after `preferredFrameSize`/`actionPlan`/`expiresAtMs`
+ * so a caller can override any of them.
  * @returns The `EmbeddedResource` to place in a tool result's `content` array.
  * @complexity O(1).
  */
@@ -160,6 +172,7 @@ export function createUIResource(spec: {
   htmlString: string;
   preferredFrameSize?: readonly [string, string];
   actionPlan?: McpUiActionPlan;
+  expiresAtMs?: number;
   meta?: Readonly<Record<string, unknown>>;
 }): UIResource {
   const meta: Record<string, unknown> = {
@@ -167,6 +180,7 @@ export function createUIResource(spec: {
       ? {}
       : { [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: [...spec.preferredFrameSize] }),
     ...(spec.actionPlan === undefined ? {} : { [MCP_UI_ACTION_PLAN_META_KEY]: spec.actionPlan }),
+    ...(spec.expiresAtMs === undefined ? {} : { [MCP_UI_EXPIRES_AT_META_KEY]: spec.expiresAtMs }),
     ...spec.meta,
   };
   return {
@@ -302,4 +316,16 @@ export function readActionPlan(resource: UIResource): McpUiActionPlan | undefine
     actions.push(action);
   }
   return { title, ...(description === undefined ? {} : { description }), actions };
+}
+
+/**
+ * Reads the answer deadline a resource's `_meta` may carry — see {@link MCP_UI_EXPIRES_AT_META_KEY}.
+ *
+ * @returns Epoch milliseconds, or `undefined` when absent or not a finite number — a host that gets
+ * `undefined` shows no countdown rather than one built on a malformed value.
+ * @complexity O(1).
+ */
+export function readExpiresAt(resource: UIResource): number | undefined {
+  const raw = resource.resource._meta?.[MCP_UI_EXPIRES_AT_META_KEY];
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined;
 }

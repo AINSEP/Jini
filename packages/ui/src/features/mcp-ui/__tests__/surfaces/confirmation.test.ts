@@ -4,7 +4,7 @@ import {
   buildConfirmationSurface,
   renderConfirmationDocument,
 } from '../../surfaces/confirmation.js';
-import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
+import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_EXPIRES_AT_META_KEY, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
 import { SURFACE_NOT_PENDING_ERROR_CODE } from '../../surfaces/document.js';
 import { mountSurface } from './mount-surface.js';
 
@@ -669,6 +669,11 @@ describe('buildConfirmationSurface', () => {
     });
     expect(resource.resource._meta?.[MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]).toEqual(['420px', '460px']);
     expect(resource.resource._meta).toHaveProperty(MCP_UI_ACTION_PLAN_META_KEY);
+  });
+
+  it('carries the answer deadline a caller gives, so a host can count it down', () => {
+    const resource = buildConfirmationSurface({ ...DELETE_POST, uri: 'ui://example-host/x/4', expiresAtMs: 1_700_000_300_000 });
+    expect(resource.resource._meta?.[MCP_UI_EXPIRES_AT_META_KEY]).toBe(1_700_000_300_000);
   });
 
   it('omits a cancel action from the plan when the spec has none, matching the rendered document', () => {

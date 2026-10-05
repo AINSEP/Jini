@@ -1,5 +1,9 @@
 # @jini-ai/ui
 
+## Unreleased
+
+- MCP-UI resources can carry an answer deadline: `createUIResource`/`buildConfirmationSurface` take `expiresAtMs`, written to `MCP_UI_EXPIRES_AT_META_KEY`; `readExpiresAt` reads it back (undefined when absent or not a finite number).
+
 ## 0.4.2 — 2026-10-04
 
 - Internal `@jini-ai/*` dependencies are caret ranges (`workspace:^`) instead of exact pins, so a host on `@jini-ai/agentic` 0.4.1 or on a newer patch resolves a single copy without an override.
