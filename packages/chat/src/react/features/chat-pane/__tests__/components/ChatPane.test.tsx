@@ -940,10 +940,10 @@ describe('ChatPane', () => {
         transport={transport}
         agents={agents}
         initialDraft="ship the post"
-        deliverTypedAnswer={async ({ text }) => {
+        deliverTypedAnswer={Object.assign(async ({ text }: { text: string }) => {
           typed.push(text);
-          return 'not-pending';
-        }}
+          return 'not-pending' as const;
+        }, { toolName: 'assistant_ask_choice' })}
       />,
     );
 

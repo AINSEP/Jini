@@ -61,7 +61,8 @@ function deliveryFor(status: number): TypedAnswerDelivery {
  * @param deps.fetch - The fetch to use (the browser's, in production).
  * @param deps.toolName - The host's question tool id — the server only routes typed answers to a
  *   tool that opted in, so this package cannot pick it.
- * @returns Resolves to the outcome; never rejects.
+ * @returns Resolves to the outcome; never rejects. Carries `toolName`, which also tells the pane
+ *   which tool's open card is a question awaiting typed text.
  * @complexity O(1) — one request per call.
  */
 export function createTypedAnswerPoster(
@@ -71,7 +72,7 @@ export function createTypedAnswerPoster(
   const endpoint = `${baseUrl.replace(/\/$/u, '')}${options.path ?? DEFAULT_PATH}`;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  return async ({ text }) => {
+  const deliver = async ({ text }: { text: string }): Promise<TypedAnswerDelivery> => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const outcome = await fetch(endpoint, {
@@ -85,4 +86,5 @@ export function createTypedAnswerPoster(
     clearTimeout(timer);
     return outcome;
   };
+  return Object.assign(deliver, { toolName });
 }

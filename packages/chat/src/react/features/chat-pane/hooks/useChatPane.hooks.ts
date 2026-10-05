@@ -402,6 +402,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       blocker: sendBlocker,
       attachmentCount: composer.attachments.length,
       messages: conversation.messages,
+      toolName: deliver.toolName,
     })) {
       await answerWaitingQuestion({ deliver, text: prompt });
       return;

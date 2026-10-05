@@ -265,55 +265,78 @@ describe('chat-pane selection rules', () => {
 });
 
 describe('isAwaitingTypedAnswer', () => {
+  const toolName = 'assistant_ask_choice';
   const surface: AgentEvent = { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://ask/1' } };
-  const askCall: AgentEvent = { kind: 'tool_use', id: 'call-1', name: 'assistant_ask_choice', input: {} };
+  const askCall: AgentEvent = { kind: 'tool_use', id: 'call-1', name: toolName, input: {} };
+  const confirmCall: AgentEvent = { kind: 'tool_use', id: 'call-2', name: 'content_post_delete', input: {} };
   const assistant = (events: AgentEvent[]): ChatMessage => ({ id: 'a1', role: 'assistant', content: '', events });
   const user: ChatMessage = { id: 'u1', role: 'user', content: 'hi' };
 
   it('is true while a surface raised inside a tool call is still waiting on that call', () => {
-    expect(isAwaitingTypedAnswer({ messages: [user, assistant([askCall, surface])] })).toBe(true);
+    expect(isAwaitingTypedAnswer({ messages: [user, assistant([askCall, surface])], toolName })).toBe(true);
   });
 
   it('is false once the call that raised the surface has returned (answered or expired)', () => {
     const result: AgentEvent = { kind: 'tool_result', toolUseId: 'call-1', content: 'expired', isError: false };
-    expect(isAwaitingTypedAnswer({ messages: [user, assistant([askCall, surface, result])] })).toBe(false);
+    expect(isAwaitingTypedAnswer({ messages: [user, assistant([askCall, surface, result])], toolName })).toBe(false);
   });
 
   it('attributes the surface to the NEWEST open call, so an older call returning does not settle it', () => {
     const older: AgentEvent = { kind: 'tool_use', id: 'call-0', name: 'content_post_search', input: {} };
     const olderResult: AgentEvent = { kind: 'tool_result', toolUseId: 'call-0', content: '[]', isError: false };
-    expect(isAwaitingTypedAnswer({ messages: [assistant([older, askCall, surface, olderResult])] })).toBe(true);
+    expect(isAwaitingTypedAnswer({ messages: [assistant([older, askCall, surface, olderResult])], toolName })).toBe(true);
   });
 
   it('ignores a surface that arrived outside any tool call, and a call that raised no surface', () => {
-    expect(isAwaitingTypedAnswer({ messages: [assistant([surface])] })).toBe(false);
-    expect(isAwaitingTypedAnswer({ messages: [assistant([askCall])] })).toBe(false);
+    expect(isAwaitingTypedAnswer({ messages: [assistant([surface])], toolName })).toBe(false);
+    expect(isAwaitingTypedAnswer({ messages: [assistant([askCall])], toolName })).toBe(false);
   });
 
   it('reads only the newest message, and only when the assistant wrote it', () => {
-    expect(isAwaitingTypedAnswer({ messages: [assistant([askCall, surface]), user] })).toBe(false);
-    expect(isAwaitingTypedAnswer({ messages: [{ id: 'a2', role: 'assistant', content: 'no events' }] })).toBe(false);
-    expect(isAwaitingTypedAnswer({ messages: [] })).toBe(false);
+    expect(isAwaitingTypedAnswer({ messages: [assistant([askCall, surface]), user], toolName })).toBe(false);
+    expect(isAwaitingTypedAnswer({ messages: [{ id: 'a2', role: 'assistant', content: 'no events' }], toolName })).toBe(false);
+    expect(isAwaitingTypedAnswer({ messages: [], toolName })).toBe(false);
+  });
+
+  it('is false for a card raised by any OTHER tool — a delete confirm, an approval — so typing there is a next turn', () => {
+    expect(isAwaitingTypedAnswer({ messages: [assistant([confirmCall, surface])], toolName })).toBe(false);
+    const a2ui: AgentEvent = { kind: 'ext', name: 'a2ui', data: {} };
+    expect(isAwaitingTypedAnswer({ messages: [assistant([confirmCall, a2ui])], toolName })).toBe(false);
+  });
+
+  it('is false when the newest open call owning the surface is another tool, even with the question tool still open', () => {
+    expect(isAwaitingTypedAnswer({ messages: [assistant([askCall, confirmCall, surface])], toolName })).toBe(false);
+  });
+
+  it('counts a call as the question tool when ANY tool_use for its id names it (vendor wrapper plus canonical row, either order)', () => {
+    const wrapper: AgentEvent = { kind: 'tool_use', id: 'call-1', name: 'mcp__jini__execute_delegated_tool', input: { toolId: toolName } };
+    expect(isAwaitingTypedAnswer({ messages: [assistant([wrapper, askCall, surface])], toolName })).toBe(true);
+    expect(isAwaitingTypedAnswer({ messages: [assistant([askCall, wrapper, surface])], toolName })).toBe(true);
   });
 });
 
 describe('isTypedAnswerTurn', () => {
+  const toolName = 'assistant_ask_choice';
   const waiting: ChatMessage[] = [{
     id: 'a1',
     role: 'assistant',
     content: '',
     events: [
-      { kind: 'tool_use', id: 'call-1', name: 'assistant_ask_choice', input: {} },
+      { kind: 'tool_use', id: 'call-1', name: toolName, input: {} },
       { kind: 'ext', name: 'mcp-ui', data: {} },
     ],
   }];
 
   it('is an answer only while streaming, with no attachments, and a question waiting', () => {
-    expect(isTypedAnswerTurn({ blocker: 'streaming', attachmentCount: 0, messages: waiting })).toBe(true);
-    expect(isTypedAnswerTurn({ blocker: null, attachmentCount: 0, messages: waiting })).toBe(false);
-    expect(isTypedAnswerTurn({ blocker: 'uploads-pending', attachmentCount: 0, messages: waiting })).toBe(false);
-    expect(isTypedAnswerTurn({ blocker: 'streaming', attachmentCount: 1, messages: waiting })).toBe(false);
-    expect(isTypedAnswerTurn({ blocker: 'streaming', attachmentCount: 0, messages: [] })).toBe(false);
+    expect(isTypedAnswerTurn({ blocker: 'streaming', attachmentCount: 0, messages: waiting, toolName })).toBe(true);
+    expect(isTypedAnswerTurn({ blocker: null, attachmentCount: 0, messages: waiting, toolName })).toBe(false);
+    expect(isTypedAnswerTurn({ blocker: 'uploads-pending', attachmentCount: 0, messages: waiting, toolName })).toBe(false);
+    expect(isTypedAnswerTurn({ blocker: 'streaming', attachmentCount: 1, messages: waiting, toolName })).toBe(false);
+    expect(isTypedAnswerTurn({ blocker: 'streaming', attachmentCount: 0, messages: [], toolName })).toBe(false);
+  });
+
+  it('is not an answer when the waiting card belongs to a different tool than the configured one', () => {
+    expect(isTypedAnswerTurn({ blocker: 'streaming', attachmentCount: 0, messages: waiting, toolName: 'other_question' })).toBe(false);
   });
 });
 

@@ -163,9 +163,17 @@ export function isChatPaneQueueableBlocker({ blocker }: { blocker: ChatPaneSendB
 /**
  * Whether the run in flight is holding a question open for the human: the newest message is the
  * assistant's, and it carries an interactive surface (`kind: 'ext'`, e.g. an MCP-UI card) that
- * arrived inside a tool call which has not returned yet. That is the one moment text typed into the
- * composer is an ANSWER rather than a next turn — the tool is parked waiting on it, and queueing the
- * text behind the run would only deliver it after the question had expired, as a new paid run.
+ * arrived inside a still-open call to the host's question tool (`toolName`). That is the one moment
+ * text typed into the composer is an ANSWER rather than a next turn — the tool is parked waiting on
+ * it, and queueing the text behind the run would only deliver it after the question had expired, as
+ * a new paid run.
+ *
+ * Only the question tool counts. Other tools park on cards too — a delete confirm, an approval —
+ * but they take no typed answer: the server routes typed text only to the question tool, so treating
+ * those as waiting would refuse the text with "no longer waiting" and drop it instead of queueing.
+ * A call is the question tool when ANY `tool_use` for its id names it, since a vendor's wrapper row
+ * (`execute_delegated_tool`) and the daemon's canonical row share the id and may arrive in either
+ * order.
  *
  * A surface is attributed to the newest call still open when it arrived — the same rule
  * `useExtEventGroups` uses to give a card its `call` — so an older call returning does not settle
@@ -173,20 +181,24 @@ export function isChatPaneQueueableBlocker({ blocker }: { blocker: ChatPaneSendB
  *
  * @complexity O(e·c): e events in the newest message, c calls open at once (one or two in practice).
  */
-export function isAwaitingTypedAnswer({ messages }: { messages: readonly ChatMessage[] }): boolean {
+export function isAwaitingTypedAnswer({ messages, toolName }: {
+  messages: readonly ChatMessage[];
+  toolName: string;
+}): boolean {
   const newest = messages.at(-1);
   if (newest?.role !== 'assistant') return false;
-  // Insertion-ordered, so the last entry is the newest call still open.
-  const openCalls = new Set<string>();
+  // Open call id -> whether it is the question tool. Insertion-ordered, so the last entry is the
+  // newest call still open; a repeat id keeps its slot and only ORs in its name.
+  const openCalls = new Map<string, boolean>();
   const awaited = new Set<string>();
   for (const event of newest.events ?? []) {
-    if (event.kind === 'tool_use') openCalls.add(event.id);
+    if (event.kind === 'tool_use') openCalls.set(event.id, openCalls.get(event.id) === true || event.name === toolName);
     if (event.kind === 'tool_result') {
       openCalls.delete(event.toolUseId);
       awaited.delete(event.toolUseId);
     }
     const owner = event.kind === 'ext' ? [...openCalls].at(-1) : undefined;
-    if (owner !== undefined) awaited.add(owner);
+    if (owner?.[1] === true) awaited.add(owner[0]);
   }
   return awaited.size > 0;
 }
@@ -194,16 +206,18 @@ export function isAwaitingTypedAnswer({ messages }: { messages: readonly ChatMes
 /**
  * Whether a composer send is an answer to a waiting question rather than a next turn: a run is
  * streaming ({@link isChatPaneQueueableBlocker}), the turn has no attachments (a typed answer
- * carries text only), and that run is holding a question open ({@link isAwaitingTypedAnswer}).
+ * carries text only), and that run is holding the `toolName` question open
+ * ({@link isAwaitingTypedAnswer}).
  *
  * @complexity O(e·c), from {@link isAwaitingTypedAnswer}.
  */
-export function isTypedAnswerTurn({ blocker, attachmentCount, messages }: {
+export function isTypedAnswerTurn({ blocker, attachmentCount, messages, toolName }: {
   blocker: ChatPaneSendBlocker | null;
   attachmentCount: number;
   messages: readonly ChatMessage[];
+  toolName: string;
 }): boolean {
-  return isChatPaneQueueableBlocker({ blocker }) && attachmentCount === 0 && isAwaitingTypedAnswer({ messages });
+  return isChatPaneQueueableBlocker({ blocker }) && attachmentCount === 0 && isAwaitingTypedAnswer({ messages, toolName });
 }
 
 const TYPED_ANSWER_NOTICES: Record<TypedAnswerNotice, string> = {

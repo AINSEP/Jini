@@ -35,6 +35,8 @@ describe('createTypedAnswerPoster', () => {
     );
 
     await expect(post({ text: 'deploy it' })).resolves.toBe('delivered');
+    // The pane reads this to tell the question tool's card apart from any other pending card.
+    expect(post.toolName).toBe('assistant_ask_choice');
 
     expect(fake.requests).toHaveLength(1);
     expect(fake.requests[0]?.url).toBe('https://admin.example/api/admin/v1/mcp-ui/tool-calls');

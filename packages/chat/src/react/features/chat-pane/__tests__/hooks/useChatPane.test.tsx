@@ -613,22 +613,26 @@ describe('useChatPane', () => {
   describe('typed answers to a question the running agent is waiting on', () => {
     type Delivery = 'delivered' | 'not-pending' | 'failed';
 
-    /** A hand-written `deliverTypedAnswer` fake: records each text and answers with `outcome`. */
+    type Deliver = ((input: { text: string }) => Promise<Delivery>) & { readonly toolName: string };
+
+    /** A hand-written `deliverTypedAnswer` fake for the `assistant_ask_choice` tool: records each text and answers with `outcome`. */
     function fakeDeliverer(outcome: () => Promise<Delivery>) {
       const texts: string[] = [];
-      return {
-        texts,
-        deliver: (input: { text: string }) => {
-          texts.push(input.text);
-          return outcome();
-        },
-      };
+      const deliver: Deliver = Object.assign((input: { text: string }) => {
+        texts.push(input.text);
+        return outcome();
+      }, { toolName: 'assistant_ask_choice' });
+      return { texts, deliver };
     }
 
-    /** Starts a run and has it raise a question surface inside a still-open tool call. */
+    /**
+     * Starts a run and has it raise a surface inside a still-open tool call — by default the
+     * question tool; `surfaceToolName` raises it from another tool instead (e.g. a delete confirm).
+     */
     async function startRunAwaitingAnswer(options: {
-      deliverTypedAnswer?: (input: { text: string }) => Promise<Delivery>;
+      deliverTypedAnswer?: Deliver;
       settled?: boolean;
+      surfaceToolName?: string;
     }) {
       const transport = createFakeChatTransport();
       const { result } = renderHook(() => useChatPane({
@@ -641,7 +645,7 @@ describe('useChatPane', () => {
       await act(() => result.current.send());
       await waitFor(() => expect(transport.calls).toHaveLength(1));
       act(() => {
-        transport.emit({ kind: 'tool_use', id: 'ask-1', name: 'assistant_ask_choice', input: {} });
+        transport.emit({ kind: 'tool_use', id: 'ask-1', name: options.surfaceToolName ?? 'assistant_ask_choice', input: {} });
         transport.emit({ kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://ask/1' } });
         if (options.settled) {
           transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: 'Answered: Draft', isError: false });
@@ -769,6 +773,19 @@ describe('useChatPane', () => {
 
       expect(deliverer.texts).toEqual([]);
       expect(result.current.queuedPrompt).toBe('see attached');
+    });
+
+    it('queues as before when the pending card belongs to another tool (a delete confirm): the poster is never called, no notice', async () => {
+      const deliverer = fakeDeliverer(async () => 'not-pending');
+      const { result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver, surfaceToolName: 'content_post_delete' });
+
+      act(() => result.current.composer.setDraft('actually, keep it'));
+      await act(() => result.current.send());
+
+      expect(deliverer.texts).toEqual([]);
+      expect(result.current.queuedPrompt).toBe('actually, keep it');
+      expect(result.current.typedAnswerNotice).toBeNull();
+      expect(result.current.composer.draft).toBe('');
     });
 
     it('queues as before when the host supplies no deliverTypedAnswer', async () => {
