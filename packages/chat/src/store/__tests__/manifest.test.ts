@@ -13,8 +13,10 @@ it('keeps neutral and browser entries unchanged while SQL entries are explicit N
  expect(Object.keys(manifest.exports).some(key=>key.includes('*'))).toBe(false);
  expect(manifest.jini.neutralEntries).toEqual(['src/store/contracts']);
 });
-it('makes every SQL and React peer optional, with one pinned dev Kysely and PGlite',()=>{
- const peers={'@jini-ai/db':'^0.2.0',kysely:'^0.29.6','better-sqlite3':'^13.0.0','@electric-sql/pglite':'0.5.8',pg:'^8.23.0',react:'^18.3.0 || ^19.0.0','react-dom':'^18.3.0 || ^19.0.0','@ag-ui/core':'0.0.58'};
+it('makes every SQL, React and surface-card UI peer optional, with one pinned dev Kysely and PGlite',()=>{
+ // The radix/recharts/mcp-ui surface-card peers became optional in d5abdfbc (dev deps for tests).
+ const peers={'@jini-ai/db':'^0.2.0',kysely:'^0.29.6','better-sqlite3':'^13.0.0','@electric-sql/pglite':'0.5.8',pg:'^8.23.0',react:'^18.3.0 || ^19.0.0','react-dom':'^18.3.0 || ^19.0.0','@ag-ui/core':'0.0.58',
+  '@mcp-ui/client':'7.1.1','@radix-ui/react-checkbox':'^1.3.11','@radix-ui/react-label':'^2.1.15','@radix-ui/react-radio-group':'^1.4.7','@radix-ui/react-select':'^2.3.7','@radix-ui/react-slot':'^1.3.3',recharts:'^3.10.1'};
  expect(manifest.peerDependencies).toEqual(peers);
  for(const name of Object.keys(peers)){
   expect(manifest.peerDependenciesMeta[name]).toEqual({optional:true});
