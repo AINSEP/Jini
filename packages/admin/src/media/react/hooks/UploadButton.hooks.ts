@@ -15,11 +15,11 @@ export interface UploadButtonProps {
 /** Reads a browser File at the React boundary; headless controllers only receive bytes. */
 export function readMediaFile(
   { file }: { file: File },
-  { signal }: { signal?: AbortSignal } = {},
+  { signal, createReader = () => new FileReader() }: { signal?: AbortSignal; createReader?: () => FileReader } = {},
 ): Promise<UploadInput> {
   return new Promise((resolve, reject) => {
     signal?.throwIfAborted();
-    const reader = new FileReader();
+    const reader = createReader();
     const abort = () => {
       reader.abort();
       reject(new Error('File read aborted'));
@@ -42,14 +42,21 @@ export function readMediaFile(
     reader.readAsDataURL(file);
   });
 }
-export function useUploadButton(props: UploadButtonProps, _optional: Record<string, never> = {}) {
+export function useUploadButton(
+  props: UploadButtonProps,
+  { readFile = readMediaFile }: {
+    readFile?: (required: { file: File }, optional?: { signal?: AbortSignal }) => Promise<UploadInput>;
+  } = {},
+) {
   // Advisory picker formats mirror the host's standard ceiling, including video. The
   // injected server still validates/sniffs bytes; a file picker is never a security boundary.
   const inputRef = useRef<HTMLInputElement>(null);
   const [selectedFiles, setSelectedFiles] = useState<readonly File[]>([]);
   const [alt, setAlt] = useState(''), [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null), [success, setSuccess] = useState<string | null>(null);
-  const inFlight = useRef(false), lifetime = useRef<AbortController | null>(null);
+  // The mount effect swaps in a fresh controller (StrictMode replays it), so handlers,
+  // which only run after mount, always read a live signal.
+  const inFlight = useRef(false), lifetime = useRef(new AbortController());
   useEffect(() => {
     const abort = new AbortController(); lifetime.current = abort;
     return () => abort.abort();
@@ -61,26 +68,26 @@ export function useUploadButton(props: UploadButtonProps, _optional: Record<stri
   }
   async function uploadFiles(files: readonly File[]) {
     if (!files.length || inFlight.current || props.disabled) return;
-    const signal = lifetime.current?.signal;
+    const signal = lifetime.current.signal;
     inFlight.current = true; setBusy(true); setError(null); setSuccess(null);
     const uploaded: string[] = [];
     let remaining = [...files];
     try {
       for (const file of files) {
-        const input = await readMediaFile({ file }, signal ? { signal } : {});
-        if (signal?.aborted) return;
+        const input = await readFile({ file }, { signal });
+        if (signal.aborted) return;
         if (!await props.upload({ input, ...(alt.trim() ? { alt: alt.trim() } : {}) }))
           throw new Error(`Upload failed for ${file.name}`);
-        if (signal?.aborted) return;
+        if (signal.aborted) return;
         uploaded.push(file.name); remaining = remaining.slice(1);
       }
       setAlt('');
       if (inputRef.current) inputRef.current.value = '';
     } catch (error) {
-      if (!signal?.aborted) setError(error instanceof Error ? error.message : 'Upload failed');
+      if (!signal.aborted) setError(error instanceof Error ? error.message : 'Upload failed');
     } finally {
       inFlight.current = false;
-      if (!signal?.aborted) {
+      if (!signal.aborted) {
         // Keep only failed/unattempted files: retry must not duplicate successes in a batch.
         setSelectedFiles(remaining); setBusy(false);
         if (uploaded.length) setSuccess(`Uploaded ${uploaded.join(', ')}`);

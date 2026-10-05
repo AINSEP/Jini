@@ -54,7 +54,7 @@ export function useLibraryTab(
   // Lightbox — an index into the list, not the item itself, so arrow-key/navigation
   // buttons move the number without re-deriving "what's next" from an item reference.
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const items = snapshot?.items ?? [];
+  const items = snapshot?.items ?? [], pendingIds = snapshot?.pendingIds ?? [];
   const canUpload = permissions.includes('media.upload');
   const canEdit = permissions.includes('media.update');
   const canTrash = permissions.includes('media.trash');
@@ -62,7 +62,7 @@ export function useLibraryTab(
   const canPurge = permissions.includes('media.delete.force');
   const actions = items.map((item, index) => ({
     item,
-    busy: snapshot?.pendingIds.includes(item.id) ?? false,
+    busy: pendingIds.includes(item.id),
     ...(canEdit ? { onEdit: () => setEditing(item) } : {}),
     onPreview: () => setLightboxIndex(index),
     ...(canTrash
@@ -118,16 +118,6 @@ export function useLibraryTab(
     onOrder: ({ value }: { value: string }) => {
       void controller?.setQuery({ query: { ...controller.getSnapshot().query, orderBy: value === 'alphabetical' ? 'alphabetical' : 'created' } });
     },
-    onOrderCreated: () => {
-      void controller?.setQuery({
-        query: { ...controller.getSnapshot().query, orderBy: 'created' },
-      });
-    },
-    onOrderAlphabetical: () => {
-      void controller?.setQuery({
-        query: { ...controller.getSnapshot().query, orderBy: 'alphabetical' },
-      });
-    },
     search: snapshot?.query.search ?? '',
     loading: !snapshot || (snapshot.items === null && snapshot.loading && !snapshot.error),
     busy: snapshot?.busy ?? false,
@@ -140,12 +130,13 @@ export function useLibraryTab(
     },
     cancelPurge: () => controller?.cancelPurge(),
     confirmPurge: () => {
-      if (!canPurge || !controller) return;
-      const item = controller.getSnapshot().pendingPurge;
-      const index = items.findIndex(row => row.id === item?.id);
+      const item = controller?.getSnapshot().pendingPurge;
+      // The controller refuses to purge without a pending item, so there is nothing to announce.
+      if (!canPurge || !controller || !item) return;
+      const index = items.findIndex(row => row.id === item.id);
       return controller.confirmPurge({ confirmed: true }).then(saved => {
         if (saved) {
-          setSuccess(item ? `Deleted permanently ${item.title}` : 'Deleted permanently');
+          setSuccess(`Deleted permanently ${item.title}`);
           setFocusAfterPurge(Math.max(0, index));
         }
       });
