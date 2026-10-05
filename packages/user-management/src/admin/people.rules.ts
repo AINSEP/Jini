@@ -31,7 +31,8 @@ export function describePeopleError({ error, fallback }: { error: unknown; fallb
     SELF_DELETE: 'You cannot delete your own account.', USER_IN_TRASH: 'This user is in the Trash; restore them first.',
     USERNAME_IN_TRASH: 'A user with this username is in the Trash; restore or delete them permanently first.',
   };
-  if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' && copy[error.code]) return copy[error.code]!;
+  // Own keys only: a server code such as "constructor" must not resolve to an Object.prototype member.
+  if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' && Object.hasOwn(copy, error.code)) return copy[error.code]!;
   return error instanceof Error && error.message ? error.message : fallback;
 }
 export function grantLabel({ ids, records }: { ids: readonly string[]; records: readonly { id: string; name: string }[] }, _optional: Record<string, never> = {}) {
