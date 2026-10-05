@@ -9,6 +9,7 @@
 
 ## Unreleased
 
+- The OTel adapter's `trackRequest` now honors `{ requestId }`: the id is recorded as the `http.request.id` span attribute and returned on the tracker. It was previously dropped.
 - **BREAKING:** Remove local `ClockPort`/`DiagnosticsClockPort`; all clocks use `Clock.nowMs()` from `@jini-ai/core/primitives`. Add core as a package dependency.
 - Share the eleven byte-pinned credential patterns with core while retaining all redaction/scanner export names and diagnostics-specific policy. Bundle text and JSON redaction also mask standalone provider credential shapes; ordinary IDs, hashes and paths stay readable.
 - Off-origin evidence copy now says "the inspected origin".

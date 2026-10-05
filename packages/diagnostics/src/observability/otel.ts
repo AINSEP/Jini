@@ -72,9 +72,12 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
  }
 
  return {
-  trackRequest(input) {
-   const span = start({ name: input.method, kind: 'server', attributes: { 'http.method': input.method, 'http.target': redactRequestTarget(input.path) } });
-   return { run: runIn(span), end: once((outcome) => {
+  trackRequest(input, { requestId } = {}) {
+   // The id the response echoes is recorded on the span, so a reported id finds its trace.
+   const span = start({ name: input.method, kind: 'server', attributes: {
+    'http.method': input.method, 'http.target': redactRequestTarget(input.path), ...(requestId ? { 'http.request.id': requestId } : {}),
+   } });
+   return { ...(requestId ? { requestId } : {}), run: runIn(span), end: once((outcome) => {
     // Routing finishes after startSpan, so open with a provisional name and assign the final
     // pattern at end. The consumer port needs no separate rename operation to express that timing.
     span.updateName({ name: `${input.method} ${outcome.routePattern}` });

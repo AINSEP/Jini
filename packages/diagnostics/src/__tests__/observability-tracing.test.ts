@@ -54,6 +54,20 @@ test("attributes carry method, target, matched route, and status code; kind is S
   assert.equal(span!.attributes["http.status_code"], 201);
 });
 
+test("a request id passed in options is recorded on the span and returned on the tracker; without one the span has no id attribute", () => {
+  const { port, exporter } = createPortUnderTest();
+  const tracker = port.trackRequest({ method: "GET", path: "/p" }, { requestId: "incident-123" });
+  assert.equal(tracker.requestId, "incident-123");
+  tracker.end({ statusCode: 200, routePattern: "/p" });
+  const bare = port.trackRequest({ method: "GET", path: "/q" });
+  assert.equal(bare.requestId, undefined);
+  bare.end({ statusCode: 200, routePattern: "/q" });
+
+  const [withId, withoutId] = exporter.getFinishedSpans();
+  assert.equal(withId!.attributes["http.request.id"], "incident-123");
+  assert.equal("http.request.id" in withoutId!.attributes, false);
+});
+
 test("a 5xx outcome sets the span status to ERROR", () => {
   const { port, exporter } = createPortUnderTest();
   const tracker = port.trackRequest({ method: "GET", path: "/boom" });
