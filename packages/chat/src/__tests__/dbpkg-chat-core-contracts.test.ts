@@ -23,7 +23,8 @@ it('retains the default failed status when a completed run has no tool result', 
 
 it('keeps conversation title and transcript order independent of argument containers', () => {
   const history = [{ id: 'u', role: 'user' as const, content: 'Autumn wind' }];
-  expect(deriveConversationTitle({ prompt: 'Autumn wind' })).toBe('Autumn wind');
+  // Title Case, as `persistence/title.test.ts` pins ("Login Bug") since f31447e6.
+  expect(deriveConversationTitle({ prompt: 'Autumn wind' })).toBe('Autumn Wind');
   expect(buildTranscript({ history })).toBe('## user\nAutumn wind');
   expect(sanitizePriorAssistantTurn({ content: 'A <question-form>{"questions":[]}</question-form> B' })).toBe('A [question-form was emitted here on a prior turn; the user already answered, see their reply below.] B');
 });
