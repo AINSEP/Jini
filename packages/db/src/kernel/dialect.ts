@@ -45,7 +45,8 @@ export function jsonText(dialect: StorageDialect, column: Expression<unknown>, p
 /**
  * `column` at `path` equals the JSON scalar `value` (string, number or boolean), as a boolean
  * expression. SQLite has no JSON boolean type — `json_extract` reads `true`/`false` as `1`/`0` — so
- * a boolean is bound as `1`/`0` there; Postgres compares the two `jsonb` values, so `10` matches
+ * check `json_type` before comparing the bound `1`/`0`, so booleans never match numbers.
+ * Postgres compares the two `jsonb` values, so `10` matches
  * `10.0` and a string never matches a number.
  */
 export function jsonScalarEquals(
@@ -56,7 +57,9 @@ export function jsonScalarEquals(
 ): RawBuilder<boolean> {
   if (dialect === "postgres") return sql<boolean>`((${column}::jsonb #> ${pgPath(path)}) = ${JSON.stringify(value)}::jsonb)`;
   const bound = typeof value === "boolean" ? (value ? 1 : 0) : value;
-  return sql<boolean>`(json_extract(${column}, ${sqlitePath(path)}) = ${bound})`;
+  const types = typeof value === "number" ? ["integer", "real"] : typeof value === "boolean" ? ["true", "false"] : ["text"];
+  const at = sqlitePath(path);
+  return sql<boolean>`(json_type(${column}, ${at}) IN (${sql.join(types)}) AND json_extract(${column}, ${at}) = ${bound})`;
 }
 
 /**

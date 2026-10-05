@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { afterAll as after, describe, test } from "vitest";
+import { afterAll as after, beforeEach, describe, test } from "vitest";
 
 import Database from "better-sqlite3";
 import { type RawBuilder, sql } from "kysely";
@@ -48,7 +48,7 @@ const DOCS: Record<string, unknown> = {
   b: { ext: { site: { chef: "Bo", n: 9, ok: false } } },
   c: { ext: { site: { chef: "Cy", n: 2, ok: true } } },
   d: { ext: { site: { chef: "Di" } } },
-  e: { ext: { site: { chef: "1", n: 1 } } },
+  e: { ext: { site: { chef: "1", n: 1, zero: 0 } } },
 };
 const PATH = (field: string) => ["ext", "site", field];
 
@@ -56,7 +56,8 @@ for (const each of cases) {
   describe(`json dialect helpers [${each.name}]`, () => {
     const { kernel } = each;
 
-    test("setup", async () => {
+    beforeEach(async () => {
+      await kernel.execute(sql`DROP TABLE IF EXISTS json_probe`);
       await kernel.execute(each.create);
       for (const [id, doc] of Object.entries(DOCS)) {
         await kernel.execute(sql`INSERT INTO json_probe (id, doc) VALUES (${id}, ${JSON.stringify(doc)})`);
@@ -96,8 +97,19 @@ for (const each of cases) {
       assert.deepEqual(await matching("n", "1"), []);
     });
 
+    test("jsonScalarEquals never equates booleans with numeric zero or one", async () => {
+      assert.deepEqual(await matching("n", true), []);
+      assert.deepEqual(await matching("zero", false), []);
+      assert.deepEqual(await matching("ok", 1), []);
+      assert.deepEqual(await matching("ok", 0), []);
+      assert.deepEqual(await matching("zero", 0), ["e"]);
+      assert.deepEqual(await matching("n", 1), ["e"]);
+    });
+
     test("jsonScalarEquals binds the value: an apostrophe is data, not SQL", async () => {
       assert.deepEqual(await matching("chef", "O'Brien"), []);
+      await kernel.execute(sql`INSERT INTO json_probe (id, doc) VALUES (${"apostrophe"}, ${JSON.stringify({ ext: { site: { chef: "O'Brien" } } })})`);
+      assert.deepEqual(await matching("chef", "O'Brien"), ["apostrophe"]);
     });
 
     test("jsonSortKey orders numbers numerically (2 < 9 < 10), NULLs first asc / last desc", async () => {

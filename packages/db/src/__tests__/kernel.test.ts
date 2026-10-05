@@ -153,6 +153,21 @@ for (const { name, kernel, create } of cases) {
       assert.deepEqual(JSON.parse(row!.doc!), { title: "Hi" });
     });
 
+    test("streaming returns exact rows on SQLite and is explicitly refused on PGlite", async () => {
+      await insert(kernel, "first");
+      await insert(kernel, "second");
+      await kernel.run(async (db) => {
+        const stream = db.selectFrom("kernel_probe").select("id").orderBy("id").stream(1);
+        if (name === "pglite") {
+          await assert.rejects(stream.next(), { message: "streaming queries are not supported on PGlite" });
+        } else {
+          const rows = [];
+          for await (const row of stream) rows.push(row);
+          assert.deepEqual(rows, [{ id: "first" }, { id: "second" }]);
+        }
+      });
+    });
+
     test("jsonText reads scalars with the same spelling on both dialects; jsonSet writes", async () => {
       const value = { s: "Hi", i: 42, t: true, f: false, z: null, meta: { lang: "en" } };
       await kernel.execute(sql`INSERT INTO kernel_probe (id, doc) VALUES ('a', ${JSON.stringify(value)})`);
@@ -258,4 +273,26 @@ test("TurnLock: a queued transaction goes before later readers (FIFO, no starvat
   lock.release("exclusive");
   await reader;
   assert.deepEqual(order, ["writer", "reader"]);
+});
+
+
+test("failed PGlite readiness rejects every database operation without running its body", async () => {
+  const error = new Error("isolated prepare failure");
+  const kernel = openPgliteKernel<ProbeDb>({ PGlite }, { prepare: async () => { throw error; } });
+  try {
+    await assert.rejects(kernel.ready, (actual) => actual === error);
+    await assert.rejects(kernel.run(() => assert.fail("query body must not run")), (actual) => actual === error);
+    await assert.rejects(kernel.transaction(async () => assert.fail("transaction body must not run")), (actual) => actual === error);
+    await assert.rejects(kernel.query(sql`SELECT 1`), (actual) => actual === error);
+    await assert.rejects(kernel.execute(sql`SELECT 1`), (actual) => actual === error);
+  } finally {
+    await kernel.close();
+  }
+});
+
+test("PGlite bigint driver reads preserve exact values on both sides of the safe-integer boundary", async () => {
+  const kernel = cases.find((entry) => entry.name === "pglite")!.kernel;
+  const rows = await kernel.query<{ safe: number; large: bigint; negative: bigint }>(sql`SELECT
+    9007199254740991::bigint AS safe, 9007199254740992::bigint AS large, -9007199254740992::bigint AS negative`);
+  assert.deepEqual(rows, [{ safe: 9007199254740991, large: 9007199254740992n, negative: -9007199254740992n }]);
 });

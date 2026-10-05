@@ -36,8 +36,20 @@ test("PGlite backupTo writes a data-dir dump", async () => {
   const kernel = openPgliteKernel<unknown>({ PGlite });
   try {
     await kernel.execute(sql`CREATE TABLE t (id text)`);
+    await kernel.transaction(async () => {
+      await kernel.execute(sql`INSERT INTO t VALUES ('first'), ('second')`);
+    });
     await kernel.backupTo(path.join(tmp, "pglite.tar"));
+    await assert.rejects(kernel.transaction(async () => kernel.backupTo(path.join(tmp, "never.tar"))), /outside a transaction/);
+    assert.equal(fs.existsSync(path.join(tmp, "never.tar")), false);
     assert.ok(fs.statSync(path.join(tmp, "pglite.tar")).size > 1024);
+    const restored = new PGlite({ loadDataDir: new Blob([fs.readFileSync(path.join(tmp, "pglite.tar"))]) });
+    try {
+      const result = await restored.query("SELECT id FROM t ORDER BY id");
+      assert.deepEqual(result.rows, [{ id: "first" }, { id: "second" }]);
+    } finally {
+      await restored.close();
+    }
   } finally {
     await kernel.close();
   }
