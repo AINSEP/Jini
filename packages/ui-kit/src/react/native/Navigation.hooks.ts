@@ -52,17 +52,17 @@ export function useNativeMenu(required: MenuProps, _optional: Record<string, nev
     document.addEventListener('pointerdown', dismiss);
     return () => document.removeEventListener('pointerdown', dismiss);
   }, [open]);
-  function onKeyDown(event: KeyboardEvent<HTMLElement>) {
+  // `current` is the item's position among enabled items, the same order focus() walks, so no DOM lookup is needed.
+  function onKeyDown(event: KeyboardEvent<HTMLElement>, current: number) {
     if (event.key === 'Escape') { event.preventDefault(); close(); return; }
     if (event.key === 'Tab') { setOpen(false); return; }
-    const current = Array.from(menu.current?.querySelectorAll('[role="menuitem"]:not(:disabled)') ?? []).indexOf(event.target as Element);
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? enabled.length - 1 :
       event.key === 'ArrowDown' ? (current + 1) % enabled.length : event.key === 'ArrowUp' ? (current - 1 + enabled.length) % enabled.length : undefined;
     if (next !== undefined) { event.preventDefault(); focus(next); }
   }
   const items = required.items.map(item => createElement('button', { key: item.id, role: 'menuitem', type: 'button', tabIndex: -1,
     'data-jini-part': 'kit.menu-item', ...item.attrs, className: `jini-row-menu-item ${item.attrs?.['data-jini-variant'] === 'danger' ? 'jini-btn-danger' : ''}`.trim(), disabled: item.disabled,
-    onClick: () => { if (!item.disabled) { close(); item.onPress({}); } }, onKeyDown }, item.label));
+    onClick: () => { if (!item.disabled) { close(); item.onPress({}); } }, onKeyDown: (event: KeyboardEvent<HTMLElement>) => onKeyDown(event, enabled.indexOf(item)) }, item.label));
   const menuProps = { ref: menu, id, role: 'menu', 'aria-label': required.label, hidden: !open, className: 'jini-row-menu-popup', 'data-jini-part': 'kit.menu', style: { position: 'fixed' as const, ...position } };
   return { label: '⋮', items, popup: open ? createPortal(createElement('div', menuProps, items), document.body) : null,
     triggerProps: { 'data-jini-part': 'kit.menu-trigger', ...required.attrs, ref: trigger, type: 'button' as const,

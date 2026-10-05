@@ -160,6 +160,17 @@ describe('native menu', () => {
     expect(document.activeElement?.textContent).toBe('Delete');
   });
 
+  it('arrow keys step from the focused item by its place among enabled items, not among all items', () => {
+    render(h(nativeKit.Menu, { label: 'Actions', items: items() }));
+    open();
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Copy' }), { key: 'ArrowUp' });
+    expect(document.activeElement?.textContent).toBe('Archive');
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Copy' }), { key: 'ArrowDown' });
+    expect(document.activeElement?.textContent).toBe('Delete');
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Delete' }), { key: 'ArrowDown' });
+    expect(document.activeElement?.textContent).toBe('Archive');
+  });
+
   it('Tab closes without returning focus to the trigger', () => {
     render(h(nativeKit.Menu, { label: 'Actions', items: items() }));
     open();
