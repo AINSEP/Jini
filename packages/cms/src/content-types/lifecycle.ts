@@ -180,7 +180,7 @@ export interface TombstoneContentTypeRequired {
  * — the one-way terminal transition into `tombstone`. Must be entered from
  * `deprecated` (any other status, including an already-tombstoned row, is rejected with the same
  * "must deprecate first" guard — collapse to one check). Tears down every queryable-
- * field index the type ever provisioned BEFORE persisting the status flip, and enqueues
+ * field index the type ever provisioned AFTER persisting the status flip, and enqueues
  * `content_type.tombstoned` in the same call.
  *
  * @complexity O(1) plus one repo read, one index-teardown call, one same-tx write pair, and one
@@ -217,8 +217,6 @@ export async function tombstoneContentType(
   const now = kernelNowIso({ clock: deps.clock });
   const updated: ContentTypeRecord = { ...current, status: "tombstone", tombstonedAt: now, version: current.version + 1 };
 
-  await deps.indexProvisioner.tearDownAllIndexesForContentType({ workspaceId: input.workspaceId, contentTypeKey: input.key });
-
   await deps.repo.transaction({ fn: async () => {
     await deps.repo.save(updated);
     await deps.repo.appendRevision({
@@ -233,6 +231,12 @@ export async function tombstoneContentType(
       recordedAt: now,
     });
   } });
+
+  // AFTER the save commits, never before (wm S5): teardown is not part of the repo transaction, so
+  // tearing down first meant a save that threw left a still-'deprecated' type — whose entries stay
+  // fully readable/writable — with every queryable index already gone. In this order a failed save
+  // touches nothing, and a failed teardown leaves only unused indexes on an already-terminal type.
+  await deps.indexProvisioner.tearDownAllIndexesForContentType({ workspaceId: input.workspaceId, contentTypeKey: input.key });
 
   await deps.outbox.enqueue({ name: "content_type.tombstoned", payload: { workspaceId: input.workspaceId, key: input.key } });
 

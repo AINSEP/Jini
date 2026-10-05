@@ -104,6 +104,22 @@ test("AC-17: transitioning to tombstone tears down every index previously provis
   assert.equal(indexProvisioner.teardownCalls.length, 1, "REQ-11 requires every queryable index to be torn down in the tombstone transaction");
 });
 
+test("wm S5: a failed tombstone save leaves the type's indexes intact (teardown runs only after the save commits)", async () => {
+  // Before: teardown ran BEFORE the status-flip transaction, so a save that threw left a
+  // still-'deprecated' (fully readable/writable) type with every queryable index already gone.
+  const repo = { ...fakeRepo(contentType("deprecated", 2)), save: async () => { throw new Error("disk full"); } };
+  const indexProvisioner = fakeIndexProvisioner();
+
+  await assert.rejects(
+    tombstoneContentType({
+      deps: { repo, clock, authorize: alwaysAllow, outbox: fakeOutbox(), indexProvisioner },
+      input: { workspaceId: "ws-1", actorId: "user-1", key: "recipe", expectedVersion: 2 },
+    }),
+    /disk full/,
+  );
+  assert.equal(indexProvisioner.teardownCalls.length, 0);
+});
+
 test("AC-19: deprecating a content type enqueues a content_type.deprecated outbox event in the same call", async () => {
   const repo = fakeRepo(contentType("active", 1));
   const outbox = fakeOutbox();
