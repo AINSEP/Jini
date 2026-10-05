@@ -32,7 +32,7 @@
  * collections.
  */
 import type { UUID } from "@jini-ai/core/primitives";
-import { MenuConflictError } from "./menu-service.js";
+import { menuVersionConflictError } from "./menu-service.js";
 import type { NavLocationBindingRepoPort } from "./ports.js";
 import type { NavLocationBindingRow, NavLocationKey, NavMenuEntry } from "./types.js";
 
@@ -56,24 +56,39 @@ export interface MenuRepoPort {
    * Writes `record` by id. With `expectedVersion`, the write is a compare-and-set: it lands only when
    * the stored row is live (not `status: "trash"`) and still holds that version, checked atomically
    * with the write (one conditional UPDATE in a SQL adapter), so two writers that read the same
-   * version cannot both land. Without it, the write is unconditional (create, import, trash seams).
-   * @throws MenuConflictError ``menu '<id>' was modified concurrently (expected version <n>, found <stored|none>)``.
+   * version cannot both land. With `expectedVersion: null` it is insert-if-absent (a create that
+   * keeps a caller-given id, e.g. a host's id-preserving import; `INSERT ... ON CONFLICT DO NOTHING`
+   * in a SQL adapter), so two creates of one id cannot both land either. Without it, the write is
+   * unconditional (`createMenu`'s freshly minted id, trash seams).
+   * @throws MenuVersionConflictError ``menu '<id>' was modified concurrently (expected version <n>, found <stored|none>)``,
+   *         or ``menu '<id>' already exists (expected no menu, found version <n>)`` for a create
+   *         ({@link menuVersionConflictError}).
    */
   save(record: NavMenuEntry, options?: MenuSaveOptions): Promise<void>;
   /** Hard-remove a menu row. Only called after the trash step. */
   remove(required: { workspaceId: UUID; id: UUID }): Promise<void>;
+  /**
+   * Runs `fn` as ONE unit of work: every menu save, binding write and outbox enqueue inside it commits
+   * together or not at all, and a nested call joins the outer one. `assignLocation` needs it because it
+   * writes two menus, then the binding: a conflict on the second menu must not leave the first one's
+   * `locations` changed while the binding still points at it. A SQL adapter runs its connection's
+   * transaction, and the binding repo and outbox must write through that same connection (a wiring
+   * obligation of the host). A store with nothing to roll back may just call `fn` (see
+   * `InMemoryMenuRepo.transaction`).
+   */
+  transaction<T>(required: { fn: () => Promise<T> }): Promise<T>;
 }
 
 /** Options for {@link MenuRepoPort.save}. */
 export interface MenuSaveOptions {
-  /** The version the caller read; the save throws `MenuConflictError` unless the stored live row still holds it. */
-  expectedVersion?: number | undefined;
+  /** The version the caller read; the save throws `MenuVersionConflictError` unless the stored live row still holds it.
+   *  `null` is a create: the save throws unless no row (live, trashed, or in another workspace) holds the id. */
+  expectedVersion?: number | null | undefined;
 }
 
-/** The compare-and-set loss every `MenuRepoPort` adapter throws (one wording for all of them). */
-export function menuVersionConflictError(required: { id: UUID; expectedVersion: number; found: number | null }): MenuConflictError {
-  return new MenuConflictError({ message: `menu '${required.id}' was modified concurrently (expected version ${required.expectedVersion}, found ${required.found ?? "none"})` });
-}
+/** Re-exported from here, where it has always been exported from; it lives in `menu-service.ts` so that
+ *  module's own read check can throw it without a value import cycle. */
+export { menuVersionConflictError };
 
 /**
  * In-memory `MenuRepoPort` adapter for dev/tests. See file header for why a
@@ -117,7 +132,11 @@ export class InMemoryMenuRepo implements MenuRepoPort {
     const index = this.rows.findIndex(
       (row) => row.workspaceId === record.workspaceId && row.id === record.id
     );
-    if (options.expectedVersion !== undefined) {
+    if (options.expectedVersion === null) {
+      // A create needs the id free in every workspace and status, as a SQL primary key on `id` does.
+      const holder = this.rows.find((row) => row.id === record.id);
+      if (holder) throw menuVersionConflictError({ id: record.id, expectedVersion: null, found: holder.version });
+    } else if (options.expectedVersion !== undefined) {
       const stored = this.rows[index];
       const found = stored && stored.status !== "trash" ? stored.version : null;
       if (found !== options.expectedVersion) {
@@ -129,6 +148,17 @@ export class InMemoryMenuRepo implements MenuRepoPort {
       return;
     }
     this.rows[index] = record;
+  }
+
+  /**
+   * Just runs `fn`: nothing here rolls back, the same disclosed choice as `InMemoryEntryRepo`'s. A
+   * partial write can only be left by a version conflict on a later save of the same unit, which in
+   * this single-process store needs another writer to land between that unit's awaits; dev and test
+   * hosts accept that, and every durable host adapter must roll back.
+   * @complexity O(1) beyond `fn`.
+   */
+  async transaction<T>(required: { fn: () => Promise<T> }): Promise<T> {
+    return required.fn();
   }
 
   async remove(required: { workspaceId: UUID; id: UUID }): Promise<void> {

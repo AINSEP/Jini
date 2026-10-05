@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — Menu and entry version checks
+
+- Entries: `updateEntry`, `publishEntry`/`unpublishEntry` and an import-as-update again refuse an `expectedVersion` that differs from the version they read (`VersionConflictError`), in addition to the save's compare-and-set. The compare-and-set alone let a record built from an older read overwrite a writer that landed the claimed version after that read.
+- Navigation: `updateMenuTree` restores the same read check. New `MenuVersionConflictError` (a `MenuConflictError` subclass) is what `menuVersionConflictError` and that check throw, so a host can tell a lost version check from a slug conflict.
+- Navigation, BREAKING for `MenuRepoPort` adapters: the port gains `transaction({ fn })`, and `assignLocation` runs both menu saves, the binding upsert and its outbox events inside it, so a conflict on the second save no longer leaves the displaced menu changed. `InMemoryMenuRepo.transaction` just runs `fn` (no rollback).
+- Navigation: `MenuSaveOptions.expectedVersion` accepts `null` — insert only when no row (live, trashed, any workspace) holds the id — for a host's id-preserving import-as-create; the loser gets `menu '<id>' already exists (expected no menu, found version <n>)`.
+
 ## 0.4.2 — 2026-10-04
 
 - Media: optional `BlobStorePort.sizeOf` reports original blob bytes (filesystem store memoizes `stat`); `MediaRecord.createdBy` is stamped at creation and write-once.

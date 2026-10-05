@@ -6,6 +6,7 @@ import {
   EntryFieldValidationError,
   EntryNotFoundError,
   EntrySlugConflictError,
+  entryVersionConflictError,
   ForbiddenError,
   VersionConflictError,
 } from "./errors.js";
@@ -230,9 +231,12 @@ interface ExistingEntryTransitionDeps {
 /**
  * shared resolve step for `updateEntry`/`publishEntry`/`unpublishEntry`: authorize ->
  * find the entry -> find its owning type -> reject ONLY if that type is `tombstone`
- * (`deprecated` blocks nothing here, unlike `createEntry`'s rule). The `expectedVersion` check is
- * NOT here: it is the save's compare-and-set inside the write's transaction ({@link runVersionedWrite}),
- * because a check on this read let two writers that read the same version both land (wm S3).
+ * (`deprecated` blocks nothing here, unlike `createEntry`'s rule) -> `expectedVersion` must equal the
+ * version read. That check alone is not enough: the save's compare-and-set inside the write's
+ * transaction ({@link runVersionedWrite}) also checks it, because a check on this read let two writers
+ * that read the same version both land (wm S3). Nor is the compare-and-set alone: the caller's record
+ * is built from THIS read, so a basis that differs from it could match a version another writer lands
+ * after the read and overwrite that writer with a record built from the older row.
  *
  * @complexity O(1) plus one entry read and one content-type read.
  * @overallScore 100
@@ -240,7 +244,7 @@ interface ExistingEntryTransitionDeps {
  */
 async function resolveExistingEntryForTransition(
   deps: ExistingEntryTransitionDeps,
-  input: { workspaceId: string; actorId: string; id: string }
+  input: { workspaceId: string; actorId: string; id: string; expectedVersion: number }
 ): Promise<Result<{ entry: EntryRecord; contentType: OwningContentType | null }, Error>> {
   const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId }, { entityType: "entry" });
   if (!authResult.allowed) {
@@ -256,6 +260,10 @@ async function resolveExistingEntryForTransition(
   if (contentType && contentType.status === "tombstone") {
     // See docs/decisions/DR-002-content-lifecycle-and-cleanup.md for the invariant behind this refusal; keep external identifiers out of caller-facing messages.
     return { ok: false, error: new ContentTypeNotActiveError({ message: `content type '${entry.type}' is tombstoned; existing entries cannot be updated/published/unpublished` }) };
+  }
+
+  if (input.expectedVersion !== entry.version) {
+    return { ok: false, error: entryVersionConflictError({ id: input.id, expectedVersion: input.expectedVersion, found: entry.version }) };
   }
 
   return { ok: true, value: { entry, contentType } };
@@ -448,7 +456,11 @@ export async function importEntry(required: ImportEntryRequired): Promise<Result
     if (!existing) {
       return { ok: false, error: new VersionConflictError({ message: `expected version ${input.expectedVersion} for entry '${input.id}', but no such entry exists` }) };
     }
-    // A version mismatch is the save's compare-and-set below, not a check on this read (wm S3).
+    // Checked on this read AND by the save's compare-and-set below (wm S3): the record is built from
+    // this read, so a basis that differs from it must not reach a save that could match it.
+    if (existing.version !== input.expectedVersion) {
+      return { ok: false, error: entryVersionConflictError({ id: input.id, expectedVersion: input.expectedVersion, found: existing.version }) };
+    }
     // Same id, different type means this is not the row the caller's plan was made against; a
     // silent type move would also dodge the tombstone check on the entry's REAL type. See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
     if (existing.type !== input.type) {

@@ -186,6 +186,38 @@ test("an import-as-update loses to a writer that lands between its read and its 
   assert.deepEqual(revisions, []);
 });
 
+test("updateEntry, publishEntry and unpublishEntry refuse a basis other than the version they read, even when a racing writer makes the save's compare-and-set match", async () => {
+  const edits = [
+    (deps: Parameters<typeof updateEntry>[0]["deps"]) => updateEntry({ deps, input: { workspaceId: WS, actorId: "user-1", id: "entry-1", title: "Mine", expectedVersion: 2 } }),
+    (deps: Parameters<typeof updateEntry>[0]["deps"]) => publishEntry({ deps, input: { workspaceId: WS, actorId: "user-1", id: "entry-1", expectedVersion: 2 } }),
+    (deps: Parameters<typeof updateEntry>[0]["deps"]) => unpublishEntry({ deps, input: { workspaceId: WS, actorId: "user-1", id: "entry-1", expectedVersion: 2 } }),
+  ];
+  for (const edit of edits) {
+    // The service reads version 1; the other writer then lands version 2, the version this caller claims.
+    const { inner, repo, revisions, seeded } = racingRepo([entry()], "entry-1");
+    await seeded;
+    const outbox = fakeOutbox();
+    const result = await edit({ entryRepo: repo, contentTypeRepo: activeType, clock, authorize: alwaysAllow, outbox });
+    assertLost(result, "expected version 2 for entry 'entry-1', found 1");
+    const stored = await inner.findById({ workspaceId: WS, id: "entry-1" });
+    assert.deepEqual([stored?.title, stored?.status, stored?.version], ["Other writer", "draft", 2], "the other writer's version 2 is not overwritten by a record built from version 1");
+    assert.deepEqual([revisions, outbox.events], [[], []]);
+  }
+});
+
+test("an import-as-update refuses a basis other than the version it read, even when a racing writer makes the save's compare-and-set match", async () => {
+  const { inner, repo, revisions, seeded } = racingRepo([entry()], "entry-1");
+  await seeded;
+  const result = await importEntry({
+    deps: { entryRepo: repo, contentTypeRepo: activeType, clock, authorize: alwaysAllow, outbox: fakeOutbox() },
+    input: { workspaceId: WS, actorId: "user-1", id: "entry-1", type: "recipe", slug: "chili", title: "Imported", status: "published", fieldsJson: { ext: { site: {} } }, publishedAt: NOW, expectedVersion: 2 },
+  });
+  assertLost(result, "expected version 2 for entry 'entry-1', found 1");
+  const stored = await inner.findById({ workspaceId: WS, id: "entry-1" });
+  assert.deepEqual([stored?.title, stored?.version], ["Other writer", 2]);
+  assert.deepEqual(revisions, []);
+});
+
 test("an error other than a version conflict thrown inside the write still propagates", async () => {
   const { repo, seeded } = racingRepo([entry()], null);
   await seeded;

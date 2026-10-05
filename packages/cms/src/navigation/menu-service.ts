@@ -93,6 +93,24 @@ export class MenuConflictError extends Error {
 }
 
 /**
+ * A menu write lost its version check: the basis the caller read is no longer the stored live row's
+ * version (or a create found the id taken). A subclass, so every `instanceof MenuConflictError` check
+ * keeps matching, while a host can tell "someone else changed this, reload" apart from the other
+ * conflicts (slug already taken, slug held by a trashed menu), which want the message itself.
+ * Every `MenuRepoPort` adapter throws it, built by {@link menuVersionConflictError}.
+ */
+export class MenuVersionConflictError extends MenuConflictError {}
+
+/** The version-check loss every `MenuRepoPort` adapter (and `updateMenuTree`'s read check) throws, one
+ *  wording for all of them. `expectedVersion: null` is a create (`MenuSaveOptions`) that found the id taken. */
+export function menuVersionConflictError(required: { id: UUID; expectedVersion: number | null; found: number | null }): MenuVersionConflictError {
+  if (required.expectedVersion === null) {
+    return new MenuVersionConflictError({ message: `menu '${required.id}' already exists (expected no menu, found version ${required.found ?? "none"})` });
+  }
+  return new MenuVersionConflictError({ message: `menu '${required.id}' was modified concurrently (expected version ${required.expectedVersion}, found ${required.found ?? "none"})` });
+}
+
+/**
  * The 409-style purge rejection: hard delete is blocked while the menu is
  * still bound to at least one theme location (deletion ladder).
  * Carries the offending location keys so a caller can render "unassign these
@@ -431,8 +449,9 @@ export interface UpdateMenuTreeOptional {
 
 /**
  * Replaces a menu's whole item tree, guarded by optimistic concurrency on the
- * entry `version` (matches the host's `updatePost` pattern): the repo's `save` compares
- * `expectedVersion` atomically with the write and throws `MenuConflictError` on a mismatch.
+ * entry `version` (matches the host's `updatePost` pattern): `expectedVersion` must equal the version
+ * read, and the repo's `save` compares it again atomically with the write; either miss throws
+ * `MenuVersionConflictError`.
  *
  * Id-stability note ("an update may not renumber surviving items"):
  * this build enforces only that ids are present and unique within the
@@ -458,6 +477,11 @@ export async function updateMenuTree(
   const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.id });
   if (!existing) throw new MenuNotFoundError({ message: `menu '${input.id}' was not found` });
   assertEntityLive({ entityType: "menu", entityId: input.id, state: existing.status === "trash" ? "trashed" : "live" });
+  // The new record is built from this read, so a basis that differs from it must not reach the save:
+  // it could match a version another writer lands after this read and overwrite that writer.
+  if (existing.version !== input.expectedVersion) {
+    throw menuVersionConflictError({ id: input.id, expectedVersion: input.expectedVersion, found: existing.version });
+  }
 
   const title = (input.title ?? existing.title).trim();
   const slug = (input.slug ?? existing.slug).trim().toLowerCase();
@@ -481,8 +505,8 @@ export async function updateMenuTree(
     version: existing.version + 1,
   };
 
-  // The version check is the save's compare-and-set, not a read here: a check before the write
-  // let two editors that read the same version both land (wm S4).
+  // The version check is ALSO the save's compare-and-set, not only the read above: a check before
+  // the write alone let two editors that read the same version both land (wm S4).
   await deps.repo.save(menu, { expectedVersion: input.expectedVersion });
 
   await deps.outbox.enqueue(
@@ -537,24 +561,18 @@ export interface AssignLocationOptional {}
  * default) and its `locations` field is updated to drop the key — recorded as
  * its own revision-worthy write.
  *
- * Atomicity note: these writes are
- * logically ONE transaction — the binding-index write is a second in-tx
- * participant alongside a slug-change-capture slot in the host's routing
- * layer. Neither real cross-write transactions nor that routing layer exist
- * as running code yet anywhere this library has shipped, so this function
- * performs the writes sequentially with no rollback if a later step throws.
- * This is an accepted, documented gap pending the command gateway's
- * transaction machinery — do not copy this sequencing pattern into code that
- * has real transactions available.
+ * Atomicity: these writes are ONE transaction (`repo.transaction`) — the displaced
+ * menu's save, this menu's save, the binding upsert and the outbox events commit
+ * together or not at all. Both menu saves are compare-and-set, so the second can
+ * lose to another editor AFTER the first landed: without the transaction, that
+ * left the displaced menu's `locations` without the key while the binding still
+ * pointed at it, and a binding rebuild then dropped the assignment. A
+ * `MenuVersionConflictError` (or any other throw) rolls the whole unit back in a
+ * store that can roll back; `InMemoryMenuRepo` cannot (see its `transaction`).
  *
  * @complexity O repo calls (bounded: at most two menu reads/writes plus one
  * binding upsert), independent of workspace size.
- * @overallScore 90
- * @findings Medium: no rollback across the two writes (menu save, then
- * binding upsert) if the second fails, leaving the derived index stale until
- * a rebuild. Acceptable because the index is declared rebuildable-by-definition;
- * flagged as tech debt for when transactions
- * exist.
+ * @overallScore 100
  */ 
 export async function assignLocation(
   required: AssignLocationRequired,
@@ -567,29 +585,6 @@ export async function assignLocation(
 
   const now = kernelNowIso({ clock: deps.clock });
 
-  const existingBinding = await deps.bindingRepo.findByLocation({
-    workspaceId: input.workspaceId,
-    locationKey: input.locationKey,
-  });
-
-  let displacedMenu: NavMenuEntry | null = null;
-  if (existingBinding && existingBinding.menuId !== input.menuId) {
-    const displaced = await deps.repo.findById({
-      workspaceId: input.workspaceId,
-      id: existingBinding.menuId,
-    });
-    if (displaced) {
-      const updatedDisplaced: NavMenuEntry = {
-        ...displaced,
-        locations: displaced.locations.filter((key) => key !== input.locationKey),
-        updatedAt: now,
-        version: displaced.version + 1,
-      };
-      await deps.repo.save(updatedDisplaced, { expectedVersion: displaced.version });
-      displacedMenu = updatedDisplaced;
-    }
-  }
-
   const updatedMenu: NavMenuEntry = {
     ...menu,
     locations: menu.locations.includes(input.locationKey)
@@ -598,40 +593,66 @@ export async function assignLocation(
     updatedAt: now,
     version: menu.version + 1,
   };
-  await deps.repo.save(updatedMenu, { expectedVersion: menu.version });
 
-  const binding = await deps.bindingRepo.upsert({
-    workspaceId: input.workspaceId,
-    locationKey: input.locationKey,
-    menuId: input.menuId,
-    boundAt: now,
-  });
+  return deps.repo.transaction({ fn: async () => {
+    const existingBinding = await deps.bindingRepo.findByLocation({
+      workspaceId: input.workspaceId,
+      locationKey: input.locationKey,
+    });
 
-  if (displacedMenu) {
+    let displacedMenu: NavMenuEntry | null = null;
+    if (existingBinding && existingBinding.menuId !== input.menuId) {
+      const displaced = await deps.repo.findById({
+        workspaceId: input.workspaceId,
+        id: existingBinding.menuId,
+      });
+      if (displaced) {
+        const updatedDisplaced: NavMenuEntry = {
+          ...displaced,
+          locations: displaced.locations.filter((key) => key !== input.locationKey),
+          updatedAt: now,
+          version: displaced.version + 1,
+        };
+        await deps.repo.save(updatedDisplaced, { expectedVersion: displaced.version });
+        displacedMenu = updatedDisplaced;
+      }
+    }
+
+    await deps.repo.save(updatedMenu, { expectedVersion: menu.version });
+
+    const binding = await deps.bindingRepo.upsert({
+      workspaceId: input.workspaceId,
+      locationKey: input.locationKey,
+      menuId: input.menuId,
+      boundAt: now,
+    });
+
+    if (displacedMenu) {
+      await deps.outbox.enqueue(
+        buildEvent({
+          idGen: deps.idGen,
+          clock: deps.clock,
+          name: "navigation.location.unassigned",
+          workspaceId: input.workspaceId,
+          aggregateId: displacedMenu.id,
+          payload: { locationKey: input.locationKey, menuId: displacedMenu.id },
+        })
+      );
+    }
+
     await deps.outbox.enqueue(
       buildEvent({
         idGen: deps.idGen,
         clock: deps.clock,
-        name: "navigation.location.unassigned",
+        name: "navigation.location.assigned",
         workspaceId: input.workspaceId,
-        aggregateId: displacedMenu.id,
-        payload: { locationKey: input.locationKey, menuId: displacedMenu.id },
+        aggregateId: input.menuId,
+        payload: { locationKey: input.locationKey, menuId: input.menuId },
       })
     );
-  }
 
-  await deps.outbox.enqueue(
-    buildEvent({
-      idGen: deps.idGen,
-      clock: deps.clock,
-      name: "navigation.location.assigned",
-      workspaceId: input.workspaceId,
-      aggregateId: input.menuId,
-      payload: { locationKey: input.locationKey, menuId: input.menuId },
-    })
-  );
-
-  return { menu: updatedMenu, binding, displacedMenu };
+    return { menu: updatedMenu, binding, displacedMenu };
+  } });
 }
 
 // ---------------------------------------------------------------------------

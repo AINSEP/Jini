@@ -91,6 +91,7 @@ export {
   MenuNotFoundError,
   MenuValidationError,
   MenuConflictError,
+  MenuVersionConflictError,
   MenuLocationBoundError,
   DEFAULT_MAX_TREE_DEPTH,
   DEFAULT_MAX_ITEM_COUNT,
