@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 
 /**
  * @file `RowMenu`'s open/close state, viewport-aware positioning, and keyboard/focus behavior,
@@ -15,6 +15,87 @@ interface Position {
 /** 8px clearance kept between the menu and the viewport edge on every side it's tested against. */
 const VIEWPORT_MARGIN = 8;
 
+type RowMenuWindow = Pick<Window, 'innerHeight' | 'innerWidth' | 'addEventListener' | 'removeEventListener'>;
+type RowMenuDocument = Pick<Document, 'addEventListener' | 'removeEventListener'>;
+
+/** What `useRowMenu` hands `RowMenu` — and the shape an injected `useRowMenu` fake must return. */
+export interface RowMenuState {
+  readonly open: boolean;
+  readonly position: Position | null;
+  readonly triggerRef: RefObject<HTMLButtonElement | null>;
+  /** A callback ref from the real hook (see {@link trackOpenMenu}; `null` while closed), or a host
+   *  hook's ref object. Spelled out rather than React's `Ref`, whose callback form carries a brand
+   *  that fails to match across two installed `@types/react` copies (Jini's vs a host app's). */
+  readonly menuRef: RefObject<HTMLDivElement | null> | ((menu: HTMLDivElement | null) => void) | null;
+  readonly itemRefs: RefObject<Array<HTMLButtonElement | null>>;
+  readonly onTriggerClick: () => void;
+  readonly onTriggerKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
+  readonly onMenuKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
+  readonly selectItem: (item: { readonly onSelect: () => void }) => void;
+}
+
+/**
+ * Starts the listeners one open menu needs and returns the matching stop. Called from the menu's
+ * callback ref, so both elements are in hand: `trigger` is the button the menu opened from and
+ * `menu` is the just-attached popup — neither is ever null here.
+ *
+ * Positioning runs immediately, at ref-attach time in the commit, i.e. after the (initially
+ * off-screen, `visibility: hidden`) menu has actually laid out, so its real dimensions are known
+ * before deciding above-vs-below — a plain `useEffect` would run one paint too late and produce a
+ * visible jump. Recomputed on scroll and resize too: a portaled menu is a DOM sibling of its anchor,
+ * not a child, so it does not track the anchor's position on its own the way an in-flow popup would.
+ *
+ * Click-outside closes. Scoped to the open window only, same lifecycle discipline as
+ * `ConfirmButton`'s armed-only document listeners — a closed, idle `RowMenu` costs nothing beyond
+ * its trigger button even with many mounted per table.
+ *
+ * @complexity O(1) per call and per scroll/resize/mousedown event.
+ */
+function trackOpenMenu(
+  { trigger, menu }: { readonly trigger: HTMLElement; readonly menu: HTMLElement },
+  { window, document, onPosition, onDismiss }: {
+    readonly window: RowMenuWindow;
+    readonly document: RowMenuDocument;
+    readonly onPosition: (position: Position) => void;
+    readonly onDismiss: () => void;
+  },
+): () => void {
+  function reposition() {
+    const rect = trigger.getBoundingClientRect();
+    const menuHeight = menu.offsetHeight;
+    const menuWidth = menu.offsetWidth;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const fitsBelow = spaceBelow >= menuHeight + VIEWPORT_MARGIN;
+    const placement: Position['placement'] =
+      fitsBelow || rect.top < menuHeight + VIEWPORT_MARGIN ? 'below' : 'above';
+    // Right-aligned to the trigger by default (the trigger is the table's last column), clamped
+    // so it never overflows the viewport's left or right edge.
+    const left = Math.min(
+      Math.max(VIEWPORT_MARGIN, rect.right - menuWidth),
+      window.innerWidth - menuWidth - VIEWPORT_MARGIN,
+    );
+    onPosition({
+      top: placement === 'below' ? rect.bottom + 4 : rect.top - 4,
+      left,
+      placement,
+    });
+  }
+  function onDocMouseDown(e: globalThis.MouseEvent) {
+    const target = e.target as Node;
+    if (menu.contains(target) || trigger.contains(target)) return;
+    onDismiss();
+  }
+  reposition();
+  window.addEventListener('scroll', reposition, true);
+  window.addEventListener('resize', reposition);
+  document.addEventListener('mousedown', onDocMouseDown);
+  return () => {
+    window.removeEventListener('scroll', reposition, true);
+    window.removeEventListener('resize', reposition);
+    document.removeEventListener('mousedown', onDocMouseDown);
+  };
+}
+
 /**
  * Owns `RowMenu`'s open/close state, positioning, and keyboard/focus behavior.
  *
@@ -22,79 +103,45 @@ const VIEWPORT_MARGIN = 8;
  *   needs, for `ArrowUp`-to-last-item and wraparound navigation.
  */
 export function useRowMenu(
-  { itemCount, window, document }: { readonly itemCount: number; readonly window: Pick<Window, 'innerHeight' | 'innerWidth' | 'addEventListener' | 'removeEventListener'>; readonly document: Pick<Document, 'addEventListener' | 'removeEventListener'> },
-) {
-  const [open, setOpen] = useState(false);
+  { itemCount, window, document }: { readonly itemCount: number; readonly window: RowMenuWindow; readonly document: RowMenuDocument },
+): RowMenuState {
+  // The trigger the menu is open against; `null` while closed. Held as state (not just a boolean)
+  // so the menu's callback ref below is built with the element already in hand. Read from
+  // `triggerRef` at open time: an unattached trigger leaves this `null`, so a menu with nothing to
+  // anchor to never opens.
+  const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+  const open = anchor !== null;
   const [position, setPosition] = useState<Position | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   itemRefs.current = itemRefs.current.slice(0, itemCount);
 
   function close(returnFocus: boolean) {
-    setOpen(false);
+    setAnchor(null);
     setPosition(null);
     if (returnFocus) triggerRef.current?.focus();
   }
 
   function openAt(index: number) {
     setActiveIndex(index);
-    setOpen(true);
+    setAnchor(triggerRef.current);
   }
 
-  // Measured after the (initially off-screen, `visibility: hidden`) menu has actually laid out, so
-  // `menuRef.current`'s real dimensions are known before deciding above-vs-below — a plain
-  // `useEffect` would run one paint too late and produce a visible jump. Recomputed on scroll and
-  // resize too: a portaled menu is a DOM sibling of its anchor, not a child, so it does not track
-  // the anchor's position on its own the way an in-flow popup would.
-  useLayoutEffect(() => {
-    if (!open) return;
-    function reposition() {
-      const trigger = triggerRef.current;
-      if (!trigger) return;
-      const rect = trigger.getBoundingClientRect();
-      const menuHeight = menuRef.current?.offsetHeight ?? 0;
-      const menuWidth = menuRef.current?.offsetWidth ?? 0;
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const fitsBelow = spaceBelow >= menuHeight + VIEWPORT_MARGIN;
-      const placement: Position['placement'] =
-        fitsBelow || rect.top < menuHeight + VIEWPORT_MARGIN ? 'below' : 'above';
-      // Right-aligned to the trigger by default (the trigger is the table's last column), clamped
-      // so it never overflows the viewport's left or right edge.
-      const left = Math.min(
-        Math.max(VIEWPORT_MARGIN, rect.right - menuWidth),
-        window.innerWidth - menuWidth - VIEWPORT_MARGIN,
-      );
-      setPosition({
-        top: placement === 'below' ? rect.bottom + 4 : rect.top - 4,
-        left,
-        placement,
-      });
-    }
-    reposition();
-    window.addEventListener('scroll', reposition, true);
-    window.addEventListener('resize', reposition);
-    return () => {
-      window.removeEventListener('scroll', reposition, true);
-      window.removeEventListener('resize', reposition);
+  // Only the open menu renders this ref, so it only exists once there is an anchor. React calls it
+  // with the menu element on attach and `null` on detach (React 18 and 19 alike; attach always comes
+  // first, so `stop` is set by then). A new anchor or new `window`/`document` ports make a new ref,
+  // which React detaches and re-attaches — the same re-subscribe an effect's deps would give.
+  const menuRef = useMemo(() => {
+    if (!anchor) return null;
+    let stop: () => void;
+    return (menu: HTMLDivElement | null) => {
+      if (menu) stop = trackOpenMenu({ trigger: anchor, menu }, { window, document, onPosition: setPosition, onDismiss: () => close(false) });
+      else stop();
     };
-  }, [open, window, document]);
-
-  // Click-outside closes. Scoped to the open window only, same lifecycle discipline as
-  // `ConfirmButton`'s armed-only document listeners — a closed, idle `RowMenu` costs nothing beyond
-  // its trigger button even with many mounted per table.
-  useEffect(() => {
-    if (!open) return;
-    function onDocMouseDown(e: globalThis.MouseEvent) {
-      const target = e.target as Node;
-      if (menuRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
-      close(false);
-    }
-    document.addEventListener('mousedown', onDocMouseDown);
-    return () => document.removeEventListener('mousedown', onDocMouseDown);
+    // `close` only touches state setters and `triggerRef`, all stable across renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, window, document]);
+  }, [anchor, window, document]);
 
   // Keeps real DOM focus on the active item (roving focus via `tabIndex={-1}` on every item except
   // the active one) rather than only tracking `activeIndex` in state — arrow-key navigation needs

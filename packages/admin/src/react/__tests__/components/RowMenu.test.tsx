@@ -191,6 +191,22 @@ describe('RowMenu selection', () => {
     for (const item of list) expect(item.onSelect).not.toHaveBeenCalled();
   });
 
+  it('stays open on a mousedown on its own trigger, which is outside the portaled menu', () => {
+    const { trigger } = renderMenu();
+    fireEvent.click(trigger());
+    fireEvent.mouseDown(trigger());
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+  });
+
+  it('stops listening for outside mousedowns once closed', () => {
+    const removeSpy = vi.spyOn(document, 'removeEventListener');
+    const { trigger } = renderMenu();
+    fireEvent.click(trigger());
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    expect(removeSpy.mock.calls.some(([type]) => type === 'mousedown')).toBe(true);
+    vi.restoreAllMocks();
+  });
+
   it('stays open on a mousedown inside the menu', () => {
     const { trigger } = renderMenu();
     fireEvent.click(trigger());
