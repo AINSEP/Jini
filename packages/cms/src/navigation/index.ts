@@ -66,7 +66,9 @@ export { createNavMenuReadModel, type NavMenuReadModelDeps, type NavMenuReadMode
 export {
   InMemoryMenuRepo,
   InMemoryNavLocationBindingRepo,
+  menuVersionConflictError,
   type MenuRepoPort,
+  type MenuSaveOptions,
 } from "./repo.memory.js";
 
 /**

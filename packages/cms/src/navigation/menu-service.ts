@@ -431,7 +431,8 @@ export interface UpdateMenuTreeOptional {
 
 /**
  * Replaces a menu's whole item tree, guarded by optimistic concurrency on the
- * entry `version` (matches the host's `updatePost` pattern).
+ * entry `version` (matches the host's `updatePost` pattern): the repo's `save` compares
+ * `expectedVersion` atomically with the write and throws `MenuConflictError` on a mismatch.
  *
  * Id-stability note ("an update may not renumber surviving items"):
  * this build enforces only that ids are present and unique within the
@@ -458,11 +459,6 @@ export async function updateMenuTree(
   if (!existing) throw new MenuNotFoundError({ message: `menu '${input.id}' was not found` });
   assertEntityLive({ entityType: "menu", entityId: input.id, state: existing.status === "trash" ? "trashed" : "live" });
 
-  if (existing.version !== input.expectedVersion) {
-    throw new MenuConflictError({ message: `menu '${input.id}' was modified concurrently (expected version ${input.expectedVersion}, found ${existing.version})` }
-    );
-  }
-
   const title = (input.title ?? existing.title).trim();
   const slug = (input.slug ?? existing.slug).trim().toLowerCase();
   assertValidTitleAndSlug(title, slug);
@@ -485,7 +481,9 @@ export async function updateMenuTree(
     version: existing.version + 1,
   };
 
-  await deps.repo.save(menu);
+  // The version check is the save's compare-and-set, not a read here: a check before the write
+  // let two editors that read the same version both land (wm S4).
+  await deps.repo.save(menu, { expectedVersion: input.expectedVersion });
 
   await deps.outbox.enqueue(
     buildEvent({
@@ -587,7 +585,7 @@ export async function assignLocation(
         updatedAt: now,
         version: displaced.version + 1,
       };
-      await deps.repo.save(updatedDisplaced);
+      await deps.repo.save(updatedDisplaced, { expectedVersion: displaced.version });
       displacedMenu = updatedDisplaced;
     }
   }
@@ -600,7 +598,7 @@ export async function assignLocation(
     updatedAt: now,
     version: menu.version + 1,
   };
-  await deps.repo.save(updatedMenu);
+  await deps.repo.save(updatedMenu, { expectedVersion: menu.version });
 
   const binding = await deps.bindingRepo.upsert({
     workspaceId: input.workspaceId,

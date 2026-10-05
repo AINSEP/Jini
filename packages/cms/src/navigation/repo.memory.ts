@@ -32,6 +32,7 @@
  * collections.
  */
 import type { UUID } from "@jini-ai/core/primitives";
+import { MenuConflictError } from "./menu-service.js";
 import type { NavLocationBindingRepoPort } from "./ports.js";
 import type { NavLocationBindingRow, NavLocationKey, NavMenuEntry } from "./types.js";
 
@@ -51,9 +52,27 @@ export interface MenuRepoPort {
   findById(required: { workspaceId: UUID; id: UUID }): Promise<NavMenuEntry | null>;
   findBySlug(required: { workspaceId: UUID; slug: string }): Promise<NavMenuEntry | null>;
   list(required: { workspaceId: UUID }): Promise<NavMenuEntry[]>;
-  save(record: NavMenuEntry): Promise<void>;
+  /**
+   * Writes `record` by id. With `expectedVersion`, the write is a compare-and-set: it lands only when
+   * the stored row is live (not `status: "trash"`) and still holds that version, checked atomically
+   * with the write (one conditional UPDATE in a SQL adapter), so two writers that read the same
+   * version cannot both land. Without it, the write is unconditional (create, import, trash seams).
+   * @throws MenuConflictError ``menu '<id>' was modified concurrently (expected version <n>, found <stored|none>)``.
+   */
+  save(record: NavMenuEntry, options?: MenuSaveOptions): Promise<void>;
   /** Hard-remove a menu row. Only called after the trash step. */
   remove(required: { workspaceId: UUID; id: UUID }): Promise<void>;
+}
+
+/** Options for {@link MenuRepoPort.save}. */
+export interface MenuSaveOptions {
+  /** The version the caller read; the save throws `MenuConflictError` unless the stored live row still holds it. */
+  expectedVersion?: number | undefined;
+}
+
+/** The compare-and-set loss every `MenuRepoPort` adapter throws (one wording for all of them). */
+export function menuVersionConflictError(required: { id: UUID; expectedVersion: number; found: number | null }): MenuConflictError {
+  return new MenuConflictError({ message: `menu '${required.id}' was modified concurrently (expected version ${required.expectedVersion}, found ${required.found ?? "none"})` });
 }
 
 /**
@@ -94,10 +113,17 @@ export class InMemoryMenuRepo implements MenuRepoPort {
     return this.rows.filter((row) => row.workspaceId === required.workspaceId);
   }
 
-  async save(record: NavMenuEntry): Promise<void> {
+  async save(record: NavMenuEntry, options: MenuSaveOptions = {}): Promise<void> {
     const index = this.rows.findIndex(
       (row) => row.workspaceId === record.workspaceId && row.id === record.id
     );
+    if (options.expectedVersion !== undefined) {
+      const stored = this.rows[index];
+      const found = stored && stored.status !== "trash" ? stored.version : null;
+      if (found !== options.expectedVersion) {
+        throw menuVersionConflictError({ id: record.id, expectedVersion: options.expectedVersion, found });
+      }
+    }
     if (index === -1) {
       this.rows.push(record);
       return;
