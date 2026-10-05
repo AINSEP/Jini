@@ -7,8 +7,9 @@ import {
   EntryNotFoundError,
   ForbiddenError,
   VersionConflictError,
+  entryVersionConflictError,
 } from "../errors.js";
-import { publishEntry, unpublishEntry, updateEntry } from "../write-service.js";
+import { publishEntry, unpublishEntry, updateEntry, type EntrySaveOptions } from "../write-service.js";
 import type { EntryRecord } from "../types.js";
 
 /**
@@ -45,7 +46,11 @@ function fakeEntryRepo(seed: EntryRecord) {
     findBySlug: async (): Promise<never> => {
       throw new Error("fakeEntryRepo.findBySlug is not implemented — this suite exercises only the by-id update/publish paths");
     },
-    save: async (row: EntryRecord) => {
+    // Honors the port's compare-and-set contract: the version check lives in `save` (wm S3).
+    save: async (row: EntryRecord, options: EntrySaveOptions = {}) => {
+      if (options.expectedVersion !== undefined && options.expectedVersion !== stored.version) {
+        throw entryVersionConflictError({ id: row.id, expectedVersion: options.expectedVersion, found: stored.version });
+      }
       stored = row;
     },
     appendRevision: async () => undefined,

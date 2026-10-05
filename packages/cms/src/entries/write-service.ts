@@ -66,10 +66,23 @@ export interface EntryRevisionInput {
   recordedAt: string;
 }
 
+/** Options for {@link EntryRepoPort.save}. */
+export interface EntrySaveOptions {
+  /** The version the caller read; the save throws `VersionConflictError` unless the stored live row still holds it. */
+  expectedVersion?: number | undefined;
+}
+
 export interface EntryRepoPort {
   findBySlug(params: { workspaceId: string; type: string; slug: string }): Promise<EntryRecord | null>;
   findById(params: { workspaceId: string; id: string }): Promise<EntryRecord | null>;
-  save(row: EntryRecord): Promise<void>;
+  /**
+   * Writes `row` by id. With `expectedVersion`, the write is a compare-and-set: it lands only when the
+   * stored live (not trashed) row still holds that version, checked atomically with the write (one
+   * conditional UPDATE in a SQL adapter), so two writers that read the same version cannot both land.
+   * Without it, the write is unconditional (create, import-as-create, trash seams).
+   * @throws VersionConflictError ``expected version <n> for entry '<id>', found <stored|none>`` ({@link entryVersionConflictError}).
+   */
+  save(row: EntryRecord, options?: EntrySaveOptions): Promise<void>;
   appendRevision(revision: EntryRevisionInput): Promise<void>;
   transaction<T>(required: { fn: () => Promise<T> }): Promise<T>;
 }
@@ -214,8 +227,9 @@ interface ExistingEntryTransitionDeps {
 /**
  * shared resolve step for `updateEntry`/`publishEntry`/`unpublishEntry`: authorize ->
  * find the entry -> find its owning type -> reject ONLY if that type is `tombstone`
- * (`deprecated` blocks nothing here, unlike `createEntry`'s rule) -> `expectedVersion`
- * check.
+ * (`deprecated` blocks nothing here, unlike `createEntry`'s rule). The `expectedVersion` check is
+ * NOT here: it is the save's compare-and-set inside the write's transaction ({@link runVersionedWrite}),
+ * because a check on this read let two writers that read the same version both land (wm S3).
  *
  * @complexity O(1) plus one entry read and one content-type read.
  * @overallScore 100
@@ -223,7 +237,7 @@ interface ExistingEntryTransitionDeps {
  */
 async function resolveExistingEntryForTransition(
   deps: ExistingEntryTransitionDeps,
-  input: { workspaceId: string; actorId: string; id: string; expectedVersion: number }
+  input: { workspaceId: string; actorId: string; id: string }
 ): Promise<Result<{ entry: EntryRecord; contentType: OwningContentType | null }, Error>> {
   const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId }, { entityType: "entry" });
   if (!authResult.allowed) {
@@ -241,11 +255,23 @@ async function resolveExistingEntryForTransition(
     return { ok: false, error: new ContentTypeNotActiveError({ message: `content type '${entry.type}' is tombstoned; existing entries cannot be updated/published/unpublished` }) };
   }
 
-  if (input.expectedVersion !== entry.version) {
-    return { ok: false, error: new VersionConflictError({ message: `expected version ${input.expectedVersion} for entry '${input.id}', found ${entry.version}` }) };
-  }
-
   return { ok: true, value: { entry, contentType } };
+}
+
+/**
+ * Runs a versioned write's transaction; a compare-and-set loss thrown by `save` inside it becomes
+ * the returned error (the callers return it as `{ ok: false }`, so HTTP routes keep their Result
+ * path). The transaction rolls the whole write back, so a loss leaves no revision or watermark.
+ * @throws whatever else the transaction throws.
+ */
+async function runVersionedWrite(entryRepo: EntryRepoPort, fn: () => Promise<void>): Promise<VersionConflictError | null> {
+  try {
+    await entryRepo.transaction({ fn });
+    return null;
+  } catch (error) {
+    if (error instanceof VersionConflictError) return error;
+    throw error;
+  }
 }
 
 export interface UpdateEntryRequired {
@@ -311,8 +337,8 @@ export async function updateEntry(required: UpdateEntryRequired): Promise<Result
     version: current.version + 1,
   };
 
-  await deps.entryRepo.transaction({ fn: async () => {
-    await deps.entryRepo.save(updated);
+  const conflict = await runVersionedWrite(deps.entryRepo, async () => {
+    await deps.entryRepo.save(updated, { expectedVersion: input.expectedVersion });
     await deps.entryRepo.appendRevision({
       entryId: current.id,
       workspaceId: input.workspaceId,
@@ -324,7 +350,8 @@ export async function updateEntry(required: UpdateEntryRequired): Promise<Result
     });
     if (deps.watermark) await deps.watermark.stampWatermark({ workspaceId: input.workspaceId });
     if (deps.onWritten) await deps.onWritten(updated);
-  } });
+  });
+  if (conflict) return { ok: false, error: conflict };
 
   await deps.outbox.enqueue({ name: "entry.updated", payload: { workspaceId: input.workspaceId, entryId: current.id } });
 
@@ -415,9 +442,7 @@ export async function importEntry(required: ImportEntryRequired): Promise<Result
     if (!existing) {
       return { ok: false, error: new VersionConflictError({ message: `expected version ${input.expectedVersion} for entry '${input.id}', but no such entry exists` }) };
     }
-    if (existing.version !== input.expectedVersion) {
-      return { ok: false, error: new VersionConflictError({ message: `expected version ${input.expectedVersion} for entry '${input.id}', found ${existing.version}` }) };
-    }
+    // A version mismatch is the save's compare-and-set below, not a check on this read (wm S3).
     // Same id, different type means this is not the row the caller's plan was made against; a
     // silent type move would also dodge the tombstone check on the entry's REAL type. See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
     if (existing.type !== input.type) {
@@ -441,8 +466,8 @@ export async function importEntry(required: ImportEntryRequired): Promise<Result
     version: existing ? existing.version + 1 : 1,
   };
 
-  await deps.entryRepo.transaction({ fn: async () => {
-    await deps.entryRepo.save(entry);
+  const conflict = await runVersionedWrite(deps.entryRepo, async () => {
+    await deps.entryRepo.save(entry, { expectedVersion: input.expectedVersion });
     await deps.entryRepo.appendRevision({
       entryId: entry.id,
       workspaceId: input.workspaceId,
@@ -454,7 +479,8 @@ export async function importEntry(required: ImportEntryRequired): Promise<Result
     });
     if (deps.watermark) await deps.watermark.stampWatermark({ workspaceId: input.workspaceId });
     if (deps.onWritten) await deps.onWritten(entry);
-  } });
+  });
+  if (conflict) return { ok: false, error: conflict };
 
   await deps.outbox.enqueue({ name: "entry.imported", payload: { workspaceId: input.workspaceId, entryId: entry.id, type: input.type, slug: input.slug } });
 
@@ -485,8 +511,8 @@ async function transitionEntryStatus(
     version: current.version + 1,
   };
 
-  await deps.entryRepo.transaction({ fn: async () => {
-    await deps.entryRepo.save(updated);
+  const conflict = await runVersionedWrite(deps.entryRepo, async () => {
+    await deps.entryRepo.save(updated, { expectedVersion: input.expectedVersion });
     await deps.entryRepo.appendRevision({
       entryId: current.id,
       workspaceId: input.workspaceId,
@@ -497,7 +523,8 @@ async function transitionEntryStatus(
       recordedAt: now,
     });
     if (deps.watermark) await deps.watermark.stampWatermark({ workspaceId: input.workspaceId });
-  } });
+  });
+  if (conflict) return { ok: false, error: conflict };
 
   await deps.outbox.enqueue({ name: target.eventName, payload: { workspaceId: input.workspaceId, entryId: current.id } });
 

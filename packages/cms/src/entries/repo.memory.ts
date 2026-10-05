@@ -1,6 +1,7 @@
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { Clock } from "@jini-ai/core/primitives";
-import type { EntryRepoPort, EntryRevisionInput, OutboxPort } from "./write-service.js";
+import { entryVersionConflictError } from "./errors.js";
+import type { EntryRepoPort, EntryRevisionInput, EntrySaveOptions, OutboxPort } from "./write-service.js";
 import type { EntryListPort } from "./list.js";
 import type { EntryRecord, EntryStatus } from "./types.js";
 
@@ -30,7 +31,12 @@ export class InMemoryEntryRepo implements EntryRepoPort, EntryListPort {
     return row && row.workspaceId === params.workspaceId ? { ...row } : null;
   }
 
-  async save(row: EntryRecord): Promise<void> {
+  async save(row: EntryRecord, options: EntrySaveOptions = {}): Promise<void> {
+    if (options.expectedVersion !== undefined) {
+      const stored = this.byId.get(row.id);
+      const found = stored && stored.workspaceId === row.workspaceId ? stored.version : null;
+      if (found !== options.expectedVersion) throw entryVersionConflictError({ id: row.id, expectedVersion: options.expectedVersion, found });
+    }
     this.byId.set(row.id, { ...row });
   }
 

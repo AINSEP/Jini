@@ -59,6 +59,11 @@ export class VersionConflictError extends Error {
   }
 }
 
+/** The compare-and-set loss every `EntryRepoPort.save` adapter throws (one wording for all of them). */
+export function entryVersionConflictError(required: { id: string; expectedVersion: number; found: number | null }): VersionConflictError {
+  return new VersionConflictError({ message: `expected version ${required.expectedVersion} for entry '${required.id}', found ${required.found ?? "none"}` });
+}
+
 /** — `fieldsJson` failed `validateFieldsAgainstSchema` against the owning type's current schema. See docs/decisions/DR-002-content-lifecycle-and-cleanup.md. */
 export class EntryFieldValidationError extends Error {
   readonly fieldErrors: Array<{ field: string; reason: string }>;

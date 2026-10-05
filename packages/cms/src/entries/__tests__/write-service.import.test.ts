@@ -7,8 +7,9 @@ import {
   EntryFieldValidationError,
   ForbiddenError,
   VersionConflictError,
+  entryVersionConflictError,
 } from "../errors.js";
-import type { EntryRevisionInput } from "../write-service.js";
+import type { EntryRevisionInput, EntrySaveOptions } from "../write-service.js";
 import { importEntry } from "../write-service.js";
 import type { EntryRecord } from "../types.js";
 
@@ -47,8 +48,12 @@ function fakeEntryRepo(seed: EntryRecord[] = []) {
     },
     findById: async (params: { workspaceId: string; id: string }) =>
       rows.find((r) => r.workspaceId === params.workspaceId && r.id === params.id) ?? null,
-    save: async (row: EntryRecord) => {
+    // Honors the port's compare-and-set contract: the version check lives in `save` (wm S3).
+    save: async (row: EntryRecord, options: EntrySaveOptions = {}) => {
       const idx = rows.findIndex((r) => r.id === row.id);
+      if (options.expectedVersion !== undefined && options.expectedVersion !== rows[idx]?.version) {
+        throw entryVersionConflictError({ id: row.id, expectedVersion: options.expectedVersion, found: rows[idx]?.version ?? null });
+      }
       if (idx >= 0) rows[idx] = row;
       else rows.push(row);
     },

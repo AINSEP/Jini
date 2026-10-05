@@ -45,6 +45,7 @@ export {
   EntrySlugConflictError,
   VersionConflictError,
   EntryFieldValidationError,
+  entryVersionConflictError,
 } from "./errors.js";
 
 export type { EntryLifecycleOp, EntryLifecycleHandler } from "./lifecycle-dispatch.js";
@@ -58,6 +59,7 @@ export type {
   AuthorizeFn,
   EntryRevisionInput,
   EntryRepoPort,
+  EntrySaveOptions,
   ContentTypeLookupPort,
   OutboxPort,
   WatermarkPort,
