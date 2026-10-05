@@ -47,3 +47,13 @@ export function entityText(
   return translate({ key: key }).replace(/\{([\w]+)\}/g, (match, name: string) =>
     Object.hasOwn(values, name) ? String(values[name]) : match);
 }
+
+/**
+ * Adapts the host's object-arg {@link EntityTranslate} to the positional `(key) => string` form the
+ * shared `Select` widget takes. One adapter for every `Select` an entity form renders, so each one
+ * routes its own copy (search box, empty state) through the host dictionary — even the short boolean
+ * select, which never shows that copy today.
+ */
+export function selectTranslate({ translate }: { readonly translate: EntityTranslate }): (key: string) => string {
+  return (key) => translate({ key });
+}

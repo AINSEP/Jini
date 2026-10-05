@@ -1,6 +1,6 @@
 import { Select } from '@jini-ai/ui/admin-widgets';
 import type { AdminEntityField } from '../../core/ports/entities.js';
-import type { EntityTranslate } from './types.js';
+import { selectTranslate, type EntityTranslate } from './types.js';
 import { fromDatetimeLocalValue, toDatetimeLocalValue, type RelationIndex } from './rules.js';
 
 export function EntityField(props: {
@@ -17,13 +17,14 @@ export function EntityField(props: {
 }) {
   const { inputId, field, value, translate, disabled, invalid, onChange } = props;
   const common = { id: inputId, disabled, 'aria-invalid': invalid };
+  const selectT = selectTranslate({ translate });
   switch (field.kind) {
     case 'json': return <textarea {...common} value={props.text} onChange={(e) => props.onTextChange({ text: e.target.value })} />;
     case 'relation': {
       const options = props.relations[field.target]?.options ?? [];
       const selectedId = typeof value === 'string' ? value : '';
       const missing = selectedId !== '' && !options.some((option) => option.id === selectedId);
-      return <Select id={inputId} disabled={disabled} value={selectedId} translate={(key) => translate({ key })}
+      return <Select id={inputId} disabled={disabled} value={selectedId} translate={selectT}
         aria-label={translate({ key: field.label ?? field.name })}
         options={[
           { value: '', label: translate({ key: 'No value' }) },
@@ -33,7 +34,7 @@ export function EntityField(props: {
     }
     case 'boolean':
       if (field.required) return <input {...common} type="checkbox" checked={value === true} onChange={(e) => onChange({ value: e.target.checked })} />;
-      return <Select id={inputId} disabled={disabled} value={value === undefined ? '' : value === true ? 'true' : 'false'} translate={(key) => translate({ key })}
+      return <Select id={inputId} disabled={disabled} value={value === undefined ? '' : value === true ? 'true' : 'false'} translate={selectT}
         aria-label={translate({ key: field.label ?? field.name })} options={[
           { value: '', label: translate({ key: 'No value' }) }, { value: 'true', label: translate({ key: 'Yes' }) }, { value: 'false', label: translate({ key: 'No' }) },
         ]} onChange={(selected) => onChange({ value: selected === '' ? undefined : selected === 'true' })} />;
