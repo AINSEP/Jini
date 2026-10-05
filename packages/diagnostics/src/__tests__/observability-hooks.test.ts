@@ -21,3 +21,13 @@ test('request IDs, structured logs and metrics use injected values and finish on
  const supplied = port.trackRequest({ method: 'POST', path: '/items' }, { requestId: 'incoming-2' });
  expect(supplied.requestId).toBe('incoming-2');
 });
+test('enabled config builds the tracing adapter and hands it the host scope', () => {
+ const active: unknown[] = [];
+ const span = { updateName() {}, setAttribute() {}, setStatus() {}, addEvent() {}, end() {} };
+ const port = createObservabilityPort({ config: { enabled: true, serviceName: 's', tracerName: 't', endpoint: 'http://c/v1/traces' },
+  exporterFactory: { create: () => ({}) },
+  tracerProviderFactory: { create: () => ({ getTracer: () => ({ startSpan: () => span }) }) } },
+  { scope: { active: () => undefined, run: ({ span: scoped, fn }) => { active.push(scoped); return fn(); } } });
+ expect(port.trackRequest({ method: 'GET', path: '/' }).run!(() => 1)).toBe(1);
+ expect(active).toEqual([span]);
+});

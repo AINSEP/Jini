@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import * as root from "../index.js";
 import * as secrets from "../redaction/secrets-only.js";
 import * as observability from "../observability/index.js";
+import * as observabilityNode from "../observability/node.js";
 import * as evidence from "../web-evidence/index.js";
 import * as browser from "../web-evidence/playwright-browser.js";
 import * as dns from "../domain-dns/index.js";
@@ -14,6 +15,7 @@ const entries = {
   ".": ["index", "node"],
   "./redaction/secrets-only": ["redaction/secrets-only", "universal"],
   "./observability": ["observability/index", "universal"],
+  "./observability/node": ["observability/node", "node"],
   "./web-evidence": ["web-evidence/index", "universal"],
   "./web-evidence/playwright": ["web-evidence/playwright-browser", "node"],
   "./domain-dns": ["domain-dns/index", "node"],
@@ -34,7 +36,8 @@ describe("published diagnostics surface", () => {
     const surfaces = [
       [root, ["redactJsonValue", "redactJsonText", "redactText", "collectLogSource", "collectLogSources", "findMacOSCrashReports", "buildManifest", "buildMachineInfo", "diagnosticsFileName", "buildDiagnosticsZip", "buildRunEventLogSources", "buildAgentCliLogSources", "createNodeDiagnosticsPorts"]],
       [secrets, ["redactSecretShapes"]],
-      [observability, ["resolveObservabilityConfig", "createNoopObservabilityPort", "createOtelObservabilityPort", "createHookObservabilityPort", "createObservabilityPort"]],
+      [observability, ["resolveObservabilityConfig", "createNoopObservabilityPort", "createOtelObservabilityPort", "createHookObservabilityPort", "createObservabilityPort", "isNoopObservabilityPort", "instrumentStorageKernel", "trackHttpClient", "describeQueryNode", "errorType", "redactRequestTarget", "outboundTargetAttributes"]],
+      [observabilityNode, ["createAsyncLocalSpanScope"]],
       [evidence, ["collectPageEvidence", "collectPageStructure", "normalizeSitePath", "verifiedOriginToBaseUrl", "resolveSameOriginUrl", "isSameOriginUrl"]],
       [browser, ["openPlaywrightSiteEvidenceBrowser"]],
       [dns, ["readPublicDomain", "readPublicDnsName", "createDomainDnsChecks"]],

@@ -15,6 +15,7 @@
       ".": "node",
       "./redaction/secrets-only": "universal",
       "./observability": "universal",
+      "./observability/node": "node",
       "./web-evidence": "universal",
       "./web-evidence/playwright": "node",
       "./domain-dns": "node"
@@ -40,6 +41,11 @@
       "types": "./dist/observability/index.d.ts",
       "import": "./dist/observability/index.js",
       "default": "./dist/observability/index.js"
+    },
+    "./observability/node": {
+      "types": "./dist/observability/node.d.ts",
+      "import": "./dist/observability/node.js",
+      "default": "./dist/observability/node.js"
     },
     "./web-evidence": {
       "types": "./dist/web-evidence/index.d.ts",
