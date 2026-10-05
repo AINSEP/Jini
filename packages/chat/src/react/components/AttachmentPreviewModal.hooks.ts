@@ -36,7 +36,7 @@
  * fallback that `onError` can retract - never a second, competing source of truth for a format the
  * server already classified.
  */
-import { useEffect, useRef, useState, type MouseEvent, type RefObject, type SyntheticEvent } from 'react';
+import { useEffect, useState, type MouseEvent, type RefCallback, type SyntheticEvent } from 'react';
 import type { ChatAttachment } from '../../core/index.js';
 import { getAttachmentPreviewSource } from '../hooks/attachment-preview-cache.js';
 import { formatAttachmentSize } from './AttachmentTray.js';
@@ -96,13 +96,49 @@ function canCreateObjectUrl(): boolean {
   return typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function';
 }
 
+/**
+ * Opens `dialog` as a modal and returns the matching close, which also restores focus to whatever
+ * was focused when it opened — see this module's doc on why the restore is explicit rather than left
+ * to the browser's own (jsdom-absent) default.
+ */
+function openModalDialog(dialog: HTMLDialogElement): () => void {
+  const trigger = document.activeElement;
+  if (typeof dialog.showModal === 'function') {
+    if (!dialog.open) dialog.showModal();
+  } else {
+    dialog.setAttribute('open', '');
+  }
+  return () => {
+    if (typeof dialog.close === 'function') {
+      if (dialog.open) dialog.close();
+    } else {
+      dialog.removeAttribute('open');
+    }
+    if (trigger instanceof HTMLElement) trigger.focus();
+  };
+}
+
+/**
+ * The `<dialog>`'s callback ref: open on attach, close + restore focus on detach. A callback ref
+ * rather than an effect reading a ref object, so the element is always in hand — there is no
+ * "not attached" case to guard. React 18 and 19 both call it with the element on mount and `null`
+ * on unmount, and attach always precedes detach, so `close` is set by the time it is called.
+ */
+function createDialogRef(): (dialog: HTMLDialogElement | null) => void {
+  let close: () => void;
+  return (dialog) => {
+    if (dialog) close = openModalDialog(dialog);
+    else close();
+  };
+}
+
 export interface AttachmentTextPreview {
   content: string;
   truncated: boolean;
 }
 
 export interface AttachmentPreviewController {
-  dialogRef: RefObject<HTMLDialogElement | null>;
+  dialogRef: RefCallback<HTMLDialogElement>;
   status: AttachmentPreviewStatus;
   imageUrl: string | undefined;
   onImageError: () => void;
@@ -125,8 +161,11 @@ export function useAttachmentPreviewModal(
   { attachment, onClose }: { attachment: ChatAttachment; onClose: () => void },
   { readText = readFileAsText }: { readText?: (required: { file: File }) => Promise<string> } = {},
 ): AttachmentPreviewController {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const triggerRef = useRef<Element | null>(null);
+  // Lazy state, not `useCallback`: a new ref identity would make React detach and re-attach it,
+  // closing and reopening the dialog. The caller mounts a fresh instance per opened attachment (never
+  // reuses one instance across two different open attachments), so there is no "attachment changed
+  // while still open" transition for the ref to react to.
+  const [dialogRef] = useState(createDialogRef);
   const [imageFailed, setImageFailed] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
   const [text, setText] = useState<AttachmentTextPreview | undefined>(undefined);
@@ -179,31 +218,6 @@ export function useAttachmentPreviewModal(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attemptText, cachedFile]);
 
-  // Open on mount, close + restore focus on unmount — see this module's doc on why the restore is
-  // explicit rather than left to the browser's own (jsdom-absent) default.
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return undefined;
-    triggerRef.current = document.activeElement;
-    if (typeof dialog.showModal === 'function') {
-      if (!dialog.open) dialog.showModal();
-    } else {
-      dialog.setAttribute('open', '');
-    }
-    return () => {
-      if (typeof dialog.close === 'function') {
-        if (dialog.open) dialog.close();
-      } else {
-        dialog.removeAttribute('open');
-      }
-      if (triggerRef.current instanceof HTMLElement) triggerRef.current.focus();
-    };
-    // Mount/unmount only: the caller mounts a fresh instance per opened attachment (never reuses one
-    // instance across two different open attachments), so there is no "attachment changed while
-    // still open" transition for this effect to react to.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   function handleNativeCancel(event: SyntheticEvent<HTMLDialogElement>): void {
     // Always prevented, same reasoning as `ConfirmDialog.hooks.tsx`: the effect above is the single
     // source of truth for open/closed, so Escape still closes — it just does so through `onClose`
@@ -215,7 +229,8 @@ export function useAttachmentPreviewModal(
   function handleBackdropClick(event: MouseEvent<HTMLDialogElement>): void {
     // A `<dialog>` element's own box is sized to its content; a click landing on the `<dialog>`
     // element itself (rather than a descendant) is a click on the backdrop area outside that box.
-    if (event.target === dialogRef.current) onClose();
+    // The handler is bound on the `<dialog>`, so `currentTarget` is that element.
+    if (event.target === event.currentTarget) onClose();
   }
 
   return {

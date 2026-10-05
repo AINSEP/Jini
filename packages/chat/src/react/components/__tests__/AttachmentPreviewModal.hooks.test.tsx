@@ -118,6 +118,17 @@ describe('useAttachmentPreviewModal', () => {
       } finally { api.restore(); }
     });
 
+    it('keeps the dialog open across re-renders: the ref is stable, so React never detaches it', () => {
+      const api = withModalApi();
+      try {
+        const attachment: ChatAttachment = { path: 'a:9', name: 'x.zip', kind: 'file' };
+        const { rerender } = render(<Harness attachment={attachment} />);
+        rerender(<Harness attachment={{ ...attachment }} />);
+        expect(api.showModal).toHaveBeenCalledTimes(1);
+        expect(api.close).not.toHaveBeenCalled();
+      } finally { api.restore(); }
+    });
+
     it('does not reopen an open dialog or close one the browser already closed', () => {
       const api = withModalApi();
       try {
