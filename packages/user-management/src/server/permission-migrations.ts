@@ -18,11 +18,17 @@ import type { IdentityTransactionPort, PolicyPermissionRepoPort, PolicyRepoPort 
  * hand-rolling a fourth divergent copy of the same fix.
  *
  * How it relates to the project:
- * - `registerPermissionMigration`/`listPermissionMigrations` are a small,
- * in-process registry — pure metadata, no I/O, mirrors
- * `permissions.ts`'s `PermissionCatalog.register` overwrite semantics.
+ * - `createPermissionMigrationRegistry` builds a small, in-process registry
+ * object — pure metadata, no I/O, mirrors `permissions.ts`'s
+ * `PermissionCatalog.register` overwrite semantics. A host creates ONE at its
+ * composition root and registers its own pairs on it explicitly; there is no
+ * module-scope registry, so which migrations exist never depends on which
+ * modules a process happened to import (a module-singleton filled by import
+ * side effects once ran a standalone script's boot reconciliation against an
+ * empty registry because that script never imported the registering module).
  * - `migrateDeprecatedPermissionGrants` is the actual grant fan-out: for
- * every registered pair, every policy holding `from` gets every string in
+ * every pair the caller passes in `deps.migrations` (normally its registry's
+ * `list({})`), every policy holding `from` gets every string in
  * `to` it doesn't already hold. It is deliberately, structurally
  * additive-only — there is no delete/update call against
  * `policy_permissions` anywhere in this file.
@@ -46,6 +52,8 @@ export type { PermissionMigration } from '../core/builtin-permissions.js';
 export interface MigrateDeprecatedPermissionGrantsDeps {
   /** Bound to the same storage as both repository ports; required before any migration work. */
   transactions: IdentityTransactionPort;
+  /** Every `{from, to}` pair to fan out — normally `createPermissionMigrationRegistry(...).list({})`. */
+  migrations: readonly PermissionMigration[];
   policyPermissions: PolicyPermissionRepoPort;
   policies: PolicyRepoPort;
   idGen: IdGenerator;
@@ -53,33 +61,47 @@ export interface MigrateDeprecatedPermissionGrantsDeps {
 }
 
 export interface MigrateDeprecatedPermissionGrantsResult {
-  /** Total new `policy_permissions` rows written across every policy and every registered pair. */
+  /** Total new `policy_permissions` rows written across every policy and every passed pair. */
   migratedGrantCount: number;
 }
 
-/** Module-singleton registry — keyed by `from` so re-registration overwrites (idempotent, matches `PermissionCatalog.register`). */
-const registry = new Map<string, PermissionMigration>(BUILTIN_PERMISSION_MIGRATIONS.map((migration) => [migration.from, migration]));
+/** A host-owned set of `{from, to, reason}` pairs; see {@link createPermissionMigrationRegistry}. */
+export interface PermissionMigrationRegistry {
+  /**
+   * Register a `{from, to, reason}` rename/split pair for later fan-out.
+   * Idempotent: re-registering the same `from` overwrites the prior entry
+   * rather than duplicating it (matches `PermissionCatalog.register`'s
+   * existing overwrite semantics, `identity/permissions.ts`).
+   *
+   * @complexity O(1).
+   */
+  register(migration: PermissionMigration): void;
+  /** Enumerate every registered migration pair, built-ins first, in first-registration order. */
+  list(_required: Record<string, never>): PermissionMigration[];
+}
 
 /**
- * Register a `{from, to, reason}` rename/split pair for later fan-out.
- * Idempotent: re-registering the same `from` overwrites the prior entry
- * rather than duplicating it (matches `PermissionCatalog.register`'s
- * existing overwrite semantics, `identity/permissions.ts`).
+ * Create a migration registry seeded with the library's built-in pairs, then `optional.migrations`.
+ * Keyed by `from`, so a host pair with a built-in's `from` overwrites it rather than duplicating.
  *
- * @complexity O(1).
+ * @complexity O(b + m) where b = built-in pairs and m = `optional.migrations`.
  * @overallScore 100
  */
-export function registerPermissionMigration(migration: PermissionMigration): void {
-  registry.set(migration.from, migration);
-}
-
-/** Enumerate every registered migration pair. */
-export function listPermissionMigrations(_required: Record<string, never>): PermissionMigration[] {
-  return [...registry.values()];
+export function createPermissionMigrationRegistry(
+  _required: Record<string, never> = {},
+  optional: { migrations?: readonly PermissionMigration[] } = {},
+): PermissionMigrationRegistry {
+  const byFrom = new Map<string, PermissionMigration>();
+  const register = (migration: PermissionMigration): void => {
+    byFrom.set(migration.from, migration);
+  };
+  for (const migration of BUILTIN_PERMISSION_MIGRATIONS) register(migration);
+  for (const migration of optional.migrations ?? []) register(migration);
+  return { register, list: () => [...byFrom.values()] };
 }
 
 /**
- * For every registered `{from, to}` pair, for every policy in the workspace
+ * For every `{from, to}` pair in `deps.migrations`, for every policy in the workspace
  * holding `from`, ensure every string in `to` is also granted — adding only
  * the rows that are missing. Never removes or mutates `from` (or any other
  * existing row) — additive-only by construction. The entire fan-out runs in
@@ -90,7 +112,7 @@ export function listPermissionMigrations(_required: Record<string, never>): Perm
  * returns `migratedGrantCount: 0` (mirrors `migrateLegacyPresentationSettings`'s
  * boot-safety precedent).
  *
- * @complexity O(p * m) where p = policies in the workspace, m = registered
+ * @complexity O(p * m) where p = policies in the workspace, m = passed
  * migration pairs; both are small, bounded collections in this app's shape.
  * @overallScore 100
  * See docs/decisions/DR-003-additive-permission-migration.md.
@@ -98,7 +120,7 @@ export function listPermissionMigrations(_required: Record<string, never>): Perm
 export async function migrateDeprecatedPermissionGrants(
   deps: MigrateDeprecatedPermissionGrantsDeps
 ): Promise<MigrateDeprecatedPermissionGrantsResult> {
-  const migrations = listPermissionMigrations({});
+  const { migrations } = deps;
   if (migrations.length === 0) return { migratedGrantCount: 0 };
 
   return inIdentityTransaction({

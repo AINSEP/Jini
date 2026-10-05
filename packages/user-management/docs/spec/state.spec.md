@@ -62,7 +62,7 @@ Enumeration copies the outer array but shares descriptor/migration objects. Neit
 
 Although the initial catalog excludes `*`, registration does not prohibit it. Registering that string changes `isKnownPermission({ id: '*' })` and the catalog check used by permission writes.
 
-`migrateDeprecatedPermissionGrants` reads policies one at a time, builds a held-string set, processes migrations in registry order, and saves missing target rows serially. It retains old rows and previously saved targets after a failure; rerun fills remaining targets. Idempotency depends on serialized execution and the held-string comparison, not a unique index or lock. The comparison ignores scope and constraints; target rows are always unscoped/unconstrained.
+`migrateDeprecatedPermissionGrants` reads policies one at a time, builds a held-string set, processes `deps.migrations` in the order passed, and saves missing target rows serially. It retains old rows and previously saved targets after a failure; rerun fills remaining targets. Idempotency depends on serialized execution and the held-string comparison, not a unique index or lock. The comparison ignores scope and constraints; target rows are always unscoped/unconstrained.
 
 ## React caches and controller lifecycle
 

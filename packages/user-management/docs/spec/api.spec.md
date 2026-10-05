@@ -22,7 +22,7 @@ All exports resolve to compiled ESM and declarations under `dist/`. The roles co
 
 ## Argument convention
 
-Where implemented, calls use `(required, optional = {})`, both named objects. Tables preserve actual source signatures: a one-object signature has no declared second parameter. Components accept one React props object; controller event handlers and setters retain React callback signatures. Do not add a wrapper or a second parameter based on this specification. `registerPermission`, `authorizeDepsFrom`, `registerPermissionMigration`, `migrateDeprecatedPermissionGrants`, and repository `save` currently accept a direct descriptor/dependency/record object rather than a nested `required` bag.
+Where implemented, calls use `(required, optional = {})`, both named objects. Tables preserve actual source signatures: a one-object signature has no declared second parameter. Components accept one React props object; controller event handlers and setters retain React callback signatures. Do not add a wrapper or a second parameter based on this specification. `registerPermission`, `authorizeDepsFrom`, `migrateDeprecatedPermissionGrants`, and repository `save` currently accept a direct descriptor/dependency/record object rather than a nested `required` bag.
 
 In the signatures below, `UUID` and `ISODateTime` are string aliases imported from `@jini-ai/core/primitives`; they are not runtime validators. `Empty` is documentation shorthand for `Record<string, never>`, and `W` for `{ workspaceId: UUID }`; neither shorthand is exported.
 
@@ -146,9 +146,8 @@ Every `InMemory*Repo` in the root port table is exported from `/server`. Its con
 | `loadArgon2Binding` | `(required: Empty): Argon2BindingPort` | Installed native `argon2` peer |
 | `Argon2PasswordHasher` | `new (required: Argon2PasswordHasherDependencies, optional: Argon2PasswordHasherOptions = {})`; methods implement `PasswordHasherPort` | `loadBinding(required: Empty): Argon2BindingPort` |
 | `seedIdentity` | `({ deps: SeedIdentityDeps; input: SeedIdentityInput }, optional: SeedIdentityOptions = {}): Promise<SeedIdentityResult>` | Repositories, hasher, clock, ID generator |
-| `registerPermissionMigration` | `(migration: PermissionMigration): void` | Module singleton |
-| `listPermissionMigrations` | `(required: Empty): PermissionMigration[]` | Module singleton |
-| `migrateDeprecatedPermissionGrants` | `(deps: MigrateDeprecatedPermissionGrantsDeps): Promise<MigrateDeprecatedPermissionGrantsResult>` | Scoped policies, permission rows, ID generator |
+| `createPermissionMigrationRegistry` | `(required: Empty = {}, optional: { migrations?: readonly PermissionMigration[] } = {}): PermissionMigrationRegistry` — `register(migration: PermissionMigration): void` (overwrites by `from`), `list(required: Empty): PermissionMigration[]` (built-ins first) | None; the host creates one at its composition root |
+| `migrateDeprecatedPermissionGrants` | `(deps: MigrateDeprecatedPermissionGrantsDeps): Promise<MigrateDeprecatedPermissionGrantsResult>` | Scoped policies, permission rows, ID generator, explicit `migrations` list |
 
 `Argon2PasswordHasherOptions = { memoryCost?: number; timeCost?: number; parallelism?: number }`; defaults are `19456` KiB, `2`, and `1`. `Argon2PasswordHasherDependencies = { loadBinding }`. `Argon2BindingPort` supplies `argon2id: number`, `hash({ password: string }, optional?: Argon2PasswordHasherOptions & { type?: number }): Promise<string>`, and `verify({ hash: string; password: string }): Promise<boolean>`.
 

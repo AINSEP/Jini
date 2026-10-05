@@ -8,7 +8,7 @@ import { authorize } from '../authorize.js';
 import { disablePrincipal, enablePrincipal, updateUser, resetUserPassword, deleteRole, deletePolicy } from '../admin-crud-service.js';
 import { assignRole, attachPolicy } from '../grant-service.js';
 import { parseIdentityToolInput } from '../agent-tool-input.js';
-import { migrateDeprecatedPermissionGrants, registerPermissionMigration } from '../permission-migrations.js';
+import { createPermissionMigrationRegistry, migrateDeprecatedPermissionGrants } from '../permission-migrations.js';
 import { seedIdentity } from '../seed.js';
 import { createTransactionalInMemoryIdentityRepos } from '../repo.memory-transactions.js';
 import {
@@ -154,8 +154,8 @@ test('migration failure restores every earlier policy write and a retry is idemp
     await repos.policies.save({ id, workspaceId, name: id, isBuiltin: false, isFrozen: false });
     await repos.policyPermissions.save({ id: `old-${id}`, workspaceId, policyId: id, permission: 'regression.old', resourceType: null, constraintJson: null });
   }
-  registerPermissionMigration({ from: 'regression.old', to: ['regression.new'], reason: 'regression fixture' });
-  const migrationDeps = { policies: repos.policies, policyPermissions: repos.policyPermissions, transactions: repos.transactions, idGen: { newId: (() => { let id = 0; return () => `migration-${++id}`; })() }, workspaceId };
+  const migrations = createPermissionMigrationRegistry({}, { migrations: [{ from: 'regression.old', to: ['regression.new'], reason: 'regression fixture' }] }).list({});
+  const migrationDeps = { migrations, policies: repos.policies, policyPermissions: repos.policyPermissions, transactions: repos.transactions, idGen: { newId: (() => { let id = 0; return () => `migration-${++id}`; })() }, workspaceId };
   await assert.rejects(migrateDeprecatedPermissionGrants(migrationDeps), /migration failure/);
   for (const policyId of ['first', 'second']) assert.deepEqual((await repos.policyPermissions.listByPolicyId({ workspaceId, policyId })).map(row => row.permission), ['regression.old']);
   fail = false;
@@ -166,7 +166,7 @@ test('migration failure restores every earlier policy write and a retry is idemp
 test('migration requires a transaction port before any write', async () => {
   const { repos, deps } = fixture();
   // @ts-expect-error Deliberately omit the required transaction to exercise untyped callers.
-  await assert.rejects(migrateDeprecatedPermissionGrants({ policies: repos.policies, policyPermissions: repos.policyPermissions, idGen: deps.idGen, workspaceId }), IdentityTransactionRequiredError);
+  await assert.rejects(migrateDeprecatedPermissionGrants({ migrations: createPermissionMigrationRegistry({}).list({}), policies: repos.policies, policyPermissions: repos.policyPermissions, idGen: deps.idGen, workspaceId }), IdentityTransactionRequiredError);
 });
 
 // Finding 6: inactivity/existence takes precedence even over dangling wildcard grants.

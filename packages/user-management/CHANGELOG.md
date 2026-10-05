@@ -9,6 +9,14 @@
 
 ## Unreleased
 
+### BREAKING: permission migrations are an explicit registry
+
+- Remove the module-singleton `registerPermissionMigration`/`listPermissionMigrations`. Create a
+  registry with `createPermissionMigrationRegistry({}, { migrations })` at the composition root
+  (seeded with the built-in pairs; `register` keeps the overwrite-by-`from` semantics) and pass
+  `migrations: registry.list({})` to `migrateDeprecatedPermissionGrants`, which now requires it.
+  Which pairs exist no longer depends on module import order.
+
 ### Compilation fixes
 
 - Import the consolidated tab-strip barrel (requires the UI peer to export that

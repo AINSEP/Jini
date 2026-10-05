@@ -7,7 +7,7 @@ const SEED_OWNER_PASSWORD = "seed-owner-pw";
 
 import { authorize } from "../authorize.js";
 import { Argon2PasswordHasher, loadArgon2Binding } from "../hasher.js";
-import { migrateDeprecatedPermissionGrants } from "../permission-migrations.js";
+import { createPermissionMigrationRegistry, migrateDeprecatedPermissionGrants } from "../permission-migrations.js";
 // Side-effect import: registers the real BASE_CATALOG + the real integration.manage ->
 // admin.integrations.manage migration pair before the T025 test below runs.
 import "../../core/permissions.js";
@@ -192,6 +192,7 @@ test("T025: a policy holding the deprecated integration.manage also gains admin.
   });
 
   const first = await migrateDeprecatedPermissionGrants({
+    migrations: createPermissionMigrationRegistry({}).list({}),
     policyPermissions: deps.repos.policyPermissions,
     policies: deps.repos.policies,
     transactions: deps.repos.transactions,
@@ -210,6 +211,7 @@ test("T025: a policy holding the deprecated integration.manage also gains admin.
 
   // Idempotent rerun: nothing left to migrate for this policy/pair.
   const second = await migrateDeprecatedPermissionGrants({
+    migrations: createPermissionMigrationRegistry({}).list({}),
     policyPermissions: deps.repos.policyPermissions,
     policies: deps.repos.policies,
     transactions: deps.repos.transactions,
@@ -250,6 +252,7 @@ test("internal audit F2: a policy holding settings.user.write also gains setting
   });
 
   const first = await migrateDeprecatedPermissionGrants({
+    migrations: createPermissionMigrationRegistry({}).list({}),
     policyPermissions: deps.repos.policyPermissions,
     policies: deps.repos.policies,
     transactions: deps.repos.transactions,
@@ -268,6 +271,7 @@ test("internal audit F2: a policy holding settings.user.write also gains setting
   assert.ok(permissionsAfter.includes("settings.user.read"), "the new read grant is backfilled");
 
   const second = await migrateDeprecatedPermissionGrants({
+    migrations: createPermissionMigrationRegistry({}).list({}),
     policyPermissions: deps.repos.policyPermissions,
     policies: deps.repos.policies,
     transactions: deps.repos.transactions,
