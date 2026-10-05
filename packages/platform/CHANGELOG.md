@@ -1,5 +1,9 @@
 # @jini-ai/platform
 
+## 0.5.1 — 2026-10-04
+
+- `./secrets` exports the canonical site-key names (`SiteKeyHandle`, `FixedSiteKeyKeyring`, `UnusableSiteKeyError`, `SiteKeyFileAlreadyExistsError`, `parseSiteKeyHex`, `fingerprintSiteKeyHex`, `inspectSiteKeyMaterial`, `revealSiteKeyMaterial`, `generateFileSiteKey`, `deriveFromSiteKey`, `deriveSigningSecretFromSiteKey` and the matching types). Every `RootKey*` name stays exported as a `@deprecated` alias of the same binding, to be removed on or after 2026-11-01. Additive: no behavior or signature change.
+
 ## 0.5.0 — 2026-10-02
 
 ### BREAKING

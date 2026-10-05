@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/platform",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Generic OS/platform primitives: process exec and lifecycle, filesystem containment, HTTP readiness polling, toolchain discovery, blob storage, AWS signing, and an SSRF-safe asset cache.",
   "license": "Apache-2.0",
   "repository": {
