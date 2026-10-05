@@ -256,7 +256,13 @@ describe('useUploadButton', () => {
     act(() => result.current.onFile(changeEvent([file('a.png')])));
     act(() => result.current.onUpload());
     unmount();
-    await act(async () => read.reject(new Error('late')));
-    expect(result.current.error).toBeNull();
+    // React silently discards an update to an unmounted hook, so the rendered result cannot
+    // show a late setError. The failure's message is read only to build that error, so an
+    // unread message proves the hook dropped the failure instead of reporting it.
+    const messageRead = vi.fn(() => 'late');
+    const late = new Error();
+    Object.defineProperty(late, 'message', { get: messageRead });
+    await act(async () => read.reject(late));
+    expect(messageRead).not.toHaveBeenCalled();
   });
 });
