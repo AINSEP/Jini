@@ -118,8 +118,6 @@ export interface CreateEntryRequired {
     title: string;
     fieldsJson: unknown;
     bodyJson?: unknown;
-    /** The `ext` sub-key `fieldsJson` is namespaced under. Defaults to `"site"` — see `field-validation.ts`'s `validateFieldsAgainstSchema`. */
-    owner?: string | undefined;
   };
 }
 
@@ -152,7 +150,11 @@ export async function createEntry(required: CreateEntryRequired): Promise<Result
     return { ok: false, error: new ContentTypeNotActiveError({ message: `content type '${input.type}' is not active; new entries cannot be created` }) };
   }
 
-  const validation = validateFieldsAgainstSchema({ schema: contentType.fields, fieldsJson: input.fieldsJson }, { owner: input.owner });
+  // The envelope namespace comes from the owning TYPE, never the caller (2026-10-04). It used to be
+  // `input.owner` defaulting to "site": the generic entries route passed none, so a widget-owned
+  // type's payload validated under `ext.site` and wrote a row the widgets reader could never parse.
+  // The same rule holds in `updateEntry` and `importEntry` below.
+  const validation = validateFieldsAgainstSchema({ schema: contentType.fields, fieldsJson: input.fieldsJson }, { owner: contentType.owner });
   if (!validation.valid) {
     return { ok: false, error: new EntryFieldValidationError({ fieldErrors: validation.fieldErrors }) };
   }
@@ -270,8 +272,6 @@ export interface UpdateEntryRequired {
      */
     bodyJson?: unknown;
     expectedVersion: number;
-    /** The `ext` sub-key `fieldsJson` is namespaced under. Defaults to `"site"` — see `field-validation.ts`'s `validateFieldsAgainstSchema`. */
-    owner?: string | undefined;
   };
 }
 
@@ -294,7 +294,7 @@ export async function updateEntry(required: UpdateEntryRequired): Promise<Result
 
   let fieldsJson = current.fieldsJson;
   if (input.fieldsJson !== undefined) {
-    const validation = validateFieldsAgainstSchema({ schema: contentType?.fields ?? [], fieldsJson: input.fieldsJson }, { owner: input.owner });
+    const validation = validateFieldsAgainstSchema({ schema: contentType?.fields ?? [], fieldsJson: input.fieldsJson }, { owner: contentType?.owner });
     if (!validation.valid) {
       return { ok: false, error: new EntryFieldValidationError({ fieldErrors: validation.fieldErrors }) };
     }
@@ -364,8 +364,6 @@ export interface ImportEntryRequired {
      * mismatch, never a silent create-over-existing or a silent no-op.
      */
     expectedVersion: number | undefined;
-    /** The `ext` sub-key `fieldsJson` is namespaced under. Defaults to `"site"` — see `field-validation.ts`'s `validateFieldsAgainstSchema`. */
-    owner?: string | undefined;
   };
 }
 
@@ -403,7 +401,7 @@ export async function importEntry(required: ImportEntryRequired): Promise<Result
     return { ok: false, error: new ContentTypeNotActiveError({ message: `content type '${input.type}' is tombstoned; entries cannot be imported into it` }) };
   }
 
-  const validation = validateFieldsAgainstSchema({ schema: contentType.fields, fieldsJson: input.fieldsJson }, { owner: input.owner });
+  const validation = validateFieldsAgainstSchema({ schema: contentType.fields, fieldsJson: input.fieldsJson }, { owner: contentType.owner });
   if (!validation.valid) {
     return { ok: false, error: new EntryFieldValidationError({ fieldErrors: validation.fieldErrors }) };
   }

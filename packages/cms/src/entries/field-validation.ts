@@ -22,6 +22,9 @@ import type { ContentTypeFieldDef, ContentTypeFieldKind } from "../content-types
  * documented `fields.ext.{owner}.*` promise (first surfaced by a widgets feature, which needs
  * `ext.widget`/`ext.widgets`, not `ext.site`, for data that structurally belongs to a different
  * feature).
+ * Since 2026-10-04 `write-service.ts` passes the OWNING TYPE's `owner` here, never a caller's: the
+ * caller-chosen version let the generic entries route (which passed none) validate a widget
+ * payload under `ext.site` and write a row the widgets reader can never parse.
  * `selectVisibleEntryFields` is intentionally left untouched — it has no production caller anywhere
  * in this codebase today, so widening it now would be speculative; extend it the same way once a
  * real caller needs a non-`site` read projection.

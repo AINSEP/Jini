@@ -162,6 +162,12 @@ export interface RegisterContentTypeRequired {
     key: string;
     label: string;
     fields: ContentTypeFieldDef[];
+    /**
+     * The `fieldsJson.ext.<owner>` namespace this type's entries are stored under; omit for the
+     * default `"site"`. For code that registers its OWN type (e.g. a host's widgets feature); the
+     * agent tool and HTTP surfaces deliberately never pass it. See `ContentTypeRecord.owner`.
+     */
+    owner?: string | undefined;
   };
 }
 
@@ -189,6 +195,11 @@ export async function registerContentType(
   // Guard 1: key grammar.
   if (!validateIdentifierGrammar({ value: input.key })) {
     return { ok: false, error: new InvalidKeyGrammarError({ message: `content-type key '${input.key}' fails the identifier grammar gate ^[a-z][a-z0-9_]{0,63}$` }) };
+  }
+  // Guard 1b: owner grammar, only when one is given. It becomes an object key inside every entry's
+  // `fieldsJson.ext`, so it gets the same identifier gate as the type key.
+  if (input.owner !== undefined && !validateIdentifierGrammar({ value: input.owner })) {
+    return { ok: false, error: new InvalidKeyGrammarError({ message: `content-type owner '${input.owner}' fails the identifier grammar gate ^[a-z][a-z0-9_]{0,63}$` }) };
   }
   // Guard 2: reserved key.
   if (RESERVED_CONTENT_TYPE_KEYS.has(input.key)) {
@@ -237,6 +248,8 @@ export async function registerContentType(
     status: "active",
     version: 1,
     tombstonedAt: null,
+    // Only set when given, so a type registered without one stays byte-identical to before `owner` existed.
+    ...(input.owner !== undefined ? { owner: input.owner } : {}),
   };
 
   try {
