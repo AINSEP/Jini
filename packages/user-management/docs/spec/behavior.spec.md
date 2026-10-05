@@ -28,6 +28,7 @@ Observable behavior of the current package. Sources: `src/core/permissions.ts`, 
 | Condition, evaluated in order | Result |
 |---|---|
 | Missing or disabled principal | `{ allowed: false, reason: 'principal_disabled' }` |
+| Principal kind barred from operator permissions (`member`; see `principalKindMayExercisePermission`) | `{ allowed: false, reason: 'principal_kind_denied' }` |
 | Any effective `*` row with null/undefined scope and constraint | `{ allowed: true, reason: 'owner_wildcard' }` |
 | Exact permission row, no constraint, resource type absent or equal to `entityType` | `{ allowed: true, reason: 'matched' }` |
 | No same-permission row | `{ allowed: false, reason: 'no_grant' }` |

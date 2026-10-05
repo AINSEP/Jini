@@ -171,6 +171,27 @@ test("DISABLE_PRINCIPAL: refuses a disable that would drop the active owner-* co
   assert.equal(again.status, "disabled");
 });
 
+test("DISABLE_PRINCIPAL: a site member holding a `*` row never counts as the remaining owner (INV-08)", async () => {
+  const { deps, repos, ownerPrincipalId } = await buildSeededDeps();
+  // A `*` row reaching a member can only come from a hand-edited store (ATTACH_POLICY refuses a
+  // non-user target), so it is written straight through the repos here.
+  await seedBarePrincipal(repos, "member-1", "member");
+  await repos.policyPermissions.save({ id: "pp-member-star", workspaceId: WORKSPACE, policyId: "policy-member-star", permission: "*", resourceType: null, constraintJson: null });
+  await repos.principalPolicies.save({ id: "link-member-star", workspaceId: WORKSPACE, principalId: "member-1", policyId: "policy-member-star" });
+
+  // `seededOwnerPrincipalId` names someone else so the seeded-owner refusal does not answer first;
+  // the owner-count guard is what must refuse: the owner is the only active principal whose kind
+  // may use `*`.
+  await assert.rejects(
+    () =>
+      disablePrincipal({
+        deps,
+        input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: ownerPrincipalId, seededOwnerPrincipalId: "not-the-owner" },
+      }),
+    (error: unknown) => error instanceof OwnerRequiredError && error.message === "the workspace must keep at least one active owner-`*` principal"
+  );
+});
+
 test("DISABLE_PRINCIPAL: a non-owner-* principal can be disabled freely by a user.manage holder", async () => {
   const { deps, ownerPrincipalId } = await buildSeededDeps();
 

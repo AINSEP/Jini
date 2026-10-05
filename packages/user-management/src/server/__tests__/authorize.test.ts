@@ -10,6 +10,7 @@ import {
   InMemoryRolePolicyRepo,
 } from "../repo.memory.js";
 import type { AuthorizeDeps } from "../authorize.js";
+import { listPermissions } from "../../core/permissions.js";
 
 /**
  * @file `authorize` matcher precedence (behavior.spec §1.1).
@@ -35,12 +36,12 @@ function buildDeps(): AuthorizeDeps {
 
 async function seedPrincipal(
   deps: AuthorizeDeps,
-  overrides: { id: string; status?: "active" | "disabled" }
+  overrides: { id: string; status?: "active" | "disabled"; kind?: "user" | "member" }
 ): Promise<void> {
   await deps.principals.save({
     id: overrides.id,
     workspaceId: WORKSPACE,
-    kind: "user",
+    kind: overrides.kind ?? "user",
     displayName: overrides.id,
     status: overrides.status ?? "active",
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -99,6 +100,29 @@ test("rule 2: an unconstrained owner '*' row allows any requested permission", a
   });
 
   assert.deepEqual(result, { allowed: true, reason: "owner_wildcard" });
+});
+
+test("kind bar: a site member is denied every catalog permission even with `*` and an exact grant", async () => {
+  const deps = buildDeps();
+  await seedPrincipal(deps, { id: "member1", kind: "member" });
+  await grantDirect(deps, "member1", "*");
+  await grantDirect(deps, "member1", "content.write");
+
+  const permissions = [...listPermissions({}).map((descriptor) => descriptor.id), "*"];
+  assert.ok(permissions.length > 10, "the built-in catalog is non-trivial");
+  for (const permission of permissions) {
+    const result = await authorize({ deps, principalId: "member1", permission, context: { workspaceId: WORKSPACE } });
+    assert.deepEqual(result, { allowed: false, reason: "principal_kind_denied" }, permission);
+  }
+});
+
+test("kind bar: a user with the same grants is unaffected", async () => {
+  const deps = buildDeps();
+  await seedPrincipal(deps, { id: "user1", kind: "user" });
+  await grantDirect(deps, "user1", "content.write");
+
+  const result = await authorize({ deps, principalId: "user1", permission: "content.write", context: { workspaceId: WORKSPACE } });
+  assert.deepEqual(result, { allowed: true, reason: "matched" });
 });
 
 test("rule 3: an unscoped exact match allows", async () => {

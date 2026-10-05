@@ -6,3 +6,4 @@ export * from "./types.js";
 export * from "./ports.js";
 export * from "./runtime-ports.js";
 export * from "./permissions.js";
+export * from "./principal-kind-policy.js";

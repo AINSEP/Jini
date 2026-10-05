@@ -4,6 +4,7 @@ import type { UUID } from "@jini-ai/core/primitives";
 import { assertCallerHasAnyPermission, assertGrantClamp, assertOwnerTargetMayBeModified, principalHoldsOwnerWildcard } from "./grant-service.js";
 import { validatePasswordPolicy } from "./password-policy.js";
 import { isKnownPermission } from "../core/permissions.js";
+import { principalKindMayExercisePermission } from "../core/principal-kind-policy.js";
 import type { AuthServiceDeps } from "./auth-service.js";
 import {
   IdentityConflictError,
@@ -658,7 +659,12 @@ async function countActiveOwnerWildcardPrincipals(required: {
 }): Promise<number> {
   const { deps, workspaceId } = required;
   const principals = await deps.repos.principals.list({ workspaceId });
-  const activePrincipals = principals.filter((principal) => principal.status === "active");
+  // A kind barred from operator permissions (a site `member`) can never act as an owner, so it is
+  // not counted even if a `*` row reaches it — and members never cost a grant read here.
+  const activePrincipals = principals.filter(
+    (principal) =>
+      principal.status === "active" && principalKindMayExercisePermission({ kind: principal.kind, permission: "*" })
+  );
   const flags = await Promise.all(
     activePrincipals.map((principal) =>
       principalHoldsOwnerWildcard({ deps, workspaceId, principalId: principal.id })

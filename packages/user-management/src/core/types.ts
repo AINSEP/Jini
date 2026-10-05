@@ -20,8 +20,13 @@ import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
  * not a repaint.
  */
 
-/** Every actor is one of these. Only `user`/`system` are populated this pass. */
-export type PrincipalKind = "user" | "agent" | "api_key" | "system";
+/**
+ * Every actor is one of these. `member` is a host's public-site sign-up (a front-end account, not an
+ * operator): it may hold a principal row for identity and audit, but `principalKindMayExercisePermission`
+ * (`principal-kind-policy.ts`) bars it from every operator permission, so `authorize()` denies it
+ * whatever grants reach it.
+ */
+export type PrincipalKind = "user" | "agent" | "api_key" | "system" | "member";
 
 /** Disable-only lifecycle — there is no hard-delete state. See docs/decisions/DR-001-identity-and-session-boundary.md. */
 export type PrincipalStatus = "active" | "disabled";

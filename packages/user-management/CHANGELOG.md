@@ -9,6 +9,14 @@
 
 ## Unreleased
 
+### Site members are barred from operator permissions
+
+- Add `"member"` to `PrincipalKind` for a host's public-site sign-ups. `authorize()` now denies a
+  `member` principal every permission with reason `principal_kind_denied`, ahead of any grant
+  (including the owner wildcard). The rule is one exported function,
+  `principalKindMayExercisePermission({ kind, permission })`, so a later decision can relax it in one
+  place. Owner counting for the last-owner guard skips barred kinds. Existing kinds are unaffected.
+
 ### BREAKING: permission migrations are an explicit registry
 
 - Remove the module-singleton `registerPermissionMigration`/`listPermissionMigrations`. Create a

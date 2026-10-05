@@ -32,7 +32,7 @@ Missing grant targets are not-found errors; non-human grant targets are validati
 | Entry | Failure result | Caller action |
 |---|---|---|
 | `validateSession` | `null` for unknown/revoked/expired session or missing/inactive principal | Treat as unauthenticated (`UNAUTHENTICATED` in source's suggested transport mapping); do not continue to protected operations |
-| `authorize` | `{ allowed: false, reason }` | Deny the action; reasons are `principal_disabled`, `no_grant`, `unconstrained_deny`, or `resource_scope_mismatch` |
+| `authorize` | `{ allowed: false, reason }` | Deny the action; reasons are `principal_disabled`, `principal_kind_denied`, `no_grant`, `unconstrained_deny`, or `resource_scope_mismatch` |
 | `validatePasswordPolicy` | Message string; success is `null` | Display validation text; do not hash/store on a failed write policy |
 | `Argon2PasswordHasher.verify` | `false` when the loaded binding throws during verification | Treat as invalid credentials; binding-load exceptions still propagate |
 | `parseIdentityToolInput` | `{ ok: false, error: Error }` for malformed input | Return a validation failure and do not call a service |

@@ -7,6 +7,7 @@ import type {
   RolePolicyRepoPort,
 } from "../core/ports.js";
 import type { PolicyPermissionRecord } from "../core/types.js";
+import { principalKindMayExercisePermission } from "../core/principal-kind-policy.js";
 
 /**
  * @file `authorize` — the RBAC evaluator.
@@ -26,8 +27,8 @@ import type { PolicyPermissionRecord } from "../core/types.js";
  *
  * Architectural role:
  * Implements the matcher precedence in behavior.spec §1.1 exactly:
- * disabled-principal short-circuit > owner wildcard > exact matching row >
- * fail-closed default. Fail-closed extensibility: a non-null
+ * disabled-principal short-circuit > principal-kind bar > owner wildcard >
+ * exact matching row > fail-closed default. Fail-closed extensibility: a non-null
  * `constraintJson` is never treated as unconstrained, and a `resourceType`
  * mismatch/absence is never treated as a global grant.
  * See docs/decisions/DR-001-identity-and-session-boundary.md.
@@ -43,7 +44,7 @@ export interface AuthorizeContext {
 /** `authorize`'s result — always fail-closed on `allowed: false`. See docs/decisions/DR-001-identity-and-session-boundary.md. */
 export interface AuthorizeResult {
   allowed: boolean;
-  /** Machine-readable reason: `principal_disabled | no_grant | resource_scope_mismatch | unconstrained_deny | owner_wildcard | matched`. */
+  /** Machine-readable reason: `principal_disabled | principal_kind_denied | no_grant | resource_scope_mismatch | unconstrained_deny | owner_wildcard | matched`. */
   reason: string;
 }
 
@@ -120,10 +121,13 @@ function matchesRow(row: PolicyPermissionRecord, permission: string, context: Au
  *
  * Precedence (behavior.spec §1.1, highest to lowest):
  * 1. Disabled principal -> `false`, `principal_disabled` (overrides all grants).
- * 2. An unconstrained owner `"*"` row -> `true`, `owner_wildcard`.
- * 3. An exact matching row (permission + workspace + resource-scope + no
+ * 2. A principal whose kind may not exercise `permission` (today: `member`, see
+ * `principal-kind-policy.ts`) -> `false`, `principal_kind_denied` (overrides all grants,
+ * including the owner wildcard).
+ * 3. An unconstrained owner `"*"` row -> `true`, `owner_wildcard`.
+ * 4. An exact matching row (permission + workspace + resource-scope + no
  * constraint) -> `true`, `matched`.
- * 4. Fail-closed default -> `false`, with the most specific diagnostic reason
+ * 5. Fail-closed default -> `false`, with the most specific diagnostic reason
  * available among same-permission candidates (`unconstrained_deny` over
  * `resource_scope_mismatch` over `no_grant` — an inferred, undocumented-but-
  * reasonable tie-break; the spec only pins each reason in isolation, see
@@ -147,6 +151,10 @@ export async function authorize(required: {
   const principal = await deps.principals.findById({ workspaceId: context.workspaceId, id: principalId });
   if (!principal || principal.status === "disabled") {
     return { allowed: false, reason: "principal_disabled" };
+  }
+  // Ahead of every grant read: a barred kind is denied even when a `*` row reaches it.
+  if (!principalKindMayExercisePermission({ kind: principal.kind, permission })) {
+    return { allowed: false, reason: "principal_kind_denied" };
   }
 
   const effectiveRows = await resolveEffectivePermissions({
