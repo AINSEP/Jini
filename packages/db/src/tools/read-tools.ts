@@ -87,6 +87,7 @@ export function createDatabaseReadTools(ports: DatabaseReadToolPorts, _optional:
 
       const summary = await createDatabaseRestorePoint({
         costClass: capabilities.restorePoint.costClass,
+        kind: capabilities.restorePoint.kind,
         costAck: costAck ?? false,
         capture: async () => {
           captured = await ports.dbOps.captureRestorePoint({ scopeId: ports.workspaceId });

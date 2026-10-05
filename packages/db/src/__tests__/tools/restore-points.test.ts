@@ -20,6 +20,7 @@ import { createRestorePoint } from "../../tools/restore-points.js";
  * export async function createRestorePoint(
  * required: {
  * costClass: "cheap" | "expensive" | "unavailable";
+ * kind: string;
  * costAck?: boolean;
  * capture:  => Promise<{ artifactRef: string; watermarkAtCapture: number }>;
  * },
@@ -34,6 +35,7 @@ test("AC-26 / REQ-22: createRestorePoint on an 'expensive' site without costAck 
   await assert.rejects(
     createRestorePoint({
       costClass: "expensive",
+      kind: "file-snapshot",
       capture: async () => { captures += 1; return { artifactRef: "/tmp/x", watermarkAtCapture: 1 }; },
     }),
     (err: unknown) => (err as Error).name === "ValidationError"
@@ -46,6 +48,7 @@ test("AC-27 / REQ-22: createRestorePoint on an 'expensive' site WITH costAck=tru
   const result = await createRestorePoint({
     costClass: "expensive",
     costAck: true,
+    kind: "file-snapshot",
     capture: async () => { const artifact = { artifactRef: "/tmp/x", watermarkAtCapture: 5 }; artifacts.push(artifact); return artifact; },
   });
 
@@ -59,6 +62,7 @@ test("createRestorePoint on a 'cheap' site succeeds without costAck (only 'expen
   const artifacts: { artifactRef: string; watermarkAtCapture: number }[] = [];
   const result = await createRestorePoint({
     costClass: "cheap",
+    kind: "file-snapshot",
     capture: async () => { const artifact = { artifactRef: "/tmp/x", watermarkAtCapture: 3 }; artifacts.push(artifact); return artifact; },
   });
   assert.ok(result.id);
@@ -67,11 +71,25 @@ test("createRestorePoint on a 'cheap' site succeeds without costAck (only 'expen
   assert.deepEqual(artifacts, [{ artifactRef: "/tmp/x", watermarkAtCapture: 3 }]);
 });
 
+// REGRESSION: fails if createRestorePoint hardcodes kind "file-snapshot" — a Postgres host's
+// logical dump was recorded as a file snapshot, mislabeling every Postgres restore point.
+test("createRestorePoint reports the host's real restore kind, not a hardcoded file-snapshot", async () => {
+  const result = await createRestorePoint({
+    costClass: "expensive",
+    costAck: true,
+    kind: "logical-dump",
+    capture: async () => ({ artifactRef: "pg-dump://site", watermarkAtCapture: 2 }),
+  });
+  assert.equal(result.costClass, "expensive");
+  assert.equal(result.kind, "logical-dump");
+});
+
 test("EC-04 / REQ-22: createRestorePoint on an 'unavailable' site is rejected with RestorePointUnavailableError, regardless of costAck", async () => {
   let captures = 0;
   await assert.rejects(
     createRestorePoint({
       costClass: "unavailable",
+      kind: "logical-dump",
       costAck: true,
       capture: async () => { captures += 1; return { artifactRef: "/tmp/x", watermarkAtCapture: 1 }; },
     }),
@@ -83,7 +101,7 @@ test("EC-04 / REQ-22: createRestorePoint on an 'unavailable' site is rejected wi
 test("createRestorePoint propagates capture failure instead of minting a usable summary", async () => {
   const error = new Error("snapshot disk full");
   let captures = 0;
-  await assert.rejects(createRestorePoint({ costClass: "cheap", capture: async () => { captures += 1; throw error; } }),
+  await assert.rejects(createRestorePoint({ costClass: "cheap", kind: "file-snapshot", capture: async () => { captures += 1; throw error; } }),
     (actual) => actual === error);
   assert.equal(captures, 1);
 });
@@ -93,7 +111,7 @@ for (const costClass of ["cheap", "expensive"] as const) {
     const dir = await mkdtemp(join(tmpdir(), "restore-point-artifact-"));
     t.onTestFinished(() => rm(dir, { recursive: true, force: true }));
     const artifactRef = join(dir, "snapshot");
-    const result = await createRestorePoint({ costClass, costAck: true, capture: async () => {
+    const result = await createRestorePoint({ costClass, kind: "file-snapshot", costAck: true, capture: async () => {
       await writeFile(artifactRef, "snapshot bytes");
       return { artifactRef, watermarkAtCapture: 7 };
     } });
@@ -106,11 +124,11 @@ for (const costClass of ["cheap", "expensive"] as const) {
 test("restore-point refusals preserve operator guidance without specification IDs and never capture", async () => {
   let captures = 0;
   const capture = async () => { captures += 1; return { artifactRef: "unused", watermarkAtCapture: 1 }; };
-  await assert.rejects(createRestorePoint({ costClass: "unavailable", costAck: true, capture }), {
+  await assert.rejects(createRestorePoint({ costClass: "unavailable", kind: "logical-dump", costAck: true, capture }), {
     name: "RestorePointUnavailableError",
     message: "no restore-point mechanism is available for the source; migration is refused with no attestation override",
   });
-  await assert.rejects(createRestorePoint({ costClass: "expensive", capture }), {
+  await assert.rejects(createRestorePoint({ costClass: "expensive", kind: "logical-dump", capture }), {
     name: "ValidationError",
     message: "an 'expensive' restore point requires an explicit costAck; the confirmer must acknowledge the cost/disk estimate first",
   });

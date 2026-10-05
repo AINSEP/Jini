@@ -56,12 +56,15 @@ export interface RestorePointSummary {
 export async function createRestorePoint(
   required: {
     costClass: RestorePointCostClass;
+    /** The host capability's restore kind (`getCapabilities().restorePoint.kind`), returned as-is.
+     *  Required, not defaulted: a hardcoded `file-snapshot` mislabeled every Postgres logical dump. */
+    kind: string;
     costAck?: boolean;
     capture: () => Promise<{ artifactRef: string; watermarkAtCapture: number }>;
   },
   _optional: { messages?: Pick<DbMessages, "restorePointUnavailable"> } = {}
 ): Promise<RestorePointSummary> {
-  const { costClass, costAck = false, capture } = required;
+  const { costClass, kind, costAck = false, capture } = required;
   const messages = _optional.messages ?? defaultDbMessages;
 
   if (costClass === "unavailable") {
@@ -79,7 +82,7 @@ export async function createRestorePoint(
 
   await capture();
 
-  return { id: randomUUID(), costClass, kind: "file-snapshot" };
+  return { id: randomUUID(), costClass, kind };
 }
 
 /**

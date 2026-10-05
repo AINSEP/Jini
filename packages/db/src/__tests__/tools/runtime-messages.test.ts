@@ -36,7 +36,7 @@ it('renders host catalog prose without changing identities, permissions, schemas
 // REGRESSION: fails if unavailable restore-point guidance ignores the host or keeps the old default.
 it('keeps restore-point refusal fail-closed while replacing prose', async () => {
   let captures = 0;
-  const required = { costClass: 'unavailable' as const, costAck: true, capture: async () => { captures++; return { artifactRef: 'unused', watermarkAtCapture: 0 }; } };
+  const required = { costClass: 'unavailable' as const, kind: 'logical-dump', costAck: true, capture: async () => { captures++; return { artifactRef: 'unused', watermarkAtCapture: 0 }; } };
   await expect(createRestorePoint(required)).rejects.toThrow('no restore-point mechanism is available for the source; migration is refused with no attestation override');
   await expect(createRestorePoint(required, { messages: { ...defaultDbMessages, restorePointUnavailable: 'host refuses capture' } }))
     .rejects.toThrow('host refuses capture');
