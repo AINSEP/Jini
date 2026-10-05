@@ -86,3 +86,29 @@ test("monotonicMs times the wait while clock.nowMs alone ages the holder", async
   const reclaimed = await withFileLock({ lockPath, run: () => "ran" }, { ...options({ n: 0 }), clock: { nowMs: () => wallMs + 60_000 }, monotonicMs: () => 0 });
   expect(reclaimed).toBe("ran");
 });
+
+// REGRESSION: fails if stale() drops its unchanged(observed, current) term. A live holder whose lock
+// was 60s old at the first inspection refreshes it (same inode, new mtime) before the second
+// inspection: the age seen first must not authorize deleting the refreshed lock.
+test("async contender leaves a lock its holder refreshed between the two stale inspections untouched", async () => {
+  const lockPath = target();
+  const holderBytes = JSON.stringify({ pid: process.pid, hostname: os.hostname(), token: "live-holder", acquiredAt: new Date(Date.now() - 60_000).toISOString() });
+  fs.writeFileSync(lockPath, holderBytes);
+  const old = new Date(Date.now() - 60_000); fs.utimesSync(lockPath, old, old);
+  const inodeBefore = fs.statSync(lockPath).ino;
+  let reads = 0;
+  const filesystem = { ...asyncFs, open: async (file: Parameters<typeof asyncFs.open>[0], flags: Parameters<typeof asyncFs.open>[1], mode?: Parameters<typeof asyncFs.open>[2]) => {
+    if (flags === "r" && ++reads === 2) {
+      // The holder's heartbeat: same inode and bytes, fresh mtime, landing between the observed and
+      // current inspections.
+      const now = new Date(); fs.utimesSync(lockPath, now, now);
+    }
+    return asyncFs.open(file, flags, mode);
+  } };
+  await expect(withFileLock({ lockPath, run: () => { throw new Error("must not run"); } }, { filesystem, timeoutMs: 0, staleMs: 10_000 })).rejects.toThrow(FileLockTimeoutError);
+  expect(fs.existsSync(lockPath)).toBe(true);
+  expect(fs.readFileSync(lockPath, "utf8")).toBe(holderBytes);
+  expect(fs.statSync(lockPath).ino).toBe(inodeBefore);
+  // Only the observed and current inspections ran; no final pre-unlink inspection was reached.
+  expect(reads).toBe(2);
+});

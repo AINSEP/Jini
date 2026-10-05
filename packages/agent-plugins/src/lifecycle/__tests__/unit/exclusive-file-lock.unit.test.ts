@@ -255,22 +255,37 @@ test("U12: isContendedLockError truth table", () => {
   assert.equal(isContendedLockError({ code: undefined, platform: "darwin" }), false);
 });
 
-test("U13: two concurrent withFileLock calls on one path never overlap", async () => {
+test("U13: a second withFileLock call stays outside while the first holds the lock, and enters only after release", async () => {
   const root = await freshRoot();
   try {
     const lockPath = lockPathIn(root);
-    let inside = false;
-    let overlapped = false;
-    const run = async () => {
-      await withFileLock({ lockPath: lockPath, run: async () => {
-        if (inside) overlapped = true;
-        inside = true;
-        await new Promise((resolve) => setTimeout(resolve, 30));
-        inside = false;
-      } }, { timeoutMs: 15_000, staleMs: 10_000 });
-    };
-    await Promise.all([run(), run()]);
-    assert.equal(overlapped, false);
+    const events: string[] = [];
+    // A barrier, not a sleep: the first critical section stays open until the second acquirer has
+    // demonstrably polled a contended lock three times (or, if exclusion is broken, until the second
+    // run() itself starts). A timer-based hold could close before the second call ever contends.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    let entered!: () => void;
+    const firstEntered = new Promise<void>((resolve) => { entered = resolve; });
+    let polls = 0;
+    const first = withFileLock({ lockPath: lockPath, run: async () => {
+      events.push("first-in");
+      entered();
+      await held;
+      events.push("first-out");
+    } }, { timeoutMs: 15_000, staleMs: 10_000 });
+    await firstEntered;
+    const second = withFileLock({ lockPath: lockPath, run: async () => {
+      events.push("second-in");
+      release();
+    } }, { timeoutMs: 15_000, staleMs: 10_000, pollMs: 1, sleep: async ({ durationMs }) => {
+      polls += 1;
+      if (polls === 3) release();
+      await new Promise((resolve) => setTimeout(resolve, durationMs));
+    } });
+    await Promise.all([first, second]);
+    assert.deepEqual(events, ["first-in", "first-out", "second-in"]);
+    assert.ok(polls >= 3, `the second call must have waited on the held lock (polled ${polls} times)`);
   } finally {
     await forceRemove(root);
   }

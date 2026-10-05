@@ -159,7 +159,7 @@ test("fetchAgentPluginArchive reports a 2xx empty body as EMPTY_BODY", async () 
   );
 });
 
-test("fetchAgentPluginArchive rejects a declared Content-Length over the cap before reading the body", async () => {
+test("fetchAgentPluginArchive rejects a real server's declared Content-Length over the cap with ARCHIVE_TOO_LARGE", async () => {
   const body = Buffer.alloc(1000, 7);
   await withServer(
     (_req, res) => {
@@ -178,6 +178,86 @@ test("fetchAgentPluginArchive rejects a declared Content-Length over the cap bef
       );
     },
   );
+});
+
+test("fetchAgentPluginArchive rejects an oversized declared Content-Length without pulling a single body chunk", async () => {
+  // Declares 1000 bytes but would deliver only 10, so a regression that reads the body FIRST and
+  // checks the header afterwards still throws this exact error. Only the pull counter can tell an
+  // up-front reject from a read-then-reject. highWaterMark 0 stops the stream pre-pulling on its own.
+  // (A real server cannot declare a length its body does not match - see this file's header.)
+  let pulls = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      pulls += 1;
+      controller.enqueue(new Uint8Array(10).fill(9));
+      controller.close();
+    },
+  }, { highWaterMark: 0 });
+  const response = {
+    ok: true,
+    status: 200,
+    statusText: "OK",
+    url: "https://plugins.example/archive.zip",
+    headers: new Headers({ "content-length": "1000" }),
+    body,
+  } as unknown as Response;
+  const fetchImpl = (async () => response) as unknown as typeof globalThis.fetch;
+
+  await assert.rejects(
+    () => fetchAgentPluginArchive({ url: "https://plugins.example/archive.zip" }, { fetchImpl, maxBytes: 100 }),
+    (error: unknown) => {
+      assert.ok(error instanceof AgentPluginFetchError);
+      assert.equal(error.code, "ARCHIVE_TOO_LARGE");
+      assert.equal(error.message, "'https://plugins.example/archive.zip' declares 1000 bytes, over the 100-byte cap");
+      return true;
+    },
+  );
+  assert.equal(pulls, 0, "the body must not be read once the declared length is over the cap");
+});
+
+test("fetchAgentPluginArchive stops a stalled streaming download when the caller aborts, and the connection closes", async () => {
+  // The server sends one chunk and then never finishes, so only the forwarded AbortSignal can end
+  // the body read. A regression that drops the signal hangs here until the bounded race below.
+  let requestClosed!: () => void;
+  const serverSawClose = new Promise<void>((resolve) => { requestClosed = resolve; });
+  const server: Server = createServer((req, res) => {
+    req.on("close", () => requestClosed());
+    res.writeHead(200);
+    res.write(Buffer.alloc(16, 3));
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve());
+  });
+  const address = server.address();
+  if (address === null || typeof address === "string") throw new Error("expected an AddressInfo");
+  const url = `http://127.0.0.1:${address.port}/archive.zip`;
+  const controller = new AbortController();
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    let responded!: () => void;
+    const fetchResolved = new Promise<void>((resolve) => { responded = resolve; });
+    const fetchImpl = (async (input: string, init?: RequestInit) => {
+      const response = await globalThis.fetch(input, init);
+      responded();
+      return response;
+    }) as unknown as typeof globalThis.fetch;
+    const download = fetchAgentPluginArchive({ url }, { fetchImpl, signal: controller.signal });
+    await fetchResolved;
+    controller.abort();
+    const outcome = await Promise.race([
+      download.then(() => "resolved", (error: unknown) => error),
+      new Promise((resolve) => { timer = setTimeout(() => resolve("still-reading"), 2000); }),
+    ]);
+    assert.ok(outcome instanceof AgentPluginFetchError, `expected the aborted download to reject, got ${String(outcome)}`);
+    assert.equal(outcome.code, "REQUEST_FAILED");
+    assert.equal(outcome.message, `could not read '${url}': archive response body failed`);
+    await serverSawClose;
+  } finally {
+    clearTimeout(timer);
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });
 
 test("fetchAgentPluginArchive enforces the cap on bytes actually read when no Content-Length is declared", async () => {
