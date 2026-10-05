@@ -222,3 +222,46 @@ test("submitForm: AC-24/INV-05 — the response resolves before a slow/throwing 
   await new Promise((resolve) => setTimeout(resolve, 10));
   assert.equal(subscriberSettled, true, "the subscriber eventually runs, just not before the response");
 });
+
+test("submitForm: the submission row and its event are written inside one host transaction, dispatch only after it", async () => {
+  const deps = makeDeps();
+  await deps.definitionRepo.create(makeDefinition());
+  const trace: string[] = [];
+  let inTransaction = false;
+  const create = deps.submissionRepo.create.bind(deps.submissionRepo);
+  deps.submissionRepo.create = async (record) => { trace.push(`create:${inTransaction}`); await create(record); };
+  const enqueue = deps.outbox.enqueue.bind(deps.outbox);
+  deps.outbox.enqueue = async (event) => { trace.push(`enqueue:${inTransaction}`); await enqueue(event); };
+  const dispatch = deps.dispatcher.dispatch.bind(deps.dispatcher);
+  deps.dispatcher.dispatch = async () => { trace.push(`dispatch:${inTransaction}`); await dispatch(); };
+  const transaction = async <T>(work: () => Promise<T>): Promise<T> => {
+    inTransaction = true;
+    try { return await work(); } finally { inTransaction = false; trace.push("commit"); }
+  };
+
+  await submitForm({ deps: { ...deps, transaction }, input: { workspaceId: WORKSPACE_ID, slug: "contact", body: { name: "Ada", email: "ada@example.com" }, sourceIp: "1.1.1.1" } });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
+  assert.deepEqual(trace, ["create:true", "enqueue:true", "commit", "dispatch:false"]);
+});
+
+test("submitForm: a failed enqueue rejects through the transaction and dispatches nothing", async () => {
+  const deps = makeDeps();
+  await deps.definitionRepo.create(makeDefinition());
+  deps.outbox.enqueue = async () => { throw new Error("outbox unavailable"); };
+  let dispatched = 0;
+  deps.dispatcher.dispatch = async () => { dispatched++; };
+  const rolledBack: unknown[] = [];
+  const transaction = async <T>(work: () => Promise<T>): Promise<T> => {
+    try { return await work(); } catch (error) { rolledBack.push(error); throw error; }
+  };
+
+  await assert.rejects(
+    () => submitForm({ deps: { ...deps, transaction }, input: { workspaceId: WORKSPACE_ID, slug: "contact", body: { name: "Ada", email: "ada@example.com" }, sourceIp: "1.1.1.1" } }),
+    { message: "outbox unavailable" },
+  );
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
+  assert.equal(rolledBack.length, 1);
+  assert.equal(dispatched, 0);
+});

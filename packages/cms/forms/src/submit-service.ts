@@ -1,8 +1,8 @@
 import type { Logger } from "@jini-ai/core/primitives";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
-/** Anonymous submission path: active lookup, honeypot, validation, rate check, persistence, event enqueue, then background dispatch. Persistence and enqueue remain separate awaited effects, matching the source contract. */
+/** Anonymous submission path: active lookup, honeypot, validation, rate check, persistence + event enqueue in one host transaction, then background dispatch. */
 import { buildFormsRateLimitKey } from "./rate-limit-key.js";
-import type { RateLimiterPort, FormOutboxPort, OutboxDispatcherPort } from "./ports.js";
+import type { RateLimiterPort, FormOutboxPort, OutboxDispatcherPort, SubmissionTransactionPort } from "./ports.js";
 import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
 import {
   FormDefinitionNotFoundError,
@@ -24,6 +24,8 @@ export interface SubmitFormDeps {
   clock: Clock;
   idGen: IdGenerator;
   rateLimiter: RateLimiterPort;
+  /** Omitted: the two writes run back to back with no rollback between them. */
+  transaction?: SubmissionTransactionPort;
 }
 
 export interface SubmitFormInput {
@@ -77,16 +79,20 @@ export async function submitForm(required: SubmitFormRequired): Promise<{ status
     sourceIp: input.sourceIp,
     submittedAt: now,
   };
-  await deps.submissionRepo.create(submission);
-
-  // Only a persisted accepted submission gets this event; honeypot discards emit nothing.
-  await deps.outbox.enqueue({
+  const event = {
     id: deps.idGen.newId(),
     name: "form.submission.received",
     occurredAt: now,
     workspaceId: input.workspaceId,
     aggregateId: submissionId,
     payload: { workspaceId: input.workspaceId, formDefinitionId: definition.id, submissionId },
+  };
+  // Only a persisted accepted submission gets this event; honeypot discards emit nothing. Row and
+  // event commit together: a failed enqueue must not leave a stored submission nobody is told about.
+  const transaction: SubmissionTransactionPort = deps.transaction ?? ((work) => work());
+  await transaction(async () => {
+    await deps.submissionRepo.create(submission);
+    await deps.outbox.enqueue(event);
   });
 
   // Dispatch failures cannot affect an accepted submission or create an unhandled rejection.

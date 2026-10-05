@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `submitForm` takes an optional `transaction` port (`SubmissionTransactionPort`): the submission row and its `form.submission.received` event are written inside it, so a failed enqueue rolls the row back instead of leaving a stored submission that never notifies. Dispatch starts only after it commits. Without the port the two writes run back to back, as before.
+
 ## 0.2.2 — 2026-10-04
 
 - Authored checkbox values (`checkboxValue`).

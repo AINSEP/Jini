@@ -45,6 +45,12 @@ export interface RateLimiterPort {
   check(required: { key: string }): { allowed: true } | { allowed: false; retryAfterSeconds: number } | Promise<{ allowed: true } | { allowed: false; retryAfterSeconds: number }>;
 }
 export interface FormOutboxPort { enqueue(event: import("@jini-ai/cms/core").DomainEvent): Promise<void>; }
+/**
+ * Runs `work` as one unit of persistence: commit when it resolves, roll back when it throws. A host
+ * binds its database transaction here so an accepted submission's row and its outbox event are
+ * written together; a submission stored without its event would never notify anyone.
+ */
+export type SubmissionTransactionPort = <T>(work: () => Promise<T>) => Promise<T>;
 /** Bound to the host's outbox/bus/clock; dispatch is kicked off without awaiting delivery. */
 export interface OutboxDispatcherPort { dispatch(required: Record<string, never>): Promise<void>; }
 export interface EmailAddress { email: string; name?: string; }
