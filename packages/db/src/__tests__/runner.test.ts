@@ -94,6 +94,53 @@ for (const { name, open } of dialects) {
       );
     });
 
+    test("prepare runs before up and ledger creation, passes context, and is skipped on rerun", async () => {
+      const kernel = fresh();
+      await kernel.execute(sql`CREATE TABLE prepared_value (value text)`);
+      const events: string[] = [];
+      const step: MigrationStep = {
+        id: "0001_prepared",
+        checksum: sum("a"),
+        prepare: async (k, context) => {
+          assert.equal(await hasLedger(k, LEDGER), false);
+          events.push("prepare");
+          await k.execute(sql`INSERT INTO prepared_value VALUES ('prepared before up')`);
+          context.note("preparation complete");
+        },
+        up: async (k) => {
+          assert.deepEqual(await k.query(sql`SELECT value FROM prepared_value`), [{ value: "prepared before up" }]);
+          events.push("up");
+          await k.execute(sql`UPDATE prepared_value SET value = 'applied'`);
+        },
+      };
+      assert.deepEqual(await runMigrations(kernel, [step], { ledgerTable: LEDGER }), {
+        applied: ["0001_prepared"], alreadyApplied: [], notes: ["preparation complete"],
+      });
+      assert.deepEqual(await kernel.query(sql`SELECT value FROM prepared_value`), [{ value: "applied" }]);
+      assert.deepEqual(await kernel.query(sql`SELECT id, checksum FROM app_migrations`), [{ id: "0001_prepared", checksum: sum("a") }]);
+      assert.deepEqual(await runMigrations(kernel, [step], { ledgerTable: LEDGER }), {
+        applied: [], alreadyApplied: ["0001_prepared"], notes: [],
+      });
+      assert.deepEqual(events, ["prepare", "up"]);
+    });
+
+    test("a rejecting prepare preserves existing data, creates no ledger, and stops up and later steps", async () => {
+      const kernel = fresh();
+      await kernel.execute(sql`CREATE TABLE keep_value (value text)`);
+      await kernel.execute(sql`INSERT INTO keep_value VALUES ('original')`);
+      const failure = new Error("preparation refused");
+      const step: MigrationStep = {
+        id: "0001_refused", checksum: sum("a"),
+        prepare: async () => { throw failure; },
+        up: async (k) => { await k.execute(sql`DELETE FROM keep_value`); },
+      };
+      await assert.rejects(runMigrations(kernel, [step, tableStep("0002_later", "later_t")], { ledgerTable: LEDGER }),
+        (error: unknown) => error === failure);
+      assert.deepEqual(await listTables(kernel), ["keep_value"]);
+      assert.deepEqual(await kernel.query(sql`SELECT value FROM keep_value`), [{ value: "original" }]);
+      assert.equal(await hasLedger(kernel, LEDGER), false);
+    });
+
     test("a recorded step whose checksum changed stops the run before anything is applied", async () => {
       const kernel = fresh();
       await runMigrations(kernel, [tableStep("0001_first", "first_t")], { ledgerTable: LEDGER });
