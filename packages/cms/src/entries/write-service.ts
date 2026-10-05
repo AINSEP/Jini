@@ -68,8 +68,9 @@ export interface EntryRevisionInput {
 
 /** Options for {@link EntryRepoPort.save}. */
 export interface EntrySaveOptions {
-  /** The version the caller read; the save throws `VersionConflictError` unless the stored live row still holds it. */
-  expectedVersion?: number | undefined;
+  /** The version the caller read; the save throws `VersionConflictError` unless the stored live row still holds it.
+   *  `null` is a create: the save throws unless no row (live, trashed, or in another workspace) holds the id. */
+  expectedVersion?: number | null | undefined;
 }
 
 export interface EntryRepoPort {
@@ -79,7 +80,9 @@ export interface EntryRepoPort {
    * Writes `row` by id. With `expectedVersion`, the write is a compare-and-set: it lands only when the
    * stored live (not trashed) row still holds that version, checked atomically with the write (one
    * conditional UPDATE in a SQL adapter), so two writers that read the same version cannot both land.
-   * Without it, the write is unconditional (create, import-as-create, trash seams).
+   * With `expectedVersion: null` it is insert-if-absent (an import-as-create; `INSERT ... ON CONFLICT DO
+   * NOTHING` in a SQL adapter), so two creates of one id cannot both land either.
+   * Without it, the write is unconditional (`createEntry`'s freshly minted id, trash seams).
    * @throws VersionConflictError ``expected version <n> for entry '<id>', found <stored|none>`` ({@link entryVersionConflictError}).
    */
   save(row: EntryRecord, options?: EntrySaveOptions): Promise<void>;
@@ -388,7 +391,9 @@ export interface ImportEntryRequired {
      * The publish factory's three-way CAS contract: `undefined` means "no row with this id may
      * already exist" (an import-as-create); a number means "a row with this id must exist and be
      * at exactly this version" (an import-as-update). Both cases end in `VersionConflictError` on
-     * mismatch, never a silent create-over-existing or a silent no-op.
+     * mismatch, never a silent create-over-existing or a silent no-op. Both are also enforced by the
+     * save itself (`undefined` becomes the save's `expectedVersion: null`), because the `findById`
+     * check below let two concurrent creates of one id both pass and the second overwrite the first.
      */
     expectedVersion: number | undefined;
   };
@@ -435,6 +440,7 @@ export async function importEntry(required: ImportEntryRequired): Promise<Result
 
   const existing = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.id });
   if (input.expectedVersion === undefined) {
+    // A create that lands between this read and the save is the save's insert-if-absent below.
     if (existing) {
       return { ok: false, error: new VersionConflictError({ message: `entry '${input.id}' already exists in workspace '${input.workspaceId}', but no expectedVersion was supplied for import` }) };
     }
@@ -467,7 +473,7 @@ export async function importEntry(required: ImportEntryRequired): Promise<Result
   };
 
   const conflict = await runVersionedWrite(deps.entryRepo, async () => {
-    await deps.entryRepo.save(entry, { expectedVersion: input.expectedVersion });
+    await deps.entryRepo.save(entry, { expectedVersion: input.expectedVersion ?? null });
     await deps.entryRepo.appendRevision({
       entryId: entry.id,
       workspaceId: input.workspaceId,

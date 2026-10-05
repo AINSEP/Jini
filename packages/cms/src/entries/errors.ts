@@ -59,9 +59,11 @@ export class VersionConflictError extends Error {
   }
 }
 
-/** The compare-and-set loss every `EntryRepoPort.save` adapter throws (one wording for all of them). */
-export function entryVersionConflictError(required: { id: string; expectedVersion: number; found: number | null }): VersionConflictError {
-  return new VersionConflictError({ message: `expected version ${required.expectedVersion} for entry '${required.id}', found ${required.found ?? "none"}` });
+/** The compare-and-set loss every `EntryRepoPort.save` adapter throws (one wording for all of them).
+ *  `expectedVersion: null` is a create that found the id taken. */
+export function entryVersionConflictError(required: { id: string; expectedVersion: number | null; found: number | null }): VersionConflictError {
+  const expected = required.expectedVersion === null ? "no entry" : `version ${required.expectedVersion} for entry`;
+  return new VersionConflictError({ message: `expected ${expected} '${required.id}', found ${required.found ?? "none"}` });
 }
 
 /** — `fieldsJson` failed `validateFieldsAgainstSchema` against the owning type's current schema. See docs/decisions/DR-002-content-lifecycle-and-cleanup.md. */

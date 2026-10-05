@@ -11,7 +11,8 @@ import type { EntryRecord } from "../types.js";
  * inside the write's own transaction, so two writers that read the same version cannot both land.
  * Covers `InMemoryEntryRepo.save`'s `expectedVersion` contract and every service save that passes it
  * (`updateEntry`, `publishEntry`/`unpublishEntry`, an import-as-update); a loss is the Result's
- * `VersionConflictError`, never a throw.
+ * `VersionConflictError`, never a throw. An import-as-create passes `expectedVersion: null` (insert
+ * only if the id is absent), so two creates of one id cannot both land either.
  */
 
 const WS = "ws-1";
@@ -83,6 +84,39 @@ test("InMemoryEntryRepo.save with an expectedVersion finds none for a missing or
   }
   assert.equal(await repo.findById({ workspaceId: WS, id: "missing" }), null);
   assert.equal((await repo.findById({ workspaceId: "ws-2", id: "foreign" }))?.version, 1);
+});
+
+test("InMemoryEntryRepo.save with expectedVersion null inserts an absent id and refuses a taken one in any workspace", async () => {
+  const repo = new InMemoryEntryRepo();
+  await repo.save(entry(), { expectedVersion: null });
+  await repo.save(entry({ id: "foreign", workspaceId: "ws-2", version: 4 }));
+  for (const [id, found] of [["entry-1", 1], ["foreign", 4]] as const) {
+    await assert.rejects(
+      () => repo.save(entry({ id, title: "Second" }), { expectedVersion: null }),
+      (error: unknown) => error instanceof VersionConflictError && error.message === `expected no entry '${id}', found ${found}`
+    );
+  }
+  assert.equal((await repo.findById({ workspaceId: WS, id: "entry-1" }))?.title, "Chili");
+  assert.deepEqual([(await repo.findById({ workspaceId: "ws-2", id: "foreign" }))?.title, await repo.findById({ workspaceId: WS, id: "foreign" })], ["Chili", null]);
+});
+
+test("two concurrent import-as-creates of one id: exactly one lands — one row, one revision, one event", async () => {
+  const { inner, repo, revisions, seeded } = racingRepo([], null);
+  await seeded;
+  const outbox = fakeOutbox();
+  const create = (title: string) =>
+    importEntry({
+      deps: { entryRepo: repo, contentTypeRepo: activeType, clock, authorize: alwaysAllow, outbox },
+      input: { workspaceId: WS, actorId: "user-1", id: "entry-1", type: "recipe", slug: "chili", title, status: "published", fieldsJson: { ext: { site: {} } }, publishedAt: NOW, expectedVersion: undefined },
+    });
+  const results = await Promise.all([create("First"), create("Second")]);
+
+  assert.deepEqual(results.map((result) => result.ok), [true, false]);
+  assertLost(results[1]!, "expected no entry 'entry-1', found 1");
+  const stored = await inner.findById({ workspaceId: WS, id: "entry-1" });
+  assert.deepEqual([stored?.title, stored?.version], ["First", 1]);
+  assert.deepEqual(revisions.map((revision) => revision.op), ["create"], "the losing create appends no revision");
+  assert.deepEqual(outbox.events.map((event) => event.name), ["entry.imported"]);
 });
 
 test("two concurrent updateEntry calls on the same base version: exactly one wins, the other gets a version conflict", async () => {

@@ -34,7 +34,9 @@ export class InMemoryEntryRepo implements EntryRepoPort, EntryListPort {
   async save(row: EntryRecord, options: EntrySaveOptions = {}): Promise<void> {
     if (options.expectedVersion !== undefined) {
       const stored = this.byId.get(row.id);
-      const found = stored && stored.workspaceId === row.workspaceId ? stored.version : null;
+      // A create (`null`) needs the id free in every workspace: the id is the key here, as the
+      // primary key is in a SQL adapter, so a foreign row with it would be overwritten.
+      const found = stored && (options.expectedVersion === null || stored.workspaceId === row.workspaceId) ? stored.version : null;
       if (found !== options.expectedVersion) throw entryVersionConflictError({ id: row.id, expectedVersion: options.expectedVersion, found });
     }
     this.byId.set(row.id, { ...row });
