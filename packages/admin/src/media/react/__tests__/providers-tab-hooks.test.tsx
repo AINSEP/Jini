@@ -101,6 +101,38 @@ describe('media useProvidersTab', () => {
     expect(view.result.current.saveDisabled).toBe(false);
   });
 
+  it('writes the first credential and settings of a catalog provider the read never returned', async () => {
+    let stored: MediaProvider[] = [];
+    const upsert = (id: string, patch: Partial<MediaProvider>) => {
+      const current = stored.find(item => item.id === id) ?? { id, label: id.toUpperCase(), configured: false };
+      stored = [...stored.filter(item => item.id !== id), { ...current, ...patch }];
+      return stored.find(item => item.id === id)!;
+    };
+    const port = {
+      ...service([]),
+      list: vi.fn(async () => stored.map(item => ({ ...item }))),
+      saveSettings: vi.fn(async ({ id, baseUrl, model }: { id: string; baseUrl: string; model: string }) => upsert(id, { baseUrl, model })),
+      saveCredential: vi.fn(async ({ id, credential }: { id: string; credential: string }) => upsert(id, { configured: true, apiKeyTail: credential.slice(-4) })),
+      catalog: [{ id: 'a', label: 'A' }],
+    };
+    const view = mount(port);
+    await loaded(view);
+    act(() => row(view, 'a').onCredential(change('sk-5678')));
+    act(() => view.result.current.save());
+    await waitFor(() => expect(view.result.current.saved).toBe(true));
+    expect(port.saveCredential).toHaveBeenCalledWith({ id: 'a', credential: 'sk-5678' }, { signal: expect.any(AbortSignal) });
+    expect(row(view, 'a')).toMatchObject({ statusLabel: 'Saved (••••5678)', credential: '' });
+    // A second catalog-only provider's first settings, saved alongside the now-known one.
+    const second = mount({ ...port, catalog: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }] });
+    await loaded(second);
+    act(() => row(second, 'b').onModel(change('m-1')));
+    act(() => second.result.current.save());
+    await waitFor(() => expect(second.result.current.saved).toBe(true));
+    expect(port.saveSettings).toHaveBeenCalledWith({ id: 'b', baseUrl: '', model: 'm-1' }, { signal: expect.any(AbortSignal) });
+    expect(row(second, 'b').model).toBe('m-1');
+    expect(port.removeCredential).not.toHaveBeenCalled();
+  });
+
   it('flags a private base URL and blocks saving until it is fixed', async () => {
     const view = mount({ ...service([]), catalog: [{ id: 'a', label: 'A' }] });
     await loaded(view);

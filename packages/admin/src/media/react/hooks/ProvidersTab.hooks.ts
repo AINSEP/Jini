@@ -47,7 +47,11 @@ export function useProvidersTab(_required: Record<string, never> = {}, _optional
         }
         // Older hosts retain the one-button editor; writes remain sequential and failures
         // retain local edits. Atomic whole-set hosts should implement saveChanges instead.
-        for (const item of lastRead) {
+        // Submitted ids the last read never returned (catalog-only providers getting their
+        // first key or settings) start from an empty stored state, or their writes are lost.
+        const known = new Set(lastRead.map(item => item.id));
+        const unread = Object.keys(providers).filter(id => !known.has(id)).map(id => ({ id, configured: false }) as MediaProvider);
+        for (const item of [...lastRead, ...unread]) {
           const entry = providers[item.id];
           if (!entry) {
             if (item.configured || item.baseUrl || item.model) await mediaProviders.removeCredential({ id: item.id }, { signal });

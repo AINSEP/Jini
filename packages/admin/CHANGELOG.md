@@ -15,6 +15,9 @@
 
 ## Unreleased
 
+- Media Providers tab on hosts without `saveChanges`: saving the first key or
+  settings of a catalog provider the last read did not return now writes them
+  (previously nothing was written, yet the tab showed "Saved").
 - Fix strict compilation of entity tables and integration/session test fixtures
   with explicit row, deferred-promise and tuple types. Runtime behavior and test
   assertions are unchanged.
