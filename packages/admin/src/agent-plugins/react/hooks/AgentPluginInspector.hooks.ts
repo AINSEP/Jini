@@ -22,7 +22,8 @@ export function useAgentPluginInspector({ pluginId, permissions, name }: AgentPl
 const fileGlyphs = { json: '{}', markdown: 'M↓', javascript: 'JS', typescript: 'TS', config: '⚙', html: '<>', css: '#', image: '▧', shell: '>', text: '¶', file: '▤' };
 export function useAgentPluginFileTree({ files, selectedPath, onOpen }: { files: readonly AgentPluginPackageFile[]; selectedPath: string | null; onOpen: (required: { path: string }, optional?: Record<string, never>) => void }, _optional = {}) {
   const tree = buildPackageFileTree({ paths: files.map(f => f.relativePath) }), [toggled, setToggled] = useState<ReadonlyMap<string, boolean>>(new Map());
-  const [focused, setFocused] = useState<string | null>(null), treeRef = useRef<HTMLDivElement | null>(null), moveFocus = useRef(false);
+  // Set by keyboard navigation to the tree that received the key, so the effect always has a real element.
+  const [focused, setFocused] = useState<string | null>(null), focusWithin = useRef<HTMLElement | null>(null);
   // Expansion is derived from selected ancestors until the viewer explicitly toggles a folder.
   const ancestors = new Set(selectedPath ? ancestorFolderPaths({ filePath: selectedPath }) : []);
   const isExpanded = ({ path }: { path: string }) => toggled.get(path) ?? ancestors.has(path);
@@ -30,9 +31,9 @@ export function useAgentPluginFileTree({ files, selectedPath, onOpen }: { files:
   const visible = (path: string | null) => path !== null && rows.some(r => r.node.path === path);
   const activePath = visible(focused) ? focused : visible(selectedPath) ? selectedPath : rows[0]?.node.path ?? null;
   // Move DOM focus only after keyboard navigation, never when opening the inspector.
-  useEffect(() => { if (!moveFocus.current) return; moveFocus.current = false; Array.from(treeRef.current?.querySelectorAll<HTMLElement>('[data-tree-path]') ?? []).find(el => el.dataset.treePath === activePath)?.focus(); });
+  useEffect(() => { const tree = focusWithin.current; if (!tree) return; focusWithin.current = null; Array.from(tree.querySelectorAll<HTMLElement>('[data-tree-path]')).find(el => el.dataset.treePath === activePath)?.focus(); });
   const setExpanded = (path: string, expanded: boolean) => setToggled(current => new Map(current).set(path, expanded));
-  return { treeRef,
+  return {
     rows: rows.map(row => { const { node } = row, folder = node.kind === 'folder', expanded = folder && isExpanded({ path: node.path }); return { key: `${node.kind}:${node.path}`, name: node.name, path: node.path, depth: row.depth + 1, setSize: row.setSize, posInSet: row.posInSet, expanded: folder ? expanded : undefined, selected: folder ? undefined : node.path === selectedPath, tabIndex: node.path === activePath ? 0 : -1,
       icon: folder ? expanded ? '▾' : '▸' : fileGlyphs[packageFileIconKind({ fileName: node.name })], indent: { paddingInlineStart: `${row.depth * 1.25}rem`, ...(node.kind === 'file' && node.path === selectedPath ? { backgroundColor: 'Highlight', color: 'HighlightText' } : {}) },
       onClick() { setFocused(node.path); if (folder) setExpanded(node.path, !expanded); else onOpen({ path: node.path }); }, onFocus() { setFocused(node.path); },
@@ -41,7 +42,7 @@ export function useAgentPluginFileTree({ files, selectedPath, onOpen }: { files:
       if (activePath === null) return;
       const action = packageFileTreeKeyAction({ rows, currentPath: activePath, key: event.key, isExpanded });
       if (!action.focus && !action.setExpanded && !action.open) return;
-      event.preventDefault(); if (action.setExpanded) setExpanded(action.setExpanded.path, action.setExpanded.expanded); if (action.open) onOpen({ path: action.open }); if (action.focus) { setFocused(action.focus); moveFocus.current = true; }
+      event.preventDefault(); if (action.setExpanded) setExpanded(action.setExpanded.path, action.setExpanded.expanded); if (action.open) onOpen({ path: action.open }); if (action.focus) { setFocused(action.focus); focusWithin.current = event.currentTarget; }
     },
   };
 }

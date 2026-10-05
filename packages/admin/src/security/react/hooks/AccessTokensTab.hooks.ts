@@ -5,11 +5,11 @@ import { createAccessTokensController } from '../../controllers/access-tokens.co
 import { createOtherCredentialsController } from '../../controllers/other-credentials.controller.js';
 import type { CredentialSummary, OtherCredentialSummary, CredentialCategory } from '../../models.js';
 import { CATEGORIES, credentialLabel, filterCredentials, filterOtherCredentials, otherWritePermission, writePermission } from '../../rules.js';
-import { useSecurityPorts } from './SecurityPorts.hooks.js';
+import { noOtherCredentials, useSecurityPorts } from './SecurityPorts.hooks.js';
 export function useAccessTokensTab({ permissions = [] }: TabViewProps, _optional = {}) {
   const ports = useSecurityPorts({}); const key = permissions.join('\0'); const canRead = permissions.includes('security.read');
   const access = useController({ create: () => createAccessTokensController({ api: ports.securityApi, permissions }), dependencies: [ports.securityApi, key] }, { start: ({ controller }) => { void controller.load({}); } });
-  const other = useController({ create: () => createOtherCredentialsController({ api: ports.otherCredentials ?? { async list() { return []; }, async replace() { throw new Error('Unavailable'); }, async remove() { throw new Error('Unavailable'); } }, permissions }), dependencies: [ports.otherCredentials, key] }, { start: ({ controller }) => { void controller.load({}); } });
+  const other = useController({ create: () => createOtherCredentialsController({ api: ports.otherCredentials ?? noOtherCredentials, permissions }), dependencies: [ports.otherCredentials, key] }, { start: ({ controller }) => { void controller.load({}); } });
   const [removal, setRemoval] = useState<{ row: CredentialSummary | OtherCredentialSummary; type: 'access' | 'other' } | null>(null);
   const s = access.snapshot, o = other.snapshot; const query = s?.query ?? '', category = s?.category ?? 'all';
   const rows = s ? filterCredentials({ rows: s.rows, providers: s.providers, query, category }).map(row => ({ row, label: credentialLabel({ row, providers: s.providers }), canWrite: permissions.includes(writePermission({ kind: row.kind })), edit() { access.controller?.begin({ row }); }, remove() { setRemoval({ row, type: 'access' }); }, makeDefault() { void access.controller?.makeDefault({ row }); } })) : [];

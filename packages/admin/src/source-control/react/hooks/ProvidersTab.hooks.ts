@@ -6,10 +6,10 @@ import { useSourceControlPorts } from './SourceControlPorts.hooks.js';
 export function useProvidersTab({ permissions = [] }: TabViewProps, _optional = {}) {
   const ports = useSourceControlPorts({}), key = permissions.join('\0'), canRead = permissions.includes('source-control.read'), canWrite = canRead && permissions.includes('source-control.credentials.write');
   const { controller, snapshot: state } = useController({ create: () => createSourceControlController({ api: ports.sourceControlApi, permissions }), dependencies: [ports.sourceControlApi, key] }, { start: ({ controller }) => { void controller.load({}); } });
-  const infos = sourceControlProviders({ providers: state?.providers ?? [], credentials: state?.credentials ?? [] });
-  const first = infos.find(p => p.listed && !defaultSourceControlCredential({ credentials: state?.credentials ?? [], providerId: p.id }))?.id;
+  const credentials = state?.credentials ?? [], infos = sourceControlProviders({ providers: state?.providers ?? [], credentials });
+  const first = infos.find(p => p.listed && !defaultSourceControlCredential({ credentials, providerId: p.id }))?.id;
   const rows = infos.map(info => {
-    const saved = defaultSourceControlCredential({ credentials: state?.credentials ?? [], providerId: info.id }), draft = state?.drafts[info.id] ?? blankSourceControlDraft({});
+    const saved = defaultSourceControlCredential({ credentials, providerId: info.id }), draft = state?.drafts[info.id] ?? blankSourceControlDraft({});
     return { id: info.id, label: info.label, heading: saved ? info.label : `Connect ${info.label}`, saved, defaultOpen: info.id === first, canEdit: canWrite && info.listed, unlisted: !info.listed, connected: !!saved,
       token: draft.token, tokenLabel: `${info.label} ${info.tokenLabel}`, hint: saved ? 'Leave blank to keep the current token.' : 'Once saved, the token is never displayed again.', saving: draft.saving, error: draft.error,
       disabled: !canWrite || !sourceControlReady({ info, draft }), help: info.help, tokenPageUrl: safeSourceControlUrl({ url: info.tokenPageUrl }), hasGuidance: !!info.help || !!safeSourceControlUrl({ url: info.tokenPageUrl }),

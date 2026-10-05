@@ -8,9 +8,10 @@ export function useAgentPluginPanel({ props, mode }: { props: TabViewProps; mode
   const canRead = permissions.includes(AGENT_PLUGINS_READ) && !!props.permissions?.includes(AGENT_PLUGINS_READ);
   const canWrite = canRead && permissions.includes(AGENT_PLUGINS_WRITE) && !!props.permissions?.includes(AGENT_PLUGINS_WRITE);
   // Scope is intentionally unfiltered on BOTH tabs, including switched-off bundled packages.
+  const busyIds = state?.busyIds ?? [], expandedIds = state?.expandedIds ?? [];
   const rows = (canRead ? state?.plugins ?? [] : []).map(plugin => {
-    const name = humanizeAgentPluginId({ pluginId: plugin.pluginId }), busy = state?.busyIds.includes(plugin.pluginId) ?? false;
-    const expanded = state?.expandedIds.includes(plugin.pluginId) ?? false;
+    const name = humanizeAgentPluginId({ pluginId: plugin.pluginId }), busy = busyIds.includes(plugin.pluginId);
+    const expanded = expandedIds.includes(plugin.pluginId);
     // Derived from the id alone, so handles survive sorting and switching tabs.
     const handle = `agent-plugin-${encodeURIComponent(plugin.pluginId)}`;
     const turnOff = () => controller?.requestDisable({ pluginId: plugin.pluginId, variant: mode === 'installed' ? 'disable' : 'remove' });
