@@ -74,9 +74,12 @@ function looksLikeTextAttachment(name: string): boolean {
  * environment can actually exercise avoids a test-only monkeypatch of a browser primitive whose
  * production behavior isn't in question - only its jsdom coverage was.
  */
-function readFileAsText(file: File): Promise<string> {
+export function readFileAsText(
+  { file }: { file: File },
+  { createReader = () => new FileReader() }: { createReader?: () => FileReader } = {},
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+    const reader = createReader();
     reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
     reader.onerror = () => reject(reader.error ?? new Error('Failed to read attachment as text'));
     reader.readAsText(file);
@@ -118,7 +121,9 @@ export interface AttachmentPreviewController {
  * read on mount (bounded in practice by the upload route's own 20 MB per-attachment cap, and by
  * {@link MAX_TEXT_PREVIEW_CHARS} for what actually renders).
  */
-export function useAttachmentPreviewModal({ attachment, onClose }: { attachment: ChatAttachment; onClose: () => void }
+export function useAttachmentPreviewModal(
+  { attachment, onClose }: { attachment: ChatAttachment; onClose: () => void },
+  { readText = readFileAsText }: { readText?: (required: { file: File }) => Promise<string> } = {},
 ): AttachmentPreviewController {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<Element | null>(null);
@@ -154,7 +159,7 @@ export function useAttachmentPreviewModal({ attachment, onClose }: { attachment:
     }
     let canceled = false;
     setTextLoading(true);
-    readFileAsText(cachedFile)
+    readText({ file: cachedFile })
       .then((full) => {
         if (canceled) return;
         const truncated = full.length > MAX_TEXT_PREVIEW_CHARS;
