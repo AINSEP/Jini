@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- `ChatPane`/`useChatPane` accept `deliverTypedAnswer`: text typed while the running agent holds a question card open (a surface whose tool call has not returned) goes to the host instead of the queue. `'delivered'` clears the draft; `'not-pending'`/`'failed'` (or a throw) keep the draft, show a notice (`typedAnswerNotice`) and never queue it, so a closed question can no longer turn an answer into a second paid run. New `createTypedAnswerPoster` posts `{toolName, params: {__typedAnswer}}` to the MCP-UI tool-call route (202 delivered, 409 not-pending). Omitting the prop keeps today's queue-while-streaming behavior.
+
 - `McpUiSurfaceCard` counts down a card's answer deadline (`MCP_UI_EXPIRES_AT_META_KEY`) under the live frame ("Expires in {time}", `role="timer"`) and closes it as "This question expired" when the deadline passes; a card answered in time still reads "Answered". New `useSurfaceExpiry` hook with an injectable `SurfaceExpiryClock` (card prop `expiryClock`), and pure `describeSurfaceExpiry`/`formatRemainingTime` in core.
 
 - Type store fixtures with the shared storage kernel and chat contracts, including host-owned tables;
