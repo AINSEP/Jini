@@ -124,6 +124,20 @@ it("opens replacement confirmation through handler options and respects a declin
   expect(await h.tools.get("database_transfer_run")!.handler(ctx({ planId: plan.planId }), { emitSurface: async () => {} })).toEqual({ copied: false, cancelled: true });
   expect(h.calls).toEqual(["authorize", "open", "close"]);
 });
+it("hands the exchange's deadline to the confirmation builder, and none when the exchange reports none", async () => {
+  const h = harness();
+  const seen: unknown[] = [];
+  h.ports.surfaces.confirmation = (_plan, exchangeId, optional) => { seen.push([exchangeId, optional]); return { channel: "fixture", payload: {} }; };
+  const content = { connectionString: "private", destination: description, snapshot: Buffer.from("content"), replaces: "previous", site: "site", schema: "app", snapshotAt: "fixed", rowCount: 1, tableCount: 1, leftOut: [] };
+  const withDeadline = h.plans.save({ principalId: "owner", workspaceId: "ws", content });
+  const open = h.ports.surfaces.open;
+  h.ports.surfaces.open = (binding, emit) => ({ ...open(binding, emit), expiresAtMs: () => 1_300_000 });
+  await h.tools.get("database_transfer_run")!.handler(ctx({ planId: withDeadline.planId }), { emitSurface: async () => {} });
+  h.ports.surfaces.open = open;
+  const withoutDeadline = h.plans.save({ principalId: "owner", workspaceId: "ws", content });
+  await h.tools.get("database_transfer_run")!.handler(ctx({ planId: withoutDeadline.planId }), { emitSurface: async () => {} });
+  expect(seen).toEqual([["exchange", { expiresAtMs: 1_300_000 }], ["exchange", {}]]);
+});
 it("both snapshot sources close on a completeness/schema refusal, the temporary content artifact is consumed", async () => {
   const h = harness(); h.saveDestination();
   const dir = await mkdtemp(join(tmpdir(), "transfer-tools-"));

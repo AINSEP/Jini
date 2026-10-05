@@ -6,6 +6,7 @@
 
 ### Fixed
 
+- `database_transfer_run` hands the exchange's deadline to `TransferSurfacePorts.confirmation` (new optional third argument `{ expiresAtMs }`) when the exchange reports one through the new optional `SurfaceExchange.expiresAtMs()`, so a host's confirmation card can count down and close on time.
 - Add a `default` condition to every JavaScript subpath, pointing to its existing ESM entry, so tsx CommonJS bootstraps can resolve the package without `ERR_PACKAGE_PATH_NOT_EXPORTED`.
 
 - `databaseFile<DB>` accepts `StorageKernel<DB>` so hosts can pass typed kernels without casting or erasing their schema. Query and null behavior are unchanged.

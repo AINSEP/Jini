@@ -220,7 +220,7 @@ type RunResult = Record<string, unknown>;
 
 async function askToConfirm(ctx: ToolExecutionContext, surfaces: TransferSurfacePorts, plan: DatabaseTransferPlan, emitSurface: SurfaceEmitter): Promise<{ confirmed: true } | { confirmed: false; result: RunResult }> {
   const exchange: SurfaceExchange = surfaces.open({ toolId: DATABASE_TRANSFER_RUN_TOOL_ID, principalId: ctx.principal.id }, emitSurface);
-  const emission = surfaces.confirmation(plan, exchange.id);
+  const emission = surfaces.confirmation(plan, exchange.id, exchange.expiresAtMs ? { expiresAtMs: exchange.expiresAtMs() } : {});
   const closeOnAbort = () => exchange.close();
   ctx.signal.addEventListener("abort", closeOnAbort, { once: true });
   try {
