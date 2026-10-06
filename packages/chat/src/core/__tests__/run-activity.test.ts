@@ -75,6 +75,30 @@ describe('run activity line — one table, exact words', () => {
     expect(isAwaitingAnswer({ events })).toBe(false);
   });
 
+  // Demo V3 2026-10-05: assistant_render_ui holds its call open ~4 s after drawing a chart (to hear a
+  // browser refusal), and the chart's a2ui events read as a question under it. A surface whose
+  // createSurface declares displayOnly asks nothing, so the line keeps naming the running tool.
+  it('is not awaiting an answer for a display-only a2ui surface under its still-open call', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'r', name: 'mcp__jini__execute_delegated_tool', input: { toolId: 'assistant_render_ui' } },
+      { kind: 'ext', name: 'a2ui', data: { version: 'v1.0', createSurface: { surfaceId: 's1', catalogId: 'c', surfaceProperties: { displayOnly: true } } } },
+      { kind: 'ext', name: 'a2ui', data: { version: 'v1.0', updateComponents: { surfaceId: 's1', components: [{ id: 'root', component: 'Text' }] } } },
+    ];
+    expect(isAwaitingAnswer({ events })).toBe(false);
+    expect(line(events, 3)).toBe('Running Assistant Render Ui… 3 s');
+  });
+
+  it('still awaits an answer for an a2ui surface that does not declare displayOnly', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'd', name: 'mcp__jini__execute_delegated_tool', input: { toolId: 'assistant_demo_a2ui' } },
+      { kind: 'ext', name: 'a2ui', data: { version: 'v1.0', createSurface: { surfaceId: 's1', catalogId: 'c', surfaceProperties: { displayOnly: true } } } },
+      { kind: 'ext', name: 'a2ui', data: { version: 'v1.0', createSurface: { surfaceId: 's2', catalogId: 'c' } } },
+      { kind: 'ext', name: 'a2ui', data: { version: 'v1.0', updateComponents: { surfaceId: 's2', components: [{ id: 'root', component: 'Button' }] } } },
+    ];
+    expect(isAwaitingAnswer({ events })).toBe(true);
+    expect(line(events, 9)).toBe('Waiting for your answer above');
+  });
+
   it('says the servers are busy with the attempt count while an API retry is the latest signal', () => {
     const events: AgentEvent[] = [
       { kind: 'text', text: 'Let me check.' },

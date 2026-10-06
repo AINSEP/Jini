@@ -17,6 +17,7 @@
  * - `code: 'tool_progress'`, `data: { elapsedSeconds }` — a tool call is still running.
  * - `code: 'thinking'` — the model is reasoning (keeps the idle timer honest).
  */
+import { a2uiSurfaceIdOf, displayOnlySurfaceIdOf } from '@jini-ai/agentic/a2ui';
 import type { AgentEvent } from './events.js';
 import { isDelegatedWrapperToolName } from './tool-events.js';
 
@@ -49,6 +50,9 @@ const DISCOVERY_TOOL_NAMES = new Set([
 
 /** Ext events that are a card for the person (a form, a confirm, a sign-in). */
 const CARD_EXT_NAMES = new Set(['mcp-ui', 'a2ui']);
+
+/** The A2UI ext name: its surfaces may declare themselves display-only (`@jini-ai/agentic/a2ui`). */
+const A2UI_EXT_NAME = 'a2ui';
 
 /** After this long with nothing new on screen, a thinking/writing line says "Still working…". */
 export const RUN_ACTIVITY_IDLE_MS = 20_000;
@@ -93,10 +97,27 @@ interface Scan {
   retry: { index: number; data: unknown } | null;
   progress: { index: number; seconds: number } | null;
   visibleCount: number;
+  /** A2UI surfaces whose `createSurface` declared display-only: a chart, not a question. */
+  displayOnlySurfaces: Set<string>;
 }
 
 function isVisible(event: AgentEvent): boolean {
   return event.kind === 'text' ? event.text.length > 0 : event.kind === 'tool_use' || event.kind === 'tool_result' || event.kind === 'ext';
+}
+
+/**
+ * Whether an ext event is a card the person must answer. A display-only A2UI surface shows
+ * something and asks nothing, so a tool holding its call open after drawing one (assistant_render_ui
+ * waits a few seconds to hear a browser refusal) must not read as "Waiting for your answer above"
+ * (demo V3, 2026-10-05).
+ */
+function isAnswerCard(scan: Scan, name: string, data: unknown): boolean {
+  if (!CARD_EXT_NAMES.has(name)) return false;
+  if (name !== A2UI_EXT_NAME) return true;
+  const displayOnlyId = displayOnlySurfaceIdOf({ message: data });
+  if (displayOnlyId !== undefined) scan.displayOnlySurfaces.add(displayOnlyId);
+  const surfaceId = a2uiSurfaceIdOf({ message: data });
+  return surfaceId === undefined || !scan.displayOnlySurfaces.has(surfaceId);
 }
 
 function scanEvent(scan: Scan, event: AgentEvent, index: number): void {
@@ -109,7 +130,7 @@ function scanEvent(scan: Scan, event: AgentEvent, index: number): void {
     scan.open.push({ id: event.id, name: event.name, input: event.input, index });
   } else if (event.kind === 'tool_result') {
     scan.open = scan.open.filter((tool) => tool.id !== event.toolUseId);
-  } else if (event.kind === 'ext' && CARD_EXT_NAMES.has(event.name)) {
+  } else if (event.kind === 'ext' && isAnswerCard(scan, event.name, event.data)) {
     scan.lastCardIndex = index;
   } else if (event.kind === 'status' && event.code === 'api_retry') {
     scan.retry = { index, data: event.data };
@@ -123,13 +144,14 @@ function scanEvent(scan: Scan, event: AgentEvent, index: number): void {
  * The latest signal in a running turn's events.
  *
  * Precedence, newest wins: an API retry with nothing visible after it; a card that arrived while a
- * tool call is still open (the tool is waiting on the person); the newest open tool call; else
+ * tool call is still open (the tool is waiting on the person; a display-only A2UI surface is not a
+ * card); the newest open tool call; else
  * writing (last visible event is text) or thinking.
  *
  * @complexity O(n) in events, O(open tool calls) extra space.
  */
 export function deriveRunActivity({ events }: { events: readonly AgentEvent[] | undefined }): RunActivityState {
-  const scan: Scan = { open: [], lastVisible: null, lastCardIndex: -1, retry: null, progress: null, visibleCount: 0 };
+  const scan: Scan = { open: [], lastVisible: null, lastCardIndex: -1, retry: null, progress: null, visibleCount: 0, displayOnlySurfaces: new Set() };
   (events ?? []).forEach((event, index) => scanEvent(scan, event, index));
   const visibleCount = scan.visibleCount;
   const lastVisibleIndex = scan.lastVisible?.index ?? -1;

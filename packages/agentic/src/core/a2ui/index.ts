@@ -13,3 +13,4 @@ export * from './json-pointer.js';
 export * from './resolve.js';
 export * from './tree.js';
 export * from './interpreter.js';
+export * from './surface-properties.js';
