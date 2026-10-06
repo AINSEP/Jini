@@ -165,3 +165,15 @@ export type { IsBlobUnreferencedRequired, TombstoneBlobRequired, RunBlobGcDelete
 
 export { rollbackUploadedMedia } from "./media-service.js";
 export type { MediaRowCleanupDeps } from "./media-service.js";
+
+// Video previews: policy/port plus a bounded optional-host codec adapter.
+export {
+  VIDEO_DEFAULT_FRAMES, VIDEO_MAX_FRAMES, VIDEO_MAX_EDGE_PX, VIDEO_MAX_INPUT_BYTES,
+  VIDEO_MAX_FRAME_BYTES, VIDEO_MAX_OUTPUT_BYTES, VIDEO_MAX_SHEET_BYTES, VIDEO_MAX_SHEETS, VIDEO_EXTRACTION_TIMEOUT_MS, planVideoFrames, parseVideoProbe, getVideoFrameEdge, planVideoContactSheets,
+  type VideoMetadata, type VideoFrame, type VideoFrameOptions, type VideoFrameResult, type VideoFrameExtractor,
+  type VideoSheetTile, type VideoSheetLayout, type VideoContactSheet,
+} from './video-frames.js';
+export {
+  createFfmpegVideoFrameExtractor, findVideoBinaries, runLowPriorityVideoProcess,
+  type VideoBinaries, type VideoBinaryFinder, type VideoProcessRunner,
+} from './video-frames.ffmpeg.js';
