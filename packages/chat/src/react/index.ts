@@ -312,6 +312,12 @@ export type { TodoCardProps } from './components/TodoCard.js';
  */
 export { ConversationList } from './components/ConversationList.js';
 export type { ConversationListProps, ConversationListItem } from './components/ConversationList.js';
+/**
+ * The conversation an operator last had open, per caller identity — so a host's switcher lands
+ * back on it after a reload instead of an empty new chat. See the module doc for the contract.
+ */
+export { createLastConversationStore, LAST_CONVERSATION_STORAGE_PREFIX } from './hooks/last-conversation-store.js';
+export type { LastConversationStorage, LastConversationStore } from './hooks/last-conversation-store.js';
 export { ToolCard } from './components/ToolCard.js';
 export type { ToolCardProps } from './components/ToolCard.js';
 export { A2uiSurfaceCard } from './components/A2uiSurfaceCard.js';
