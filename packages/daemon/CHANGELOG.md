@@ -1,3 +1,7 @@
+## 0.5.2 — 2026-10-06
+
+- No slow-run notice while a delegated tool waits on a surface: the first `emitSurface` of a call suspends the notice and the call's end resumes it. Suspensions are counted, so with two calls in flight the first to finish does not re-arm the notice over the other's open form; `resume()` drops suspensions left by an ended run.
+
 ## 0.5.1 — 2026-10-05
 
 - The `@jini-ai/db` peer range is `^0.2.0 || ^0.3.0` (daemon uses only db's kernel and store entries, which 0.3.0 leaves unchanged), so a host on db 0.3.0 installs without a peer conflict.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1 — 2026-10-06
+
+- Navigation: the `menus_update_menu_tree` schema declares the `entryType`/`lastKnownHref` hints on entry targets, and `updateMenuTree` carries a stored hint forward when the same item still targets the same entry and the submitted target omits it, so echoing a read no longer marks the menu changed.
+
 ## 0.5.0 — 2026-10-05
 
 ### BREAKING

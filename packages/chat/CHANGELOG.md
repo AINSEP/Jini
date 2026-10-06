@@ -1,3 +1,14 @@
+## 0.5.3 — 2026-10-06
+
+- New `createLastConversationStore({ scope }, { storage? })` (react): remembers one conversation id per caller identity under a versioned localStorage key (`jini.chat.last-conversation.v1.<scope>`); corrupt or foreign entries read as nothing remembered. Selection stays host-owned.
+- Restored staged attachments keep their upload batch: the draft cache records the batch id beside each conversation's attachment references, and `useChatPane` resumes that batch on mount and on a conversation switch, so a second attachment after a remount no longer fails the turn ("Attachments must belong to one batch").
+- A display-only A2UI surface (`surfaceProperties.displayOnly`, e.g. a drawn chart) no longer reads as "Waiting for your answer above".
+- A run held on an open form reads as waiting, not working: new `isAwaitingAnswer`, passed to ext event renderers as `awaitingAnswer`.
+- One row per delegated tool call: `isDelegatedWrapperToolName` covers both delegated gateways (bare or `mcp__<server>__`-prefixed) and `foldDelegatedWrapperCalls` drops a wrapper call once its canonical call exists (`useToolTimeline`, `ToolCard`).
+- Markdown: `[label](url)` links render (relative and parenthesized URLs, unsafe schemes kept as text, off-site links open in a new tab); intraword underscores never open or close emphasis.
+- A late scroll event no longer unsticks the transcript from the bottom; only a move up does.
+- Requires `@jini-ai/agentic` ^0.4.2 (`displayOnlySurfaceIdOf`).
+
 ## 0.5.2 — 2026-10-05
 
 - `useChatPane` holds a draft typed for a question that has since closed (answered elsewhere, expired, or refused with `'not-pending'`): `send` shows the `'not-pending'` notice instead of queueing it as a new paid run. Only clearing the draft or the new `sendAsNewMessage()` (the notice's "Send as a new message" button in `ChatPane`) lets it out as an ordinary turn. New pure `findAwaitedTypedAnswerId`.

@@ -644,10 +644,10 @@ importers:
         specifier: ^4.1.1
         version: 4.1.1
       '@jini-ai/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@jini-ai/platform':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../platform
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0

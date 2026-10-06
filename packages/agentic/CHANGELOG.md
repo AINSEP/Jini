@@ -1,5 +1,9 @@
 # @jini-ai/agentic
 
+## 0.4.2 — 2026-10-06
+
+- `@jini-ai/agentic/a2ui`: `A2UI_DISPLAY_ONLY_PROPERTY` (`"displayOnly"` on `createSurface.surfaceProperties`) plus `displayOnlySurfaceIdOf` and `a2uiSurfaceIdOf` readers.
+
 ## 0.4.1 — 2026-10-04
 
 - `createAnnotatedActionsScript` registers a published page's annotated actions with WebMCP.

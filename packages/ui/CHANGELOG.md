@@ -1,5 +1,10 @@
 # @jini-ai/ui
 
+## 0.4.4 — 2026-10-06
+
+- Recharts charts paint with host chart tokens `--jini-chart-1..6` / `-grid` / `-axis` / `-cursor` / `-surface` / `-text`, each falling back to a base token; a host that sets no `--jini-chart-N` gets the new warm orange `--jini-chart-default-1..6` palette (light and dark) instead of `--jini-primary`.
+- Behavior change: grid and axis use `--jini-border`/`--jini-muted`, no vertical grid lines, bars get a 4px rounded top and 64px max width, lines are 2px, and the tooltip uses theme surface/ink with a soft accent hover band.
+
 ## 0.4.3 — 2026-10-05
 
 - MCP-UI resources can carry an answer deadline: `createUIResource`/`buildConfirmationSurface` take `expiresAtMs`, written to `MCP_UI_EXPIRES_AT_META_KEY`; `readExpiresAt` reads it back (undefined when absent or not a finite number).

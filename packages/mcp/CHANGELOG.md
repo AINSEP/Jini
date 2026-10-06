@@ -1,5 +1,10 @@
 # @jini-ai/mcp
 
+## 0.4.1 — 2026-10-06
+
+- The delegated tool gateways send input `{}` when the model omits it or sends `null`, so a no-input call no longer fails before a retry.
+- Internal `@jini-ai/*` runtime dependencies are caret ranges (`workspace:^`) instead of exact pins.
+
 ## 0.4.0 — 2026-10-02
 
 ### BREAKING
