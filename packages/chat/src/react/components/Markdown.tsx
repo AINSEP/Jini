@@ -496,7 +496,15 @@ function TableBlock(props: TableBlockProps): ReactNode {
 // Inline pass: `code`, **bold**, *italic*/_italic_, bare http(s) autolinks.
 // Processes left-to-right with a single regex alternation so spans never
 // nest incorrectly across kinds.
-const INLINE_RE = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*]+\*|_[^_]+_)|(https?:\/\/[^\s)]+)/g;
+//
+// `_italic_` follows CommonMark's word-boundary rule: an `_` with a letter,
+// digit or `_` on its outer side never opens or closes emphasis, and an `_`
+// between two word characters inside the span is content. The plain
+// `_[^_]+_` this replaced matched intraword, so a tool-result name like
+// `ANALYTICS_ROOT_KEY_SEED` rendered as `ANALYTICS<em>ROOT</em>KEY_SEED`.
+// `*` stays permissive — CommonMark allows intraword `*` emphasis.
+const UNDERSCORE_EM = String.raw`(?<![\p{L}\p{N}_])_(?![\s_])(?:[^_]|_(?=[\p{L}\p{N}]))+?(?<!\s)_(?![\p{L}\p{N}_])`;
+const INLINE_RE = new RegExp(String.raw`(\x60[^\x60]+\x60)|(\*\*[^*]+\*\*)|(\*[^*]+\*|${UNDERSCORE_EM})|(https?:\/\/[^\s)]+)`, 'gu');
 
 function renderInline(text: string): ReactNode {
   const nodes: ReactNode[] = [];

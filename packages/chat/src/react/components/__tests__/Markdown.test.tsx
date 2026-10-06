@@ -40,6 +40,26 @@ describe('Markdown', () => {
     expect(screen.getByText('italic', { selector: 'em' })).toBeInTheDocument();
   });
 
+  // Regression: `_[^_]+_` matched intraword, so a secrets table row `ANALYTICS_ROOT_KEY_SEED`
+  // rendered as `ANALYTICS<em>ROOT</em>KEY_SEED` — underscores eaten, name unreadable. CommonMark
+  // forbids an intraword `_` from opening or closing emphasis; only `*` may.
+  it('renders SNAKE_CASE identifiers literally, in prose and in table cells', () => {
+    const { container } = render(
+      <Markdown>
+        {'Set ANALYTICS_ROOT_KEY_SEED and my_var_name.\n\n| Name | Set |\n| --- | --- |\n| ANALYTICS_ROOT_KEY_SEED | yes |'}
+      </Markdown>,
+    );
+    expect(container.querySelector('em')).toBeNull();
+    expect(container.querySelector('p')?.textContent).toBe('Set ANALYTICS_ROOT_KEY_SEED and my_var_name.');
+    expect(container.querySelector('td')?.textContent).toBe('ANALYTICS_ROOT_KEY_SEED');
+  });
+
+  it('still renders word-bounded _underscore_ emphasis, including one spanning a snake_case word', () => {
+    const { container } = render(<Markdown>{'an _italic_ word and _uses snake_case_ here, not __init__'}</Markdown>);
+    expect([...container.querySelectorAll('em')].map((em) => em.textContent)).toEqual(['italic', 'uses snake_case']);
+    expect(container.textContent).toContain('not __init__');
+  });
+
   it('renders fenced code blocks verbatim without inline-parsing their contents', () => {
     render(<Markdown>{'```ts\nconst x = 1;\n```'}</Markdown>);
     expect(screen.getByText('const x = 1;')).toBeInTheDocument();
