@@ -119,6 +119,7 @@ export interface RunLifecycle {
    * on a run that never actually stalled. A driver that knows exactly why a run is quiet must say so
    * rather than leaving the watchdog to guess from silence alone. No-op if `runId` is unknown,
    * already terminal, or the slow-run notice is disabled kernel-wide (`slowRunThresholdMs: null`).
+   * Pairs nest: the notice stays suspended until every open suspension has been resumed.
    */
   suspendSlowRunNotice(args: { readonly runId: string }): void;
   /**
@@ -172,6 +173,12 @@ interface RunRecord {
    * anything. See {@link armSlowRunWatchdogIfConfigured}.
    */
   slowRunWatchdog: InactivityWatchdog | undefined;
+  /**
+   * How many {@link RunLifecycle.suspendSlowRunNotice} calls are still open for this run. A count,
+   * not a flag: two delegated calls can be in flight at once (one parked on a human's form, one a
+   * plain tool), and the first to finish must not re-arm the notice over the other's open form.
+   */
+  slowRunSuspensions: number;
   /** Pending durable start append; idempotent duplicates wait for it instead of observing a ghost record. */
   startPromise: Promise<void> | undefined;
   /** Serializes concurrent terminal transitions while state remains non-terminal until the end append commits. */
@@ -286,6 +293,7 @@ function rehydratedRunRecord(
       terminalEndEntry: endEntry,
       watchdog: undefined,
       slowRunWatchdog: undefined,
+      slowRunSuspensions: 0,
       startPromise: undefined,
       finishPromise: undefined,
       retentionTimer: undefined,
@@ -499,6 +507,7 @@ function buildNewRunRecord(
     terminalEndEntry: undefined,
     watchdog: undefined,
     slowRunWatchdog: undefined,
+    slowRunSuspensions: 0,
     startPromise: undefined,
     finishPromise: undefined,
     retentionTimer: undefined,
@@ -998,7 +1007,9 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       // freshly-started one does. Without this, `finish()`'s `record.slowRunWatchdog?.cancel()` (which
       // never fires again on its own — the underlying timer is one-shot) left the notice permanently
       // dark for the rest of a resumed run's life, silently disabling a feature the run is otherwise
-      // still eligible for.
+      // still eligible for. Suspensions left open when the run ended can never be resumed (resume is a
+      // no-op on a terminal run), so they are dropped here or they would keep the notice dark forever.
+      record.slowRunSuspensions = 0;
       armSlowRunWatchdogIfConfigured({ record: record, timeoutMs: slowRunThresholdMs, onTimeout: () => {
         void handleSlowRunNotice(runId);
       } });
@@ -1012,12 +1023,16 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
     suspendSlowRunNotice({ runId }: { readonly runId: string }): void {
       const record = runs.get(runId);
       if (!record || isTerminalRunState({ state: record.status.state })) return;
+      record.slowRunSuspensions += 1;
       record.slowRunWatchdog?.cancel({});
     },
 
     resumeSlowRunNotice({ runId }: { readonly runId: string }): void {
       const record = runs.get(runId);
       if (!record || isTerminalRunState({ state: record.status.state })) return;
+      // Re-arm only when the LAST open suspension closes (see `RunRecord.slowRunSuspensions`).
+      if (record.slowRunSuspensions > 0) record.slowRunSuspensions -= 1;
+      if (record.slowRunSuspensions > 0) return;
       // Suspension cancels permanently. Resuming must create a new window, never revive that handle.
       record.slowRunWatchdog?.cancel({});
       armSlowRunWatchdogIfConfigured({ record, timeoutMs: slowRunThresholdMs, onTimeout: () => {

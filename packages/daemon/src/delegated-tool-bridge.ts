@@ -156,8 +156,18 @@ export function createDelegatedToolBridge(options: CreateDelegatedToolBridgeOpti
      * screen, with no call left to answer it.
      */
     let settled = false;
+    // A handler emits a surface mid-call because it is about to WAIT on the human (a form, a card).
+    // Nothing reaches the run's event stream while they answer, so the slow-run watchdog would read
+    // that silence as a stall and post "Still working…" over an open form — which then reappears
+    // once the form is answered. Suspended from the first surface until the call settles (the
+    // `finally` below); the watchdog re-arms then, so a genuine stall afterwards is still caught.
+    let slowRunSuspended = false;
     const emitSurface = async (emission: SurfaceEmission): Promise<void> => {
       if (settled) throw new Error(`emitSurface: tool call ${toolUseId} has already completed`);
+      if (!slowRunSuspended) {
+        slowRunSuspended = true;
+        lifecycle.suspendSlowRunNotice({ runId: runId });
+      }
       // Cast because `RunAgentPayload` is a closed union and `channel` is deliberately an open
       // string — a seam that only accepts channels this file already knows about is not a
       // channel-neutral seam. This mirrors `@jini-ai/protocol`'s own posture of typing each
@@ -252,6 +262,7 @@ export function createDelegatedToolBridge(options: CreateDelegatedToolBridgeOpti
     } finally {
       unsubscribeCancel();
       invocation.signal?.removeEventListener('abort', abortFromTransport);
+      if (slowRunSuspended) lifecycle.resumeSlowRunNotice({ runId: runId });
     }
   }
 
