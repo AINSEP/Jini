@@ -353,8 +353,29 @@ describe('MessageRow', () => {
       render(<MessageRow message={message} runStreaming runSucceeded={false} />);
       expect(screen.getByTestId('a2ui-rendered')).toHaveTextContent('2 events');
       expect(seen).toEqual([
-        { name: 'a2ui', events: [{ step: 1 }, { step: 2 }], runStreaming: true, runSucceeded: false, runId: 'run-123' },
+        { name: 'a2ui', events: [{ step: 1 }, { step: 2 }], runStreaming: true, runSucceeded: false, awaitingAnswer: false, runId: 'run-123' },
       ]);
+    });
+
+    // Demo dry-run 2026-10-05: a "still working" notice rendered under an open credential form, so
+    // a run waiting on the person looked hung. Renderers learn the run is waiting on the person.
+    it('tells ext renderers the run is awaiting an answer while a card sits on an open tool call', () => {
+      const seen: boolean[] = [];
+      registerExtEventRenderer({ name: 'slow_running', renderer: (props) => {
+        seen.push(props.awaitingAnswer === true);
+        return null;
+      } });
+      const events: ChatMessage['events'] = [
+        { kind: 'tool_use', id: 't1', name: 'source_control_propose_credential', input: {} },
+        { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://form' } },
+        { kind: 'ext', name: 'slow_running', data: { type: 'slow_running' } },
+      ];
+      const message: ChatMessage = { id: 'w1', role: 'assistant', content: '', runId: 'r', events, runStatus: 'running' };
+      const { rerender } = render(<MessageRow message={message} runStreaming runSucceeded={false} />);
+      const answered: ChatMessage = { ...message, events: [...events, { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false }] };
+      rerender(<MessageRow message={answered} runStreaming runSucceeded={false} />);
+      expect(seen[0]).toBe(true);
+      expect(seen[seen.length - 1]).toBe(false);
     });
 
     // host stuck-chat investigation, 2026-09-27: the second choice card of a run rendered inside

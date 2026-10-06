@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent } from '../events.js';
-import { deriveRunActivity, describeRunActivity, formatActivityClock, humanizeToolName } from '../run-activity.js';
+import { deriveRunActivity, describeRunActivity, formatActivityClock, humanizeToolName, isAwaitingAnswer } from '../run-activity.js';
 
 const t = (key: string, vars?: Record<string, string | number>) =>
   vars ? key.replace(/\{(\w+)\}/g, (_m, name: string) => String(vars[name])) : key;
@@ -44,12 +44,35 @@ describe('run activity line — one table, exact words', () => {
     expect(state.activity).toEqual({ kind: 'running-tool', tool: 'Page Fill', reportedSeconds: 90 });
   });
 
-  it('says Waiting for your answer when a card arrives while its tool call is open', () => {
+  // Demo dry-run 2026-10-05: a clock ticking under an open form read as a hung run. The run is
+  // waiting on the person, not working, so the line says so with no running timer.
+  it('says Waiting for your answer, with no clock, when a card arrives while its tool call is open', () => {
     const events: AgentEvent[] = [
       { kind: 'tool_use', id: 'w', name: 'mcp__jini__execute_delegated_tool', input: { toolId: 'assistant.ask_choice' } },
       { kind: 'ext', name: 'mcp-ui', data: {} },
     ];
-    expect(line(events, 220)).toBe('Waiting for your answer above · 3 m 40 s');
+    expect(line(events, 220)).toBe('Waiting for your answer above');
+  });
+
+  it('stays Waiting for your answer while tool_progress heartbeats and a slow-run notice arrive under the card', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'w', name: 'mcp__jini__execute_delegated_tool', input: { toolId: 'source_control_propose_credential' } },
+      { kind: 'tool_use', id: 'inner', name: 'source_control_propose_credential', input: {} },
+      { kind: 'ext', name: 'mcp-ui', data: {} },
+      { kind: 'status', label: 'tool_progress', code: 'tool_progress', data: { elapsedSeconds: 30 } },
+      { kind: 'ext', name: 'slow_running', data: { type: 'slow_running' } },
+    ];
+    expect(isAwaitingAnswer({ events })).toBe(true);
+    expect(line(events, 75)).toBe('Waiting for your answer above');
+  });
+
+  it('is not awaiting an answer once the card\'s tool call has returned', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'w', name: 'mcp__jini__execute_delegated_tool', input: {} },
+      { kind: 'ext', name: 'mcp-ui', data: {} },
+      { kind: 'tool_result', toolUseId: 'w', content: 'ok', isError: false },
+    ];
+    expect(isAwaitingAnswer({ events })).toBe(false);
   });
 
   it('says the servers are busy with the attempt count while an API retry is the latest signal', () => {

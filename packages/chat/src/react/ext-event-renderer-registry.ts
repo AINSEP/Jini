@@ -39,6 +39,13 @@ export interface ExtEventRenderProps {
   /** Whether the owning run is still streaming — more events with this `name` may still arrive. */
   runStreaming: boolean;
   runSucceeded: boolean;
+  /**
+   * Whether the owning run is waiting on the person — a card (form, confirm, sign-in) sits on a
+   * still-open tool call (`isAwaitingAnswer` in `core/run-activity.ts`). A "still working" notice
+   * should hide while this is true. Always `false` once the run stops streaming. Optional so a host
+   * that builds these props itself (tests, wrappers) keeps compiling; `MessageRow` always sets it.
+   */
+  awaitingAnswer?: boolean;
   /** The owning message's `ChatMessage.runId`, if known — a renderer that needs to send something back to this specific run (e.g. an A2UI action) needs this; omitted (`undefined`) for a message with no run association. */
   runId: string | undefined;
   /** See {@link ExtEventCall}. Absent when the group's first event arrived outside any tool call. */

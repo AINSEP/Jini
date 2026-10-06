@@ -50,7 +50,7 @@
  */
 import React, { useState, type ReactNode } from 'react';
 import type { AgentEvent, ChatAttachment, ChatMessage, ChatRunStatus } from '../../core/index.js';
-import { isTerminalRunStatus, splitOnQuestionForms, stripArtifact } from '../../core/index.js';
+import { isAwaitingAnswer, isTerminalRunStatus, splitOnQuestionForms, stripArtifact } from '../../core/index.js';
 import { useToolTimeline, type ToolTimelineRow } from '../hooks/useToolTimeline.js';
 import { useExtEventGroups, type ExtEventGroup } from '../hooks/useExtEventGroups.js';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard.js';
@@ -253,6 +253,7 @@ export function MessageRow({
       : null;
   const pending = isPendingWithNoContent(message, visibleContent, timeline.rows.length);
   const runInProgress = isRunInProgress(message.runStatus);
+  const awaitingAnswer = runStreaming && runInProgress && isAwaitingAnswer({ events: message.events });
 
   const renderToolCard = (row: ToolTimelineRow) => (
     <ToolCard
@@ -274,6 +275,7 @@ export function MessageRow({
       events: group.events,
       runStreaming,
       runSucceeded,
+      awaitingAnswer,
       runId: message.runId,
       ...(group.call === undefined ? {} : { call: group.call }),
     });

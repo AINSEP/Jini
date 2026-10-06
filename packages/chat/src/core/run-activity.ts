@@ -176,6 +176,17 @@ export function deriveRunActivity({ events }: { events: readonly AgentEvent[] | 
   return { activity: { kind: 'thinking' }, key: `thinking:${lastVisibleIndex}`, visibleCount };
 }
 
+/**
+ * Whether the run is waiting on the person: a card (form, confirm, sign-in) arrived while its tool
+ * call is still open. Hosts use it to hide "still working" notices, which read as a hung run while
+ * the run is really waiting for an answer.
+ *
+ * @complexity O(n) in events.
+ */
+export function isAwaitingAnswer({ events }: { events: readonly AgentEvent[] | undefined }): boolean {
+  return deriveRunActivity({ events }).activity.kind === 'awaiting-answer';
+}
+
 /** `4` → `"4 s"`, `80` → `"1 m 20 s"`, `120` → `"2 m 0 s"`. */
 export function formatActivityClock({ totalSeconds }: { totalSeconds: number }): string {
   const seconds = Math.max(0, Math.floor(totalSeconds));
@@ -215,7 +226,9 @@ export const RUN_ACTIVITY_LABELS: {
       : t('Writing…'),
   'finding-tool': (_a, clock, t) => t('Finding the right tool… {time}', { time: formatActivityClock({ totalSeconds: clock.seconds }) }),
   'running-tool': (a, clock, t) => t('Running {tool}… {time}', { tool: a.tool, time: formatActivityClock({ totalSeconds: clock.seconds }) }),
-  'awaiting-answer': (_a, clock, t) => t('Waiting for your answer above · {time}', { time: formatActivityClock({ totalSeconds: clock.seconds }) }),
+  // No clock: the run is waiting on the person, not working, and a ticking timer under an open
+  // form read as a hung run (demo dry-run, 2026-10-05).
+  'awaiting-answer': (_a, _clock, t) => t('Waiting for your answer above'),
   retrying: (a, _clock, t) => {
     const who = a.service ? t("{service}'s servers are busy", { service: a.service }) : t('The AI service is busy');
     return a.attempt !== undefined && a.maxAttempts !== undefined
