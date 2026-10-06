@@ -17,6 +17,7 @@
  * comparison can't do this — `start()`'s handlers must exist before the
  * transport's promise resolves with the real id).
  */
+import { mergeRunEvents } from '../../core/durable-projection.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentEvent } from '../../core/index.js';
 import type { ChatTransport, RunHandlers, StartRunInput } from '../../core/index.js';
@@ -110,6 +111,14 @@ export function useRunStream({ transport }: { transport: ChatTransport }): UseRu
   const makeHandlers = useCallback((generation: number): RunHandlers => {
     const isStale = () => generationRef.current !== generation;
     return {
+      onCheckpoint: (message) => {
+        if (isStale()) return;
+        const statuses = { queued: 'streaming', running: 'streaming', succeeded: 'done', failed: 'error', canceled: 'canceled' } as const;
+        setState((prev) => ({ ...prev, runId: message.runId ?? prev.runId,
+          status: message.runStatus ? statuses[message.runStatus] : prev.status,
+          events: mergeRunEvents({ saved: prev.events, incoming: message.events ?? [] }, {}),
+        }));
+      },
       onEvent: (ev: AgentEvent) => {
         if (isStale()) return;
         setState((prev) => ({ ...prev, status: 'streaming', events: [...prev.events, ev] }));
@@ -123,11 +132,11 @@ export function useRunStream({ transport }: { transport: ChatTransport }): UseRu
       },
       onError: (err: Error) => {
         if (isStale()) return;
-        setState((prev) => ({ ...prev, status: 'error', error: err }));
+        setState((prev) => ({ ...prev, status: 'error', error: err, events: [...prev.events, { kind: 'status', code: 'run_terminal', label: err.message }] }));
       },
       onDone: (finalEvents: AgentEvent[]) => {
         if (isStale()) return;
-        setState((prev) => ({ ...prev, status: prev.status === 'error' ? prev.status : 'done', events: finalEvents }));
+        setState((prev) => ({ ...prev, status: prev.status === 'error' || prev.status === 'canceled' ? prev.status : 'done', events: mergeRunEvents({ saved: prev.events, incoming: finalEvents }, {}) }));
       },
     };
   }, []);

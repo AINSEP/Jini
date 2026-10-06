@@ -370,3 +370,6 @@ export type {
   FrontendSessionBridgeOptions,
 } from './agent-bridge/frontend-session-bridge.js';
 export { createDomPageDriver, currentAgentPage, type DomPageDriverOptions } from '@jini-ai/agentic/dom';
+
+export { createBrowserComposerHistoryStorage } from './hooks/composer-history-storage.js';
+export type { ComposerHistoryStoragePort } from '../core/composer-history.js';

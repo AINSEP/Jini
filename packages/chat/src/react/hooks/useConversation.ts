@@ -1,3 +1,4 @@
+import { preserveAssistantContent, mergeRunEvents } from '../../core/durable-projection.js';
 /**
  * @module useConversation
  *
@@ -145,8 +146,9 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         return {
           ...m,
           ...(nextRunId !== undefined ? { runId: nextRunId } : {}),
-          events: run.events,
-          content: assistantContentFromEvents({ events: run.events }),
+          events: mergeRunEvents({ saved: m.events, incoming: run.events }, {}),
+          // Replayed completion prefixes cannot erase a saved interrupted segment.
+          content: preserveAssistantContent({ saved: m.content, incoming: assistantContentFromEvents({ events: run.events }) }, {}),
           runStatus,
           ...(isTerminalRunStatus({ status: runStatus }) ? { endedAt: Date.now() } : {}),
         };
@@ -196,6 +198,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       setMessagesState((prev) => [...prev, userMessage, assistantMessage]);
       setScrollIntent(true);
       await run.start({
+        assistantMessageId: assistantMessage.id,
         history,
         ...(resolvedAgentId !== undefined ? { agentId: resolvedAgentId } : {}),
         conversationId,
@@ -229,6 +232,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       // attachment beside the user turn, the failure reads as the model ignoring it rather than as
       // the client never having sent it.
       await run.start({
+        assistantMessageId: resetAssistant.id,
         history,
         ...(resolvedAgentId !== undefined ? { agentId: resolvedAgentId } : {}),
         conversationId,

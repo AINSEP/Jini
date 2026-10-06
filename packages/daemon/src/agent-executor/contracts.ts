@@ -1,3 +1,4 @@
+import type { MessageAttachmentImage } from '../attachment-content.js';
 import {
   type spawn as nodeSpawn,
   type ChildProcess,
@@ -96,15 +97,13 @@ export type AgentExecutorCompatibility =
  * produce plus defensively malformed/non-record input.
  *
  * `'agent'`'s optional `sessionId` (gap 5, session resume — see
- * `RunEndPayload.sessionRef`'s doc in `@jini-ai/protocol`) is a daemon-internal
- * side channel, not part of the `RunAgentPayload` wire payload itself:
- * OpenCode's `sessionID`/Codex's `thread_id`/Qoder's and Claude's
- * `session_id` all arrive on a `'status'` event alongside fields
- * `RunAgentPayload`'s `'status'` variant already models (`label`/`model`/
- * `ttftMs`/`detail`) but has no room for a session id itself — surfacing it
- * here lets a lifecycle-wiring function capture it into a local variable and
- * thread it into its own terminal `finish()` call, without widening the
- * public wire protocol just to carry a value that only this module reads.
+ * `RunEndPayload.sessionRef`'s doc in `@jini-ai/protocol`) remains a daemon-internal
+ * side channel for lifecycle wiring to capture the locator and thread it into
+ * its terminal `finish()` call. The `'status'` wire payload also carries
+ * `sessionId` so durable hosts can persist it immediately, before a process
+ * crash can prevent the terminal `end` event from arriving. OpenCode's
+ * `sessionID`/Codex's `thread_id`/Qoder's and Claude's `session_id` are normalized
+ * by their stream parsers into this shared locator.
  *
  * `'turn-end'`'s optional `stopReason` (gap 3, capability-routed
  * continuation transport) is the same kind of internal side channel: the
@@ -173,6 +172,8 @@ export interface AgentExecutorRunInput {
    * the top of `run()` in `launch.ts`.
    */
   readonly imagePaths?: readonly string[];
+  /** Host-prepared pixels from the shared attachment reader, for structured message delivery. */
+  readonly imageContents?: readonly MessageAttachmentImage[];
   /** Additional host-validated directories the runtime may read. */
   readonly extraAllowedDirs?: readonly string[];
   /** Trusted root that must contain pi-rpc image paths after realpath resolution. */
@@ -237,7 +238,7 @@ export interface AgentExecutor {
    * underlying run is always already transitioned to `'failed'` via
    * `lifecycle.finish()` before this rejects (see index.ts module doc's Invariant).
    */
-  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "model" | "reasoning" | "permissionMode" | "imagePaths" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings">): Promise<void>;
+  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "model" | "reasoning" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings">): Promise<void>;
 }
 
 /** Process discovery is a getter; process collection and stopping accept explicit host inputs. */
@@ -281,6 +282,9 @@ export interface AgentCleanupFailureContext {
 
 /** A small handle `writePromptToStdin` uses to close stdin exactly once, shared with the `turn_end`-triggered close inside {@link wireChildLifecycle}. */
 export interface StdinCloseHandle {
+  /** Prepared pixels ride on the initial stdin message without reopening filesystem tools or
+   * serializing base64 into text. Native argv/ACP/pi transports keep their existing image path. */
+  imageContents?: readonly MessageAttachmentImage[];
   closeStdinOnce(): void;
   /** Journals a sent-to-stdin byte chunk, queued through the same FIFO {@link wireChildLifecycle} already uses for emitted events. No-op when no journal was configured (see `CreateAgentExecutorOptions.journal`). */
   recordSentBytes(content: string): void;

@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode, RefObject } from 'react';
 import type { ChatAttachment, ChatMessage } from '@jini-ai/chat';
 
 import type { ComposerSlots } from '../../slots.js';
+import type { ComposerHistoryStoragePort } from '../../../core/composer-history.js';
 import type { ChatTransport, RunContext } from '@jini-ai/chat';
 
 export interface ChatPaneAgentOption {
@@ -189,6 +190,10 @@ export interface ChatPaneProps {
   /** Passed straight through to the runtime picker. */
   onByokModelChange?: (model: string) => void;
   initialDraft?: string;
+  /** Principal-scoped recent prompt recall; defaults to the origin-local default scope. */
+  composerHistoryScope?: string;
+  /** Optional storage effects; omitted uses bounded browser storage with memory fallback. */
+  composerHistoryStorage?: ComposerHistoryStoragePort;
   /**
    * Confirms which previously staged attachments still exist, so a draft restored after a reload
    * never shows a chip for a file the backend has since garbage-collected — that looks intact and

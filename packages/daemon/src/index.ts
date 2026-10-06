@@ -588,3 +588,5 @@ export * from './legacy-data-migration.js';
 export * from './run/index.js';
 export * from './continuation/index.js';
 export * from './routines/index.js';
+
+export * from './attachment-content.js';

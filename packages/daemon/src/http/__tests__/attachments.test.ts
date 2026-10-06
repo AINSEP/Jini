@@ -1136,6 +1136,48 @@ describe('createDiskAttachmentStore', () => {
       expect(pending).toEqual([]);
     });
 
+    it('includes image, video and generic-file claims only for their run and owner without changing claims', async () => {
+      const { store } = await diskStore();
+      const video = await stage(store, 'batch-lpo-current', 'clip.webm', Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), 'owner-A');
+      const file = await stage(store, 'batch-lpo-current', 'notes.txt', 'notes', 'owner-A');
+      // Mirror the upload route's signature sniff for an image in the same composer batch.
+      const imageDirectory = await store.createBatchDirectory({ batchId: 'batch-lpo-current' });
+      const imagePath = resolve(imageDirectory, 'sniffed.png');
+      const imageBytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+      await writeFile(imagePath, imageBytes);
+      const sniffedImage = await store.register({ input: {
+        batchId: 'batch-lpo-current', path: imagePath, name: 'sniffed.png',
+        kind: detectAttachmentKind({ body: imageBytes }), size: imageBytes.length, ownerId: 'owner-A',
+      } });
+      const foreignRun = await stage(store, 'batch-lpo-other-run', 'foreign-run.txt', 'foreign', 'owner-A');
+      const foreignOwner = await stage(store, 'batch-lpo-other-owner', 'foreign-owner.txt', 'foreign', 'owner-B');
+      const ownerless = await stage(store, 'batch-lpo-ownerless', 'ownerless.txt', 'private');
+      const pending = await stage(store, 'batch-lpo-pending', 'pending.txt', 'waiting', 'owner-A');
+      const beforeClaim = await store.listPendingForOwner({ ownerId: 'owner-A' });
+      const mine = [video.attachment, file.attachment, sniffedImage];
+      expect(mine.map(attachment => attachment.kind)).toEqual(['file', 'file', 'image']);
+      await store.claim({ attachments: mine, runId: 'current-run' });
+      await store.claim({ attachments: [foreignRun.attachment], runId: 'foreign-run' });
+      await store.claim({ attachments: [foreignOwner.attachment], runId: 'current-run' });
+      await store.claim({ attachments: [ownerless.attachment], runId: 'current-run' });
+
+      const visibleRefs = new Set([...mine.map(attachment => attachment.path), pending.attachment.path]);
+      expect(await store.listPendingForOwner({ ownerId: 'owner-A' }, { runId: 'current-run' })).toEqual(
+        beforeClaim.filter(attachment => visibleRefs.has(attachment.ref)),
+      );
+      expect((await store.listPendingForOwner({ ownerId: 'owner-A' })).map(attachment => attachment.ref)).toEqual([pending.attachment.path]);
+      expect((await store.listPendingForOwner({ ownerId: 'owner-A' }, {})).map(attachment => attachment.ref)).toEqual([pending.attachment.path]);
+      expect((await store.listPendingForOwner({ ownerId: 'owner-A' }, { runId: 'wrong-run' })).map(attachment => attachment.ref)).toEqual([pending.attachment.path]);
+      expect(await store.listPendingForOwner({ ownerId: 'nobody' }, { runId: 'current-run' })).toEqual([]);
+      for (const attachment of mine) {
+        const resolved = await store.resolveForRun({ ref: attachment.path, runId: 'current-run' });
+        expect(resolved?.name).toEqual(attachment.name);
+        await expect(store.resolveForRun({ ref: attachment.path, runId: 'wrong-run' })).rejects.toMatchObject({ reason: 'attachment-unknown-or-claimed' });
+      }
+      // A listing with runId must not reserve still-unclaimed uploads.
+      expect((await store.claim({ attachments: [pending.attachment], runId: 'later-run' })).attachments.map(attachment => attachment.name)).toEqual(['pending.txt']);
+    });
+
     it('orders results oldest-first by createdAt, not merely by insertion order', async () => {
       const { store } = await diskStore();
       const now = vi.spyOn(Date, 'now');

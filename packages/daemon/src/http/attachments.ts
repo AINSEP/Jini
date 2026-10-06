@@ -282,7 +282,8 @@ export interface AttachmentStore {
    */
   resolveForRun: ({ ref, runId }: { readonly ref: string; readonly runId: string }, _optional?: Record<string, never>) => Promise<StoredAttachment | undefined>;
   /**
-   * Lists every still-unclaimed attachment registered with `ownerId` — the discovery counterpart to
+   * Lists unclaimed attachments registered with `ownerId`, plus attachments claimed by optional
+   * `runId` when supplied — the discovery counterpart to
    * `resolveForRun`'s single-lookup: a caller that does not yet hold a specific ref at all (an
    * attachment uploaded in an earlier turn, never named in this run's prompt) has no id to look up
    * with `resolveForRun` in the first place. This is what makes that attachment findable.
@@ -299,12 +300,18 @@ export interface AttachmentStore {
    *   attachment from before this method existed) is excluded from every caller's results, never
    *   just "unscoped" — this method is not callable with `ownerId: undefined`, so there is no input
    *   that could accidentally match an ownerless record;
-   * - a claimed attachment is excluded outright, whether or not this caller's own `runId` claimed
-   *   it, so this method can never be used to re-discover something already handed to a run — the
-   *   same "runs, not listings, are the reach here" boundary `resolveForRun` draws for a single ref.
+   * - a claimed attachment is excluded unless the host supplies that exact claiming `runId` in
+   *   the optional argument. Hosts must derive ownerId/runId from authenticated execution context,
+   *   never tool input. Run startup claims ALL message attachments before tools execute; including
+   *   that run's claims keeps image, video and generic file discovery available after delivery.
+   *   Owner matching remains mandatory even for the matching run. Without runId, the original
+   *   unclaimed-only behavior is unchanged. Listing never claims, releases, or reads a file; callers
+   *   still use `resolveForRun` for integrity-checked bytes/promotion.
    *
    * What this does NOT scope by: batch, conversation, or run — none of those are recorded on an
-   * `AttachmentRecord` today. Two different conversations run by the SAME `ownerId` will each see
+   * `AttachmentRecord` today (except run ownership once claimed). Hosts restricting discovery to
+   * an accepted message must also intersect these summaries with that message's refs. Without that
+   * intersection, two different conversations run by the SAME `ownerId` will each see
    * the other's pending attachments through this method. A host for whom that is too wide needs a
    * finer-grained id than `ownerId` to pass into `register()` — this method does not itself assume
    * `ownerId` means "one admin account" rather than "one conversation, one composer, one browser
@@ -317,7 +324,7 @@ export interface AttachmentStore {
    * @complexity O(n) in the number of tracked records (bounded by `maxStoredAttachments`), matching
    * every other method on this port.
    */
-  listPendingForOwner: ({ ownerId }: { readonly ownerId: string }, _optional?: Record<string, never>) => Promise<PendingAttachmentSummary[]>;
+  listPendingForOwner: ({ ownerId }: { readonly ownerId: string }, optional?: { readonly runId?: string }) => Promise<PendingAttachmentSummary[]>;
   /** Deletes the named still-unclaimed uploads, then the batch directory if it is now empty. */
   deleteUnclaimed: ({ batchId, paths }: { readonly batchId: string; readonly paths: readonly string[] }, _optional?: Record<string, never>) => Promise<void>;
   /** Deletes everything `runId` claimed. Safe to call for a run that claimed nothing. */
@@ -456,7 +463,7 @@ export interface AttachmentRecord {
 }
 
 /**
- * What `listPendingForOwner` hands back for one still-unclaimed attachment: enough for a caller to
+ * What `listPendingForOwner` hands back for an unclaimed or same-run claimed attachment: enough for a caller to
  * show a person what is waiting, and to name it again (`ref`) to `claim()`/`resolveForRun`.
  */
 export interface PendingAttachmentSummary {
@@ -1189,12 +1196,13 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
       return { path: record.filePath, name: record.name, kind: record.kind, size: record.size };
     },
 
-    async listPendingForOwner({ ownerId }: { readonly ownerId: string }, _optional: Record<string, never> = {}) {
+    async listPendingForOwner({ ownerId }: { readonly ownerId: string }, { runId }: { readonly runId?: string } = {}) {
       return [...records.values()]
         // `record.ownerId !== undefined` first, short-circuiting before the comparison: this is
         // what makes an ownerless record excluded rather than accidentally matched by a falsy-ish
         // `ownerId` argument — see this method's own doc on why that must never be a wildcard.
-        .filter((record) => record.claimedRunId === undefined && record.ownerId !== undefined && record.ownerId === ownerId)
+        .filter((record) => record.ownerId !== undefined && record.ownerId === ownerId
+          && (record.claimedRunId === undefined || (runId !== undefined && record.claimedRunId === runId)))
         .sort((a, b) => a.createdAt - b.createdAt)
         .map((record) => ({ ref: record.id, name: record.name, kind: record.kind, size: record.size, createdAt: record.createdAt }));
     },

@@ -204,7 +204,6 @@ function ChatPaneStatusMessages({
   executionMode,
   apiModeAvailable,
   onExecutionModeChange,
-  conversationError,
   attachmentError,
   dropReadError,
   workingDirectoryError,
@@ -241,9 +240,8 @@ function ChatPaneStatusMessages({
           t={t}
         />
       ) : null}
-      {conversationError ? (
-        <div className="jini-chat-pane__error" role="alert">{conversationError.message}</div>
-      ) : null}
+      {/* Run failures render once on their assistant message; pane banners remain for
+          attachment, working-directory and other errors that have no message binding. */}
       {attachmentError ? (
         <div className="jini-chat-pane__error" role="alert">{attachmentError.message}</div>
       ) : null}
@@ -515,6 +513,8 @@ export function ChatPane({
   byokRuntime,
   onByokModelChange,
   initialDraft,
+  composerHistoryScope,
+  composerHistoryStorage,
   validateAttachments,
   deliverTypedAnswer,
   composerHandle,
@@ -567,6 +567,8 @@ export function ChatPane({
     onSelectionChange,
     runContext,
     initialDraft,
+    composerHistoryScope,
+    composerHistoryStorage,
     validateAttachments,
     uploadAttachments,
     onActivityChange,

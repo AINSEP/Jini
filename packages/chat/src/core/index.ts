@@ -43,3 +43,14 @@ export * from './agentic/index.js';
  */
 export * from './persistence/index.js';
 
+
+export { recoveredRunEvents } from './durable-projection.js';
+
+export {
+  composerHistoryKeyAction,
+  createComposerHistoryState,
+  mergeComposerHistory,
+  normalizeComposerHistory,
+  transitionComposerHistory,
+} from './composer-history.js';
+export type { ComposerHistoryKeyInput, ComposerHistoryState, ComposerHistoryStoragePort } from './composer-history.js';

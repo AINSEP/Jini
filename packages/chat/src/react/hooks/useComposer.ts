@@ -28,7 +28,9 @@
  * the wrong thread, so they are cleared instead.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ChatAttachment } from '../../core/index.js';
+import type { ChatAttachment, ChatMessage } from '../../core/index.js';
+import type { ComposerHistoryStoragePort } from '../../core/composer-history.js';
+import { useComposerHistory, type ComposerHistoryController } from './useComposerHistory.hooks.js';
 import {
   readCachedAttachments,
   readCachedDraft,
@@ -45,6 +47,11 @@ export interface ComposerDraftPersistence {
 
 export interface UseComposerOptions {
   initialDraft?: string;
+  /** This principal's current transcript; only user-role text participates in recall. */
+  historyMessages?: readonly ChatMessage[];
+  /** Scopes recent prompts across conversations. Hosts with multiple users must supply an id. */
+  historyScope?: string;
+  historyStorage?: ComposerHistoryStoragePort;
   initialAgent?: AgentSelection;
   project?: ProjectContextValue;
   composerSlots?: ComposerSlots;
@@ -83,6 +90,8 @@ export interface MentionPopoverState {
 
 export interface UseComposerResult {
   draft: string;
+  /** Optional for compatibility with host-created composer controllers. */
+  history?: ComposerHistoryController;
   setDraft: (next: string) => void;
   attachments: ChatAttachment[];
   /** Uploads via `project.uploadFiles` (when supplied) and stages the results; no-ops (with a rejected promise) when no upload port is wired. */
@@ -114,7 +123,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
   const [agent, setAgent] = useState<AgentSelection | undefined>(options.initialAgent);
   const [mention, setMention] = useState<MentionPopoverState>(EMPTY_MENTION);
 
-  const setDraft = useCallback(
+  const commitDraft = useCallback(
     (next: string) => {
       setDraftState(next);
       persistence?.write(next);
@@ -122,6 +131,17 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
     },
     [persistence, conversationId],
   );
+
+  const history = useComposerHistory({ setRecalledDraft: setDraftState }, {
+    ...(options.historyMessages === undefined ? {} : { messages: options.historyMessages }),
+    ...(options.historyScope === undefined ? {} : { scope: options.historyScope }),
+    ...(options.historyStorage === undefined ? {} : { storage: options.historyStorage }),
+    ...(conversationId === undefined ? {} : { conversationId }),
+  });
+  const setDraft = useCallback((next: string) => {
+    history.edit({});
+    commitDraft(next);
+  }, [commitDraft, history.edit]);
 
   // Lets the conversation-change effect below read the live draft without taking `draft` as a
   // dependency, which would re-run it on every keystroke.
@@ -296,6 +316,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
   return useMemo(
     () => ({
       draft,
+      history,
       setDraft,
       attachments,
       addAttachments,
@@ -311,6 +332,6 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
       canSubmit,
       reset,
     }),
-    [draft, setDraft, attachments, addAttachments, addAttachment, removeAttachment, clearAttachments, agent, mention, openMention, closeMention, selectMention, canSubmit, reset],
+    [draft, history, setDraft, attachments, addAttachments, addAttachment, removeAttachment, clearAttachments, agent, mention, openMention, closeMention, selectMention, canSubmit, reset],
   );
 }

@@ -892,7 +892,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
    * @complexity O(1) setup (registry lookup, launch resolution, one spawn call); steady-state cost thereafter belongs to {@link wireChildLifecycle}.
    * @overallScore 100/100
    */
-  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "model" | "reasoning" | "permissionMode" | "imagePaths" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings"> = {}): Promise<void> {
+  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "model" | "reasoning" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings"> = {}): Promise<void> {
   const input: AgentExecutorRunInput = { ...requiredArgs, ...optionalArgs, permissionMode: optionalArgs.permissionMode ?? 'restricted' };
     if (input.permissionMode !== 'restricted' && input.permissionMode !== 'bypass') {
       return failBeforeSpawn({ runId: input.runId, code: 'AGENT_PERMISSION_MODE_INVALID', message: 'AgentExecutor: permissionMode must be restricted or bypass' });
@@ -1273,6 +1273,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // fallback strategy, so their prefix is genuinely non-empty; what makes stdin the wrong
     // channel for them is the def's declared transport, not the strategy.
     const stdinPrompt = def.promptViaStdin === true ? overlayDelivery.prompt : imageDelivery.prompt;
+    if (input.imageContents !== undefined) stdinHandle!.imageContents = input.imageContents;
     writePromptToStdin(def, child, stdinPrompt, stdinHandle!);
   }
 

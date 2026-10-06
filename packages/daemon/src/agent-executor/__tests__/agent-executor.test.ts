@@ -657,6 +657,23 @@ describe('AgentExecutor — prompt delivery over stdin', () => {
     await lifecycle.waitForTerminal({ runId: run.id });
   });
 
+  it('forwards prepared pixels through the real executor into structured stdin', async () => {
+    const { lifecycle, executor, child } = createHarness({ def: createFakeDef({ promptInputFormat: 'stream-json' }) });
+    const { run } = await lifecycle.start({ contextRef: 'message-with-two-images' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'what colours?', cwd: '/work' }, {
+      imageContents: [{ mimeType: 'image/png', data: 'iVBORw==' }, { mimeType: 'image/png', data: 'iVBOSA==' }],
+    });
+    expect(child.stdin!.writes.map(line => JSON.parse(line))).toEqual([{
+      type: 'user', message: { role: 'user', content: [
+        { type: 'text', text: 'what colours?' },
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'iVBORw==' } },
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'iVBOSA==' } },
+      ] },
+    }]);
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
+  });
+
   it('a def whose child.stdin is unexpectedly absent no-ops instead of throwing', async () => {
     const { lifecycle, executor, child } = createHarness({ omitStdin: true });
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
@@ -1235,10 +1252,13 @@ describe('translateAgentRuntimeEvent', () => {
     });
   });
 
-  it('translates status carrying a sessionId onto the translation result, not into the RunAgentPayload wire shape (gap 5 — session resume)', () => {
+  it('translates status sessionId into the wire payload for early durable capture and onto the translation result for terminal resume', () => {
+    // Tovu's sessionIdFromRunEvent (early-run-session.ts) consumes this status payload
+    // to persist the locator before a crash can prevent end.sessionRef from arriving.
+    // The translation side channel still supplies sessionRef to the terminal finish.
     expect(translateAgentRuntimeEvent({ rawEvent: { type: 'status', label: 'initializing', sessionId: 'sess-1' } })).toEqual({
       kind: 'agent',
-      payload: { type: 'status', label: 'initializing' },
+      payload: { type: 'status', label: 'initializing', sessionId: 'sess-1' },
       sessionId: 'sess-1',
     });
   });

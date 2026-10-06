@@ -16,6 +16,8 @@ export type ProviderProtocol = "anthropic" | "openai" | "azure" | "google";
 export interface ProviderChatMessage {
   readonly role: "user" | "assistant";
   readonly content: string;
+  /** Shared attachment pixels, translated only at the existing wire adapter seam. */
+  readonly images?: readonly { readonly mimeType: string; readonly data: string }[];
 }
 export type ProviderTurnEvent = {
   readonly type: "status";

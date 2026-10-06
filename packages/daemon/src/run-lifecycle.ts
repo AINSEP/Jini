@@ -45,7 +45,7 @@ export interface StartRunInput {
   readonly idempotencyKey?: string;
   /** Override the generated run id — test/fixture hook only. */
   readonly runId?: string;
-  /** When set, arms an inactivity watchdog that fails the run as a resumable failure if no `emit()` occurs within this window. */
+  /** When set, arms an inactivity watchdog that fails the run permanently if no `emit()` occurs within this window. */
   readonly inactivityTimeoutMs?: number;
 }
 
@@ -698,10 +698,9 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
 
   /**
    * Fires when a run's inactivity watchdog times out with no intervening
-   * `emit()`/`finish()`. Classified as a resumable failure (`code: null,
-   * signal: null`), mirroring OD's own timeout/inactivity classification
-   * (`isResumableFailure` in the researched `run-failure-classification.ts`
-   * treats timeout/inactivity as one of only two resumable categories).
+   * `emit()`/`finish()`. A deliberate watchdog kill is permanent: automatically restarting
+   * it would undo the operator's inactivity policy. Other unexpected process failures still
+   * retain their original runtime classification.
    *
    * The `!record || isTerminalRunState(...)` guard below is defensive only and is currently
    * unreachable through the public API — deliberately kept, not fake-tested, and the reason is
@@ -727,7 +726,9 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       return;
     }
     try {
-      await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: true });
+      // A deliberate inactivity kill is permanent for this attempt, not an auto-resume signal.
+      await lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'status', label: 'Stopped by inactivity watchdog', detail: 'inactivity-watchdog' } } });
+      await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: false });
     } catch (error) {
       const context: RunLifecycleInternalErrorContext = { source: 'inactivity-timeout', runId, error };
       try {

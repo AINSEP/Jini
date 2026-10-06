@@ -23,6 +23,7 @@ import {
 } from 'react';
 import { RemixIcon } from '@jini-ai/ui';
 import { useT } from '../hooks/context.js';
+import { useComposerHistoryKeys } from '../hooks/useComposerHistoryKeys.hooks.js';
 import { AttachmentTray } from './AttachmentTray.js';
 import type { UseComposerResult } from '../hooks/useComposer.js';
 import type { ComposerDiscoveryItem, ComposerDiscoveryOutcome, ComposerSlots } from '../slots.js';
@@ -202,6 +203,10 @@ export function Composer({
    * point the shrinking list is its own feedback.
    */
   const showSlashFilterHint = slashQuery !== null && slashQuery.command === '' && slashQuery.argument === null;
+
+  const handleHistoryKey = useComposerHistoryKeys({ composer, textareaRef }, {
+    popupOpen: slashOpen || discoveryMenuOpen || workdirOpen || composer.mention.open,
+  });
 
   function restoreComposerFocus() {
     textareaRef.current?.focus();
@@ -387,6 +392,7 @@ export function Composer({
         return;
       }
     }
+    if (handleHistoryKey(event)) return;
     if (event.key !== 'Enter' || event.shiftKey) return;
     event.preventDefault();
     if (disabled || !composer.canSubmit) return;

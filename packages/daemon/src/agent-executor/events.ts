@@ -1,3 +1,4 @@
+import { messageContentWithImages } from '../attachment-content.js';
 import {
   type ChildProcess,
 } from 'node:child_process';
@@ -73,6 +74,14 @@ import {
   unavailableJiniBridgeStatus,
   bridgeUnavailableMessage,
 } from './mcp-bridge.js';
+
+/** Carry PID only on structured status so the host can record its OS start identity early.
+ * A PID alone is never proof of death; hosts verify PID reuse before native continuation. */
+function statusWithChildIdentity(
+  { payload, childPid }: { payload: RunAgentPayload; childPid: number | undefined }, _optional = {},
+): RunAgentPayload {
+  return { ...payload, ...(payload.type === 'status' && childPid !== undefined ? { childPid } : {}) };
+}
 
 /**
  * Selects and constructs the real stream-parser handler for a supported
@@ -539,7 +548,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
             ) {
               userVisibleOutputSeen = true;
             }
-            enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: translation.payload } }));
+            enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: statusWithChildIdentity({ payload: translation.payload, childPid: ctx.child.pid }, {}) } }));
           } else if (translation.kind === 'error') {
             enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translation.payload } }));
           } else if (translation.kind === 'turn-end') {
@@ -959,7 +968,7 @@ export function writePromptToStdin(def: RuntimeAgentDef, child: ChildProcess, pr
   const stdin = child.stdin;
   if (!stdin) return;
   if (def.promptInputFormat === 'stream-json') {
-    const line = JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: prompt }] } });
+    const line = JSON.stringify({ type: 'user', message: { role: 'user', content: messageContentWithImages({ prompt, images: handle.imageContents ?? [] }, {}) } });
     stdin.write(`${line}\n`, 'utf8');
     handle.recordSentBytes(prompt);
     return;

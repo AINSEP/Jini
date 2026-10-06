@@ -83,7 +83,9 @@ async function runAnthropicTurn(input: InternalTurnInput): Promise<ProviderToolT
     ...(d.description !== undefined ? { description: d.description } : {}),
     input_schema: inputSchemaOf(d),
   }));
-  const messages: AnthropicMessageParam[] = input.messages.map((m) => ({ role: m.role, content: m.content }));
+  const messages: AnthropicMessageParam[] = input.messages.map((m) => ({ role: m.role, content: m.images?.length ? toAnthropicToolContent([
+    { type: 'text', text: m.content }, ...m.images.map(image => ({ type: 'image' as const, ...image })),
+  ]) : m.content }));
   const executeTool = async (call: AnthropicToolCall) => {
     const result = await input.executeTool({ id: call.id, name: call.name, input: call.input });
     return { content: toAnthropicToolContent(result.content), ...(result.isError !== undefined ? { isError: result.isError } : {}) };
@@ -126,7 +128,9 @@ async function runOpenAiTurn(input: InternalTurnInput): Promise<ProviderToolTurn
   }));
   const messages: OpenAiMessageParam[] = [
     { role: "system", content: input.system },
-    ...input.messages.map((m) => ({ role: m.role, content: m.content }) as OpenAiMessageParam),
+    ...input.messages.map((m) => ({ role: m.role, content: m.images?.length ? toOpenAiToolContent([
+      { type: 'text', text: m.content }, ...m.images.map(image => ({ type: 'image' as const, ...image })),
+    ]) : m.content }) as OpenAiMessageParam),
   ];
   const executeTool = async (call: OpenAiToolCall) => {
     const result = await input.executeTool({ id: call.id, name: call.name, input: call.input });
@@ -170,7 +174,9 @@ async function runAzureTurn(input: InternalTurnInput): Promise<ProviderToolTurnR
   }));
   const messages: AzureMessageParam[] = [
     { role: "system", content: input.system },
-    ...input.messages.map((m) => ({ role: m.role, content: m.content }) as AzureMessageParam),
+    ...input.messages.map((m) => ({ role: m.role, content: m.images?.length ? toOpenAiToolContent([
+      { type: 'text', text: m.content }, ...m.images.map(image => ({ type: 'image' as const, ...image })),
+    ]) : m.content }) as AzureMessageParam),
   ];
   const executeTool = async (call: AzureToolCall) => {
     const result = await input.executeTool({ id: call.id, name: call.name, input: call.input });
@@ -209,7 +215,7 @@ async function runGoogleTurn(input: InternalTurnInput): Promise<ProviderToolTurn
   const numericEnumPathsByToolName = new Map<string, readonly string[]>(input.tools.map((d) => [d.id, findNumericEnumPaths({ schema: inputSchemaOf(d) })]));
   const contents: GoogleContent[] = input.messages.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }],
+    parts: [{ text: m.content }, ...(m.images ?? []).map(image => ({ inlineData: image }))],
   }));
   const executeTool = async (call: GoogleToolCall) => {
     const coercedInput = coerceNumericEnumStringsToNumbers({ input: call.input, paths: numericEnumPathsByToolName.get(call.name) ?? [] });

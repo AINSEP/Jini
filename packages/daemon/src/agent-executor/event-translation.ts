@@ -74,6 +74,7 @@ export function translateStatusEvent({ rawEvent }: { readonly rawEvent: Record<s
       ...(model !== undefined ? { model } : {}),
       ...(ttftMs !== undefined ? { ttftMs } : {}),
       ...(detail !== undefined ? { detail } : {}),
+      ...(sessionId !== undefined ? { sessionId } : {}),
     },
     ...(sessionId !== undefined ? { sessionId } : {}),
   };

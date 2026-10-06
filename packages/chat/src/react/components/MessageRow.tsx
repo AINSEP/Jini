@@ -1,3 +1,4 @@
+import { terminalMessageNotice, continuingRunNotice } from '../../core/durable-projection.js';
 /**
  * @module MessageRow
  *
@@ -150,6 +151,47 @@ interface CopyMessageButtonProps {
   label: string;
 }
 
+function messageBlocks(
+  { visibleContent, message, rows }: { visibleContent: string; message: ChatMessage; rows: ToolTimelineRow[] }, _optional = {},
+) {
+  // Interleaving is skipped outright when an artifact was stripped. `stripArtifact` operates on the
+  // whole string and trims, so the surviving text no longer lines up with the per-run offsets the
+  // event walk produces, and an artifact block could legitimately span a tool call. Rather than
+  // reason about partial overlaps, an artifact-bearing message keeps the flat layout — those
+  // messages are dominated by the artifact panel anyway, so the ordering matters least there.
+  if (visibleContent !== message.content) return null;
+  return interleaveMessageBlocks<ToolTimelineRow>({ events: message.events, content: message.content, rows }, { slotOf: (ev) => extEventSlot({ name: ev.name, data: ev.data }) });
+}
+
+function messageAwaitingAnswer(
+  { runStreaming, runInProgress, events }: { runStreaming?: boolean; runInProgress: boolean; events: AgentEvent[] | undefined }, _optional = {},
+): boolean {
+  return runStreaming === true && runInProgress && isAwaitingAnswer({ events });
+}
+
+function AssistantMessageFooter(
+  { message, usageEvent, terminalNotice, pending, runInProgress, runStreaming, visibleContent }: {
+    message: ChatMessage; usageEvent: UsageEvent | undefined; terminalNotice: string | null;
+    pending: boolean; runInProgress: boolean; runStreaming?: boolean; visibleContent: string;
+  }, _optional = {},
+) {
+  const t = useT();
+  return <>
+      {usageEvent ? <UsageSummary usage={usageEvent} /> : null}
+      {terminalNotice ? <div className="jini-message-error" role="status">{t(terminalNotice)}</div> : null}
+      {!pending && !runInProgress ? (
+        <div className="jini-message-actions jini-message-actions--assistant">
+          <CopyMessageButton text={visibleContent} label={t('Copy message')} />
+          {/* Extension seam: branch/thumbs-up/thumbs-down join here next, as siblings after copy,
+              same .jini-message-action-btn ghost icon-button shape and fixed left-to-right order
+              (copy, branch, thumbs-up, thumbs-down) — left unbuilt per this task's module doc
+              above until their backends (conversation branching, feedback storage) exist. */}
+        </div>
+      ) : null}
+      {runInProgress ? <RunActivityLine events={message.events} active={pending || (runStreaming === true && runInProgress)} /> : null}
+  </>;
+}
+
 /**
  * Quiet, icon-only copy affordance shared by the user- and assistant-message
  * action rows below. Delegates the actual clipboard write (and its
@@ -238,22 +280,15 @@ export function MessageRow({
     );
   }
 
+  const terminalNotice = terminalMessageNotice({ message }, {});
   const visibleContent = stripArtifact({ content: message.content });
   const segments = splitOnQuestionForms({ input: visibleContent });
   const usageEvent = message.events?.filter((ev): ev is UsageEvent => ev.kind === 'usage').pop();
 
-  // Interleaving is skipped outright when an artifact was stripped. `stripArtifact` operates on the
-  // whole string and trims, so the surviving text no longer lines up with the per-run offsets the
-  // event walk produces, and an artifact block could legitimately span a tool call. Rather than
-  // reason about partial overlaps, an artifact-bearing message keeps the flat layout — those
-  // messages are dominated by the artifact panel anyway, so the ordering matters least there.
-  const blocks =
-    visibleContent === message.content
-      ? interleaveMessageBlocks<ToolTimelineRow>({ events: message.events, content: message.content, rows: timeline.rows }, { slotOf: (ev) => extEventSlot({ name: ev.name, data: ev.data }) })
-      : null;
+  const blocks = messageBlocks({ visibleContent, message, rows: timeline.rows }, {});
   const pending = isPendingWithNoContent(message, visibleContent, timeline.rows.length);
   const runInProgress = isRunInProgress(message.runStatus);
-  const awaitingAnswer = runStreaming && runInProgress && isAwaitingAnswer({ events: message.events });
+  const awaitingAnswer = messageAwaitingAnswer({ runStreaming, runInProgress, events: message.events }, {});
 
   const renderToolCard = (row: ToolTimelineRow) => (
     <ToolCard
@@ -364,18 +399,7 @@ export function MessageRow({
             {extGroups.length > 0 ? <div className="jini-message-ext-events">{extGroups.map(renderExtGroup)}</div> : null}
           </>
         )}
-      {usageEvent ? <UsageSummary usage={usageEvent} /> : null}
-      {message.runStatus === 'failed' ? <div className="jini-message-error">{t('This turn failed.')}</div> : null}
-      {!pending && !runInProgress ? (
-        <div className="jini-message-actions jini-message-actions--assistant">
-          <CopyMessageButton text={visibleContent} label={t('Copy message')} />
-          {/* Extension seam: branch/thumbs-up/thumbs-down join here next, as siblings after copy,
-              same .jini-message-action-btn ghost icon-button shape and fixed left-to-right order
-              (copy, branch, thumbs-up, thumbs-down) — left unbuilt per this task's module doc
-              above until their backends (conversation branching, feedback storage) exist. */}
-        </div>
-      ) : null}
-      <RunActivityLine events={message.events} active={pending || (runStreaming === true && runInProgress)} />
+      <AssistantMessageFooter {...{ message, usageEvent, terminalNotice, pending, runInProgress, runStreaming, visibleContent }} />
     </div>
   );
 }
@@ -386,7 +410,8 @@ export function MessageRow({
  * Kept a separate component so its one-second tick re-renders only this line, not the whole row.
  */
 function RunActivityLine({ events, active }: { events: AgentEvent[] | undefined; active: boolean }) {
-  const label = useRunActivity({ events: events, active: active });
+  const activityLabel = useRunActivity({ events: events, active: active });
+  const label = continuingRunNotice({ events, active }, {}) ?? activityLabel;
   if (label === null) return null;
   return (
     <div className="jini-message-pending jini-run-activity" aria-live="off">

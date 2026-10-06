@@ -82,7 +82,11 @@ export interface RunEndPayload {
 }
 
 export type RunAgentPayload =
-  | { type: 'status'; label: string; model?: string; ttftMs?: number; detail?: string }
+  | {
+      type: 'status'; label: string; model?: string; ttftMs?: number; detail?: string;
+      /** Agent CLI session/thread locator, reported early so hosts can checkpoint before terminal end. */
+      sessionId?: string;
+    }
   | { type: 'text_delta'; delta: string }
   | { type: 'thinking_start' }
   | { type: 'thinking_delta'; delta: string }

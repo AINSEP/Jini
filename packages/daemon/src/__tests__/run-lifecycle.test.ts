@@ -920,7 +920,7 @@ describe('RunLifecycle — inactivity watchdog', () => {
     vi.useRealTimers();
   });
 
-  it('finishes a run as a resumable failure if no emit() occurs within the inactivity timeout', async () => {
+  it('finishes a watchdog-killed run permanently with an explicit exclusion notice', async () => {
     const { lifecycle } = makeLifecycle();
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' }, { inactivityTimeoutMs: 1_000 });
 
@@ -929,7 +929,10 @@ describe('RunLifecycle — inactivity watchdog', () => {
     const status = await lifecycle.get({ runId: run.id });
     expect(status?.state).toBe('failed');
     const resumeResult = await lifecycle.resume({ runId: run.id });
-    expect(resumeResult.resumed).toBe(true);
+    expect(resumeResult.resumed).toBe(false);
+    const delivered: RunProtocolEvent[] = [];
+    await lifecycle.stream({ runId: run.id, onEvent: (event) => delivered.push(event) });
+    expect(delivered.find((event) => event.kind === 'agent')?.payload).toEqual({ type: 'status', label: 'Stopped by inactivity watchdog', detail: 'inactivity-watchdog' });
   });
 
   it('emit() resets the inactivity window', async () => {

@@ -21,6 +21,7 @@ import type {
   TypedAnswerNotice,
 } from '../types.js';
 import type { ChatAttachment, ChatMessage } from '@jini-ai/chat';
+import type { ComposerHistoryStoragePort } from '../../../../core/composer-history.js';
 import type { ChatTransport } from '@jini-ai/chat';
 import { definedProps } from '../../../util/defined-props.js';
 import { cacheAttachmentPreviewSource } from '../../../hooks/attachment-preview-cache.js';
@@ -48,6 +49,8 @@ export interface UseChatPaneOptions {
   onSelectionChange?: (selection: ChatPaneAgentSelection) => void;
   runContext?: ChatPaneRunContext;
   initialDraft?: string;
+  composerHistoryScope?: string;
+  composerHistoryStorage?: ComposerHistoryStoragePort;
   /** Forwarded verbatim to `useComposer`; see `validateAttachments` there for the contract. */
   validateAttachments?: (attachments: readonly ChatAttachment[]) => Promise<readonly ChatAttachment[]>;
   uploadAttachments?: (
@@ -267,12 +270,6 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     [options.agents, requestedSelection],
   );
   const selectedAgent = options.agents.find((agent) => agent.id === selection.agentId);
-  const composer = useComposer(definedProps({ source: {
-    initialDraft: options.initialDraft,
-    initialAgent: selection,
-    conversationId: options.conversationId,
-    validateAttachments: options.validateAttachments,
-  } }));
   const conversation = useConversation(definedProps({ source: {
     transport: options.transport,
     initialMessages: options.initialMessages,
@@ -280,6 +277,15 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     // Keys off an empty string, not `undefined` — `selection.agentId` is always a string (never
     // absent), so only the falsy "no agent selected" case should omit the key.
     agentId: selection.agentId || undefined,
+  } }));
+  const composer = useComposer(definedProps({ source: {
+    initialDraft: options.initialDraft,
+    historyMessages: conversation.messages,
+    historyScope: options.composerHistoryScope,
+    historyStorage: options.composerHistoryStorage,
+    initialAgent: selection,
+    conversationId: options.conversationId,
+    validateAttachments: options.validateAttachments,
   } }));
 
   const activity: ChatPaneActivity = resolveChatPaneActivity(selectedAgent, conversation);

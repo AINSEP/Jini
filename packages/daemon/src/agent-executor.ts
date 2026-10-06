@@ -1,3 +1,5 @@
+import { messageContentWithImages } from './attachment-content.js';
+import type { MessageAttachmentImage } from './attachment-content.js';
 /**
  * `AgentExecutor` — the driver `RunLifecycle`'s own module doc names as the
  * missing piece: *"It does not spawn or signal a subprocess... A driver...
@@ -585,6 +587,8 @@ export interface AgentExecutorRunInput {
    * the top of `run()` below.
    */
   readonly imagePaths?: readonly string[];
+  /** Host-prepared pixels from the shared attachment reader, for structured message delivery. */
+  readonly imageContents?: readonly MessageAttachmentImage[];
   /** Additional host-validated directories the runtime may read. */
   readonly extraAllowedDirs?: readonly string[];
   /** Trusted root that must contain pi-rpc image paths after realpath resolution. */
@@ -649,7 +653,7 @@ export interface AgentExecutor {
    * underlying run is always already transitioned to `'failed'` via
    * `lifecycle.finish()` before this rejects (see module doc's Invariant).
    */
-  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "model" | "reasoning" | "permissionMode" | "imagePaths" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings">): Promise<void>;
+  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "model" | "reasoning" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings">): Promise<void>;
 }
 
 function errorMessage(err: unknown): string {
@@ -902,6 +906,9 @@ function terminateChildTreeBestEffort(
 
 /** A small handle `writePromptToStdin` uses to close stdin exactly once, shared with the `turn_end`-triggered close inside {@link wireChildLifecycle}. */
 interface StdinCloseHandle {
+  /** Prepared pixels ride on the initial stdin message without reopening filesystem tools or
+   * serializing base64 into text. Native argv/ACP/pi transports keep their existing image path. */
+  imageContents?: readonly MessageAttachmentImage[];
   closeStdinOnce(): void;
   /** Journals a sent-to-stdin byte chunk, queued through the same FIFO {@link wireChildLifecycle} already uses for emitted events. No-op when no journal was configured (see `CreateAgentExecutorOptions.journal`). */
   recordSentBytes(content: string): void;
@@ -2722,7 +2729,7 @@ function writePromptToStdin(def: RuntimeAgentDef, child: ChildProcess, prompt: s
   const stdin = child.stdin;
   if (!stdin) return;
   if (def.promptInputFormat === 'stream-json') {
-    const line = JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: prompt }] } });
+    const line = JSON.stringify({ type: 'user', message: { role: 'user', content: messageContentWithImages({ prompt, images: handle.imageContents ?? [] }, {}) } });
     stdin.write(`${line}\n`, 'utf8');
     handle.recordSentBytes(prompt);
     return;
@@ -3863,7 +3870,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
    * @complexity O(1) setup (registry lookup, launch resolution, one spawn call); steady-state cost thereafter belongs to {@link wireChildLifecycle}.
    * @overallScore 100/100
    */
-  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "model" | "reasoning" | "permissionMode" | "imagePaths" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings"> = {}): Promise<void> {
+  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "model" | "reasoning" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings"> = {}): Promise<void> {
   const input: AgentExecutorRunInput = { ...requiredArgs, ...optionalArgs, permissionMode: optionalArgs.permissionMode ?? 'restricted' };
     if (input.permissionMode !== 'restricted' && input.permissionMode !== 'bypass') {
       return failBeforeSpawn({ runId: input.runId, code: 'AGENT_PERMISSION_MODE_INVALID', message: 'AgentExecutor: permissionMode must be restricted or bypass' });
@@ -4244,6 +4251,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // fallback strategy, so their prefix is genuinely non-empty; what makes stdin the wrong
     // channel for them is the def's declared transport, not the strategy.
     const stdinPrompt = def.promptViaStdin === true ? overlayDelivery.prompt : imageDelivery.prompt;
+    if (input.imageContents !== undefined) stdinHandle!.imageContents = input.imageContents;
     writePromptToStdin(def, child, stdinPrompt, stdinHandle!);
   }
 
