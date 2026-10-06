@@ -226,13 +226,13 @@ importers:
         specifier: ^0.4.0
         version: link:../core
       '@jini-ai/oauth':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../oauth
       '@jini-ai/platform':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../platform
       '@jini-ai/protocol':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../protocol
     devDependencies:
       '@vitest/coverage-v8':
@@ -683,7 +683,7 @@ importers:
   packages/protocol:
     dependencies:
       '@jini-ai/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       zod:
         specifier: ^3.25.76

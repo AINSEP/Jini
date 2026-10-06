@@ -1,3 +1,10 @@
+## 0.5.3 — 2026-10-06
+
+- Message attachments reach every runtime: new `prepareMessageAttachments` / `messageContentWithImages` (+ `MessageAttachmentImage`, `MessageAttachmentSource`, `MessageAttachmentReader`) turn claimed refs into image pixels for providers and a file notice for non-images.
+- `AttachmentStore.listPendingForOwner({ ownerId }, { runId })`: with the claiming `runId`, that run's own claimed attachments stay discoverable (owner match still required); without it, behavior is unchanged.
+- The agent executor reports the CLI session id on an early `status` event so hosts can checkpoint a run before it ends; run lifecycle carries it through.
+- Requires `@jini-ai/protocol` ^0.4.1 and `@jini-ai/agent-runtime` ^0.4.1.
+
 ## 0.5.2 — 2026-10-06
 
 - No slow-run notice while a delegated tool waits on a surface: the first `emitSurface` of a call suspends the notice and the call's end resumes it. Suspensions are counted, so with two calls in flight the first to finish does not re-arm the notice over the other's open form; `resume()` drops suspensions left by an ended run.

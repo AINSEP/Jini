@@ -1,3 +1,8 @@
+## 0.5.2 — 2026-10-06
+
+- Video previews (`@jini-ai/cms/media`): `planVideoFrames` / `planVideoContactSheets` / `getVideoFrameEdge` / `parseVideoProbe` plus the `VideoFrameExtractor` port and an ffmpeg adapter (`createFfmpegVideoFrameExtractor`, `findVideoBinaries`, `runLowPriorityVideoProcess`). Default 16 frames, up to 64 (frames past 16 shrink to bound image tokens), `every`/`start` spacing, explicit `at` times, or up to 4 contact sheets of ≤16 tiles with a timestamp map.
+- Bounded by design: ≤64 MiB input, ≤512 KiB per frame, ≤2 MiB per sheet, ≤8 MiB total; ffmpeg runs `nice -n 19`, `-threads 1`, ≤8 source decoders per process in serial batches, one extraction at a time, 60 s shared deadline. Uses `-fps_mode passthrough` (ffmpeg ≥ 5.1; `-vsync` is gone in ffmpeg 9).
+
 # Changelog
 
 ## 0.5.1 — 2026-10-06

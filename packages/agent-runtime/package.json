@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/agent-runtime",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Coding-agent runtime adapters: runtime registry, detection, launch, stream parsers, and the ACP/pi-rpc subprocess transport.",
   "license": "Apache-2.0",
   "repository": {
@@ -81,9 +81,9 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/oauth": "workspace:*",
-    "@jini-ai/platform": "workspace:*",
-    "@jini-ai/protocol": "workspace:*",
+    "@jini-ai/oauth": "workspace:^",
+    "@jini-ai/platform": "workspace:^",
+    "@jini-ai/protocol": "workspace:^",
     "@jini-ai/core": "^0.4.0"
   },
   "devDependencies": {

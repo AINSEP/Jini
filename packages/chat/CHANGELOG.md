@@ -1,3 +1,10 @@
+## 0.5.4 — 2026-10-06
+
+- Prompt history in the composer: ↑ with the caret on the first line recalls earlier sent messages and ↓ on the last line walks forward; the first ↑ stashes the current draft (empty or not) and ↓ past the newest entry (or Escape) restores it exactly. Recalled entries are never mutated; consecutive duplicates collapse. New pure `createComposerHistoryState` / `transitionComposerHistory` / `composerHistoryKeyAction` / `mergeComposerHistory` / `normalizeComposerHistory` (core) and `createBrowserComposerHistoryStorage` (react, a `ComposerHistoryStoragePort` default). `useComposer`/`ChatPane` take `historyScope`, `historyStorage` and `historyMessages`.
+- Durable runs: new `recoveredRunEvents` (core) projects a recovered run's saved events so a continued answer completes the same message; a run notice shows only on a real resume.
+- Message attachments: the transport sends each message's own attachment refs, and attachment chips keep their kind across reloads.
+- Requires `@jini-ai/protocol` ^0.4.1.
+
 ## 0.5.3 — 2026-10-06
 
 - New `createLastConversationStore({ scope }, { storage? })` (react): remembers one conversation id per caller identity under a versioned localStorage key (`jini.chat.last-conversation.v1.<scope>`); corrupt or foreign entries read as nothing remembered. Selection stays host-owned.

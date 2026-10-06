@@ -1,3 +1,8 @@
+## 0.4.1 — 2026-10-06
+
+- Tool turns accept message `images` (`{ mimeType, data }`) and deliver them to providers as image content.
+- Runtime `@jini-ai/*` deps are `workspace:^` (pack as caret ranges).
+
 # @jini-ai/agent-runtime
 
 ## 0.4.0 — 2026-10-02

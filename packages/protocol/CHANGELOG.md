@@ -1,3 +1,8 @@
+## 0.4.1 — 2026-10-06
+
+- `status` events carry an optional `sessionId` (agent CLI session/thread locator) so hosts can checkpoint before the terminal event.
+- `@jini-ai/core` dep is `workspace:^`.
+
 # @jini-ai/protocol
 
 ## 0.4.0 — 2026-10-02
