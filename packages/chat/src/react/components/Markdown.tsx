@@ -33,7 +33,7 @@
  * renderer covers:
  * ATX headings (`#`…`###`), fenced code blocks, ordered/unordered lists,
  * blockquotes, a horizontal rule, paragraphs, and inline `` `code` ``/
- * `**bold**`/`*italic*`/bare autolinks — including inside table cells, via
+ * `**bold**`/`*italic*`/`[label](url)` links/bare autolinks — including inside table cells, via
  * the same `renderInline` pass every other block uses. TODO(follow-up): port
  * the code-comment directive syntax once a host needs it.
  */
@@ -493,7 +493,7 @@ function TableBlock(props: TableBlockProps): ReactNode {
   );
 }
 
-// Inline pass: `code`, **bold**, *italic*/_italic_, bare http(s) autolinks.
+// Inline pass: `code`, [label](url) links, **bold**, *italic*/_italic_, bare http(s) autolinks.
 // Processes left-to-right with a single regex alternation so spans never
 // nest incorrectly across kinds.
 //
@@ -504,17 +504,44 @@ function TableBlock(props: TableBlockProps): ReactNode {
 // `ANALYTICS_ROOT_KEY_SEED` rendered as `ANALYTICS<em>ROOT</em>KEY_SEED`.
 // `*` stays permissive — CommonMark allows intraword `*` emphasis.
 const UNDERSCORE_EM = String.raw`(?<![\p{L}\p{N}_])_(?![\s_])(?:[^_]|_(?=[\p{L}\p{N}]))+?(?<!\s)_(?![\p{L}\p{N}_])`;
-const INLINE_RE = new RegExp(String.raw`(\x60[^\x60]+\x60)|(\*\*[^*]+\*\*)|(\*[^*]+\*|${UNDERSCORE_EM})|(https?:\/\/[^\s)]+)`, 'gu');
+// `[label](url)`: the URL may hold one level of balanced parentheses (`Foo_(bar)`), and the whole
+// link may itself sit inside parentheses (`([edit](/admin/pages/x))`) — the outer `)` is left as text.
+const MD_LINK = String.raw`\[[^\]\n]+\]\((?:[^()\s]|\([^()\s]*\))+\)`;
+const MD_LINK_PARTS = /^\[([^\]\n]+)\]\((.+)\)$/u;
+const INLINE_RE = new RegExp(String.raw`(\x60[^\x60]+\x60)|(${MD_LINK})|(\*\*[^*]+\*\*)|(\*[^*]+\*|${UNDERSCORE_EM})|(https?:\/\/[^\s)]+)`, 'gu');
+
+// Only these targets become anchors; anything else (`javascript:`, `data:`, protocol-relative
+// `//host`) stays literal text, since the text is untrusted model output.
+const SAFE_LINK_HREF = /^(?:https?:\/\/|mailto:|\/(?!\/)|#)/iu;
+// Off-site links open in a new tab; a same-origin path stays in the tab so the host's in-app link
+// interceptor (an SPA router) can take it without a reload.
+const OFFSITE_LINK_HREF = /^(?:https?:|mailto:)/iu;
+
+function renderMarkdownLink(source: string, key: number): ReactNode {
+  // `MD_LINK` already matched `source`, so these two groups always capture.
+  const [, label, href] = MD_LINK_PARTS.exec(source)!;
+  if (!SAFE_LINK_HREF.test(href!)) return source;
+  const offsite = OFFSITE_LINK_HREF.test(href!);
+  return (
+    <a key={key} href={href} {...(offsite ? { target: '_blank', rel: 'noreferrer' } : {})}>
+      {renderInline(label!)}
+    </a>
+  );
+}
 
 function renderInline(text: string): ReactNode {
   const nodes: ReactNode[] = [];
   let lastIndex = 0;
   let key = 0;
-  let match: RegExpExecArray | null = INLINE_RE.exec(text);
+  // A fresh copy per call, not the shared `g` regex: a link label recurses into this function
+  // mid-loop, and a shared `lastIndex` would be reset under the outer scan.
+  const inlineRe = new RegExp(INLINE_RE);
+  let match: RegExpExecArray | null = inlineRe.exec(text);
   while (match !== null) {
     if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
-    const [whole, code, bold, italic, link] = match;
+    const [whole, code, mdLink, bold, italic, link] = match;
     if (code) nodes.push(<code key={key++}>{code.slice(1, -1)}</code>);
+    else if (mdLink) nodes.push(renderMarkdownLink(mdLink, key++));
     else if (bold) nodes.push(<strong key={key++}>{bold.slice(2, -2)}</strong>);
     else if (italic) nodes.push(<em key={key++}>{italic.slice(1, -1)}</em>);
     else if (link)
@@ -527,7 +554,7 @@ function renderInline(text: string): ReactNode {
     // defined (if possibly empty) full-match string at index 0, so this
     // fallback is unreachable (same dead-fallback reasoning as above).
     lastIndex = match.index + whole!.length;
-    match = INLINE_RE.exec(text);
+    match = inlineRe.exec(text);
   }
   if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
   return nodes;

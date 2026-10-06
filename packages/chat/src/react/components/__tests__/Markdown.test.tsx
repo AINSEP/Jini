@@ -76,6 +76,38 @@ describe('Markdown', () => {
     expect(link).toHaveAttribute('href', 'https://example.com/docs');
   });
 
+  // Regression (demo dry-run 2026-10-05): the renderer had no `[label](url)` rule at all, so an
+  // assistant reply ending "([edit](/admin/pages/get-in-touch-test))" showed the raw markdown.
+  it('renders a relative markdown link wrapped in parentheses as an in-app anchor', () => {
+    const { container } = render(<Markdown>{'Page created ([edit](/admin/pages/get-in-touch-test)).'}</Markdown>);
+    const link = screen.getByRole('link', { name: 'edit' });
+    expect(link).toHaveAttribute('href', '/admin/pages/get-in-touch-test');
+    // Same-tab: the host's in-app link interceptor handles it; only off-site links open a new tab.
+    expect(link).not.toHaveAttribute('target');
+    expect(container.querySelector('p')).toHaveTextContent('Page created (edit).');
+  });
+
+  it('opens an absolute markdown link in a new tab and keeps balanced parentheses in its URL', () => {
+    render(<Markdown>{'See [the spec](https://example.com/wiki/Foo_(bar)) now.'}</Markdown>);
+    const link = screen.getByRole('link', { name: 'the spec' });
+    expect(link).toHaveAttribute('href', 'https://example.com/wiki/Foo_(bar)');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noreferrer');
+  });
+
+  it('renders inline markup inside a markdown link label', () => {
+    render(<Markdown>{'[**Open** `page`](/admin/pages/x)'}</Markdown>);
+    const link = screen.getByRole('link', { name: 'Open page' });
+    expect(link.querySelector('strong')).toHaveTextContent('Open');
+    expect(link.querySelector('code')).toHaveTextContent('page');
+  });
+
+  it('leaves a markdown link with an unsafe scheme or protocol-relative URL as plain text', () => {
+    const { container } = render(<Markdown>{'[a](javascript:alert(1)) [b](//evil.example/x) [c](data:text/html,x)'}</Markdown>);
+    expect(container.querySelector('a')).toBeNull();
+    expect(container.querySelector('p')).toHaveTextContent('[a](javascript:alert(1)) [b](//evil.example/x) [c](data:text/html,x)');
+  });
+
   it('renders a blockquote and a horizontal rule', () => {
     const { container } = render(<Markdown>{'> quoted line\n\n---\n\nafter'}</Markdown>);
     expect(container.querySelector('blockquote')).toHaveTextContent('quoted line');
