@@ -2,9 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   __resetComposerDraftCacheForTests,
   clearCachedDraft,
+  COMPOSER_ATTACHMENTS_STORAGE_PREFIX,
   COMPOSER_DRAFT_STORAGE_PREFIX,
   MAX_CACHED_CONVERSATION_DRAFTS,
+  readCachedAttachmentBatchId,
   readCachedDraft,
+  writeCachedAttachmentBatchId,
+  writeCachedAttachments,
   writeCachedDraft,
 } from '../composer-draft-cache.js';
 
@@ -168,5 +172,73 @@ describe('composer-draft-cache when storage misbehaves', () => {
     writeCachedDraft({ conversationId: 'convo-a', draft: 'already in memory' });
     stubThrowingStorage();
     expect(readCachedDraft({ conversationId: 'convo-a' })).toBe('already in memory');
+  });
+});
+
+describe('composer-draft-cache attachment batch ids', () => {
+  const staged = [{ path: '/uploads/batch-1/a.png', name: 'a.png', kind: 'image' as const }];
+
+  beforeEach(() => __resetComposerDraftCacheForTests());
+
+  it('returns the batch the cached attachments were staged under', () => {
+    writeCachedAttachmentBatchId({ conversationId: 'convo-a', batchId: 'batch-1' });
+    writeCachedAttachments({ conversationId: 'convo-a', attachments: staged });
+    expect(readCachedAttachmentBatchId({ conversationId: 'convo-a' })).toBe('batch-1');
+  });
+
+  it('survives a reload alongside the attachments it describes', () => {
+    writeCachedAttachmentBatchId({ conversationId: 'convo-a', batchId: 'batch-1' });
+    writeCachedAttachments({ conversationId: 'convo-a', attachments: staged });
+    __resetComposerDraftCacheForTests({ keepStorage: true });
+    expect(readCachedAttachmentBatchId({ conversationId: 'convo-a' })).toBe('batch-1');
+  });
+
+  it('returns null when no attachments are cached, even with a recorded batch', () => {
+    // A host with no validator never persists attachments; reusing a batch nothing restored would
+    // hand the next turn a directory holding files the operator never re-staged.
+    writeCachedAttachmentBatchId({ conversationId: 'convo-a', batchId: 'batch-1' });
+    expect(readCachedAttachmentBatchId({ conversationId: 'convo-a' })).toBeNull();
+  });
+
+  it('forgets the batch once the staged attachments are cleared', () => {
+    writeCachedAttachmentBatchId({ conversationId: 'convo-a', batchId: 'batch-1' });
+    writeCachedAttachments({ conversationId: 'convo-a', attachments: staged });
+    writeCachedAttachments({ conversationId: 'convo-a', attachments: [] });
+    writeCachedAttachments({ conversationId: 'convo-a', attachments: staged });
+    expect(readCachedAttachmentBatchId({ conversationId: 'convo-a' })).toBeNull();
+  });
+
+  it('restores the attachments but no batch from an entry written before batch ids were stored', () => {
+    localStorage.setItem(`${COMPOSER_ATTACHMENTS_STORAGE_PREFIX}convo-a`, JSON.stringify({ v: 1, t: 1, a: staged }));
+    expect(readCachedAttachmentBatchId({ conversationId: 'convo-a' })).toBeNull();
+  });
+
+  it('drops a stored batch id that is not a non-empty string', () => {
+    localStorage.setItem(`${COMPOSER_ATTACHMENTS_STORAGE_PREFIX}convo-a`, JSON.stringify({ v: 1, t: 1, a: staged, b: 42 }));
+    localStorage.setItem(`${COMPOSER_ATTACHMENTS_STORAGE_PREFIX}convo-b`, JSON.stringify({ v: 1, t: 1, a: staged, b: '' }));
+    expect(readCachedAttachmentBatchId({ conversationId: 'convo-a' })).toBeNull();
+    expect(readCachedAttachmentBatchId({ conversationId: 'convo-b' })).toBeNull();
+  });
+
+  it('is a no-op read/write for a null or undefined conversation id', () => {
+    writeCachedAttachmentBatchId({ conversationId: null, batchId: 'batch-1' });
+    writeCachedAttachmentBatchId({ conversationId: undefined, batchId: 'batch-1' });
+    expect(readCachedAttachmentBatchId({ conversationId: null })).toBeNull();
+    expect(readCachedAttachmentBatchId({ conversationId: undefined })).toBeNull();
+  });
+
+  it('evicts the oldest recorded batch once the cap is exceeded', () => {
+    for (let i = 0; i <= MAX_CACHED_CONVERSATION_DRAFTS; i += 1) {
+      writeCachedAttachmentBatchId({ conversationId: `convo-${i}`, batchId: `batch-${i}` });
+    }
+    // Re-recording a tracked conversation at the cap evicts nothing.
+    writeCachedAttachmentBatchId({ conversationId: 'convo-1', batchId: 'batch-1b' });
+    for (const i of [0, 1, MAX_CACHED_CONVERSATION_DRAFTS]) {
+      writeCachedAttachments({ conversationId: `convo-${i}`, attachments: staged });
+    }
+    expect(readCachedAttachmentBatchId({ conversationId: 'convo-0' })).toBeNull();
+    expect(readCachedAttachmentBatchId({ conversationId: 'convo-1' })).toBe('batch-1b');
+    expect(readCachedAttachmentBatchId({ conversationId: `convo-${MAX_CACHED_CONVERSATION_DRAFTS}` }))
+      .toBe(`batch-${MAX_CACHED_CONVERSATION_DRAFTS}`);
   });
 });

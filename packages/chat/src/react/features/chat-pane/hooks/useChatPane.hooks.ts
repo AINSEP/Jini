@@ -24,6 +24,10 @@ import type { ChatAttachment, ChatMessage } from '@jini-ai/chat';
 import type { ChatTransport } from '@jini-ai/chat';
 import { definedProps } from '../../../util/defined-props.js';
 import { cacheAttachmentPreviewSource } from '../../../hooks/attachment-preview-cache.js';
+import {
+  readCachedAttachmentBatchId,
+  writeCachedAttachmentBatchId,
+} from '../../../hooks/composer-draft-cache.js';
 import { useComposer, type UseComposerResult } from '../../../hooks/useComposer.js';
 import {
   useConversation,
@@ -239,7 +243,14 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const queuedConversationIdRef = useRef<string | null | undefined>(undefined);
   const mountedRef = useRef(true);
   const attachmentGenerationRef = useRef(0);
-  const attachmentBatchIdRef = useRef(createAttachmentBatchId());
+  // Every attachment staged for one turn must share one upload batch (the daemon refuses a turn
+  // spanning two). So a mount that will restore cached attachments starts in THEIR batch rather
+  // than a new one; see `readCachedAttachmentBatchId`.
+  const [initialAttachmentBatchId] = useState(
+    () => readCachedAttachmentBatchId({ conversationId: options.conversationId }) ?? createAttachmentBatchId(),
+  );
+  const attachmentBatchIdRef = useRef(initialAttachmentBatchId);
+  const batchConversationIdRef = useRef(options.conversationId);
   const activeUploadsRef = useRef(new Set<AbortController>());
   const [internalSelection, setInternalSelection] = useState<ChatPaneAgentSelection>(
     options.initialSelection ?? { agentId: '' },
@@ -355,9 +366,29 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     heldAnswerQuestionIdRef.current = null;
   }, [options.conversationId]);
 
+  // A conversation switch without a remount: adopt the batch of the attachments the composer is
+  // about to restore for the new conversation, else start a fresh one so two conversations never
+  // share a batch directory (the agent is granted the whole directory, not just the claimed files).
+  // An id arriving where there was none is the same conversation finally getting a key — the
+  // composer keeps what is staged (see `useComposer`), so the batch stays too.
+  useEffect(() => {
+    const previousConversationId = batchConversationIdRef.current;
+    if (options.conversationId === previousConversationId) return;
+    batchConversationIdRef.current = options.conversationId;
+    const restoredBatchId = readCachedAttachmentBatchId({ conversationId: options.conversationId });
+    if (restoredBatchId !== null) {
+      attachmentBatchIdRef.current = restoredBatchId;
+      return;
+    }
+    if (previousConversationId == null) return;
+    attachmentBatchIdRef.current = createAttachmentBatchId();
+  }, [options.conversationId]);
+
   const addAttachments = useCallback(async (files: File[]) => {
     if (files.length === 0 || options.uploadAttachments === undefined) return;
     const generation = attachmentGenerationRef.current;
+    const batchId = attachmentBatchIdRef.current;
+    const conversationId = options.conversationId;
     const controller = new AbortController();
     activeUploadsRef.current.add(controller);
     setActiveUploadCount(activeUploadsRef.current.size);
@@ -366,7 +397,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       await uploadAttachmentBatch(files, {
         upload: options.uploadAttachments,
         signal: controller.signal,
-        batchId: attachmentBatchIdRef.current,
+        batchId,
         stillWanted: () => mountedRef.current
           && !controller.signal.aborted
           && generation === attachmentGenerationRef.current,
@@ -376,6 +407,9 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
         // `attachment-preview-cache.ts`'s module doc for why this is the only place that copy can
         // ever be captured.
         onAttachment: (attachment, file) => {
+          // Recorded before staging so the cache entry that persists this attachment carries its
+          // batch, which is what lets a later mount restore the batch along with the attachment.
+          writeCachedAttachmentBatchId({ conversationId, batchId });
           composer.addAttachment(attachment);
           if (file) cacheAttachmentPreviewSource({ path: attachment.path, file });
         },
@@ -386,7 +420,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
         setActiveUploadCount(activeUploadsRef.current.size);
       }
     }
-  }, [composer, options.uploadAttachments]);
+  }, [composer, options.conversationId, options.uploadAttachments]);
 
   const sendPrompt = useCallback(async (prompt: string) => {
     const trimmed = prompt.trim();

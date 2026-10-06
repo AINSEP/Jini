@@ -610,6 +610,144 @@ describe('useChatPane', () => {
     expect(result.current.composer.attachments).toEqual([{ path: '/tmp/b', name: 'b.txt', kind: 'file' }]);
   });
 
+  describe('attachment batch id follows the staged attachments it belongs to', () => {
+    // The daemon refuses a turn whose attachments span batch directories ("Attachments must belong
+    // to one batch", 2026-10-06): a restored attachment from an earlier batch plus a fresh upload
+    // under a new batch id made every such turn fail before the agent started.
+    function recordingUploader() {
+      const batchIds: string[] = [];
+      const uploadAttachments = async (
+        files: File[],
+        options?: { signal?: AbortSignal; batchId?: string },
+      ) => {
+        batchIds.push(options!.batchId!);
+        return files.map((file) => ({ path: `/uploads/${options!.batchId}/${file.name}`, name: file.name, kind: 'image' as const }));
+      };
+      return { batchIds, uploadAttachments };
+    }
+    // Liveness check that keeps every reference: restoration is on, nothing is pruned.
+    const validateAttachments = async (attachments: readonly import('@jini-ai/chat').ChatAttachment[]) => attachments;
+
+    it('reuses the restored attachments\' batch id after the pane remounts', async () => {
+      const { batchIds, uploadAttachments } = recordingUploader();
+      const transport = createFakeChatTransport();
+      const options = { transport, agents, conversationId: 'chat-1', uploadAttachments, validateAttachments };
+
+      const first = renderHook(() => useChatPane(options));
+      await act(() => first.result.current.addAttachments([new File(['a'], 'a.png')]));
+      expect(first.result.current.composer.attachments).toHaveLength(1);
+      first.unmount();
+
+      const second = renderHook(() => useChatPane(options));
+      await waitFor(() => expect(second.result.current.composer.attachments).toHaveLength(1));
+      await act(() => second.result.current.addAttachments([new File(['b'], 'b.png')]));
+
+      expect(second.result.current.composer.attachments.map((attachment) => attachment.name)).toEqual(['a.png', 'b.png']);
+      expect(batchIds).toHaveLength(2);
+      expect(batchIds[1]).toBe(batchIds[0]);
+    });
+
+    it('reuses the restored attachments\' batch id after a page reload', async () => {
+      const { batchIds, uploadAttachments } = recordingUploader();
+      const transport = createFakeChatTransport();
+      const options = { transport, agents, conversationId: 'chat-1', uploadAttachments, validateAttachments };
+
+      const first = renderHook(() => useChatPane(options));
+      await act(() => first.result.current.addAttachments([new File(['a'], 'a.png')]));
+      first.unmount();
+      __resetComposerDraftCacheForTests({ keepStorage: true });
+
+      const second = renderHook(() => useChatPane(options));
+      await waitFor(() => expect(second.result.current.composer.attachments).toHaveLength(1));
+      await act(() => second.result.current.addAttachments([new File(['b'], 'b.png')]));
+
+      expect(batchIds).toHaveLength(2);
+      expect(batchIds[1]).toBe(batchIds[0]);
+    });
+
+    it('switches to each conversation\'s own batch on an in-place conversation switch', async () => {
+      const { batchIds, uploadAttachments } = recordingUploader();
+      const transport = createFakeChatTransport();
+      const { result, rerender } = renderHook(
+        ({ conversationId }: { conversationId: string }) => useChatPane({
+          transport,
+          agents,
+          selection: { agentId: 'codex' },
+          conversationId,
+          uploadAttachments,
+          validateAttachments,
+        }),
+        { initialProps: { conversationId: 'chat-1' } },
+      );
+      await act(() => result.current.addAttachments([new File(['a'], 'a.png')]));
+
+      rerender({ conversationId: 'chat-2' });
+      await waitFor(() => expect(result.current.composer.attachments).toEqual([]));
+      await act(() => result.current.addAttachments([new File(['b'], 'b.png')]));
+      await act(() => result.current.send());
+      await waitFor(() => expect(transport.calls).toHaveLength(1));
+
+      rerender({ conversationId: 'chat-1' });
+      await waitFor(() => expect(result.current.composer.attachments).toHaveLength(1));
+      await act(() => result.current.addAttachments([new File(['c'], 'c.png')]));
+
+      expect(batchIds).toHaveLength(3);
+      // chat-2 never shares chat-1's batch: the agent is granted the whole batch directory.
+      expect(batchIds[1]).not.toBe(batchIds[0]);
+      expect(batchIds[2]).toBe(batchIds[0]);
+    });
+
+    it('keeps the batch when a new conversation is first given its id', async () => {
+      const { batchIds, uploadAttachments } = recordingUploader();
+      const transport = createFakeChatTransport();
+      const { result, rerender } = renderHook(
+        ({ conversationId }: { conversationId: string | null }) => useChatPane({
+          transport,
+          agents,
+          conversationId,
+          initialDraft: 'look at these',
+          uploadAttachments,
+          validateAttachments,
+        }),
+        { initialProps: { conversationId: null as string | null } },
+      );
+      await act(() => result.current.addAttachments([new File(['a'], 'a.png')]));
+
+      rerender({ conversationId: 'chat-new' });
+      await act(() => result.current.addAttachments([new File(['b'], 'b.png')]));
+
+      expect(result.current.composer.attachments.map((attachment) => attachment.name)).toEqual(['a.png', 'b.png']);
+      expect(batchIds).toHaveLength(2);
+      expect(batchIds[1]).toBe(batchIds[0]);
+    });
+
+    it('starts a fresh batch for the next turn once the staged attachments are sent', async () => {
+      const { batchIds, uploadAttachments } = recordingUploader();
+      const transport = createFakeChatTransport();
+      const options = {
+        transport,
+        agents,
+        selection: { agentId: 'codex' },
+        conversationId: 'chat-1',
+        uploadAttachments,
+        validateAttachments,
+      };
+
+      const first = renderHook(() => useChatPane(options));
+      await act(() => first.result.current.addAttachments([new File(['a'], 'a.png')]));
+      await act(() => first.result.current.send());
+      await waitFor(() => expect(transport.calls).toHaveLength(1));
+      first.unmount();
+
+      const second = renderHook(() => useChatPane(options));
+      expect(second.result.current.composer.attachments).toEqual([]);
+      await act(() => second.result.current.addAttachments([new File(['b'], 'b.png')]));
+
+      expect(batchIds).toHaveLength(2);
+      expect(batchIds[1]).not.toBe(batchIds[0]);
+    });
+  });
+
   describe('typed answers to a question the running agent is waiting on', () => {
     type Delivery = 'delivered' | 'not-pending' | 'failed';
 

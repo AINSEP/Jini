@@ -73,15 +73,30 @@ interface StoredDraft {
   readonly d: string;
 }
 
-/** The attachment entry's stored shape; `a` holds plain references, never file bytes. */
+/**
+ * The attachment entry's stored shape; `a` holds plain references, never file bytes. `b` is the
+ * upload batch those references were uploaded under (see {@link readCachedAttachmentBatchId}).
+ * Optional so entries written before it existed still restore — they just carry no batch.
+ */
 interface StoredAttachments {
   readonly v: 1;
   readonly t: number;
   readonly a: readonly ChatAttachment[];
+  readonly b?: string;
+}
+
+/** What one stored attachment entry decodes to. */
+interface StoredStagedAttachments {
+  readonly attachments: readonly ChatAttachment[];
+  readonly batchId: string | null;
 }
 
 const drafts = new Map<string, string>();
 const stagedAttachments = new Map<string, readonly ChatAttachment[]>();
+// Kept beside `stagedAttachments` rather than inside it so `writeCachedAttachments` keeps its
+// attachments-only signature: `useComposer` persists the list and never sees a batch id, while
+// `useChatPane` (the one caller that uploads in batches) records the batch here.
+const stagedBatchIds = new Map<string, string>();
 
 /**
  * The origin's `localStorage`, or `null` when it cannot be used.
@@ -286,16 +301,17 @@ function isChatAttachment(candidate: unknown): candidate is ChatAttachment {
 }
 
 /**
- * Reads the stored attachment references for `conversationId`.
+ * Reads the stored attachment references (and their upload batch) for `conversationId`.
  *
  * Elements that do not validate are dropped individually rather than failing the whole entry — one
- * malformed row should cost the operator that row, not every attachment on the turn.
+ * malformed row should cost the operator that row, not every attachment on the turn. A missing or
+ * malformed batch id costs only the batch (`batchId: null`), never the references.
  *
  * @returns The stored references, or `null` when there are none, storage is unavailable, or nothing
  * in the entry validated.
  * @complexity Time/space: O(n) in the number of stored references.
  */
-function readStoredAttachments(conversationId: string): readonly ChatAttachment[] | null {
+function readStoredAttachments(conversationId: string): StoredStagedAttachments | null {
   const store = storage();
   if (!store) return null;
   const key = `${COMPOSER_ATTACHMENTS_STORAGE_PREFIX}${conversationId}`;
@@ -304,6 +320,7 @@ function readStoredAttachments(conversationId: string): readonly ChatAttachment[
     if (raw === null) return null;
     const parsed: unknown = JSON.parse(raw);
     const list = (parsed as StoredAttachments | null)?.a;
+    const batchId: unknown = (parsed as StoredAttachments | null)?.b;
     if (!Array.isArray(list)) {
       store.removeItem(key);
       return null;
@@ -313,7 +330,7 @@ function readStoredAttachments(conversationId: string): readonly ChatAttachment[
       store.removeItem(key);
       return null;
     }
-    return valid;
+    return { attachments: valid, batchId: typeof batchId === 'string' && batchId !== '' ? batchId : null };
   } catch {
     try {
       store.removeItem(key);
@@ -344,8 +361,47 @@ export function readCachedAttachments({ conversationId }: { conversationId: stri
   if (remembered !== undefined) return remembered;
   const stored = readStoredAttachments(conversationId);
   if (stored === null) return null;
-  stagedAttachments.set(conversationId, stored);
-  return stored;
+  stagedAttachments.set(conversationId, stored.attachments);
+  if (stored.batchId !== null) stagedBatchIds.set(conversationId, stored.batchId);
+  return stored.attachments;
+}
+
+/**
+ * The upload batch `conversationId`'s cached attachments were uploaded under, so a pane that
+ * restores those attachments uploads the next file into the SAME batch.
+ *
+ * Why this exists: the daemon grants the agent exactly one batch directory per turn and refuses a
+ * turn whose attachments span two ("Attachments must belong to one batch"). A pane that restored an
+ * attachment after a remount, reload, or conversation switch used to upload the next file under a
+ * brand-new batch id, so every such turn failed before the agent started (2026-10-06).
+ *
+ * @returns The batch id, or `null` when there are no cached attachments to stay consistent with
+ * (none staged, attachment persistence off because the host supplied no validator, or an entry
+ * written before batch ids were recorded) — the caller then starts a fresh batch.
+ * @complexity Time/space: O(1) on an in-memory hit, O(n) in the stored count otherwise.
+ */
+export function readCachedAttachmentBatchId({ conversationId }: { conversationId: string | null | undefined }
+): string | null {
+  if (!conversationId) return null;
+  if (readCachedAttachments({ conversationId: conversationId }) === null) return null;
+  return stagedBatchIds.get(conversationId) ?? null;
+}
+
+/**
+ * Records the upload batch of an attachment about to be staged in `conversationId`'s composer.
+ * Memory only: the stored envelope picks it up on the {@link writeCachedAttachments} that persists
+ * that attachment, so it is never written ahead of the references it describes.
+ *
+ * @complexity Time/space: O(1) amortized.
+ */
+export function writeCachedAttachmentBatchId({ conversationId, batchId }: { conversationId: string | null | undefined; batchId: string }
+): void {
+  if (!conversationId) return;
+  if (!stagedBatchIds.has(conversationId) && stagedBatchIds.size >= MAX_CACHED_CONVERSATION_DRAFTS) {
+    const oldest = stagedBatchIds.keys().next().value;
+    if (oldest !== undefined) stagedBatchIds.delete(oldest);
+  }
+  stagedBatchIds.set(conversationId, batchId);
 }
 
 /**
@@ -362,6 +418,8 @@ export function writeCachedAttachments({ conversationId, attachments }: { conver
   const store = storage();
   if (attachments.length === 0) {
     stagedAttachments.delete(conversationId);
+    // A sent or cleared turn's batch is spent; the next upload starts a fresh one.
+    stagedBatchIds.delete(conversationId);
     try {
       store?.removeItem(key);
     } catch {
@@ -377,7 +435,8 @@ export function writeCachedAttachments({ conversationId, attachments }: { conver
   if (!store) return;
   try {
     if (store.getItem(key) === null) pruneStored(COMPOSER_ATTACHMENTS_STORAGE_PREFIX, MAX_CACHED_CONVERSATION_DRAFTS - 1);
-    const envelope: StoredAttachments = { v: 1, t: Date.now(), a: attachments };
+    const batchId = stagedBatchIds.get(conversationId);
+    const envelope: StoredAttachments = { v: 1, t: Date.now(), a: attachments, ...(batchId === undefined ? {} : { b: batchId }) };
     store.setItem(key, JSON.stringify(envelope));
   } catch {
     /* blocked, full, or unusable storage — memory-only is the documented degraded mode */
@@ -395,6 +454,7 @@ export function writeCachedAttachments({ conversationId, attachments }: { conver
 export function __resetComposerDraftCacheForTests(options?: { readonly keepStorage?: boolean }): void {
   drafts.clear();
   stagedAttachments.clear();
+  stagedBatchIds.clear();
   if (options?.keepStorage === true) return;
   pruneStored(COMPOSER_DRAFT_STORAGE_PREFIX, 0);
   pruneStored(COMPOSER_ATTACHMENTS_STORAGE_PREFIX, 0);
