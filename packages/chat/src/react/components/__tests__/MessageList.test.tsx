@@ -162,6 +162,27 @@ describe('MessageList', () => {
       expect(el.scrollTop).toBe(600);
     });
 
+    // Regression (demo dry-run 2026-10-05): after a run with several tool calls the final reply sat
+    // below the fold. A programmatic scroll's `scroll` event is dispatched a frame later; when more
+    // streamed rows landed in between, the handler saw "not at the bottom" and unstuck the
+    // transcript for the rest of the run, though the user never scrolled.
+    it('stays stuck to the bottom when a late scroll event reports a position the content outgrew', () => {
+      installFakeResizeObserver();
+      const { container, rerender } = render(<MessageList messages={messages} scrollIntent onScrolled={() => {}} />);
+      const el = container.querySelector('.jini-message-list') as HTMLDivElement;
+      Object.defineProperty(el, 'scrollHeight', { value: 300, configurable: true });
+      Object.defineProperty(el, 'clientHeight', { value: 100, configurable: true });
+      el.scrollTop = 200;
+      el.dispatchEvent(new Event('scroll'));
+
+      // More tool rows stream in before the scroll event from the last auto-scroll is delivered.
+      Object.defineProperty(el, 'scrollHeight', { value: 500, configurable: true });
+      el.dispatchEvent(new Event('scroll'));
+
+      rerender(<MessageList messages={[...messages, { id: '3', role: 'assistant', content: 'final reply', runStatus: 'running' }]} scrollIntent onScrolled={() => {}} />);
+      expect(el.scrollTop).toBe(500);
+    });
+
     it('does NOT yank the view back down when the user had scrolled up to read history', () => {
       const fireResize = installFakeResizeObserver();
       const { container } = render(<MessageList messages={messages} scrollIntent onScrolled={() => {}} />);

@@ -13,6 +13,24 @@ export function isScrolledToBottom(el: { scrollHeight: number; scrollTop: number
 }
 
 /**
+ * The sticky-follow flag after a `scroll` event.
+ *
+ * At the bottom always re-sticks. Otherwise only a move UP (the position went down since the last
+ * event) unsticks. A `scroll` event is dispatched a frame after the scroll that caused it, so the
+ * event for an auto-scroll can arrive after more streamed rows already grew the content: the
+ * position is unchanged but no longer at the bottom. Reading that as "the user scrolled away" is
+ * what left a tool-heavy run's final reply below the fold (demo dry-run, 2026-10-05). Content growth
+ * never lowers `scrollTop`; a user scrolling up always does.
+ */
+export function nextStickToBottom(
+  el: { scrollHeight: number; scrollTop: number; clientHeight: number },
+  { wasSticking, previousScrollTop }: { wasSticking: boolean; previousScrollTop: number },
+): boolean {
+  if (isScrolledToBottom(el)) return true;
+  return el.scrollTop < previousScrollTop ? false : wasSticking;
+}
+
+/**
  * Whether `next` starts a turn the user themself asked for, relative to `previous`: a user message
  * that was not there before (a send — `useConversation.sendMessage` appends it optimistically), or
  * an assistant message that newly entered `runStatus: 'queued'` (a retry, which resets the existing

@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, type RefObject, type UIEvent } from 'react';
 import type { ChatMessage } from '../../core/index.js';
-import { isScrolledToBottom, startsNewTurn } from './MessageList.rules.js';
+import { nextStickToBottom, startsNewTurn } from './MessageList.rules.js';
 
 export interface MessageListAutoScroll {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -24,6 +24,10 @@ export function useMessageListAutoScroll(
   // Starts true: a freshly mounted pane opens on the latest turn, same as scrollIntent's own default.
   const stickToBottomRef = useRef(true);
   const previousMessagesRef = useRef<readonly ChatMessage[]>(messages);
+  // `scrollTop` at the previous `scroll` event — `nextStickToBottom` needs the direction of travel.
+  // Only scroll events write it (a browser fires one for programmatic scrolls too). Starts at
+  // Infinity, "no position seen yet", so a first event away from the bottom unsticks as it always did.
+  const lastScrollTopRef = useRef(Number.POSITIVE_INFINITY);
 
   // Runs BEFORE the scroll effect below (effects run in declaration order), so a send re-sticks in
   // time for that same commit's scroll. The user's own send (or retry) is an explicit "take me to
@@ -79,7 +83,9 @@ export function useMessageListAutoScroll(
   }, [messages]);
 
   const onScroll = (event: UIEvent<HTMLElement>) => {
-    stickToBottomRef.current = isScrolledToBottom(event.currentTarget);
+    const el = event.currentTarget;
+    stickToBottomRef.current = nextStickToBottom(el, { wasSticking: stickToBottomRef.current, previousScrollTop: lastScrollTopRef.current });
+    lastScrollTopRef.current = el.scrollTop;
   };
 
   return { containerRef, onScroll };
