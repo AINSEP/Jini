@@ -93,7 +93,15 @@ const NAV_TARGET_SCHEMA = {
       type: "object",
       additionalProperties: false,
       required: ["kind", "entryId"],
-      properties: { kind: { const: "entryRef" }, entryId: { type: "string", description: "Target entry id (e.g. a page or post)." } },
+      properties: {
+        kind: { const: "entryRef" },
+        entryId: { type: "string", description: "Target entry id (e.g. a page or post)." },
+        // Declared so a read can be echoed back unchanged: these were stored on page links but absent
+        // here, so every agent save dropped them (dry run 2026-10-05). The save also keeps the stored
+        // value when omitted for the same item id + entryId (`carryForwardEntryHints`).
+        entryType: { type: "string", description: "Content-type hint, e.g. 'page' or 'post'. Copy it unchanged from the read; omit for a new link." },
+        lastKnownHref: { type: "string", description: "The entry's last known public URL, e.g. '/about'. Copy it unchanged from the read; omit for a new link." },
+      },
     },
     {
       type: "object",
@@ -221,7 +229,7 @@ export const menusAgentToolCatalog: AgentToolDefinition[] = [
     description:
       "Replaces an existing menu's whole item tree (and optionally its title/slug) in one version-guarded write. " +
       "Always a whole-tree replace — there is no per-item patch operation, so the submitted tree must include every " +
-      "item the menu keeps. To delete a menu, use trash_item with entityType 'menu' (it moves to the Trash and can be restored).",
+      "item the menu keeps, each with its fields copied unchanged from the read. To delete a menu, use trash_item with entityType 'menu' (it moves to the Trash and can be restored).",
     sideEffects: "mutates-durable-state",
     authorization: { permission: "admin.menus.update" },
     inputSchema: {

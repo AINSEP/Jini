@@ -31,6 +31,7 @@ import type { NavLocationBindingRepoPort } from "./ports.js";
 import {
   NAV_DOC_TYPE,
   type MenuStatus,
+  type NavEntryTarget,
   type NavItemNode,
   type NavLocationBindingRow,
   type NavLocationKey,
@@ -447,6 +448,48 @@ export interface UpdateMenuTreeOptional {
   limits?: TreeValidationLimits | undefined;
 }
 
+/** The stored `entryRef` hint fields a whole-tree save carries forward when the submitted target omits them. */
+const ENTRY_HINT_KEYS = ["entryType", "lastKnownHref"] as const;
+
+function entryTargetsById(nodes: readonly NavItemNode[], into = new Map<string, NavEntryTarget>()): Map<string, NavEntryTarget> {
+  for (const node of nodes) {
+    if (node.target?.kind === "entryRef") into.set(node.id, node.target);
+    if (node.children) entryTargetsById(node.children, into);
+  }
+  return into;
+}
+
+function withStoredHints(target: NavTarget, stored: NavEntryTarget | undefined): NavTarget {
+  if (target.kind !== "entryRef" || !stored || stored.entryId !== target.entryId) return target;
+  const merged: Record<string, unknown> = { ...target };
+  for (const key of ENTRY_HINT_KEYS) {
+    if (merged[key] === undefined && stored[key] !== undefined) merged[key] = stored[key];
+  }
+  return merged as unknown as NavEntryTarget;
+}
+
+/**
+ * Whole-tree saves arrive from callers that may not know an item's stored hint fields (an agent
+ * echoing a read through a schema, an older editor build). Dropping them on every save made an
+ * untouched menu look changed (dry run 2026-10-05: ~30 header page links lost `entryType: "page"`
+ * on one assistant save and the menu showed pending-to-live). So a hint is kept when the same item
+ * id still points at the same entry and the submitted target leaves that hint out; a re-pointed
+ * link or an explicitly submitted hint is taken as sent.
+ */
+export function carryForwardEntryHints(
+  { previous, next }: { previous: readonly NavItemNode[]; next: readonly NavItemNode[] },
+  _optional = {}
+): NavItemNode[] {
+  const stored = entryTargetsById(previous);
+  const walk = (nodes: readonly NavItemNode[]): NavItemNode[] =>
+    nodes.map((node) => ({
+      ...node,
+      target: withStoredHints(node.target, stored.get(node.id)),
+      children: node.children ? walk(node.children) : undefined,
+    }));
+  return walk(next);
+}
+
 /**
  * Replaces a menu's whole item tree, guarded by optimistic concurrency on the
  * entry `version` (matches the host's `updatePost` pattern): `expectedVersion` must equal the version
@@ -494,7 +537,10 @@ export async function updateMenuTree(
     }
   }
 
-  const items = validateAndCloneTree({ items: input.items }, optional.limits);
+  const items = carryForwardEntryHints({
+    previous: existing.doc.items,
+    next: validateAndCloneTree({ items: input.items }, optional.limits),
+  });
 
   const menu: NavMenuEntry = {
     ...existing,
