@@ -27,6 +27,36 @@
   --jini-warning: var(--jini-theme-dark-warning, #ebc36b);
 }
 
+/* Default chart palette — what `--jini-chart-1`..`-6` fall back to when a host sets none (see
+   interactive-ui/providers/recharts/chart-tokens.ts). Separate `-default-` names, so a host's own
+   `--jini-chart-N` always wins regardless of cascade order. Series 1 is the warm Claude orange, not
+   the near-black `--jini-primary` ("Claude orange should be the default color", owner, 2026-10-05);
+   2-6 are fixed-order categorical hues at matched lightness. Each mode was run through the dataviz
+   palette validator against Jini's own surfaces (light #ffffff/#f5f5f5, dark #171717/#242424):
+   lightness band, chroma floor, CVD >= 8 (worst 10.1 deutan light, 10.9 dark), normal-vision >= 15,
+   >= 3:1 contrast — all pass. Dark is stepped for the dark surface, not a flip of light: dark
+   series 1 sits a step lighter, because the light orange's chroma reads grey as a large fill on a
+   near-black surface. This was Tovu admin's palette first (Tovu b183ca5a8). */
+:root, [data-color-scheme="light"], [data-theme="light"] {
+  --jini-chart-default-1: oklch(55.29% 0.1129 43.4);
+  --jini-chart-default-2: oklch(50% 0.11 240);
+  --jini-chart-default-3: oklch(64% 0.13 88);
+  --jini-chart-default-4: oklch(58% 0.15 350);
+  --jini-chart-default-5: oklch(50% 0.11 155);
+  --jini-chart-default-6: oklch(48% 0.12 295);
+}
+
+/* Both dark attributes: the base tokens above flip on `data-color-scheme`, while hosts that follow
+   this package's `data-theme` convention on <html> (sketch-editor, shiki, Tovu's admin) flip that. */
+[data-color-scheme="dark"], [data-theme="dark"] {
+  --jini-chart-default-1: oklch(62% 0.11 44);
+  --jini-chart-default-2: oklch(64% 0.11 240);
+  --jini-chart-default-3: oklch(66% 0.13 88);
+  --jini-chart-default-4: oklch(65% 0.14 350);
+  --jini-chart-default-5: oklch(56% 0.12 155);
+  --jini-chart-default-6: oklch(64% 0.12 295);
+}
+
 :root {
   --jini-font-body: system-ui, sans-serif;
   --jini-font-heading: system-ui, sans-serif;

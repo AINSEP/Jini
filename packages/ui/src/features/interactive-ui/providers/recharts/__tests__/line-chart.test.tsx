@@ -41,9 +41,9 @@ describe('recharts LineChart', () => {
     expect(ticks).toEqual(['Mon', 'Tue']);
   });
 
-  it('strokes the line from the host chart token, falling back to the primary token', () => {
+  it('strokes the line from the host chart token, falling back to the default palette token', () => {
     const { container } = render(<LineChart data={data} categoryKey="day" valueKey="users" />);
-    expect(container.querySelector('.recharts-line-curve')).toHaveAttribute('stroke', 'var(--jini-chart-1, var(--jini-primary))');
+    expect(container.querySelector('.recharts-line-curve')).toHaveAttribute('stroke', 'var(--jini-chart-1, var(--jini-chart-default-1))');
   });
 
   it('applies a custom color to the line stroke', () => {

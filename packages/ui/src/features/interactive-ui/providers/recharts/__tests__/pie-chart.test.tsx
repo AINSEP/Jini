@@ -43,9 +43,9 @@ describe('recharts PieChart', () => {
     const { container } = render(<PieChart data={data} />);
     const fills = Array.from(container.querySelectorAll('.recharts-pie-sector path')).map((path) => path.getAttribute('fill'));
     expect(fills).toEqual([
-      'var(--jini-chart-1, var(--jini-primary))',
-      'var(--jini-chart-2, var(--jini-success))',
-      'var(--jini-chart-3, var(--jini-warning))',
+      'var(--jini-chart-1, var(--jini-chart-default-1))',
+      'var(--jini-chart-2, var(--jini-chart-default-2))',
+      'var(--jini-chart-3, var(--jini-chart-default-3))',
     ]);
   });
 

@@ -46,11 +46,12 @@ describe('recharts BarChart', () => {
   });
 
   // Demo V3 2026-10-05: bars filled with bare `--jini-primary`, which a host that never maps it
-  // (Tovu's admin) resolves to Jini's near-black default. Charts read the host's chart tokens first.
-  it('fills bars from the host chart token, falling back to the primary token', () => {
+  // (Tovu's admin) resolves to Jini's near-black default. Charts read the host's chart tokens first;
+  // a host that sets none gets Jini's own orange default palette, never near-black (owner, 2026-10-05).
+  it('fills bars from the host chart token, falling back to the default palette token', () => {
     const { container } = render(<BarChart data={data} categoryKey="month" valueKey="revenue" />);
     const bar = container.querySelector('.recharts-bar-rectangle path.recharts-rectangle');
-    expect(bar).toHaveAttribute('fill', 'var(--jini-chart-1, var(--jini-primary))');
+    expect(bar).toHaveAttribute('fill', 'var(--jini-chart-1, var(--jini-chart-default-1))');
   });
 
   it('draws the grid and axis ticks from chart tokens, not recharts grey literals', () => {
