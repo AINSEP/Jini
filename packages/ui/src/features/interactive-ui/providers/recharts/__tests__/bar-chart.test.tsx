@@ -45,6 +45,20 @@ describe('recharts BarChart', () => {
     expect(ticks).toEqual(['Jan', 'Feb']);
   });
 
+  // Demo V3 2026-10-05: bars filled with bare `--jini-primary`, which a host that never maps it
+  // (Tovu's admin) resolves to Jini's near-black default. Charts read the host's chart tokens first.
+  it('fills bars from the host chart token, falling back to the primary token', () => {
+    const { container } = render(<BarChart data={data} categoryKey="month" valueKey="revenue" />);
+    const bar = container.querySelector('.recharts-bar-rectangle path.recharts-rectangle');
+    expect(bar).toHaveAttribute('fill', 'var(--jini-chart-1, var(--jini-primary))');
+  });
+
+  it('draws the grid and axis ticks from chart tokens, not recharts grey literals', () => {
+    const { container } = render(<BarChart data={data} categoryKey="month" valueKey="revenue" />);
+    expect(container.querySelector('.recharts-cartesian-grid-horizontal line')).toHaveAttribute('stroke', 'var(--jini-chart-grid, var(--jini-border))');
+    expect(container.querySelector('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')).toHaveAttribute('fill', 'var(--jini-chart-axis, var(--jini-muted))');
+  });
+
   it('applies a custom color to the bars', () => {
     const { container } = render(<BarChart data={data} categoryKey="month" valueKey="revenue" color="#ff0000" />);
     const bar = container.querySelector('.recharts-bar-rectangle path.recharts-rectangle');

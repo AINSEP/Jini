@@ -39,6 +39,16 @@ describe('recharts PieChart', () => {
     expect(new Set(fills).size).toBe(3);
   });
 
+  it('takes slice colors from the host chart tokens in fixed order', () => {
+    const { container } = render(<PieChart data={data} />);
+    const fills = Array.from(container.querySelectorAll('.recharts-pie-sector path')).map((path) => path.getAttribute('fill'));
+    expect(fills).toEqual([
+      'var(--jini-chart-1, var(--jini-primary))',
+      'var(--jini-chart-2, var(--jini-success))',
+      'var(--jini-chart-3, var(--jini-warning))',
+    ]);
+  });
+
   it('applies a single override color to every slice when color is given', () => {
     const { container } = render(<PieChart data={data} color="#123456" />);
     const paths = container.querySelectorAll('.recharts-pie-sector path');
