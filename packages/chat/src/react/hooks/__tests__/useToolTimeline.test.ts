@@ -34,6 +34,28 @@ describe('useToolTimeline', () => {
     expect(result.current.rows).toHaveLength(1);
   });
 
+  it('shows one row per delegated call, not a wrapper row plus a canonical row (chat.db e8c84205)', () => {
+    // A failed call (no input, refused) and its retry: each arrives as a doubled wrapper row with
+    // the CLI's id plus a canonical row with the bridge's own id. Before the fold this was 4 rows.
+    const stored: AgentEvent[] = [
+      { kind: 'tool_use', id: 'toolu_017N', name: 'mcp__jini__execute_readonly_delegated_tool', input: { toolId: 'content_stats' } },
+      { kind: 'tool_use', id: 'toolu_017N', name: 'mcp__jini__execute_readonly_delegated_tool', input: { toolId: 'content_stats' } },
+      { kind: 'tool_use', id: 'ad3e4275', name: 'content_stats', input: undefined },
+      { kind: 'tool_result', toolUseId: 'ad3e4275', content: 'input must be an object', isError: true },
+      { kind: 'tool_result', toolUseId: 'toolu_017N', content: 'daemon 400: BAD_REQUEST: input must be an object', isError: true },
+      { kind: 'tool_use', id: 'toolu_01Nv', name: 'mcp__jini__execute_readonly_delegated_tool', input: { toolId: 'content_stats', input: {} } },
+      { kind: 'tool_use', id: 'toolu_01Nv', name: 'mcp__jini__execute_readonly_delegated_tool', input: { toolId: 'content_stats', input: {} } },
+      { kind: 'tool_use', id: '81ef04f5', name: 'content_stats', input: {} },
+      { kind: 'tool_result', toolUseId: '81ef04f5', content: '{"posts":{"total":10}}', isError: false },
+      { kind: 'tool_result', toolUseId: 'toolu_01Nv', content: '{"status":"completed"}', isError: false },
+    ];
+    const { result } = renderHook(() => useToolTimeline({ events: stored }, { runSucceeded: true }));
+    expect(result.current.rows.map((r) => [r.id, r.name, r.status])).toEqual([
+      ['ad3e4275', 'content_stats', 'error'],
+      ['81ef04f5', 'content_stats', 'complete'],
+    ]);
+  });
+
   it('toggle() flips a single row expanded state without affecting others', () => {
     const { result } = renderHook(() => useToolTimeline({ events: events }, { defaultExpanded: false }));
     expect(result.current.rows.every((r) => !r.expanded)).toBe(true);

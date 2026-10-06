@@ -93,6 +93,11 @@ describe('run activity line — one table, exact words', () => {
     expect(humanizeToolName({ name: 'daemon.db.vacuum' })).toBe('Daemon Db Vacuum');
   });
 
+  it('names the real tool behind the read-only wrapper, not the wrapper itself', () => {
+    expect(humanizeToolName({ name: 'mcp__jini__execute_readonly_delegated_tool' }, { input: { toolId: 'content_stats' } })).toBe('Content Stats');
+    expect(humanizeToolName({ name: 'execute_readonly_delegated_tool' }, { input: { toolId: 'content_stats' } })).toBe('Content Stats');
+  });
+
   it('restarts the clock key per signal and counts only visible events', () => {
     const a = deriveRunActivity({ events: [{ kind: 'tool_use', id: 't1', name: 'Bash', input: {} }] });
     const b = deriveRunActivity({ events: [

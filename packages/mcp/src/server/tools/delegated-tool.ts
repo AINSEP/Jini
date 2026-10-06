@@ -200,7 +200,10 @@ function createDelegatedGateway(
         runId,
         toolUseId: generateToolUseId({}),
         toolId: toolId,
-        input: args.input,
+        // The schema tells the model to omit `input` for a tool that takes none, but most tool
+        // handlers refuse an absent input ("input must be an object"). Sending `{}` makes the
+        // schema's promise true instead of costing a red failed call and a retry.
+        input: args.input ?? {},
         ...(variant.requireReadOnly === undefined ? {} : { requireReadOnly: variant.requireReadOnly }),
       };
       const data = await postDaemonJson<DelegatedToolExecuteResponse>({ baseUrl: ctx.baseUrl, route: '/api/delegated-tool-calls', body: body }, {

@@ -171,9 +171,12 @@ export function isChatPaneQueueableBlocker({ blocker }: { blocker: ChatPaneSendB
  * Only the question tool counts. Other tools park on cards too — a delete confirm, an approval —
  * but they take no typed answer: the server routes typed text only to the question tool, so treating
  * those as waiting would refuse the text with "no longer waiting" and drop it instead of queueing.
- * A call is the question tool when ANY `tool_use` for its id names it, since a vendor's wrapper row
- * (`execute_delegated_tool`) and the daemon's canonical row share the id and may arrive in either
- * order.
+ * A call is the question tool when ANY `tool_use` for its id names it, since the same call's
+ * `tool_use` can arrive more than once (the CLI re-emits it). A vendor's wrapper row
+ * (`execute_delegated_tool`) and the daemon's canonical row do NOT share an id — the wrapper carries
+ * the CLI's `toolu_…` id and the canonical row a fresh UUID from `@jini-ai/mcp`. The canonical row
+ * opens after its wrapper, so it is the newest open call when the surface arrives, and that is
+ * what attributes the surface to the question tool.
  *
  * A surface is attributed to the newest call still open when it arrived — the same rule
  * `useExtEventGroups` uses to give a card its `call` — so an older call returning does not settle

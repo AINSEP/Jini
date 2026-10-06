@@ -18,6 +18,7 @@
  * - `code: 'thinking'` — the model is reasoning (keeps the idle timer honest).
  */
 import type { AgentEvent } from './events.js';
+import { isDelegatedWrapperToolName } from './tool-events.js';
 
 /** The latest thing a running turn is doing. */
 export type RunActivity =
@@ -46,9 +47,6 @@ const DISCOVERY_TOOL_NAMES = new Set([
   'mcp__jini__describe_tool',
 ]);
 
-/** Transport wrappers whose real tool id is in `input.toolId`. */
-const WRAPPER_TOOL_NAMES = new Set(['execute_delegated_tool', 'mcp__jini__execute_delegated_tool']);
-
 /** Ext events that are a card for the person (a form, a confirm, a sign-in). */
 const CARD_EXT_NAMES = new Set(['mcp-ui', 'a2ui']);
 
@@ -71,7 +69,8 @@ function stringField(data: unknown, key: string): string | undefined {
 
 /** `"page.fill"` → `"Page Fill"`, `"mcp__supabase__list_projects"` → `"List Projects"`. Display only. */
 export function humanizeToolName({ name }: { name: string }, { input }: { input?: (unknown) | undefined } = {}): string {
-  const real = WRAPPER_TOOL_NAMES.has(name) ? (stringField(input, 'toolId') ?? name) : name;
+  // A transport wrapper's real tool id is in `input.toolId`.
+  const real = isDelegatedWrapperToolName({ name: name }) ? (stringField(input, 'toolId') ?? name) : name;
   const bare = real.startsWith('mcp__') ? real.split('__').slice(2).join('__') || real : real;
   return bare
     .split(/[._\s]+/)

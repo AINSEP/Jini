@@ -81,13 +81,23 @@ describe('createExecuteDelegatedToolTool', () => {
     expect(bodyA.toolUseId).not.toBe(bodyB.toolUseId);
   });
 
-  it('passes input: undefined through when the caller omits it', async () => {
+  it('sends input: {} when the caller omits it, as the schema promises a no-input tool can be called that way', async () => {
+    // Regression: the schema says "omit for a tool that takes no input", but most tool handlers
+    // refuse an absent input ("input must be an object"), so an omitted input came back as a red
+    // failed call the model then retried with `{}` (chat.db message e8c84205, 2026-10-05).
     postDaemonJson.mockResolvedValueOnce({ result: { executionId: 'e1', status: 'completed' } });
     const tool = createExecuteDelegatedToolTool(...splitGatewayFixture({ runId: 'run-1', generateToolUseId: () => 'tu-2' }));
     await tool.handler({ args: { toolId: 't1' }, ctx: ctx });
-    expect(postDaemonJson).toHaveBeenCalledWith(
-      { baseUrl: 'http://d.example', route: '/api/delegated-tool-calls', body: { runId: 'run-1', toolUseId: 'tu-2', toolId: 't1', input: undefined } }, { fetchImpl: ctx.fetchImpl, timeoutMs: 6 * 60 * 1000 },
-    );
+    const body = ((postDaemonJson.mock.calls[0] as unknown[])[0] as { body: Record<string, unknown> }).body;
+    expect(body).toStrictEqual({ runId: 'run-1', toolUseId: 'tu-2', toolId: 't1', input: {} });
+  });
+
+  it('sends input: {} for an explicit null input too', async () => {
+    postDaemonJson.mockResolvedValueOnce({ result: { executionId: 'e1', status: 'completed' } });
+    const tool = createExecuteReadonlyDelegatedToolTool(...splitGatewayFixture({ runId: 'run-1', generateToolUseId: () => 'tu-3' }));
+    await tool.handler({ args: { toolId: 'content_stats', input: null }, ctx: ctx });
+    const body = ((postDaemonJson.mock.calls[0] as unknown[])[0] as { body: Record<string, unknown> }).body;
+    expect(body.input).toStrictEqual({});
   });
 
   it('two tool instances scoped to different runIds send different runId bodies', async () => {

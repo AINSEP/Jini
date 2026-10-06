@@ -11,7 +11,7 @@
  */
 import type { ToolResultEvent, ToolResultMediaBlock, ToolUseEvent } from './events.js';
 
-export { dedupeToolUsesById } from './tool-events.js';
+export { dedupeToolUsesById, foldDelegatedWrapperCalls, isDelegatedWrapperToolName } from './tool-events.js';
 
 /** The four-state tool-call lifecycle agreed across AG-UI / CopilotKit / LangGraph render props. */
 export type ToolStatus = 'inProgress' | 'executing' | 'complete' | 'error';

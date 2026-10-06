@@ -21,7 +21,7 @@
  */
 import { useState, type ReactNode } from 'react';
 import type { AgentEvent, ToolResultMediaBlock } from '../../core/index.js';
-import { formatToolOutputForDisplay, isTodoWriteToolName, parseTodoWriteInput, toRenderProps } from '../../core/index.js';
+import { formatToolOutputForDisplay, isDelegatedWrapperToolName, isTodoWriteToolName, parseTodoWriteInput, toRenderProps } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
 import { getToolRenderer } from '../tool-renderer-registry.js';
 import { Icon } from './Icon.js';
@@ -46,7 +46,6 @@ export interface ToolCardProps {
 /** A Jini registry tool id: dotted, lowercase, snake_case segments — `page.fill`, `daemon.db.vacuum`, `chat.send_message`. Never matches an agent-vendor tool name (`Bash`, `Write`, `mcp__jini__execute_delegated_tool`), which is the point — this is how a canonical delegated-tool event is told apart from everything else. */
 const JINI_TOOL_ID_PATTERN = /^[a-z][a-z_]*(\.[a-z][a-z_]*)+$/;
 
-const EXECUTE_DELEGATED_TOOL_NAMES = new Set(['execute_delegated_tool', 'mcp__jini__execute_delegated_tool']);
 const SEARCH_TOOLS_NAMES = new Set(['search_tools', 'mcp__jini__search_tools']);
 const DESCRIBE_TOOL_NAMES = new Set(['describe_tool', 'mcp__jini__describe_tool']);
 
@@ -93,8 +92,12 @@ function renderToolCardBody(
   // action twice. Suppressed only on a *successful* result: a wrapper-level failure (a genuine
   // transport error, not a tool-execution failure — those come back as a normal 'completed' result
   // with status:'failed' inside it) has no matching canonical row to fall back on, so it must stay
-  // visible rather than disappear silently.
-  if (EXECUTE_DELEGATED_TOOL_NAMES.has(name) && result && !result.isError) return null;
+  // visible rather than disappear silently. (A wrapper that failed AFTER the bridge emitted its
+  // canonical row — e.g. a 400 on a refused input — never reaches here when rendered through
+  // `useToolTimeline`: `foldDelegatedWrapperCalls` drops it in favour of that canonical row. This
+  // check still covers a host that renders `<ToolCard>` straight from raw events.)
+  // Covers the read-only gateway (`execute_readonly_delegated_tool`) too.
+  if (isDelegatedWrapperToolName({ name: name }) && result && !result.isError) return null;
 
   if (isTodoWriteToolName({ name: name })) return <TodoCard todos={parseTodoWriteInput({ input: use.input })} runStreaming={isStreaming} />;
   if (name === 'Write' || name === 'write' || name === 'create_file') return <FileWriteCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={fileCtx} />;
@@ -105,7 +108,7 @@ function renderToolCardBody(
   if (name === 'Grep') return <GrepCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
   if (name === 'WebFetch' || name === 'web_fetch') return <WebFetchCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
   if (name === 'WebSearch' || name === 'web_search') return <WebSearchCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
-  if (JINI_TOOL_ID_PATTERN.test(name) || EXECUTE_DELEGATED_TOOL_NAMES.has(name)) {
+  if (JINI_TOOL_ID_PATTERN.test(name) || isDelegatedWrapperToolName({ name: name })) {
     // The unsuppressed (failed-wrapper) case falls through here too: `name` is still
     // `execute_delegated_tool`, so `jiniToolIdFromInput` recovers the real id from
     // `{toolId, input}` instead of `DelegatedToolCard` receiving its own wrapper name as the title.
@@ -155,8 +158,8 @@ function DelegatedToolCard({ name, input, result, runStreaming, runSucceeded }: 
   // Wrapper form (only reached on a failed wrapper call, per ToolCard's suppression comment):
   // the real id and args are nested under {toolId, input}, not `input` itself.
   const wrapper = (input ?? {}) as { toolId?: string; input?: unknown };
-  const toolId = EXECUTE_DELEGATED_TOOL_NAMES.has(name) ? (wrapper.toolId ?? name) : name;
-  const args = EXECUTE_DELEGATED_TOOL_NAMES.has(name) ? wrapper.input : input;
+  const toolId = isDelegatedWrapperToolName({ name: name }) ? (wrapper.toolId ?? name) : name;
+  const args = isDelegatedWrapperToolName({ name: name }) ? wrapper.input : input;
   const target = primaryTarget(args);
   const isRunning = runStreaming && !result;
   return (

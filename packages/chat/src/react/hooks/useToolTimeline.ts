@@ -3,14 +3,15 @@
  *
  * Per-tool lifecycle rows for a message's events: pairs each `tool_use` with
  * its `tool_result` (deduped by id via `@jini-ai/chat/core`'s
- * `dedupeToolUsesById`), derives a four-state status via
+ * `dedupeToolUsesById`, delegated wrapper calls folded onto their canonical
+ * rows via `foldDelegatedWrapperCalls`), derives a four-state status via
  * `deriveToolStatus`, and tracks per-row expand/collapse UI state. Pure over
  * `AgentEvent[]` — zero I/O. Per
  * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §4.
  */
 import { useCallback, useMemo, useState } from 'react';
 import type { AgentEvent, ToolRenderProps, ToolStatus } from '../../core/index.js';
-import { dedupeToolUsesById, deriveToolStatus } from '../../core/index.js';
+import { dedupeToolUsesById, deriveToolStatus, foldDelegatedWrapperCalls } from '../../core/index.js';
 
 type ToolUseEvent = Extract<AgentEvent, { kind: 'tool_use' }>;
 type ToolResultEvent = Extract<AgentEvent, { kind: 'tool_result' }>;
@@ -45,7 +46,9 @@ export function useToolTimeline({ events }: { events: AgentEvent[] | undefined }
   const { runStreaming = false, runSucceeded = false, defaultExpanded = false } = options;
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
 
-  const deduped = useMemo(() => dedupeToolUsesById({ events: events }), [events]);
+  // A delegated call's wrapper row and the daemon's canonical row have different ids, so dedupe
+  // alone leaves both; the fold keeps the canonical one (see `foldDelegatedWrapperCalls`).
+  const deduped = useMemo(() => foldDelegatedWrapperCalls({ events: dedupeToolUsesById({ events: events }) }), [events]);
 
   const rows = useMemo<ToolTimelineRow[]>(() => {
     const out: ToolTimelineRow[] = [];

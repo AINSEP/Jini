@@ -550,6 +550,26 @@ describe('ToolCard', () => {
       expect(container.firstChild).toBeNull();
     });
 
+    it('also suppresses the read-only wrapper (execute_readonly_delegated_tool) on success', () => {
+      const { container } = render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 'w1c', name: 'mcp__jini__execute_readonly_delegated_tool', input: { toolId: 'content_stats', input: {} } }}
+          result={{ kind: 'tool_result', toolUseId: 'w1c', content: 'ok', isError: false }}
+        />,
+      );
+      expect(container.firstChild).toBeNull();
+    });
+
+    it('titles a failed read-only wrapper after its real tool id', () => {
+      render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 'w1d', name: 'execute_readonly_delegated_tool', input: { toolId: 'page.read', input: {} } }}
+          result={{ kind: 'tool_result', toolUseId: 'w1d', content: 'daemon 403', isError: true }}
+        />,
+      );
+      expect(screen.getByText('Page Read', { exact: false })).toBeInTheDocument();
+    });
+
     it('does NOT suppress a failed wrapper call — it has no canonical row to fall back on, so hiding it would hide a real error', () => {
       render(
         <ToolCard
