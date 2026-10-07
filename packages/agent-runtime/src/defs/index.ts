@@ -19,7 +19,6 @@ export * from './copilot.js';
 export * from './crush.js';
 export * from './cursor-agent.js';
 export * from './droid.js';
-export * from './gemini.js';
 export * from './deepseek.js';
 export * from './devin.js';
 export * from './goose.js';

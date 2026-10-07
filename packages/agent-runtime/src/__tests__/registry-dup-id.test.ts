@@ -23,7 +23,6 @@ vi.mock('../defs/index.js', () => ({
   deepseekAgentDef: { id: 'deepseek', name: 'DeepSeek' },
   devinAgentDef: { id: 'devin', name: 'Devin' },
   droidAgentDef: { id: 'droid', name: 'Droid' },
-  geminiAgentDef: { id: 'gemini', name: 'Gemini' },
   gooseAgentDef: { id: 'goose', name: 'goose' },
   grokBuildAgentDef: { id: 'grok-build', name: 'Grok' },
   hermesAgentDef: { id: 'hermes', name: 'Hermes' },
