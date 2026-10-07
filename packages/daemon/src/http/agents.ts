@@ -17,10 +17,13 @@
 import type { Express } from 'express';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
 import { ok } from '@jini-ai/http-kit';
+import type { ModelCatalogSnapshot, DefaultModelResolution, ModelIdentityKind } from '@jini-ai/agent-runtime';
 
 export interface AgentModelSummary {
   readonly id: string;
   readonly label: string;
+  readonly identityKind?: ModelIdentityKind;
+  readonly resolvedId?: string;
 }
 
 /**
@@ -37,7 +40,10 @@ export interface AgentSummary {
   readonly models?: readonly AgentModelSummary[];
   readonly reasoningOptions?: readonly AgentModelSummary[];
   readonly modelsSource?: 'live' | 'fallback';
+  readonly modelCatalog?: ModelCatalogSnapshot;
+  readonly defaultModelResolution?: DefaultModelResolution;
   readonly supportsCustomModel?: boolean;
+  readonly supportsConcreteModelSelection?: boolean;
   readonly diagnostic?: string;
   /**
    * Whether this runtime can receive external MCP servers (the host application's or this engine's
@@ -62,10 +68,15 @@ export interface AgentListResponse {
 }
 
 /** `GET /api/agents` — read-only, no side effects; matches `runListRoute`/`runStatusRoute`'s posture of not requiring same-origin. */
-export const agentListRoute = defineJsonRoute<void, AgentListResponse, AgentsHttpDeps>({ method: 'get', path: '/api/agents', parse: () => ok({ value: undefined }), handle: async ({ input: _input, deps }) => ok({ value: { agents: await deps.listAgents() } }) });
+export const agentListRoute = defineJsonRoute<void, AgentListResponse, AgentsHttpDeps>({ method: 'get', path: '/api/agents', parse: () => ok({ value: undefined }), handle: async ({ input: _input, deps }) => ok({ value: { agents: activeAgents(await deps.listAgents()) } }) });
 
 /** `POST /api/agents/rescan` — explicit state refresh, protected by the local same-origin gate. */
-export const agentRescanRoute = defineJsonRoute<void, AgentListResponse, AgentsHttpDeps>({ method: 'post', path: '/api/agents/rescan', parse: () => ok({ value: undefined }), handle: async ({ input: _input, deps }) => ok({ value: { agents: await (deps.rescanAgents ?? deps.listAgents)() } }) }, { requireSameOrigin: true });
+export const agentRescanRoute = defineJsonRoute<void, AgentListResponse, AgentsHttpDeps>({ method: 'post', path: '/api/agents/rescan', parse: () => ok({ value: undefined }), handle: async ({ input: _input, deps }) => ok({ value: { agents: activeAgents(await (deps.rescanAgents ?? deps.listAgents)()) } }) }, { requireSameOrigin: true });
+
+/** Retired CLI inventories can survive in a host cache; never advertise them over this route. */
+function activeAgents(agents: readonly AgentSummary[]): readonly AgentSummary[] {
+  return agents.filter((agent) => agent.id !== 'gemini');
+}
 
 /** Mounts the read and explicit-rescan agent discovery routes. */
 export function registerAgentRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: AgentsHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {

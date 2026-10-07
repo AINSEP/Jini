@@ -1,3 +1,4 @@
+import { fixtureModelDiscovery, fixtureLaunchModel } from './model-discovery-fixture.js';
 import { EventEmitter } from 'node:events';
 import os from 'node:os';
 import path from 'node:path';
@@ -167,6 +168,7 @@ function flushAsync(): Promise<void> {
 
 function createFakeDef(overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {
   return {
+    ...fixtureModelDiscovery,
     id: 'fake-agent',
     name: 'Fake Agent',
     bin: 'fake-bin',
@@ -254,7 +256,7 @@ function createHarness(options: HarnessOptions = {}): Harness {
 
   const onCleanupFailure = vi.fn();
 
-  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: ({ id }) => (def && def.id === id ? def : null), resolveAgentLaunch: () =>
+  const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def && def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: launchPath,
         pathResolvedPath: launchPath,
@@ -288,10 +290,28 @@ function createHarness(options: HarnessOptions = {}): Harness {
   return { lifecycle, executor, child, spawnCalls, stopProcessesCalls, onCleanupFailure };
 }
 
-async function collectEvents(lifecycle: RunLifecycle, runId: string): Promise<RunProtocolEvent[]> {
+/** Executor-synthesized model receipts (see `model-receipts.ts`), not translations of child output. */
+const MODEL_RECEIPT_LABELS: ReadonlySet<string> = new Set(['starting_model', 'model_switch', 'observed_model']);
+
+function isModelReceipt(event: RunProtocolEvent): boolean {
+  const payload = event.payload as { type?: unknown; label?: unknown } | null;
+  return event.kind === 'agent' && payload?.type === 'status' && typeof payload.label === 'string' && MODEL_RECEIPT_LABELS.has(payload.label);
+}
+
+async function collectRawEvents(lifecycle: RunLifecycle, runId: string): Promise<RunProtocolEvent[]> {
   const events: RunProtocolEvent[] = [];
   await lifecycle.stream({ runId: runId, onEvent: (event) => events.push(event) });
   return events;
+}
+
+/**
+ * Every run now opens with a `starting_model` receipt and may add `model_switch` receipts. The
+ * transport tests in this file assert exact sequences of TRANSLATED child output, so they read the
+ * log without those receipts; the receipts themselves are pinned by the "model receipts" describe
+ * below via {@link collectRawEvents}.
+ */
+async function collectEvents(lifecycle: RunLifecycle, runId: string): Promise<RunProtocolEvent[]> {
+  return (await collectRawEvents(lifecycle, runId)).filter((event) => !isModelReceipt(event));
 }
 
 function agentPayloadTypes(events: RunProtocolEvent[]): string[] {
@@ -373,6 +393,8 @@ describe('AgentExecutor — successful run end-to-end', () => {
     );
   });
 
+  // With no caller model, the executor now pins the concrete default it resolved for this launch
+  // (`fixtureLaunchModel` resolves 'fixture-model'), so buildArgs always receives a model.
   it('forwards permissionMode to buildArgs even when model/reasoning are both absent', async () => {
     const buildArgs = vi.fn(() => ['--flag']);
     const { lifecycle, executor } = createHarness({ def: createFakeDef({ buildArgs }) });
@@ -382,7 +404,7 @@ describe('AgentExecutor — successful run end-to-end', () => {
     await flushAsync();
     await runPromise;
 
-    expect(buildArgs).toHaveBeenCalledWith({ prompt: 'do the thing', imagePaths: [] }, { extraAllowedDirs: undefined, options: { permissionMode: 'restricted' }, runtimeContext: undefined });
+    expect(buildArgs).toHaveBeenCalledWith({ prompt: 'do the thing', imagePaths: [] }, { extraAllowedDirs: undefined, options: { permissionMode: 'restricted', model: 'fixture-model' }, runtimeContext: undefined });
   });
 
   it('supplies restricted permission when model, reasoning, and permissionMode are all absent', async () => {
@@ -394,7 +416,7 @@ describe('AgentExecutor — successful run end-to-end', () => {
     await flushAsync();
     await runPromise;
 
-    expect(buildArgs).toHaveBeenCalledWith({ prompt: 'do the thing', imagePaths: [] }, { extraAllowedDirs: undefined, options: { permissionMode: 'restricted' }, runtimeContext: undefined });
+    expect(buildArgs).toHaveBeenCalledWith({ prompt: 'do the thing', imagePaths: [] }, { extraAllowedDirs: undefined, options: { permissionMode: 'restricted', model: 'fixture-model' }, runtimeContext: undefined });
   });
 
   it('forwards a host-supplied resumeSessionId into runtimeContext even when nothing else is staged', async () => {
@@ -406,7 +428,7 @@ describe('AgentExecutor — successful run end-to-end', () => {
     await flushAsync();
     await runPromise;
 
-    expect(buildArgs).toHaveBeenCalledWith({ prompt: 'do the thing', imagePaths: [] }, { extraAllowedDirs: undefined, options: { permissionMode: 'restricted' }, runtimeContext: { resumeSessionId: 'sess-from-prior-turn' } });
+    expect(buildArgs).toHaveBeenCalledWith({ prompt: 'do the thing', imagePaths: [] }, { extraAllowedDirs: undefined, options: { permissionMode: 'restricted', model: 'fixture-model' }, runtimeContext: { resumeSessionId: 'sess-from-prior-turn' } });
   });
 
   it('forwards a host-minted newSessionId into runtimeContext even when nothing else is staged', async () => {
@@ -418,7 +440,7 @@ describe('AgentExecutor — successful run end-to-end', () => {
     await flushAsync();
     await runPromise;
 
-    expect(buildArgs).toHaveBeenCalledWith({ prompt: 'do the thing', imagePaths: [] }, { extraAllowedDirs: undefined, options: { permissionMode: 'restricted' }, runtimeContext: { newSessionId: 'freshly-minted-id' } });
+    expect(buildArgs).toHaveBeenCalledWith({ prompt: 'do the thing', imagePaths: [] }, { extraAllowedDirs: undefined, options: { permissionMode: 'restricted', model: 'fixture-model' }, runtimeContext: { newSessionId: 'freshly-minted-id' } });
   });
 });
 
@@ -456,7 +478,7 @@ describe('AgentExecutor — image prompt delivery (MSG-4: prompt-path defs)', ()
     await flushAsync();
     await runPromise;
 
-    expect(buildArgs).toHaveBeenCalledWith({ prompt: 'do the thing', imagePaths: [] }, { extraAllowedDirs: undefined, options: { permissionMode: 'restricted' }, runtimeContext: undefined });
+    expect(buildArgs).toHaveBeenCalledWith({ prompt: 'do the thing', imagePaths: [] }, { extraAllowedDirs: undefined, options: { permissionMode: 'restricted', model: 'fixture-model' }, runtimeContext: undefined });
     expect(child.stdin!.writes).toEqual(['do the thing']);
   });
 
@@ -488,7 +510,7 @@ describe('AgentExecutor — image prompt delivery (MSG-4: prompt-path defs)', ()
 
     expect(buildArgs).toHaveBeenCalledWith(
       /*  unaugmented  unwidened */
-{ prompt: 'describe this', imagePaths: ['/uploads/reference.png'] }, { extraAllowedDirs: undefined, options: { permissionMode: 'restricted' }, runtimeContext: undefined },
+{ prompt: 'describe this', imagePaths: ['/uploads/reference.png'] }, { extraAllowedDirs: undefined, options: { permissionMode: 'restricted', model: 'fixture-model' }, runtimeContext: undefined },
     );
     expect(child.stdin!.writes).toEqual(['describe this']);
   });
@@ -937,7 +959,7 @@ describe('AgentExecutor — cancellation', () => {
       return child as unknown as ChildProcess;
     }) as unknown as typeof nodeSpawn;
     const def = createFakeDef();
-    const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => def, resolveAgentLaunch: () =>
+    const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: () => def, resolveAgentLaunch: () =>
         ({
           selectedPath: '/fake/bin',
           pathResolvedPath: '/fake/bin',
@@ -1047,7 +1069,7 @@ describe('createAgentExecutor — real default collaborators', () => {
         throw new Error('sensitive-path/should-be-redacted rpc init rejected');
       }) as unknown as typeof attachPiRpcSession;
 
-      const executor = createAgentExecutor({ lifecycle }, { getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+      const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
           ({
             selectedPath: '/fake/pi-bin',
             pathResolvedPath: '/fake/pi-bin',
@@ -1092,7 +1114,7 @@ describe('createAgentExecutor — real default collaborators', () => {
         return child as unknown as ChildProcess;
       }) as unknown as typeof nodeSpawn;
 
-      const executor = createAgentExecutor({ lifecycle }, { getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+      const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
           ({
             selectedPath: '/fake/claude-bin',
             pathResolvedPath: '/fake/claude-bin',
@@ -1145,7 +1167,7 @@ describe('createAgentExecutor — real default collaborators', () => {
         return child as unknown as ChildProcess;
       }) as unknown as typeof nodeSpawn;
 
-      const executor = createAgentExecutor({ lifecycle }, { getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+      const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
           ({
             selectedPath: '/fake/claude-bin',
             pathResolvedPath: '/fake/claude-bin',
@@ -1189,7 +1211,7 @@ describe('createAgentExecutor — real default collaborators', () => {
       return child as unknown as ChildProcess;
     }) as unknown as typeof nodeSpawn;
 
-    const executor = createAgentExecutor({ lifecycle }, { getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+    const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
         ({
           selectedPath: '/fake/bin',
           pathResolvedPath: '/fake/bin',
@@ -1509,7 +1531,7 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
     return controller;
   }) as unknown as typeof attachAcpSession;
 
-  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+  const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: '/fake/acp-bin',
         pathResolvedPath: '/fake/acp-bin',
@@ -1903,7 +1925,7 @@ function createPiRpcHarness(options: PiRpcHarnessOptions = {}): PiRpcHarness {
     return session;
   }) as unknown as typeof attachPiRpcSession;
 
-  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+  const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: '/fake/pi-bin',
         pathResolvedPath: '/fake/pi-bin',
@@ -3177,7 +3199,8 @@ describe('AgentExecutor — runtimeLock (a def-declared process-global buildArgs
     await lifecycle.waitForTerminal({ runId: run.id });
   });
 
-  it('passes model: undefined to acquire when the caller selected no model', async () => {
+  // The executor pins the resolved concrete default before buildArgs, so the lock sees that id.
+  it('passes the pinned concrete default to acquire when the caller selected no model', async () => {
     const recording = createRecordingLock();
     const stager = createFakeLogFileStager();
     const def = createLockedDef(recording.lock);
@@ -3185,7 +3208,7 @@ describe('AgentExecutor — runtimeLock (a def-declared process-global buildArgs
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
 
     await executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' });
-    expect(recording.seen.acquire).toEqual({ model: undefined });
+    expect(recording.seen.acquire).toEqual({ model: 'fixture-model' });
 
     child.emit('exit', 0, null);
     child.emit('close', 0, null);
@@ -6233,10 +6256,11 @@ describe('isAgentExecutorSupported / assessAgentExecutorCompatibility', () => {
   // All 30 registered defs are now driveable. A def added later that this
   // driver cannot actually run should fail *here*, at the point someone can
   // still decide what to do about it, rather than at a user's first run.
-  it('accepts every one of the 30 registered defs', () => {
+  // 29 since Gemini CLI was retired on 2026-10-06 (Antigravity is the Google CLI path).
+  it('accepts every one of the 29 registered defs', () => {
     const rejected = AGENT_DEFS.filter((def) => !isAgentExecutorSupported({ def: def })).map((def) => def.id);
     expect(rejected).toEqual([]);
-    expect(AGENT_DEFS).toHaveLength(30);
+    expect(AGENT_DEFS).toHaveLength(29);
   });
 
   // The three new fields must stay opt-in: exactly one def declares them, and
@@ -6398,7 +6422,7 @@ async function probeOverlayDelivery(
     return child as unknown as ChildProcess;
   }) as unknown as typeof nodeSpawn;
 
-  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+  const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: '/fake/bin',
         pathResolvedPath: '/fake/bin',
@@ -6787,5 +6811,29 @@ describe('AgentExecutor — a run whose jini MCP bridge did not connect fails lo
 
     expect((await lifecycle.waitForTerminal({ runId: runId })).state).toBe('succeeded');
     expect(stopProcessesCalls).toEqual([]);
+  });
+});
+
+describe('AgentExecutor — model receipts', () => {
+  const claudeDef = (): RuntimeAgentDef =>
+    createFakeDef({ id: 'claude', streamFormat: 'claude-stream-json', promptInputFormat: 'stream-json' });
+
+  it('opens the run with a starting_model receipt for the pinned default, then records a switch reported by structured CLI metadata', async () => {
+    const { lifecycle, executor, child } = createHarness({ def: claudeDef() });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-model-receipts' });
+    await executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: '/work' });
+
+    child.stdout.emit('data', `${JSON.stringify({ type: 'system', subtype: 'init', session_id: 'sess-1', model: 'claude-opus-5-5', tools: [] })}\n`);
+    await flushAsync();
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
+
+    const raw = await collectRawEvents(lifecycle, run.id);
+    // The receipt precedes every translated agent event, so a UI can name the model before output.
+    expect(raw.find((event) => event.kind === 'agent')?.payload).toEqual({ type: 'status', label: 'starting_model', model: 'fixture-model' });
+    expect(raw.filter(isModelReceipt).map((event) => event.payload)).toEqual([
+      { type: 'status', label: 'starting_model', model: 'fixture-model' },
+      { type: 'status', label: 'model_switch', model: 'claude-opus-5-5', previousModel: 'fixture-model', detail: 'Previous model: fixture-model' },
+    ]);
   });
 });

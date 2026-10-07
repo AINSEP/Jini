@@ -15,6 +15,7 @@ import {
   agentCapabilities,
   applyAgentLaunchEnv,
   ensureAgentCapabilities,
+  resolveModelForLaunch,
   getAgentDef,
   resolveAgentLaunch,
   attachAcpSession,
@@ -828,7 +829,7 @@ export async function confirmChildSpawned({ input, deps }: { readonly input: { r
  * @complexity `run()`'s own setup is O(1); steady-state cost is the chosen stream parser's.
  * @overallScore 100/100
  */
-export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "getAgentDef" | "resolveAgentLaunch" | "ensureAgentCapabilities" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
+export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
   const options: CreateAgentExecutorOptions = { ...requiredArgs, ...optionalArgs };
   const lifecycle = options.lifecycle;
   const {
@@ -893,7 +894,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
    * @overallScore 100/100
    */
   async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "model" | "reasoning" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings"> = {}): Promise<void> {
-  const input: AgentExecutorRunInput = { ...requiredArgs, ...optionalArgs, permissionMode: optionalArgs.permissionMode ?? 'restricted' };
+  const input: { -readonly [K in keyof AgentExecutorRunInput]: AgentExecutorRunInput[K] } = { ...requiredArgs, ...optionalArgs, permissionMode: optionalArgs.permissionMode ?? 'restricted' };
     if (input.permissionMode !== 'restricted' && input.permissionMode !== 'bypass') {
       return failBeforeSpawn({ runId: input.runId, code: 'AGENT_PERMISSION_MODE_INVALID', message: 'AgentExecutor: permissionMode must be restricted or bypass' });
     }
@@ -954,6 +955,20 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     );
 
     const spawnEnv = applyAgentLaunchEnvFn({ env: { ...resolvedEnv }, launch });
+    // Resolve from the launch environment before staging or sending any prompt. Pin the same
+    // concrete ID that the picker displays; an opaque native route cannot silently start a run.
+    try {
+      const selection = await (options.resolveModelForLaunch ?? resolveModelForLaunch)({ def, context: {
+        executable: launch.launchPath, cwd: input.cwd, env: spawnEnv,
+        ...(input.model && input.model !== 'default' ? { model: input.model } : {}),
+        ...(input.resumeSessionId ? { resumeSessionId: input.resumeSessionId } : {}),
+        ...(input.settingSources ? { settingSources: input.settingSources } : {}),
+        ...(input.settings ? { settings: input.settings } : {}),
+      } });
+      input.model = selection.model;
+    } catch {
+      return failBeforeSpawn({ runId: input.runId, code: 'AGENT_MODEL_UNRESOLVED', message: 'AgentExecutor: pick a concrete model; the starting model could not be resolved for this launch.' });
+    }
     // Fill the def's `--help` capability gate before `buildArgs` reads it. Without this, only a
     // host that happened to call `detectAgents` in THIS process ever had the gate filled, so e.g.
     // `claude` never got `--include-partial-messages` (no streamed text). Probes once per binary;
@@ -1169,6 +1184,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     const formatForStdin = { streamFormat };
     const stdinHandle = isStdinDrivenFormat(formatForStdin)
       ? wireChildLifecycle({
+          startingModel: input.model!,
           runId: input.runId,
           def,
           streamFormat: formatForStdin.streamFormat,

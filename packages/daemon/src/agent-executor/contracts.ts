@@ -13,6 +13,7 @@ import {
 import {
   type applyAgentLaunchEnv,
   type ensureAgentCapabilities,
+  type resolveModelForLaunch,
   type getAgentDef,
   type resolveAgentLaunch,
   type attachAcpSession,
@@ -125,6 +126,7 @@ export type AgentRuntimeEventTranslation =
 
 /** Machine-readable failure reasons `run()` can reject with — every one is preceded by a `lifecycle.finish({status:'failed'})` call (see index.ts module doc's Invariant section). */
 export type AgentExecutorErrorCode =
+  | 'AGENT_MODEL_UNRESOLVED'
   | 'AGENT_PERMISSION_MODE_INVALID'
   | 'AGENT_NOT_FOUND'
   | 'AGENT_RUNTIME_UNSUPPORTED'
@@ -557,6 +559,8 @@ export type ClassifyFailure = (context: FailureClassificationContext) => boolean
 
 export interface CreateAgentExecutorOptions {
   readonly lifecycle: RunLifecycle;
+  /** Resolves/pins the concrete starting model against the actual launch scope. */
+  readonly resolveModelForLaunch?: typeof resolveModelForLaunch;
   /** @default the real `@jini-ai/agent-runtime` registry lookup */
   readonly getAgentDef?: typeof getAgentDef;
   /** @default the real `@jini-ai/agent-runtime` launch resolver */

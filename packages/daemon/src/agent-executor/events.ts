@@ -1,3 +1,4 @@
+import { createModelReceiptTracker } from './model-receipts.js';
 import { messageContentWithImages } from '../attachment-content.js';
 import {
   type ChildProcess,
@@ -296,6 +297,7 @@ function bufferedStdoutTruncationNotice(droppedBytes: number, maxBytes: number):
 }
 
 interface WireChildLifecycleContext extends TerminateChildTreeDeps {
+  readonly startingModel?: string;
   readonly runId: string;
   readonly def: RuntimeAgentDef;
   readonly streamFormat: ChildDrivenStreamFormat;
@@ -391,6 +393,7 @@ interface WireChildLifecycleContext extends TerminateChildTreeDeps {
  */
 export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
   const { runId, def, streamFormat, child, lifecycle, journal, continuation, classifyFailure } = ctx;
+  const modelReceipt = createModelReceiptTracker(ctx.startingModel);
   let stdinClosed = false;
   let cancelRequested = false;
   let emitQueue: Promise<void> = Promise.resolve();
@@ -437,6 +440,8 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
       }
     });
   }
+
+  if (ctx.startingModel) enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'status', label: 'starting_model', model: ctx.startingModel! } } }));
 
   function closeStdinOnce(): void {
     if (stdinClosed) return;
@@ -530,6 +535,8 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
           if (bridgeUnavailable) return;
           const translation = translateAgentRuntimeEvent({ rawEvent: rawEvent });
           if (translation.kind === 'agent') {
+            const receipt = modelReceipt(translation.payload);
+            if (receipt) enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data: receipt } }));
             if (translation.sessionId !== undefined) capturedSessionId = translation.sessionId;
             if (!bridgeChecked && translation.payload.type === 'status' && translation.payload.label === 'initializing') {
               bridgeChecked = true;
@@ -738,6 +745,7 @@ interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
  * success.
  */
 function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
+  const modelReceipt = createModelReceiptTracker(ctx.model);
   const { runId, agentId, child, lifecycle, journal, classifyFailure } = ctx;
   let cancelRequested = false;
   let emitQueue: Promise<void> = Promise.resolve();
@@ -757,6 +765,8 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
       }
     });
   }
+
+  if (ctx.model) enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'status', label: 'starting_model', model: ctx.model! } } }));
 
   child.stdout?.on('data', (chunk: Buffer | string) => {
     const text = chunk.toString('utf8');
@@ -803,6 +813,8 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
       if (event === 'agent') {
         const translation = translateAgentRuntimeEvent({ rawEvent: payload });
         if (translation.kind === 'agent') {
+            const receipt = modelReceipt(translation.payload);
+            if (receipt) enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data: receipt } }));
           applyAgentTranslationSideEffects({ payload: translation.payload, sessionId: translation.sessionId, sink: {
             onSessionId: ({ sessionId }) => { capturedSessionId = sessionId; },
             onToolCall: () => { toolCallSeen = true; },
@@ -865,6 +877,7 @@ interface WirePiRpcLifecycleContext extends TerminateChildTreeDeps {
  * multi-turn tool continuation, resumable session ids, etc.).
  */
 function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
+  const modelReceipt = createModelReceiptTracker(ctx.model);
   const { runId, agentId, child, lifecycle, journal, classifyFailure } = ctx;
   let cancelRequested = false;
   let emitQueue: Promise<void> = Promise.resolve();
@@ -884,6 +897,8 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
       }
     });
   }
+
+  if (ctx.model) enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'status', label: 'starting_model', model: ctx.model! } } }));
 
   child.stdout?.on('data', (chunk: Buffer | string) => {
     const text = chunk.toString('utf8');
@@ -929,6 +944,8 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
   session = ctx.attachPiRpcSession({ child: ctx.child, prompt: ctx.prompt, send({ payload }) {
       const translation = translateAgentRuntimeEvent({ rawEvent: payload });
       if (translation.kind === 'agent') {
+            const receipt = modelReceipt(translation.payload);
+            if (receipt) enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data: receipt } }));
         if (translation.sessionId !== undefined) capturedSessionId = translation.sessionId;
         if (translation.payload.type === 'tool_use') {
           toolCallSeen = true;

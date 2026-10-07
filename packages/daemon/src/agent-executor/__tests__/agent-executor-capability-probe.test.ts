@@ -1,3 +1,4 @@
+import { fixtureModelDiscovery } from './model-discovery-fixture.js';
 import type { ChildProcess, spawn as nodeSpawn } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import { agentCapabilities, type AgentLaunchResolution, type RuntimeAgentDef } from '@jini-ai/agent-runtime';
@@ -16,6 +17,7 @@ describe('AgentExecutor — probes the def\'s --help capabilities before buildAr
     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const probeCalls: Array<{ id: string; launchPath: string; hasEnv: boolean }> = [];
     const def: RuntimeAgentDef = {
+      ...fixtureModelDiscovery,
       id: 'probe-agent',
       name: 'Probe Agent',
       bin: 'probe-bin',

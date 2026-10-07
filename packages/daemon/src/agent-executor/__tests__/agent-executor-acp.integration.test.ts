@@ -1,3 +1,4 @@
+import { fixtureModelDiscovery } from './model-discovery-fixture.js';
 import { describe, expect, it, vi } from 'vitest';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle, type RunLifecycle } from '../../run-lifecycle.js';
@@ -15,6 +16,7 @@ import type { RunAgentPayload, RunProtocolEvent } from '@jini-ai/protocol';
 const ACP_FIXTURE = String.raw`
 let buffered = '';
 let receivedMcpServers = null;
+let promptRequestId = null;
 function send(frame) { process.stdout.write(JSON.stringify(frame) + '\n'); }
 function handle(frame) {
   if (frame.method === 'initialize') {
@@ -26,7 +28,13 @@ function handle(frame) {
     send({ jsonrpc: '2.0', id: frame.id, result: { sessionId: 'fixture-session' } });
     return;
   }
+  // The executor pins a concrete starting model on every run; a conforming ACP agent answers.
+  if (frame.method === 'session/set_model') {
+    send({ jsonrpc: '2.0', id: frame.id, result: {} });
+    return;
+  }
   if (frame.method === 'session/prompt') {
+    promptRequestId = frame.id;
     send({
       jsonrpc: '2.0',
       id: 91,
@@ -58,7 +66,8 @@ function handle(frame) {
         params: { update: { sessionUpdate: 'agent_message_chunk', text: ' MCP:' + JSON.stringify(receivedMcpServers) } }
       });
     }
-    send({ jsonrpc: '2.0', id: 3, result: {} });
+    // Answer the prompt by its own id: a pinned model adds a set_model request before it.
+    send({ jsonrpc: '2.0', id: promptRequestId, result: {} });
   }
 }
 process.stdin.setEncoding('utf8');
@@ -77,6 +86,7 @@ process.stdin.on('end', () => process.exit(0));
 
 function fixtureDef(overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {
   return {
+    ...fixtureModelDiscovery,
     id: 'acp-fixture',
     name: 'ACP Fixture',
     bin: process.execPath,
