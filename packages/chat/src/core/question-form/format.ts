@@ -7,6 +7,8 @@
  * single-file `question-form.ts`; see `../question-form.ts` for the public
  * facade.
  */
+import { redactQuestionAnswers, isSecretQuestion } from './secret-answers.js';
+import { CREDENTIAL_CARD_GUIDANCE, redactUserText } from '../user-text-redaction.js';
 import type { FormOption, QuestionForm } from './types.js';
 
 /**
@@ -17,10 +19,11 @@ import type { FormOption, QuestionForm } from './types.js';
  * @complexity O(q) in the number of questions on the form.
  */
 export function formatFormAnswers({ form, answers }: { form: QuestionForm; answers: Record<string, string | string[]> }): string {
+  const safe = redactQuestionAnswers({ form, answers });
   const lines: string[] = [];
   lines.push(`[form answers — ${form.id}]`);
   for (const q of form.questions) {
-    const v = answers[q.id];
+    const v = safe.answers[q.id];
     let display: string;
     if (Array.isArray(v)) {
       display = v.length > 0 ? v.map((value) => formOptionDisplayForValue(q, value)).join(', ') : '(skipped)';
@@ -31,7 +34,8 @@ export function formatFormAnswers({ form, answers }: { form: QuestionForm; answe
     }
     lines.push(`- ${q.label}: ${display}`);
   }
-  return lines.join('\n');
+  if (safe.secretRedacted || form.questions.some(question => isSecretQuestion({ question }))) lines.push(CREDENTIAL_CARD_GUIDANCE);
+  return redactUserText({ text: lines.join('\n') }).text;
 }
 
 function formOptionDisplayForValue(question: { options?: FormOption[] | undefined }, value: string): string {

@@ -100,10 +100,53 @@ describe('renderTextInput', () => {
     expect(input.hasAttribute('autocomplete')).toBe(false);
   });
 
-  it('ignores multiline for a secret field — there is no masked textarea', () => {
-    const doc = parse(renderTextInput({ name: 'p', label: 'P', secret: true, multiline: true }));
-    expect(doc.querySelector('textarea')).toBeNull();
-    expect(doc.querySelector('input')?.type).toBe('password');
+  it('masks a secret textarea while retaining multiline, assistance settings and a non-submit reveal button', () => {
+    const doc = parse(renderTextInput({
+      name: 'p', label: 'P', secret: true, multiline: true, rows: 7, required: true, disabled: true, hint: 'Paste all lines',
+    }));
+    expect(doc.querySelector('input')).toBeNull();
+    const textarea = doc.querySelector('textarea')!;
+    expect(textarea.value).toBe('');
+    expect(textarea.rows).toBe(7);
+    expect(textarea.required).toBe(true);
+    expect(textarea.disabled).toBe(true);
+    expect(textarea.getAttribute('aria-describedby')).toBe('mcpui-field-p-hint');
+    expect(textarea.getAttribute('style')).toBe('-webkit-text-security: disc;');
+    expect(textarea.getAttribute('autocomplete')).toBe('off');
+    expect(textarea.getAttribute('spellcheck')).toBe('false');
+    const button = doc.querySelector('button')!;
+    expect(button.type).toBe('button');
+    expect(button.disabled).toBe(true);
+    expect(button.textContent).toBe('Show');
+    expect(button.getAttribute('aria-controls')).toBe(textarea.id);
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('rejects a supplied secret before serialization with a fixed error that cannot echo the secret', () => {
+    // Masking was previously only visual: this value was still present in the HTML resource.
+    for (const multiline of [false, true]) {
+      expect(() => renderTextInput({
+        name: 'credential-sentinel-739', label: 'Credential', secret: true, multiline, value: 'credential-sentinel-739',
+      })).toThrowError(new Error('Secret fields cannot have a pre-filled value. Omit value.'));
+    }
+  });
+
+  it('escapes host-provided reveal labels on a standalone secret textarea', () => {
+    const doc = parse(renderTextInput({
+      name: 'p', label: 'P', secret: true, multiline: true, showSecret: '<Afficher>', hideSecret: 'Masquer "clé"',
+    }));
+    const toggle = doc.querySelector('button')!;
+    expect(toggle.textContent).toBe('<Afficher>');
+    expect(toggle.getAttribute('data-mcpui-show-secret')).toBe('<Afficher>');
+    expect(toggle.getAttribute('data-mcpui-hide-secret')).toBe('Masquer "clé"');
+    expect(toggle.children).toHaveLength(0);
+  });
+
+  it('rejects empty or numeric secret prefills even when number takes presentation precedence', () => {
+    for (const value of ['', 0]) {
+      expect(() => renderTextInput({ name: 'p', label: 'P', secret: true, inputType: 'number', value }))
+        .toThrowError(new Error('Secret fields cannot have a pre-filled value. Omit value.'));
+    }
   });
 });
 

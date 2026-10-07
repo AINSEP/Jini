@@ -1,3 +1,4 @@
+import type { UserTextRedactionOptions } from '../../core/user-text-redaction.js';
 /** Sqlite transcript adapter. The host owns the opened, migrated kernel and its lifetime. */
 // Use this owner-bound store for shared databases: legacy/sqlite conversations filter by
 // project_id with no owner predicate and assume a single-user local trust model.
@@ -16,7 +17,7 @@ export type { ChatDatabase, AiChatsTable, AiChatMessagesTable } from '../sql/tab
  */
 export function createSqliteChatStore<DB extends ChatDatabase>(
   required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope },
-  optional: { clock?: Clock } = {},
+  optional: { clock?: Clock } & UserTextRedactionOptions = {},
 ): ChatStore {
   validateKernel({ kernel: required.kernel, transports: ['better-sqlite3'], dialect: 'sqlite' });
   return createSqlChatStore(required, optional);
@@ -34,7 +35,7 @@ export { CHAT_HISTORY_DDL, ensureChatHistoryTables } from './schema.js';
 /** Compatibility wrapper over db's memoized kernel; joins the exact raw-handle kernel context.
  * @example createChatHistoryStore({ db, scope }, { clock: { nowMs: () => 42 } })
  */
-export function createChatHistoryStore({ db, scope }: { db: SqliteConnectionSource; scope: ChatOwnerScope }, optional: { clock?: Clock } = {}): ChatStore {
+export function createChatHistoryStore({ db, scope }: { db: SqliteConnectionSource; scope: ChatOwnerScope }, optional: { clock?: Clock } & UserTextRedactionOptions = {}): ChatStore {
   return createSqliteChatStore({ kernel: sqliteKernel<ChatDatabase>(db), scope }, optional);
 }
 

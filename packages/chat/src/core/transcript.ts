@@ -13,6 +13,7 @@
  * transcript assembly, so they are generalized into caller-supplied hooks
  * (or dropped) below — see archived provenance ledger for the full accounting.
  */
+import { redactUserMessage, type UserTextRedactionOptions } from './user-text-redaction.js';
 import type { ChatMessage } from './messages.js';
 import type { PersistedArtifactFileRef } from './util/strip.js';
 import { summarizeArtifactsForTranscript } from './util/strip.js';
@@ -22,10 +23,10 @@ const DEFAULT_LARGE_TOOL_RESULT_CHARS = 8_000;
 const DEFAULT_HIGH_INPUT_TOKEN_WARNING_THRESHOLD = 200_000;
 
 /** The most recent `user`-authored message's content, or `''` if there isn't one. */
-export function latestUserPromptFromHistory({ history }: { history: ChatMessage[] }): string {
+export function latestUserPromptFromHistory({ history }: { history: ChatMessage[] }, options: UserTextRedactionOptions = {}): string {
   for (let i = history.length - 1; i >= 0; i -= 1) {
     const message = history[i];
-    if (message?.role === 'user') return message.content;
+    if (message?.role === 'user') return redactUserMessage({ message }, options).message.content;
   }
   return '';
 }
@@ -128,7 +129,7 @@ export function sanitizePriorAssistantTurn({ content }: { content: string }, { p
   return sanitized;
 }
 
-export interface BuildTranscriptOptions {
+export interface BuildTranscriptOptions extends UserTextRedactionOptions {
   /**
    * Scope the transcript to messages from this agent's family onward,
    * dropping any older history from a different agent. Omit to include the
@@ -179,7 +180,7 @@ export function buildTranscript({ history }: { history: ChatMessage[] }, options
   const scopedHistory = scopeHistoryToAgent(history, options.targetAgentId, isSameAgentFamily);
   const transcript = scopedHistory
     .map((m) => {
-      const trimmed = m.content.trim();
+      const trimmed = redactUserMessage({ message: m }, options).message.content.trim();
       const sanitized = m.role === 'assistant' ? sanitizePriorAssistantTurn({ content: trimmed }, { persistedArtifactFiles: resolvePersistedArtifactFiles(m) }) : trimmed;
       return `## ${m.role}\n${escapeTranscriptRoleDelimiters(truncateForTranscript(sanitized, maxMessageChars))}`;
     })

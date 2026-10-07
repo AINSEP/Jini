@@ -31,7 +31,7 @@ describe('renderFormDocument credential autofill guard', () => {
       fields: [
         ...SPEC.fields,
         { kind: 'string', name: 'password', label: 'Password', secret: true },
-        { kind: 'string', name: 'apiKey', label: 'API key', secret: true, multiline: true, value: 'x' },
+        { kind: 'string', name: 'apiKey', label: 'API key', secret: true },
       ],
     });
     const { doc } = mountSurface(html);
@@ -43,6 +43,103 @@ describe('renderFormDocument credential autofill guard', () => {
 });
 
 describe('renderFormDocument', () => {
+  it('reveals and re-masks a multiline secret without changing its value or calling a tool', () => {
+    const surface = mountSurface(renderFormDocument({
+      ...SPEC,
+      fields: [{ kind: 'string', name: 'credential', label: 'Credential', secret: true, multiline: true }],
+    }));
+    const textarea = surface.doc.querySelector<HTMLTextAreaElement>('textarea[name="credential"]')!;
+    const toggle = surface.doc.querySelector<HTMLButtonElement>('button[data-mcpui-secret-toggle]')!;
+    const credential = '-----BEGIN KEY-----\n  abc+123==\n\n-----END KEY-----\n';
+    textarea.value = credential;
+    expect(textarea.getAttribute('autocomplete')).toBe('off');
+    expect(textarea.getAttribute('spellcheck')).toBe('false');
+    expect(textarea.getAttribute('style')).toBe('-webkit-text-security: disc;');
+    const click = () => surface.asUser(() => toggle.dispatchEvent(new Event('click', { bubbles: true })));
+
+    click();
+    expect(toggle.textContent).toBe('Hide');
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(textarea.getAttribute('style')).toBe('-webkit-text-security: none;');
+    expect(textarea.value).toBe(credential);
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+    expect(surface.api.requestTeardown).not.toHaveBeenCalled();
+
+    click();
+    expect(toggle.textContent).toBe('Show');
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(textarea.getAttribute('style')).toBe('-webkit-text-security: disc;');
+    expect(textarea.value).toBe(credential);
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+  });
+
+  it('keeps Enter for multiline secret entry and submits every newline and space unchanged', () => {
+    const surface = mountSurface(renderFormDocument({
+      ...SPEC,
+      fields: [{ kind: 'string', name: 'credential', label: 'Credential', secret: true, multiline: true, required: true }],
+      baseParams: {},
+    }));
+    const textarea = surface.doc.querySelector<HTMLTextAreaElement>('textarea[name="credential"]')!;
+    const credential = '\n  first line \n\nsecond line\n';
+    textarea.value = credential;
+    surface.pressEnter(textarea);
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+    surface.submit();
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+    expect(surface.calls[0]?.params).toEqual({ credential });
+    expect(new TextEncoder().encode(surface.calls[0]!.params.credential as string))
+      .toEqual(new TextEncoder().encode(credential));
+  });
+
+  it('uses localized show and hide labels from the form text contract throughout the toggle cycle', () => {
+    const surface = mountSurface(renderFormDocument({
+      ...SPEC,
+      fields: [{ kind: 'string', name: 'credential', label: 'Credential', secret: true, multiline: true }],
+      text: { showSecret: 'Afficher <clé>', hideSecret: 'Masquer "clé"' },
+    }));
+    const toggle = surface.doc.querySelector<HTMLButtonElement>('button[data-mcpui-secret-toggle]')!;
+    const click = () => surface.asUser(() => toggle.dispatchEvent(new Event('click', { bubbles: true })));
+    expect(toggle.textContent).toBe('Afficher <clé>');
+    expect(toggle.children).toHaveLength(0);
+    click();
+    expect(toggle.textContent).toBe('Masquer "clé"');
+    click();
+    expect(toggle.textContent).toBe('Afficher <clé>');
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+  });
+
+  it('preserves clipboard CRLF, CR and LF bytes across repeated pastes and reveal toggles', () => {
+    const surface = mountSurface(renderFormDocument({ ...SPEC, fields: [{ kind: 'string', name: 'credential', label: 'Credential', secret: true, multiline: true }], baseParams: {} }));
+    const textarea = surface.doc.querySelector<HTMLTextAreaElement>('textarea')!;
+    function paste(text: string) {
+      const event = new Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'clipboardData', { value: { getData: (type: string) => type === 'text/plain' ? text : '' } });
+      surface.asUser(() => textarea.dispatchEvent(event));
+    }
+    const credential = '  first\r\nsecond\rthird\n\n';
+    paste(credential);
+    expect(textarea.value).toBe('  first\nsecond\nthird\n\n');
+    textarea.setSelectionRange(8, 14);
+    paste('replacement\r\nline');
+    const expected = '  first\r\nreplacement\r\nline\rthird\n\n';
+    const toggle = surface.doc.querySelector<HTMLButtonElement>('button[data-mcpui-secret-toggle]')!;
+    surface.asUser(() => toggle.dispatchEvent(new Event('click', { bubbles: true })));
+    surface.submit();
+    expect(surface.calls[0]?.params).toEqual({ credential: expected });
+    expect(new TextEncoder().encode(surface.calls[0]!.params.credential as string)).toEqual(new TextEncoder().encode(expected));
+  });
+
+  it('uses the newly edited textarea value instead of an obsolete clipboard snapshot', () => {
+    const surface = mountSurface(renderFormDocument({ ...SPEC, fields: [{ kind: 'string', name: 'credential', label: 'Credential', secret: true, multiline: true }], baseParams: {} }));
+    const textarea = surface.doc.querySelector<HTMLTextAreaElement>('textarea')!;
+    const event = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'clipboardData', { value: { getData: () => 'first\r\nsecond' } });
+    surface.asUser(() => textarea.dispatchEvent(event));
+    textarea.value = 'edited\nvalue';
+    surface.submit();
+    expect(surface.calls[0]?.params).toEqual({ credential: 'edited\nvalue' });
+  });
+
   it('renders one control per field inside a real form', () => {
     const { doc } = mountSurface(renderFormDocument(SPEC));
     const form = doc.querySelector('form')!;
@@ -373,6 +470,34 @@ describe('renderFormDocument', () => {
 });
 
 describe('buildFormSurface', () => {
+  it('refuses a stored secret before creating an HTML resource with an error that never echoes it', () => {
+    for (const multiline of [false, true]) {
+      expect(() => buildFormSurface({
+        ...SPEC,
+        uri: 'ui://example-host/credentials/p1',
+        fields: [{ kind: 'string', name: 'credential-sentinel-739', label: 'Credential', secret: true, multiline, value: 'credential-sentinel-739' }],
+      })).toThrowError(new Error('Secret fields cannot have a pre-filled value. Omit value.'));
+    }
+  });
+
+  it('rejects a hidden secret prefill in base params before emitting the script', () => {
+    expect(() => buildFormSurface({
+      ...SPEC, uri: 'ui://example-host/credentials/p1',
+      fields: [{ kind: 'string', name: 'credential', label: 'Credential', secret: true }],
+      baseParams: { credential: 'credential-sentinel-739' },
+    })).toThrowError(new Error('Secret fields cannot have a pre-filled value. Omit value.'));
+  });
+
+  it('requires secret values to be omitted even when the supplied prefill is empty', () => {
+    for (const multiline of [false, true]) {
+      expect(() => buildFormSurface({
+        ...SPEC,
+        uri: 'ui://example-host/credentials/p1',
+        fields: [{ kind: 'string', name: 'credential', label: 'Credential', secret: true, multiline, value: '' }],
+      })).toThrowError(new Error('Secret fields cannot have a pre-filled value. Omit value.'));
+    }
+  });
+
   it('wraps the document in a ui:// EmbeddedResource', () => {
     const resource = buildFormSurface({ ...SPEC, uri: 'ui://example-host/schedule/p1' });
     expect(resource.resource.uri).toBe('ui://example-host/schedule/p1');

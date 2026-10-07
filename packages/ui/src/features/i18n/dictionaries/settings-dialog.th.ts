@@ -16,6 +16,9 @@ import type { SettingsDialogDict } from './types.js';
 
 
 export const SETTINGS_DIALOG_TH: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "ฉันลบข้อความที่ดูเหมือนคีย์ออกจากข้อความของคุณแล้ว หากเป็นคีย์จริง ให้เปลี่ยนคีย์ใหม่ ใช้แบบฟอร์มที่ปลอดภัยเพื่อบันทึก",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "ใช้แบบฟอร์มที่ปลอดภัยเพื่อบันทึกคีย์ โทเค็น รหัสผ่าน และข้อมูลลับ คำตอบในแชตจะถูกส่งไปยังผู้ช่วย",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# ทักษะของฉัน\n\n1. อธิบายขั้นตอนการทำงาน\n2. อธิบายข้อมูลนำเข้าและผลลัพธ์',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'การกำหนดพาธที่กำหนดเองไม่สำเร็จ จึงใช้ไบนารีที่ตรวจพบโดยอัตโนมัติแทน',
   'API key': 'คีย์ API',

@@ -26,6 +26,7 @@
  * new run: 202 delivered it; 409 means nothing is waiting any more (answered, expired, or never
  * open); anything else is a failure the human can retry. A rejection would collapse the last two.
  */
+import { redactUserText, type UserTextRedactionOptions } from '../../../core/user-text-redaction.js';
 import type { DeliverTypedAnswer, TypedAnswerDelivery } from './types.js';
 
 /**
@@ -36,7 +37,7 @@ import type { DeliverTypedAnswer, TypedAnswerDelivery } from './types.js';
  */
 const TYPED_ANSWER_PARAM = '__typedAnswer';
 
-export interface CreateTypedAnswerPosterOptions {
+export interface CreateTypedAnswerPosterOptions extends UserTextRedactionOptions {
   /** Path appended to `baseUrl`. Defaults to `/api/mcp-ui/tool-calls`, as for `createMcpUiToolCaller`. */
   readonly path?: string;
   /** Abandon a post after this many ms (reported as `'failed'`). Defaults to 30s. */
@@ -73,6 +74,8 @@ export function createTypedAnswerPoster(
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   const deliver = async ({ text }: { text: string }): Promise<TypedAnswerDelivery> => {
+    const result = (options.redactUserText ?? redactUserText)({ text });
+    if (result.secretRedacted) options.onSecretRedacted?.({ secretRedacted: true, count: result.count });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const outcome = await fetch(endpoint, {
@@ -80,7 +83,7 @@ export function createTypedAnswerPoster(
       // Same-origin cookie session: the human's own credentials authorize the answer.
       credentials: 'same-origin',
       headers: { ...options.headers, 'content-type': 'application/json' },
-      body: JSON.stringify({ toolName, params: { [TYPED_ANSWER_PARAM]: text } }),
+      body: JSON.stringify({ toolName, params: { [TYPED_ANSWER_PARAM]: result.text } }),
       signal: controller.signal,
     }).then((response) => deliveryFor(response.status), (): TypedAnswerDelivery => 'failed');
     clearTimeout(timer);

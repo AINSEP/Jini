@@ -16,6 +16,9 @@ import type { SettingsDialogDict } from './types.js';
 
 
 export const SETTINGS_DIALOG_ES: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "He eliminado de tu mensaje lo que parecía una clave. Si era real, cámbiala. Usa el formulario seguro para guardarla.",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "Usa el formulario seguro para guardar claves, tokens, contraseñas y secretos. Las respuestas del chat se envían al asistente.",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# Mi skill\n\n1. Explica el flujo de trabajo.\n2. Describe las entradas y salidas.',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'Una ruta personalizada no funcionó, así que se usó en su lugar el binario detectado automáticamente.',
   'API key': 'Clave de API',

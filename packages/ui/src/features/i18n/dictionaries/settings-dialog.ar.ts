@@ -6,6 +6,9 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_AR: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "أزلت من رسالتك ما بدا كمفتاح. إن كان حقيقيًا، فاستبدله. استخدم النموذج الآمن لحفظه.",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "استخدم النموذج الآمن لحفظ المفاتيح والرموز وكلمات المرور والأسرار. تُرسل إجابات الدردشة إلى المساعد.",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# مهارتي\n\n1. اشرح سير العمل.\n2. صف المدخلات والمخرجات.',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'لم يعمل مسار مخصص بديل، لذلك استُخدم الملف التنفيذي الذي تم اكتشافه تلقائيًا بدلاً منه.',
   'API key': 'مفتاح API',

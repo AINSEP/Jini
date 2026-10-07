@@ -1,3 +1,5 @@
+import type { UserTextRedactionOptions } from '../../../../core/user-text-redaction.js';
+import { useUserTextGuard } from '../../../hooks/useUserTextGuard.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -39,7 +41,7 @@ import {
   type UseChatPaneWorkingDirectoryResult,
 } from './useChatPaneWorkingDirectory.hooks.js';
 
-export interface UseChatPaneOptions {
+export interface UseChatPaneOptions extends UserTextRedactionOptions {
   transport: ChatTransport;
   agents: readonly ChatPaneAgent[];
   initialMessages?: ChatMessage[];
@@ -74,6 +76,8 @@ export interface UseChatPaneOptions {
 }
 
 export interface UseChatPaneResult extends UseChatPaneWorkingDirectoryResult {
+  /** Show a localized non-secret notice when a paste was removed. */
+  secretRedacted: boolean;
   conversation: UseConversationResult;
   composer: UseComposerResult;
   selection: ChatPaneAgentSelection;
@@ -222,6 +226,7 @@ async function uploadAttachmentBatch(
 }
 
 export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
+  const guard = useUserTextGuard(options);
   const [activeUploadCount, setActiveUploadCount] = useState(0);
   const [attachmentError, setAttachmentError] = useState<Error | null>(null);
   const [queuedPrompt, setQueuedPrompt] = useState<string | null>(null);
@@ -272,6 +277,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const selectedAgent = options.agents.find((agent) => agent.id === selection.agentId);
   const conversation = useConversation(definedProps({ source: {
     transport: options.transport,
+    redactUserText: options.redactUserText,
+    onSecretRedacted: guard.notifyRedaction,
     initialMessages: options.initialMessages,
     conversationId: options.conversationId,
     // Keys off an empty string, not `undefined` — `selection.agentId` is always a string (never
@@ -430,7 +437,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   }, [composer, options.conversationId, options.uploadAttachments]);
 
   const sendPrompt = useCallback(async (prompt: string) => {
-    const trimmed = prompt.trim();
+    const trimmed = guard.redactText(prompt.trim());
     if (!trimmed) throw new Error('cannot send: the prompt is empty');
     if (sendBlocker !== null) {
       throw new Error(`cannot send: ${describeChatPaneSendBlocker(sendBlocker)}`);
@@ -458,6 +465,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     composer,
     conversation,
     options.onActivityChange,
+    guard.redactText,
     options.runContext,
     selection,
     sendBlocker,
@@ -467,11 +475,12 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const answerWaitingQuestion = useCallback(async (
     { deliver, text }: { deliver: DeliverTypedAnswer; text: string },
   ) => {
+    const safeText = guard.redactText(text);
     const generation = typedAnswerGenerationRef.current;
     const submittedDraft = latestDraftRef.current;
     const questionId = awaitedQuestionId;
     deliveringTypedAnswerRef.current = true;
-    const outcome = await deliverTypedAnswerSafely({ deliver, text });
+    const outcome = await deliverTypedAnswerSafely({ deliver, text: safeText });
     deliveringTypedAnswerRef.current = false;
     if (!mountedRef.current || generation !== typedAnswerGenerationRef.current) return;
     // Anything but a delivery keeps the draft and says why — never the queue below, whose flush
@@ -485,7 +494,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     // The textarea stays editable during delivery: clear only the text that went out, never a
     // correction or next message typed while the host answered.
     if (latestDraftRef.current === submittedDraft) composer.setDraft('');
-  }, [awaitedQuestionId, composer]);
+  }, [awaitedQuestionId, composer, guard.redactText]);
 
   // The ordinary next-turn path: queue behind a running run, else send now.
   const sendOrdinaryTurn = useCallback(async (prompt: string) => {
@@ -493,13 +502,13 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     // staged attachments, which this turn still needs when it finally goes out.
     if (isChatPaneQueueableBlocker({ blocker: sendBlocker })) {
       queuedConversationIdRef.current = options.conversationId;
-      setQueuedPrompt(prompt);
+      setQueuedPrompt(guard.redactText(prompt));
       composer.setDraft('');
       return;
     }
     if (!canSend) return;
     await sendPrompt(prompt);
-  }, [canSend, composer, options.conversationId, sendBlocker, sendPrompt]);
+  }, [canSend, composer, options.conversationId, sendBlocker, sendPrompt, guard.redactText]);
 
   const send = useCallback(async () => {
     const prompt = composerPrompt(composer);
@@ -547,10 +556,10 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     const prompt = composerPrompt(composer);
     if (!prompt) return;
     queuedConversationIdRef.current = options.conversationId;
-    setQueuedPrompt(prompt);
+    setQueuedPrompt(guard.redactText(prompt));
     composer.setDraft('');
     conversation.cancel();
-  }, [composer, conversation, options.conversationId]);
+  }, [composer, conversation, options.conversationId, guard.redactText]);
 
   const cancelQueued = useCallback(() => {
     queuedConversationIdRef.current = undefined;
@@ -595,6 +604,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   }, [composer, conversation, options.initialMessages]);
 
   return {
+    secretRedacted: guard.secretRedacted,
     conversation,
     composer,
     selection,

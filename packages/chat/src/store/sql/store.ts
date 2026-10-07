@@ -12,6 +12,7 @@
 import { sql, type Kysely } from 'kysely';
 import { createSystemClock, type Clock } from '@jini-ai/core/primitives';
 import { isUniqueViolation, type StorageKernel } from '@jini-ai/db/kernel';
+import { redactUserMessage, type UserTextRedactionOptions } from '../../core/user-text-redaction.js';
 import type { ChatMessage } from '../../core/messages.js';
 import type { ChatConversation, ChatStore, ChatOwnerScope, ChatTitleSource, CreateChatConversationInput, ChatPageOptions, ChatMessagePageInput } from '../ports.js';
 import type { ChatDatabase } from './tables.js';
@@ -115,7 +116,7 @@ function toMessage(row: MessageRow): ChatMessage {
  */
 export function createSqlChatStore<DB extends ChatDatabase>(
   { kernel, scope: inputScope }: { kernel: StorageKernel<DB>; scope: ChatOwnerScope },
-  { clock = createSystemClock() }: { clock?: Clock } = {},
+  { clock = createSystemClock(), ...redactionOptions }: { clock?: Clock } & UserTextRedactionOptions = {},
 ): ChatStore {
   const scope = copyScope({ scope: inputScope });
   const { scopeId, ownerKind, ownerId } = scope;
@@ -351,7 +352,12 @@ export function createSqlChatStore<DB extends ChatDatabase>(
     messages,
 
     async appendMessage({ conversationId, message }: { readonly conversationId: string; readonly message: ChatMessage }, _optional: Record<string, never> = {}) {
-      return writeMessage(conversationId, message);
+      const prepared = redactUserMessage({ message }, { ...(redactionOptions.redactUserText ? { redactUserText: redactionOptions.redactUserText } : {}) });
+      const saved = await writeMessage(conversationId, prepared.message);
+      if (!saved || !prepared.secretRedacted) return saved;
+      const signal = { secretRedacted: true as const, count: prepared.count };
+      redactionOptions.onSecretRedacted?.(signal);
+      return { ...saved, secretRedaction: signal };
     },
 
     async pageConversations(_required: Record<string, never>, options: ChatPageOptions = {}) {

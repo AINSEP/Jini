@@ -40,6 +40,7 @@ import {
 import { renderFieldControl, toFieldReadSpecs, type SurfaceField } from './fields.js';
 import type { BridgeScriptSpec } from './bridge.js';
 import type { SurfaceTokenName } from './tokens.js';
+import { DEFAULT_SECRET_INPUT_TEXT, type SecretInputText } from './text-input.js';
 
 export interface FormSurfaceSpec {
   readonly title: string;
@@ -61,7 +62,7 @@ export interface FormSurfaceSpec {
   readonly baseParams?: Readonly<Record<string, unknown>>;
   /** Omit for a form with no cancel button. Give it a tool name to notify the server of the dismissal. */
   readonly cancel?: { readonly label: string; readonly toolName?: string; readonly params?: Readonly<Record<string, unknown>> };
-  readonly text?: Partial<SurfaceStatusText>;
+  readonly text?: Partial<SurfaceStatusText & SecretInputText>;
   readonly app?: BridgeScriptSpec;
   readonly lang?: string;
   readonly tokens?: Partial<Record<SurfaceTokenName, string>>;
@@ -80,7 +81,14 @@ const FORM_ELEMENT_ID = 'mcpui-form';
  * @complexity O(n) in the number of fields plus the rendered length.
  */
 export function renderFormDocument(spec: FormSurfaceSpec): string {
-  const text = { ...DEFAULT_SURFACE_STATUS_TEXT, ...spec.text };
+  // A base param with a secret field's name would leak the same value through the emitted script,
+  // even though the collected value overrides it at submit time. Reject that hidden prefill too.
+  for (const field of spec.fields) {
+    if (field.kind === 'string' && field.secret === true && spec.baseParams?.[field.name] !== undefined) {
+      throw new Error('Secret fields cannot have a pre-filled value. Omit value.');
+    }
+  }
+  const text = { ...DEFAULT_SURFACE_STATUS_TEXT, ...DEFAULT_SECRET_INPUT_TEXT, ...spec.text };
   // Not `type: 'submit'` — see the runtime script below for why a submit-typed button inside this
   // particular `<form>` cannot work at all in production.
   const actions: SurfaceAction[] = [
@@ -88,7 +96,9 @@ export function renderFormDocument(spec: FormSurfaceSpec): string {
   ];
   if (spec.cancel !== undefined) actions.push({ id: 'cancel', label: spec.cancel.label, variant: 'neutral' });
 
-  const controls = spec.fields.map(renderFieldControl).join('\n');
+  const controls = spec.fields
+    .map((field) => renderFieldControl(field, { showSecret: text.showSecret, hideSecret: text.hideSecret }))
+    .join('\n');
   const warning = spec.warning === undefined ? '' : `<p class="mcpui-warning">${escapeHtml(spec.warning)}</p>`;
   const bodyHtml = [
     renderSurfaceHeader(
@@ -116,6 +126,57 @@ ${SURFACE_SCRIPT_PRELUDE}
   var TEXT = ${escapeJsValue(text)};
   var form = document.getElementById(${escapeJsValue(FORM_ELEMENT_ID)});
 
+  // A textarea normalizes CRLF/CR to LF even on .value assignment. Keep the original trusted paste
+  // privately, outside DOM/HTML, so multiline credentials reach the tool with their original bytes.
+  // An edit that changes the DOM value makes the snapshot ineligible; typed text then follows the
+  // native textarea value. Offsets count CRLF as one visible newline when a second paste replaces
+  // a selection, otherwise the original raw string would be spliced at the wrong position.
+  var secretPastes = new WeakMap();
+  function rawOffset(raw, visibleOffset) {
+    var rawIndex = 0;
+    var visibleIndex = 0;
+    while (rawIndex < raw.length && visibleIndex < visibleOffset) {
+      if (raw.charCodeAt(rawIndex) === 13 && raw.charCodeAt(rawIndex + 1) === 10) rawIndex++;
+      rawIndex++;
+      visibleIndex++;
+    }
+    return rawIndex;
+  }
+  form.addEventListener("paste", function (event) {
+    var control = event.target;
+    if (event.isTrusted !== true || !control || control.tagName !== "TEXTAREA" || !control.hasAttribute("data-mcpui-secret") || !event.clipboardData) return;
+    var pasted = event.clipboardData.getData("text/plain");
+    if (!pasted) return;
+    var snapshot = secretPastes.get(control);
+    var raw = snapshot && snapshot.normalized === control.value ? snapshot.raw : control.value;
+    var start = control.selectionStart;
+    var end = control.selectionEnd;
+    var next = raw.slice(0, rawOffset(raw, start)) + pasted + raw.slice(rawOffset(raw, end));
+    event.preventDefault();
+    control.value = next;
+    // Caret offsets use the displayed newline representation, independent of the saved raw text.
+    var caret = start + pasted.replace(/\\r\\n?/g, "\\n").length;
+    control.setSelectionRange(caret, caret);
+    secretPastes.set(control, { raw: next, normalized: control.value });
+    control.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+
+  // A reveal button only changes presentation: replacing a textarea with a password input would
+  // discard line breaks. Listen on the form so clicks on the button's contents work too.
+  form.addEventListener("click", function (event) {
+    if (event.isTrusted !== true) return;
+    var target = event.target;
+    if (!target || typeof target.closest !== "function") return;
+    var button = target.closest("button[data-mcpui-secret-toggle]");
+    if (!button || button.disabled) return;
+    var control = document.getElementById(button.getAttribute("data-mcpui-secret-toggle"));
+    if (!control) return;
+    var reveal = button.getAttribute("aria-pressed") !== "true";
+    control.setAttribute("style", "-webkit-text-security: " + (reveal ? "none" : "disc") + ";");
+    button.setAttribute("aria-pressed", reveal ? "true" : "false");
+    button.textContent = button.getAttribute(reveal ? "data-mcpui-hide-secret" : "data-mcpui-show-secret");
+  });
+
   // form.elements[name] yields a RadioNodeList when several controls share a name and the BARE
   // element when only one does. A one-option checklist would otherwise read as "no options" —
   // silently, since a bare input has no length to iterate. Presence of "checked" is what tells the
@@ -135,7 +196,8 @@ ${SURFACE_SCRIPT_PRELUDE}
     if (field.kind === "multi-enum") return checkedValues(control);
     // Covers a radio-presented enum too: a RadioNodeList's own .value is the checked radio's
     // value, or "" when none is checked — the same shape a <select> reports.
-    return control.value;
+    var snapshot = secretPastes.get(control);
+    return snapshot && snapshot.normalized === control.value ? snapshot.raw : control.value;
   }
 
   function isBlank(field, value) {

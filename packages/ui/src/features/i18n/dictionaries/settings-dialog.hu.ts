@@ -6,6 +6,9 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_HU: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "Eltávolítottam az üzenetedből azt, ami kulcsnak tűnt. Ha valódi volt, cseréld le. A biztonságos űrlapon mentsd el.",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "A kulcsokat, tokeneket, jelszavakat és titkokat a biztonságos űrlapon mentsd el. A chatválaszokat elküldjük az asszisztensnek.",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# Saját képességem\n\n1. Írd le a munkafolyamatot.\n2. Írd le a bemeneteket és a kimeneteket.',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'Az egyéni útvonal felülbírálása nem működött, ezért ez az automatikusan felismert binárist használta helyette.',
   'API key': 'API-kulcs',

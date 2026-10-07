@@ -8,11 +8,20 @@
 import { escapeHtml } from '../escape.js';
 import { fieldDescribedBy, fieldElementId, renderFieldLabel } from './document.js';
 
-export interface TextInputProps {
+/** Labels the host can translate for a multiline secret's reveal toggle. */
+export interface SecretInputText {
+  readonly showSecret: string;
+  readonly hideSecret: string;
+}
+
+export const DEFAULT_SECRET_INPUT_TEXT: SecretInputText = { showSecret: 'Show', hideSecret: 'Hide' };
+
+export interface TextInputProps extends Partial<SecretInputText> {
   /** HTML `name`, DOM `id` suffix, and the params key the value is posted under. */
   readonly name: string;
   readonly label: string;
-  /** Pre-filled value. Numbers are stringified; `undefined` leaves the control empty. */
+  /** Pre-filled value. Numbers are stringified; `undefined` leaves the control empty.
+   *  Forbidden when `secret` is true, including an empty string. */
   readonly value?: string | number;
   readonly placeholder?: string;
   /** Help text, wired up with `aria-describedby`. */
@@ -21,10 +30,11 @@ export interface TextInputProps {
   readonly disabled?: boolean;
   /** `'number'` also constrains the on-screen keyboard on touch devices, which `'text'` would not. */
   readonly inputType?: 'text' | 'number';
-  /** Renders as `<input type="password">` — the value is never visible on screen, and browser
-   *  password managers may offer to remember it. Ignored when `inputType` is `'number'` (no such
-   *  thing as a masked number) and forces `multiline` off (no `<textarea type="password">` exists) —
-   *  same precedence `multiline`'s own doc comment already gives `inputType: 'number'`. */
+  /** Renders as `<input type="password">`, or a masked textarea with a show/hide toggle when
+   *  multiline. No `<textarea type="password">` exists, so multiline uses CSS text security.
+   *  Ignored for presentation when `inputType` is `'number'` (no such thing as a masked number) —
+   *  same precedence `multiline`'s own doc comment already gives `inputType: 'number'`.
+   *  A supplied value is always rejected: masking cannot protect a secret serialized into HTML. */
   readonly secret?: boolean;
   /** Renders a `<textarea>`. Ignored when `inputType` is `'number'` — there is no multiline number. */
   readonly multiline?: boolean;
@@ -65,6 +75,11 @@ function resolveInputType(props: Pick<TextInputProps, 'inputType' | 'secret'>): 
  * @complexity O(n) in the rendered length.
  */
 export function renderTextInput(props: TextInputProps): string {
+  // Even an empty prefill is forbidden: callers must omit value so a stored credential can never
+  // enter the resource's HTML. Keep this error fixed, without the field name or rejected value.
+  if (props.secret === true && props.value !== undefined) {
+    throw new Error('Secret fields cannot have a pre-filled value. Omit value.');
+  }
   const id = fieldElementId(props.name);
   const common =
     ` id="${escapeHtml(id)}" name="${escapeHtml(props.name)}"` +
@@ -75,8 +90,16 @@ export function renderTextInput(props: TextInputProps): string {
 
   const type = resolveInputType(props);
   const isNumber = type === 'number';
-  const control = props.multiline === true && type === 'text'
-    ? `<textarea class="mcpui-textarea"${common}${optionalAttribute('rows', props.rows)}>${props.value === undefined ? '' : escapeHtml(String(props.value))}</textarea>`
+  const secretMultiline = props.secret === true && props.multiline === true && !isNumber;
+  const control = props.multiline === true && !isNumber
+    ? `<textarea class="mcpui-textarea"${common}${optionalAttribute('rows', props.rows)}` +
+      // Password inputs strip line breaks. CSS masking keeps the textarea's actual value intact,
+      // and disables browser text assistance that could retain or alter a pasted credential.
+      (secretMultiline ? ' data-mcpui-secret style="-webkit-text-security: disc;" autocomplete="off" spellcheck="false"' : '') +
+      `>${props.value === undefined ? '' : escapeHtml(String(props.value))}</textarea>` +
+      (secretMultiline
+        ? `<button type="button" class="mcpui-button" data-mcpui-secret-toggle="${escapeHtml(id)}" data-mcpui-show-secret="${escapeHtml(props.showSecret ?? DEFAULT_SECRET_INPUT_TEXT.showSecret)}" data-mcpui-hide-secret="${escapeHtml(props.hideSecret ?? DEFAULT_SECRET_INPUT_TEXT.hideSecret)}" aria-controls="${escapeHtml(id)}" aria-pressed="false"${booleanAttribute('disabled', props.disabled)}>${escapeHtml(props.showSecret ?? DEFAULT_SECRET_INPUT_TEXT.showSecret)}</button>`
+        : '')
     : `<input class="mcpui-input" type="${type}"${common}` +
       optionalAttribute('value', props.value) +
       // A stored secret (e.g. a cloud provider's access key or a database password) must never be

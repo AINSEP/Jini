@@ -6,6 +6,9 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_KO: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "메시지에서 키로 보이는 내용을 제거했습니다. 실제 키였다면 교체하세요. 저장하려면 보안 양식을 사용하세요.",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "키, 토큰, 비밀번호, 비밀 정보를 저장하려면 보안 양식을 사용하세요. 채팅 답변은 어시스턴트에게 전송됩니다.",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# 내 스킬\n\n1. 워크플로를 설명하세요.\n2. 입력과 출력을 설명하세요.',
   'A custom path override did not work, so this used the automatically detected binary instead.': '사용자 지정 경로 재정의가 작동하지 않아 자동으로 감지된 바이너리를 대신 사용했습니다.',
   'API key': 'API 키',

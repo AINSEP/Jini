@@ -17,7 +17,7 @@
 import { renderCheckbox } from './checkbox.js';
 import { renderChoiceGroup } from './choice-group.js';
 import { renderSelect, type SelectOption } from './select.js';
-import { renderTextInput } from './text-input.js';
+import { renderTextInput, type SecretInputText } from './text-input.js';
 
 interface SurfaceFieldBase {
   /** HTML `name`, DOM `id` suffix, and the params key the value is posted under. */
@@ -35,7 +35,8 @@ export interface StringField extends SurfaceFieldBase {
   readonly placeholder?: string;
   readonly multiline?: boolean;
   readonly rows?: number;
-  /** Renders as a masked `<input type="password">` — see {@link TextInputProps.secret}. */
+  /** Renders as a masked input or multiline textarea; pre-filled values are forbidden.
+   *  See {@link TextInputProps.secret}. */
   readonly secret?: boolean;
 }
 
@@ -98,14 +99,16 @@ function base(field: SurfaceField): { name: string; label: string; hint?: string
  * Renders the control fragment for one field, dispatching on its kind.
  *
  * @param field - See {@link SurfaceField}.
+ * @param text - Optional host translations for secret reveal controls.
  * @returns An HTML fragment.
  * @complexity O(n) in the rendered length.
  */
-export function renderFieldControl(field: SurfaceField): string {
+export function renderFieldControl(field: SurfaceField, text?: Partial<SecretInputText>): string {
   switch (field.kind) {
     case 'string':
       return renderTextInput({
         ...base(field),
+        ...text,
         ...(field.value === undefined ? {} : { value: field.value }),
         ...(field.placeholder === undefined ? {} : { placeholder: field.placeholder }),
         ...(field.multiline === undefined ? {} : { multiline: field.multiline }),

@@ -1,3 +1,4 @@
+import { SECRET_REDACTED_NOTICE } from '../../../../core/user-text-redaction.js';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { WorkingDirPicker } from '@jini-ai/ui';
 
@@ -504,6 +505,8 @@ export function ChatPane({
   agentControl,
   onActivityChange,
   onMessagesChange,
+  redactUserText,
+  onSecretRedacted,
   onRescanAgents,
   scanningAgents = false,
   daemonOnline = true,
@@ -573,6 +576,8 @@ export function ChatPane({
     uploadAttachments,
     onActivityChange,
     onMessagesChange,
+    redactUserText,
+    onSecretRedacted,
     workingDirectory,
     initialWorkingDirectory,
     onChangeWorkingDirectory,
@@ -665,6 +670,7 @@ export function ChatPane({
         />
         <div className="jini-chat-pane__controls" ref={controlsRef}>
           <ChatPaneSuggestionsRow suggestions={suggestions} onSelect={pane.composer.setDraft} t={t} />
+          {pane.secretRedacted ? <div className="jini-chat-pane__notice" role="status">{t(SECRET_REDACTED_NOTICE)}</div> : null}
           <ChatPaneStatusMessages
             unavailable={unavailable}
             scanningAgents={runtimeView.scanningAgents}

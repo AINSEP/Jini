@@ -39,6 +39,7 @@ export function mapRawQuestion({ q, index }: { q: unknown; index: number }): For
   const accept = typeof qo.accept === 'string' ? qo.accept : undefined;
   return {
     id,
+    ...(typeof qo.name === 'string' ? { name: qo.name } : {}),
     label,
     type,
     ...(options ? { options } : {}),

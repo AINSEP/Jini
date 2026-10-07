@@ -155,7 +155,8 @@
     "@jini-ai/agentic": "workspace:^",
     "@jini-ai/protocol": "workspace:^",
     "@jini-ai/ui": "workspace:^",
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/diagnostics": "workspace:^"
   },
   "peerDependencies": {
     "react": "^18.3.0 || ^19.0.0",

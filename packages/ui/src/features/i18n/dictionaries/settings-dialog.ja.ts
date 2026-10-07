@@ -6,6 +6,9 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_JA: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "メッセージからキーと思われる文字列を削除しました。本物のキーだった場合は再発行してください。保存には安全なフォームを使ってください。",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "キー、トークン、パスワード、シークレットの保存には安全なフォームを使ってください。チャットの回答はアシスタントに送信されます。",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# マイスキル\n\n1. ワークフローを説明してください。\n2. 入力と出力を説明してください。',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'カスタムパスの上書きが機能しなかったため、自動検出されたバイナリを代わりに使用しました。',
   'API key': 'APIキー',

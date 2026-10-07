@@ -17,11 +17,12 @@
  * kept close to the original; every user-facing string wrapped in `useT()`.
  */
 import { useRef, useState } from 'react';
+import type { UserTextRedactionOptions } from '../../core/user-text-redaction.js';
 import type { QuestionForm as QuestionFormType } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
 import { QuestionForm, type QuestionFormHandle } from './QuestionForm.js';
 
-export interface QuestionsPanelProps {
+export interface QuestionsPanelProps extends UserTextRedactionOptions {
   form: QuestionFormType | null;
   interactive: boolean;
   /** Disables Continue/Skip while the turn is busy, without locking the form itself. */
@@ -32,7 +33,7 @@ export interface QuestionsPanelProps {
   onSubmit: (text: string, answers: Record<string, string | string[]>) => void;
 }
 
-export function QuestionsPanel({ form, interactive, submitDisabled = false, submittedAnswers, generating = false, onSubmit }: QuestionsPanelProps) {
+export function QuestionsPanel({ form, interactive, submitDisabled = false, submittedAnswers, generating = false, onSubmit, redactUserText, onSecretRedacted }: QuestionsPanelProps) {
   const t = useT();
   const formRef = useRef<QuestionFormHandle>(null);
   const [ready, setReady] = useState(false);
@@ -44,7 +45,7 @@ export function QuestionsPanel({ form, interactive, submitDisabled = false, subm
 
   return (
     <div className="qp-panel">
-      <QuestionForm ref={formRef} form={form} interactive={interactive} {...(submittedAnswers !== undefined ? { submittedAnswers } : {})} hideInternalSubmit onReadyChange={setReady} onSubmit={onSubmit} />
+      <QuestionForm ref={formRef} form={form} interactive={interactive} {...(submittedAnswers !== undefined ? { submittedAnswers } : {})} hideInternalSubmit {...(redactUserText ? { redactUserText } : {})} {...(onSecretRedacted ? { onSecretRedacted } : {})} onReadyChange={setReady} onSubmit={onSubmit} />
       {!answered ? (
         <div className="qp-foot">
           {generating ? <span className="qp-hint">{t('Still generating…')}</span> : null}

@@ -1,3 +1,4 @@
+import { redactUserText, type SecretRedactionSignal, type UserTextRedactionOptions } from '../../../core/user-text-redaction.js';
 /**
  * @module db/messages/messages
  * Chat message CRUD, streamed-event append, and telemetry finalization. Imports only the
@@ -97,7 +98,11 @@ export class MessageConversationMismatchError extends Error {
  * @returns The normalized, re-fetched message row, or null if the row vanished between write and read.
  * @throws {MessageConversationMismatchError} if `m.id` already exists under a different conversation.
  */
-export function upsertMessage({ db, conversationId, m }: { db: SqliteDb; conversationId: string; m: DbRow }) {
+export function upsertMessage({ db, conversationId, m: incoming }: { db: SqliteDb; conversationId: string; m: DbRow }, options: UserTextRedactionOptions = {}): (ReturnType<typeof normalizeMessage> & { secretRedaction?: SecretRedactionSignal }) | null {
+  const redaction = incoming.role === 'user' && typeof incoming.content === 'string'
+    ? (options.redactUserText ?? redactUserText)({ text: incoming.content })
+    : null;
+  const m = redaction ? { ...incoming, content: redaction.text } : incoming;
   const runUpsert = db.transaction(() => {
     const existing = db
       .prepare(`SELECT conversation_id AS conversationId, position FROM messages WHERE id = ?`)
@@ -192,7 +197,11 @@ export function upsertMessage({ db, conversationId, m }: { db: SqliteDb; convers
       .get(m.id, conversationId) as DbRow | undefined;
     return row ? normalizeMessage(row) : null;
   });
-  return runUpsert.immediate();
+  const saved = runUpsert.immediate();
+  if (!saved || !redaction?.secretRedacted) return saved;
+  const signal = { secretRedacted: true as const, count: redaction.count };
+  options.onSecretRedacted?.(signal);
+  return { ...saved, secretRedaction: signal };
 }
 
 /**

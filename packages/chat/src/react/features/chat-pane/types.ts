@@ -1,3 +1,4 @@
+import type { UserTextRedactionOptions } from '../../../core/user-text-redaction.js';
 import type { CSSProperties, ReactNode, RefObject } from 'react';
 import type { ChatAttachment, ChatMessage } from '@jini-ai/chat';
 
@@ -174,7 +175,7 @@ export type DeliverTypedAnswer = ((input: { text: string }) => Promise<TypedAnsw
   readonly toolName: string;
 };
 
-export interface ChatPaneProps {
+export interface ChatPaneProps extends UserTextRedactionOptions {
   transport: ChatTransport;
   agents?: readonly ChatPaneAgent[];
   /** Optional host effects for package-owned inventory, rescan, and health polling. */

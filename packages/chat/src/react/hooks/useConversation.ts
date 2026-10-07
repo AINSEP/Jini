@@ -1,3 +1,4 @@
+import { redactUserHistory, redactUserMessage, type UserTextRedactionOptions } from '../../core/user-text-redaction.js';
 import { preserveAssistantContent, mergeRunEvents } from '../../core/durable-projection.js';
 /**
  * @module useConversation
@@ -17,7 +18,7 @@ import { assistantContentFromEvents, isTerminalRunStatus } from '../../core/inde
 import type { ChatTransport, RunContext } from '../../core/index.js';
 import { useRunStream } from './useRunStream.js';
 
-export interface UseConversationOptions {
+export interface UseConversationOptions extends UserTextRedactionOptions {
   transport: ChatTransport;
   initialMessages?: ChatMessage[];
   conversationId?: string | null;
@@ -59,7 +60,10 @@ function defaultCreateMessageId(): string {
 
 export function useConversation(options: UseConversationOptions): UseConversationResult {
   const { transport, conversationId = null, agentId, createMessageId = defaultCreateMessageId } = options;
-  const [messages, setMessagesState] = useState<ChatMessage[]>(options.initialMessages ?? []);
+  const [messages, setMessagesState] = useState<ChatMessage[]>(() => redactUserHistory(
+    { history: options.initialMessages ?? [] },
+    { ...(options.redactUserText ? { redactUserText: options.redactUserText } : {}) },
+  ));
   const [scrollIntent, setScrollIntent] = useState(false);
   const run = useRunStream({ transport });
   // The assistant message id the currently-active run is writing into.
@@ -170,13 +174,13 @@ export function useConversation(options: UseConversationOptions): UseConversatio
 
   const sendMessage = useCallback(
     async (content: string, sendOptions: SendMessageOptions = {}) => {
-      const userMessage: ChatMessage = {
+      const userMessage: ChatMessage = redactUserMessage<ChatMessage>({ message: {
         id: createMessageId(),
         role: 'user',
         content,
         createdAt: Date.now(),
         ...(sendOptions.attachments ? { attachments: sendOptions.attachments } : {}),
-      };
+      } }, options).message;
       const resolvedAgentId = sendOptions.agentId ?? agentId;
       const assistantMessage: ChatMessage = {
         id: createMessageId(),
@@ -188,7 +192,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         startedAt: Date.now(),
       };
       activeAssistantIdRef.current = assistantMessage.id;
-      const history = [...messagesRef.current, userMessage];
+      const history = redactUserHistory({ history: [...messagesRef.current, userMessage] }, options);
       // Functional, never `[...history, assistantMessage]`: `messagesRef` is the last RENDER's
       // snapshot, and a host that sends from an effect (`useChatPane`'s queued-prompt flush) runs in
       // the same commit as the reconciliation effect that just marked the previous turn terminal.
@@ -206,7 +210,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         ...(sendOptions.context !== undefined ? { context: sendOptions.context } : {}),
       });
     },
-    [agentId, conversationId, createMessageId, run],
+    [agentId, conversationId, createMessageId, run, options.redactUserText, options.onSecretRedacted],
   );
 
   const retry = useCallback(
@@ -215,7 +219,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       if (idx <= 0) return;
       const priorUser = messagesRef.current[idx - 1];
       if (!priorUser || priorUser.role !== 'user') return;
-      const history = messagesRef.current.slice(0, idx);
+      const history = redactUserHistory({ history: messagesRef.current.slice(0, idx) }, options);
       const resetAssistant: ChatMessage = { ...messagesRef.current[idx]!, content: '', events: [], runStatus: 'queued' };
       activeAssistantIdRef.current = resetAssistant.id;
       // Functional for the same reason as `sendMessage`'s: keep a just-queued terminal update.
@@ -239,7 +243,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         ...(priorUser.attachments !== undefined ? { attachments: priorUser.attachments } : {}),
       });
     },
-    [agentId, conversationId, run],
+    [agentId, conversationId, run, options.redactUserText, options.onSecretRedacted],
   );
 
   const cancel = useCallback(() => run.cancel(), [run]);

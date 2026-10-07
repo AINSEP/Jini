@@ -307,6 +307,9 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
+      '@jini-ai/diagnostics':
+        specifier: workspace:^
+        version: link:../diagnostics
       '@jini-ai/protocol':
         specifier: workspace:^
         version: link:../protocol

@@ -1,3 +1,5 @@
+import { CREDENTIAL_CARD_GUIDANCE, SECRET_REDACTED_NOTICE, type UserTextRedactionOptions } from '../../core/user-text-redaction.js';
+import { useUserTextGuard } from '../hooks/useUserTextGuard.js';
 /**
  * @module QuestionForm
  *
@@ -13,7 +15,7 @@
  */
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useState, type CSSProperties } from 'react';
 import type { DirectionCard, FormOption, QuestionForm as QuestionFormType } from '../../core/index.js';
-import { formatFormAnswers, formOptionValueForLabel } from '../../core/index.js';
+import { formatFormAnswers, formOptionValueForLabel, redactQuestionAnswers, isSecretQuestion, withoutSecretQuestionDefaults, questionTextInputProps, questionTextareaProps } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
 
 export interface QuestionFormFileSubmission {
@@ -28,7 +30,7 @@ export interface QuestionFormHandle {
   skipAll: () => void;
 }
 
-export interface QuestionFormProps {
+export interface QuestionFormProps extends UserTextRedactionOptions {
   form: QuestionFormType;
   /** Whether the user can still submit answers — the host disables this once the turn is no longer the most recent one. */
   interactive: boolean;
@@ -43,15 +45,17 @@ export interface QuestionFormProps {
 }
 
 export const QuestionForm = forwardRef<QuestionFormHandle, QuestionFormProps>(function QuestionForm(
-  { form, interactive, submittedAnswers, hideInternalSubmit = false, draftAnswers, onReadyChange, onDraftChange, onAnswerChange, onSubmit },
+  { form: incomingForm, interactive, submittedAnswers, hideInternalSubmit = false, draftAnswers, onReadyChange, onDraftChange, onAnswerChange, onSubmit, redactUserText, onSecretRedacted },
   ref,
 ) {
   const t = useT();
+  const form = useMemo(() => withoutSecretQuestionDefaults({ form: incomingForm }), [incomingForm]);
+  const guard = useUserTextGuard({ ...(redactUserText ? { redactUserText } : {}), ...(onSecretRedacted ? { onSecretRedacted } : {}) });
   const initial = useMemo(() => buildInitialState(form, submittedAnswers, draftAnswers), [form, submittedAnswers, draftAnswers]);
   const [answers, setAnswers] = useState<Record<string, string | string[]>>(initial);
   const [fileAnswers, setFileAnswers] = useState<Record<string, File[]>>({});
   const locked = !interactive || !onSubmit || submittedAnswers !== undefined;
-  const currentAnswers = submittedAnswers ?? answers;
+  const currentAnswers = submittedAnswers ? redactQuestionAnswers({ form, answers: submittedAnswers }).answers : answers;
 
   useEffect(() => {
     setFileAnswers({});
@@ -80,8 +84,8 @@ export const QuestionForm = forwardRef<QuestionFormHandle, QuestionFormProps>(fu
     if (locked) return;
     const next = { ...answers, [id]: value };
     setAnswers(next);
-    onDraftChange?.(draftSafeAnswers(form, next));
-    onAnswerChange?.(id, value);
+    onDraftChange?.(redactQuestionAnswers({ form, answers: draftSafeAnswers(form, next) }).answers);
+    onAnswerChange?.(id, redactQuestionAnswers({ form, answers: { [id]: value } }).answers[id]!);
   }
 
   function toggleCheckbox(id: string, option: string, maxSelections?: number) {
@@ -92,7 +96,7 @@ export const QuestionForm = forwardRef<QuestionFormHandle, QuestionFormProps>(fu
     const next = has ? current.filter((v) => v !== option) : [...current, option];
     const nextAnswers = { ...answers, [id]: next };
     setAnswers(nextAnswers);
-    onDraftChange?.(draftSafeAnswers(form, nextAnswers));
+    onDraftChange?.(redactQuestionAnswers({ form, answers: draftSafeAnswers(form, nextAnswers) }).answers);
     onAnswerChange?.(id, next);
   }
 
@@ -106,9 +110,11 @@ export const QuestionForm = forwardRef<QuestionFormHandle, QuestionFormProps>(fu
   function handleSubmit() {
     if (locked || !onSubmit) return;
     if (!ready) return;
+    const safe = redactQuestionAnswers({ form, answers }, { ...(redactUserText ? { redactUserText } : {}), onSecretRedacted: guard.notifyRedaction });
+    setAnswers(safe.answers);
     const files = collectFileSubmissions(form, fileAnswers);
-    if (files.length > 0) onSubmit(formatFormAnswers({ form: form, answers: answers }), answers, files);
-    else onSubmit(formatFormAnswers({ form: form, answers: answers }), answers);
+    if (files.length > 0) onSubmit(formatFormAnswers({ form: form, answers: safe.answers }), safe.answers, files);
+    else onSubmit(formatFormAnswers({ form: form, answers: safe.answers }), safe.answers);
   }
 
   function handleSkipAll() {
@@ -162,6 +168,7 @@ export const QuestionForm = forwardRef<QuestionFormHandle, QuestionFormProps>(fu
                 ) : null}
               </label>
               {q.help ? <div className="qf-help">{q.help}</div> : null}
+              {isSecretQuestion({ question: q }) ? <div className="qf-help">{t(CREDENTIAL_CARD_GUIDANCE)}</div> : null}
               {q.type === 'radio' && q.options ? (
                 <div className="qf-options">
                   {q.options.map((opt) => (
@@ -226,7 +233,7 @@ export const QuestionForm = forwardRef<QuestionFormHandle, QuestionFormProps>(fu
                   onChange={(next) => update(q.id, next)}
                 />
               ) : null}
-              {q.type === 'text' ? <input type="text" className="qf-input" value={typeof value === 'string' ? value : ''} placeholder={q.placeholder} disabled={locked} onChange={(e) => update(q.id, e.target.value)} /> : null}
+              {q.type === 'text' ? <input {...questionTextInputProps({ question: q })} className="qf-input" value={typeof value === 'string' ? value : ''} placeholder={q.placeholder} disabled={locked} onChange={(e) => update(q.id, e.target.value)} /> : null}
               {q.type === 'number' ? <input type="number" className="qf-input" value={typeof value === 'string' ? value : ''} placeholder={q.placeholder} min={q.min} max={q.max} step={q.step} disabled={locked} onChange={(e) => update(q.id, e.target.value)} /> : null}
               {q.type === 'range' ? (
                 <div className="qf-range-wrap">
@@ -261,7 +268,7 @@ export const QuestionForm = forwardRef<QuestionFormHandle, QuestionFormProps>(fu
                   <span aria-hidden />
                 </label>
               ) : null}
-              {q.type === 'textarea' ? <textarea className="qf-textarea" value={typeof value === 'string' ? value : ''} placeholder={q.placeholder} disabled={locked} rows={3} onChange={(e) => update(q.id, e.target.value)} /> : null}
+              {q.type === 'textarea' ? <textarea {...questionTextareaProps({ question: q })} className="qf-textarea" value={typeof value === 'string' ? value : ''} placeholder={q.placeholder} disabled={locked} rows={3} onChange={(e) => update(q.id, e.target.value)} /> : null}
               {q.type === 'direction-cards' && q.cards && q.cards.length > 0 ? (
                 <div className="qf-direction-cards">
                   {q.cards.map((card) => (
@@ -282,6 +289,7 @@ export const QuestionForm = forwardRef<QuestionFormHandle, QuestionFormProps>(fu
           );
         })}
       </div>
+      {guard.secretRedacted ? <div role="status">{t(SECRET_REDACTED_NOTICE)}</div> : null}
       {hideInternalSubmit ? null : (
         <div className="question-form-foot">
           {locked ? <span className="qf-locked-note">{submittedAnswers ? t('You answered this') : t('A newer message answered this')}</span> : <span className="qf-hint">{t('Answer above, then continue')}</span>}

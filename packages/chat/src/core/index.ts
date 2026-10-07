@@ -54,3 +54,5 @@ export {
   transitionComposerHistory,
 } from './composer-history.js';
 export type { ComposerHistoryKeyInput, ComposerHistoryState, ComposerHistoryStoragePort } from './composer-history.js';
+
+export * from './user-text-redaction.js';

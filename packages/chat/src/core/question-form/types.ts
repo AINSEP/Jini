@@ -58,6 +58,8 @@ export interface FormOption {
 }
 
 export interface FormQuestion {
+  /** Optional model-supplied field name, retained for credential masking policy. */
+  name?: string;
   id: string;
   label: string;
   type: QuestionType;

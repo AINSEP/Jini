@@ -1,3 +1,4 @@
+import type { UserTextRedactionOptions } from '../../core/user-text-redaction.js';
 /** Pglite transcript adapter. The host owns the opened, migrated kernel and its lifetime. */
 import type { Clock } from '@jini-ai/core/primitives';
 import type { StorageKernel } from '@jini-ai/db/kernel';
@@ -14,7 +15,7 @@ export type { ChatDatabase, AiChatsTable, AiChatMessagesTable } from '../sql/tab
  */
 export function createPgliteChatStore<DB extends ChatDatabase>(
   required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope },
-  optional: { clock?: Clock } = {},
+  optional: { clock?: Clock } & UserTextRedactionOptions = {},
 ): ChatStore {
   validateKernel({ kernel: required.kernel, transports: ['pglite', 'pglite-socket'], dialect: 'postgres' });
   return createSqlChatStore(required, optional);
