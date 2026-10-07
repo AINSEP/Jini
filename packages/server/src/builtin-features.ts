@@ -229,7 +229,10 @@ export function projectDetectedAgent(agent: DetectedAgent): AgentSummary {
     available: agent.available,
     ...(agent.version !== undefined ? { version: agent.version } : {}),
     ...(agent.authStatus !== undefined ? { authStatus: agent.authStatus } : {}),
-    models: agent.models.map(({ id, label }) => ({ id, label })),
+    models: agent.models.map(({ id, label, identityKind, resolvedId }) => ({ id, label, ...(identityKind ? { identityKind } : {}), ...(resolvedId ? { resolvedId } : {}) })),
+    ...(agent.modelCatalog ? { modelCatalog: agent.modelCatalog } : {}),
+    ...(agent.defaultModelResolution ? { defaultModelResolution: agent.defaultModelResolution } : {}),
+    ...(agent.supportsConcreteModelSelection !== undefined ? { supportsConcreteModelSelection: agent.supportsConcreteModelSelection } : {}),
     ...(agent.reasoningOptions !== undefined
       ? { reasoningOptions: agent.reasoningOptions.map(({ id, label }) => ({ id, label })) }
       : {}),
@@ -321,12 +324,13 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
     compose: (context) => {
       // Promise-cached so concurrent clients never spawn duplicate probe sets; invalidated by
       // POST /api/agents/rescan.
-      const detector = options.agents?.detector ?? (() => detectAgents({}));
+      const detector = options.agents?.detector ?? ((force: boolean) => detectAgents({}, { force }));
       let scan: Promise<readonly AgentSummary[]> | null = null;
+      let expiresAt = 0;
       const scanAgents = (force: boolean): Promise<readonly AgentSummary[]> => {
-        if (force) scan = null;
+        if (force || Date.now() >= expiresAt) scan = null;
         if (!scan) {
-          const pending: Promise<readonly AgentSummary[]> = detector()
+          const pending: Promise<readonly AgentSummary[]> = detector(force)
             // Filtered before projection so the executor's answer is computed from the full def —
             // see `isExecutableDetectedAgent`'s doc for why the projected shape is not enough.
             .then((agents) => agents.filter(isExecutableDetectedAgent).map(projectDetectedAgent))
@@ -339,6 +343,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
               throw error;
             });
           scan = pending;
+          expiresAt = Date.now() + 15 * 60_000;
         }
         return scan;
       };
