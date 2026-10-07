@@ -1,3 +1,4 @@
+import { configuredPickerModel, pickerModelOptions, isConcretePickerModel } from './model-options.js';
 import type { ChatMessage } from '@jini-ai/chat';
 
 import type { ByokRuntimeSummary, ChatPaneAgent, ChatPaneAgentSelection, TypedAnswerNotice } from './types.js';
@@ -18,7 +19,9 @@ function validatedOptionId(
 }
 
 export function defaultChatPaneSelection({ agent }: { agent: ChatPaneAgent }): ChatPaneAgentSelection {
-  const model = preferredOptionId(agent.models);
+  // An unresolved native route requires an intentional concrete choice. Legacy hosts without
+  // structured resolution retain their first-concrete-entry behavior.
+  const model = configuredPickerModel(agent) || (agent.defaultModelResolution?.status === 'unresolved' ? undefined : pickerModelOptions(agent)[0]?.id);
   const reasoning = preferredOptionId(agent.reasoningOptions);
   return {
     agentId: agent.id,
@@ -30,16 +33,18 @@ export function defaultChatPaneSelection({ agent }: { agent: ChatPaneAgent }): C
 export function resolveChatPaneSelection({ agents, requested }: { agents: readonly ChatPaneAgent[]; requested: ChatPaneAgentSelection }
 ): ChatPaneAgentSelection {
   const requestedAgent = agents.find(
-    (agent) => agent.id === requested.agentId && agent.available !== false,
+    (agent) => agent.id === requested.agentId && agent.id !== 'gemini' && agent.available !== false,
   );
-  const agent = requestedAgent ?? agents.find((candidate) => candidate.available !== false);
+  const agent = requestedAgent ?? agents.find((candidate) => candidate.id !== 'gemini' && candidate.available !== false);
   if (!agent) return { agentId: '' };
   const defaults = defaultChatPaneSelection({ agent: agent });
   if (agent !== requestedAgent) return defaults;
   const model = requested.model
+    && isConcretePickerModel(requested.model)
     && agent.supportsCustomModel
+    && agent.supportsConcreteModelSelection !== false
     ? requested.model
-    : validatedOptionId(agent.models, requested.model, defaults.model);
+    : validatedOptionId(pickerModelOptions(agent), requested.model, defaults.model);
   const reasoning = validatedOptionId(
     agent.reasoningOptions,
     requested.reasoning,
@@ -62,6 +67,7 @@ export function resolveChatPaneSelection({ agents, requested }: { agents: readon
 export type ChatPaneSendBlocker =
   | 'no-agent-selected'
   | 'agent-unavailable'
+  | 'model-unresolved'
   | 'streaming'
   | 'uploads-pending'
   | 'working-directory-pending'
@@ -69,7 +75,8 @@ export type ChatPaneSendBlocker =
   | 'working-directory-error';
 
 export interface ChatPaneSendability {
-  readonly selectedAgent: Pick<ChatPaneAgent, 'available'> | undefined;
+  readonly selectedAgent: Pick<ChatPaneAgent, 'available' | 'modelCatalog' | 'supportsConcreteModelSelection'> | undefined;
+  readonly model?: string;
   readonly isStreaming: boolean;
   readonly activeUploadCount: number;
   readonly workingDirectoryPending: boolean;
@@ -120,6 +127,7 @@ export function findChatPaneSendBlocker(state: ChatPaneSendability): ChatPaneSen
   } else if (state.selectedAgent.available === false) {
     return 'agent-unavailable';
   }
+  if (!state.apiModeConfigured && state.selectedAgent && (state.selectedAgent.modelCatalog || state.selectedAgent.supportsConcreteModelSelection === false) && (!state.model || !isConcretePickerModel(state.model) || state.selectedAgent.supportsConcreteModelSelection === false)) return 'model-unresolved';
   if (state.isStreaming) return 'streaming';
   if (state.activeUploadCount > 0) return 'uploads-pending';
   if (state.workingDirectoryPending) return 'working-directory-pending';
@@ -131,6 +139,7 @@ export function findChatPaneSendBlocker(state: ChatPaneSendability): ChatPaneSen
 const SEND_BLOCKER_MESSAGES: Record<ChatPaneSendBlocker, string> = {
   'no-agent-selected': 'no agent is selected',
   'agent-unavailable': 'the selected agent is unavailable',
+  'model-unresolved': 'choose a concrete model before sending',
   streaming: 'a run is already streaming — cancel it first',
   'uploads-pending': 'attachment uploads are still in flight',
   'working-directory-pending': 'the working directory is still being validated',

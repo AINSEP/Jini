@@ -1,3 +1,4 @@
+import { pickerModelLabel } from '../model-options.js';
 /**
  * All of `AgentRuntimePicker`'s behavior, so the component itself is only markup.
  *
@@ -231,7 +232,7 @@ export function useAgentRuntimePicker({
   const popoverRef = useRef<HTMLDivElement | null>(null);
 
   const orderedAgents = useMemo(
-    () => orderChatPaneAgents({ agents: agents.filter((agent) => agent.available !== false) }),
+    () => orderChatPaneAgents({ agents: agents.filter((agent) => agent.available !== false && agent.id !== 'gemini') }),
     [agents],
   );
   const selectedAgent = orderedAgents.find((agent) => agent.id === value.agentId);
@@ -239,7 +240,7 @@ export function useAgentRuntimePicker({
   // `selectedAgent` stays resolved in BOTH modes on purpose — the CLI selection is still the stored
   // one, and switching back to Local CLI must not have silently lost it. What changes in `'api'` is
   // only what gets DESCRIBED, because none of the CLI's labels are true of an API turn.
-  const localModelLabel = runtimeOptionLabel({ options: selectedAgent?.models, value: value.model, fallback: t('Default model') });
+  const localModelLabel = pickerModelLabel(selectedAgent, value.model);
   const byok = byokSummaryText({ byokRuntime: byokRuntime, t: t });
   const isApi = executionMode === 'api';
   const modelLabel = isApi ? byok.modelLabel : localModelLabel;

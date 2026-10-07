@@ -87,7 +87,7 @@ describe('useChatPaneRuntimeInventory', () => {
   it('ignores a stale capability response after switching to injected agents', async () => {
     const first = deferred<readonly ChatPaneAgent[]>();
     const access = runtimeAccess({ listAgents: vi.fn(() => first.promise) });
-    const staticAgents: ChatPaneAgent[] = [{ id: 'gemini', name: 'Gemini' }];
+    const staticAgents: ChatPaneAgent[] = [{ id: 'antigravity', name: 'Antigravity' }];
     const { result, rerender } = renderHook(
       ({ currentAccess }: { currentAccess: ChatPaneRuntimeAccess | undefined }) =>
         useChatPaneRuntimeInventory({

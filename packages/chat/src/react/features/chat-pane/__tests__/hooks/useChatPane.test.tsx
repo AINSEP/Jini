@@ -12,7 +12,7 @@ import { useChatPane } from '../../hooks/useChatPane.hooks.js';
 
 const agents: ChatPaneAgent[] = [
   { id: 'codex', name: 'Codex CLI', available: true },
-  { id: 'gemini', name: 'Gemini CLI', available: true },
+  { id: 'antigravity', name: 'Antigravity', available: true },
 ];
 
 describe('useChatPane', () => {
@@ -50,10 +50,10 @@ describe('useChatPane', () => {
     await act(() => result.current.send());
     expect(transport.calls).toHaveLength(0);
 
-    act(() => result.current.setSelection({ agentId: 'gemini' }));
-    expect(result.current.selection).toEqual({ agentId: 'gemini' });
-    expect(result.current.composer.agent).toEqual({ agentId: 'gemini' });
-    expect(onSelectionChange).toHaveBeenCalledWith({ agentId: 'gemini' });
+    act(() => result.current.setSelection({ agentId: 'antigravity' }));
+    expect(result.current.selection).toEqual({ agentId: 'antigravity' });
+    expect(result.current.composer.agent).toEqual({ agentId: 'antigravity' });
+    expect(onSelectionChange).toHaveBeenCalledWith({ agentId: 'antigravity' });
   });
 
   it('sends staged attachments with controlled selection and resets empty state', async () => {

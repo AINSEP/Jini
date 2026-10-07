@@ -17,7 +17,7 @@ const agents: ChatPaneAgent[] = [
     available: true,
     version: 'codex-cli 0.145.0',
     models: [
-      { id: 'default', label: 'Default model' },
+      { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol' },
       { id: 'gpt-5.6-terra', label: 'GPT-5.6-Terra' },
     ],
     reasoningOptions: [
@@ -30,7 +30,7 @@ const agents: ChatPaneAgent[] = [
     name: 'Claude Code',
     available: true,
     version: '2.1.201',
-    models: [{ id: 'sonnet', label: 'Sonnet' }],
+    models: [{ id: 'claude-sonnet-5', label: 'Claude Sonnet 5' }],
   },
   {
     id: 'missing',
@@ -183,13 +183,13 @@ describe('AgentRuntimePicker', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
     await userEvent.click(screen.getByRole('radio', { name: /Claude Code/ }));
-    expect(onChange).toHaveBeenCalledWith({ agentId: 'claude', model: 'sonnet' });
+    expect(onChange).toHaveBeenCalledWith({ agentId: 'claude', model: 'claude-sonnet-5' });
     expect(screen.getByRole('dialog', { name: 'Choose AI runtime' })).toBeInTheDocument();
 
-    await userEvent.selectOptions(screen.getByLabelText('Model'), 'default');
+    await userEvent.selectOptions(screen.getByLabelText('Model'), 'gpt-6.1-sol');
     expect(onChange).toHaveBeenCalledWith({
       agentId: 'codex',
-      model: 'default',
+      model: 'gpt-6.1-sol',
       reasoning: 'medium',
     });
     await userEvent.selectOptions(screen.getByLabelText('Reasoning'), 'high');
@@ -478,8 +478,8 @@ describe('AgentRuntimePicker', () => {
     const onChange = vi.fn();
     const sparseAgents: ChatPaneAgent[] = [
       {
-        id: 'gemini',
-        name: 'Gemini CLI',
+        id: 'antigravity',
+        name: 'Antigravity',
         available: true,
         authStatus: 'missing',
         models: [{ id: 'flash', label: 'Flash' }],
@@ -490,21 +490,21 @@ describe('AgentRuntimePicker', () => {
     const { rerender } = render(
       <AgentRuntimePicker
         agents={sparseAgents}
-        value={{ agentId: 'gemini' }}
+        value={{ agentId: 'antigravity' }}
         onChange={onChange}
         onRescan={() => {}}
         scanning
       />,
     );
     await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
-    expect(screen.getByRole('radio', { name: /Gemini CLI · Installed · sign-in required/ }))
+    expect(screen.getByRole('radio', { name: /Antigravity · Installed · sign-in required/ }))
       .toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /Zed Agent · Installed/ })).toBeInTheDocument();
     expect(screen.getByText('Scanning PATH…')).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText('Model'), 'flash');
-    expect(onChange).toHaveBeenCalledWith({ agentId: 'gemini', model: 'flash' });
+    expect(onChange).toHaveBeenCalledWith({ agentId: 'antigravity', model: 'flash' });
     await userEvent.selectOptions(screen.getByLabelText('Reasoning'), 'high');
-    expect(onChange).toHaveBeenCalledWith({ agentId: 'gemini', reasoning: 'high' });
+    expect(onChange).toHaveBeenCalledWith({ agentId: 'antigravity', reasoning: 'high' });
     await userEvent.click(screen.getByRole('radio', { name: /Zed Agent/ }));
     expect(onChange).toHaveBeenCalledWith({ agentId: 'zed' });
     rerender(

@@ -336,6 +336,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   }, [composer, options.agents, options.onSelectionChange]);
 
   const sendBlocker = findChatPaneSendBlocker({
+    ...(selection.model ? { model: selection.model } : {}),
     selectedAgent,
     isStreaming: conversation.isStreaming,
     activeUploadCount,

@@ -8,6 +8,8 @@ import type { ChatTransport, RunContext } from '@jini-ai/chat';
 export interface ChatPaneAgentOption {
   id: string;
   label: string;
+  identityKind?: 'concrete' | 'alias' | 'routing-mode';
+  resolvedId?: string;
 }
 
 /**
@@ -22,8 +24,20 @@ export interface ChatPaneAgent {
   version?: string | null;
   authStatus?: 'ok' | 'missing' | 'unknown';
   models?: readonly ChatPaneAgentOption[];
+  modelCatalog?: {
+    source: 'cli' | 'rpc' | 'provider-api' | 'cli-cache' | 'config-file' | 'offline-fallback';
+    freshness: 'fresh' | 'stale' | 'offline-fallback';
+    fetchedAt: string;
+    expiresAt: string;
+    coverage: 'account' | 'provider' | 'configured' | 'observed';
+    launchFingerprint: string;
+  };
+  defaultModelResolution?:
+    | { status: 'resolved'; id: string; selectionId?: string; source: string; resolvedAt: string; launchFingerprint: string }
+    | { status: 'unresolved'; selectionId?: string; reason: string };
   reasoningOptions?: readonly ChatPaneAgentOption[];
   supportsCustomModel?: boolean;
+  supportsConcreteModelSelection?: boolean;
   diagnostic?: string;
   /**
    * Whether this runtime can receive external MCP servers (host/Jini tools) at all — mirrors

@@ -34,7 +34,7 @@ const agents: ChatPaneAgent[] = [
     id: 'claude',
     name: 'Claude Code',
     available: true,
-    models: [{ id: 'sonnet', label: 'Sonnet' }],
+    models: [{ id: 'claude-sonnet-5', label: 'Claude Sonnet 5' }],
   },
   {
     id: 'missing',
@@ -44,15 +44,15 @@ const agents: ChatPaneAgent[] = [
 ];
 
 describe('chat-pane selection rules', () => {
-  it('uses explicit default options before first-listed fallbacks', () => {
+  it('ignores synthetic defaults and chooses a concrete entry for legacy inventories', () => {
     expect(defaultChatPaneSelection({ agent: agents[0]! })).toEqual({
       agentId: 'codex',
-      model: 'default',
+      model: 'gpt-5.6-terra',
       reasoning: 'default',
     });
     expect(defaultChatPaneSelection({ agent: agents[1]! })).toEqual({
       agentId: 'claude',
-      model: 'sonnet',
+      model: 'claude-sonnet-5',
     });
     expect(defaultChatPaneSelection({ agent: {
       id: 'reasoning-only',
@@ -67,12 +67,12 @@ describe('chat-pane selection rules', () => {
   it('resolves an absent or unavailable selection to the first available agent', () => {
     expect(resolveChatPaneSelection({ agents: agents, requested: { agentId: '' } })).toEqual({
       agentId: 'codex',
-      model: 'default',
+      model: 'gpt-5.6-terra',
       reasoning: 'default',
     });
     expect(resolveChatPaneSelection({ agents: agents, requested: { agentId: 'missing' } })).toEqual({
       agentId: 'codex',
-      model: 'default',
+      model: 'gpt-5.6-terra',
       reasoning: 'default',
     });
     expect(resolveChatPaneSelection({ agents: [], requested: { agentId: 'codex' } })).toEqual({ agentId: '' });
@@ -97,7 +97,7 @@ describe('chat-pane selection rules', () => {
       reasoning: 'forged-reasoning',
     } })).toEqual({
       agentId: 'codex',
-      model: 'default',
+      model: 'gpt-5.6-terra',
       reasoning: 'default',
     });
     expect(resolveChatPaneSelection({ agents: [

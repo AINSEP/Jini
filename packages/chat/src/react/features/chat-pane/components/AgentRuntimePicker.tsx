@@ -1,3 +1,4 @@
+import { pickerModelValue, pickerCatalogNote, pickerModelOptions } from '../model-options.js';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AgentIcon, RemixIcon, SearchableModelSelect } from '@jini-ai/ui';
@@ -148,21 +149,25 @@ interface RuntimeModelSelectsProps {
 
 function RuntimeModelSelects({ selectedAgent, value, onChange, t }: RuntimeModelSelectsProps): ReactNode {
   if (!selectedAgent) return null;
+  const models = pickerModelOptions(selectedAgent);
+  const note = pickerCatalogNote(selectedAgent);
   return (
     <div className="jini-runtime-models">
-      {(selectedAgent.models?.length ?? 0) > 0 ? (
+      {note ? <small>{note}</small> : null}
+      {models.length > 0 ? (
         <label className="jini-runtime-select">
           <span>{t('Model')}</span>
           <select
             aria-label={t('Model')}
-            value={value.model ?? ''}
+            value={pickerModelValue(selectedAgent, value.model)}
             onChange={(event) => onChange({
               agentId: value.agentId,
               model: event.target.value,
               ...(value.reasoning ? { reasoning: value.reasoning } : {}),
             })}
           >
-            {selectedAgent.models?.map((model) => (
+            <option value="" disabled>{t('Choose model')}</option>
+            {models.map((model) => (
               <option value={model.id} key={model.id}>{model.label}</option>
             ))}
           </select>
