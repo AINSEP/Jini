@@ -1,4 +1,8 @@
+import type { I18nAdapter } from '../../slots.js';
 import type { ChatPaneAgent, ChatPaneAgentOption } from './types.js';
+
+// Model names and timestamps are metadata; only surrounding picker copy is translated.
+const passthrough: I18nAdapter['t'] = key => key;
 
 export function isConcretePickerModel(id: string): boolean {
   const token = id.slice(id.lastIndexOf('/') + 1);
@@ -24,19 +28,19 @@ export function configuredPickerModel(agent: ChatPaneAgent): string | undefined 
   const resolution = agent.defaultModelResolution;
   return resolution?.status === 'resolved' && isConcretePickerModel(resolution.id) ? resolution.id : undefined;
 }
-export function pickerModelLabel(agent: ChatPaneAgent | undefined, requested?: string): string {
-  if (!agent) return 'Choose model';
+export function pickerModelLabel(agent: ChatPaneAgent | undefined, requested?: string, t: I18nAdapter['t'] = passthrough): string {
+  if (!agent) return t('Choose model');
   const id = !requested || requested === 'default' ? configuredPickerModel(agent) : requested;
-  if (!id || !isConcretePickerModel(id)) return 'Choose model';
+  if (!id || !isConcretePickerModel(id)) return t('Choose model');
   return pickerModelOptions(agent).find((row) => row.id === id)?.label || id;
 }
 export function pickerModelValue(agent: ChatPaneAgent, requested?: string): string {
   const id = requested && requested !== 'default' ? requested : configuredPickerModel(agent);
   return id && pickerModelOptions(agent).some((row) => row.id === id) ? id : '';
 }
-export function pickerCatalogNote(agent: ChatPaneAgent): string | undefined {
+export function pickerCatalogNote(agent: ChatPaneAgent, t: I18nAdapter['t'] = passthrough): string | undefined {
   const catalog = agent.modelCatalog;
-  if (catalog?.freshness === 'stale') return `Cached · ${catalog.fetchedAt}`;
-  if (catalog?.freshness === 'offline-fallback' || !catalog && agent.models) return 'Offline fallback';
+  if (catalog?.freshness === 'stale') return `${t('Cached')} · ${catalog.fetchedAt}`;
+  if (catalog?.freshness === 'offline-fallback' || !catalog && agent.models) return t('Offline fallback');
   return undefined;
 }

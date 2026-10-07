@@ -9,7 +9,7 @@ import { listProviderModels } from './providers/model-catalog.js';
 import { execAgentFile } from './invocation.js';
 import { probeCopilotSdk, probeDroidSdk } from './model-discovery-sdk.js';
 import { parseSettingsJson, readModelConfiguration } from './model-discovery-config.js';
-import { ModelProbeError, modelIdentityKind, type AgentDiscoveryConfiguration } from './model-discovery.js';
+import { ModelProbeError, modelIdentityKind, withModelProbeTimeout, type AgentDiscoveryConfiguration } from './model-discovery.js';
 import type { DiscoveredModel, ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from './model-discovery-types.js';
 
 const ACP_ARGS: Record<string, readonly string[]> = {
@@ -27,7 +27,9 @@ export function modelProbeTimeoutMs(agentId: string): number {
 }
 /** Shared CLI-subcommand adapter. Output parsers are pure def-owned functions, not vendor tools. */
 export async function probeCliSubcommand(context: ModelDiscoveryContext, config: AgentDiscoveryConfiguration, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
-  const { stdout } = await deps.process.run({ context, args: config.args || [], signal, timeoutMs: 10_000 });
+  // Reserve two seconds of the outer budget for CLI-owned cache recovery. The inner
+  // abort signal stops only the listing; the parent remains usable for reading fallback files.
+  const { stdout } = await withModelProbeTimeout(active => deps.process.run({ context, args: config.args || [], signal: active, timeoutMs: 8_000 }), 8_000, signal);
   const models = config.parse?.({ stdout });
   if (!models) throw new ModelProbeError('malformed-response');
   const defaultSelectionId = stdout.match(/^\s*Default model:\s*(\S+)\s*$/mi)?.[1];

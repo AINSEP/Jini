@@ -1,3 +1,4 @@
+import type { ModelCatalogSnapshot } from '@jini-ai/agent-runtime';
 import { createModelReceiptTracker } from './model-receipts.js';
 import { messageContentWithImages } from '../attachment-content.js';
 import {
@@ -298,6 +299,7 @@ function bufferedStdoutTruncationNotice(droppedBytes: number, maxBytes: number):
 
 interface WireChildLifecycleContext extends TerminateChildTreeDeps {
   readonly startingModel?: string;
+  readonly modelCatalog?: ModelCatalogSnapshot;
   readonly runId: string;
   readonly def: RuntimeAgentDef;
   readonly streamFormat: ChildDrivenStreamFormat;
@@ -393,7 +395,7 @@ interface WireChildLifecycleContext extends TerminateChildTreeDeps {
  */
 export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
   const { runId, def, streamFormat, child, lifecycle, journal, continuation, classifyFailure } = ctx;
-  const modelReceipt = createModelReceiptTracker(ctx.startingModel);
+  const modelReceipt = createModelReceiptTracker(ctx.startingModel, ctx.modelCatalog?.models);
   let stdinClosed = false;
   let cancelRequested = false;
   let emitQueue: Promise<void> = Promise.resolve();
@@ -709,6 +711,7 @@ interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
   readonly prompt: string;
   readonly cwd: string;
   readonly model: string | undefined;
+  readonly modelCatalog?: ModelCatalogSnapshot;
   readonly imagePaths: readonly string[];
   readonly envFormat: 'array' | 'map' | undefined;
   /**
@@ -745,7 +748,7 @@ interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
  * success.
  */
 function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
-  const modelReceipt = createModelReceiptTracker(ctx.model);
+  const modelReceipt = createModelReceiptTracker(ctx.model, ctx.modelCatalog?.models);
   const { runId, agentId, child, lifecycle, journal, classifyFailure } = ctx;
   let cancelRequested = false;
   let emitQueue: Promise<void> = Promise.resolve();
@@ -845,6 +848,7 @@ interface WirePiRpcLifecycleContext extends TerminateChildTreeDeps {
   readonly prompt: string;
   readonly cwd: string;
   readonly model: string | undefined;
+  readonly modelCatalog?: ModelCatalogSnapshot;
   readonly imagePaths: readonly string[];
   readonly uploadRoot: string | undefined;
   readonly attachPiRpcSession: typeof attachPiRpcSession;
@@ -877,7 +881,7 @@ interface WirePiRpcLifecycleContext extends TerminateChildTreeDeps {
  * multi-turn tool continuation, resumable session ids, etc.).
  */
 function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
-  const modelReceipt = createModelReceiptTracker(ctx.model);
+  const modelReceipt = createModelReceiptTracker(ctx.model, ctx.modelCatalog?.models);
   const { runId, agentId, child, lifecycle, journal, classifyFailure } = ctx;
   let cancelRequested = false;
   let emitQueue: Promise<void> = Promise.resolve();
@@ -1002,6 +1006,7 @@ interface RunAcpDispatchInput {
   readonly prompt: string;
   readonly cwd: string;
   readonly model: string | undefined;
+  readonly modelCatalog?: ModelCatalogSnapshot;
   readonly imagePaths: readonly string[];
   readonly envFormat: 'array' | 'map' | undefined;
   readonly mcpBridge: McpBridgeDelivery | null;
@@ -1030,6 +1035,7 @@ export async function runAcpDispatch({ input, deps }: { readonly input: RunAcpDi
       prompt: input.prompt,
       cwd: input.cwd,
       model: input.model,
+      ...(input.modelCatalog ? { modelCatalog: input.modelCatalog } : {}),
       imagePaths: input.imagePaths,
       envFormat: input.envFormat,
       // Mechanism 2 of 5 — see `WireAcpLifecycleContext.mcpServers`. `undefined` for any def that
@@ -1070,6 +1076,7 @@ interface RunPiRpcDispatchInput {
   readonly prompt: string;
   readonly cwd: string;
   readonly model: string | undefined;
+  readonly modelCatalog?: ModelCatalogSnapshot;
   readonly imagePaths: readonly string[];
   readonly uploadRoot: string | undefined;
 }
@@ -1096,6 +1103,7 @@ export async function runPiRpcDispatch({ input, deps }: { readonly input: RunPiR
       prompt: input.prompt,
       cwd: input.cwd,
       model: input.model,
+      ...(input.modelCatalog ? { modelCatalog: input.modelCatalog } : {}),
       imagePaths: input.imagePaths,
       uploadRoot: input.uploadRoot,
       attachPiRpcSession: deps.attachPiRpcSession,

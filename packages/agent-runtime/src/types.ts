@@ -333,7 +333,8 @@ export type RuntimeLock = {
   readonly acquire: (context: RuntimeLockAcquireContext) => Promise<RuntimeLockHold>;
 };
 
-export type RuntimeAgentDef = AgentModelDiscoveryPort & {
+// Static host definitions predate native model discovery; both ports remain opt-in.
+export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
   id: string;
   name: string;
   bin: string;

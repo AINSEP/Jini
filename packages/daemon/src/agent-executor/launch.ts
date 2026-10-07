@@ -26,6 +26,7 @@ import {
   prepareAgentLogFile,
   preparePromptFileForAgent,
   type AgentLaunchResolution,
+  type ModelCatalogSnapshot,
   type PreparedAgentLogFile,
   type PreparedPromptFile,
   type PromptAugmenter,
@@ -957,6 +958,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     const spawnEnv = applyAgentLaunchEnvFn({ env: { ...resolvedEnv }, launch });
     // Resolve from the launch environment before staging or sending any prompt. Pin the same
     // concrete ID that the picker displays; an opaque native route cannot silently start a run.
+    let modelCatalog: ModelCatalogSnapshot;
     try {
       const selection = await (options.resolveModelForLaunch ?? resolveModelForLaunch)({ def, context: {
         executable: launch.launchPath, cwd: input.cwd, env: spawnEnv,
@@ -966,6 +968,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
         ...(input.settings ? { settings: input.settings } : {}),
       } });
       input.model = selection.model;
+      modelCatalog = selection.catalog;
     } catch {
       return failBeforeSpawn({ runId: input.runId, code: 'AGENT_MODEL_UNRESOLVED', message: 'AgentExecutor: pick a concrete model; the starting model could not be resolved for this launch.' });
     }
@@ -1185,6 +1188,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     const stdinHandle = isStdinDrivenFormat(formatForStdin)
       ? wireChildLifecycle({
           startingModel: input.model!,
+          modelCatalog,
           runId: input.runId,
           def,
           streamFormat: formatForStdin.streamFormat,
@@ -1228,6 +1232,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
           prompt: `${overlayDelivery.promptPrefix}${input.prompt}`,
           cwd: input.cwd,
           model: input.model,
+          modelCatalog,
           imagePaths: input.imagePaths ?? [],
           envFormat: def.acpMcpEnvFormat,
           mcpBridge,
@@ -1260,6 +1265,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
           prompt: `${overlayDelivery.promptPrefix}${input.prompt}`,
           cwd: input.cwd,
           model: input.model,
+          modelCatalog,
           imagePaths: input.imagePaths ?? [],
           uploadRoot: input.uploadRoot,
         }, deps: {

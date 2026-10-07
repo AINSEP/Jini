@@ -240,7 +240,7 @@ export function useAgentRuntimePicker({
   // `selectedAgent` stays resolved in BOTH modes on purpose — the CLI selection is still the stored
   // one, and switching back to Local CLI must not have silently lost it. What changes in `'api'` is
   // only what gets DESCRIBED, because none of the CLI's labels are true of an API turn.
-  const localModelLabel = pickerModelLabel(selectedAgent, value.model);
+  const localModelLabel = pickerModelLabel(selectedAgent, value.model, t);
   const byok = byokSummaryText({ byokRuntime: byokRuntime, t: t });
   const isApi = executionMode === 'api';
   const modelLabel = isApi ? byok.modelLabel : localModelLabel;

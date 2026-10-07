@@ -1,3 +1,4 @@
+import type { ModelCatalogSnapshot } from '@jini-ai/agent-runtime';
 import { createModelReceiptTracker } from './agent-executor/model-receipts.js';
 import { messageContentWithImages } from './attachment-content.js';
 import type { MessageAttachmentImage } from './attachment-content.js';
@@ -2007,6 +2008,7 @@ function bufferedStdoutTruncationNotice(droppedBytes: number, maxBytes: number):
 
 interface WireChildLifecycleContext extends TerminateChildTreeDeps {
   readonly startingModel?: string;
+  readonly modelCatalog?: ModelCatalogSnapshot;
   readonly runId: string;
   readonly def: RuntimeAgentDef;
   readonly streamFormat: ChildDrivenStreamFormat;
@@ -2102,7 +2104,7 @@ interface WireChildLifecycleContext extends TerminateChildTreeDeps {
  */
 function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
   const { runId, def, streamFormat, child, lifecycle, journal, continuation, classifyFailure } = ctx;
-  const modelReceipt = createModelReceiptTracker(ctx.startingModel);
+  const modelReceipt = createModelReceiptTracker(ctx.startingModel, ctx.modelCatalog?.models);
   let stdinClosed = false;
   let cancelRequested = false;
   let emitQueue: Promise<void> = Promise.resolve();
@@ -2418,6 +2420,7 @@ interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
   readonly prompt: string;
   readonly cwd: string;
   readonly model: string | undefined;
+  readonly modelCatalog?: ModelCatalogSnapshot;
   readonly imagePaths: readonly string[];
   readonly envFormat: 'array' | 'map' | undefined;
   /**
@@ -2508,7 +2511,7 @@ export function applyAgentTranslationSideEffects({ payload, sessionId, sink }: {
  * success.
  */
 function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
-  const modelReceipt = createModelReceiptTracker(ctx.model);
+  const modelReceipt = createModelReceiptTracker(ctx.model, ctx.modelCatalog?.models);
   const { runId, agentId, child, lifecycle, journal, classifyFailure } = ctx;
   let cancelRequested = false;
   let emitQueue: Promise<void> = Promise.resolve();
@@ -2608,6 +2611,7 @@ interface WirePiRpcLifecycleContext extends TerminateChildTreeDeps {
   readonly prompt: string;
   readonly cwd: string;
   readonly model: string | undefined;
+  readonly modelCatalog?: ModelCatalogSnapshot;
   readonly imagePaths: readonly string[];
   readonly uploadRoot: string | undefined;
   readonly attachPiRpcSession: typeof attachPiRpcSession;
@@ -2640,7 +2644,7 @@ interface WirePiRpcLifecycleContext extends TerminateChildTreeDeps {
  * multi-turn tool continuation, resumable session ids, etc.).
  */
 function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
-  const modelReceipt = createModelReceiptTracker(ctx.model);
+  const modelReceipt = createModelReceiptTracker(ctx.model, ctx.modelCatalog?.models);
   const { runId, agentId, child, lifecycle, journal, classifyFailure } = ctx;
   let cancelRequested = false;
   let emitQueue: Promise<void> = Promise.resolve();
@@ -3705,6 +3709,7 @@ interface RunAcpDispatchInput {
   readonly prompt: string;
   readonly cwd: string;
   readonly model: string | undefined;
+  readonly modelCatalog?: ModelCatalogSnapshot;
   readonly imagePaths: readonly string[];
   readonly envFormat: 'array' | 'map' | undefined;
   readonly mcpBridge: McpBridgeDelivery | null;
@@ -3733,6 +3738,7 @@ export async function runAcpDispatch({ input, deps }: { readonly input: RunAcpDi
       prompt: input.prompt,
       cwd: input.cwd,
       model: input.model,
+      ...(input.modelCatalog ? { modelCatalog: input.modelCatalog } : {}),
       imagePaths: input.imagePaths,
       envFormat: input.envFormat,
       // Mechanism 2 of 5 — see `WireAcpLifecycleContext.mcpServers`. `undefined` for any def that
@@ -3773,6 +3779,7 @@ interface RunPiRpcDispatchInput {
   readonly prompt: string;
   readonly cwd: string;
   readonly model: string | undefined;
+  readonly modelCatalog?: ModelCatalogSnapshot;
   readonly imagePaths: readonly string[];
   readonly uploadRoot: string | undefined;
 }
@@ -3799,6 +3806,7 @@ export async function runPiRpcDispatch({ input, deps }: { readonly input: RunPiR
       prompt: input.prompt,
       cwd: input.cwd,
       model: input.model,
+      ...(input.modelCatalog ? { modelCatalog: input.modelCatalog } : {}),
       imagePaths: input.imagePaths,
       uploadRoot: input.uploadRoot,
       attachPiRpcSession: deps.attachPiRpcSession,
@@ -3955,6 +3963,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     const spawnEnv = applyAgentLaunchEnvFn({ env: { ...resolvedEnv }, launch });
     // Resolve from the launch environment before staging or sending any prompt. Pin the same
     // concrete ID that the picker displays; an opaque native route cannot silently start a run.
+    let modelCatalog: ModelCatalogSnapshot;
     try {
       const selection = await (options.resolveModelForLaunch ?? resolveModelForLaunch)({ def, context: {
         executable: launch.launchPath, cwd: input.cwd, env: spawnEnv,
@@ -3964,6 +3973,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
         ...(input.settings ? { settings: input.settings } : {}),
       } });
       input.model = selection.model;
+      modelCatalog = selection.catalog;
     } catch {
       return failBeforeSpawn({ runId: input.runId, code: 'AGENT_MODEL_UNRESOLVED', message: 'AgentExecutor: pick a concrete model; the starting model could not be resolved for this launch.' });
     }
@@ -4183,6 +4193,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     const stdinHandle = isStdinDrivenFormat(formatForStdin)
       ? wireChildLifecycle({
           startingModel: input.model!,
+          modelCatalog,
           runId: input.runId,
           def,
           streamFormat: formatForStdin.streamFormat,
@@ -4226,6 +4237,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
           prompt: `${overlayDelivery.promptPrefix}${input.prompt}`,
           cwd: input.cwd,
           model: input.model,
+          modelCatalog,
           imagePaths: input.imagePaths ?? [],
           envFormat: def.acpMcpEnvFormat,
           mcpBridge,
@@ -4258,6 +4270,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
           prompt: `${overlayDelivery.promptPrefix}${input.prompt}`,
           cwd: input.cwd,
           model: input.model,
+          modelCatalog,
           imagePaths: input.imagePaths ?? [],
           uploadRoot: input.uploadRoot,
         }, deps: {

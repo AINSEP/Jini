@@ -42,7 +42,7 @@ export interface ModelDiscoveryContext {
   settings?: string;
 }
 export interface AgentModelDiscoveryPort {
-  discoverModels(requiredArgs: { context: ModelDiscoveryContext }, optionalArgs?: { signal?: AbortSignal; force?: boolean; deps?: ModelDiscoveryDeps }): Promise<ModelCatalogSnapshot>;
+  discoverModels(requiredArgs: { context: ModelDiscoveryContext }, optionalArgs?: { signal?: AbortSignal; force?: boolean; staleWhileRevalidate?: boolean; deps?: ModelDiscoveryDeps }): Promise<ModelCatalogSnapshot>;
   resolveDefaultModel(requiredArgs: { context: ModelDiscoveryContext; catalog: ModelCatalogSnapshot }, optionalArgs?: { signal?: AbortSignal; deps?: ModelDiscoveryDeps }): Promise<DefaultModelResolution>;
 }
 export interface ModelProbeResult {

@@ -7,6 +7,22 @@ const agent: ChatPaneAgent = { id: 'codex', name: 'Codex', available: true,
   modelCatalog: { source: 'cli', freshness: 'fresh', fetchedAt: '2026-10-06T00:00:00.000Z', expiresAt: '2026-10-06T00:15:00.000Z', coverage: 'account', launchFingerprint: 'scope' },
   defaultModelResolution: { status: 'resolved', id: 'gpt-other', source: 'config-file', resolvedAt: '2026-10-06T00:00:00.000Z', launchFingerprint: 'scope' } };
 describe('concrete starting-model choices', () => {
+  it('translates picker copy through the host locale without translating model names or timestamps', () => {
+    // Chat supports arbitrary host locales through I18nAdapter, with no packaged dictionaries.
+    const dictionaries = {
+      es: { 'Choose model': 'Elegir modelo', Cached: 'En caché', 'Offline fallback': 'Alternativa sin conexión' },
+      ja: { 'Choose model': 'モデルを選択', Cached: 'キャッシュ', 'Offline fallback': 'オフラインの代替' },
+    };
+    for (const dictionary of Object.values(dictionaries)) {
+      const t = (key: string) => dictionary[key as keyof typeof dictionary] || key;
+      expect(pickerModelLabel(undefined, undefined, t)).toBe(dictionary['Choose model']);
+      expect(pickerModelLabel({ ...agent, defaultModelResolution: { status: 'unresolved', reason: 'missing' } }, undefined, t)).toBe(dictionary['Choose model']);
+      expect(pickerModelLabel(agent, 'gpt-new', t)).toBe('GPT New');
+      expect(pickerCatalogNote({ ...agent, modelCatalog: { ...agent.modelCatalog!, freshness: 'stale' } }, t)).toBe(`${dictionary.Cached} · 2026-10-06T00:00:00.000Z`);
+      expect(pickerCatalogNote({ ...agent, modelCatalog: { ...agent.modelCatalog!, freshness: 'offline-fallback' } }, t)).toBe(dictionary['Offline fallback']);
+      expect(pickerCatalogNote({ id: 'host', name: 'Host', models: agent.models! }, t)).toBe(dictionary['Offline fallback']);
+    }
+  });
   it('preselects the CLI configured concrete entry using its display name without a Default prefix', () => {
     expect(defaultChatPaneSelection({ agent })).toEqual({ agentId: 'codex', model: 'gpt-other' });
     expect(configuredPickerModel(agent)).toBe('gpt-other');

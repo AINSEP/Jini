@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AGENT_DEFS } from '../registry.js';
-import { createAgentModelDiscovery, MODEL_CATALOG_TTL_MS, MODEL_NEGATIVE_TTL_MS, resolveModelForLaunch, withModelProbeTimeout } from '../model-discovery.js';
+import { createAgentModelDiscovery, MODEL_CATALOG_TTL_MS, MODEL_NEGATIVE_TTL_MS, modelDiscoveryForDef, resolveModelForLaunch, withModelProbeTimeout } from '../model-discovery.js';
 import { parseClaudeInitializeMetadata, parsePiRpcMetadata } from '../model-discovery-adapters.js';
 import { parseCodexDebugModels } from '../defs/codex.js';
 import { parseAgyModels } from '../defs/antigravity.js';
@@ -41,11 +41,11 @@ describe('every registered definition has discovery and default-resolution capab
       else if (def.id === 'claude' || def.id === 'codebuddy') fake.setOutput(JSON.stringify({ type: 'control_response', response: { subtype: 'success', response: { models: [{ value: 'default', resolvedModel: 'model-new', displayName: 'Model New' }] } } }));
       else if (def.id === 'amr') fake.setOutput(JSON.stringify({ source: 'remote', data: [{ id: 'claude-model-new' }] }));
       else if (def.id === 'grok-build') fake.setOutput('Default model: model-new\n- model-new\n');
-      const catalog = await def.discoverModels({ context }, { deps: fake.deps });
+      const catalog = await def.discoverModels!({ context }, { deps: fake.deps });
       expect(catalog.source).not.toBe('offline-fallback');
       expect(catalog.freshness).toBe('fresh');
       expect(catalog.models.some((row) => row.id.includes('model-new'))).toBe(true);
-      const resolution = await def.resolveDefaultModel({ context, catalog }, { deps: fake.deps });
+      const resolution = await def.resolveDefaultModel!({ context, catalog }, { deps: fake.deps });
       const selected = catalog.models.find((row) => row.id === catalog.defaultSelectionId);
       if (selected?.identityKind === 'concrete') {
         expect(resolution.status).toBe('resolved');
@@ -123,9 +123,9 @@ describe('shared adapter conformance', () => {
   it('preserves ACP native current selection and resolves only a concrete row', async () => {
     const def = AGENT_DEFS.find((row) => row.id === 'goose')!;
     const fake = fakeDeps();
-    const catalog = await def.discoverModels({ context }, { deps: fake.deps });
+    const catalog = await def.discoverModels!({ context }, { deps: fake.deps });
     expect(catalog.defaultSelectionId).toBe('model-new');
-    const resolution = await def.resolveDefaultModel({ context, catalog }, { deps: fake.deps });
+    const resolution = await def.resolveDefaultModel!({ context, catalog }, { deps: fake.deps });
     expect(resolution.status === 'resolved' && resolution.id).toBe('model-new');
   });
   it('pins the configured Codex model to the native launch flag', async () => {
@@ -149,13 +149,126 @@ describe('shared adapter conformance', () => {
     const def = AGENT_DEFS.find((row) => row.id === 'codex')!; const fake = fakeDeps();
     fake.files.set('/home/fake/.codex/config.toml', 'model = "gpt-new"');
     fake.setOutput('{"models":[{"slug":"gpt-new"}]}');
-    const catalog = await def.discoverModels({ context }, { deps: fake.deps });
+    const catalog = await def.discoverModels!({ context }, { deps: fake.deps });
     fake.files.set('/home/fake/.codex/config.toml', 'model = "gpt-other"');
-    expect(await def.resolveDefaultModel({ context, catalog }, { deps: fake.deps })).toEqual({ status: 'unresolved', reason: 'Launch configuration changed; refresh the catalog.' });
+    expect(await def.resolveDefaultModel!({ context, catalog }, { deps: fake.deps })).toEqual({ status: 'unresolved', reason: 'Launch configuration changed; refresh the catalog.' });
     const resumed = { ...context, resumeSessionId: 'session-1' };
-    const latest = await def.discoverModels({ context: resumed }, { deps: fake.deps });
-    expect(await def.resolveDefaultModel({ context: resumed, catalog: latest }, { deps: fake.deps })).toEqual({ status: 'unresolved', reason: 'Resumed session model metadata is required.' });
+    const latest = await def.discoverModels!({ context: resumed }, { deps: fake.deps });
+    expect(await def.resolveDefaultModel!({ context: resumed, catalog: latest }, { deps: fake.deps })).toEqual({ status: 'unresolved', reason: 'Resumed session model metadata is required.' });
   });
+});
+
+
+describe('launch compatibility and cache recovery', () => {
+  it('passes an explicit unlisted custom model unchanged unless the definition disables custom models', async () => {
+    const fake = fakeDeps();
+    const def = { ...cliPort(), supportsCustomModel: true };
+    const launchContext = { ...context, model: 'private/model-2026' };
+    const result = await resolveModelForLaunch({ def, context: launchContext }, { deps: fake.deps });
+    expect(result.model).toBe('private/model-2026');
+    // RuntimeAgentDef documents omitted supportsCustomModel as allowing custom input.
+    expect((await resolveModelForLaunch({ def: cliPort(), context: launchContext }, { deps: fake.deps })).model).toBe('private/model-2026');
+    await expect(resolveModelForLaunch({ def: { ...def, supportsCustomModel: false }, context: launchContext }, { deps: fake.deps })).rejects.toThrow('no concrete model evidence');
+  });
+  it('uses static host models and the configured default when discovery ports are absent', async () => {
+    const fake = fakeDeps();
+    const def = { id: 'host', fallbackModels: [{ id: 'host-first', label: 'First' }, { id: 'host-second', label: 'Second' }], defaultModelEnvVar: 'HOST_MODEL' };
+    expect((await resolveModelForLaunch({ def, context }, { deps: fake.deps })).model).toBe('host-first');
+    expect((await resolveModelForLaunch({ def, context: { ...context, env: { HOST_MODEL: 'host-second' } } }, { deps: fake.deps })).model).toBe('host-second');
+    expect((await resolveModelForLaunch({ def, context: { ...context, model: 'host-second' } }, { deps: fake.deps })).model).toBe('host-second');
+    expect((await resolveModelForLaunch({ def, context: { ...context, env: { HOST_MODEL: 'host-configured-unlisted' } } }, { deps: fake.deps })).model).toBe('host-configured-unlisted');
+    expect(fake.calls).toBe(0);
+  });
+  it('fills either missing discovery port independently and preserves a host-supplied implementation', async () => {
+    const fake = fakeDeps();
+    const staticDef = { fallbackModels: [{ id: 'host-model', label: 'Host Model' }] };
+    const discoveryOnly = { ...staticDef, discoverModels: modelDiscoveryForDef(staticDef).discoverModels };
+    expect((await resolveModelForLaunch({ def: discoveryOnly, context }, { deps: fake.deps })).model).toBe('host-model');
+    let receivedModels: string[] = [];
+    const resolutionOnly = { ...staticDef, async resolveDefaultModel({ catalog }: Parameters<ReturnType<typeof modelDiscoveryForDef>['resolveDefaultModel']>[0]) {
+      receivedModels = catalog.models.map(row => row.id);
+      return { status: 'resolved' as const, id: 'host-configured', source: 'config-file' as const, resolvedAt: '2026-10-07T00:00:00.000Z', launchFingerprint: catalog.launchFingerprint };
+    } };
+    expect((await resolveModelForLaunch({ def: resolutionOnly, context }, { deps: fake.deps })).model).toBe('host-configured');
+    expect(receivedModels).toEqual(['host-model']);
+    expect(fake.calls).toBe(0);
+  });
+  it('resolves a cached default immediately while one background refresh is pending', async () => {
+    const fake = fakeDeps();
+    const port = createAgentModelDiscovery('test-cli', { args: ['models'], fallbackModels: () => [],
+      parse: ({ stdout }) => parseLineSeparatedModels({ stdout: stdout.replace(/^Default model:.*\n/gm, '') }) });
+    // Config-free CLI defaults are carried in native metadata rather than inferred from order.
+    fake.setOutput('Default model: provider/model-new\nprovider/model-new\n');
+    await port.discoverModels({ context }, { deps: fake.deps });
+    fake.advance(MODEL_CATALOG_TTL_MS);
+    let finish!: (result: { stdout: string; stderr: string }) => void;
+    let refreshes = 0;
+    fake.deps.process.run = () => { refreshes++; return new Promise(resolve => { finish = resolve; }); };
+    try {
+      const results = await Promise.all([1, 2].map(() => resolveModelForLaunch({ def: port, context }, { deps: fake.deps })));
+      expect(results.map(row => row.model)).toEqual(['provider/model-new', 'provider/model-new']);
+      expect(results[0]!.catalog.freshness).toBe('stale');
+      expect(refreshes).toBe(1);
+    } finally {
+      finish({ stdout: 'Default model: provider/model-next\nprovider/model-next\n', stderr: '' });
+      await Promise.all([...fake.deps.cache.values()].map(entry => entry.pending));
+    }
+    expect((await port.discoverModels({ context }, { deps: fake.deps })).models.map(row => row.id)).toEqual(['provider/model-next']);
+  }, 200);
+  for (const id of ['codex', 'opencode', 'claude', 'codebuddy']) {
+    it(`starts a cold ${id} run from its disk cache while native discovery refreshes`, async () => {
+      const fake = fakeDeps(); const def = AGENT_DEFS.find(row => row.id === id)!;
+      const model = id === 'opencode' ? 'openai/gpt-cached' : 'gpt-cached';
+      const configPath = id === 'codex' ? '/home/fake/.codex/config.toml' : id === 'opencode' ? '/home/fake/.config/opencode/opencode.json' : id === 'claude' ? '/home/fake/.claude/settings.json' : '/home/fake/.codebuddy/settings.json';
+      const diskPath = id === 'codex' ? '/home/fake/.codex/models_cache.json' : id === 'opencode' ? '/home/fake/.cache/opencode/models.json' : id === 'claude' ? '/home/fake/.claude.json' : '/home/fake/.codebuddy/settings.json';
+      fake.files.set(configPath, id === 'codex' ? 'model = "gpt-cached"' : JSON.stringify({ model }));
+      fake.files.set(diskPath, id === 'codex' ? '{"models":[{"slug":"gpt-cached"}]}' : id === 'opencode' ? '{"openai":{"models":{"gpt-cached":{}}}}' : JSON.stringify({ model, additionalModelOptionsCache: [{ value: model }] }));
+      let finish!: (result: { stdout: string; stderr: string }) => void;
+      fake.deps.process.run = () => new Promise(resolve => { finish = resolve; });
+      try {
+        const result = await resolveModelForLaunch({ def, context }, { deps: fake.deps });
+        expect(result.model).toBe(model);
+        expect(result.catalog.source).toBe('cli-cache');
+        expect(result.catalog.freshness).toBe('stale');
+      } finally {
+        const stdout = id === 'codex' ? '{"models":[{"slug":"gpt-cached"}]}' : id === 'opencode' ? `${model}\n` : JSON.stringify({ type: 'control_response', response: { subtype: 'success', response: { models: [{ value: model, resolvedModel: model }] } } });
+        finish({ stdout, stderr: '' });
+        await Promise.all([...fake.deps.cache.values()].map(entry => entry.pending));
+      }
+    }, 200);
+  }
+  it('bounds a cold wait without any cache and aborts its effect', async () => {
+    vi.useFakeTimers();
+    const fake = fakeDeps(); let aborted = false;
+    fake.deps.process.run = ({ signal }) => new Promise(() => { signal.addEventListener('abort', () => { aborted = true; }); });
+    try {
+      const result = cliPort().discoverModels({ context }, { deps: fake.deps });
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect((await result).freshness).toBe('offline-fallback');
+      expect(aborted).toBe(true);
+    } finally { vi.useRealTimers(); }
+  });
+  for (const id of ['codex', 'opencode']) {
+    it(`${id} listing timeout leaves time and a live signal for disk-cache recovery`, async () => {
+      vi.useFakeTimers();
+      const fake = fakeDeps(); const def = AGENT_DEFS.find(row => row.id === id)!;
+      const path = id === 'codex' ? '/home/fake/.codex/models_cache.json' : '/home/fake/.cache/opencode/models.json';
+      fake.files.set(path, id === 'codex' ? '{"models":[{"slug":"gpt-cached"}]}' : '{"openai":{"models":{"gpt-cached":{"name":"Cached GPT"}}}}');
+      let listingSignal!: AbortSignal; let cacheAborted: boolean | undefined;
+      fake.deps.process.run = ({ signal }) => { listingSignal = signal; return new Promise(() => {}); };
+      fake.deps.fs.read = async (file, { signal }) => { if (file === path) cacheAborted = signal.aborted; return fake.files.get(file) ?? null; };
+      try {
+        const result = def.discoverModels!({ context }, { deps: fake.deps, force: true });
+        await vi.advanceTimersByTimeAsync(8_000);
+        // Do not await a hung result: assert the fallback was reached within the inner budget.
+        expect(cacheAborted).toBe(false);
+        expect(listingSignal.aborted).toBe(true);
+        const catalog = await result;
+        expect(catalog.source).toBe('cli-cache');
+        expect(catalog.models.map(row => row.id)).toEqual([id === 'codex' ? 'gpt-cached' : 'openai/gpt-cached']);
+      } finally { await vi.runAllTimersAsync(); vi.useRealTimers(); }
+    });
+  }
 });
 
 describe('parser fixtures', () => {

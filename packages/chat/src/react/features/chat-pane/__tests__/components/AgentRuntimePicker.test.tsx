@@ -8,6 +8,7 @@ import {
   runtimeOptionLabel,
   runtimePopoverPosition,
 } from '../../components/AgentRuntimePicker.js';
+import { I18nContext } from '../../../../hooks/context.js';
 import type { ChatPaneAgent, ChatPaneAgentSelection } from '../../types.js';
 
 const agents: ChatPaneAgent[] = [
@@ -64,6 +65,20 @@ function PickerHarness({
 }
 
 describe('AgentRuntimePicker', () => {
+  it('uses the host translator for the trigger prompt and cached/offline catalog notes', async () => {
+    const dictionary: Record<string, string> = { 'Choose model': 'Elegir modelo', Cached: 'En caché', 'Offline fallback': 'Alternativa sin conexión' };
+    const t = (key: string) => dictionary[key] || key;
+    const catalog = { source: 'cli' as const, freshness: 'stale' as const, fetchedAt: '2026-10-06T00:00:00.000Z', expiresAt: '2026-10-06T00:15:00.000Z', coverage: 'account' as const, launchFingerprint: 'scope' };
+    const pickerAgent: ChatPaneAgent = { ...agents[0]!, modelCatalog: catalog };
+    const view = (agent: ChatPaneAgent) => <I18nContext.Provider value={{ t, locale: 'es' }}><AgentRuntimePicker agents={[agent]} value={{ agentId: agent.id }} onChange={() => {}} /></I18nContext.Provider>;
+    const { rerender } = render(view(pickerAgent));
+    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveTextContent('Elegir modelo');
+    await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
+    expect(screen.getByText('En caché · 2026-10-06T00:00:00.000Z')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Elegir modelo' })).toBeInTheDocument();
+    rerender(view({ ...pickerAgent, modelCatalog: { ...catalog, freshness: 'offline-fallback' } }));
+    expect(screen.getByText('Alternativa sin conexión')).toBeInTheDocument();
+  });
   // Popover summary/meta text: rendered during every popover test above for other reasons, so
   // v8 counted it covered while nothing asserted it. See ChatPane.test.tsx's own note.
   it('summarizes the selection, and says so plainly when nothing is selected', async () => {

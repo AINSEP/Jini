@@ -150,7 +150,7 @@ interface RuntimeModelSelectsProps {
 function RuntimeModelSelects({ selectedAgent, value, onChange, t }: RuntimeModelSelectsProps): ReactNode {
   if (!selectedAgent) return null;
   const models = pickerModelOptions(selectedAgent);
-  const note = pickerCatalogNote(selectedAgent);
+  const note = pickerCatalogNote(selectedAgent, t);
   return (
     <div className="jini-runtime-models">
       {note ? <small>{note}</small> : null}

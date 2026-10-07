@@ -12,7 +12,7 @@
  * `archived provenance ledger`.
  */
 import { execAgentFile } from './invocation.js';
-import { offlineSnapshot } from './model-discovery.js';
+import { offlineSnapshot, modelDiscoveryForDef } from './model-discovery.js';
 import type { ModelDiscoveryContext, ModelDiscoveryDeps, ModelCatalogSnapshot, DefaultModelResolution } from './model-discovery-types.js';
 import { rememberLiveModels } from './models.js';
 import { agentCapabilities } from './capabilities.js';
@@ -64,8 +64,9 @@ async function fetchModels(
 ): Promise<FetchedRuntimeModels> {
   const context = optional.context ?? { executable: resolvedBin, env, cwd: optional.cwd ?? process.cwd(), ...(optional.version !== undefined ? { version: optional.version } : {}) };
   const options = { ...(optional.deps ? { deps: optional.deps } : {}), ...(optional.force ? { force: true } : {}) };
-  const catalog = await def.discoverModels({ context }, options);
-  const defaultModelResolution = await def.resolveDefaultModel({ context, catalog }, options);
+  const discovery = modelDiscoveryForDef(def);
+  const catalog = await discovery.discoverModels({ context }, options);
+  const defaultModelResolution = await discovery.resolveDefaultModel({ context, catalog }, options);
   // Models lists can exceed 1MB (e.g. opencode's OpenRouter catalog); the shared process port
   // retains the existing 8MB bound. Empty/unusable metadata falls back with explicit provenance,
   // so a failed CLI never silently empties the picker or labels packaged hints as live.
