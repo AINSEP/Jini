@@ -1,3 +1,4 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /**
  * Ported verbatim from OD's `apps/daemon/src/runtimes/defs/claude.ts` (import
  * path adjusted only). See `archived provenance ledger`.
@@ -49,7 +50,8 @@ const CLAUDE_EFFORT_LEVELS: ReadonlySet<string> = new Set([
  * The list a picker renders when nothing live is available — no `~/.config/mms/model-routes.json`,
  * the CLI's own picker catalog unreadable (see `claude-code-models.ts`), and no `ANTHROPIC_API_KEY`
  * in the agent's environment or a failed live call. Not the primary source: see `fetchModels` below.
- * Every live source is unioned ON TOP of this list, so it is also the floor that never shrinks.
+ * Historically every live source was unioned on top of this list. Packaged hints are now
+ * offline-only: successful native discovery can remove retired models.
  *
  * Ordered current-first, then the still-active-but-superseded generations, which are KEPT rather
  * than dropped — an installed CLI may be pinned to one via its own config, and removing a working
@@ -88,6 +90,7 @@ const CLAUDE_FALLBACK_MODELS = [
 ];
 
 export const claudeAgentDef = {
+  ...createAgentModelDiscovery('claude', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => claudeAgentDef.fallbackModels }),
     id: 'claude',
     name: 'Claude Code',
     bin: 'claude',
@@ -126,18 +129,19 @@ export const claudeAgentDef = {
     //         falling back to `~/.claude.json`'s `additionalModelOptionsCache`. Cached per process.
     //      b. The account's live Anthropic catalog, when `ANTHROPIC_API_KEY` is in this agent's
     //         environment (makes no network call at all without a key).
-    //      Both are merged ON TOP of the static list, never in place of it; neither shadows the other.
+    //      Successful discovery replaces packaged hints. The snapshot layer labels caches separately.
     //   3. The static list, when neither live source answers.
     //
     // Returning `null` from any step is "nothing to add", and `detection.ts#fetchModels` renders
-    // `fallbackModels` for it — so a live-discovery failure can never empty or shrink the picker.
+    // `fallbackModels` for it in legacy callers. The required discovery port uses the shared
+    // snapshot layer instead: configured routes are not proof of live availability.
     fallbackModels: CLAUDE_FALLBACK_MODELS,
     // Asserted against the installed Claude Code 2.1.261 binary's embedded model table and
     // `~/.claude.json`'s server-fetched `additionalModelOptionsCache`. See
     // `RuntimeAgentDef.fallbackModelsAssertedAt` and `scripts/check-model-fallback-freshness.ts`.
     fallbackModelsAssertedAt: '2026-09-05',
     fetchModels: async ({ resolvedBin, env }) => {
-      const routed = await loadMmdRouteModels({ env: env, fallbackModels: CLAUDE_FALLBACK_MODELS });
+      const routed = await loadMmdRouteModels({ env: env, fallbackModels: [] });
       if (routed) return routed;
       const [fromCli, fromApi] = await Promise.all([
         loadClaudeCodeModels(resolvedBin, env, CLAUDE_FALLBACK_MODELS),
@@ -153,7 +157,8 @@ export const claudeAgentDef = {
     // the CLI, which would warn on stderr and silently fall back to the default.
     reasoningOptions: [
       // Spelled out rather than reusing DEFAULT_MODEL_OPTION: its label reads
-      // "Default (CLI config)", which is right for a model row and wrong here.
+      // "Default (CLI config)". Reasoning retains its Default option; model defaults now use
+      // a pre-selected concrete entry, and never display that historical model label.
       { id: 'default', label: 'Default' },
       { id: 'low', label: 'Low' },
       { id: 'medium', label: 'Medium' },
@@ -166,7 +171,7 @@ export const claudeAgentDef = {
     // `spawn ENAMETOOLONG` (CreateProcess caps the full command line at
     // ~32 KB direct, ~8 KB via .cmd shim). `claude -p` with no positional
     // prompt reads the prompt from stdin under `--input-format text` (the
-    // default), which has no length cap. Mirrors the codex/gemini/opencode/
+    // default), which has no length cap. Mirrors the codex/opencode/
     // cursor/qwen entries below.
     buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}) => {
       const caps = agentCapabilities.get('claude') || {};

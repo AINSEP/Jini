@@ -1,3 +1,4 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /**
  * @module defs/droid
  *
@@ -17,6 +18,8 @@ import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const droidAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('droid', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => droidAgentDef.fallbackModels }),
     id: 'droid',
     name: 'Factory Droid',
     bin: 'droid',

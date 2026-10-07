@@ -27,7 +27,7 @@
  *      older CLI without the control protocol, a fork bin (`openclaude`), a timeout.
  *
  * **Enrichment, never a gate.** Every failure resolves to `null` ("nothing to add"), and a non-null
- * result is always `mergeLiveModels(fallback, live)` — the static list is fully present, in order.
+ * result contains only discovered rows. Packaged fallback rows are kept separate by the snapshot layer.
  *
  * The cache-file parser ({@link parseClaudeCodePickerCache}) is shared with
  * `scripts/check-model-fallback-freshness.ts` so the freshness guard and the runtime can never
@@ -41,7 +41,6 @@ import { join } from 'node:path';
 
 import { createCommandInvocation } from '@jini-ai/platform';
 
-import { mergeLiveModels } from './anthropic-live-models.js';
 import { sanitizeCustomModel } from './models.js';
 import type { RuntimeEnv, RuntimeModelOption } from './types.js';
 
@@ -257,12 +256,11 @@ async function discoverClaudeCodeModels(bin: string, env: RuntimeEnv): Promise<r
 }
 
 /**
- * Returns the `claude` model list with the CLI's own picker catalog merged in, or `null` when there
- * is nothing to merge. Needs no API key.
+ * Returns the `claude` model list from the CLI's own picker catalog, or `null` when discovery fails. Needs no API key.
  *
  * @param bin - The resolved `claude` (or fork) binary detection found.
  * @param env - The composed environment for the agent — what a spawn would actually see.
- * @param fallbackModels - The def's static list; always fully present, in order, in a non-null result.
+ * @param _fallbackModels - Compatibility argument; packaged rows are offline fallback only.
  * @param now - Injectable clock for TTL tests.
  * @complexity O(f + l) plus, at most once per {@link CLAUDE_CODE_MODEL_CACHE_TTL_MS} per cache key,
  * one CLI spawn bounded by {@link CLAUDE_CODE_INIT_TIMEOUT_MS} and one file read.
@@ -270,7 +268,7 @@ async function discoverClaudeCodeModels(bin: string, env: RuntimeEnv): Promise<r
 export async function loadClaudeCodeModels(
   bin: string,
   env: RuntimeEnv,
-  fallbackModels: readonly RuntimeModelOption[],
+  _fallbackModels: readonly RuntimeModelOption[],
   now: () => number = Date.now,
 ): Promise<RuntimeModelOption[] | null> {
   const key = cacheKeyFor(bin, env);
@@ -279,5 +277,5 @@ export async function loadClaudeCodeModels(
   const value = pending ?? discoverClaudeCodeModels(bin, env);
   if (!pending) cache.set(key, { expiresAt: now() + CLAUDE_CODE_MODEL_CACHE_TTL_MS, value });
   const live = await value;
-  return live && live.length > 0 ? mergeLiveModels(fallbackModels, live) : null;
+  return live && live.length > 0 ? [...live] : null;
 }

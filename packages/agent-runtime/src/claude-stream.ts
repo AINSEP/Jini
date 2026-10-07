@@ -751,6 +751,7 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
   function handleAssistantMessage(obj: Record<string, unknown>): void {
     const message = obj.message;
     if (!isRecord(message) || !Array.isArray(message.content)) return;
+    if (typeof message.model === 'string') onEvent({ type: 'status', label: 'model', model: message.model });
     const { textMsgId, thinkingMsgId, textAlreadyStreamed, thinkingAlreadyStreamed } =
       resolveAssistantMessageIds(message);
     // Per-turn `stop_reason` is emitted as `turn_end` AFTER the content
@@ -825,6 +826,7 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
   }
 
   function handleMessageStart(ev: Record<string, unknown>): void {
+    if (isRecord(ev.message) && typeof ev.message.model === 'string') onEvent({ type: 'status', label: 'model', model: ev.message.model });
     flushPendingArtifactText();
     // Clean up per-message role-marker guard from the previous message.
     if (currentMessageId) roleGuards.delete(currentMessageId);

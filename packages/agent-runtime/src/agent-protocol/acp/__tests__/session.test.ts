@@ -251,6 +251,18 @@ describe('attachAcpSession', () => {
       expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'status', label: 'model', model: 'default-model' } });
     });
 
+    it('skips session/set_model and prompts directly when session/new already reports the pinned model', () => {
+      const child = new FakeAcpChild();
+      const send = vi.fn();
+      (({ child, prompt, send, ...optionalArgs }: Parameters<typeof attachAcpSession>[0] & NonNullable<Parameters<typeof attachAcpSession>[1]>) => attachAcpSession({ child, prompt, send }, optionalArgs))(baseOptions(child, { model: 'gpt-4', send }));
+      emitResult(child, 1, {});
+      emitResult(child, 2, { sessionId: 'sess-1', models: { currentModelId: 'gpt-4' } });
+      // No redundant round-trip a CLI without set_model support could reject as fatal.
+      expect(writesOf(child).some((request) => request.method === 'session/set_model' || request.method === 'session/set_config_option')).toBe(false);
+      expect(writesOf(child)[2]).toMatchObject({ id: 3, method: 'session/prompt' });
+      expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'status', label: 'model', model: 'gpt-4' } });
+    });
+
     it('fails when session/new resolves without a sessionId', () => {
       const child = new FakeAcpChild();
       const send = vi.fn();
@@ -261,7 +273,7 @@ describe('attachAcpSession', () => {
       expect(send).toHaveBeenCalledWith({ event: 'error', payload: expect.objectContaining({ message: expect.stringContaining('invalid session/new response') }) });
     });
 
-    it('recovers from a recoverable model-selection RPC error by falling back to default and prompting', () => {
+    it('fails instead of silently changing an explicitly selected concrete model', () => {
       const child = new FakeAcpChild();
       const send = vi.fn();
       (({ child, prompt, send, ...optionalArgs }: Parameters<typeof attachAcpSession>[0] & NonNullable<Parameters<typeof attachAcpSession>[1]>) => attachAcpSession({ child, prompt, send }, optionalArgs))(baseOptions(child, { model: 'gpt-4', send }));
@@ -269,11 +281,11 @@ describe('attachAcpSession', () => {
       emitResult(child, 2, { sessionId: 'sess-1' });
       // id 3 = set_model request; respond with a recoverable error.
       emitRpcError(child, 3, { code: -32602, message: 'unknown model' });
-      expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'status', label: 'model', model: 'default' } });
-      expect(writesOf(child)[3]).toMatchObject({ id: 4, method: 'session/prompt' });
+      expect(send).toHaveBeenCalledWith({ event: 'error', payload: { message: 'json-rpc id 3: unknown model' } });
+      expect(writesOf(child).some((request) => request.method === 'session/prompt')).toBe(false);
     });
 
-    it('falls back to "default" label when activeModel was never established before a recoverable error', () => {
+    it('fails a rejected explicit model even when no native current model was established', () => {
       const child = new FakeAcpChild();
       const send = vi.fn();
       (({ child, prompt, send, ...optionalArgs }: Parameters<typeof attachAcpSession>[0] & NonNullable<Parameters<typeof attachAcpSession>[1]>) => attachAcpSession({ child, prompt, send }, optionalArgs))(baseOptions(child, { model: 'gpt-4', send }));
@@ -282,7 +294,8 @@ describe('attachAcpSession', () => {
       // activeModel stays null going into the set_model attempt.
       emitResult(child, 2, { sessionId: 'sess-1' });
       emitRpcError(child, 3, { code: -32601 });
-      expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'status', label: 'model', model: 'default' } });
+      expect(send).toHaveBeenCalledWith({ event: 'error', payload: expect.anything() });
+      expect(writesOf(child).some((request) => request.method === 'session/prompt')).toBe(false);
     });
   });
 

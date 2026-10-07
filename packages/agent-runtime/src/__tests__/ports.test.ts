@@ -111,10 +111,12 @@ describe('port satisfaction: AcpModelProbe', () => {
     expect(seen[0]?.args).toContain('acp');
   });
 
-  it('restoring the default (setAcpModelProbe(null)) reverts to the no-op', async () => {
+  it('restoring the default (setAcpModelProbe(null)) reverts to the native ACP transport', async () => {
     setAcpModelProbe({ probe: { detectModels: async () => [{ id: 'x', label: 'x' }] } });
     setAcpModelProbe({ probe: null });
-    await expect(detectAcpModels({ bin: 'x', args: [] })).resolves.toEqual([]);
+    // The default is no longer a no-op: the stub is gone and the real handshake spawns the bin,
+    // so a binary that does not exist fails at spawn instead of returning the stub's rows.
+    await expect(detectAcpModels({ bin: '/nonexistent/jini-acp-probe-fixture', args: [] })).rejects.toThrow(/spawn failed/);
   });
 });
 

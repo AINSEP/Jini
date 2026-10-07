@@ -365,3 +365,6 @@ export {
   type PiRpcSession,
   type PiRpcSessionOptions,
 } from './agent-protocol/index.js';
+
+export * from './model-discovery.js';
+export { defaultModelDiscoveryDeps, parseClaudeInitializeMetadata, parsePiRpcMetadata } from './model-discovery-adapters.js';

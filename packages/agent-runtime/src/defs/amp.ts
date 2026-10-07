@@ -1,3 +1,4 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/amp.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
@@ -34,6 +35,8 @@ import type { RuntimeAgentDef } from '../types.js';
 const AMP_MODES = new Set(['deep', 'smart', 'rush']);
 
 export const ampAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('amp', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => ampAgentDef.fallbackModels }),
   id: 'amp',
   name: 'Amp',
   bin: 'amp',
@@ -46,6 +49,8 @@ export const ampAgentDef = {
     { id: 'rush', label: 'Rush (mode)' },
   ],
   supportsCustomModel: false,
+  // Plugin-agent model IDs cannot pin the built-in agent's smart/deep/rush routing.
+  supportsConcreteModelSelection: false,
   buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs: _extraAllowedDirs = [], options = {} } = {}) => {
     // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
     // behavior) unless a caller explicitly opts into a restricted run, in which case Amp

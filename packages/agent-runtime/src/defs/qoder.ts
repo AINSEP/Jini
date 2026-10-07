@@ -1,9 +1,12 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/qoder.ts` (import path adjusted only). See `archived provenance ledger`. */
 import path from 'node:path';
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const qoderAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('qoder', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => qoderAgentDef.fallbackModels }),
     id: 'qoder',
     name: 'Qoder CLI',
     bin: 'qodercli',

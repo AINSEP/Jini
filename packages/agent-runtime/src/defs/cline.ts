@@ -1,3 +1,4 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /**
  * @module defs/cline
  *
@@ -12,6 +13,8 @@ import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const clineAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('cline', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => clineAgentDef.fallbackModels }),
     id: 'cline',
     name: 'Cline',
     bin: 'cline',

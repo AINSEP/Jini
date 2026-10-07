@@ -1,7 +1,7 @@
 /**
  * @module pi-models
  *
- * Parses `pi --list-models`'s TSV table (read from stderr) into model
+ * Parses `pi --list-models`'s whitespace table (stdout; older versions used stderr) into model
  * options. Ported verbatim (pure string parsing, no transport) from OD's
  * `apps/daemon/src/pi-rpc.ts#parsePiModels` — the surrounding file is the
  * ~700-line pi-rpc stdio transport (out of this task's scope, same

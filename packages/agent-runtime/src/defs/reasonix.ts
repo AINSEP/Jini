@@ -1,3 +1,4 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /**
  * Ported from OD's `apps/daemon/src/runtimes/defs/reasonix.ts` with one
  * real strip (not just a comment reword): the origin injected a
@@ -37,6 +38,8 @@ function reasonixHome(): string {
 }
 
 export const reasonixAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('reasonix', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => reasonixAgentDef.fallbackModels }),
     id: 'reasonix',
     name: 'DeepSeek Reasonix',
     bin: 'reasonix',

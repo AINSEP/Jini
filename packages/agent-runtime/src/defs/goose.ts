@@ -1,3 +1,4 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /**
  * @module defs/goose
  *
@@ -13,6 +14,8 @@ import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const gooseAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('goose', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => gooseAgentDef.fallbackModels }),
     id: 'goose',
     name: 'goose',
     bin: 'goose',

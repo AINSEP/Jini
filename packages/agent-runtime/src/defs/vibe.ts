@@ -1,8 +1,11 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/vibe.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const vibeAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('vibe', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => vibeAgentDef.fallbackModels }),
     id: 'vibe',
     name: 'Mistral Vibe CLI',
     bin: 'vibe-acp',

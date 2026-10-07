@@ -31,12 +31,40 @@ vi.mock('node:child_process', () => ({
   },
 }));
 
-import { detectAgents, detectAgentsStream, probeAgentModels } from '../detection.js';
+import { detectAgents as nativeDetectAgents, detectAgentsStream as nativeDetectAgentsStream, probeAgentModels as nativeProbeAgentModels } from '../detection.js';
+import { normalizeDiscoveredModels } from '../model-discovery.js';
+import type { ModelDiscoveryDeps } from '../model-discovery-types.js';
 import { agentCapabilities } from '../capabilities.js';
 import { getRememberedLiveModels, rememberLiveModels } from '../models.js';
-import { setAcpModelProbe } from '../acp-model-probe.js';
+import type { AcpModelProbe } from '../acp-model-probe.js';
 import type { AmrProfileResolver } from '../amr-profile-resolver.js';
 import { AGENT_DEFS } from '../registry.js';
+
+// Model effects are injected independently of the legacy version/auth subprocess fixture.
+let acpTestProbe: AcpModelProbe | null = null;
+function setAcpModelProbe({ probe }: { probe: AcpModelProbe | null }) { acpTestProbe = probe; }
+function modelDeps(): ModelDiscoveryDeps {
+  return {
+    process: { async run({ args }) {
+      const result = mockState.responses.get(JSON.stringify(args));
+      if (!result || result.error) throw result?.error || new Error('No fixture response');
+      return { stdout: result.stdout || '', stderr: result.stderr || '' };
+    } },
+    fs: { async read() { return null; } }, credential: { async connection() { return null; } },
+    http: { async list() { throw new Error('No fixture credentials'); } },
+    acp: { async probe() { return { models: acpTestProbe ? await acpTestProbe.detectModels({ bin: 'fixture', args: [] }) : [], source: 'rpc', coverage: 'account' }; } },
+    rpc: { async probe() { throw new Error('No fixture SDK'); } }, clock: { now: Date.now }, cache: new Map(),
+  };
+}
+function detectAgents(required: Parameters<typeof nativeDetectAgents>[0], optional: Parameters<typeof nativeDetectAgents>[1] = {}) {
+  return nativeDetectAgents(required, { modelDiscoveryDeps: modelDeps(), ...optional });
+}
+function detectAgentsStream(required: Parameters<typeof nativeDetectAgentsStream>[0], optional: Parameters<typeof nativeDetectAgentsStream>[1] = {}) {
+  return nativeDetectAgentsStream(required, { modelDiscoveryDeps: modelDeps(), ...optional });
+}
+function probeAgentModels(required: Parameters<typeof nativeProbeAgentModels>[0], optional: Parameters<typeof nativeProbeAgentModels>[1] = {}) {
+  return nativeProbeAgentModels(required, { deps: modelDeps(), ...optional });
+}
 
 function makeExecutable(filePath: string): void {
   writeFileSync(filePath, '#!/bin/sh\necho stub\n', 'utf8');
@@ -276,7 +304,8 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
       const devin = results.find((a) => a.id === 'devin')!;
       expect(devin.available).toBe(true);
       expect(devin.modelsSource).toBe('live');
-      expect(devin.models).toEqual([{ id: 'adaptive', label: 'Adaptive' }]);
+      expect(devin.models).toEqual([{ id: 'adaptive', label: 'Adaptive', identityKind: 'routing-mode' }]);
+      expect(devin.defaultModelResolution?.status).toBe('unresolved');
     } finally {
       setAcpModelProbe({ probe: null });
     }
@@ -315,7 +344,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     }
   });
 
-  it('amr: withRememberedAmrModels falls back to previously remembered live models when the live fetch fails and a scope was remembered', async () => {
+  it('amr: unscoped remembered models are never relabelled as a live catalog on failure', async () => {
     const bin = path.join(dir, 'vela');
     makeExecutable(bin);
     mockState.responses.set(JSON.stringify(['--version']), { stdout: '0.9.0\n' });
@@ -328,9 +357,10 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     rememberLiveModels({ agentId: 'amr', models: [{ id: 'remembered-model', label: 'Remembered' }] }, { scope: 'profile-a' });
     const results = await detectAgents({  }, { configuredEnvByAgent: { amr: { VELA_BIN: bin } }, amrProfileResolver: stubResolver });
     const amr = results.find((a) => a.id === 'amr')!;
-    expect(amr.modelsSource).toBe('live');
-    // getRememberedLiveModels synthesizes label = id (see models.ts).
-    expect(amr.models).toEqual([{ id: 'remembered-model', label: 'remembered-model' }]);
+    expect(amr.modelsSource).toBe('fallback');
+    // getRememberedLiveModels synthesizes label = id (see models.ts); it has no freshness.
+    expect(amr.models).toEqual([]);
+    expect(amr.modelCatalog?.freshness).toBe('offline-fallback');
   });
 
   it('amr: withRememberedAmrModels returns the (empty) fallback unchanged when nothing was remembered for that scope', async () => {
@@ -347,7 +377,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     expect(amr.models).toEqual([]);
   });
 
-  it('a def with neither listModels nor fetchModels (aider) always reports fallbackModels', async () => {
+  it('aider reports explicitly offline models when CLI-effective provider credentials are unavailable', async () => {
     const bin = path.join(dir, 'aider');
     makeExecutable(bin);
     mockState.responses.set(JSON.stringify(['--version']), { stdout: '0.60.0\n' });
@@ -358,15 +388,13 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     expect(aider.models.some((m) => m.id === 'sonnet')).toBe(true);
   });
 
-  it('safeProbe isolates a fault thrown by an injected amrProfileResolver and reports the agent unavailable', async () => {
+  it('a failed AMR discovery does not consult a legacy remembered-model profile resolver', async () => {
     const bin = path.join(dir, 'vela');
     makeExecutable(bin);
     mockState.responses.set(JSON.stringify(['--version']), { stdout: '0.9.0\n' });
-    // Live model fetch fails (non-retriable), so `probe()` falls through to
-    // `withRememberedAmrModels`, which calls straight into the injected
-    // resolver with no try/catch of its own — a thrown resolver therefore
-    // rejects `probe()` itself, and `safeProbe` must catch that rejection
-    // (rather than letting one adapter's fault collapse the whole picker).
+    // Previously a failed live fetch consulted the remembered-model resolver and its throw
+    // could collapse detection. Scoped discovery owns recovery now; no remembered list
+    // is eligible for promotion to live, so this failed probe never consults that resolver.
     mockState.responses.set(JSON.stringify(['model', 'list', '--format', 'json']), {
       error: new Error('malformed response'),
     });
@@ -377,7 +405,9 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     };
     const results = await detectAgents({  }, { configuredEnvByAgent: { amr: { VELA_BIN: bin } }, amrProfileResolver: throwingResolver });
     const amr = results.find((a) => a.id === 'amr')!;
-    expect(amr.available).toBe(false);
+    expect(amr.available).toBe(true);
+    expect(amr.models).toEqual([]);
+    expect(amr.modelCatalog?.freshness).toBe('offline-fallback');
   });
 
   it('amr: a successful live fetch short-circuits withRememberedAmrModels without consulting remembered state', async () => {
@@ -473,7 +503,7 @@ describe('detectAgents — codex effort options come from the live catalog', () 
       'default', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra',
     ]);
     // And the hidden entry contributed neither a model nor a level.
-    expect(codex.models.map((m) => m.id)).toEqual(['default', 'gpt-6-astra']);
+    expect(codex.models.map((m) => m.id)).toEqual(['gpt-6-astra']);
   });
 
   it('keeps the static effort list when the catalog is unusable, rather than emptying the picker', async () => {
@@ -519,13 +549,19 @@ describe('probeAgentModels — the model half of detection, for hosts with their
 
   it('returns fallbackModels when the binary cannot be found', async () => {
     const result = await probeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: path.join(dir, 'missing') , PATH: dir } });
-    expect(result).toEqual({ models: cursorDef().fallbackModels, source: 'fallback' });
+    expect(result.models).toEqual(normalizeDiscoveredModels(cursorDef().fallbackModels));
+    expect(result.source).toBe('fallback');
+    expect(result.catalog?.freshness).toBe('offline-fallback');
+    expect(result.defaultModelResolution?.status).toBe('unresolved');
   });
 
   it('returns fallbackModels when the model listing fails', async () => {
     const bin = path.join(dir, 'cursor-agent');
     makeExecutable(bin);
     const result = await probeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: bin } });
-    expect(result).toEqual({ models: cursorDef().fallbackModels, source: 'fallback' });
+    expect(result.models).toEqual(normalizeDiscoveredModels(cursorDef().fallbackModels));
+    expect(result.source).toBe('fallback');
+    expect(result.catalog?.freshness).toBe('offline-fallback');
+    expect(result.defaultModelResolution?.status).toBe('unresolved');
   });
 });

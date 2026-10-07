@@ -70,9 +70,9 @@ type DecodedSseEvent = { readonly event: string | null; readonly data: string };
 
 ProviderTurnEvent is a discriminated union: status(label), text_delta(delta), tool_use(id/name/input), tool_result(toolUseId/content/isError), usage(usage or null), error(message), end(reason). Its tool-result content is text even when image payloads are passed to the model. Raw provider events can additionally report fabricated_role_marker; the neutral wrapper suppresses that event while retaining end/contaminated.
 
-createJsonEventStreamHandler accepts a string kind; current dedicated dispatch covers opencode, gemini, kimi, cursor-agent and codex, with generic/raw handling for other input. Its event payload remains Record<string, unknown>; the Claude, Qoder and Copilot parser factories export their explicit event unions. execAgentFile uses native execFile output encoding: default text, Buffer when a buffer/null encoding is requested; its promise also carries the native child handle.
+createJsonEventStreamHandler accepts a string kind; current dedicated dispatch covers opencode, kimi, cursor-agent and codex, with generic/raw handling for other input. legacy-google-stream-json is a retained wire decoder, not a registered agent. Its event payload remains Record<string, unknown>; the Claude, Qoder and Copilot parser factories export their explicit event unions. execAgentFile uses native execFile output encoding: default text, Buffer when a buffer/null encoding is requested; its promise also carries the native child handle.
 
-RuntimeModelOption carries id, label and optional per-model reasoning rows. DetectedAgent exposes available, models, modelsSource live/fallback, optional auth status/message, executable path/version and diagnostics; it strips spawn functions and internal configuration. AgentDefinition, CredentialStatus, ModelCatalogOption, ModelProvider and AgentDiagnostic vocabulary are re-exported from @jini-ai/protocol. They are distinct from RuntimeAgentDef and ACP's narrower ModelOption.
+RuntimeModelOption carries id, label, identityKind/resolvedId evidence and optional per-model reasoning rows. Every RuntimeAgentDef implements discoverModels({context}, {deps, signal, force}) and resolveDefaultModel({context, catalog}, {deps, signal}); detected inventories include modelCatalog provenance and structured defaultModelResolution. Packaged fallbackModels appear only as Offline fallback. DetectedAgent exposes available, models, modelsSource live/fallback, optional auth status/message, executable path/version and diagnostics; it strips spawn functions and internal configuration. AgentDefinition, CredentialStatus, ModelCatalogOption, ModelProvider and AgentDiagnostic vocabulary are re-exported from @jini-ai/protocol. They are distinct from RuntimeAgentDef and ACP's narrower ModelOption.
 
 ## Minimal wiring by public import path
 
@@ -246,12 +246,10 @@ function classifyAgentServiceFailure({ text }: { text: string }): AgentServiceFa
 function claudeAuthGuidance({ }: { }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string;
 function cursorAuthGuidance({ }: { }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string;
 function deepseekAuthGuidance({ }: { }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string;
-function geminiAuthGuidance({ }: { }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string;
 function isAntigravityAuthFailureText({ text }: { text: string }): boolean;
 function isClaudeAuthFailureText({ text }: { text: string }): boolean;
 function isCursorAuthFailureText({ text }: { text: string }): boolean;
 function isDeepSeekAuthFailureText({ text }: { text: string }): boolean;
-function isGeminiAuthFailureText({ text }: { text: string }): boolean;
 function isReasonixAuthFailureText({ text }: { text: string }): boolean;
 function probeAgentAuthStatus({ def, resolvedBin, env }: { def: Pick<RuntimeAgentDef, 'id' | 'name' | 'authProbe'>; resolvedBin: string; env: RuntimeEnv }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {} ): Promise<AgentAuthProbeResult | null>;
 function reasonixAuthGuidance({ }: { }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string;
@@ -729,7 +727,6 @@ Every listed name is exported from the root; source links define fields and lite
 | [defs/crush.ts](../../src/defs/crush.ts) | `crushAgentDef` |
 | [defs/cursor-agent.ts](../../src/defs/cursor-agent.ts) | `cursorAgentDef` |
 | [defs/droid.ts](../../src/defs/droid.ts) | `droidAgentDef` |
-| [defs/gemini.ts](../../src/defs/gemini.ts) | `geminiAgentDef` |
 | [defs/deepseek.ts](../../src/defs/deepseek.ts) | `deepseekAgentDef` |
 | [defs/devin.ts](../../src/defs/devin.ts) | `devinAgentDef` |
 | [defs/goose.ts](../../src/defs/goose.ts) | `gooseAgentDef` |

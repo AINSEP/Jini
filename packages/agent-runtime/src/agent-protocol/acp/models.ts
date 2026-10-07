@@ -35,6 +35,8 @@ export interface DetectAcpModelsOptions {
   clientName?: string;
   clientVersion?: string;
   defaultModelOption?: ModelOption;
+  signal?: AbortSignal;
+  onSessionResult?: (result: UnknownRecord) => void;
 }
 /**
  * Normalises a raw config-option field value to a lowercase, whitespace- and
@@ -219,6 +221,8 @@ export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions,
   clientName = 'agent-runtime-detect',
   clientVersion = 'runtime-adapter',
   defaultModelOption = { id: 'default', label: 'Default (CLI config)' },
+  signal,
+  onSessionResult,
 }: DetectAcpModelsOptions = { ...optionalArgs, ...requiredArgs };
   const effectiveTimeoutMs = resolveAcpTimeoutMs(env, timeoutMs);
   return await new Promise<ModelOption[]>((resolve, reject) => {
@@ -232,6 +236,7 @@ export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions,
 
     let settled = false;
     let stderrBuf = '';
+    let stdoutBytes = 0;
     let expectedId = 1;
     let nextId = 2;
 
@@ -240,16 +245,22 @@ export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions,
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
       try {
         child.stdin.end();
       } catch {}
+      if (!child.killed) child.kill('SIGTERM');
+      const killTimer = setTimeout(() => { if (child.exitCode === null) child.kill('SIGKILL'); }, 250);
+      killTimer.unref();
       fn(value);
     };
 
     const fail = (message: string) => {
       finish(reject, new Error(message));
-      if (!child.killed) child.kill('SIGTERM');
     };
+    const abort = () => fail('ACP model detection aborted');
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) { abort(); return; }
 
     const writeRpc = (id: JsonRpcId, method: string, params: unknown) => {
       try {
@@ -285,13 +296,17 @@ export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions,
         return;
       }
       if (expectedId === 2) {
+        onSessionResult?.(result);
         const models = normalizeModels({ models: result.models, defaultModelOption: defaultModelOption }, { configOptions: result.configOptions });
         finish(resolve, models);
-        if (!child.killed) child.kill('SIGTERM');
       }
     } });
 
-    child.stdout.on('data', (chunk) => parser.feed({ chunk: chunk }));
+    child.stdout.on('data', (chunk) => {
+      stdoutBytes += Buffer.byteLength(String(chunk), 'utf8');
+      if (stdoutBytes > 8 * 1024 * 1024) { fail('ACP metadata output exceeded its limit'); return; }
+      parser.feed({ chunk: chunk });
+    });
     child.stdout.on('close', () => parser.flush());
     child.stdin.on('error', (err) => fail(`stdin error: ${err.message}`));
     child.stderr.on('data', (chunk) => {
@@ -319,4 +334,22 @@ export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions,
       clientInfo: { name: clientName, version: clientVersion },
     });
   });
+}
+
+/** Retains native current selection. Session creation can write CLI state/start services;
+ * this metadata probe never sends session/prompt. The old array API remains compatible. */
+export async function detectAcpModelMetadata(requiredArgs: Pick<DetectAcpModelsOptions, 'bin' | 'args'>,
+  optionalArgs: Omit<DetectAcpModelsOptions, 'bin' | 'args'> = {},
+): Promise<{ models: ModelOption[]; currentModelId: string | null }> {
+  let currentModelId: string | null = null;
+  const models = await detectAcpModels(requiredArgs, { ...optionalArgs, onSessionResult: (result) => {
+    currentModelId = currentModelFromSessionResult(result);
+    optionalArgs.onSessionResult?.(result);
+  } });
+  return { models: models.filter((model) => model.id !== 'default').map((model) => {
+    const label = model.label.replace(/ • current$/, '');
+    const suffix = ` (${model.id})`;
+    // Remove only our ID annotation; native display-name capability suffixes are meaningful.
+    return { ...model, label: label.endsWith(suffix) ? label.slice(0, -suffix.length) : label };
+  }), currentModelId };
 }

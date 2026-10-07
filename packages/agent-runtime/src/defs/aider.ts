@@ -1,8 +1,11 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /** Ported from OD's `apps/daemon/src/runtimes/defs/aider.ts` (one de-branded comment; see `archived provenance ledger`). */
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const aiderAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('aider', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => aiderAgentDef.fallbackModels }),
     id: 'aider',
     name: 'Aider',
     bin: 'aider',
@@ -32,7 +35,7 @@ export const aiderAgentDef = {
     // Aider's one-shot mode requires the prompt as `--message <text>` on
     // argv; neither `--message` nor `--message-file` accept `-` as a stdin
     // sentinel (it is treated as a literal filename), so we cannot pipe
-    // the prompt in the way qwen/gemini do. Mirror the DeepSeek TUI
+    // the prompt in the way qwen does. Mirror the DeepSeek TUI
     // pattern: ship the prompt as argv with a conservative byte budget so
     // the /api/chat spawn path emits an actionable error before hitting
     // Windows' ~32 KB CreateProcess limit or Linux MAX_ARG_STRLEN.

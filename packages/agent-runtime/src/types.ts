@@ -11,6 +11,7 @@
  * Ported from OD's `apps/daemon/src/runtimes/types.ts`. Product-neutral
  * as found — see `archived provenance ledger` for the full provenance table.
  */
+import type { AgentModelDiscoveryPort, ModelCatalogSnapshot, DefaultModelResolution, ModelIdentityKind } from './model-discovery-types.js';
 import type { ExecFileOptions } from 'node:child_process';
 import type { AgentDiagnostic } from '@jini-ai/protocol';
 
@@ -19,6 +20,8 @@ export type RuntimeEnv = NodeJS.ProcessEnv | Record<string, string>;
 export type RuntimeModelOption = {
   id: string;
   label: string;
+  identityKind?: ModelIdentityKind;
+  resolvedId?: string;
   /**
    * The reasoning-effort levels THIS model supports, when the runtime's own catalog reports them
    * per model rather than per agent.
@@ -330,12 +333,14 @@ export type RuntimeLock = {
   readonly acquire: (context: RuntimeLockAcquireContext) => Promise<RuntimeLockHold>;
 };
 
-export type RuntimeAgentDef = {
+export type RuntimeAgentDef = AgentModelDiscoveryPort & {
   id: string;
   name: string;
   bin: string;
   versionArgs: string[];
   fallbackModels: RuntimeModelOption[];
+  /** False when the native CLI exposes only routing modes and cannot pin a concrete ID. */
+  supportsConcreteModelSelection?: boolean;
   /**
    * `YYYY-MM-DD` — when this def's hardcoded `fallbackModels` list was last checked against the
    * vendor's own current list.
@@ -668,6 +673,8 @@ export type RuntimeAgentDef = {
 
 export type DetectedAgent = Omit<
   RuntimeAgentDef,
+  | 'discoverModels'
+  | 'resolveDefaultModel'
   | 'buildArgs'
   | 'listModels'
   | 'fetchModels'
@@ -706,6 +713,8 @@ export type DetectedAgent = Omit<
 > & {
   models: RuntimeModelOption[];
   modelsSource: RuntimeModelSource;
+  modelCatalog?: ModelCatalogSnapshot;
+  defaultModelResolution?: DefaultModelResolution;
   available: boolean;
   authStatus?: 'ok' | 'missing' | 'unknown';
   authMessage?: string;

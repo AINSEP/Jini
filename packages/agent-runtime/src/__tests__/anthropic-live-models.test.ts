@@ -99,15 +99,14 @@ describe('loadAnthropicLiveModels', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('merges the account catalog on top of the fallback list', async () => {
+  it('keeps packaged hints out of the account catalog', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(anthropicCatalog('claude-opus-5', 'claude-fable-5-1'));
 
     const result = await loadAnthropicLiveModels({ ANTHROPIC_API_KEY: 'sk-a' }, FALLBACK);
 
-    // The exact list, not "contains claude-fable-5-1": a result that REPLACED the fallback would
-    // still satisfy a containment assertion while silently dropping the CLI aliases the Local-CLI
-    // path depends on.
-    expect(result?.map((m) => m.id)).toEqual(['default', 'fable', 'claude-opus-5', 'claude-fable-5-1']);
+    // The old union protected CLI aliases; explicit resolution now preserves aliases separately,
+    // while removed live IDs must not be reintroduced from packaged hints.
+    expect(result?.map((m) => m.id)).toEqual(['claude-fable-5-1', 'claude-opus-5']);
   });
 
   it('returns null when the live call fails, so the caller keeps its static list', async () => {
@@ -180,7 +179,7 @@ describe("claudeAgentDef.fetchModels — the def's own resolution order", () => 
     setClaudeCodeModelIoForTesting(null);
   });
 
-  it('reaches live discovery when no mmd routes file resolves, and merges into the static list', async () => {
+  it('reaches live discovery when no mmd routes file resolves without adding static hints', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(anthropicCatalog('claude-fable-6-hypothetical'));
 
     const result = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: {
@@ -189,10 +188,7 @@ describe("claudeAgentDef.fetchModels — the def's own resolution order", () => 
     } });
 
     expect(result?.map((m) => m.id)).toContain('claude-fable-6-hypothetical');
-    // Everything the static list offered is still offered.
-    for (const model of claudeAgentDef.fallbackModels) {
-      expect(result?.some((m) => m.id === model.id)).toBe(true);
-    }
+    expect(result?.map((m) => m.id)).toEqual(['claude-fable-6-hypothetical']);
   });
 
   it('makes no network call when the agent environment carries no key', async () => {

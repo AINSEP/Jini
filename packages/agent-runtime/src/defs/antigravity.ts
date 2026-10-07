@@ -1,3 +1,4 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/antigravity.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { redactOAuthUrls } from '@jini-ai/oauth';
 import { DEFAULT_MODEL_OPTION } from './shared.js';
@@ -129,6 +130,7 @@ export function parseAgyModels({ stdout }: { stdout: string }): RuntimeModelOpti
 }
 
 export const antigravityAgentDef = {
+  ...createAgentModelDiscovery('antigravity', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => antigravityAgentDef.fallbackModels, args: ['models'], parse: (input): import('../types.js').RuntimeModelOption[] | null => antigravityAgentDef.listModels.parse(input) }),
   id: 'antigravity',
   name: 'Antigravity',
   bin: 'agy',

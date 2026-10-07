@@ -233,6 +233,10 @@ const PI_RPC_EVENT_HANDLERS: Record<string, PiRpcEventHandler> = {
  */
 export function mapPiRpcEvent({ raw, send, ctx }: { raw: JsonRecord; send: SendAgentEvent; ctx: PiRpcContext }
 ): 'agent_end' | null {
+  const message = getRecord(raw.message);
+  if (message?.role === 'assistant' && typeof message.model === 'string' && typeof message.provider === 'string') {
+    send({ event: 'agent', payload: { type: 'status', label: 'model', model: `${message.provider}/${message.model}` } });
+  }
   const handler = typeof raw.type === 'string' ? PI_RPC_EVENT_HANDLERS[raw.type] : undefined;
   return handler ? handler(raw, send, ctx) : null;
 }

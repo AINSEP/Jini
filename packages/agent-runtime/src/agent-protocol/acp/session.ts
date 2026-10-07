@@ -302,7 +302,8 @@ export function handleRpcError({
   if (
     obj.id === state.setModelRequestId &&
     modelSelectionErrorIsRecoverable(error?.code) &&
-    state.promptRequestId === null
+    state.promptRequestId === null &&
+    (!effects.model || effects.model === 'default')
   ) {
     effects.recoverFromModelSelectionError();
     return;
@@ -637,6 +638,13 @@ export function handleSessionUpdate({
   effects: AcpSessionEffects;
   update: UnknownRecord;
 }): void {
+  // Model/config updates are authoritative protocol metadata, not assistant self-report.
+  const changedModel = currentModelFromSessionResult(update)
+    ?? (update.sessionUpdate === 'current_model_update' && typeof update.currentModelId === 'string' ? update.currentModelId : null);
+  if (changedModel && changedModel !== state.activeModel) {
+    state.activeModel = changedModel;
+    effects.send({ event: 'agent', payload: { type: 'status', label: 'model', model: changedModel } });
+  }
   if (effects.modelUnavailableErrorCode && tryPromoteAmrRetryStatus({ effects, update })) return;
   if (update.sessionUpdate !== 'agent_message_chunk' && update.sessionUpdate !== 'agent_thought_chunk') {
     effects.send({ event: 'agent', payload: {
@@ -691,6 +699,10 @@ export function triggerSetModelIfNeeded({
   effects: AcpSessionEffects;
 }): boolean {
   if (!state.sessionId || !effects.model || effects.model === 'default') return false;
+  // Hosts now pin the concrete starting model on every run. When session/new already reports that
+  // model, a set_model round-trip is redundant, and a CLI without set_model support would turn it
+  // into a fatal explicit-model rejection.
+  if (state.activeModel === effects.model) return false;
   state.setModelRequestId = state.nextId;
   state.expectedId = state.nextId;
   const setModelMethod = state.modelConfigId ? 'session/set_config_option' : 'session/set_model';
@@ -721,7 +733,7 @@ export function handleSessionNewAck({
   if (state.sessionId) notifySessionInit(effects);
   state.modelConfigId = resolveModelConfigId(findModelConfigOption(result.configOptions));
   state.activeModel = currentModelFromSessionResult(result);
-  if (state.sessionId && state.activeModel) {
+  if (state.sessionId && state.activeModel && (!effects.model || effects.model === state.activeModel)) {
     effects.send({ event: 'agent', payload: { type: 'status', label: 'model', model: state.activeModel } });
   }
   if (triggerSetModelIfNeeded({ state, effects })) return;

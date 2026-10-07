@@ -1,3 +1,4 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /**
  * Ported from OD's `apps/daemon/src/runtimes/defs/codex.ts` with one
  * de-branding change: the two operator-override env vars (originally
@@ -192,6 +193,7 @@ export function codexNeedsDangerFullAccessSandbox({  }: {  }, { platform = proce
 }
 
 export const codexAgentDef = {
+  ...createAgentModelDiscovery('codex', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => codexAgentDef.fallbackModels, args: ['debug', 'models'], parse: (input): import('../types.js').RuntimeModelOption[] | null => codexAgentDef.listModels.parse(input) }),
     id: 'codex',
     name: 'Codex CLI',
     bin: 'codex',

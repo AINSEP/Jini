@@ -1,8 +1,11 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/qwen.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const qwenAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('qwen', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => qwenAgentDef.fallbackModels }),
     id: 'qwen',
     name: 'Qwen Code',
     bin: 'qwen',

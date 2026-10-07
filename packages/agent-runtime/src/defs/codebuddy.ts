@@ -1,3 +1,4 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/codebuddy.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { agentCapabilities } from '../capabilities.js';
 import { buildClaudeMcpConfigArgs, DEFAULT_MODEL_OPTION } from './shared.js';
@@ -46,6 +47,8 @@ const CODEBUDDY_FALLBACK_MODELS = [
 ];
 
 export const codebuddyAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('codebuddy', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => codebuddyAgentDef.fallbackModels }),
     id: 'codebuddy',
     name: 'Codebuddy Code',
     bin: 'codebuddy',

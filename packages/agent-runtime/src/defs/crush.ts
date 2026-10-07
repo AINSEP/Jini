@@ -1,3 +1,4 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /**
  * @module defs/crush
  *
@@ -14,6 +15,8 @@ import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const crushAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('crush', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => crushAgentDef.fallbackModels }),
     id: 'crush',
     name: 'Crush',
     bin: 'crush',

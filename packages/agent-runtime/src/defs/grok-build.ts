@@ -1,3 +1,4 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /**
  * Ported from OD's `apps/daemon/src/runtimes/defs/grok-build.ts` with
  * several product-named comment mentions reworded to generic
@@ -8,7 +9,7 @@ import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeModelOption } from '../types.js';
 import type { RuntimeAgentDef } from '../types.js';
 
-const GROK_MODEL_ID_RE = /^\*?\s*-?\s*(grok-[a-z0-9][a-z0-9._-]*)(?:\s+\(default\))?\s*$/i;
+const GROK_MODEL_ID_RE = /^(?:[*•-]\s*|(?=grok-))([a-z0-9][a-z0-9./_:@\[\]-]*)(?:\s+\(default\))?\s*$/i;
 
 export function parseGrokBuildModels({ stdout }: { stdout: string }): RuntimeModelOption[] {
   const seen = new Set<string>();
@@ -18,7 +19,7 @@ export function parseGrokBuildModels({ stdout }: { stdout: string }): RuntimeMod
     const id = match?.[1];
     if (!id || seen.has(id)) continue;
     seen.add(id);
-    out.push({ id, label: id });
+    out.push({ id, label: id, identityKind: /^(?:xai\/)?grok-/i.test(id) && id !== 'grok-build' ? 'concrete' : 'routing-mode' });
   }
   return out;
 }
@@ -50,13 +51,14 @@ function grokModelSupportsReasoningEffort(model: string | null | undefined): boo
 // tool_use streaming). Upgrading to a `grok-stream-json` event parser is
 // follow-up work once the format is stable enough to lock in.
 export const grokBuildAgentDef = {
+  ...createAgentModelDiscovery('grok-build', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => grokBuildAgentDef.fallbackModels, args: ['models'], parse: (input): import('../types.js').RuntimeModelOption[] | null => grokBuildAgentDef.listModels.parse(input) }),
   id: 'grok-build',
   name: 'Grok Build',
   bin: 'grok',
   versionArgs: ['--version'],
   helpArgs: ['-p', '--help'],
   // `grok models` prints status/header lines plus bullet-prefixed model ids.
-  // Keep only concrete `grok-*` ids so UI pickers don't show prose such as
+  // Parse only bullet rows or bare grok IDs so UI pickers don't show prose such as
   // "You are logged in with grok.com" as selectable model names.
   listModels: {
     args: ['models'],

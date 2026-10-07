@@ -27,6 +27,7 @@
  * needed.
  */
 import type { RuntimeEnv, RuntimeModelOption } from './types.js';
+import { detectAcpModels as probeNativeModels } from './agent-protocol/acp/models.js';
 
 export interface AcpModelProbeRequest {
   bin: string;
@@ -50,11 +51,15 @@ export const noopAcpModelProbe: AcpModelProbe = {
   },
 };
 
-let activeAcpModelProbe: AcpModelProbe = noopAcpModelProbe;
+// The earlier no-op was an extraction boundary (see the historical rationale above).
+// The transport is now ported: use its prompt-free initialize/session-new handshake by default.
+const nativeAcpModelProbe: AcpModelProbe = { detectModels: (required, optional = {}) =>
+  probeNativeModels(required, { ...optional, ...(optional.env ? { env: optional.env as NodeJS.ProcessEnv } : {}) }) };
+let activeAcpModelProbe: AcpModelProbe = nativeAcpModelProbe;
 
-/** Install the real ACP transport (or a test double). Pass `null` to restore the no-op default. */
+/** Install a transport/test double. Pass `null` to restore the native transport. */
 export function setAcpModelProbe({ probe }: { probe: AcpModelProbe | null }): void {
-  activeAcpModelProbe = probe ?? noopAcpModelProbe;
+  activeAcpModelProbe = probe ?? nativeAcpModelProbe;
 }
 
 /** Drop-in replacement for OD's `detectAcpModels` — delegates to whatever probe is currently installed. */

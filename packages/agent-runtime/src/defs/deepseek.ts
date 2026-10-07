@@ -1,8 +1,11 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/deepseek.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const deepseekAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('deepseek', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => deepseekAgentDef.fallbackModels }),
     id: 'deepseek',
     name: 'DeepSeek TUI',
     // The `deepseek` dispatcher owns the `exec` / `--auto` subcommands and

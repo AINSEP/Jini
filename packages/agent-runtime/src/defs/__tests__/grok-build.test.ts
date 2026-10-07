@@ -13,7 +13,7 @@ describe('parseGrokBuildModels', () => {
   it('extracts bare grok-* ids', () => {
     expect(parseGrokBuildModels({ stdout: 'grok-4.3' })).toEqual([
       DEFAULT_MODEL_OPTION,
-      { id: 'grok-4.3', label: 'grok-4.3' },
+      { id: 'grok-4.3', label: 'grok-4.3', identityKind: 'concrete' },
     ]);
   });
 
@@ -21,15 +21,15 @@ describe('parseGrokBuildModels', () => {
     const stdout = '* grok-4.3 (default)\n- grok-4.20-reasoning';
     expect(parseGrokBuildModels({ stdout: stdout })).toEqual([
       DEFAULT_MODEL_OPTION,
-      { id: 'grok-4.3', label: 'grok-4.3' },
-      { id: 'grok-4.20-reasoning', label: 'grok-4.20-reasoning' },
+      { id: 'grok-4.3', label: 'grok-4.3', identityKind: 'concrete' },
+      { id: 'grok-4.20-reasoning', label: 'grok-4.20-reasoning', identityKind: 'concrete' },
     ]);
   });
 
   it('matches case-insensitively', () => {
     expect(parseGrokBuildModels({ stdout: 'GROK-4.3' })).toEqual([
       DEFAULT_MODEL_OPTION,
-      { id: 'GROK-4.3', label: 'GROK-4.3' },
+      { id: 'GROK-4.3', label: 'GROK-4.3', identityKind: 'concrete' },
     ]);
   });
 
@@ -37,8 +37,8 @@ describe('parseGrokBuildModels', () => {
     const stdout = 'grok-4.3\ngrok-4.3\ngrok-build';
     expect(parseGrokBuildModels({ stdout: stdout })).toEqual([
       DEFAULT_MODEL_OPTION,
-      { id: 'grok-4.3', label: 'grok-4.3' },
-      { id: 'grok-build', label: 'grok-build' },
+      { id: 'grok-4.3', label: 'grok-4.3', identityKind: 'concrete' },
+      { id: 'grok-build', label: 'grok-build', identityKind: 'routing-mode' },
     ]);
   });
 });

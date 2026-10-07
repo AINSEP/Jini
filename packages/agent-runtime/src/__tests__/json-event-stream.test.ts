@@ -534,7 +534,7 @@ describe('createJsonEventStreamHandler (opencode)', () => {
 
 describe('createJsonEventStreamHandler (gemini)', () => {
   it('replays an init → user message (swallowed) → assistant text → tool_use → tool_result → usage result trace', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       { type: 'init', model: 'gemini-2.5-pro' },
       { type: 'message', role: 'user', content: 'hello' },
       { type: 'message', role: 'assistant', content: 'Looking into it.' },
@@ -565,24 +565,24 @@ describe('createJsonEventStreamHandler (gemini)', () => {
   });
 
   it('emits an init status with an undefined model when init has no model field', () => {
-    const events = feed('gemini', [{ type: 'init' }]);
+    const events = feed('legacy-google-stream-json', [{ type: 'init' }]);
     expect(events[0]).toEqual({ type: 'status', label: 'initializing', model: undefined });
   });
 
   it('emits a null-input tool_use when a gemini tool_use has no parameters field at all', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       { type: 'tool_use', tool_id: 'tool_noparams', tool_name: 'list_dir' },
     ]);
     expect(events[0]).toEqual({ type: 'tool_use', id: 'tool_noparams', name: 'list_dir', input: null });
   });
 
   it('falls through to raw for an assistant message with empty content', () => {
-    const events = feed('gemini', [{ type: 'message', role: 'assistant', content: '' }]);
+    const events = feed('legacy-google-stream-json', [{ type: 'message', role: 'assistant', content: '' }]);
     expect(events).toEqual([{ type: 'raw', line: JSON.stringify({ type: 'message', role: 'assistant', content: '' }) }]);
   });
 
   it('emits a native TodoWrite tool_use for a write_todos tool call', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_2',
@@ -601,7 +601,7 @@ describe('createJsonEventStreamHandler (gemini)', () => {
   });
 
   it('falls back to a plain tool_use for write_todos when the parsed input has no usable todo list', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_3',
@@ -613,7 +613,7 @@ describe('createJsonEventStreamHandler (gemini)', () => {
   });
 
   it('suppresses the very next assistant text once a file-write tool_use has fired', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_4',
@@ -632,7 +632,7 @@ describe('createJsonEventStreamHandler (gemini)', () => {
   });
 
   it('recovers a partial artifact-open tag split across two assistant-text chunks', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_5',
@@ -647,7 +647,7 @@ describe('createJsonEventStreamHandler (gemini)', () => {
   });
 
   it('passes assistant text through unmodified when suppressNextArtifactText has no tag to find', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_6',
@@ -661,7 +661,7 @@ describe('createJsonEventStreamHandler (gemini)', () => {
   });
 
   it('does not suppress a file-write tool_use for a tool name outside the write set', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_7',
@@ -675,53 +675,53 @@ describe('createJsonEventStreamHandler (gemini)', () => {
   });
 
   it('surfaces a tool_result error using the error object message and flags isError', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       { type: 'tool_result', tool_id: 'tool_8', error: { message: 'permission denied' } },
     ]);
     expect(events[0]).toEqual({ type: 'tool_result', toolUseId: 'tool_8', content: 'permission denied', isError: true });
   });
 
   it('stringifies a non-string tool_result output', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       { type: 'tool_result', tool_id: 'tool_9', output: { rows: 3 }, status: 'ok' },
     ]);
     expect(events[0]).toEqual({ type: 'tool_result', toolUseId: 'tool_9', content: JSON.stringify({ rows: 3 }), isError: false });
   });
 
   it('flags a tool_result as an error via status=error even with no error object', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       { type: 'tool_result', tool_id: 'tool_10', output: 'nope', status: 'error' },
     ]);
     expect(events[0]).toMatchObject({ isError: true });
   });
 
   it('downgrades a warning-severity error frame to a status event', () => {
-    const events = feed('gemini', [{ type: 'error', severity: 'WARNING', message: 'quota nearing limit' }]);
+    const events = feed('legacy-google-stream-json', [{ type: 'error', severity: 'WARNING', message: 'quota nearing limit' }]);
     expect(events[0]).toEqual({ type: 'status', label: 'warning', detail: 'quota nearing limit' });
   });
 
   it('emits a fatal error event for a non-warning error frame using the default message', () => {
-    const events = feed('gemini', [{ type: 'error' }]);
-    expect(events[0]).toMatchObject({ type: 'error', message: 'Gemini CLI error' });
+    const events = feed('legacy-google-stream-json', [{ type: 'error' }]);
+    expect(events[0]).toMatchObject({ type: 'error', message: 'Google stream error' });
   });
 
   it('surfaces a result with an error status as an error event', () => {
-    const events = feed('gemini', [{ type: 'result', status: 'error', error: { message: 'ran out of quota' } }]);
+    const events = feed('legacy-google-stream-json', [{ type: 'result', status: 'error', error: { message: 'ran out of quota' } }]);
     expect(events[0]).toEqual({ type: 'error', message: 'ran out of quota', raw: JSON.stringify({ type: 'result', status: 'error', error: { message: 'ran out of quota' } }) });
   });
 
   it('swallows a result event with no stats object', () => {
-    const events = feed('gemini', [{ type: 'result', status: 'ok' }]);
+    const events = feed('legacy-google-stream-json', [{ type: 'result', status: 'ok' }]);
     expect(events).toEqual([]);
   });
 
-  it('falls through to raw for an unrecognized gemini event shape', () => {
-    const events = feed('gemini', [{ type: 'session.summary' }]);
+  it('falls through to raw for an unrecognized legacy Google stream event shape', () => {
+    const events = feed('legacy-google-stream-json', [{ type: 'session.summary' }]);
     expect(events).toEqual([{ type: 'raw', line: JSON.stringify({ type: 'session.summary' }) }]);
   });
 
   it('flushes pending artifact text still buffered when the stream ends mid-tag', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_11',
@@ -932,7 +932,7 @@ describe('createJsonEventStreamHandler (dispatch/plumbing)', () => {
   });
 
   it('treats a non-record top-level JSON value (e.g. a bare array) as unhandled and falls back to raw', () => {
-    const events = feed('gemini', [[] as unknown]);
+    const events = feed('legacy-google-stream-json', [[] as unknown]);
     expect(events).toEqual([{ type: 'raw', line: '[]' }]);
   });
 });
@@ -1160,7 +1160,7 @@ describe('normalizeTodoStatus / todoWriteInputFromItems (via codex todo_list ite
 
 describe('todoWriteInputFromParsedValue (via gemini write_todos)', () => {
   it('accepts a top-level array of todos directly, without a wrapping object', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_arr',
@@ -1179,7 +1179,7 @@ describe('todoWriteInputFromParsedValue (via gemini write_todos)', () => {
   });
 
   it('accepts the singular `todo` key as an alternate to `todos`', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_singular',
@@ -1198,7 +1198,7 @@ describe('todoWriteInputFromParsedValue (via gemini write_todos)', () => {
   });
 
   it('falls back to a plain tool_use when the parsed parameters are neither an array nor a record', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_string_params',
@@ -1214,7 +1214,7 @@ describe('todoWriteInputFromParsedValue (via gemini write_todos)', () => {
 
 describe('isFileWriteToolUse fallback path (via gemini tool_use)', () => {
   it('still suppresses artifact echo text for a write tool whose path has no recognized extension but a string content field', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_noext',
@@ -1227,7 +1227,7 @@ describe('isFileWriteToolUse fallback path (via gemini tool_use)', () => {
   });
 
   it('does not suppress artifact echo text for a write tool with neither a recognized extension nor string content/new_string', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_nomatch',
@@ -1246,14 +1246,14 @@ describe('remaining narrow branch closures across handlers', () => {
     // gemini tool_use `parameters` as a bare number: safeParseJson(42) hits its
     // `typeof value !== 'string'` true branch and returns null, then the `??`
     // chain falls back to the raw numeric parameters value.
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       { type: 'tool_use', tool_id: 'tool_num', tool_name: 'inspect', parameters: 42 },
     ]);
     expect(events).toEqual([{ type: 'tool_use', id: 'tool_num', name: 'inspect', input: 42 }]);
   });
 
   it('stringifyContent returns empty string for a null/undefined tool_result output with no error', () => {
-    const events = feed('gemini', [{ type: 'tool_result', tool_id: 'tool_nothing' }]);
+    const events = feed('legacy-google-stream-json', [{ type: 'tool_result', tool_id: 'tool_nothing' }]);
     expect(events).toEqual([{ type: 'tool_result', toolUseId: 'tool_nothing', content: '', isError: false }]);
   });
 
@@ -1299,7 +1299,7 @@ describe('remaining narrow branch closures across handlers', () => {
   });
 
   it('omits durationMs on a gemini usage result when stats has no duration_ms', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       { type: 'result', status: 'ok', stats: { input_tokens: 1 } },
     ]);
     expect(events[0]).toEqual({ type: 'usage', usage: { input_tokens: 1 }, durationMs: undefined });
@@ -1352,7 +1352,7 @@ describe('remaining narrow branch closures across handlers', () => {
   });
 
   it('withholds artifact text across a chunk boundary that falls between the open tag and the close tag', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_split_close',

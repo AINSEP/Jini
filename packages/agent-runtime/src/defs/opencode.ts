@@ -1,3 +1,4 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/opencode.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { DEFAULT_MODEL_OPTION, parseLineSeparatedModels } from './shared.js';
 import { agentCapabilities } from '../capabilities.js';
@@ -6,6 +7,7 @@ import type { RuntimeAgentDef } from '../types.js';
 const SKIP_PERMISSIONS_FLAG = '--dangerously-skip-permissions';
 
 export const opencodeAgentDef = {
+  ...createAgentModelDiscovery('opencode', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => opencodeAgentDef.fallbackModels, args: ['models'], parse: (input): import('../types.js').RuntimeModelOption[] | null => opencodeAgentDef.listModels.parse(input) }),
     id: 'opencode',
     name: 'OpenCode',
     bin: 'opencode-cli',

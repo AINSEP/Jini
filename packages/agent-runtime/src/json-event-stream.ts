@@ -259,7 +259,8 @@ function handleOpenCodeEvent(obj: unknown, onEvent: StreamEventHandler, state: P
   return false;
 }
 
-function handleGeminiEvent(obj: unknown, onEvent: StreamEventHandler, state: ParserState): boolean {
+// Retain the neutral legacy wire decoder for stored streams; no CLI agent uses this kind.
+function handleLegacyGoogleStreamEvent(obj: unknown, onEvent: StreamEventHandler, state: ParserState): boolean {
   if (!isRecord(obj)) return false;
 
   const isAssistantTextMessage =
@@ -344,7 +345,7 @@ function handleGeminiEvent(obj: unknown, onEvent: StreamEventHandler, state: Par
     const severity = typeof obj.severity === 'string' ? obj.severity.toLowerCase() : '';
     const message = extractErrorMessage(
       obj.message ?? obj.error,
-      severity === 'warning' ? 'Gemini CLI warning' : 'Gemini CLI error',
+      severity === 'warning' ? 'Google stream warning' : 'Google stream error',
     );
     if (severity === 'warning') {
       onEvent({ type: 'status', label: 'warning', detail: message });
@@ -358,7 +359,7 @@ function handleGeminiEvent(obj: unknown, onEvent: StreamEventHandler, state: Par
     if (obj.status === 'error' || isRecord(obj.error)) {
       onEvent({
         type: 'error',
-        message: extractErrorMessage(obj.error, 'Gemini CLI error'),
+        message: extractErrorMessage(obj.error, 'Google stream error'),
         raw: stringifyContent(obj),
       });
       return true;
@@ -950,8 +951,22 @@ export function createJsonEventStreamHandler({ kind, onEvent }: { kind: ParserKi
       return;
     }
 
+    // Preserve structured model receipts before vendor event translation. These fields describe
+    // session/turn/assistant-message metadata; generated text is never used for model identity.
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+      const frame = obj as Record<string, unknown>;
+      const properties = frame.properties as { info?: { role?: string; modelID?: string; providerID?: string } } | undefined;
+      const info = frame.type === 'message.updated' ? properties?.info : undefined;
+      if (info?.role === 'assistant' && typeof info.modelID === 'string') {
+        onEvent({ type: 'status', label: 'model', model: info.providerID ? `${info.providerID}/${info.modelID}` : info.modelID });
+      }
+      if (typeof frame.model === 'string' && ['session.created', 'thread.started', 'turn.started', 'model.changed'].includes(String(frame.type))) {
+        onEvent({ type: 'status', label: 'model', model: frame.model });
+      }
+    }
+
     if (kind === 'opencode' && handleOpenCodeEvent(obj, onEvent, state)) return;
-    if (kind === 'gemini' && handleGeminiEvent(obj, onEvent, state)) return;
+    if (kind === 'legacy-google-stream-json' && handleLegacyGoogleStreamEvent(obj, onEvent, state)) return;
     if (kind === 'kimi' && handleKimiEvent(obj, onEvent)) return;
     if (kind === 'cursor-agent' && handleCursorEvent(obj, onEvent, state)) return;
     if (kind === 'codex' && handleCodexEvent(obj, onEvent, state)) return;

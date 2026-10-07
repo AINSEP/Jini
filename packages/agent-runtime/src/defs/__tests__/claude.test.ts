@@ -310,7 +310,7 @@ describe('claudeAgentDef.fetchModels', () => {
 
   const noRoutes = () => ({ HOME: dir, MMD_MODEL_ROUTES_FILE: path.join(dir, 'no-routes.json') });
 
-  it('unions the CLI picker catalog into the static list with NO credential (subscription-only install)', async () => {
+  it('returns only the CLI picker catalog with NO credential (subscription-only install)', async () => {
     setClaudeCodeModelIoForTesting(cliAnswering([
       { value: 'opus[1m]', resolvedModel: 'claude-opus-5-5[1m]', displayName: 'Opus (1M context)' },
       { value: 'sonnet', resolvedModel: 'claude-sonnet-5', displayName: 'Sonnet' },
@@ -320,9 +320,10 @@ describe('claudeAgentDef.fetchModels', () => {
     });
     const result = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: noRoutes() });
     const ids = result!.map((m) => m.id);
-    // Static list fully present, first, in its own order — never shrunk, never reordered.
-    expect(ids.slice(0, claudeAgentDef.fallbackModels.length)).toEqual(claudeAgentDef.fallbackModels.map((m) => m.id));
-    expect(ids).toContain('claude-opus-5-5');
+    // Owner decision 2026-10-06: packaged fallback rows are offline-only and are never unioned
+    // into a live answer, so a model the CLI no longer lists cannot reappear.
+    expect(ids).toEqual(['opus', 'claude-opus-5-5', 'sonnet', 'claude-sonnet-5']);
+    expect(ids).not.toContain('fable');
     expect(new Set(ids).size).toBe(ids.length);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -339,7 +340,7 @@ describe('claudeAgentDef.fetchModels', () => {
       readConfigFile: async (p) => (await import('node:fs/promises')).readFile(p, 'utf8').catch(() => null),
     });
     const result = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: noRoutes() });
-    expect(result!.map((m) => m.id)).toEqual([...claudeAgentDef.fallbackModels.map((m) => m.id), 'claude-fable-6']);
+    expect(result!.map((m) => m.id)).toEqual(['claude-fable-6']);
   });
 
   it('returns null (static list renders) when the CLI and a malformed ~/.claude.json both give nothing', async () => {
@@ -351,20 +352,18 @@ describe('claudeAgentDef.fetchModels', () => {
     await expect(claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: noRoutes() })).resolves.toBeNull();
   });
 
-  it('keeps the BYOK path when the CLI step finds nothing, and unions both when both answer', async () => {
+  it('keeps the BYOK path when the CLI step finds nothing, and unions both live sources when both answer', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(
       JSON.stringify({ data: [{ id: 'claude-api-only-1', display_name: 'API only', type: 'model' }] }),
       { status: 200, headers: { 'content-type': 'application/json' } },
     ) as unknown as Response);
     const byokOnly = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: { ...noRoutes(), ANTHROPIC_API_KEY: 'sk-a' } });
-    expect(byokOnly!.map((m) => m.id)).toEqual([...claudeAgentDef.fallbackModels.map((m) => m.id), 'claude-api-only-1']);
+    expect(byokOnly!.map((m) => m.id)).toEqual(['claude-api-only-1']);
 
     resetAnthropicLiveModelCacheForTesting();
     setClaudeCodeModelIoForTesting(cliAnswering([{ value: 'claude-opus-5-5' }]));
     const both = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: { ...noRoutes(), ANTHROPIC_API_KEY: 'sk-a' } });
-    expect(both!.map((m) => m.id)).toEqual([
-      ...claudeAgentDef.fallbackModels.map((m) => m.id), 'claude-opus-5-5', 'claude-api-only-1',
-    ]);
+    expect(both!.map((m) => m.id)).toEqual(['claude-opus-5-5', 'claude-api-only-1']);
   });
 
   it('falls back to null when no mmd routes file is resolvable (no HOME, no override)', async () => {
@@ -376,7 +375,7 @@ describe('claudeAgentDef.fetchModels', () => {
     expect(result).toBeNull();
   });
 
-  it('merges live mmd route ids with the static fallback models when a valid routes file exists', async () => {
+  it('returns the mmd route ids without the static fallback models when a valid routes file exists', async () => {
     const routesFile = path.join(dir, 'model-routes.json');
     mkdirSync(dir, { recursive: true });
     writeFileSync(
@@ -391,8 +390,8 @@ describe('claudeAgentDef.fetchModels', () => {
     const result = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: { MMD_MODEL_ROUTES_FILE: routesFile } });
     expect(result).not.toBeNull();
     expect(result!.some((m) => m.id === 'my-routed-model')).toBe(true);
-    // Static fallback models still present alongside the routed id.
-    expect(result!.some((m) => m.id === 'sonnet')).toBe(true);
+    // Packaged fallback rows are offline-only; only the default sentinel accompanies the routes.
+    expect(result!.map((m) => m.id)).toEqual(['default', 'my-routed-model']);
   });
 
   it('returns null when the configured routes file does not exist', async () => {

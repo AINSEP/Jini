@@ -1,3 +1,4 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /**
  * @module defs/auggie
  *
@@ -10,6 +11,8 @@ import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const auggieAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('auggie', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => auggieAgentDef.fallbackModels }),
     id: 'auggie',
     name: 'Auggie CLI',
     bin: 'auggie',

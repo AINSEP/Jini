@@ -88,5 +88,13 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9"
+  },
+  "peerDependencies": {
+    "@github/copilot-sdk": "*"
+  },
+  "peerDependenciesMeta": {
+    "@github/copilot-sdk": {
+      "optional": true
+    }
   }
 }

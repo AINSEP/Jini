@@ -1,3 +1,4 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/cursor-agent.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import { agentCapabilities } from '../capabilities.js';
@@ -30,6 +31,8 @@ export function parseCursorAgentModels({ stdout }: { stdout: string }): RuntimeM
 }
 
 export const cursorAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('cursor-agent', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => cursorAgentDef.fallbackModels, args: ['models'], parse: (input): import('../types.js').RuntimeModelOption[] | null => cursorAgentDef.listModels.parse(input) }),
     id: 'cursor-agent',
     name: 'Cursor Agent',
     bin: 'cursor-agent',

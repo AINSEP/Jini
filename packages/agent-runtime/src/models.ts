@@ -96,6 +96,8 @@ export function sanitizeCustomModel({ id }: { id: string | null | undefined }) {
   if (typeof id !== 'string') return null;
   const trimmed = id.trim();
   if (trimmed.length === 0 || trimmed.length > 200) return null;
-  if (!/^[A-Za-z0-9][A-Za-z0-9._/:@-]*$/.test(trimmed)) return null;
+  // Catalog capability variants (e.g. Claude's [1m] context window) are native model IDs.
+  // argv is never a shell string; keep the existing leading-flag/whitespace/control guards.
+  if (!/^[A-Za-z0-9][A-Za-z0-9._/:@\[\]-]*$/.test(trimmed)) return null;
   return trimmed;
 }

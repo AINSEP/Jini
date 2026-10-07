@@ -1,3 +1,4 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /** Ported from OD's `apps/daemon/src/runtimes/defs/amr.ts` (two de-branded comments; see `archived provenance ledger`). */
 import { execAgentFile } from './shared.js';
 import type { RuntimeAgentDef, RuntimeModelOption } from '../types.js';
@@ -298,6 +299,8 @@ export async function fetchVelaBillingSummary({ resolvedBin, env }: { resolvedBi
 }
 
 export const amrAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('amr', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => amrAgentDef.fallbackModels, parse: ({ stdout }) => parseVelaModelJson({ stdout, expectedSource: 'remote' }) }),
   id: 'amr',
   name: 'AMR',
   bin: 'vela',

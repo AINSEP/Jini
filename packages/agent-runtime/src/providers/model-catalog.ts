@@ -32,6 +32,8 @@ export type ProviderModelsInput = ProviderModelsRequest & {
   requestInit?: Pick<RequestInit, 'dispatcher'>;
   /** Injectable DNS resolver for the base-URL SSRF guard; defaults to `node:dns`. */
   dnsLookup?: DnsLookupFn;
+  /** Injectable HTTP transport for adapter conformance; defaults to fetch. */
+  fetchFn?: typeof fetch;
 };
 
 const PROVIDER_MODELS_TIMEOUT_MS = 12_000;
@@ -380,7 +382,10 @@ export async function listProviderModels(requiredArgs: Pick<ProviderModelsInput,
   // assigns unconditionally.
   let result: ProviderModelsResponse;
   try {
-    const response = await fetch(url, {
+    const collected: ProviderModelOption[] = [];
+    const cursors = new Set<string>();
+    for (let page = 0; page < 100; page += 1) {
+    const response = await (input.fetchFn ?? fetch)(url, {
       method: 'GET',
       headers: providerModelsHeaders(input.protocol, input.apiKey),
       ...input.requestInit,
@@ -425,7 +430,21 @@ export async function listProviderModels(requiredArgs: Pick<ProviderModelsInput,
     // Safe: `url` above only resolves for the five protocols
     // `ModelListProtocol` covers (providerModelsUrl throws for every other
     // ConnectionTestProtocol, and azure/bedrock already returned above).
-    const models = extractModels(input.protocol as ModelListProtocol, data);
+    collected.push(...extractModels(input.protocol as ModelListProtocol, data));
+    const envelope = data && typeof data === 'object' ? data as { nextPageToken?: unknown; has_more?: unknown; last_id?: unknown; next_cursor?: unknown } : {};
+    const cursor = input.protocol === 'google' && typeof envelope.nextPageToken === 'string' ? envelope.nextPageToken
+      : envelope.has_more === true && typeof envelope.last_id === 'string' ? envelope.last_id
+      : typeof envelope.next_cursor === 'string' ? envelope.next_cursor : undefined;
+    if (envelope.has_more === true && !cursor) return { ok: false, kind: 'unknown', latencyMs, detail: 'Provider omitted its pagination cursor.' };
+    if (cursor) {
+      if (cursors.has(cursor)) return { ok: false, kind: 'unknown', latencyMs, detail: 'Provider repeated a pagination cursor.' };
+      cursors.add(cursor);
+      const next = new URL(url);
+      next.searchParams.set(input.protocol === 'google' ? 'pageToken' : input.protocol === 'anthropic' ? 'after_id' : 'cursor', cursor);
+      url = next.toString();
+      continue;
+    }
+    const models = uniqueModels(collected);
     if (models.length === 0) {
       return {
         ok: false,
@@ -442,6 +461,8 @@ export async function listProviderModels(requiredArgs: Pick<ProviderModelsInput,
       status: response.status,
       models,
     };
+    }
+    return { ok: false, kind: 'unknown', latencyMs: Date.now() - start, detail: 'Provider pagination exceeded its safety limit.' };
   } catch (err) {
     const latencyMs = Date.now() - start;
     const kind = networkErrorToKind(err);

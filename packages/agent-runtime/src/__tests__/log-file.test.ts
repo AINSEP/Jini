@@ -4,10 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { prepareAgentLogFile } from '../log-file.js';
+import { createAgentModelDiscovery } from '../model-discovery.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 function defWith(overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {
   return {
+    ...createAgentModelDiscovery('fake-log-agent', { fallbackModels: () => [] }),
     id: 'fake-log-agent',
     name: 'Fake Log Agent',
     bin: 'fake-log-agent',

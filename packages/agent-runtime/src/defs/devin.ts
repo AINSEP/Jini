@@ -1,8 +1,11 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/devin.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const devinAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('devin', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => devinAgentDef.fallbackModels }),
     id: 'devin',
     name: 'Devin for Terminal',
     bin: 'devin',

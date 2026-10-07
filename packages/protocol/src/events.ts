@@ -84,6 +84,8 @@ export interface RunEndPayload {
 export type RunAgentPayload =
   | {
       type: 'status'; label: string; model?: string; ttftMs?: number; detail?: string;
+      /** Concrete prior model on a structured `model_switch` receipt. */
+      previousModel?: string;
       /** Agent CLI session/thread locator, reported early so hosts can checkpoint before terminal end. */
       sessionId?: string;
     }

@@ -1,9 +1,11 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/pi.ts` (import path adjusted only). See `archived provenance ledger`. */
 import path from 'node:path';
 import { DEFAULT_MODEL_OPTION, execAgentFile, parsePiModels } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const piAgentDef = {
+  ...createAgentModelDiscovery('pi', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => piAgentDef.fallbackModels }),
     id: 'pi',
     name: 'Pi',
     bin: 'pi',
@@ -13,16 +15,16 @@ export const piAgentDef = {
     // every spawn). The default 3s version-probe timeout is too tight; raise it
     // so detection doesn't silently abort before reaching fetchModels.
     versionProbeTimeoutMs: 15_000,
-    // `pi --list-models` prints a TSV table to stderr (not stdout),
-    // so we use a custom fetchModels that reads stderr.
+    // `pi --list-models` prints a whitespace table to stdout (verified installed version);
+    // older versions wrote stderr, so retain that compatibility path.
     fetchModels: async ({ resolvedBin, env }) => {
       try {
-        const { stderr } = await execAgentFile({ command: resolvedBin, args: ['--list-models'] }, { options: {
+        const { stdout, stderr } = await execAgentFile({ command: resolvedBin, args: ['--list-models'] }, { options: {
           env,
           timeout: 60_000, // Windows: 20s exceeded under parallel detection load
           maxBuffer: 8 * 1024 * 1024,
         } });
-        const parsed = parsePiModels({ stdout: stderr });
+        const parsed = parsePiModels({ stdout: stdout || stderr });
         if (!parsed || parsed.length === 0) return null;
         return parsed;
       } catch {

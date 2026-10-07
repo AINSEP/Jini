@@ -1,3 +1,4 @@
+import { createAgentModelDiscovery } from '../model-discovery.js';
 /**
  * Ported from OD's `apps/daemon/src/runtimes/defs/copilot.ts` with two
  * de-branding edits to comments (no behavior change): a product-named
@@ -12,6 +13,8 @@ import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const copilotAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('copilot', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => copilotAgentDef.fallbackModels }),
     id: 'copilot',
     name: 'GitHub Copilot CLI',
     bin: 'copilot',

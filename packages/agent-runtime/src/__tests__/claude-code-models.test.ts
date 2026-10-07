@@ -124,17 +124,17 @@ describe('the probe request', () => {
 });
 
 describe('loadClaudeCodeModels', () => {
-  it('unions the CLI picker catalog into the fallback without a credential', async () => {
+  it('returns only the CLI picker catalog without a credential', async () => {
     const io = fakeIo({ runInitialize: async () => initializeStdout(REAL_MODELS) });
     setClaudeCodeModelIoForTesting(io);
     const result = await loadClaudeCodeModels('claude', { HOME: '/home/u' }, FALLBACK);
     const ids = result!.map((m) => m.id);
-    // Fallback fully present, first, in order.
-    expect(ids.slice(0, FALLBACK.length)).toEqual(FALLBACK.map((m) => m.id));
+    // Offline hints must never reintroduce a model removed from the live catalog.
+    expect(ids).toEqual(parseClaudeInitializeModels(initializeStdout(REAL_MODELS))!.map((row) => row.id));
     expect(ids).toContain('claude-opus-5-5');
     expect(ids).toContain('claude-fable-5-1');
     expect(new Set(ids).size).toBe(ids.length);
-    // Fallback's label wins for an id present in both.
+    // The live parser's alias label is kept as-is.
     expect(result!.find((m) => m.id === 'sonnet')?.label).toBe('Sonnet (alias)');
     // The CLI answered, so the weaker cache file is never read.
     expect(io.readConfigFile).not.toHaveBeenCalled();
@@ -148,7 +148,8 @@ describe('loadClaudeCodeModels', () => {
     setClaudeCodeModelIoForTesting(io);
     const result = await loadClaudeCodeModels('openclaude', { CLAUDE_CONFIG_DIR: '/cfg' }, FALLBACK);
     expect(io.readConfigFile).toHaveBeenCalledWith('/cfg/.claude.json');
-    expect(result!.map((m) => m.id)).toEqual([...FALLBACK.map((m) => m.id), 'claude-fable-6']);
+    // Only the discovered cache row: packaged fallback is never unioned into a discovered list.
+    expect(result!.map((m) => m.id)).toEqual(['claude-fable-6']);
   });
 
   it.each([
