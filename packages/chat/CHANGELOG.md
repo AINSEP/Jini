@@ -1,3 +1,7 @@
+## 0.5.6 — 2026-10-08
+
+- Desktop 0.1.13 release fixes: see commits a2659d24 (admin), 5695a7c3 (chat, agent-runtime), 8ad4ac5c (devops).
+
 ## 0.5.5 — 2026-10-08
 
 - Tovu clean-up release: code Tovu moved into Jini, plus the Jini clean-up (see the commit log).
