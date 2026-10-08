@@ -1,5 +1,11 @@
 # @jini-ai/agentic
 
+## 0.4.3
+
+### Patch Changes
+
+- Tovu clean-up release (2026-10-08): code Tovu moved into Jini, plus the Jini clean-up (see the commit log since 0.4.2).
+
 ## 0.4.2 — 2026-10-06
 
 - `@jini-ai/agentic/a2ui`: `A2UI_DISPLAY_ONLY_PROPERTY` (`"displayOnly"` on `createSurface.surfaceProperties`) plus `displayOnlySurfaceIdOf` and `a2uiSurfaceIdOf` readers.

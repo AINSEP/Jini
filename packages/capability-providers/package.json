@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/capability-providers",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Swappable capability-provider ports (auth, storage, payments, db, realtime) as interfaces and DI tokens only; concrete adapters live behind ./adapters/* subpaths.",
   "license": "Apache-2.0",
   "repository": {

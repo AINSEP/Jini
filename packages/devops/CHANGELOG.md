@@ -1,5 +1,11 @@
 # @jini-ai/devops
 
+## 0.5.2
+
+### Patch Changes
+
+- Tovu clean-up release (2026-10-08): code Tovu moved into Jini, plus the Jini clean-up (see the commit log since 0.5.1).
+
 ## 0.5.1 — 2026-10-04
 
 - `@jini-ai/devops/local-dev` exports `listenServer`.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 — 2026-10-08
+
+- Absorbs Tovu Users/Members owner/self protections, reset handling and host ports (a319c44f).
+
 ## 0.3.0 — 2026-10-05
 
 ### BREAKING

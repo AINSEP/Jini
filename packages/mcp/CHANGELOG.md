@@ -1,5 +1,11 @@
 # @jini-ai/mcp
 
+## 0.4.2
+
+### Patch Changes
+
+- Tovu clean-up release (2026-10-08): code Tovu moved into Jini, plus the Jini clean-up (see the commit log since 0.4.1).
+
 ## 0.4.1 — 2026-10-06
 
 - The delegated tool gateways send input `{}` when the model omits it or sends `null`, so a no-input call no longer fails before a retry.

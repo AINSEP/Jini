@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3
+
+### Patch Changes
+
+- Tovu clean-up release (2026-10-08): code Tovu moved into Jini, plus the Jini clean-up (see the commit log since 0.4.2).
+
 ## 0.4.2 — 2026-10-05
 
 - Catalog provider settings: on a host without `saveChanges`, a provider the last read did not return (a catalog-only provider's first key or settings) is now written instead of silently dropped while the tab reported Saved.

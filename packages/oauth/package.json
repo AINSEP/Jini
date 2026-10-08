@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/oauth",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "OAuth 2.x client with discovery, registration, PKCE, device grants and refresh.",
   "license": "Apache-2.0",
   "repository": {

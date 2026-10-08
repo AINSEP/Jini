@@ -271,7 +271,7 @@ importers:
   packages/analytics:
     dependencies:
       '@jini-ai/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
 
   packages/artifacts:
@@ -713,7 +713,7 @@ importers:
         specifier: workspace:^
         version: link:../core
       '@jini-ai/db':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../db
     devDependencies:
       '@vitest/coverage-v8':
@@ -908,16 +908,16 @@ importers:
   packages/sqlite:
     dependencies:
       '@jini-ai/chat':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../chat
       '@jini-ai/daemon':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../daemon
       '@jini-ai/db':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../db
       '@jini-ai/registry':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../registry
     devDependencies:
       '@vitest/coverage-v8':

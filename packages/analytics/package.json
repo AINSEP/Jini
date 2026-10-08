@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/analytics",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Framework-free visitor analytics ingestion, aggregation and storage contracts for marketing applications.",
   "license": "Apache-2.0",
   "repository": {
@@ -37,7 +37,7 @@
     "!dist/**/*.map"
   ],
   "dependencies": {
-    "@jini-ai/core": "workspace:*"
+    "@jini-ai/core": "workspace:^"
   },
   "publishConfig": {
     "access": "public",
