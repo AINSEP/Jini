@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { checkPackageLayers } from '../check-package-layers.js';
 import { checkSourceNeutrality } from './source-neutrality.js';
+import { checkSubpathIsolation } from '../check-subpath-isolation.js';
 
 export function runPublishHygieneSelfTest(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): string[] {
   const root = mkdtempSync(join(tmpdir(), 'jini-publish-guard-'));
@@ -65,6 +66,10 @@ export function runPublishHygieneSelfTest(_required: Record<string, never> = {},
     write('packages/cli/src/ok.ts', "import { X } from '@jini-ai/sidecar';");
     write('packages/chat/src/bad.ts', "import { X } from '@jini-ai/platform/fs';");
     write('packages/ui/src/ok.ts', "import { X } from '@jini-ai/platform/fetch-with-timeout';");
+    // Browser-safe leaf is legal; its Node barrel and nested private paths remain forbidden.
+    write('packages/ui/src/endpoint-policy.ts', "import { X } from '@jini-ai/platform/net/endpoint-policy';");
+    write('packages/ui/src/net-barrel.ts', "import { X } from '@jini-ai/platform/net';");
+    write('packages/ui/src/endpoint-private.ts', "import { X } from '@jini-ai/platform/net/endpoint-policy/private';");
     write('packages/user-management/src/react/ok.ts', "import { X } from '@jini-ai/ui';");
     write('packages/user-management/src/core/bad.ts', "import { X } from '@jini-ai/ui';");
     // REGRESSION: fails if the approved chat React peer edge is rejected.
@@ -82,6 +87,8 @@ export function runPublishHygieneSelfTest(_required: Record<string, never> = {},
     expect(layerHas('http-kit/package.json', 'L1-layer-edge'), 'upward manifest edge must fail');
     expect(layerHas('oauth/package.json', 'L1-layer-edge') && layerHas('mcp/package.json', 'L1-layer-edge'), 'both MCP/OAuth directions must fail');
     expect(layerHas('chat/src/bad.ts', 'L2-browser-platform'), 'browser platform subpath must fail');
+    expect(!layerHas('ui/src/endpoint-policy.ts', 'L2-browser-platform'), 'browser-safe endpoint policy must pass');
+    expect(layerHas('ui/src/net-barrel.ts', 'L2-browser-platform') && layerHas('ui/src/endpoint-private.ts', 'L2-browser-platform'), 'Node barrel and private endpoint paths must fail');
     expect(layerHas('user-management/src/core/bad.ts', 'L1-layer-edge'), 'optional React peer must stay in React integration');
     expect(!layerHas('chat/package.json', 'L1-layer-edge'), 'chat UI declaration must cover React integration');
     expect(layerHas('chat/src/core/bad.tsx', 'L1-layer-edge') && layerHas('chat/src/reactive/bad.ts', 'L1-layer-edge'), 'chat UI imports must stay inside src/react');
@@ -92,6 +99,25 @@ export function runPublishHygieneSelfTest(_required: Record<string, never> = {},
       expect(!layers.some(v => v.file.endsWith(file)), `${file} listed exception must pass`);
     }
     expect(layers.some(v => v.file.endsWith('core/src/up.ts') && v.rule === 'L3-undeclared-edge'), 'undeclared source edge must fail');
+    // Fail closed: prove both rules and the type/core/optional-peer positive case.
+    manifest('isolation-fixture', { 'domain-driver': '*' }, {
+      exports: { './alpha': './dist/alpha/index.js', './beta': './dist/beta/index.js', './core': './dist/core/index.js' },
+      sideEffects: false,
+    });
+    write('packages/isolation-fixture/src/alpha/index.ts', "export * from '../core/bridge.js';");
+    write('packages/isolation-fixture/src/core/bridge.ts', "export { value } from '../beta/index.js';");
+    write('packages/isolation-fixture/src/beta/index.ts', "import 'domain-driver'; export const value = 1;");
+    write('packages/isolation-fixture/src/core/index.ts', 'export const common = true;');
+    const isolation = checkSubpathIsolation({ repoRoot: root });
+    expect(isolation.some(v => v.rule === 'SI-domain' && v.file.endsWith('core/bridge.ts')), 'indirect runtime cross-domain import must fail');
+    expect(isolation.some(v => v.rule === 'SI-dependency' && v.file.endsWith('isolation-fixture/package.json')), 'subset-only regular dependency must fail');
+    write('packages/isolation-fixture/src/alpha/index.ts', "import type { value } from '../beta/index.js'; export { common } from '../core/index.js';");
+    write('packages/isolation-fixture/src/core/bridge.ts', 'export const unused = true;');
+    manifest('isolation-fixture', {}, {
+      exports: { './alpha': './dist/alpha/index.js', './beta': './dist/beta/index.js', './core': './dist/core/index.js' },
+      sideEffects: false, peerDependencies: { 'domain-driver': '*' }, peerDependenciesMeta: { 'domain-driver': { optional: true } },
+    });
+    expect(!checkSubpathIsolation({ repoRoot: root }).some(v => v.file.includes('isolation-fixture/')), 'type-only sibling, shared core and optional peer must pass');
     return failures;
   } finally { rmSync(root, { recursive: true, force: true }); }
 }

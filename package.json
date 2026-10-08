@@ -7,7 +7,7 @@
     "pnpm": ">=10.33.2 <11"
   },
   "scripts": {
-    "guard": "tsx ./scripts/guard.ts",
+    "guard": "node --import tsx ./scripts/guard.ts",
     "guard:drift": "tsx ./scripts/check-guard-drift.ts",
     "playground": "tsx ./scripts/start-playground.ts",
     "playground:web": "tsx ./scripts/start-playground.ts --web-only",

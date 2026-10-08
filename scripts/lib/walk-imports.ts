@@ -5,30 +5,29 @@
  * ADS-memory/reports/swarm-consensus/runs/2026-07-19T1632-consensus-report.md). Good enough to
  * catch real violations; a future pass can upgrade to the TS compiler API without changing
  * either check's calling convention.
+ * 2026-10-07: that upgrade is now implemented in extractImports, using the existing layer
+ * guard's parser. The historical rationale above and stripComments' consumers stay intact.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import ts from 'typescript';
+import { parseSource } from './package-sources.js';
 
 export interface ImportRef {
   /** Repo-relative path of the file containing the import, forward-slashed. */
   readonly file: string;
   /** The raw module specifier as written (e.g. `'../foo.js'`, `'@jini-ai/core/composition'`). */
   readonly specifier: string;
-  /** True for `import type ... from` / `export type ... from`; false for value imports. */
+  /** True for explicit type clauses and all-inline-type clauses; false for value imports. */
   readonly typeOnly: boolean;
 }
 
 const REPO_ROOT = new URL('../../', import.meta.url).pathname;
 
-/** `import`/`export ... from '<spec>'`, optionally `type`-qualified, across a multi-line clause. */
-const FROM_IMPORT_RE = /\b(import|export)\s+(type\s+)?[\s\S]*?\bfrom\s+['"]([^'"]+)['"]/g;
-/** Bare side-effect import: `import '<spec>';` with no `from`. */
-const BARE_IMPORT_RE = /\bimport\s+['"]([^'"]+)['"]/g;
-/** Dynamic `import('<spec>')`. */
-const DYNAMIC_IMPORT_RE = /\bimport\(\s*['"]([^'"]+)['"]/g;
-
-/** Recursively lists every `.ts`/`.tsx` file under `dir` (repo-absolute), skipping declarations, `dist`, and `node_modules`. */
-export function listSourceFiles(dir: string): string[] {
+/** Recursively lists TS source under `dir`, skipping declarations and generated/dependency trees.
+ * Runtime-closure analysis also opts into build-free JavaScript source.
+ */
+export function listSourceFiles(dir: string, options: { includeJavaScript?: boolean } = {}): string[] {
   const out: string[] = [];
   let entries: string[];
   try {
@@ -41,8 +40,9 @@ export function listSourceFiles(dir: string): string[] {
     const full = join(dir, entry);
     const st = statSync(full);
     if (st.isDirectory()) {
-      out.push(...listSourceFiles(full));
-    } else if ((entry.endsWith('.ts') || entry.endsWith('.tsx')) && !entry.endsWith('.d.ts')) {
+      out.push(...listSourceFiles(full, options));
+    } else if ((/\.(?:ts|tsx|mts|cts)$/.test(entry) || (options.includeJavaScript && /\.(?:js|jsx|mjs|cjs)$/.test(entry)))
+      && !/\.d\.(?:ts|mts|cts)$/.test(entry)) {
       out.push(full);
     }
   }
@@ -120,21 +120,45 @@ export function stripComments(source: string): string {
 
 /** Extracts every import/export specifier from one `.ts`/`.tsx` file, repo-root-absolute or relative. */
 export function extractImports(absFilePath: string): ImportRef[] {
-  const content = stripComments(readFileSync(absFilePath, 'utf8'));
+  const source = parseSource({ file: absFilePath, source: readFileSync(absFilePath, 'utf8') });
   const file = toRepoRelative(absFilePath);
   const refs: ImportRef[] = [];
-
-  for (const m of content.matchAll(FROM_IMPORT_RE)) {
-    // Groups 1 and 3 are required (non-optional) captures — always defined when the overall
-    // match succeeds. Group 2 (`type `) is genuinely optional, hence `Boolean(m[2])`.
-    refs.push({ file, specifier: m[3]!, typeOnly: Boolean(m[2]) });
+  // Source syntax is the shared owner of import discovery. Regex clauses could consume a
+  // later type export after a value declaration, or match import-shaped strings; either
+  // mistake changes a runtime closure. Reuse the parser already used by the layer guard.
+  const requireNames = new Set(['require']);
+  for (const statement of source.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (ts.isIdentifier(declaration.name) && declaration.initializer
+        && ts.isCallExpression(declaration.initializer)
+        && ts.isIdentifier(declaration.initializer.expression)
+        && declaration.initializer.expression.text === 'createRequire') requireNames.add(declaration.name.text);
+    }
   }
-  for (const m of content.matchAll(BARE_IMPORT_RE)) {
-    refs.push({ file, specifier: m[1]!, typeOnly: false });
+  function visit(node: ts.Node): void {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+      const clause = node.importClause;
+      const bindings = clause?.namedBindings;
+      const inlineTypes = !clause?.name && bindings && ts.isNamedImports(bindings)
+        && bindings.elements.length > 0 && bindings.elements.every(element => element.isTypeOnly);
+      refs.push({ file, specifier: node.moduleSpecifier.text, typeOnly: Boolean(clause?.isTypeOnly || inlineTypes) });
+    } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+      const clause = node.exportClause;
+      const inlineTypes = clause && ts.isNamedExports(clause) && clause.elements.length > 0
+        && clause.elements.every(element => element.isTypeOnly);
+      refs.push({ file, specifier: node.moduleSpecifier.text, typeOnly: Boolean(node.isTypeOnly || inlineTypes) });
+    } else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
+      || (ts.isIdentifier(node.expression) && requireNames.has(node.expression.text)))
+      && node.arguments[0] && ts.isStringLiteralLike(node.arguments[0])) {
+      refs.push({ file, specifier: node.arguments[0].text, typeOnly: false });
+    } else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)
+      && node.moduleReference.expression && ts.isStringLiteral(node.moduleReference.expression)) {
+      refs.push({ file, specifier: node.moduleReference.expression.text, typeOnly: node.isTypeOnly });
+    }
+    ts.forEachChild(node, visit);
   }
-  for (const m of content.matchAll(DYNAMIC_IMPORT_RE)) {
-    refs.push({ file, specifier: m[1]!, typeOnly: false });
-  }
+  visit(source);
   return refs;
 }
 

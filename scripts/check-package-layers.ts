@@ -19,7 +19,8 @@ const layers: Readonly<Record<string, number>> = {
   daemon: 4, 'user-management': 4, cms: 4, 'cms-forms': 4, mcp: 4,
   integrations: 4, 'agent-plugins': 4, devops: 4, chat: 4, plugins: 4, analytics: 4,
   ui: 5, admin: 5,
-  server: 6, sqlite: 6, infra: 6,
+  // Commerce composes CMS authorization and UI through opt-in entries; SI keeps its root isolated.
+  server: 6, sqlite: 6, infra: 6, commerce: 6,
 };
 const sameLayerEdges = new Set(['cli→sidecar', 'cms-forms→cms', 'admin→ui']);
 
@@ -84,8 +85,11 @@ export function checkPackageLayers(
       violations.push({ rule: 'L1-layer-edge', file, reason: `${reason}: L${ownerLayer} cannot depend on L${targetLayer}` });
     }
     if (sourcePath !== undefined && ['ui', 'chat'].includes(owner) && target === 'platform'
-      && spec !== '@jini-ai/platform/fetch-with-timeout') {
-      violations.push({ rule: 'L2-browser-platform', file, reason: `${reason}: only the isomorphic fetch-with-timeout entry is allowed` });
+      // The literal-host policy has no Node imports or DNS effects; UI and Node URL
+      // wrappers must reuse it rather than fork security-sensitive classification.
+      && spec !== '@jini-ai/platform/fetch-with-timeout'
+      && spec !== '@jini-ai/platform/net/endpoint-policy') {
+      violations.push({ rule: 'L2-browser-platform', file, reason: `${reason}: only the isomorphic fetch-with-timeout and literal endpoint-policy entries are allowed` });
     }
     if (sourcePath !== undefined && !pkg.manifest.dependencies?.[`@jini-ai/${target}`]
       && !pkg.manifest.peerDependencies?.[`@jini-ai/${target}`]) {

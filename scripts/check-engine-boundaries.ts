@@ -449,7 +449,7 @@ export async function checkEngineBoundaries(
             // Public daemon concepts and its optional HTTP integration; nested paths remain private.
           } else if (spec === '@jini-ai/cms/trash') {
             // Public CMS soft-delete capability; only this exact entry is public.
-          } else if (spec === '@jini-ai/cms/http/settings') {
+          } else if (spec === '@jini-ai/cms/settings/express') {
             // Public domain HTTP entry; private nested paths remain forbidden by exact matching.
           } else if (spec === '@jini-ai/core/text') {
             // R2 exception: the shared untrusted-text sanitizer is a public kernel entry,

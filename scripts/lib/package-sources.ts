@@ -25,7 +25,7 @@ export function sourcePackages(required: { packagesDir: string }, _optional: Rec
         const data: PackageManifest = JSON.parse(readFileSync(manifest, 'utf8'));
         if (data.name?.startsWith('@jini-ai/')) packages.push({ directory: child, manifest: data });
       }
-      // Package roots and their immediate children can contain nested packages (cms/forms).
+      // Package roots and their immediate children can contain nested packages (<family>/<domain>).
       // Runtime asset projects inside src are content, not workspace packages.
       if (!['src', 'docs', 'ui-ux-design'].includes(entry.name)) visit(child);
     }

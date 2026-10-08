@@ -206,10 +206,10 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       // PARITY: a public entry never authorizes its private implementation paths.
       write(root, `packages/server/src/bad-r2-daemon-${index}.ts`, `export * from '@jini-ai/daemon/${subpath}/private';\n`);
     }
-    // REGRESSION: fails if the exact cms/http/settings R2 exemption is removed.
-    write(root, 'packages/http-kit/src/ok-r2-cms-settings.ts', `export * from '@jini-ai/cms/http/settings';\n`);
+    // REGRESSION: fails if the exact cms/settings/express R2 exemption is removed.
+    write(root, 'packages/http-kit/src/ok-r2-cms-settings.ts', `export * from '@jini-ai/cms/settings/express';\n`);
     // PARITY: the public entry never permits private implementation paths or adjacent entries.
-    write(root, 'packages/http-kit/src/bad-r2-cms-settings-private.ts', `export * from '@jini-ai/cms/http/settings/private';\n`);
+    write(root, 'packages/http-kit/src/bad-r2-cms-settings-private.ts', `export * from '@jini-ai/cms/settings/express/private';\n`);
     write(root, 'packages/http-kit/src/bad-r2-cms-http-other.ts', `export * from '@jini-ai/cms/http/other';\n`);
     // R2 exemption: @jini-ai/agentic/dom and @jini-ai/agentic/a2ui are the other named-literal
     // exceptions, alongside @jini-ai/core/composition — must NOT be flagged. A *different* subpath of

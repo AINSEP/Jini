@@ -63,7 +63,7 @@ export function workspacePackageGlobs(workspaceRoot: string): string[] {
 
 /**
  * Discovers every real `@jini-ai/*` package in the workspace from `pnpm-workspace.yaml`'s globs —
- * never a hardcoded list. Nested members such as `packages/cms/forms` are found because the
+ * never a hardcoded list. Nested members such as `packages/<family>/<domain>` are found because the
  * workspace file lists them; a one-level `packages/*` scan never saw them, so they never published.
  * Private packages are included (dependency closures need them); publish paths filter them out.
  */
