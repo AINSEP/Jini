@@ -41,8 +41,8 @@ describe('starting-model launch agreement', () => {
   });
 });
 
-// The public barrel retains the original executor, while internal users consume the split
-// implementation. Exercise both so source-only verification cannot hide wiring drift.
+// Exercise both entry paths so the public compatibility facade stays wired to the split
+// implementation and model-receipt assertions continue to cover consumer behavior.
 for (const [name, create] of [['split', createAgentExecutor], ['public', publicCreateAgentExecutor]] as const) {
   describe(`${name} executor launch-scoped model receipts`, () => {
     for (const format of ['claude-stream-json', 'acp-json-rpc', 'pi-rpc']) {

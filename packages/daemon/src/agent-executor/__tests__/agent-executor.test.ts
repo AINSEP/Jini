@@ -58,7 +58,7 @@ import {
   type ContinuationOptions,
   type McpBridgeDelivery,
   type McpJsonInjectionOptions,
-} from '../index.js';
+} from '../../index.js';
 
 const TEST_PRINCIPAL: Principal = { id: 'test-principal' };
 
@@ -3572,6 +3572,32 @@ describe('AgentExecutor — gap 1 byte-journal (CreateAgentExecutorOptions.journ
 });
 
 describe('AgentExecutor — gap 5 session resume (RunEndPayload.sessionRef)', () => {
+  it.each([
+    { name: 'known', childPid: 4242 },
+    { name: 'unavailable', childPid: undefined },
+  ])('checkpoints the session before end with a $name child PID, keeping identity off text events', async ({ childPid }) => {
+    const { lifecycle, executor, child } = createHarness({ childPid });
+    const { run } = await lifecycle.start({ contextRef: 'early-session' });
+    const events: RunProtocolEvent[] = [];
+    await lifecycle.stream({ runId: run.id, onEvent: event => events.push(event) });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hello', cwd: '/work' });
+
+    child.stdout.emit('data', '{"type":"thread.started","thread_id":"early-session"}\n');
+    child.stdout.emit('data', '{"type":"item.completed","item":{"type":"agent_message","text":"hello"}}\n');
+    await flushAsync();
+
+    expect((await lifecycle.get({ runId: run.id }))?.state).toBe('running');
+    expect(events.some(event => event.kind === 'end')).toBe(false);
+    expect(events.filter(event => event.kind === 'agent' && !isModelReceipt(event)).map(event => event.payload)).toEqual([
+      { type: 'status', label: 'initializing', sessionId: 'early-session', ...(childPid === undefined ? {} : { childPid }) },
+      { type: 'text_delta', delta: 'hello' },
+    ]);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
+    expect(events[events.length - 1]).toMatchObject({ kind: 'end', payload: { status: 'succeeded', sessionRef: 'early-session' } });
+  });
+
   it('threads a captured ACP session id through to the terminal end event as sessionRef', async () => {
     const { lifecycle, executor, child, attachCalls } = createAcpHarness();
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });

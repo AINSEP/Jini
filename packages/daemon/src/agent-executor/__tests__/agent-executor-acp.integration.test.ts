@@ -2,7 +2,7 @@ import { fixtureModelDiscovery } from './model-discovery-fixture.js';
 import { describe, expect, it, vi } from 'vitest';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle, type RunLifecycle } from '../../run-lifecycle.js';
-import { createAgentExecutor } from '../index.js';
+import { createAgentExecutor } from '../../index.js';
 import type { AgentLaunchResolution, RuntimeAgentDef } from '@jini-ai/agent-runtime';
 import type { RunAgentPayload, RunProtocolEvent } from '@jini-ai/protocol';
 

@@ -2,7 +2,9 @@ import { ChildProcess } from 'node:child_process';
 import * as childProcess from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 import type { RuntimeLockHandoffContext, RuntimeLockHold } from '@jini-ai/agent-runtime';
-import * as executor from '../index.js';
+import * as executor from '../../index.js';
+import * as compatibilityEntry from '../../agent-executor.js';
+import * as splitEntry from '../index.js';
 import { armHandoffWatcher } from '../handoff.js';
 
 vi.mock('node:child_process', async (importOriginal) => ({
@@ -11,11 +13,39 @@ vi.mock('node:child_process', async (importOriginal) => ({
 }));
 
 describe('agent executor split parity', () => {
+  it('preserves every published runtime export and shares function and error-class identity across entries', () => {
+    const publishedNames = [
+      'isSupportedStreamFormat', 'assessAgentExecutorCompatibility', 'isAgentExecutorSupported',
+      'extractUsageTokens', 'translateStatusEvent', 'translateToolResultEvent', 'translateErrorEvent',
+      'translateTurnEndEvent', 'translateAgentRuntimeEvent', 'AgentExecutorError',
+      'MCP_BRIDGE_UNAVAILABLE', 'unavailableJiniBridgeStatus', 'buildMcpJsonServerEntry',
+      'mergeMcpJsonContent', 'buildAcpMcpBridgeServers', 'mergeEnvContentMcpConfig',
+      'mergeEnvContentInstructions', 'buildCodexMcpServerToml', 'buildCodexHomeConfigToml',
+      'resolveSourceCodexHomeDir', 'buildMcpBridgeDelivery', 'resolveSourceClaudeConfigDir',
+      'DEFAULT_BUFFERED_STDOUT_MAX_BYTES', 'applyAgentTranslationSideEffects',
+      'resolveDefAndStreamFormat', 'resolveImageDeliveryAndArgvBudget', 'resolveRunEnv', 'resolveLaunch',
+      'stagePromptFile', 'stageLogFile', 'resolveMcpBridgeForRun', 'computeChildEnv',
+      'computeRuntimeContext', 'buildAgentBuildArgsOptions', 'resolveSystemPromptOverlayDelivery',
+      'buildRunArgs', 'writeMcpJsonIfNeeded', 'prepareSystemPromptOverlayFileIfNeeded',
+      'prepareCodexHomeIfNeeded', 'prepareClaudeConfigDirIfNeeded', 'guardWindowsCommandLineBudget',
+      'spawnAgentChildProcess', 'isStdinDrivenFormat', 'confirmChildSpawned', 'armHandoffWatcher',
+      'runAcpDispatch', 'runPiRpcDispatch', 'createAgentExecutor',
+    ] as const;
+    expect(Object.keys(compatibilityEntry).sort()).toEqual([...publishedNames].sort());
+    for (const name of publishedNames) {
+      expect(compatibilityEntry[name]).toBe(splitEntry[name]);
+      expect(executor[name]).toBe(splitEntry[name]);
+    }
+    const error = new executor.AgentExecutorError({ code: 'AGENT_NOT_FOUND', message: 'missing agent' });
+    expect(error).toBeInstanceOf(compatibilityEntry.AgentExecutorError);
+    expect(error).toBeInstanceOf(splitEntry.AgentExecutorError);
+  });
+
   // PARITY
-  it('keeps session ids outside status wire payloads and ignores malformed input', () => {
+  it('carries session ids in status wire payloads and the terminal side channel, and ignores malformed input', () => {
     expect(executor.translateAgentRuntimeEvent({ rawEvent: {
       type: 'status', label: 'ready', sessionId: 'session-1', model: null,
-    } })).toEqual({ kind: 'agent', payload: { type: 'status', label: 'ready' }, sessionId: 'session-1' });
+    } })).toEqual({ kind: 'agent', payload: { type: 'status', label: 'ready', sessionId: 'session-1' }, sessionId: 'session-1' });
     expect(executor.translateAgentRuntimeEvent({ rawEvent: null })).toEqual({ kind: 'ignored' });
     expect(executor.translateAgentRuntimeEvent({ rawEvent: { type: 'turn_end', stopReason: 'tool_use' } }))
       .toEqual({ kind: 'turn-end', stopReason: 'tool_use' });
