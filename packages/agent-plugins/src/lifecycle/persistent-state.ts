@@ -1,4 +1,4 @@
-import { createPluginMemory, migratePluginLayout, assertPluginStatePath, withPluginStateLock } from '../../persistent-state.js';
+import { createPluginMemory, migratePluginLayout, assertPluginStatePath, withPluginStateLock } from '../../core/persistent-state.js';
 import { withFileLock } from '@jini-ai/platform/fs/file-lock';
 import { createPackagePathsModule } from './package-paths.js';
 import { parseAgentPluginManifest } from './manifest.js';

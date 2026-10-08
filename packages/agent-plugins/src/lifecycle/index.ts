@@ -14,18 +14,20 @@ import { createResolveAgentPluginRefsModule } from './resolve-agent-plugin-refs.
 import { createSearchModule } from './search.js';
 import { createSetEnabledModule } from './set-enabled.js';
 import { createTrustedPluginFilesModule } from './trusted-plugin-files.js';
+import { createPluginContributionLoader } from './contribution-loader.js';
 import { createUninstallModule } from './uninstall.js';
 import type { AgentPluginLifecyclePorts, AgentPluginLifecycleRequired, AgentPluginLifecycleOptional } from './ports.js';
 import type { AgentPluginDeliveryMode } from './resolve-agent-plugin-refs.js';
 import type { InstalledDigestIdentity } from './bundled-digests.js';
 
 export type { SeededAgentPluginOutcome, SeedBundledAgentPluginsRequired, SeedBundledAgentPluginsResult } from './seed-bundled.js';
-export type { RetireBundledAgentPluginsRequired, RetireBundledAgentPluginsOptional, RetiredAgentPluginOutcome } from './retire-bundled.js';
+export type { RetireBundledAgentPluginsRequired, RetireBundledAgentPluginsOptional, RetiredAgentPluginOutcome, RetiredAgentPluginSuccessorOutcome } from './retire-bundled.js';
 export * from './ports.js';
 export * from './layout.js';
 export * from './manifest.js';
 export * from './fetch-archive.js';
 export * from './mcp-provisioning.js';
+export * from './contribution-loader.js';
 export { createAgentPluginActivations, ACTIVATIONS_FILENAME, ACTIVATIONS_LOCK_FILENAME, AgentPluginActivationsBusyError, AgentPluginActivationsUnreadableError } from './activation.js';
 export { BUNDLED_DIGESTS_FILENAME } from './bundled-digests.js';
 export { AgentPluginInstallError } from './install.js';
@@ -39,7 +41,7 @@ export type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort, AgentPlugin
 export type { AgentPluginIntegrity, InstallAgentPluginFromUrlRequired, InstallAgentPluginFromUrlOptional, InstalledAgentPluginFromUrl } from './install-from-url.js';
 export type { AgentPluginDeliveryMode, ResolveAgentPluginRefsResult } from './resolve-agent-plugin-refs.js';
 export type { SetAgentPluginEnabledInput, SetAgentPluginEnabledResult } from './set-enabled.js';
-export type { UninstallAgentPluginRequired, UninstallAgentPluginOptional, UninstallAgentPluginResult, AgentPluginUninstallPreview } from './uninstall.js';
+export type { UninstallAgentPluginRequired, UninstallAgentPluginOptional, UninstallAgentPluginResult, AgentPluginUninstallPreview, StagedTree } from './uninstall.js';
 export type { TrustedPluginPackage, TrustedPluginPackagesQuery, TrustedPluginVerdict } from './trusted-plugin-files.js';
 export type { AgentPluginSearchSkill, AgentPluginSearchCandidate, AgentPluginSearchMatch } from './search.js';
 
@@ -63,8 +65,14 @@ export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequire
   const search = createSearchModule(context);
   const enabled = createSetEnabledModule(context);
   const trusted = createTrustedPluginFilesModule(context);
+  const contributions = createPluginContributionLoader({
+    findPackages: input => trusted.findTrustedPluginPackages(input),
+    readFile: ({ plugin, filename }) => trusted.readTrustedPluginFile(plugin, filename),
+    importModule: ({ plugin, modulePath }) => trusted.importContainedModule(plugin, modulePath),
+  });
   const uninstall = createUninstallModule(context);
   return {
+    ...contributions,
     fetchAgentPluginArchive: (input: { readonly url: string }, optional: FetchAgentPluginArchiveOptional = {}) => fetchAgentPluginArchive({ ...input, fetch: context.fetch, outboundGuard: context.outboundGuard }, optional),
     maxAgentPluginArchiveBytes,
     seedBundledAgentPlugins: createSeedBundledModule(context).seedBundledAgentPlugins,
@@ -81,6 +89,9 @@ export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequire
     findTrustedPluginPackages: (input: Omit<Parameters<typeof trusted.findTrustedPluginPackages>[0], 'orderByPluginId' | 'onInactive'>, optional: Pick<Parameters<typeof trusted.findTrustedPluginPackages>[0], 'orderByPluginId' | 'onInactive'> = {}) => trusted.findTrustedPluginPackages({ ...input, ...optional }),
     previewAgentPluginUninstall: uninstall.previewAgentPluginUninstall,
     uninstallAgentPlugin: uninstall.uninstallAgentPlugin,
+    stageForRemoval: (input: { readonly packagesDir: string; readonly packageRoot: string }, _optional: Record<string, never> = {}) => uninstall.stageForRemoval(input.packagesDir, input.packageRoot),
+    restoreStagedTrees: (input: { readonly staged: Parameters<typeof uninstall.restoreStagedTrees>[0]; readonly cause: unknown }, _optional: Record<string, never> = {}) => uninstall.restoreStagedTrees(input.staged, input.cause),
+    removeFrozenPackageTree: (input: { readonly root: string }, _optional: Record<string, never> = {}) => uninstall.removeFrozenPackageTree(input.root),
     isAgentPluginActive: (input: { readonly activations: Parameters<typeof activation.isAgentPluginActive>[0]; readonly pluginId: string }) => activation.isAgentPluginActive(input.activations, input.pluginId),
     filterActiveAgentPlugins: <T>(input: { readonly activations: Parameters<typeof activation.isAgentPluginActive>[0]; readonly items: readonly T[]; readonly pluginIdOf: (required: { readonly item: T }) => string }) => activation.filterActiveAgentPlugins(input.activations, input.items, item => input.pluginIdOf({ item })),
     readAgentPluginActivations: (input: { readonly workspaceRoot: string }) => activation.readAgentPluginActivations(input.workspaceRoot),

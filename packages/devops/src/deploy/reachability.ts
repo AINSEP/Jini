@@ -1,4 +1,4 @@
-import type { DeployLinkStatus, DeploymentUrlCheck } from './types.js';
+import type { DeployLinkStatus, DeploymentUrlCheck } from '../core/deploy-types.js';
 
 /**
  * SEC-003: reachability probes fetch a *provider-returned* URL/alias

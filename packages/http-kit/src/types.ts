@@ -5,6 +5,7 @@
  */
 import type { Result as CoreResult } from '@jini-ai/core/primitives';
 import type { ApiError } from '@jini-ai/protocol';
+import type { Response } from 'express';
 
 /**
  * A discriminated success/failure envelope used throughout the module in place of throwing.
@@ -38,23 +39,42 @@ export type InputParser<Input> = (raw: RouteInputContext) => Result<Input>;
  * `signal` is optional and additive: it aborts if the underlying HTTP request's connection drops
  * before the Adapter has written a response (see `mountJsonRoute` in `adapter.ts`) — handlers read it from their optional arguments when they perform cancellable work.
  */
-export type Handler<Input, Output, Deps> = (
-  requiredArgs: { readonly input: Input; readonly deps: Deps },
+export type Handler<Input, Output, Deps, Context = undefined> = (
+  requiredArgs: { readonly input: Input; readonly deps: Deps; readonly context?: Context | undefined; readonly authorize?: JsonRouteAuthorize },
   optionalArgs?: { readonly signal?: AbortSignal | undefined },
 ) => Promise<Result<Output>> | Result<Output>;
 
 /** HTTP verbs the Adapter can mount a `JsonRouteSpec` under. */
 export type HttpMethod = 'get' | 'post' | 'put' | 'delete' | 'patch';
 
+/** Explicit authorization remains at the route's chosen point, preserving validation precedence. */
+export type JsonRouteAuthorize = (
+  requiredArgs: { readonly permission: string; readonly entityType: string },
+  optionalArgs?: Record<string, never>,
+) => Promise<void>;
+
+/** Host-owned workspace, authentication/authorization and exception policy.
+ * Guards throw on rejection; the error port owns their wire envelope. Without an error port the
+ * adapter retains its caller-safe-error and SEC-005 redaction policy. Authentication can await
+ * host readiness; it runs after workspace rejection and before parsing or handling.
+ */
+export interface JsonRoutePorts<Deps, Context = undefined> {
+  readonly workspace?: (requiredArgs: { readonly raw: RouteInputContext; readonly deps: Deps }) => void | Promise<void>;
+  readonly authenticate?: (requiredArgs: { readonly raw: RouteInputContext; readonly res: Response; readonly deps: Deps }) => Context | Promise<Context>;
+  readonly authorize?: (requiredArgs: { readonly context: Context | undefined; readonly deps: Deps; readonly permission: string; readonly entityType: string }) => void | Promise<void>;
+  readonly onError?: (requiredArgs: { readonly res: Response; readonly error: unknown }) => void;
+}
+
 /**
  * Declarative description of one JSON route: how to parse input, how to handle it, and whether
  * it requires a same-origin request. Consumed by `mountJsonRoute` in `adapter.ts`.
  */
-export interface JsonRouteSpec<Input, Output, Deps> {
+export interface JsonRouteSpec<Input, Output, Deps, Context = undefined> {
   method: HttpMethod;
   path: string;
   requireSameOrigin?: boolean;
   parse: InputParser<Input>;
-  handle: Handler<Input, Output, Deps>;
+  handle: Handler<Input, Output, Deps, Context>;
   successStatus?: number;
+  ports?: JsonRoutePorts<Deps, Context>;
 }

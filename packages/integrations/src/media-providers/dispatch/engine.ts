@@ -30,18 +30,10 @@ import type { RequiredArgs, OptionalArgs } from '../../args.js';
 import { AUDIO_DURATIONS_SEC, VIDEO_LENGTHS_SEC, findMediaModel, findProvider, modelsForSurface } from '../providers.js';
 import type { AudioKind, MediaModel, MediaProvider, MediaSurface } from '../types.js';
 import { buildRenderContext } from './context.js';
-import './providers/aihubmix.js';
+// Built-ins are now registered lazily by vendor-registry; the historical rationale above
+// describes the former import-time mechanism. No renderer module mutates that registry.
+
 import { renderCustomOpenAIImage, customImageOverridesOpenAIModel } from './providers/custom-image.js';
-import './providers/elevenlabs.js';
-import './providers/fishaudio.js';
-import './providers/grok.js';
-import './providers/imagerouter.js';
-import './providers/minimax.js';
-import './providers/nanobanana.js';
-import './providers/openai.js';
-import './providers/openrouter.js';
-import './providers/senseaudio.js';
-import './providers/volcengine.js';
 import { renderStub } from './stub.js';
 import type {
   MediaDispatchEngine,

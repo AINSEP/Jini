@@ -50,7 +50,7 @@ import { assertAndFetchExternalAsset } from '../ssrf-guard.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import { mediaVendorRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry.js';
 
 const SENSEAUDIO_DEFAULT_BASE_URL = 'https://api.senseaudio.cn';
 const SENSEAUDIO_DEFAULT_VOICE_ID = 'female_0033_b';
@@ -106,8 +106,6 @@ const senseAudioTTSAdapter: VendorAdapter<HexEnvelopeAudioMeta> = {
 
   parseResponse: createHexEnvelopeAudioParser<HexEnvelopeAudioMeta>({ errorTag: 'senseaudio tts', providerId: 'senseaudio' }),
 };
-
-mediaVendorRegistry.register({ providerId: 'senseaudio', routeKey: 'audio:speech', adapter: senseAudioTTSAdapter });
 
 export async function renderSenseAudioTTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: senseAudioTTSAdapter, ctx: ctx, credentials: credentials });
@@ -215,8 +213,15 @@ const senseAudioImageAdapter: VendorAdapter<SenseAudioImageMeta> = {
   },
 };
 
-mediaVendorRegistry.register({ providerId: 'senseaudio', routeKey: 'image', adapter: senseAudioImageAdapter });
-
 export async function renderSenseAudioImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: senseAudioImageAdapter, ctx: ctx, credentials: credentials });
+}
+
+/** Explicit composition: importing a renderer never changes another module's registry. */
+export function registerVendorAdapters(
+  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
+  _optional: Record<string, never> = {},
+): void {
+  registry.register({ providerId: 'senseaudio', routeKey: 'audio:speech', adapter: senseAudioTTSAdapter });
+  registry.register({ providerId: 'senseaudio', routeKey: 'image', adapter: senseAudioImageAdapter });
 }

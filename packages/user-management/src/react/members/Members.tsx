@@ -20,7 +20,7 @@ import type { ReactNode } from "react";
  * Mirrors `features/posts/Posts.tsx`'s fetch/loading/error/table shape. Adds the
  * three row-level actions this remediation wires up (T039): disable, resend
  * sign-in link, and a click-to-expand detail panel — all calling the 3
- * already-existing, already-unused `apps/admin/src/lib/api.ts` client methods
+ * already-existing, already-unused the host admin API client client methods
  * (`disableMember`, `requestMemberMagicLink`, `getMember`). No new backend
  * contract needed. Pagination is explicitly deferred (ADR-PIPE-013 Decision
  * §7) — not part of this screen yet.

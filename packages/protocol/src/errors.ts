@@ -1,4 +1,4 @@
-import type { JsonValue } from '@jini-ai/core/primitives';
+import type { JsonValue } from './json.js';
 
 /**
  * Cross-product error codes meaningful to any @jini-ai/* consumer. Kept small and

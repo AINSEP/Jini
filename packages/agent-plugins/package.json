@@ -20,6 +20,16 @@
       "./lifecycle/yauzl": "node",
       "./manifest": "universal",
       "./persistent-state": "node"
+    },
+    "isolation": {
+      "entries": {
+        "./manifest": "lifecycle",
+        "./persistent-state": "core"
+      },
+      "shared": [
+        "core/persistent-state.js",
+        "persistent-state.js"
+      ]
     }
   },
   "type": "module",
@@ -69,7 +79,8 @@
     "!dist/**/*.test.d.ts.map",
     "!dist/**/__tests__/**",
     "persistent-state.js",
-    "persistent-state.d.ts"
+    "persistent-state.d.ts",
+    "core"
   ],
   "publishConfig": {
     "access": "public",
@@ -83,18 +94,24 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
-    "yazl": "^3.3.1"
+    "yazl": "^3.3.1",
+    "@jini-ai/core": "^0.4.0",
+    "@jini-ai/platform": "^0.5.0"
   },
   "peerDependencies": {
-    "yauzl": "^3.4.0"
+    "yauzl": "^3.4.0",
+    "@jini-ai/core": "^0.4.0",
+    "@jini-ai/platform": "^0.5.0"
   },
   "peerDependenciesMeta": {
     "yauzl": {
       "optional": true
+    },
+    "@jini-ai/core": {
+      "optional": true
+    },
+    "@jini-ai/platform": {
+      "optional": true
     }
-  },
-  "dependencies": {
-    "@jini-ai/core": "^0.4.0",
-    "@jini-ai/platform": "^0.5.0"
   }
 }

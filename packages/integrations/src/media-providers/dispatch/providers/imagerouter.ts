@@ -27,7 +27,7 @@ import {
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import { mediaVendorRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry.js';
 
 /** ImageRouter's image/video generation `size` string for a given aspect ratio. */
 export function imageRouterSizeFor({ aspect, surface }: { aspect: string | undefined; surface: 'image' | 'video' }): string {
@@ -94,8 +94,6 @@ const imageRouterImageAdapter: VendorAdapter<ImageRouterMeta> = {
   },
 };
 
-mediaVendorRegistry.register({ providerId: 'imagerouter', routeKey: 'image', adapter: imageRouterImageAdapter });
-
 export async function renderImageRouterImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: imageRouterImageAdapter, ctx: ctx, credentials: credentials });
 }
@@ -149,8 +147,15 @@ const imageRouterVideoAdapter: VendorAdapter<ImageRouterVideoMeta> = {
   },
 };
 
-mediaVendorRegistry.register({ providerId: 'imagerouter', routeKey: 'video', adapter: imageRouterVideoAdapter });
-
 export async function renderImageRouterVideo({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: imageRouterVideoAdapter, ctx: ctx, credentials: credentials });
+}
+
+/** Explicit composition: importing a renderer never changes another module's registry. */
+export function registerVendorAdapters(
+  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
+  _optional: Record<string, never> = {},
+): void {
+  registry.register({ providerId: 'imagerouter', routeKey: 'image', adapter: imageRouterImageAdapter });
+  registry.register({ providerId: 'imagerouter', routeKey: 'video', adapter: imageRouterVideoAdapter });
 }

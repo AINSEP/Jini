@@ -1,27 +1,8 @@
 /**
  * @module @jini-ai/mcp/server/resources/active-resource
- *
- * The one MCP *resource* this package ships: a read-only pointer to
- * `GET /api/active` (`packages/http/src/active-context.ts`'s `getActiveRoute`)
- * — the same underlying data `../tools/run-tools.js`'s `getActiveContextTool`
- * already proxies as a *tool*. This is not redundant: OD's origin
- * (`apps/daemon/src/mcp.ts`) exposed the identical `/api/active` payload
- * both ways — as the `get_active_context` tool (already ported, see
- * `../tools/run-tools.js`) AND as the `od://focus/active` resource (its
- * `ListResourcesRequestSchema`/`ReadResourceRequestSchema` handlers) —
- * because tools and resources serve different MCP client affordances: a
- * tool is invoked by the model mid-conversation, while a resource can be
- * listed and attached to context by the user/client without any tool call.
- * This module is that second affordance for the same primitive. See
- * `archived provenance ledger`'s 2026-07-21 addition for why the rest of OD's resource
- * surface (`od://skills/...`, `od://design-systems/...`) was NOT ported the
- * same way (both require a Skill/DesignSystem noun this kernel doesn't have).
- *
- * Security posture matches every other tool/resource in this package: no
- * separate authorization mechanism here — whatever `@jini-ai/http-kit`'s
- * same-origin guard / bearer-auth middleware already enforces on
- * `GET /api/active` is the only gate a read of this resource passes
- * through.
+ * Read-only active-context resource over GET /api/active. Tools let the model request data during
+ * a conversation; resources let clients list and attach that data without invoking a tool.
+ * Target-route same-origin and bearer-auth gates remain authoritative, as for the proxy tools.
  */
 import { getDaemonJson } from '../daemon-client.js';
 import type { McpResourceDef } from '../resource-protocol.js';
@@ -36,8 +17,7 @@ interface ActiveContextPayload {
  * `jini://active` -> `GET /api/active`. Returns the raw daemon payload as formatted JSON text,
  * unchanged — unlike `getActiveContextTool`, this does not add a conversational hint when
  * `active:false`; a resource is meant to be raw structured data a client attaches to context, not
- * a model-facing tool result, matching the OD origin's own `od://focus/active` handler (which also
- * returned the raw `/api/active` body with no special-casing).
+ * a model-facing tool result.
  */
 export const activeContextResource: McpResourceDef = {
   uri: 'jini://active',

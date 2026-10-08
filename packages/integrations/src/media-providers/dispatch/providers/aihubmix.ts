@@ -59,7 +59,7 @@ import { assertAndFetchExternalAsset } from '../ssrf-guard.js';
 import type { MediaSpeechFormat, ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import { mediaVendorRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry.js';
 import { aihubmixAppCodeHeader, aihubmixGeminiImageUrl, aihubmixHeaders, AIHUBMIX_DEFAULT_BASE_URL, aihubmixWireModel, classifyAIHubMixModel } from './aihubmix-shared.js';
 
 const NO_CREDENTIAL_MESSAGE = 'no AIHubMix credential — configure an API key or set AIHUBMIX_API_KEY.';
@@ -176,8 +176,6 @@ const aihubmixImageAdapter: VendorAdapter<AIHubMixImageMeta> = {
   },
 };
 
-mediaVendorRegistry.register({ providerId: 'aihubmix', routeKey: 'image', adapter: aihubmixImageAdapter });
-
 export async function renderAIHubMixImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: aihubmixImageAdapter, ctx: ctx, credentials: credentials });
 }
@@ -219,8 +217,15 @@ const aihubmixTTSAdapter: VendorAdapter<AIHubMixTTSMeta> = {
   }),
 };
 
-mediaVendorRegistry.register({ providerId: 'aihubmix', routeKey: 'audio:speech', adapter: aihubmixTTSAdapter });
-
 export async function renderAIHubMixTTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: aihubmixTTSAdapter, ctx: ctx, credentials: credentials });
+}
+
+/** Explicit composition: importing a renderer never changes another module's registry. */
+export function registerVendorAdapters(
+  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
+  _optional: Record<string, never> = {},
+): void {
+  registry.register({ providerId: 'aihubmix', routeKey: 'image', adapter: aihubmixImageAdapter });
+  registry.register({ providerId: 'aihubmix', routeKey: 'audio:speech', adapter: aihubmixTTSAdapter });
 }

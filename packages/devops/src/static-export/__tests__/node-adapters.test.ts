@@ -61,3 +61,14 @@ test('Node app adapter binds only loopback, serves the supplied app and closes i
   await session.close({});
   await assert.rejects(fetch(session.baseUrl));
 });
+
+test('writer accepts the platform temporary directory and keeps host refusal wording', async () => {
+  const outputDir = await mkdtemp(path.join(tmpdir(), 'static-export-native-'));
+  const writer = createNodeArtifactWriter({}, { nonemptyReason: ({ count }) => `Output has ${count} existing file.` });
+  try {
+    await writer.prepare({ outputDir }, {});
+    await writer.write({ outputDir, outputFile: 'existing.txt', data: 'saved' });
+    await assert.rejects(writer.prepare({ outputDir }, {}), { message: 'Output has 1 existing file.' });
+    assert.equal(await readFile(path.join(outputDir, 'existing.txt'), 'utf8'), 'saved');
+  } finally { await rm(outputDir, { recursive: true, force: true }); }
+});

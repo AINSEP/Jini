@@ -25,7 +25,9 @@
       "./fs/durable-json": "node",
       "./fs": "node",
       "./net": "node",
-      "./fs/file-lock": "node"
+      "./net/endpoint-policy": "universal",
+      "./fs/file-lock": "node",
+      "./secrets/credential-token": "universal"
     }
   },
   "type": "module",
@@ -93,10 +95,20 @@
       "import": "./dist/net/index.js",
       "default": "./dist/net/index.js"
     },
+    "./net/endpoint-policy": {
+      "types": "./dist/net/endpoint-policy.d.ts",
+      "import": "./dist/net/endpoint-policy.js",
+      "default": "./dist/net/endpoint-policy.js"
+    },
     "./fs/file-lock": {
       "types": "./dist/fs/file-lock.d.ts",
       "import": "./dist/fs/file-lock.js",
       "default": "./dist/fs/file-lock.js"
+    },
+    "./secrets/credential-token": {
+      "types": "./dist/secrets/credential-token.d.ts",
+      "import": "./dist/secrets/credential-token.js",
+      "default": "./dist/secrets/credential-token.js"
     }
   },
   "files": [

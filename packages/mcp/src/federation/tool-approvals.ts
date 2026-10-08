@@ -109,5 +109,8 @@ export interface ConversationToolApprovalKey {
 export interface ConversationToolApprovalStore {
   /** True only for this conversation AND this person AND this exact fingerprint. */
   has(key: ConversationToolApprovalKey): Promise<boolean>;
+  /** Native escalation consent can outlive the invoking chat, while remaining person/identity bound.
+   * Hosts namespace connectionId by workspace and behavior; deletion of all granting chats revokes it. */
+  hasIdentity?(key: Omit<ConversationToolApprovalKey, "conversationId">): Promise<boolean>;
   grant(input: { key: ConversationToolApprovalKey; grantedAt: string }): Promise<void>;
 }

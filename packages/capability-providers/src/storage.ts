@@ -1,8 +1,5 @@
 /**
- * `StorageProvider` — a swappable blob-storage port (file uploads, generated
- * assets). Speculative port-design exploration (see `archived provenance ledger`) — no OD
- * source; the shape is the object-storage capability Zana's `app-chassis`
- * (`packages/storage`) and a fleet orchestrator's ports layer both name explicitly.
+ * Swappable blob-storage port for uploads and generated assets. See index.ts for capability-provider ownership and adoption scope.
  *
  * This file defines the port's stable interface/type surface and nothing else —
  * it has no imports at all, so a consumer implementing `StorageProvider`

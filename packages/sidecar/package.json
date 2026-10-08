@@ -67,11 +67,20 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
-  "dependencies": {
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9",
     "@jini-ai/core": "workspace:*",
     "@jini-ai/platform": "workspace:*"
   },
-  "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9"
+  "dependencies": {
+    "@jini-ai/core": "workspace:^"
+  },
+  "peerDependencies": {
+    "@jini-ai/platform": "^0.5.1"
+  },
+  "peerDependenciesMeta": {
+    "@jini-ai/platform": {
+      "optional": true
+    }
   }
 }

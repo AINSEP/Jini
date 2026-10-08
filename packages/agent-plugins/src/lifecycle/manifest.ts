@@ -1,5 +1,4 @@
 /**
- * Historical lifecycle rationale, carried with the implementation during consumer adoption.
  * @file `parseAgentPluginManifest()` / `parseAgentPluginMcpConfig()` — the Agent Plugins v1.0.0
  * `plugin.json` / `mcp.json` grammar (agent-plugins.org/specification), verified against the live
  * spec rather than inferred from an example manifest.
@@ -11,8 +10,7 @@
  * shares none of those fields and defines no execution/trust/capability model at all — see this
  * feature's own header comment in `install.ts` for why the two formats cannot be unified.
  *
- * Spec facts this module encodes, quoted/paraphrased from agent-plugins.org/specification (verified
- * 2026-08-12, not carried forward from an earlier round's inference):
+ * Pinned v1.0.0 rules from agent-plugins.org/specification:
  * - `plugin.json`'s `name`: 1-64 chars, lowercase alphanumeric/hyphen/period only, must start and
  *   end alphanumeric, no `--` or `..` consecutive delimiters (§5.5). Valid: `my-plugin`,
  *   `acme.tools`, `lint3r`, `a`. Invalid: `My-Plugin`, `-start`, `has--double`.
@@ -23,12 +21,8 @@
  *   returns them as `warnings`, never as a rejection reason.
  * - `mcp.json`'s top-level shape is `{ "$schema": ..., "mcpServers": { "<server-id>": {...} } }` —
  *   `mcpServers` MUST be an object whose member names identify servers.
- * - Each server entry MUST carry a `type` discriminator matching exactly one of three CLOSED
- *   variants (re-verified live against `agent-plugins.org/schemas/1.0.0/mcp.schema.json` and
- *   `/specification`, 2026-09-10 — superseding this file's earlier "not validated, no caller needs
- *   it" note, which is now false: `capability-projection.ts`'s MCP-server descriptors are no longer
- *   unconditionally `execute: { kind: "unavailable" }`, and launching a server needs its real
- *   transport config, not just its id):
+ * - Each server entry MUST carry a `type` discriminator matching one of three CLOSED variants.
+ *   Launching requires the actual transport config, not just a server id:
  *     - `stdio`: requires `command` (non-empty string); optional `args` (string[]), `env`
  *       (string-valued object — MUST NOT set `PLUGIN_ROOT`/`PLUGIN_DATA`, which the spec reserves),
  *       `cwd` (plugin-relative path).
@@ -67,8 +61,7 @@ export type AgentPluginServerMetadataReader = (required: { readonly serverId: st
 
 /**
  * The one plugin.json schema version this loader understands. A manifest declaring any other
- * value is rejected outright (C2 in the debate: "the standard is a Working Draft; the loader pins
- * v1 and must survive spec churn") rather than guessed at.
+ * value is rejected outright rather than guessed at: pinning the grammar must survive spec churn.
  */
 const PLUGIN_SCHEMA_1_0_0 = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json";
 const MCP_SCHEMA_1_0_0 = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json";

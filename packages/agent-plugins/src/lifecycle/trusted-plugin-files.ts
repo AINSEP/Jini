@@ -8,6 +8,35 @@ import { createPackagePathsModule } from "./package-paths.js";
 import { createResolveAgentPluginRefsModule } from "./resolve-agent-plugin-refs.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
 
+/**
+ * @file The shared trust gate for plugin-contributed files that core reads or runs: deploy targets
+ * (`features/deployments/deploy-targets/registry.ts`), deploy-config generators, credential
+ * scheme rules, mail adapters (`./mail-adapter-registry.ts`) and git-host providers
+ * (`features/source-control/provider-registry.ts`). One place decides which installed Agent Plugin packages core may take a contribution
+ * from, so every seam applies the same rules.
+ *
+ * A plugin opts in to a seam by shipping that seam's file at its package root (e.g.
+ * a host-supplied deploy-target descriptor filename). {@link findTrustedPluginPackages} judges each package that ships it
+ * against the gates:
+ * 1. ACTIVE by the fail-closed reader (`resolveAgentPluginActivation`) when the seam asks for it
+ *    (`requireActive`). An unreadable activation record refuses rather than reading as consent. A
+ *    data-only seam may skip this gate; its own file header must say why.
+ * 2. Its installed digest is the one `bundled-digests.json` records for it, the build's own seed.
+ *    An operator-installed package, or a tampered copy under a bundled id, never contributes
+ *    (owner decision 2026-09-29: third-party contributions come later). Always applied.
+ *
+ * {@link importContainedModule} is the third gate for seams that run code: the module path must
+ * resolve inside the package root on disk (`assertContainedOnDisk`) and end in `.mjs` (the caller's
+ * descriptor parser checks the extension), so no `package.json` above the install directory can make
+ * Node read it as CommonJS.
+ *
+ * Failure isolation: a refused package comes back as a refusal verdict, never thrown. Only a filesystem
+ * fault listing the workspace's package directory itself propagates.
+ *
+ * Architectural role: `features/agent-plugins` capability. Depends only on this feature's own
+ * install, activation and path modules; the seams depend on it, nothing here names one.
+ */
+/** A package a seam may read: whose it is and where its files live. */
 export interface TrustedPluginPackage {
   readonly pluginId: string;
   readonly packageRoot: string;
@@ -16,17 +45,26 @@ export interface TrustedPluginPackage {
 export interface TrustedPluginPackagesQuery {
   readonly workspaceId: string;
 
+  /** The file a plugin ships at its root to opt in to this seam. */
   readonly filename: string;
 
+  /** Plural noun for refusal text, e.g. `"deploy targets"`: "deploy targets from 'x' were not loaded: …". */
   readonly contribution: string;
 
+  /** Apply the activation gate (see this file's header, gate 1). */
   readonly requireActive: boolean;
 
+  /** Return verdicts sorted by plugin id instead of installed order. */
   readonly orderByPluginId?: (boolean) | undefined;
 
+  /** Hears each package the activation gate skips as switched off, e.g. to read its seam file as
+   *  data and name the plugin in a refusal. Never called without `requireActive`. */
   readonly onInactive?: ((required: { readonly plugin: TrustedPluginPackage }) => Promise<void>) | undefined;
 }
 
+/** One installed package that ships the seam's file: trusted, or refused with the full refusal line.
+ *  Returned in installed order (or plugin-id order, see `orderByPluginId`) so a seam that interleaves its own per-package refusals keeps them in
+ *  the same order as the gate's. */
 export type TrustedPluginVerdict = { readonly trusted: TrustedPluginPackage } | { readonly refusal: string };
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
@@ -35,6 +73,15 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   const { preferBundledAgentPluginDigests, readBundledAgentPluginDigests } = createBundledDigestsModule(ports);
   const { assertContainedOnDisk } = createPackagePathsModule(ports);
   const { listInstalledPlugins } = createResolveAgentPluginRefsModule(ports);
+  /**
+ * A verdict for every installed package in this workspace that ships `query.filename`, in
+ * installed order (bundled digests preferred when a plugin has more than one installed digest).
+ * A switched-off plugin is skipped silently (only `onInactive` hears it); every other refusal is reported.
+ *
+ * @throws Nothing for a plugin-level fault; only a filesystem fault listing the workspace's package
+ * directory itself propagates.
+ * @complexity O(p) installed plugins, one activation read each for a plugin that ships the file.
+ */
   async function findTrustedPluginPackages(query: TrustedPluginPackagesQuery): Promise<readonly TrustedPluginVerdict[]> {
     const layout = ports.layout.forWorkspace({ workspaceId: query.workspaceId });
     const bundled = await readBundledAgentPluginDigests(layout.root);
@@ -53,6 +100,8 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     return verdicts;
   }
 
+  /** Why one installed package may not contribute (`"inactive"` = skip silently), or `null` when it may.
+ *  @complexity O(1) beyond one activation read. */
   async function trustRefusal(
     query: TrustedPluginPackagesQuery,
     plugin: { readonly pluginId: string; readonly archiveDigest: string },
@@ -70,11 +119,18 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     return null;
   }
 
+  /** Reads one file at a trusted package's root as UTF-8. @complexity O(n) in the file size. */
   async function readTrustedPluginFile(plugin: TrustedPluginPackage, filename: string): Promise<string> {
     const absolute = await assertContainedOnDisk(plugin.packageRoot, filename);
     return readFile(absolute, "utf8");
   }
 
+  /**
+ * Imports one module from a trusted package after the containment check. Returns the module's
+ * default export, or the refusal reason. The caller validates the export's shape.
+ *
+ * @complexity One `realpath` walk plus one dynamic import (cached by Node per file URL).
+ */
   async function importContainedModule(plugin: TrustedPluginPackage, modulePath: string): Promise<{ readonly exported: unknown } | string> {
     let resolved: string;
     try {

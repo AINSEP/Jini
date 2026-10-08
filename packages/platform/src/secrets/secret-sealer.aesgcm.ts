@@ -20,14 +20,22 @@ export class AesGcmSecretSealer implements SecretSealerPort {
   // Root keys stay behind handles, and the purpose separates this HKDF domain from signing/tokens.
   // Exercise real GCM with an in-memory keyring: a plaintext fake would miss authentication failures.
   private readonly keyring: KeyringPort;
+  private readonly randomBytesFn: (input: { byteLength: number }) => Uint8Array;
 
-  constructor({ keyring }: { keyring: KeyringPort }) { this.keyring = keyring; }
+  /** Inject randomness for wire fixtures; production uses Node's CSPRNG for every fresh IV. */
+  constructor({ keyring }: { keyring: KeyringPort }, optional: {
+    randomBytesFn?: (input: { byteLength: number }) => Uint8Array;
+  } = {}) {
+    this.keyring = keyring;
+    this.randomBytesFn = optional.randomBytesFn ?? (({ byteLength }) => randomBytes(byteLength));
+  }
 
   /** Encrypts under the requested generation with a fresh IV; AAD must be reconstructed on open. */
   async seal(input: { plaintext: string; key: RootKeyHandle; aad: string }): Promise<SealedSecret> {
     if (typeof input.aad !== "string") throw new TypeError("AesGcmSecretSealer: aad must be a string");
     const aesKey = await this.deriveAesKey(input.key);
-    const iv = randomBytes(IV_LENGTH_BYTES);
+    const iv = Buffer.from(this.randomBytesFn({ byteLength: IV_LENGTH_BYTES }));
+    if (iv.length !== IV_LENGTH_BYTES) throw new TypeError("AesGcmSecretSealer: IV must contain exactly 12 bytes");
     // GCM must never reuse an IV under the same key. AAD is authenticated but not stored in the
     // envelope, so callers must reconstruct the byte-identical context when opening the record.
     const cipher = createCipheriv(ALG, aesKey, iv);

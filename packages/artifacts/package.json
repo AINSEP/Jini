@@ -45,9 +45,6 @@
     "!dist/**/__tests__/**",
     "!dist/**/*.map"
   ],
-  "dependencies": {
-    "@jini-ai/core": "workspace:*"
-  },
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"
@@ -59,6 +56,12 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9"
-  }
+    "@vitest/coverage-v8": "^2.1.9",
+    "@jini-ai/core": "workspace:*"
+  },
+  "dependencies": {
+    "@jini-ai/core": "workspace:^"
+  },
+  "peerDependencies": {},
+  "peerDependenciesMeta": {}
 }

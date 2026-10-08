@@ -21,6 +21,15 @@
       "./adapters/blob-storage": "node",
       "./adapters/jwt-auth": "node",
       "./adapters/stripe": "universal"
+    },
+    "isolation": {
+      "entries": {
+        "./adapters/ws": "realtime",
+        "./adapters/sqlite": "db",
+        "./adapters/blob-storage": "storage",
+        "./adapters/jwt-auth": "auth",
+        "./adapters/stripe": "payments"
+      }
     }
   },
   "type": "module",
@@ -92,18 +101,21 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:*",
-    "@jini-ai/platform": "workspace:*"
+    "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
     "better-sqlite3": "^13.0.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "@jini-ai/platform": "^0.5.1"
   },
   "peerDependenciesMeta": {
     "better-sqlite3": {
       "optional": true
     },
     "ws": {
+      "optional": true
+    },
+    "@jini-ai/platform": {
       "optional": true
     }
   },
@@ -112,6 +124,8 @@
     "@types/ws": "^8.18.0",
     "@vitest/coverage-v8": "^2.1.9",
     "better-sqlite3": "^13.0.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/platform": "workspace:*"
   }
 }

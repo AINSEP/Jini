@@ -1,30 +1,12 @@
 /**
  * @module @jini-ai/mcp/server/daemon-client
+ * Bounded-I/O JSON GET/POST against a caller-resolved trusted daemon base URL.
+ * A long-lived MCP server must report a failed call and keep serving, so this transport throws
+ * redacted errors for handleToolCall to convert rather than using the CLI transport's process.exit.
+ * Bounded reads, timeouts and redaction follow CR-004/SEC-RB-009.
  *
- * Bounded-I/O JSON GET/POST against a trusted daemon base URL — the transport
- * primitive every proxy tool `createMcpToolServer` hosts is built on
- * (`../client/client.js`'s `createMcpIdleExitController` is the other half of
- * the mechanism; this module is the network half).
- *
- * Deliberately NOT the CLI transport's `getJsonFromDaemon`/`postJsonToDaemon`
- * (`packages/cli/src/http.ts`): those map a failure onto `process.exit`,
- * which is the right contract for a one-shot CLI invocation but wrong here —
- * a stdio MCP server is a long-lived process serving many tool calls, and one
- * failed call must return an MCP `{isError:true}` result and keep serving the
- * next call, not terminate the process. This module ports the same
- * bounded-read / timeout / redaction posture `http.ts` established
- * (CR-004/SEC-RB-009 — see `ADS-memory/reports/code-review/CR-remaining-backend-audit-2026-07-21.md`,
- * `ADS-memory/reports/security/SEC-remaining-backend-audit-2026-07-21.md`) as
- * a throw-based primitive instead: a failed request throws a plain,
- * already-redacted `Error` whose message a tool handler's caller
- * (`handleToolCall` in `./tool-protocol.js`) turns into that MCP error result.
- *
- * No SSRF hardening here: the
- * target is a caller-resolved, typically-loopback daemon the user already
- * trusts enough to run — not an attacker- or server-metadata-controlled
- * remote URL the way a configured external MCP server's OAuth endpoints are.
- * This mirrors the CLI HTTP transport's own posture for the identical "fetch my
- * own daemon" concern (no `assertSafePublicUrl` there either).
+ * This is a trusted, typically-loopback daemon URL, not attacker-controlled server metadata or
+ * an external MCP OAuth endpoint; public-URL SSRF validation is therefore outside this contract.
  */
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
 
@@ -34,9 +16,8 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
 /**
- * Thrown for a non-2xx daemon response. The message is unchanged from the plain `Error` this used to
- * be; `status` is what lets a tool tell "this daemon does not serve the route" (404) apart from any
- * other failure instead of pattern-matching the message.
+ * Thrown for a non-2xx daemon response. `status` lets a tool distinguish an unsupported route (404)
+ * from other failures without pattern-matching the public error message.
  */
 export class DaemonHttpError extends Error {
   readonly status: number;

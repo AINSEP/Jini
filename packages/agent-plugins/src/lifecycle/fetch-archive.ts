@@ -1,6 +1,5 @@
 /**
- * Historical lifecycle rationale, carried with the implementation during consumer adoption.
- * @file The missing front half of the Agent Plugin install pipeline: URL -> verified bytes.
+ * @file The network front half of the Agent Plugin install pipeline: URL -> verified bytes.
  *
  * `install.ts` deliberately takes `archive: Uint8Array` and never a URL — it is a pure
  * verify/extract/publish step with no network surface at all. This module is the one place that

@@ -8,10 +8,10 @@ import { copyPackage,fixture,pack,packages,run } from './packed-fixture.js';
 import { remainingSurface as old } from './remaining-surface.js';
 it('packed old root loads without any driver and requires explicit injection for acquisition',()=>{
  const dir=fixture('c2-shim-packed-');try{
-  for(const name of ['core','protocol','db','chat','daemon','registry','sqlite'])pack(dir,name);
+  for(const name of ['core','protocol','db','chat','daemon','registry','diagnostics','sqlite'])pack(dir,name);
   copyPackage(dir,'kysely',join(packages,'db/node_modules/kysely'));
   const result=run(dir,`const a=await import('@jini-ai/sqlite');const errors=[];for(const action of [()=>a.createSqliteEventLog({ db: undefined })]){try{action();}catch(error){errors.push(error.message);}}console.log(JSON.stringify([Object.keys(a).sort(),errors,a.parseJsonOrUndef('{"x":1}')]));`);
-  expect(result.status).toBe(0);expect(result.stderr).toBe('');
+  expect(result.status, result.stderr).toBe(0);expect(result.stderr).toBe('');
   expect(JSON.parse(result.stdout)).toEqual([old.filter(e=>e.runtime).map(e=>e.name).sort(),['createSqliteEventLog: pass a borrowed SqliteDb'],{x:1}]);
   for(const driver of ['better-sqlite3','pg','@electric-sql/pglite','react']) {
    const missing=run(dir,`await import(${JSON.stringify(driver)})`);expect(missing.status).not.toBe(0);expect(missing.stderr).toContain('ERR_MODULE_NOT_FOUND');

@@ -1,7 +1,5 @@
 /**
- * Injection-style capability registry. Ported verbatim (pattern-for-pattern)
- * from OD's `apps/daemon/src/media-adapters/capabilities.ts` — the
- * task brief's own research flagged this as "a clean, already-generic port."
+ * Injection-style capability registry.
  * The registry holds NO data of its own: callers seed it, and every consumer
  * depends only on `get()`/`register()`/`all()`, never on the raw seed, so
  * swapping the data source (a hardcoded const today, a live vendor-API fetch

@@ -2,7 +2,7 @@
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect,it } from 'vitest';
-import { fixture,pack,packages,copyRuntimeTree,run } from '../../../../sqlite/src/__tests__/packed-fixture.js';
+import { fixture,pack,packages,copyRuntimeTree,run } from '../../../../../scripts/testing/packed-fixture.js';
 it('neutral/adapter imports need no driver/db/Kysely/React and FTS runs with the injected host driver',()=>{
  const dir=fixture('c2-registry-packed-');try {
   pack(dir,'registry');

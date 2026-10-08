@@ -375,7 +375,10 @@ test("real zip: malformed archive bytes are rejected without publishing a packag
       layout: instanceLayout,
       workspaceId: WORKSPACE_ID,
     }), /End of central directory record signature not found/);
-    assert.deepEqual(await readdir(workspaceLayout.packages), []);
+    // Layout B chooses a plugin-owned package directory only after manifest validation.
+    // Malformed ZIP metadata must leave only empty staging, with no package or persistent state.
+    assert.deepEqual(await readdir(workspaceLayout.root), ["staging"]);
+    assert.deepEqual(await readdir(workspaceLayout.staging), []);
     const control = await buildZipFixture({ entries: [{ path: "plugin.json", content: VALID_MANIFEST }] });
     const installed = await installAgentPlugin({
       archive: control,

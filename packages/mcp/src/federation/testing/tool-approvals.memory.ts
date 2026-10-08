@@ -37,6 +37,13 @@ export function createInMemoryConversationToolApprovalStore(_required: Record<st
     async has(key) {
       return rows.get(keyOf(key)) === key.fingerprint;
     },
+    async hasIdentity(key) {
+      for (const [encoded, fingerprint] of rows) {
+        const [, principalId, connectionId, toolName] = JSON.parse(encoded) as string[];
+        if (principalId === key.principalId && connectionId === key.connectionId && toolName === key.toolName && fingerprint === key.fingerprint) return true;
+      }
+      return false;
+    },
     async grant({ key }) {
       rows.set(keyOf(key), key.fingerprint);
     },

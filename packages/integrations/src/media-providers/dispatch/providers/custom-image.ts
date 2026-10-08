@@ -30,7 +30,7 @@ import { buildOpenAIImageEditUrl, buildOpenAIImageUrl, bytesFromOpenAICompatible
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import { mediaVendorRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry.js';
 
 export const CUSTOM_IMAGE_MODEL_ID = 'custom-image';
 
@@ -92,8 +92,6 @@ const customImageAdapter: VendorAdapter<CustomImageMeta> = {
   },
 };
 
-mediaVendorRegistry.register({ providerId: 'custom-image', routeKey: 'image', adapter: customImageAdapter });
-
 export async function renderCustomOpenAIImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: customImageAdapter, ctx: ctx, credentials: credentials });
 }
@@ -105,4 +103,12 @@ export function customImageOverridesOpenAIModel(required: { ctx: RenderContext; 
   const model = credentials?.model?.trim();
   if (!baseUrl || !model) return false;
   return model === ctx.model || model === ctx.wireModel;
+}
+
+/** Explicit composition: importing a renderer never changes another module's registry. */
+export function registerVendorAdapters(
+  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
+  _optional: Record<string, never> = {},
+): void {
+  registry.register({ providerId: 'custom-image', routeKey: 'image', adapter: customImageAdapter });
 }

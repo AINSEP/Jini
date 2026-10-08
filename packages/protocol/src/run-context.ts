@@ -1,4 +1,4 @@
-import type { JsonValue } from '@jini-ai/core/primitives';
+import type { JsonValue } from './json.js';
 
 /**
  * `RunCreateRequest.contextRef` (see `@jini-ai/http-kit`'s `runs.ts`) is deliberately opaque at

@@ -5,7 +5,7 @@
  * build dependency and the known escape vulnerabilities of vm2.
  */
 import { Worker } from "node:worker_threads";
-import type { ResourceLimits } from "node:worker_threads";
+import type { ResourceLimits, WorkerOptions } from "node:worker_threads";
 import { isAbsolute } from "node:path";
 
 export type WorkerSubscription =
@@ -117,12 +117,14 @@ export function renderInWorkerSandbox<TPayload>(required: WorkerSandboxRequired<
 export interface NodeWorkerFactoryOptions {
   /** Explicit CommonJS registration module path for TypeScript entries (e.g. tsx/cjs/api). */
   typescriptBootstrap?: { registerModulePath: string };
+  /** Native creation effect port; this factory still owns bootstrap, environment and budgets. */
+  createWorker?: (input: { entry: string | URL; options: WorkerOptions }, optional?: Record<string, never>) => Worker;
 }
 
 /**
  * Native Node worker factory. TypeScript bootstrap configuration is explicit and host-owned.
  * @param required Environment copied to each worker; nothing reads the parent environment.
- * @param options Optional TypeScript registration module; its eval entry suppresses V8 coverage.
+ * @param options Optional native creation port and TypeScript registration module; its eval entry suppresses V8 coverage.
  * @returns WorkerFactory for caller-owned JS/TS entry paths, with no package-relative lookup.
  * @complexity O(e) environment copying for e variables, excluding native worker startup.
  */
@@ -145,9 +147,11 @@ export function createNodeWorkerFactory({ env }: { env: NodeJS.ProcessEnv }, opt
         // directory is created merely to leave cleanup behind.
         delete workerEnv.NODE_V8_COVERAGE;
         const bootstrap = `require(${JSON.stringify(options.typescriptBootstrap.registerModulePath)}).register();\nrequire(${JSON.stringify(workerEntry)});\n`;
-        worker = new Worker(bootstrap, { eval: true, workerData: payload, resourceLimits, env: workerEnv, execArgv: [] });
+        const workerOptions = { eval: true, workerData: payload, resourceLimits, env: workerEnv, execArgv: [] };
+        worker = options.createWorker ? options.createWorker({ entry: bootstrap, options: workerOptions }, {}) : new Worker(bootstrap, workerOptions);
       } else {
-        worker = new Worker(workerEntry, { workerData: payload, resourceLimits, env: workerEnv, execArgv: [] });
+        const workerOptions = { workerData: payload, resourceLimits, env: workerEnv, execArgv: [] };
+        worker = options.createWorker ? options.createWorker({ entry: workerEntry, options: workerOptions }, {}) : new Worker(workerEntry, workerOptions);
       }
       return {
         once(input) {

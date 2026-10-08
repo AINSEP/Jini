@@ -1,6 +1,6 @@
 import type { ObservabilityConfigEnabled } from './config.js';
 import type { AgentRunStatus, ExporterFactory, TracerProviderFactory, ObservabilityPort, SpanScopePort, TraceSpanKind, TraceSpanPort, TracerPort } from './ports.js';
-import { redactSecretShapes } from '../redaction/secrets-only.js';
+import { redactSecretShapes } from '../core/secrets-only.js';
 export interface OtelAdapterDependencies {
  config: ObservabilityConfigEnabled; exporterFactory: ExporterFactory; tracerProviderFactory: TracerProviderFactory;
 }

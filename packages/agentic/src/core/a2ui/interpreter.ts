@@ -54,11 +54,11 @@ import type { ActionMessagePayload, RendererToAgentMessage } from './renderer-to
 import { setAtPointer } from './json-pointer.js';
 import { isComponentAllowed, type Catalog } from './catalog.js';
 import { resolveDynamicValue } from './resolve.js';
-import {
-  type Action,
-  type AgentActionEvent,
-  type DynamicValue,
-  type LocalFunctionAction,
+import type {
+   Action,
+   AgentActionEvent,
+   DynamicValue,
+   LocalFunctionAction,
 } from './common-types.js';
 
 export interface ComponentInstance {

@@ -5,8 +5,8 @@ test("0.5.1 retains published secret subpaths and adds generic platform subpaths
     const root = new URL("../../../", import.meta.url);
     const manifest = JSON.parse(readFileSync(new URL("package.json", root), "utf8"));
     expect(manifest.version).toBe("0.5.1");
-    expect(Object.keys(manifest.exports)).toEqual([".", "./fetch-with-timeout", "./secrets", "./secrets/credential-sets", "./secrets/testing", "./http/guarded", "./mail", "./mail/smtp", "./fs/guarded-reader", "./fs/durable-json", "./fs", "./net", "./fs/file-lock"]);
-    for (const [subpath, source] of [["./net", "net/index"], ["./fs/file-lock", "fs/file-lock"], ["./secrets", "secrets/index"], ["./secrets/credential-sets", "secrets/credential-sets/index"], ["./secrets/testing", "secrets/testing"], ["./http/guarded", "http/guarded/index"], ["./mail", "mail/index"], ["./mail/smtp", "mail/smtp"], ["./fs/guarded-reader", "fs/guarded-reader"], ["./fs/durable-json", "fs/durable-json"], ["./fs", "fs/index"]]) {
+    expect(Object.keys(manifest.exports)).toEqual([".", "./fetch-with-timeout", "./secrets", "./secrets/credential-sets", "./secrets/testing", "./http/guarded", "./mail", "./mail/smtp", "./fs/guarded-reader", "./fs/durable-json", "./fs", "./net", "./net/endpoint-policy", "./fs/file-lock", "./secrets/credential-token"]);
+    for (const [subpath, source] of [["./net/endpoint-policy", "net/endpoint-policy"], ["./secrets/credential-token", "secrets/credential-token"], ["./net", "net/index"], ["./fs/file-lock", "fs/file-lock"], ["./secrets", "secrets/index"], ["./secrets/credential-sets", "secrets/credential-sets/index"], ["./secrets/testing", "secrets/testing"], ["./http/guarded", "http/guarded/index"], ["./mail", "mail/index"], ["./mail/smtp", "mail/smtp"], ["./fs/guarded-reader", "fs/guarded-reader"], ["./fs/durable-json", "fs/durable-json"], ["./fs", "fs/index"]]) {
         expect(manifest.exports[subpath!]).toEqual({ types: `./dist/${source}.d.ts`, import: `./dist/${source}.js`, default: `./dist/${source}.js` });
         expect(existsSync(fileURLToPath(new URL(`src/${source}.ts`, root)))).toBe(true);
     }

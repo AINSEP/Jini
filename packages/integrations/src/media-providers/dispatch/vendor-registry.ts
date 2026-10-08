@@ -12,6 +12,7 @@
  * legitimately aren't (yet).
  */
 import type { VendorAdapter } from './vendor-adapter.js';
+import { registerBuiltinVendorAdapters } from './builtin-vendors.js';
 
 export class VendorAdapterRegistry {
   private readonly table = new Map<string, Map<string, VendorAdapter<never>>>();
@@ -63,4 +64,37 @@ export function createVendorAdapterRegistry(): VendorAdapterRegistry {
  * own vendor adapters without touching this module's set) can still call
  * `createVendorAdapterRegistry()` directly instead of using this singleton.
  */
-export const mediaVendorRegistry: VendorAdapterRegistry = createVendorAdapterRegistry();
+// Import-time registration used to mutate this shared instance from vendor modules. Lazy
+// composition keeps the published singleton's built-in contents while eliminating that effect.
+class BuiltinVendorAdapterRegistry extends VendorAdapterRegistry {
+  private initialized = false;
+
+  private initialize(): void {
+    if (this.initialized) return;
+    // Mark first: explicit registration below calls this instance's overridden register.
+    this.initialized = true;
+    registerBuiltinVendorAdapters({ registry: this });
+  }
+
+  override register<Meta>(required: { providerId: string; routeKey: string; adapter: VendorAdapter<Meta> }): void {
+    this.initialize();
+    super.register(required);
+  }
+
+  override get(required: { providerId: string; routeKey: string }): VendorAdapter<never> | undefined {
+    this.initialize();
+    return super.get(required);
+  }
+
+  override has(required: { providerId: string; routeKey: string }): boolean {
+    this.initialize();
+    return super.has(required);
+  }
+
+  override list(): ReadonlyArray<readonly [string, string]> {
+    this.initialize();
+    return super.list();
+  }
+}
+
+export const mediaVendorRegistry: VendorAdapterRegistry = new BuiltinVendorAdapterRegistry();

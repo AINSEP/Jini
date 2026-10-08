@@ -40,7 +40,7 @@ import { createHexEnvelopeAudioParser } from '../response-parsers.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import { mediaVendorRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry.js';
 
 const MINIMAX_DEFAULT_BASE_URL = 'https://api.minimaxi.chat/v1';
 const MINIMAX_DEFAULT_VOICE_ID = 'male-qn-qingse';
@@ -101,8 +101,14 @@ const minimaxTTSAdapter: VendorAdapter<HexEnvelopeAudioMeta> = {
   parseResponse: createHexEnvelopeAudioParser<HexEnvelopeAudioMeta>({ errorTag: 'minimax tts', providerId: 'minimax' }),
 };
 
-mediaVendorRegistry.register({ providerId: 'minimax', routeKey: 'audio:speech', adapter: minimaxTTSAdapter });
-
 export async function renderMinimaxTTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: minimaxTTSAdapter, ctx: ctx, credentials: credentials });
+}
+
+/** Explicit composition: importing a renderer never changes another module's registry. */
+export function registerVendorAdapters(
+  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
+  _optional: Record<string, never> = {},
+): void {
+  registry.register({ providerId: 'minimax', routeKey: 'audio:speech', adapter: minimaxTTSAdapter });
 }

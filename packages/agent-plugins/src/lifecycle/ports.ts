@@ -45,6 +45,11 @@ export interface AgentPluginLifecyclePorts {
   readonly layout: AgentPluginLayoutPort;
   readonly productName: string;
   readonly extensionNamespace: string;
+  /** Host boot policy may migrate every workspace before seeding the requested workspace.
+   * A failure refuses all publication; absent uses the owner's single-workspace migration. */
+  readonly migrateBeforeSeed?: ((required: { readonly layout: AgentPluginLayoutPort; readonly workspaceId: string }, optional: Record<string, never>) => Promise<{ readonly complete: boolean }>) | undefined;
+  /** Host-facing recovery instructions; the bundled refusal and its security gate remain owned here. */
+  readonly formatBundledUninstallRecovery?: ((required: { readonly pluginId: string }, optional: Record<string, never>) => string) | undefined;
   readonly readServerMetadata?: AgentPluginServerMetadataReader | undefined;
   readonly deliveryMode: AgentPluginDeliveryMode;
   readonly mcpProvisioning: AgentPluginMcpProvisioningPort;
@@ -53,5 +58,5 @@ export interface AgentPluginLifecyclePorts {
 }
 
 /** Application policy/effects are required; observers and metadata translators are optional. */
-export type AgentPluginLifecycleRequired = Omit<AgentPluginLifecyclePorts, 'onEvent' | 'readServerMetadata'>;
-export type AgentPluginLifecycleOptional = Pick<AgentPluginLifecyclePorts, 'onEvent' | 'readServerMetadata'>;
+export type AgentPluginLifecycleRequired = Omit<AgentPluginLifecyclePorts, 'onEvent' | 'readServerMetadata' | 'migrateBeforeSeed' | 'formatBundledUninstallRecovery'>;
+export type AgentPluginLifecycleOptional = Pick<AgentPluginLifecyclePorts, 'onEvent' | 'readServerMetadata' | 'migrateBeforeSeed' | 'formatBundledUninstallRecovery'>;

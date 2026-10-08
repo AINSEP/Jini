@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
-import { SandboxOperationError } from '../index.js';
-import { shellQuote } from '../../e2b/shell-quote.js';
-import { toArrayBuffer } from '../../e2b/to-array-buffer.js';
+import { SandboxOperationError } from '../../core/index.js';
+import { shellQuote } from '../shell-quote.js';
+import { toArrayBuffer } from '../to-array-buffer.js';
 
 test('object inputs preserve error causes and binary view boundaries', () => {
   const cause = new Error('offline');

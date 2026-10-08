@@ -1,17 +1,8 @@
 /**
  * @module @jini-ai/mcp/server/tools/run-tools
- *
- * The first real, concrete `McpToolDef`s hosted by `createMcpToolServer`
- * (`../tool-server.js`) — a proxy over `@jini-ai/http-kit`'s already-gated `Run`
- * transport (`packages/http/src/runs.ts`) plus the generic active-resource
- * channel (`packages/http/src/active-context.ts`) and the agent-def listing
- * (`packages/http/src/agents.ts`). Each tool's `handler` does nothing but
- * validate its own arguments and proxy a single HTTP call via
- * `../daemon-client.js` — no separate authorization mechanism, no caching,
- * no state: whatever `@jini-ai/http-kit`'s same-origin guard / bearer-auth
- * middleware already enforces on the target route is the only gate a call
- * here passes through (see `archived provenance ledger`'s 2026-07-21 addition for the
- * full origin-mapping and what was deliberately not ported).
+ * Proxy tools for runs, active context and agent definitions. Each validates its arguments and
+ * delegates a single request to daemon-client; target-route same-origin and bearer-auth gates
+ * remain authoritative. See daemonCallOptions for shared auth and cancellation propagation.
  */
 import { getDaemonJson, postDaemonJson } from '../daemon-client.js';
 import { daemonCallOptions, requireString, type McpToolDef } from '../tool-protocol.js';

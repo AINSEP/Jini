@@ -1,8 +1,14 @@
 import type { VendorCredentialSetRecord, VendorCredentialSetRepoPort } from "./types.js";
 
-/** In-memory repository preserving label uniqueness and group default promotion. */
+/**
+ * @file `VendorCredentialSetRepoPort`'s in-memory adapter — the ADR-006 rule-of-two test double,
+ * mirroring `../deployments/publish-credentials/repo.memory.ts`'s shape byte-for-byte with
+ * `providerId` swapped for `vendorId`. See that file's own header for the full reasoning (row
+ * keying, the enforced UNIQUE constraint matching better-sqlite3's own error wording, why no
+ * explicit lock is needed for the `isDefault` group invariant in a single-threaded JS process).
+ */
 export class InMemoryVendorCredentialSetRepo implements VendorCredentialSetRepoPort {
-  constructor(_required: Record<string, never>) {}
+  constructor(_required: Record<string, never>, _optional: Record<string, never> = {}) {}
   private readonly rows = new Map<string, VendorCredentialSetRecord>();
 
   private static rowKey(workspaceId: string, id: string): string {
@@ -24,38 +30,38 @@ export class InMemoryVendorCredentialSetRepo implements VendorCredentialSetRepoP
     }
   }
 
-  async insert(record: VendorCredentialSetRecord): Promise<void> {
+  async insert(record: VendorCredentialSetRecord, _optional: Record<string, never> = {}): Promise<void> {
     this.assertLabelAvailable(record.workspaceId, record.vendorId, record.label);
     this.rows.set(InMemoryVendorCredentialSetRepo.rowKey(record.workspaceId, record.id), { ...record });
     if (record.isDefault) this.clearOtherDefaults(record.workspaceId, record.vendorId, record.id);
   }
 
-  async update(record: VendorCredentialSetRecord): Promise<void> {
+  async update(record: VendorCredentialSetRecord, _optional: Record<string, never> = {}): Promise<void> {
     this.assertLabelAvailable(record.workspaceId, record.vendorId, record.label, record.id);
     this.rows.set(InMemoryVendorCredentialSetRepo.rowKey(record.workspaceId, record.id), { ...record });
     if (record.isDefault) this.clearOtherDefaults(record.workspaceId, record.vendorId, record.id);
   }
 
-  async findById(input: { workspaceId: string; id: string }): Promise<VendorCredentialSetRecord | null> {
+  async findById(input: { workspaceId: string; id: string }, _optional: Record<string, never> = {}): Promise<VendorCredentialSetRecord | null> {
     return this.rows.get(InMemoryVendorCredentialSetRepo.rowKey(input.workspaceId, input.id)) ?? null;
   }
 
-  async findDefaultByVendor(input: { workspaceId: string; vendorId: string }): Promise<VendorCredentialSetRecord | null> {
+  async findDefaultByVendor(input: { workspaceId: string; vendorId: string }, _optional: Record<string, never> = {}): Promise<VendorCredentialSetRecord | null> {
     for (const row of this.rows.values()) {
       if (row.workspaceId === input.workspaceId && row.vendorId === input.vendorId && row.isDefault) return row;
     }
     return null;
   }
 
-  async listByVendor(input: { workspaceId: string; vendorId: string }): Promise<VendorCredentialSetRecord[]> {
+  async listByVendor(input: { workspaceId: string; vendorId: string }, _optional: Record<string, never> = {}): Promise<VendorCredentialSetRecord[]> {
     return [...this.rows.values()].filter((row) => row.workspaceId === input.workspaceId && row.vendorId === input.vendorId);
   }
 
-  async listByWorkspace(input: { workspaceId: string }): Promise<VendorCredentialSetRecord[]> {
+  async listByWorkspace(input: { workspaceId: string }, _optional: Record<string, never> = {}): Promise<VendorCredentialSetRecord[]> {
     return [...this.rows.values()].filter((row) => row.workspaceId === input.workspaceId);
   }
 
-  async delete(input: { workspaceId: string; id: string }): Promise<void> {
+  async delete(input: { workspaceId: string; id: string }, _optional: Record<string, never> = {}): Promise<void> {
     const key = InMemoryVendorCredentialSetRepo.rowKey(input.workspaceId, input.id);
     const removed = this.rows.get(key);
     this.rows.delete(key);
@@ -67,7 +73,9 @@ export class InMemoryVendorCredentialSetRepo implements VendorCredentialSetRepoP
     this.rows.set(InMemoryVendorCredentialSetRepo.rowKey(promoted.workspaceId, promoted.id), { ...promoted, isDefault: true });
   }
 
-  async updateAccountLabel(input: { workspaceId: string; id: string; accountLabel: string }): Promise<void> {
+  /** Mirrors the SQLite adapter's targeted single-column write — see
+   *  `VendorCredentialSetRepoPort.updateAccountLabel`'s own doc. No-op if the row vanished. */
+  async updateAccountLabel(input: { workspaceId: string; id: string; accountLabel: string }, _optional: Record<string, never> = {}): Promise<void> {
     const key = InMemoryVendorCredentialSetRepo.rowKey(input.workspaceId, input.id);
     const existing = this.rows.get(key);
     if (!existing) return;

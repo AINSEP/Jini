@@ -19,7 +19,7 @@
  */
 import type { ToolAuthorizationContext, ToolPolicy, ToolRegistration } from '@jini-ai/core';
 import { publishDeploy, type DeployPublishToolInput } from './tokens.js';
-import type { DeployPublishResult, DeployTarget } from './types.js';
+import type { DeployPublishResult, DeployTarget } from '../core/deploy-types.js';
 
 /** The `ToolRegistry` id this file registers `deploy.publish` under. */
 export const DEPLOY_PUBLISH_TOOL_ID = 'deploy.publish';

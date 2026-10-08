@@ -1,6 +1,12 @@
 # `@jini-ai/infra`
 
-Deprecated: a re-export of `@jini-ai/db` (`./core`, `./sqlite`). Import those directly. Removed after one release.
+Deprecated compatibility package: replace `@jini-ai/infra/db/core` with `@jini-ai/db/core` and
+`@jini-ai/infra/db/sqlite` with `@jini-ai/db/sqlite`.
+
+This package and its published exports remain available for compatibility. The package owner
+applies npm registry deprecation at publish time; the manifest notice does not deprecate existing
+registry versions by itself. The retained outbox owner is exposed as `@jini-ai/infra/events/outbox`;
+the database entries remain compatibility shims.
 
 Version 0.4.0 keeps the 0.3.3 names at `@jini-ai/infra/db/core` and
 `@jini-ai/infra/db/sqlite` for existing ESM consumers. Database implementations and their tests
@@ -32,7 +38,18 @@ including type-only exports.
 
 ## Kernel contracts
 
-This package remains deprecated and its outbox publication home is unresolved. Outbox source
+The outbox entry owns generic delivery, retries, enqueue-only views and drain scheduling. Its source
 uses core `Clock` (`nowMs()`) and `Pick<Logger, 'error'>`; structured errors go in logging's second
 argument. Reliability rationale stays in symbol JSDoc. The existing six-attempt policy,
 claim leases, timeouts, envelope identity and host-owned storage remain unchanged.
+
+```ts
+import { createNodeOutboxScheduler, processOutbox } from '@jini-ai/infra/events/outbox';
+
+await processOutbox({ outbox, bus, clock, logger, random: Math.random,
+  scheduler: createNodeOutboxScheduler({}) });
+```
+
+The host's outbox and bus receive `{ event }` objects. Claims receive `{ batchSize, nowIso,
+claimLeaseMs }`; storage remains host-owned. Start the drainer only after the delivering process
+subscribes its real handlers. Importing the entry or creating a scheduler starts no background work.

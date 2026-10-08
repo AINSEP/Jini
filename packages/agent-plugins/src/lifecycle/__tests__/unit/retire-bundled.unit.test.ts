@@ -92,8 +92,8 @@ async function seedPreRetirementWorkspace(layout: ReturnType<typeof resolveAgent
   return { fly, deploy };
 }
 
-async function installedIds(packagesDir: string): Promise<string[]> {
-  return (await listInstalledPlugins(packagesDir)).map((plugin) => plugin.pluginId).sort();
+async function installedIds(workspaceRoot: string): Promise<string[]> {
+  return (await listInstalledPlugins(workspaceRoot)).map((plugin) => plugin.pluginId).sort();
 }
 
 test("the retirement map sends old-integration to deploy", () => {
@@ -119,7 +119,7 @@ test("an ENABLED old-integration: its package, record and ledger entry go; deplo
         successor: "already-enabled",
       },
     ]);
-    assert.deepEqual(await installedIds(workspaceLayout.packages), [SUCCESSOR]);
+    assert.deepEqual(await installedIds(workspaceLayout.root), [SUCCESSOR]);
 
     const activations = await readAgentPluginActivations(workspaceLayout.root);
     assert.equal(Object.hasOwn(activations.plugins, RETIRED), false, "the retired plugin's record is deleted, not tombstoned");
@@ -186,7 +186,7 @@ test("an operator-DISABLED deploy stays off and is reported, while old-integrati
     assert.equal(activations.plugins[SUCCESSOR]?.enabled, false, "an operator's decision is never overridden");
     assert.equal(activations.plugins[SUCCESSOR]?.updatedBy, "test:operator");
     assert.equal(Object.hasOwn(activations.plugins, RETIRED), false);
-    assert.deepEqual(await installedIds(workspaceLayout.packages), [SUCCESSOR]);
+    assert.deepEqual(await installedIds(workspaceLayout.root), [SUCCESSOR]);
   } finally {
     await forceRemove(cwd);
   }
@@ -203,7 +203,7 @@ test("a DISABLED old-integration is removed without touching deploy", async () =
 
     assert.equal(outcome?.status === "retired" && outcome.successor, "not-needed");
     assert.deepEqual((await readAgentPluginActivations(workspaceLayout.root)).plugins[SUCCESSOR], deployBefore);
-    assert.deepEqual(await installedIds(workspaceLayout.packages), [SUCCESSOR]);
+    assert.deepEqual(await installedIds(workspaceLayout.root), [SUCCESSOR]);
   } finally {
     await forceRemove(cwd);
   }
@@ -315,7 +315,7 @@ test("a MALFORMED old-integration record fails the retirement and changes nothin
     assert.equal(outcome?.status, "failed");
     assert.match(outcome?.status === "failed" ? outcome.reason : "", /cannot tell whether 'old-integration' was enabled/);
     assert.equal(await readFile(activationsPath, "utf8"), raw);
-    assert.deepEqual(await installedIds(workspaceLayout.packages), [RETIRED]);
+    assert.deepEqual(await installedIds(workspaceLayout.root), [RETIRED]);
   } finally {
     await forceRemove(cwd);
   }
@@ -332,7 +332,7 @@ test("uninstallAgentPlugin's retiredBundled option skips only the bundled refusa
 
     const result = await uninstallAgentPlugin(request, { retiredBundled: true });
     assert.deepEqual(result.removedDigests, [installed.archiveDigest]);
-    assert.deepEqual(await installedIds(workspaceLayout.packages), []);
+    assert.deepEqual(await installedIds(workspaceLayout.root), []);
   } finally {
     await forceRemove(cwd);
   }
@@ -355,7 +355,7 @@ test("seedBundledAgentPlugins never seeds a retired id from a stale source direc
 
     assert.deepEqual(result.outcomes, []);
     assert.deepEqual(result.retirements, [{ pluginId: RETIRED, successorId: SUCCESSOR, status: "absent" }]);
-    assert.deepEqual(await installedIds(workspaceLayout.packages), []);
+    assert.deepEqual(await installedIds(workspaceLayout.root), []);
   } finally {
     await forceRemove(cwd);
     await forceRemove(bundledRoot);

@@ -42,7 +42,7 @@ import { createRawBytesParser } from '../response-parsers.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import { mediaVendorRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry.js';
 
 const ELEVENLABS_DEFAULT_BASE_URL = 'https://api.elevenlabs.io';
 const ELEVENLABS_DEFAULT_VOICE_ID = '21m00Tcm4TlvDq8ikWAM';
@@ -135,8 +135,6 @@ const elevenLabsTTSAdapter: VendorAdapter<ElevenLabsTTSMeta> = {
   }),
 };
 
-mediaVendorRegistry.register({ providerId: 'elevenlabs', routeKey: 'audio:speech', adapter: elevenLabsTTSAdapter });
-
 export async function renderElevenLabsTTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: elevenLabsTTSAdapter, ctx: ctx, credentials: credentials });
 }
@@ -188,8 +186,15 @@ const elevenLabsSfxAdapter: VendorAdapter<ElevenLabsSfxMeta> = {
   }),
 };
 
-mediaVendorRegistry.register({ providerId: 'elevenlabs', routeKey: 'audio:sfx', adapter: elevenLabsSfxAdapter });
-
 export async function renderElevenLabsSfx({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: elevenLabsSfxAdapter, ctx: ctx, credentials: credentials });
+}
+
+/** Explicit composition: importing a renderer never changes another module's registry. */
+export function registerVendorAdapters(
+  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
+  _optional: Record<string, never> = {},
+): void {
+  registry.register({ providerId: 'elevenlabs', routeKey: 'audio:speech', adapter: elevenLabsTTSAdapter });
+  registry.register({ providerId: 'elevenlabs', routeKey: 'audio:sfx', adapter: elevenLabsSfxAdapter });
 }

@@ -1,5 +1,6 @@
 import type { HttpClientPort } from '@jini-ai/core/primitives';
-import { assertNotRedirected, DeployError, redirectGuardInit } from '../deploy/index.js';
+import { assertNotRedirected, redirectGuardInit } from '../core/redirect-guard.js';
+import { DeployError } from '../core/deploy-types.js';
 import type { DescribedTransportError, SourceControlFetchPort, SourceControlProviderKit } from './contracts.js';
 
 /** Build a kit without globals or a silently missing guarded HTTP client. */

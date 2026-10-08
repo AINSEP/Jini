@@ -1,5 +1,6 @@
 import { execFileSync, spawn } from "node:child_process";
 import type { Writable } from "node:stream";
+import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { collectProcessTreePids, createCommandInvocation, listProcessSnapshots, stopProcesses } from "@jini-ai/platform";
 import { readLiveDaemonRegistryRecord, removeDaemonRegistryRecordIfCurrent, writeDaemonRegistryRecord } from "./daemon-registry.js";
 import type { LocalDaemonRegistryRecord } from "./daemon-registry.js";
@@ -33,12 +34,16 @@ export interface NodeDaemonProcessRequired {
   env: NodeJS.ProcessEnv;
   registry: SupervisorRegistry;
 }
-export interface NodeDaemonProcessOptions { stdout?: Writable; stderr?: Writable; platform?: NodeJS.Platform }
+export interface NodeDaemonProcessOptions {
+  stdout?: Writable; stderr?: Writable; platform?: NodeJS.Platform;
+  /** Native spawn effect port; the adapter still constructs argv, environment and process options. */
+  spawn?: (input: { command: string; args: string[]; options: SpawnOptions }, optional?: Record<string, never>) => ChildProcess;
+}
 
 /**
  * Node launch/tree-stop adapter using platform command quoting, snapshots and signal escalation.
  * @param required Complete host launch settings and the shared sidecar registry port.
- * @param options Optional sinks; output is piped through the parent rather than inherited.
+ * @param options Optional native spawn port and sinks; output is piped through the parent rather than inherited.
  * @returns Supervisor process ports. Construction has no process or filesystem effects.
  * @complexity Tree stop is O(p) for p process snapshots, plus platform exit polling.
  */
@@ -53,11 +58,14 @@ export function createNodeDaemonProcessAdapter(required: NodeDaemonProcessRequir
       // launcher hop; windowsHide avoids an otherwise visible detached Windows console.
       // Pipe output through the parent instead of inheriting its descriptors: an orphan
       // retaining those descriptors previously kept parent/test teardown waiting forever.
-      const child = spawn(invocation.command, invocation.args, {
+      const spawnOptions: SpawnOptions = {
         cwd: required.cwd, env: { ...required.env }, detached: true, windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"],
         ...(invocation.windowsVerbatimArguments === undefined ? {} : { windowsVerbatimArguments: invocation.windowsVerbatimArguments }),
-      });
+      };
+      const child = options.spawn
+        ? options.spawn({ command: invocation.command, args: invocation.args, options: spawnOptions }, {})
+        : spawn(invocation.command, invocation.args, spawnOptions);
       if (options.stdout !== undefined) child.stdout?.pipe(options.stdout);
       else child.stdout?.resume();
       if (options.stderr !== undefined) child.stderr?.pipe(options.stderr);

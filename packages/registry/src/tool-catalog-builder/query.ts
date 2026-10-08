@@ -38,7 +38,9 @@ export function buildToolCatalogQuery(
       id: descriptor.id,
       source: required.classifier.classify({ id: descriptor.id }),
       description: (optional.includeSearchKeywords ?? true)
-        ? required.enricher.indexedDescription({ id: descriptor.id, description }, {
+        ? required.enricher.indexedDescription({ id: descriptor.id, description,
+          ...(descriptor.metadata ? { metadata: descriptor.metadata } : {}),
+        }, {
           includeDoc2query: optional.includeDoc2query ?? true,
         }) : description,
       ...(descriptor.inputSchema === undefined ? {} : { inputSchema: descriptor.inputSchema }),

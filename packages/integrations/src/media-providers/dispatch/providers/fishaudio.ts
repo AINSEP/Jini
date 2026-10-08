@@ -27,7 +27,7 @@ import { createRawBytesParser } from '../response-parsers.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import { mediaVendorRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry.js';
 
 const FISHAUDIO_DEFAULT_BASE_URL = 'https://api.fish.audio';
 
@@ -91,8 +91,14 @@ const fishAudioTTSAdapter: VendorAdapter<FishAudioTTSMeta> = {
   }),
 };
 
-mediaVendorRegistry.register({ providerId: 'fishaudio', routeKey: 'audio:speech', adapter: fishAudioTTSAdapter });
-
 export async function renderFishAudioTTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: fishAudioTTSAdapter, ctx: ctx, credentials: credentials });
+}
+
+/** Explicit composition: importing a renderer never changes another module's registry. */
+export function registerVendorAdapters(
+  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
+  _optional: Record<string, never> = {},
+): void {
+  registry.register({ providerId: 'fishaudio', routeKey: 'audio:speech', adapter: fishAudioTTSAdapter });
 }

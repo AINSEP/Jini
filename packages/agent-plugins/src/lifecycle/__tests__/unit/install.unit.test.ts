@@ -332,21 +332,59 @@ test("the total-extracted-bytes cap is enforced across many small files (the 'ma
     const archive = new Uint8Array(Buffer.from("archive-bytes-many-files"));
     const digest = createHash("sha256").update(archive).digest("hex");
 
-    const bigContent = "x".repeat(1024 * 1024); // 1 MiB per file
+    // Reuse one chunk instead of allocating 200 MiB. The real ZIP suite covers disk throughput;
+    // this unit keeps real containment/open/cleanup but counts payload writes through the fs port.
+    const chunk = Buffer.alloc(1024 * 1024, 120); // 1 MiB per file
+    let chunksConsumed = 0;
+    let streamsClosed = 0;
+    let payloadBytesAccepted = 0;
+    let payloadHandlesClosed = 0;
+    const { installAgentPlugin: installWithCountingSink } = createInstallModule({
+      ...ports,
+      filesystem: { ...ports.filesystem, open: async (filename, flags, mode) => {
+        const handle = await ports.filesystem.open(filename, flags, mode);
+        if (path.basename(String(filename)) === "plugin.json") return handle;
+        return {
+          async write(bytes: Uint8Array) {
+            payloadBytesAccepted += bytes.byteLength;
+            return { bytesWritten: bytes.byteLength, buffer: bytes };
+          },
+          async close() {
+            await handle.close();
+            payloadHandlesClosed += 1;
+          },
+        } as unknown as Awaited<ReturnType<typeof ports.filesystem.open>>;
+      } },
+    });
     const manyEntries: AgentPluginArchiveEntry[] = [fileEntry("plugin.json", VALID_MANIFEST)];
-    for (let i = 0; i < 200; i += 1) manyEntries.push(fileEntry(`skills/a/refs/f${i}.md`, bigContent));
+    for (let i = 0; i < 200; i += 1) manyEntries.push(fileEntry(`skills/a/refs/f${i}.md`, "", {
+      declaredSize: chunk.byteLength,
+      async *openReadStream() {
+        try {
+          chunksConsumed += 1;
+          yield chunk;
+        } finally {
+          streamsClosed += 1;
+        }
+      },
+    }));
 
     await assert.rejects(
       () =>
-        installAgentPlugin({
+        installWithCountingSink({
           archive,
           expectedSha256: digest,
           archiveReader: reader(manyEntries),
           layout: instanceLayout,
           workspaceId: WORKSPACE_ID,
         }),
-      (error: unknown) => error instanceof AgentPluginInstallError && error.code === "TOTAL_SIZE_EXCEEDED",
+      (error: unknown) => error instanceof AgentPluginInstallError && error.code === "TOTAL_SIZE_EXCEEDED"
+        && error.message === "archive exceeds the 67108864-byte total extracted-size cap",
     );
+    assert.equal(chunksConsumed, 64, "manifest bytes make the 64th 1 MiB payload cross the aggregate cap");
+    assert.equal(payloadBytesAccepted, 63 * 1024 * 1024, "the first over-cap chunk must never reach the write sink");
+    assert.equal(streamsClosed, 64, "every opened decompressor must close, including the rejected stream");
+    assert.equal(payloadHandlesClosed, 64, "every payload handle must close before staging cleanup");
     assert.deepEqual(await readdir(layout.root), ["staging"], "rejection must not create a plugin/package directory");
     assert.deepEqual(await readdir(layout.staging), [], "rejection must remove the staging transaction");
   } finally {

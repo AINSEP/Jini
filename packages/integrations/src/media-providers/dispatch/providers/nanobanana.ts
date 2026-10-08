@@ -29,7 +29,7 @@ import { sniffImageExt, truncate, withRequestInit } from '../openai-compatible.j
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import { mediaVendorRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry.js';
 
 const NANOBANANA_DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com';
 const NANOBANANA_DEFAULT_MODEL = 'gemini-3.1-flash-image-preview';
@@ -146,8 +146,14 @@ const nanoBananaImageAdapter: VendorAdapter<NanoBananaImageMeta> = {
   },
 };
 
-mediaVendorRegistry.register({ providerId: 'nanobanana', routeKey: 'image', adapter: nanoBananaImageAdapter });
-
 export async function renderNanoBananaImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: nanoBananaImageAdapter, ctx: ctx, credentials: credentials });
+}
+
+/** Explicit composition: importing a renderer never changes another module's registry. */
+export function registerVendorAdapters(
+  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
+  _optional: Record<string, never> = {},
+): void {
+  registry.register({ providerId: 'nanobanana', routeKey: 'image', adapter: nanoBananaImageAdapter });
 }

@@ -1,3 +1,4 @@
+import { ExportPathError } from "./contracts.js";
 import type { ExportedAsset, ExportedRoute, ExportReport, ExportSiteArgs, ExportSiteOptions, FailedAsset, FailedRoute, ManifestRoute, RouteManifest } from './contracts.js';
 import { extractAssetUrls, extractCssUrls, normalizeBasePath, outputFileForUrl, redirectOutcomeFor, renderRedirectStub, rewriteRouteBodyForBasePath, safeRelativeOutputFile } from './transforms.js';
 
@@ -29,7 +30,7 @@ async function writeRoute(ctx: RunContext, route: ManifestRoute): Promise<Writte
   } else {
     if (route.kind === 'not-found' ? !ctx.args.errorPage.acceptStatus({ status: response.status }) : response.status !== 200) {
       await response.body?.cancel();
-      return { reason: route.kind === 'not-found' ? `expected an accepted response for the error-page probe, got ${response.status}` : `expected 200, got ${response.status}` };
+      return { reason: route.kind === 'not-found' ? (ctx.args.errorPage.rejectionReason?.({ status: response.status }) ?? `expected an accepted response for the error-page probe, got ${response.status}`) : `expected 200, got ${response.status}` };
     }
     rawBody = await response.text();
     body = rewriteRouteBodyForBasePath({ path: route.path, body: rawBody, basePath: ctx.basePath });
@@ -70,7 +71,7 @@ async function writeAssets(ctx: RunContext, initial: readonly string[]): Promise
       if (crawlCss && url.split('?')[0]!.endsWith('.css')) {
         for (const child of extractCssUrls({ css: data.toString('utf8'), cssUrl: url, prefixes: ctx.args.assetUrlPrefixes })) queue.push({ url: child, crawlCss: false });
       }
-    } catch (error) { failed.push({ url, reason: failureReason(ctx, url, error) }); }
+    } catch (error) { failed.push({ url, reason: error instanceof ExportPathError && ctx.args.assetPathFailureReason !== undefined ? ctx.args.assetPathFailureReason : failureReason(ctx, url, error) }); }
   }
   return { succeeded, failed };
 }

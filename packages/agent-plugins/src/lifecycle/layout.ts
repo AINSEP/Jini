@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { pluginStatePaths } from '../../persistent-state.js';
+import { pluginStatePaths } from '../../core/persistent-state.js';
 
 export interface AgentPluginWorkspaceLayout {
   readonly root: string;

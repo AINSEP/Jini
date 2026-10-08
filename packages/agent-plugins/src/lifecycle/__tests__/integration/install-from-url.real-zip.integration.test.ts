@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { mkdtemp, readFile, readdir, stat } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, realpath, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "vitest";
@@ -100,7 +100,7 @@ test("installAgentPluginFromUrl downloads a real archive over loopback HTTP and 
       assert.equal(result.installed.pluginId, "ui-ux-design");
       assert.deepEqual(result.installed.skills, [{ name: "ui-ux-design", skillPath: "skills/ui-ux-design/SKILL.md" }]);
 
-      const expectedRoot = path.join(cwd, "agent-plugins", "ws", WORKSPACE_ID, "packages", "sha256", expectedDigest);
+      const expectedRoot = await realpath(path.join(layout.forWorkspace({ workspaceId: WORKSPACE_ID }).pluginPackagesDir({ pluginId: "ui-ux-design" }), expectedDigest));
       assert.equal(result.installed.packageRoot, expectedRoot);
 
       const info = await stat(expectedRoot);

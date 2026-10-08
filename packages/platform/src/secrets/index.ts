@@ -64,3 +64,5 @@ export type { GeneratedFileRootKey } from "./keyring.env.js"; // site-key-legacy
 export { formatAad } from "./aad.js";
 export { defaultPlatformMessages } from "../messages.js";
 export type { PlatformMessages } from "../messages.js";
+
+export * from "./credential-token.js";

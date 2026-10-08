@@ -15,7 +15,7 @@
       ".": "node",
       "./rate-limit": "node",
       "./middleware": "node",
-      "./verified-origin": "node",
+      "./verified-origin": "universal",
       "./observability": "node"
     },
     "runtime": "node"
@@ -73,14 +73,28 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
-  "dependencies": {
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@vitest/coverage-v8": "^2.1.9",
     "@jini-ai/core": "workspace:*",
     "@jini-ai/platform": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
     "express": "^4.21.0"
   },
-  "devDependencies": {
-    "@types/express": "^4.17.21",
-    "@vitest/coverage-v8": "^2.1.9"
+  "dependencies": {
+    "@jini-ai/protocol": "workspace:^",
+    "@jini-ai/core": "workspace:^"
+  },
+  "peerDependencies": {
+    "@jini-ai/platform": "^0.5.1",
+    "express": "^4.21.0"
+  },
+  "peerDependenciesMeta": {
+    "@jini-ai/platform": {
+      "optional": true
+    },
+    "express": {
+      "optional": true
+    }
   }
 }

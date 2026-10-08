@@ -1,20 +1,17 @@
 /**
- * Historical lifecycle rationale, carried with the implementation during consumer adoption.
  *
- * Host command-line rationale retained when the unused URL-install CLI was removed:
+ * Caller integrity constraints:
  * - A digest-only preview downloads and reports SHA-256 without installing. Hashing those bytes
  *   does not establish provenance; the host must make that distinction visible to the operator.
  * - A real install requires exactly one explicit integrity decision: an independent pinned digest
  *   or trust-on-first-use. Missing or conflicting choices must be refused before execution, with
  *   diagnostics naming the choice the operator needs to supply.
- * - Keep pure token classification separate from argument validation and exit/reporting effects,
- *   so both parsing and legal combinations are directly testable without a network or process exit.
  * - The CLI composes shared download/extraction operations; digest verification, expansion bounds,
  *   path containment and tenant isolation belong in those operations rather than a CLI-only guard.
  * @file The one composition step that turns "here is an address" into "the plugin is on this
  * machine": {@link fetchAgentPluginArchive} -> `installAgentPlugin`.
  *
- * This is the caller `install.ts` was written for and never had. It adds no extraction, path, or
+ * It adds no extraction, path, or
  * manifest logic of its own — every one of those guarantees still comes from `install.ts`, reached
  * with bytes instead of a URL.
  *

@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/user-management",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Runtime-separated user management contracts and Node authentication, authorization, and administration services.",
   "license": "Apache-2.0",
   "repository": {
@@ -91,13 +91,17 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@jini-ai/core": "workspace:^"
+  },
   "peerDependencies": {
     "argon2": "^0.44.0",
     "react": "^18.3.0 || ^19.0.0",
     "react-dom": "^18.3.0 || ^19.0.0",
     "@jini-ai/ui": "^0.4.0",
     "@jini-ai/admin": "^0.4.0",
-    "@jini-ai/agentic": "^0.4.0"
+    "@jini-ai/agentic": "^0.4.0",
+    "@jini-ai/ui-kit": "^0.1.1"
   },
   "peerDependenciesMeta": {
     "argon2": {
@@ -117,6 +121,9 @@
     },
     "@jini-ai/agentic": {
       "optional": true
+    },
+    "@jini-ai/ui-kit": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -135,9 +142,7 @@
     "@jini-ai/ui": "workspace:*",
     "@jini-ai/admin": "workspace:*",
     "@jini-ai/agentic": "workspace:*",
-    "@jini-ai/cms": "workspace:*"
-  },
-  "dependencies": {
+    "@jini-ai/cms": "workspace:*",
     "@jini-ai/core": "workspace:^",
     "@jini-ai/ui-kit": "workspace:^"
   }

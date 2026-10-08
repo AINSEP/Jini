@@ -5,10 +5,11 @@ import * as filesystem from "../fs/index.js";
 import { createNodeGuardedHttpPorts } from "../http/guarded/index.js";
 import { SmtpMailerAdapter, createNodemailerSmtpTransport } from "../mail/smtp.js";
 
-test("each published subpath declares its Node runtime and preserves its targets", () => {
+test("each published subpath declares its intended runtime and preserves its targets", () => {
   const manifest = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
   for (const [entry, conditions] of Object.entries(manifest.exports)) {
-    expect(manifest.jini.entries[entry]).toBe("node");
+    const browserSafeEntries = ["./net/endpoint-policy", "./secrets/credential-token"];
+    expect(manifest.jini.entries[entry]).toBe(browserSafeEntries.includes(entry) ? "universal" : "node");
     const target = conditions as { types: string; import: string; default: string };
     expect(target.types).toBe(target.import.replace(/\.js$/, ".d.ts"));
     expect(target.default).toBe(target.import);

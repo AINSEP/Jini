@@ -29,6 +29,23 @@ test("conversation approvals require the exact person, conversation, connection,
   assert.equal(await store.has({ ...key, fingerprint: "second" }), true);
 });
 
+test("saved identity approvals reuse conversation grants while binding person, workspace, plugin and digest", async () => {
+  const store = createInMemoryConversationToolApprovalStore({});
+  const key = { conversationId: "chat-a", principalId: "owner", connectionId: 'native/workspace-a', toolName: "plugin-a", fingerprint: "digest-a" };
+  await store.grant({ key, grantedAt: "2026-10-08" });
+  assert.ok(store.hasIdentity);
+  const { conversationId: _conversationId, ...identity } = key;
+  assert.equal(await store.hasIdentity(identity), true);
+  assert.equal(await store.has({ ...key, conversationId: "chat-b" }), false);
+  for (const changed of [
+    { ...identity, principalId: "other" }, { ...identity, connectionId: "native/workspace-b" },
+    { ...identity, toolName: "plugin-b" }, { ...identity, fingerprint: "digest-b" },
+  ]) assert.equal(await store.hasIdentity(changed), false);
+  await store.grant({ key: { ...key, fingerprint: "digest-b" }, grantedAt: "2026-10-09" });
+  assert.equal(await store.hasIdentity(identity), false);
+  assert.equal(await store.hasIdentity({ ...identity, fingerprint: "digest-b" }), true);
+});
+
 // REGRESSION: fails if InMemoryExternalMcpToolApprovalRepo.upsert ignores optional.scope.
 test("opaque scopes keep legacy storage-key bytes and isolate the unscoped partition", async () => {
   const repo = new InMemoryExternalMcpToolApprovalRepo({});

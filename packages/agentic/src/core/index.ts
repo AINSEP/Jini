@@ -14,8 +14,7 @@
  * same-document in a real site like a CMS, `postMessage` when a host embeds an untrusted
  * preview in a sandboxed frame. The verbs are identical either way. Also not here: any product's
  * OWN capabilities (`@jini-ai/chat-core`'s `chat.*` verbs stay in chat-core, which depends on this
- * package for the vocabulary rather than the other way around) — see this package's
- * archived provenance ledger for why the split is real rather than a wholesale relocation.
+ * package for the vocabulary rather than the other way around).
  */
 export {
   findCapability,
@@ -120,34 +119,9 @@ export {
   type AgUiToolResultMessage,
 } from './ag-ui.js';
 
-/**
- * Jini's **own** run-stream surface protocol, from `./gen-ui/` — six event kinds and the encoder
- * that produces them (folded in 2026-07-26 from the standalone `@jini-ai/agui` package, plan §3a).
- *
- * Renamed from `./agui/` on 2026-07-27, because this is NOT AG-UI. The real Agent-User Interaction
- * Protocol (https://github.com/ag-ui-protocol/ag-ui) carries a 33-member `SCREAMING_SNAKE` event
- * enum — `RUN_STARTED`, `TEXT_MESSAGE_CONTENT`, `STATE_DELTA`, `STEP_STARTED`, `REASONING_*` — and
- * shares **zero** event names with the six dotted-lowercase kinds in `./gen-ui/events.ts`, which
- * are a de-branded port of one product's internal run-event adapter. Carrying the AG-UI name on
- * them asserted a conformance that does not exist.
- *
- * `./ag-ui.ts` above was wrongly folded in with them on 2026-07-26 and moved back out on the 27th:
- * it is the one file here that really does speak AG-UI, so merging it with these six was the exact
- * inversion of the truth.
- *
- * The exported symbols were renamed `Agui`/`AGUI` → `GenUi` on 2026-07-29, finishing what the
- * directory move started: with genuine AG-UI (`./ag-ui.ts`, exported just above as `toAgUiTool`
- * and friends) living in the same barrel, two unrelated protocols were reading as one.
- *
- * `@jini-ai/http-kit` used to mount this encoder behind a route still named `/api/runs/:runId/
- * agui-stream` — left un-renamed at the time on the assumption it was a wire contract an
- * already-deployed client might be calling. A 2026-08-18 audit found zero callers of that route
- * anywhere (no client in this repo or any consuming product ever requested it, and `@jini-ai/http-kit` has never
- * actually been published to npm, so no external integrator could depend on it either); the route,
- * its registrar, and its tests were removed outright rather than renamed. This `gen-ui/` module
- * itself was untouched — it is `@jini-ai/agentic`'s own public export and its removal is a separate
- * decision.
- */
+/** Jini's gen-ui protocol has six dotted-lowercase event kinds, distinct from genuine AG-UI's
+ * SCREAMING_SNAKE event vocabulary exported above. Keep the names separate: claiming AG-UI
+ * conformance for this internal projection would misrepresent its public contract. */
 export {
   createGenUiEncoder,
   type GenUiEncodeContext,

@@ -1,7 +1,8 @@
 {
   "name": "@jini-ai/infra",
   "version": "0.5.0",
-  "description": "Deprecated: a re-export of `@jini-ai/db` (`./core`, `./sqlite`). Import those directly. Removed after one release.",
+  "description": "Deprecated compatibility re-exports of @jini-ai/db/core and @jini-ai/db/sqlite. Import those directly.",
+  "deprecated": "Compatibility shim: use @jini-ai/db/core and @jini-ai/db/sqlite directly.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -19,6 +20,11 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./events/outbox": {
+      "types": "./dist/events/outbox/index.d.ts",
+      "import": "./dist/events/outbox/index.js",
+      "default": "./dist/events/outbox/index.js"
+    },
     "./db/core": {
       "import": {
         "types": "./dist/db/core/index.d.ts",
@@ -34,6 +40,9 @@
   },
   "typesVersions": {
     "*": {
+      "events/outbox": [
+        "./dist/events/outbox/index.d.ts"
+      ],
       "db/core": [
         "./dist/db/core/index.d.ts"
       ],
@@ -65,10 +74,13 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9"
+    "@vitest/coverage-v8": "^2.1.9",
+    "@jini-ai/core": "workspace:*"
   },
   "dependencies": {
     "@jini-ai/db": "workspace:*",
-    "@jini-ai/core": "workspace:*"
-  }
+    "@jini-ai/core": "workspace:^"
+  },
+  "peerDependencies": {},
+  "peerDependenciesMeta": {}
 }

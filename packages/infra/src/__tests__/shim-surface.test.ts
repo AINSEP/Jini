@@ -31,10 +31,15 @@ describe("infra 0.3.3 shim surface", () => {
   it("is an ESM-only 0.5.0 dependency shim", () => {
     const manifest = JSON.parse(readFileSync(`${root}package.json`, "utf8"));
     expect(manifest.version).toBe("0.5.0");
-    expect(manifest.dependencies).toEqual({ "@jini-ai/db": "workspace:*", "@jini-ai/core": "workspace:*" });
+    expect(manifest.description).toBe("Deprecated compatibility re-exports of @jini-ai/db/core and @jini-ai/db/sqlite. Import those directly.");
+    expect(manifest.deprecated).toBe("Compatibility shim: use @jini-ai/db/core and @jini-ai/db/sqlite directly.");
+    // The outbox entry calls core's clock owner; the database entries still delegate to db.
+    expect(manifest.dependencies).toEqual({ "@jini-ai/db": "workspace:*", "@jini-ai/core": "workspace:^" });
     expect(manifest.scripts.build).toBe("tsc -p tsconfig.json");
     expect(JSON.stringify(manifest.exports)).not.toContain('"require"');
-    expect(manifest.peerDependencies).toBeUndefined();
+    expect(manifest.peerDependencies).toEqual({});
+    expect(manifest.peerDependenciesMeta).toEqual({});
+    expect(manifest.devDependencies["@jini-ai/core"]).toBe("workspace:*");
     expect(manifest.devDependencies["better-sqlite3"]).toBeUndefined();
   });
   it("re-exports working pure helpers", () => {

@@ -8,7 +8,11 @@ import { spawnSync } from "node:child_process";
 
 test.skipIf(process.platform !== "darwin")("native helper emits the availability JSON contract without prompting", (context) => {
   const toolchain = spawnSync("swiftc", ["--version"], { encoding: "utf8", timeout: 10000 });
-  if (toolchain.error && "code" in toolchain.error && toolchain.error.code === "ENOENT") { context.skip(); return; }
+  // This probes the host toolchain, before our source or helper runs. A missing or unresponsive
+  // compiler cannot validate the native contract; compilation/helper failures below still fail.
+  if (toolchain.error && "code" in toolchain.error &&
+    (toolchain.error.code === "ENOENT" || toolchain.error.code === "ETIMEDOUT")) { context.skip(); return; }
+  assert.ifError(toolchain.error);
   assert.equal(toolchain.status, 0, toolchain.stderr);
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "speech-contract-"));
   onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));

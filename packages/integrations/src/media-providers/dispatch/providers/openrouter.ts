@@ -35,7 +35,7 @@ import { sniffImageExt, truncate, withRequestInit } from '../openai-compatible.j
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import { mediaVendorRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry.js';
 
 // Chat-completions image generation can take a while for some routed
 // models; matches the same 10-minute ceiling `openai.ts`'s image dispatcher
@@ -157,8 +157,14 @@ const openRouterImageAdapter: VendorAdapter<OpenRouterImageMeta> = {
   },
 };
 
-mediaVendorRegistry.register({ providerId: 'openrouter', routeKey: 'image', adapter: openRouterImageAdapter });
-
 export async function renderOpenRouterImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: openRouterImageAdapter, ctx: ctx, credentials: credentials });
+}
+
+/** Explicit composition: importing a renderer never changes another module's registry. */
+export function registerVendorAdapters(
+  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
+  _optional: Record<string, never> = {},
+): void {
+  registry.register({ providerId: 'openrouter', routeKey: 'image', adapter: openRouterImageAdapter });
 }

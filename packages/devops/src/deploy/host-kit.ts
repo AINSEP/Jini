@@ -11,10 +11,10 @@
  * other (`bindMany(DeployTargetToken, ...)` or passed straight to
  * `publishDeploy`). Nothing here names a hosting provider.
  */
-import type { assertNotRedirected, redirectGuardInit } from './redirect-guard.js';
+import type { assertNotRedirected, redirectGuardInit } from '../core/redirect-guard.js';
 import type { safeDnsLabel, safeProjectLabel } from './naming.js';
 import type { checkDeploymentUrl, normalizeDeploymentUrl, waitForReachableDeploymentUrl } from './reachability.js';
-import type { DeployError, DeployTarget, UnknownRecord } from './types.js';
+import type { DeployError, DeployTarget, UnknownRecord } from '../core/deploy-types.js';
 
 /**
  * The resolved saved credential a module builds its target from: always a

@@ -2,7 +2,10 @@ import type { EventEnvelope, OutboxWorkerArgs, OutboxWorkerOptions, ScheduledTas
 import { DEFAULT_OUTBOX_DRAIN_INTERVAL_MS, resolvePolicy } from './policy.js';
 import { processOutbox } from './worker.js';
 
-export interface OutboxDrainer { stop(): Promise<void> }
+export interface OutboxDrainer {
+  /** Stops scheduling drains, then resolves once a drain already running has settled. Idempotent. */
+  stop(): Promise<void>;
+}
 
 /** Schedule only after each drain settles. stop waits for the current bounded drain, not late handlers.
  *
@@ -44,7 +47,11 @@ export function startOutboxDrainer<Event extends EventEnvelope>(
   const drain = async (): Promise<void> => {
     let claimed = 0;
     try { claimed = await processOutbox(required, policy); }
-    catch (error) { try { onError(error); } catch { /* Keep draining despite a broken reporter. */ } }
+    catch (error) {
+      try { onError(error); } catch {
+        // The loop must outlive a reporter that throws; the drain error itself is already lost to it.
+      }
+    }
     schedule(claimed >= policy.batchSize ? 0 : intervalMs);
   };
   schedule(0);

@@ -1,8 +1,6 @@
 /**
- * Video request builder — pure, transport-free. Ported verbatim from Open
- * Design's `apps/daemon/src/media-adapters/video.ts` (layer ②: family
- * branching on top of the `CapabilityRegistry`'s `ModelCapability` data).
- * No fetch, no auth, no OD nouns — the caller resolves any reference image
+ * Pure video request builder over CapabilityRegistry's ModelCapability data.
+ * No fetch or auth — the caller resolves any reference image
  * to a data URL beforehand and attaches auth + base URL afterward; this
  * module only shapes the request body per vendor wire family:
  *
@@ -14,9 +12,8 @@
  *     `seconds` MUST be a number and the only size hint is `size`.
  *   • `generic` (Sora and similar) — flat JSON with `seconds` as a string.
  *
- * See `archived provenance ledger` for the vendor-verification notes each snapping
- * function was ported with — they encode real, tested API quirks, not
- * arbitrary defaults.
+ * Duration/ratio/resolution snapping follows the vendor-specific constraints documented at
+ * each function, rather than generic defaults.
  */
 import type { BuiltVideoRequest, MediaFamily, ModelCapability, NormalizedVideoResponse, VideoBuildInput } from './types.js';
 

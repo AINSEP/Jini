@@ -1,9 +1,5 @@
 /**
- * `AuthProvider` — a swappable identity/session port. Speculative
- * port-design exploration (see `archived provenance ledger`): Zana and a fleet orchestrator each
- * independently built an explicit capability-provider layer with auth as one
- * of the swappable capabilities (Supabase/sqlite-backed) — this is the
- * engine-level shape that convergence points at, not a lift from either.
+ * Swappable identity/session port. See index.ts for capability-provider ownership and adoption scope.
  *
  * This file defines the port's stable interface/type surface and nothing else —
  * it has no imports at all, so a consumer implementing `AuthProvider`

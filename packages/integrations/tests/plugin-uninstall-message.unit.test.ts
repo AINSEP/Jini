@@ -1,11 +1,9 @@
-import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { expect, it, vi } from 'vitest';
-import { createAgentPluginLayout } from '../../agent-plugins/src/lifecycle/layout.js';
-import { createNodeAgentPluginEffects } from '../../agent-plugins/src/lifecycle/node.js';
-import type { AgentPluginLifecyclePorts } from '../../agent-plugins/src/lifecycle/ports.js';
-import { AgentPluginNotUninstallableError, createUninstallModule } from '../../agent-plugins/src/lifecycle/uninstall.js';
+import { createNodeAgentPluginEffects } from '@jini-ai/agent-plugins/lifecycle/node';
+import { createAgentPluginLayout, createAgentPluginLifecycle, AgentPluginNotUninstallableError, type AgentPluginLifecyclePorts } from '@jini-ai/agent-plugins/lifecycle';
 
 // Kept in this package because the fix's edit scope permits only uninstall.ts
 // in the sibling package. Exercise its real preview/uninstall refusals, not source text.
@@ -15,7 +13,8 @@ it.each(['"bundled"', '{"enabled":"yes","origin":"operator-installed"}'])('names
     const layout = createAgentPluginLayout({ root });
     const workspace = layout.forWorkspace({ workspaceId: 'workspace-1' });
     const digest = 'a'.repeat(64);
-    const packageRoot = path.join(workspace.packages, digest);
+    const packagesDir = workspace.pluginPackagesDir({ pluginId: 'test-plugin' });
+    const packageRoot = path.join(packagesDir, digest);
     const manifest = JSON.stringify({ $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'test-plugin', version: '1.0.0' });
     await mkdir(packageRoot, { recursive: true });
     await writeFile(path.join(packageRoot, 'plugin.json'), manifest);
@@ -46,7 +45,7 @@ it.each(['"bundled"', '{"enabled":"yes","origin":"operator-installed"}'])('names
         notifyRosterChanged: async () => { throw new Error('unexpected roster change'); },
       },
     };
-    const uninstall = createUninstallModule(ports);
+    const uninstall = createAgentPluginLifecycle(ports);
     const request = { layout, workspaceId: 'workspace-1', pluginId: 'test-plugin' };
     const message = "Agent Plugin 'test-plugin' cannot be uninstalled: its entry in this workspace's activation record is malformed, so " +
       'whether it is bundled with Example Studio (and would be re-seeded on the next boot) cannot be established. Nothing was ' +
@@ -57,10 +56,16 @@ it.each(['"bundled"', '{"enabled":"yes","origin":"operator-installed"}'])('names
       await expect(operation(request)).rejects.toBeInstanceOf(AgentPluginNotUninstallableError);
       await expect(operation(request)).rejects.toThrow(message);
     }
-    expect(remove).not.toHaveBeenCalled();
+    // Refusal preserves plugin state, but each uninstall must release its own coordination lock.
+    const lockPath = path.join(await realpath(workspace.staging), '.plugin-state-test-plugin.lock');
+    expect(remove.mock.calls).toEqual([
+      [lockPath, { force: true }],
+      [lockPath, { force: true }],
+    ]);
+    expect(await readdir(workspace.staging)).toEqual([]);
     expect(rename).not.toHaveBeenCalled();
     expect((await stat(packageRoot)).isDirectory()).toBe(true);
-    expect(await readdir(workspace.packages)).toEqual([digest]);
+    expect(await readdir(packagesDir)).toEqual([digest]);
     expect(await readFile(path.join(packageRoot, 'plugin.json'), 'utf8')).toBe(manifest);
     expect(await readFile(activationsPath, 'utf8')).toBe(activationBytes);
   } finally {

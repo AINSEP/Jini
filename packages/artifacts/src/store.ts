@@ -1,26 +1,9 @@
 /**
  * @module artifacts/store
- *
- * `ArtifactStore` — the generic artifact-store kernel port. Ported from OD's
- * `apps/daemon/src/artifacts/create.ts` create/manifest-resolution flow;
- * "artifacts feel like a kernel-adjacent concept tied to runs producing
- * output" per this task's brief — homed in `@jini-ai/daemon` alongside
- * `EventLog` (same async-port + in-memory-reference-implementation shape as
- * `event-log.ts`), not `@jini-ai/core` (which owns pure registries/DI, not
- * stateful storage).
- *
- * De-branded: the origin's `createProjectArtifactFile` took OD's own
- * product-shaped workspace/file-tree writer (a function keyed on OD's own
- * workspace-root and workspace-id nouns) as its injected dependency, and a
- * companion `postCreateArtifactRequest` built a request body for OD's own
- * per-workspace HTTP file-upload route. Neither is a generic engine concern
- * (a workspace model and an HTTP route shape are product surfaces), so this
- * port defines `ArtifactStore.create/get/list` directly against an
- * in-memory reference map — the origin's writer/request-builder pair were
- * the composition points a real OD adapter would wire against this port
- * from, not something to port verbatim. OD's HTML-prototype file-kind
- * inference (`inferLegacyManifest`) stays adapter-owned — see
- * `manifest.ts`'s `ManifestInferrer` seam.
+ * ArtifactStore owns feature-level create/get/list persistence outside the kernel token set;
+ * see tokens.ts. Core supplies pure DI/registries rather than stateful storage.
+ * Product workspace/file-tree writers and HTTP upload request shapes belong to host adapters.
+ * ManifestInferrer in manifest.ts owns the host's file-kind inference seam.
  */
 import {
   emptyArtifactManifestTaxonomy,

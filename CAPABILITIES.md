@@ -67,7 +67,7 @@ kernel · [README](packages/core/README.md)
 | `@jini-ai/core/model-facing-tool-errors` | Turn approved domain failures into safe errors a model can act on. | `forbiddenRule`, `reclassifyToolError`, `withModelFacingErrors` | universal | Tovu: website |
 | `@jini-ai/core/contribution-registry` | Own a contribution collection with replacement by key and detached snapshots. | `createContributionRegistry` | universal | none yet |
 | `@jini-ai/core/naming` | Find collision-free names using the host's suffix and exhaustion policy. | `deriveAvailableName`, `deriveDuplicateName` | universal | Tovu: website |
-| `@jini-ai/core/primitives` | Canonical clocks, IDs, JSON, HTTP, logging, Result and lexical path containment. | `Clock`, `IdGenerator`, `JsonValue`, `HttpClientPort`, `pathContains` | universal | Tovu: website; Jini: agent-plugins, agent-runtime, agentic, analytics, chat, cms, cms-forms, commerce, daemon, db, desktop-host, devops, diagnostics, http-kit, infra, integrations, mcp, oauth, platform, protocol, registry, ui, user-management |
+| `@jini-ai/core/primitives` | Canonical clocks, IDs, JSON, HTTP, inbound SSE framing, logging, Result and lexical path containment. | `Clock`, `IdGenerator`, `JsonValue`, `HttpClientPort`, `decodeSseFrames`, `parseSseRecord`, `pathContains` | universal | Tovu: website; Jini: agent-plugins, agent-runtime, agentic, analytics, chat, cms, cms-forms, commerce, daemon, db, desktop-host, devops, diagnostics, http-kit, infra, integrations, mcp, oauth, platform, protocol, registry, ui, user-management |
 | `@jini-ai/core/text` | Strip terminal controls, mask secrets and bound untrusted display text. | `sanitizeUntrustedText`, `stripControlSequences` | universal | Jini: cli, mcp |
 
 ## engine · `@jini-ai/protocol`

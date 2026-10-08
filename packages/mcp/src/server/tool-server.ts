@@ -1,28 +1,10 @@
 /**
  * @module @jini-ai/mcp/server/tool-server
- *
- * `createMcpToolServer` — the generic stdio MCP server hosting mechanism.
- * Ported from the *mechanism* of OD's `apps/daemon/src/mcp.ts` `runMcpStdio`
- * (idle-exit lifecycle, `Server` + `StdioServerTransport` wiring, holding the
- * process open until stdin closes) with the OD-specific parts — the
- * hardcoded 18-tool `TOOL_DEFS`, the `od://` resource scheme, the
- * project/skill/plugin `instructions` prose — replaced by a caller-supplied,
- * bounded, explicit `tools: readonly McpToolDef[]` list. A caller is the
- * *first* user of this mechanism, not the only one it will ever support (see
- * `archived provenance ledger`'s 2026-07-21 addition for the full design-decision note).
- *
- * `tools` capability is always advertised (`capabilities: {tools: {}}`).
- * `resources` capability (`ListResourcesRequestSchema`/
- * `ReadResourceRequestSchema`, mirroring the tools wiring one section down)
- * is advertised only when the caller supplies at least one entry in the
- * optional `resources` option — a 2026-07-21 addition once this package
- * shipped its first genuinely portable resource (`../resources/
- * active-resource.js`'s `jini://active`, see that file's module doc and
- * `archived provenance ledger`'s 2026-07-21 addition for why the *rest* of OD's resource
- * surface — `od://skills/...`, `od://design-systems/...` — still has no
- * kernel equivalent and stays unported). A caller passing no `resources`
- * gets the exact same `capabilities: {tools: {}}`-only server this module
- * always produced.
+ * Generic stdio hosting for an explicit caller-supplied tool list. Construction validates unique
+ * names synchronously without I/O; run resolves the daemon URL, connects and serves until closure.
+ * Tools capability is always advertised; resources only when nonempty resources are supplied.
+ * Narrow object-shaped server/transport ports permit DI fakes without requiring SDK class instances
+ * with nominal private fields; default adapters translate those contracts to the real SDK.
  */
 import type { Readable, Writable } from 'node:stream';
 import type { McpTransportLike } from './ports.js';
@@ -48,7 +30,7 @@ import { createMcpIdleExitController } from '../client/client.js';
 import { buildResourceIndex, handleResourceRead, resourcesToList, type McpResourceDef } from './resource-protocol.js';
 import { buildToolIndex, handleToolCall, toolsToList, type McpToolContext, type McpToolDef } from './tool-protocol.js';
 
-/** Auto-exit an idle server after this long with no tool activity — same ceiling the OD origin used for its own stdio MCP server. */
+/** Auto-exit an idle server after this long without tool activity. */
 const DEFAULT_IDLE_MS = 30 * 60 * 1000;
 
 /** Object-shaped server port. The default adapter translates it to the SDK interface. */

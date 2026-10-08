@@ -1,6 +1,6 @@
 import { once } from 'node:events';
 import { constants } from 'node:fs';
-import { lstat, mkdir, open, readdir, rm } from 'node:fs/promises';
+import { lstat, mkdir, open, readdir, realpath, rm } from 'node:fs/promises';
 import { createServer, type RequestListener } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
@@ -21,17 +21,21 @@ async function ensureDirectory({ directory, label }: { directory: string; label:
       try { await mkdir(current); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
     }
     const info = await lstat(current);
-    if (!info.isDirectory() || info.isSymbolicLink()) throw new ExportPathError(`${label} path must be a regular directory.`);
+    // macOS exposes its system temporary roots through these fixed OS aliases. Arbitrary
+    // symlinks still fail closed; rejecting /var would reject Node's own tmpdir() output.
+    const systemAlias = process.platform === 'darwin' && (current === '/tmp' || current === '/var')
+      && info.isSymbolicLink() && await realpath(current) === '/private' + current;
+    if (!systemAlias && (!info.isDirectory() || info.isSymbolicLink())) throw new ExportPathError(`${label} path must be a regular directory.`);
   }
 }
 /** Caller-owned output directory, explicit clean, and no-follow regular-file writes. */
-export function createNodeArtifactWriter(_required: Record<string, never>): ArtifactWriterPort {
+export function createNodeArtifactWriter(_required: Record<string, never>, optional: { nonemptyReason?: (required: { outputDir: string; count: number }) => string } = {}): ArtifactWriterPort {
   return {
-    async prepare({ outputDir }, optional = {}) {
+    async prepare({ outputDir }, options = {}) {
       await ensureDirectory({ directory: outputDir, label: 'Output' }, { create: true });
       const entries = await readdir(outputDir);
-      if (entries.length && !optional.clean) throw new ExportOutputNotEmptyError(`export output directory '${outputDir}' is not empty (${entries.length} existing ${entries.length === 1 ? 'entry' : 'entries'}) — pass clean: true to remove its contents first, or select an empty/new directory`);
-      if (optional.clean) for (const entry of entries) await rm(path.join(outputDir, entry), { recursive: true, force: true });
+      if (entries.length && !options.clean) throw new ExportOutputNotEmptyError(optional.nonemptyReason?.({ outputDir, count: entries.length }) ?? `export output directory '${outputDir}' is not empty (${entries.length} existing ${entries.length === 1 ? 'entry' : 'entries'}) — pass clean: true to remove its contents first, or select an empty/new directory`);
+      if (options.clean) for (const entry of entries) await rm(path.join(outputDir, entry), { recursive: true, force: true });
     },
     async write({ outputDir, outputFile, data }) {
       safeRelativeOutputFile({ value: outputFile });
@@ -52,7 +56,7 @@ export function createNodeArtifactWriter(_required: Record<string, never>): Arti
   };
 }
 /** Independent Node loopback adapter. The app factory is required and remains owned by the host. */
-export function createNodeAppFactory(required: { createApp(required: Record<string, never>): RequestListener | Promise<RequestListener> }): AppFactoryPort {
+export function createNodeAppFactory(required: { createApp(required: Record<string, never>): RequestListener | Promise<RequestListener> }, _optional = {}): AppFactoryPort {
   return { async open() {
     const server = createServer(await required.createApp({}));
     let closed = false;
@@ -71,7 +75,7 @@ export function createNodeAppFactory(required: { createApp(required: Record<stri
   } };
 }
 /** Inventory only regular theme files. Rendering and API-version layout stay injected. */
-export function createNodeAssetSource(_required: Record<string, never>): AssetSourcePort {
+export function createNodeAssetSource(_required: Record<string, never>, _optional = {}): AssetSourcePort {
   async function list(directory: string, prefix: string): Promise<string[]> {
     const files: string[] = [];
     for (const entry of await readdir(directory, { withFileTypes: true })) {

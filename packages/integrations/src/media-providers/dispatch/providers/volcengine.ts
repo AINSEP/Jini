@@ -50,7 +50,7 @@ import { buildOpenAIImageUrl, bytesFromOpenAICompatibleData, openaiSizeFor, pars
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import { mediaVendorRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry.js';
 
 const NO_CREDENTIAL_MESSAGE = 'no Volcengine Ark credential — configure an API key or set ARK_API_KEY.';
 
@@ -96,8 +96,14 @@ const volcengineImageAdapter: VendorAdapter = {
   },
 };
 
-mediaVendorRegistry.register({ providerId: 'volcengine', routeKey: 'image', adapter: volcengineImageAdapter });
-
 export async function renderVolcengineImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: volcengineImageAdapter, ctx: ctx, credentials: credentials });
+}
+
+/** Explicit composition: importing a renderer never changes another module's registry. */
+export function registerVendorAdapters(
+  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
+  _optional: Record<string, never> = {},
+): void {
+  registry.register({ providerId: 'volcengine', routeKey: 'image', adapter: volcengineImageAdapter });
 }

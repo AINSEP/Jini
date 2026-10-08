@@ -41,7 +41,7 @@ import { createRawBytesParser } from '../response-parsers.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import { mediaVendorRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry.js';
 
 /**
  * xAI's Imagine API accepts a wide list of aspect ratios (1:1, 16:9, 9:16,
@@ -109,8 +109,6 @@ const grokImageAdapter: VendorAdapter<GrokImageMeta> = {
   },
 };
 
-mediaVendorRegistry.register({ providerId: 'grok', routeKey: 'image', adapter: grokImageAdapter });
-
 export async function renderGrokImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: grokImageAdapter, ctx: ctx, credentials: credentials });
 }
@@ -165,8 +163,15 @@ const xaiTTSAdapter: VendorAdapter<XAITTSMeta> = {
   }),
 };
 
-mediaVendorRegistry.register({ providerId: 'grok', routeKey: 'audio:speech', adapter: xaiTTSAdapter });
-
 export async function renderXAITTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: xaiTTSAdapter, ctx: ctx, credentials: credentials });
+}
+
+/** Explicit composition: importing a renderer never changes another module's registry. */
+export function registerVendorAdapters(
+  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
+  _optional: Record<string, never> = {},
+): void {
+  registry.register({ providerId: 'grok', routeKey: 'image', adapter: grokImageAdapter });
+  registry.register({ providerId: 'grok', routeKey: 'audio:speech', adapter: xaiTTSAdapter });
 }

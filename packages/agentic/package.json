@@ -78,13 +78,27 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
-  "dependencies": {
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9",
+    "jsdom": "^25.0.1",
     "@jini-ai/protocol": "workspace:^",
     "zod": "^3.25.76",
     "@jini-ai/core": "^0.4.0"
   },
-  "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9",
-    "jsdom": "^25.0.1"
+  "peerDependencies": {
+    "@jini-ai/protocol": "^0.4.1",
+    "zod": "^3.25.76",
+    "@jini-ai/core": "^0.4.0"
+  },
+  "peerDependenciesMeta": {
+    "@jini-ai/protocol": {
+      "optional": true
+    },
+    "zod": {
+      "optional": true
+    },
+    "@jini-ai/core": {
+      "optional": true
+    }
   }
 }

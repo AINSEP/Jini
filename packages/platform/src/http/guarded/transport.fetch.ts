@@ -1,4 +1,4 @@
-import { request as httpRequest } from "node:http";
+import { request as httpRequest, type ClientRequest, type IncomingMessage } from "node:http";
 import { request as httpsRequest, type RequestOptions } from "node:https";
 import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
 
@@ -16,8 +16,14 @@ import type { HttpTransportAdapter } from "./ports.js";
 /** Last-resort decoded-byte bound independent of any caller's response policy. */
 const ABSOLUTE_MAX_BYTES = 100 * 1024 * 1024;
 
+/** Native request effect port; peer pinning and TLS options remain owned by this adapter. */
+export interface NativeHttpTransportOptions {
+  /** Like node:http, invoke onResponse asynchronously, after returning the request handle. */
+  request?: (input: { secure: boolean; options: RequestOptions; onResponse: (response: IncomingMessage) => void }, optional?: Record<string, never>) => ClientRequest;
+}
+
 export class FetchHttpTransportAdapter implements HttpTransportAdapter {
-  constructor(_required: Record<string, never>) {}
+  constructor(_required: Record<string, never>, private readonly optional: NativeHttpTransportOptions = {}) {}
   async requestPinned({ request: req, peer }: { request: HttpRequest; peer: PinnedPeer }): Promise<HttpResponse> {
     const url = new URL(req.url);
     const isHttps = url.protocol === "https:";
@@ -40,7 +46,7 @@ export class FetchHttpTransportAdapter implements HttpTransportAdapter {
     };
 
     return new Promise<HttpResponse>((resolve, reject) => {
-      const clientRequest = requestFn(options, (res) => {
+      const onResponse = (res: IncomingMessage) => {
 
         // HEAD can advertise GET's compression but has no body to decompress.
         const decoded = req.method === "HEAD" ? res : decodeBody(res.headers["content-encoding"], res);
@@ -84,7 +90,10 @@ export class FetchHttpTransportAdapter implements HttpTransportAdapter {
         });
         decoded.on("end", () => finish(false));
         decoded.on("error", reject);
-      });
+      };
+      const clientRequest = this.optional.request
+        ? this.optional.request({ secure: isHttps, options, onResponse }, {})
+        : requestFn(options, onResponse);
 
       clientRequest.on("timeout", () => {
         clientRequest.destroy(new Error(`request timed out after ${idleTimeoutMs}ms`));

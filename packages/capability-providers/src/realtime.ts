@@ -1,15 +1,10 @@
 /**
- * `RealtimeProvider` — a swappable pub/sub port (live updates pushed to
- * subscribers). Speculative port-design exploration (see `archived provenance ledger`) —
- * no OD source; named in `ADS-memory/reports/jini-port/recon/r5b-consumers-matrix.md` §3.3
- * as part of the capability set Zana and a fleet orchestrator converge on
- * (Supabase Realtime is Zana's reference adapter).
+ * Swappable pub/sub port for live updates. See index.ts for capability-provider ownership and adoption scope.
  *
  * This file defines only the port's stable interface/type surface. The one
  * real, production-quality adapter (`WebSocketRealtimeProvider` +
  * `createWebSocketRealtimeProvider`, using the `ws` package) lives at the
- * separate `@jini-ai/capability-providers/adapters/ws` entry point — moved
- * there (2026-07-29) so this package's main barrel, which imports this
+ * separate `@jini-ai/capability-providers/adapters/ws` entry point so the main barrel, which imports this
  * module, is never forced to resolve `ws` just for the port type. The
  * in-memory reference implementation (`createInMemoryRealtimeProvider`) is a
  * separate, non-production stub that lives under `src/unsafe-reference/`,

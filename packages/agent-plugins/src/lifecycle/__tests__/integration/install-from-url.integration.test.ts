@@ -39,6 +39,9 @@ test('pinned URL install verifies the independent digest, TOFU is labelled, and 
     const tofu = await api.installAgentPluginFromUrl({ ...input, integrity: { kind: 'trust-on-first-use' } });
     expect(tofu.digestWasPinned).toBe(false);
     expect(tofu.sha256).toBe(sha256);
-    expect(extractions).toBe(1);
+    // Layout B identifies the plugin on each install, then reuses its published digest tree.
+    expect(extractions).toBe(2);
+    expect(readerCalls).toBe(4);
+    expect(tofu.installed).toEqual(pinned.installed);
   } finally { await forceRemove(root); }
 });

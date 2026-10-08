@@ -1,10 +1,6 @@
-/**
- * @module @jini-ai/a2ui
- *
- * A2UI ("Agent-to-UI") v1.0 wire types + a minimal client-side interpreter — see each module's
- * own doc for detail, and `archived provenance ledger` for provenance, verified-against-primary-source notes,
- * and the honest gap list against full v1.0 spec parity.
- */
+/** @module @jini-ai/a2ui
+ * A2UI v1.0 wire types and a minimal client interpreter. Each module documents its supported
+ * contract and gaps; these exports do not imply full v1.0 interpreter parity. */
 export * from './common-types.js';
 export * from './agent-to-renderer.js';
 export * from './renderer-to-agent.js';

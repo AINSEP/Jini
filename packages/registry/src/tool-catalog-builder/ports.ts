@@ -1,6 +1,8 @@
 import type { Clock } from '@jini-ai/core/primitives';
+import type { ToolMetadata } from '@jini-ai/core';
 /** Structural contracts only: callers choose their registry and search backend. */
 export interface ToolDescriptor {
+  readonly metadata?: ToolMetadata;
   readonly id: string;
   readonly description?: string | undefined;
   readonly inputSchema?: unknown;
@@ -22,7 +24,7 @@ export interface CatalogStoreFactory {
   create(required: { entries: readonly ToolCatalogEntry[]; builtAtIso: string }): ToolCatalogQuery;
 }
 export interface SearchEnricher {
-  indexedDescription(required: { id: string; description: string }, optional: { includeDoc2query: boolean }): string;
+  indexedDescription(required: { id: string; description: string; metadata?: ToolMetadata }, optional: { includeDoc2query: boolean }): string;
   authoredDescription(required: { description: string }): string;
 }
 export interface SourceClassifier { classify(required: { id: string }): string }

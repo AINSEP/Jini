@@ -95,16 +95,21 @@ test("install -> parse mcp.json -> read installed files through the containment 
     assert.equal(readBackSkill, skillMarkdown);
 
     // Re-installing the SAME archive bytes (as a second workspace "installing" the same plugin@version
-    // would) must not re-extract — the content-addressed dedup property holds across the pipeline,
-    // not just inside install.ts's own unit tests.
+    // would) still deduplicates publication — Layout B stages again to identify the plugin before
+    // choosing its content-addressed directory. The installed root and contents stay unchanged.
     const secondInstall = await installAgentPlugin({
       archive,
       expectedSha256: digest,
-      archiveReader: reader([fileEntry("SHOULD_NOT_BE_READ", "x")]),
+      archiveReader: reader([
+        fileEntry("plugin.json", manifest),
+        fileEntry("mcp.json", mcpConfig),
+        fileEntry("skills/ui-ux-design/SKILL.md", skillMarkdown),
+      ]),
       layout: instanceLayout,
       workspaceId,
     });
     assert.equal(secondInstall.packageRoot, installed.packageRoot);
+    assert.deepEqual(secondInstall, installed);
   } finally {
     await forceRemove(cwd);
   }

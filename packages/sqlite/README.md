@@ -1,5 +1,9 @@
 # @jini-ai/sqlite — deprecated compatibility release
 
+This package and its published exports remain available for compatibility. The package owner
+applies npm registry deprecation at publish time; the manifest notice does not deprecate existing
+registry versions by itself.
+
 Version 0.5.0 is a deprecated compatibility surface for chat, daemon, registry and driver concerns,
 including their erased types. Server-owned composition is no longer forwarded by this package. Prefer `@jini-ai/chat/store/{sqlite,legacy/sqlite}`,
 `@jini-ai/daemon/store/{event-log/sqlite,agent-sessions/sqlite}`, `@jini-ai/registry/tool-catalog/sqlite`,

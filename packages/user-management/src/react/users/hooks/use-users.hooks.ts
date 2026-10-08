@@ -58,7 +58,7 @@ import type { UsersPort } from "../../ports.js";
  * `port.xxx()` — see `users-port.hooks.ts` for the interface and `users-dependencies.hooks.ts` for
  * the real binding, the only file left that imports `lib/api` as a value for this feature. `port` is
  * captured once from `deps` and read directly inside the `useFetchQuery`/`useFetchMutation` closures
- * below, which is safe without the ref-and-dep-array discipline `apps/admin/INFO.md`'s "Two traps"
+ * below, which is safe without the ref-and-dep-array discipline the host admin guidance's "Two traps"
  * section describes for a hand-rolled `useEffect`: TanStack's `useQuery`/`useMutation` (this file's
  * actual I/O primitive, via `lib/fetch-query`) take a fresh `queryFn`/`mutationFn` closure every
  * render by design and do not require referential stability to avoid a refetch loop, unlike a raw
@@ -269,7 +269,7 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
   // `portRef` (password-banner plan, 2026-09-24 Slice 3 deep-link half): captured once at mount and
   // never written again, same discipline and same reasoning as `use-assistant-chats.hooks.ts`'s own
   // `portRef` — the one-shot `me()` effect below must not spin if a caller builds a fresh port object
-  // per render (`apps/admin/INFO.md`'s "Two traps" section). Every OTHER `port.xxx()` call in this
+  // per render (the host admin guidance's "Two traps" section). Every OTHER `port.xxx()` call in this
   // file stays a direct closure read, unaffected — this ref exists only for the raw `useEffect` below,
   // which is not a `useFetchQuery`/`useFetchMutation` closure and so does not get that discipline for
   // free.

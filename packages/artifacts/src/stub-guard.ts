@@ -1,30 +1,10 @@
 /**
  * @module artifacts/stub-guard
- *
- * Detects "stub" artifact regressions: a write with the same identifier as
- * an earlier one, but whose body is far smaller — a placeholder ("see
- * other.html in this project", an empty fallback page) instead of the real
- * document. Ported from OD's `apps/daemon/src/artifacts/stub-guard.ts`. The
- * guard is structural (compares the new body's size against the largest
- * prior sibling sharing the identifier, never pattern-matches on phrasing),
- * so it generalizes across whatever produced the write.
- *
- * De-branded: the origin hardcoded `STUB_GUARDED_MANIFEST_KINDS = {'html',
- * 'deck'}` and matched siblings by a literal `.html`/`.htm` extension —
- * baking in OD's own file-kind taxonomy (per the task brief, kept
- * adapter-owned elsewhere in this port). `siblingExtensions` is now a
- * caller-supplied config field. `readArtifactStubGuardConfigFromEnv` read
- * host-supplied environment values under explicit caller-supplied names.
- *
- * This file is genuinely runtime-universal — no `node:fs` (or any other
- * Node-only API). The one thing that needs real disk I/O, scanning a
- * directory for prior siblings, lives at the separate
- * `@jini-ai/artifacts/node` entry point (`findPriorArtifactSiblings`,
- * `evaluateArtifactStubGuard`) — split out 2026-07-29 so this package's main
- * barrel, which re-exports this module, is never forced to resolve
- * `node:fs`/`node:path` for a consumer that only wants the pure decision
- * logic (`classifyArtifactStubGuard`) or types. See that entry point for the
- * real, disk-backed guard.
+ * Detect a same-identifier write whose body shrinks into a placeholder relative to its largest
+ * prior sibling. Compare sizes rather than phrasing so the rule applies across producers.
+ * Hosts supply siblingExtensions and environment variable names; artifact taxonomy is not a
+ * kernel concern. Pure decisions/types stay runtime-universal; directory scanning belongs to
+ * @jini-ai/artifacts/node so these imports never force node:fs/node:path on browser consumers.
  */
 
 export type ArtifactStubGuardMode = 'reject' | 'warn' | 'off';

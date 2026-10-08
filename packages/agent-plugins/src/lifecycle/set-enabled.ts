@@ -3,6 +3,11 @@ import { createActivationModule } from "./activation.js";
 import { createResolveAgentPluginRefsModule } from "./resolve-agent-plugin-refs.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
 
+/**
+ * The id named is not installed in this workspace. A distinct class rather than a bare `Error` so
+ * each caller can map it to its own boundary's vocabulary — 404 `AGENT_PLUGIN_NOT_FOUND` at the
+ * admin route, `ToolInputError` at the tool — without either one string-matching a message.
+ */
 export class AgentPluginNotInstalledError extends Error {
   constructor({ pluginId }: { readonly pluginId: string }) {
     super(`agent plugin '${pluginId}' is not installed in this workspace`);
@@ -15,12 +20,14 @@ export interface SetAgentPluginEnabledInput {
   readonly pluginId: string;
   readonly enabled: boolean;
 
+  /** Recorded as the activation record's updatedBy. The authenticated principal, never a constant. */
   readonly actor: string;
 }
 
 export interface SetAgentPluginEnabledResult {
   readonly pluginId: string;
 
+  /** As actually written and read back, not as requested. */
   readonly enabled: boolean;
 }
 

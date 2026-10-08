@@ -1,5 +1,4 @@
 /**
- * Historical lifecycle rationale, carried with the implementation during consumer adoption.
  * @file The real `AgentPluginArchiveReaderPort` adapter, backed by `yauzl`.
  *
  * Library choice (owner-decided, recorded so it is not re-litigated): `yauzl` — streaming,

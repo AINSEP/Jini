@@ -31,7 +31,7 @@ import type { Translate } from "@jini-ai/ui/panel-kit";
  *
  * `useContentRefreshSubscription` (staleness-bug generalization pass — see that hook's own header):
  * `load` is pulled into a `useCallback` so it can also be handed to that hook, which re-runs it
- * whenever `members_disable` (`apps/website/src/features/members/agent-tools.ts`) changes a
+ * whenever `members_disable` (the host member tool contributor) changes a
  * member's status from an assistant run this screen otherwise has no way to learn about. No draft
  * to protect — every row's own edit state is per-action busy/error tracking, not typed text.
  */

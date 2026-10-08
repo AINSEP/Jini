@@ -6,7 +6,7 @@
  * Why a display-only marker: a host's chat pane treats a surface that arrives while its tool call is
  * still open as a question the person must answer ("Waiting for your answer above"). That is right
  * for a form or a choice, and wrong for a chart a tool draws and then holds its call open only to
- * hear whether the browser refused it (Tovu demo V3, 2026-10-05). The tool that emits the surface is
+ * hear whether the browser refused it (host demo V3, 2026-10-05). The tool that emits the surface is
  * the only party that knows which it is, so it says so on `createSurface.surfaceProperties`, which
  * the v1.0 schema already accepts as an open record; renderers ignore the key.
  */

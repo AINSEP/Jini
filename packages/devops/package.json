@@ -25,7 +25,8 @@
       "./checks/coverage": "node",
       "./checks/node": "node",
       "./local-dev": "node",
-      "./deploy/node": "node"
+      "./deploy/node": "node",
+      "./static-export/failure-summary": "universal"
     }
   },
   "type": "module",
@@ -97,6 +98,11 @@
       "types": "./dist/deploy/node.d.ts",
       "import": "./dist/deploy/node.js",
       "default": "./dist/deploy/node.js"
+    },
+    "./static-export/failure-summary": {
+      "types": "./dist/core/export-failure-summary.d.ts",
+      "import": "./dist/core/export-failure-summary.js",
+      "default": "./dist/core/export-failure-summary.js"
     }
   },
   "files": [
@@ -121,20 +127,29 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
-  "dependencies": {
+  "devDependencies": {
+    "@jini-ai/daemon": "workspace:*",
+    "@vitest/coverage-v8": "^2.1.9",
     "@jini-ai/core": "workspace:^",
     "@jini-ai/platform": "workspace:^",
     "undici": "^7.25.0"
   },
-  "devDependencies": {
-    "@jini-ai/daemon": "workspace:*",
-    "@vitest/coverage-v8": "^2.1.9"
+  "dependencies": {
+    "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "@jini-ai/platform": "^0.5.1",
+    "undici": "^7.25.0"
   },
   "peerDependenciesMeta": {
     "typescript": {
+      "optional": true
+    },
+    "@jini-ai/platform": {
+      "optional": true
+    },
+    "undici": {
       "optional": true
     }
   }

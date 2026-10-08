@@ -1,153 +1,37 @@
 /**
- * Historical lifecycle rationale, carried with the implementation during consumer adoption.
- * @file Per-workspace activation state for installed Agent Plugins — the record that makes
- * "bundled but inactive" a real, enforced condition rather than a note in a README.
+ * @file Per-workspace Agent Plugin activation, separate from the host-plugin runtime's table.
+ * Package presence is consent only for operator installs. The seeder records bundled packages
+ * disabled before they may be spent; no-overwrite preserves an operator's decision across boots.
+ * No activation entry means active for operator-installed packages so upgrades do not revoke
+ * consent already given. Removing a bundled record recreates its disabled seed on the next boot.
  *
- * ---------------------------------------------------------------------------
- * Why this exists at all
- * ---------------------------------------------------------------------------
- * Until now there was no such record anywhere: `resolve-agent-plugin-refs.ts`'s own header says so
- * ("There is no record anywhere — confirmed 2026-08-21, zero hits in `src/platform/db/` and `src/server/` —
- * of which installed digest is 'the' current install"), and a package's mere presence under
- * `packages/sha256/*` was the whole of its authorization to be discovered, registered as a tool,
- * and injected into a run's prompt.
+ * Discovery may collapse unreadable/malformed records to empty so one corrupt byte cannot hide
+ * every installed plugin. Spending a capability (tool invocation or prompt injection) instead uses
+ * resolveAgentPluginActivation: no file/missing entry is active, but an unreadable file or malformed
+ * target entry is undetermined and denied. The caller records/logs that denial so it is visible.
+ * Writers never rewrite what they could not read: read the strict RAW bag, refuse unreadable files
+ * and malformed target entries, and preserve every unrelated entry, including malformed ones.
+ * Normalizing before a rewrite could erase a disabled/undetermined decision and silently reactivate
+ * its plugin. A corrupt activation file makes seeding fail rather than install around the fault.
  *
- * That was fine while every package on disk got there because an operator ran an install command.
- * It stops being fine the moment the host itself pre-places a package (`seed-bundled.ts`), because then
- * presence-implies-consent silently converts a vendor decision into an operator one.
+ * Filesystem state stays under layout.ts's tenant-isolated workspace root. Discovery, registration
+ * and injection already receive that layout; adding a database handle would add a repository and
+ * cross-process freshness dependency. The other plugin system has a distinct format and lifecycle.
  *
- * ---------------------------------------------------------------------------
- * The default is "absent means active", and that is deliberate
- * ---------------------------------------------------------------------------
- * {@link isAgentPluginActive} treats a plugin with NO record as active. This looks backwards for a
- * feature whose point is inactivity, so the reasoning is stated plainly:
+ * Concurrency: serialize workspace writes in-process for FIFO order, then take the shared platform
+ * exclusive file lock before the strict read and hold it through publication. Exported functions
+ * must not re-enter a chain/lock callback: they would wait on authority they already hold.
+ * Private writeActivationDecision permits bundled-record writes without that reentrancy hazard.
+ * Unique temp files plus write/rename prevent partial reads; fsync before rename and best-effort
+ * directory fsync keep a power loss from publishing an empty activation file.
  *
- * - Every plugin already installed on every existing host instance got there by an operator
- *   explicitly invoking the host installer. That IS the consent. Defaulting those to
- *   inactive would silently break every current install on upgrade, to re-collect consent that was
- *   already given.
- * - A bundled package has no such act behind it. So the seeder writes an explicit
- *   `{ enabled: false, origin: "bundled" }` record AT SEED TIME, before anything can read it — and
- *   because seeding is idempotent and re-runs on every boot, deleting `activations.json` re-creates
- *   the disabled record rather than promoting the bundled plugin to active. The unsafe direction is
- *   closed; the safe one (an operator's own install keeps working) is left open.
- *
- * The net rule, then: **presence implies consent only for packages an operator put there.** The
- * record exists to say "the host put this here, and nobody has said yes yet."
- *
- * ---------------------------------------------------------------------------
- * ...but "absent" only means active when the file itself was READ successfully
- * ---------------------------------------------------------------------------
- * {@link readAgentPluginActivations} collapses a missing file, an unreadable one, a malformed one,
- * and one with the wrong envelope into the same empty record — fail-OPEN, for the reason its own
- * doc gives. That is right for the two surfaces that only DISCOVER plugins (a corrupt byte must not
- * silently hide every plugin an operator installed), and wrong for the one surface that decides
- * whether a capability may be SPENT: there, "I could not read the operator's decisions" is not a
- * statement that everything is permitted.
- *
- * {@link resolveAgentPluginActivation} is that stricter reader, added 2026-09-16 for
- * `tool-registrations.ts`'s per-call tool gate. It separates the two things
- * {@link readAgentPluginActivations} folds together:
- *
- * - **no file, or a well-formed file with no entry for this plugin** — nothing was recorded, so the
- *   "absent means active" rule above applies unchanged, and it answers `active`;
- * - **a file that exists but could not be read, parsed, or shape-checked, or an entry for THIS
- *   plugin that fails normalization** — a decision may well have been recorded and cannot be read,
- *   so it answers `undetermined`, and the gate denies.
- *
- * The header's own objection to fail-CLOSED ("no error surface to notice it by") is answered at that
- * call site and only there: a denied invocation is recorded as `denied` in the daemon's audit trail
- * and the gate logs the reason, so a corrupt file is loud rather than silent. Nothing about what
- * "active" MEANS differs between the two readers — only whether a fault is allowed to masquerade as
- * an answer.
- *
- * ---------------------------------------------------------------------------
- * Why a file and not a table
- * ---------------------------------------------------------------------------
- * All three places that must consult it — `capability-source.ts` (discovery),
- * `tool-registrations.ts` (tool registration), `resolve-agent-plugin-refs.ts` (run-start injection)
- * — receive an `AgentPluginWorkspaceLayout` or a `workspaceId`, and NONE of them has a database
- * handle. Threading one through would mean giving three pure-filesystem call paths a repo
- * dependency (and the agent daemon is a second OS process with its own handle over the same WAL —
- * `agent-daemon-server.ts:298-299` — so the two would also have to agree about freshness).
- *
- * Everything else about an installed Agent Plugin already lives on disk under the workspace's own
- * tenant-isolated root; its activation living beside it needs no new seam, no migration, and no
- * cross-process cache-coherence argument. `plugin_activations` (`db/schema.sqlite.ts`) is the SPEC-005
- * `.host-plugin` runtime's table for a different plugin system with a different lifecycle — reusing
- * it would conflate two unrelated things that merely share a word.
- *
- * ---------------------------------------------------------------------------
- * Writers never rewrite what they could not read (2026-09-16, t91 F1.1)
- * ---------------------------------------------------------------------------
- * Every writer below used to build its next state from {@link readAgentPluginActivations}'s LENIENT
- * view — the same "unreadable folds to empty" read that is correct for discovery — and then wrote
- * that view straight back out. Against a corrupt file, that laundered every operator decision inside
- * it into a fresh, well-formed file recording NOTHING: a disabled plugin's `enabled: false` record
- * simply vanished, and "absent means active" (this header, above) turned it active again. A second,
- * narrower arm of the same bug survived even a whole-file fix: the writers built their next state
- * from the NORMALIZED bag, which silently drops any single malformed entry — so toggling one
- * unrelated plugin was enough to erase a neighboring entry the gate was correctly treating as
- * `undetermined` (denied), re-admitting it as `active` the moment the rewrite landed.
- *
- * The rule now: every writer reads the RAW `plugins` bag with {@link readPluginsBagStrict} — which
- * throws {@link AgentPluginActivationsUnreadableError} on an unreadable file instead of returning an
- * empty one — and edits that raw bag directly, preserving byte-for-byte every entry it is not the
- * one changing (malformed or not). `absent` (no file yet) still starts empty, so a first boot seeds
- * exactly as before; only a file that EXISTS and cannot be read, parsed, or shape-checked refuses.
- *
- * The boot consequence is `seed-bundled.ts`'s to own (see that file's header): a corrupt file makes
- * the seeder install nothing and report every bundled plugin `failed`, rather than write around the
- * fault. Nothing here throws on the read `readAgentPluginActivations` itself still uses for
- * discovery — that reader, and its "absent/unreadable both fold to empty" contract, are unchanged.
- *
- * ---------------------------------------------------------------------------
- * Concurrency
- * ---------------------------------------------------------------------------
- * Writes are write-temp-then-`rename`, with a uniquely named temp file per write, so a reader never
- * observes a half-written file.
- *
- * Within ONE process every read-modify-write of a workspace's file is serialized
- * ({@link serializeActivationsWrite}). This used to be waved off as "a race nobody has, whose worst
- * case is a visibly wrong checkbox". Both halves were false (t91 review, 2026-09-16): the admin
- * Agent Plugins screen deliberately lets two rows toggle at once, and each row renders its own
- * PATCH response — so when two writes both read the same file and the second `rename` erased the
- * first one's `enabled: false`, the operator saw the plugin OFF while "absent means active" had
- * already turned it back ON. Two writes in the same millisecond also shared one temp path, and one
- * of them failed with `ENOENT`.
- *
- * ACROSS processes (t91, 2026-09-16, plan `agent-reports/2026-09-16-t91-plan-activations-lock.md`):
- * every writer below also takes an exclusive, cross-process lock (`exclusive-file-lock.ts`) on
- * `<root>/activations.json.lock` before its strict read, and holds it until the rename lands. The
- * in-process chain above stays in FRONT of that lock — it still gives same-process writers FIFO
- * order with no polling — and the lock is not reentrant, so the invariant is: **no exported function
- * in this file may be called from inside a chain turn or a lock callback.** Such a call would wait on
- * a lock (or a chain slot) it is already holding, and hang exactly like re-entering the chain would.
- * `recordBundledAgentPluginIfAbsent` keeps using the private `writeActivationDecision` rather than
- * calling `setAgentPluginActivation`, for this reason.
- *
- * A lock is judged stale — and broken, unblocking every waiter — if its holder is a dead process on
- * this same host, or if it is simply older than 10s; see `exclusive-file-lock.ts`'s own header for
- * the full protocol and every failure mode it closes. A writer that cannot take the lock within 15s,
- * or that loses it (a stalled holder judged stale by someone else) right before its own rename,
- * throws {@link AgentPluginActivationsBusyError} and writes NOTHING — never a partial or stale write.
- *
- * Residuals this does NOT close, stated rather than hidden:
- * - R6: the boot seeder still installs a package before recording it inactive; a crash between the
- *   two leaves an unrecorded (and therefore active) bundled package. Pre-flighting the lock clears
- *   any stale lock before anything is installed, which narrows but does not remove this window.
- * - The tiny gap between a holder's own `assertHeld()` and its `rename` — closed to "never a stale
- *   write survives it", not to "zero probability another process ever judged this lock stale in that
- *   instant".
- * - A network filesystem, or a lock left by a crash that is later swept into site source control by
- *   `duplicate-site.ts`'s `cpSync` (this repo does not touch `sites/**` here to fix that).
- * - A killed writer can leave a stray `activations.json.tmp-*` file; nothing currently sweeps those.
- *
- * Architectural role:
- * Filesystem state for one workspace, reached only through `layout.ts`'s `forWorkspace()` root — the
- * same tenant-isolation guarantee every other path in this feature goes through.
+ * Residual limits: installing before the inactive record is committed leaves a crash window; lock
+ * preflight narrows it but cannot remove it. The assertHeld/rename gap is not an atomic ownership
+ * check. Network filesystems and copied lock files need host handling; killed writers can leave
+ * unswept activations.json.tmp-* files. See the lock adapter below for stale/timeout budgets and
+ * authority checks.
  */
-/** Extracted from the host plugin lifecycle. Effects are supplied per host context.
+/** Effects are supplied per host context.
  * Kernel exclusive create chooses one writer. The shared platform lock binds ownership to
  * a unique token and inode/device, verifies unchanged bytes/mtime before stale removal, and
  * never treats a permission failure as proof of a dead pid. No heartbeat extends the explicit
@@ -155,7 +39,8 @@
  * before publication. The shared fixed polling replaces local jitter; activation keeps its
  * 15-second timeout, timed on the clock port's monotonic reading so a wall-clock jump can neither
  * end nor stretch the wait (stale age stays on wall time, matching lock-file mtimes), and
- * translates shared errors into busy.
+ * translates shared errors into busy. A stale/dead holder can lose authority; a writer that cannot
+ * acquire within 15 seconds or loses the lock before rename reports busy and publishes nothing.
  */
 import path from "node:path";
 import { FileLockLostError, FileLockTimeoutError, type FileLockHolder, type HeldFileLock } from "@jini-ai/platform/fs/file-lock";
@@ -350,7 +235,7 @@ function buildModule(ports: ActivationPorts) {
    * @throws Nothing for a missing, unreadable, malformed, or wrong-version file: all of those return
    * an empty record. That is fail-OPEN, and it is the correct direction here specifically because this
    * reader is used for DISCOVERY only — nothing that SPENDS a capability or WRITES the file uses it
-   * any more (t91 F1.1, 2026-09-16): the per-call tool gate and run-start injection both use the
+   * — the per-call tool gate and run-start injection both use the
    * fail-CLOSED {@link resolveAgentPluginActivation}, and every writer below reads the strict raw bag
    * and refuses outright on an unreadable file (see this file's header, "Writers never rewrite what
    * they could not read").
@@ -685,24 +570,11 @@ function buildModule(ports: ActivationPorts) {
   }
 
   /**
-   * N1 (reviewer finding, 2026-09-16, `agent-reports/2026-09-16-t91-review-plugin-part2.md`): refuses
-   * a write that would derive `origin` from a MALFORMED entry for the plugin actually being toggled,
-   * rather than silently "fixing" it as `operator-installed`.
-   *
-   * Without this, toggling a plugin whose OWN entry is present but malformed (e.g. its raw value is
-   * the bare string `"bundled"`, not `{ origin: "bundled", ... }`) rewrote that entry as a well-formed
-   * `operator-installed` record via {@link isRecordedAsBundled}'s `false` fallback — which both defeats
-   * `uninstall.ts`'s bundled-refusal for malformed entries (`583d2f5e`) and re-seeds the plugin as
-   * bundled-and-inactive on the next boot, since {@link recordBundledAgentPluginIfAbsent}'s own
-   * `Object.hasOwn` no-overwrite check can no longer tell "an operator's real decision" apart from "a
-   * garbled record this write invented". Consistent with this file's "undetermined means refuse" rule
-   * (see the header and {@link resolveAgentPluginActivation}): an existing entry that cannot be read is
-   * left exactly as it is, never repaired by a guess. `recordBundledAgentPluginIfAbsent` never reaches
-   * this — it only calls {@link writeActivationDecision} when `Object.hasOwn(current, pluginId)` is
-   * already `false`.
-   *
-   * @throws {AgentPluginActivationsUnreadableError} `pluginId`'s own entry exists but does not
-   * normalize.
+   * Refuse a malformed target entry rather than guessing operator-installed origin. Guessing would
+   * defeat bundled uninstall refusal and make seeding confuse a fabricated record with consent.
+   * An undetermined entry stays intact. recordBundledAgentPluginIfAbsent reaches this writer only
+   * when the target key is genuinely absent, so it does not repair a malformed decision either.
+   * @throws {AgentPluginActivationsUnreadableError} The target entry exists but cannot normalize.
    * @complexity O(1).
    */
   function assertTargetEntryReadable(workspaceRoot: string, current: RawPluginsBag, pluginId: string): void {
@@ -822,7 +694,7 @@ function buildModule(ports: ActivationPorts) {
    *
    * Callers: `uninstall.ts`'s `uninstallAgentPlugin()`, on a successful uninstall (see that file's own
    * header for the full decision), and `retire-bundled.ts`, for a retired bundled plugin's leftover
-   * record when no package of it is installed (2026-09-29).
+   * record when no package of it is installed.
    * Short version: a tombstone (`enabled: false` left behind after the bytes are gone) would invert
    * this file's own "absent means active, because an operator's own install IS the consent" rule
    * (this file's header, above) the moment the SAME plugin id is ever reinstalled — the fresh install
@@ -932,7 +804,7 @@ function buildModule(ports: ActivationPorts) {
    * read"), so this is the one place that wraps it back in the `{ schemaVersion: 1, plugins }`
    * envelope for serialization.
    *
-   * Durability (R5, t91 2026-09-16): the temp file is fsync'd before the rename, and the workspace
+   * Durability: the temp file is fsync'd before the rename, and the workspace
    * directory is best-effort fsync'd after — see this file's header and `syncDirectoryBestEffort`'s
    * own doc for why a power loss must never leave a 0-byte `activations.json` behind.
    *

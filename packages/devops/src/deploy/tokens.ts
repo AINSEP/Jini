@@ -1,5 +1,5 @@
 import { manyToken } from '@jini-ai/core';
-import { DeployError, type DeployFile, type DeployPublishOptions, type DeployPublishResult, type DeployTarget, type UnknownRecord } from './types.js';
+import { DeployError, type DeployFile, type DeployPublishOptions, type DeployPublishResult, type DeployTarget, type UnknownRecord } from '../core/deploy-types.js';
 
 /**
  * Many-bound composition token for deploy providers, per extraction-plan.md

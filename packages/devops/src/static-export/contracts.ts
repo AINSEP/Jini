@@ -40,7 +40,9 @@ export interface ExportSiteArgs {
   assetUrlPrefixes: readonly string[];
   requestHeaders: Readonly<Record<string, string>>;
   security: { transformHtml(required: { html: string }): string };
-  errorPage: { outputFile: string; acceptStatus(required: { status: number }): boolean };
+  errorPage: { outputFile: string; acceptStatus(required: { status: number }): boolean; rejectionReason?(required: { status: number }): string };
+  /** Host terminology for an asset rejected before network/filesystem access. */
+  assetPathFailureReason?: string;
   /** Caller-safe error description; used for failed network, body or artifact writes. */
   describeError(required: { error: unknown }): string;
 }

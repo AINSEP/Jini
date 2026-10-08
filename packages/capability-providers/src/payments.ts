@@ -1,9 +1,5 @@
 /**
- * `PaymentsProvider` — a swappable payment-charge port. Speculative
- * port-design exploration (see `archived provenance ledger`) — no OD source; named
- * explicitly in `ADS-memory/reports/jini-port/recon/r5b-consumers-matrix.md` §3.3 as one
- * of the capabilities Zana's and a fleet orchestrator's independent provider
- * layers converge on (alongside auth/storage/db/realtime).
+ * Swappable payment-charge port. See index.ts for capability-provider ownership and adoption scope.
  *
  * This file defines the port's stable interface/type surface and nothing else —
  * it has no imports at all, so a consumer implementing `PaymentsProvider`

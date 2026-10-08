@@ -102,7 +102,8 @@ must migrate before release; this package supplies contracts only.
 
 ## JSON type ownership
 
-`JsonPrimitive`, `JsonValue`, `JsonObject` and `JsonArray` live in
-`@jini-ai/core/primitives`. Import them there; protocol does not re-export them.
-Protocol's error details and run-context history use those same structural JSON values;
-wire payloads and the existing Zod schemas are unchanged.
+Protocol exports its own `JsonPrimitive` and `JsonValue` wire contracts for error details and
+run-context history. Keeping these two declarations local preserves R3's foundational leaf:
+a protocol consumer does not need a kernel package to resolve its declarations. Kernel/domain
+utilities continue to use `@jini-ai/core/primitives`' structurally compatible JSON types.
+Wire payloads and the existing Zod schemas are unchanged.

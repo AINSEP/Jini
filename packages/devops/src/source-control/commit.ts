@@ -1,4 +1,4 @@
-import { firstExportFailure } from '../static-export/failure-summary.js';
+import { firstExportFailure } from '../core/export-failure-summary.js';
 import type { CommitExportArgs, CommitFile, CommitOptions, CommitOrchestrationArgs, PreviewCommitExportResult, SourceControlCommitOutcome } from './contracts.js';
 import { validateCommitTarget } from './repository-target.js';
 

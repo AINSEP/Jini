@@ -57,7 +57,7 @@ import { createRawBytesParser } from '../response-parsers.js';
 import type { MediaSpeechFormat, ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import { mediaVendorRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry.js';
 
 // Image generation can legitimately take minutes (gpt-image-2 4K renders
 // especially). The guarded client owns the socket and deadline budgets,
@@ -167,8 +167,6 @@ const openAIImageAdapter: VendorAdapter<OpenAIImageMeta> = {
   },
 };
 
-mediaVendorRegistry.register({ providerId: 'openai', routeKey: 'image', adapter: openAIImageAdapter });
-
 export async function renderOpenAIImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: openAIImageAdapter, ctx: ctx, credentials: credentials });
 }
@@ -251,8 +249,15 @@ const openAISpeechAdapter: VendorAdapter<OpenAISpeechMeta> = {
   }),
 };
 
-mediaVendorRegistry.register({ providerId: 'openai', routeKey: 'audio:speech', adapter: openAISpeechAdapter });
-
 export async function renderOpenAISpeech({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: openAISpeechAdapter, ctx: ctx, credentials: credentials });
+}
+
+/** Explicit composition: importing a renderer never changes another module's registry. */
+export function registerVendorAdapters(
+  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
+  _optional: Record<string, never> = {},
+): void {
+  registry.register({ providerId: 'openai', routeKey: 'image', adapter: openAIImageAdapter });
+  registry.register({ providerId: 'openai', routeKey: 'audio:speech', adapter: openAISpeechAdapter });
 }

@@ -1,13 +1,14 @@
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { preProcessFile } from 'typescript';
+import { ModuleResolutionKind, preProcessFile, resolveModuleName, sys } from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const packagesRoot = fileURLToPath(new URL('../../../../', import.meta.url));
 
 /** Follow relative imports and re-exports, including inline import types, without loading code.
- * TypeScript's scanner ignores comments and supplies the dependency edges; the active path
+ * TypeScript's scanner ignores comments and its resolver follows extensionless and build-free
+ * JavaScript imports as well as TypeScript sources; the active path
  * detects cycles while the completed set avoids revisiting shared dependencies.
  * Time is O(source bytes + V + E); graph traversal space is O(V). */
 function findCycle({ entry }: { entry: string }): string[] {
@@ -23,9 +24,20 @@ function findCycle({ entry }: { entry: string }): string[] {
     const { importedFiles } = preProcessFile(readFileSync(file, 'utf8'), true, true);
     for (const { fileName } of importedFiles) {
       if (!fileName.startsWith('.')) continue;
-      const dependency = resolve(dirname(file), fileName.replace(/\.js$/, '.ts'));
-      const cycle = visit(dependency);
-      if (cycle.length > 0) return cycle;
+      const { resolvedModule } = resolveModuleName(fileName, file, {
+        moduleResolution: ModuleResolutionKind.Bundler, allowJs: true,
+      }, sys);
+      if (!resolvedModule) throw new Error(`Cannot resolve '${fileName}' from '${file}'`);
+      const dependencies = [resolvedModule.resolvedFileName];
+      // A build-free declaration must not hide cycles in its paired JavaScript implementation.
+      const implementation = resolvedModule.resolvedFileName.replace(/\.d\.ts$/, '.js');
+      if (implementation !== resolvedModule.resolvedFileName && sys.fileExists(implementation)) {
+        dependencies.push(implementation);
+      }
+      for (const dependency of dependencies) {
+        const cycle = visit(dependency);
+        if (cycle.length > 0) return cycle;
+      }
     }
     active.pop();
     visiting.delete(file);

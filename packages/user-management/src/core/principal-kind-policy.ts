@@ -7,7 +7,7 @@ import type { PrincipalKind } from "./types.js";
  * The one place that decides whether a principal's KIND lets it use the operator RBAC axis
  * (`authorize()`'s permissions). Today the answer is: every kind except `member`. A `member` is a
  * public-site sign-up — a host's front-end account, governed by that host's own entitlement axis
- * (tiers, gated content), never by operator RBAC. OWNER DECISION 2026-10-04 (Tovu F3144): site
+ * (tiers, gated content), never by operator RBAC. OWNER DECISION 2026-10-04 (host decision F3144): site
  * members must not be able to use admin features, at least for now.
  *
  * Why a function and not a check at each call site:
