@@ -1,3 +1,7 @@
+## 0.5.2 — 2026-10-08
+
+- Tovu clean-up release: code Tovu moved into Jini, plus the Jini clean-up (see the commit log).
+
 ## 0.5.1 — 2026-10-05
 
 - The `@jini-ai/db` peer range is `^0.2.0 || ^0.3.0` (registry uses only db's SQLite entry, which 0.3.0 leaves unchanged), so a host on db 0.3.0 installs without a peer conflict.

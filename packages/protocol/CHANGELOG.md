@@ -1,3 +1,7 @@
+## 0.4.2 — 2026-10-08
+
+- Tovu clean-up release: code Tovu moved into Jini, plus the Jini clean-up (see the commit log).
+
 ## 0.4.1 — 2026-10-06
 
 - `status` events carry an optional `sessionId` (agent CLI session/thread locator) so hosts can checkpoint before the terminal event.

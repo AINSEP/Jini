@@ -1,3 +1,7 @@
+## 0.5.5 — 2026-10-08
+
+- Tovu clean-up release: code Tovu moved into Jini, plus the Jini clean-up (see the commit log).
+
 ## 0.5.4 — 2026-10-06
 
 - Prompt history in the composer: ↑ with the caret on the first line recalls earlier sent messages and ↓ on the last line walks forward; the first ↑ stashes the current draft (empty or not) and ↓ past the newest entry (or Escape) restores it exactly. Recalled entries are never mutated; consecutive duplicates collapse. New pure `createComposerHistoryState` / `transitionComposerHistory` / `composerHistoryKeyAction` / `mergeComposerHistory` / `normalizeComposerHistory` (core) and `createBrowserComposerHistoryStorage` (react, a `ComposerHistoryStoragePort` default). `useComposer`/`ChatPane` take `historyScope`, `historyStorage` and `historyMessages`.

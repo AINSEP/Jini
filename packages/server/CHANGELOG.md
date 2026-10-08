@@ -1,4 +1,4 @@
-## Unreleased
+## 0.5.1 — 2026-10-08
 
 - Align pack contributions, bindings, HTTP mounting, retry classification, executor settings and
   event-log cleanup with the current core/daemon object argument contracts.

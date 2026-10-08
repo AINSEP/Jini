@@ -1,4 +1,4 @@
-## Unreleased
+## 0.5.3 — 2026-10-08
 
 - `./widgets*`: Add isolated widgets, import-free markers, HTML embeds, resolver ports and StorageKernel region-binding SQL entries; preserve stored formats, permission gates and rendering contracts.
 - Fold forms into ./forms with isolated HTML, SQL and Express adapters and host-supplied authoring, validation, attempts and dispatch ports.
