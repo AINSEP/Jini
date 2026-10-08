@@ -1,5 +1,9 @@
 # @jini-ai/ui
 
+## 0.4.6 — 2026-10-08
+
+- parse5 optional peer widened to `^7.3.0 || ^8.0.1`: 0.4.5 required ^8 while @jini-ai/cms 0.5.3 requires ^7.3, so hosts with both hit ERESOLVE. The srcdoc builder and html-editor source splice typecheck against parse5 7.
+
 ## 0.4.5 — pending release
 
 - Add universal `./mcp-ui/secret-card`: `defineSecretCardTool` owns fail-closed emission, cancellation, blank-secret policy, exact-byte submission and safe save-failure reporting. Specs retain domain validation, copy, dynamic fields, persistence and result projections.
