@@ -1,3 +1,4 @@
+import { ToolPermissionDeniedError as ForbiddenError } from "@jini-ai/core";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { Clock, IdGenerator, JsonObject, UUID } from "@jini-ai/core/primitives";
 import type { DomainEvent, OutboxPort } from "../ports.js";
@@ -153,16 +154,7 @@ export class DuplicateCommandError extends Error {
  * `DuplicateCommandError` either.
  * See docs/decisions/DR-006-mutation-audit-atomicity.md.
  */
-export class ForbiddenError extends Error {
-  readonly permission: string;
-  readonly reason: string;
-
-  constructor({ message, permission, reason }: { message: string; permission: string; reason: string }, _optional: Record<string, never> = {}) {
-    super(message);
-    this.permission = permission;
-    this.reason = reason;
-  }
-}
+export { ForbiddenError };
 
 /**
  * Detects a UNIQUE-constraint violation on `changeSets.insert()`'s idempotency-key index —

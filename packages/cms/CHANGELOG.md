@@ -1,3 +1,14 @@
+## Unreleased
+
+- `./widgets*`: Add isolated widgets, import-free markers, HTML embeds, resolver ports and StorageKernel region-binding SQL entries; preserve stored formats, permission gates and rendering contracts.
+- Fold forms into ./forms with isolated HTML, SQL and Express adapters and host-supplied authoring, validation, attempts and dispatch ports.
+- Add isolated comments, SQL and Express entries with injected settings, rate limits, table names and IP salt; preserve ingress, moderation and audit contracts.
+- Add isolated redirects, SQL, SPA, host-config and Express entries with required verified-origin/path-policy ports and explicit adapter refusal reporting.
+- Add isolated universal SEO and browser DOM head entries, host settings/post/media/routing/liveness ports, and per-instance sitemap hooks/cache; retain output and write contracts.
+- Move generic settings to `@jini-ai/core/settings` and the Express adapter to `@jini-ai/core/settings/express`; retain both former CMS subpaths as identity-preserving compatibility re-exports for one release.
+
+- Move filesystem, sharp and ffmpeg media adapters to `@jini-ai/cms/media/node`; share `TransactionalRepoPort` through core while retaining the taxonomy type export; rename the settings HTTP entry to `@jini-ai/cms/settings/express`.
+
 ## 0.5.2 — 2026-10-06
 
 - Video previews (`@jini-ai/cms/media`): `planVideoFrames` / `planVideoContactSheets` / `getVideoFrameEdge` / `parseVideoProbe` plus the `VideoFrameExtractor` port and an ffmpeg adapter (`createFfmpegVideoFrameExtractor`, `findVideoBinaries`, `runLowPriorityVideoProcess`). Default 16 frames, up to 64 (frames past 16 shrink to bound image tokens), `every`/`start` spacing, explicit `at` times, or up to 4 contact sheets of ≤16 tiles with a timestamp map.

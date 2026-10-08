@@ -147,3 +147,32 @@ export interface OutboxPort {
 }
 
 /** Clock and ID generator contracts are owned by the shared kernel primitives. */
+
+/**
+ * Opens/commits/rolls back one transaction around `fn` — the same shape and contract as this
+ * codebase's other write chokepoints that need one (`RedirectsWriteDeps.transaction`,
+ * `SqliteSettingsRepo.transaction`).
+ *
+ * `deleteTerm`/`deleteTaxonomy` run their ENTIRE body — every guard read (`findById`,
+ * `countChildren`, `countByTerm`) AND every write (`delete`, `revisions.insert`, `outbox.enqueue`)
+ * — inside one call to this. Two failure modes this closes that a guard-then-transaction split
+ * would not:
+ *
+ * 1. **TOCTOU on the guard.** A guard read taken BEFORE the transaction opens can go stale the
+ *    instant it returns — content can be assigned to the term in the gap between the read and the
+ *    delete, and the delete would proceed having checked a now-wrong count. Putting the read
+ *    inside the same transaction as the delete is what makes the guard's answer still true at the
+ *    moment the delete actually runs.
+ * 2. **Partial cascade.** `deleteTaxonomy` deletes N member terms then the taxonomy row itself,
+ *    with no FK/CASCADE at the schema level (`db/schema.ts` — `taxonomies`/`terms`/`entry_terms`/
+ *    `taxonomy_revisions` are plain columns, no foreign keys) to undo a mid-cascade failure. A
+ *    real transaction is the only thing that can.
+ *
+ * A caller-supplied identity/no-op implementation is a valid choice for a backend that has no
+ * separate transaction primitive to offer (see `repo.memory.ts`'s `InMemoryTaxonomyRepo` for the
+ * disclosed rationale) — the port exists so `deleteTerm`/`deleteTaxonomy` never have to know which
+ * kind of backend they're running against.
+ */
+export interface TransactionalRepoPort {
+  transaction<T>({ fn }: { fn: () => Promise<T> }): Promise<T>;
+}

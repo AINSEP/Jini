@@ -50,6 +50,7 @@ export type {
   EventBusPort,
   OutboxRecord,
   OutboxPort,
+  TransactionalRepoPort,
 } from './ports.js';
 
 export type {
@@ -66,3 +67,5 @@ export * from './entity-liveness.js';
 export * from './tools/args.js';
 
 export type { AuthorizationPort, AuthorizationRequired, AuthorizationOptional } from './authorization.js';
+
+export { encodeKeysetCursor, decodeKeysetCursor, type KeysetPosition } from "./keyset-cursor.js";

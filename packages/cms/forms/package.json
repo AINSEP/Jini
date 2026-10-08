@@ -53,5 +53,6 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"
-  }
+  },
+  "deprecated": "Use @jini-ai/cms/forms. Scheduled for npm deprecation in the owner publish; retained for existing workspace links until the consumer forms switch."
 }

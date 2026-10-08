@@ -25,8 +25,93 @@
       "./presentation": "universal",
       "./media/import": "universal",
       "./core/tools": "universal",
-      "./http/settings": "node",
-      "./trash": "universal"
+      "./trash": "universal",
+      "./settings/express": "node",
+      "./media/node": "node",
+      "./forms": "universal",
+      "./forms/html": "node",
+      "./forms/sql": "node",
+      "./forms/express": "node",
+      "./comments": "universal",
+      "./comments/sql": "node",
+      "./comments/express": "node",
+      "./redirects": "universal",
+      "./redirects/sql": "node",
+      "./redirects/express": "node",
+      "./redirects/spa": "universal",
+      "./redirects/host-config": "universal",
+      "./seo": "universal",
+      "./seo/dom": "browser",
+      "./widgets": "universal",
+      "./widgets/markers": "universal",
+      "./widgets/html": "node",
+      "./widgets/resolvers": "universal",
+      "./widgets/sql": "node"
+    },
+    "isolation": {
+      "domains": {
+        "content-types": [
+          "src/content-types"
+        ],
+        "core": [
+          "src/core"
+        ],
+        "entries": [
+          "src/entries"
+        ],
+        "media": [
+          "src/media"
+        ],
+        "navigation": [
+          "src/navigation"
+        ],
+        "presentation": [
+          "src/presentation"
+        ],
+        "settings": [
+          "src/settings"
+        ],
+        "taxonomy": [
+          "src/taxonomy"
+        ],
+        "trash": [
+          "src/trash"
+        ],
+        "workspace": [
+          "src/workspace"
+        ],
+        "forms": [
+          "src/forms"
+        ],
+        "comments": [
+          "src/comments"
+        ],
+        "redirects": [
+          "src/redirects"
+        ],
+        "seo": [
+          "src/seo"
+        ],
+        "widgets": [
+          "src/widgets"
+        ]
+      },
+      "forbidden": {
+        "universal": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5",
+          "react"
+        ],
+        "browser": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5",
+          "react"
+        ]
+      }
     }
   },
   "type": "module",
@@ -94,15 +179,115 @@
       "import": "./dist/media/import/index.js",
       "default": "./dist/media/import/index.js"
     },
-    "./http/settings": {
-      "types": "./dist/http/settings/index.d.ts",
-      "import": "./dist/http/settings/index.js",
-      "default": "./dist/http/settings/index.js"
-    },
     "./trash": {
       "types": "./dist/trash/index.d.ts",
       "import": "./dist/trash/index.js",
       "default": "./dist/trash/index.js"
+    },
+    "./settings/express": {
+      "types": "./dist/settings/express/index.d.ts",
+      "import": "./dist/settings/express/index.js",
+      "default": "./dist/settings/express/index.js"
+    },
+    "./media/node": {
+      "types": "./dist/media/node.d.ts",
+      "import": "./dist/media/node.js",
+      "default": "./dist/media/node.js"
+    },
+    "./forms": {
+      "types": "./dist/forms/index.d.ts",
+      "import": "./dist/forms/index.js",
+      "default": "./dist/forms/index.js"
+    },
+    "./forms/html": {
+      "types": "./dist/forms/html/index.d.ts",
+      "import": "./dist/forms/html/index.js",
+      "default": "./dist/forms/html/index.js"
+    },
+    "./forms/sql": {
+      "types": "./dist/forms/sql/index.d.ts",
+      "import": "./dist/forms/sql/index.js",
+      "default": "./dist/forms/sql/index.js"
+    },
+    "./forms/express": {
+      "types": "./dist/forms/express/index.d.ts",
+      "import": "./dist/forms/express/index.js",
+      "default": "./dist/forms/express/index.js"
+    },
+    "./comments": {
+      "types": "./dist/comments/index.d.ts",
+      "import": "./dist/comments/index.js",
+      "default": "./dist/comments/index.js"
+    },
+    "./comments/sql": {
+      "types": "./dist/comments/sql/index.d.ts",
+      "import": "./dist/comments/sql/index.js",
+      "default": "./dist/comments/sql/index.js"
+    },
+    "./comments/express": {
+      "types": "./dist/comments/express/index.d.ts",
+      "import": "./dist/comments/express/index.js",
+      "default": "./dist/comments/express/index.js"
+    },
+    "./redirects": {
+      "types": "./dist/redirects/index.d.ts",
+      "import": "./dist/redirects/index.js",
+      "default": "./dist/redirects/index.js"
+    },
+    "./redirects/sql": {
+      "types": "./dist/redirects/sql/index.d.ts",
+      "import": "./dist/redirects/sql/index.js",
+      "default": "./dist/redirects/sql/index.js"
+    },
+    "./redirects/express": {
+      "types": "./dist/redirects/express/index.d.ts",
+      "import": "./dist/redirects/express/index.js",
+      "default": "./dist/redirects/express/index.js"
+    },
+    "./redirects/spa": {
+      "types": "./dist/redirects/spa/index.d.ts",
+      "import": "./dist/redirects/spa/index.js",
+      "default": "./dist/redirects/spa/index.js"
+    },
+    "./redirects/host-config": {
+      "types": "./dist/redirects/host-config/index.d.ts",
+      "import": "./dist/redirects/host-config/index.js",
+      "default": "./dist/redirects/host-config/index.js"
+    },
+    "./seo": {
+      "types": "./dist/seo/index.d.ts",
+      "import": "./dist/seo/index.js",
+      "default": "./dist/seo/index.js"
+    },
+    "./seo/dom": {
+      "types": "./dist/seo/dom/index.d.ts",
+      "import": "./dist/seo/dom/index.js",
+      "default": "./dist/seo/dom/index.js"
+    },
+    "./widgets": {
+      "types": "./dist/widgets/index.d.ts",
+      "import": "./dist/widgets/index.js",
+      "default": "./dist/widgets/index.js"
+    },
+    "./widgets/markers": {
+      "types": "./dist/widgets/markers/index.d.ts",
+      "import": "./dist/widgets/markers/index.js",
+      "default": "./dist/widgets/markers/index.js"
+    },
+    "./widgets/html": {
+      "types": "./dist/widgets/html/index.d.ts",
+      "import": "./dist/widgets/html/index.js",
+      "default": "./dist/widgets/html/index.js"
+    },
+    "./widgets/resolvers": {
+      "types": "./dist/widgets/resolvers/index.d.ts",
+      "import": "./dist/widgets/resolvers/index.js",
+      "default": "./dist/widgets/resolvers/index.js"
+    },
+    "./widgets/sql": {
+      "types": "./dist/widgets/sql/index.d.ts",
+      "import": "./dist/widgets/sql/index.js",
+      "default": "./dist/widgets/sql/index.js"
     }
   },
   "files": [
@@ -133,23 +318,47 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
     "sharp": "^0.35.3",
-    "@jini-ai/http-kit": "workspace:*",
     "express": "^4.21.0",
     "@types/express": "^4.17.21",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "@jini-ai/db": "workspace:*",
+    "kysely": "^0.29.6",
+    "parse5": "^7.3.0",
+    "better-sqlite3": "^13.0.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@electric-sql/pglite": "0.5.8",
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/http-kit": "workspace:*",
+    "jsdom": "^25.0.1"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
     "sharp": "^0.35.3",
-    "express": "^4.21.0"
+    "express": "^4.21.0",
+    "kysely": "^0.29.6",
+    "@jini-ai/db": "^0.3.0",
+    "parse5": "^7.3.0",
+    "@jini-ai/http-kit": "^0.4.0"
   },
   "peerDependenciesMeta": {
     "sharp": {
       "optional": true
     },
     "express": {
+      "optional": true
+    },
+    "kysely": {
+      "optional": true
+    },
+    "@jini-ai/db": {
+      "optional": true
+    },
+    "parse5": {
+      "optional": true
+    },
+    "@jini-ai/http-kit": {
       "optional": true
     }
   }

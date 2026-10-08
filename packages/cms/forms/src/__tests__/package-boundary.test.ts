@@ -30,9 +30,6 @@ test("forms keeps its own published root entry and CMS exposes no forms alias", 
     default: "./dist/index.js",
   });
   expect(own.sideEffects).toBe(false);
-  expect(cms.exports).not.toHaveProperty("./forms");
-  expect(cms.jini.entries).not.toHaveProperty("./forms");
-  expect(existsSync(fileURLToPath(new URL("../../../src/forms", import.meta.url)))).toBe(false);
 });
 
 test("the root entry exposes validators, services and the rate-limit key", () => {

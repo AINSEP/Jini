@@ -22,4 +22,8 @@ A fail-open self-write permission used to modify another user, a setting row wit
 
 Restated from inherited design and review reasoning. Historical provenance is kept outside the engine. The current behavior contract and local code establish the enforcement boundary; this record adds no runtime behavior.
 
-Evidence: [src/settings/settings.ts](../../src/settings/settings.ts), [src/settings/write-service.ts](../../src/settings/write-service.ts), [src/settings/purge-service.ts](../../src/settings/purge-service.ts).
+Owner relocation (2026-10-07): generic settings now live in `@jini-ai/core/settings`. This record
+is retained for CMS compatibility; [the core record](../../../core/docs/decisions/DR-003-settings-ledger-invariants.md)
+keeps the same invariants.
+
+Evidence: [settings.ts](../../../core/src/settings/settings.ts), [write-service.ts](../../../core/src/settings/write-service.ts), [purge-service.ts](../../../core/src/settings/purge-service.ts).

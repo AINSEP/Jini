@@ -23,6 +23,8 @@
 
 ## Unreleased
 
+- Deprecated in favour of `@jini-ai/cms/forms`; retain the current version and workspace links until the consumer forms switch.
+
 ### Compilation
 
 - Align the in-memory event-bus fixture and subscriber test calls with the current CMS argument objects.

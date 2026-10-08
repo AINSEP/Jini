@@ -96,10 +96,11 @@ function resolveRuntimeImport(from: string, specifier: string): string {
 const manifest: Manifest = JSON.parse(readFileSync(resolve(packageRoot, "package.json"), "utf8"));
 const universalEntries = Object.entries(manifest.jini.entries).filter(([, runtime]) => runtime === "universal");
 
-// REGRESSION: fails if "@jini-ai/http-kit": "workspace:*" is restored to peerDependencies.
-test("CMS does not require the unused HTTP toolkit peer or advertise its optional metadata", () => {
-  expect(Object.keys(manifest.peerDependencies ?? {})).not.toContain("@jini-ai/http-kit");
-  expect(Object.keys(manifest.peerDependenciesMeta ?? {})).not.toContain("@jini-ai/http-kit");
+// REGRESSION: the folded domains use verified-origin; keep its peer optional and publishable,
+// rather than restoring "workspace:*" to peerDependencies or requiring it for unrelated entries.
+test("CMS declares the used HTTP toolkit peer with an optional registry range", () => {
+  expect(manifest.peerDependencies?.["@jini-ai/http-kit"]).toBe("^0.4.0");
+  expect(manifest.peerDependenciesMeta?.["@jini-ai/http-kit"]).toEqual({ optional: true });
 });
 
 // REGRESSION: fails if index-provisioning.ts restores import { createHash } from "node:crypto".

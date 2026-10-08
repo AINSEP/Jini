@@ -10,7 +10,7 @@ import { validateFieldsAgainstSchema } from "../entries/field-validation.js";
 import { isContentTypeOnAllowList } from "../taxonomy/write-service.js";
 import { validateHierarchyAssignment } from "../taxonomy/validation-chain.js";
 import { InMemoryWorkspaceRepo } from "../workspace/repo.memory.js";
-import { SecretNotSupportedError, PurgeRequiredError } from "../settings/errors.js";
+import { SecretNotSupportedError, PurgeRequiredError } from "@jini-ai/core/settings";
 import { executeCommand } from "../core/commands/command.js";
 import type { ChangeSetItemRecord, ChangeSetRepoPort } from "../core/commands/change-set.js";
 import type { DomainEvent } from "../core/ports.js";

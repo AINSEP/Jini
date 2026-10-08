@@ -1,4 +1,4 @@
-import type { TransactionalRepoPort } from "../taxonomy/write-service.js";
+import type { TransactionalRepoPort } from "../core/ports.js";
 import type { UUID } from "@jini-ai/core/primitives";
 import { WorkspaceLastRemainingError, WorkspaceNotFoundError, type WorkspaceRepoPort } from "./create.js";
 

@@ -1,0 +1,137 @@
+{
+  "name": "@jini-ai/commerce",
+  "version": "0.1.0",
+  "description": "Opt-in catalog, checkout, payment state machines, provider services and read-only React overview.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/commerce"
+  },
+  "jini": {
+    "domain": "capability",
+    "kind": "commerce",
+    "runtime": "universal",
+    "entries": {
+      ".": "universal",
+      "./repo": "node",
+      "./payments": "node",
+      "./store": "node",
+      "./http": "node",
+      "./react": "browser",
+      "./tools": "universal"
+    }
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./repo": {
+      "types": "./dist/catalog/repo.d.ts",
+      "import": "./dist/catalog/repo.js",
+      "default": "./dist/catalog/repo.js"
+    },
+    "./payments": {
+      "types": "./dist/payments/index.d.ts",
+      "import": "./dist/payments/index.js",
+      "default": "./dist/payments/index.js"
+    },
+    "./store": {
+      "types": "./dist/store/index.d.ts",
+      "import": "./dist/store/index.js",
+      "default": "./dist/store/index.js"
+    },
+    "./http": {
+      "types": "./dist/http/index.d.ts",
+      "import": "./dist/http/index.js",
+      "default": "./dist/http/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js",
+      "default": "./dist/react/index.js"
+    },
+    "./tools": {
+      "types": "./dist/tools.d.ts",
+      "import": "./dist/tools.js",
+      "default": "./dist/tools.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "source-map.md",
+    "LICENSE",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test src/catalog/__tests__/unit/*.test.ts src/payments/__tests__/*.test.ts src/http/__tests__/*.test.ts src/store/__tests__/*.test.ts && vitest run",
+    "test:react": "vitest run"
+  },
+  "dependencies": {
+    "@jini-ai/core": "workspace:^"
+  },
+  "peerDependencies": {
+    "@jini-ai/db": "^0.3.0",
+    "kysely": "^0.29.6",
+    "express": "^4.21.0 || ^5.0.0",
+    "react": "^18.3.0 || ^19.0.0",
+    "@jini-ai/agentic": "^0.3.0 || ^0.4.0",
+    "@jini-ai/ui": "^0.3.0 || ^0.4.0",
+    "@jini-ai/cms": "^0.3.0 || ^0.4.0 || ^0.5.0"
+  },
+  "peerDependenciesMeta": {
+    "@jini-ai/db": {
+      "optional": true
+    },
+    "kysely": {
+      "optional": true
+    },
+    "express": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "@jini-ai/agentic": {
+      "optional": true
+    },
+    "@jini-ai/ui": {
+      "optional": true
+    },
+    "@jini-ai/cms": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@jini-ai/db": "workspace:*",
+    "@jini-ai/agentic": "workspace:*",
+    "@jini-ai/ui": "workspace:*",
+    "kysely": "^0.29.6",
+    "better-sqlite3": "^13.0.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "express": "^4.21.0",
+    "@types/express": "^4.17.21",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/jest-dom": "^6.0.0",
+    "jsdom": "^26.0.0",
+    "tsx": "^4.20.0",
+    "vitest": "^2.1.9",
+    "@jini-ai/cms": "workspace:*",
+    "@jini-ai/core": "workspace:^"
+  }
+}

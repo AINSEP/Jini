@@ -1,8 +1,10 @@
-# @jini-ai/cms-forms
+Deprecated: use `@jini-ai/cms/forms` (same API; adapters at `/html`, `/sql`, `/express`).
 
-Configurable forms in the CMS family, kept as a private workspace package at `packages/cms/forms`. Do not publish this package to npm. The root export includes field and submission validation, honeypot handling, domain errors and records, audited definition writes, anonymous submissions, rate-limit key construction, and notification subscribers. Version 0.1.0 uses Apache-2.0 licensing.
+Deprecated package: use `@jini-ai/cms/forms` for new consumers. This package is marked for npm deprecation in the owner's publish. Keep `packages/cms/forms` until the consumer forms switch is complete: existing workspace links still resolve to this folder. No npm deprecation has been issued by this metadata change.
 
-Runtime code has no framework, Node, database, mail-provider, or CMS implementation imports. CMS contracts are type-only dependencies from `@jini-ai/cms/core`. There is no `@jini-ai/cms/forms` compatibility alias.
+Configurable forms in the CMS family. The root export includes field and submission validation, honeypot handling, domain errors and records, audited definition writes, anonymous submissions, rate-limit key construction, and notification subscribers. The package uses Apache-2.0 licensing.
+
+Runtime code has no framework, Node, database, mail-provider, or CMS implementation imports. CMS contracts are type-only dependencies from `@jini-ai/cms/core`. The successor lives in the CMS package at `@jini-ai/cms/forms`, with separate `/html`, `/sql` and `/express` adapters.
 
 Every public function accepts a required object and, where applicable, a second optional object. Consumers bind repositories, clock, IDs, authorization, reserved slugs, permission names, rate limits, outbox, background dispatcher, logger, mailer, sender and audited command execution.
 

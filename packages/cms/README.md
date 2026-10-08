@@ -13,25 +13,30 @@ See [API integration](API-INTEGRATION.md) for current signatures and migration e
 | subpath | runtime | contents |
 |---|---|---|
 | `.` / `./core` | universal | Content contracts and types, ports, pure domain services, kernel registries. No Express, no `node:*`, no DOM. |
-| `./media` | node | Media services, filesystem blob stores and image transformers. |
-| `./http/settings` | node | Settings HTTP routes, host policy contracts, CMS adapters and resumable change feed. |
+| `./media` | node | Media services, transform ports and preview policies. |
+| `./media/node` | node | Filesystem blob stores, sharp image transforms and ffmpeg adapters. |
+| `./settings` | universal | One-release compatibility re-export of `@jini-ai/core/settings`. |
+| `./settings/express` | node | One-release compatibility re-export of `@jini-ai/core/settings/express`. |
 
 Node-bound domain adapters depend on `/core`. The reverse is a boundary violation — if a core module wants
 something from a Node adapter, the dependency is backwards and the fix is a port (interface) in core,
 not a widened export.
 
-Domain HTTP adapters live under `./http/*`, using the generic transport and host
-composition supplied by `@jini-ai/http-kit` and `@jini-ai/server`.
+Domain HTTP adapters live under their domain subpaths. Hosts can compose them
+using `@jini-ai/http-kit` and `@jini-ai/server`.
 Identity tool registration composition belongs to `@jini-ai/user-management/server`.
 
-`@jini-ai/cms/http/settings` exports `registerSettingsRoutes`, the settings HTTP
+Generic settings now belong to `@jini-ai/core/settings`; the former CMS settings subpaths
+remain thin compatibility re-exports for one release.
+
+`@jini-ai/core/settings/express` exports `registerSettingsRoutes`, the settings HTTP
 contracts and the CMS service/change-feed factories. Hosts provide route paths,
 permissions, workspace, readiness, principal resolution, authorization, scheduler,
 service and feed ports. Registration returns a disposer that closes active feeds.
 CMS adapters pass named request objects to settings dispatch and change-feed services;
 queryable index-name helpers return promises that callers must await.
-Install the optional peers `express` and `@jini-ai/http-kit` when using HTTP subpaths;
-the framework-free root and domain entries do not import them.
+Install the optional peer `express` when using `./settings/express`.
+The HTTP toolkit is a host composition choice and is not a CMS dependency.
 Readiness or principal-resolution failures return `401 UNAUTHENTICATED`.
 Stream diagnostics are best-effort: a throwing reporter cannot prevent retries,
 cancellation of other schedules or ending the response.
@@ -70,7 +75,8 @@ coordination.
 
 **Landed** (directories under `src/`, each with its own subpath export):
 `core`, `content-types`, `entries`, `media`, `navigation`, `presentation`, `settings`,
-`taxonomy`, `workspace`, and `trash`. `./core/tools` exports CMS permission helpers; `./media/import` exports bounded image fetching with injected policies and ports.
+`taxonomy`, `workspace`, and `trash`. `settings` is now a compatibility shim, with implementation
+in `@jini-ai/core/settings`. `./core/tools` re-exports the shared core permission helpers; `./media/import` exports bounded image fetching with injected policies and ports.
 
 **Still to move:** `post`, `seo`, `comments`, `redirects`, `widgets`, `newsletter`,
 `members`. The unimplemented `./widgets` export has been removed.

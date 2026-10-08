@@ -1,20 +1,30 @@
 {
   "name": "@jini-ai/plugins",
   "version": "0.4.0",
-  "description": "Host-independent extension glue: injected manifest vocabularies, capability gates, dispatch and attachment delegates. Host plugin lifecycle remains reserved.",
+  "description": "Host-independent extension glue and site-plugin runtime with injected SDK, trust, archive and storage ports.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/AINSEP/Jini.git",
     "directory": "packages/plugins"
   },
-  "private": true,
   "jini": {
     "domain": "tooling",
     "kind": "plugin-packaging",
     "runtime": "universal",
     "entries": {
-      "./glue": "universal"
+      "./glue": "universal",
+      "./host": "universal",
+      "./host/node": "node",
+      "./host/worker": "node",
+      "./host/sql": "node"
+    },
+    "isolation": {
+      "forbidden": {
+        "./host": [
+          "node:"
+        ]
+      }
     }
   },
   "type": "module",
@@ -24,6 +34,26 @@
       "types": "./dist/glue/index.d.ts",
       "import": "./dist/glue/index.js",
       "default": "./dist/glue/index.js"
+    },
+    "./host": {
+      "types": "./dist/host/index.d.ts",
+      "import": "./dist/host/index.js",
+      "default": "./dist/host/index.js"
+    },
+    "./host/node": {
+      "types": "./dist/host/node/index.d.ts",
+      "import": "./dist/host/node/index.js",
+      "default": "./dist/host/node/index.js"
+    },
+    "./host/worker": {
+      "types": "./dist/host/worker/index.d.ts",
+      "import": "./dist/host/worker/index.js",
+      "default": "./dist/host/worker/index.js"
+    },
+    "./host/sql": {
+      "types": "./dist/host/sql/index.d.ts",
+      "import": "./dist/host/sql/index.js",
+      "default": "./dist/host/sql/index.js"
     }
   },
   "files": [
@@ -41,5 +71,35 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "dependencies": {
+    "@jini-ai/core": "workspace:^"
+  },
+  "peerDependencies": {
+    "semver": "^7.6.2",
+    "kysely": "^0.29.6",
+    "@jini-ai/db": "^0.3.0"
+  },
+  "peerDependenciesMeta": {
+    "semver": {
+      "optional": true
+    },
+    "kysely": {
+      "optional": true
+    },
+    "@jini-ai/db": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@jini-ai/core": "workspace:^",
+    "semver": "^7.6.2",
+    "@types/semver": "^7.5.8",
+    "kysely": "^0.29.6",
+    "@jini-ai/db": "workspace:*"
   }
 }

@@ -74,7 +74,6 @@ export {
 } from "./blob-gc.js";
 
 export { InMemoryBlobStore } from "./blob-store.memory.js";
-export { LocalFsBlobStore, type LocalFsBlobStoreDeps } from "./blob-store.fs.js";
 
 export {
   DEFAULT_MAX_UPLOAD_BYTES,
@@ -130,7 +129,6 @@ export {
 export type { ImageTransformerPort, TransformImageInput, TransformImageOutput } from "./image-transformer.js";
 export { InMemoryImageTransformer } from "./image-transformer.js";
 
-export { SharpImageTransformer, ImageTransformUnavailableError, ImageSourceCorruptError } from "./image-transformer.sharp.js";
 
 // -----------------------------------------------------------------------------
 // Original-bytes admin preview route support. See `content-type-sniffer.ts`'s
@@ -166,14 +164,10 @@ export type { IsBlobUnreferencedRequired, TombstoneBlobRequired, RunBlobGcDelete
 export { rollbackUploadedMedia } from "./media-service.js";
 export type { MediaRowCleanupDeps } from "./media-service.js";
 
-// Video previews: policy/port plus a bounded optional-host codec adapter.
+// Video previews: policy/port. The bounded optional-host codec adapter lives in ./node.js.
 export {
   VIDEO_DEFAULT_FRAMES, VIDEO_MAX_FRAMES, VIDEO_MAX_EDGE_PX, VIDEO_MAX_INPUT_BYTES,
   VIDEO_MAX_FRAME_BYTES, VIDEO_MAX_OUTPUT_BYTES, VIDEO_MAX_SHEET_BYTES, VIDEO_MAX_SHEETS, VIDEO_EXTRACTION_TIMEOUT_MS, planVideoFrames, parseVideoProbe, getVideoFrameEdge, planVideoContactSheets,
   type VideoMetadata, type VideoFrame, type VideoFrameOptions, type VideoFrameResult, type VideoFrameExtractor,
   type VideoSheetTile, type VideoSheetLayout, type VideoContactSheet,
 } from './video-frames.js';
-export {
-  createFfmpegVideoFrameExtractor, findVideoBinaries, runLowPriorityVideoProcess,
-  type VideoBinaries, type VideoBinaryFinder, type VideoProcessRunner,
-} from './video-frames.ffmpeg.js';
