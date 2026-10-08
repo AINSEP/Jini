@@ -45,12 +45,13 @@ export class InMemoryMcpSession implements McpSessionPort {
   closed = false;
 
   private readonly tools: RemoteToolDescriptor[];
-  private readonly handler: (required: { name: string; args: Record<string, unknown> }) => RemoteToolResult | Promise<RemoteToolResult>;
+  private readonly handler: (required: { name: string; args: Record<string, unknown> }, options: McpToolCallOptions) => RemoteToolResult | Promise<RemoteToolResult>;
   private readonly listToolsBehaviour: (() => Promise<RemoteToolDescriptor[]>) | undefined;
 
   constructor({ tools }: { tools: readonly RemoteToolDescriptor[] }, options: {
-    /** Defaults to echoing the call back, which is enough for most wiring assertions. */
-    onCall?: ((required: { name: string; args: Record<string, unknown> }) => RemoteToolResult | Promise<RemoteToolResult>) | undefined;
+    /** Defaults to echoing the call back, which is enough for most wiring assertions.
+     * The injected remote receives the same optional cancellation object as a real session. */
+    onCall?: ((required: { name: string; args: Record<string, unknown> }, options?: McpToolCallOptions) => RemoteToolResult | Promise<RemoteToolResult>) | undefined;
     /** Overrides `listTools` wholesale, for the "the remote is down at connect time" cases. */
     onListTools?: (() => Promise<RemoteToolDescriptor[]>) | undefined;
   } = {}) {
@@ -64,9 +65,10 @@ export class InMemoryMcpSession implements McpSessionPort {
     return [...this.tools];
   }
 
-  async callTool(request: McpToolCallRequiredArgs, _options: McpToolCallOptions = {}): Promise<RemoteToolResult> {
+  async callTool(request: McpToolCallRequiredArgs, options: McpToolCallOptions = {}): Promise<RemoteToolResult> {
     this.calls.push({ name: request.name, arguments: request.arguments });
-    return this.handler({ name: request.name, args: request.arguments });
+    // The injected remote must see cancellation too, so wiring tests can exercise the real ABI.
+    return this.handler({ name: request.name, args: request.arguments }, options);
   }
 
   async close(_required: Record<string, never>): Promise<void> {

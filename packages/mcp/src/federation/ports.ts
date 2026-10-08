@@ -1,3 +1,29 @@
+/**
+ * @file The typed boundary for OUTBOUND MCP federation: the host daemon acting as a client of
+ * third-party servers. Inbound MCP injection hands an agent access to the host's own catalog;
+ * outbound federation accepts another party's tool surface, so its trust question is different.
+ *
+ * Why a declared port rather than `@modelcontextprotocol/sdk`: the SDK is not a dependency and
+ * would add a transitive tree to the boot path for a small JSON-RPC surface. A real adapter and
+ * a memory double share one interface instead.
+ *
+ * Layered seams are deliberate. McpSessionPort is the outer seam for trust and registration tests
+ * without protocol I/O. McpStdioChannel and McpHttpExchange are the inner seams, so the real
+ * client's framing, handshake, pagination, cancellation and timeouts run against scripted bytes.
+ * A fake at the outer seam alone would test the fake, which would not satisfy the constraint of
+ * exercising protocol behavior without a live third-party server. Both transports share protocol
+ * logic above those seams; adding a hosted transport does not redesign the federation boundary.
+ *
+ * All remote names, descriptions, schemas, annotations and results are untrusted input. These
+ * declarations type them; trust.ts vets them before they reach a registry or model.
+ */
+
+/**
+ * Remote behavior hints are self-declared by the party being classified. A host's native risk
+ * catalog refuses to let a tool downgrade its own risk by editing one word; letting a remote
+ * server change its annotations would make the same mistake with a party the host cannot control.
+ * Hints are carried and logged, but trust.ts only lets them make a tool LESS available, never more.
+ */
 export interface RemoteToolAnnotations {
   readonly title?: string | undefined;
   readonly readOnlyHint?: boolean | undefined;

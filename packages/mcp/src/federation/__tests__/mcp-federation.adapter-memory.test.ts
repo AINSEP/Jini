@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { test, onTestFinished, vi } from "vitest";
 
 import { InMemoryMcpSession, ScriptedMcpStdioChannel } from "../testing/adapter.memory.js";
+import type { RemoteToolResult } from "../ports.js";
 
 /**
  * @file Direct tests for the federation test doubles themselves (`adapter.memory.ts`), not through
@@ -18,6 +19,35 @@ test("InMemoryMcpSession: with no onCall supplied, callTool falls back to echoin
   const session = new InMemoryMcpSession({ tools: [] });
   const result = await session.callTool({ name: "some_tool", arguments: { a: 1 } });
   assert.deepEqual(result, { content: [{ type: "text", text: 'called some_tool with {"a":1}' }] });
+});
+
+test("InMemoryMcpSession passes cancellation to the injected remote and closes through the canonical ABI", async () => {
+  const controller = new AbortController();
+  let started!: () => void;
+  const remoteStarted = new Promise<void>(resolve => { started = resolve; });
+  const session = new InMemoryMcpSession({ tools: [] }, {
+    onCall: ({ name, args }, { signal } = {}) => {
+      started();
+      assert.equal(name, "list_tables");
+      assert.deepEqual(args, { schemas: ["public"] });
+      assert.equal(signal, controller.signal);
+      return new Promise<RemoteToolResult>((_resolve, reject) => {
+        signal!.addEventListener("abort", () => reject(new Error("remote call aborted")), { once: true });
+      });
+    },
+  });
+  const pending = session.callTool({ name: "list_tables", arguments: { schemas: ["public"] } }, { signal: controller.signal });
+  const rejected = assert.rejects(pending, { message: "remote call aborted" });
+  try {
+    await Promise.race([remoteStarted, rejected]);
+    controller.abort();
+    await rejected;
+    assert.deepEqual(session.calls, [{ name: "list_tables", arguments: { schemas: ["public"] } }]);
+  } finally {
+    controller.abort();
+    await session.close({});
+  }
+  assert.equal(session.closed, true);
 });
 
 test("ScriptedMcpStdioChannel: send() after close() throws, rather than silently accepting a message on a dead channel", () => {
