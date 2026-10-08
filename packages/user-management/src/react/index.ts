@@ -15,3 +15,8 @@ export type { MembersProps } from './members/Members.js';
 export { useMembers } from './members/hooks/use-members.hooks.js';
 export type { MembersController, MembersDependencies, MembersOptions } from './members/hooks/use-members.hooks.js';
 export { describeIdentityError } from './errors.js';
+
+export { userAccountCapabilities, isOwnerAccount, grantOptionLabel, formatGrantLabel, userRowMenuItems, describeUsersError } from './users/rules.js';
+export type { UserAccountCapabilities, UserRowMenuHandlers } from './users/rules.js';
+export { emptyRowState, memberRowMenuItems, describeMembersError } from './members/rules.js';
+export type { RowActionState, MemberRowMenuHandlers } from './members/rules.js';

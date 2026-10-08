@@ -10,7 +10,7 @@ function wrapper({ children }: { children: ReactNode }) { return <FetchQueryProv
 const submit = () => ({ preventDefault: vi.fn() }) as unknown as FormEvent;
 
 test('user creation, grants, email and status writes preserve exact port payloads and refresh the roster', async () => {
-  const port = createFakeUsersPort({}, { roles: [{ id: 'editor', workspaceId: 'fake-ws', name: 'Editor', isBuiltin: false }] });
+  const port = createFakeUsersPort({}, { meId: 'another-admin', roles: [{ id: 'editor', workspaceId: 'fake-ws', name: 'Editor', isBuiltin: false }] });
   const create = vi.spyOn(port, 'createUser');
   const { result } = renderHook(() => useUsers({ port, translate, queryScope: 'reconcile-users' }), { wrapper });
   await waitFor(() => expect(result.current.users).toEqual([]));

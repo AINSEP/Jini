@@ -68,7 +68,8 @@ test('member text and confirmation cancel labels use injected translation', asyn
 });
 
 test('two host scopes sharing a provider cannot see each other’s user cache', async () => {
-  const one = createFakeUsersPort({}, { users: [alice] });
+  // The caller must differ from the disable target; self-disable is protected.
+  const one = createFakeUsersPort({}, { users: [alice], meId: "another-admin" });
   const bob = { ...alice, principalId: 'bob', workspaceId: 'two', username: 'bob' };
   const two = createFakeUsersPort({}, { users: [bob] });
   function wrapper({ children }: { children: React.ReactNode }) { return <FetchQueryProvider>{children}</FetchQueryProvider>; }

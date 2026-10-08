@@ -8,10 +8,34 @@ import { buildAgentListHandles } from "@jini-ai/ui/panel-kit";
 
 import { memberRowMenuItems, type RowActionState } from "./rules.js";
 import { useMembers, type MembersDependencies, type MembersOptions } from "./hooks/use-members.hooks.js";
+import type { ReactNode } from "react";
 
+/**
+ * @file Admin "Members" screen (ADR-030, ADR-PIPE-013 Decision §7) — markup only.
+ *
+ * State and API calls live in `hooks/use-members.hooks.ts`; the row-menu logic, per-row action
+ * state shape, and the server-error-message override live in `rules.ts`. What stays here is what
+ * actually renders: the table and the confirm dialog.
+ *
+ * Mirrors `features/posts/Posts.tsx`'s fetch/loading/error/table shape. Adds the
+ * three row-level actions this remediation wires up (T039): disable, resend
+ * sign-in link, and a click-to-expand detail panel — all calling the 3
+ * already-existing, already-unused `apps/admin/src/lib/api.ts` client methods
+ * (`disableMember`, `requestMemberMagicLink`, `getMember`). No new backend
+ * contract needed. Pagination is explicitly deferred (ADR-PIPE-013 Decision
+ * §7) — not part of this screen yet.
+ *
+ * Per-row in-flight state disables only the clicked control (not the whole
+ * table), and errors surface via the existing `notice error` convention
+ * (inline per row for actions; a full-width banner for the initial load).
+ * Stays a single flat file, matching every other admin section's convention.
+ */
 export interface MembersProps extends MembersDependencies, MembersOptions {
-
   useMembersHook?: typeof useMembers | undefined;
+  /** Host terminology is copy, not a second members lifecycle. */
+  description?: string | undefined;
+  emptyDescription?: string | undefined;
+  renderServerLabel?: ((required: { value: string }) => ReactNode) | undefined;
 }
 
 interface MemberDetailPanelProps {
@@ -22,6 +46,10 @@ interface MemberDetailPanelProps {
   t: Translate;
 }
 
+/** The expanded row's detail panel — one of "loading" / "error" / the fetched fields / nothing
+ *  yet, extracted out of `MemberRow` so its three-way branch isn't counted in `MemberRow`'s own
+ *  scope. Same "the panel, not the row, was the actual size" split `Users.tsx`'s
+ *  `UserRow` -> `UserManagePanel` and `Roles.tsx`'s `PolicyRow` -> `PolicyRowActions` already use. */
 function MemberDetailPanel({ memberId, detailLoadingId, detailError, detail, t }: MemberDetailPanelProps) {
   if (detailLoadingId === memberId) return <div className="notice">{t("Loading detail…")}</div>;
   if (detailError) return <div className="notice error">{detailError}</div>;
@@ -50,12 +78,18 @@ interface MemberRowProps {
   onToggleDetail: (member: AdminMember) => Promise<void>;
   onResendSignInLink: (member: AdminMember) => Promise<void>;
   setConfirmingDisable: (member: AdminMember) => void;
-
+  /** This row's own distinct handle base — computed once, across every rendered row, by `Members`
+   *  (via `buildAgentListHandles`); see `Users.tsx`'s `UserRowProps.agentBase` for why a
+   *  per-instance uniqueness search does not work here. */
   agentBase: string;
   t: Translate;
   translate: Translate;
+  renderServerLabel?: MembersProps["renderServerLabel"];
 }
 
+/** One member's row plus its optional expanded detail row — extracted from `Members`'s
+ *  `.map()` body verbatim, same convention `Users.tsx`'s `UserRow`/`Roles.tsx`'s `PolicyRow` use.
+ *  `key` lives on the `<MemberRow>` element at the call site. */
 function MemberRow({
   member,
   rowState,
@@ -69,6 +103,7 @@ function MemberRow({
   agentBase,
   t,
   translate,
+  renderServerLabel,
 }: MemberRowProps) {
   return (
     <Fragment key={member.id}>
@@ -79,29 +114,24 @@ function MemberRow({
             className="link-button"
             onClick={() => void onToggleDetail(member)}
             aria-expanded={isExpanded}
-            {...agentHandle({ handle: `${agentBase}-toggle-detail` }, { role: "button", label: t(`Expand or collapse ${member.email}'s detail panel`) })}
+            {...agentHandle({ handle: `${agentBase}-toggle-detail` }, { role: "button", label: `Expand or collapse ${member.email}'s detail panel` })}
           >
             {member.email}
           </button>
         </td>
-        <td>{member.name ?? t("—")}</td>
+        <td>{member.name ?? "—"}</td>
         <td>
-          <span className={`status status-${member.status}`}>{t(member.status)}</span>
+          <span className={`status status-${member.status}`}>{renderServerLabel?.({ value: member.status }) ?? t(member.status)}</span>
         </td>
         <td>{formatTimestamp({ iso: member.createdAt })}</td>
         <td>
           <RowMenu
             triggerLabel={`${t("Actions for member")} "${member.email}"`}
             agentHandle={`${agentBase}-menu`}
-            items={memberRowMenuItems({
-              member,
-              rs: rowState,
-              handlers: {
-                onResendSignInLink: (m) => void onResendSignInLink(m),
-                onRequestDisable: setConfirmingDisable,
-              },
-              translate,
-            })}
+            items={memberRowMenuItems({ member, rs: rowState, handlers: {
+              onResendSignInLink: (m) => void onResendSignInLink(m),
+              onRequestDisable: setConfirmingDisable,
+            }, translate })}
           />
           {rowState.error ? (
             <div className="notice error" role="alert">
@@ -128,7 +158,9 @@ function MemberRow({
   );
 }
 
-export function Members({ useMembersHook = useMembers, port, translate: injectedTranslate, refresh }: MembersProps) {
+export function Members({ useMembersHook = useMembers, port, translate: injectedTranslate, refresh,
+  description = "People who have registered an account — review status, resend a sign-in link, or disable access.",
+  emptyDescription = "Registered members will show up here.", renderServerLabel }: MembersProps) {
   const {
     members,
     error,
@@ -149,6 +181,8 @@ export function Members({ useMembersHook = useMembers, port, translate: injected
   if (error) return <div className="notice error">{error}</div>;
   if (!members) return <div className="notice">{t("Loading members…")}</div>;
 
+  // Member ids are stable and unique, so they disambiguate one row's menu from another's — same
+  // reasoning as every other list on this workstream.
   const memberMenuBases = buildAgentListHandles({ prefix: "members-row", ids: members.map((member) => member.id) });
 
   return (
@@ -158,9 +192,7 @@ export function Members({ useMembersHook = useMembers, port, translate: injected
           <p className="page-kicker">{t("People")}</p>
           <h1 className="page-title">{t("Members")}</h1>
           <p className="page-description">
-            {t(
-              "People who have registered an account — review status, resend a sign-in link, or disable access.",
-            )}
+            {t(description)}
           </p>
         </div>
       </div>
@@ -169,7 +201,7 @@ export function Members({ useMembersHook = useMembers, port, translate: injected
         <div className="card">
           <div className="empty-state">
             <p>{t("No members yet.")}</p>
-            <p className="page-description">{t("Registered members will show up here.")}</p>
+            <p className="page-description">{t(emptyDescription)}</p>
           </div>
         </div>
       ) : (
@@ -200,6 +232,7 @@ export function Members({ useMembersHook = useMembers, port, translate: injected
               agentBase={memberMenuBases[index]!}
               t={t}
               translate={translate}
+              renderServerLabel={renderServerLabel}
             />
           ))}
         </tbody>
@@ -207,7 +240,7 @@ export function Members({ useMembersHook = useMembers, port, translate: injected
       </div>
       )}
       <ConfirmDialog
-      cancelLabel={t("Cancel")}
+        cancelLabel={t("Cancel")}
         open={confirmingDisable !== null}
         agentHandle="members-disable"
         title={t("Disable this member?")}

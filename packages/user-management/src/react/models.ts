@@ -12,6 +12,9 @@ export interface AdminIdentityUser {
   status: "active" | "disabled";
   createdAt: string;
   lastLoginAt?: string | undefined;
+  /** Server classification covers ownership granted by policy, not only named roles. */
+  isOwner?: boolean | undefined;
+  isProtectedAccount?: boolean | undefined;
   roleIds: string[];
   policyIds: string[];
 }
