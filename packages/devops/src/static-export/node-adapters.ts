@@ -4,7 +4,7 @@ import { lstat, mkdir, open, readdir, realpath, rm } from 'node:fs/promises';
 import { createServer, type RequestListener } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
-import { ExportOutputNotEmptyError, ExportPathError, type AppFactoryPort, type ArtifactWriterPort, type AssetSourcePort } from './contracts.js';
+import { ExportPathError, type AppFactoryPort, type ArtifactWriterPort, type AssetSourcePort } from './contracts.js';
 import { safeRelativeOutputFile } from './transforms.js';
 
 /** Require regular directories at every ancestor. Hosts must use canonical absolute storage paths.
@@ -28,14 +28,16 @@ async function ensureDirectory({ directory, label }: { directory: string; label:
     if (!systemAlias && (!info.isDirectory() || info.isSymbolicLink())) throw new ExportPathError(`${label} path must be a regular directory.`);
   }
 }
-/** Caller-owned output directory, explicit clean, and no-follow regular-file writes. */
-export function createNodeArtifactWriter(_required: Record<string, never>, optional: { nonemptyReason?: (required: { outputDir: string; count: number }) => string } = {}): ArtifactWriterPort {
+/** Overlay exports in a caller-owned directory; only explicit clean removes unrelated files.
+ * No persisted ownership marker exists, so overlays also support exports from earlier versions.
+ * Paths and existing files still require regular, no-follow storage; filesystem errors propagate.
+ * The legacy nonemptyReason option remains accepted for source compatibility.
+ */
+export function createNodeArtifactWriter(_required: Record<string, never>, _optional: { nonemptyReason?: (required: { outputDir: string; count: number }) => string } = {}): ArtifactWriterPort {
   return {
     async prepare({ outputDir }, options = {}) {
       await ensureDirectory({ directory: outputDir, label: 'Output' }, { create: true });
-      const entries = await readdir(outputDir);
-      if (entries.length && !options.clean) throw new ExportOutputNotEmptyError(optional.nonemptyReason?.({ outputDir, count: entries.length }) ?? `export output directory '${outputDir}' is not empty (${entries.length} existing ${entries.length === 1 ? 'entry' : 'entries'}) — pass clean: true to remove its contents first, or select an empty/new directory`);
-      if (options.clean) for (const entry of entries) await rm(path.join(outputDir, entry), { recursive: true, force: true });
+      if (options.clean) for (const entry of await readdir(outputDir)) await rm(path.join(outputDir, entry), { recursive: true, force: true });
     },
     async write({ outputDir, outputFile, data }) {
       safeRelativeOutputFile({ value: outputFile });

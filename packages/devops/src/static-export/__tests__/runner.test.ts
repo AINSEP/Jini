@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { test } from 'vitest';
 import { exportSite } from '../runner.js';
+import { createNodeArtifactWriter } from '../node-adapters.js';
 import { redirectOutcomeFor, renderRedirectStub, rewriteRouteBodyForBasePath } from '../transforms.js';
 import { firstExportFailure } from '../failure-summary.js';
 import type { ExportSiteArgs, RouteManifest } from '../contracts.js';
@@ -56,6 +60,61 @@ test('exports real response bytes/content types, route tree, redirect destinatio
   assert.equal(f.closes(), 1);
   assert.equal(new Headers(f.initByPath.get('/')?.headers).get('x-export-mode'), '1');
   assert.equal(f.initByPath.get('/old')?.redirect, 'manual');
+});
+
+test('second export with clean:false replaces its HTML and binary files while keeping foreign files', async () => {
+  const outputDir = await realpath(await mkdtemp(path.join(tmpdir(), 'static-export-rebuild-')));
+  const f = fixture();
+  f.args.outputDir = outputDir;
+  f.args.writer = createNodeArtifactWriter({});
+  try {
+    const first = await exportSite(f.args);
+    assert.deepEqual(first.routes.failed, []);
+    assert.deepEqual(first.assets.failed, []);
+    assert.deepEqual(await readFile(path.join(outputDir, 'assets/a.bin')), Buffer.from([0,128,255]));
+    await writeFile(path.join(outputDir, 'foreign.txt'), 'user-added file');
+    await writeFile(path.join(outputDir, 'assets/foreign.txt'), 'user-added asset');
+    const originalFetch = f.args.fetch;
+    const updatedHtml = '<html>updated<img src="/assets/a.bin"></html>';
+    f.args.fetch = async (input, options) => {
+      const pathname = new URL(input.url).pathname;
+      if (pathname === '/') return new Response(updatedHtml, { headers: { 'content-type': 'text/html' } });
+      if (pathname === '/assets/a.bin') return new Response(new Uint8Array([7]), { headers: { 'content-type': 'application/octet-stream' } });
+      return originalFetch(input, options);
+    };
+    // Each build creates a new writer; rebuilding must not depend on process-local ownership state.
+    f.args.writer = createNodeArtifactWriter({});
+    const second = await exportSite(f.args, { clean: false });
+    assert.deepEqual(second.routes.failed, []);
+    assert.deepEqual(second.assets.failed, []);
+    assert.equal(await readFile(path.join(outputDir, 'index.html'), 'utf8'), updatedHtml);
+    assert.deepEqual(await readFile(path.join(outputDir, 'assets/a.bin')), Buffer.from([7]));
+    assert.equal(await readFile(path.join(outputDir, 'foreign.txt'), 'utf8'), 'user-added file');
+    assert.equal(await readFile(path.join(outputDir, 'assets/foreign.txt'), 'utf8'), 'user-added asset');
+    assert.equal(f.closes(), 2);
+  } finally { await rm(outputDir, { recursive: true, force: true }); }
+});
+
+test('second export with clean:true removes foreign files before rebuilding', async () => {
+  const outputDir = await realpath(await mkdtemp(path.join(tmpdir(), 'static-export-clean-')));
+  const f = fixture();
+  f.args.outputDir = outputDir;
+  f.args.writer = createNodeArtifactWriter({});
+  try {
+    const first = await exportSite(f.args);
+    assert.deepEqual(first.routes.failed, []);
+    assert.deepEqual(first.assets.failed, []);
+    await writeFile(path.join(outputDir, 'foreign.txt'), 'user-added file');
+    await writeFile(path.join(outputDir, 'assets/foreign.txt'), 'user-added asset');
+    const second = await exportSite(f.args, { clean: true });
+    assert.deepEqual(second.routes.failed, []);
+    assert.deepEqual(second.assets.failed, []);
+    await assert.rejects(readFile(path.join(outputDir, 'foreign.txt')), { code: 'ENOENT' });
+    await assert.rejects(readFile(path.join(outputDir, 'assets/foreign.txt')), { code: 'ENOENT' });
+    assert.equal(await readFile(path.join(outputDir, 'index.html'), 'utf8'), first.routes.succeeded.find(route => route.path === '/')!.data);
+    assert.deepEqual(await readFile(path.join(outputDir, 'assets/a.bin')), Buffer.from([0,128,255]));
+    assert.equal(f.closes(), 2);
+  } finally { await rm(outputDir, { recursive: true, force: true }); }
 });
 
 test('base path normalization is inert when absent and rewrites output while crawling raw URLs', async () => {

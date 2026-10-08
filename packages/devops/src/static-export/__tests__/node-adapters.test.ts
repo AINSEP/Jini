@@ -4,14 +4,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'vitest';
 import { createNodeAppFactory, createNodeArtifactWriter, createNodeAssetSource } from '../node-adapters.js';
-import { ExportOutputNotEmptyError } from '../contracts.js';
 
-test('Node writer refuses nonempty output, supports explicit clean and writes contained bytes', async () => {
+test('Node writer preserves nonempty output, supports explicit clean and writes contained bytes', async () => {
   const outputDir = await realpath(await mkdtemp(path.join(tmpdir(), 'static-export-')));
   const writer = createNodeArtifactWriter({});
   try {
     await writeFile(path.join(outputDir, 'stale.txt'), 'stale');
-    await assert.rejects(writer.prepare({ outputDir }), ExportOutputNotEmptyError);
+    await writer.prepare({ outputDir });
+    assert.equal(await readFile(path.join(outputDir, 'stale.txt'), 'utf8'), 'stale');
     await writer.prepare({ outputDir }, { clean: true });
     await writer.write({ outputDir, outputFile: 'deep/image.bin', data: Buffer.from([0,255]) });
     assert.deepEqual(await readFile(path.join(outputDir, 'deep/image.bin')), Buffer.from([0,255]));
@@ -62,13 +62,13 @@ test('Node app adapter binds only loopback, serves the supplied app and closes i
   await assert.rejects(fetch(session.baseUrl));
 });
 
-test('writer accepts the platform temporary directory and keeps host refusal wording', async () => {
+test('writer accepts the platform temporary directory and can prepare it again without cleaning', async () => {
   const outputDir = await mkdtemp(path.join(tmpdir(), 'static-export-native-'));
   const writer = createNodeArtifactWriter({}, { nonemptyReason: ({ count }) => `Output has ${count} existing file.` });
   try {
     await writer.prepare({ outputDir }, {});
     await writer.write({ outputDir, outputFile: 'existing.txt', data: 'saved' });
-    await assert.rejects(writer.prepare({ outputDir }, {}), { message: 'Output has 1 existing file.' });
+    await writer.prepare({ outputDir }, {});
     assert.equal(await readFile(path.join(outputDir, 'existing.txt'), 'utf8'), 'saved');
   } finally { await rm(outputDir, { recursive: true, force: true }); }
 });
