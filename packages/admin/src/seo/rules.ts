@@ -139,6 +139,15 @@ function parseMediaRefAssetId(ref: string): string | null {
   return ref.slice(0, separatorIndex);
 }
 
+/** A library selection is displayed as a preview while its persisted reference stays intact.
+ * URLs and incomplete input remain editable. @complexity O(n) in value length; no I/O.
+ */
+export function isStoredMediaRef({ value }: { value: string }, _optional: Record<string, never> = {}): boolean {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  // A URL typed one character at a time reaches "https:/" before it reaches "https://".
+  return !trimmed.includes(":/") && parseMediaRefAssetId(trimmed) !== null;
+}
+
 /** Builds the `{slug}:public` reference `MediaRefField` writes into the field on selection —
  *  prefers the asset's readable slug over its id (readable-slugs S5b, 2026-09-23), matching
  *  `resolveSeoImageRef`'s own id-or-slug lookup server-side (`findMediaByIdOrSlug`,

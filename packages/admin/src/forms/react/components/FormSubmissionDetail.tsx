@@ -3,6 +3,7 @@ import { agentHandle } from '@jini-ai/agentic';
 import { useWiredFormSubmissionDetail } from '../hooks/use-form-submission-detail.hooks.js';
 import { useFormSubmissionDate } from '../hooks/use-form-submission-date.hooks.js';
 import { FormSubmissionDate } from "./FormSubmissionDate.js";
+import { formSubmissionRows, type FormAnswerColumn } from '../../html-rules.js';
 export interface FormSubmissionDetailProps {
   formId: string;
   submissionId: string;
@@ -12,6 +13,7 @@ export interface FormSubmissionDetailProps {
   useFormSubmissionDetailHook?: typeof useWiredFormSubmissionDetail;
   /** Translator closure — see `FormEditor()`'s own `t`. */
   t: (key: string) => string;
+  answerColumns?: readonly FormAnswerColumn[];
 }
 
 export function FormSubmissionDetail({
@@ -21,6 +23,7 @@ export function FormSubmissionDetail({
   onDeleted,
   useFormSubmissionDetailHook = useWiredFormSubmissionDetail,
   t,
+  answerColumns = [],
 }: FormSubmissionDetailProps, _optional: Record<string, never> = {}) {
   const formatDate = useFormSubmissionDate({});
   const { submission, error, confirmOpen, deleting, requestDelete, cancelDelete, confirmDelete } = useFormSubmissionDetailHook({
@@ -60,10 +63,10 @@ export function FormSubmissionDetail({
               <th>{t("Source IP")}</th>
               <td>{submission.sourceIp}</td>
             </tr>
-            {Object.entries(submission.data).map(([key, value]) => (
+            {formSubmissionRows({ data: submission.data, answerColumns }, { unknownFieldLabel: t("Unknown field") }).map(({ key, label, value }) => (
               <tr key={key}>
-                <th>{key}</th>
-                <td>{String(value)}</td>
+                <th className="jini-submission-field-label">{label}</th>
+                <td>{value}</td>
               </tr>
             ))}
           </tbody>
@@ -95,4 +98,3 @@ export function FormSubmissionDetail({
     </div>
   );
 }
-

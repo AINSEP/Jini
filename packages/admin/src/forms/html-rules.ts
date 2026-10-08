@@ -15,6 +15,20 @@ export function formAnswerColumns({ fields }: { fields: readonly AdminFormField[
   }));
 }
 
+/** Detail rows reuse the table's persisted field labels, including HTML-derived descriptors.
+ * Removed fields retain their answers with a plain fallback instead of exposing their IDs.
+ * @complexity O(c + a) time and space for c columns and a submitted answers; no I/O.
+ */
+export function formSubmissionRows(
+  { data, answerColumns }: { data: AdminFormSubmission['data']; answerColumns: readonly FormAnswerColumn[] },
+  { unknownFieldLabel = "Unknown field" }: { unknownFieldLabel?: string } = {},
+): Array<{ key: string; label: string; value: string }> {
+  const labels = new Map(answerColumns.map(column => [column.key, column.header]));
+  return Object.entries(data).map(([key, value]) => ({
+    key, label: labels.get(`answer:${key}`)?.trim() || unknownFieldLabel, value: String(value),
+  }));
+}
+
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 }

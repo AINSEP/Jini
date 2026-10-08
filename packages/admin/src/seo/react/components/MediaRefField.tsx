@@ -17,6 +17,10 @@ import { useWiredMediaRefField, useMediaRefPresentation, handleSpread } from "..
  * `react/hooks/MediaRefField.hooks.ts`, split out the same way `MediaPickerDialog`/`MediaPickerDialog.hooks
  * .tsx` does; this file stays props-and-JSX only. `MediaPickerDialog` itself is reused unchanged
  * (`components/MediaPickerDialog/MediaPickerDialog.tsx`) — no fork, no new picker UI.
+ *
+ * 2026-10-08 polish: the original editable-input rationale above still applies to pasted URLs
+ * and empty fields. A selected library reference now shows plain copy with its preview; Remove
+ * returns to manual entry. A hidden input preserves the exact FormData value on defaults saves.
  */
 
 export interface MediaRefFieldProps {
@@ -50,25 +54,28 @@ export function MediaRefField({
   useField = useWiredMediaRefField,
 }: MediaRefFieldProps, _optional: Record<string, never> = {}) {
   const t = useSeoCopy();
-  const { Picker = MediaPickerBridge } = useMediaRefPresentation();
+  const { Picker = MediaPickerBridge, storedReference } = useMediaRefPresentation({ value });
   const { pickerOpen, openPicker, closePicker, handleSelect, clear, previewUrl, accept } = useField({ value, onChange });
 
   return (
-    <div className="field media-ref-field">
-      <label className="field-label" htmlFor={id}>
+    <div className="jini-field jini-media-ref-field">
+      <label className="jini-field-label" htmlFor={id}>
         {label}
       </label>
-      <div className="media-ref-field-row">
+      <div className="jini-media-ref-field-row">
         <input
+          className="jini-input"
           id={id}
-          name={name}
-          value={value}
+          name={storedReference ? undefined : name}
+          value={storedReference ? t({ locale, key: "Selected image" }) : value}
+          readOnly={storedReference}
           onChange={(e) => onChange(e.target.value)}
           {...(base ? agentHandle({ handle: base }, { role: "field", label }) : {})}
         />
+        {storedReference && name ? <input type="hidden" name={name} value={value} /> : null}
         <button
           type="button"
-          className="btn-secondary"
+          className="jini-btn jini-btn-secondary"
           onClick={openPicker}
           {...handleSpread({ ...(base === undefined ? {} : { base }), suffix: "choose", label: `Choose an image for: ${label}` })}
         >
@@ -77,7 +84,7 @@ export function MediaRefField({
         {value ? (
           <button
             type="button"
-            className="btn-secondary"
+            className="jini-btn jini-btn-secondary"
             onClick={clear}
             {...handleSpread({ ...(base === undefined ? {} : { base }), suffix: "clear", label: `Remove the selected image for: ${label}` })}
           >
@@ -85,7 +92,7 @@ export function MediaRefField({
           </button>
         ) : null}
       </div>
-      {previewUrl ? <img className="media-ref-field-preview" src={previewUrl} alt={`${label} preview`} /> : null}
+      {previewUrl ? <img className="jini-media-ref-field-preview" src={previewUrl} alt={`${label} preview`} /> : null}
       {pickerOpen ? (
         <Picker onSelect={handleSelect} onCancel={closePicker} accept={accept} agentHandle={base ? `${base}-dialog` : undefined} />
       ) : null}

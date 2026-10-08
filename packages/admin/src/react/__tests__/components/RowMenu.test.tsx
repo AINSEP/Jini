@@ -155,6 +155,36 @@ describe('RowMenu keyboard navigation', () => {
     expect(trigger()).toHaveFocus();
   });
 
+  it('Escape on document closes after focus leaves the popup, without selecting an action', () => {
+    const list = items();
+    const { trigger } = renderMenu(list);
+    fireEvent.click(trigger());
+    trigger().focus();
+    fireEvent.keyDown(document, { key: 'Enter' });
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(trigger()).toHaveFocus();
+    for (const item of list) expect(item.onSelect).not.toHaveBeenCalled();
+  });
+
+  it('detaches the document Escape listener on close and unmount', () => {
+    const { unmount } = render(<RowMenu items={items()} triggerLabel='Row actions' />);
+    const trigger = screen.getByRole('button', { name: 'Row actions' });
+    fireEvent.click(trigger);
+    const firstEscape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    fireEvent(document, firstEscape);
+    expect(firstEscape.defaultPrevented).toBe(true);
+    const closedEscape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    fireEvent(document, closedEscape);
+    expect(closedEscape.defaultPrevented).toBe(false);
+    fireEvent.click(trigger);
+    unmount();
+    const unmountedEscape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    fireEvent(document, unmountedEscape);
+    expect(unmountedEscape.defaultPrevented).toBe(false);
+  });
+
   it('Tab closes without stealing focus back to the trigger', () => {
     const { trigger } = renderMenu();
     fireEvent.click(trigger());

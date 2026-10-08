@@ -55,6 +55,15 @@ function fakeController(overrides: Partial<CommentQueueController> = {}): Commen
 }
 
 describe("QueueSection — useCommentQueueHook injection", () => {
+  it('shows human status labels while filtering by the original protocol value', async () => {
+    const user = userEvent.setup();
+    const controller = fakeController();
+    render(<QueueSection permissions={['comments.read']} locale="en" useCommentQueueHook={() => controller} />);
+    const select = screen.getByRole('combobox', { name: 'Status' });
+    expect(within(select).getAllByRole('option').map(option => option.textContent)).toEqual(['Pending', 'Approved', 'Spam', 'Trash']);
+    await user.selectOptions(select, 'approved');
+    expect(controller.setStatus).toHaveBeenCalledWith('approved');
+  });
   it("renders a comment row from the injected fake, with no fetch involved", () => {
     render(
       <QueueSection permissions={["comments.read"]} locale="en" useCommentQueueHook={() => fakeController()} />,

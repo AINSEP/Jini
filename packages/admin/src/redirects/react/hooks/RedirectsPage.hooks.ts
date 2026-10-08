@@ -15,9 +15,9 @@ export function useRedirectsPage(
   const columns = [
     { key: 'from', header: t('From'), cell: (rule: AdminRedirect) => rule.fromPattern },
     { key: 'to', header: t('To'), cell: (rule: AdminRedirect) => rule.toTarget },
-    { key: 'type', header: t('Type'), cell: (rule: AdminRedirect) => rule.matchType },
+    { key: 'type', header: t('Type'), cell: (rule: AdminRedirect) => t(rule.matchType, { serverLabel: rule.matchType }) },
     { key: 'code', header: t('Code'), cell: (rule: AdminRedirect) => rule.statusCode },
-    { key: 'source', header: t('Source'), cell: (rule: AdminRedirect) => rule.source },
+    { key: 'source', header: t('Source'), cell: (rule: AdminRedirect) => t(rule.source, { serverLabel: rule.source }) },
     // The host's shared serverLabel owns enum localization, including unknown-value passthrough.
     { key: 'status', header: t('Status'), cell: (rule: AdminRedirect) => createElement('span', { className: `status status-${rule.status}` }, t(rule.status, { serverLabel: rule.status })) },
     { key: 'hits', header: t('Hits'), cell: (rule: AdminRedirect, index: number) => createElement(HitCountCell, { t, redirectId: rule.id, ...(rowMenuHandles[index] ? { agentHandleBase: rowMenuHandles[index] } : {}) }) },

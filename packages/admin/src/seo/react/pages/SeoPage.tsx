@@ -105,11 +105,11 @@ export interface SeoSectionProps {
  */
 function SeoSection({ title, children }: SeoSectionProps) {
   return (
-    <section className="seo-section">
-      <div className="seo-section-head">
-        <h2 className="seo-section-title">{title}</h2>
+    <section className="jini-seo-section">
+      <div className="jini-seo-section-head">
+        <h2 className="jini-seo-section-title">{title}</h2>
       </div>
-      <div className="seo-section-body">{children}</div>
+      <div className="jini-seo-section-body">{children}</div>
     </section>
   );
 }
@@ -129,8 +129,8 @@ function EntryPicker({ locale, entryId, onChange, useEntryPickerHook = useWiredE
   const t = useSeoCopy();
   const { entries, error } = useEntryPickerHook();
 
-  if (error) return <div className="notice error">{error}</div>;
-  if (!entries) return <div className="notice">{t({ locale: locale, key: "Loading entries…" })}</div>;
+  if (error) return <div className="jini-notice jini-notice-error">{error}</div>;
+  if (!entries) return <div className="jini-notice">{t({ locale: locale, key: "Loading entries…" })}</div>;
 
   /* The "Entry" caption is no longer painted (owner, 2026-09-06: "you can actually just get rid of
      'Entry'") — the placeholder option already says "Choose an entry…", so the visible word was
@@ -142,9 +142,10 @@ function EntryPicker({ locale, entryId, onChange, useEntryPickerHook = useWiredE
      the select keeps the section body's sizing exactly as if the label were not there.
      The i18n key is unchanged and still passed through `t`, so nothing dangles. */
   return (
-    <label className="a11y-label-wrap">
-      <span className="visually-hidden">{t({ locale: locale, key: "Entry" })}</span>
+    <label className="jini-a11y-label-wrap">
+      <span className="jini-visually-hidden">{t({ locale: locale, key: "Entry" })}</span>
       <select
+        className="jini-select"
         value={entryId}
         onChange={(e) => onChange(e.target.value)}
         {...agentHandle({ handle: "seo-entry-picker" }, {
@@ -172,22 +173,22 @@ function AnalyzePanel(props: { locale: string; analysis: SeoEntryAnalysis }) {
   const { sortedIssues } = useAnalyzePanel({ analysis: props.analysis });
 
   return (
-    <div className="seo-analyze-panel">
+    <div className="jini-seo-analyze-panel">
       <h3>{t({ locale: locale, key: "Analysis" })}</h3>
       <p>
         {t({ locale: locale, key: "Score:" })} <strong>{props.analysis.score}</strong>
       </p>
       {sortedIssues.length === 0 ? (
-        <p className="muted-cell">{t({ locale: locale, key: "No issues." })}</p>
+        <p className="jini-muted-cell">{t({ locale: locale, key: "No issues." })}</p>
       ) : (
         <ul>
           {sortedIssues.map((issue, i) => (
             <li key={`${issue.code}-${i}`}>
-              <span className={`status status-${issue.severity === "error" ? "failure" : issue.severity === "warning" ? "unavailable" : "success"}`}>
+              <span className={`jini-status jini-status-${issue.severity === "error" ? "failure" : issue.severity === "warning" ? "unavailable" : "success"}`}>
                 {issue.severity}
               </span>{" "}
               <code>{issue.code}</code>
-              {issue.field ? <span className="muted-cell"> ({issue.field})</span> : null} — {issue.message}
+              {issue.field ? <span className="jini-muted-cell"> ({issue.field})</span> : null} — {issue.message}
             </li>
           ))}
         </ul>
@@ -222,11 +223,11 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
   const t = useSeoCopy();
   const { resolved, analysis, loadError, saving, saveError, notice, fieldValue, setField, save, touched } = useSeoEntryPanelHook({ entryId });
 
-  if (loadError) return <div className="notice error">{loadError}</div>;
-  if (!resolved) return <div className="notice">{t({ locale: locale, key: "Loading entry SEO…" })}</div>;
+  if (loadError) return <div className="jini-notice jini-notice-error">{loadError}</div>;
+  if (!resolved) return <div className="jini-notice">{t({ locale: locale, key: "Loading entry SEO…" })}</div>;
 
   return (
-    <div className="seo-entry-panel">
+    <div className="jini-seo-entry-panel">
       <h3>{t({ locale: locale, key: "Per-entry overrides" })}</h3>
       {/* Two `t()` calls in one paragraph, not one longer string: the first sentence's English text
           IS its i18n key and is translated in all 21 locales (`seo-i18n.ts`), so extending it would
@@ -235,13 +236,13 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
           makes for the tab labels. It exists because a field's two empty states used to be
           indistinguishable AND unescapable: emptying a box stored `""` as a real override, which
           `seo.ts` resolves ahead of the site default, so the operator had no way back. */}
-      <p className="muted-cell">
+      <p className="jini-muted-cell">
         {t({ locale: locale, key: "Fields show the currently-effective value (author override, or site default, or derived from the entry). Only fields you change here are saved as overrides." })}{" "}
         {t({ locale: locale, key: "Empty a field and save to remove its override — the entry falls back to the site default." })}
       </p>
-      {notice ? <div className="notice">{notice}</div> : null}
+      {notice ? <div className="jini-notice">{notice}</div> : null}
       {saveError ? (
-        <div className="notice error" role="alert">
+        <div className="jini-notice jini-notice-error" role="alert">
           {saveError}
         </div>
       ) : null}
@@ -249,6 +250,7 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
       <label>
         {t({ locale: locale, key: "Title" })}
         <input
+          className="jini-input"
           value={fieldValue("title", resolved.title) ?? ""}
           onChange={(e) => setField("title", e.target.value)}
           {...agentHandle({ handle: "seo-entry-title" }, { role: "field", label: "This entry's SEO title override" })}
@@ -257,6 +259,7 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
       <label>
         {t({ locale: locale, key: "Description" })}
         <textarea
+          className="jini-textarea"
           value={fieldValue("description", resolved.description ?? "") ?? ""}
           onChange={(e) => setField("description", e.target.value)}
           {...agentHandle({ handle: "seo-entry-description" }, { role: "field", label: "This entry's SEO description override" })}
@@ -265,6 +268,7 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
       <label>
         {t({ locale: locale, key: "Canonical URL" })}
         <input
+          className="jini-input"
           value={fieldValue("canonical", resolved.canonical) ?? ""}
           onChange={(e) => setField("canonical", e.target.value)}
           {...agentHandle({ handle: "seo-entry-canonical" }, { role: "field", label: "This entry's canonical URL override" })}
@@ -272,6 +276,7 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
       </label>
       <label>
         <input
+          className="jini-input"
           type="checkbox"
           checked={fieldValue("noindex", resolved.robots.noindex) ?? false}
           onChange={(e) => setField("noindex", e.target.checked)}
@@ -281,6 +286,7 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
       </label>
       <label>
         <input
+          className="jini-input"
           type="checkbox"
           checked={fieldValue("nofollow", resolved.robots.nofollow) ?? false}
           onChange={(e) => setField("nofollow", e.target.checked)}
@@ -291,6 +297,7 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
       <label>
         {t({ locale: locale, key: "OG title" })}
         <input
+          className="jini-input"
           value={fieldValue("ogTitle", resolved.openGraph.title) ?? ""}
           onChange={(e) => setField("ogTitle", e.target.value)}
           {...agentHandle({ handle: "seo-entry-og-title" }, { role: "field", label: "This entry's Open Graph title override" })}
@@ -299,6 +306,7 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
       <label>
         {t({ locale: locale, key: "OG description" })}
         <input
+          className="jini-input"
           value={fieldValue("ogDescription", resolved.openGraph.description ?? "") ?? ""}
           onChange={(e) => setField("ogDescription", e.target.value)}
           {...agentHandle({ handle: "seo-entry-og-description" }, { role: "field", label: "This entry's Open Graph description override" })}
@@ -307,7 +315,7 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
       <MediaRefField
         locale={locale}
         id="seo-entry-og-image"
-        label={t({ locale: locale, key: "OG image (media ref or URL)" })}
+        label={t({ locale: locale, key: "OG image" })}
         value={fieldValue("ogImage", resolved.openGraph.image ?? "") ?? ""}
         onChange={(value) => setField("ogImage", value)}
         agentHandle="seo-entry-og-image"
@@ -315,6 +323,7 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
       <label>
         {t({ locale: locale, key: "Twitter title" })}
         <input
+          className="jini-input"
           value={fieldValue("twitterTitle", resolved.twitter.title) ?? ""}
           onChange={(e) => setField("twitterTitle", e.target.value)}
           {...agentHandle({ handle: "seo-entry-twitter-title" }, { role: "field", label: "This entry's Twitter card title override" })}
@@ -323,6 +332,7 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
       <label>
         {t({ locale: locale, key: "Twitter description" })}
         <input
+          className="jini-input"
           value={fieldValue("twitterDescription", resolved.twitter.description ?? "") ?? ""}
           onChange={(e) => setField("twitterDescription", e.target.value)}
           {...agentHandle({ handle: "seo-entry-twitter-description" }, { role: "field", label: "This entry's Twitter card description override" })}
@@ -331,16 +341,16 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
       <MediaRefField
         locale={locale}
         id="seo-entry-twitter-image"
-        label={t({ locale: locale, key: "Twitter image (media ref or URL)" })}
+        label={t({ locale: locale, key: "Twitter image" })}
         value={fieldValue("twitterImage", resolved.twitter.image ?? "") ?? ""}
         onChange={(value) => setField("twitterImage", value)}
         agentHandle="seo-entry-twitter-image"
       />
 
-      <span className="editor-actions">
+      <span className="jini-editor-actions">
         <button
           type="button"
-          className="btn-secondary"
+          className="jini-btn jini-btn-secondary"
           onClick={save}
           disabled={saving || Object.keys(touched).length === 0}
           {...agentHandle({ handle: "seo-entry-save-overrides" }, { role: "button", label: "Save this entry's SEO overrides" })}
@@ -375,7 +385,7 @@ export function SeoEntrySection({ locale, useSeoEntrySectionHook = useSeoEntrySe
 
   return (
     <div
-      className="seo-panel seo-panel--full seo-entry-section"
+      className="jini-seo-panel jini-seo-panel--full jini-seo-entry-section"
       {...agentHandle({ handle: "seo-per-entry" }, {
         role: "region",
         label: "Per-entry SEO overrides — pick one entry and edit or analyze its metadata",
@@ -417,7 +427,7 @@ export function SeoDefaultsTab({ controller }: { controller: SeoTabController },
 
   return (
     <form
-      className="seo-panel seo-panel--full"
+      className="jini-seo-panel jini-seo-panel--full"
       {...agentHandle({ handle: "seo-defaults-form" }, {
         role: "form",
         label: "Site-wide SEO defaults — title template, meta description, social image, robots",
@@ -425,11 +435,12 @@ export function SeoDefaultsTab({ controller }: { controller: SeoTabController },
       onSubmit={submit}
     >
       <SeoSection title={t({ locale: locale, key: "Search appearance" })}>
-        <div className="field">
-          <label className="field-label" htmlFor="seo-title-template">
+        <div className="jini-field">
+          <label className="jini-field-label" htmlFor="seo-title-template">
             {t({ locale: locale, key: "Title template (must contain %s)" })}
           </label>
           <input
+            className="jini-input"
             id="seo-title-template"
             name="titleTemplate"
             defaultValue={settings.titleTemplate}
@@ -439,11 +450,12 @@ export function SeoDefaultsTab({ controller }: { controller: SeoTabController },
             })}
           />
         </div>
-        <div className="field">
-          <label className="field-label" htmlFor="seo-default-description">
+        <div className="jini-field">
+          <label className="jini-field-label" htmlFor="seo-default-description">
             {t({ locale: locale, key: "Default meta description" })}
           </label>
           <textarea
+            className="jini-textarea"
             id="seo-default-description"
             name="defaultDescription"
             defaultValue={orEmpty({ value: settings.defaultDescription })}
@@ -465,16 +477,17 @@ export function SeoDefaultsTab({ controller }: { controller: SeoTabController },
           locale={locale}
           id="seo-default-og-image"
           name="defaultOgImage"
-          label={t({ locale: locale, key: "Default Open Graph / Twitter image (media ref)" })}
+          label={t({ locale: locale, key: "Default Open Graph / Twitter image" })}
           value={defaultOgImage}
           onChange={setDefaultOgImage}
           agentHandle="seo-default-og-image"
         />
-        <div className="field">
-          <label className="field-label" htmlFor="seo-twitter-site">
+        <div className="jini-field">
+          <label className="jini-field-label" htmlFor="seo-twitter-site">
             {t({ locale: locale, key: "Twitter @site handle" })}
           </label>
           <input
+            className="jini-input"
             id="seo-twitter-site"
             name="twitterSite"
             defaultValue={orEmpty({ value: settings.twitterSite })}
@@ -487,8 +500,9 @@ export function SeoDefaultsTab({ controller }: { controller: SeoTabController },
       </SeoSection>
 
       <SeoSection title={t({ locale: locale, key: "Crawling" })}>
-        <label className="form-checkbox-field">
+        <label className="jini-form-checkbox-field">
           <input
+            className="jini-input"
             type="checkbox"
             name="noindex"
             defaultChecked={settings.defaultRobots.noindex}
@@ -499,8 +513,9 @@ export function SeoDefaultsTab({ controller }: { controller: SeoTabController },
           />
           {t({ locale: locale, key: "Default noindex" })}
         </label>
-        <label className="form-checkbox-field">
+        <label className="jini-form-checkbox-field">
           <input
+            className="jini-input"
             type="checkbox"
             name="nofollow"
             defaultChecked={settings.defaultRobots.nofollow}
@@ -511,8 +526,9 @@ export function SeoDefaultsTab({ controller }: { controller: SeoTabController },
           />
           {t({ locale: locale, key: "Default nofollow" })}
         </label>
-        <label className="form-checkbox-field">
+        <label className="jini-form-checkbox-field">
           <input
+            className="jini-input"
             type="checkbox"
             name="sitemapEnabled"
             defaultChecked={settings.sitemapEnabled}
@@ -525,8 +541,9 @@ export function SeoDefaultsTab({ controller }: { controller: SeoTabController },
         </label>
       </SeoSection>
 
-      <div className="editor-actions form-actions seo-actions">
+      <div className="jini-editor-actions jini-form-actions jini-seo-actions">
         <button
+          className="jini-btn"
           type="submit"
           disabled={saving}
           {...agentHandle({ handle: "seo-save-settings" }, {
@@ -564,18 +581,18 @@ export function SeoSitemapTab({ controller }: { controller: SeoTabController }, 
 
   return (
     <div
-      className="seo-panel seo-panel--full"
+      className="jini-seo-panel jini-seo-panel--full"
       {...agentHandle({ handle: "seo-sitemap" }, {
         role: "region",
         label: "Sitemap — force a rebuild of the cached sitemap",
       })}
     >
       <SeoSection title={t({ locale: locale, key: "Cached sitemap" })}>
-        <p className="card-lead">{sitemapStateLabel({ sitemapEnabled: settings.sitemapEnabled }, { t: key => t({ locale, key }) })}</p>
-        <p>{t({ locale: locale, key: "Force-rebuild the cached sitemap now, bypassing the normal cache-hit path." })}</p>
-        <span className="editor-actions">
+        <p className="jini-card-lead">{sitemapStateLabel({ sitemapEnabled: settings.sitemapEnabled }, { t: key => t({ locale, key }) })}</p>
+        <p>{t({ locale: locale, key: "Rebuild the sitemap now to include the latest published content." })}</p>
+        <span className="jini-editor-actions">
           <button
-            className="btn-secondary"
+            className="jini-btn jini-btn-secondary"
             disabled={saving}
             onClick={regenerateSitemap}
             {...agentHandle({ handle: "seo-regenerate-sitemap" }, {
@@ -587,7 +604,7 @@ export function SeoSitemapTab({ controller }: { controller: SeoTabController }, 
           </button>
           <button
             type="button"
-            className="btn-secondary"
+            className="jini-btn jini-btn-secondary"
             onClick={openSitemapModal}
             {...agentHandle({ handle: "seo-view-sitemap" }, {
               role: "button",
@@ -641,8 +658,8 @@ export function Seo({ tabId, onTabChange, useSeoHook = useWiredSeo }: SeoProps =
 
   // Locale is a context-backed hook; it must run on the loading/error renders too.
   const { activeTabId, tabs } = useSeoTabs({ tabId });
-  if (error && !settings) return <div className="notice error">{error}</div>;
-  if (!settings) return <div className="notice">{t({ locale: locale, key: "Loading SEO settings…" })}</div>;
+  if (error && !settings) return <div className="jini-page"><div className="jini-notice jini-notice-error">{error}</div></div>;
+  if (!settings) return <div className="jini-page"><div className="jini-notice">{t({ locale: locale, key: "Loading SEO settings…" })}</div></div>;
 
   const controller: SeoTabController = {
     locale,
@@ -656,16 +673,16 @@ export function Seo({ tabId, onTabChange, useSeoHook = useWiredSeo }: SeoProps =
   };
 
   return (
-    <div className="page seo-page">
-      <div className="page-header">
-        <div className="page-header-text">
-          <p className="page-kicker">{t({ locale: locale, key: "Marketing" })}</p>
-          <h1 className="page-title">SEO</h1>
-          <p className="page-description">
+    <div className="jini-page jini-seo-page">
+      <div className="jini-page-header">
+        <div className="jini-page-header-text">
+          <p className="jini-page-kicker">{t({ locale: locale, key: "Marketing" })}</p>
+          <h1 className="jini-page-title">SEO</h1>
+          <p className="jini-page-description">
             {t({ locale: locale, key: "Site-wide defaults for meta titles, descriptions, Open Graph/Twitter cards, and robots directives." })}
           </p>
         </div>
-        <div className="page-actions">
+        <div className="jini-page-actions">
           {headerActions}
         </div>
       </div>
@@ -674,8 +691,8 @@ export function Seo({ tabId, onTabChange, useSeoHook = useWiredSeo }: SeoProps =
           outcomes, which are not owned by whichever tab happens to be open. A save confirmation
           rendered inside the Site defaults panel would also be the one thing on the screen that
           silently disappears when the operator switches tabs. */}
-      {error ? <div className="notice error">{error}</div> : null}
-      {notice ? <div className="notice">{notice}</div> : null}
+      {error ? <div className="jini-notice jini-notice-error">{error}</div> : null}
+      {notice ? <div className="jini-notice">{notice}</div> : null}
 
       <TabBar
         ariaLabel="SEO"

@@ -6,8 +6,8 @@ export function FormEditorHeaderText(props: { isNew: boolean; name: string; t: (
       <h1 className="page-title">{isNew ? t("New form") : name || t("Form")}</h1>
       <p className="page-description">
         {isNew
-          ? t("Configure a new form's fields and email notifications.")
-          : t("Configure this form's fields and notifications, or review its submissions.")}
+          ? t("Configure a new form's fields.")
+          : t("Configure this form's fields, or review its submissions.")}
       </p>
     </div>
   );

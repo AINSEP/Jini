@@ -37,9 +37,7 @@ export function RedirectsPage({ useRedirectsHook = useWiredRedirects }: Redirect
           <p className="page-kicker">{t("Marketing")}</p>
           <h1 className="page-title">{t("Redirects")}</h1>
           <p className="page-description">
-            {t("Manual URL redirect rules. Rules created automatically from a slug change (source")}
-            <code> auto_slug_change</code>
-            {t(") also show up here.")}
+            {t("Manage URL redirects, including those created automatically when a page's address changes.")}
           </p>
         </div>
         <div className="page-actions">
@@ -59,9 +57,9 @@ export function RedirectsPage({ useRedirectsHook = useWiredRedirects }: Redirect
                 defaultValue="exact"
                 {...agentHandle({ handle: "redirects-create-match-type" }, { role: "field", label: "New redirect's match type" })}
               >
-                <option value="exact">{t("exact")}</option>
-                <option value="prefix">{t("prefix")}</option>
-                <option value="wildcard">{t("wildcard")}</option>
+                <option value="exact">{t("exact", { serverLabel: "exact" })}</option>
+                <option value="prefix">{t("prefix", { serverLabel: "prefix" })}</option>
+                <option value="wildcard">{t("wildcard", { serverLabel: "wildcard" })}</option>
               </select>
             </div>
             <div className="field">

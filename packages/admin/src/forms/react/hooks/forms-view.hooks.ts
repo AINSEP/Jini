@@ -8,7 +8,7 @@ import type { FormEditorFieldsBodyProps } from '../components/FormEditorFieldsBo
 import type { AdminFormDefinition, AdminFormField } from '../../models.js';
 import { useFormsOptions, FormsPortsContext } from './FormsPorts.hooks.js';
 import { useContext } from 'react';
-/** Host recipient labels and publication actions keep their original DOM at typed slots. */
+/** Publication actions keep their original DOM at the host slot. */
 export function useFormsListView({ forms, t, formatFormDates, toggleStatus, setPendingDelete }: {
   forms: AdminFormDefinition[] | null; t: (key: string) => string;
   formatFormDates: (form: AdminFormDefinition) => FormDateLine[];
@@ -16,8 +16,7 @@ export function useFormsListView({ forms, t, formatFormDates, toggleStatus, setP
   setPendingDelete: (form: AdminFormDefinition | null) => void;
 }, _optional = {}) {
   const ports = useContext(FormsPortsContext);
-  const { slots, headerActions, adminBase } = useFormsOptions();
-  const RecipientLabel = slots?.RecipientLabel ?? (({ count }: { count: number }) => t(count === 1 ? 'recipient' : 'recipients'));
+  const { headerActions, adminBase } = useFormsOptions();
   const rowHandles = buildAgentListHandles({ prefix: 'forms-row', ids: (forms ?? []).map(form => form.id) });
   const onEdit = (form: AdminFormDefinition) => {
     if (!ports?.formsNavigation) throw new Error('Missing forms navigation port');
@@ -28,7 +27,7 @@ export function useFormsListView({ forms, t, formatFormDates, toggleStatus, setP
       menuLabel: t('Actions for form "{name}"').replace('{name}', form.name),
       menuItems: formRowMenuItems({ form, handlers: { onEdit, onToggleStatus: form => { void toggleStatus(form); }, onDelete: setPendingDelete }, t }),
     })),
-    cancelDelete: () => setPendingDelete(null), RecipientLabel, headerActions,
+    cancelDelete: () => setPendingDelete(null), headerActions,
   };
 }
 /** Bind every field-row callback and focus ref outside the markup. */

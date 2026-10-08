@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { agentHandle } from '@jini-ai/agentic';
 import { useController } from '../../../core/react/use-controller.js';
 import { createMediaRefController } from '../../controllers/media-ref.controller.js';
-import { resolveMediaRefPreviewUrl } from '../../rules.js';
+import { isStoredMediaRef, resolveMediaRefPreviewUrl } from '../../rules.js';
 import type { MediaRefFieldController } from '../../models.js';
 import type { AdminSeoPort } from '../../ports.js';
 import { useSeoPorts, useSeoOptions } from './SeoPorts.hooks.js';
@@ -25,9 +25,9 @@ export function useWiredMediaRefField({ value, onChange }: { value: string; onCh
   return useMediaRefField({ value, onChange, api });
 }
 /** Slot or existing promise picker; no picker implementation is forked into SEO. */
-export function useMediaRefPresentation(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
+export function useMediaRefPresentation({ value }: { value: string }, _optional: Record<string, never> = {}) {
   const { slots } = useSeoOptions();
-  return { Picker: slots?.MediaPickerDialog };
+  return { Picker: slots?.MediaPickerDialog, storedReference: isStoredMediaRef({ value }) };
 }
 export function handleSpread({ base, suffix, label }: { base?: string; suffix: string; label: string }, _optional: Record<string, never> = {}): Record<string, unknown> {
   return base ? agentHandle({ handle: `${base}-${suffix}` }, { role: 'button', label }) : {};

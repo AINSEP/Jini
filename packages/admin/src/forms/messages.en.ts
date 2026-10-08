@@ -61,8 +61,8 @@ export const formsMessagesEn = {
   "No submissions yet.": "No submissions yet.",
   "Create form": "Create form",
   "Form": "Form",
-  "Configure a new form's fields and email notifications.": "Configure a new form's fields and email notifications.",
-  "Configure this form's fields and notifications, or review its submissions.": "Configure this form's fields and notifications, or review its submissions.",
+  "Configure a new form's fields.": "Configure a new form's fields.",
+  "Configure this form's fields, or review its submissions.": "Configure this form's fields, or review its submissions.",
   "Submissions": "Submissions",
   "Back to forms": "Back to forms",
   "Actions for form \"{name}\"": "Actions for form \"{name}\"",
@@ -93,7 +93,8 @@ export const formsMessagesEn = {
   "recipients": "recipients",
   "failed to load submissions": "failed to load submissions",
   "failed to load submission": "failed to load submission",
-  "delete failed": "delete failed"
+  "delete failed": "delete failed",
+  "Unknown field": "Unknown field",
 } as const;
 /** Host translators may replace any key; the default preserves the original English bytes. */
 export const translateForms: FormsTranslator = (key, vars = {}) => {

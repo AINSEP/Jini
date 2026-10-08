@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MediaRefField } from "../components/MediaRefField.js";
 import { api, type AdminMedia } from "./harness/api.js";
+import { useState } from 'react';
+import { isStoredMediaRef } from '../../rules.js';
 
 /**
  * @file `MediaRefField` — the "Choose image"/preview/Remove control wrapping `MediaPickerDialog`
@@ -45,7 +47,7 @@ function renderField(overrides: Partial<Parameters<typeof MediaRefField>[0]> = {
     <MediaRefField
       locale="en"
       id="seo-default-og-image"
-      label="Default Open Graph / Twitter image (media ref)"
+      label="Default Open Graph / Twitter image"
       value=""
       onChange={onChange}
       {...overrides}
@@ -59,21 +61,61 @@ afterEach(() => {
 });
 
 describe("MediaRefField — the text input keeps working", () => {
-  it("renders the label and the current value in a plain, still-editable input", () => {
+  it.each([
+    ['asset-9:public', true], [' sunset:thumbnail ', true],
+    ['', false], ['asset-9', false], [':public', false], ['asset-9:', false],
+    ['https:', false], ['https:/', false], ['https://images.example/picture.png', false],
+    ['//images.example/picture.png', false],
+  ] as const)('uses selected-image presentation only for a complete library reference (%s)', (value, stored) => {
+    expect(isStoredMediaRef({ value })).toBe(stored);
+  });
+
+  it('leaves a malformed caller value unselected, matching the preview guard', () => {
+    expect(isStoredMediaRef({ value: null as unknown as string })).toBe(false);
+  });
+  it("shows a plain selected-image label instead of the stored reference", () => {
     renderField({ value: "asset-9:public" });
-    expect(screen.getByLabelText("Default Open Graph / Twitter image (media ref)")).toHaveValue("asset-9:public");
+    expect(screen.getByLabelText("Default Open Graph / Twitter image")).toHaveValue("Selected image");
   });
 
   it("typing directly into the input still calls onChange — pasting a raw ref/URL keeps working", async () => {
     const user = userEvent.setup();
     const { onChange } = renderField();
-    await user.type(screen.getByLabelText("Default Open Graph / Twitter image (media ref)"), "x");
+    await user.type(screen.getByLabelText("Default Open Graph / Twitter image"), "x");
     expect(onChange).toHaveBeenCalledWith("x");
   });
 
   it("forwards the name prop onto the <input> so a real <form>'s FormData still finds it", () => {
     renderField({ name: "defaultOgImage" });
-    expect(screen.getByLabelText("Default Open Graph / Twitter image (media ref)")).toHaveAttribute("name", "defaultOgImage");
+    expect(screen.getByLabelText("Default Open Graph / Twitter image")).toHaveAttribute("name", "defaultOgImage");
+  });
+
+  it("saves the exact stored selection without exposing its reference as visible input text", () => {
+    const ref = "b4879dd4-1be6-4a51-b1a9-1446ec2dc144:public";
+    const { container } = render(<form><MediaRefField locale="en" id="social-image" name="defaultOgImage"
+      label="Social image" value={ref} onChange={vi.fn()} /></form>);
+    expect(screen.getByRole("textbox", { name: "Social image" })).toHaveValue("Selected image");
+    expect(screen.queryByText(ref)).not.toBeInTheDocument();
+    expect(screen.getByRole("img")).toHaveAttribute("src", "/media/b4879dd4-1be6-4a51-b1a9-1446ec2dc144/original");
+    expect(new FormData(container.querySelector('form')!).getAll('defaultOgImage')).toEqual([ref]);
+  });
+
+  it("Remove restores manual entry and saves the replacement URL exactly", async () => {
+    const user = userEvent.setup();
+    function ControlledField() {
+      const [value, setValue] = useState("asset-9:public");
+      return <form><MediaRefField locale="en" id="social-image" name="defaultOgImage"
+        label="Social image" value={value} onChange={setValue} /></form>;
+    }
+    const { container } = render(<ControlledField />);
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+    const field = screen.getByRole("textbox", { name: "Social image" });
+    expect(field).toHaveValue("");
+    expect(field).not.toHaveAttribute('readonly');
+    expect(new FormData(container.querySelector('form')!).getAll('defaultOgImage')).toEqual(['']);
+    await user.type(field, 'https://images.example/sunset.jpg');
+    expect(field).toHaveValue('https://images.example/sunset.jpg');
+    expect(new FormData(container.querySelector('form')!).getAll('defaultOgImage')).toEqual(['https://images.example/sunset.jpg']);
   });
 });
 

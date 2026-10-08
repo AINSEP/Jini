@@ -45,7 +45,8 @@ export interface RowMenuState {
  * visible jump. Recomputed on scroll and resize too: a portaled menu is a DOM sibling of its anchor,
  * not a child, so it does not track the anchor's position on its own the way an in-flow popup would.
  *
- * Click-outside closes. Scoped to the open window only, same lifecycle discipline as
+ * Click-outside and Escape close. Escape is document-scoped so it also works after focus
+ * moves away from the popup. Scoped to the open window only, same lifecycle discipline as
  * `ConfirmButton`'s armed-only document listeners — a closed, idle `RowMenu` costs nothing beyond
  * its trigger button even with many mounted per table.
  *
@@ -53,11 +54,12 @@ export interface RowMenuState {
  */
 function trackOpenMenu(
   { trigger, menu }: { readonly trigger: HTMLElement; readonly menu: HTMLElement },
-  { window, document, onPosition, onDismiss }: {
+  { window, document, onPosition, onDismiss, onEscape }: {
     readonly window: RowMenuWindow;
     readonly document: RowMenuDocument;
     readonly onPosition: (position: Position) => void;
     readonly onDismiss: () => void;
+    readonly onEscape: () => void;
   },
 ): () => void {
   function reposition() {
@@ -85,14 +87,22 @@ function trackOpenMenu(
     if (menu.contains(target) || trigger.contains(target)) return;
     onDismiss();
   }
+  function onDocKeyDown(e: globalThis.KeyboardEvent) {
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onEscape();
+  }
   reposition();
   window.addEventListener('scroll', reposition, true);
   window.addEventListener('resize', reposition);
   document.addEventListener('mousedown', onDocMouseDown);
+  document.addEventListener('keydown', onDocKeyDown);
   return () => {
     window.removeEventListener('scroll', reposition, true);
     window.removeEventListener('resize', reposition);
     document.removeEventListener('mousedown', onDocMouseDown);
+    document.removeEventListener('keydown', onDocKeyDown);
   };
 }
 
@@ -136,7 +146,7 @@ export function useRowMenu(
     if (!anchor) return null;
     let stop: () => void;
     return (menu: HTMLDivElement | null) => {
-      if (menu) stop = trackOpenMenu({ trigger: anchor, menu }, { window, document, onPosition: setPosition, onDismiss: () => close(false) });
+      if (menu) stop = trackOpenMenu({ trigger: anchor, menu }, { window, document, onPosition: setPosition, onDismiss: () => close(false), onEscape: () => close(true) });
       else stop();
     };
     // `close` only touches state setters and `triggerRef`, all stable across renders.
@@ -186,6 +196,7 @@ export function useRowMenu(
         break;
       case 'Escape':
         e.preventDefault();
+        e.stopPropagation();
         close(true);
         break;
       case 'Tab':

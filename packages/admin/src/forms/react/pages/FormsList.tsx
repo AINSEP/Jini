@@ -43,7 +43,7 @@ export interface FormsListProps {
 export function FormsList({ useFormsListHook = useWiredFormsList }: FormsListProps = {}, _optional: Record<string, never> = {}) {
   const { forms, formatFormDates, error, rowSavingId, toggleStatus, pendingDelete, setPendingDelete, removeForm, t } = useFormsListHook();
 
-  const { rows, cancelDelete, RecipientLabel, headerActions } = useFormsListView({ forms, t, formatFormDates, toggleStatus, setPendingDelete });
+  const { rows, cancelDelete, headerActions } = useFormsListView({ forms, t, formatFormDates, toggleStatus, setPendingDelete });
 
   if (error && !forms) return <div className="notice error">{error}</div>;
   if (!forms) return <div className="notice">{t("Loading forms…")}</div>;
@@ -128,11 +128,6 @@ export function FormsList({ useFormsListHook = useWiredFormsList }: FormsListPro
             ),
           },
           { key: "fields", header: t("Fields"), cell: (form) => form.fields.length },
-          {
-            key: "notify",
-            header: t("Notify"),
-            cell: (form) => (form.notify.enabled ? <>{form.notify.recipients.length} <RecipientLabel count={form.notify.recipients.length} /></> : t("off")),
-          },
           {
             key: "actions",
             header: t("More"),

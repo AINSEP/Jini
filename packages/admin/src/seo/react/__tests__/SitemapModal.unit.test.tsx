@@ -6,6 +6,8 @@ import { SitemapModal } from "../components/SitemapModal.js";
 import { useSitemapModal } from "./harness/hooks.js";
 import { createFakeSitemapPort } from "./harness/api.js";
 import type { SitemapPort } from "./harness/api.js";
+import { SeoOptionsContext } from "../hooks/SeoPorts.hooks.js";
+import type { SeoReactOptions } from "../options.js";
 
 /**
  * @file `SitemapModal` — "View sitemap" (owner request, `Seo.tsx`'s Sitemap card). Composes the
@@ -40,22 +42,25 @@ interface RenderModalOptions {
   regenerating?: boolean;
   onRegenerate?: () => Promise<boolean>;
   onClose?: () => void;
+  formatDate?: SeoReactOptions['formatDate'];
 }
 
 function renderModal(port: SitemapPort, options: RenderModalOptions = {}) {
   const onClose = options.onClose ?? vi.fn();
   const onRegenerate = options.onRegenerate ?? vi.fn(async () => true);
   render(
-    <SitemapModal
-      locale="en"
-      sitemapEnabled={options.sitemapEnabled ?? true}
-      regenerating={options.regenerating ?? false}
-      onRegenerate={onRegenerate}
-      onClose={onClose}
-      // Forwards the whole `SitemapModalInputs` object rather than re-listing its fields, so this
-      // double cannot silently drop `enabled` the way a positional parameter could.
-      useModal={(inputs) => useSitemapModal(port, inputs)}
-    />
+    <SeoOptionsContext.Provider value={{ siteUrl: () => '', ...(options.formatDate ? { formatDate: options.formatDate } : {}) }}>
+      <SitemapModal
+        locale="en"
+        sitemapEnabled={options.sitemapEnabled ?? true}
+        regenerating={options.regenerating ?? false}
+        onRegenerate={onRegenerate}
+        onClose={onClose}
+        // Forwards the whole `SitemapModalInputs` object rather than re-listing its fields, so this
+        // double cannot silently drop `enabled` the way a positional parameter could.
+        useModal={(inputs) => useSitemapModal(port, inputs)}
+      />
+    </SeoOptionsContext.Provider>
   );
   return { onClose, onRegenerate };
 }
@@ -74,6 +79,23 @@ function sequencedSitemapPort(texts: string[]): SitemapPort {
 }
 
 describe("SitemapModal — table view", () => {
+  it('uses the injected locale formatter for lastmod while preserving raw XML and missing values', async () => {
+    const xml = '<urlset><url><loc>https://example.com/</loc><lastmod>2026-10-08T21:05:00.000Z</lastmod></url><url><loc>https://example.com/about</loc></url></urlset>';
+    const calls: string[] = [];
+    renderModal(createFakeSitemapPort({ text: xml }), { formatDate: ({ iso }) => { calls.push(iso); return '8/10/26, 14:05'; } });
+    expect(await screen.findByText('8/10/26, 14:05')).toBeInTheDocument();
+    expect(calls).toContain('2026-10-08T21:05:00.000Z');
+    expect(calls).not.toContain('');
+    expect(screen.getByText('—')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Raw XML' }));
+    expect(document.querySelector('.sitemap-modal-raw')?.textContent).toBe(xml);
+  });
+
+  it('uses the shared timestamp formatter when the host supplies no locale formatter', async () => {
+    renderModal(createFakeSitemapPort({ text: '<urlset><url><loc>https://example.com/</loc><lastmod>2026-10-08T21:05:00.000Z</lastmod></url></urlset>' }));
+    expect(await screen.findByText('2026-10-08 21:05')).toBeInTheDocument();
+  });
+
   it("renders one row per <url>, with the header URL count", async () => {
     renderModal(createFakeSitemapPort({ text: TWO_URL_XML }));
 

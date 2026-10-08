@@ -29,6 +29,7 @@ export function FormSubmissions({ formId, useFormSubmissionsHook = useWiredFormS
         onBack={back}
         onDeleted={back}
         t={t}
+        answerColumns={answerColumns}
       />
     );
   }
@@ -89,4 +90,3 @@ export function FormSubmissions({ formId, useFormSubmissionsHook = useWiredFormS
     </div>
   );
 }
-

@@ -73,7 +73,7 @@ export function WidgetRegionEditor(props: WidgetRegionEditorProps) {
         <WidgetRegionEditorHeaderActions message={message} error={error} saving={saving} onSave={save} t={t} />
       </div>
 
-      <div className="widget-region-placements">
+      <div className="jini-widget-region-placements">
         {placements.length === 0 ? (
           <div className="card">
             <div className="empty-state">

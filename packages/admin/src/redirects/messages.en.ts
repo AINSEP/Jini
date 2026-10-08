@@ -9,8 +9,7 @@ export const redirectsMessagesEn = {
   "Import": "Import",
   "Marketing": "Marketing",
   "Redirects": "Redirects",
-  "Manual URL redirect rules. Rules created automatically from a slug change (source": "Manual URL redirect rules. Rules created automatically from a slug change (source",
-  ") also show up here.": ") also show up here.",
+  "Manage URL redirects, including those created automatically when a page's address changes.": "Manage URL redirects, including those created automatically when a page's address changes.",
   "Match type": "Match type",
   "From path": "From path",
   "To target": "To target",
@@ -31,9 +30,9 @@ export const redirectsMessagesEn = {
   "Loading redirects…": "Loading redirects…",
   "Not valid JSON.": "Not valid JSON.",
   "Must be a JSON array of rule objects.": "Must be a JSON array of rule objects.",
-  "exact": "exact",
-  "prefix": "prefix",
-  "wildcard": "wildcard",
+  "exact": "Exact match",
+  "prefix": "Starts with",
+  "wildcard": "Wildcard",
   "Status": "Status",
   "More": "More",
   "Delete": "Delete",
@@ -41,16 +40,21 @@ export const redirectsMessagesEn = {
   "Enable": "Enable",
   "Saving…": "Saving…",
   "Created": "Created",
-  "active": "active",
-  "disabled": "disabled",
+  "active": "Active",
+  "disabled": "Disabled",
   "{created} created, {failed} failed.": "{created} created, {failed} failed.",
   "Item {index} ({code})": "Item {index} ({code})",
   "Actions for redirect rule from \"{fromPattern}\"": "Actions for redirect rule from \"{fromPattern}\"",
   "Paste a JSON array of ": "Paste a JSON array of ",
   " rule objects (1-500 items)": " rule objects (1-500 items)",
   "Delete the redirect rule from \"": "Delete the redirect rule from \"",
-  "\"?": "\"?"
+  "\"?": "\"?",
+  "manual": "Manual",
+  "auto_slug_change": "URL change",
+  "import": "Imported",
 } as const;
 /** English fallback with the same named-placeholder interpolation as the host dictionary. */
-export const translateRedirectsEn: RedirectsTranslate = (key, vars = {}) =>
-  key.replace(/\{(\w+)\}/g, (match, name: string) => String(vars[name] ?? match));
+export const translateRedirectsEn: RedirectsTranslate = (key, vars = {}) => {
+  const template = Object.hasOwn(redirectsMessagesEn, key) ? redirectsMessagesEn[key as keyof typeof redirectsMessagesEn] : key;
+  return template.replace(/\{(\w+)\}/g, (match, name: string) => String(vars[name] ?? match));
+};

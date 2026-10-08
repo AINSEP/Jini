@@ -1,9 +1,10 @@
 import { agentHandle } from "@jini-ai/agentic";
 import { Dialog } from "@jini-ai/ui-kit/react";
+import { formatTimestamp } from "@jini-ai/ui/panel-kit";
 
 
 
-import { useSeoCopy } from "../hooks/SeoPorts.hooks.js";
+import { useSeoCopy, useSeoOptions } from "../hooks/SeoPorts.hooks.js";
 import { actionLabel } from "../../rules.js";
 import { useWiredSitemapModal, type SitemapModalController } from "../hooks/use-sitemap-modal.hooks.js";
 import { useSitemapModalRegenerate, useSitemapPresentation, useSitemapTable, useSitemapViewToggle } from "../hooks/SitemapModal.hooks.js";
@@ -105,6 +106,7 @@ function SitemapModalHeaderActions({ locale, modal }: { locale: string; modal: S
  *   `useSitemapModal` (memoized there), this only maps them to JSX. */
 function SitemapModalTable({ locale, modal }: { locale: string; modal: SitemapModalController }) {
   const t = useSeoCopy();
+  const { formatDate = formatTimestamp } = useSeoOptions();
   const { rowHandles } = useSitemapTable({ modal });
   if (modal.entries.length === 0) return <div className="notice">{t({ locale: locale, key: "The sitemap has no URLs yet." })}</div>;
 
@@ -148,7 +150,7 @@ function SitemapModalTable({ locale, modal }: { locale: string; modal: SitemapMo
                       {entry.loc}
                     </a>
                   </td>
-                  <td>{entry.lastmod ?? <span className="muted-cell">{t({ locale: locale, key: "—" })}</span>}</td>
+                  <td>{entry.lastmod === null ? <span className="muted-cell">{t({ locale: locale, key: "—" })}</span> : formatDate({ iso: entry.lastmod })}</td>
                 </tr>
               ))}
             </tbody>

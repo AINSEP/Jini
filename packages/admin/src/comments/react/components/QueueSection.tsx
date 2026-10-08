@@ -36,7 +36,7 @@ function QueueToolbar({
         >
           {STATUS_OPTIONS.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {t(s)}
             </option>
           ))}
         </select>
@@ -240,4 +240,3 @@ export function QueueSection(props: QueueSectionProps) {
     </div>
   );
 }
-

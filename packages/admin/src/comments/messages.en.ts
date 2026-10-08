@@ -43,10 +43,10 @@ export const commentsMessagesEn = {
   "Saved.": "Saved.",
   "failed to save Comments settings": "failed to save Comments settings",
   "failed to load Comments settings": "failed to load Comments settings",
-  "pending": "pending",
-  "approved": "approved",
-  "spam": "spam",
-  "trash": "trash"
+  "pending": "Pending",
+  "approved": "Approved",
+  "spam": "Spam",
+  "trash": "Trash"
 } as const;
 export type CommentsTranslator = (key: string, vars?: Record<string, string | number>) => string;
 /** Default copy; unknown keys remain visible and variables use the native string formatter. */
