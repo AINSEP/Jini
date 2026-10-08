@@ -47,10 +47,9 @@ export type SeoIssueSeverity = "error" | "warning" | "info" | (string & {});
 
 /**
  * The author-authored override bag for one entry. Every field is OPTIONAL — omitting a field
- * means "derive from site defaults / the content itself," not "clear it"; `putSeoEntry` merge-
- * patches this bag onto whatever was previously stored; there is no way to unset a single
- * previously-set field back to "derive" short of the host's own reset affordance (the reference
- * implementation has none either).
+ * means "derive from site defaults / the content itself," not "clear it". `putSeoEntry` accepts
+ * AdminSeoOverridesPatch, which adds null as the remove-override sentinel; omission leaves a
+ * previously stored override unchanged. The resolved read shape never contains null clears.
  */
 export interface AdminSeoOverrides {
   readonly title?: string;
@@ -145,13 +144,35 @@ export interface AdminSeoSettings {
   readonly robotsRules: readonly AdminSeoRobotsRule[];
 }
 
+/** Write-only clear sentinels: null removes a value; omission leaves it unchanged. */
+export type AdminSeoOverridesPatch = { [K in keyof AdminSeoOverrides]?: AdminSeoOverrides[K] | null };
+export type AdminSeoSettingsPatch = Partial<Omit<AdminSeoSettings, 'defaultDescription' | 'defaultOgImage' | 'twitterSite'>> & {
+  defaultDescription?: string | null;
+  defaultOgImage?: string | null;
+  twitterSite?: string | null;
+};
+
+/** Picker projection. Hosts may return additional content fields without a CMS dependency. */
+export interface AdminSeoEntryChoice {
+  readonly id: string;
+  readonly title: string;
+  readonly status: string;
+}
+
 export interface AdminSeoPort {
   getSeoEntry(requiredArgs: { entryId: string }): Promise<AdminSeoMeta>;
   /** Merge-patches the override bag and returns the newly-resolved meta — see file header. */
-  putSeoEntry(requiredArgs: { entryId: string }, optionalArgs?: AdminSeoOverrides): Promise<AdminSeoMeta>;
+  putSeoEntry(requiredArgs: { entryId: string }, optionalArgs?: AdminSeoOverridesPatch): Promise<AdminSeoMeta>;
   analyzeSeoEntry(requiredArgs: { entryId: string }): Promise<AdminSeoAnalysis>;
   getSeoSettings(requiredArgs: Record<string, never>): Promise<AdminSeoSettings>;
-  putSeoSettings(requiredArgs: Record<string, never>, optionalArgs?: Partial<AdminSeoSettings>): Promise<AdminSeoSettings>;
+  putSeoSettings(requiredArgs: Record<string, never>, optionalArgs?: AdminSeoSettingsPatch): Promise<AdminSeoSettings>;
   /** Fire-and-accept trigger, not a trackable job — see file header. */
   regenerateSeoSitemap(requiredArgs: Record<string, never>): Promise<{ accepted: boolean }>;
+  /** Existing post/page reads, in their original order; authorization remains host-owned. */
+  listSeoPosts(requiredArgs: Record<string, never>, optionalArgs?: Record<string, never>): Promise<readonly AdminSeoEntryChoice[]>;
+  listSeoPages(requiredArgs: Record<string, never>, optionalArgs?: Record<string, never>): Promise<readonly AdminSeoEntryChoice[]>;
+  /** Exact public sitemap response, never reconstructed from admin entries. */
+  fetchSitemapXml(requiredArgs: Record<string, never>, optionalArgs?: { signal?: AbortSignal }): Promise<{ text: string }>;
+  /** Original thumbnail URL; media-reference resolution stays on the server. */
+  mediaOriginalUrl(requiredArgs: { id: string }, optionalArgs?: Record<string, never>): string;
 }

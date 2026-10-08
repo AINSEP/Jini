@@ -1,0 +1,56 @@
+/** English source keys stay byte-identical to the host dictionaries. */
+export const commentsMessagesEn = {
+  "Status": "Status",
+  "Actions for the comment by \"{author}\"": "Actions for the comment by \"{author}\"",
+  "Author": "Author",
+  "Comment": "Comment",
+  "Depth": "Depth",
+  "Created": "Created",
+  "More": "More",
+  "Loading…": "Loading…",
+  "Load more": "Load more",
+  "Loading comments…": "Loading comments…",
+  "No {status} comments.": "No {status} comments.",
+  "Permanently delete this comment?": "Permanently delete this comment?",
+  "Permanently delete this comment by \"{author}\"? This cannot be undone.": "Permanently delete this comment by \"{author}\"? This cannot be undone.",
+  "Permanently delete": "Permanently delete",
+  "Loading Comments settings…": "Loading Comments settings…",
+  "Settings": "Settings",
+  "Comments enabled": "Comments enabled",
+  "Require moderation (new comments start pending)": "Require moderation (new comments start pending)",
+  "Max thread depth": "Max thread depth",
+  "Close submissions after (days, blank = never)": "Close submissions after (days, blank = never)",
+  "Spam auto-reject score (0–1)": "Spam auto-reject score (0–1)",
+  "Max submissions per IP per hour": "Max submissions per IP per hour",
+  "Saving…": "Saving…",
+  "Save settings": "Save settings",
+  "Loading Comments…": "Loading Comments…",
+  "People": "People",
+  "Comments": "Comments",
+  "Moderate incoming comments and configure workspace-wide comment behavior.": "Moderate incoming comments and configure workspace-wide comment behavior.",
+  "You do not have permission to view the moderation queue.": "You do not have permission to view the moderation queue.",
+  "This comment changed since you loaded it (current version {currentVersion}) — refresh and try again.": "This comment changed since you loaded it (current version {currentVersion}) — refresh and try again.",
+  "This comment changed since you loaded it — refresh and try again.": "This comment changed since you loaded it — refresh and try again.",
+  "Failed to update comment.": "Failed to update comment.",
+  "Approve": "Approve",
+  "Spam": "Spam",
+  "Trash": "Trash",
+  "Restore": "Restore",
+  "Purge": "Purge",
+  "Spam auto-reject score must be between 0 and 1.": "Spam auto-reject score must be between 0 and 1.",
+  "failed to load the moderation queue": "failed to load the moderation queue",
+  "Failed to purge comment.": "Failed to purge comment.",
+  "Saved.": "Saved.",
+  "failed to save Comments settings": "failed to save Comments settings",
+  "failed to load Comments settings": "failed to load Comments settings",
+  "pending": "pending",
+  "approved": "approved",
+  "spam": "spam",
+  "trash": "trash"
+} as const;
+export type CommentsTranslator = (key: string, vars?: Record<string, string | number>) => string;
+/** Default copy; unknown keys remain visible and variables use the native string formatter. */
+export const englishComments: CommentsTranslator = (key, vars = {}) => {
+  const template = Object.hasOwn(commentsMessagesEn, key) ? commentsMessagesEn[key as keyof typeof commentsMessagesEn] : key;
+  return template.replace(/\{(\w+)\}/g, (placeholder, name: string) => vars[name] === undefined ? placeholder : String(vars[name]));
+};

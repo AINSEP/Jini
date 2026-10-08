@@ -21,6 +21,11 @@
 
 ## Unreleased
 
+- Add portable Forms admin screens, HTTP/memory adapters and core-port conformance under ./forms*.
+- Add composable comments admin queue/settings module with HTTP and memory adapters and API conformance.
+- Add portable redirects admin module, React list, HTTP/memory adapters and API conformance.
+- Add portable SEO admin settings, sitemap viewer, entry overrides and analysis with HTTP/memory adapters and API conformance.
+- Add composable widgets admin screens, headless controllers, HTTP/memory adapters and API conformance.
 - Media Providers tab on hosts without `saveChanges`: saving the first key or
   settings of a catalog provider the last read did not return now writes them
   (previously nothing was written, yet the tab showed "Saved").

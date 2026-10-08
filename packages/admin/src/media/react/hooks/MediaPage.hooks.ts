@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { createElement, createContext, useContext, useEffect, useState } from 'react';
-import type { ModulePageProps } from '../../../react/bind-react.js';
-import { useController } from '../../../react/use-controller.js';
+import type { ModulePageProps } from '../../../core/react/bind-react.js';
+import { useController } from '../../../core/react/use-controller.js';
 import { createLibraryController } from '../../controllers/library.controller.js';
 import { useMediaPorts } from './MediaPorts.hooks.js';
 import type { LibraryState } from '../../controllers/library.controller.js';

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
-import { useController } from '../../../react/use-controller.js';
+import { useController } from '../../../core/react/use-controller.js';
 import { createAgentPluginFilesController } from '../../controllers/agent-plugin-files.controller.js';
 import { useAgentPluginsPorts } from './AgentPluginsPorts.hooks.js';
 import type { AgentPluginPackageFile } from '../../models.js';

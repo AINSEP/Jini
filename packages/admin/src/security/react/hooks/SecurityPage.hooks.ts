@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ModulePageProps } from '../../../react/bind-react.js';
+import type { ModulePageProps } from '../../../core/react/bind-react.js';
 export function useSecurityPage(props: ModulePageProps, _optional = {}) {
   const [local, setLocal] = useState('access-tokens');
   const visible = props.description.visible ? props.description.tabs.filter(t => t.visible) : [];

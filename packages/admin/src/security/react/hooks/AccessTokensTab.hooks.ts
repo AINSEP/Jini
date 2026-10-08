@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useController } from '../../../react/use-controller.js';
-import type { TabViewProps } from '../../../react/bind-react.js';
+import { useController } from '../../../core/react/use-controller.js';
+import type { TabViewProps } from '../../../core/react/bind-react.js';
 import { createAccessTokensController } from '../../controllers/access-tokens.controller.js';
 import { createOtherCredentialsController } from '../../controllers/other-credentials.controller.js';
 import type { CredentialSummary, OtherCredentialSummary, CredentialCategory } from '../../models.js';

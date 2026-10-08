@@ -1,4 +1,4 @@
-import { useController } from '../../../react/use-controller.js';
+import { useController } from '../../../core/react/use-controller.js';
 import { createLibraryController } from '../../controllers/library.controller.js';
 import type { MediaAsset } from '../../models.js';
 import type { MediaApiPort } from '../../ports.js';

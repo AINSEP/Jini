@@ -79,9 +79,17 @@ it('places host actions in the header, marks selected sort, and filters Trash wi
   expect(screen.getByText('Upload and manage image and video assets used across the site.')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Publish media' }).closest('[data-jini-part="media.header.actions"]')).not.toBeNull();
   expect(screen.getByLabelText('Order by')).toHaveValue('created');
-  fireEvent.change(screen.getByLabelText('Order by'), { target: { value: 'alphabetical' } });
+  // Flush the lazy page's React external-store commits before checking controlled values and rows.
+  await act(async () => {
+    fireEvent.change(screen.getByLabelText('Order by'), { target: { value: 'alphabetical' } });
+  });
   expect(screen.getByLabelText('Order by')).toHaveValue('alphabetical');
-  fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'trashed' } });
+  expect(screen.getAllByRole('heading', { level: 3 }).map(node => node.textContent)).toEqual(['photo.png', 'trash.png']);
+  await act(async () => {
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'trashed' } });
+  });
+  expect(screen.getByLabelText('Status')).toHaveValue('trashed');
+  expect(screen.getAllByRole('heading', { level: 3 }).map(node => node.textContent)).toEqual(['trash.png']);
   expect(screen.queryByRole('heading', { name: 'photo.png' })).toBeNull();
   expect(screen.getByText('trashed')).toHaveAttribute('data-jini-part', 'media.status');
   fireEvent.click(screen.getByRole('button', { name: 'Actions for "trash.png"' }));

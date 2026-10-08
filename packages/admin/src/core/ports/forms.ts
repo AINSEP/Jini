@@ -44,11 +44,11 @@
  * constraint documented, rather than being narrowed to a shape that can't express a removal
  * attempt at all.
  *
- * ## Submissions are the one place with a real hard delete
+ * ## Submission deletion moves to Trash
  *
- * Unlike definitions, `FormSubmissionRepoPort` does expose a permanent delete — the reference repo
- * port's own doc comment calls this out as "the one asymmetry." `deleteFormSubmission` is
- * genuinely irreversible; do not offer it with "undo" affordances.
+ * `deleteFormSubmission` models the admin HTTP operation: reversible removal from active reads.
+ * The underlying repository's hard-delete primitive is not this admin contract. Restoration and
+ * permanent deletion belong to the generic Trash owner (Coordinator authorization, 2026-10-08).
  *
  * ## Open vs. closed unions
  *
@@ -72,6 +72,8 @@ export interface AdminFormField {
   readonly type: FormFieldType;
   readonly required: boolean;
   readonly maxLength?: number | null;
+  readonly className?: string | undefined;
+  readonly attributes?: Readonly<Record<string, string>> | undefined;
 }
 
 export interface AdminFormNotifyConfig {
@@ -88,6 +90,9 @@ export interface AdminFormDefinition {
   readonly status: FormDefinitionStatus;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** HTML authoring is explicit; absent mode means the existing Builder contract. */
+  readonly mode?: "builder" | "html" | undefined;
+  readonly html?: string | undefined;
 }
 
 export interface AdminFormSubmission {
@@ -97,6 +102,8 @@ export interface AdminFormSubmission {
   readonly data: Readonly<Record<string, string | boolean>>;
   readonly sourceIp: string;
   readonly submittedAt: string;
+  /** Missing means active for older wire records. Trash preserves the original submission data. */
+  readonly status?: "active" | "trash";
 }
 
 /** A keyset-paginated page of submissions, newest-first. */
@@ -109,12 +116,17 @@ export interface AdminFormCreateInput {
   readonly name: string;
   readonly slug: string;
   readonly fields: readonly AdminFormField[];
+  readonly mode?: "builder" | "html" | undefined;
+  readonly html?: string | undefined;
   readonly notify?: AdminFormNotifyConfig;
 }
 
 /** No `slug` — see file header. */
 export interface AdminFormUpdatePatch {
   readonly name?: string;
+  /** A mode/body patch uses the authoring route; an ordinary patch keeps the CRUD route. */
+  readonly mode?: "builder" | "html" | undefined;
+  readonly html?: string | undefined;
   /** Whole-array replace with an add/edit-only constraint — see file header. */
   readonly fields?: readonly AdminFormField[];
   readonly notify?: AdminFormNotifyConfig;
@@ -133,7 +145,7 @@ export interface AdminFormsPort {
     optionalArgs?: { limit?: number; cursor?: string },
   ): Promise<AdminFormSubmissionPage>;
   getFormSubmission(requiredArgs: { formId: string; submissionId: string }): Promise<AdminFormSubmission>;
-  /** Permanent delete — the one hard delete in this port. See file header on why form
-   *  DEFINITIONS have no equivalent. */
-  deleteFormSubmission(requiredArgs: { formId: string; submissionId: string }): Promise<void>;
+  /** Move to Trash, preserving data while hiding it from active list/detail reads. The form must
+   * own this submission; restoration and permanent deletion remain with the generic Trash owner. */
+  deleteFormSubmission(requiredArgs: { formId: string; submissionId: string }, optionalArgs?: Record<string, never>): Promise<void>;
 }

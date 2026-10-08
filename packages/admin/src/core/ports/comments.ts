@@ -26,6 +26,8 @@ export type CommentStatus = "pending" | "approved" | "spam" | "trash";
 /** A comment as it appears in the moderation queue. */
 export interface AdminComment {
   readonly id: string;
+  /** Optional workspace metadata retained from host queue responses; scoping stays in the transport. */
+  readonly workspaceId?: string;
   readonly entryId: string;
   /** Null for a top-level comment. */
   readonly parentId: string | null;

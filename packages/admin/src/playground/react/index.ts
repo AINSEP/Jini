@@ -1,4 +1,4 @@
-import { bindReact } from '../../react/bind-react.js';
+import { bindReact } from '../../core/react/bind-react.js';
 import { playgroundModule } from '../playground.module.js';
 import { PlaygroundPortsContext } from './hooks/PlaygroundPorts.hooks.js';
 export { usePlaygroundPorts } from './hooks/PlaygroundPorts.hooks.js';

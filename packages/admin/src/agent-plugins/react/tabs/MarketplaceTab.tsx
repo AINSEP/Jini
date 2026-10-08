@@ -1,5 +1,5 @@
 import { Notice } from '@jini-ai/ui-kit/react';
-import type { TabViewProps } from '../../../react/bind-react.js';
+import type { TabViewProps } from '../../../core/react/bind-react.js';
 import { useMarketplaceTab } from '../hooks/MarketplaceTab.hooks.js';
 import { agentPluginsMessagesEn as m } from '../../messages.en.js';
 export function MarketplaceTab(props: TabViewProps, _optional = {}) {

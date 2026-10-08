@@ -1,4 +1,4 @@
-import { bindReact } from '../../react/bind-react.js';
+import { bindReact } from '../../core/react/bind-react.js';
 import { securityModule } from '../security.module.js';
 import { SecurityPortsContext } from './hooks/SecurityPorts.hooks.js';
 export { useSecurityPorts } from './hooks/SecurityPorts.hooks.js';

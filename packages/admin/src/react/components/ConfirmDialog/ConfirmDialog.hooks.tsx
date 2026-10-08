@@ -1,8 +1,6 @@
 import {
   createContext,
   useContext,
-  useEffect,
-  useId,
   useMemo,
   useRef,
   type MouseEvent,
@@ -10,6 +8,7 @@ import {
   type RefObject,
   type SyntheticEvent,
 } from 'react';
+import { useNativeDialog } from '@jini-ai/ui-kit/react/native';
 
 /**
  * @file `ConfirmDialog`'s open/close and focus-management state, split out of the component so it
@@ -112,10 +111,10 @@ export function useConfirmDialogCancelLabel(
 }
 
 /**
- * Owns the `<dialog>` element's open/close lifecycle and focus management for `ConfirmDialog`.
+ * Adapts UI-kit's `<dialog>` element open/close lifecycle and focus management for `ConfirmDialog`.
  *
  * The caller keeps `ConfirmDialog` mounted and toggles `open` — it is never conditionally rendered
- * by its parent — so the effect below has a stable `<dialog>` element to call `showModal()`/
+ * by its parent — so the shared native hook has a stable `<dialog>` element to call `showModal()`/
  * `close()` on and to restore focus through when it closes.
  *
  * Focus moves to the *cancel* action on open, not confirm — an operator whose first keystroke after
@@ -134,56 +133,27 @@ export function useConfirmDialog(
   // in document order regardless of which dialog is actually open — a screen reader announcing
   // "Delete role?" while the operator is about to confirm "Delete policy?", on a destructive
   // action. `useId()` gives every mounted instance its own id for free.
-  const titleId = useId();
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const cancelRef = useRef<HTMLButtonElement>(null);
   // Captured at the moment `open` flips true, before focus moves into the dialog — the element that
   // had focus then is, by construction, whatever triggered this dialog (a `RowMenu` item's
   // "Delete", a plain trigger button, …). Restored on close rather than left wherever the browser's
   // own modal-focus algorithm happened to land (its default without this is `<body>`, which drops a
   // keyboard user back to the top of the page).
-  const triggerRef = useRef<Element | null>(null);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open) {
-      triggerRef.current = document.activeElement;
-      if (typeof dialog.showModal === 'function') {
-        if (!dialog.open) dialog.showModal();
-      } else {
-        dialog.setAttribute('open', '');
-      }
-      cancelRef.current?.focus();
-    } else {
-      if (typeof dialog.close === 'function') {
-        if (dialog.open) dialog.close();
-      } else {
-        dialog.removeAttribute('open');
-      }
-      if (triggerRef.current instanceof HTMLElement) triggerRef.current.focus();
-    }
-  }, [open, document]);
-
-  function handleNativeCancel(e: SyntheticEvent<HTMLDialogElement>) {
-    // Fires on Escape while a real `showModal()`-opened dialog has focus. Always prevented: the
-    // effect above is the single source of truth for open/closed (driven by `open`), so
-    // letting the browser close the element on its own would desync DOM state from React state.
-    // Escape still closes the dialog — it just does so by routing through `onCancel`, same as a
-    // Cancel-button click, so the caller's `open` state (and therefore this same effect) is what
-    // actually calls `dialog.close()`.
-    e.preventDefault();
-    if (pending) return;
-    onCancel();
-  }
-
-  function handleBackdropClick(e: MouseEvent<HTMLDialogElement>) {
-    // A `<dialog>` element's own box is sized to its content, not the viewport — a click that lands
-    // on the `<dialog>` element itself (as opposed to one of its children) is therefore a click on
-    // the backdrop area outside that content box.
-    if (pending) return;
-    if (e.target === dialogRef.current) onCancel();
-  }
+  // Fires on Escape while a real `showModal()`-opened dialog has focus. Always prevented: the
+  // shared native hook is the single source of truth for open/closed (driven by `open`), so
+  // letting the browser close the element on its own would desync DOM state from React state.
+  // Escape still closes the dialog — it just does so by routing through `onCancel`, same as a
+  // Cancel-button click, so the caller's `open` state (and therefore this same effect) is what
+  // actually calls `dialog.close()`.
+  // A `<dialog>` element's own box is sized to its content, not the viewport — a click that lands
+  // on the `<dialog>` element itself (as opposed to one of its children) is therefore a click on
+  // the backdrop area outside that content box.
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const vm = useNativeDialog(
+    { open, title: '', onClose: () => onCancel(), ...(pending === undefined ? {} : { pending }) },
+    { document, initialFocus: () => cancelRef.current?.focus() },
+  );
+  const titleId = vm.titleId, dialogRef = vm.props.ref;
+  const handleNativeCancel = vm.props.onCancel, handleBackdropClick = vm.props.onClick;
 
   return { titleId, dialogRef, cancelRef, handleNativeCancel, handleBackdropClick };
 }

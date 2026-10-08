@@ -49,7 +49,42 @@
       "./agent-plugins/react": "browser",
       "./agent-plugins/adapters/http": "universal",
       "./agent-plugins/adapters/memory": "universal",
-      "./agent-plugins/conformance": "universal"
+      "./agent-plugins/conformance": "universal",
+      "./core/react": "browser",
+      "./forms": "universal",
+      "./forms/react": "browser",
+      "./forms/adapters/http": "universal",
+      "./forms/adapters/memory": "universal",
+      "./forms/conformance": "universal",
+      "./comments": "universal",
+      "./comments/react": "browser",
+      "./comments/adapters/http": "universal",
+      "./comments/adapters/memory": "universal",
+      "./comments/conformance": "universal",
+      "./redirects": "universal",
+      "./redirects/react": "browser",
+      "./redirects/adapters/http": "universal",
+      "./redirects/adapters/memory": "universal",
+      "./redirects/conformance": "universal",
+      "./seo": "universal",
+      "./seo/react": "browser",
+      "./seo/adapters/http": "universal",
+      "./seo/adapters/memory": "universal",
+      "./seo/conformance": "universal",
+      "./widgets": "universal",
+      "./widgets/react": "browser",
+      "./widgets/adapters/http": "universal",
+      "./widgets/adapters/memory": "universal",
+      "./widgets/conformance": "universal"
+    },
+    "isolation": {
+      "forbidden": {
+        "universal": [
+          "node:",
+          "react",
+          "react-dom"
+        ]
+      }
     }
   },
   "type": "module",
@@ -241,6 +276,136 @@
       "types": "./dist/agent-plugins/conformance/agent-plugins-api.conformance.d.ts",
       "import": "./dist/agent-plugins/conformance/agent-plugins-api.conformance.js",
       "default": "./dist/agent-plugins/conformance/agent-plugins-api.conformance.js"
+    },
+    "./core/react": {
+      "types": "./dist/core/react/index.d.ts",
+      "import": "./dist/core/react/index.js",
+      "default": "./dist/core/react/index.js"
+    },
+    "./forms": {
+      "types": "./dist/forms/index.d.ts",
+      "import": "./dist/forms/index.js",
+      "default": "./dist/forms/index.js"
+    },
+    "./forms/react": {
+      "types": "./dist/forms/react/index.d.ts",
+      "import": "./dist/forms/react/index.js",
+      "default": "./dist/forms/react/index.js"
+    },
+    "./forms/adapters/http": {
+      "types": "./dist/forms/adapters/http.d.ts",
+      "import": "./dist/forms/adapters/http.js",
+      "default": "./dist/forms/adapters/http.js"
+    },
+    "./forms/adapters/memory": {
+      "types": "./dist/forms/adapters/memory.d.ts",
+      "import": "./dist/forms/adapters/memory.js",
+      "default": "./dist/forms/adapters/memory.js"
+    },
+    "./forms/conformance": {
+      "types": "./dist/forms/conformance/forms-api.conformance.d.ts",
+      "import": "./dist/forms/conformance/forms-api.conformance.js",
+      "default": "./dist/forms/conformance/forms-api.conformance.js"
+    },
+    "./comments": {
+      "types": "./dist/comments/index.d.ts",
+      "import": "./dist/comments/index.js",
+      "default": "./dist/comments/index.js"
+    },
+    "./comments/react": {
+      "types": "./dist/comments/react/index.d.ts",
+      "import": "./dist/comments/react/index.js",
+      "default": "./dist/comments/react/index.js"
+    },
+    "./comments/adapters/http": {
+      "types": "./dist/comments/adapters/http.d.ts",
+      "import": "./dist/comments/adapters/http.js",
+      "default": "./dist/comments/adapters/http.js"
+    },
+    "./comments/adapters/memory": {
+      "types": "./dist/comments/adapters/memory.d.ts",
+      "import": "./dist/comments/adapters/memory.js",
+      "default": "./dist/comments/adapters/memory.js"
+    },
+    "./comments/conformance": {
+      "types": "./dist/comments/conformance/comments-api.conformance.d.ts",
+      "import": "./dist/comments/conformance/comments-api.conformance.js",
+      "default": "./dist/comments/conformance/comments-api.conformance.js"
+    },
+    "./redirects": {
+      "types": "./dist/redirects/index.d.ts",
+      "import": "./dist/redirects/index.js",
+      "default": "./dist/redirects/index.js"
+    },
+    "./redirects/react": {
+      "types": "./dist/redirects/react/index.d.ts",
+      "import": "./dist/redirects/react/index.js",
+      "default": "./dist/redirects/react/index.js"
+    },
+    "./redirects/adapters/http": {
+      "types": "./dist/redirects/adapters/http.d.ts",
+      "import": "./dist/redirects/adapters/http.js",
+      "default": "./dist/redirects/adapters/http.js"
+    },
+    "./redirects/adapters/memory": {
+      "types": "./dist/redirects/adapters/memory.d.ts",
+      "import": "./dist/redirects/adapters/memory.js",
+      "default": "./dist/redirects/adapters/memory.js"
+    },
+    "./redirects/conformance": {
+      "types": "./dist/redirects/conformance/redirects-api.conformance.d.ts",
+      "import": "./dist/redirects/conformance/redirects-api.conformance.js",
+      "default": "./dist/redirects/conformance/redirects-api.conformance.js"
+    },
+    "./seo": {
+      "types": "./dist/seo/index.d.ts",
+      "import": "./dist/seo/index.js",
+      "default": "./dist/seo/index.js"
+    },
+    "./seo/react": {
+      "types": "./dist/seo/react/index.d.ts",
+      "import": "./dist/seo/react/index.js",
+      "default": "./dist/seo/react/index.js"
+    },
+    "./seo/adapters/http": {
+      "types": "./dist/seo/adapters/http.d.ts",
+      "import": "./dist/seo/adapters/http.js",
+      "default": "./dist/seo/adapters/http.js"
+    },
+    "./seo/adapters/memory": {
+      "types": "./dist/seo/adapters/memory.d.ts",
+      "import": "./dist/seo/adapters/memory.js",
+      "default": "./dist/seo/adapters/memory.js"
+    },
+    "./seo/conformance": {
+      "types": "./dist/seo/conformance/seo-api.conformance.d.ts",
+      "import": "./dist/seo/conformance/seo-api.conformance.js",
+      "default": "./dist/seo/conformance/seo-api.conformance.js"
+    },
+    "./widgets": {
+      "types": "./dist/widgets/index.d.ts",
+      "import": "./dist/widgets/index.js",
+      "default": "./dist/widgets/index.js"
+    },
+    "./widgets/react": {
+      "types": "./dist/widgets/react/index.d.ts",
+      "import": "./dist/widgets/react/index.js",
+      "default": "./dist/widgets/react/index.js"
+    },
+    "./widgets/adapters/http": {
+      "types": "./dist/widgets/adapters/http.d.ts",
+      "import": "./dist/widgets/adapters/http.js",
+      "default": "./dist/widgets/adapters/http.js"
+    },
+    "./widgets/adapters/memory": {
+      "types": "./dist/widgets/adapters/memory.d.ts",
+      "import": "./dist/widgets/adapters/memory.js",
+      "default": "./dist/widgets/adapters/memory.js"
+    },
+    "./widgets/conformance": {
+      "types": "./dist/widgets/conformance/widgets-api.conformance.d.ts",
+      "import": "./dist/widgets/conformance/widgets-api.conformance.js",
+      "default": "./dist/widgets/conformance/widgets-api.conformance.js"
     }
   },
   "files": [
@@ -267,13 +432,37 @@
   },
   "peerDependencies": {
     "react": "^18.3.0 || ^19.0.0",
-    "react-dom": "^18.3.0 || ^19.0.0"
+    "react-dom": "^18.3.0 || ^19.0.0",
+    "@jini-ai/agentic": "^0.4.2",
+    "@jini-ai/ui": "^0.4.5",
+    "@jini-ai/ui-kit": "^0.1.1",
+    "@jini-ai/agent-plugins": "^0.4.1",
+    "@jini-ai/cms": "^0.5.2",
+    "@jini-ai/core": "^0.4.2"
   },
   "peerDependenciesMeta": {
     "react": {
       "optional": true
     },
     "react-dom": {
+      "optional": true
+    },
+    "@jini-ai/agentic": {
+      "optional": true
+    },
+    "@jini-ai/ui": {
+      "optional": true
+    },
+    "@jini-ai/ui-kit": {
+      "optional": true
+    },
+    "@jini-ai/agent-plugins": {
+      "optional": true
+    },
+    "@jini-ai/cms": {
+      "optional": true
+    },
+    "@jini-ai/core": {
       "optional": true
     }
   },
@@ -285,12 +474,20 @@
     "@vitest/coverage-v8": "^2.1.9",
     "jsdom": "^25.0.1",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
-  },
-  "dependencies": {
+    "react-dom": "^19.2.0",
     "@jini-ai/agentic": "workspace:^",
     "@jini-ai/ui": "workspace:^",
     "@jini-ai/ui-kit": "workspace:^",
-    "@jini-ai/agent-plugins": "workspace:^"
+    "@jini-ai/agent-plugins": "workspace:^",
+    "@jini-ai/cms": "workspace:^",
+    "@jini-ai/core": "workspace:^",
+    "@testing-library/user-event": "^14.6.1"
+  },
+  "typesVersions": {
+    "*": {
+      "core/react": [
+        "./dist/core/react/index.d.ts"
+      ]
+    }
   }
 }

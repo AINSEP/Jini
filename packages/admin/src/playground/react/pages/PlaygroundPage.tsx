@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { Notice, Spinner } from '@jini-ai/ui-kit/react';
-import type { ModulePageProps } from '../../../react/bind-react.js';
+import type { ModulePageProps } from '../../../core/react/bind-react.js';
 import { usePlaygroundPage } from '../hooks/PlaygroundPage.hooks.js';
 import { playgroundMessagesEn as m } from '../../messages.en.js';
 export function PlaygroundPage(props: ModulePageProps, _optional = {}) {

@@ -1,5 +1,7 @@
-import { type ReactNode } from 'react';
-import { agentHandle, type AgentElementRole } from '@jini-ai/agentic';
+import type { ReactNode } from 'react';
+import { agentHandle } from '@jini-ai/agentic';
+import type { AgentAttrsPort } from '@jini-ai/ui-kit';
+import { useConfirmController } from '@jini-ai/ui-kit/react';
 import { resolveTone, toneClassName, type ConfirmTone } from '../../types.js';
 import { useConfirmDialog, useConfirmDialogCancelLabel, type UseConfirmDialog } from './ConfirmDialog.hooks.js';
 
@@ -12,8 +14,8 @@ import { useConfirmDialog, useConfirmDialogCancelLabel, type UseConfirmDialog } 
  * overlay + backdrop idiom: that shape hand-rolls focus trapping, Escape handling, and a backdrop
  * element, all of which the browser's own top layer gives a real `<dialog>` for free, including
  * correct stacking above everything else on the page without a chosen `z-index`. The `showModal`/
- * `close` calls themselves, and the jsdom fallback they need, live in `ConfirmDialog.hooks.tsx` —
- * see that file's doc comment.
+ * `close` calls themselves, and the jsdom fallback they need, are delegated by
+ * `ConfirmDialog.hooks.tsx` to UI-kit's native hook — see that adapter's doc comment.
  *
  * Unstyled, like everything in this layer: the `.confirm-dialog` / `.btn-secondary` /
  * `.btn-danger` / `.btn-warning` class names are emitted for the host stylesheet to define.
@@ -53,7 +55,7 @@ import { useConfirmDialog, useConfirmDialogCancelLabel, type UseConfirmDialog } 
  * Labels state both the action and its consequence tier, derived from this component's own
  * three-tier `ConfirmTone` vocabulary rather than reparsed from `title`/`body`: `body` is arbitrary
  * `ReactNode` (a caller can pass JSX), not guaranteed to be a string at all, so it cannot be safely
- * folded into agent-facing text — see {@link confirmDialogConsequencePhrase}.
+ * folded into agent-facing text — the shared UI-kit confirmation planner owns those phrases.
  */
 
 export interface ConfirmDialogProps {
@@ -94,76 +96,23 @@ export interface ConfirmDialogProps {
   agentMayConfirm?: boolean;
 }
 
-/** Sub-handle segments appended to the caller's base — literals this component chooses itself,
- *  never host data (see this file's "Agent handles" doc comment for why that means neither needs
- *  sanitizing, unlike `RowMenu`'s per-item keys). */
-const CONFIRM_HANDLE_ACTION = 'confirm';
-const CANCEL_HANDLE_ACTION = 'cancel';
-
 /**
- * Plain-language phrase for what confirming actually changes, keyed off the dialog's own
- * three-tier `ConfirmTone` vocabulary (`"default"` / `"warning"` / `"danger"`, documented in
- * `../../types.js`) rather than reparsed from `title` or `body` — see this file's doc comment for
- * why those cannot be safely folded into agent-facing text.
+ * UI-kit's confirmation planner owns the sub-handle segments appended to the caller's base:
+ * literals chosen by the mechanism, never host data. Neither needs sanitizing, unlike
+ * `RowMenu`'s per-item keys (see this file's "Agent handles" contract).
  *
- * @param tone - The dialog's resolved tone (see `resolveTone`).
- * @returns The tier's consequence phrase, or `undefined` for `"default"`, which declares no tier.
- * @complexity O(1).
- */
-function confirmDialogConsequencePhrase(tone: ConfirmTone): string | undefined {
-  if (tone === 'danger') return 'cannot be undone';
-  if (tone === 'warning') return 'changes access, but is reversible';
-  return undefined;
-}
-
-/**
- * The confirm action's agent-facing label: what it does (`confirmLabel`), what it applies to
- * (`title`), and — when the tone declares one — its consequence tier.
+ * Its plain-language consequence phrase is keyed off the dialog's three-tier `ConfirmTone`
+ * vocabulary (`"default"` / `"warning"` / `"danger"`, documented in `../../types.js`), rather
+ * than reparsed from `title` or `body`, which cannot safely supply agent-facing consequence text.
+ * The confirm label names the action (`confirmLabel`), target (`title`) and declared consequence;
+ * the planner does not parse `body` to decide whether an action is safe.
  *
- * @param confirmLabel - The button's own visible text, e.g. `"Delete"`.
- * @param title - The dialog's title, e.g. `"Delete role?"`.
- * @param tone - The dialog's resolved tone.
- * @returns A label an agent can use to judge whether confirming is safe, without having read
- *   `body` (which this function never receives — see this file's doc comment for why).
- * @complexity O(1).
+ * The cancel label's consequence is a guarantee of the contract (cancelling never calls
+ * `onConfirm`), rather than something read off `tone`, so it needs no tone input at all.
+ * Agent attributes retain the shape used by `RowMenu`'s local `rowMenuAgentProps`; injecting
+ * admin's attribute port into the shared owner preserves that shape and handle validation
+ * without keeping a second local implementation. No base handle means no agent attributes.
  */
-function confirmDialogConfirmLabel(confirmLabel: string, title: string, tone: ConfirmTone): string {
-  const consequence = confirmDialogConsequencePhrase(tone);
-  return consequence === undefined ? `${confirmLabel} — ${title}` : `${confirmLabel} — ${title}; ${consequence}`;
-}
-
-/**
- * The cancel action's agent-facing label. Unlike {@link confirmDialogConfirmLabel}, its consequence
- * is a guarantee of this component's own contract (cancelling never calls `onConfirm`) rather than
- * something read off `tone`, so it needs no tone input at all.
- *
- * @param cancelLabel - The button's own visible text, already defaulted by the caller.
- * @param title - The dialog's title, e.g. `"Delete role?"`.
- * @returns A label stating that this action leaves the titled action unconfirmed.
- * @complexity O(1).
- */
-function confirmDialogCancelLabel(cancelLabel: string, title: string): string {
-  return `${cancelLabel} — leaves "${title}" unconfirmed; no action taken`;
-}
-
-/**
- * Builds the `data-agent-*` attribute props for one of this dialog's two actions, or nothing at
- * all when the dialog published no base handle — same shape as `RowMenu.tsx`'s local
- * `rowMenuAgentProps`, kept local and unexported here since only this one component needs it.
- *
- * @param base - The dialog's own handle from the caller, or `undefined` when it published none.
- * @param action - Which action this is — see {@link CONFIRM_HANDLE_ACTION}/{@link CANCEL_HANDLE_ACTION}.
- * @param options - Role and this action's already-composed label.
- * @returns Spreadable attribute props, or `{}` when `base` is `undefined`.
- * @complexity O(1).
- */
-function confirmDialogAgentProps(
-  base: string | undefined,
-  action: typeof CONFIRM_HANDLE_ACTION | typeof CANCEL_HANDLE_ACTION,
-  options: { role: AgentElementRole; label: string },
-) {
-  return base === undefined ? {} : agentHandle({ handle: `${base}-${action}` }, options);
-}
 
 /**
  * Controlled modal confirm — renders the `<dialog>` markup and delegates its open/close and focus
@@ -179,14 +128,29 @@ export function ConfirmDialog({
   agentHandle: baseHandle,
   agentMayConfirm = true,
   ...props
-}: ConfirmDialogProps) {
-  const { titleId, dialogRef, cancelRef, handleNativeCancel, handleBackdropClick } = useDialog(
-    { open: props.open, onCancel: props.onCancel, document },
-    { pending: props.pending },
-  );
-
+}: ConfirmDialogProps, _optional: Record<string, never> = {}) {
   const tone = resolveTone({}, props);
   const cancelLabel = useConfirmDialogCancelLabel({}, { explicit: props.cancelLabel });
+  const controller = useConfirmController({
+    open: props.open, title: props.title, body: props.body, confirmLabel: props.confirmLabel,
+    cancelLabel, tone, agentMayConfirm,
+    ...(baseHandle === undefined ? {} : { agentHandle: baseHandle }),
+    ...(props.pending === undefined ? {} : { pending: props.pending }),
+    onConfirm: () => props.onConfirm(), onCancel: () => props.onCancel(),
+  }, {
+    // UI-kit names selects separately; agentic publishes them as fields and still owns handle validation.
+    agent: ((required, optional = {}) => agentHandle(required, {
+      ...(optional.role === undefined ? {} : { role: optional.role === 'select' ? 'field' : optional.role }),
+      ...(optional.label === undefined ? {} : { label: optional.label }),
+    })) satisfies AgentAttrsPort,
+  });
+  const { titleId, dialogRef, cancelRef, handleNativeCancel, handleBackdropClick } = useDialog(
+    { open: props.open, onCancel: () => { controller.requestDismiss({ reason: 'close' }); }, document },
+    { pending: controller.pending },
+  );
+  // Keep admin's concise accessible names; the shared planner still supplies consequence-aware agent labels.
+  const { 'aria-label': _cancelName, ...cancelAttrs } = controller.cancel.attrs ?? {};
+  const { 'aria-label': _confirmName, ...confirmAttrs } = controller.confirm.attrs ?? {};
 
   return (
     <dialog
@@ -197,30 +161,24 @@ export function ConfirmDialog({
       onClick={handleBackdropClick}
     >
       <h2 id={titleId}>{props.title}</h2>
-      <div className="confirm-dialog-body">{props.body}</div>
+      <div className="confirm-dialog-body">{props.body}{controller.error}</div>
       <div className="confirm-dialog-actions">
         <button
           ref={cancelRef}
           type="button"
           className="btn-secondary"
-          disabled={props.pending}
-          onClick={props.onCancel}
-          {...confirmDialogAgentProps(baseHandle, CANCEL_HANDLE_ACTION, {
-            role: 'button',
-            label: confirmDialogCancelLabel(cancelLabel, props.title),
-          })}
+          disabled={controller.pending}
+          onClick={() => controller.cancel.onPress?.({})}
+          {...cancelAttrs}
         >
           {cancelLabel}
         </button>
         <button
           type="button"
           className={toneClassName({ tone })}
-          disabled={props.pending}
-          onClick={() => props.onConfirm()}
-          {...confirmDialogAgentProps(agentMayConfirm ? baseHandle : undefined, CONFIRM_HANDLE_ACTION, {
-            role: 'button',
-            label: confirmDialogConfirmLabel(props.confirmLabel, props.title, tone),
-          })}
+          disabled={controller.pending}
+          onClick={() => controller.confirm.onPress?.({})}
+          {...confirmAttrs}
         >
           {props.confirmLabel}
         </button>

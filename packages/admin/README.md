@@ -173,3 +173,10 @@ its presence does not imply matcher support. Hosts must verify support before of
 React controls keep importing `agentHandle` and `buildAgentListHandles` from
 `@jini-ai/agentic`; this is an allowed UI-to-agentic layer dependency. The helpers
 have not moved and consumers continue to use their original exports.
+
+Shared React binding helpers are also available from `@jini-ai/admin/core/react`.
+This is an explicit browser adapter entry: `@jini-ai/admin/core` and the package
+root remain framework free. Domain React entries call these shared helpers
+directly, and the existing `react/bind-react` and `react/use-controller` entries
+retain their exports through compatibility re-exports. Domain integration
+packages are optional peers; install the peers used by the selected entries.

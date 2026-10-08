@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { Notice, Spinner, Tabs } from '@jini-ai/ui-kit/react';
-import type { ModulePageProps } from '../../../react/bind-react.js';
+import type { ModulePageProps } from '../../../core/react/bind-react.js';
 import { useSourceControlPage } from '../hooks/SourceControlPage.hooks.js';
 import { sourceControlMessagesEn as m } from '../../messages.en.js';
 export function SourceControlPage(props: ModulePageProps, _optional = {}) {

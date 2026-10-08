@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useController } from '../../../react/use-controller.js';
+import { useController } from '../../../core/react/use-controller.js';
 import { createEditMediaController } from '../../controllers/edit-media.controller.js';
 import type { MediaApiPort } from '../../ports.js';
 import type { MediaAsset, MediaMetadataPatch, UploadInput } from '../../models.js';

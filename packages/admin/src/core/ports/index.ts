@@ -62,14 +62,17 @@ export type {
 
 export type {
   AdminSeoAnalysis,
+  AdminSeoEntryChoice,
   AdminSeoIssue,
   AdminSeoMeta,
   AdminSeoOpenGraph,
   AdminSeoOverrides,
+  AdminSeoOverridesPatch,
   AdminSeoPort,
   AdminSeoRobotsDirective,
   AdminSeoRobotsRule,
   AdminSeoSettings,
+  AdminSeoSettingsPatch,
   AdminSeoTwitterCard,
   SeoIssueSeverity,
   SeoOpenGraphType,

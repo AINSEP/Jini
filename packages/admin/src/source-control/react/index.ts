@@ -1,4 +1,4 @@
-import { bindReact } from '../../react/bind-react.js';
+import { bindReact } from '../../core/react/bind-react.js';
 import { sourceControlModule } from '../source-control.module.js';
 import { SourceControlPortsContext } from './hooks/SourceControlPorts.hooks.js';
 export { useSourceControlPorts } from './hooks/SourceControlPorts.hooks.js';

@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { ConfirmDialog, Notice, Spinner, Tabs } from '@jini-ai/ui-kit/react';
-import type { ModulePageProps } from '../../../react/bind-react.js';
+import type { ModulePageProps } from '../../../core/react/bind-react.js';
 import { AgentPluginsPageContext, useAgentPluginsPage } from '../hooks/AgentPluginsPage.hooks.js';
 import { AgentPluginInspector } from '../components/AgentPluginInspector.js';
 import { agentPluginsMessagesEn as m } from '../../messages.en.js';

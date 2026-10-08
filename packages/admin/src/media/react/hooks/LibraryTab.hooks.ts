@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { TabViewProps } from '../../../react/bind-react.js';
-import { useController } from '../../../react/use-controller.js';
+import type { TabViewProps } from '../../../core/react/bind-react.js';
+import { useController } from '../../../core/react/use-controller.js';
 import { createLibraryController } from '../../controllers/library.controller.js';
 import { useSharedMediaLibrary } from './MediaPage.hooks.js';
 import { useMediaPorts } from './MediaPorts.hooks.js';

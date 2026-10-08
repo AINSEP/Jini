@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { createElement } from 'react';
-import { bindReact } from '../../react/bind-react.js';
+import { bindReact } from '../../core/react/bind-react.js';
 import type { OverlayPort } from '../../react/overlays.js';
 import { mediaModule } from '../media.module.js';
 import type { MediaApiPort } from '../ports.js';

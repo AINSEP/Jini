@@ -139,14 +139,17 @@ export type {
   AdminRedirectsPort,
   AdminRedirectUpdatePatch,
   AdminSeoAnalysis,
+  AdminSeoEntryChoice,
   AdminSeoIssue,
   AdminSeoMeta,
   AdminSeoOpenGraph,
   AdminSeoOverrides,
+  AdminSeoOverridesPatch,
   AdminSeoPort,
   AdminSeoRobotsDirective,
   AdminSeoRobotsRule,
   AdminSeoSettings,
+  AdminSeoSettingsPatch,
   AdminSeoTwitterCard,
   FormDefinitionStatus,
   FormFieldType,
@@ -189,3 +192,6 @@ export {
 export type { AdminEntityErasureOptions, AdminEntityRowViolation } from './entities/rules.js';
 
 export type { AdminShellContext, AdminShellNavigationPort, AdminShellSession, AdminShellSessionPort } from './ports/shell.js';
+
+export { loadNamespaceValues, saveChangedEntries, readString, readBoolean, readNumber } from './ledger-slice.js';
+export type { LedgerEntry, LedgerCandidate } from './ledger-slice.js';

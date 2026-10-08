@@ -1,4 +1,4 @@
-import { bindReact } from '../../react/bind-react.js';
+import { bindReact } from '../../core/react/bind-react.js';
 import { agentPluginsModule } from '../agent-plugins.module.js';
 import { AgentPluginsPortsContext } from './hooks/AgentPluginsPorts.hooks.js';
 import { agentPluginsMessagesEn as m } from '../messages.en.js';

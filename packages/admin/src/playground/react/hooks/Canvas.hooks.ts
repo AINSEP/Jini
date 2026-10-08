@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
-import { useController } from '../../../react/use-controller.js';
+import { useController } from '../../../core/react/use-controller.js';
 import { createPlaygroundController } from '../../controllers/playground.controller.js';
 import { canMountPlayground } from '../../rules.js';
-import type { TabViewProps } from '../../../react/bind-react.js';
+import type { TabViewProps } from '../../../core/react/bind-react.js';
 import { usePlaygroundPorts } from './PlaygroundPorts.hooks.js';
 export function useCanvas({ permissions = [] }: TabViewProps, _optional = {}) {
   const { playgroundTargets } = usePlaygroundPorts({}); const key = permissions.join('\0');

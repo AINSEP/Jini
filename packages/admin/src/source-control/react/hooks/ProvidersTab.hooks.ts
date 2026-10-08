@@ -1,5 +1,5 @@
-import type { TabViewProps } from '../../../react/bind-react.js';
-import { useController } from '../../../react/use-controller.js';
+import type { TabViewProps } from '../../../core/react/bind-react.js';
+import { useController } from '../../../core/react/use-controller.js';
 import { createSourceControlController } from '../../controllers/source-control.controller.js';
 import { blankSourceControlDraft, sourceControlProviders, defaultSourceControlCredential, sourceControlReady, safeSourceControlUrl } from '../../rules.js';
 import { useSourceControlPorts } from './SourceControlPorts.hooks.js';

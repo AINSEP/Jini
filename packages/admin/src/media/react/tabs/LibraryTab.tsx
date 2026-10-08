@@ -1,5 +1,5 @@
 import { Button, Select, TextField } from '@jini-ai/ui-kit/react';
-import type { TabViewProps } from '../../../react/bind-react.js';
+import type { TabViewProps } from '../../../core/react/bind-react.js';
 import { useLibraryTab } from '../hooks/LibraryTab.hooks.js';
 import { MediaGrid } from '../components/MediaGrid.js';
 import { UploadButton } from '../components/UploadButton.js';

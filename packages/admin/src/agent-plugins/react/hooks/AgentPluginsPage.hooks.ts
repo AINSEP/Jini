@@ -1,6 +1,6 @@
 import { createContext, useContext, useId, useState } from 'react';
-import type { ModulePageProps } from '../../../react/bind-react.js';
-import { useController } from '../../../react/use-controller.js';
+import type { ModulePageProps } from '../../../core/react/bind-react.js';
+import { useController } from '../../../core/react/use-controller.js';
 import { createAgentPluginsController } from '../../controllers/agent-plugins.controller.js';
 import type { AgentPluginsState } from '../../models.js';
 import { AGENT_PLUGINS_READ, agentPluginDisableCopy, humanizeAgentPluginId } from '../../rules.js';

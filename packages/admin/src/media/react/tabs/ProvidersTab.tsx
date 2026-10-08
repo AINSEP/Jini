@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import type { TabViewProps } from '../../../react/bind-react.js';
+import type { TabViewProps } from '../../../core/react/bind-react.js';
 import { useProvidersTab } from '../hooks/ProvidersTab.hooks.js';
 import { EyeIcon, HiddenEyeIcon, ReloadIcon } from '../components/MediaIcons.js';
 export function ProvidersTab(_props: TabViewProps, _optional: Record<string, never> = {}) {

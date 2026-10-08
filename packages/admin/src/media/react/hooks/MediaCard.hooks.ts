@@ -16,24 +16,11 @@ export interface MediaCardProps {
   readonly onChoose?: () => void;
 }
 export function useMediaCard(props: MediaCardProps, _optional: Record<string, never> = {}) {
-  /** Historical preview rationale, retained with the ported fallback chain:
- * The hard problem this rewrite had to solve: **the media list response carried no content type**
- * (neither `media` nor `asset_blobs` stored one — upload validated `contentType` then discarded
- * it), so nothing in `AdminMedia` told the client whether a given asset was an image, a video, or
- * something unpreviewable. `MediaPreview` below resolves this client-side with an optimistic
- * render-and-fall-back chain (`<img>` → onError → `<video>` → onError → placeholder) rather than a
- * HEAD probe per card. Chosen over the HEAD approach because: (1) the byte route's documented
- * contract covers GET — sniffing/Range were specified for that, not for HEAD, so building on HEAD
- * would be assuming a behavior nobody confirmed; (2) a HEAD-first design means every card blocks on
- * a round trip before any pixel paints, working against the fixed-aspect-box + lazy-loading this
- * grid needs anyway, whereas the optimistic path costs nothing extra for the common case (a real
- * image just loads) and only "wastes" a request for the video/unsupported minority — and even then,
- * a browser's image decoder typically fails off the header bytes rather than pulling the whole
- * file; (3) it composes for free with the server's security defusal: a sniffed HTML/SVG comes back
- * as `application/octet-stream` with `Content-Disposition: attachment`, which is not a valid image
- * OR video MIME, so it fails both probes and lands on the placeholder with zero special-casing —
- * this file never needs to detect "is this the defused case" itself.
-   */
+  /** Preview optimistically: image -> video -> placeholder. The list supplies no reliable media
+   * kind, and the byte route guarantees GET rather than HEAD, so probing headers would assume an
+   * unsupported contract and delay every card's first paint. Images load directly; failed decoders
+   * usually stop at header bytes. Defused HTML/SVG served as octet-stream attachments fails both
+   * decoders and reaches the placeholder without content-specific handling. */
   const src = safeMediaUrl({ url: props.api.originalUrl({ id: props.item.id, version: props.item.version }) });
   const [probe, setProbe] = useState<{ src: typeof src; stage: 'image' | 'video' | 'unsupported' }>({ src, stage: 'image' });
   // New bytes can change media type under the same id. Retry the fallback from image
@@ -60,8 +47,7 @@ export function useMediaCard(props: MediaCardProps, _optional: Record<string, ne
     menuItems: [
       ...(props.onEdit ? [{ id: 'edit', label: 'Edit metadata', onPress: props.onEdit, disabled: props.busy === true }] : []),
       ...(props.onTrash && props.item.status !== 'trashed' ? [{ id: 'trash', label: 'Trash', onPress: props.onTrash, disabled: props.busy === true }] : []),
-      // Restore is owner-requested beyond legacy; it lives only in a trashed card's menu, so
-      // the card itself keeps the legacy look and active cards' menus stay legacy-identical.
+      // Restore belongs only in a trashed card's menu; active cards have nothing to restore.
       ...(props.onRestore && props.item.status === 'trashed' ? [{ id: 'restore', label: 'Restore', onPress: props.onRestore, disabled: props.busy === true }] : []),
       ...(props.onPurge && props.item.status === 'trashed' ? [{ id: 'purge', label: 'Delete permanently', attrs: { 'data-jini-variant': 'danger' }, onPress: props.onPurge, disabled: props.busy === true }] : []),
     ],
