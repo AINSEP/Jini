@@ -290,4 +290,25 @@ describe('parser fixtures', () => {
     const parsed = parseClaudeInitializeMetadata('{"type":"control_response","response":{"subtype":"success","response":{"models":[{"value":"opus","resolvedModel":"claude-opus-new[1m]","displayName":"Claude Opus New"}]}}}');
     expect(parsed?.models).toEqual([{ id: 'opus', label: 'Claude Opus New', identityKind: 'alias', resolvedId: 'claude-opus-new[1m]' }, { id: 'claude-opus-new[1m]', label: 'Claude Opus New', identityKind: 'concrete' }]);
   });
+  it('labels the Claude native default with its exact resolved ID, including the context variant', async () => {
+    const fake = fakeDeps();
+    fake.setOutput(JSON.stringify({ type: 'control_response', response: { subtype: 'success', response: { models: [
+      { value: 'default', resolvedModel: 'claude-opus-5-5[1m]', displayName: 'Default (recommended)' },
+      { value: 'sonnet', resolvedModel: 'claude-sonnet-5', displayName: 'Claude Sonnet 5' },
+    ] } } }));
+    const def = AGENT_DEFS.find(row => row.id === 'claude')!;
+    const catalog = await def.discoverModels!({ context }, { deps: fake.deps });
+    expect(catalog.models).toEqual([
+      { id: 'claude-opus-5-5[1m]', label: 'claude-opus-5-5[1m]', identityKind: 'concrete' },
+      { id: 'sonnet', label: 'Claude Sonnet 5', identityKind: 'alias', resolvedId: 'claude-sonnet-5' },
+      { id: 'claude-sonnet-5', label: 'Claude Sonnet 5', identityKind: 'concrete' },
+    ]);
+    expect(await def.resolveDefaultModel!({ context, catalog }, { deps: fake.deps })).toEqual({
+      status: 'resolved', id: 'claude-opus-5-5[1m]', selectionId: 'claude-opus-5-5[1m]', source: 'rpc',
+      resolvedAt: '1970-01-01T00:00:00.000Z', launchFingerprint: catalog.launchFingerprint,
+    });
+  });
+  it('does not guess a concrete Claude default when initialize omits resolved evidence', () => {
+    expect(parseClaudeInitializeMetadata('{"type":"control_response","response":{"subtype":"success","response":{"models":[{"value":"default","displayName":"Default (recommended)"}]}}}')).toEqual({ models: [], source: 'rpc', coverage: 'account' });
+  });
 });

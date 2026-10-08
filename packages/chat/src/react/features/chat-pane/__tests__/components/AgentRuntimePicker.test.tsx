@@ -65,6 +65,24 @@ function PickerHarness({
 }
 
 describe('AgentRuntimePicker', () => {
+  it('shows the discovered Claude default and emits concrete IDs from the dynamic model list', async () => {
+    const onChange = vi.fn();
+    const claude: ChatPaneAgent = { id: 'claude', name: 'Claude Code', available: true, models: [
+      { id: 'claude-sonnet-5', label: 'Claude Sonnet 5', identityKind: 'concrete' },
+      { id: 'claude-opus-5-5[1m]', label: 'Default (recommended)', identityKind: 'concrete' },
+    ], defaultModelResolution: { status: 'resolved', id: 'claude-opus-5-5[1m]', source: 'rpc', resolvedAt: '2026-10-08T00:00:00.000Z', launchFingerprint: 'fixture' } };
+    const { rerender } = render(<AgentRuntimePicker agents={[claude]} value={{ agentId: 'claude' }} onChange={onChange} />);
+    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveTextContent('claude-opus-5-5[1m]');
+    await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
+    expect(screen.getByRole('combobox', { name: 'Model' })).toHaveValue('claude-opus-5-5[1m]');
+    expect(screen.getByRole('option', { name: 'claude-opus-5-5[1m]' })).toBeInTheDocument();
+    expect(screen.queryByText('Default (recommended)')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Model' }), { target: { value: 'claude-sonnet-5' } });
+    expect(onChange).toHaveBeenCalledWith({ agentId: 'claude', model: 'claude-sonnet-5' });
+    rerender(<AgentRuntimePicker agents={[{ ...claude, models: [], defaultModelResolution: { status: 'unresolved', reason: 'Discovery failed' } }]} value={{ agentId: 'claude' }} onChange={onChange} />);
+    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveTextContent('Choose model');
+  });
+
   it('uses the host translator for the trigger prompt and cached/offline catalog notes', async () => {
     const dictionary: Record<string, string> = { 'Choose model': 'Elegir modelo', Cached: 'En caché', 'Offline fallback': 'Alternativa sin conexión' };
     const t = (key: string) => dictionary[key] || key;

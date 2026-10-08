@@ -32,6 +32,16 @@ describe('concrete starting-model choices', () => {
   it('uses the id when no catalog display name exists', () => {
     expect(pickerModelLabel({ ...agent, models: [] })).toBe('gpt-other');
   });
+  it('replaces legacy Default labels with the resolved concrete ID', () => {
+    const legacy = { ...agent, models: [
+      { id: 'default', label: 'Default (recommended)', resolvedId: 'gpt-other' },
+      { id: 'gpt-new', label: 'Default (CLI config)' },
+    ] };
+    expect(pickerModelOptions(legacy).map(row => ({ id: row.id, label: row.label }))).toEqual([
+      { id: 'gpt-other', label: 'gpt-other' }, { id: 'gpt-new', label: 'gpt-new' },
+    ]);
+    expect(pickerModelLabel(legacy, 'default')).toBe('gpt-other');
+  });
   it('does not offer unresolved aliases or routing modes and requires a concrete selection', () => {
     const routed: ChatPaneAgent = { ...agent, models: [{ id: 'auto', label: 'Auto', identityKind: 'routing-mode' }, { id: 'adaptive', label: 'Adaptive' }, { id: 'sonnet', label: 'Sonnet', identityKind: 'alias' }], defaultModelResolution: { status: 'unresolved', selectionId: 'auto', reason: 'No concrete evidence' } };
     expect(pickerModelOptions(routed)).toEqual([]);

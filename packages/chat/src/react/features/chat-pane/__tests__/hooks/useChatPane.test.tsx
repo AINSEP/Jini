@@ -21,6 +21,49 @@ describe('useChatPane', () => {
     __resetAttachmentPreviewCacheForTests();
   });
 
+  it('dispatches the discovered concrete Claude default through the host run-context boundary', async () => {
+    const transport = createFakeChatTransport();
+    const onSelectionChange = vi.fn();
+    const claude: ChatPaneAgent = { id: 'claude', name: 'Claude Code', available: true, models: [
+      { id: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
+      { id: 'claude-opus-5-5[1m]', label: 'Default (recommended)' },
+    ], defaultModelResolution: { status: 'resolved', id: 'claude-opus-5-5[1m]', source: 'rpc', resolvedAt: '2026-10-08T00:00:00.000Z', launchFingerprint: 'fixture' } };
+    const { result, rerender } = renderHook(() => useChatPane({
+      transport, agents: [claude], selection: { agentId: 'claude' }, initialDraft: 'Hello',
+      onSelectionChange,
+      runContext: ({ selection }) => ({ model: selection.model }),
+    }));
+    expect(result.current.selection).toEqual({ agentId: 'claude', model: 'claude-opus-5-5[1m]' });
+    const normalizedSelection = result.current.selection;
+    // The controlled request still omits its model after normalization; ordinary renders must
+    // neither normalize it again nor write a fresh object into composer state indefinitely.
+    act(() => result.current.composer.setDraft('Hello again'));
+    rerender();
+    expect(result.current.selection).toBe(normalizedSelection);
+    expect(result.current.composer.agent).toEqual(normalizedSelection);
+    expect(onSelectionChange).toHaveBeenCalledTimes(1);
+    expect(onSelectionChange).toHaveBeenCalledWith(normalizedSelection);
+    await act(() => result.current.send());
+    expect(transport.calls).toHaveLength(1);
+    expect(transport.calls[0]?.input.agentId).toBe('claude');
+    expect(transport.calls[0]?.input.context).toEqual({ model: 'claude-opus-5-5[1m]' });
+    expect(onSelectionChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires a concrete choice when discovery cannot resolve the native default', async () => {
+    const transport = createFakeChatTransport();
+    const claude: ChatPaneAgent = { id: 'claude', name: 'Claude Code', available: true,
+      models: [{ id: 'claude-sonnet-5', label: 'Claude Sonnet 5' }],
+      defaultModelResolution: { status: 'unresolved', reason: 'Native metadata did not resolve a default.' },
+      modelCatalog: { source: 'offline-fallback', freshness: 'offline-fallback', fetchedAt: '2026-10-08T00:00:00.000Z', expiresAt: '2026-10-08T00:15:00.000Z', coverage: 'configured', launchFingerprint: 'fixture' },
+    };
+    const { result } = renderHook(() => useChatPane({ transport, agents: [claude], initialDraft: 'Hello' }));
+    expect(result.current.selection).toEqual({ agentId: 'claude' });
+    expect(result.current.sendBlocker).toBe('model-unresolved');
+    await act(() => result.current.send());
+    expect(transport.calls).toHaveLength(0);
+  });
+
   it('threads conversationId into the composer so a draft round-trips a conversation switch', () => {
     // Reproduces the owner-reported bug: `useChatPane` used to call `useComposer` with only
     // `initialDraft`/`initialAgent` (never `conversationId`), so nothing survived a host remounting

@@ -39,7 +39,10 @@ export async function probeCliSubcommand(context: ModelDiscoveryContext, config:
 export async function probeAcpMetadata(context: ModelDiscoveryContext, args: readonly string[], deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
   return deps.acp.probe({ context, args, signal });
 }
-/** Keep selection IDs, resolved concrete IDs and display names, including capability variants. */
+/** Keep selection IDs, resolved concrete IDs and display names, including capability variants.
+ * Default-policy display names become the exact resolved ID; malformed responses return null.
+ * @complexity O(s + n) time and space in stdout length s and listed models n.
+ */
 export function parseClaudeInitializeMetadata(stdout: string): ModelProbeResult | null {
   for (const line of stdout.split('\n')) {
     let obj: Record<string, unknown> | null;
@@ -56,7 +59,8 @@ export function parseClaudeInitializeMetadata(stdout: string): ModelProbeResult 
       const resolvedId = typeof row.resolvedModel === 'string' ? row.resolvedModel.trim() : undefined;
       const label = typeof row.displayName === 'string' && row.displayName.trim() ? row.displayName.trim() : resolvedId || id;
       if (id === 'default') {
-        if (resolvedId && modelIdentityKind(resolvedId) === 'concrete') { defaultSelectionId = resolvedId; models.push({ id: resolvedId, label, identityKind: 'concrete' }); }
+        // This displayName describes the CLI's default policy, not the model it resolves to.
+        if (resolvedId && modelIdentityKind(resolvedId) === 'concrete') { defaultSelectionId = resolvedId; models.push({ id: resolvedId, label: resolvedId, identityKind: 'concrete' }); }
         continue;
       }
       models.push({ id, label, identityKind: id === resolvedId ? 'concrete' : resolvedId ? 'alias' : modelIdentityKind(id), ...(resolvedId ? { resolvedId } : {}) });

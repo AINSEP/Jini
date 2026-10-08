@@ -271,10 +271,17 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     workingDirectoryAccess: options.workingDirectoryAccess,
   } }));
   const requestedSelection = options.selection ?? internalSelection;
-  const selection = useMemo(
+  const resolvedSelection = useMemo(
     () => resolveChatPaneSelection({ agents: options.agents, requested: requestedSelection }),
     [options.agents, requestedSelection],
   );
+  // Inline inventories and controlled selections can be new objects on every render. Keep the
+  // normalized value stable so synchronizing it into composer state cannot feed a render loop.
+  const selection = useMemo(() => definedProps({ source: {
+    agentId: resolvedSelection.agentId,
+    model: resolvedSelection.model,
+    reasoning: resolvedSelection.reasoning,
+  } }), [resolvedSelection.agentId, resolvedSelection.model, resolvedSelection.reasoning]);
   const selectedAgent = options.agents.find((agent) => agent.id === selection.agentId);
   const conversation = useConversation(definedProps({ source: {
     transport: options.transport,
@@ -316,6 +323,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     };
   }, []);
 
+  const selectionControlled = options.selection !== undefined;
+  const setComposerAgent = composer.setAgent;
   useEffect(() => {
     if (!selection.agentId) return;
     if (
@@ -323,13 +332,13 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       && requestedSelection.model === selection.model
       && requestedSelection.reasoning === selection.reasoning
     ) return;
-    if (options.selection === undefined) setInternalSelection(selection);
-    composer.setAgent(selection);
+    if (!selectionControlled) setInternalSelection(selection);
+    setComposerAgent(selection);
     options.onSelectionChange?.(selection);
   }, [
-    composer,
+    setComposerAgent,
     options.onSelectionChange,
-    options.selection,
+    selectionControlled,
     requestedSelection.agentId,
     requestedSelection.model,
     requestedSelection.reasoning,

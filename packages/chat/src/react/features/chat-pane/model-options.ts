@@ -8,7 +8,9 @@ export function isConcretePickerModel(id: string): boolean {
   const token = id.slice(id.lastIndexOf('/') + 1);
   return !/^(?:opus|sonnet|haiku|fable|best|latest|claude|gemini|gpt|codex|swe)(?:\[.*\])?$/i.test(token) && !/^(default|auto|adaptive|smart|deep|rush|ultimate|premium|balanced|fast|grok-build|vercel-ai-gateway)$/i.test(token) && !/(?:^|[-/])(gateway|latest)$/i.test(id);
 }
-/** Aliases are selectable only as their evidence-backed concrete ID. Never render a Default row. */
+/** Aliases are selectable only as their evidence-backed concrete ID. Never render a Default row.
+ * @complexity O(n) time and space in catalog rows, with set-based deduplication.
+ */
 export function pickerModelOptions(agent: ChatPaneAgent): ChatPaneAgentOption[] {
   if (agent.supportsConcreteModelSelection === false) return [];
   const seen = new Set<string>();
@@ -16,7 +18,9 @@ export function pickerModelOptions(agent: ChatPaneAgent): ChatPaneAgentOption[] 
     const id = row.resolvedId || (row.identityKind === 'routing-mode' || row.identityKind === 'alias' ? undefined : row.id);
     if (!id || !isConcretePickerModel(id) || seen.has(id)) return [];
     seen.add(id);
-    return [{ ...row, id, label: row.label, identityKind: 'concrete' as const }];
+    // Older cached inventories can attach a default-policy label to a resolved concrete ID.
+    const label = row.id === 'default' || /^default\b/i.test(row.label) ? id : row.label;
+    return [{ ...row, id, label, identityKind: 'concrete' as const }];
   });
   const resolution = agent.defaultModelResolution;
   // A host may publish a resolved default outside its visible catalog. Preserve its concrete ID.
