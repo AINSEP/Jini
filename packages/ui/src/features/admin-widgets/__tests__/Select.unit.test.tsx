@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useSelectDropdown } from "../components/Select/Select.hooks";
 
-import { resolveSelectTriggerLabel, Select, type SelectOption } from "../components/Select/Select";
+import { resolveSelectTriggerLabel, Select, type SelectOption } from "../components/Select/Select.js";
 
 it("accepts caller translation through the translate prop", () => {
   render(<Select value="" options={[]} onChange={vi.fn()} translate={() => "Choisir…"} aria-label="Choix" />);

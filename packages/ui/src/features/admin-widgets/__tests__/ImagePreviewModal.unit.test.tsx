@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { ImagePreviewModal } from "../components/ImagePreviewModal";
+import { ImagePreviewModal } from "../components/ImagePreviewModal.js";
 import type { ImagePreviewModalController } from "../components/ImagePreviewModal.hooks";
 
 /**
@@ -23,6 +23,23 @@ describe("open/closed state", () => {
     render(<ImagePreviewModal open={true} src="/theme-assets/basic/screenshots/index.png" alt="Basic theme preview" onClose={vi.fn()} />);
     const dialog = document.querySelector("dialog.image-preview-modal")!;
     expect(dialog.hasAttribute("open")).toBe(true);
+  });
+
+  it("opens the rendered dialog with showModal when the native API is available", () => {
+    const showModal = vi.fn(function (this: HTMLDialogElement) { this.setAttribute("open", ""); });
+    // jsdom lacks this native API; spy on the actual rendered receiver as well as the call.
+    const original = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "showModal");
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value: showModal });
+    try {
+      render(<ImagePreviewModal open={true} src="/x.png" alt="x" onClose={vi.fn()} />);
+      const dialog = screen.getByRole("dialog");
+      expect(showModal).toHaveBeenCalledTimes(1);
+      expect(showModal.mock.contexts[0]).toBe(dialog);
+      expect(dialog).toHaveAttribute("open");
+    } finally {
+      if (original) Object.defineProperty(HTMLDialogElement.prototype, "showModal", original);
+      else delete (HTMLDialogElement.prototype as Partial<HTMLDialogElement>).showModal;
+    }
   });
 });
 

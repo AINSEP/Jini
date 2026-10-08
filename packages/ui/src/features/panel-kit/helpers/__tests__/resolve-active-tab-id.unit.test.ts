@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveActiveTabId } from "../resolve-active-tab-id";
+import { resolveActiveTabId } from "../resolve-active-tab-id.js";
 
 /**
  * @file Covers the guard extracted from `Database.tsx`/`Security.tsx`/`SourceControl.tsx`/

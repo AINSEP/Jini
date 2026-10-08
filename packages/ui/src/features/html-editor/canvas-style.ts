@@ -1,6 +1,6 @@
-import { defaultAdminTheme } from '../../theme/default.js';
-import { renderAdminThemeVariables } from '../../theme/stylesheet.js';
-import type { AdminTheme, ColorScheme } from '../../theme/types.js';
+import { defaultAdminTheme } from '../../core/theme/default.js';
+import { renderAdminThemeVariables } from '../../core/theme/stylesheet.js';
+import type { AdminTheme, ColorScheme } from '../../core/theme/types.js';
 /**
  * @file Builds the `canvas.frameStyle` GrapesJS injects into its editing canvas, so a host that
  * supplies its own canvas styling is not silently overruled by GrapesJS's own defaults.

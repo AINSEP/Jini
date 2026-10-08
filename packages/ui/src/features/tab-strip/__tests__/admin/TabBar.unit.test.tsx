@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { TabBar, type TabBarTab } from "../../react/components/TabBar";
+import { TabBar, type TabBarTab } from "../../react/components/TabBar.js";
 
 /**
  * @file First dedicated test file for `TabBar.tsx` (0% before this pass — no existing suite

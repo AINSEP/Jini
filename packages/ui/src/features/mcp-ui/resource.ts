@@ -12,11 +12,8 @@
  * ``ui://${string}`` URI scheme and the wider MIME union reproduced in
  * {@link UIResourceMimeType}.
  *
- * Ported from the reference implementation's `mcp-ui.ts`, minus that file's hand-rolled copy of the
- * JSON-RPC envelope and its `UIActionResult` union: the reference implementation declared those
- * because its tsconfig's
- * `moduleResolution: "Node"` cannot read a modern package's `exports` map, and this package has no
- * such constraint — the envelope comes from `protocol.ts`'s re-exports instead. See
+ * The envelope comes from protocol.ts's re-exports, so this resource layer has no parallel
+ * JSON-RPC or UIActionResult definition. See
  * `surfaces/bridge.ts` for why the legacy `{type:'tool', payload}` action shape is not emitted.
  */
 
@@ -174,7 +171,7 @@ export function createUIResource(spec: {
   actionPlan?: McpUiActionPlan;
   expiresAtMs?: number;
   meta?: Readonly<Record<string, unknown>>;
-}): UIResource {
+}, _optional = {}): UIResource {
   const meta: Record<string, unknown> = {
     ...(spec.preferredFrameSize === undefined
       ? {}
@@ -189,7 +186,7 @@ export function createUIResource(spec: {
       uri: spec.uri,
       mimeType: MCP_UI_MIME_TYPE,
       text: spec.htmlString,
-      ...(Object.keys(meta).length === 0 ? {} : { _meta: meta }),
+      ...(Object.keys(meta).length === 0 && spec.meta === undefined ? {} : { _meta: meta }),
     },
   };
 }
@@ -207,7 +204,7 @@ export function buildUIToolResult(spec: {
   modelText: string;
   ui: UIResource;
   meta?: Readonly<Record<string, unknown>>;
-}): UIToolResult {
+}, _optional = {}): UIToolResult {
   return {
     content: [{ type: 'text', text: spec.modelText }, spec.ui],
     ...(spec.meta === undefined ? {} : { _meta: spec.meta }),
@@ -329,3 +326,23 @@ export function readExpiresAt(resource: UIResource): number | undefined {
   const raw = resource.resource._meta?.[MCP_UI_EXPIRES_AT_META_KEY];
   return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined;
 }
+
+/** Legacy host action vocabulary retained for consumers that negotiate pre-Apps messages. */
+export type UIActionType = "tool" | "prompt" | "link" | "intent" | "notify";
+
+/**
+ * mcp-ui's `UIActionResult` union — the `postMessage` payload an iframe sends to the host.
+ *
+ * `messageId` is what makes the round trip observable: mcp-ui's client answers a message carrying
+ * one with `ui-message-received` and then `ui-message-response` (same `messageId`). A host's
+ * confirmation dialog sets one so the rendered UI can show "deleted" or an error instead of
+ * silently appearing to do nothing.
+ */
+export type UIActionResult =
+  | { messageId?: string; type: "tool"; payload: { toolName: string; params: Record<string, unknown> } }
+  | { messageId?: string; type: "prompt"; payload: { prompt: string } }
+  | { messageId?: string; type: "link"; payload: { url: string } }
+  | { messageId?: string; type: "intent"; payload: { intent: string; params: Record<string, unknown> } }
+  | { messageId?: string; type: "notify"; payload: { message: string } };
+
+

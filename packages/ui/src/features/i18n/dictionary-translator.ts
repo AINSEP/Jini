@@ -5,7 +5,10 @@ export type LocaleDictionary = Readonly<Record<string, Readonly<Record<string, s
 export type Translate = (key: string) => string;
 // Name the bound and unbound forms separately so injected widget translators need no locale
 // argument at every call site, and their contract is discoverable beyond the conventional name t.
-export type DictionaryTranslator = (required: { locale: string; key: string }) => string;
+export type DictionaryTranslator = ((required: { locale: string; key: string }) => string) & {
+  /** Expose caller-owned copy so translation audits can detect untranslated locales despite fallback. */
+  readonly dictionary: LocaleDictionary;
+};
 
 function lookup(dictionary: LocaleDictionary, locale: string, key: string): string | undefined {
   if (!Object.hasOwn(dictionary, locale)) return undefined;
@@ -19,5 +22,9 @@ function lookup(dictionary: LocaleDictionary, locale: string, key: string): stri
  * No locale context or product dictionary is installed by this helper. */
 export function createDictionaryTranslator({ featureDictionary }: { featureDictionary: LocaleDictionary }, { commonDictionary = {} }: { commonDictionary?: LocaleDictionary | undefined } = {}
 ): DictionaryTranslator {
-  return ({ locale, key }) => lookup(featureDictionary, locale, key) ?? lookup(commonDictionary, locale, key) ?? key;
+  return Object.assign(
+    ({ locale, key }: { locale: string; key: string }) => lookup(featureDictionary, locale, key) ?? lookup(commonDictionary, locale, key) ?? key,
+    { dictionary: featureDictionary },
+  );
 }
+

@@ -36,7 +36,7 @@
    lightness band, chroma floor, CVD >= 8 (worst 10.1 deutan light, 10.9 dark), normal-vision >= 15,
    >= 3:1 contrast — all pass. Dark is stepped for the dark surface, not a flip of light: dark
    series 1 sits a step lighter, because the light orange's chroma reads grey as a large fill on a
-   near-black surface. This was Tovu admin's palette first (Tovu b183ca5a8). */
+   near-black surface. This was an adopting admin shell's palette first (host commit b183ca5a8). */
 :root, [data-color-scheme="light"], [data-theme="light"] {
   --jini-chart-default-1: oklch(55.29% 0.1129 43.4);
   --jini-chart-default-2: oklch(50% 0.11 240);
@@ -47,7 +47,7 @@
 }
 
 /* Both dark attributes: the base tokens above flip on `data-color-scheme`, while hosts that follow
-   this package's `data-theme` convention on <html> (sketch-editor, shiki, Tovu's admin) flip that. */
+   this package's `data-theme` convention on <html> (sketch-editor, shiki, host admin shells) flip that. */
 [data-color-scheme="dark"], [data-theme="dark"] {
   --jini-chart-default-1: oklch(62% 0.11 44);
   --jini-chart-default-2: oklch(64% 0.11 240);

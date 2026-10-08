@@ -12,6 +12,7 @@ export function interpolate({ template, vars }: { template: string; vars: Record
  * Missing/mistyped locale tokens collapse the remaining text into one segment, followed by
  * empty segments, so a translation defect does not crash its dialog.
  */
+/** Returns tokens.length + 1 segments in token order; callers interleave their node values. */
 export function splitOnPlaceholders({ template, tokens }: { template: string; tokens: readonly string[] }): string[] {
   const segments: string[] = [];
   let rest = template;
@@ -34,3 +35,19 @@ export function splitOnPlaceholders({ template, tokens }: { template: string; to
 export function pickPlural({ count, forms }: { count: number; forms: { one: string; other: string } }): string {
   return count === 1 ? forms.one : forms.other;
 }
+
+/** Resolve caller-owned locale data, defaulting to English or an explicit fallback.
+ * Own-property lookup prevents constructor/toString/__proto__ locale names from returning
+ * prototype objects, which would throw when passed to a string interpolator.
+ * @throws When neither the requested entry nor a fallback is defined. */
+export function localeEntry<T>(
+  { table, locale }: { table: Readonly<Record<string, T>>; locale: string },
+  { fallback = table.en }: { fallback?: T } = {},
+): T {
+  const entry = Object.hasOwn(table, locale) ? (table[locale] ?? fallback) : fallback;
+  if (entry === undefined) {
+    throw new Error(`No locale entry for "${locale}" and no English or explicit fallback`);
+  }
+  return entry;
+}
+

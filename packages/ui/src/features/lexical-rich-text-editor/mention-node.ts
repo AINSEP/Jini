@@ -1,21 +1,9 @@
 /**
- * The atomic `@mention` node. Extends `TextNode` so the node's *text* remains
- * the literal `@token` and serialization back to the wire format is free:
- * `getTextContent()` already yields `@token`. Lexical token mode deletes the
- * node as one entity but still allows character-by-character caret
- * navigation, so `rules.ts` adds explicit keyboard normalization for arrows.
- *
- * Origin: `apps/web/src/components/composer/MentionNode.ts`. The origin
- * imported OD's `connectorBrandColor`/`resolveBrandTheme` directly to color
- * a `connector`-kind pill's `--m-hue` CSS custom property, and installed a
- * document-wide `MutationObserver` to re-stamp every mounted pill on a live
- * theme flip. Both are dropped from this node entirely — no per-instance
- * color logic and no global observer belong on a generic Lexical node class.
- * A host that wants per-kind/per-entity coloring supplies a
- * `resolveMentionColor` callback to `RichTextInput`, applied by
- * `react/hooks/useMentionColorStamping.ts` via Lexical's own
- * `registerMutationListener` (scoped to that one editor instance, not the
- * whole document) — see that file for the replacement mechanism.
+ * Atomic @mention extends TextNode so getTextContent preserves the wire token. Token mode deletes
+ * one entity but still permits character-level caret movement; rules.ts normalizes arrow navigation.
+ * Generic nodes own no brand resolution or document-wide observer. Host colors enter through
+ * RichTextInput.resolveMentionColor and an editor-scoped Lexical mutation listener; see
+ * react/hooks/useMentionColorStamping.ts.
  */
 import {
   TextNode,

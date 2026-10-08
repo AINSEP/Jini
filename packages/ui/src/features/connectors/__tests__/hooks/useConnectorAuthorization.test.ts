@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   performConnectorConnect,
   performConnectorDisconnect,
@@ -11,6 +11,8 @@ import {
 import { createFakeConnectorsPort } from '../../dependencies.js';
 import type { ConnectorAuthBridgePort, ConnectorAuthPendingStoragePort } from '../../ports.js';
 import type { Connector, ConnectorAuthorizationPendingState, ConnectorAuthResultEvent } from '../../types.js';
+
+afterEach(() => { vi.useRealTimers(); });
 
 describe('withoutKey', () => {
   it('removes the key when present', () => {
@@ -402,10 +404,13 @@ describe('useConnectorAuthorization', () => {
     // stale a moment later, before refocus fires — this is what actually
     // goes stale mid-session, as opposed to an already-expired entry from a
     // prior session (which the load-time prune test below covers instead).
-    // Real timers throughout (a short real delay, not vi.useFakeTimers())
-    // since waitFor's internal polling doesn't play well with mocked timers.
+    // Freeze only Date so mounting cannot consume the expiry window; keep
+    // real timers for waitFor's internal polling.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
     const port = createFakeConnectorsPort({ connectors: [makeConnector({ status: 'available' })] });
     const cancelSpy = vi.spyOn(port, 'cancelConnectorAuthorization');
+    const fetchSpy = vi.spyOn(port, 'fetchConnectorStatuses');
     const storage = makeMemoryStorage({ slack: { expiresAt: new Date(Date.now() + 20).toISOString() } });
     const { bridge, fireRefocus } = makeControllableBridge();
     const { result } = renderHook(() => {
@@ -414,7 +419,7 @@ describe('useConnectorAuthorization', () => {
     });
 
     expect(result.current.pending.slack).toBeDefined();
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    vi.setSystemTime(Date.now() + 30);
     await act(async () => {
       fireRefocus();
       await Promise.resolve();
@@ -422,6 +427,7 @@ describe('useConnectorAuthorization', () => {
     });
 
     expect(cancelSpy).toHaveBeenCalledWith('slack');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(result.current.pending.slack).toBeUndefined());
   });
 
@@ -503,6 +509,8 @@ describe('useConnectorAuthorization', () => {
     // same connector — see this file's own doc comment on
     // `cancelStaleAuthorizations` for the proof — so only cancelFailed is
     // exercisable here.)
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
     const port = createFakeConnectorsPort({ connectors: [makeConnector({ status: 'available' })] });
     port.fetchConnectorStatuses = vi.fn(async () => ({ slack: { status: 'available' as const } }));
     // A pending entry that outlives the manual cancel attempt below but
@@ -527,7 +535,7 @@ describe('useConnectorAuthorization', () => {
     // 2) The pending entry goes stale; the refocus sweep's own cancel call
     // now succeeds, clearing the cancelFailed flag seeded above.
     port.cancelConnectorAuthorization = vi.fn(async () => makeConnector({ status: 'available' }));
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    vi.setSystemTime(Date.now() + 50);
     await act(async () => {
       fireRefocus();
       await Promise.resolve();
@@ -539,6 +547,8 @@ describe('useConnectorAuthorization', () => {
   });
 
   it('cancelStaleAuthorizations marks cancelFailed when the port cancel call throws', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
     const port = createFakeConnectorsPort({ connectors: [makeConnector({ status: 'available' })] });
     port.cancelConnectorAuthorization = vi.fn(async () => {
       throw new Error('network error');
@@ -550,7 +560,7 @@ describe('useConnectorAuthorization', () => {
       return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors });
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    vi.setSystemTime(Date.now() + 30);
     await act(async () => {
       fireRefocus();
       await Promise.resolve();

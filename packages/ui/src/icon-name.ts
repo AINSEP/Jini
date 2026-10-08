@@ -8,6 +8,12 @@
  * this type, so existing importers are unchanged.
  */
 export type IconName =
+  | 'package-check'
+  | 'storefront'
+  | 'package-outline'
+  | 'trash-compact'
+  | 'chevron-right-wide'
+  | 'check-long'
   | 'alert-triangle'
   | 'arrow-left'
   | 'arrow-up'
@@ -110,6 +116,7 @@ export type IconName =
  * compile-time one, since TS can't derive a value from a type.
  */
 export const ICON_NAMES: readonly IconName[] = [
+  'package-check', 'storefront', 'package-outline', 'trash-compact', 'chevron-right-wide', 'check-long',
   'alert-triangle', 'arrow-left', 'arrow-up', 'attach', 'bell', 'blocks', 'check',
   'chevron-down', 'chevron-left', 'chevron-right', 'close', 'copy', 'comment',
   'message-circle', 'discord', 'download', 'draw', 'edit', 'external-link', 'eye',

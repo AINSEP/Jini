@@ -313,6 +313,11 @@ ${SURFACE_SCRIPT_PRELUDE}
   }
   onVisibilityChange();
   document.addEventListener("visibilitychange", onVisibilityChange);
+  // Published Jini started the dwell during document.write. If the iframe is hidden then, no
+  // timer is armed; becoming visible by sandbox initialization need not send visibilitychange
+  // to that new document. Re-check at the bridge ready boundary, preserving the original
+  // visibility, dwell, trusted-click and single-call gates. whenReady is already in every bridge.
+  api.whenReady(onVisibilityChange);
 
   for (var i = 0; i < actionButtons.length; i++) {
     actionButtons[i].addEventListener("click", onClick);

@@ -8,7 +8,7 @@
 // concern was already dropped when the connectors canary shipped; a host
 // resolving theme-swapped logo URLs does so before handing `logoUrl` in).
 import { useMemo } from 'react';
-import { type Connector, type ConnectorStatusMap } from '../../../connectors/types.js';
+import type {  Connector,  ConnectorStatusMap } from '../../../connectors/types.js';
 import {
   connectorAttemptDetail,
   connectorAttemptTitle,

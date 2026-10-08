@@ -7,3 +7,5 @@ export const nativeKit: ReactKit = Object.freeze({ Button: NativeButton, IconBut
   Switch: NativeSwitch, Dialog: NativeDialog, ConfirmDialog: NativeConfirmDialog, Tabs: NativeTabs,
   Menu: NativeMenu, Toast: NativeToast, Tooltip: NativeTooltip, Notice: NativeNotice, Spinner: NativeSpinner, Badge: NativeBadge });
 // This is a concrete kit, rather than a forwarding subpath to another package's implementation.
+
+export { useNativeDialog } from './Dialog.hooks.js';

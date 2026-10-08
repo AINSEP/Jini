@@ -7,6 +7,13 @@ import type { ReactElement, SVGProps } from 'react';
 import type { IconName } from '../../icon-name.js';
 export type { IconName } from '../../icon-name.js';
 
+/** Exact shared geometry for outlines that feature artwork decorates with different inner marks.
+ * Keep the marks with their feature; a shared outline does not make two whole icons equivalent. */
+export const ICON_PATH_DATA = {
+  'document-outline-compact': 'M6.5 3.5h7.6l3.9 3.9v13.1H6.5z',
+  'folder-outline-compact': 'M3.5 7.5V6A1.5 1.5 0 0 1 5 4.5h4l2 2h8A1.5 1.5 0 0 1 20.5 8v10A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18z',
+} as const;
+
 interface Props extends Omit<SVGProps<SVGSVGElement>, 'name'> {
   name: IconName;
   size?: number | string;
@@ -25,6 +32,43 @@ type IconRenderer = (common: CommonIconProps) => ReactElement;
 // package's public API: do not re-export it from `packages/ui/src/index.ts`
 // or any entry point.
 export const ICON_RENDERERS: Record<IconName, IconRenderer> = {
+    'package-check': (common) => (
+        <svg {...common}>
+          <path d="M20.5 8.2v5.1L12 17.9l-8.5-4.6V8.2" />
+          <path d="M3.5 8.2 12 3.6l8.5 4.6L12 12.8z" />
+          <path d="M15.6 19.4l1.9 1.9 3.4-3.9" />
+        </svg>
+    ),
+    'storefront': (common) => (
+        <svg {...common}>
+          <path d="M3.5 8.5h17l-1.2-4H4.7z" />
+          <path d="M5 8.5v11h14v-11" />
+          <path d="M9.75 19.5v-5.5h4.5v5.5" />
+        </svg>
+    ),
+    'package-outline': (common) => (
+        <svg {...common}>
+          <path d="M3.5 8.2 12 3.6l8.5 4.6v7.6L12 20.4l-8.5-4.6z" />
+          <path d="M3.5 8.2 12 12.8l8.5-4.6M12 12.8v7.6" />
+        </svg>
+    ),
+    'trash-compact': (common) => (
+        <svg {...common}>
+          <path d="M4.5 7h15M9.5 7V4.6h5V7" />
+          <path d="M6.6 7l.9 12.4h9l.9-12.4" />
+          <path d="M10.4 10.5v6M13.6 10.5v6" />
+        </svg>
+    ),
+    'chevron-right-wide': (common) => (
+        <svg {...common}>
+          <path d="M9 5.5 15.5 12 9 18.5" />
+        </svg>
+    ),
+    'check-long': (common) => (
+        <svg {...common}>
+          <path d="m5 13 4.5 4.5L19 6.5" />
+        </svg>
+    ),
     'alert-triangle': (common) => (
         <svg {...common}>
           <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />

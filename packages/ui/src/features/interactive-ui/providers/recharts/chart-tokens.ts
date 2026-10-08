@@ -4,7 +4,7 @@
  * The CSS variables every recharts provider paints with — the host's theme owns the colors.
  *
  * Why `--jini-chart-*` with fallbacks rather than bare `--jini-primary`: a host that styles its own
- * chrome and never maps Jini's base tokens (Tovu's admin) got Jini's near-black default bars, in
+ * chrome and never maps Jini's base tokens (an adopting admin shell) got Jini's near-black default bars, in
  * dark mode too ("the color is ugly", demo V3, 2026-10-05). A host sets `--jini-chart-1`..`-6`,
  * `--jini-chart-grid`, `--jini-chart-axis`, `--jini-chart-cursor`, `--jini-chart-surface` and
  * `--jini-chart-text` in its own CSS; a host that sets none keeps the base-token look for the

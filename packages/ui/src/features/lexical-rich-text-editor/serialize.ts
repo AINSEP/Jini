@@ -1,7 +1,4 @@
-/**
- * Origin: `apps/web/src/components/composer/serialize.ts`. Ported verbatim —
- * no OD-specific surface (it only ever touched the generic `MentionNode`).
- */
+
 import {
   $getRoot,
   $isElementNode,

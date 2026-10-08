@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { ComingSoonPanel } from "../components/ComingSoonPanel";
+import { ComingSoonPanel } from "../components/ComingSoonPanel.js";
 
 describe("ComingSoonPanel content and inert markup", () => {
   // F1.2/F2.4: removing the optional note or moving children outside inert must fail.

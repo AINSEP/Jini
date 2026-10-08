@@ -1,8 +1,4 @@
-/**
- * Origin: `apps/web/src/components/composer/deserialize.ts`. Ported
- * verbatim, except `buildInlineMentionParts` → `parseMentionParts` (this
- * package's generalized mention parser, see `mention-parser.ts`).
- */
+
 import {
   $createLineBreakNode,
   $createParagraphNode,

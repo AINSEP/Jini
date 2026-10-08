@@ -1,44 +1,13 @@
 /**
- * Generic status-badged resource-dashboard primitives.
- *
- * Provenance: `ADS-memory/reports/jini-port/god-components-extraction-plan.md`'s "5 more
- * overlaps" section flagged "Resource-dashboard shell, twice, both directly
- * Run-vocabulary-relevant": `DesignsTab.tsx` (sub-tab sort + search +
- * select-mode/bulk-delete + per-item kebab menu + a grid/kanban view toggle
- * over a config-driven status-kanban board) and `TasksView.tsx` (hero header
- * with metric tiles + a flat row-list with inline per-item action buttons +
- * a lazy-loaded expandable per-row run-history sublist). Both were read in
- * full from `/tmp/od-source` (see `packages/ui/archived provenance ledger`'s
- * `features/resource-dashboard/` section for the full shared-vs-separate
- * verdict and quoted structural evidence).
- *
- * Verdict: genuinely TWO distinct composition shapes, not one. The only
- * piece that is actually identical between the two origins is "a status
- * value renders as a small badge" plus "group a list of status-bearing
- * items into ordered buckets" — DesignsTab uses that grouping to build a
- * whole-page kanban board; TasksView never groups by status at all (its
- * only status usage is a per-row/per-run `StatusPill`, one level deeper
- * than DesignsTab's top-level items). So this feature ships ONE shared
- * status vocabulary + `StatusPill` + `groupItemsByStatus` rule, consumed by
- * TWO separately composed components: `ResourceBoard` (the DesignsTab
- * shape) and `ResourceRowList` (the TasksView shape). Neither is generic
- * over the other; forcing them through one composed shell would mean
- * bolting kanban-grouping onto a shape that never uses it, or bolting
- * expandable nested history onto a shape that never had it.
+ * ResourceBoard and ResourceRowList share status badges/vocabulary and ordered grouping rules,
+ * but compose separate surfaces: a grid/kanban board versus rows with inline actions and nested
+ * lazy history. A combined shell would impose unused grouping or history on the other shape.
  */
 
 // --- Shared status vocabulary -------------------------------------------
 
-/**
- * A host-supplied status value + its display label. Never a hardcoded
- * vocabulary: DesignsTab's own 6-value kanban vocabulary
- * (`not_started`/`running`/`awaiting_input`/`succeeded`/`failed`/`canceled`)
- * and TasksView's own 5-value run vocabulary
- * (`succeeded`/`failed`/`running`/`queued`/`canceled`) are two different,
- * non-identical instantiations of this same shape — see
- * `packages/ui/archived provenance ledger` for the note on reconciling either against
- * `@jini-ai/protocol`'s own `RunState` later (explicitly out of scope here).
- */
+/** Host-supplied status and label. Board and row/run vocabularies can differ; reconciling them
+ * with protocol RunState is a separate decision, not implicit in this display primitive. */
 export interface ResourceStatusOption {
   value: string;
   label: string;
@@ -74,10 +43,7 @@ export interface ResourceMenuActionSpec {
  * option needs (DesignsTab's `recent` sorts by `updatedAt`, `yours` by
  * `createdAt` — two different fields on the same origin `Project` type) —
  * this primitive never assumes a single fixed timestamp field.
- * `body` is a host-supplied render slot for anything else (DesignsTab's
- * cover-thumbnail resolution across html/image/video/logo/brand kinds stays
- * entirely host-owned, never ported into this generic primitive — see
- * archived provenance ledger's "Dropped" list).
+ * `body` is a host-supplied render slot; content-kind-specific thumbnail resolution is host-owned.
  */
 export interface ResourceBoardItem<TBody = unknown> {
   id: string;
@@ -127,7 +93,8 @@ export interface ResourceRowItem {
   actions: ResourceRowAction[];
 }
 
-/** One entry in a row's expandable run-history sublist (TasksView's `RoutineRun`, lazy-fetched on first expand). `actions` generalizes the origin's per-run "crystallize"/"view progress" buttons — see archived provenance ledger for what was dropped (the crystallize automation-evolution workflow is OD-specific and not ported; "open" is the one generic action kept). */
+/** Entry in an expandable run-history list. Action kinds are host-owned; the primitive does
+ * not implement a product's automation-evolution workflow. */
 export interface ResourceRunHistoryItem {
   id: string;
   status: string;

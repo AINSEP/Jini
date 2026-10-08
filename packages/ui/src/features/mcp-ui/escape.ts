@@ -64,6 +64,9 @@ export function escapeJsValue(value: unknown): string {
  * `string`-typed signature makes a caller that accidentally passes an object a compile error rather
  * than a silently-inlined `[object Object]`-free-but-surprising literal.
  */
-export function escapeJsString(value: string): string {
-  return escapeJsValue(value);
+export function escapeJsString(required: { value: string }, optional?: {}): string;
+/** Existing string call retained for published surface builders. */
+export function escapeJsString(value: string): string;
+export function escapeJsString(required: string | { value: string }, _optional = {}): string {
+  return escapeJsValue(typeof required === "string" ? required : required.value);
 }

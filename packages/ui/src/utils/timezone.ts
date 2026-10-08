@@ -3,11 +3,7 @@
 // "city" label from a timezone id for compact UI display. Framework-free —
 // no React, no DOM beyond the standard `Intl` global.
 //
-// Origin: `detectLocalTimezone`/`listSupportedTimezones`/`tzCityLabel` from
-// the vendored schedule-editor god-component (recon r6 §1.19) — pure
-// `Intl` wrappers with zero product coupling, so they ship as flat utils
-// rather than living inside `features/schedule-picker/` (which imports them
-// from here instead of re-declaring them).
+// Pure Intl utilities live here so schedule-picker and other features share the same rules.
 
 /** A conservative fallback list used only when the runtime doesn't support
  *  `Intl.supportedValuesOf('timeZone')` (e.g. older JS engines). */

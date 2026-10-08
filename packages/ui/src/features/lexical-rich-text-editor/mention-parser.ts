@@ -5,10 +5,8 @@
  * mention nodes, and available to hosts that need the same rule to fold
  * plain-text-typed `@token`s into a "currently referenced" entity list.
  *
- * Origin: `apps/web/src/utils/inlineMentions.ts`. Ported verbatim (trie-based
- * longest-match lookup, left/right boundary rules) — the only OD-specific
- * surface was `InlineMentionKind`'s fixed union, replaced by `MentionEntity`'s
- * free-form `kind: string` (see `types.ts`).
+ * Trie lookup prefers the longest token subject to left/right boundaries. MentionEntity.kind
+ * is host-defined rather than a fixed product vocabulary.
  */
 import type { MentionEntity, MentionPart } from './types.js';
 

@@ -59,6 +59,8 @@ import type { SurfaceTokenName } from './tokens.js';
 
 export interface SurfaceOutcomeSpec {
   readonly title: string;
+  /** Resource framing carried through host outcome projections; ignored by HTML rendering. */
+  readonly preferredFrameSize?: readonly [string, string];
   readonly description?: string;
   /** The facts of what actually happened — same shape as a confirmation's own `details`, but
    *  reporting the RESULT (e.g. the real URL, the real status) rather than what was proposed. */

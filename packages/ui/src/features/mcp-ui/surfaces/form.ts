@@ -44,6 +44,8 @@ import { DEFAULT_SECRET_INPUT_TEXT, type SecretInputText } from './text-input.js
 
 export interface FormSurfaceSpec {
   readonly title: string;
+  /** Resource framing carried through host form projections; ignored by HTML rendering. */
+  readonly preferredFrameSize?: readonly [string, string];
   readonly description?: string;
   /** Read-only context shown above the fields — what the input is *about*. */
   readonly details?: readonly SurfaceDetail[];

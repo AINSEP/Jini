@@ -1,3 +1,4 @@
+import { resolveSelectPortalContainer } from '../../../../react/components/select-popover.js';
 import { createPortal } from "react-dom";
 import { agentHandle } from "@jini-ai/agentic";
 import { buildAgentListHandles } from "@jini-ai/agentic";
@@ -8,7 +9,9 @@ export type { SelectOption };
 /** Use this custom listbox when in-panel search is needed: a native OS option list cannot host it.
  * Native selects otherwise avoid the accessibility/behavior tradeoffs of a simulated listbox.
  * JSX stays separate from dropdown state/DOM effects so injected useDropdown can render against a
- * fake without geometry or listeners. The body portal escapes clipping/stacking ancestors.
+ * fake without geometry or listeners. The body portal escapes clipping/stacking ancestors;
+ * inside a native dialog, a dialog-local portal also keeps options in its top layer and out of
+ * the inert page. Hosts can supply a container outside their own clipping regions.
  * Agent selection uses trigger/option clicks rather than native select_option; the -option namespace
  * keeps caller values from colliding with literal segments. Explicit base handles are not silently
  * sanitized: invalid caller choices should fail rather than publish a different handle. */
@@ -25,6 +28,12 @@ export interface SelectProps {
   /** Injectable state/effect seam; rendering tests need not drive portal positioning or listeners. */
   useDropdown?: typeof useSelectDropdown | undefined;
   agentHandle?: string | undefined;
+  /** Host-owned portal destination. Defaults to the trigger's nearest dialog, then document.body.
+   * Within a modal dialog, supply a descendant of that dialog so the panel remains interactive.
+   * Keep this container outside scrolling/clipping regions and free of transforms that establish
+   * a fixed-position containing block; panel coordinates are viewport-relative.
+   * @example <Select {...selectionProps} portalContainer={dialogOverlayElement} /> */
+  portalContainer?: Element | DocumentFragment | null | undefined;
 
   /** Caller-bound translation function; source copy is the default. */
   translate?: Translate | undefined;
@@ -181,8 +190,8 @@ function resolveSelectTriggerHandleProps(
   return base ? agentHandle({ handle: base }, { role: "button", label: ariaLabel ?? placeholder ?? "Select an option" }) : {};
 }
 
-/** Controlled searchable listbox with portal positioning and keyboard navigation. */
-export function Select(props: SelectProps) {
+/** Controlled searchable listbox with viewport positioning, dialog-local portals and keyboard navigation. */
+export function Select(props: SelectProps, _optional: Record<string, never> = {}) {
   const { value, onChange, options, placeholder, id, disabled, useDropdown = useSelectDropdown, agentHandle: base, translate, t = translate ?? ((key: string) => key) } = props;
   const ariaLabel = props["aria-label"];
   const ariaLabelledBy = props["aria-labelledby"];
@@ -268,7 +277,7 @@ export function Select(props: SelectProps) {
               optionHandles={optionHandles}
               t={t}
             />,
-            document.body
+            resolveSelectPortalContainer({ trigger: triggerRef.current }, { container: props.portalContainer })
           )
         : null}
     </>

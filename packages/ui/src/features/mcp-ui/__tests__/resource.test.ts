@@ -243,3 +243,11 @@ describe('readExpiresAt', () => {
     expect(readExpiresAt(withMeta(meta as Record<string, unknown> | undefined))).toBeUndefined();
   });
 });
+
+it('preserves explicitly supplied empty metadata in the two-object builder contract', () => {
+  const ui = createUIResource({ uri: 'ui://compat/empty', htmlString: '', meta: {} }, {});
+  expect(ui.resource._meta).toEqual({});
+  expect(buildUIToolResult({ modelText: 'Shown.', ui, meta: {} }, {})).toEqual({
+    content: [{ type: 'text', text: 'Shown.' }, ui], _meta: {},
+  });
+});

@@ -1,5 +1,25 @@
 # `@jini-ai/ui` — generic, product-neutral UI primitives
 
+`@jini-ai/ui/mcp-ui/secret-card` exports the framework-free `defineSecretCardTool` lifecycle.
+Provide a spec with `prepare`, `form`, `save`, `outcome` and `result`, then register
+`tool.handler({ surfaceExchanges, askThenReport })`; both dependencies come from
+`@jini-ai/daemon/surface-exchanges`. The UI entry has no daemon or React runtime import.
+Transport ports, including `emitSurface`, remain in the handler's optional second object.
+
+Secret fields use `{ kind: 'string', name, label, secret: true }` and cannot have `value`.
+Use `allowBlank: true` for optional credentials or a host's preserve-on-update policy; the
+engine sends the blank to `save`, where the host implements that policy. Domain save ports
+receive only declared field names, exact secret bytes and the execution's abort signal.
+Whitespace-only input is refused even with `allowBlank`; nonblank secrets are never trimmed.
+Return safe summaries only; result and outcome projections never receive submitted values.
+`form` retains the builders' translation, locale, details, warning and app options, with an
+optional `cancelLabel`. `outcome` may return undefined for locally reported dismiss/expiry.
+Use `safeError` only to map known error kinds to fixed text and `logFailure` for fixed metadata.
+
+The store ABI binds actor, tool and channel. The host must also enforce run scope when routing
+human answers (or inject a store scoped to the run); the exchange ABI does not carry a run ID.
+After coordinator verification, publish core 0.4.2, daemon 0.5.4 and UI 0.4.5 before adoption.
+
 Renamed from `@jini-ai/components` in this session (2026-07-16) once it became clear
 one "components" bucket undersold the scope: this package is meant to hold more
 than flat presentational components — pure business logic, hooks, and injectable

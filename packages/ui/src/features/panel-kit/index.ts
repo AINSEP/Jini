@@ -13,6 +13,13 @@ export { resolveActiveTabId } from './helpers/resolve-active-tab-id.js';
 export { hasPermission } from './helpers/permissions.js';
 export { isAbortError, retryWhileUnreachable, UNREACHABLE_RETRY_DELAYS_MS } from './helpers/retry-unreachable.js';
 export { buildAgentListHandles } from '@jini-ai/agentic';
-export { createDictionaryTranslator, interpolate, splitOnPlaceholders, pickPlural } from '../i18n/index.js';
+export { createDictionaryTranslator, interpolate, splitOnPlaceholders, pickPlural, localeEntry } from '../i18n/index.js';
 export type { Translate, DictionaryTranslator, LocaleDictionary } from '../i18n/index.js';
 export type { DirtyGuardHostPort } from './hooks/use-dirty-guard.hooks.js';
+
+export { useSettingsSlice, mergeSaveStates, commitQueuedSave, canAcceptRefresh, SAVE_DEBOUNCE_MS } from './hooks/use-settings-slice.hooks.js';
+export type { SaveState, SettingsSlice, SettingsSliceOptions, SettingsSliceRefreshPort, SettingsRefreshScope } from './hooks/use-settings-slice.hooks.js';
+export { useStandingDraftAutosave } from './hooks/use-standing-draft-autosave.hooks.js';
+export type { StandingDraftAutosavePort, StandingDraftAutosaveInput, StandingDraftAutosaveSnapshot, StandingDraftAutosaveController, StandingDraftStaleBasis, StandingDraftAutosaveOptions } from './hooks/use-standing-draft-autosave.hooks.js';
+export { createStandingDraftLocalBackup, LOCAL_BACKUP_PRINCIPAL_ID } from './helpers/standing-draft-local-backup.js';
+export { standingDraftRecoveryMessage } from './helpers/standing-draft-recovery-message.js';

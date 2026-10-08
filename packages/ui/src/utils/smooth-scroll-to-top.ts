@@ -16,9 +16,7 @@
  * - re-invoking on the same container retargets instead of running two
  *   competing tweens.
  *
- * Origin: `utils/smoothScrollToTop.ts` — ported verbatim (no OD coupling;
- * the bezier solver is local math rather than a motion library dependency,
- * unchanged from the origin's own reasoning for avoiding one in tests).
+ * The bezier solver is local math, avoiding a motion-library dependency in this utility and its tests.
  */
 
 // cubic-bezier(x1, y1, x2, y2) solver (WebKit UnitBezier shape).
@@ -40,16 +38,8 @@ function unitBezier(x1: number, y1: number, x2: number, y2: number): (x: number)
       const err = sampleX(t) - x;
       if (Math.abs(err) < 1e-6) break;
       const d = sampleDX(t);
-      // Empirically + analytically unreachable for this file's one and only
-      // curve (`EASE_OUT = unitBezier(0.23, 1, 0.32, 1)` — the sole call
-      // site, with fixed constants, never re-parameterized by any caller):
-      // sampled sampleDX(t) at 1,000,001 evenly-spaced points across the
-      // full domain t∈[0,1] (the only range `smoothScrollToTop` ever feeds
-      // in, since its own `t` is clamped via `Math.min(1, ...)`) and the
-      // minimum observed was ~0.6095 — nowhere near this 1e-6 guard. See
-      // packages/ui/archived provenance ledger's 2026-07-22 dated entry for the full
-      // re-verification record (matches this task's own standard for
-      // documenting provable unreachability instead of forcing a test).
+      // For the sole fixed curve, sampleDX stays at least about 0.6095 over the clamped [0, 1]
+      // domain. This guard cannot fire for current inputs; retain it for a future curve change.
       if (Math.abs(d) < 1e-6) break;
       t -= err / d;
     }

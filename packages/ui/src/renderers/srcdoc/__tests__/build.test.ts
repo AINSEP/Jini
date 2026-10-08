@@ -82,6 +82,46 @@ describe('sanitizeTitleInDoc', () => {
     const doc = '<html><head><title>&#99999999;bad</title></head><body></body></html>';
     expect(sanitizeTitleInDoc(doc)).toContain(`<title>�bad</title>`);
   });
+
+  it('preserves every source character outside title content, including tag case and quoted > attributes', () => {
+    const before = "<!DOCTYPE html>\n<html><head data-note='>'><!-- İ --><TITLE data-note='>'>";
+    const after = "</TITLE  >\n<style>p { color: red; }</style></head><body data-x='&amp;'>Hi</body></html>";
+    expect(sanitizeTitleInDoc(before + '  Q3: &eacute;?  ' + after)).toBe(before + 'Q3- é-' + after);
+  });
+
+  it('uses the full HTML entity set and accepts semicolon-free numeric references', () => {
+    const doc = '<title>A&nbsp;B &NotEqualTilde; &#65 &#x42</title>';
+    expect(sanitizeTitleInDoc(doc)).toBe('<title>A\u00a0B ≂̸ A B</title>');
+  });
+
+  it('decodes character references once rather than interpreting decoded ampersands again', () => {
+    expect(sanitizeTitleInDoc('<title>&amp;lt;</title>')).toBe('<title>-lt;</title>');
+  });
+
+  it('uses HTML replacement rules for nulls, surrogates and legacy numeric references', () => {
+    expect(sanitizeTitleInDoc('<title>&#0;&#xD800;&#128;</title>')).toBe('<title>��€</title>');
+  });
+
+  it('ignores fake titles in styles, templates and attributes before the real head title', () => {
+    const before = '<head><meta data-note="<title>Fake: Attribute</title>"><style>p::before { content: "<title>Fake: Style</title>"; }</style><template><title>Fake: Template</title></template>';
+    const after = '</head><body>Original</body>';
+    expect(sanitizeTitleInDoc(before + '<title>Real: Title</title>' + after)).toBe(before + '<title>Real- Title</title>' + after);
+  });
+
+  it('sanitizes only the first head title and leaves subsequent titles unchanged', () => {
+    expect(sanitizeTitleInDoc('<head><title>First: Title</title><title>Second: Title</title></head>'))
+      .toBe('<head><title>First- Title</title><title>Second: Title</title></head>');
+  });
+
+  it('leaves titles outside the head untouched', () => {
+    const doc = '<html><head></head><body><title>Body: Title</title><svg><title>SVG: Title</title></svg></body></html>';
+    expect(sanitizeTitleInDoc(doc)).toBe(doc);
+  });
+
+  it('locates a title under an implicit head without adding missing document markup', () => {
+    expect(sanitizeTitleInDoc('<html><title>Implicit: Head</title><body>Hi</body>'))
+      .toBe('<html><title>Implicit- Head</title><body>Hi</body>');
+  });
 });
 
 describe('splice helpers', () => {
@@ -186,24 +226,16 @@ describe('splice helpers', () => {
 
 describe('sanitizeTitleInDoc malformed-markup edge cases', () => {
   it('gives up without throwing when a <script> block before the title is missing its closing ">"', () => {
-    // `findRealTitleOffset`'s script/style skip-ahead re-searches for the
-    // closing tag's own ">"; when the document is truncated mid-tag there is
-    // none, and it must fall back to advancing past the closing tag text
-    // itself instead of looping forever or throwing.
+    // Truncated markup must remain unchanged rather than yield a guessed
+    // title range or throw while the streaming source is incomplete.
     const doc = '<html><script>x</script';
     expect(sanitizeTitleInDoc(doc)).toBe(doc);
   });
 
-  it('bails out instead of mis-slicing when a Turkish dotted capital I before <title> desyncs the lowercased search offset from the original string', () => {
-    // `sanitizeTitleInDoc` searches for "</title>" inside `html.toLowerCase()`
-    // but then re-uses that offset directly against the *original* `html`.
-    // `String.prototype.toLowerCase()` maps U+0130 (LATIN CAPITAL LETTER I
-    // WITH DOT ABOVE) to a two-code-unit sequence, so each occurrence before
-    // the title tag desyncs the lowercased offset from the original by one.
-    // With enough of them, the desynced offset walks past the end of the
-    // document and the final `html.indexOf('>', closingTagStart)` finds no
-    // more ">" at all (returns -1) — this must return the input unchanged
-    // rather than produce a garbage slice.
+  it('preserves a title after leading body text containing Turkish dotted capital I', () => {
+    // U+0130 expands when lowercased, so case-folded string offsets cannot
+    // safely address the source. Leading text also places this title outside
+    // the head; the parser must leave it untouched.
     const doc = 'İ'.repeat(8) + '<title>Foo</title>';
     expect(sanitizeTitleInDoc(doc)).toBe(doc);
   });

@@ -8,9 +8,10 @@
 // `useCustomSelect` hook that owns all state/refs/effects/handlers, the
 // `CustomSelectOptionButton` leaf, and the dumb `CustomSelect` render.
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, MutableRefObject, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useSelectPopover, isSelectEventInside, openSelectOnKey, applySelectNavigationKey, resolveSelectPortalContainer } from './select-popover.js';
 import { Icon } from './Icon.js';
 
 export interface CustomSelectOption {
@@ -42,6 +43,10 @@ export interface CustomSelectProps {
   disabled?: boolean;
   placeholder?: string;
   portal?: boolean;
+  /** Host-owned portal destination; otherwise the nearest native dialog keeps the menu in its top layer.
+   * Keep this container outside clipping regions and transformed fixed-position containing blocks.
+   */
+  portalContainer?: Element | DocumentFragment | null | undefined;
   title?: string;
   onFocus?: () => void;
   /** Extra content rendered inside the menu, above the option list — the seam
@@ -199,7 +204,7 @@ export function isCustomSelectEventInside(
   button: HTMLElement | null,
   menu: HTMLElement | null,
 ): boolean {
-  return Boolean(button?.contains(target)) || Boolean(menu?.contains(target));
+  return isSelectEventInside({ target, trigger: button, panel: menu });
 }
 
 export interface UseCustomSelectParams {
@@ -257,25 +262,16 @@ export function useCustomSelect({
   portal,
   placeholder,
   onOpenChange,
-}: UseCustomSelectParams): UseCustomSelectResult {
+}: UseCustomSelectParams, _optional: Record<string, never> = {}): UseCustomSelectResult {
   const reactId = useId();
   const idBase = reactId.replace(/:/g, '');
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const wasOpenRef = useRef(false);
   const activeSourceValueRef = useRef(value);
-  const [open, setOpen] = useState(false);
-  // Stored in a ref (not a `useEffect` dependency) so an unmemoized caller
-  // passing a fresh function identity every render never re-fires this for
-  // any reason OTHER than `open` actually changing.
-  const onOpenChangeRef = useRef(onOpenChange);
-  onOpenChangeRef.current = onOpenChange;
   const [activeValue, setActiveValue] = useState(value);
-  const [position, setPosition] = useState<CustomSelectMenuPosition | null>(null);
-
-  useEffect(() => {
-    onOpenChangeRef.current?.(open);
-  }, [open]);
+  const popover = useSelectPopover({ measurePosition: ({ trigger }) => computeCustomSelectMenuPosition(
+    trigger.getBoundingClientRect(), { width: window.innerWidth, height: window.innerHeight },
+  ) }, { portal, onOpenChange });
+  const { open, position, triggerRef: buttonRef, panelRef: menuRef, updatePosition } = popover;
 
   const flatOptions = useMemo(() => flattenCustomSelectOptions(options), [options]);
   const selected = flatOptions.find((option) => option.value === value);
@@ -294,26 +290,6 @@ export function useCustomSelect({
   );
   const activeOptionId = open && activeValue ? optionIdByValue.get(activeValue) : undefined;
 
-  const updatePosition = useCallback(() => {
-    if (!buttonRef.current) return;
-    const rect = buttonRef.current.getBoundingClientRect();
-    setPosition(
-      computeCustomSelectMenuPosition(rect, {
-        width: window.innerWidth,
-        height: window.innerHeight,
-      }),
-    );
-  }, []);
-
-  useEffect(() => {
-    if (!portal) return;
-    if (!open) {
-      setPosition(null);
-      return;
-    }
-    updatePosition();
-  }, [open, portal, updatePosition]);
-
   useEffect(() => {
     const result = reconcileCustomSelectActiveValue({
       open,
@@ -328,32 +304,11 @@ export function useCustomSelect({
     if (result.nextActiveValue !== undefined) setActiveValue(result.nextActiveValue);
   }, [open, value]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (isCustomSelectEventInside(target, buttonRef.current, menuRef.current)) return;
-      setOpen(false);
-    };
-    const onScrollOrResize = () => {
-      if (portal) updatePosition();
-    };
-    document.addEventListener('mousedown', onPointerDown);
-    window.addEventListener('resize', onScrollOrResize);
-    window.addEventListener('scroll', onScrollOrResize, true);
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown);
-      window.removeEventListener('resize', onScrollOrResize);
-      window.removeEventListener('scroll', onScrollOrResize, true);
-    };
-  }, [open, portal, updatePosition]);
-
   const choose = (nextValue: string) => {
     const next = flatOptions.find((option) => option.value === nextValue);
     if (!next || next.disabled) return;
     onChange(next.value);
-    setOpen(false);
-    buttonRef.current?.focus();
+    popover.closePanel({ refocusTrigger: true });
   };
 
   const moveActive = (direction: 1 | -1) => {
@@ -361,37 +316,17 @@ export function useCustomSelect({
     if (next !== null) setActiveValue(next);
   };
 
-  const toggleOpen = () => setOpen((current) => !current);
-
-  const closeAndRefocusTrigger = () => {
-    setOpen(false);
-    buttonRef.current?.focus();
-  };
+  const toggleOpen = () => open ? popover.closePanel({ refocusTrigger: false }) : popover.openPanel();
 
   const onButtonKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      if (!open) {
-        setOpen(true);
-        return;
-      }
-      moveActive(event.key === 'ArrowDown' ? 1 : -1);
-      return;
-    }
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      if (open) {
-        choose(activeValue || value);
-      } else {
-        setOpen(true);
-      }
-      return;
-    }
-    if (event.key === 'Escape' && open) {
-      event.preventDefault();
-      event.stopPropagation();
-      closeAndRefocusTrigger();
-    }
+    if (popover.handleDismissKey(event)) return;
+    if (openSelectOnKey({ event, open, openPanel: popover.openPanel })) return;
+    if (!open) return;
+    applySelectNavigationKey({ key: event.key, actions: {
+      preventDefault: () => event.preventDefault(), move: moveActive,
+      edge: (edge) => setActiveValue((edge === 'first' ? enabledOptions[0] : enabledOptions.at(-1))?.value ?? ''),
+      choose: () => choose(activeValue || value),
+    } }, { spaceChooses: true });
   };
 
   // Escape closes even when focus has moved into custom `menuHeader` content
@@ -402,10 +337,7 @@ export function useCustomSelect({
   // take real focus). Attached to the menu container, not the document, so it
   // never fires for an unrelated Escape press elsewhere on the page.
   const onMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Escape') return;
-    event.preventDefault();
-    event.stopPropagation();
-    closeAndRefocusTrigger();
+    popover.handleDismissKey(event);
   };
 
   return {
@@ -445,12 +377,13 @@ export function CustomSelect({
   disabled = false,
   placeholder,
   portal = true,
+  portalContainer,
   title,
   onFocus,
   menuHeader,
   onOpenChange,
   useCustomSelect: useCustomSelectHook = useCustomSelect,
-}: CustomSelectProps) {
+}: CustomSelectProps, _optional: Record<string, never> = {}) {
   const {
     idBase,
     buttonRef,
@@ -573,7 +506,7 @@ export function CustomSelect({
         </span>
         <Icon name="chevron-down" size={14} />
       </button>
-      {open ? (portal ? (position ? createPortal(menu, document.body) : null) : menu) : null}
+      {open ? (portal ? (position ? createPortal(menu, resolveSelectPortalContainer({ trigger: buttonRef.current }, { container: portalContainer })) : null) : menu) : null}
     </div>
   );
 }

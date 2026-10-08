@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { formatRelativeMinutesAgo, formatTimestamp } from "../format-timestamp";
+import { formatRelativeMinutesAgo, formatTimestamp } from "../format-timestamp.js";
 
 /**
  * @file `formatTimestamp` — pins the exact output the ~11 call sites this consolidates

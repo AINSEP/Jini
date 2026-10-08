@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import * as mcpUi from '../index.js';
 import * as surfaces from '../surfaces/index.js';
+import { defineSecretCardTool } from '../secret-card.js';
 
 describe('@jini-ai/ui/mcp-ui/surfaces barrel', () => {
+  it('exports the same secret-card owner as the dedicated universal entry', () => {
+    expect(mcpUi.defineSecretCardTool).toBe(defineSecretCardTool);
+  });
   it('exports the protocol vocabulary re-exported from @jini-ai/agentic, not a second copy of it', () => {
     expect(mcpUi.MCP_UI_VIEW_METHODS.initialize).toBe('ui/initialize');
     expect(mcpUi.MCP_UI_VIEW_NOTIFICATIONS.initialized).toBe('ui/notifications/initialized');

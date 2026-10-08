@@ -14,6 +14,14 @@ import { useRef } from "react";
  * Re-entrant run calls queue normally, but awaiting an inner call from a task on the same
  * lane deadlocks: the inner task is waiting for the outer task to release that lane.
  */
+/**
+ * @example
+ * const generation = settlement.next();
+ * await writes.run({ task: async () => {
+ *   const result = await port.write();
+ *   if (settlement.isCurrent({ generation })) setResult(result);
+ * } });
+ */
 export interface SerialWrites {
 
   /** Each caller observes its own task result or rejection, never the internal lane tail. */
@@ -58,3 +66,8 @@ export function useSerialWrites(): SerialWrites {
   if (!ref.current) ref.current = createSerialWrites();
   return ref.current;
 }
+
+// Credentials, activation and autosave share this queue so writes cannot race or be dropped;
+// some callers enqueue their last persistence write from unmount cleanup to prevent data loss.
+// Controllers use this handle in useCallback/useMemo dependencies; keep the adapter stable too.
+

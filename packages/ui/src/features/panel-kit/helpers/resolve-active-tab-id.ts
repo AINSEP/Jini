@@ -1,3 +1,5 @@
+// ADR-063: URL-owned screens retain their own tab lists and defaults. Pages mirrors local state
+// to the URL to avoid navigation over eagerly fetched data; tab-manifest enumerability is a separate decision.
 /** Keep an allowed selection or choose the allowed default/first id; an empty list keeps defaultId. */
 /**
  * URL query values can come from stale bookmarks or typos; validating against allowed ids prevents
@@ -11,3 +13,4 @@ export function resolveActiveTabId<T extends string>({ tabId, validIds, defaultI
   const safeDefault = ids.includes(defaultId) ? defaultId : (validIds[0] ?? defaultId);
   return tabId && ids.includes(tabId) ? (tabId as T) : safeDefault;
 }
+

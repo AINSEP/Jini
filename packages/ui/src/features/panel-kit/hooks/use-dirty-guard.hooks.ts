@@ -15,6 +15,7 @@ export interface DirtyGuard {
   confirmLeave: (required?: Record<string, never>, optional?: { unsavedBeyondTracked?: boolean }) => boolean;
 }
 
+/** @complexity O(n) per render in the serialized size of current/original; intended for small forms. */
 /** Compare small JSON-serializable form states (including key order). Null original is clean.
  * Warn on unload and offer a translated native confirmation for caller-owned navigation. */
 export function useDirtyGuard<T>({ current, original }: { current: T; original: T | null }, { translate = (key) => key, host = window }: { translate?: Translate | undefined; host?: DirtyGuardHostPort | undefined } = {}): DirtyGuard {
@@ -42,3 +43,4 @@ export function useDirtyGuard<T>({ current, original }: { current: T; original: 
 
   return { isDirty, confirmLeave };
 }
+

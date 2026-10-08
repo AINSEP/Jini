@@ -1,12 +1,15 @@
 import { createElement, useEffect, useId, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { KitAttrs, AgentSpec } from '../../attrs.js';
+import type { KitAttrs, AgentSpec, AgentAttrsPort } from '../../attrs.js';
 import { createConfirmController, planConfirm } from '../../confirm.js';
 import { useKit, useOverlayContainer } from '../Kit.hooks.js';
 import { isDevelopment } from '../context.js';
 import { nativeKit } from '../native/index.js';
 import { inspectConfirm } from './guard.js';
 import type { ConfirmController, ConfirmDialogProps } from '../types.js';
-export function useConfirmController(required: ConfirmDialogProps, _optional: Record<string, never> = {}): ConfirmController {
+/** Shared confirmation policy and execution; adapters may supply their existing agent-attribute port.
+ * @example useConfirmController({ open, title, confirmLabel, onConfirm, onCancel }, { agent: agentAttrs })
+ */
+export function useConfirmController(required: ConfirmDialogProps, optional: { agent?: AgentAttrsPort } = {}): ConfirmController {
   const context = useKit({}), titleId = useId(), frameId = useId(), consequenceId = useId(), cancelRef = useRef<HTMLButtonElement>(null);
   const boundaryRef = useRef<HTMLSpanElement>(null), latest = useRef(required), mounted = useRef(false);
   const [executing, setExecuting] = useState(false), [error, setError] = useState(false);
@@ -17,7 +20,8 @@ export function useConfirmController(required: ConfirmDialogProps, _optional: Re
   const pending = !!required.pending || executing;
   const plan = planConfirm({ ...required, cancelLabel: required.cancelLabel ?? context.cancelLabel, pending });
   function actionAttrs(part: string, spec: AgentSpec | undefined, label: string): KitAttrs {
-    const attrs = spec && context.agent ? context.agent({ handle: spec.handle }, { role: spec.role, label: spec.label }) : {};
+    const agent = optional.agent ?? context.agent;
+    const attrs = spec && agent ? agent({ handle: spec.handle }, { role: spec.role, label: spec.label }) : {};
     return Object.freeze({ ...attrs, 'data-jini-part': part, 'aria-label': label,
       ...(required.actionAccessibleNames && plan.consequence ? { 'aria-describedby': consequenceId } : {}),
       'aria-busy': pending, 'data-jini-state': pending ? 'pending' : 'ready' });

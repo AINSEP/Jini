@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { interpolate, pickPlural, splitOnPlaceholders } from "../template-i18n";
+import { interpolate, pickPlural, splitOnPlaceholders } from "../template-i18n.js";
 
 describe("interpolate", () => {
   it("replaces a single token", () => {

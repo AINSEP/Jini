@@ -1,10 +1,18 @@
 /**
- * Centralize the historical fixed-width display so formatting changes have one owner. Preserve
- * the stored timestamp's prefix byte for byte: no parsing, locale formatting or timezone conversion.
+ * Centralize the fixed-width display so formatting changes have one owner. The default
+ * preserves the stored timestamp's prefix byte for byte, without parsing or timezone conversion.
  * Trailing seconds, milliseconds and zone suffix are intentionally dropped; callers supply ISO text.
  */
-/** Render the ISO prefix as YYYY-MM-DD HH:MM without timezone conversion. */
-export function formatTimestamp({ iso }: { iso: string }): string {
+/** Render YYYY-MM-DD HH:MM; hosts can select the viewer's local timezone explicitly. */
+export function formatTimestamp({ iso }: { iso: string }, { timeZone = "stored" }: { timeZone?: "stored" | "local" } = {}): string {
+  if (timeZone === "local") {
+    // A stored UTC prefix can label server time as viewer time (Tovu D-06). Local getters
+    // follow the browser's timezone and DST; zone-less ISO is already local wall time.
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return iso; // Keep malformed source data visible.
+    const pad = (value: number) => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
   return iso.slice(0, 16).replace("T", " ");
 }
 
@@ -16,3 +24,4 @@ export function formatRelativeMinutesAgo({ iso, nowMs }: { iso: string; nowMs: n
   if (minutes === 1) return translate("1 minute ago");
   return translate("{minutes} minutes ago").replace(/\{minutes\}/g, String(minutes));
 }
+

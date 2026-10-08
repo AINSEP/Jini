@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { hasPermission } from "../permissions";
+import { hasPermission } from "../permissions.js";
 
 /**
  * @file `hasPermission()` — pins the wildcard-affordance bug fix (owner's `["*"]` grant was

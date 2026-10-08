@@ -103,3 +103,9 @@ export type {
 } from './react/components/SearchableModelSelect.js';
 export { useExecutionTab } from './react/hooks/useExecutionTab.js';
 export type { UseExecutionTabOptions, UseExecutionTabResult } from './react/hooks/useExecutionTab.js';
+
+export { createExecutionHttpAdapter, requireExecutionResponseData } from './http-adapter.js';
+export type { CreateExecutionPortOptions, ExecutionProbeTransport } from './http-adapter.js';
+
+export { useExecutionCredential } from './react/hooks/use-execution-credential.hooks.js';
+export type { UseExecutionCredentialInput, ExecutionCredentialController, ExecutionCredentialSaveState, ExecutionCredentialView, ExecutionCredentialPatch, ExecutionCredentialPort, ExecutionCredentialEffects } from './react/hooks/use-execution-credential.hooks.js';

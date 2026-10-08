@@ -1,4 +1,4 @@
-import { defaultAdminTheme } from '../../../theme/default.js';
+import { defaultAdminTheme } from '../../../core/theme/default.js';
 
 /**
  * @module features/mcp-ui/surfaces/tokens

@@ -5,6 +5,7 @@ import { isAbortError } from "../helpers/retry-unreachable.js";
 export interface AsyncActionState {
   // Explicit mutations own their success effects/reloads, so this hook deliberately stores no
   // result value. Shared error slots or row-id busy state need a different, caller-owned shape.
+  /** True for the most recent run; error resets before each attempt and stays null on success. */
   saving: boolean;
   error: string | null;
   // Opening a dialog may clear an old error before a new run. Preserve the full React setter type,
@@ -36,3 +37,4 @@ export function useAsyncAction(): AsyncActionState {
 
   return { saving, error, setError, run };
 }
+

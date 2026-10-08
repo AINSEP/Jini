@@ -1,6 +1,6 @@
-import { defaultAdminTheme } from './default.js';
-import { adminThemeColorKeys, validateAdminTheme } from './validation.js';
-import type { AdminTheme, AdminThemeDocument, AdminThemeTarget } from './types.js';
+import { defaultAdminTheme } from '../core/theme/default.js';
+import { adminThemeColorKeys, validateAdminTheme } from '../core/theme/validation.js';
+import type { AdminTheme, AdminThemeDocument, AdminThemeTarget } from '../core/theme/types.js';
 
 type FontLease = { readonly link: HTMLLinkElement; readonly owned: boolean; users: number };
 const fontLeases = new WeakMap<AdminThemeDocument, Map<string, FontLease>>();

@@ -1,9 +1,4 @@
-/**
- * Pure logic ported from OD's ConnectorsBrowser.tsx + the two small pure
- * helpers it imported from EntryView.tsx (isTrustedConnectorCallbackOrigin,
- * sortConnectorsForSearch/getConnectorSearchScore/sortConnectorsForDisplay).
- * No React, no transport, no DOM — see `packages/ui/archived provenance ledger`.
- */
+/** Connector callback-origin validation and search/display sorting; no React, transport or DOM. */
 import type {
   Connector,
   ConnectorAuthorizationPendingState,

@@ -10,9 +10,6 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
  * stale `nativeEvent.isComposing` causes Enter to insert a newline instead
  * of submitting.
  *
- * Origin: `utils/imeComposing.ts` — ported verbatim (no OD coupling; only
- * depends on React's `KeyboardEvent` type).
- *
  * @overallScore 100
  */
 export function isImeComposing(

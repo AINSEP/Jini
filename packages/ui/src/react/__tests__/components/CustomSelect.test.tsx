@@ -713,3 +713,75 @@ describe('CustomSelect with hook override prop', () => {
     expect(calls).toEqual([false, true]);
   });
 });
+
+
+describe('CustomSelect shared popover lifecycle', () => {
+  it('portals to the nearest native dialog and consumes only the dropdown Escape', () => {
+    const onHostKeyDown = vi.fn(), onChange = vi.fn();
+    render(<dialog open onKeyDown={onHostKeyDown}>
+      <CustomSelect value="a" options={OPTIONS} onChange={onChange} ariaLabel="Pick" menuHeader={<input aria-label="Search" />} />
+    </dialog>);
+    const trigger = screen.getByRole('combobox');
+    fireEvent.click(trigger);
+    const menu = screen.getByRole('listbox');
+    expect(menu.parentElement).toBe(trigger.closest('dialog'));
+    const search = screen.getByRole('textbox', { name: 'Search' });
+    search.focus();
+    fireEvent.keyDown(search, { key: 'Escape' });
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    expect(onHostKeyDown).not.toHaveBeenCalled();
+    fireEvent.keyDown(trigger, { key: 'Escape' });
+    expect(onHostKeyDown).toHaveBeenCalledTimes(1);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('uses an explicit portal container and removes the menu on dismissal', () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    try {
+      const view = render(<CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" portalContainer={container} />);
+      const trigger = screen.getByRole('combobox');
+      fireEvent.click(trigger);
+      expect(screen.getByRole('listbox').parentElement).toBe(container);
+      fireEvent.keyDown(trigger, { key: 'Escape' });
+      expect(container.childElementCount).toBe(0);
+      view.unmount();
+    } finally { container.remove(); }
+  });
+
+  it.each([false, true])('returns Tab to the trigger DOM neighbours from injected search (backward: %s)', (shiftKey) => {
+    render(<>
+      <button type="button">Before</button>
+      <CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" menuHeader={<input aria-label="Search" />} />
+      <button type="button">After</button>
+    </>);
+    fireEvent.click(screen.getByRole('combobox'));
+    const search = screen.getByRole('textbox', { name: 'Search' });
+    search.focus();
+    fireEvent.keyDown(search, { key: 'Tab', shiftKey });
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: shiftKey ? 'Before' : 'After' }));
+  });
+
+  it('keeps Tab within a modal native dialog', () => {
+    render(<>
+      <button type="button">Outside</button>
+      <dialog open>
+        <CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" menuHeader={<input aria-label="Search" />} />
+      </dialog>
+    </>);
+    const trigger = screen.getByRole('combobox'), dialog = trigger.closest('dialog')!;
+    const matches = dialog.matches.bind(dialog);
+    // jsdom has no modal top layer; fake the modal query while exercising actual portal/focus behavior.
+    const modalState = vi.spyOn(dialog, 'matches').mockImplementation((selector) => selector === ':modal' || matches(selector));
+    try {
+      fireEvent.click(trigger);
+      const search = screen.getByRole('textbox', { name: 'Search' });
+      search.focus();
+      fireEvent.keyDown(search, { key: 'Tab' });
+      expect(screen.queryByRole('listbox')).toBeNull();
+      expect(document.activeElement).toBe(trigger);
+    } finally { modalState.mockRestore(); }
+  });
+});

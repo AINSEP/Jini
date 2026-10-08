@@ -1,9 +1,4 @@
-/**
- * Generic OAuth-integration-marketplace domain types. Ported from the origin
- * product's ConnectorsBrowser.tsx (see the vendored reference tree cited in
- * `packages/ui/archived provenance ledger`), stripped of Connector Provider/product-specific
- * wire-shape specifics — see that file for the full provenance note.
- */
+/** Generic OAuth-integration marketplace types; hosts own provider-specific wire shapes. */
 
 export type ConnectorStatus = 'available' | 'connected' | 'error' | 'disabled';
 

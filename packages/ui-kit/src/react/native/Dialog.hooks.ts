@@ -3,7 +3,14 @@ import type { MouseEvent, SyntheticEvent } from 'react';
 import type { DialogProps, ConfirmViewProps } from '../types.js';
 import { Button } from '../facade.js';
 import { NativeButton } from './Controls.js';
-export function useNativeDialog(required: DialogProps, optional: { initialFocus?: () => void } = {}) {
+/** Native modal lifecycle shared by kit views and compatibility adapters; DOM effects are O(1).
+ * The document port preserves hosts' focus injection seam without introducing another lifecycle.
+ * @example useNativeDialog({ open, title, onClose }, { initialFocus: () => cancelRef.current?.focus() })
+ */
+export function useNativeDialog(required: DialogProps, optional: {
+  initialFocus?: () => void;
+  document?: Pick<Document, 'activeElement'>;
+} = {}) {
   const dialogRef = useRef<HTMLDialogElement>(null), opener = useRef<Element | null>(null), titleId = useId();
   useImperativeHandle(required.ref, () => dialogRef.current!, []);
   useLayoutEffect(() => {
@@ -13,7 +20,7 @@ export function useNativeDialog(required: DialogProps, optional: { initialFocus?
       if (opener.current instanceof HTMLElement && opener.current.isConnected) opener.current.focus({ preventScroll: true });
       return;
     }
-    opener.current = document.activeElement;
+    opener.current = (optional.document ?? document).activeElement;
     if (typeof dialog.showModal === 'function') { if (!dialog.open) dialog.showModal(); }
     else dialog.setAttribute('open', '');
     if (optional.initialFocus) optional.initialFocus();

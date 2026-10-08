@@ -1,5 +1,11 @@
 # @jini-ai/ui
 
+## 0.4.5 — pending release
+
+- Add universal `./mcp-ui/secret-card`: `defineSecretCardTool` owns fail-closed emission, cancellation, blank-secret policy, exact-byte submission and safe save-failure reporting. Specs retain domain validation, copy, dynamic fields, persistence and result projections.
+- Inject the daemon's existing `askThenReport` alongside the store; core owns the shared exchange ABI. No daemon or React runtime dependency in this entry.
+- Requires core 0.4.2; build and publish the release set before consumer adoption.
+
 ## 0.4.4 — 2026-10-06
 
 - Recharts charts paint with host chart tokens `--jini-chart-1..6` / `-grid` / `-axis` / `-cursor` / `-surface` / `-text`, each falling back to a base token; a host that sets no `--jini-chart-N` gets the new warm orange `--jini-chart-default-1..6` palette (light and dark) instead of `--jini-primary`.

@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { TabBar, type TabBarTab } from "../../react/components/TabBar";
-import { resolveTabBarKeyTarget, useTabBarKeyboard } from "../../react/components/TabBar.hooks";
+import { TabBar, type TabBarTab } from "../../react/components/TabBar.js";
+import { resolveTabBarKeyTarget, useTabBarKeyboard } from "../../react/components/TabBar.hooks.js";
 
 const tabs: readonly TabBarTab[] = [
   { id: "disabled-first", label: "Disabled first", disabled: true },
@@ -17,6 +17,7 @@ describe("TabBar keyboard edge destinations", () => {
     ["unknown", "ArrowLeft", 3], ["unknown", "ArrowRight", 1],
     ["disabled-first", "ArrowLeft", 3], ["disabled-first", "ArrowRight", 1],
     ["middle", "ArrowLeft", 3], ["last", "ArrowRight", 1],
+    ["last", "ArrowLeft", 1],
     ["last", "Home", 1], ["middle", "End", 3],
   ])("%s with %s targets enabled index %s", (activeId, key, expected) => {
     expect(resolveTabBarKeyTarget({ tabs: tabs, activeId: activeId as string, key: key as string })).toBe(expected);
@@ -39,6 +40,23 @@ function MixedControls({ onChange }: { onChange: (id: string) => void }) {
 }
 
 describe("TabBar key origin guard", () => {
+  // Author Checklist F2.1/F2.5/F3.1/F6.2: the real handler and DOM focus run;
+  // only the callback boundary is recorded, with exact delivery. Each test owns its state.
+  // Mutation rejected: backward movement uses activeIndex - 1 except at wraparound,
+  // selecting disabled-middle instead of middle. No product-source mutation is permitted.
+  it("moves backward across a disabled middle tab, delivering and focusing the enabled destination", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<TabBar tabs={tabs} activeId="last" onChange={onChange} ariaLabel="Available tabs" />);
+    const middle = screen.getByRole("tab", { name: "Middle" });
+    expect(screen.getByRole("tab", { name: "Disabled middle" })).toBeDisabled();
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Last" }));
+    await user.keyboard("{ArrowLeft}");
+    expect(onChange.mock.calls).toEqual([["middle"]]);
+    expect(document.activeElement).toBe(middle);
+  });
+
   // F2.1/F3.1/F5.2: execute the real handler through DOM events; assert actual focus and exact delivery.
   // Removing the closest('[role=tab]') guard would steal focus from Add provider.
   it("leaves a non-tab control's navigation keys alone, but navigates after clicking a tab label", async () => {

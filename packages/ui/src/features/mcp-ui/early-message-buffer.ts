@@ -16,8 +16,7 @@
  * DOM types and no React, so it is testable in a plain Node environment. The module-scope
  * `window.addEventListener` that feeds it belongs to the React half; see
  * `../../react/mcp-ui/host-message-source.ts`.
- *
- * Ported from `examples/reference-web/src/mcpui-lab-message-buffer.ts` unchanged in behavior.
+
  */
 
 /**

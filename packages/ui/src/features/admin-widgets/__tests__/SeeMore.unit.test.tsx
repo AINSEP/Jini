@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { resolveSeeMoreView, SeeMore } from "../components/SeeMore/SeeMore";
+import { resolveSeeMoreView, SeeMore } from "../components/SeeMore/SeeMore.js";
 import type { useSeeMoreClamp } from "../components/SeeMore/SeeMore.hooks";
 
 /**

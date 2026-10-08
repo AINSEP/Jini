@@ -3,9 +3,7 @@
  * generic pattern for opting a session into deterministic/reduced-motion
  * rendering for visual-regression testing.
  *
- * Origin: `utils/visualStability.ts`, whose storage key was a
- * product-identity string namespaced to the origin product. Genericized to a
- * caller-configurable key (default `'jini:visual-stability'`).
+ * Hosts can configure the storage key; the default is 'jini:visual-stability'.
  *
  * @overallScore 100
  */

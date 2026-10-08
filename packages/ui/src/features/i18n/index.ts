@@ -19,4 +19,4 @@ export {
 export type { SettingsDialogDict } from './dictionaries/index.js';
 export { createDictionaryTranslator } from './dictionary-translator.js';
 export type { Translate, DictionaryTranslator, LocaleDictionary } from './dictionary-translator.js';
-export { interpolate, splitOnPlaceholders, pickPlural } from './template-i18n.js';
+export { interpolate, splitOnPlaceholders, pickPlural, localeEntry } from './template-i18n.js';
