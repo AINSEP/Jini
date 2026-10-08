@@ -93,6 +93,8 @@ lost the ability.
 
 ## Codebase search — query the indexes FIRST (default, alongside `rg`)
 
+Before writing anything new, check [CAPABILITIES.md](CAPABILITIES.md) for existing package capabilities and entry points to reuse.
+
 Before searching for code, planning a feature, or resolving "does this already exist?", **query the three local indexes below**. They are 100% local, need no API key, and cost nothing to read. Skipping them is how already-shipped code gets rebuilt — this exact failure happened on 2026-07-24 (a parallel tool-execution path was designed before noticing `packages/daemon/src/delegated-tool-bridge.ts` + `packages/mcp/src/bin/serve.ts` already implemented it end-to-end).
 
 **Order: `codebase-memory-mcp` → Graphify → understand-anything → `rg`.**
