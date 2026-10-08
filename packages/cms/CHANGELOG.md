@@ -1,3 +1,7 @@
+## 0.5.4 — 2026-10-08
+
+- Ships `dist/forms/**`: 0.5.3's `files` negation `!forms/**` also stripped `dist/forms`, so `@jini-ai/cms/forms` (and `/html`, `/sql`, `/express`) failed to resolve. The negation is removed: `files` already ships only `dist`, and the nested `forms/` package is never packed.
+
 ## 0.5.3 — 2026-10-08
 
 - `./widgets*`: Add isolated widgets, import-free markers, HTML embeds, resolver ports and StorageKernel region-binding SQL entries; preserve stored formats, permission gates and rendering contracts.
