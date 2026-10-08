@@ -1,14 +1,6 @@
 /**
  * @module diagnostics
- *
- * Builds the `AgentDiagnostic` explaining why a CLI isn't invocable, for
- * the three failure classes detection distinguishes: not resolvable at
- * all, resolved but not invocable, and invocable but not authenticated.
- *
- * Ported verbatim from OD's
- * `apps/daemon/src/runtimes/detection/diagnostics.ts`, with `AgentDiagnostic`
- * / `AgentFixIntent` now imported from this package's own `types.ts`
- * (vendored from OD's contracts workspace package, not a dependency on it).
+ * Explain three detection failures: unresolved executable, uninvocable executable or missing authentication.
  */
 import { agentBinEnvKey, agentSearchDirs } from './executables.js';
 import type { AgentLaunchResolution } from './launch.js';

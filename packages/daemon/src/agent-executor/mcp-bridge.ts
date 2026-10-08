@@ -8,23 +8,23 @@ import {
 import {
   join,
 } from 'node:path';
-import {
-  type AcpMcpServerInput,
-  type RuntimeAgentDef,
+import type {
+   AcpMcpServerInput,
+   RuntimeAgentDef,
 } from '@jini-ai/agent-runtime';
 import {
   isRecord,
   errorMessage,
 } from './values.js';
-import {
-  type McpJsonInjectionOptions,
-  type McpJsonServerEntry,
-  type McpBridgeDelivery,
-  type PreparedCodexHome,
-  type PreparedClaudeConfigDir,
-  type ClaudeConfigDirSeams,
-  type ClaudeConfigDirIsolationOptions,
-  type FailBeforeSpawn,
+import type {
+   McpJsonInjectionOptions,
+   McpJsonServerEntry,
+   McpBridgeDelivery,
+   PreparedCodexHome,
+   PreparedClaudeConfigDir,
+   ClaudeConfigDirSeams,
+   ClaudeConfigDirIsolationOptions,
+   FailBeforeSpawn,
 } from './contracts.js';
 
 const JINI_MCP_SERVER_KEY = 'jini';

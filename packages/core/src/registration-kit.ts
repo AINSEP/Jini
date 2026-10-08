@@ -27,6 +27,7 @@
 import { ToolInputError, type ToolExecutionOptions, type ToolHandler, type ToolRegistration } from "./tool-registry.js";
 import type { Result } from "./primitives/index.js";
 import type { AgentToolSideEffect, AgentToolDefinition } from "./agent-tools.js";
+import { toolMetadataFor } from "./tool-metadata.js";
 
 /**
  * Catalog entries use the kernel's AgentToolDefinition. The distinct deletion classification
@@ -147,6 +148,16 @@ export function indexCatalogById<T extends { name: string }>(required: { catalog
 export function isRecord(required: { value: unknown }, _optional: Record<string, never> = {}): required is { value: Record<string, unknown> } {
   const { value } = required;
   return typeof value === "object" && value !== null;
+}
+
+/**
+ * Accepts non-null, non-array objects, including class instances and null-prototype records.
+ * This is a shape check, not plain-object validation or sanitization. Keep `isRecord`'s
+ * broader contract: existing tool readers deliberately continue to accept arrays.
+ * @param required.value - The untrusted value whose object shape is checked.
+ */
+export function isNonArrayRecord(required: { value: unknown }, _optional: Record<string, never> = {}): required is { value: Record<string, unknown> } {
+  return isRecord(required) && !Array.isArray(required.value);
 }
 
 /** Narrows `ctx.input` to a record, refusing anything else. The first line of most handlers. */
@@ -447,6 +458,8 @@ export function buildDomainRegistrations(spec: {
   catalog: ReadonlyMap<string, AgentToolDefinition>;
   handlers: Record<string, ToolHandler>;
   derivedRisk: DerivedRiskByToolId;
+  /** Host vocabulary and reviewed action policy; risk remains independently checked above. */
+  metadata?: import('./tool-metadata.js').ToolMetadataById;
 }, optional: { unwiredToolIds?: ReadonlySet<string> } = {}): ToolRegistration[] {
   const registrations: ToolRegistration[] = [];
 
@@ -461,11 +474,13 @@ export function buildDomainRegistrations(spec: {
         `tool-registrations: wired tool '${id}' publishes no inputSchema — add one to its entry in ${spec.catalogModule} so the model gets a contract, or leave the tool unwired`,
       );
     }
+    const metadata = catalogEntry.metadata ?? toolMetadataFor({ toolId: id, metadata: spec.metadata });
     registrations.push({
       descriptor: {
         id,
         description: catalogEntry.description,
         inputSchema: catalogEntry.inputSchema,
+        ...(metadata ? { metadata } : {}),
         // The ONE place a domain's declared risk becomes the descriptor flag every read-only gate
         // reads (`@jini-ai/core`'s `isReadOnlyTool`). Placed here rather than in each domain's
         // `tool-registrations.ts` for the same reason the drift tripwire is: twelve copies of this

@@ -36,7 +36,7 @@ describe('SqliteDbOpsAdapter', () => {
   describe('captureRestorePoint', () => {
     it('writes a real, restorable backup next to the live database file', async () => {
       const filePath = join(dir, 'content.db');
-      const connection = openSqliteConnection({ open: (p, o) => new Database(p, o), filePath });
+      const connection = openSqliteConnection({ open: ({ filePath }, o) => new Database(filePath, o), filePath });
       connection.exec('CREATE TABLE notes (id text PRIMARY KEY)');
       connection.exec("INSERT INTO notes (id) VALUES ('n1')");
 
@@ -48,14 +48,14 @@ describe('SqliteDbOpsAdapter', () => {
       expect(existsSync(point.artifactRef)).toBe(true);
 
       // The artifact is a genuine database, not an empty placeholder.
-      const restored = openSqliteConnection({ open: (p, o) => new Database(p, o), filePath: point.artifactRef });
+      const restored = openSqliteConnection({ open: ({ filePath }, o) => new Database(filePath, o), filePath: point.artifactRef });
       expect(restored.prepare('SELECT id FROM notes').all()).toEqual([{ id: 'n1' }]);
     });
 
     it('awaits an async watermark reader (a PGlite/Postgres host reads it with a query)', async () => {
       const filePath = join(dir, 'content.db');
       const adapter = new SqliteDbOpsAdapter({
-        connection: openSqliteConnection({ open: (p, o) => new Database(p, o), filePath }),
+        connection: openSqliteConnection({ open: ({ filePath }, o) => new Database(filePath, o), filePath }),
         filePath,
         readWatermark: async () => 42,
         now: () => 1700000000000,
@@ -69,7 +69,7 @@ describe('SqliteDbOpsAdapter', () => {
     it('stamps the watermark read at capture time into the filename', async () => {
       const filePath = join(dir, 'content.db');
       const adapter = new SqliteDbOpsAdapter({
-        connection: openSqliteConnection({ open: (p, o) => new Database(p, o), filePath }),
+        connection: openSqliteConnection({ open: ({ filePath }, o) => new Database(filePath, o), filePath }),
         filePath,
         readWatermark: () => 99,
         now: () => 1700000000000,
@@ -81,7 +81,7 @@ describe('SqliteDbOpsAdapter', () => {
     it('sanitizes a scopeId so it cannot escape the target directory', async () => {
       const filePath = join(dir, 'content.db');
       const adapter = new SqliteDbOpsAdapter({
-        connection: openSqliteConnection({ open: (p, o) => new Database(p, o), filePath }),
+        connection: openSqliteConnection({ open: ({ filePath }, o) => new Database(filePath, o), filePath }),
         filePath,
         readWatermark: () => 1,
         now: () => 2,

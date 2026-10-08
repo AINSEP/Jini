@@ -38,7 +38,7 @@ const sources = new Map<string, File>();
  * if this would introduce a new entry past {@link MAX_CACHED_ATTACHMENT_PREVIEWS}.
  * @complexity Time/space: O(1) amortized.
  */
-export function cacheAttachmentPreviewSource({ path, file }: { path: string; file: File }): void {
+export function cacheAttachmentPreviewSource({ path, file }: { path: string; file: File }, _options: Record<string, never> = {}): void {
   if (!sources.has(path) && sources.size >= MAX_CACHED_ATTACHMENT_PREVIEWS) {
     const oldest = sources.keys().next().value;
     if (oldest !== undefined) sources.delete(oldest);

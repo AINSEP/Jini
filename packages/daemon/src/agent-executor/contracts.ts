@@ -1,48 +1,48 @@
 import type { MessageAttachmentImage } from '../attachment-content.js';
-import {
-  type spawn as nodeSpawn,
-  type ChildProcess,
+import type {
+   spawn as nodeSpawn,
+   ChildProcess,
 } from 'node:child_process';
-import {
-  type Principal,
+import type {
+   Principal,
 } from '@jini-ai/core';
-import {
-  type RunAgentPayload,
-  type RunErrorPayload,
+import type {
+   RunAgentPayload,
+   RunErrorPayload,
 } from '@jini-ai/protocol';
-import {
-  type applyAgentLaunchEnv,
-  type ensureAgentCapabilities,
-  type resolveModelForLaunch,
-  type getAgentDef,
-  type resolveAgentLaunch,
-  type attachAcpSession,
-  type attachPiRpcSession,
-  type prepareAgentLogFile,
-  type preparePromptFileForAgent,
-  type AcpMcpServerInput,
-  type AcpPermissionHandler,
-  type PromptAugmenter,
+import type {
+   applyAgentLaunchEnv,
+   ensureAgentCapabilities,
+   resolveModelForLaunch,
+   getAgentDef,
+   resolveAgentLaunch,
+   attachAcpSession,
+   attachPiRpcSession,
+   prepareAgentLogFile,
+   preparePromptFileForAgent,
+   AcpMcpServerInput,
+   AcpPermissionHandler,
+   PromptAugmenter,
 } from '@jini-ai/agent-runtime';
-import {
-  type collectProcessTreePids,
-  type createCommandInvocation,
-  type listProcessSnapshots,
-  type stopProcesses,
-  type ProcessSnapshot,
-  type StopProcessesResult,
+import type {
+   collectProcessTreePids,
+   createCommandInvocation,
+   listProcessSnapshots,
+   stopProcesses,
+   ProcessSnapshot,
+   StopProcessesResult,
 } from '@jini-ai/platform';
-import {
-  type RunByteJournal,
+import type {
+   RunByteJournal,
 } from '../continuation/journal.js';
-import {
-  type RunRetrySideEffectState,
+import type {
+   RunRetrySideEffectState,
 } from '../run/core/index.js';
-import {
-  type ToolExecutor,
+import type {
+   ToolExecutor,
 } from '../tool-executor.js';
-import {
-  type RunLifecycle,
+import type {
+   RunLifecycle,
 } from '../run-lifecycle.js';
 
 /**

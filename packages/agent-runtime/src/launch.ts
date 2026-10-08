@@ -1,10 +1,6 @@
 /**
  * @module launch
- *
- * Turns a resolved agent executable into a launchable process: launch-path
- * resolution (including Codex's native-binary-vs-node-wrapper detection)
- * and PATH env application for the spawned child. Ported verbatim from
- * OD's `apps/daemon/src/runtimes/launch.ts` — no product coupling.
+ * Resolve a launchable process, including Codex native-binary/node-wrapper selection and child PATH.
  */
 import { accessSync, closeSync, constants, openSync, readdirSync, readSync, realpathSync, statSync } from 'node:fs';
 import path, { delimiter } from 'node:path';

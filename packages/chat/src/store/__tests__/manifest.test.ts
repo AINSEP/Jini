@@ -17,10 +17,14 @@ it('makes every SQL, React and surface-card UI peer optional, with one pinned de
  // The radix/recharts/mcp-ui surface-card peers became optional in d5abdfbc (dev deps for tests).
  const peers={'@jini-ai/db':'^0.2.0 || ^0.3.0',kysely:'^0.29.6','better-sqlite3':'^13.0.0','@electric-sql/pglite':'0.5.8',pg:'^8.23.0',react:'^18.3.0 || ^19.0.0','react-dom':'^18.3.0 || ^19.0.0','@ag-ui/core':'0.0.58',
   '@mcp-ui/client':'7.1.1','@radix-ui/react-checkbox':'^1.3.11','@radix-ui/react-label':'^2.1.15','@radix-ui/react-radio-group':'^1.4.7','@radix-ui/react-select':'^2.3.7','@radix-ui/react-slot':'^1.3.3',recharts:'^3.10.1'};
- expect(manifest.peerDependencies).toEqual(peers);
- for(const name of Object.keys(peers)){
+ const jiniPeers={'@jini-ai/agent-runtime':'^0.4.1','@jini-ai/agentic':'^0.4.2','@jini-ai/protocol':'^0.4.1',
+  '@jini-ai/ui':'^0.4.5','@jini-ai/diagnostics':'^0.5.0'};
+ expect(manifest.peerDependencies).toEqual({...peers,...jiniPeers});
+ // SQL stores and surface cards use core's default clock at runtime, so core is required.
+ expect(manifest.dependencies).toEqual({'@jini-ai/core':'workspace:^'});
+ for(const name of Object.keys({...peers,...jiniPeers})){
   expect(manifest.peerDependenciesMeta[name]).toEqual({optional:true});
-  expect(manifest.dependencies[name]).toBeUndefined();
+  expect(manifest.dependencies??{}).not.toHaveProperty(name);
  }
  expect(manifest.devDependencies.kysely).toBe('0.29.6');expect(manifest.devDependencies['@electric-sql/pglite']).toBe('0.5.8');
 });

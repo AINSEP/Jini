@@ -142,10 +142,10 @@ export function openSqliteEventLog(
   resolveMaxEntriesPerRun(options.maxEntriesPerRun);
   let db: SqliteDb | undefined;
   try {
-    db = openSqliteConnection({ filePath: input.file, open(file, settings) {
-      db = input.open(file, settings);
+    db = openSqliteConnection({ filePath: input.file, open({ filePath }, settings) {
+      db = input.open(filePath, settings);
       return db;
-    }, pragmas: ['journal_mode = WAL'] });
+    } }, { pragmas: ['journal_mode = WAL'] });
     const log = bindSqliteEventLog(db, options);
     let closed = false;
     return { ...log, async close(_args: Record<string, never>) { if (closed) return; closed = true; db!.close(); } };

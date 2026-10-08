@@ -28,6 +28,8 @@ export interface UseConversationOptions extends UserTextRedactionOptions {
 }
 
 export interface SendMessageOptions {
+  /** Non-secret signal from a composer that already sanitized the content before this boundary. */
+  secretRedaction?: ChatMessage['secretRedaction'];
   attachments?: ChatAttachment[];
   context?: RunContext;
   agentId?: string;
@@ -179,6 +181,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         role: 'user',
         content,
         createdAt: Date.now(),
+        ...(sendOptions.secretRedaction ? { secretRedaction: sendOptions.secretRedaction } : {}),
         ...(sendOptions.attachments ? { attachments: sendOptions.attachments } : {}),
       } }, options).message;
       const resolvedAgentId = sendOptions.agentId ?? agentId;

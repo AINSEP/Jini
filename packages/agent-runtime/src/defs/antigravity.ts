@@ -1,5 +1,4 @@
 import { createAgentModelDiscovery } from '../model-discovery.js';
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/antigravity.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { redactOAuthUrls } from '@jini-ai/oauth';
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef, RuntimeModelOption } from '../types.js';
@@ -78,7 +77,7 @@ const OAUTH_URL_PLACEHOLDER = '[redacted sign-in URL]';
  * already has an owner — `auth.ts`'s `classifyAgentAuthFailure` /
  * `isAntigravityAuthFailureText`, consumed by whatever surfaces a structured
  * auth error — and duplicating the decision here would mean this def silently
- * rewrites assistant text into instructions. See `archived provenance ledger`.
+ * rewrites assistant text into instructions.
  *
  * @param fullText - The concatenation of every stdout chunk agy produced.
  * @returns The same text with every sign-in URL replaced by a placeholder.

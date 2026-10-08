@@ -1,4 +1,4 @@
-import type { TransferNaming } from "../transfer/types.js";
+import type { TransferNaming } from "./transfer-naming.js";
 
 /** Copy-only display defaults; actual persisted schema/marker names remain required host inputs. */
 export interface DbTransferMessages {

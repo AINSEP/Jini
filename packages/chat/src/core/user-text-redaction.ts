@@ -92,3 +92,16 @@ export function redactUserMessage<T extends { readonly role: string; readonly co
 export function redactUserHistory({ history }: { readonly history: readonly ChatMessage[] }, options: UserTextRedactionOptions = {}): ChatMessage[] {
   return history.map(message => redactUserMessage({ message }, options).message);
 }
+
+/** Redact model input and append the host's non-secret card guidance once, using the redaction
+ * signal rather than display text. `secretRedacted` carries an earlier ingress/composer signal;
+ * persistence must continue to use redactUserText/redactUserMessage without the model note. */
+export function guardUserText(
+  { text }: { readonly text: string },
+  options: { readonly modelNote?: string; readonly secretRedacted?: boolean; readonly redactUserText?: RedactUserText } = {},
+): string {
+  const safe = (options.redactUserText ?? redactUserText)({ text }, {});
+  if (!safe.secretRedacted && options.secretRedacted !== true) return safe.text;
+  if (!options.modelNote || safe.text.includes(options.modelNote)) return safe.text;
+  return `${safe.text}\n\n${options.modelNote}`;
+}

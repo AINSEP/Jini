@@ -10,3 +10,4 @@ export { PG_OID, PG_PARSERS, parseInt8 } from "./pg-types.js";
 
 export { parseJsonOrUndef, row, rows } from "./row-values.js";
 export type { DbRow, JsonObject } from "./row-values.js";
+export type { TransferNaming } from './transfer-naming.js';

@@ -4,19 +4,19 @@ import { restorePointFilename, sanitizeForFilename } from '../../core/artifact-n
 
 describe('sanitizeForFilename', () => {
   it('passes through characters that are already filesystem-safe', () => {
-    expect(sanitizeForFilename('workspace-1_abc')).toBe('workspace-1_abc');
+    expect(sanitizeForFilename({ value: 'workspace-1_abc' })).toBe('workspace-1_abc');
   });
 
   it('neutralizes path separators so a scopeId cannot nest the artifact', () => {
-    expect(sanitizeForFilename('a/b\\c')).toBe('a_b_c');
+    expect(sanitizeForFilename({ value: 'a/b\\c' })).toBe('a_b_c');
   });
 
   it('neutralizes dots so a scopeId of ".." cannot climb out of the target directory', () => {
-    expect(sanitizeForFilename('..')).toBe('__');
+    expect(sanitizeForFilename({ value: '..' })).toBe('__');
   });
 
   it('replaces rather than rejects, so an unusual slug still yields a backup', () => {
-    expect(sanitizeForFilename('café: prod')).toBe('caf___prod');
+    expect(sanitizeForFilename({ value: 'café: prod' })).toBe('caf___prod');
   });
 });
 
@@ -34,7 +34,7 @@ describe('restorePointFilename', () => {
   });
 
   it('honours an explicit extension, so a non-file-snapshot driver can reuse the scheme', () => {
-    expect(restorePointFilename({ scopeId: 's', watermarkAtCapture: 0, timestamp: 1, extension: 'sql' })).toBe(
+    expect(restorePointFilename({ scopeId: 's', watermarkAtCapture: 0, timestamp: 1 }, { extension: 'sql' })).toBe(
       'restore-point-s-wm0-1.sql',
     );
   });

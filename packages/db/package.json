@@ -14,7 +14,25 @@
     "runtime": "node",
     "neutralEntries": [
       "src/core"
-    ]
+    ],
+    "isolation": {
+      "entries": {
+        "./tools": "transfer"
+      },
+      "shared": [
+        "src/kernel/dialect.ts",
+        "src/kernel/index.ts",
+        "src/kernel/kernel-core.ts",
+        "src/kernel/ops.ts",
+        "src/kernel/port.ts",
+        "src/kernel/postgres-lock.ts",
+        "src/kernel/schema-scope.ts",
+        "src/kernel/schema-shape.ts",
+        "src/kernel/store-copy.ts",
+        "src/kernel/turn-lock.ts",
+        "src/kernel/typegen.ts"
+      ]
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -64,6 +82,11 @@
       "import": "./dist/migrate/index.js",
       "default": "./dist/migrate/index.js"
     },
+    "./testing/pg-fixture": {
+      "types": "./dist/pg-fixture.d.ts",
+      "import": "./dist/pg-fixture.js",
+      "default": "./dist/pg-fixture.js"
+    },
     "./package.json": "./package.json",
     "./transfer": {
       "types": "./dist/transfer/index.d.ts",
@@ -79,6 +102,16 @@
       "types": "./dist/kernel/store-copy.d.ts",
       "import": "./dist/kernel/store-copy.js",
       "default": "./dist/kernel/store-copy.js"
+    },
+    "./recovery/*": {
+      "types": "./dist/recovery/*.d.ts",
+      "import": "./dist/recovery/*.js",
+      "default": "./dist/recovery/*.js"
+    },
+    "./recovery": {
+      "types": "./dist/recovery/index.d.ts",
+      "import": "./dist/recovery/index.js",
+      "default": "./dist/recovery/index.js"
     }
   },
   "typesVersions": {
@@ -110,6 +143,9 @@
       "migrate": [
         "./dist/migrate/index.d.ts"
       ],
+      "testing/pg-fixture": [
+        "./dist/pg-fixture.d.ts"
+      ],
       "package.json": [
         "./package.json"
       ],
@@ -121,6 +157,12 @@
       ],
       "kernel/store-copy": [
         "./dist/kernel/store-copy.d.ts"
+      ],
+      "recovery/*": [
+        "./dist/recovery/*.d.ts"
+      ],
+      "recovery": [
+        "./dist/recovery/index.d.ts"
       ]
     }
   },
@@ -147,6 +189,9 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:postgres": "vitest run --config vitest.postgres.config.ts"
+  },
+  "dependencies": {
+    "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
     "kysely": "^0.29.6",
@@ -177,8 +222,5 @@
     "kysely": "0.29.6",
     "pg": "8.23.0",
     "@jini-ai/core": "workspace:*"
-  },
-  "dependencies": {
-    "@jini-ai/core": "workspace:^"
   }
 }

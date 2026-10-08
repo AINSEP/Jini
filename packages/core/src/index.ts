@@ -1,4 +1,5 @@
 export * from './token.js';
+export * from './tool-metadata.js';
 export * from './pack.js';
 export * from './bindings.js';
 // Named (not `export *`) deliberately: `daemon.ts` also exports `AnyPack`/`RequiredTokenIds`/
@@ -12,6 +13,7 @@ export * from './redact.js';
 export * from './api-token-auth.js';
 export * from './origin-validation.js';
 export * from './principal.js';
+export * from './surface-exchanges.js';
 export type {
   AuthorizationDecision,
   RunRef,
@@ -37,3 +39,16 @@ export * from './naming.js';
 export type { AgentToolSideEffect, AgentToolActorClassRule, AgentToolDefinition } from './agent-tools.js';
 
 export * from "./registration-kit.js";
+export * from "./approval.js";
+
+export * from "./native-regexp.js";
+
+export {
+  ForbiddenError as ToolPermissionDeniedError,
+  requireToolPermission,
+  adaptLegacyAuthorize,
+  type LegacyToolAuthorizeFn,
+  type AuthorizationPort as ToolPermissionAuthorizationPort,
+  type RequireToolPermissionRequired,
+  type RequireToolPermissionOptional,
+} from "./tool-permissions.js";

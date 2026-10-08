@@ -2,7 +2,7 @@ import { Kysely, PostgresDialect } from "kysely";
 
 import { PG_PARSERS } from "../../core/index.js";
 import { buildKernel, postgresLockKey, type StorageKernel } from "../index.js";
-import { type PgModule, pgTypesFor } from "../../postgres/types.js";
+import { type PgModule, pgTypesFor } from "../../core/pg-types.js";
 
 /**
  * @file The node-postgres driver: a connection POOL to any Postgres server (local, Supabase, Neon).

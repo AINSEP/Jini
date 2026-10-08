@@ -1,16 +1,16 @@
 import type { ModelCatalogSnapshot } from '@jini-ai/agent-runtime';
 import { createModelReceiptTracker } from './model-receipts.js';
 import { messageContentWithImages } from '../attachment-content.js';
-import {
-  type ChildProcess,
+import type {
+   ChildProcess,
 } from 'node:child_process';
 import {
   redactSecrets,
   type RunRef,
 } from '@jini-ai/core';
-import {
-  type JournalEntry,
-  type RunAgentPayload,
+import type {
+   JournalEntry,
+   RunAgentPayload,
 } from '@jini-ai/protocol';
 import {
   createClaudeStreamHandler,
@@ -36,8 +36,8 @@ import {
 import {
   resolveContinuationTransport,
 } from '../continuation/continuation-transport.js';
-import {
-  type RunByteJournal,
+import type {
+   RunByteJournal,
 } from '../continuation/journal.js';
 import {
   resultContent,
@@ -46,22 +46,22 @@ import {
   extractResultMedia,
   type ToolResultMediaBlock,
 } from '../tool-result-media.js';
-import {
-  type RunLifecycle,
+import type {
+   RunLifecycle,
 } from '../run-lifecycle.js';
-import {
-  type StreamHandler,
-  type JsonStreamFormat,
-  type ChildDrivenStreamFormat,
-  type TerminateChildTreeDeps,
-  type AgentCleanupFailurePhase,
-  type AgentCleanupFailureContext,
-  type StdinCloseHandle,
-  type ContinuationOptions,
-  type McpBridgeDelivery,
-  type FailureClassificationContext,
-  type ClassifyFailure,
-  type FailBeforeSpawn,
+import type {
+   StreamHandler,
+   JsonStreamFormat,
+   ChildDrivenStreamFormat,
+   TerminateChildTreeDeps,
+   AgentCleanupFailurePhase,
+   AgentCleanupFailureContext,
+   StdinCloseHandle,
+   ContinuationOptions,
+   McpBridgeDelivery,
+   FailureClassificationContext,
+   ClassifyFailure,
+   FailBeforeSpawn,
 } from './contracts.js';
 import {
   translateAgentRuntimeEvent,

@@ -1,11 +1,11 @@
 import { readFile, unlink } from "node:fs/promises";
-import { ToolInputError, type SurfaceEmission, type SurfaceEmitter, type ToolExecutionContext, type ToolExecutionOptions, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { createApprovalHandler, ToolInputError, type SurfaceEmission, type ToolExecutionContext, type ToolExecutionOptions, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { countSourceRows, inspectTarget, runCopy, planTransfer, SourceSchemaMismatchError, IncompleteTransferPlanError, InvalidConnectionStringError, LEFT_OUT_REASON, type PostgresTargetPort, type TransferSource, type TargetDescription, type TransferNaming, type SnapshotTablePlan, type TransferPlanSource } from "../transfer/index.js";
 import { DOMAIN, PLAN_TOOL_ID, STATUS_TOOL_ID, RUN_PERMISSION, SNAPSHOT_SCOPE_ID, MIN_SERVER_VERSION_NUM, getDatabaseTransferAgentToolCatalog } from "./transfer-catalog.js";
 import { defaultDbMessages, type DbMessages, type DbTransferMessages } from "../core/messages.js";
 import type { DatabaseDestinationStorePort, SavedDatabaseDestination } from "./destination-port.js";
 import type { DatabaseTransferPlan, DatabaseTransferPlanStore } from "./plan-store.js";
-import type { TransferSurfacePorts, SurfaceExchange, SurfaceMessage } from "./surface-port.js";
+import type { TransferSurfacePorts, SurfaceMessage } from "./surface-port.js";
 import { registrations, type InputReaders } from "./registration.js";
 const SET_DESTINATION_TOOL_ID = "database_transfer_set_destination";
 const DATABASE_TRANSFER_RUN_TOOL_ID = "database_transfer_run";
@@ -218,21 +218,6 @@ async function handlePlan(deps: TransferExecutionPorts, ctx: ToolExecutionContex
 
 type RunResult = Record<string, unknown>;
 
-async function askToConfirm(ctx: ToolExecutionContext, surfaces: TransferSurfacePorts, plan: DatabaseTransferPlan, emitSurface: SurfaceEmitter): Promise<{ confirmed: true } | { confirmed: false; result: RunResult }> {
-  const exchange: SurfaceExchange = surfaces.open({ toolId: DATABASE_TRANSFER_RUN_TOOL_ID, principalId: ctx.principal.id }, emitSurface);
-  const emission = surfaces.confirmation(plan, exchange.id, exchange.expiresAtMs ? { expiresAtMs: exchange.expiresAtMs() } : {});
-  const closeOnAbort = () => exchange.close();
-  ctx.signal.addEventListener("abort", closeOnAbort, { once: true });
-  try {
-    const outcome = await surfaces.resolveDecision(exchange, emission);
-    if (outcome.confirmed) return { confirmed: true };
-    if (outcome.reason === "declined") return { confirmed: false, result: { copied: false, cancelled: true } };
-    return { confirmed: false, result: { copied: false, cancelled: false, reason: outcome.reason } };
-  } finally {
-    ctx.signal.removeEventListener("abort", closeOnAbort);
-  }
-}
-
 /** @complexity O(total rows), streamed. */
 async function copyPlanned(deps: TransferExecutionPorts, plan: DatabaseTransferPlan): Promise<RunResult> {
   const sources = snapshotSources(deps, plan.snapshot, plan.chatSnapshot);
@@ -271,21 +256,35 @@ const PLAN_TAKE_MESSAGES = {
   PLAN_EXPIRED: "that copy plan expired (plans last 10 minutes). Call database_transfer_plan again.",
 } as const;
 
+/** The plan store retains actor/workspace binding and one-shot consumption. Core owns consent;
+ * the host supplies only transport, and permission is freshly evaluated after the human wait. */
 async function handleRun(deps: TransferExecutionPorts, surfaces: TransferSurfacePorts, ctx: ToolExecutionContext, optional: ToolExecutionOptions = {}): Promise<RunResult> {
-  const planId = deps.ports.readers.string(deps.ports.readers.inputRecord(ctx.input), "planId");
-  await deps.ports.requirePermission({ principalId: ctx.principal.id, permission: RUN_PERMISSION, entityType: DOMAIN });
-  if (ctx.signal.aborted) return { copied: false, cancelled: false, reason: "abandoned" };
-  const taken = deps.ports.plans.take({ planId, principalId: ctx.principal.id, workspaceId: deps.ports.workspaceId });
-  if (!taken.ok) return { copied: false, cancelled: false, code: taken.code, message: PLAN_TAKE_MESSAGES[taken.code] };
-
-  if (taken.plan.replaces !== null) {
-    if (!optional.emitSurface) {
-      throw new ToolInputError({ message: `${DATABASE_TRANSFER_RUN_TOOL_ID}: this execution context has no interactive confirmation channel (no emitSurface), so replacement cannot be confirmed here. Nothing was copied.` });
-    }
-    const decision = await askToConfirm(ctx, surfaces, taken.plan, optional.emitSurface);
-    if (!decision.confirmed) return decision.result;
-  }
-  return copyPlanned(deps, taken.plan);
+  type Prepared = { plan: DatabaseTransferPlan } | { refusal: RunResult };
+  const handler = createApprovalHandler<Prepared, DatabaseTransferPlan | undefined>({
+    prepare: async ({ ctx: snapshot }) => {
+      const planId = deps.ports.readers.string(deps.ports.readers.inputRecord(snapshot.input), "planId");
+      await deps.ports.requirePermission({ principalId: snapshot.principal.id, permission: RUN_PERMISSION, entityType: DOMAIN });
+      const taken = deps.ports.plans.take({ planId, principalId: snapshot.principal.id, workspaceId: deps.ports.workspaceId });
+      if (!taken.ok) return { refusal: { copied: false, cancelled: false, code: taken.code, message: PLAN_TAKE_MESSAGES[taken.code] } };
+      return { plan: taken.plan };
+    },
+    describe: ({ prepared }) => "refusal" in prepared
+      ? { ask: false, description: undefined }
+      : { ask: prepared.plan.replaces !== null, description: prepared.plan },
+    askHuman: ({ ctx: snapshot, description }, options) => {
+      if (!options.emitSurface) throw new ToolInputError({ message: `${DATABASE_TRANSFER_RUN_TOOL_ID}: this execution context has no interactive confirmation channel (no emitSurface), so replacement cannot be confirmed here. Nothing was copied.` });
+      if (!description) throw new ToolInputError({ message: "No transfer plan can be approved. Nothing was copied." });
+      return surfaces.confirmApproval({ ctx: snapshot, plan: description }, options);
+    },
+    notConfirmed: ({ reason }) => reason === "declined" ? { copied: false, cancelled: true } : { copied: false, cancelled: false, reason },
+    run: async ({ ctx: snapshot, prepared }) => {
+      if ("refusal" in prepared) return prepared.refusal;
+      await deps.ports.requirePermission({ principalId: snapshot.principal.id, permission: RUN_PERMISSION, entityType: DOMAIN });
+      if (snapshot.signal.aborted) return { copied: false, cancelled: false, reason: "abandoned" };
+      return copyPlanned(deps, prepared.plan);
+    },
+  });
+  return handler(ctx, optional) as Promise<RunResult>;
 }
 
 type SetDestinationResult =
@@ -331,11 +330,11 @@ async function handleSetDestination(deps: TransferExecutionPorts, surfaces: Tran
     throw new ToolInputError({ message: `${SET_DESTINATION_TOOL_ID}: this execution context has no interactive form channel (no emitSurface), so the human cannot type the address here. Nothing was saved.` });
   }
   if (ctx.signal.aborted) return { saved: false, reason: "abandoned" };
-  const exchange = surfaces.open({ toolId: SET_DESTINATION_TOOL_ID, principalId: ctx.principal.id }, optional.emitSurface);
-  const closeOnAbort = () => exchange.close();
+  const exchange = surfaces.open({ binding: { toolId: SET_DESTINATION_TOOL_ID, principalId: ctx.principal.id }, emit: optional.emitSurface });
+  const closeOnAbort = () => exchange.close({});
   ctx.signal.addEventListener("abort", closeOnAbort, { once: true });
   try {
-    return await surfaces.askThenReport(exchange, surfaces.destinationForm(exchange.id), (answer) => handleDestinationAnswer(deps, surfaces, exchange.id, answer));
+    return await surfaces.askThenReport({ exchange, confirmationEmission: surfaces.destinationForm(exchange.id), handle: (answer) => handleDestinationAnswer(deps, surfaces, exchange.id, answer) });
   } finally {
     ctx.signal.removeEventListener("abort", closeOnAbort);
   }

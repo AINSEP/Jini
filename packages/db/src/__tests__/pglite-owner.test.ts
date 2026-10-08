@@ -63,6 +63,33 @@ function deadPid(): number {
   return Number(child.stdout);
 }
 
+test("owner startup stays alive before the socket exists and releases its reference on failure", () => {
+  const dataDir = join(scratch, "startup-ref");
+  const socketDir = join(scratch, "startup-sock");
+  // A separate process has no test-runner handles to mask an unreferenced initialization.
+  // The injected driver's unref'd callback must run, and the refused boot must then exit unaided.
+  const child = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", `
+    import assert from "node:assert/strict";
+    import { startPgliteOwner } from ${JSON.stringify(new URL("../pglite/index.ts", import.meta.url).href)};
+    const PGlite = {
+      defaultStartParams: [],
+      create: () => new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("startup refused")), 10).unref();
+      }),
+    };
+    await assert.rejects(startPgliteOwner({ PGlite, dataDir: ${JSON.stringify(dataDir)},
+      lockFileName: ${JSON.stringify(LOCK_FILE)}, runDirName: ${JSON.stringify(RUN_DIR)} },
+      { socketDir: ${JSON.stringify(socketDir)} }), { message: "startup refused" });
+    process.stdout.write("startup refused and cleaned up\\n");
+  `], { encoding: "utf8", timeout: 10_000 });
+  assert.equal(child.error, undefined);
+  assert.equal(child.signal, null);
+  assert.equal(child.status, 0, child.stderr);
+  assert.equal(child.stdout, "startup refused and cleaned up\n");
+  assert.equal(existsSync(join(dataDir, LOCK_FILE)), false);
+  assert.equal(existsSync(join(socketDir, PGLITE_SOCKET_FILE)), false);
+});
+
 test("@electric-sql/pglite is pinned to exactly 0.5.8 (the ReadyForQuery filter is version-specific)", () => {
   const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")) as {
     peerDependencies: Record<string, string>;

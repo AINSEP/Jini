@@ -183,7 +183,7 @@ describe('getActiveRoute.handle', () => {
         ageMs: 50,
       },
     });
-    expect(resolveResource).toHaveBeenCalledWith('proj-1');
+    expect(resolveResource).toHaveBeenCalledWith({ resourceRef: 'proj-1' });
   });
 
   it('falls back to a null resourceName when resolveResource returns undefined', async () => {

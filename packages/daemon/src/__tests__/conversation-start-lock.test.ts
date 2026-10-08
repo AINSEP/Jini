@@ -114,7 +114,7 @@ describe("createConversationStartLock", () => {
     await lock.run("conv-1", async () => undefined);
     await lock.run("conv-2", async () => undefined);
 
-    assert.equal(lock.trackedConversationCount(), 0);
+    assert.equal(lock.trackedConversationCount({}), 0);
   });
 });
 

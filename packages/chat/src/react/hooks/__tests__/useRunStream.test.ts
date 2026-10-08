@@ -300,12 +300,20 @@ describe('useRunStream', () => {
     await act(async () => {
       await result.current.start({ history: [] });
     });
-    act(() => transport.fail(new Error('boom')));
+    const error = new Error('boom');
+    act(() => transport.fail(error));
     expect(result.current.status).toBe('error');
+    expect(result.current.error).toBe(error);
+    expect(result.current.events).toEqual([{ kind: 'status', code: 'run_terminal', label: 'boom' }]);
 
     act(() => transport.finish([{ kind: 'text', text: 'late final events' }]));
     expect(result.current.status).toBe('error');
-    expect(result.current.events).toEqual([{ kind: 'text', text: 'late final events' }]);
+    expect(result.current.error).toBe(error);
+    // Completion merges final events while retaining the failure notice that belongs to this turn.
+    expect(result.current.events).toEqual([
+      { kind: 'status', code: 'run_terminal', label: 'boom' },
+      { kind: 'text', text: 'late final events' },
+    ]);
   });
 
   it('stale-generation onToolInputDelta/onError/onDone callbacks from a superseded start() are all dropped', async () => {

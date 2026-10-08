@@ -8,9 +8,7 @@
  * only in OpenCode's own session log (`service=llm … error={…}`). This
  * module recovers that signal so a chat UI can show "usage limit reached"
  * instead of a bare timeout. OpenCode-specific by design.
- *
- * Ported verbatim from OD's `apps/daemon/src/runtimes/opencode-log.ts`
- * — no product coupling (it only reads OpenCode's own on-disk log format).
+
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';

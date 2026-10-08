@@ -1,5 +1,11 @@
 # @jini-ai/core
 
+## 0.4.2 — pending release
+
+- Own generic settings at `./settings` and its optional Express adapter at `./settings/express`; keep both out of the root runtime closure. Move the existing permission helper into core, preserving the CMS command denial class through re-export.
+
+- Own the shared surface-exchange interfaces and reserved parameter constants, formerly declared in daemon. Add the `SurfaceAskThenReport` port so UI can consume the existing daemon lifecycle without depending on its runtime.
+
 ## 0.4.1 — 2026-10-05
 
 - New `readToolLimit({ input, max, fallback }, { key })`: an absent limit is `fallback`, one above `max` is capped at `max`, and a non-integer or one below 1 throws `ToolInputError` ("'limit' must be an integer between 1 and <max>").

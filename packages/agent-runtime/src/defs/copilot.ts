@@ -1,14 +1,5 @@
 import { createAgentModelDiscovery } from '../model-discovery.js';
-/**
- * Ported from OD's `apps/daemon/src/runtimes/defs/copilot.ts` with two
- * de-branding edits to comments (no behavior change): a product-named
- * prompt-size example reworded to generic phrasing, and a
- * product-prefixed operator-override env var name replaced with generic
- * phrasing (this package's `types.ts` already documents
- * `inactivityTimeoutMs` as "callers may still allow an operator override
- * via their own env var"). See `archived provenance ledger` for the exact original
- * wording.
- */
+
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
@@ -31,10 +22,8 @@ export const copilotAgentDef = {
     // per upstream copilot-cli issue #1046 (closed as already supported,
     // confirmed working on Copilot CLI for `echo "..." | copilot
     // --model <id>` and `cat prompt.txt | copilot --model <id>`). The
-    // earlier `-p -` attempt (PR #351) and the argv-bound revert
-    // (PR #466) both pre-dated that confirmation: `-p -` made Copilot
-    // interpret `-` as a literal one-character prompt, but omitting
-    // `-p` entirely is a separate code path that does delegate to
+    // `-p -` form is a literal one-character prompt; omitting
+    // `-p` entirely is the separate code path that delegates to
     // stdin under a non-TTY pipe — which is exactly how the daemon
     // spawns the child (`stdio: ['pipe', 'pipe', 'pipe']`).
     //

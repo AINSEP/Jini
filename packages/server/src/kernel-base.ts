@@ -136,8 +136,8 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
     if (sqliteStorage && eventsDbPath !== null && dataDir !== null) {
       // A *second* connection to the same `events.db` the log above owns — safe: both run in WAL
       // mode, which permits multiple concurrently open handles on one file within a single process.
-      featureConnection = openSqliteConnection({ filePath: eventsDbPath, open(file, settings) {
-        featureConnection = sqliteStorage.open(file, settings);
+      featureConnection = openSqliteConnection({ filePath: eventsDbPath, open({ filePath }, settings) {
+        featureConnection = sqliteStorage.open(filePath, settings);
         return featureConnection;
       } });
       sqlite = { connection: featureConnection, eventsDbPath, dataDir };

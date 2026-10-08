@@ -23,9 +23,29 @@ it('composer removes credentials before transport, optimistic transcript, and ru
   await act(() => result.current.send());
   expect(transport.calls[0]?.input.history.map(message => message.content)).toEqual(['Please save api_key=[token removed]']);
   expect(result.current.conversation.messages[0]?.content).toBe('Please save api_key=[token removed]');
+  expect(transport.calls[0]?.input.history[0]?.secretRedaction).toEqual({ secretRedacted: true, count: 1 });
+  expect(result.current.conversation.messages[0]?.secretRedaction).toEqual({ secretRedacted: true, count: 1 });
   expect(contexts).toEqual(['Please save api_key=[token removed]']);
   expect(signals).toEqual([{ secretRedacted: true, count: 1 }]);
   expect(result.current.secretRedacted).toBe(true);
+});
+
+it('queued redaction retains its signal through flush and retry without another notice', async () => {
+  const transport = createFakeChatTransport();
+  const signals: unknown[] = [];
+  const { result } = renderHook(() => useChatPane({ transport, agents, initialSelection: { agentId: 'a' }, onSecretRedacted: signal => signals.push(signal) }));
+  await act(() => result.current.sendPrompt('Start'));
+  act(() => result.current.composer.setDraft('save api_key=x'));
+  await act(() => result.current.send());
+  expect(result.current.queuedPrompt).toBe('save api_key=[token removed]');
+  await act(async () => transport.finish());
+  expect(transport.calls).toHaveLength(2);
+  expect(transport.calls[1]?.input.history.at(-1)?.secretRedaction).toEqual({ secretRedacted: true, count: 1 });
+  expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('save api_key=[token removed]');
+  act(() => transport.fail(new Error('offline')));
+  await act(() => result.current.conversation.retry(result.current.conversation.messages.at(-1)!.id));
+  expect(transport.calls[2]?.input.history.at(-1)?.secretRedaction).toEqual({ secretRedacted: true, count: 1 });
+  expect(signals).toEqual([{ secretRedacted: true, count: 1 }]);
 });
 
 it('queued and interrupt sends retain only sanitized prompts', async () => {

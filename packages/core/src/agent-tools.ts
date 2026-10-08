@@ -22,6 +22,7 @@ export type AgentToolActorClassRule = "confirmer-must-equal-own-delegatedBy" | "
 
 /** Structural catalog contract. Domains may require inputSchema or tighten their own metadata. */
 export interface AgentToolDefinition {
+  readonly metadata?: import('./tool-metadata.js').ToolMetadata;
   name: string;
   description: string;
   sideEffects: AgentToolSideEffect;

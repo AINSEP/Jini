@@ -11,7 +11,12 @@
     "domain": "server",
     "kind": "host",
     "runtime": "node",
-    "admission": "locked"
+    "admission": "locked",
+    "isolation": {
+      "entries": {
+        "./store/projects/sqlite": "storage"
+      }
+    }
   },
   "type": "module",
   "main": "./dist/index.js",
@@ -55,12 +60,16 @@
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.tests.json && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.tests.json && tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
-  "dependencies": {
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/express": "^4.17.21",
+    "@vitest/coverage-v8": "^2.1.9",
+    "better-sqlite3": "^13.0.0",
     "@jini-ai/agent-runtime": "workspace:*",
     "@jini-ai/core": "workspace:*",
     "@jini-ai/daemon": "workspace:*",
@@ -71,17 +80,46 @@
     "@jini-ai/chat": "workspace:*",
     "@jini-ai/registry": "workspace:*"
   },
-  "devDependencies": {
-    "@types/better-sqlite3": "^7.6.11",
-    "@types/express": "^4.17.21",
-    "@vitest/coverage-v8": "^2.1.9",
-    "better-sqlite3": "^13.0.0"
+  "dependencies": {
+    "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
-    "better-sqlite3": "^13.0.0"
+    "better-sqlite3": "^13.0.0",
+    "@jini-ai/agent-runtime": "^0.4.1",
+    "@jini-ai/daemon": "^0.5.4",
+    "@jini-ai/http-kit": "^0.4.0",
+    "@jini-ai/sidecar": "^0.4.0",
+    "express": "^4.21.0",
+    "@jini-ai/db": "^0.3.0",
+    "@jini-ai/chat": "^0.5.4",
+    "@jini-ai/registry": "^0.5.1"
   },
   "peerDependenciesMeta": {
     "better-sqlite3": {
+      "optional": true
+    },
+    "@jini-ai/agent-runtime": {
+      "optional": true
+    },
+    "@jini-ai/daemon": {
+      "optional": true
+    },
+    "@jini-ai/http-kit": {
+      "optional": true
+    },
+    "@jini-ai/sidecar": {
+      "optional": true
+    },
+    "express": {
+      "optional": true
+    },
+    "@jini-ai/db": {
+      "optional": true
+    },
+    "@jini-ai/chat": {
+      "optional": true
+    },
+    "@jini-ai/registry": {
       "optional": true
     }
   },

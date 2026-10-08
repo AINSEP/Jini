@@ -19,6 +19,7 @@
  * line per event on stdout, stop at a terminal `'end'` event — a clean
  * pattern that had no route to call until now).
  */
+import { decodeSseFrames } from '@jini-ai/core/primitives';
 import { parseFlags, positionalArgs } from './flags.js';
 import { exitWithStructuredError, structuredHttpFailure, type ExitCodeTable } from './errors.js';
 import { getJsonFromDaemon, postJsonToDaemon } from './http.js';
@@ -181,8 +182,8 @@ export async function runCancelCommand({ args, resolveBaseUrl: resolveBaseUrlPor
   printJsonResult(deps, result);
 }
 
-/** Cap on total buffered-but-not-yet-frame-terminated SSE bytes — a daemon that never sends a blank-line frame terminator must not grow this without bound (mirrors `http.ts`'s `readJsonWithLimit` byte cap). */
-const MAX_SSE_BUFFER_BYTES = 10 * 1024 * 1024;
+/** Cap on total buffered-but-not-yet-frame-terminated SSE text — a daemon that never sends a blank-line frame terminator must not grow this without bound (retains the historical 10 MiB-sized text cap; TextDecoder output is measured in UTF-16 units). */
+const MAX_SSE_BUFFER_CHARS = 10 * 1024 * 1024;
 
 /** One parsed SSE frame: the `data:` line(s) joined, plus optional `id`/`event` fields. */
 interface SseFrame {
@@ -191,39 +192,23 @@ interface SseFrame {
   readonly data: string;
 }
 
-function parseSseFrame(rawFrame: string): SseFrame | null {
-  let id: string | undefined;
-  let eventName: string | undefined;
-  const dataLines: string[] = [];
-  for (const line of rawFrame.split('\n')) {
-    if (line.startsWith('id: ')) id = line.slice(4);
-    else if (line.startsWith('event: ')) eventName = line.slice(7);
-    else if (line.startsWith('data: ')) dataLines.push(line.slice(6));
-  }
-  if (dataLines.length === 0) return null;
-  return { ...(id !== undefined ? { id } : {}), ...(eventName !== undefined ? { event: eventName } : {}), data: dataLines.join('\n') };
-}
-
-/** Reads `body` as an SSE byte stream and yields one {@link SseFrame} per blank-line-terminated frame. */
+/** Reads complete records; this adapter releases the lock without canceling the host's body. */
 async function* readSseFrames(body: ReadableStream<Uint8Array>): AsyncGenerator<SseFrame> {
   const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  try {
+  async function* chunks(): AsyncGenerator<Uint8Array> {
     for (;;) {
       const { done, value } = await reader.read();
-      if (done) break;
-      if (value !== undefined) buffer += decoder.decode(value, { stream: true });
-      if (buffer.length > MAX_SSE_BUFFER_BYTES) {
-        throw new Error(`SSE stream exceeded the ${MAX_SSE_BUFFER_BYTES}-byte unterminated-frame buffer limit`);
-      }
-      let sepIndex: number;
-      while ((sepIndex = buffer.indexOf('\n\n')) >= 0) {
-        const rawFrame = buffer.slice(0, sepIndex);
-        buffer = buffer.slice(sepIndex + 2);
-        const frame = parseSseFrame(rawFrame);
-        if (frame !== null) yield frame;
-      }
+      if (done) return;
+      if (value !== undefined) yield value;
+    }
+  }
+  try {
+    for await (const frame of decodeSseFrames({ source: chunks() }, {
+      flushFinalFrame: false, maxBufferChars: MAX_SSE_BUFFER_CHARS,
+    })) {
+      if (frame.dataLines.length === 0) continue;
+      yield { ...(frame.id !== undefined ? { id: frame.id } : {}),
+        ...(frame.event !== null ? { event: frame.event } : {}), data: frame.data };
     }
   } finally {
     reader.releaseLock();

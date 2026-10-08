@@ -8,10 +8,8 @@
  * Lives here rather than in a React package on purpose: a Node MCP server or HTTP route table
  * hosting this list must not drag a browser component graph into its process.
  *
- * This is a genuine chat product surface, not vocabulary — unlike its former siblings here
- * (capability.ts, page-capabilities.ts, …), which moved to `@jini-ai/agentic` on 2026-07-26 so a
- * non-chat consumer could depend on the vocabulary without depending on chat. This file stayed
- * behind on purpose: it's the proof the split is real (see `@jini-ai/agentic`'s archived provenance ledger).
+ * Chat outcomes belong here; generic capability vocabulary belongs to @jini-ai/agentic so
+ * non-chat consumers can use it independently of chat.
  */
 import type { CapabilityDef } from '@jini-ai/agentic';
 

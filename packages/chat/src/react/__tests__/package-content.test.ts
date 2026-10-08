@@ -28,12 +28,13 @@ describe('chat package content', () => {
   // REGRESSION: fails if "@mcp-ui/client": "7.1.1" is restored to dependencies.
   it('does not install the official MCP-UI client directly', () => {
     const manifest = JSON.parse(readFileSync(new NodeURL('../../../package.json', import.meta.url), 'utf8'));
-    expect(manifest.dependencies).not.toHaveProperty('@mcp-ui/client');
+    expect(manifest.dependencies ?? {}).not.toHaveProperty('@mcp-ui/client');
+    expect(manifest.peerDependenciesMeta['@mcp-ui/client']).toEqual({ optional: true });
   });
 
   // REGRESSION: fails if "@mcp-ui/server": "6.1.0" is restored to dependencies.
   it('does not install the official MCP-UI resource builder directly', () => {
     const manifest = JSON.parse(readFileSync(new NodeURL('../../../package.json', import.meta.url), 'utf8'));
-    expect(manifest.dependencies).not.toHaveProperty('@mcp-ui/server');
+    expect(manifest.dependencies ?? {}).not.toHaveProperty('@mcp-ui/server');
   });
 });

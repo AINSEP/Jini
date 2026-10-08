@@ -166,3 +166,26 @@ it('does not reschedule progress after exhaustion while a checkpoint is still pe
   release(); await blocked; for (let i = 0; i < 10; i++) await Promise.resolve();
   expect(h.timers.size).toBe(0); expect(h.ledger.checkpoint).toHaveBeenCalledOnce();
 });
+
+it('settles split CRLF frames and cancels the finalizer reader at the complete terminal record', async () => {
+  let canceled = false;
+  const bytes = new TextEncoder().encode((text('café') + frame('end', { status: 'succeeded' })).replace(/\n/g, '\r\n'));
+  const body = new ReadableStream<Uint8Array>({
+    start(c) { for (const byte of bytes) c.enqueue(Uint8Array.of(byte)); },
+    cancel() { canceled = true; },
+  });
+  const h = harness(daemonFor(() => new Response(body)));
+  h.watch(); await h.finalizer.idle({});
+  expect(h.settlements).toHaveLength(1);
+  expect(h.settlements[0]).toMatchObject({ status: 'succeeded', content: 'café', events: [{ kind: 'text', text: 'café' }] });
+  expect(canceled).toBe(true); expect(body.locked).toBe(false);
+});
+
+it('does not settle a truncated terminal record even when its JSON is complete', async () => {
+  const wire = text('Partial') + frame('end', { status: 'succeeded' }).slice(0, -1);
+  const h = harness(daemonFor(() => streamOf(wire), null), { maxReconnects: 0 });
+  h.watch(); await h.finalizer.idle({});
+  expect(h.progress.at(-1)?.content).toBe('Partial');
+  expect(h.settlements).toEqual([]);
+  expect(h.finalizer.activeCount({})).toBe(0);
+});

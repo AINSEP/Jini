@@ -7,10 +7,6 @@
  * `../pi-models.ts` for why these are ports, not direct lifts), and two
  * small generic parsers (`clampCodexReasoning`, `parseLineSeparatedModels`).
  *
- * Ported from OD's `apps/daemon/src/runtimes/defs/shared.ts` — the origin
- * imported `detectAcpModels` from `../../acp.js` and `parsePiModels` from
- * `../../pi-rpc.js` directly; here they come from this package's own
- * port/vendor modules instead. See `archived provenance ledger`.
  */
 import { detectAcpModels } from '../acp-model-probe.js';
 import { parsePiModels } from '../pi-models.js';
@@ -30,10 +26,9 @@ export { detectAcpModels, parsePiModels, execAgentFile, DEFAULT_MODEL_OPTION };
  * surface, which is why it declared the strategy at all. Both current declarers (`claude`,
  * `codebuddy`) call this; a third would too, instead of copying the branch.
  *
- * Why explicit rather than auto-discovery: confirmed live (2026-07-30) that auto-discovery of a
- * project `.mcp.json` requires an interactive trust prompt a headless daemon-spawned child has no
- * TTY to answer — the MCP server connection sat at `"pending"` forever and none of its tools ever
- * reached the model. The identical config passed via `--mcp-config` connected immediately.
+ * Explicit config bypasses project .mcp.json auto-discovery's interactive trust prompt: a
+ * headless daemon child has no TTY to answer it, leaving the MCP connection pending indefinitely.
+ * Passing the staged file via --mcp-config makes it available without that prompt.
  *
  * `--strict-mcp-config` is paired with it deliberately, not for symmetry: it makes the CLI load
  * ONLY this config, closing the separate "spawned CLI inherits the interactive developer's own

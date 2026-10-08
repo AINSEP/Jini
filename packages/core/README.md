@@ -15,7 +15,8 @@ set of tokens, and fails to typecheck if any pack's declared dependency is left 
 npm install @jini-ai/core
 ```
 
-No peer dependencies — this package is pure TypeScript with no runtime dependencies at all.
+The root has no runtime dependencies and never loads settings or Express. `express` is an optional
+peer used only by `@jini-ai/core/settings/express`; install it in hosts mounting those routes.
 
 ## What you get
 
@@ -239,3 +240,19 @@ Node or reading a working directory. Equality counts as contained. Directory
 prefix siblings and traversal escapes are rejected; a legal `..name` segment is
 allowed. Windows hosts pass `{ caseSensitive: false, separator: "\\\\" }`; POSIX hosts
 retain the default slash separator so backslashes in directory names remain literal.
+
+## Generic settings
+
+`@jini-ai/core/settings` owns scoped definitions, defaults, values, revisions, change feeds,
+boot-time definition registration, dictionaries and agent tools. Hosts inject settings storage,
+active-principal lookup, authorization, clocks and IDs; no CMS or database adapter is required.
+The keys, scopes, permissions and tool IDs are unchanged by the relocation.
+
+`@jini-ai/core/settings/express` exports `registerSettingsRoutes`, HTTP policy contracts and
+`createCmsSettingsService` / `createCmsSettingsChangeFeed` (factory names retained for compatibility).
+Hosts provide route paths, readiness, principal resolution, scheduler, service and feed ports.
+Registration returns a disposer that closes active feeds. The universal settings entry never
+loads this adapter; neither entry is re-exported by the kernel root.
+
+The former `@jini-ai/cms/settings` and `@jini-ai/cms/settings/express` entries re-export these
+owners for one release. New consumers should import the core subpaths directly.

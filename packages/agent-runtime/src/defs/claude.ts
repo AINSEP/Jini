@@ -1,32 +1,9 @@
 import { createAgentModelDiscovery } from '../model-discovery.js';
 /**
- * Ported verbatim from OD's `apps/daemon/src/runtimes/defs/claude.ts` (import
- * path adjusted only). See `archived provenance ledger`.
- *
- * **Image delivery (added 2026-08-03):** `buildArgs` below takes an
- * `_imagePaths` parameter but never references it — the Claude Code CLI has
- * no dedicated image-attachment flag or wire mechanism this adapter could
- * forward to. It is not, however, blind to images: confirmed live by piping
- * `Tell me what this image is as best you can: /tmp/probe-image.png` into a
- * real `claude -p` and getting an accurate description back — the CLI reads
- * a local file itself once its path is named in the prompt text. The one
- * real precondition, also confirmed live: the path's directory has to be in
- * the CLI's allowed-directory list (`claude -p` first refused the identical
- * probe when the path was under `/Users/la/Desktop`, reporting that
- * directory as outside its allowed working directories) — which is exactly
- * what `buildArgs`'s existing `extraAllowedDirs` -> `--add-dir` handling
- * below already provides, unmodified.
- *
- * `imageDelivery: 'prompt-path'` (declared below) is what turns this into
- * real behavior: `@jini-ai/daemon`'s `agent-executor.ts` reads that field and,
- * before `buildArgs` ever runs, (1) appends an attachment-naming section to
- * the prompt text via `image-prompt-delivery.ts#augmentPromptWithImageAttachments`
- * and (2) widens `extraAllowedDirs` with each image's containing directory —
- * so this file needed no change to its own `dirs`/`--add-dir` logic at all,
- * only the one-line `imageDelivery` declaration. See
- * `types.ts#RuntimeAgentDef.imageDelivery`'s doc for the full mode contract
- * and why 'native'-delivery defs (ACP, pi-rpc, qoder) must never also get
- * this treatment.
+ * Claude Code has no dedicated image-attachment flag. imageDelivery: 'prompt-path' makes the
+ * executor append local image paths to the prompt and add their directories to extraAllowedDirs;
+ * buildArgs then grants --add-dir access so the CLI can read them itself. Native-delivery defs
+ * must not also receive this augmentation; see RuntimeAgentDef.imageDelivery for that contract.
  */
 import { agentCapabilities } from '../capabilities.js';
 import { buildClaudeMcpConfigArgs, DEFAULT_MODEL_OPTION } from './shared.js';
@@ -57,7 +34,9 @@ const CLAUDE_EFFORT_LEVELS: ReadonlySet<string> = new Set([
  * than dropped — an installed CLI may be pinned to one via its own config, and removing a working
  * selection out from under a user is worse than listing it last.
  *
- * Every id below is verified present in the installed Claude Code binary's own embedded model
+ * The current picker cache was rechecked on 2026-10-07; its four newer selectable IDs are
+ * included first. The previous verification below still explains why older IDs remain.
+ * Every older id below is verified present in the installed Claude Code binary's own embedded model
  * table (2.1.261), and `claude-fable-5-1` is additionally the value in `~/.claude.json`'s
  * server-fetched `additionalModelOptionsCache`. `claude-fable-5-mythos-5` appears in the binary but
  * NOT in that server-fetched picker list, so it is deliberately omitted: an id in the binary is not
@@ -76,6 +55,11 @@ const CLAUDE_FALLBACK_MODELS = [
   { id: 'sonnet', label: 'Sonnet (alias)' },
   { id: 'opus', label: 'Opus (alias)' },
   { id: 'haiku', label: 'Haiku (alias)' },
+  // Current picker cache additions; older selectable IDs remain below for pinned installs.
+  { id: 'claude-opus-5-5', label: 'claude-opus-5-5' },
+  { id: 'claude-sonnet-5-5', label: 'claude-sonnet-5-5' },
+  { id: 'claude-haiku-5-5', label: 'claude-haiku-5-5' },
+  { id: 'claude-haiku-4-5-20251001', label: 'claude-haiku-4-5-20251001' },
   { id: 'claude-fable-5-1', label: 'claude-fable-5-1' },
   { id: 'claude-fable-5', label: 'claude-fable-5' },
   { id: 'claude-opus-5', label: 'claude-opus-5' },
@@ -136,10 +120,11 @@ export const claudeAgentDef = {
     // `fallbackModels` for it in legacy callers. The required discovery port uses the shared
     // snapshot layer instead: configured routes are not proof of live availability.
     fallbackModels: CLAUDE_FALLBACK_MODELS,
-    // Asserted against the installed Claude Code 2.1.261 binary's embedded model table and
+    // Reasserted on 2026-10-07 against the local picker cache, retaining the previous
+    // assertion against the installed Claude Code 2.1.261 binary's embedded model table and
     // `~/.claude.json`'s server-fetched `additionalModelOptionsCache`. See
     // `RuntimeAgentDef.fallbackModelsAssertedAt` and `scripts/check-model-fallback-freshness.ts`.
-    fallbackModelsAssertedAt: '2026-09-05',
+    fallbackModelsAssertedAt: '2026-10-07',
     fetchModels: async ({ resolvedBin, env }) => {
       const routed = await loadMmdRouteModels({ env: env, fallbackModels: [] });
       if (routed) return routed;

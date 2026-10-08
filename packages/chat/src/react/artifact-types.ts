@@ -1,22 +1,16 @@
 /**
  * @module artifact-types
  *
- * Minimal `ArtifactFile`/`ArtifactRenderer`/`RendererRegistry` shapes,
- * defined locally per this task's SCOPE NOTE: r4b calls the artifact-renderer
- * package `@jini-ai/artifacts-react`; the actual locked name
- * (`ADS-memory/reports/jini-port/extraction-plan.md` §3) is `@jini-ai/renderers-react`, which
- * is still a placeholder stub being built in a separate session. `chat-react`
- * needs these shapes now (for `useArtifactStream` and the `ArtifactFile`
- * field on `ProjectContextValue`), so they are defined here to the exact
- * shape r4b §2 specifies, with the intent that a future pass re-points every
- * import below at `@jini-ai/renderers-react`'s real exports once that package
- * lands, deletes this file, and removes the re-export from `index.ts`.
+ * Chat's public streaming artifact contracts, used by useArtifactStream and
+ * ProjectContextValue. The renderer implementation is available in @jini-ai/ui,
+ * but direct delegation would change this compatibility surface: chat registers
+ * mutably, resolves newest-first, returns unregister handles, accepts files
+ * without manifests and returns the matched file. UI's registry is immutable,
+ * replaces registrations by ID, requires a manifest and returns that manifest;
+ * its predicate and resolve signatures also pass hints as a separate option.
  *
- * TODO(renderers-react): replace this file's contents with
- * `export * from '@jini-ai/renderers-react'` (or the equivalent named
- * re-exports) once `@jini-ai/renderers-react` ships real `ArtifactFile`/
- * `ArtifactRenderer`/`RendererRegistry` implementations. Do not block this
- * package's other work on that package landing first.
+ * TODO(renderer-delegation): Coordinator must resolve these contracts before
+ * delegating to UI. A wildcard re-export is not a behavior-preserving migration.
  */
 import type { ArtifactManifest } from '../core/index.js';
 

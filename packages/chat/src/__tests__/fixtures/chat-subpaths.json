@@ -80,8 +80,10 @@
       "optional": true
     }
   },
-  "devDependencies": {
-    "@ag-ui/core": "0.0.58",
+  "dependencies": {
     "@jini-ai/agent-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@ag-ui/core": "0.0.58"
   }
 }

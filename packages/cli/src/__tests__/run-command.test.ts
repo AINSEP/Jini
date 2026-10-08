@@ -579,3 +579,48 @@ describe('registerRunCommands', () => {
     }
   });
 });
+
+describe('shared SSE framing in run watch', () => {
+  it('reads split CRLF/UTF-8 frames after an opaque reattachment ID, dropping an incomplete tail', async () => {
+    const deps = makeDeps();
+    const bytes = new TextEncoder().encode('id: next/cursor==\r\nevent:agent\r\ndata:{"kind":"agent","text":"café"}\r\n\r\nid: final\r\ndata: {"kind":"end"}\r\n');
+    const body = new ReadableStream<Uint8Array>({
+      start(c) { for (const byte of bytes) c.enqueue(Uint8Array.of(byte)); c.close(); },
+    });
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      expect((init?.headers as Record<string, string>)['last-event-id']).toBe('previous/cursor==');
+      return { ok: true, body } as Response;
+    });
+    await watchRunEvents({ baseUrl: 'http://d.example', runId: 'run-1', args: ['--after-cursor', 'previous/cursor=='] }, { ...deps, fetchImpl });
+    expect(deps.written).toEqual(['{"kind":"agent","text":"café"}\n']);
+    expect(body.locked).toBe(false);
+  });
+
+  it('keeps CLI ownership: terminal early return unlocks without canceling the body', async () => {
+    const deps = makeDeps();
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({
+      start(c) { c.enqueue(new TextEncoder().encode('data: {"kind":"end"}\r\n\r\n')); }, cancel,
+    });
+    const fetchImpl = vi.fn(async () => ({ ok: true, body } as Response));
+    await watchRunEvents({ baseUrl: 'http://d.example', runId: 'run-1', args: [] }, { ...deps, fetchImpl });
+    expect(deps.written).toEqual(['{"kind":"end"}\n']);
+    expect(body.locked).toBe(false); expect(cancel).not.toHaveBeenCalled();
+    await body.cancel();
+  });
+
+  it('rejects a record that exceeds the cap across individually terminated data lines', async () => {
+    const deps = exitingDeps();
+    const body = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new TextEncoder().encode('data: ' + 'a'.repeat(6 * 1024 * 1024) + '\n'));
+        c.enqueue(new TextEncoder().encode('data: ' + 'b'.repeat(6 * 1024 * 1024) + '\n'));
+        c.close();
+      },
+    });
+    const fetchImpl = vi.fn(async () => ({ ok: true, body } as Response));
+    await expect(watchRunEvents({ baseUrl: 'http://d.example', runId: 'run-1', args: [] }, { ...deps, fetchImpl })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['daemon-not-running'] });
+    expect(deps.written).toEqual([]); expect(body.locked).toBe(false);
+  });
+});

@@ -46,7 +46,7 @@ export interface RunOwnershipRequired {
 /** Mount after authentication on routes with a runId parameter. Denial envelopes pass through intact.
  * @complexity O(1) adapter work plus the injected ownership lookup; no storage or identity defaults.
  */
-export function createRunOwnershipMiddleware({ authorize, principalHeaderName, isEventStream }: RunOwnershipRequired): RequestHandler {
+export function createRunOwnershipMiddleware({ authorize, principalHeaderName, isEventStream }: RunOwnershipRequired, _optional: Record<string, never> = {}): RequestHandler {
   return async (req, res, next) => {
     try {
       const decision = await authorize({ runId: req.params.runId || undefined, principalId: req.get(principalHeaderName) || undefined, eventStream: isEventStream({ path: req.path }) });
@@ -68,7 +68,7 @@ export interface OwnedRunListRequired<Run> {
  * Missing principals receive the existing 401 envelope before the list port is called.
  * @complexity O(n) policy filtering for n listed runs; O(1) adapter space excluding results.
  */
-export function createOwnedRunListHandler<Run>({ listRuns, filterOwnedRuns, principalHeaderName }: OwnedRunListRequired<Run>): RequestHandler {
+export function createOwnedRunListHandler<Run>({ listRuns, filterOwnedRuns, principalHeaderName }: OwnedRunListRequired<Run>, _optional: Record<string, never> = {}): RequestHandler {
   return async (req, res, next) => {
     try {
       const principalId = req.get(principalHeaderName) || undefined;

@@ -26,6 +26,8 @@ const EXIT_TIMEOUT_MS = 5_000;
 function spawnChild(mode: '--with-guard' | '--without-guard'): ChildProcessByStdio<null, Readable, Readable> {
   return spawn(process.execPath, ['--import', 'tsx', FIXTURE_PATH, mode], {
     stdio: ['ignore', 'pipe', 'pipe'],
+    // Package-local paths point at declarations for typechecking, not executable child imports.
+    env: { ...process.env, TSX_TSCONFIG_PATH: fileURLToPath(new URL('../../../../tsconfig.base.json', import.meta.url)) },
   });
 }
 

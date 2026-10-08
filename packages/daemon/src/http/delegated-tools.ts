@@ -33,7 +33,7 @@ import { createDelegatedToolBridge, type RunLifecycle, type ToolExecutionResult,
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
 import { validationError } from '@jini-ai/http-kit';
 import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
-import * as readOnlyTools from '../read-only-tools.js';
+import * as readOnlyTools from '../core/read-only-tools.js';
 
 export interface DelegatedToolExecuteRequest {
   readonly runId: string;

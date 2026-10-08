@@ -1,5 +1,4 @@
 import { createAgentModelDiscovery } from '../model-discovery.js';
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/opencode.ts` (import path adjusted only). See `archived provenance ledger`. */
 import { DEFAULT_MODEL_OPTION, parseLineSeparatedModels } from './shared.js';
 import { agentCapabilities } from '../capabilities.js';
 import type { RuntimeAgentDef } from '../types.js';

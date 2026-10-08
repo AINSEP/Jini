@@ -18,9 +18,9 @@ function harness() {
   const plans = new DatabaseTransferPlanStore({}, { now: () => now });
   const surfaces: TransferSurfacePorts = {
     open: () => { calls.push("open"); return { id: "exchange", send: async () => {}, receive: async () => ({ status: "abandoned" }), close: () => { calls.push("close"); } }; },
-    resolveDecision: async exchange => { exchange.close(); return { confirmed: false, reason: "declined" }; },
+    confirmApproval: async () => { calls.push("open", "close"); return { confirmed: false, reason: "declined" }; },
     askThenReport: async () => { throw new Error("unused"); },
-    confirmation: () => ({ channel: "fixture", payload: {} }), destinationForm: () => ({ channel: "fixture", payload: {} }), destinationOutcome: () => ({ channel: "fixture", payload: {} }),
+    destinationForm: () => ({ channel: "fixture", payload: {} }), destinationOutcome: () => ({ channel: "fixture", payload: {} }),
     dismissedParam: "dismissed", addressField: "address",
   };
   const ports: DatabaseTransferToolPorts = {
@@ -87,7 +87,7 @@ it("renders host unchecked-link guidance after a successful copy", async () => {
 it("formats saved destination prose without exposing the private address", async () => {
   const h = harness();
   const outcomes: string[] = [];
-  h.ports.surfaces.askThenReport = async (_exchange, _emission, handle) => {
+  h.ports.surfaces.askThenReport = async ({ handle }) => {
     const answer = await handle({ status: "received", params: { address: "postgresql://owner:SECRET@fixture/db" } });
     return answer.result;
   };
@@ -124,19 +124,18 @@ it("opens replacement confirmation through handler options and respects a declin
   expect(await h.tools.get("database_transfer_run")!.handler(ctx({ planId: plan.planId }), { emitSurface: async () => {} })).toEqual({ copied: false, cancelled: true });
   expect(h.calls).toEqual(["authorize", "open", "close"]);
 });
-it("hands the exchange's deadline to the confirmation builder, and none when the exchange reports none", async () => {
+// REGRESSION: the host gets the frozen actor and public plan, never a re-parsed callback input.
+it("passes one replacement plan and handler options to the host approval port", async () => {
   const h = harness();
   const seen: unknown[] = [];
-  h.ports.surfaces.confirmation = (_plan, exchangeId, optional) => { seen.push([exchangeId, optional]); return { channel: "fixture", payload: {} }; };
-  const content = { connectionString: "private", destination: description, snapshot: Buffer.from("content"), replaces: "previous", site: "site", schema: "app", snapshotAt: "fixed", rowCount: 1, tableCount: 1, leftOut: [] };
-  const withDeadline = h.plans.save({ principalId: "owner", workspaceId: "ws", content });
-  const open = h.ports.surfaces.open;
-  h.ports.surfaces.open = (binding, emit) => ({ ...open(binding, emit), expiresAtMs: () => 1_300_000 });
-  await h.tools.get("database_transfer_run")!.handler(ctx({ planId: withDeadline.planId }), { emitSurface: async () => {} });
-  h.ports.surfaces.open = open;
-  const withoutDeadline = h.plans.save({ principalId: "owner", workspaceId: "ws", content });
-  await h.tools.get("database_transfer_run")!.handler(ctx({ planId: withoutDeadline.planId }), { emitSurface: async () => {} });
-  expect(seen).toEqual([["exchange", { expiresAtMs: 1_300_000 }], ["exchange", {}]]);
+  h.ports.surfaces.confirmApproval = async ({ ctx, plan }, options) => {
+    seen.push([ctx.principal.id, plan.replaces, typeof options.emitSurface]);
+    return { confirmed: false, reason: "declined" };
+  };
+  const saved = h.plans.save({ principalId: "owner", workspaceId: "ws", content: { connectionString: "private", destination: description, snapshot: Buffer.from("content"), replaces: "previous", site: "site", schema: "app", snapshotAt: "fixed", rowCount: 1, tableCount: 1, leftOut: [] } });
+  await h.tools.get("database_transfer_run")!.handler(ctx({ planId: saved.planId }), { emitSurface: async () => {} });
+  expect(seen).toEqual([["owner", "previous", "function"]]);
+  expect(await h.tools.get("database_transfer_run")!.handler(ctx({ planId: saved.planId }))).toMatchObject({ code: "PLAN_NOT_FOUND" });
 });
 it("both snapshot sources close on a completeness/schema refusal, the temporary content artifact is consumed", async () => {
   const h = harness(); h.saveDestination();

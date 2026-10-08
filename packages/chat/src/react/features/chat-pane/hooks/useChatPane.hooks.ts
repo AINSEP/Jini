@@ -1,4 +1,4 @@
-import type { UserTextRedactionOptions } from '../../../../core/user-text-redaction.js';
+import type { UserTextRedaction, UserTextRedactionOptions } from '../../../../core/user-text-redaction.js';
 import { useUserTextGuard } from '../../../hooks/useUserTextGuard.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -229,7 +229,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const guard = useUserTextGuard(options);
   const [activeUploadCount, setActiveUploadCount] = useState(0);
   const [attachmentError, setAttachmentError] = useState<Error | null>(null);
-  const [queuedPrompt, setQueuedPrompt] = useState<string | null>(null);
+  // Keep the signal with sanitized queue text; re-redacting it later cannot detect the original paste.
+  const [queuedTurn, setQueuedTurn] = useState<UserTextRedaction | null>(null);
   const [typedAnswerNotice, setTypedAnswerNotice] = useState<TypedAnswerNotice | null>(null);
   // Set across the await of one typed-answer delivery so a second Enter cannot post the same text
   // twice — the second post would find the question already answered and wrongly report it closed.
@@ -436,8 +437,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     }
   }, [composer, options.conversationId, options.uploadAttachments]);
 
-  const sendPrompt = useCallback(async (prompt: string) => {
-    const trimmed = guard.redactText(prompt.trim());
+  const sendGuardedPrompt = useCallback(async ({ redaction }: { redaction: UserTextRedaction }, _optional = {}) => {
+    const trimmed = redaction.text.trim();
     if (!trimmed) throw new Error('cannot send: the prompt is empty');
     if (sendBlocker !== null) {
       throw new Error(`cannot send: ${describeChatPaneSendBlocker(sendBlocker)}`);
@@ -455,6 +456,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     attachmentBatchIdRef.current = createAttachmentBatchId();
     options.onActivityChange?.('queued');
     await conversation.sendMessage(trimmed, definedProps({ source: {
+      secretRedaction: redaction.secretRedacted ? { secretRedacted: true as const, count: redaction.count } : undefined,
       agentId: selection.agentId,
       // Omitted when the array is EMPTY, not merely absent — an empty `attachments: []` would be a
       // different (valid, present) value to the transport than "no attachments key at all".
@@ -465,12 +467,15 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     composer,
     conversation,
     options.onActivityChange,
-    guard.redactText,
     options.runContext,
     selection,
     sendBlocker,
     workingDirectoryState.workingDirectory,
   ]);
+
+  const sendPrompt = useCallback(async (prompt: string) => {
+    await sendGuardedPrompt({ redaction: guard.redact({ text: prompt.trim() }, {}) }, {});
+  }, [guard.redact, sendGuardedPrompt]);
 
   const answerWaitingQuestion = useCallback(async (
     { deliver, text }: { deliver: DeliverTypedAnswer; text: string },
@@ -502,13 +507,13 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     // staged attachments, which this turn still needs when it finally goes out.
     if (isChatPaneQueueableBlocker({ blocker: sendBlocker })) {
       queuedConversationIdRef.current = options.conversationId;
-      setQueuedPrompt(guard.redactText(prompt));
+      setQueuedTurn(guard.redact({ text: prompt }, {}));
       composer.setDraft('');
       return;
     }
     if (!canSend) return;
     await sendPrompt(prompt);
-  }, [canSend, composer, options.conversationId, sendBlocker, sendPrompt, guard.redactText]);
+  }, [canSend, composer, options.conversationId, sendBlocker, sendPrompt, guard.redact]);
 
   const send = useCallback(async () => {
     const prompt = composerPrompt(composer);
@@ -556,32 +561,32 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     const prompt = composerPrompt(composer);
     if (!prompt) return;
     queuedConversationIdRef.current = options.conversationId;
-    setQueuedPrompt(guard.redactText(prompt));
+    setQueuedTurn(guard.redact({ text: prompt }, {}));
     composer.setDraft('');
     conversation.cancel();
-  }, [composer, conversation, options.conversationId, guard.redactText]);
+  }, [composer, conversation, options.conversationId, guard.redact]);
 
   const cancelQueued = useCallback(() => {
     queuedConversationIdRef.current = undefined;
-    setQueuedPrompt(null);
+    setQueuedTurn(null);
   }, []);
 
   // Flush on a FULLY clear blocker, not merely on streaming ending — see
   // `isChatPaneQueueableBlocker`'s note about `findChatPaneSendBlocker`'s ordering. Clearing the
   // queue slot BEFORE awaiting keeps a re-render from double-sending the same prompt.
   useEffect(() => {
-    if (queuedPrompt === null || sendBlocker !== null) return;
+    if (queuedTurn === null || sendBlocker !== null) return;
     if (queuedConversationIdRef.current !== options.conversationId) {
       // The conversation changed while this prompt waited behind a streaming run — sending it now
       // would post it into a conversation the user never saw it queued against. Drop it instead
       // (same as `cancelQueued`) rather than misrouting it.
       queuedConversationIdRef.current = undefined;
-      setQueuedPrompt(null);
+      setQueuedTurn(null);
       return;
     }
-    setQueuedPrompt(null);
-    void sendPrompt(queuedPrompt);
-  }, [options.conversationId, queuedPrompt, sendBlocker, sendPrompt]);
+    setQueuedTurn(null);
+    void sendGuardedPrompt({ redaction: queuedTurn }, {});
+  }, [options.conversationId, queuedTurn, sendBlocker, sendGuardedPrompt]);
 
   const reset = useCallback(() => {
     attachmentGenerationRef.current += 1;
@@ -600,7 +605,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     // `conversation.cancel()` above clears the streaming blocker — the flush effect fires it into
     // the just-reset conversation instead of discarding it like the rest of this turn's state.
     queuedConversationIdRef.current = undefined;
-    setQueuedPrompt(null);
+    setQueuedTurn(null);
   }, [composer, conversation, options.initialMessages]);
 
   return {
@@ -620,7 +625,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     addAttachments,
     send,
     sendPrompt,
-    queuedPrompt,
+    queuedPrompt: queuedTurn?.text ?? null,
     cancelQueued,
     typedAnswerNotice,
     sendAsNewMessage,

@@ -1,5 +1,4 @@
 import { createAgentModelDiscovery } from '../model-discovery.js';
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/pi.ts` (import path adjusted only). See `archived provenance ledger`. */
 import path from 'node:path';
 import { DEFAULT_MODEL_OPTION, execAgentFile, parsePiModels } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';

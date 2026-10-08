@@ -110,6 +110,11 @@ describe('integrated runtime contracts', () => {
       expect(manifest.typesVersions['*'][subpath]).toEqual([`./dist/${module}.d.ts`]);
     }
     expect(manifest.jini.entries['.']).toBe('node');
-    expect(manifest.dependencies['@jini-ai/oauth']).toBe('workspace:*');
+    // Leaf consumers such as sse-decode do not use OAuth; installation must stay optional.
+    // Even the decoder calls core's shared SSE owner, so core remains a runtime dependency.
+    expect(manifest.dependencies).toEqual({ '@jini-ai/core': 'workspace:^' });
+    expect(manifest.peerDependencies['@jini-ai/oauth']).toBe('^0.2.0');
+    expect(manifest.peerDependenciesMeta['@jini-ai/oauth']).toEqual({ optional: true });
+    expect(manifest.devDependencies['@jini-ai/oauth']).toBe('workspace:^');
   });
 });

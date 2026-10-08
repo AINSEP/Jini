@@ -7,12 +7,12 @@ import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   beginOAuthPkce,
+  setStoredOAuthToken,
   PendingAuthCache,
   XAI_OAUTH_PROVIDER_CONFIG,
   type OAuthCallbackListener,
   type OAuthCallbackOutcome,
 } from '@jini-ai/agent-runtime';
-import { isLocalSameOrigin } from '@jini-ai/core';
 import {
   registerXaiRoutes,
   xaiAuthStatusRoute,
@@ -23,11 +23,6 @@ import {
   xaiSearchRoute,
   type XaiHttpDeps,
 } from '../xai.js';
-
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
 
 interface MockApp {
   get: (path: string, handler: any) => void;
@@ -41,7 +36,9 @@ interface MockApp {
 function makeApp(): MockApp {
   const handlers: MockApp['handlers'] = {};
   const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = handler;
+    handlers[`${method.toUpperCase()} ${path}`] = (req, res) => handler({
+      ...req, headers: { host: '127.0.0.1:7456', origin: 'http://127.0.0.1:7456', ...req.headers },
+    }, res);
   };
   return { get: make('get'), post: make('post'), put: make('put'), delete: make('delete'), patch: make('patch'), handlers };
 }
@@ -66,7 +63,7 @@ function makeListener(overrides: Partial<OAuthCallbackListener> = {}): OAuthCall
 
 function okTokenResponse(body: Record<string, unknown> = {}) {
   const payload = { access_token: 'atk-123', token_type: 'Bearer', expires_in: 3600, refresh_token: 'rtk-1', scope: 'openid api:access', ...body };
-  return { ok: true, status: 200, json: async () => payload, text: async () => JSON.stringify(payload) };
+  return Response.json(payload);
 }
 
 function okSearchResponse(body: unknown) {
@@ -84,7 +81,6 @@ let dataDir: string;
 
 beforeEach(async () => {
   dataDir = await mkdtemp(path.join(tmpdir(), 'xai-http-'));
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
 });
 
 afterEach(async () => {
@@ -293,12 +289,13 @@ describe('xaiOauthStartRoute', () => {
       const onInternalError = vi.fn();
       const { state, onCallback } = await startAndCapture({
         onInternalError,
-        fetchImpl: vi.fn(async () => ({ ok: false, status: 400, statusText: 'Bad Request', text: async () => 'invalid_grant: replayed code' })),
+        fetchImpl: vi.fn(async () => Response.json({ error: 'invalid_grant', error_description: 'replayed code' }, { status: 400 })),
       });
       await onCallback({ kind: 'ok', code: 'c', state });
       expect(onInternalError).toHaveBeenCalledTimes(1);
       const reportedError = onInternalError.mock.calls[0]![0].error as Error;
-      expect(reportedError.message).toContain('replayed code');
+      expect(reportedError.message).toBe('the authorization server refused the request (HTTP 400, invalid_grant)');
+      expect(reportedError.message).not.toContain('replayed code');
     });
   });
 });
@@ -390,7 +387,8 @@ describe('xaiOauthCompleteRoute', () => {
   // A non-Error rejection reaches both the `String(error)` fallback in the BAD_REQUEST prefix check
   // and the one inside `redactError`. Neither may assume the thrown value has a `.message`, and the
   // redaction still has to strip a credential embedded in the stringified form.
-  it('SEC-005: a non-Error rejection during exchange is stringified and redacted, not crashed on', async () => {
+  // The shared OAuth owner now wraps that rejection with a safe message before the route receives it.
+  it('SEC-005: a non-Error rejection during exchange is safely wrapped, not crashed on', async () => {
     const pending = new PendingAuthCache({}, { ttlMs: 30 * 60 * 1000 });
     const state = seedPendingState(pending);
     const onInternalError = vi.fn();
@@ -405,7 +403,7 @@ describe('xaiOauthCompleteRoute', () => {
     expect(onInternalError).toHaveBeenCalledTimes(1);
     const reported = onInternalError.mock.calls[0]![0].error as Error;
     expect(reported).toBeInstanceOf(Error);
-    expect(reported.message).toContain('token endpoint blew up with Bearer [REDACTED]');
+    expect(reported.message).toBe('could not reach the authorization server at auth.x.ai');
     expect(reported.message).not.toContain('atk-leaked-123');
   });
 
@@ -518,7 +516,7 @@ describe('xaiAuthStatusRoute', () => {
     const minimalToken = { access_token: 'atk-minimal' };
     const deps = makeDeps({
       pending,
-      fetchImpl: vi.fn(async () => ({ ok: true, status: 200, json: async () => minimalToken, text: async () => JSON.stringify(minimalToken) })),
+      fetchImpl: vi.fn(async () => Response.json(minimalToken)),
     });
 
     expect(await xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps })).toEqual({ ok: true, value: { ok: true } });
@@ -804,9 +802,13 @@ describe('xaiSearchRoute.handle', () => {
   it('refreshes an expired token in place (via the same injected fetchImpl) before calling search', async () => {
     const pending = new PendingAuthCache({}, { ttlMs: 30 * 60 * 1000 });
     const state = seedPendingState(pending);
-    const fetchImpl = vi.fn().mockResolvedValueOnce(okTokenResponse({ access_token: 'atk-stale', expires_in: -1 }));
+    const fetchImpl = vi.fn().mockResolvedValueOnce(okTokenResponse({ access_token: 'atk-stale' }));
     const deps = makeDeps({ pending, fetchImpl });
     await xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps });
+    await setStoredOAuthToken({ dataDir, fileName: 'xai-oauth-token.json', token: {
+      accessToken: 'atk-stale', tokenType: 'Bearer', refreshToken: 'rtk-1',
+      expiresAt: Date.now() - 1, savedAt: Date.now(),
+    } });
 
     fetchImpl
       .mockResolvedValueOnce(okTokenResponse({ access_token: 'atk-fresh', expires_in: 3600 }))
@@ -957,7 +959,7 @@ describe('xaiSearchRoute.handle', () => {
     expect(onInternalError).toHaveBeenCalledTimes(1);
     const reportedError = onInternalError.mock.calls[0]![0].error as Error;
     expect(reportedError.message).not.toContain('super-secret-token');
-    expect(reportedError.message).toContain('[REDACTED]');
+    expect(reportedError.message).toBe('xAI 401: Bearer [REDACTED:exact_secret] invalid');
   });
 
   it('SEC-005: a network-level fetch rejection during search is also redacted and reported', async () => {
@@ -1024,32 +1026,29 @@ describe('registerXaiRoutes', () => {
   });
 
   it('requires same-origin: rejects a cross-origin oauth/start with 403 before opening any listener', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
     const startCallbackListener = vi.fn();
     const app = makeApp();
     registerXaiRoutes({ app: app as any, deps: { dataDir, startCallbackListener }, adapter });
     const res = makeRes();
-    await app.handlers['POST /api/xai/oauth/start']!({ body: {}, query: {}, params: {} }, res);
+    await app.handlers['POST /api/xai/oauth/start']!({ body: {}, query: {}, params: {}, headers: { origin: 'http://evil.example.com' } }, res);
     expect(res.status).toHaveBeenCalledWith(403);
     expect(startCallbackListener).not.toHaveBeenCalled();
   });
 
   it('requires same-origin: rejects a cross-origin auth/status GET with 403', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
     const app = makeApp();
     registerXaiRoutes({ app: app as any, deps: { dataDir }, adapter });
     const res = makeRes();
-    await app.handlers['GET /api/xai/auth/status']!({ body: {}, query: {}, params: {} }, res);
+    await app.handlers['GET /api/xai/auth/status']!({ body: {}, query: {}, params: {}, headers: { origin: 'http://evil.example.com' } }, res);
     expect(res.status).toHaveBeenCalledWith(403);
   });
 
   it('requires same-origin: rejects a cross-origin search with 403 before any fetch', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
     const fetchImpl = vi.fn();
     const app = makeApp();
     registerXaiRoutes({ app: app as any, deps: { dataDir, fetchImpl } as unknown as XaiHttpDeps, adapter });
     const res = makeRes();
-    await app.handlers['POST /api/xai/search']!({ body: { query: 'q' }, query: {}, params: {} }, res);
+    await app.handlers['POST /api/xai/search']!({ body: { query: 'q' }, query: {}, params: {}, headers: { origin: 'http://evil.example.com' } }, res);
     expect(res.status).toHaveBeenCalledWith(403);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
@@ -1188,7 +1187,6 @@ describe('registerXaiRoutes — real Express server on a real socket', () => {
   });
 
   it('answers 403 over the wire for a cross-origin request', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
     const startCallbackListener = vi.fn();
     const base = await listen({ dataDir, startCallbackListener });
     const response = await send(base, 'POST', '/api/xai/oauth/start', undefined, 'http://evil.example.com');

@@ -1,5 +1,4 @@
 import { createAgentModelDiscovery } from '../model-discovery.js';
-/** Ported from OD's `apps/daemon/src/runtimes/defs/aider.ts` (one de-branded comment; see `archived provenance ledger`). */
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 

@@ -19,7 +19,7 @@ import {
 function makeReqRes(query: Record<string, unknown> = {}) {
   const req = Object.assign(new EventEmitter(), { query }) as unknown as Request;
   const res = Object.assign(new EventEmitter(), { writeHead: vi.fn(), write: vi.fn().mockReturnValue(true), end: vi.fn() });
-  return { req, res: res as unknown as Response, raw: res, emitter: req as unknown as EventEmitter };
+  return { req, res: res as unknown as Response, raw: res };
 }
 
 function sentEvents(raw: { write: ReturnType<typeof vi.fn> }): any[] {
@@ -303,12 +303,15 @@ describe('handleFrontendSessionStream', () => {
 
   it('detaches the surface when the connection closes, failing anything still awaiting it', async () => {
     const registry = createFrontendSessionRegistry({}, { newInvocationId: () => 'inv-1' });
-    const { req, res, emitter } = makeReqRes({ capability: 'page.click' });
+    const { req, res } = makeReqRes({ capability: 'page.click' });
     handleFrontendSessionStream({ req, res, deps: makeDeps(registry) });
     registry.bindRun({ runId: 'run-1', sessionId: 'session-1' });
 
     const pending = registry.invoke({ runId: 'run-1', capabilityId: 'page.click', input: {} });
-    emitter.emit('close');
+    // Request completion is not a disconnect: the response can still be streaming.
+    req.emit('close');
+    expect(registry.sessionFor({ runId: 'run-1' })).toEqual({ sessionId: 'session-1', capabilities: ['page.click'] });
+    res.emit('close');
 
     await expect(pending).rejects.toThrow('detached before answering');
     // The binding goes with it, so a later call fails closed instead of hanging.

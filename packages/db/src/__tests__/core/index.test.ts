@@ -13,7 +13,7 @@ describe('@jini-ai/infra/db/core barrel', () => {
   });
 
   it('re-exports working implementations, not just names', () => {
-    expect(core.sanitizeForFilename('a/b')).toBe('a_b');
+    expect(core.sanitizeForFilename({ value: 'a/b' })).toBe('a_b');
     expect(core.restorePointFilename({ scopeId: 'x', watermarkAtCapture: 1, timestamp: 2 })).toBe(
       'restore-point-x-wm1-2.db',
     );

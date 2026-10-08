@@ -18,7 +18,7 @@
  * rather than rejection: a `scopeId` is an internal routing key, and failing a backup because a
  * workspace slug contains a colon would be the worse outcome.
  */
-export function sanitizeForFilename(value: string): string {
+export function sanitizeForFilename({ value }: { value: string }, _options: Record<string, never> = {}): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
@@ -33,8 +33,6 @@ export function restorePointFilename(parts: {
   scopeId: string;
   watermarkAtCapture: number;
   timestamp: number;
-  extension?: string;
-}): string {
-  const extension = parts.extension ?? 'db';
-  return `restore-point-${sanitizeForFilename(parts.scopeId)}-wm${parts.watermarkAtCapture}-${parts.timestamp}.${extension}`;
+}, { extension = 'db' }: { extension?: string } = {}): string {
+  return `restore-point-${sanitizeForFilename({ value: parts.scopeId })}-wm${parts.watermarkAtCapture}-${parts.timestamp}.${extension}`;
 }

@@ -300,7 +300,7 @@ describe('useConversation', () => {
       const transport = createFakeChatTransport();
       const seed = [
         { id: 'u1', role: 'user' as const, content: 'earlier turn' },
-        { id: 'a1', role: 'assistant' as const, content: 'partial reply so far', runId: 'run-9', runStatus: 'running' as const },
+        { id: 'a1', role: 'assistant' as const, content: 'partial reply so far', events: [{ kind: 'text' as const, text: 'partial reply so far' }], runId: 'run-9', runStatus: 'running' as const },
       ];
       const { result } = renderHook(() => useConversation({ transport, initialMessages: seed }));
 
@@ -312,10 +312,32 @@ describe('useConversation', () => {
       // The reattached stream resumes into the SAME message the seed named, not a new one.
       act(() => transport.emit({ kind: 'text', text: ' — and more' }));
       expect(result.current.messages).toHaveLength(2);
-      expect(result.current.messages[1]).toMatchObject({ id: 'a1', content: ' — and more', runStatus: 'running' });
+      // Durable reattachment extends saved text instead of replacing it with the latest delta.
+      expect(result.current.messages[1]).toMatchObject({ id: 'a1', content: 'partial reply so far — and more', runStatus: 'running' });
+      expect(result.current.messages[1]!.events).toEqual([
+        { kind: 'text', text: 'partial reply so far' },
+        { kind: 'text', text: ' — and more' },
+      ]);
 
       act(() => transport.finish());
       expect(result.current.messages[1]!.runStatus).toBe('succeeded');
+      expect(result.current.messages[1]!.content).toBe('partial reply so far — and more');
+    });
+
+    it('preserves content-only saved text when a reattached delta and completion are shorter', () => {
+      const transport = createFakeChatTransport();
+      const seed = [{ id: 'a1', role: 'assistant' as const, content: 'partial reply so far', runId: 'run-9', runStatus: 'running' as const }];
+      const { result } = renderHook(() => useConversation({ transport, initialMessages: seed }));
+
+      // Older checkpoints may have content without events; a shorter replay must not erase it.
+      act(() => transport.emit({ kind: 'text', text: ' — and more' }));
+      expect(result.current.messages).toHaveLength(1);
+      expect(result.current.messages[0]).toMatchObject({ id: 'a1', content: 'partial reply so far', runStatus: 'running' });
+      expect(result.current.messages[0]!.events).toEqual([{ kind: 'text', text: ' — and more' }]);
+
+      act(() => transport.finish());
+      expect(result.current.messages[0]).toMatchObject({ id: 'a1', content: 'partial reply so far', runStatus: 'succeeded' });
+      expect(result.current.messages[0]!.events).toEqual([{ kind: 'text', text: ' — and more' }]);
     });
 
     it('seeds state from the stub\'s own events before any new event arrives', () => {

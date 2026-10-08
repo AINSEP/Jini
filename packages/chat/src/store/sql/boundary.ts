@@ -30,7 +30,16 @@ export async function atStoreBoundary<T>({ operation }: { operation: () => Promi
 /** The single audited table-subset projection. Required table types are proven by DB's bound;
  * host extra tables and all transaction/locking effects stay on the original kernel object.
  * Kysely's invariant DB parameter requires this one erasure; it never bridges driver/version copies.
+ * @returns The original kernel with only the required table types exposed.
+ * @complexity O(1) time and space; no wrapper, connection or transaction is created.
  */
+export function chatKernelTables<DB extends Tables, Tables extends ChatDatabase = ChatDatabase>(
+  { kernel }: { kernel: StorageKernel<DB> }, _optional = {},
+): StorageKernel<Tables> {
+  return kernel as unknown as StorageKernel<Tables>;
+}
+
+/** Execute a transcript query through the shared table-subset projection. */
 export function runChatQuery<DB extends ChatDatabase, T>({ kernel, body }: { kernel: StorageKernel<DB>; body: (db: Kysely<ChatDatabase>) => T | Promise<T> }): Promise<T> {
-  return kernel.run(db => body(db as unknown as Kysely<ChatDatabase>));
+  return chatKernelTables<DB>({ kernel }, {}).run(body);
 }

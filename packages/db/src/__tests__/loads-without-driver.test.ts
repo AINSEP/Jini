@@ -30,7 +30,7 @@ const packageRoot = fileURLToPath(new URL("../../", import.meta.url));
 const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean }> = {
   core: {
     dirs: ["core"],
-    probe: `m.restorePointFilename({ scopeId: "a/b", watermarkAtCapture: 3, timestamp: 4 }) === "restore-point-a_b-wm3-4.db" && m.sanitizeForFilename("a/b") === "a_b" && m.PGLITE_SOCKET_FILE === ".s.PGSQL.5432"`,
+    probe: `m.restorePointFilename({ scopeId: "a/b", watermarkAtCapture: 3, timestamp: 4 }) === "restore-point-a_b-wm3-4.db" && m.sanitizeForFilename({ value: "a/b" }) === "a_b" && m.PGLITE_SOCKET_FILE === ".s.PGSQL.5432"`,
   },
   sqlite: {
     dirs: ["sqlite", "core"],
@@ -38,7 +38,7 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
       const pragmas = [];
       const calls = [];
       const handle = { pragma: p => pragmas.push(p) };
-      const returned = m.openSqliteConnection({ filePath: "fake.db", open: (p, o) => { calls.push([p, o]); return handle; } });
+      const returned = m.openSqliteConnection({ filePath: "fake.db", open: ({ filePath }, o) => { calls.push([filePath, o]); return handle; } });
       return returned === handle && JSON.stringify(calls) === '[["fake.db",{}]]' && JSON.stringify(pragmas) === '["journal_mode = WAL","foreign_keys = ON","busy_timeout = 5000"]';
     })()`,
   },
@@ -82,6 +82,19 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
     dirs: ["migrate", "kernel", "core"], kernel: true,
     probe: `m.sourceChecksum("") === "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" && typeof m.runMigrations === "function"`,
   },
+};
+
+SUBPATHS.recovery = {
+  dirs: ["recovery", "core"],
+  probe: `typeof m.planRestore === "function" && typeof m.confirmRestore === "function" && typeof m.executeRestore === "function"`,
+};
+SUBPATHS["recovery/operation-lock"] = {
+  dirs: ["recovery"],
+  probe: `typeof m.createOperationLock === "function"`,
+};
+SUBPATHS["testing/pg-fixture"] = {
+  dirs: ["."],
+  probe: `typeof m.createPgFixture === "function"`,
 };
 
 const DRIVERS = ["better-sqlite3", "pg", "@electric-sql/pglite"];
@@ -183,9 +196,9 @@ describe("@jini-ai/db in an install with no database driver present", () => {
 
   it("exports exactly the subpaths under test (no root barrel that would load everything)", () => {
     const manifest = JSON.parse(readFileSync(join(fixtureDir, "node_modules/@jini-ai/db/package.json"), "utf8")) as { exports: Record<string, unknown>; typesVersions: { "*": Record<string, string[]> } };
-    expect(Object.keys(manifest.typesVersions["*"]).sort()).toEqual([...Object.keys(SUBPATHS), "package.json"].sort());
+    expect(Object.keys(manifest.typesVersions["*"]).sort()).toEqual([...Object.keys(SUBPATHS).filter(s => s !== "recovery/operation-lock"), "recovery/*", "package.json"].sort());
     const exportKeys = Object.keys(manifest.exports);
-    expect(exportKeys.sort()).toEqual([...Object.keys(SUBPATHS).map((s) => `./${s}`), "./package.json"].sort());
+    expect(exportKeys.sort()).toEqual([...Object.keys(SUBPATHS).filter(s => s !== "recovery/operation-lock").map((s) => `./${s}`), "./recovery/*", "./package.json"].sort());
   });
 
   for (const [subpath, { dirs, probe }] of Object.entries(SUBPATHS)) {
@@ -202,7 +215,7 @@ describe("@jini-ai/db in an install with no database driver present", () => {
         expect(dirs.includes(dirname(inDist)), `${subpath} loaded ${inDist}`).toBe(true);
       }
       const packages = result.resolved.filter((url) => url.includes("/node_modules/") && !url.includes("/node_modules/@jini-ai/db/"));
-      if (subpath === "tools") {
+      if (subpath === "tools" || subpath.startsWith("recovery")) {
         expect(packages.length).toBeGreaterThan(0);
         for (const url of packages) expect(url, `tools loaded an optional peer other than core`).toMatch(/\/node_modules\/@jini-ai\/core\//);
       } else if (!SUBPATHS[subpath]!.kernel) expect(packages).toEqual([]);

@@ -1,27 +1,8 @@
 import { createAgentModelDiscovery } from '../model-discovery.js';
-/**
- * Ported from OD's `apps/daemon/src/runtimes/defs/reasonix.ts` with one
- * real strip (not just a comment reword): the origin injected a
- * product-specific system-prompt block via
- * `env.REASONIX_ACP_SYSTEM_APPEND` — a `DESIGN_INSTRUCTIONS` constant that
- * literally named the host product and instructed the model to wrap output
- * in that product's own artifact-tag convention (see `archived provenance ledger` for
- * the exact original text). That is genuine product-specific prompt
- * content baked into what's supposed to be a pure declarative def literal,
- * not the generic ACP-transport config the rest of this file is. It is
- * dropped here — this file stays product-neutral (R5, `pnpm guard`'s
- * `checkEngineBoundaries`), never carrying any specific host's own wording.
- *
- * The MECHANISM itself (the `REASONIX_ACP_SYSTEM_APPEND` env var) is real
- * and now wired generically via `systemPromptDelivery: { strategy:
- * 'env-var', varName: 'REASONIX_ACP_SYSTEM_APPEND' }` below — a host's
- * `PromptAugmenter.systemOverlay()` result reaches this def through
- * `@jini-ai/daemon`'s `resolveSystemPromptOverlayDelivery` (the same
- * central dispatch every def's overlay delivery goes through) and
- * `computeChildEnv`, not through this file's own static `env` object
- * below (that one is fixed at def-load time, computed once; the overlay
- * varies per run and per host). See `archived provenance ledger`.
- */
+/** Reasonix's declarative definition stays product-neutral (R5, checkEngineBoundaries).
+ * Per-run system overlays use REASONIX_ACP_SYSTEM_APPEND via the shared systemPromptDelivery
+ * dispatch and computeChildEnv. Static def.env is computed once and cannot carry host/per-run
+ * overlay wording. */
 import os from 'node:os';
 import path from 'node:path';
 import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';

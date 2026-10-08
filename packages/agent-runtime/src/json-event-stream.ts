@@ -1,10 +1,5 @@
-/**
- * @module json-event-stream
- *
- * Ported verbatim from OD's
- * `apps/daemon/src/runtimes/json-event-stream.ts`. Self-contained —
- * no imports, no product coupling. See `archived provenance ledger`.
- */
+/** @module json-event-stream
+ * Multi-CLI JSON event parsing with per-handler stream state. */
 type JsonObject = Record<string, unknown>;
 type StreamEvent = Record<string, unknown>;
 type StreamEventHandler = (event: StreamEvent) => void;
@@ -53,36 +48,16 @@ function stringifyContent(value: unknown): string {
   try {
     return JSON.stringify(value);
   } catch {
-    // Genuinely unreachable through this module's real call graph, not just
-    // unobserved: every one of this function's 8 call sites passes either
-    // `obj` itself or a field/subfield of `obj` (e.g. `statePart.output`,
-    // `obj.content`, `item.aggregated_output`), and `obj` is only ever
-    // produced one way in this file — `handleLine`'s `obj = JSON.parse(line)`
-    // (this module's sole exported entry point, `createJsonEventStreamHandler`,
-    // routes every event through it). A value that came out of `JSON.parse`
-    // can only be `null`/a string/a plain finite number/a boolean/an array/a
-    // plain object — the JSON grammar has no circular-reference or BigInt
-    // production — so `JSON.stringify` can never throw on it or on any of
-    // its nested fields. Kept (not deleted) as protection against a future
-    // caller that feeds this module data from somewhere other than
-    // `JSON.parse`, the same "keep the defensive branch, document it, don't
-    // force a test around impossible data" call `@jini-ai/cli`'s
-    // `defaultReadFile`'s `finish()` guard made on 2026-07-22 — see
-    // `archived provenance ledger`'s 2026-07-22 entry for the full re-derivation.
+    // Current callers pass JSON.parse results or their fields, which cannot contain cycles or
+    // BigInts, so stringify cannot throw. Keep this fallback for future non-JSON callers without
+    // forcing a coverage test around data the current parser cannot produce.
     return String(value);
   }
 }
 
 function parseJsonObjectsFromContent(value: string): JsonObject[] {
-  // No `!trimmed` early-return: this function's only real call site
-  // (`connectorToolSelectionErrorMessage`, below) has already checked
-  // `content.includes('CONNECTOR_TOOL_NOT_FOUND')` before calling in, so
-  // `value` can never trim down to empty here. The guard was dead code for
-  // every real caller; removed rather than padded with a test, since the
-  // fallback path below already produces the same `[]` result for an empty
-  // string on its own (safeParseJson('') throws -> null -> not a record;
-  // ''.split(/\r?\n/u) yields [''] -> same outcome), so nothing changes
-  // for a hypothetical future caller either.
+  // The caller requires CONNECTOR_TOOL_NOT_FOUND before parsing. Empty input also reaches the
+  // existing [] fallback naturally, so no separate empty-string branch is needed.
   const trimmed = value.trim();
   const direct = safeParseJson(trimmed);
   if (isRecord(direct)) return [direct];

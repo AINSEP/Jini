@@ -1,9 +1,6 @@
 /**
  * @module qoder-stream
  *
- * Ported verbatim from OD's `apps/daemon/src/runtimes/qoder-stream.ts`
- * (only `node:buffer` as a dependency). See `archived provenance ledger`.
- *
  * Parses Qoder CLI's `--output-format stream-json` JSONL stream into the
  * small event set consumed by the chat UI. Qoder's top-level records are
  * wrapper objects (`system`, `assistant`, `result`) with adapter-specific

@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/core",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "The Jini kernel: typed DI tokens, pack composition and lifecycle, the tool registry, redaction, and origin/API-token auth primitives. Zero dependencies.",
   "license": "Apache-2.0",
   "repository": {
@@ -20,7 +20,44 @@
       "./contribution-registry": "universal",
       "./naming": "universal",
       "./primitives": "universal",
-      "./text": "universal"
+      "./text": "universal",
+      "./settings": "universal",
+      "./settings/express": "node"
+    },
+    "isolation": {
+      "entries": {
+        "./primitives": "core",
+        "./settings": "settings",
+        "./settings/express": "settings"
+      },
+      "domains": {
+        "settings": [
+          "src/settings"
+        ]
+      },
+      "shared": [
+        "src/tool-permissions.ts"
+      ],
+      "forbidden": {
+        "universal": [
+          "node:",
+          "express",
+          "react",
+          "@jini-ai/cms"
+        ],
+        ".": [
+          "node:",
+          "express",
+          "react",
+          "@jini-ai/cms",
+          "@jini-ai/core/settings",
+          "./settings",
+          "../settings"
+        ],
+        "./settings/express": [
+          "@jini-ai/cms"
+        ]
+      }
     }
   },
   "type": "module",
@@ -67,6 +104,16 @@
       "types": "./dist/text/index.d.ts",
       "import": "./dist/text/index.js",
       "default": "./dist/text/index.js"
+    },
+    "./settings": {
+      "types": "./dist/settings/index.d.ts",
+      "import": "./dist/settings/index.js",
+      "default": "./dist/settings/index.js"
+    },
+    "./settings/express": {
+      "types": "./dist/settings/express/index.d.ts",
+      "import": "./dist/settings/express/index.js",
+      "default": "./dist/settings/express/index.js"
     }
   },
   "files": [
@@ -93,6 +140,16 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9"
+    "@vitest/coverage-v8": "^2.1.9",
+    "express": "^4.21.0",
+    "@types/express": "^4.17.21"
+  },
+  "peerDependencies": {
+    "express": "^4.21.0"
+  },
+  "peerDependenciesMeta": {
+    "express": {
+      "optional": true
+    }
   }
 }

@@ -129,11 +129,12 @@ const PATTERNS: readonly SecretRedactionPattern[] = [
   // Phone numbers. Tight US-leaning shape; a global PII detector would
   // need a real lib. We keep this so US-based test prompts ('call me at
   // (415) 555-...') don't ship. Note: no leading \b — '(' isn't a word
-  // char, so a starting boundary would refuse to match `(415)`. We
-  // require a non-digit (or start of string) before the run instead.
+  // char, so a starting boundary would refuse to match `(415)`. Reject
+  // adjacent word characters or hyphens so digit segments of UUIDs,
+  // hashes and identifiers stay readable; separators within phones still match.
   {
     name: 'phone',
-    regex: /(?<!\d)(?:\+?\d{1,3}[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)/g,
+    regex: /(?<![\w-])(?:\+?\d{1,3}[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}(?![\w-])/g,
   },
 ];
 

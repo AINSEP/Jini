@@ -380,7 +380,8 @@ export function readCachedAttachments({ conversationId }: { conversationId: stri
  * written before batch ids were recorded) — the caller then starts a fresh batch.
  * @complexity Time/space: O(1) on an in-memory hit, O(n) in the stored count otherwise.
  */
-export function readCachedAttachmentBatchId({ conversationId }: { conversationId: string | null | undefined }
+export function readCachedAttachmentBatchId({ conversationId }: { conversationId: string | null | undefined },
+  _options: Record<string, never> = {},
 ): string | null {
   if (!conversationId) return null;
   if (readCachedAttachments({ conversationId: conversationId }) === null) return null;
@@ -394,7 +395,8 @@ export function readCachedAttachmentBatchId({ conversationId }: { conversationId
  *
  * @complexity Time/space: O(1) amortized.
  */
-export function writeCachedAttachmentBatchId({ conversationId, batchId }: { conversationId: string | null | undefined; batchId: string }
+export function writeCachedAttachmentBatchId({ conversationId, batchId }: { conversationId: string | null | undefined; batchId: string },
+  _options: Record<string, never> = {},
 ): void {
   if (!conversationId) return;
   if (!stagedBatchIds.has(conversationId) && stagedBatchIds.size >= MAX_CACHED_CONVERSATION_DRAFTS) {

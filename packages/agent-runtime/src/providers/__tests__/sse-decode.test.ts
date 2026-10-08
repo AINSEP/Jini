@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeSseStream } from '../sse-decode.js';
+import { decodeSseStream, decodeSseFrames, parseSseRecord } from '../sse-decode.js';
 
 async function collect(source: AsyncIterable<Uint8Array | string>) {
   const out: Array<{ event: string | null; data: string }> = [];
@@ -111,4 +111,91 @@ describe('decodeSseStream', () => {
       { event: null, data: 'b' },
     ]);
   });
+});
+
+async function collectFrames(chunks: string[], options = {}) {
+  const frames = [];
+  for await (const frame of decodeSseFrames({ source: stringsOf(...chunks) }, options)) frames.push(frame);
+  return frames;
+}
+
+describe('browser-safe framing entry', () => {
+  it('shares raw field parsing while preserving data whitespace and explicit empty IDs', () => {
+    expect(parseSseRecord({ rawFrame: ': keepalive\r\nid:cursor\r\nid:\r\nevent: end\r\ndata:  first \r\ndata:second' }))
+      .toEqual({ event: 'end', id: '', data: ' first \nsecond', dataLines: [' first ', 'second'] });
+    expect(parseSseRecord({ rawFrame: 'retry: 10\nunknown\n: comment' }))
+      .toEqual({ event: null, data: '', dataLines: [] });
+  });
+
+  it('reassembles fields split mid-line and CRLF split between CR and LF', async () => {
+    expect(await collectFrames(['i', 'd:c1\r', '\neve', 'nt:agent\r', '\nda', 'ta:hello\r', '\n\r', '\n']))
+      .toEqual([{ id: 'c1', event: 'agent', data: 'hello', dataLines: ['hello'] }]);
+  });
+
+  it('keeps reattachment IDs verbatim and resets metadata between records', async () => {
+    expect(await collectFrames(['id: cursor/one==\ndata: a\n\nid: cursor/two==\ndata: b\n\ndata: c\n\nid:\ndata: d\n\n']))
+      .toEqual([
+        { id: 'cursor/one==', event: null, data: 'a', dataLines: ['a'] },
+        { id: 'cursor/two==', event: null, data: 'b', dataLines: ['b'] },
+        { event: null, data: 'c', dataLines: ['c'] },
+        { id: '', event: null, data: 'd', dataLines: ['d'] },
+      ]);
+  });
+
+  it.each(['data: truncated', 'data: truncated\n', 'data: truncated\r\n'])('discards an incomplete durable record: %j', async tail => {
+    expect(await collectFrames(['data: committed\n\n', tail], { flushFinalFrame: false }))
+      .toEqual([{ event: null, data: 'committed', dataLines: ['committed'] }]);
+    expect(await collectFrames([tail])).toEqual([{ event: null, data: 'truncated', dataLines: ['truncated'] }]);
+  });
+
+  it('does not count a split final CRLF as an extra blank line', async () => {
+    expect(await collectFrames(['data: incomplete\r', '\n'], { flushFinalFrame: false })).toEqual([]);
+    expect(await collectFrames(['data: complete\r', '\n\r', '\n'], { flushFinalFrame: false }))
+      .toEqual([{ event: null, data: 'complete', dataLines: ['complete'] }]);
+  });
+
+  it('bounds accumulated complete lines within an unterminated record', async () => {
+    await expect(collectFrames(['data: a\n', 'data: b\n'], { maxBufferChars: 15 }))
+      .rejects.toThrow('15-character unterminated-frame buffer limit');
+    await expect(collectFrames([': comment\n', 'unknown: value\n'], { maxBufferChars: 15 })).rejects.toThrow(RangeError);
+    await expect(collectFrames(['1234', '5'], { maxBufferChars: 4 })).rejects.toThrow(RangeError);
+  });
+
+  it('accepts the exact cap and resets it after each committed record', async () => {
+    expect(await collectFrames(['data: a\n\n', 'data: b\n\n'], { maxBufferChars: 9 }))
+      .toEqual([
+        { event: null, data: 'a', dataLines: ['a'] },
+        { event: null, data: 'b', dataLines: ['b'] },
+      ]);
+  });
+
+  it('closes its source iterator when a consumer stops at a terminal frame', async () => {
+    let closed = false;
+    let advanced = false;
+    async function* source() {
+      try {
+        yield 'event: end\ndata: {}\n\n';
+        advanced = true;
+        yield 'data: late\n\n';
+      } finally { closed = true; }
+    }
+    for await (const frame of decodeSseFrames({ source: source() })) { expect(frame.event).toBe('end'); break; }
+    expect(closed).toBe(true);
+    expect(advanced).toBe(false);
+  });
+
+  it('flushes a partial UTF-8 code point only under the provider EOF policy', async () => {
+    async function* source() { yield new TextEncoder().encode('data: '); yield Uint8Array.of(0xc3); }
+    const frames = [];
+    for await (const frame of decodeSseFrames({ source: source() })) frames.push(frame.data);
+    expect(frames).toEqual(['�']);
+    const durable = [];
+    for await (const frame of decodeSseFrames({ source: source() }, { flushFinalFrame: false })) durable.push(frame);
+    expect(durable).toEqual([]);
+  });
+});
+
+it('keeps metadata-only records out of the provider compatibility stream', async () => {
+  expect(await collect(stringsOf('id: c1\n\nretry: 20\n\nid: c2\nevent: ping\n\ndata: answer\n\n')))
+    .toEqual([{ event: 'ping', data: '' }, { event: null, data: 'answer' }]);
 });

@@ -1,6 +1,6 @@
-import {
-  type RuntimeAgentDef,
-  type RuntimeLockHold,
+import type {
+   RuntimeAgentDef,
+   RuntimeLockHold,
 } from '@jini-ai/agent-runtime';
 
 /**

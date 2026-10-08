@@ -1,10 +1,6 @@
 /**
  * @module claude-stream
  *
- * Ported verbatim from OD's `apps/daemon/src/runtimes/claude-stream.ts`
- * (only the `role-marker-guard` import path changed — it now resolves
- * within this package instead of two directories up). See `archived provenance ledger`.
- *
  * Parses Claude Code's `--output-format stream-json --verbose` JSONL stream
  * (with or without `--include-partial-messages`) into a small set of
  * UI-friendly events. With partial messages on, text arrives as

@@ -1,6 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import express from 'express';
+import type { AdapterContext } from '@jini-ai/http-kit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createFrontendControl } from '../frontend-control.js';
@@ -20,8 +21,14 @@ function startContext(runId: string, contextRef: string, lifecycle = fakeLifecyc
 
 describe('createFrontendControl', () => {
   const servers: Server[] = [];
+  const controllers: AbortController[] = [];
   afterEach(() => {
-    for (const server of servers.splice(0)) server.close();
+    // Assertions can fail before surface.close(); teardown must still release every stream.
+    for (const controller of controllers.splice(0)) controller.abort();
+    for (const server of servers.splice(0)) {
+      server.closeAllConnections();
+      server.close();
+    }
   });
 
   /** Mounts the bundle's own extension — the only route to the registry a host is given. */
@@ -29,7 +36,11 @@ describe('createFrontendControl', () => {
     const app = express();
     app.use(express.json());
     const resolvedPortRef = { current: 0 };
-    control.httpExtension({ app: app as never, context: { adapter: { resolvedPortRef } } as never });
+    const adapter: AdapterContext = {
+      resolvedPortRef, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS',
+      webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST',
+    };
+    control.httpExtension({ app, context: { adapter } });
     const server = await new Promise<Server>((resolve) => {
       const s = app.listen(0, '127.0.0.1', () => resolve(s));
     });
@@ -46,15 +57,20 @@ describe('createFrontendControl', () => {
     close: () => void;
   }> {
     const controller = new AbortController();
+    controllers.push(controller);
     const response = await fetch(
       `${base}/api/frontend-sessions/stream?capability=${encodeURIComponent(capability)}`,
       { signal: controller.signal },
     );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('text/event-stream');
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
     const next = async (): Promise<Record<string, unknown>> => {
       for (; ;) {
-        const { value } = await reader.read();
+        const { value, done } = await reader.read();
+        // EOF reads resolve immediately; looping there starves even Vitest's timeout timer.
+        if (done) throw new Error('frontend session stream ended before the next event');
         const line = decoder.decode(value).split('\n').find((l) => l.startsWith('data: '));
         if (line) return JSON.parse(line.slice('data: '.length)) as Record<string, unknown>;
       }

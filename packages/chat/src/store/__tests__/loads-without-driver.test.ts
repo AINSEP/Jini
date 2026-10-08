@@ -31,16 +31,32 @@ function run(dir:string,source:string){return spawnSync(process.execPath,['--inp
 beforeAll(()=>{
  root=mkdtempSync(join(tmpdir(),'chat-packed-'));
  const pack=JSON.parse(execFileSync('npm',['pack','--offline','--ignore-scripts','--json','--cache',join(root,'npm-cache'),'--pack-destination',root],{cwd:packageRoot,encoding:'utf8'}))[0].filename;
- for(const name of ['neutral','sqlite','pglite','postgres']){
+ for(const name of ['store','neutral','sqlite','pglite','postgres']){
   const dir=join(root,name);dirs[name]=dir;mkdirSync(dir,{recursive:true});writeFileSync(join(dir,'package.json'),JSON.stringify({type:'module'}));const dest=join(dir,'node_modules/@jini-ai/chat');mkdirSync(dest,{recursive:true});
   execFileSync('tar',['-xzf',join(root,pack),'-C',dest,'--strip-components','1']);
-  copyPackage('@jini-ai/core',join(packageRoot,'../core'),dir);
-  if(name!=='neutral'){
+  // Optional peers are installed per entry: store is peer-free, while core and SQL redact via diagnostics.
+  if(name!=='store'){
+   copyPackage('@jini-ai/core',join(packageRoot,'../core'),dir);
+   copyPackage('@jini-ai/diagnostics',join(packageRoot,'../diagnostics'),dir);
+  }
+  if(name==='neutral'){
+   // Core's A2UI activity projection owns this peer closure; SQL stores must not need it.
+   copyPackage('@jini-ai/agentic',join(packageRoot,'../agentic'),dir);
+   copyRuntimeTree('zod',join(packageRoot,'../agentic/node_modules/zod'),dir);
+  }else if(name!=='store'){
    copyPackage('@jini-ai/db',dbRoot,dir);copyPackage('kysely',join(dbRoot,'node_modules/kysely'),dir);
   }
  }
 },30_000);
 afterAll(()=>{if(root)rmSync(root,{recursive:true,force:true});});
+it('neutral store loads without any optional peer installed',()=>{
+ const result=run(dirs.store!,`const {ChatStoreError}=await import('@jini-ai/chat/store');const error=new ChatStoreError({code:'conflict'});console.log(JSON.stringify([error.name,error.code]));`);
+ expect(result.stderr).toBe('');expect(result.status).toBe(0);expect(JSON.parse(result.stdout)).toEqual(['ChatStoreError','conflict']);
+ const manifest=JSON.parse(readFileSync(join(packageRoot,'package.json'),'utf8'));
+ for(const name of Object.keys(manifest.peerDependencies)){
+  const missing=run(dirs.store!,`await import(${JSON.stringify(name)})`);expect(missing.status).not.toBe(0);expect(missing.stderr).toContain('ERR_MODULE_NOT_FOUND');
+ }
+});
 it('neutral store and core work with no database, SQL or React packages installed',()=>{
  const result=run(dirs.neutral!,`const s=await import('@jini-ai/chat/store'); const c=await import('@jini-ai/chat/core'); const e=new s.ChatStoreError({ code: 'conflict' }); console.log(JSON.stringify([e.name,e.code,c.isTerminalRunStatus({ status: 'succeeded' })]));`);
  expect(result.stderr).toBe('');expect(result.status).toBe(0);expect(JSON.parse(result.stdout)).toEqual(['ChatStoreError','conflict',true]);
@@ -49,18 +65,22 @@ it('neutral store and core work with no database, SQL or React packages installe
  }
 });
 it('neutral declarations typecheck without installing any optional peer',()=>{
- const dir=dirs.neutral!;writeFileSync(join(dir,'consumer.ts'),`import { ChatStoreError, type ChatHistoryStore, type ChatStore } from '@jini-ai/chat/store'; const error: Error = new ChatStoreError({ code: 'invalid-input' }); declare const s: ChatStore; const old: ChatHistoryStore=s; void [error,old];`);
+ const dir=dirs.store!;writeFileSync(join(dir,'consumer.ts'),`import { ChatStoreError, type ChatHistoryStore, type ChatStore } from '@jini-ai/chat/store'; const error: Error = new ChatStoreError({ code: 'invalid-input' }); declare const s: ChatStore; const old: ChatHistoryStore=s; void [error,old];`);
  const result=spawnSync(process.execPath,[localRequire.resolve('typescript/bin/tsc'),'--noEmit','--strict','--module','NodeNext','--moduleResolution','NodeNext','--target','ES2022','consumer.ts'],{cwd:dir,encoding:'utf8'});
  expect(result.stdout+result.stderr).toBe('');expect(result.status).toBe(0);
 });
-it.each(['sqlite','pglite','postgres'])('%s entry loads with core, db and Kysely, validates invocation, and leaves neutral usable',name=>{
+it.each(['sqlite','pglite','postgres'])('%s entry loads with core, diagnostics, db and Kysely, validates invocation, and leaves neutral store usable',name=>{
  const factory=`create${name==='sqlite'?'Sqlite':name==='pglite'?'Pglite':'Postgres'}ChatStore`;
- const result=run(dirs[name]!,`const a=await import('@jini-ai/chat/store/${name}'); let code;try{a.${factory}({kernel:{dialect:'wrong',transport:'wrong'},scope:{scopeId:'s',ownerKind:'user',ownerId:'u'}});}catch(e){code=e.code;}const s=await import('@jini-ai/chat/store');const c=await import('@jini-ai/chat/core');console.log(JSON.stringify([code,new s.ChatStoreError({ code: 'unavailable' }).code,c.isTerminalRunStatus({ status: 'succeeded' })]));`);
- expect(result.stderr).toBe('');expect(result.status).toBe(0);expect(JSON.parse(result.stdout)).toEqual(['invalid-input','unavailable',true]);
+ // Core usability is checked in its own fixture; importing it here would conceal SQL-to-A2UI coupling.
+ const result=run(dirs[name]!,`const a=await import('@jini-ai/chat/store/${name}'); let code;try{a.${factory}({kernel:{dialect:'wrong',transport:'wrong'},scope:{scopeId:'s',ownerKind:'user',ownerId:'u'}});}catch(e){code=e.code;}const s=await import('@jini-ai/chat/store');console.log(JSON.stringify([code,new s.ChatStoreError({ code: 'unavailable' }).code]));`);
+ expect(result.stderr).toBe('');expect(result.status).toBe(0);expect(JSON.parse(result.stdout)).toEqual(['invalid-input','unavailable']);
+ for(const peer of ['@jini-ai/agentic','zod','@jini-ai/ui','react','react-dom']){
+  const missing=run(dirs[name]!,`await import(${JSON.stringify(peer)})`);expect(missing.status).not.toBe(0);expect(missing.stderr).toContain('ERR_MODULE_NOT_FOUND');
+ }
  const missing=run(dirs[name]!,`await import(${JSON.stringify(name==='sqlite'?'better-sqlite3':name==='pglite'?'@electric-sql/pglite':'pg')})`);
  expect(missing.status).not.toBe(0);expect(missing.stderr).toContain('ERR_MODULE_NOT_FOUND');
 });
-it('SQLite packed consumer needs only the injected SQLite driver, db and Kysely',()=>{
+it('SQLite packed consumer needs only the injected SQLite driver, core, diagnostics, db and Kysely',()=>{
  // Copy the installed driver's declared dependency tree, not an older version's dependency list.
  const dir=dirs.sqlite!;const sqliteRoot=realpathSync(join(dbRoot,'node_modules/better-sqlite3'));
  copyRuntimeTree('better-sqlite3',sqliteRoot,dir);

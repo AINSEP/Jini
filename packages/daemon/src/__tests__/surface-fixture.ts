@@ -9,9 +9,9 @@ export {
 export const scheduler: SchedulerPort = {
   schedule({ delayMs, callback }) { const timer = setTimeout(callback, delayMs); timer.unref?.(); return () => clearTimeout(timer); },
 };
-type LegacyExchange = { id: string; send(emission: SurfaceEmission): Promise<void>; receive(): Promise<implementation.SurfaceMessage>; close(): void };
+type LegacyExchange = { id: string; send(emission: SurfaceEmission): Promise<void>; receive(): Promise<implementation.SurfaceMessage>; close(): void; expiresAtMs(): number };
 function objectExchange(exchange: LegacyExchange): implementation.SurfaceExchange {
-  return { id: exchange.id, send: ({ emission }) => exchange.send(emission), receive: () => exchange.receive(), close: () => exchange.close() };
+  return { id: exchange.id, send: ({ emission }) => exchange.send(emission), receive: () => exchange.receive(), close: () => exchange.close(), expiresAtMs: () => exchange.expiresAtMs() };
 }
 /** Test-only adapter retains copied assertion call shapes; production APIs use objects. */
 export function createSurfaceExchangeStore(options: { idleTtlMs?: number; maxLifetimeMs?: number; newExchangeId?: () => string } = {}) {
@@ -22,7 +22,7 @@ export function createSurfaceExchangeStore(options: { idleTtlMs?: number; maxLif
   return {
     open(binding: implementation.SurfaceExchangeBinding, emit: SurfaceEmitter): LegacyExchange {
       const exchange = store.open({ binding, emit });
-      return { id: exchange.id, send: emission => exchange.send({ emission }), receive: () => exchange.receive({}), close: () => exchange.close({}) };
+      return { id: exchange.id, send: emission => exchange.send({ emission }), receive: () => exchange.receive({}), close: () => exchange.close({}), expiresAtMs: () => exchange.expiresAtMs() };
     },
     deliver({ toolId, channel, ...required }: implementation.SurfaceDeliverySpec) {
       return store.deliver(required, {

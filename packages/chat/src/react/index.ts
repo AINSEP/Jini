@@ -1,30 +1,10 @@
 /**
- * @jini-ai/chat-react — headless hooks + presentational components + slots for
- * a chat/artifact frontend, built on `@jini-ai/chat/core`'s framework-free
- * vocabulary. See ADS-memory/reports/jini-port/recon/r4b-webui-design.md §1/§2/§4 for the
- * spec this package implements, and archived provenance ledger for provenance.
- *
- * This barrel is filled in incrementally as each layer lands (hooks first,
- * then presentational components, then the `<JiniChatProvider>` composition
- * root) — see archived provenance ledger's "Status" section for what's shipped so far.
- *
- * ## Every export here is explicit. Do not reintroduce `export *`.
- *
- * This file used 15 `export * from` statements until 2026-08-05. That made the package's public
- * API *implicit*: whatever any of those modules happened to export was public, so renaming an
- * internal helper shipped a breaking change nobody reviewed, and no one could read this file and
- * say what the package exports. It is also the likeliest reason consumers reach past this barrel
- * into `@jini-ai/chat/core` deep paths — a grab-bag invites bypassing.
- *
- * The expansion was mechanical and provably surface-preserving: 193 symbols before and after,
- * identical in name AND in value-vs-type kind. `features/chat-pane/index.ts` is the style model.
- *
- * When adding an export, add the name here deliberately. That edit IS the API review.
+ * @jini-ai/chat/react — headless hooks, presentational components and slots over framework-free
+ * chat/core vocabulary. Every export is explicit: adding or renaming a name here is a public API
+ * review, so internal module exports cannot silently become public. Do not use export *.
  */
-// The `ChatTransport` port moved to `@jini-ai/chat/core` on 2026-07-29 (it is pure types over
-// `AbortSignal`, so a non-React host should not need this package to name the seam it implements).
-// Re-exported here so every existing `import { ChatTransport } from '@jini-ai/chat-react'` keeps
-// working; new code should import it from `@jini-ai/chat/core` directly.
+// ChatTransport is a framework-free port owned by chat/core. This compatibility re-export
+// preserves existing imports; new hosts should import the port from chat/core directly.
 export type {
   ChatTransport,
   FeedbackChange,
@@ -373,3 +353,16 @@ export { createDomPageDriver, currentAgentPage, type DomPageDriverOptions } from
 
 export { createBrowserComposerHistoryStorage } from './hooks/composer-history-storage.js';
 export type { ComposerHistoryStoragePort } from '../core/composer-history.js';
+
+// ChatPane consumers share the same redaction and draft/preview state owners.
+export { SECRET_REDACTED_NOTICE, redactUserText } from '../core/user-text-redaction.js';
+export type { UserTextRedactionOptions } from '../core/user-text-redaction.js';
+export { useUserTextGuard } from './hooks/useUserTextGuard.js';
+export { cacheAttachmentPreviewSource } from './hooks/attachment-preview-cache.js';
+export { readCachedAttachmentBatchId, writeCachedAttachmentBatchId } from './hooks/composer-draft-cache.js';
+
+export { createAssistantChatsClient } from "./hooks/assistant-chats.js";
+export type { AssistantChatsPort, AssistantChatsClientPorts, AssistantChatsClient, UseAssistantChats } from "./hooks/assistant-chats-contracts.js";
+
+export { useFabPosition } from "./hooks/fab-position.js";
+export type { FabPositionInput, FabPositionResult } from "./hooks/fab-position.js";

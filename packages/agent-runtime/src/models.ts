@@ -1,9 +1,6 @@
 /**
  * @module models
- *
- * Model-option defaults, a per-agent "last surfaced to the UI" live-model
- * cache, and model-id sanitization. Ported verbatim from OD's
- * `apps/daemon/src/runtimes/models.ts` — no product coupling.
+ * Model-option defaults, a per-agent last-surfaced live-model cache and model-id sanitization.
  */
 import type { RuntimeAgentDef, RuntimeModelOption } from './types.js';
 

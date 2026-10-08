@@ -1,41 +1,10 @@
 /**
  * @module model-registry
- *
- * The provider/model/agent vocabulary that any Jini consumer picking "which
- * model" or "which coding agent" to run needs, plus the handful of pure
- * helpers (credential-status resolution, model-list merging, a stable cache
- * key, model-choice normalization against a live catalogue) those pickers
- * all independently re-derive today.
- *
- * Ported and generified from OD's `apps/web/src/state/config.ts`
- * (`KnownProvider`/`KNOWN_PROVIDERS`), `packages/contracts/src/api/registry.ts`
- * (`AgentInfo`/`AgentDiagnostic`/`AgentFixIntent`/`AgentModelOption`),
- * `packages/contracts/src/api/providerModels.ts` (`ProviderModelOption`),
- * `packages/contracts/src/api/app-config.ts` (`AgentModelPrefs`),
- * `apps/web/src/components/providerModelsCache.ts`, and
- * `apps/web/src/components/agentModelSelection.ts` — see
- * `packages/agent-runtime/archived provenance ledger` for the full per-symbol mapping.
- * No OD product-identity strings or OD-specific gating (e.g. the original's
- * hardcoded `agent.id === 'amr'` carve-out) survived the port.
- *
- * Named `model-registry.ts`, not `registry.ts`: this package already has a
- * `registry.ts` (the `BASE_AGENT_DEFS` static CLI-adapter catalog +
- * `getAgentDef(id)`) — a different concept that happens to share the word
- * "registry". `AgentDiagnostic`/`AgentDiagnosticSeverity`/`AgentFixIntent`
- * are NOT redefined here either, for the same reason `ModelOption` isn't:
- * this package already has real, more complete versions of all three
- * (`./types.js`, vendored from the same OD `packages/contracts/src/api/
- * registry.ts` source this module cites above — main's `AgentFixIntent`
- * adds a `launchOAuth` case this port's copy lacked, and its
- * `AgentDiagnostic.reason` is the specific `AgentDiagnosticReason` literal
- * union rather than a bare `string`). Reusing them keeps one canonical
- * diagnostic shape in the package instead of two divergent ones under the
- * same names. `ModelOption` alone is renamed (to `ModelCatalogOption`)
- * rather than reused, because the package's existing `ModelOption`
- * (`agent-protocol/acp/models.ts`, `{ id, label }`) is a narrower,
- * genuinely different shape for ACP model-probe results, not a compatible
- * version of this module's `{ id, label, hint, providerId, default, caps }`
- * model-catalogue entry.
+ * Provider/model/agent picker vocabulary and credential-status, merge, cache and choice helpers.
+ * registry.ts owns the CLI-adapter catalog, a distinct concept. Reuse the canonical protocol
+ * catalog types and runtime diagnostic types rather than redefining looser copies.
+ * ModelCatalogOption carries provider/hint/default/capability data; the protocol ACP ModelOption
+ * is a narrower id/label probe shape, so their names and contracts stay separate.
  */
 import type { AgentDefinition, CredentialStatus, ModelCatalogOption, ModelProvider } from '@jini-ai/protocol';
 

@@ -349,6 +349,10 @@ export async function startPgliteOwner(
   const releaseLock = acquireOwnerLock({ dataDir, lockFileName: required.lockFileName });
   let db: PGlite | undefined;
   let server: PgliteSocketServer | undefined;
+  // WASM initialization can await native work with no referenced Node handle. Until the socket
+  // starts, keep this awaited boot alive; otherwise a CLI exits with only the owner lock written.
+  // Release on both success and failure, so an idle or refused boot retains no extra timer.
+  const startupRef = setInterval(() => {}, 1_000);
   try {
     ensurePrivateDir(socketDir);
     // We hold the lock, so a socket file here was left by a dead owner.
@@ -370,6 +374,8 @@ export async function startPgliteOwner(
     rmSync(socketPath, { force: true });
     releaseLock();
     throw error;
+  } finally {
+    clearInterval(startupRef);
   }
 
   const serving = server;

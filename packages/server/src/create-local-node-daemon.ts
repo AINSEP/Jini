@@ -40,7 +40,7 @@ import type { Bindings, Principal, ToolRegistration } from '@jini-ai/core';
 import type { AnyPack, MissingTokenIds } from '@jini-ai/core/composition';
 import type { ResolveRunInput, RunLifecycle } from '@jini-ai/daemon';
 import { installRouteRegistrationGuard, mountPackHttp, type AdapterContext } from '@jini-ai/http-kit';
-import { type DelegatedToolExecuteRequest, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
+import type {  DelegatedToolExecuteRequest,  RunStartHandler,  WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import { removeDaemonRegistryRecordIfCurrent, resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@jini-ai/sidecar';
 
 import { composeJiniKernel, type JiniKernelSecurity, type KernelBoundIds } from './compose-jini-kernel.js';

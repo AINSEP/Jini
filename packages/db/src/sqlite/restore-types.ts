@@ -7,7 +7,7 @@
  * package boundary cleanly. See `open.ts`'s module doc for the measured failure that made this a
  * rule rather than a preference.
  */
-import type { SqliteClient, SqliteOpener } from './types.js';
+import type { SqliteClient } from './types.js';
 
 /**
  * A caller-injected hook run against `filePath` BEFORE the connection is opened.
@@ -18,11 +18,11 @@ import type { SqliteClient, SqliteOpener } from './types.js';
  * supplied it runs for every path, including `:memory:`. A host with file-only recovery must make
  * its hook a no-op for ephemeral connections and hermetic tests, where there is nothing to recover.
  */
-export type SqliteRecoveryHook = (filePath: string) => void;
+export type SqliteRecoveryHook = (required: { filePath: string }, options?: Record<string, never>) => void;
 
 export interface OpenSqliteConnectionOptions<Connection extends SqliteClient = SqliteClient> {
   /** The consumer opens with its own driver copy. */
-  readonly open: SqliteOpener<Connection>;
+  readonly open: (required: { filePath: string }, options: Record<string, never>) => Connection;
   /** Filesystem path, or `':memory:'` for an ephemeral connection. */
   readonly filePath: string;
   /**

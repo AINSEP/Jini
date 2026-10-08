@@ -1,10 +1,5 @@
 import { createAgentModelDiscovery } from '../model-discovery.js';
-/**
- * Ported from OD's `apps/daemon/src/runtimes/defs/grok-build.ts` with
- * several product-named comment mentions reworded to generic
- * host-application phrasing (no behavior change; see `archived provenance ledger` for
- * the exact original wording).
- */
+
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeModelOption } from '../types.js';
 import type { RuntimeAgentDef } from '../types.js';

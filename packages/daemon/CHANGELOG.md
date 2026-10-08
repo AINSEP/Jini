@@ -1,3 +1,7 @@
+## 0.5.4 — pending release
+
+- Re-export the canonical core surface-exchange contracts and parameter constants. Store and ask/report behavior are unchanged; requires core 0.4.2.
+
 ## 0.5.3 — 2026-10-06
 
 - Message attachments reach every runtime: new `prepareMessageAttachments` / `messageContentWithImages` (+ `MessageAttachmentImage`, `MessageAttachmentSource`, `MessageAttachmentReader`) turn claimed refs into image pixels for providers and a file notice for non-images.

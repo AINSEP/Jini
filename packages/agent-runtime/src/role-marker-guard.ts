@@ -9,11 +9,6 @@
  * stream handlers that can track message boundaries (Claude, Copilot,
  * Qoder, OpenCode/Codex, Pi, ACP). Returns `{ feedText, contaminated,
  * warningEvent }`.
- *
- * Ported verbatim from OD's `apps/daemon/src/role-marker-guard.ts` (a
- * top-level daemon file, not under `runtimes/`, but consumed by
- * `claude-stream.ts` and self-contained with no product coupling — see
- * `archived provenance ledger`).
  */
 
 // Regex matching fabricated role-marker lines injected by the model into

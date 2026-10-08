@@ -4,7 +4,7 @@ import { Kysely, PostgresDialect } from "kysely";
 
 import { PG_PARSERS, PGLITE_SOCKET_FILE } from "../../core/index.js";
 import { buildKernel, postgresLockKey, type StorageKernel } from "../index.js";
-import { type PgModule, pgTypesFor } from "../../postgres/types.js";
+import { type PgModule, pgTypesFor } from "../../core/pg-types.js";
 
 /**
  * @file A storage kernel that reaches a PGlite data dir through its owner's Unix socket

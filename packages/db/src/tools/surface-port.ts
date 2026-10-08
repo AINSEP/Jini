@@ -1,21 +1,17 @@
+import type { ApprovalAnswer, ToolExecutionContext, ToolExecutionOptions } from "@jini-ai/core";
 /** Structural surface protocol: transport, confirmation policy and builders belong to the consumer. */
-import type { SurfaceEmission, SurfaceEmitter } from "@jini-ai/core";
+import type { SurfaceEmission, SurfaceExchangeConversation, SurfaceExchangeStore, SurfaceAskThenReport } from "@jini-ai/core";
+export type { SurfaceExchangeConversation as SurfaceExchange, SurfaceMessage } from "@jini-ai/core";
 import type { DatabaseTransferPlan } from "./plan-store.js";
-export type SurfaceMessage = { status: "received"; params: Record<string, unknown> } | { status: "expired" | "abandoned" };
-export interface SurfaceExchange {
-  readonly id: string; send(emission: SurfaceEmission): Promise<void>; receive(): Promise<SurfaceMessage>; close(): void;
-  /** When the exchange stops waiting, in epoch ms, if the host tracks one. Read right before the
-   *  confirmation is built and handed to it, so the host's card can count down and close on time. */
-  expiresAtMs?(): number;
-}
+// The shared exchange ABI owns the deadline when the host tracks one. Read it immediately before
+// constructing a card, so the host's countdown closes when the exchange stops waiting.
 export interface TransferSurfacePorts {
-  open(binding: { toolId: string; principalId: string }, emit: SurfaceEmitter): SurfaceExchange;
-  /** Must close the exchange after receiving/classifying a decision, including errors. */
-  resolveDecision(exchange: SurfaceExchange, emission: SurfaceEmission): Promise<{ confirmed: true } | { confirmed: false; reason: "declined" | "expired" | "abandoned" }>;
+  open(required: Parameters<SurfaceExchangeStore["open"]>[0], optional?: Record<string, never>): SurfaceExchangeConversation;
+  /** Host transport only. The core approval owner calls it once for a replacement plan;
+   * the host binds principal/tool/expiry and never accepts model input as consent. */
+  confirmApproval(required: { ctx: ToolExecutionContext; plan: DatabaseTransferPlan }, optional: ToolExecutionOptions): Promise<ApprovalAnswer>;
   /** Must close in finally; outcome-delivery failures cannot replace a settled result. */
-  askThenReport<T>(exchange: SurfaceExchange, emission: SurfaceEmission, handle: (answer: SurfaceMessage) => Promise<{ result: T; outcome?: SurfaceEmission }>): Promise<T>;
-  /** `optional.expiresAtMs` is the exchange's deadline when it reports one (see `SurfaceExchange.expiresAtMs`). */
-  confirmation(plan: DatabaseTransferPlan, exchangeId: string, optional?: { readonly expiresAtMs?: number }): SurfaceEmission;
+  askThenReport: SurfaceAskThenReport;
   destinationForm(exchangeId: string): SurfaceEmission;
   destinationOutcome(input: { exchangeId: string; state: "failure" | "success"; message: string }): SurfaceEmission;
   readonly dismissedParam: string;

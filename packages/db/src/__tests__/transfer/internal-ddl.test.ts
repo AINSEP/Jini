@@ -85,6 +85,12 @@ describe("reseedIdentitySql", () => {
 });
 
 describe("indexSql", () => {
+  it("preserves a host-declared partial predicate in the emitted index", () => {
+    expect(indexSql("copy", table({ name: "rows", indexes: [
+      { name: "retention", columns: ["submitted_at", "id"], unique: false, where: "source_ip IS NOT NULL" },
+    ] }))).toBe('CREATE INDEX "retention" ON "copy"."rows" ("submitted_at", "id") WHERE source_ip IS NOT NULL;\n');
+  });
+
   it("writes unique and plain indexes with fitted names", () => {
     const longName = `idx_${"x".repeat(70)}`;
     const sql = indexSql("copy", table({ name: "rows", indexes: [
@@ -99,6 +105,16 @@ describe("indexSql", () => {
 });
 
 describe("constraintSql", () => {
+  it("never treats a partial unique index as a foreign-key target", () => {
+    const parent = table({ name: "parent", indexes: [
+      { name: "partial_code", columns: ["code"], unique: true, where: "code IS NOT NULL" },
+    ] });
+    const child = table({ name: "child", foreignKeys: [
+      { name: "partial_fk", columns: ["code"], foreignTable: "parent", foreignColumns: ["code"], onDelete: "restrict", onUpdate: "no action" },
+    ] });
+    expect(constraintSql("copy", [parent, child], "u")).toBe('CREATE TEMP TABLE "u" (name text NOT NULL) ON COMMIT DROP;\n');
+  });
+
   const parent = table({ name: "parent", primaryKey: ["id"], indexes: [{ name: "parent_code", columns: ["code", "region"], unique: true }, { name: "parent_plain", columns: ["label"], unique: false }] });
 
   it("with no constraints writes only the session-local marker table", () => {

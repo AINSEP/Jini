@@ -12,6 +12,8 @@ export interface TransferIndex {
   readonly name: string;
   readonly columns: readonly string[];
   readonly unique: boolean;
+  /** Trusted, host-declared Postgres predicate SQL; never operator input or SQLite plugin SQL. */
+  readonly where?: string;
 }
 
 export interface TransferForeignKey {
@@ -41,12 +43,4 @@ export interface TransferTable {
 }
 
 
-/** Host identifiers are required: changing a marker name would orphan earlier copies. */
-export interface TransferNaming {
-  readonly defaultSchema: string;
-  readonly markerTable: string;
-  readonly unvalidatedTable: string;
-  readonly schemaPrefix: string;
-  /** Optional SQL dollar-quote tag for compatibility with existing script consumers. */
-  readonly sqlTag?: string;
-}
+export type { TransferNaming } from '../core/transfer-naming.js';

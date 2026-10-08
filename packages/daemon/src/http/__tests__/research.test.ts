@@ -214,7 +214,7 @@ describe('researchSearchRoute.handle', () => {
     expect(onInternalError).toHaveBeenCalledTimes(1);
     const reportedError = onInternalError.mock.calls[0]![0].error as Error;
     expect(reportedError.message).not.toContain('tvly-test-key');
-    expect(reportedError.message).toContain('[REDACTED]');
+    expect(reportedError.message).toBe('Tavily 401: Unauthorized: [REDACTED:exact_secret] invalid');
   });
 
   it('SEC-005: a network-level fetch rejection is also redacted and reported', async () => {

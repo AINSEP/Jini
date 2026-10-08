@@ -1,36 +1,10 @@
 /**
  * @module env
- *
- * Builds the environment passed to `spawn()` for a given agent adapter:
- * proxy-aware merge of the inherited launch env with per-agent configured
- * overrides, plus a couple of per-CLI housekeeping tweaks (OpenCode/MiMo
- * project-config-discovery, which would otherwise walk up from cwd and run
- * an install step that can corrupt a pnpm workspace it's spawned inside).
- *
- * Heavily de-branded from OD's `apps/daemon/src/runtimes/env.ts`. The
- * origin file was far more coupled than r1b's "supporting generic file"
- * classification anticipated — it read OD's own app-config subsystem, OD's
- * sandbox-mode subsystem, and vela/AMR-specific env forwarding including a
- * literal product-name identity value and two product-prefixed env var
- * names (see `archived provenance ledger` for the exact originals). None of that is
- * ported:
- *
- * - `mergeProxyAwareEnv` / `resolveSystemProxyEnv` now come from
- *   `@jini-ai/platform` (the same functions, already verbatim-lifted there).
- * - AMR/vela-specific env injection and OD's app-config-driven analytics
- *   identity env are replaced by an optional `perAgentEnv` hook — a plain
- *   `(agentId, env) => NodeJS.ProcessEnv | void` the host can supply to add
- *   its own per-agent env logic (vela profile forwarding, analytics ids,
- *   …) without this package needing to know about vela or app-config.
- * - Sandbox-mode env application is replaced by an optional
- *   `sandboxOverlay` hook with the same shape, for the same reason.
- * - OD's AMR trace-env helper (emitting a product-prefixed run-id/attempt/
- *   session-id triad) is dropped entirely — it is OD/vela-adapter-owned
- *   trace-correlation env, not a generic runtime concern, and its own name
- *   was itself product-branded. A host that needs equivalent trace
- *   correlation can build it as a `perAgentEnv` hook.
- *
- * See `archived provenance ledger` for the full accounting.
+ * Build proxy-aware spawn environment from inherited and per-agent configured values. Disable
+ * OpenCode/MiMo project-config discovery so an automatic install cannot corrupt the host workspace.
+ * The shared platform helpers own proxy merging. Host-specific profile forwarding, analytics
+ * identity and trace correlation enter through perAgentEnv; sandbox wiring enters through
+ * sandboxOverlay. The engine must not import a product's config/sandbox subsystems or env names.
  */
 import os from 'node:os';
 import { mergeProxyAwareEnv, resolveSystemProxyEnv } from '@jini-ai/platform';

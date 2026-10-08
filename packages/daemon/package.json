@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/daemon",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "The stateful agent daemon runtime: run lifecycle, durable event-log port, the tool-execution boundary, agent executor, terminal sessions, and routines.",
   "license": "Apache-2.0",
   "repository": {
@@ -25,7 +25,15 @@
       "./tool-audit": "universal",
       "./surface-exchanges": "universal",
       "./session-coordination": "universal",
-      "./run-credentials": "node"
+      "./run-credentials": "node",
+      "./tool-recovery": "node"
+    },
+    "isolation": {
+      "shared": [
+        "src/tool-executor.ts",
+        "src/surface-exchanges.ts",
+        "src/scheduler.ts"
+      ]
     }
   },
   "type": "module",
@@ -97,6 +105,11 @@
       "types": "./dist/run-credentials.d.ts",
       "import": "./dist/run-credentials.js",
       "default": "./dist/run-credentials.js"
+    },
+    "./tool-recovery": {
+      "types": "./dist/tool-recovery/index.d.ts",
+      "import": "./dist/tool-recovery/index.js",
+      "default": "./dist/tool-recovery/index.js"
     }
   },
   "files": [
@@ -122,12 +135,6 @@
     "test:coverage": "vitest run --coverage",
     "test:postgres": "vitest run --config vitest.postgres.config.ts src/store/agent-sessions/__tests__/postgres.postgres.test.ts"
   },
-  "dependencies": {
-    "@jini-ai/agent-runtime": "workspace:^",
-    "@jini-ai/core": "workspace:^",
-    "@jini-ai/platform": "workspace:^",
-    "@jini-ai/protocol": "workspace:^"
-  },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
     "node-pty": "^1.1.0",
@@ -141,7 +148,15 @@
     "@jini-ai/http-kit": "workspace:*",
     "express": "^4.21.0",
     "@jini-ai/chat": "workspace:*",
-    "@types/express": "^4.17.21"
+    "@types/express": "^4.17.21",
+    "@jini-ai/agent-runtime": "workspace:^",
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/platform": "workspace:^",
+    "@jini-ai/protocol": "workspace:^"
+  },
+  "dependencies": {
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/protocol": "workspace:^"
   },
   "peerDependencies": {
     "node-pty": "^1.1.0",
@@ -151,7 +166,9 @@
     "@electric-sql/pglite": "0.5.8",
     "pg": "^8.23.0",
     "@jini-ai/http-kit": "^0.4.0",
-    "express": "^4.21.0"
+    "express": "^4.21.0",
+    "@jini-ai/agent-runtime": "^0.4.1",
+    "@jini-ai/platform": "^0.5.1"
   },
   "peerDependenciesMeta": {
     "node-pty": {
@@ -176,6 +193,12 @@
       "optional": true
     },
     "express": {
+      "optional": true
+    },
+    "@jini-ai/agent-runtime": {
+      "optional": true
+    },
+    "@jini-ai/platform": {
       "optional": true
     }
   }

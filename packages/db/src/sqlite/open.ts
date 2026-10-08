@@ -62,11 +62,12 @@ export const DEFAULT_PRAGMAS: readonly string[] = [
  * @complexity O(p) calls for p pragmas; storage costs belong to the injected driver.
  */
 export function openSqliteConnection<Connection extends SqliteClient>(
-  options: OpenSqliteConnectionOptions<Connection>,
+  required: Pick<OpenSqliteConnectionOptions<Connection>, "filePath" | "open">,
+  options: Pick<OpenSqliteConnectionOptions<Connection>, "recover" | "pragmas"> = {},
 ): Connection {
-  options.recover?.(options.filePath);
+  options.recover?.({ filePath: required.filePath }, {});
 
-  const connection = options.open(options.filePath, {});
+  const connection = required.open({ filePath: required.filePath }, {});
   for (const pragma of options.pragmas ?? DEFAULT_PRAGMAS) {
     connection.pragma(pragma);
   }

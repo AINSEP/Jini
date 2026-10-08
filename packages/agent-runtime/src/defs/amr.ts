@@ -1,5 +1,4 @@
 import { createAgentModelDiscovery } from '../model-discovery.js';
-/** Ported from OD's `apps/daemon/src/runtimes/defs/amr.ts` (two de-branded comments; see `archived provenance ledger`). */
 import { execAgentFile } from './shared.js';
 import type { RuntimeAgentDef, RuntimeModelOption } from '../types.js';
 
@@ -221,20 +220,9 @@ export async function fetchVelaRemoteModelsWithRetry({ resolvedBin, env }: { res
   // `AMR_MODELS_RETRY_DELAYS_MS` whenever we reach the `sleep()` call below
   // (the assertion just satisfies `noUncheckedIndexedAccess`).
   //
-  // Coverage note (re-derived, not merely restated from the paragraph
-  // above): `for (let attempt = 0; ; attempt += 1)` has an empty middle
-  // clause — an unconditional, infinite loop — and its body contains no
-  // `break` (grepped: none). The only two ways out are the `return` on a
-  // successful parse and the `throw` in the catch arm, and the `throw` is
-  // unconditionally forced once `attempt === AMR_MODELS_RETRY_DELAYS_MS.length`
-  // (`AMR_MODELS_RETRY_DELAYS_MS` is the literal 2-element `[250, 750]`
-  // above, so that's guaranteed after at most 3 attempts). So this
-  // function's implicit end-of-body statement (the closing `}` two lines
-  // below) can never execute — v8/istanbul still instruments it because
-  // it can't prove an arbitrary `for(;;)` terminates, but the real control
-  // flow genuinely never reaches it. Documented here (and in
-  // `archived provenance ledger`'s 2026-07-22 entry) instead of forced via a test,
-  // per this repo's no-`/* v8 ignore */` standard.
+  // The empty loop condition and absence of break make the closing statement unreachable:
+  // success returns, and exhaustion throws after at most three attempts. Coverage instrumentation
+  // cannot prove that; document the invariant instead of forcing a test or adding v8 ignore.
   for (let attempt = 0; ; attempt += 1) {
     try {
       const { stdout } = await execAgentFile({ command: resolvedBin, args: ['model', 'list', '--format', 'json'] }, { options: {

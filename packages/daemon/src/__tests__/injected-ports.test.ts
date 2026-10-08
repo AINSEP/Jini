@@ -19,6 +19,40 @@ function clock() {
   };
 }
 const emission: SurfaceEmission = { channel: 'mcp-ui', payload: {} };
+test('opening without a live emitter fails before allocating an ID or timers', () => {
+  const time = clock();
+  let ids = 0;
+  const store = createSurfaceExchangeStore({ scheduler: time.scheduler, clock: { nowMs: time.now }, idGenerator: { newId: () => String(++ids) }, defaultChannel: 'mcp-ui' });
+  expect(() => store.open({ binding: { toolId: 't', principalId: 'p' }, emit: undefined as unknown as Parameters<typeof store.open>[0]['emit'] })).toThrow('surface exchange requires an emitter');
+  expect(ids).toBe(0); expect(time.timerCount()).toBe(0); expect(store.size()).toBe(0);
+});
+test('the rendered deadline follows activity but never exceeds the lifetime ceiling', async () => {
+  const time = clock();
+  const store = createSurfaceExchangeStore({ scheduler: time.scheduler, clock: { nowMs: time.now }, idGenerator: { newId: () => 'deadline' }, defaultChannel: 'mcp-ui' }, { idleTtlMs: 10, maxLifetimeMs: 25 });
+  const exchange = store.open({ binding: { toolId: 't', principalId: 'p' }, emit: async () => {} });
+  expect(exchange.expiresAtMs()).toBe(10);
+  time.advance(5); await exchange.send({ emission }); expect(exchange.expiresAtMs()).toBe(15);
+  time.advance(5);
+  expect(store.deliver({ exchangeId: exchange.id, principalId: 'p', params: {} }, { toolId: 't' })).toEqual({ ok: true });
+  expect(await exchange.receive({})).toEqual({ status: 'received', params: {} });
+  expect(exchange.expiresAtMs()).toBe(20);
+  time.advance(9); await exchange.send({ emission }); expect(exchange.expiresAtMs()).toBe(25);
+  time.advance(6); expect(await exchange.receive({})).toEqual({ status: 'expired' });
+  expect(time.timerCount()).toBe(0); expect(store.size()).toBe(0);
+});
+test('answers buffered before closing precede the terminal result without reopening delivery', async () => {
+  const time = clock();
+  const store = createSurfaceExchangeStore({ scheduler: time.scheduler, clock: { nowMs: time.now }, idGenerator: { newId: () => 'buffered' }, defaultChannel: 'mcp-ui' });
+  const exchange = store.open({ binding: { toolId: 't', principalId: 'p' }, emit: async () => {} });
+  store.deliver({ exchangeId: exchange.id, principalId: 'p', params: { turn: 1 } }, { toolId: 't' });
+  store.deliver({ exchangeId: exchange.id, principalId: 'p', params: { turn: 2 } }, { toolId: 't' });
+  exchange.close({});
+  expect(store.deliver({ exchangeId: exchange.id, principalId: 'p', params: { turn: 3 } }, { toolId: 't' })).toEqual({ ok: false, reason: 'unknown-or-closed' });
+  expect(await exchange.receive({})).toEqual({ status: 'received', params: { turn: 1 } });
+  expect(await exchange.receive({})).toEqual({ status: 'received', params: { turn: 2 } });
+  expect(await exchange.receive({})).toEqual({ status: 'abandoned' });
+  expect(time.timerCount()).toBe(0); expect(store.size()).toBe(0);
+});
 test('injected timers settle all waiters and clean up both deadlines', async () => {
   const time = clock();
   const store = createSurfaceExchangeStore({ scheduler: time.scheduler, clock: { nowMs: time.now }, idGenerator: { newId: () => 'id' }, defaultChannel: 'form' }, { idleTtlMs: 10, maxLifetimeMs: 40 });

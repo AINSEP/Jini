@@ -2,20 +2,8 @@ import type { Clock } from '@jini-ai/core/primitives';
 import type { AgentEvent } from '../../core/events.js';
 import type { ChatRunStatus } from '../../core/messages.js';
 
-/** Exactly which run owns the row; the host binds authorization and storage scope. */
-export interface RunRef {
-  readonly conversationId: string;
-  readonly messageId: string;
-  readonly runId: string;
-}
-export interface RunProgress extends RunRef {
-  readonly content: string;
-  readonly events: readonly AgentEvent[];
-}
-export interface RunSettlement extends RunProgress {
-  readonly status: Extract<ChatRunStatus, 'succeeded' | 'failed' | 'canceled'>;
-  readonly endedAt: number;
-}
+import type { RunRef, RunProgress, RunSettlement } from "../../core/durable-runs/run-contracts.js";
+export type { RunRef, RunProgress, RunSettlement } from "../../core/durable-runs/run-contracts.js";
 /** Storage contract only. Both methods must atomically reject a different run or terminal row.
  * First terminal write wins; a late checkpoint cannot reopen or replace that row. */
 export interface RunLedger {

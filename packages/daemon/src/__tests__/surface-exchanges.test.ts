@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { test, vi, onTestFinished } from "vitest";
 
 import type { SurfaceEmission } from "@jini-ai/core";
+import * as exchanges from "../surface-exchanges.js";
 
 import {
   DEFAULT_SURFACE_IDLE_TTL_MS,
@@ -287,6 +288,50 @@ test("askOnce closes the exchange even when no answer ever comes", async () => {
 });
 
 const OUTCOME: SurfaceEmission = { channel: "mcp-ui", payload: { resource: { type: "resource-outcome" } } };
+
+for (const helper of ["askOnce", "askThenReport"] as const) {
+  test(`${helper}: expiry before the first send returns expired without emitting or accepting a buffered confirmation`, async () => {
+    for (const deadlines of [{ idleTtlMs: 100, maxLifetimeMs: 200 }, { idleTtlMs: 200, maxLifetimeMs: 100 }]) {
+      for (const buffered of [false, true]) {
+        let nowMs = 0;
+        const store = exchanges.createSurfaceExchangeStore({
+          clock: { nowMs: () => nowMs },
+          // The clock can reach a deadline before the event loop runs its scheduled callbacks.
+          scheduler: { schedule: () => () => {} },
+          idGenerator: { newId: () => "expired-before-send" },
+          defaultChannel: "mcp-ui",
+        }, deadlines);
+        const { sent, emit } = recordingEmitter();
+        const exchange = store.open({ binding: { toolId: "t", principalId: "p" }, emit });
+        if (buffered) assert.deepEqual(store.deliver({ exchangeId: exchange.id, principalId: "p", params: { decision: "confirm" } }, { toolId: "t" }), { ok: true });
+        nowMs = 100;
+        const answer = helper === "askOnce"
+          ? await exchanges.askOnce({ exchange, emission: FORM })
+          : await exchanges.askThenReport({ exchange, confirmationEmission: FORM, handle: async answer => ({ result: answer }) });
+        assert.deepEqual(answer, { status: "expired" });
+        assert.deepEqual(exchanges.classifyConfirmationAnswer({ answer }), { confirmed: false, reason: "expired" });
+        assert.deepEqual(sent, []);
+        assert.equal(store.size(), 0);
+        assert.deepEqual(store.deliver({ exchangeId: exchange.id, principalId: "p", params: { decision: "confirm" } }, { toolId: "t" }), { ok: false, reason: "unknown-or-closed" });
+        await assert.rejects(exchange.send({ emission: FORM }), { message: "surface exchange expired-before-send has already ended" });
+      }
+    }
+  });
+
+  test(`${helper}: an emitter failure still rejects and closes, even when its text resembles an ended exchange`, async () => {
+    const failure = new Error("surface exchange failed-send has already ended");
+    const store = exchanges.createSurfaceExchangeStore({
+      clock: { nowMs: () => 0 }, scheduler: { schedule: () => () => {} },
+      idGenerator: { newId: () => "failed-send" }, defaultChannel: "mcp-ui",
+    });
+    const exchange = store.open({ binding: { toolId: "t", principalId: "p" }, emit: async () => { throw failure; } });
+    const pending = helper === "askOnce"
+      ? exchanges.askOnce({ exchange, emission: FORM })
+      : exchanges.askThenReport({ exchange, confirmationEmission: FORM, handle: async () => { assert.fail("an emitter failure must not invoke handle"); } });
+    await assert.rejects(pending, error => error === failure);
+    assert.equal(store.size(), 0);
+  });
+}
 
 test("askThenReport: sends the confirmation, then sends handle's outcome AFTER the answer — the exact defect askOnce cannot fix, since askOnce closes before a caller could send anything else", async () => {
   const store = createSurfaceExchangeStore();

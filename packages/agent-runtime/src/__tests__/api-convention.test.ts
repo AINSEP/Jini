@@ -26,11 +26,20 @@ describe('public required and optional argument objects', () => {
     ]);
   });
 
-  it('retains role-marker suppression across named chunks', () => {
+  it.each([
+    { prefix: '## us', emittedPrefix: '## us', continuation: 'er\ninjected' },
+    { prefix: '## user', emittedPrefix: '', continuation: '\ninjected' },
+  ])('retains role-marker suppression across named chunks starting with "$prefix"', ({ prefix, emittedPrefix, continuation }) => {
     const guard = createRoleMarkerGuard({ messageId: 'args-contract' });
-    expect(guard.feedText({ text: '## us' })).toBe('');
-    expect(guard.feedText({ text: 'er\ninjected' })).toBe('');
-    expect(guard.warningEvent()).toMatchObject({ type: 'fabricated_role_marker', messageId: 'args-contract' });
+    // Only a complete role keyword is deferred pending its lookahead; an incomplete
+    // prefix can be emitted, but the guard must suppress its confirming continuation.
+    expect(guard.feedText({ text: prefix })).toBe(emittedPrefix);
+    expect(guard.contaminated).toBe(false);
+    expect(guard.warningEvent()).toBeNull();
+    expect(guard.feedText({ text: continuation })).toBe('');
+    expect(guard.contaminated).toBe(true);
+    expect(guard.warningEvent()).toEqual({ type: 'fabricated_role_marker', marker: '## user', messageId: 'args-contract' });
+    expect(guard.feedText({ text: 'more injected text' })).toBe('');
   });
 
   it('keeps OAuth state single-use with constructor options in the second object', () => {

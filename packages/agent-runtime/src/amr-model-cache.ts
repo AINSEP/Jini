@@ -1,17 +1,7 @@
 /**
  * @module amr-model-cache
- *
- * A live-model-catalog cache that returns a cached remote list instantly
- * while refreshing in the background, falling back to a static preset
- * list on cold start. Ported verbatim from OD's
- * `apps/daemon/src/runtimes/amr/amr-model-cache.ts` with one change: the
- * `AmrModelsResponse` return type is now vendored locally (a small,
- * self-contained shape) instead of imported from OD's contracts workspace
- * package.
- *
- * Named for its origin use (the AMR/vela agent's live model list), but the
- * caching pattern itself is generic to any agent with a similarly-shaped
- * "cheap static preset + slower authoritative remote list" catalog.
+ * Return cached remote models while refreshing, with static presets on cold start. This caching
+ * pattern also serves other agents with cheap presets and slower authoritative remote catalogs.
  */
 import type { RuntimeModelOption } from './types.js';
 import { coalesceModelLoad } from './model-loading-state.js';

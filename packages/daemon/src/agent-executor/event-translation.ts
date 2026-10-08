@@ -1,9 +1,9 @@
-import {
-  type RunAgentPayload,
-  type RunErrorPayload,
+import type {
+   RunAgentPayload,
+   RunErrorPayload,
 } from '@jini-ai/protocol';
-import {
-  type AgentRuntimeEventTranslation,
+import type {
+   AgentRuntimeEventTranslation,
 } from './contracts.js';
 import {
   isRecord,

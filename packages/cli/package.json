@@ -58,12 +58,25 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
-  "dependencies": {
+  "devDependencies": {
+    "commander": "^15.0.0",
     "@jini-ai/core": "workspace:*",
     "@jini-ai/platform": "workspace:*",
     "@jini-ai/sidecar": "workspace:*"
   },
-  "devDependencies": {
-    "commander": "^15.0.0"
+  "dependencies": {
+    "@jini-ai/core": "workspace:^"
+  },
+  "peerDependencies": {
+    "@jini-ai/platform": "^0.5.1",
+    "@jini-ai/sidecar": "^0.4.0"
+  },
+  "peerDependenciesMeta": {
+    "@jini-ai/platform": {
+      "optional": true
+    },
+    "@jini-ai/sidecar": {
+      "optional": true
+    }
   }
 }

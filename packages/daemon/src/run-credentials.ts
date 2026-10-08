@@ -3,12 +3,14 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 export interface RunScopedCaller { readonly runId: string; readonly principalId: string }
 export interface CredentialCryptoPort {
-  mintToken(args: Record<string, never>): string;
-  digest(args: { token: string }): string;
-  tokensMatch(args: { presented: string; expected: string }): boolean;
+  mintToken(args: Record<string, never>, optional?: Record<string, never>): string;
+  digest(args: { token: string }, optional?: Record<string, never>): string;
+  tokensMatch(args: { presented: string; expected: string }, optional?: Record<string, never>): boolean;
 }
-/** Explicit Node adapter; consumers can inject an alternate crypto implementation. */
-export function createNodeCredentialCrypto(_args: Record<string, never>): CredentialCryptoPort {
+/** Explicit Node crypto adapter: 32 random bytes produce a 64-hex-character bearer.
+ * Length rejection reveals only that fixed public length; content matching is timing-safe.
+ * Consumers can inject an alternate implementation. */
+export function createNodeCredentialCrypto(_args: Record<string, never>, _optional: Record<string, never> = {}): CredentialCryptoPort {
   return {
     mintToken: () => randomBytes(32).toString('hex'),
     digest: ({ token }) => createHash('sha256').update(token, 'utf8').digest('hex'),
@@ -17,16 +19,22 @@ export function createNodeCredentialCrypto(_args: Record<string, never>): Creden
     },
   };
 }
-export interface RunScopedCallerResolver { resolveCaller(args: { token: string }): RunScopedCaller | undefined }
+export interface RunScopedCallerResolver { resolveCaller(args: { token: string }, optional?: Record<string, never>): RunScopedCaller | undefined }
+/** A bridge receives a per-run credential, never the proxy boot token: that token would let it
+ * assert another principal or start unrelated runs. Resolve identity server-side from the live
+ * principal on every call; terminal liveness revokes access even if explicit cleanup fails.
+ * Lookup keys are SHA-256 digests rather than raw bearer secrets. Restart drops the local store. */
 export interface RunScopedCredentials extends RunScopedCallerResolver {
-  mint(args: { runId: string }): string;
-  resolvePrincipal(args: { token: string }): string | undefined;
-  revoke(args: { runId: string }): void;
+  /** Idempotent for a live run; refuses unknown/ended runs and empty or colliding tokens. */
+  mint(args: { runId: string }, optional?: Record<string, never>): string;
+  resolvePrincipal(args: { token: string }, optional?: Record<string, never>): string | undefined;
+  /** Idempotent cleanup to prevent map growth; liveness is checked independently. */
+  revoke(args: { runId: string }, optional?: Record<string, never>): void;
 }
 export function createRunScopedCredentials(deps: {
-  principalOfLiveRun(args: { runId: string }): string | undefined;
+  principalOfLiveRun(args: { runId: string }, optional?: Record<string, never>): string | undefined;
   crypto: Pick<CredentialCryptoPort, 'mintToken' | 'digest'>;
-}): RunScopedCredentials {
+}, _optional: Record<string, never> = {}): RunScopedCredentials {
   const runByDigest = new Map<string, string>();
   const tokens = new Map<string, string>();
   const resolveCaller = ({ token }: { token: string }): RunScopedCaller | undefined => {
@@ -57,9 +65,11 @@ export function createRunScopedCredentials(deps: {
     },
   };
 }
+/** Preserve an operator token or mint one before spawning a child, which inherits env at spawn.
+ * Repeated calls must not rotate the value and invalidate a child that already received it. */
 export function ensureAgentDaemonToken({ env, envVarName, crypto }: {
   env: Record<string, string | undefined>; envVarName: string; crypto: Pick<CredentialCryptoPort, 'mintToken'>;
-}): string {
+}, _optional: Record<string, never> = {}): string {
   const existing = env[envVarName];
   if (typeof existing === 'string' && existing.length > 0) return existing;
   const token = crypto.mintToken({});
@@ -69,16 +79,16 @@ export function ensureAgentDaemonToken({ env, envVarName, crypto }: {
 }
 export interface RouteAccessPolicy {
   /** Return a URL-decoded run ID; malformed encoding must throw URIError. */
-  targetRun(args: { path: string }): string | undefined;
-  allowsRunScoped(args: { method: string; path: string }): boolean;
-  isDelegatedCall(args: { method: string; path: string }): boolean;
-  isEventStream(args: { path: string }): boolean;
+  targetRun(args: { path: string }, optional?: Record<string, never>): string | undefined;
+  allowsRunScoped(args: { method: string; path: string }, optional?: Record<string, never>): boolean;
+  isDelegatedCall(args: { method: string; path: string }, optional?: Record<string, never>): boolean;
+  isEventStream(args: { path: string }, optional?: Record<string, never>): boolean;
 }
 /** Host supplies route names; this module owns matching and run isolation. */
 export function createRouteAccessPolicy({ runPathPrefix, delegatedToolCallsPath, eventStreamSuffix, allowedRoutes }: {
   runPathPrefix: string; delegatedToolCallsPath: string; eventStreamSuffix: string;
   allowedRoutes: readonly { method: string; path: RegExp }[];
-}): RouteAccessPolicy {
+}, _optional: Record<string, never> = {}): RouteAccessPolicy {
   return {
     targetRun({ path }) {
       // Binding is case insensitive as in the original gate, while the allowlist remains exact.
@@ -104,6 +114,12 @@ function notFound(runId: string, stream: boolean): AccessDecision {
 }
 
 /** Transport-independent bearer gate. Apply principalHeader only after an allowed decision. */
+/** Loopback is not authentication: another local process can reach the daemon. No peer-address
+ * exemption is allowed. Missing configuration refuses service (503); bad credentials receive 401.
+ * Mount authentication before body parsing and ownership checks. Explicit path exemptions use
+ * exact equality and apply only without a credential; presenting one always opts into validation.
+ * A run bearer is bound to its run before route allowlisting and overwrites caller identity.
+ * Mount the delegated-body gate after parsing so body.runId must also match that credential. */
 export function authorizeDaemonRequest({ request, env, envVarName, principalHeaderName, authorizationHeaderName, crypto, routes }: {
   request: { method: string; path: string; headers: Readonly<Record<string, string | undefined>>; body?: unknown };
   env: Readonly<Record<string, string | undefined>>; envVarName: string; principalHeaderName: string; authorizationHeaderName: string;
@@ -136,12 +152,14 @@ export function authorizeDaemonRequest({ request, env, envVarName, principalHead
   return { allowed: true, principalHeader: { name: principalHeaderName, value: caller.principalId } };
 }
 
+/** Ownership survives terminal transition until the run record expires; live-principal mappings
+ * instead end with execution. Keep ownership in the run-owning process so lifetimes cannot drift. */
 export interface RunOwnerRegistry {
-  record(args: { runId: string; principalId: string }): void;
-  ownerOf(args: { runId: string }): string | undefined;
-  forget(args: { runId: string }): void;
+  record(args: { runId: string; principalId: string }, optional?: Record<string, never>): void;
+  ownerOf(args: { runId: string }, optional?: Record<string, never>): string | undefined;
+  forget(args: { runId: string }, optional?: Record<string, never>): void;
 }
-export function createRunOwnerRegistry(_args: Record<string, never>): RunOwnerRegistry {
+export function createRunOwnerRegistry(_args: Record<string, never>, _optional: Record<string, never> = {}): RunOwnerRegistry {
   const owners = new Map<string, string>();
   return {
     record: ({ runId, principalId }) => { owners.set(runId, principalId); },
@@ -153,10 +171,14 @@ function principalRequired(principalHeaderName: string): Exclude<AccessDecision,
   return { allowed: false, status: 401, body: { error: { code: 'UNAUTHENTICATED', message: `${principalHeaderName} is required on run-scoped requests` } } };
 }
 /** Mount after the bearer gate; principalId must be server verified. */
+/** Trust principal headers only downstream of the bearer gate. Missing identity fails closed.
+ * Non-owners receive the exact unknown-run response (including the JSON/SSE distinction), so
+ * refusal cannot confirm existence. An existing unowned run or failed lookup also denies; only
+ * a genuinely absent run passes to the route for its own 404. */
 export async function authorizeRunOwnership({ runId, principalId, principalHeaderName, registry, runExists, eventStream }: {
   runId: string | undefined; principalId: string | undefined; principalHeaderName: string;
   registry: RunOwnerRegistry; runExists: (args: { runId: string }) => Promise<boolean>; eventStream: boolean;
-}): Promise<AccessDecision> {
+}, _optional: Record<string, never> = {}): Promise<AccessDecision> {
   if (!principalId) return principalRequired(principalHeaderName);
   if (!runId) return { allowed: true };
   const owner = registry.ownerOf({ runId });
@@ -166,9 +188,12 @@ export async function authorizeRunOwnership({ runId, principalId, principalHeade
   try { exists = await runExists({ runId }); } catch { /* Unknown ownership fails closed on lookup failure. */ }
   return exists ? notFound(runId, eventStream) : { allowed: true };
 }
+/** Shadow an unscoped run list with this owner-filtered view: exposing ids would make another
+ * principal's runs enumerable. Omit unowned records and refuse a missing principal. */
 export function listOwnedRuns<Run extends { id: string }>({ runs, registry, principalId, principalHeaderName }: {
   runs: readonly Run[]; registry: RunOwnerRegistry; principalId: string | undefined; principalHeaderName: string;
-}): { allowed: true; runs: Run[] } | Exclude<AccessDecision, { allowed: true }> {
+}, _optional: Record<string, never> = {}): { allowed: true; runs: Run[] } | Exclude<AccessDecision, { allowed: true }> {
   if (!principalId) return principalRequired(principalHeaderName);
   return { allowed: true, runs: runs.filter(run => registry.ownerOf({ runId: run.id }) === principalId) };
 }
+

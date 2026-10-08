@@ -1,11 +1,7 @@
 /**
  * @module mmd-routes
- *
- * Loads a user-configurable "model routes" file (an on-disk JSON map of
- * synthetic model ids to a provider base-URL + key) and merges its ids into
- * an agent's model list, so a Claude-Code-shaped adapter can be pointed at a
- * routed/self-hosted endpoint per model. Ported verbatim from OD's
- * `apps/daemon/src/runtimes/mmd-routes.ts` — no product coupling.
+ * Merge synthetic model ids from a configured JSON routing file so Claude-shaped adapters can
+ * use a per-model self-hosted/routed endpoint and credential.
  */
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';

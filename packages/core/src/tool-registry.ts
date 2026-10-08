@@ -26,6 +26,7 @@
  * `archived provenance ledger` for the 2026-07-29 hardening note.
  */
 import type { Principal } from './principal.js';
+import type { ToolMetadata } from './tool-metadata.js';
 
 /** A structural run reference — anything with a stable `id` satisfies this (e.g. `@jini-ai/protocol`'s `RunStatus`). No import needed to satisfy it; see the module doc. */
 export interface RunRef {
@@ -37,6 +38,8 @@ export interface RunRef {
  * handler or policy — those are only reachable via {@link authorizeToolInvocation}.
  */
 export interface ToolDescriptor {
+  /** Domain-owned discovery and approval metadata; grants no execution authority. */
+  readonly metadata?: ToolMetadata;
   readonly id: string;
   readonly description?: string;
   /**

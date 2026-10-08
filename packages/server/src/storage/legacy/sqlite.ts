@@ -42,7 +42,7 @@ export function openDatabase(
  (options.filesystem ?? fs).mkdirSync(dir, { recursive: true });
  let db: SqliteDb | undefined;
  try {
-  db = openSqliteConnection({filePath:file, open(file,settings) { db=open(file,settings);return db; }, pragmas:['journal_mode = WAL','foreign_keys = ON']});
+  db = openSqliteConnection({filePath:file, open({ filePath },settings) { db=open(filePath,settings);return db; } }, { pragmas:['journal_mode = WAL','foreign_keys = ON']});
   migrate({ db });dbInstance=db;dbFile=file;return db;
  } catch(error) {
   try {db?.close();} catch { /* Keep the original bootstrap failure. */ }
