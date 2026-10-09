@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { BarChart } from '../bar-chart.js';
 
 const data = [
@@ -64,5 +64,34 @@ describe('recharts BarChart', () => {
     const { container } = render(<BarChart data={data} categoryKey="month" valueKey="revenue" color="#ff0000" />);
     const bar = container.querySelector('.recharts-bar-rectangle path.recharts-rectangle');
     expect(bar).toHaveAttribute('fill', '#ff0000');
+  });
+
+  it('draws rounded, comfortably sized bars with light horizontal grid and no axis chrome', () => {
+    const { container } = render(<BarChart data={data} categoryKey="month" valueKey="revenue" />);
+    const bar = container.querySelector('.recharts-bar-rectangle path.recharts-rectangle');
+    // Recharts 3 omits array radii from SVG attributes; the two upper corner arcs carry them.
+    expect(bar?.getAttribute('d')?.match(/A 6,6/g)).toHaveLength(2);
+    expect(bar).toHaveAttribute('width', '40');
+    expect(container.querySelectorAll('.recharts-cartesian-axis-line, .recharts-cartesian-axis-tick-line, .recharts-cartesian-grid-vertical line')).toHaveLength(0);
+    expect(container.querySelector('.recharts-cartesian-grid-horizontal line')).toHaveAttribute('stroke-opacity', '0.6');
+    expect(container.querySelector('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')).toHaveAttribute('font-size', '12');
+  });
+
+  it('names the chart and shows the shared tooltip through Recharts keyboard navigation', async () => {
+    render(<BarChart data={data} categoryKey="month" valueKey="revenue" />);
+    expect(screen.getByRole('figure', { name: 'revenue by month' })).toHaveAccessibleDescription('Bar chart with 2 categories. Use arrow keys to explore values.');
+    const chart = screen.getByRole('application');
+    expect(chart).toHaveAttribute('tabindex', '0');
+    fireEvent.focus(chart);
+    fireEvent.keyDown(chart, { key: 'ArrowRight' });
+    // Recharts schedules keyboard navigation on requestAnimationFrame.
+    await waitFor(() => expect(within(screen.getByRole('tooltip')).getByText('150')).toBeInTheDocument());
+    expect(within(screen.getByRole('tooltip')).getByText('revenue')).toBeInTheDocument();
+  });
+
+  it('formats large numeric ticks without changing the data', () => {
+    const { container } = render(<BarChart data={[{ month: 'Jan', revenue: 12000 }]} categoryKey="month" valueKey="revenue" />);
+    expect(container.querySelector('.recharts-yAxis-tick-labels')).toHaveTextContent('12K');
+    expect(container.querySelector('.jini-chart-legend')).toHaveTextContent('revenue');
   });
 });

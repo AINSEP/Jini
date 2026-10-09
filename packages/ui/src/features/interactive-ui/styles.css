@@ -4,7 +4,11 @@
  * to providers so importing their real styles does not scan the whole package.
  */
 @import "../../styles/variables.css";
-@import "tailwindcss" source(none);
+/* No preflight: hosts can load provider styles without resetting their entire admin shell. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@import "./data-table.css";
 @source "./providers/**/*.{ts,tsx}";
 
 @theme inline {
@@ -24,4 +28,140 @@
   --color-destructive: var(--jini-danger);
   --color-destructive-foreground: var(--jini-bg);
   --radius: var(--jini-radius);
+}
+
+/* Chart series keep the owner-approved light/dark palette in variables.css. Surface and ink
+   read host chart tokens first, just like the SVG marks; do not redeclare host overrides here. */
+.jini-chart {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  color: var(--jini-chart-text, var(--jini-text));
+  font-family: var(--jini-font-body);
+  font-size: 0.75rem;
+}
+
+.jini-chart-caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.jini-chart .recharts-surface:focus-visible {
+  outline: 2px solid var(--jini-chart-1, var(--jini-chart-default-1));
+  outline-offset: 3px;
+  border-radius: var(--jini-radius-sm);
+}
+
+/* Tooltip box: theme surface and ink, so it does not stay a white box in dark mode.
+   Tooltip label and value ink: text tokens, never the series color (recharts' item default). */
+.jini-chart-tooltip {
+  min-width: 9rem;
+  max-width: min(22rem, 80vw);
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--jini-chart-grid, var(--jini-border));
+  border-radius: var(--jini-radius-sm);
+  background: var(--jini-chart-surface, var(--jini-bg));
+  color: var(--jini-chart-text, var(--jini-text));
+  box-shadow: var(--jini-shadow-md);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.jini-chart-tooltip-label {
+  margin-bottom: 0.375rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.jini-chart-tooltip-items {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.jini-chart-tooltip-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.jini-chart-swatch {
+  display: inline-block;
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 2px;
+}
+
+.jini-chart-tooltip-name {
+  flex: 1;
+  color: var(--jini-chart-axis, var(--jini-muted));
+  overflow-wrap: anywhere;
+}
+
+.jini-chart-tooltip-value,
+.jini-chart-legend-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.jini-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--jini-chart-axis, var(--jini-muted));
+  line-height: 1.5;
+}
+
+.jini-chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.jini-chart-legend-item > span:not(.jini-chart-swatch) {
+  min-width: 0;
+}
+
+.jini-chart-legend-value {
+  color: var(--jini-chart-text, var(--jini-text));
+}
+
+.jini-chart-total {
+  fill: var(--jini-chart-text, var(--jini-text));
+  font-size: 1.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  pointer-events: none;
+}
+
+.jini-chart-total-label {
+  fill: var(--jini-chart-axis, var(--jini-muted));
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: normal;
+}
+
+/* SVG mark and tooltip animations are disabled in the providers too: CSS alone cannot stop
+   Recharts' requestAnimationFrame interpolation when a surface is redrawn by the assistant. */
+@media (prefers-reduced-motion: reduce) {
+  .jini-chart *,
+  .jini-chart *::before,
+  .jini-chart *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

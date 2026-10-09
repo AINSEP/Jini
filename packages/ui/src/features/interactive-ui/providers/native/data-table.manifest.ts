@@ -2,11 +2,9 @@ import { z } from 'zod';
 import type { InteractiveComponentManifest } from '../../types.js';
 
 /**
- * Zero-React reference provider: no external component library wired in yet (`ui/package.json`
- * has no shadcn/radix dependency — adding one is a separate decision, not implied by this
- * scaffold). Proves the manifest/implementation split with something real and testable rather
- * than a stub. A `shadcn`/`21st`/`magic` sibling folder under `providers/` replaces this as the
- * default resolution once those adapters exist; `native` stays as the dependency-free fallback.
+ * Zero-React manifest for the dependency-free HTML fallback. shadcn now owns preferred table
+ * resolution; native stays available without external component primitives. Both providers
+ * share the table presentation stylesheet, so fallback does not mean raw browser markup.
  */
 /**
  * `.passthrough()`, not `.strict()` — an A2UI-embedded instance of this component may carry an
@@ -27,7 +25,7 @@ export const nativeDataTablePropsSchema = z
 export const nativeDataTableManifest: InteractiveComponentManifest = {
   id: 'native.data-table',
   provider: 'native',
-  capabilities: ['data-table', 'table', 'tabular-data'],
+  capabilities: ['data-table', 'table', 'tabular-data', 'spreadsheet', 'list-of-records'],
   propsSchema: nativeDataTablePropsSchema,
-  description: 'Plain HTML table: columns + rows, optional row click. No external UI library.',
+  description: 'Styled HTML table fallback for tabular data, spreadsheets and lists of records: columns + rows, optional row click. Borders, row separators, padded cells, muted left-aligned headers, hover and horizontal scroll. No sorting or paging; prefer shadcn.data-table for the full table experience. Load @jini-ai/ui/interactive-ui.css in the renderer host.',
 };

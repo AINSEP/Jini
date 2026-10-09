@@ -53,19 +53,22 @@ never the other way around.
   Playground page (`apps/admin/src/features/playground/`) adds components by hand, not by asking
   the assistant; that's still open.
 
-## Decided: shipping without shadcn's real styling for now
+## Styling (2026-10-08; supersedes the 2026-08-08 unstyled interim decision)
 
-`styles.css` (this folder) is real and correctly scoped (`@source` limited to `providers/**`,
-verified to produce ~7.5KB of only the classes actually used, not a sweep of anything else) — but
-it is **not imported anywhere** in the host yet. A naive global `import '@jini-ai/ui/interactive-ui.css'`
-would inject Tailwind's preflight layer app-wide, resetting every button/input across the whole
-admin, not just this feature. Confirmed live in a browser 2026-08-08: both `native.data-table` and
-`shadcn.data-table` render with zero visual styling — structurally different (shadcn's `data-slot`
-div-wrapped markup vs. native's bare `<table>`), equally plain.
+Hosts must import `@jini-ai/ui/interactive-ui.css` where registry surfaces render. The build now
+imports Tailwind's theme and utilities separately, excluding preflight: the original global
+reset concern is resolved without resetting unrelated host buttons, inputs or headings.
+Source scanning remains limited to `providers/**`. Tables use the shared, prefixed
+`data-table.css` presentation contract, so native fallback has the same padded cells, separators,
+sticky muted headers, numeric alignment and scroll behavior as the preferred shadcn table.
+No host root class is required; both components supply their own frame and table classes.
 
-Decided 2026-08-08: ship unstyled for now, revisit real CSS scoping (`@scope`, a prefixed wrapper
-selector, or a preflight-disabled build) once there's a clearer sense of what needs to be covered —
-right now there's exactly one shadcn component, not enough to design the scoping approach around.
+`shadcn.data-table` preserves the initial row order and adds keyboard-operable column sorting
+(`sortable: false` disables it). Optional `pageSize` (1–100) enables local paging; omission shows
+all rows, preserving existing callers. Row-click callbacks always receive the original row and
+source index after sorting or paging. `columns`/`rows` and A2UI action passthrough stay compatible.
+The manifest preference order already selects shadcn first; descriptions now identify it as the
+styled default for records/spreadsheets and native as the fallback.
 
 ## Decided: mcp-ui does not consume this registry
 

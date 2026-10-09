@@ -16,7 +16,7 @@
  * here, so a host's theme stays the single owner of color.
  */
 
-/** Categorical series colors in fixed order (assign by position, never cycle past the end silently). */
+/** Categorical series colors in fixed order; larger datasets repeat the palette with named legends. */
 export const CHART_SERIES_COLORS = [
   'var(--jini-chart-1, var(--jini-chart-default-1))',
   'var(--jini-chart-2, var(--jini-chart-default-2))',
@@ -33,18 +33,13 @@ export const CHART_PRIMARY_COLOR = CHART_SERIES_COLORS[0];
 export const CHART_GRID_STROKE = 'var(--jini-chart-grid, var(--jini-border))';
 
 /** Axis tick label props: muted ink, never the series color. */
-export const CHART_AXIS_TICK = { fill: 'var(--jini-chart-axis, var(--jini-muted))' } as const;
+export const CHART_AXIS_TICK = { fill: 'var(--jini-chart-axis, var(--jini-muted))', fontSize: 12 } as const;
+
+/** Shared axis chrome; category visibility and numeric formatting remain separate concerns. */
+export const CHART_AXIS_PROPS = { tick: CHART_AXIS_TICK, tickLine: false, axisLine: false, tickMargin: 10 } as const;
+
+/** Hover points use the same series ink, with a surface halo in either color scheme. */
+export const CHART_ACTIVE_DOT = { r: 5, stroke: 'var(--jini-chart-surface, var(--jini-bg))', strokeWidth: 2 } as const;
 
 /** The hover band behind a hovered bar (recharts' default is an opaque grey block). */
 export const CHART_CURSOR = { fill: 'var(--jini-chart-cursor, var(--jini-accent-soft))' } as const;
-
-/** Tooltip box: theme surface and ink, so it does not stay a white box in dark mode. */
-export const CHART_TOOLTIP_CONTENT_STYLE = {
-  background: 'var(--jini-chart-surface, var(--jini-bg))',
-  border: `1px solid ${CHART_GRID_STROKE}`,
-  borderRadius: 'var(--jini-radius-sm)',
-  color: 'var(--jini-chart-text, var(--jini-text))',
-} as const;
-
-/** Tooltip label and value ink: text tokens, never the series color (recharts' item default). */
-export const CHART_TOOLTIP_TEXT_STYLE = { color: 'var(--jini-chart-text, var(--jini-text))' } as const;

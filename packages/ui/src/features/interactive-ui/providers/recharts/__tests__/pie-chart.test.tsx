@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { PieChart } from '../pie-chart.js';
 
 const data = [
@@ -55,5 +55,42 @@ describe('recharts PieChart', () => {
     for (const path of Array.from(paths)) {
       expect(path).toHaveAttribute('fill', '#123456');
     }
+  });
+
+  it('draws a rounded donut without strokes or crowded outside labels', () => {
+    const { container } = render(<PieChart data={data} />);
+    const paths = Array.from(container.querySelectorAll('.recharts-pie-sector path'));
+    expect(paths).toHaveLength(3);
+    for (const path of paths) {
+      expect(path).toHaveAttribute('stroke', 'none');
+      // An inner and an outer arc prove a donut; small-radius arcs round the slice ends.
+      expect(path.getAttribute('d')?.match(/A/g)).toHaveLength(6);
+    }
+    expect(container.querySelectorAll('.recharts-pie-label-text, .recharts-pie-label-line')).toHaveLength(0);
+    expect(container.querySelector('.jini-chart-total')).toHaveTextContent('60Total');
+    expect(screen.getByRole('figure', { name: 'Distribution' })).toHaveAccessibleDescription('Donut chart with 3 categories. Total: 60. Values are listed in the legend.');
+  });
+
+  it('lists category labels and values with the same swatches as the donut', () => {
+    const { container } = render(<PieChart data={data} />);
+    const legend = screen.getByRole('list', { name: 'Chart legend' });
+    expect(within(legend).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['A10', 'B20', 'C30']);
+    expect(Array.from(legend.querySelectorAll('.jini-chart-swatch')).map((swatch) => (swatch as HTMLElement).style.backgroundColor)).toEqual(
+      Array.from(container.querySelectorAll('.recharts-pie-sector path')).map((slice) => slice.getAttribute('fill')),
+    );
+  });
+
+  it('keeps duplicate names and zero values distinct without mutating agent data', () => {
+    const repeated = Object.freeze([Object.freeze({ name: 'Same', value: 0 }), Object.freeze({ name: 'Same', value: 20 })]);
+    render(<PieChart data={repeated} />);
+    const legend = screen.getByRole('list', { name: 'Chart legend' });
+    expect(within(legend).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Same0', 'Same20']);
+    expect(repeated).toEqual([{ name: 'Same', value: 0 }, { name: 'Same', value: 20 }]);
+  });
+
+  it('still shows a useful zero total and legend when every value is zero', () => {
+    const { container } = render(<PieChart data={[{ name: 'Empty', value: 0 }]} />);
+    expect(container.querySelector('.jini-chart-total')).toHaveTextContent('0Total');
+    expect(screen.getByRole('list', { name: 'Chart legend' })).toHaveTextContent('Empty0');
   });
 });
