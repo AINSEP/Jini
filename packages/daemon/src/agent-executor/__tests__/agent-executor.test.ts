@@ -3676,7 +3676,7 @@ describe('AgentExecutor — gap 3 capability-routed continuation (stdin-tool-res
     })}\n`;
   }
 
-  it('closes stdin on a tool_use turn_end exactly as before when no continuation is configured (default, unchanged behavior)', async () => {
+  it('keeps stdin open on a tool_use turn_end when no continuation is configured — the CLI runs the tool and takes mid-run messages — and closes it at the final turn end', async () => {
     const { lifecycle, executor, child } = createHarness({ def: streamJsonDef() });
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
 
@@ -3684,14 +3684,17 @@ describe('AgentExecutor — gap 3 capability-routed continuation (stdin-tool-res
     await flushAsync();
     child.stdout.emit('data', toolUseTurnEnd('tu-1', 'Bash', { command: 'ls' }, 'tool_use'));
     await flushAsync();
+    expect(child.stdin!.end).not.toHaveBeenCalled();
 
+    child.stdout.emit('data', `${JSON.stringify({ type: 'assistant', message: { id: 'm2', content: [{ type: 'text', text: 'done' }], stop_reason: 'end_turn' } })}\n`);
+    await flushAsync();
     expect(child.stdin!.end).toHaveBeenCalledTimes(1);
     child.emit('close', 0, null);
     await runPromise;
     await lifecycle.waitForTerminal({ runId: run.id });
   });
 
-  it('closes stdin on a tool_use turn_end when continuation is configured but the tool name is not allowlisted', async () => {
+  it('keeps stdin open on a tool_use turn_end when continuation is configured but the tool name is not allowlisted', async () => {
     const { toolExecutor, calls } = createFakeToolExecutor(() => ({ executionId: 'exec-1', status: 'completed', output: 'ok' }));
     const continuation: ContinuationOptions = { toolExecutor, principal: TEST_PRINCIPAL, autonomousToolNames: new Set(['other_tool']) };
     const { lifecycle, executor, child } = createHarness({ def: streamJsonDef(), continuation });
@@ -3702,7 +3705,7 @@ describe('AgentExecutor — gap 3 capability-routed continuation (stdin-tool-res
     child.stdout.emit('data', toolUseTurnEnd('tu-1', 'Bash', { command: 'ls' }, 'tool_use'));
     await flushAsync();
 
-    expect(child.stdin!.end).toHaveBeenCalledTimes(1);
+    expect(child.stdin!.end).not.toHaveBeenCalled();
     expect(calls).toHaveLength(0);
     child.emit('close', 0, null);
     await runPromise;

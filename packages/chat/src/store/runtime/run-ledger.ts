@@ -153,15 +153,18 @@ export function createChatRunLedger<DB extends ChatDatabase>({ kernel: hostKerne
     async checkpoint(progress, _optional = {}) {
       return kernel.transaction(async () => {
       await kernel.lockKey(runLockKey(progress));
-      const current = await kernel.run((db) => db.selectFrom("ai_chat_messages").select(["content", "events_json"])
+      const current = await kernel.run((db) => db.selectFrom("ai_chat_messages").select(["content", "events_json", "run_status"])
         .where((eb) => eb.and([isRunRow(eb, progress), notTerminal(eb)])).executeTakeFirst());
       if (!current || progress.content.length < current.content.length) return false;
       const events = keepToolCheckpoints(readEvents(current.events_json), progress.events);
       const grown = progress.content.length > current.content.length || hasNewToolProgress(readEvents(current.events_json), events);
+      // A checkpoint is the run producing output, so an accepted (`queued`) row is now `running`;
+      // nothing else moves it there, and a streaming answer must not read as still waiting.
+      const runStatus = current.run_status === "queued" ? "running" : current.run_status;
       const result = await kernel.run((db) =>
         db
           .updateTable("ai_chat_messages")
-          .set({ content: progress.content, events_json: JSON.stringify(events) })
+          .set({ content: progress.content, events_json: JSON.stringify(events), run_status: runStatus })
           .where((eb) => eb.and([isRunRow(eb, progress), notTerminal(eb)]))
           .executeTakeFirst()
       );

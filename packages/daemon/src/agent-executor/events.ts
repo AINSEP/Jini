@@ -72,6 +72,7 @@ import {
 } from './event-translation.js';
 import {
   errorMessage,
+  isRecord,
 } from './values.js';
 import {
   MCP_BRIDGE_UNAVAILABLE,
@@ -453,6 +454,33 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
     child.stdin?.end();
   }
 
+  // Mid-run interrupts (see `sendUserMessage` below): each sent `interrupt` control request waits
+  // here, by request id, for the CLI's `control_response`. Settled with `true` on the ack, `false`
+  // when the process exits first. Bounded by the mid-run messages in flight on this one run.
+  const pendingInterruptAcks = new Map<string, (acked: boolean) => void>();
+  // Set once this run has interrupted its agent: from then on a turn the interrupt aborted
+  // (`aborted_*` stop reason) is not the run's last — the message that follows starts a new one.
+  let interruptSent = false;
+  // stdout carry-over for spotting acks; only filled while an interrupt waits for one.
+  let ackScanBuffer = '';
+
+  /** Resolves every waiting interrupt whose `control_response` is in this stdout chunk. @complexity O(chunk length). */
+  function scanForInterruptAcks(text: string): void {
+    if (pendingInterruptAcks.size === 0) return;
+    ackScanBuffer += text;
+    const lines = ackScanBuffer.split('\n');
+    ackScanBuffer = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.includes('"control_response"')) continue;
+      const requestId = controlResponseRequestId({ line: line });
+      const settle = requestId === undefined ? undefined : pendingInterruptAcks.get(requestId);
+      if (!settle) continue;
+      pendingInterruptAcks.delete(requestId!);
+      settle(true);
+    }
+    if (pendingInterruptAcks.size === 0) ackScanBuffer = '';
+  }
+
   /**
    * Writes a structured (never string-concatenated — see `ContinuationOptions`'s doc on the
    * prompt-injection stakes here) tool_result JSONL line, mirroring the shape
@@ -472,6 +500,20 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   }
 
   /**
+   * Whether a `turn_end` leaves stdin open for a live agent that takes mid-run messages, because
+   * the run is not over: a `tool_use` stop (the CLI runs the tool itself and carries on, and a
+   * message sent while the tool runs must still reach it), any end while an interrupt still waits
+   * for its ack (the message is about to be written), and the end of a turn an interrupt aborted
+   * (the message written after it starts the next turn). Every other end closes stdin, so the CLI
+   * exits once it has answered everything written before EOF.
+   */
+  function keepsStdinOpenAfterTurnEnd(stopReason: string | undefined): boolean {
+    if (!acceptsMidRunUserMessages({ def: def })) return false;
+    if (stopReason === 'tool_use' || pendingInterruptAcks.size > 0) return true;
+    return interruptSent && stopReason !== undefined && stopReason.startsWith('aborted');
+  }
+
+  /**
    * Decides, per `turn_end`, whether to auto-resolve a pending tool_use through the injected
    * `ToolExecutor` and keep stdin open (gap 3), or close stdin exactly as every version of this
    * function has always done (the default, and the only behavior when `continuation` is
@@ -486,7 +528,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
       resolveContinuationTransport({ def: def }) === 'stdin-injection' &&
       continuation.autonomousToolNames.has(toolUse.name);
     if (!shouldInject) {
-      closeStdinOnce();
+      if (!keepsStdinOpenAfterTurnEnd(stopReason)) closeStdinOnce();
       return;
     }
     pendingToolUse = undefined;
@@ -635,6 +677,9 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
       return;
     }
     enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'stdout', data: { chunk: text } } }));
+    // Before the parser: an ack and the aborted turn's end can share a chunk, and the turn end must
+    // see that no interrupt is still waiting (see `keepsStdinOpenAfterTurnEnd`).
+    scanForInterruptAcks(text);
     // Non-null: `streamHandler` is only ever null when `streamFormat === 'plain'` (see its
     // construction above), the branch this statement is provably unreachable from.
     streamHandler!.feed({ chunk: text });
@@ -663,6 +708,8 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   } });
 
   child.on('close', (code, signal) => {
+    for (const settle of pendingInterruptAcks.values()) settle(false);
+    pendingInterruptAcks.clear();
     void (async () => {
       // Not wrapped in try/catch: all 4 supported parser factories'
       // flush() implementations already internally guard their own
@@ -698,16 +745,32 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   });
 
   /**
-   * A mid-run message: one more user line on the still-open stdin, then the run's own
-   * `user_message` event through the same FIFO as the agent's output, so the message sits in the
-   * stream where it was sent. Claude Code folds a line that arrives mid-turn into the running turn,
-   * and still answers one that lands as the turn finishes (the CLI drains every line written before
-   * EOF). Once `turn_end` has closed stdin there is no session left to reach — `'not-running'`.
+   * A mid-run message: first an `interrupt` control request on the still-open stdin, so the agent
+   * stops generating (or abandons the tool it is running) at once instead of finishing its whole
+   * reply; then, once the CLI acknowledges, the message as the next user line, which the CLI
+   * answers straight away in the same session; then the run's own `user_message` event through the
+   * same FIFO as the agent's output, so the message sits in the stream where it took effect.
+   * An ack that never comes (an agent that ignores control requests) only delays the write by
+   * {@link INTERRUPT_ACK_TIMEOUT_MS}: the CLI then folds the line in at its next step. Once
+   * `turn_end` has closed stdin, or the process exits before the ack, there is no session left to
+   * reach — `'not-running'`.
    */
-  function sendUserMessage(text: string): UserMessageDelivery {
+  async function sendUserMessage(text: string): Promise<UserMessageDelivery> {
     if (!acceptsMidRunUserMessages({ def: def })) return 'unsupported';
     const stdin = child.stdin;
     if (stdinClosed || !stdin) return 'not-running';
+    const requestId = `jini-interrupt-${randomUUID()}`;
+    interruptSent = true;
+    const acked = new Promise<boolean>((resolve) => pendingInterruptAcks.set(requestId, resolve));
+    stdin.write(`${JSON.stringify({ type: 'control_request', request_id: requestId, request: { subtype: 'interrupt' } })}\n`, 'utf8');
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => resolve(true), INTERRUPT_ACK_TIMEOUT_MS);
+    });
+    const processAlive = await Promise.race([acked, timedOut]);
+    clearTimeout(timer);
+    pendingInterruptAcks.delete(requestId);
+    if (!processAlive || stdinClosed) return 'not-running';
     stdin.write(`${JSON.stringify(streamJsonUserMessage({ content: [{ type: 'text', text: text }] }))}\n`, 'utf8');
     if (journal) enqueueEmit(() => journal.record({ runId: runId, entry: sentJournalEntry(text) }));
     enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: { type: 'user_message', id: randomUUID(), text: text } } }));
@@ -731,6 +794,24 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
  */
 export function acceptsMidRunUserMessages({ def }: { readonly def: RuntimeAgentDef }): boolean {
   return def.promptViaStdin === true && def.promptInputFormat === 'stream-json';
+}
+
+/**
+ * How long a mid-run message waits for the CLI to acknowledge its interrupt before being written
+ * anyway. Claude Code acks within milliseconds (it answers before the aborted turn's own result);
+ * the ceiling only bounds an agent that ignores control requests.
+ */
+export const INTERRUPT_ACK_TIMEOUT_MS = 5_000;
+
+/** The `request_id` of a stream-json `control_response` line, or `undefined` for anything else. */
+function controlResponseRequestId({ line }: { readonly line: string }): string | undefined {
+  try {
+    const parsed: unknown = JSON.parse(line);
+    if (!isRecord(parsed) || parsed.type !== 'control_response' || !isRecord(parsed.response)) return undefined;
+    return typeof parsed.response.request_id === 'string' ? parsed.response.request_id : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** The stream-json stdin envelope for one user message — the initial prompt and every mid-run one. */

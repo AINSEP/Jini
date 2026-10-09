@@ -890,10 +890,10 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
    * ACP/pi run (whose RPC takes one prompt per turn). Removed on the child's `'close'`, so a
    * finished or unknown run reads as `'not-running'`. Bounded by the number of live children.
    */
-  const liveRunInputs = new Map<string, (text: string) => UserMessageDelivery>();
+  const liveRunInputs = new Map<string, (text: string) => Promise<UserMessageDelivery>>();
 
   /** `AgentExecutor.sendUserMessage()` — see that interface method's own doc. @complexity O(1). */
-  function sendUserMessage({ runId, text }: { readonly runId: string; readonly text: string }): UserMessageDelivery {
+  async function sendUserMessage({ runId, text }: { readonly runId: string; readonly text: string }): Promise<UserMessageDelivery> {
     const deliver = liveRunInputs.get(runId);
     return deliver ? deliver(text) : 'not-running';
   }
@@ -1225,7 +1225,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // Registered with the lifecycle wiring above, before the spawn-confirmation await, so a child
     // that closes immediately never leaves a stale entry behind.
     const runId = input.runId;
-    liveRunInputs.set(runId, stdinHandle ? stdinHandle.sendUserMessage : () => 'unsupported');
+    liveRunInputs.set(runId, stdinHandle ? stdinHandle.sendUserMessage : async () => 'unsupported');
     child.once('close', () => liveRunInputs.delete(runId));
 
     try {
