@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as barrel from '../index.js';
+import { MessageRow } from '../components/MessageRow.js';
+import { MessageList } from '../components/MessageList.js';
 
 /**
  * `src/index.ts` is a pure re-export barrel (`export * from './x.js'` plus a
@@ -38,8 +40,11 @@ describe('index barrel', () => {
     expect(typeof barrel.QuestionsPanel).toBe('function');
     expect(typeof barrel.NextStepActions).toBe('function');
     expect(typeof barrel.Markdown).toBe('function');
-    expect(typeof barrel.MessageRow).toBe('function');
-    expect(typeof barrel.MessageList).toBe('function');
+    // Memoized to avoid re-rendering unchanged transcript content on composer keystrokes.
+    expect(typeof barrel.MessageRow).toBe('object');
+    expect(barrel.MessageRow).toBe(MessageRow);
+    expect(typeof barrel.MessageList).toBe('object');
+    expect(barrel.MessageList).toBe(MessageList);
     expect(typeof barrel.Composer).toBe('function');
     expect(typeof barrel.AttachmentTray).toBe('function');
   });
