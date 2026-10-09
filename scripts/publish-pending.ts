@@ -52,6 +52,29 @@ function parseOnly(argv: readonly string[], known: ReadonlySet<string>): Set<str
   return new Set(names);
 }
 
+/**
+ * Dependency-first over `dependencies` AND `peerDependencies`. `computeClosure` follows only
+ * `dependencies` (all a build needs), which put admin ahead of the ui/cms versions it peers on and
+ * chat ahead of protocol/ui: between those uploads, or for good if the run stops part-way, npm
+ * would serve a package whose peer range nothing satisfies.
+ */
+function publishOrder(registry: ReadonlyMap<string, JiniPackageEntry>, names: readonly string[]): string[] {
+  const order: string[] = [];
+  const visited = new Set<string>();
+  const visit = (name: string, chain: readonly string[]): void => {
+    if (visited.has(name)) return;
+    if (chain.includes(name)) throw new Error(`publish order: cyclic @jini-ai/* dependency/peer: ${[...chain, name].join(' -> ')}`);
+    const { pkg } = registry.get(name)!;
+    const peers = pkg.peerDependencies as Record<string, string> | undefined;
+    const siblings = Object.keys({ ...pkg.dependencies, ...peers }).filter((dep) => registry.has(dep));
+    for (const dep of siblings) visit(dep, [...chain, name]);
+    visited.add(name);
+    order.push(name);
+  };
+  for (const name of names) visit(name, []);
+  return order;
+}
+
 function packAndCheck(name: string, entry: JiniPackageEntry): string {
   const outDir = mkdtempSync(join(tmpdir(), 'jini-publish-'));
   execFileSync('pnpm', ['pack', '--pack-destination', outDir], { cwd: entry.dir, stdio: 'inherit' });
@@ -81,7 +104,9 @@ function main(): void {
   const registry = discoverJiniPackages(repoRoot);
   // Check the full public release set, including already-published and optional peer declarations.
   assertCompatiblePeerRanges({ packages: [...registry.values()].map(entry => entry.pkg) });
-  const publicNames = computeClosure(registry, [...registry.keys()]).filter((name) => registry.get(name)!.pkg.private !== true);
+  const publicNames = publishOrder(registry, computeClosure(registry, [...registry.keys()])).filter(
+    (name) => registry.get(name)!.pkg.private !== true,
+  );
   const only = parseOnly(argv, new Set(publicNames));
   const order = only ? publicNames.filter((name) => only.has(name)) : publicNames;
 
