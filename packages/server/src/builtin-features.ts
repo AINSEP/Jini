@@ -311,6 +311,9 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
             registerRunRoutes({ app: app as Express, deps: {
                 lifecycle: services.context.kernel.lifecycle,
                 ...(onStarted === undefined ? {} : { onStarted }),
+                // A mid-run message reaches whichever live run the kernel's own executor is driving;
+                // a run some other driver owns reads as not-running, never as delivered.
+                deliverUserMessage: (input) => services.context.kernel.agentExecutor.sendUserMessage(input),
               }, adapter: services.context.adapter });
           },
         }),

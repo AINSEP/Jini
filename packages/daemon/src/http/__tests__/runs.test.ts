@@ -919,7 +919,7 @@ describe('handleRunEventStreamRequest — transport-independent core, called dir
 });
 
 describe('registerRunRoutes', () => {
-  it('mounts exactly the create/list/status/cancel JSON routes plus the SSE stream, nothing else', () => {
+  it('mounts exactly the create/list/status/cancel/message JSON routes plus the SSE stream, nothing else', () => {
     const app = makeApp();
     registerRunRoutes({ app: app as any, deps: makeDeps(), adapter });
     expect(Object.keys(app.handlers).sort()).toEqual(
@@ -928,6 +928,7 @@ describe('registerRunRoutes', () => {
         'GET /api/runs',
         'GET /api/runs/:runId',
         'POST /api/runs/:runId/cancel',
+        'POST /api/runs/:runId/messages',
         'GET /api/runs/:runId/events',
       ].sort(),
     );

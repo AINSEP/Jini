@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import { createApiError, type RunProtocolEvent, type RunStatus } from '@jini-ai/protocol';
-import type { RunLifecycle, StartRunInput, Unsubscribe } from '../index.js';
+import type { RunLifecycle, StartRunInput, Unsubscribe, UserMessageDelivery } from '../index.js';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
 import { validationError } from '@jini-ai/http-kit';
 import { sendApiError } from '@jini-ai/http-kit';
@@ -55,6 +55,12 @@ export interface RunHttpDeps {
   readonly onStarted?: RunStartHandler;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: RunInternalErrorContext) => void;
+  /**
+   * Delivers a message the human sent mid-run into that run's live agent — a host passes its
+   * `AgentExecutor.sendUserMessage`. Omitted, every such message reports `'unsupported'`, so the
+   * client falls back to interrupting the run and sending the text as the next turn.
+   */
+  readonly deliverUserMessage?: (input: { readonly runId: string; readonly text: string }) => UserMessageDelivery | Promise<UserMessageDelivery>;
 }
 
 /**
@@ -117,6 +123,32 @@ function parseRunCreate(input: RouteInputContext): Result<RunCreateRequest> {
       ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
     }
   });
+}
+
+export interface RunMessageRequest {
+  readonly runId: string;
+  readonly text: string;
+}
+
+export interface RunMessageResponse {
+  readonly delivery: 'delivered';
+}
+
+/** Ceiling on one mid-run message, matching what a person can reasonably type or paste into a composer. */
+export const RUN_MESSAGE_MAX_CHARS = 100_000;
+
+function parseRunMessage(input: RouteInputContext): Result<RunMessageRequest> {
+  const parsedRunId = parseRunId(input);
+  if (!parsedRunId.ok) return parsedRunId;
+  if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
+  const text = optionalString(input.body, 'text');
+  if (text === undefined || text === null) {
+    return err({ error: validationError({ message: 'text must be a non-empty string' }, { issues: [{ path: 'text', message: 'required non-empty string' }] }) });
+  }
+  if (text.length > RUN_MESSAGE_MAX_CHARS) {
+    return err({ error: validationError({ message: `text must be at most ${RUN_MESSAGE_MAX_CHARS} characters` }, { issues: [{ path: 'text', message: 'too long' }] }) });
+  }
+  return ok({ value: { runId: parsedRunId.value, text } });
 }
 
 export interface RunListResponse {
@@ -186,6 +218,22 @@ export const runCancelRoute = defineJsonRoute<{ runId: string; reason?: string }
     return ok({ value: { run: await deps.lifecycle.cancel(input) } });
   }
 }, { requireSameOrigin: true });
+
+/**
+ * `POST /api/runs/:runId/messages` — a message the human sent while the run is going. `202` when it
+ * reached the live agent; `409 CONFLICT` with `details.delivery` (`'unsupported'` or
+ * `'not-running'`) when it did not, which tells the client whether to interrupt the run and send the
+ * text as the next turn, or simply send it next because the run is already ending.
+ */
+export const runMessageRoute = defineJsonRoute<RunMessageRequest, RunMessageResponse, RunHttpDeps>({
+  method: 'post', path: '/api/runs/:runId/messages', parse: parseRunMessage, handle: async ({ input, deps }) => {
+    const run = await deps.lifecycle.get({ runId: input.runId });
+    if (run === undefined) return err({ error: createApiError({ code: 'NOT_FOUND', message: `run "${input.runId}" was not found` }) });
+    const delivery = deps.deliverUserMessage ? await deps.deliverUserMessage({ runId: input.runId, text: input.text }) : 'unsupported';
+    if (delivery === 'delivered') return ok({ value: { delivery } });
+    return err({ error: createApiError({ code: 'CONFLICT', message: `run "${input.runId}" did not take the message` }, { details: { delivery } }) });
+  }
+}, { requireSameOrigin: true, successStatus: 202 });
 
 function sendStreamFailure(res: ServerResponse, kind: Exclude<Awaited<ReturnType<RunLifecycle['stream']>>, { kind: 'ok' }>): void {
   if (kind.kind === 'unknown-run') {
@@ -284,11 +332,12 @@ export function registerRunEventStream({ app, deps }: { readonly app: Express; r
   });
 }
 
-/** Mounts create/status/cancel JSON endpoints and the SSE event stream as one run transport. */
+/** Mounts create/status/cancel/message JSON endpoints and the SSE event stream as one run transport. */
 export function registerRunRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: RunHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
   mountJsonRoute({ app, spec: runStartRoute, deps, adapter });
   mountJsonRoute({ app, spec: runListRoute, deps, adapter });
   mountJsonRoute({ app, spec: runStatusRoute, deps, adapter });
   mountJsonRoute({ app, spec: runCancelRoute, deps, adapter });
+  mountJsonRoute({ app, spec: runMessageRoute, deps, adapter });
   registerRunEventStream({ app, deps });
 }

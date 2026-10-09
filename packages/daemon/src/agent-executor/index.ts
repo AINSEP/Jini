@@ -98,6 +98,7 @@ export {
   AgentExecutorError,
   type AgentExecutorRunInput,
   type AgentExecutor,
+  type UserMessageDelivery,
   type CollectProcessTreePidsPort,
   type StopProcessesPort,
   type AgentCleanupFailurePhase,

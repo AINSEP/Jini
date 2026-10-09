@@ -52,6 +52,8 @@ export type {
   RunInternalErrorContext,
   RunListResponse,
   RunStartContext,
+  RunMessageRequest,
+  RunMessageResponse,
   RunStartHandler,
   RunStartResponse,
   RunStatusResponse,
@@ -62,6 +64,8 @@ export {
   RUN_EVENTS_ROUTE_PATH,
   runCancelRoute,
   runListRoute,
+  runMessageRoute,
+  RUN_MESSAGE_MAX_CHARS,
   runStartRoute,
   runStatusRoute,
 } from './runs.js';

@@ -64,6 +64,7 @@ import {
   type SystemPromptOverlayDelivery,
   type PreparedSystemPromptOverlayFile,
   type SpawnAgentChildProcessResult,
+  type UserMessageDelivery,
 } from './contracts.js';
 import {
   errorMessage,
@@ -884,6 +885,20 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
   }
 
   /**
+   * Every run with a live child, keyed by run id, mapped to how a mid-run message reaches it — the
+   * stdin handle's `sendUserMessage` for a stdin-driven run, a constant `'unsupported'` for an
+   * ACP/pi run (whose RPC takes one prompt per turn). Removed on the child's `'close'`, so a
+   * finished or unknown run reads as `'not-running'`. Bounded by the number of live children.
+   */
+  const liveRunInputs = new Map<string, (text: string) => UserMessageDelivery>();
+
+  /** `AgentExecutor.sendUserMessage()` — see that interface method's own doc. @complexity O(1). */
+  function sendUserMessage({ runId, text }: { readonly runId: string; readonly text: string }): UserMessageDelivery {
+    const deliver = liveRunInputs.get(runId);
+    return deliver ? deliver(text) : 'not-running';
+  }
+
+  /**
    * `AgentExecutor.run()` — see that interface method's own doc for the
    * public contract. Implementation note on shape: every guard below
    * returns `failBeforeSpawn(...)` directly (a `Promise<never>`, valid
@@ -1207,7 +1222,18 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
         })
       : null;
 
-    await confirmChildSpawned({ input: { runId: input.runId, def, child }, deps: { releaseStagedResources, failBeforeSpawn } });
+    // Registered with the lifecycle wiring above, before the spawn-confirmation await, so a child
+    // that closes immediately never leaves a stale entry behind.
+    const runId = input.runId;
+    liveRunInputs.set(runId, stdinHandle ? stdinHandle.sendUserMessage : () => 'unsupported');
+    child.once('close', () => liveRunInputs.delete(runId));
+
+    try {
+      await confirmChildSpawned({ input: { runId: input.runId, def, child }, deps: { releaseStagedResources, failBeforeSpawn } });
+    } catch (error) {
+      liveRunInputs.delete(runId);
+      throw error;
+    }
 
     // Now — and only now — is there a live process that could consume the locked side effect, so
     // this is where a def's handoff watcher starts. Deliberately not awaited: the whole point is to
@@ -1299,5 +1325,5 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     writePromptToStdin(def, child, stdinPrompt, stdinHandle!);
   }
 
-  return { run };
+  return { run, sendUserMessage };
 }

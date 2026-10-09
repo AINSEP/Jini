@@ -203,7 +203,15 @@ export type RunAgentPayload =
    * registers no `'slow_running'` ext renderer sees nothing new — additive to every existing
    * consumer, the same guarantee every other addition to this union already gives.
    */
-  | { type: 'slow_running'; detail: string };
+  | { type: 'slow_running'; detail: string }
+  /**
+   * A message the human sent while this run was going, delivered into the live agent session (see
+   * `@jini-ai/daemon`'s `AgentExecutor.sendUserMessage`). Recorded in the run's own stream so every
+   * subscriber — and a reload replaying the log — shows it where it happened in the turn. `id` is
+   * unique per message, so a renderer can give each one its own slot. Like `slow_running`, a chat
+   * transport hands it on as an `ext` event of the same name.
+   */
+  | { type: 'user_message'; id: string; text: string };
 
 export type RunProtocolEvent =
   | RunEvent<'start', RunStartPayload>

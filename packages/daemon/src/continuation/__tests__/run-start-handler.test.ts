@@ -10,6 +10,7 @@ function fakeExecutor(): { executor: AgentExecutor; calls: AgentExecutorRunInput
       run: async (required, optional) => {
         calls.push({ ...required, ...optional });
       },
+      sendUserMessage: () => 'not-running',
     },
   };
 }
@@ -64,6 +65,7 @@ describe('createDefaultRunStartHandler', () => {
       run: async () => {
         throw new Error('spawn failed');
       },
+      sendUserMessage: () => 'not-running',
     };
     const resolveRunInput = () => ({ agentId: 'a', prompt: 'p', cwd: '/work' });
     const handler = createDefaultRunStartHandler({ agentExecutor: executor, resolveRunInput });

@@ -241,7 +241,24 @@ export interface AgentExecutor {
    * `lifecycle.finish()` before this rejects (see index.ts module doc's Invariant).
    */
   run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "model" | "reasoning" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings">): Promise<void>;
+  /**
+   * Delivers a message the human sent while `runId` is going straight into its live agent process
+   * (see {@link UserMessageDelivery} for each outcome). Synchronous: it only writes to the child's
+   * open stdin and queues the run's `user_message` event; it never waits on the agent.
+   */
+  sendUserMessage(requiredArgs: { readonly runId: string; readonly text: string }): UserMessageDelivery;
 }
+
+/**
+ * What {@link AgentExecutor.sendUserMessage} did with a mid-run message:
+ * - `'delivered'` — written into the live session; the agent takes it into the running turn (or,
+ *   when it arrives as the turn is finishing, as the next turn in the same process).
+ * - `'unsupported'` — the run is live, but its agent has no way to take input mid-run (its prompt
+ *   is plain text or an RPC request). The host should interrupt and send it as the next turn.
+ * - `'not-running'` — no live process will accept it: an unknown run, a finished one, or one whose
+ *   last turn already ended and closed stdin. The run is ending; the host should send it next.
+ */
+export type UserMessageDelivery = 'delivered' | 'unsupported' | 'not-running';
 
 /** Process discovery is a getter; process collection and stopping accept explicit host inputs. */
 export type CollectProcessTreePidsPort = (args: { readonly processes: ProcessSnapshot[]; readonly rootPids: Array<number | null | undefined> }) => number[];
@@ -290,6 +307,8 @@ export interface StdinCloseHandle {
   closeStdinOnce(): void;
   /** Journals a sent-to-stdin byte chunk, queued through the same FIFO {@link wireChildLifecycle} already uses for emitted events. No-op when no journal was configured (see `CreateAgentExecutorOptions.journal`). */
   recordSentBytes(content: string): void;
+  /** Writes a mid-run user message into this child's open stdin — see {@link AgentExecutor.sendUserMessage}. */
+  sendUserMessage(text: string): UserMessageDelivery;
 }
 
 /**

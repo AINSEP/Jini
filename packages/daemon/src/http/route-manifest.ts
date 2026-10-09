@@ -41,6 +41,7 @@ import {
 import {
   RUN_EVENTS_ROUTE_PATH,
   runCancelRoute,
+  runMessageRoute,
   runListRoute,
   runStartRoute,
   runStatusRoute,
@@ -81,7 +82,7 @@ export const JINI_ROUTE_MANIFEST: Readonly<Record<string, readonly RouteRegistra
     apiVersionInfoRoute,
   ),
   runs: [
-    ...fromSpecs(runStartRoute, runListRoute, runStatusRoute, runCancelRoute),
+    ...fromSpecs(runStartRoute, runListRoute, runStatusRoute, runCancelRoute, runMessageRoute),
     // Registered with a bare `app.get` rather than a route spec (by `registerRunRoutes` itself), so
     // it contributes its exported path constant instead of a copied literal.
     { method: 'GET', path: RUN_EVENTS_ROUTE_PATH },

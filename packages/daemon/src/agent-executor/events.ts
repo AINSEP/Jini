@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { ModelCatalogSnapshot } from '@jini-ai/agent-runtime';
 import { createModelReceiptTracker } from './model-receipts.js';
 import { messageContentWithImages } from '../attachment-content.js';
@@ -57,6 +58,7 @@ import type {
    AgentCleanupFailurePhase,
    AgentCleanupFailureContext,
    StdinCloseHandle,
+   UserMessageDelivery,
    ContinuationOptions,
    McpBridgeDelivery,
    FailureClassificationContext,
@@ -695,12 +697,45 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
     })();
   });
 
+  /**
+   * A mid-run message: one more user line on the still-open stdin, then the run's own
+   * `user_message` event through the same FIFO as the agent's output, so the message sits in the
+   * stream where it was sent. Claude Code folds a line that arrives mid-turn into the running turn,
+   * and still answers one that lands as the turn finishes (the CLI drains every line written before
+   * EOF). Once `turn_end` has closed stdin there is no session left to reach — `'not-running'`.
+   */
+  function sendUserMessage(text: string): UserMessageDelivery {
+    if (!acceptsMidRunUserMessages({ def: def })) return 'unsupported';
+    const stdin = child.stdin;
+    if (stdinClosed || !stdin) return 'not-running';
+    stdin.write(`${JSON.stringify(streamJsonUserMessage({ content: [{ type: 'text', text: text }] }))}\n`, 'utf8');
+    if (journal) enqueueEmit(() => journal.record({ runId: runId, entry: sentJournalEntry(text) }));
+    enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: { type: 'user_message', id: randomUUID(), text: text } } }));
+    return 'delivered';
+  }
+
   return {
     closeStdinOnce,
     recordSentBytes(content: string): void {
       if (journal) enqueueEmit(() => journal.record({ runId: runId, entry: sentJournalEntry(content) }));
     },
+    sendUserMessage,
   };
+}
+
+/**
+ * Whether a def's live process can take another user message mid-run: only a stream-json stdin
+ * transport keeps stdin open for more JSONL user lines (see `RuntimeAgentDef.promptInputFormat`).
+ * Deliberately not `resolveContinuationTransport`: that answers how a tool result gets back, and
+ * reports `'mcp-callback'` for Claude even though its stdin takes user lines all the same.
+ */
+export function acceptsMidRunUserMessages({ def }: { readonly def: RuntimeAgentDef }): boolean {
+  return def.promptViaStdin === true && def.promptInputFormat === 'stream-json';
+}
+
+/** The stream-json stdin envelope for one user message — the initial prompt and every mid-run one. */
+function streamJsonUserMessage({ content }: { readonly content: unknown }): unknown {
+  return { type: 'user', message: { role: 'user', content: content } };
 }
 
 interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
@@ -974,8 +1009,8 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
  * - `'text'` (default): the raw prompt buffer, then stdin is closed —
  *   matches `RuntimeAgentDef.promptInputFormat`'s own doc.
  * - `'stream-json'`: one JSONL line wrapping the prompt as an Anthropic
- *   user message; stdin is deliberately left open (a real multi-turn
- *   caller would inject further messages) — v1 has no such caller, so
+ *   user message; stdin is deliberately left open so a message the human
+ *   sends mid-run can follow it (`StdinCloseHandle.sendUserMessage`), and
  *   {@link wireChildLifecycle}'s `turn_end` handling closes it once the
  *   agent's own stream reports the turn ended.
  * @param def - The resolved agent def (only `.promptInputFormat` is read).
@@ -989,7 +1024,7 @@ export function writePromptToStdin(def: RuntimeAgentDef, child: ChildProcess, pr
   const stdin = child.stdin;
   if (!stdin) return;
   if (def.promptInputFormat === 'stream-json') {
-    const line = JSON.stringify({ type: 'user', message: { role: 'user', content: messageContentWithImages({ prompt, images: handle.imageContents ?? [] }, {}) } });
+    const line = JSON.stringify(streamJsonUserMessage({ content: messageContentWithImages({ prompt, images: handle.imageContents ?? [] }, {}) }));
     stdin.write(`${line}\n`, 'utf8');
     handle.recordSentBytes(prompt);
     return;
