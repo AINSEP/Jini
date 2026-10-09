@@ -24,6 +24,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { computeClosure, discoverJiniPackages, type JiniPackageEntry } from './lib/pack-jini-packages.js';
+import { assertPackedExports } from './lib/packed-exports.js';
+import { assertCompatiblePeerRanges } from './lib/peer-range-compatibility.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -57,6 +59,7 @@ function packAndCheck(name: string, entry: JiniPackageEntry): string {
   const manifest = execFileSync('tar', ['-xzOf', tarball, 'package/package.json'], { encoding: 'utf8' });
   if (manifest.includes('workspace:')) throw new Error(`${name}: packed package.json still has a workspace: range`);
   const paths = execFileSync('tar', ['-tzf', tarball], { encoding: 'utf8' }).split('\n');
+  assertPackedExports({ manifest: JSON.parse(manifest), packedPaths: paths });
   const maps = paths.filter((path) => path.endsWith('.map'));
   if (maps.length > 0) throw new Error(`${name}: tarball contains source maps, e.g. ${maps[0]}`);
   // tsc emits every test under src/ into dist/; each package's "files" must negate them.
@@ -76,6 +79,8 @@ function main(): void {
   const argv = process.argv.slice(2);
   const planOnly = argv.includes('--plan');
   const registry = discoverJiniPackages(repoRoot);
+  // Check the full public release set, including already-published and optional peer declarations.
+  assertCompatiblePeerRanges({ packages: [...registry.values()].map(entry => entry.pkg) });
   const publicNames = computeClosure(registry, [...registry.keys()]).filter((name) => registry.get(name)!.pkg.private !== true);
   const only = parseOnly(argv, new Set(publicNames));
   const order = only ? publicNames.filter((name) => only.has(name)) : publicNames;
