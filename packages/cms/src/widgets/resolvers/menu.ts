@@ -54,6 +54,14 @@ function toMenuItemProps(items: readonly ResolvedNavItem[], publicOnly: boolean)
   return visible as unknown as JsonObject;
 }
 
+/**
+ * Resolve menu widgets through navigation's read model: stored HTML or resolved items by doc mode.
+ * HTML is trusted and balanced by navigation's save path (`mergeMenuHtml`), like static menus;
+ * forwarding it adds no second parser or sanitization policy. Read failures propagate to dispatch.
+ * @param deps - Navigation read/resolution ports and host routing/public-filter policy.
+ * @returns A resolver producing mode-specific menu IR, or existing typed config/target failures.
+ * @complexity One read per instance; item resolution/filtering scales with the selected item trees.
+ */
 export function createMenuResolver(deps: MenuResolverDeps, _optional: Record<string, never> = {}): WidgetResolver {
   const resolveTargetHref = deps.resolveTargetHref ?? DEFAULT_RESOLVE_TARGET_HREF;
 
@@ -73,15 +81,21 @@ export function createMenuResolver(deps: MenuResolverDeps, _optional: Record<str
           continue;
         }
 
-        const items = await deps.menus.resolveMenuDoc({
-          doc: menu.doc,
-          context: { workspaceId: context.workspaceId },
-          resolveTargetHref,
-        });
+        let props: JsonObject;
+        if (menu.doc.mode === "html") {
+          props = { title: menu.title, mode: "html", html: menu.doc.html ?? "" };
+        } else {
+          const items = await deps.menus.resolveMenuDoc({
+            doc: menu.doc,
+            context: { workspaceId: context.workspaceId },
+            resolveTargetHref,
+          });
+          props = { title: menu.title, items: toMenuItemProps(items, deps.publicOnly === true) };
+        }
 
         results.set(instance.id, {
           ok: true,
-          ir: { componentId: "menu", props: { title: menu.title, items: toMenuItemProps(items, deps.publicOnly === true) } },
+          ir: { componentId: "menu", props },
           dependencyKeys: [menu.id],
         });
       }
