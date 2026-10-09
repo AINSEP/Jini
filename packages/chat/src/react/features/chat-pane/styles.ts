@@ -1271,6 +1271,8 @@ export const CHAT_PANE_STYLES = `
   white-space: pre-wrap;
   word-break: break-word;
 }
+/* The "Waiting for the result or answer…" / "Finished with no output." line in an expanded tool row (ToolCard.tsx's ToolCallDetail). */
+.jini-chat-pane .op-detail-note { margin: 0; font-size: 12px; color: var(--jini-chat-muted); }
 .jini-chat-pane .op-open {
   border: 1px solid var(--jini-chat-border-strong);
   border-radius: 6px;

@@ -451,12 +451,13 @@ describe('ToolCard', () => {
 
     it('uses a plain string input verbatim', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'gen1b', name: 'Mystery', input: 'raw string input' }} runSucceeded />);
-      expect(screen.getByText('raw string input')).toBeInTheDocument();
+      // Scoped to the collapsed summary: the expandable detail shows the same input again in full.
+      expect(document.querySelector('.op-meta')?.textContent).toBe('raw string input');
     });
 
     it('stringifies a non-object, non-string input', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'gen2', name: 'Mystery', input: 42 }} runSucceeded />);
-      expect(screen.getByText('42')).toBeInTheDocument();
+      expect(document.querySelector('.op-meta')?.textContent).toBe('42');
     });
 
     it('falls back to JSON.stringify when no known key matches', () => {
@@ -766,5 +767,130 @@ describe('ToolCard', () => {
     );
     expect(document.querySelector('.op-output')?.textContent).toBe(JSON.stringify({ tools: [{ id: 'content_post_list' }] }, null, 2));
   });
-});
 
+  // Owner 2026-10-08: some rows (a pending `assistant_ask_choice`, CLI built-ins like Fetch) could
+  // not be opened to read the tool call. Every row now expands to its full input plus its result or
+  // the reason there is none yet.
+  describe('every tool row expands to its input and result', () => {
+    const askInput = { title: 'Rebuild luviraconsulting.com in Tovu — what to import?', options: [{ label: 'Pages', value: 'pages' }] };
+
+    it('expands a pending card tool (assistant_ask_choice) to its full input and a waiting note', async () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'ask1', name: 'assistant_ask_choice', input: askInput }} runStreaming />);
+      const head = screen.getByRole('button');
+      expect(head).toHaveAttribute('aria-expanded', 'false');
+      await userEvent.click(head);
+      expect(head).toHaveAttribute('aria-expanded', 'true');
+      expect(document.querySelector('.accordion-collapsible.open')).not.toBeNull();
+      expect(document.querySelector('.op-input')?.textContent).toBe(JSON.stringify(askInput, null, 2));
+      expect(screen.getByText('Waiting for the result or answer…')).toBeInTheDocument();
+    });
+
+    it('shows the answer a card tool returned once the person answered', async () => {
+      render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 'ask2', name: 'assistant_ask_choice', input: askInput }}
+          result={{ kind: 'tool_result', toolUseId: 'ask2', content: '{"status":"submitted","selected":["pages"]}', isError: false }}
+          runSucceeded
+        />,
+      );
+      await userEvent.click(screen.getByRole('button'));
+      expect(document.querySelector('.op-output')?.textContent).toBe(JSON.stringify({ status: 'submitted', selected: ['pages'] }, null, 2));
+      expect(screen.queryByText('Waiting for the result or answer…')).toBeNull();
+    });
+
+    it('opens from the keyboard', async () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'kb1', name: 'assistant_ask_choice', input: askInput }} runStreaming />);
+      const head = screen.getByRole('button');
+      head.focus();
+      await userEvent.keyboard('{Enter}');
+      expect(head).toHaveAttribute('aria-expanded', 'true');
+      await userEvent.keyboard(' ');
+      expect(head).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    it('points the row button at the panel it controls', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'ac1', name: 'Mystery', input: { a: 1 } }} runSucceeded />);
+      const panelId = screen.getByRole('button').getAttribute('aria-controls');
+      expect(panelId).toBeTruthy();
+      expect(document.getElementById(panelId!)).toHaveClass('accordion-collapsible');
+    });
+
+    it.each([
+      ['WebFetch', { url: 'https://www.luviraconsulting.com/' }],
+      ['web_fetch', { url: 'https://example.test' }],
+      ['WebSearch', { query: 'tovu cms' }],
+      ['Glob', { pattern: '*.ts', path: 'src' }],
+      ['Grep', { pattern: 'TODO', path: 'src' }],
+    ])('expands the %s CLI built-in to its input and result', async (name, input) => {
+      render(<ToolCard use={{ kind: 'tool_use', id: `cli-${name}`, name: name, input: input }} result={{ kind: 'tool_result', toolUseId: `cli-${name}`, content: 'result body', isError: false }} runSucceeded />);
+      const head = screen.getByRole('button');
+      await userEvent.click(head);
+      expect(head).toHaveAttribute('aria-expanded', 'true');
+      expect(document.querySelector('.op-input')?.textContent).toBe(JSON.stringify(input, null, 2));
+      expect(document.querySelector('.op-output')?.textContent).toBe('result body');
+    });
+
+    it.each([
+      ['Bash', { command: 'ls' }],
+      ['Write', { file_path: '/a.txt', content: 'x' }],
+      ['Edit', { file_path: '/a.txt' }],
+      ['Read', { file_path: '/a.txt' }],
+      ['page.fill', { element: 'name-input', value: 'x' }],
+      ['search_tools', { query: 'fill' }],
+      ['describe_tool', { id: 'page.fill' }],
+    ])('marks the %s row button with its expanded state', async (name, input) => {
+      render(<ToolCard use={{ kind: 'tool_use', id: `st-${name}`, name: name, input: input }} runSucceeded />);
+      const head = screen.getByRole('button', { expanded: false });
+      await userEvent.click(head);
+      expect(head).toHaveAttribute('aria-expanded', 'true');
+    });
+
+    it('shows the input a search_tools / describe_tool call sent, not only what came back', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'dt-in', name: 'describe_tool', input: { id: 'assistant_ask_choice' } }} runSucceeded />);
+      expect(document.querySelector('.op-input')?.textContent).toBe(JSON.stringify({ id: 'assistant_ask_choice' }, null, 2));
+    });
+
+    it.each([
+      ['Write', { file_path: '/site/index.html', content: '<h1>Hi</h1>' }],
+      ['Edit', { file_path: '/site/index.html', old_string: 'Hi', new_string: 'Hello' }],
+      ['Read', { file_path: '/site/index.html', offset: 10 }],
+    ])('shows the full %s input beside the file path', (name, input) => {
+      render(<ToolCard use={{ kind: 'tool_use', id: `fi-${name}`, name: name, input: input }} result={{ kind: 'tool_result', toolUseId: `fi-${name}`, content: 'ok', isError: false }} runSucceeded />);
+      expect(document.querySelector('.op-input')?.textContent).toBe(JSON.stringify(input, null, 2));
+      expect(document.querySelector('.op-output')?.textContent).toBe('ok');
+    });
+
+    it('pretty-prints a delegated Jini tool call input', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'dg-in', name: 'page.fill', input: { element: 'name-input', value: 'Ada' } }} runSucceeded />);
+      expect(document.querySelector('.op-input')?.textContent).toBe(JSON.stringify({ element: 'name-input', value: 'Ada' }, null, 2));
+    });
+
+    it('keeps an error result readable inside the expanded row', async () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'err1', name: 'WebFetch', input: { url: 'https://x.test' } }} result={{ kind: 'tool_result', toolUseId: 'err1', content: 'fetch failed: 404', isError: true }} />);
+      await userEvent.click(screen.getByRole('button'));
+      expect(document.querySelector('.op-output')?.textContent).toBe('fetch failed: 404');
+    });
+
+    it('explains a call whose run ended before it returned', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'int1', name: 'assistant_ask_choice', input: askInput }} />);
+      expect(screen.getByText('The run ended before this call returned a result.')).toBeInTheDocument();
+    });
+
+    it('redacts a credential in the expanded input the same way chat text is redacted', () => {
+      const key = 'sk-' + 'AbCdEf0123456789'.repeat(2);
+      render(<ToolCard use={{ kind: 'tool_use', id: 'sec1', name: 'Mystery', input: { note: `use ${key}` } }} runSucceeded />);
+      const shown = document.querySelector('.op-input')?.textContent ?? '';
+      expect(shown).not.toContain(key);
+      expect(shown).toContain('[token removed]');
+    });
+
+    it('renders no input block for an unserializable input but still expands', async () => {
+      const circular: Record<string, unknown> = {};
+      circular.self = circular;
+      render(<ToolCard use={{ kind: 'tool_use', id: 'circ1', name: 'Mystery', input: circular }} runSucceeded />);
+      await userEvent.click(screen.getByRole('button'));
+      expect(document.querySelector('.op-input')).toBeNull();
+      expect(screen.getByText('No result was recorded for this call.')).toBeInTheDocument();
+    });
+  });
+});
