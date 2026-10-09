@@ -128,7 +128,7 @@ const EMPTY_MENTION: MentionPopoverState = { open: false, query: '', results: []
  * exit path (send, conversation switch, unmount, page hide, blur) writes or discards immediately,
  * so the delay can only cost a draft on a hard crash inside this window.
  */
-export const DRAFT_PERSIST_DEBOUNCE_MS = 300;
+export const DRAFT_PERSIST_DEBOUNCE_MS = 800;
 
 interface DeferredDraftWrite {
   /** Replaces any pending write with `write`, run once typing pauses. */
