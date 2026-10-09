@@ -6,6 +6,7 @@ import {
   describeChatPaneSendBlocker,
   findAwaitedTypedAnswerId,
   findChatPaneSendBlocker,
+  findMidRunMessageRunId,
   isChatPaneQueueableBlocker,
   isTypedAnswerTurn,
   resolveChatPaneSelection,
@@ -18,7 +19,9 @@ import type {
   ChatPaneAgentSelection,
   ChatPaneRunContext,
   ChatPaneWorkingDirectoryAccess,
+  DeliverMidRunMessage,
   DeliverTypedAnswer,
+  MidRunMessageDelivery,
   TypedAnswerDelivery,
   TypedAnswerNotice,
 } from '../types.js';
@@ -73,6 +76,8 @@ export interface UseChatPaneOptions extends UserTextRedactionOptions {
   apiModeConfigured?: boolean;
   /** See `ChatPaneProps.deliverTypedAnswer`. Omitted keeps today's queue-while-streaming behavior. */
   deliverTypedAnswer?: DeliverTypedAnswer;
+  /** See `ChatPaneProps.deliverMidRunMessage`. Omitted keeps today's queue-while-streaming behavior. */
+  deliverMidRunMessage?: DeliverMidRunMessage;
 }
 
 export interface UseChatPaneResult extends UseChatPaneWorkingDirectoryResult {
@@ -172,6 +177,22 @@ async function deliverTypedAnswerSafely(
 ): Promise<TypedAnswerDelivery> {
   try {
     return await deliver({ text });
+  } catch {
+    return 'failed';
+  }
+}
+
+/**
+ * Hands one mid-run message to the host. A throw counts as `'failed'`, which queues the text — the
+ * host could not say whether the run took it, and a message must never be dropped.
+ *
+ * @complexity O(1) plus the host's own request.
+ */
+async function deliverMidRunMessageSafely(
+  { deliver, runId, text }: { deliver: DeliverMidRunMessage; runId: string; text: string },
+): Promise<MidRunMessageDelivery> {
+  try {
+    return await deliver({ runId, text });
   } catch {
     return 'failed';
   }
@@ -510,19 +531,55 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     if (latestDraftRef.current === submittedDraft) composer.setDraft('');
   }, [awaitedQuestionId, composer, guard.redactText]);
 
-  // The ordinary next-turn path: queue behind a running run, else send now.
+  // A text-only message sent while a run streams goes INTO that run when the host can deliver it.
+  // The draft clears before the await so the human sees it go out; whatever the outcome, the text
+  // ends up somewhere — in the run, or queued as the next turn (after stopping the run when the
+  // agent cannot take input mid-run). Never cancel on 'not-running'/'failed': the run is ending.
+  const sendIntoRunningTurn = useCallback(async (
+    { deliver, runId, turn }: { deliver: DeliverMidRunMessage; runId: string; turn: UserTextRedaction },
+  ) => {
+    queuedConversationIdRef.current = options.conversationId;
+    composer.setDraft('');
+    const outcome = await deliverMidRunMessageSafely({ deliver, runId, text: turn.text });
+    if (outcome === 'delivered' || !mountedRef.current) return;
+    setQueuedTurn(turn);
+    if (outcome === 'unsupported') conversation.cancel();
+  }, [composer, conversation, options.conversationId]);
+
+  // The ordinary next-turn path: into the running run, else queue behind it, else send now.
   const sendOrdinaryTurn = useCallback(async (prompt: string) => {
-    // Queue instead of no-op'ing. `setDraft('')` and NOT `composer.reset()`: reset also discards
-    // staged attachments, which this turn still needs when it finally goes out.
     if (isChatPaneQueueableBlocker({ blocker: sendBlocker })) {
+      const turn = guard.redact({ text: prompt }, {});
+      const deliver = options.deliverMidRunMessage;
+      const runId = deliver === undefined ? null : findMidRunMessageRunId({
+        blocker: sendBlocker,
+        attachmentCount: composer.attachments.length,
+        messages: conversation.messages,
+      });
+      if (deliver !== undefined && runId !== null) {
+        await sendIntoRunningTurn({ deliver, runId, turn });
+        return;
+      }
+      // Queue instead of no-op'ing. `setDraft('')` and NOT `composer.reset()`: reset also discards
+      // staged attachments, which this turn still needs when it finally goes out.
       queuedConversationIdRef.current = options.conversationId;
-      setQueuedTurn(guard.redact({ text: prompt }, {}));
+      setQueuedTurn(turn);
       composer.setDraft('');
       return;
     }
     if (!canSend) return;
     await sendPrompt(prompt);
-  }, [canSend, composer, options.conversationId, sendBlocker, sendPrompt, guard.redact]);
+  }, [
+    canSend,
+    composer,
+    conversation.messages,
+    options.conversationId,
+    options.deliverMidRunMessage,
+    sendBlocker,
+    sendIntoRunningTurn,
+    sendPrompt,
+    guard.redact,
+  ]);
 
   const send = useCallback(async () => {
     const prompt = composerPrompt(composer);

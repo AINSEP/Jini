@@ -95,6 +95,7 @@ export {
   ChatPane,
   createDaemonAttachmentUploader,
   createMcpUiToolCaller,
+  createMidRunMessagePoster,
   createTypedAnswerPoster,
   defaultChatPaneSelection,
   orderChatPaneAgents,
@@ -127,9 +128,12 @@ export type {
   ChatPaneWorkingDirectoryAccess,
   CreateDaemonAttachmentUploaderOptions,
   CreateMcpUiToolCallerOptions,
+  CreateMidRunMessagePosterOptions,
   CreateTypedAnswerPosterOptions,
+  DeliverMidRunMessage,
   DeliverTypedAnswer,
   McpUiToolCallRequest,
+  MidRunMessageDelivery,
   RuntimePickerPlacement,
   TypedAnswerDelivery,
   TypedAnswerNotice,
@@ -311,6 +315,8 @@ export type { A2uiAgentActionOutcome, A2uiSurfaceCardProps } from './components/
  */
 export { McpUiSurfaceCard, mcpUiSurfaceSlotKey, registerMcpUiSurfaceRenderer, MCP_UI_EXT_EVENT_NAME } from './components/McpUiSurfaceCard.js';
 export type { McpUiSurfaceCardProps } from './components/McpUiSurfaceCard.js';
+/** A message sent mid-run (`ChatPane`'s `deliverMidRunMessage`), drawn as a user bubble inside the running turn. */
+export { MidRunUserMessage, midRunUserMessageSlotKey, registerMidRunUserMessageRenderer, MID_RUN_USER_MESSAGE_EXT_EVENT_NAME } from './components/MidRunUserMessage.js';
 export { ExtEventErrorBoundary } from './components/ExtEventErrorBoundary.js';
 export type { ExtEventErrorBoundaryProps } from './components/ExtEventErrorBoundary.js';
 export { QuestionForm } from './components/QuestionForm.js';

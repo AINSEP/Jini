@@ -58,6 +58,8 @@ export interface ComposerProps {
    * separately placed cancel affordance elsewhere in the pane. Always clickable when true,
    * regardless of `disabled`/`sendDisabled`/`composer.canSubmit`: those all gate *submitting a new
    * draft*, which has nothing to do with whether a caller may cancel the run already in flight.
+   * Once the draft is submittable (and neither gate refuses it), Send comes back beside Stop, so a
+   * message can go out mid-run without stopping anything.
    */
   running?: boolean;
   /** Cancels the in-flight run. Required when `running` is true; ignored otherwise. */
@@ -593,15 +595,21 @@ export function Composer({
             ))}
           </div>
         ) : null}
-        {running ? (
-          <button type="button" className="jini-composer-send jini-composer-send--stop" onClick={onCancel} title={t('Stop run')} aria-label={t('Stop run')}>
-            <RemixIcon name="stop-fill" size={14} />
-          </button>
-        ) : (
-          <button type="button" className="jini-composer-send" disabled={disabled || sendDisabled || !composer.canSubmit} onClick={onSend} title={t('Send')} aria-label={t('Send')}>
-            <RemixIcon name="send-plane-2-line" size={16} />
-          </button>
-        )}
+        {/* While a run streams, Send sits beside Stop once there is something to send: a message
+            sent mid-run goes to the running agent (or next, if it cannot take it now). One group so
+            the footer's space-between keeps the two together at the trailing edge. */}
+        <span className="jini-composer-send-group">
+          {!running || (!disabled && !sendDisabled && composer.canSubmit) ? (
+            <button type="button" className="jini-composer-send" disabled={disabled || sendDisabled || !composer.canSubmit} onClick={onSend} title={t('Send')} aria-label={t('Send')}>
+              <RemixIcon name="send-plane-2-line" size={16} />
+            </button>
+          ) : null}
+          {running ? (
+            <button type="button" className="jini-composer-send jini-composer-send--stop" onClick={onCancel} title={t('Stop run')} aria-label={t('Stop run')}>
+              <RemixIcon name="stop-fill" size={14} />
+            </button>
+          ) : null}
+        </span>
       </div>
     </div>
   );

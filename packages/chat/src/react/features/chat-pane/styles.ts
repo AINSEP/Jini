@@ -805,6 +805,11 @@ export const CHAT_PANE_STYLES = `
   margin-left: auto;
   min-width: 0;
 }
+.jini-chat-pane .jini-composer-send-group {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
 .jini-chat-pane .jini-composer-send {
   display: grid;
   place-items: center;

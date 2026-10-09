@@ -520,6 +520,7 @@ export function ChatPane({
   composerHistoryStorage,
   validateAttachments,
   deliverTypedAnswer,
+  deliverMidRunMessage,
   composerHandle,
   placeholder,
   placeholders,
@@ -584,6 +585,7 @@ export function ChatPane({
     workingDirectoryAccess,
     apiModeConfigured,
     deliverTypedAnswer,
+    deliverMidRunMessage,
   } }));
   // Mirrors `Composer.tsx`'s own `draftRef`: `composerHandle.insertText` (below) is called from
   // OUTSIDE any render, so it cannot close over `pane.composer.draft` directly — that would freeze

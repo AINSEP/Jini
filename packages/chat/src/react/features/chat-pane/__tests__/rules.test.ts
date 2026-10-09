@@ -6,6 +6,7 @@ import {
   describeTypedAnswerNotice,
   findAwaitedTypedAnswerId,
   findChatPaneSendBlocker,
+  findMidRunMessageRunId,
   isAwaitingTypedAnswer,
   isTypedAnswerTurn,
   isChatPaneApiModeConfigured,
@@ -355,6 +356,27 @@ describe('isTypedAnswerTurn', () => {
 
   it('is not an answer when the waiting card belongs to a different tool than the configured one', () => {
     expect(isTypedAnswerTurn({ blocker: 'streaming', attachmentCount: 0, messages: waiting, toolName: 'other_question' })).toBe(false);
+  });
+});
+
+describe('findMidRunMessageRunId', () => {
+  const running: ChatMessage[] = [
+    { id: 'u1', role: 'user', content: 'go' },
+    { id: 'a1', role: 'assistant', content: '', runId: 'run-1' },
+  ];
+
+  it('names the streaming run when the newest message is its assistant turn and nothing is attached', () => {
+    expect(findMidRunMessageRunId({ blocker: 'streaming', attachmentCount: 0, messages: running })).toBe('run-1');
+  });
+
+  it('is null when nothing streams, a file is attached, or the newest message has no run', () => {
+    expect(findMidRunMessageRunId({ blocker: null, attachmentCount: 0, messages: running })).toBeNull();
+    expect(findMidRunMessageRunId({ blocker: 'uploads-pending', attachmentCount: 0, messages: running })).toBeNull();
+    expect(findMidRunMessageRunId({ blocker: 'streaming', attachmentCount: 1, messages: running })).toBeNull();
+    expect(findMidRunMessageRunId({ blocker: 'streaming', attachmentCount: 0, messages: running.slice(0, 1) })).toBeNull();
+    expect(findMidRunMessageRunId({
+      blocker: 'streaming', attachmentCount: 0, messages: [{ id: 'a1', role: 'assistant', content: '' }],
+    })).toBeNull();
   });
 });
 
