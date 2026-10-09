@@ -71,6 +71,20 @@ test("translateRunFrame: assistant/user message echo lines are dropped from raw,
   assert.deepEqual(translateRunFrame("stdout", head).events, []);
 });
 
+test("translateRunFrame: with a per-connection carry, the TAIL of a split echo line is dropped too; stderr mid-line is kept", () => {
+  // Incident 2026-10-08 (luvira): the tail of a split `user` echo kept tool-result prose
+  // ("OAuth-authenticated server") as raw, and durable recovery read it as "Not logged in".
+  const carry = {};
+  const chunk = (kind: "stdout" | "stderr", text: string) => frame({ kind, raw: JSON.stringify({ runId: "r1", kind, payload: { chunk: text } }), notices }, { carry });
+  assert.deepEqual(chunk("stdout", '{"type":"user","message":{"content":[{"type":"tool_result","content":"Starts an OAuth').events, []);
+  assert.deepEqual(chunk("stderr", "warn: slow disk\n").events, [{ kind: "raw", line: "warn: slow disk\n" }]);
+  assert.deepEqual(chunk("stdout", ' authorization for an OAuth-authenticated server').events, []);
+  const status = '{"type":"system","subtype":"status","status":"requesting"}\n';
+  assert.deepEqual(chunk("stdout", `"}]}}\n${status}`).events, [{ kind: "raw", line: status }]);
+  // The line ended: the next chunk is an ordinary line again.
+  assert.deepEqual(chunk("stdout", "plain\n").events, [{ kind: "raw", line: "plain\n" }]);
+});
+
 test("runEventsForSave: streamed text deltas are saved as one text event, content unchanged", () => {
   const events = [
     { kind: "text", text: "Checking." },

@@ -528,21 +528,39 @@ function heartbeatStatus(line: Record<string, unknown>): AgentEvent | null {
 
 const ECHO_LINE = /^\{"type":"(?:stream_event|assistant|user)"/;
 /**
+ * Per-connection memory for {@link translateRunFrame}: which channels are mid-way through an echo
+ * line. Only a line's first chunk carries the {@link ECHO_LINE} prefix, so without it the rest of a
+ * split `user` echo stays as `raw` — tool-result prose that durable recovery then reads as executor
+ * diagnostics. Pass one fresh `{}` per daemon connection (each connection replays from event 0).
+ */
+export interface RunFrameCarry {
+  openEchoChannels?: Set<string>;
+}
+/**
  * One CLI stdout/stderr chunk → events. Every JSON line that is a heartbeat also yields a typed
- * `status` event; echo lines ({@link ECHO_LINE}) are dropped; everything else stays in ONE `raw`
- * event, verbatim. A chunk with no JSON lines at all (a plain-format CLI) is one `raw` event, as before.
+ * `status` event; echo lines ({@link ECHO_LINE}) are dropped — with a `carry`, including the later
+ * chunks of a split one; everything else stays in ONE `raw` event, verbatim. A chunk with no JSON
+ * lines at all (a plain-format CLI) is one `raw` event, as before.
  */
 
 
-function chunkEvent(raw: string | undefined): AgentEvent[] {
+function chunkEvent(raw: string | undefined, channel: string, carry?: RunFrameCarry): AgentEvent[] {
   const frame = parseWire(raw);
   if (!frame) return [];
   const chunk = wireString((frame.payload as { chunk?: unknown } | null)?.chunk);
+  const open = carry ? (carry.openEchoChannels ??= new Set()) : undefined;
   const statuses: AgentEvent[] = [];
   let kept = "";
   let droppedAny = false;
+  let first = true;
   for (const piece of chunk.split(/(?<=\n)/)) {
-    if (ECHO_LINE.test(piece.trimStart())) {
+    // Only a chunk's first piece can continue the previous chunk's line; splitting on "\n" starts
+    // every later piece on a fresh line. Channels are tracked apart: stderr can interleave mid-line.
+    const echo = (first && open?.has(channel) === true) || ECHO_LINE.test(piece.trimStart());
+    first = false;
+    if (echo && !piece.endsWith("\n")) open?.add(channel);
+    else open?.delete(channel);
+    if (echo) {
       droppedAny = true;
       continue;
     }
@@ -588,7 +606,7 @@ function endOutcome(raw: string | undefined, notices: RunNotices): RunFrameOutco
 
 
 /** Fold one named daemon frame into events, a failure and an optional terminal status. */
-export function translateRunFrame({ kind, raw, notices }: { kind: string; raw: string | undefined; notices: RunNotices }, _options: Record<string, never> = {}): RunFrameOutcome {
+export function translateRunFrame({ kind, raw, notices }: { kind: string; raw: string | undefined; notices: RunNotices }, { carry }: { carry?: RunFrameCarry } = {}): RunFrameOutcome {
   switch (kind) {
     case "agent": {
       const frame = parseWire(raw);
@@ -597,7 +615,7 @@ export function translateRunFrame({ kind, raw, notices }: { kind: string; raw: s
     }
     case "stdout":
     case "stderr":
-      return { events: chunkEvent(raw) };
+      return { events: chunkEvent(raw, kind, carry) };
     case "error": {
       const frame = parseWire(raw);
       const message = wireString((frame?.payload as { message?: unknown } | null)?.message) || "agent run failed";

@@ -143,8 +143,9 @@ export function createAssistantRunFinalizer(args: AssistantRunFinalizerArgs, opt
     // Each connection replays the complete history, rather than appending duplicate deltas.
     watch.events = [];
     watch.failed = false;
+    const carry = {};
     for await (const frame of readSseFrames({ body: response.body })) {
-      const outcome = translateRunFrame({ kind: frame.event, raw: frame.data, notices: args.notices });
+      const outcome = translateRunFrame({ kind: frame.event, raw: frame.data, notices: args.notices }, { carry });
       watch.events.push(...outcome.events);
       if (outcome.error) watch.failed = true;
       if (outcome.terminal) {
