@@ -167,7 +167,7 @@
     "pg": "^8.23.0",
     "@jini-ai/http-kit": "^0.4.0",
     "express": "^4.21.0",
-    "@jini-ai/agent-runtime": "^0.4.1",
+    "@jini-ai/agent-runtime": "^0.4.4",
     "@jini-ai/platform": "^0.5.1"
   },
   "peerDependenciesMeta": {

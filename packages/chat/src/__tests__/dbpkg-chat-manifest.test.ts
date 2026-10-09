@@ -27,7 +27,7 @@ it('publishes every isolated extraction entry with its browser or universal clas
     '@radix-ui/react-select': '^2.3.7',
     '@radix-ui/react-slot': '^1.3.3',
     'recharts': '^3.10.1',
-    '@jini-ai/agent-runtime': '^0.4.1',
+    '@jini-ai/agent-runtime': '^0.4.4',
     '@jini-ai/agentic': '^0.4.2',
     '@jini-ai/protocol': '^0.4.3',
     '@jini-ai/ui': '^0.4.7',
