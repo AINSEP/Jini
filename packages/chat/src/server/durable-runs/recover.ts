@@ -31,10 +31,9 @@ function attemptFailure(run: DurableRun): "retryable" | "permanent" | "auth-fail
   return "retryable";
 }
 
-function exclusion(run: DurableRun, failure: ReturnType<typeof attemptFailure>): string | null {
+function exclusion(run: DurableRun): string | null {
   if (run.cancelReason) return run.cancelReason;
   if (!run.principalId || run.engine !== "daemon") return "excluded";
-  if (failure === "auth-failure" || failure === "inactivity-watchdog") return failure;
   return null;
 }
 
@@ -87,9 +86,7 @@ export function createDurableRecovery(ports: RecoveryPorts, _optional = {}): Dur
   }
 
   async function decide(run: DurableRun, trigger: RecoveryTrigger, liveRunId?: string): Promise<RecoveryResult> {
-    const failure = attemptFailure(run);
-    const reason = exclusion(run, failure);
-    if (reason) return finalize(run, reason === "auth-failure" ? "Not logged in. Saved work is above." : "Stopped. Saved work is above.", true);
+    if (exclusion(run)) return finalize(run, "Stopped. Saved work is above.", true);
     // A terminal executor end confirms this attempt is dead even when the daemon retains its
     // replayable record (HTTP 200). Other triggers must obtain fresh liveness evidence.
     const probe = trigger === "attempt-failed" ? "dead" : liveRunId === run.runId ? "live" : await ports.probe(run, {});
@@ -97,6 +94,11 @@ export function createDurableRecovery(ports: RecoveryPorts, _optional = {}): Dur
       await ports.store.recoveryClock({ runId: run.runId, now: ports.now(), active: false }, {});
       ports.attach(run, {}); return "reattached";
     }
+    // Diagnostics decide only the fate of an attempt that is no longer running. Read before the
+    // probe, raw stdout quoting a tool description ("OAuth-authenticated") canceled a live turn
+    // as "Not logged in" (luvira, 2026-10-08).
+    const failure = attemptFailure(run);
+    if (failure === "auth-failure" || failure === "inactivity-watchdog") return finalize(run, failure === "auth-failure" ? "Not logged in. Saved work is above." : "Stopped. Saved work is above.", true);
     if (failure === "permanent") return finalize(run, EXHAUSTED_NOTICE);
     return resolveMissing(run, probe, trigger);
   }
