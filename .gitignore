@@ -67,3 +67,23 @@ ADS-memory/tmp/
 
 # One-off scratch harnesses (hardcoded absolute paths, not runnable on another machine)
 examples/*/scratch-*.ts
+
+# Local release/session scratch and sensitive runtime files
+.metadata_never_index
+/ADS-memory/sessions/
+/ADS-memory/knowledge/mistakes/
+/ADS-memory/.local-artifacts/
+/CMS-BRIEFS/
+/seo-BEHAVIOUR-DIFF.md
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.p12
+*.pfx
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
