@@ -9,6 +9,7 @@ import {
   type SyntheticEvent,
 } from 'react';
 import { useNativeDialog } from '@jini-ai/ui-kit/react/native';
+import { useFocusTrap } from '@jini-ai/ui/panel-kit';
 
 /**
  * @file `ConfirmDialog`'s open/close and focus-management state, split out of the component so it
@@ -120,7 +121,9 @@ export function useConfirmDialogCancelLabel(
  * Focus moves to the *cancel* action on open, not confirm — an operator whose first keystroke after
  * a slow read-through is Enter should land on the safe action, not the destructive one.
  *
- * @complexity O(1) per open/close transition — one `showModal`/`close` call and one focus move.
+ * Native modal lifecycle restores the opener; panel-kit's shared trap contains Tab/Shift+Tab,
+ * including in DOM environments using the open-attribute fallback, and handles nested traps.
+ * @complexity O(1) per open/close transition; Tab boundaries scan focusable dialog content.
  */
 export function useConfirmDialog(
   { open, onCancel, document }: { readonly open: boolean; readonly onCancel: () => void; readonly document: Pick<Document, 'activeElement'> },
@@ -153,6 +156,7 @@ export function useConfirmDialog(
     { document, initialFocus: () => cancelRef.current?.focus() },
   );
   const titleId = vm.titleId, dialogRef = vm.props.ref;
+  useFocusTrap({ containerRef: dialogRef }, { active: open });
   const handleNativeCancel = vm.props.onCancel, handleBackdropClick = vm.props.onClick;
 
   return { titleId, dialogRef, cancelRef, handleNativeCancel, handleBackdropClick };

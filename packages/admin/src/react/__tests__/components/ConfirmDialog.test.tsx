@@ -187,6 +187,30 @@ describe('ConfirmDialog open/close', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
   });
 
+  it('cycles Tab and Shift+Tab at both confirm-dialog boundaries', () => {
+    const { rerender } = renderDialog();
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    const confirm = screen.getByRole('button', { name: 'Delete' });
+    confirm.focus();
+    expect(fireEvent.keyDown(confirm, { key: 'Tab' })).toBe(false);
+    expect(cancel).toHaveFocus();
+    expect(fireEvent.keyDown(cancel, { key: 'Tab', shiftKey: true })).toBe(false);
+    expect(confirm).toHaveFocus();
+    rerender(<ConfirmDialog open={false} title="t" body="" confirmLabel="Delete" onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    expect(fireEvent.keyDown(dialog(), { key: 'Tab' })).toBe(true);
+  });
+
+  it('traps focusable body content and ignores disabled controls at the boundaries', () => {
+    renderDialog({ body: <><button disabled>Unavailable</button><input aria-label="Reason" /></> });
+    const first = screen.getByRole('textbox', { name: 'Reason' });
+    const confirm = screen.getByRole('button', { name: 'Delete' });
+    confirm.focus();
+    fireEvent.keyDown(confirm, { key: 'Tab' });
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true });
+    expect(confirm).toHaveFocus();
+  });
+
   it('restores focus to the trigger on close, not to <body>', () => {
     function Host() {
       const [open, setOpen] = useState(false);
