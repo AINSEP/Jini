@@ -10,7 +10,8 @@ import type { QueryKey } from './types.js';
  * must be fresh on every mount can choose staleTime: 0 without lowering every query default.
  */
 export const DEFAULT_STALE_TIME = 10_000;
-const IDLE_RETENTION = 5 * 60_000;
+/** Minimum time an unobserved entry is kept; both adapters retain max(this, staleTime). */
+export const IDLE_RETENTION = 5 * 60_000;
 
 
 export interface QueryCacheSchedulerPort {

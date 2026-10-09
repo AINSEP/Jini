@@ -3,7 +3,8 @@ import { act, render, renderHook, screen, waitFor } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 
-import { FetchQueryProvider, useCachedLoader, useFetchMutation, useFetchQuery, useInvalidate } from "..";
+import { FetchQueryProvider as BuiltInProvider, useCachedLoader, useFetchMutation, useFetchQuery, useInvalidate } from "..";
+import { FetchQueryProvider as TanStackProvider } from "../tanstack";
 
 /**
  * @file Behavioural contract for `lib/fetch-query`.
@@ -19,6 +20,132 @@ import { FetchQueryProvider, useCachedLoader, useFetchMutation, useFetchQuery, u
  * cold cache (the provider builds its client in a `useMemo` for exactly this
  * reason).
  */
+
+describe.each([["built-in", BuiltInProvider], ["tanstack", TanStackProvider]] as const)("%s adapter conformance", (_name, FetchQueryProvider) => {
+
+describe("provider isolation and defaults", () => {
+  it.each([null, undefined, false, 0, "", "   "])("normalises an opaque rejection (%s) on read and write state", async rejection => {
+    const { result } = renderHook(() => ({
+      read: useFetchQuery({ key: ["opaque"], fetch: async () => Promise.reject(rejection) }),
+      write: useFetchMutation({ run: async () => Promise.reject(rejection) }),
+    }), { wrapper: FetchQueryProvider });
+    await waitFor(() => expect(result.current.read.status).toBe("error"));
+    expect(result.current.read.error).toBeInstanceOf(Error);
+    expect(result.current.read.error?.message).toBe("request failed");
+    await act(async () => { await expect(result.current.write.mutate({ input: undefined })).rejects.toBe(rejection); });
+    await waitFor(() => expect(result.current.write.status).toBe("error"));
+    expect(result.current.write.error).toBeInstanceOf(Error);
+    expect(result.current.write.error?.message).toBe("request failed");
+  });
+
+  it("isolates identical keys in independent providers, including nested scopes", async () => {
+    function Value({ fetch, id }: { fetch: () => Promise<string>; id: string }) {
+      const query = useFetchQuery({ key: ["same"], fetch });
+      return <span data-testid={id}>{query.data}</span>;
+    }
+    render(<FetchQueryProvider>
+      <Value fetch={async () => "outer"} id="outer" />
+      <FetchQueryProvider><Value fetch={async () => "inner"} id="inner" /></FetchQueryProvider>
+    </FetchQueryProvider>);
+    await waitFor(() => expect(screen.getByTestId("outer").textContent).toBe("outer"));
+    await waitFor(() => expect(screen.getByTestId("inner").textContent).toBe("inner"));
+  });
+
+  it("uses ten seconds of freshness by default", async () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    const fetch = vi.fn().mockResolvedValueOnce("first").mockResolvedValue("next");
+    try {
+      const view = wrap(<Reader fetch={fetch} />);
+      await waitFor(() => expect(screen.getByTestId("data").textContent).toBe("first"));
+      view.rerender(<FetchQueryProvider>{null}</FetchQueryProvider>);
+      clock.mockReturnValue(1_009_999);
+      view.rerender(<FetchQueryProvider><Reader fetch={fetch} /></FetchQueryProvider>);
+      expect(screen.getByTestId("data").textContent).toBe("first");
+      expect(fetch).toHaveBeenCalledTimes(1);
+      view.rerender(<FetchQueryProvider>{null}</FetchQueryProvider>);
+      clock.mockReturnValue(1_010_001);
+      view.rerender(<FetchQueryProvider><Reader fetch={fetch} /></FetchQueryProvider>);
+      await waitFor(() => expect(screen.getByTestId("data").textContent).toBe("next"));
+      expect(fetch).toHaveBeenCalledTimes(2);
+    } finally { clock.mockRestore(); }
+  });
+
+  it("surfaces read/write failures once and retries reads only on an explicit request", async () => {
+    const error = new Error("denied");
+    const fetch = vi.fn<() => Promise<string>>().mockRejectedValueOnce(error).mockResolvedValueOnce("recovered");
+    const run = vi.fn(async () => { throw error; });
+    const { result } = renderHook(() => ({ read: useFetchQuery({ key: ["retry"], fetch }), write: useFetchMutation({ run }) }), { wrapper: FetchQueryProvider });
+    await waitFor(() => expect(result.current.read.error).toBe(error));
+    await act(async () => { await expect(result.current.write.mutate({ input: undefined })).rejects.toBe(error); });
+    await waitFor(() => expect(result.current.write.error).toBe(error));
+    // Observe past TanStack's first default retry interval to detect accidental SDK defaults.
+    await new Promise(resolve => setTimeout(resolve, 1_100));
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledTimes(1);
+    act(() => result.current.read.refetch());
+    await waitFor(() => expect(result.current.read.data).toBe("recovered"));
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("loader/read cache coherence", () => {
+  it("retries a failed background load even with infinite freshness", async () => {
+    const error = new Error("refresh failed");
+    const fetch = vi.fn<() => Promise<string>>().mockResolvedValueOnce("first").mockRejectedValueOnce(error).mockResolvedValueOnce("recovered");
+    const key = ["failed-background"] as const;
+    const { result } = renderHook(() => ({ read: useFetchQuery({ key, fetch }, { staleTime: Infinity }), loader: useCachedLoader({ key, fetch }, { staleTime: Infinity }) }), { wrapper: FetchQueryProvider });
+    await waitFor(() => expect(result.current.read.data).toBe("first"));
+    act(() => result.current.read.refetch());
+    await waitFor(() => expect(result.current.read.error).toBe(error));
+    await act(async () => { await expect(result.current.loader.load()).resolves.toBe("recovered"); });
+    await waitFor(() => expect(result.current.read.data).toBe("recovered"));
+    expect(result.current.read.error).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("follows a newer refresh when invalidation supersedes a background loader", async () => {
+    const older = deferred<string>();
+    const fetch = vi.fn<() => Promise<string>>().mockResolvedValueOnce("first").mockImplementationOnce(() => older.promise).mockResolvedValueOnce("newer");
+    const key = ["superseded"] as const;
+    const { result } = renderHook(() => ({ read: useFetchQuery({ key, fetch }), loader: useCachedLoader({ key, fetch }, { staleTime: 0 }), invalidate: useInvalidate() }), { wrapper: FetchQueryProvider });
+    await waitFor(() => expect(result.current.read.data).toBe("first"));
+    let pending!: Promise<string>;
+    act(() => { pending = result.current.loader.load(); });
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    act(() => result.current.invalidate({ key }));
+    await waitFor(() => expect(result.current.read.data).toBe("newer"));
+    await act(async () => { older.resolve("obsolete"); await expect(pending).resolves.toBe("newer"); });
+    expect(result.current.loader.peek()).toBe("newer");
+    expect(result.current.read.error).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("deduplicates loader and reactive reads and publishes replacement data to the reader", async () => {
+    const gate = deferred<string>();
+    const fetch = vi.fn(() => gate.promise);
+    const key = ["coherent"] as const;
+    const { result } = renderHook(() => ({ read: useFetchQuery({ key, fetch }), loader: useCachedLoader({ key, fetch }) }), { wrapper: FetchQueryProvider });
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    const pending = result.current.loader.load();
+    act(() => result.current.loader.replace({ value: "saved" }));
+    await waitFor(() => expect(result.current.read.data).toBe("saved"));
+    await act(async () => { gate.resolve("obsolete"); await expect(pending).resolves.toBe("saved"); });
+    expect(result.current.loader.peek()).toBe("saved");
+    expect(result.current.read.data).toBe("saved");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps replacement data when an older transport fails", async () => {
+    const gate = deferred<string>();
+    const key = ["replacement-failure"] as const;
+    const { result } = renderHook(() => useCachedLoader({ key, fetch: () => gate.promise }, { staleTime: Infinity }), { wrapper: FetchQueryProvider });
+    const pending = result.current.load();
+    result.current.replace({ value: "saved" });
+    gate.reject(new Error("obsolete failure"));
+    await expect(pending).resolves.toBe("saved");
+    expect(result.current.peek()).toBe("saved");
+  });
+});
 
 function wrap(ui: ReactNode) {
   return render(<FetchQueryProvider>{ui}</FetchQueryProvider>);
@@ -614,4 +741,6 @@ describe("useCachedLoader", () => {
       vi.useRealTimers();
     }
   });
+});
+
 });

@@ -1,7 +1,8 @@
 import { StrictMode, type ReactNode } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { FetchQueryProvider, useFetchMutation, useFetchQuery, type FetchQueryEnvironmentPort } from '../index.js';
+import { FetchQueryProvider as BuiltInProvider, useFetchMutation, useFetchQuery, type FetchQueryEnvironmentPort } from '../index.js';
+import { FetchQueryProvider as TanStackProvider } from "../tanstack.js";
 
 function environmentFixture({ online = true }: { online?: boolean } = {}) {
   const connectivity = new Set<(online: boolean) => void>();
@@ -18,7 +19,27 @@ function environmentFixture({ online = true }: { online?: boolean } = {}) {
   };
 }
 
+
+describe.each([["built-in", BuiltInProvider], ["tanstack", TanStackProvider]] as const)("%s adapter conformance", (_name, FetchQueryProvider) => {
+
 describe('provider environment parity', () => {
+  it('keeps host connectivity independent between providers', async () => {
+    const offline = environmentFixture({ online: false });
+    const online = environmentFixture();
+    const firstFetch = vi.fn(async () => 'first');
+    const secondFetch = vi.fn(async () => 'second');
+    const firstWrapper = ({ children }: { children: ReactNode }) => <FetchQueryProvider environment={offline.environment}>{children}</FetchQueryProvider>;
+    const secondWrapper = ({ children }: { children: ReactNode }) => <FetchQueryProvider environment={online.environment}>{children}</FetchQueryProvider>;
+    const first = renderHook(() => useFetchQuery({ key: ['same'], fetch: firstFetch }, { staleTime: 0 }), { wrapper: firstWrapper });
+    const second = renderHook(() => useFetchQuery({ key: ['same'], fetch: secondFetch }, { staleTime: 0 }), { wrapper: secondWrapper });
+    await waitFor(() => expect(second.result.current.data).toBe('second'));
+    expect(firstFetch).not.toHaveBeenCalled();
+    await act(async () => offline.connect(true));
+    await waitFor(() => expect(first.result.current.data).toBe('first'));
+    expect(firstFetch).toHaveBeenCalledTimes(1);
+    expect(secondFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('uses a host port for offline reads/writes and resumes both without duplicates', async () => {
     const env = environmentFixture({ online: false });
     const fetch = vi.fn(async () => 'online data');
@@ -32,7 +53,9 @@ describe('provider environment parity', () => {
     await act(async () => { write = result.current.write.mutate({ input: 'record' }); });
     expect(fetch).not.toHaveBeenCalled(); expect(run).not.toHaveBeenCalled();
     expect(result.current.read).toMatchObject({ status: 'loading', error: null, isFetching: false });
-    expect(result.current.write.status).toBe('pending');
+    // TanStack publishes observer updates on its notify tick (setTimeout 0), after act's microtasks.
+    await waitFor(() => expect(result.current.write.status).toBe('pending'));
+    expect(run).not.toHaveBeenCalled();
     await act(async () => { env.connect(true); await write; });
     await waitFor(() => expect(result.current.read.data).toBe('online data'));
     expect(result.current.write.status).toBe('success');
@@ -74,12 +97,33 @@ describe('provider environment parity', () => {
     const { result, unmount } = renderHook(() => useFetchQuery({ key: ['rows'], fetch }), { wrapper });
     await waitFor(() => expect(result.current.status).toBe('error'));
     act(() => { result.current.refetch(); });
-    expect(result.current).toMatchObject({ data: undefined, status: 'loading', error, isFetching: true });
+    await waitFor(() => expect(result.current).toMatchObject({ data: undefined, status: 'loading', error, isFetching: true }));
     expect(result.current.error).toBe(error);
     await act(async () => { resolve('recovered'); });
     await waitFor(() => expect(result.current.data).toBe('recovered'));
     expect(result.current).toMatchObject({ data: 'recovered', status: 'success', error: null, isFetching: false });
     unmount();
+  });
+
+  it('keeps an unobserved entry past the 5-minute idle default while its staleTime says it is fresh', async () => {
+    vi.useFakeTimers();
+    const { environment } = environmentFixture();
+    const fetch = vi.fn(async (key: string) => `${key}-value`);
+    const wrapper = ({ children }: { children: ReactNode }) => <FetchQueryProvider environment={environment}>{children}</FetchQueryProvider>;
+    const hook = renderHook(({ id }) => useFetchQuery({ key: [id], fetch: () => fetch(id) }, { staleTime: 10 * 60_000 }), { wrapper, initialProps: { id: 'kept' } });
+    try {
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      expect(hook.result.current.data).toBe('kept-value');
+      // Switching keys leaves ['kept'] with no observer, so only idle retention keeps it.
+      hook.rerender({ id: 'other' });
+      await act(async () => { await vi.advanceTimersByTimeAsync(6 * 60_000); });
+      hook.rerender({ id: 'kept' });
+      expect(hook.result.current.data).toBe('kept-value');
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      expect(fetch.mock.calls.filter(([key]) => key === 'kept')).toHaveLength(1);
+    } finally {
+      hook.unmount(); vi.useRealTimers();
+    }
   });
 
   it('wires browser online/offline signals and cleans up StrictMode subscriptions', async () => {
@@ -114,4 +158,6 @@ describe('provider environment parity', () => {
       hook.unmount(); onlineGetter.mockRestore(); add.mockRestore(); remove.mockRestore();
     }
   });
+});
+
 });

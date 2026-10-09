@@ -32,6 +32,7 @@
       "./admin-widgets": "browser",
       "./panel-kit": "browser",
       "./fetch-query": "browser",
+      "./fetch-query/tanstack": "browser",
       "./tab-strip": "browser",
       "./admin-widgets.css": "browser",
       "./theme": "browser",
@@ -39,7 +40,8 @@
     },
     "isolation": {
       "entries": {
-        "./fetch-query": "panel-kit"
+        "./fetch-query": "panel-kit",
+        "./fetch-query/tanstack": "panel-kit"
       },
       "shared": [
         "src/theme/default.ts",
@@ -140,6 +142,11 @@
       "import": "./dist/features/panel-kit/fetch-query/index.js",
       "default": "./dist/features/panel-kit/fetch-query/index.js"
     },
+    "./fetch-query/tanstack": {
+      "types": "./dist/features/panel-kit/fetch-query/tanstack.d.ts",
+      "import": "./dist/features/panel-kit/fetch-query/tanstack.js",
+      "default": "./dist/features/panel-kit/fetch-query/tanstack.js"
+    },
     "./tab-strip": {
       "types": "./dist/features/tab-strip/index.d.ts",
       "import": "./dist/features/tab-strip/index.js",
@@ -177,6 +184,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "@tanstack/react-query": "^5.0.0",
     "@excalidraw/excalidraw": "0.18.1",
     "@lexical/react": "0.36.2",
     "@lexical/utils": "0.36.2",
@@ -216,6 +224,7 @@
     "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
+    "@tanstack/react-query": "^5.0.0",
     "@excalidraw/excalidraw": "0.18.1",
     "@lexical/react": "0.36.2",
     "@lexical/utils": "0.36.2",
@@ -242,6 +251,9 @@
     "zod": "^3.25.76"
   },
   "peerDependenciesMeta": {
+    "@tanstack/react-query": {
+      "optional": true
+    },
     "@excalidraw/excalidraw": {
       "optional": true
     },

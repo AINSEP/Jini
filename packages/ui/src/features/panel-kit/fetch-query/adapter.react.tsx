@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { DEFAULT_STALE_TIME, FetchQueryCache, toQueryError, type FetchQueryEnvironmentPort } from './cache.js';
 import { browserFetchQueryEnvironment } from './environment.browser.js';
+import { FetchQueryBinding } from './binding.react.js';
 import type { CachedLoader, CachedLoaderOptions, FetchMutationOptions, FetchQueryOptions, MutationResult, QueryKey, QueryResult } from './types.js';
 
 const CacheContext = createContext<FetchQueryCache | null>(null);
@@ -14,7 +15,7 @@ export function FetchQueryProvider({ children, environment = browserFetchQueryEn
     cache.activate();
     return () => cache.dispose();
   }, [cache]);
-  return <CacheContext.Provider value={cache}>{children}</CacheContext.Provider>;
+  return <CacheContext.Provider value={cache}><FetchQueryBinding adapter={adapter}>{children}</FetchQueryBinding></CacheContext.Provider>;
 }
 
 function useCache(): FetchQueryCache {
@@ -121,3 +122,5 @@ export function useInvalidate(): (required: { key: QueryKey }) => void {
   const cache = useCache();
   return useCallback(({ key }: { key: QueryKey }) => cache.invalidate({ prefix: key }), [cache]);
 }
+
+const adapter = { useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate };

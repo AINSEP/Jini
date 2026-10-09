@@ -9,6 +9,8 @@
  * key also refreshes its derived child keys. Exact-key equality would compile while quietly
  * breaking that guarantee; avoid a shared prefix for resources that merely sound related,
  * or writes will fan out unnecessary refetches.
+ * Stay primitive-only: the built-in cache matches each part with === while TanStack deep-matches,
+ * so an object part would invalidate under one adapter and silently not under the other.
  */
 export type QueryKey = readonly (string | number)[];
 

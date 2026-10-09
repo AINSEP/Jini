@@ -487,3 +487,34 @@ Quick requests abort after 15 seconds and archive downloads after 120 seconds;
 a caller signal is combined with the timeout. Browser failures retain native abort
 reasons, including `TimeoutError`, rather than platform's `FetchTimeoutError`.
 The package no longer depends on platform. Connector examples are vendor-neutral.
+
+## Optional TanStack fetch-query adapter
+
+The default `@jini-ai/ui/fetch-query` entry stays dependency-free beyond React and
+the shared Jini foundation. Install the optional `@tanstack/react-query` v5 peer
+to select `@jini-ai/ui/fetch-query/tanstack` at the provider composition:
+
+```tsx
+import { FetchQueryProvider } from '@jini-ai/ui/fetch-query/tanstack';
+import { useFetchQuery } from '@jini-ai/ui/fetch-query';
+
+function Records() {
+  const query = useFetchQuery(
+    { key: ['records'], fetch: loadRecords },
+    { staleTime: 0, refetchOnWindowFocus: true },
+  );
+  return <span>{query.status}</span>;
+}
+
+// Existing components keep their imports; the provider binds all four hooks.
+<FetchQueryProvider><Records /></FetchQueryProvider>;
+```
+
+Both providers own isolated caches and share the same library-free types, prefix
+invalidation, promise loader and mutation contracts. The default freshness is
+10 seconds, window focus refresh is off, and reads/writes do not retry failures
+automatically. `refetch()` retries a failed read explicitly. Set
+`refetchOnWindowFocus: true` per query to refresh stale data on focus; choose
+`staleTime: 0` when every focus should revalidate. The optional `environment` port
+controls offline pausing and reconnect/focus events independently per provider.
+Keep the selected adapter fixed for a provider's lifetime; remount to switch it.

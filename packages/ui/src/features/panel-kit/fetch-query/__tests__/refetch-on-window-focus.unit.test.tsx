@@ -1,21 +1,20 @@
 import { fireEvent } from "@testing-library/react";
 import { render, waitFor, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { FetchQueryProvider, useFetchQuery } from "..";
+import { FetchQueryProvider as BuiltInProvider, useFetchQuery } from "..";
+import { FetchQueryProvider as TanStackProvider } from "../tanstack.js";
 
 /**
  * @file The `refetchOnWindowFocus` per-query passthrough (2026-09-21, forms plan §C) — additive, and
- * the client default (`false`, `adapter.tanstack.tsx`'s `createClient`) must stay unchanged for every
+ * the provider default (`false`, for both adapters) must stay unchanged for every
  * query that does not explicitly opt in. Both cases pass `staleTime: 0` so the query is always
- * eligible to refetch on focus in the first place; TanStack's own focus-refetch gate additionally
- * requires the query be stale, which this file's header (see `fetch-query.test.tsx`) says is
- * deliberately out of scope to otherwise re-derive here.
+ * eligible to refetch on focus in the first place. Opting in alone must not re-fetch fresh data;
+ * staleTime is still the contract's freshness gate.
  *
- * `focusManager.setFocused` only notifies subscribers on an actual CHANGE (see
- * `@tanstack/query-core`'s `FocusManager`), so each test flips unfocused -> focused to trigger it,
- * and `afterEach` resets it back to the library's own default focus check so no state leaks into a
- * later test in this file.
+ * Host focus signals flow through the provider's environment instead of a global focusManager,
+ * so independent providers do not overwrite one another's subscriptions. Provider disposal
+ * releases these listeners rather than requiring tests to reset process-wide library state.
  */
 
 
@@ -25,7 +24,26 @@ function Reader({ fetch, refetchOnWindowFocus, id = "data" }: { fetch: () => Pro
   return <span data-testid={id}>{q.data ?? "-"}</span>;
 }
 
+
+describe.each([["built-in", BuiltInProvider], ["tanstack", TanStackProvider]] as const)("%s adapter conformance", (_name, FetchQueryProvider) => {
+
 describe("useFetchQuery refetchOnWindowFocus", () => {
+  it("retains fresh data on focus even when the query opts in", async () => {
+    const fetch = vi.fn(async () => "fresh");
+    let calls = 0;
+    const sentinelFetch = vi.fn(async () => `sentinel${++calls}`);
+    function Fresh() {
+      const query = useFetchQuery({ key: ["fresh-focus"], fetch }, { staleTime: Infinity, refetchOnWindowFocus: true });
+      return <span data-testid="fresh">{query.data}</span>;
+    }
+    render(<FetchQueryProvider><Fresh /><Reader fetch={sentinelFetch} refetchOnWindowFocus id="sentinel" /></FetchQueryProvider>);
+    await waitFor(() => expect(screen.getByTestId("fresh").textContent).toBe("fresh"));
+    await waitFor(() => expect(screen.getByTestId("sentinel").textContent).toBe("sentinel1"));
+    fireEvent.focus(window);
+    await waitFor(() => expect(screen.getByTestId("sentinel").textContent).toBe("sentinel2"));
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("refetches when the window regains focus, when explicitly opted in", async () => {
     let call = 0;
     const fetch = vi.fn(async () => `v${++call}`);
@@ -62,4 +80,6 @@ describe("useFetchQuery refetchOnWindowFocus", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("data")).toHaveTextContent("v1");
   });
+});
+
 });
