@@ -6,6 +6,9 @@ import type { ReactNode } from 'react';
 import { formsModule } from '../forms.module.js';
 import { FormsPortsContext, FormsOptionsContext } from './hooks/FormsPorts.hooks.js';
 import type { FormsReactOptions } from './hooks/FormsPorts.hooks.js';
+// The list must mount its bounded API read even when long-lived streams occupy every socket.
+// A native dynamic import would queue before that read and leave the loading notice forever.
+import { FormsList } from './pages/FormsList.js';
 export type { FormsReactOptions, FormsPorts } from './hooks/FormsPorts.hooks.js';
 export { FormsPortsContext, FormsOptionsContext, useFormsPorts } from './hooks/FormsPorts.hooks.js';
 export { useFormsList } from './hooks/use-forms-list.hooks.js';
@@ -18,7 +21,6 @@ export interface FormsModulePageProps extends ModulePageProps { readonly formId?
 export function forms(_required: Record<string, never>, options: FormsReactOptions = {}) {
   const react = bindReact({ module: formsModule, views: {
     list: { page: async () => {
-      const { FormsList } = await import('./pages/FormsList.js');
       return { default: (_props: ModulePageProps) => createElement(FormsList) };
     }, tabs: {} },
     editor: { page: async () => {
