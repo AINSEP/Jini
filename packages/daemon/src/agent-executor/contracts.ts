@@ -276,14 +276,15 @@ export interface TerminateChildTreeDeps {
  * Which step reported a contained failure through `onCleanupFailure` (SEC-007).
  *
  * The first three come from {@link terminateChildTreeBestEffort} (process-tree teardown). The last
- * two are the two fallible steps that sit between a child's `'close'` and `finish()` — staged-file
- * removal and the host's own `classifyFailure` — neither of which may prevent the terminal
- * transition, and neither of which may fail silently either. See each close handler.
+ * three cover tool cancellation, staged-file removal and the host's own `classifyFailure`.
+ * These fallible steps between a child's `'close'` and `finish()` must never prevent the terminal
+ * transition, and none may fail silently either. See each close handler.
  */
 export type AgentCleanupFailurePhase =
   | 'cancel'
   | 'acp-attach-failure'
   | 'pi-rpc-attach-failure'
+  | 'tool-cancellation'
   | 'staged-file-cleanup'
   | 'failure-classification';
 
@@ -436,6 +437,10 @@ export interface McpJsonInjectionOptions {
    * @default `fs.rm(path, { recursive: true, force: true })` — already-gone is success, not an error.
    */
   readonly removeDir?: ({ path }: { readonly path: string }) => Promise<void>;
+  /** `'codex-toml'` only. Links the run home's sessions/archived_sessions to the operator's
+   * persistent rollout store. Config and auth remain isolated and are removed after the run.
+   * @default Native mkdir (0700) and directory symlinks; errors fail staging before spawn. */
+  readonly linkSessionStore?: (required: { runHome: string; sourceHome: string }, optional?: {}) => Promise<void>;
 }
 
 /** One `.mcp.json` `mcpServers` entry — the shape Claude Code's own config schema expects. */

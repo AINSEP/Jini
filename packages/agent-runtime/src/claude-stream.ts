@@ -38,6 +38,7 @@
  */
 
 import { createRoleMarkerGuard, type RoleMarkerGuard, type RoleMarkerWarningEvent } from './role-marker-guard.js';
+import { createClaudeSegmentUsage } from './claude-segment-usage.js';
 
 /**
  * Every event `createClaudeStreamHandler` can emit, discriminated on `type`. Exported (via
@@ -441,15 +442,18 @@ export function emitAssistantErrorIfPresent(obj: Record<string, unknown>, conten
 
 interface ClaudeStreamHandlerOptions {
   suppressHtmlArtifactsAfterFileWrite?: boolean;
+  /** Clock used only when an interrupted segment omits its duration. */
+  nowMs?: () => number;
 }
 
 export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, options: ClaudeStreamHandlerOptions = {}
 ) {
   let buffer = '';
+  const segmentUsage = createClaudeSegmentUsage({}, options.nowMs === undefined ? {} : { nowMs: options.nowMs });
 
   // Per-content-block scratch, keyed by `${messageId}:${blockIndex}`.
   const blocks = new Map<string, BlockState>();
-  // Tool uses already emitted from streamed `input_json_delta` data.
+  // Tool uses already emitted from streamed `input_json_delta` data OR full wrappers.
   // Claude Code still repeats them in the final assistant wrapper, often with
   // empty `{}` inputs, so we suppress that duplicate emission.
   const streamedToolUseIds = new Set<string>();
@@ -514,6 +518,10 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
   }
 
   function emitToolUse(id: unknown, name: unknown, input: unknown): void {
+    if (typeof id === 'string') {
+      if (streamedToolUseIds.has(id)) return;
+      streamedToolUseIds.add(id);
+    }
     if (emitCanonicalTaskSnapshot(id, name, input, taskRegistry, onEvent)) return;
     if (isFileWriteToolUse(name, input)) {
       suppressNextArtifactText = true;
@@ -679,6 +687,8 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
       }
     }
     flushPendingArtifactText();
+    // A hard cancel has no result frame. Flush only counters actually observed, once.
+    if (segmentUsage.hasObserved()) onEvent({ type: 'usage', ...segmentUsage.finish({ result: {}, interrupted: true }), stopReason: null });
   }
 
   function handleToolUseBlock(block: Record<string, unknown>): void {
@@ -750,6 +760,7 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
     if (typeof message.model === 'string') onEvent({ type: 'status', label: 'model', model: message.model });
     const { textMsgId, thinkingMsgId, textAlreadyStreamed, thinkingAlreadyStreamed } =
       resolveAssistantMessageIds(message);
+    segmentUsage.observe({ messageId: currentMessageId ?? `anon${anonymousMessageEpoch}`, usage: message.usage });
     // Per-turn `stop_reason` is emitted as `turn_end` AFTER the content
     // blocks have been processed (see below). When `--include-partial-
     // messages` is unsupported, tool_use events surface only from the
@@ -793,9 +804,7 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
     }
     onEvent({
       type: 'usage',
-      usage: obj.usage ?? null,
-      costUsd: obj.total_cost_usd ?? null,
-      durationMs: obj.duration_ms ?? null,
+      ...segmentUsage.finish({ result: obj, interrupted: stopReason?.startsWith('aborted') === true }),
       stopReason,
     });
   }
@@ -829,6 +838,7 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
     currentMessageId = isRecord(ev.message) && typeof ev.message.id === 'string' ? ev.message.id : null;
     // New message boundary — see `anonymousMessageEpoch`'s declaration.
     if (currentMessageId === null) anonymousMessageEpoch += 1;
+    segmentUsage.observe({ messageId: currentMessageId ?? `anon${anonymousMessageEpoch}`, usage: isRecord(ev.message) ? ev.message.usage : undefined });
     currentMessageStreamedText = false;
     currentMessageStreamedThinking = false;
     if (typeof ev.ttft_ms === 'number') {
@@ -913,6 +923,7 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
         handleContentBlockStop(ev);
         return;
       case 'message_delta':
+        segmentUsage.observe({ messageId: currentMessageId ?? `anon${anonymousMessageEpoch}`, usage: ev.usage ?? (isRecord(ev.delta) ? ev.delta.usage : undefined) });
         if (isRecord(ev.delta)) handleMessageDeltaEvent(ev.delta);
         return;
     }

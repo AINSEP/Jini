@@ -150,7 +150,7 @@ export function defaultCleanupFailureSink(context: AgentCleanupFailureContext): 
 /**
  * Reports a contained post-close failure through the host's sink, absorbing a throwing sink.
  *
- * A diagnostic sink is host code too, and the whole point of the two callers below is that nothing
+ * A diagnostic sink is host code too, and the whole point of these callers is that nothing
  * between `'close'` and `finish()` can strand the run — a sink that throws must not reintroduce
  * exactly that. Same reasoning `run-lifecycle.ts`'s `handleInactivityTimeout` already applies to its
  * own `onInternalError`.
@@ -415,6 +415,34 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   // consumed by a turn-end injection decision. See `ContinuationOptions`'s doc for why this is
   // only ever acted on when a host has explicitly allowlisted the tool's name.
   let pendingToolUse: { id: string; name: string; input: unknown } | undefined;
+  // Observe the canonical lifecycle, including delegated calls that bypass the CLI parser.
+  // A single latest tool_use cannot represent parallel tools at an interrupt boundary.
+  const unresolvedToolCalls = new Set<string>();
+  const interruptedToolCalls = new Set<string>();
+  const toolSubscription = lifecycle.stream({ runId, onEvent: (event) => {
+    if (event.kind !== 'agent') return;
+    if (event.payload.type === 'tool_use') unresolvedToolCalls.add(event.payload.id);
+    if (event.payload.type === 'tool_result') unresolvedToolCalls.delete(event.payload.toolUseId);
+  } }).catch(error => {
+    // Observing tools is fallible I/O too: report it, but never strand close/finish on a replay
+    // failure or leave an unhandled rejection while the child is still running.
+    reportPostCloseFailure(ctx.onCleanupFailure, { runId, phase: 'tool-cancellation', pid: child.pid, error });
+    return null;
+  });
+
+  /** Run on the same FIFO as parsed results, after the aborted segment has drained.
+   * O(t) in unresolved calls; completed results are never replaced with cancellation. */
+  async function cancelUnresolvedToolCalls(ids?: readonly string[]): Promise<void> {
+    await toolSubscription;
+    for (const toolUseId of ids ?? [...unresolvedToolCalls]) {
+      if (!unresolvedToolCalls.has(toolUseId)) continue;
+      await lifecycle.emit({ runId, input: { event: 'agent', data: {
+        type: 'tool_result', toolUseId, content: 'Tool execution cancelled.', isError: true,
+      } } }).catch(error => {
+        reportPostCloseFailure(ctx.onCleanupFailure, { runId, phase: 'tool-cancellation', pid: child.pid, error });
+      });
+    }
+  }
   // Bridge guard (see `expectsJiniBridge`): checked on the first init frame only. Once the bridge is
   // found unavailable, the child is being stopped and nothing it still prints is forwarded.
   let bridgeChecked = !ctx.expectsJiniBridge;
@@ -520,6 +548,10 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
    * unconfigured or the pending tool isn't allowlisted).
    */
   function handleTurnEnd(stopReason: string | undefined): void {
+    if (stopReason?.startsWith('aborted')) enqueueEmit(async () => {
+      await cancelUnresolvedToolCalls([...interruptedToolCalls]);
+      interruptedToolCalls.clear();
+    });
     const toolUse = pendingToolUse;
     const shouldInject =
       stopReason === 'tool_use' &&
@@ -724,6 +756,9 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
       // `finish()`'s `'end'` event, exactly like every live-path emit already is.
       flushBufferedStdout();
       await emitQueue;
+      if (cancelRequested) await cancelUnresolvedToolCalls();
+      const subscribedTools = await toolSubscription;
+      if (subscribedTools?.kind === 'ok') subscribedTools.unsubscribe();
       unsubscribeCancel();
       // Both of the next two steps are guarded: neither a failed cleanup nor a rejecting host
       // classifier may prevent the terminal transition below — see each helper's own doc.
@@ -761,6 +796,13 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
     if (stdinClosed || !stdin) return 'not-running';
     const requestId = `jini-interrupt-${randomUUID()}`;
     interruptSent = true;
+    // Capture before requesting the interrupt. Its result can precede the acknowledgement, or
+    // arrive after the next segment starts: neither ordering may cancel that segment's new tools.
+    enqueueEmit(async () => {
+      await toolSubscription;
+      for (const id of interruptedToolCalls) if (!unresolvedToolCalls.has(id)) interruptedToolCalls.delete(id);
+      for (const id of unresolvedToolCalls) interruptedToolCalls.add(id);
+    });
     const acked = new Promise<boolean>((resolve) => pendingInterruptAcks.set(requestId, resolve));
     stdin.write(`${JSON.stringify({ type: 'control_request', request_id: requestId, request: { subtype: 'interrupt' } })}\n`, 'utf8');
     let timer: ReturnType<typeof setTimeout> | undefined;

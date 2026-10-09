@@ -8,7 +8,7 @@ export { RECOVERY_LIMIT, RECOVERY_WINDOW_MS, RUN_STALENESS_MS, SAVED_WORK_NOTICE
 /** Retryability is independent of session resumability. Inspect executor diagnostics, never
  * answer text or tool results: those can quote unrelated failures from completed work. Old
  * attempt diagnostics remain visible but cannot decide the fate of their continuation. */
-function attemptFailure(run: DurableRun): "retryable" | "permanent" | "auth-failure" | "inactivity-watchdog" {
+function attemptDiagnostics({ run }: { run: DurableRun }, _optional = {}): string {
   const events = run.message.events ?? [];
   // Checkpoints merge adjacent text, so a base's event count is not a durable offset. The
   // coordinator's recovery marker separates attempts and survives that compaction.
@@ -18,8 +18,12 @@ function attemptFailure(run: DurableRun): "retryable" | "permanent" | "auth-fail
     const event = events[index]!;
     if (event.kind === "status" && event.code === "run_recovering") { marker = index; break; }
   }
-  const diagnostics = events.slice(marker >= 0 ? marker + 1 : run.attemptBase.length).flatMap((event) =>
+  return events.slice(marker >= 0 ? marker + 1 : run.attemptBase.length).flatMap((event) =>
     event.kind === "status" ? [event.label, event.detail ?? ""] : event.kind === "raw" ? [event.line] : []).join("\n");
+}
+
+function attemptFailure(run: DurableRun): "retryable" | "permanent" | "auth-failure" | "inactivity-watchdog" {
+  const diagnostics = attemptDiagnostics({ run }, {});
   if (/inactivity[_ -]?(timeout|watchdog)|watchdog.*(kill|stop)/i.test(diagnostics)) return "inactivity-watchdog";
   const service = classifyAgentServiceFailure({ text: diagnostics });
   if (service === "AGENT_AUTH_REQUIRED") return "auth-failure";
@@ -63,11 +67,14 @@ export function createDurableRecovery(ports: RecoveryPorts, _optional = {}): Dur
 
   async function continueDead(run: DurableRun): Promise<RecoveryResult> {
     await ports.cancelAttempt(run, {}).catch(() => undefined);
-    const native = await nativeAllowed(run);
+    // A locator captured before a hard cancel can outlive its rollout. Reuse reconstruction,
+    // including prior turns/tool outcomes, instead of retrying a known missing native session.
+    const missingResume = run.request.agentId === 'codex' && /no rollout found for thread id/.test(attemptDiagnostics({ run }, {}));
+    const native = !missingResume && await nativeAllowed(run);
     const nextRunId = ports.mintRunId();
     const saved = [...(run.message.events ?? [])];
     if (!saved.some((event) => event.kind === "text") && run.message.content) saved.unshift({ kind: "text", text: run.message.content });
-    const events = recoveredRunEvents({ saved }, {});
+    const events = recoveredRunEvents({ saved }, { notice: missingResume ? 'silent' : 'visible' });
     if (!await ports.store.advance({ run, nextRunId, now: ports.now(), events }, {})) return "superseded";
     const next = await ports.store.load({ messageId: run.messageId }, {});
     // Cancel/deletion can win while the old attempt is being fenced. Re-read after CAS and do

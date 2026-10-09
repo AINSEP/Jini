@@ -7,6 +7,7 @@ import {
 } from 'node:os';
 import {
   join,
+  resolve,
 } from 'node:path';
 import type {
    AcpMcpServerInput,
@@ -607,6 +608,18 @@ interface CodexHomeSeams {
   readonly readFile: ({ path }: { readonly path: string }) => Promise<string>;
   readonly writeFile: ({ path, content }: { readonly path: string; readonly content: string }) => Promise<void>;
   readonly removeDir: ({ path }: { readonly path: string }) => Promise<void>;
+  readonly linkSessionStore: NonNullable<McpJsonInjectionOptions['linkSessionStore']>;
+}
+
+/** Config credentials stay run-scoped, but rollouts must survive both completion and cancellation.
+ * Native directory links keep Codex as the sole writer of its own persisted session format.
+ * Cleanup removes the links themselves, never their targets. Two fixed directories, O(1) I/O. */
+async function defaultLinkCodexSessionStore({ runHome, sourceHome }: { runHome: string; sourceHome: string }, _optional = {}): Promise<void> {
+  for (const name of ['sessions', 'archived_sessions']) {
+    const target = resolve(sourceHome, name);
+    await fsPromises.mkdir(target, { recursive: true, mode: 0o700 });
+    await fsPromises.symlink(target, join(runHome, name), 'junction');
+  }
 }
 
 function resolveCodexHomeSeams(options: McpJsonInjectionOptions): CodexHomeSeams {
@@ -615,6 +628,7 @@ function resolveCodexHomeSeams(options: McpJsonInjectionOptions): CodexHomeSeams
     readFile: options.readFile ?? defaultReadMcpJsonFile,
     writeFile: options.writeFile ?? defaultWriteMcpJsonFile,
     removeDir: options.removeDir ?? defaultRemoveCodexHomeDir,
+    linkSessionStore: options.linkSessionStore ?? defaultLinkCodexSessionStore,
   };
 }
 
@@ -631,8 +645,9 @@ function resolveCodexHomeSeams(options: McpJsonInjectionOptions): CodexHomeSeams
  *     0.151.0) to fail fast with a structured `401 Unauthorized` stream event, never an interactive
  *     login prompt or a hang — see `defs/codex.ts`'s module doc for the full transcript summary.
  *
- * **Never touches the real `CODEX_HOME`.** `sourceCodexHomeDir` is read-only throughout; nothing is
- * ever written back to it.
+ * **Never changes the real config or credentials.** Those source files stay read-only. Only the
+ * native rollout directories are shared: deleting a run's scratch home must not erase the thread
+ * whose id the host already persisted. No copied login or run-bound MCP credential is retained.
  *
  * A failure after the directory is created (a rejecting `writeFile`, most plausibly) does not leak
  * it: the directory may already hold a partial `config.toml` or a copied credential, so the
@@ -642,9 +657,9 @@ function resolveCodexHomeSeams(options: McpJsonInjectionOptions): CodexHomeSeams
  * `@jini-ai/agent-runtime`'s `prepareAgentLogFile`'s `label` is.
  * @param entry - The shared bridge entry.
  * @param sourceCodexHomeDir - Where to read the real install's `config.toml`/`auth.json` from — see {@link resolveSourceCodexHomeDir}.
- * @param seams - Injectable mkdtemp/readFile/writeFile/removeDir, real filesystem by default.
- * @throws Whatever `mkdtemp`/`writeFile` rejects with — the caller ({@link prepareCodexHomeIfNeeded}) turns that into a pre-spawn `AGENT_SPAWN_FAILED` failure, matching {@link writeMcpJsonForRun}'s own contract.
- * @complexity O(1) plus one directory creation and up to two best-effort file read/write round trips.
+ * @param seams - Injectable mkdtemp/readFile/writeFile/removeDir/linkSessionStore, real filesystem by default.
+ * @throws Whatever staging rejects with — the caller ({@link prepareCodexHomeIfNeeded}) turns that into a pre-spawn `AGENT_SPAWN_FAILED` failure, matching {@link writeMcpJsonForRun}'s own contract.
+ * @complexity O(1): fixed directory links and up to two best-effort file read/write round trips.
  * @overallScore 100/100
  */
 async function prepareCodexHomeForRun(
@@ -677,6 +692,7 @@ async function prepareCodexHomeForRun(
       // No stored login (or unreadable) — the spawned CLI runs unauthenticated. Confirmed above:
       // this fails the run fast and observably, never as a hang.
     }
+    await seams.linkSessionStore({ runHome: dir, sourceHome: sourceCodexHomeDir }, {});
   } catch (err) {
     await seams.removeDir({ path: dir }).catch(() => {
       // Best-effort only — the original error below is what the caller must see either way.

@@ -260,6 +260,15 @@ describe('MessageRow', () => {
   });
 
   describe('usage summary line', () => {
+    it('totals all interrupted segments rather than displaying only the last result', () => {
+      render(<MessageRow message={{ id: 'interrupted', role: 'assistant', content: 'Done.', runStatus: 'succeeded', events: [
+        { kind: 'usage', inputTokens: 100, outputTokens: 995, costUsd: 0.03, durationMs: 13_000 },
+        { kind: 'ext', name: 'user_message', data: { id: 'u2', text: 'change course' } },
+        { kind: 'usage', inputTokens: 10, outputTokens: 5, costUsd: 0.0198, durationMs: 1_000 },
+      ] }} />);
+      expect(document.querySelector('.jini-message-usage')?.textContent).toBe('●Done · 14s · 1000 out · $0.0498');
+    });
+
     it('renders duration, output tokens, and cost from the message\'s usage event', () => {
       const message: ChatMessage = {
         id: 'u1',
@@ -313,7 +322,7 @@ describe('MessageRow', () => {
       expect(document.querySelector('.jini-message-usage')).toBeNull();
     });
 
-    it('uses the last usage event when more than one is present', () => {
+    it('sums costs from every usage event when more than one is present', () => {
       const message: ChatMessage = {
         id: 'u6',
         role: 'assistant',
@@ -325,8 +334,7 @@ describe('MessageRow', () => {
         runStatus: 'succeeded',
       };
       render(<MessageRow message={message} runSucceeded />);
-      expect(screen.getByText(/\$0\.9900/)).toBeInTheDocument();
-      expect(screen.queryByText(/\$0\.0100/)).not.toBeInTheDocument();
+      expect(document.querySelector('.jini-message-usage')?.textContent).toBe('●Done · $1.0000');
     });
   });
 

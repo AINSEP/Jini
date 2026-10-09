@@ -90,7 +90,11 @@ function continuationEvents(
     const event = incoming[index]!;
     if (event.kind === "status" && event.code === "run_recovering") { marker = index; break; }
   }
-  if (marker >= 0) return [...recoveredRunEvents({ saved }, {}), ...incoming.slice(marker + 1)];
+  if (marker >= 0) {
+    const event = incoming[marker]!;
+    const notice = event.kind === 'status' && event.label === '' ? 'silent' : 'visible';
+    return [...recoveredRunEvents({ saved }, { notice }), ...incoming.slice(marker + 1)];
+  }
   return runContentFromEvents({ events: incoming }).length >= current.message.content.length ? incoming : saved;
 }
 

@@ -1,4 +1,5 @@
 import { terminalMessageNotice, continuingRunNotice } from '../../core/durable-projection.js';
+import { turnUsage } from '../../core/turn-usage.js';
 /**
  * @module MessageRow
  *
@@ -288,7 +289,7 @@ export const MessageRow = memo(function MessageRow({
   const terminalNotice = terminalMessageNotice({ message }, {});
   const visibleContent = stripArtifact({ content: message.content });
   const segments = splitOnQuestionForms({ input: visibleContent });
-  const usageEvent = message.events?.filter((ev): ev is UsageEvent => ev.kind === 'usage').pop();
+  const usageEvent = turnUsage({ events: message.events }, {});
 
   const blocks = messageBlocks({ visibleContent, message, rows: timeline.rows }, {});
   const pending = isPendingWithNoContent(message, visibleContent, timeline.rows.length);

@@ -1,13 +1,21 @@
 import type { AgentEvent } from './events.js';
 import type { ChatMessage } from './messages.js';
 
-function identity(event: AgentEvent): string {
+function identity(event: AgentEvent, usageOccurrences: Map<string, number>): string {
   const wire = event as AgentEvent & { cursor?: string | number; eventId?: string };
   if (wire.eventId !== undefined) return `event:${wire.eventId}`;
   if (wire.cursor !== undefined) return `cursor:${wire.cursor}`;
   if (event.kind === 'tool_use') return `use:${event.id}`;
   if (event.kind === 'tool_result') return `result:${event.toolUseId}`;
-  return JSON.stringify(event);
+  const snapshot = JSON.stringify(event);
+  if (event.kind === 'usage') {
+    // Two segments can have identical counters. Match occurrence-for-occurrence during replay,
+    // rather than treating equal charges as the same event and silently dropping one segment.
+    const occurrence = (usageOccurrences.get(snapshot) ?? 0) + 1;
+    usageOccurrences.set(snapshot, occurrence);
+    return `usage:${snapshot}:${occurrence}`;
+  }
+  return snapshot;
 }
 
 function textOf(events: readonly AgentEvent[]): string {
@@ -19,7 +27,9 @@ function textOf(events: readonly AgentEvent[]): string {
 export function mergeRunEvents({ saved, incoming }: { saved?: readonly AgentEvent[] | undefined; incoming: readonly AgentEvent[] }, _optional = {}): AgentEvent[] {
   const previous = saved ?? [];
   const result = [...previous];
-  const keys = new Set(previous.map(identity));
+  const savedUsage = new Map<string, number>();
+  const incomingUsage = new Map<string, number>();
+  const keys = new Set(previous.map(event => identity(event, savedUsage)));
   const before = textOf(previous);
   const after = textOf(incoming);
   let skip = after.startsWith(before) ? before.length : after.length;
@@ -28,9 +38,12 @@ export function mergeRunEvents({ saved, incoming }: { saved?: readonly AgentEven
       const text = event.text.slice(skip);
       skip = Math.max(0, skip - event.text.length);
       if (text) result.push({ ...event, text });
-    } else if (!keys.has(identity(event))) {
-      keys.add(identity(event));
-      result.push(event);
+    } else {
+      const key = identity(event, incomingUsage);
+      if (!keys.has(key)) {
+        keys.add(key);
+        result.push(event);
+      }
     }
   }
   return result;
@@ -42,6 +55,8 @@ export function continuingRunNotice({ events, active }: { events: readonly Agent
   const list = events ?? [];
   const marker = list.findLastIndex((event) => event.kind === 'status' && event.code === 'run_recovering');
   if (marker < 0) return null;
+  const markerEvent = list[marker];
+  if (markerEvent?.kind === 'status' && markerEvent.label === '') return null;
   const progressed = list.slice(marker + 1).some((event) => event.kind === 'text' || event.kind === 'tool_use' || event.kind === 'tool_result');
   return progressed ? null : 'Continuing…';
 }
@@ -62,7 +77,22 @@ export function terminalMessageNotice({ message }: { message: ChatMessage }, _op
 
 /** The first answer has no earlier segment to divide, even if startup was retried. Only saved
  * visible text can justify a Continued divider; the recovery marker still records the attempt. */
-export function recoveredRunEvents({ saved }: { saved: readonly AgentEvent[] }, _optional = {}): AgentEvent[] {
+export function recoveredRunEvents({ saved }: { saved: readonly AgentEvent[] }, { notice = 'visible' }: { notice?: 'visible' | 'silent' } = {}): AgentEvent[] {
+  if (notice === 'silent') {
+    // A missing rollout is an expected reconstruction fallback, not a failed user turn. Keep an
+    // invisible attempt marker for fencing/diagnostic offsets, and preserve all unrelated work.
+    const attemptStart = saved.findLastIndex(event => event.kind === 'status' && event.code === 'run_recovering') + 1;
+    const diagnostic = saved.findIndex((event, index) => index >= attemptStart && (
+      (event.kind === 'status' && /no rollout found for thread id/.test(`${event.label}\n${event.detail ?? ''}`)) ||
+      (event.kind === 'raw' && /no rollout found for thread id/.test(event.line))));
+    const events = saved.filter((event, index) => {
+      if (diagnostic < 0 || index < attemptStart) return true;
+      if (event.kind === 'raw') return !/no rollout found for thread id/.test(event.line);
+      if (event.kind === 'status') return event.label !== 'Run failed — the agent process exited without answering' && !/no rollout found for thread id/.test(`${event.label}\n${event.detail ?? ''}`);
+      return true;
+    });
+    return [...events, { kind: 'status', code: 'run_recovering', label: '' }];
+  }
   const hasAnswer = saved.some(event => event.kind === 'text' && event.text.trim().length > 0);
   return [...saved, ...(hasAnswer ? [{ kind: 'text' as const, text: '\n\n---\n\nContinued\n\n' }] : []),
     { kind: 'status', code: 'run_recovering', label: 'Continuing…' }];

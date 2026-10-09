@@ -50,11 +50,14 @@ function createDef(overrides: Partial<RuntimeAgentDef>): RuntimeAgentDef {
   };
 }
 
-function createHarness(def: RuntimeAgentDef) {
+function createHarness(def: RuntimeAgentDef, { observerFailure }: { observerFailure?: Error } = {}) {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const child = createFakeChild();
   const spawn = (() => { queueMicrotask(() => child.emit('spawn')); return child as unknown as ChildProcess; }) as unknown as typeof nodeSpawn;
-  const executor = createAgentExecutor({ lifecycle }, {
+  const onCleanupFailure = vi.fn();
+  const executor = createAgentExecutor({ lifecycle: observerFailure ? {
+    ...lifecycle, stream: async () => { throw observerFailure; },
+  } : lifecycle }, {
     resolveModelForLaunch: fixtureLaunchModel,
     getAgentDef: ({ id }) => (id === def.id ? def : null),
     resolveAgentLaunch: () => ({ selectedPath: '/fake/bin', pathResolvedPath: '/fake/bin', configuredOverridePath: null, launchPath: '/fake/bin', launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution,
@@ -62,9 +65,9 @@ function createHarness(def: RuntimeAgentDef) {
     spawn,
     listProcessSnapshots: async () => [],
     stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }),
-    onCleanupFailure: vi.fn(),
+    onCleanupFailure,
   });
-  return { lifecycle, executor, child };
+  return { lifecycle, executor, child, onCleanupFailure };
 }
 
 async function startRun(harness: ReturnType<typeof createHarness>): Promise<string> {
@@ -88,6 +91,58 @@ function controlResponse(requestId: string): unknown {
 }
 
 describe('AgentExecutor.sendUserMessage — a message sent during a run reaches the live agent', () => {
+  it('reports an unavailable tool observer without stranding the terminal transition', async () => {
+    const error = new Error('event replay unavailable');
+    const h = createHarness(createDef({}), { observerFailure: error });
+    const runId = await startRun(h);
+    h.child.emit('close', 0, null);
+    expect((await h.lifecycle.waitForTerminal({ runId })).state).toBe('succeeded');
+    expect(h.onCleanupFailure).toHaveBeenCalledTimes(1);
+    expect(h.onCleanupFailure).toHaveBeenCalledWith({ runId, phase: 'tool-cancellation', pid: 4242, error });
+  });
+
+  it('records cancellation for every unresolved native and delegated call at the aborted boundary', async () => {
+    const h = createHarness(createDef({}));
+    const runId = await startRun(h);
+    h.child.stdout.emit('data', `${JSON.stringify({ type: 'assistant', message: { id: 'm1', content: [
+      { type: 'tool_use', id: 'fetch', name: 'web_fetch_page', input: {} },
+      { type: 'tool_use', id: 'shot', name: 'web_screenshot_page', input: {} },
+    ], stop_reason: 'tool_use' } })}\n`);
+    // Delegated canonical calls enter the lifecycle directly, outside the CLI parser.
+    await h.lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'tool_use', id: 'delegate', name: 'site_read', input: {} } } });
+    const delivery = h.executor.sendUserMessage({ runId, text: 'change course' });
+    await flush();
+    h.child.stdout.emit('data', `${JSON.stringify(controlResponse(JSON.parse(h.child.stdin.writes[1]!).request_id))}\n`);
+    await expect(delivery).resolves.toBe('delivered');
+    h.child.stdout.emit('data', `${JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'fetch', content: 'Tool execution cancelled.', is_error: true }] } })}\n`);
+    // The next segment has a new call: it must survive the old segment's cancellation.
+    h.child.stdout.emit('data', `${JSON.stringify({ type: 'assistant', message: { id: 'm2', content: [{ type: 'tool_use', id: 'next', name: 'Read', input: {} }], stop_reason: 'tool_use' } })}\n`);
+    h.child.stdout.emit('data', `${JSON.stringify({ type: 'result', terminal_reason: 'aborted_tool_use' })}\n`);
+    await flush();
+    const results = (await agentPayloads(h, runId)).filter((p) => (p as { type?: string }).type === 'tool_result');
+    expect(results.sort((a, b) => (a as { toolUseId: string }).toolUseId.localeCompare((b as { toolUseId: string }).toolUseId))).toEqual([
+      { type: 'tool_result', toolUseId: 'delegate', content: 'Tool execution cancelled.', isError: true },
+      { type: 'tool_result', toolUseId: 'fetch', content: 'Tool execution cancelled.', isError: true },
+      { type: 'tool_result', toolUseId: 'shot', content: 'Tool execution cancelled.', isError: true },
+    ]);
+    h.child.emit('close', 0, null);
+    await h.lifecycle.waitForTerminal({ runId });
+  });
+
+  it('pairs all open tool calls before the terminal event on hard cancellation', async () => {
+    const h = createHarness(createDef({ promptInputFormat: 'text' }));
+    const runId = await startRun(h);
+    for (const id of ['done', 'open']) await h.lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'tool_use', id, name: 'Read', input: {} } } });
+    await h.lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'tool_result', toolUseId: 'done', content: 'saved', isError: false } } });
+    await h.lifecycle.cancel({ runId });
+    h.child.emit('close', null, 'SIGTERM');
+    await h.lifecycle.waitForTerminal({ runId });
+    expect((await agentPayloads(h, runId)).filter(p => (p as { type?: string }).type === 'tool_result')).toEqual([
+      { type: 'tool_result', toolUseId: 'done', content: 'saved', isError: false },
+      { type: 'tool_result', toolUseId: 'open', content: 'Tool execution cancelled.', isError: true },
+    ]);
+  });
+
   it('interrupts the running turn first and writes the message only once the CLI acknowledges the interrupt', async () => {
     const harness = createHarness(createDef({}));
     const runId = await startRun(harness);

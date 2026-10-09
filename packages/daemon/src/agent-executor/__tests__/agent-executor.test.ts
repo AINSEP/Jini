@@ -5652,6 +5652,7 @@ describe("AgentExecutor — 'codex-toml' MCP bridge delivery (Codex CODEX_HOME r
       command: '/usr/bin/jini-mcp',
       args: ['--quiet'],
       daemonUrl: 'http://127.0.0.1:4242',
+      linkSessionStore: async () => {},
       mkdtemp: async ({ prefix }: { readonly prefix: string }) => {
         mkdtempCalls.push(prefix);
         return `/fake/tmp/${prefix}`;
