@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/admin",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "Composable admin surface for Jini-hosted products: framework-free contracts, panel registry, and route model in `/core`; React shell and panels in `/react`. Import only the layers you need.",
   "license": "Apache-2.0",
   "repository": {
@@ -434,10 +434,10 @@
     "react": "^18.3.0 || ^19.0.0",
     "react-dom": "^18.3.0 || ^19.0.0",
     "@jini-ai/agentic": "^0.4.2",
-    "@jini-ai/ui": "^0.4.5",
+    "@jini-ai/ui": "^0.4.7",
     "@jini-ai/ui-kit": "^0.1.1",
     "@jini-ai/agent-plugins": "^0.4.1",
-    "@jini-ai/cms": "^0.5.2",
+    "@jini-ai/cms": "^0.5.5",
     "@jini-ai/core": "^0.4.2"
   },
   "peerDependenciesMeta": {

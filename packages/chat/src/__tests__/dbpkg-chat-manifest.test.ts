@@ -29,8 +29,8 @@ it('publishes every isolated extraction entry with its browser or universal clas
     'recharts': '^3.10.1',
     '@jini-ai/agent-runtime': '^0.4.1',
     '@jini-ai/agentic': '^0.4.2',
-    '@jini-ai/protocol': '^0.4.1',
-    '@jini-ai/ui': '^0.4.5',
+    '@jini-ai/protocol': '^0.4.3',
+    '@jini-ai/ui': '^0.4.7',
     '@jini-ai/diagnostics': '^0.5.0',
   };
   expect(manifest.peerDependencies).toEqual(expectedPeers);

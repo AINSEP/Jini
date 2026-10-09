@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/sqlite",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Deprecated compatibility exports for chat, daemon, registry and database concerns; server composition is imported directly from server.",
   "deprecated": "Compatibility shim: use @jini-ai/chat/store, @jini-ai/daemon/store, @jini-ai/registry/tool-catalog/sqlite and @jini-ai/db directly. See README.md for exact subpaths.",
   "license": "Apache-2.0",

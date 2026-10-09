@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/protocol",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "The Jini wire contract: run, event, journal, registry, JSON, and error types shared by every other package. Zod-validated, with no Jini package dependencies.",
   "license": "Apache-2.0",
   "repository": {
