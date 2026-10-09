@@ -513,17 +513,17 @@ const INLINE_RE = new RegExp(String.raw`(\x60[^\x60]+\x60)|(${MD_LINK})|(\*\*[^*
 // Only these targets become anchors; anything else (`javascript:`, `data:`, protocol-relative
 // `//host`) stays literal text, since the text is untrusted model output.
 const SAFE_LINK_HREF = /^(?:https?:\/\/|mailto:|\/(?!\/)|#)/iu;
-// Off-site links open in a new tab; a same-origin path stays in the tab so the host's in-app link
-// interceptor (an SPA router) can take it without a reload.
-const OFFSITE_LINK_HREF = /^(?:https?:|mailto:)/iu;
+// Every link opens in a new tab — an in-app path too, so following one never navigates the tab the
+// chat lives in (owner 2026-10-08). Only a `#` same-document anchor stays in place. ChatPane's
+// click guard (`useChatPaneNewTabLinks`) covers links this renderer does not draw.
+const NEW_TAB = { target: '_blank', rel: 'noopener noreferrer' } as const;
 
 function renderMarkdownLink(source: string, key: number): ReactNode {
   // `MD_LINK` already matched `source`, so these two groups always capture.
   const [, label, href] = MD_LINK_PARTS.exec(source)!;
   if (!SAFE_LINK_HREF.test(href!)) return source;
-  const offsite = OFFSITE_LINK_HREF.test(href!);
   return (
-    <a key={key} href={href} {...(offsite ? { target: '_blank', rel: 'noreferrer' } : {})}>
+    <a key={key} href={href} {...(href!.startsWith('#') ? {} : NEW_TAB)}>
       {renderInline(label!)}
     </a>
   );
@@ -546,7 +546,7 @@ function renderInline(text: string): ReactNode {
     else if (italic) nodes.push(<em key={key++}>{italic.slice(1, -1)}</em>);
     else if (link)
       nodes.push(
-        <a key={key++} href={link} target="_blank" rel="noreferrer">
+        <a key={key++} href={link} {...NEW_TAB}>
           {link}
         </a>,
       );

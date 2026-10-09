@@ -74,16 +74,20 @@ describe('Markdown', () => {
     render(<Markdown>{'see https://example.com/docs for more'}</Markdown>);
     const link = screen.getByRole('link', { name: 'https://example.com/docs' });
     expect(link).toHaveAttribute('href', 'https://example.com/docs');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
   // Regression (demo dry-run 2026-10-05): the renderer had no `[label](url)` rule at all, so an
   // assistant reply ending "([edit](/admin/pages/get-in-touch-test))" showed the raw markdown.
-  it('renders a relative markdown link wrapped in parentheses as an in-app anchor', () => {
+  // Owner 2026-10-08: every chat link opens a new tab — an in-app link too, so the chat (and the
+  // page under it) is never navigated away from.
+  it('renders a relative markdown link wrapped in parentheses as a new-tab anchor', () => {
     const { container } = render(<Markdown>{'Page created ([edit](/admin/pages/get-in-touch-test)).'}</Markdown>);
     const link = screen.getByRole('link', { name: 'edit' });
     expect(link).toHaveAttribute('href', '/admin/pages/get-in-touch-test');
-    // Same-tab: the host's in-app link interceptor handles it; only off-site links open a new tab.
-    expect(link).not.toHaveAttribute('target');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     expect(container.querySelector('p')).toHaveTextContent('Page created (edit).');
   });
 
@@ -92,7 +96,14 @@ describe('Markdown', () => {
     const link = screen.getByRole('link', { name: 'the spec' });
     expect(link).toHaveAttribute('href', 'https://example.com/wiki/Foo_(bar)');
     expect(link).toHaveAttribute('target', '_blank');
-    expect(link).toHaveAttribute('rel', 'noreferrer');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('keeps a same-document #anchor link in place', () => {
+    render(<Markdown>{'Jump to [details](#details).'}</Markdown>);
+    const link = screen.getByRole('link', { name: 'details' });
+    expect(link).toHaveAttribute('href', '#details');
+    expect(link).not.toHaveAttribute('target');
   });
 
   it('renders inline markup inside a markdown link label', () => {

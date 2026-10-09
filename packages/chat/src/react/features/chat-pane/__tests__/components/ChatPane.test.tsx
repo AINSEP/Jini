@@ -173,6 +173,23 @@ describe('ChatPane', () => {
       .toHaveStyle({ minHeight: '400px' });
   });
 
+  it('opens every in-pane link in a new tab, including host-rendered card links', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      render(
+        <ChatPane
+          transport={createFakeChatTransport()}
+          agents={agents}
+          header={<a href="/admin/pages/x">card link</a>}
+        />,
+      );
+      fireEvent.click(screen.getByText('card link'));
+      expect(open).toHaveBeenCalledWith(`${window.location.origin}/admin/pages/x`, '_blank', 'noopener,noreferrer');
+    } finally {
+      open.mockRestore();
+    }
+  });
+
   it('owns file picking/upload staging and forwards uploaded attachments on send', async () => {
     const transport = createFakeChatTransport();
     const uploaded = {

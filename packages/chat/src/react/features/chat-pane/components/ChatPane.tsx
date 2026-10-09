@@ -21,6 +21,7 @@ import { useChatPane, type UseChatPaneResult } from '../hooks/useChatPane.hooks.
 import { useChatPaneAgentControl } from '../hooks/useChatPaneAgentControl.hooks.js';
 import { useChatPaneComposerPlaceholder } from '../hooks/useChatPaneComposerPlaceholder.hooks.js';
 import { useChatPaneControlsHeight } from '../hooks/useChatPaneControlsHeight.hooks.js';
+import { useChatPaneNewTabLinks } from '../hooks/useChatPaneNewTabLinks.hooks.js';
 import {
   useChatPaneFileDrop,
   type ChatPaneFileDropTargetProps,
@@ -651,6 +652,7 @@ export function ChatPane({
   } });
 
   const { rootRef, controlsRef } = useChatPaneControlsHeight();
+  const openLinkInNewTab = useChatPaneNewTabLinks();
   // `MessageList` is memoized so a composer keystroke does not re-render the transcript; these two
   // props would otherwise be fresh objects on every render and defeat it.
   const { queuedPrompt, cancelQueued } = pane;
@@ -669,6 +671,7 @@ export function ChatPane({
       style={style}
       data-activity={pane.activity}
       ref={rootRef}
+      onClickCapture={openLinkInNewTab}
     >
       <style data-jini-chat-pane-styles="true">{CHAT_PANE_STYLES}</style>
       {resolveChatPaneHeader(header, title, pane.reset, t)}
