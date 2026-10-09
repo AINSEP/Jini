@@ -451,6 +451,9 @@ export function Composer({
           setDismissedSlashDraft(null);
         }}
         onKeyDown={handleKeyDown}
+        // Draft persistence is debounced (see `DRAFT_PERSIST_DEBOUNCE_MS`); leaving the field is a
+        // natural point to make it durable now.
+        onBlur={() => composer.flushDraft?.()}
         onPaste={handleAttachmentPaste}
         aria-controls={slashOpen ? 'jini-composer-slash-menu' : undefined}
         aria-expanded={slashOpen}

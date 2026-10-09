@@ -9,6 +9,7 @@
  * scroll-anchoring state lives in `useMessageListAutoScroll`
  * (`MessageList.hooks.ts`); see that file for why it is presentational.
  */
+import { memo } from 'react';
 import type { ChatMessage } from '../../core/index.js';
 import { isTerminalRunStatus } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
@@ -37,7 +38,13 @@ export interface MessageListProps extends Pick<MessageRowProps, 'projectFileName
   pendingPrompt?: { text: string; onCancel: () => void } | null;
 }
 
-export function MessageList({
+/**
+ * Memoized: the pane re-renders on every composer keystroke, and re-rendering a long transcript
+ * (hundreds of tool rows, MCP-UI cards, markdown) per key made typing lag (owner report
+ * 2026-10-08). Callers must pass stable props — `ChatPane` memoizes `pendingPrompt` and
+ * `projectFileNames` for exactly this.
+ */
+export const MessageList = memo(function MessageList({
   messages,
   isStreaming = false,
   scrollIntent = false,
@@ -105,4 +112,4 @@ export function MessageList({
       ) : null}
     </div>
   );
-}
+});

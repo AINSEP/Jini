@@ -1,5 +1,5 @@
 import { SECRET_REDACTED_NOTICE } from '../../../../core/user-text-redaction.js';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { WorkingDirPicker } from '@jini-ai/ui';
 
 import { Composer } from '../../../components/Composer.js';
@@ -651,6 +651,17 @@ export function ChatPane({
   } });
 
   const { rootRef, controlsRef } = useChatPaneControlsHeight();
+  // `MessageList` is memoized so a composer keystroke does not re-render the transcript; these two
+  // props would otherwise be fresh objects on every render and defeat it.
+  const { queuedPrompt, cancelQueued } = pane;
+  const pendingPrompt = useMemo(
+    () => (queuedPrompt === null ? null : { text: queuedPrompt, onCancel: cancelQueued }),
+    [queuedPrompt, cancelQueued],
+  );
+  const projectFileNameSet = useMemo(
+    () => (projectFileNames === undefined ? undefined : new Set(projectFileNames)),
+    [projectFileNames],
+  );
 
   return (
     <section
@@ -667,8 +678,8 @@ export function ChatPane({
           isStreaming={pane.conversation.isStreaming}
           scrollIntent={pane.conversation.scrollIntent}
           onScrolled={pane.conversation.acknowledgeScroll}
-          pendingPrompt={pane.queuedPrompt === null ? null : { text: pane.queuedPrompt, onCancel: pane.cancelQueued }}
-          {...(projectFileNames === undefined ? {} : { projectFileNames: new Set(projectFileNames) })}
+          pendingPrompt={pendingPrompt}
+          {...(projectFileNameSet === undefined ? {} : { projectFileNames: projectFileNameSet })}
         />
         <div className="jini-chat-pane__controls" ref={controlsRef}>
           <ChatPaneSuggestionsRow suggestions={suggestions} onSelect={pane.composer.setDraft} t={t} />

@@ -49,7 +49,7 @@ import { terminalMessageNotice, continuingRunNotice } from '../../core/durable-p
  * not appear until the whole message is done, not merely until its current
  * chunk stopped arriving.
  */
-import React, { useState, type ReactNode } from 'react';
+import React, { memo, useState, type ReactNode } from 'react';
 import type { AgentEvent, ChatAttachment, ChatMessage, ChatRunStatus } from '../../core/index.js';
 import { isAwaitingAnswer, isTerminalRunStatus, splitOnQuestionForms, stripArtifact } from '../../core/index.js';
 import { useToolTimeline, type ToolTimelineRow } from '../hooks/useToolTimeline.js';
@@ -225,7 +225,12 @@ function CopyMessageButton({ text, label }: CopyMessageButtonProps) {
   );
 }
 
-export function MessageRow({
+/**
+ * Memoized so a transcript re-render (a streaming update to the newest message, or a parent that
+ * re-renders per composer keystroke) only re-renders rows whose props actually changed. Messages
+ * are replaced, never mutated, so identity is a sound change signal.
+ */
+export const MessageRow = memo(function MessageRow({
   message,
   runStreaming = false,
   runSucceeded = false,
@@ -402,7 +407,7 @@ export function MessageRow({
       <AssistantMessageFooter {...{ message, usageEvent, terminalNotice, pending, runInProgress, runStreaming, visibleContent }} />
     </div>
   );
-}
+});
 
 /**
  * The live "what is it doing" line under a running reply (see `core/run-activity.ts`). Replaces the

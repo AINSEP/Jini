@@ -34,6 +34,7 @@ import { useComposerHistory, type ComposerHistoryController } from './useCompose
 import {
   readCachedAttachments,
   readCachedDraft,
+  rememberCachedDraft,
   writeCachedAttachments,
   writeCachedDraft,
 } from './composer-draft-cache.js';
@@ -110,9 +111,83 @@ export interface UseComposerResult {
   canSubmit: boolean;
   /** Clears the draft and staged attachments (called after a successful send). */
   reset: () => void;
+  /**
+   * Writes a draft still waiting out {@link DRAFT_PERSIST_DEBOUNCE_MS} to storage and the host's
+   * persistence port now. `<Composer>` calls it on blur. Optional for compatibility with
+   * host-created composer controllers.
+   */
+  flushDraft?: () => void;
 }
 
 const EMPTY_MENTION: MentionPopoverState = { open: false, query: '', results: [] };
+
+/**
+ * How long typing must pause before the draft reaches `localStorage` and the host's persistence
+ * port. Those writes used to run synchronously on every keystroke (owner report 2026-10-08: typing
+ * lagged in a long conversation). The in-memory cache tier still updates per keystroke, and every
+ * exit path (send, conversation switch, unmount, page hide, blur) writes or discards immediately,
+ * so the delay can only cost a draft on a hard crash inside this window.
+ */
+export const DRAFT_PERSIST_DEBOUNCE_MS = 300;
+
+interface DeferredDraftWrite {
+  /** Replaces any pending write with `write`, run once typing pauses. */
+  schedule: (write: () => void) => void;
+  /** Runs the pending write now, if there is one. */
+  flush: () => void;
+  /** Drops the pending write without running it. */
+  cancel: () => void;
+}
+
+/**
+ * One pending durable draft write at a time, trailing-edge debounced. Flushes on unmount and when
+ * the page is hidden (`pagehide`, or `visibilitychange` to hidden — the last event a mobile browser
+ * reliably delivers before discarding the tab).
+ * @complexity Time/space: O(1) per call.
+ */
+function useDeferredDraftWrite(): DeferredDraftWrite {
+  const pendingRef = useRef<{ timer: ReturnType<typeof setTimeout>; write: () => void } | null>(null);
+
+  const cancel = useCallback(() => {
+    const pending = pendingRef.current;
+    if (!pending) return;
+    pendingRef.current = null;
+    clearTimeout(pending.timer);
+  }, []);
+
+  const flush = useCallback(() => {
+    const pending = pendingRef.current;
+    if (!pending) return;
+    pendingRef.current = null;
+    clearTimeout(pending.timer);
+    pending.write();
+  }, []);
+
+  const schedule = useCallback((write: () => void) => {
+    if (pendingRef.current) clearTimeout(pendingRef.current.timer);
+    const timer = setTimeout(() => {
+      pendingRef.current = null;
+      write();
+    }, DRAFT_PERSIST_DEBOUNCE_MS);
+    pendingRef.current = { timer, write };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return flush;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      flush();
+    };
+  }, [flush]);
+
+  return useMemo(() => ({ schedule, flush, cancel }), [schedule, flush, cancel]);
+}
 
 export function useComposer(options: UseComposerOptions = {}): UseComposerResult {
   const { project, composerSlots, persistence, conversationId, validateAttachments } = options;
@@ -123,13 +198,25 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
   const [agent, setAgent] = useState<AgentSelection | undefined>(options.initialAgent);
   const [mention, setMention] = useState<MentionPopoverState>(EMPTY_MENTION);
 
+  const deferredWrite = useDeferredDraftWrite();
   const commitDraft = useCallback(
     (next: string) => {
       setDraftState(next);
-      persistence?.write(next);
-      writeCachedDraft({ conversationId: conversationId, draft: next });
+      rememberCachedDraft({ conversationId: conversationId, draft: next });
+      const write = () => {
+        persistence?.write(next);
+        writeCachedDraft({ conversationId: conversationId, draft: next });
+      };
+      // A cleared draft (send, reset) is written at once and drops any pending write, so a stale
+      // timer can never put the sent text back.
+      if (next.trim() === '') {
+        deferredWrite.cancel();
+        write();
+        return;
+      }
+      deferredWrite.schedule(write);
     },
-    [persistence, conversationId],
+    [persistence, conversationId, deferredWrite],
   );
 
   const history = useComposerHistory({ setRecalledDraft: setDraftState }, {
@@ -158,6 +245,8 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
     const previousConversationId = previousConversationIdRef.current;
     if (conversationId === previousConversationIdRef.current) return;
     previousConversationIdRef.current = conversationId;
+    // The pending write closed over the conversation being left, so this lands under its id.
+    deferredWrite.flush();
     const restored = readCachedDraft({ conversationId: conversationId });
 
     // An id arriving where there was none is NOT a switch between two conversations — it is the one
@@ -177,7 +266,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
     setDraftState(restored ?? '');
     setAttachments([]);
     setMention(EMPTY_MENTION);
-  }, [conversationId]);
+  }, [conversationId, deferredWrite]);
 
   // Held in a ref so an inline arrow from the host does not re-run the restore below on every
   // render. Reassigned each render so a host that swaps implementations still gets the new one.
@@ -331,7 +420,8 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
       selectMention,
       canSubmit,
       reset,
+      flushDraft: deferredWrite.flush,
     }),
-    [draft, history, setDraft, attachments, addAttachments, addAttachment, removeAttachment, clearAttachments, agent, mention, openMention, closeMention, selectMention, canSubmit, reset],
+    [draft, history, setDraft, attachments, addAttachments, addAttachment, removeAttachment, clearAttachments, agent, mention, openMention, closeMention, selectMention, canSubmit, reset, deferredWrite.flush],
   );
 }

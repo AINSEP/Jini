@@ -268,6 +268,26 @@ export function writeCachedDraft({ conversationId, draft }: { conversationId: st
 }
 
 /**
+ * Stores `draft` for `conversationId` in the in-memory tier only, leaving `localStorage` alone.
+ *
+ * `useComposer` calls this on every keystroke and defers the durable {@link writeCachedDraft} until
+ * typing pauses: the memory tier is what a conversation switch or `ChatPane` remount reads back, so
+ * keeping it current per keystroke means debouncing the storage write can never lose text to either.
+ *
+ * @param draft A blank (or whitespace-only) draft deletes the in-memory entry, same rule as
+ * {@link writeCachedDraft}.
+ * @complexity Time/space: O(1) amortized.
+ */
+export function rememberCachedDraft({ conversationId, draft }: { conversationId: string | null | undefined; draft: string }): void {
+  if (!conversationId) return;
+  if (draft.trim() === '') {
+    drafts.delete(conversationId);
+    return;
+  }
+  rememberInMemory(conversationId, draft);
+}
+
+/**
  * Explicitly evicts `conversationId`'s draft from both tiers, for a host that wants to free it
  * immediately (e.g. on conversation delete) rather than waiting for the cap-triggered eviction.
  * Not currently called by any host — a host's own conversation-delete flow is a candidate
