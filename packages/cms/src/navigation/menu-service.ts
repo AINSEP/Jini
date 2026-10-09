@@ -28,6 +28,7 @@ import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
 import type { DomainEvent, OutboxPort } from "../core/ports.js";
 import type { MenuRepoPort } from "./repo.memory.js";
 import type { NavLocationBindingRepoPort } from "./ports.js";
+import { menuHtmlInputProblem, mergeMenuHtml, type MenuHtmlAuthoring } from "./menu-html.js";
 import {
   NAV_DOC_TYPE,
   type MenuStatus,
@@ -35,7 +36,9 @@ import {
   type NavItemNode,
   type NavLocationBindingRow,
   type NavLocationKey,
+  type NavMenuDoc,
   type NavMenuEntry,
+  type NavMenuMode,
   type NavTarget,
   type NavUrlTarget,
 } from "./types.js";
@@ -341,12 +344,24 @@ export interface CreateMenuDeps {
   outbox: OutboxPort;
 }
 
+/** Validated, merged HTML-mode doc fields — `menu-html.ts`'s problem check raised as this file's own error. */
+function menuHtmlFields(
+  { input, existing }: { input: MenuHtmlAuthoring; existing?: Pick<NavMenuDoc, "mode" | "html"> | undefined },
+): Pick<NavMenuDoc, "mode" | "html"> {
+  const problem = menuHtmlInputProblem(input);
+  if (problem) throw new MenuValidationError({ message: problem });
+  return mergeMenuHtml({ input, existing });
+}
+
 export interface CreateMenuServiceInput {
   workspaceId: UUID;
   title: string;
   slug: string;
   /** Optional initial tree; defaults to an empty menu. Items must carry ids. */ 
   items?: readonly NavItemNode[] | undefined;
+  /** HTML mode (`menu-html.ts`). The host gates raw HTML behind its own permission first. */
+  mode?: NavMenuMode | undefined;
+  html?: string | undefined;
 }
 
 export interface CreateMenuRequired {
@@ -386,6 +401,7 @@ export async function createMenu(
   if (duplicate) throw new MenuConflictError({ message: `slug '${slug}' already exists` });
 
   const items = validateAndCloneTree({ items: input.items ?? [] }, optional.limits);
+  const htmlFields = menuHtmlFields({ input });
 
   const menu: NavMenuEntry = {
     id: deps.idGen.newId(),
@@ -393,7 +409,7 @@ export async function createMenu(
     slug,
     title,
     status: "published" as MenuStatus,
-    doc: { type: NAV_DOC_TYPE, version: 1, items },
+    doc: { type: NAV_DOC_TYPE, version: 1, items, ...htmlFields },
     locations: [],
     updatedAt: kernelNowIso({ clock: deps.clock }),
     version: 1,
@@ -435,8 +451,11 @@ export interface UpdateMenuTreeServiceInput {
   expectedVersion: number;
   title?: string | undefined;
   slug?: string | undefined;
-  /** The full replacement tree (whole-tree edit). */ 
-  items: readonly NavItemNode[];
+  /** The full replacement tree (whole-tree edit). Omitted keeps the stored tree (an HTML-only edit). */ 
+  items?: readonly NavItemNode[] | undefined;
+  /** HTML mode (`menu-html.ts`); omitted keeps the stored value. The host gates raw HTML first. */
+  mode?: NavMenuMode | undefined;
+  html?: string | undefined;
 }
 
 export interface UpdateMenuTreeRequired {
@@ -537,16 +556,19 @@ export async function updateMenuTree(
     }
   }
 
-  const items = carryForwardEntryHints({
+  const items = input.items === undefined ? existing.doc.items : carryForwardEntryHints({
     previous: existing.doc.items,
     next: validateAndCloneTree({ items: input.items }, optional.limits),
   });
+  // Every writer (admin, agent tool, publish repoint, reverters) comes through here, so the stored
+  // HTML-mode fields are carried forward unless this write sets them — an items-only save never drops them.
+  const htmlFields = menuHtmlFields({ input, existing: existing.doc });
 
   const menu: NavMenuEntry = {
     ...existing,
     title,
     slug,
-    doc: { type: NAV_DOC_TYPE, version: existing.doc.version, items },
+    doc: { type: NAV_DOC_TYPE, version: existing.doc.version, items, ...htmlFields },
     updatedAt: kernelNowIso({ clock: deps.clock }),
     version: existing.version + 1,
   };

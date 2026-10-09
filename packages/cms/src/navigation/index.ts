@@ -15,6 +15,7 @@ export type {
   NavItemAttrs,
   NavItemNode,
   NavMenuDoc,
+  NavMenuMode,
   NavMenuEntry,
   MenuStatus,
   NavLocationKey,
@@ -113,6 +114,15 @@ export {
   type DeleteMenuRequired,
   type DeleteMenuOptional,
 } from "./menu-service.js";
+
+/** HTML mode (2026-10-08): validation/normalization for a menu's author-written markup. */
+export {
+  MAX_MENU_HTML_LENGTH,
+  isMenuHtmlAuthoring,
+  menuHtmlInputProblem,
+  mergeMenuHtml,
+  type MenuHtmlAuthoring,
+} from "./menu-html.js";
 
 export {
   resolveForLocation,

@@ -80,6 +80,20 @@ const MENU_ID_SCHEMA = {
   description: "The menu's id, as returned by menus_list_menus, menus_get_menu, or menus_create_menu.",
 } as const;
 
+/** HTML mode (2026-10-08, `menu-html.ts`): the same two fields on create and update. */
+const MENU_MODE_SCHEMA = {
+  type: "string",
+  enum: ["items", "html"],
+  description: "What the site renders for this menu: 'items' (the item tree, the default) or 'html' (the menu's own 'html'). Switching keeps the other mode's data. Omit to leave unchanged.",
+} as const;
+
+const MENU_HTML_SCHEMA = {
+  type: "string",
+  maxLength: 200000,
+  description: "The menu's own HTML for 'html' mode — any markup and classes, e.g. '<ul class=\"nav\"><li><a href=\"/\">Home</a></li></ul>'. " +
+    "Rendered inside the theme element that holds the menu's marker. Needs raw-HTML permission (admins/owners). Omit to leave unchanged.",
+} as const;
+
 /**
  * A link target, published as a `oneOf` over the 4 v1 kinds `menu-service.ts`'s `validateTarget`
  * accepts (`entryRef`/`termRef`/`url`/`route`) — `dynamicQuery`/`content` are named-but-rejected
@@ -221,6 +235,8 @@ export const menusAgentToolCatalog: AgentToolDefinition[] = [
         title: { type: "string", minLength: 1, description: "Human-readable menu name." },
         slug: { type: "string", pattern: "^[a-z0-9-]+$", description: "Stable machine handle. Lowercase letters, digits, and hyphens only." },
         items: { ...ITEMS_TREE_SCHEMA, description: "Optional initial item tree. Defaults to an empty menu if omitted." },
+        mode: MENU_MODE_SCHEMA,
+        html: MENU_HTML_SCHEMA,
       },
     },
   },
@@ -229,19 +245,22 @@ export const menusAgentToolCatalog: AgentToolDefinition[] = [
     description:
       "Replaces an existing menu's whole item tree (and optionally its title/slug) in one version-guarded write. " +
       "Always a whole-tree replace — there is no per-item patch operation, so the submitted tree must include every " +
-      "item the menu keeps, each with its fields copied unchanged from the read. To delete a menu, use trash_item with entityType 'menu' (it moves to the Trash and can be restored).",
+      "item the menu keeps, each with its fields copied unchanged from the read. For a hand-written HTML menu, send " +
+      "'html' (and 'mode': 'html') and omit 'items' to keep the stored tree. To delete a menu, use trash_item with entityType 'menu' (it moves to the Trash and can be restored).",
     sideEffects: "mutates-durable-state",
     authorization: { permission: "admin.menus.update" },
     inputSchema: {
       type: "object",
       additionalProperties: false,
-      required: ["menuId", "expectedVersion", "items"],
+      required: ["menuId", "expectedVersion"],
       properties: {
         menuId: MENU_ID_SCHEMA,
         expectedVersion: { type: "integer", description: "The menu's current 'version', as last returned by a read or write on it — the optimistic-concurrency guard. A stale value is rejected with a conflict naming the current version." },
         title: { type: "string", description: "New title. Omit to leave unchanged." },
         slug: { type: "string", pattern: "^[a-z0-9-]+$", description: "New slug. Omit to leave unchanged. Must not collide with another menu's slug." },
-        items: ITEMS_TREE_SCHEMA,
+        items: { ...ITEMS_TREE_SCHEMA, description: "The full replacement item tree. Omit to keep the stored tree (e.g. an HTML-only edit); send at least one of items, html or mode." },
+        mode: MENU_MODE_SCHEMA,
+        html: MENU_HTML_SCHEMA,
       },
     },
   },

@@ -147,7 +147,14 @@ export interface NavMenuDoc {
   /** Doc-schema version, so the validator can migrate shapes later. */
   readonly version: number;
   readonly items: readonly NavItemNode[];
+  /** What renders at the menu's marker; absent means `"items"`. See `menu-html.ts`. */
+  readonly mode?: NavMenuMode | undefined;
+  /** Author-written HTML for `"html"` mode, kept even while the menu renders its items. */
+  readonly html?: string | undefined;
 }
+
+/** `"items"` renders the item tree; `"html"` renders the author's own markup (`menu-html.ts`). */
+export type NavMenuMode = "items" | "html";
 
 // ---------------------------------------------------------------------------
 // The menu read model (a typed view over the generic entries row)
