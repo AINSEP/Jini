@@ -146,9 +146,13 @@ export function renderBridgeScript(spec: BridgeScriptSpec): string {
     return requestWhenReady("ui/open-link", { url: url });
   }
 
+  // Height only, never width: @mcp-ui/client's AppFrame writes a reported width onto the iframe as a
+  // fixed px style. A surface is fluid, so its scrollWidth is just the frame's width at that moment;
+  // reported while mounting in a hidden or narrow pane it froze the frame at min-content width for
+  // good (owner bug 2026-10-08: an ask-choice card stuck at 192px after a reload). Leaving width out
+  // keeps the frame at the host's width: 100%, and the ResizeObserver below re-reports height on resize.
   function reportSize() {
-    var root = document.documentElement;
-    notify("ui/notifications/size-changed", { width: root.scrollWidth, height: root.scrollHeight });
+    notify("ui/notifications/size-changed", { height: document.documentElement.scrollHeight });
   }
 
   window.addEventListener("message", function (event) {

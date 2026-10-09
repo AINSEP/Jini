@@ -98,9 +98,21 @@ describe('renderBridgeScript', () => {
       'ui/notifications/initialized',
       'ui/notifications/size-changed',
     ]);
-    expect(bridge.posted[2]?.params).toEqual({ width: 360, height: 240 });
+    expect(bridge.posted[2]?.params).toEqual({ height: 240 });
     expect(bridge.api.isReady()).toBe(true);
     expect(bridge.api.hostContext()).toEqual({ theme: 'dark' });
+  });
+
+  it('never reports a width, so the Host never pins the frame to the width it had at mount', async () => {
+    // `@mcp-ui/client`'s AppFrame writes any reported width straight onto the iframe as a fixed
+    // `style.width = Npx`. A surface that reported its own `scrollWidth` while mounting in a hidden
+    // or narrow pane (a reload mid-run) froze at that min-content width for good — owner bug
+    // 2026-10-08: the ask-choice card stuck at 192px inside a ~540px assistant panel.
+    const bridge = runBridge();
+    await bridge.handshake();
+    const sizeReports = bridge.posted.filter((message) => message.method === 'ui/notifications/size-changed');
+    expect(sizeReports.length).toBeGreaterThan(0);
+    for (const report of sizeReports) expect(report.params).not.toHaveProperty('width');
   });
 
   it('exposes a null hostContext when the Host response carries none', async () => {
