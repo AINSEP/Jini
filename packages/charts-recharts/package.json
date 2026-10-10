@@ -1,0 +1,70 @@
+{
+  "name": "@jini-ai/charts-recharts",
+  "version": "0.1.0",
+  "description": "Statically bundled shadcn-style Recharts chart provider for Jini interactive-ui, with a headless chart catalog.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/charts-recharts"
+  },
+  "jini": {
+    "domain": "ui",
+    "kind": "react-library",
+    "runtime": "browser",
+    "entries": {
+      ".": "browser",
+      "./manifests": "universal",
+      "./styles.css": "browser"
+    }
+  },
+  "type": "module",
+  "sideEffects": [
+    "./dist/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./manifests": {
+      "types": "./dist/manifests.d.ts",
+      "import": "./dist/manifests.js",
+      "default": "./dist/manifests.js"
+    },
+    "./styles.css": "./dist/styles.css"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "!dist/**/__tests__/**",
+    "!dist/**/*.test.*",
+    "!dist/**/*.map"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && cp src/styles.css src/chart-palette.css dist/",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "recharts": "^3.10.1",
+    "zod": "^3.25.76"
+  },
+  "peerDependencies": {
+    "@jini-ai/ui": "^0.4.7",
+    "react": "^18.3.0 || ^19.0.0",
+    "react-dom": "^18.3.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@jini-ai/ui": "workspace:^",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "jsdom": "^25.0.1"
+  }
+}

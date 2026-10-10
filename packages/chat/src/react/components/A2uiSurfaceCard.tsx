@@ -35,7 +35,7 @@ import type { ReactNode } from 'react';
 import { createA2uiInterpreter, createLabCatalog, DynamicValueSchema, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
 import { createSystemClock } from '@jini-ai/core/primitives';
 import { buildA2uiCatalogFromRegistry } from '@jini-ai/ui/a2ui';
-import { DEFAULT_INTERACTIVE_UI_REGISTRY } from '@jini-ai/ui/interactive-ui';
+import { DEFAULT_INTERACTIVE_UI_REGISTRY, type InteractiveUiRegistry } from '@jini-ai/ui/interactive-ui';
 import type { ExtEventRenderProps } from '../ext-event-renderer-registry.js';
 import { useT } from '../hooks/context.js';
 
@@ -64,12 +64,14 @@ function RenderComponent({
   componentId,
   ancestors,
   onAction,
+  registry,
 }: {
   interpreter: A2uiInterpreter;
   surfaceId: string;
   componentId: string;
   ancestors: ReadonlySet<string>;
   onAction: (componentId: string) => void;
+  registry: Pick<InteractiveUiRegistry, 'list' | 'resolveById'>;
 }): ReactNode {
   if (ancestors.has(componentId)) {
     return (
@@ -90,7 +92,7 @@ function RenderComponent({
 
   const nextAncestors = new Set(ancestors);
   nextAncestors.add(componentId);
-  const childProps = { interpreter, surfaceId, ancestors: nextAncestors, onAction };
+  const childProps = { interpreter, surfaceId, ancestors: nextAncestors, onAction, registry };
 
   function resolveText(value: unknown): string {
     // Text props already passed the catalog schema. Parsing preserves that wire type at this
@@ -162,9 +164,9 @@ function RenderComponent({
       // one of the 13 basic types this switch has no case for, or a registry-sourced component
       // (`shadcn.*`/`recharts.*`) merged into the catalog by `A2uiSurfaceCard`'s own
       // `buildA2uiCatalogFromRegistry` call below. Resolved against the SAME registry
-      // `@jini-ai/ui`'s own `A2uiSurfaceRenderer` uses, so a type addable to the catalog and
+      // the catalog below uses, so a type addable to the catalog and
       // renderable there is addable and renderable here too.
-      const entry = DEFAULT_INTERACTIVE_UI_REGISTRY.resolveById({ id: component.component });
+      const entry = registry.resolveById({ id: component.component });
       if (!entry) {
         return (
           <span className="a2ui-placeholder" data-a2ui-status="unrenderable-type">
@@ -207,6 +209,9 @@ function isThenable(value: unknown): value is PromiseLike<A2uiAgentActionOutcome
 }
 
 export interface A2uiSurfaceCardProps extends ExtEventRenderProps {
+  /** Host registry used for both wire validation and rendering. Defaults to ui's built-ins.
+   * Supply a stable registry for the card's lifetime; remount the card to switch catalogs. */
+  registry?: Pick<InteractiveUiRegistry, 'list' | 'resolveById'>;
   /**
    * Called when a rendered surface produces a `message`-shaped action meant for the agent (as
    * opposed to a `local` client-side function call, which this component already resolves and
@@ -227,16 +232,16 @@ export interface A2uiSurfaceCardProps extends ExtEventRenderProps {
 }
 
 /** Registered against `ext-event-renderer-registry.ts`'s `'a2ui'` name — see module doc. */
-export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCardProps) {
+export function A2uiSurfaceCard({ events, runId, onAgentAction, registry = DEFAULT_INTERACTIVE_UI_REGISTRY }: A2uiSurfaceCardProps) {
   const t = useT();
-  // Merges `DEFAULT_INTERACTIVE_UI_REGISTRY` (shadcn/recharts) into the lab catalog, keyed under
+  // Merges the host registry (shadcn/recharts by default) into the lab catalog, keyed under
   // the SAME `catalogId` the lab catalog already uses — so a tool built against
   // `createLabCatalog({}).catalogId` (e.g. `demo-a2ui-tool.ts`) still validates unchanged, and now
   // ALSO gains every registry component as a real, addable/removable catalog entry.
   const catalog = useMemo(() => {
     const base = createLabCatalog({});
-    return buildA2uiCatalogFromRegistry({ registry: DEFAULT_INTERACTIVE_UI_REGISTRY, catalogId: base.catalogId }, { base });
-  }, []);
+    return buildA2uiCatalogFromRegistry({ registry, catalogId: base.catalogId }, { base });
+  }, [registry]);
   const interpreterRef = useRef<A2uiInterpreter | null>(null);
   if (!interpreterRef.current) {
     const clock = createSystemClock();
@@ -385,7 +390,7 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCar
 
   return (
     <div className="a2ui-surface-card" data-a2ui-surface-id={surfaceId}>
-      <RenderComponent interpreter={interpreter} surfaceId={surfaceId!} componentId="root" ancestors={new Set()} onAction={handleAction} />
+      <RenderComponent interpreter={interpreter} surfaceId={surfaceId!} componentId="root" ancestors={new Set()} onAction={handleAction} registry={registry} />
       {refusalNotice ? (
         <div className="a2ui-surface-notice a2ui-surface-notice-refused" role="status">
           {t('Action refused: {reason}', { reason: refusalNotice })}
