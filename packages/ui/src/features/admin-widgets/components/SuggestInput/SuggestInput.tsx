@@ -1,6 +1,6 @@
-import { useId, type KeyboardEvent } from 'react';
+import { useId, useRef, type KeyboardEvent } from 'react';
 import { agentHandle } from '@jini-ai/agentic';
-import { useSuggestInput } from './SuggestInput.hooks.js';
+import { useScrollHighlightedIntoView, useSuggestInput } from './SuggestInput.hooks.js';
 
 /**
  * A free-text input with a styled suggestion list under it: the browser's native `<datalist>` cannot
@@ -12,6 +12,8 @@ import { useSuggestInput } from './SuggestInput.hooks.js';
  * list. Any key the list does not consume (Enter with nothing highlighted, a comma, Escape with the
  * list closed) reaches the caller's `onKeyDown`, so "Enter adds what was typed" keeps working.
  * Options are picked on mousedown so the input's blur doesn't close the list before the click lands.
+ * Every match is listed unless `limit` is set; the host's max-height makes the list scroll, and an
+ * arrow-key move scrolls the highlighted row into view.
  */
 export interface SuggestInputProps {
   value: string;
@@ -24,13 +26,19 @@ export interface SuggestInputProps {
   'aria-label'?: string | undefined;
   disabled?: boolean | undefined;
   className?: string | undefined;
+  /** Cap on listed matches; omit to list them all. */
+  limit?: number | undefined;
   agentHandle?: string | undefined;
   agentLabel?: string | undefined;
   useSuggest?: typeof useSuggestInput | undefined;
+  /** Injectable for tests; defaults to `scrollIntoView({ block: 'nearest' })`. */
+  scrollOptionIntoView?: ((option: Element) => void) | undefined;
 }
 
-export function SuggestInput({ value, onValueChange, suggestions, onPick, onKeyDown, placeholder, disabled, className, agentHandle: handle, agentLabel, useSuggest = useSuggestInput, ...rest }: SuggestInputProps) {
-  const vm = useSuggest({ value, suggestions });
+export function SuggestInput({ value, onValueChange, suggestions, onPick, onKeyDown, placeholder, disabled, className, limit, agentHandle: handle, agentLabel, useSuggest = useSuggestInput, scrollOptionIntoView, ...rest }: SuggestInputProps) {
+  const vm = useSuggest({ value, suggestions }, { limit });
+  const listRef = useRef<HTMLUListElement>(null);
+  useScrollHighlightedIntoView({ listRef, scrollTarget: vm.scrollTarget }, { scrollIntoView: scrollOptionIntoView });
   const listId = useId();
   const optionId = (index: number) => `${listId}-opt-${index}`;
   return (
@@ -63,7 +71,7 @@ export function SuggestInput({ value, onValueChange, suggestions, onPick, onKeyD
         {...(handle ? agentHandle({ handle }, { role: 'field', label: agentLabel ?? rest['aria-label'] ?? 'Text with suggestions' }) : {})}
       />
       {vm.open ? (
-        <ul id={listId} role="listbox" className="jini-suggest-input__list">
+        <ul ref={listRef} id={listId} role="listbox" className="jini-suggest-input__list">
           {vm.matches.map((match, index) => (
             <li
               key={match}
