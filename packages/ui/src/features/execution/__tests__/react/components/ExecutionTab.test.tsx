@@ -151,6 +151,9 @@ describe('ExecutionTab', () => {
       />,
     );
     await waitFor(() => expect(screen.getByText('Example Agent CLI')).toBeInTheDocument());
+    expect(screen.getAllByTestId(/^jini-agent-card-/)).toHaveLength(1);
+    expect(screen.queryByText('Another Agent CLI')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Show 1 not installed' }));
     const cards = screen
       .getAllByTestId(/^jini-agent-card-/)
       .map((card) => card.textContent ?? '');

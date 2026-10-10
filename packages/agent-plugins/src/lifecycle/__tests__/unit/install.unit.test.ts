@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmod, mkdir, mkdtemp, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, readFile, stat, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "../legacy-test.js";
@@ -102,6 +102,26 @@ async function freshLayout() {
   const instanceLayout = resolveAgentPluginLayout({ cwd, env: {} });
   return { cwd, instanceLayout, layout: instanceLayout.forWorkspace({ workspaceId: WORKSPACE_ID }) };
 }
+
+test("identity admission accepts a workspace reached through an OS directory alias", async () => {
+  const { cwd } = await freshLayout();
+  try {
+    const alias = path.join(cwd, "alias");
+    await symlink(cwd, alias, "dir");
+    const layout = resolveAgentPluginLayout({ cwd: alias, env: {} });
+    const archive = new Uint8Array(Buffer.from("archive-alias-dedup"));
+    const input = { archive, expectedSha256: createHash("sha256").update(archive).digest("hex"),
+      archiveReader: reader(validPackageEntries()), layout, workspaceId: WORKSPACE_ID };
+    const first = await installAgentPlugin(input);
+    const second = await installAgentPlugin(input);
+    assert.equal(second.packageRoot, first.packageRoot);
+    assert.equal(await readFile(path.join(first.packageRoot, "plugin.json"), "utf8"), await readFile(path.join(second.packageRoot, "plugin.json"), "utf8"));
+  } finally {
+    // forceRemove chmods files; remove this alias first so it cannot chmod its own parent directory.
+    await unlink(path.join(cwd, "alias")).catch(() => undefined);
+    await forceRemove(cwd);
+  }
+});
 
 test("installs a valid package and indexes its skills", async () => {
   const { cwd, instanceLayout, layout } = await freshLayout();

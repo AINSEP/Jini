@@ -1,3 +1,6 @@
+import { listInstalledPackageRoots } from "./installed-package-roots.js";
+import { createUninstallModule } from "./uninstall.js";
+import { readPluginIdentity, assertPluginIdentityAvailable } from "@jini-ai/core/plugin-directory";
 /**
  * @file `installAgentPlugin()` — content-addressed, adversarially-hardened extraction of one Agent
  * Plugin (agent-plugins.org) archive into one workspace's own `AgentPluginWorkspaceLayout.packages`.
@@ -85,6 +88,7 @@ export type { InstalledAgentPlugin, InstalledAgentPluginSkill } from "./types.js
  * branches on `code` rather than parsing `message` — this codebase's own convention
  * (`PluginLoadError.reason` in `plugin-runtime/loader.ts` is the direct precedent). */
 export type AgentPluginInstallErrorCode =
+  | "PLUGIN_ID_CONFLICT"
   | "ARCHIVE_TOO_LARGE"
   | "DIGEST_MISMATCH"
   | "TOO_MANY_ENTRIES"
@@ -202,7 +206,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   const rename = ports.filesystem.rename.bind(ports.filesystem);
   const rm = ports.filesystem.rm.bind(ports.filesystem);
   const stat = ports.filesystem.stat.bind(ports.filesystem);
-  const parseAgentPluginManifest = (value: unknown) => parseAgentPluginManifestValue({ value });
+  const parseAgentPluginManifest = (value: unknown) => parseAgentPluginManifestValue({ value }, { identityNamespace: ports.extensionNamespace });
   const { assertContainedOnDisk, normalizePackageEntryPath } = createPackagePathsModule(ports);
   const LIMITS = {
     maxArchiveBytes: 32 * 1024 * 1024,
@@ -210,6 +214,61 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     maxFileBytes: 16 * 1024 * 1024,
     maxTotalExtractedBytes: 64 * 1024 * 1024,
   } as const;
+
+  /** Publisher ids are metadata, never filesystem segments. The workspace identity lock
+   * serializes installs under different local names competing for one qualified id.
+   * @complexity O(d) manifest reads for d installed revisions; no executable imports. */
+  async function assertIdentityAvailable(workspaceRoot: string, candidate: InstalledAgentPlugin): Promise<void> {
+    // Installed roots are canonical paths; compare against the same root even when the host
+    // supplied an OS alias (macOS /var -> /private/var). Containment still rejects escaped links.
+    workspaceRoot = await ports.filesystem.realpath(workspaceRoot);
+    for (const root of await listInstalledPackageRoots({ ports, workspaceRoot })) {
+      const manifestPath = path.join(root.packageRoot, 'plugin.json');
+      await persistentState.assertOwnedPath({ workspaceRoot, entryPath: path.relative(workspaceRoot, manifestPath) });
+      let raw: Record<string, unknown>;
+      let identity: ReturnType<typeof readPluginIdentity>;
+      try {
+        raw = JSON.parse(await readFile(manifestPath, 'utf8'));
+        identity = readPluginIdentity({ manifest: raw, name: root.localId, namespace: ports.extensionNamespace });
+      } catch {
+        // A damaged unrelated install must not block fresh installs or bundled seeding.
+        ports.onEvent?.({ event: 'agent-plugin-identity-warning', message: `Plugin '${root.localId}': installed identity manifest is unreadable or invalid; omitted from identity admission.` });
+        continue;
+      }
+      try {
+        assertPluginIdentityAvailable({ candidate: { id: candidate.id!, localId: candidate.pluginId, family: 'agent-plugin' },
+          installed: [{ ...identity, localId: root.localId, family: 'agent-plugin', version: typeof raw.version === 'string' ? raw.version : null, enabled: false }] });
+      } catch { throw new AgentPluginInstallError({ code: 'PLUGIN_ID_CONFLICT', message: 'The publisher-qualified plugin id conflicts with an installed package.' }); }
+    }
+  }
+
+  /** Retires only this plugin's superseded revisions after accepted publication, under the same
+   * identity/plugin locks. Persistent data, learned facts and notes never enter this operation.
+   * Reuse uninstall's frozen-tree staging so an interrupted removal is no longer a live digest.
+   * There is no previous-revision rollback slot in this lifecycle; failed publication keeps all
+   * prior bytes. Cleanup faults warn without turning an accepted install into a failed install.
+   * @complexity O(d + f), d workspace revisions, f files in this plugin's superseded packages.
+   */
+  async function pruneSupersededRevisions(
+    { workspaceRoot, installed }: { workspaceRoot: string; installed: InstalledAgentPlugin },
+    _optional: Record<string, never> = {},
+  ): Promise<void> {
+    try {
+      // Resolve lazily: uninstall's read-side index uses this install module for manifest indexing.
+      const removal = createUninstallModule(ports);
+      for (const root of await listInstalledPackageRoots({ ports, workspaceRoot })) {
+        if (root.localId !== installed.pluginId || root.archiveDigest === installed.archiveDigest) continue;
+        try {
+          const staged = await removal.stageForRemoval(path.dirname(root.packageRoot), root.packageRoot);
+          await removal.removeFrozenPackageTree(staged.quarantined);
+        } catch {
+          ports.onEvent?.({ event: 'agent-plugin-revision-prune-warning', message: `Plugin '${installed.pluginId}': a superseded revision could not be pruned.` });
+        }
+      }
+    } catch {
+      ports.onEvent?.({ event: 'agent-plugin-revision-prune-warning', message: `Plugin '${installed.pluginId}': superseded revisions could not be scanned for pruning.` });
+    }
+  }
 
   /** Exposes `LIMITS.maxArchiveBytes` for a caller outside this module — concretely, a test asserting
  * `@jini-ai/agent-plugins/lifecycle`'s fetch cap constant stays pinned to this one. The local fetch-archive.ts fork was deleted; see the package's fetch module
@@ -268,42 +327,54 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       const indexed = await indexInstalledRoot(extractionRoot, digest);
       if (optional.previewOnly) return indexed;
 
-      return await persistentState.withPluginLock({ workspaceRoot: workspaceLayout.root, pluginId: indexed.pluginId, run: async () => {
-        // Layout B needs the manifest id before choosing the package destination. Dedup still
-        // skips publication and freezing, after one bounded staging extraction.
-        // Owner decision 2026-10-04: learned facts begin empty for each site; author guidance stays
-        // in package docs. Package extension files never seed learned memory or the user's notes.
-        // Content-addressed dedup, scoped to THIS workspace's own tree (`workspaceLayout` was just
-        // resolved above, atomically, from this same `workspaceId`): identical bytes were already
-        // extracted, verified, and frozen by a prior install of this same workspace's — never
-        // re-extracted for a different workspace, by construction, since a different workspace's
-        // `workspaceLayout.packages` is a different path entirely. one bounded staging extraction precedes this check.
-        // Publish BEFORE freezing permissions, not after: `rename()` moves `extractionRoot` as a single
-        // directory-entry operation, and on this filesystem renaming an already-read-only (0o555)
-        // directory itself fails EACCES (observed, not merely theoretical — see the regression test this
-        // ordering fixed). Freezing after publish also closes a smaller race for free: nothing outside
-        // this function can observe the package at its live path while it is still writable, because the
-        // live path does not exist until `publish` returns.
-        const publishPackage = async (): Promise<InstalledAgentPlugin> => {
-          // The manifest identifies the plugin only after bounded staging extraction (Layout B).
-          const pluginId = indexed.pluginId;
-          const packagesDir = workspaceLayout.pluginPackagesDir({ pluginId });
-          await persistentState.assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, packagesDir) });
-          await mkdir(packagesDir, { recursive: true, mode: 0o700 });
-          const finalRoot = await assertContainedOnDisk(packagesDir, digest);
-          for (const directory of [workspaceLayout.pluginDataDir({ pluginId }),
-            workspaceLayout.pluginMemoryDir({ pluginId, kind: 'learned' }),
-            workspaceLayout.pluginMemoryDir({ pluginId, kind: 'notes' })]) {
-            await persistentState.assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, directory) });
-            await mkdir(directory, { recursive: true, mode: 0o700 });
-          }
-          if (await isRealDirectory(finalRoot)) return indexInstalledRoot(finalRoot, digest);
-          await publish(extractionRoot, finalRoot);
-          await freezeTree(finalRoot, executablePaths);
-          /** Absolute, read-only (frozen) path to the extracted package root. */
-          return { ...indexed, packageRoot: finalRoot };
-        };
-        return optional.publishGuard ? optional.publishGuard({ plugin: indexed, publish: publishPackage }, {}) : publishPackage();
+      return await persistentState.withIdentityLock({ workspaceRoot: workspaceLayout.root, run: async () => {
+        await assertIdentityAvailable(workspaceLayout.root, indexed);
+        const publishWithinPluginLock = () => persistentState.withPluginLock({ workspaceRoot: workspaceLayout.root, pluginId: indexed.pluginId, run: async () => {
+          // Layout B needs the manifest id before choosing the package destination. Dedup still
+          // skips publication and freezing, after one bounded staging extraction.
+          // Owner decision 2026-10-04: learned facts begin empty for each site; author guidance stays
+          // in package docs. Package extension files never seed learned memory or the user's notes.
+          // Content-addressed dedup, scoped to THIS workspace's own tree (`workspaceLayout` was just
+          // resolved above, atomically, from this same `workspaceId`): identical bytes were already
+          // extracted, verified, and frozen by a prior install of this same workspace's — never
+          // re-extracted for a different workspace, by construction, since a different workspace's
+          // `workspaceLayout.packages` is a different path entirely. one bounded staging extraction precedes this check.
+          // Publish BEFORE freezing permissions, not after: `rename()` moves `extractionRoot` as a single
+          // directory-entry operation, and on this filesystem renaming an already-read-only (0o555)
+          // directory itself fails EACCES (observed, not merely theoretical — see the regression test this
+          // ordering fixed). Freezing after publish also closes a smaller race for free: nothing outside
+          // this function can observe the package at its live path while it is still writable, because the
+          // live path does not exist until `publish` returns.
+          let publishedPlugin: InstalledAgentPlugin | undefined;
+          const publishPackage = async (): Promise<InstalledAgentPlugin> => {
+            // The manifest identifies the plugin only after bounded staging extraction (Layout B).
+            const pluginId = indexed.pluginId;
+            const packagesDir = workspaceLayout.pluginPackagesDir({ pluginId });
+            await persistentState.assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, packagesDir) });
+            await mkdir(packagesDir, { recursive: true, mode: 0o700 });
+            const finalRoot = await assertContainedOnDisk(packagesDir, digest);
+            for (const directory of [workspaceLayout.pluginDataDir({ pluginId }),
+              workspaceLayout.pluginMemoryDir({ pluginId, kind: 'learned' }),
+              workspaceLayout.pluginMemoryDir({ pluginId, kind: 'notes' })]) {
+              await persistentState.assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, directory) });
+              await mkdir(directory, { recursive: true, mode: 0o700 });
+            }
+            if (await isRealDirectory(finalRoot)) {
+              publishedPlugin = await indexInstalledRoot(finalRoot, digest);
+              return publishedPlugin;
+            }
+            await publish(extractionRoot, finalRoot);
+            await freezeTree(finalRoot, executablePaths);
+            /** Absolute, read-only (frozen) path to the extracted package root. */
+            publishedPlugin = { ...indexed, packageRoot: finalRoot };
+            return publishedPlugin;
+          };
+          const installed = await (optional.publishGuard ? optional.publishGuard({ plugin: indexed, publish: publishPackage }, {}) : publishPackage());
+          if (publishedPlugin) await pruneSupersededRevisions({ workspaceRoot: workspaceLayout.root, installed: publishedPlugin });
+          return installed;
+        } });
+        if (ports.identityAdmission) return ports.identityAdmission({ id: indexed.id!, localId: indexed.pluginId, run: publishWithinPluginLock }, {});
+        return publishWithinPluginLock();
       } });
     } finally {
 
@@ -531,6 +602,7 @@ archiveDigest: string): Promise<InstalledAgentPlugin> {
     }
 
     const files: string[] = [];
+    for (const message of parsed.warnings) ports.onEvent?.({ event: 'agent-plugin-identity-warning', message });
     const skills: InstalledAgentPluginSkill[] = [];
 
     async function walk(absolute: string, prefix: string): Promise<void> {
@@ -554,6 +626,8 @@ archiveDigest: string): Promise<InstalledAgentPlugin> {
 
     return {
       pluginId: parsed.manifest.name,
+      id: parsed.manifest.id,
+      provides: parsed.manifest.provides,
       version: parsed.manifest.version,
 
       ...(/**
