@@ -1,7 +1,14 @@
-/** Claude result totals are per segment. Aborted results can zero counters already streamed. */
-export function createClaudeSegmentUsage(_required: Record<string, never>, { nowMs = Date.now }: { nowMs?: () => number } = {}) {
+/** Token counters are per segment; Claude's dollar counter spans the session.
+ * Aborted results can zero counters already streamed. */
+export function createClaudeSegmentUsage(_required: Record<string, never>, { nowMs = Date.now, costBasis = 'session' }: { nowMs?: () => number; costBasis?: 'session' | 'run' } = {}) {
   const messages = new Map<string, Record<string, number>>();
   let startedAt = nowMs();
+  let sessionId: string | undefined;
+
+  /** Capture the CLI's identity so durable chat usage can reconcile resumed runs. */
+  function setSession({ id }: { id: unknown }, _optional = {}): void {
+    if (typeof id === 'string' && id.length > 0) sessionId = id;
+  }
 
   /** Merge cumulative counters for one message; wrappers repeat the same streamed usage.
    * O(k) per snapshot in k reported counters; retained state is O(m·k) for m messages in a segment. */
@@ -38,8 +45,17 @@ export function createClaudeSegmentUsage(_required: Record<string, never>, { now
       : messages.size || interrupted ? Math.max(0, endedAt - startedAt) : duration ?? null;
     messages.clear();
     startedAt = endedAt;
-    return { usage: Object.keys(usage).length ? usage : result.usage ?? null, costUsd, durationMs };
+    // Preserve the cumulative snapshot rather than calling it a per-run charge. A zeroed
+    // aborted result still uses the existing model-cost fallback for its interrupted segment.
+    const cumulative = costBasis === 'session' && sessionId !== undefined &&
+      typeof costUsd === 'number' && Number.isFinite(costUsd) && costUsd >= 0 &&
+      !(interrupted && result.total_cost_usd === 0);
+    return { usage: Object.keys(usage).length ? usage : result.usage ?? null,
+      costUsd: cumulative ? null : costUsd, durationMs,
+      ...(costBasis === 'session' && sessionId !== undefined ? { costSessionId: sessionId } : {}),
+      ...(cumulative ? { cumulativeCostUsd: costUsd as number } : {}),
+    };
   }
 
-  return { observe, finish, hasObserved: () => messages.size > 0 };
+  return { observe, finish, setSession, hasObserved: () => messages.size > 0 };
 }

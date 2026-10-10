@@ -52,11 +52,15 @@ function translateUsagePayload(rawEvent: Record<string, unknown>): RunAgentPaylo
   const rawUsage = isRecord(rawEvent.usage) ? rawEvent.usage : undefined;
   const usage = extractUsageTokens({ rawUsage: rawUsage });
   const costUsd = asOptionalNumber(rawEvent.costUsd);
+  const cumulativeCostUsd = asOptionalNumber(rawEvent.cumulativeCostUsd);
+  const costSessionId = asOptionalString(rawEvent.costSessionId);
   const durationMs = asOptionalNumber(rawEvent.durationMs);
   return {
     type: 'usage',
     ...(usage !== undefined ? { usage } : {}),
     ...(costUsd !== undefined ? { costUsd } : {}),
+    ...(cumulativeCostUsd !== undefined ? { cumulativeCostUsd } : {}),
+    ...(costSessionId !== undefined ? { costSessionId } : {}),
     ...(durationMs !== undefined ? { durationMs } : {}),
   };
 }

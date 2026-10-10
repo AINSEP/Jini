@@ -66,7 +66,7 @@ export type ClaudeStreamEvent =
   | { type: 'tool_input_delta'; id: string; name: string; delta: string }
   | { type: 'tool_result'; toolUseId: unknown; content: string; isError: boolean }
   | { type: 'turn_end'; stopReason: string }
-  | { type: 'usage'; usage: unknown; costUsd: unknown; durationMs: unknown; stopReason: string | null }
+  | { type: 'usage'; usage: unknown; costUsd: unknown; cumulativeCostUsd?: number; costSessionId?: string; durationMs: unknown; stopReason: string | null }
   | { type: 'error'; message: string; code: string }
   | { type: 'raw'; line: string }
   | RoleMarkerWarningEvent;
@@ -444,12 +444,17 @@ interface ClaudeStreamHandlerOptions {
   suppressHtmlArtifactsAfterFileWrite?: boolean;
   /** Clock used only when an interrupted segment omits its duration. */
   nowMs?: () => number;
+  /** Claude's results span a session; compatible CLIs can retain per-run cost semantics. */
+  costBasis?: 'session' | 'run';
 }
 
 export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, options: ClaudeStreamHandlerOptions = {}
 ) {
   let buffer = '';
-  const segmentUsage = createClaudeSegmentUsage({}, options.nowMs === undefined ? {} : { nowMs: options.nowMs });
+  const segmentUsage = createClaudeSegmentUsage({}, {
+    ...(options.nowMs === undefined ? {} : { nowMs: options.nowMs }),
+    ...(options.costBasis === undefined ? {} : { costBasis: options.costBasis }),
+  });
 
   // Per-content-block scratch, keyed by `${messageId}:${blockIndex}`.
   const blocks = new Map<string, BlockState>();
@@ -811,6 +816,7 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
 
   function handleObject(obj: unknown) {
     if (!isRecord(obj)) return;
+    segmentUsage.setSession({ id: obj.session_id });
     switch (obj.type) {
       case 'system':
         handleSystemMessage(obj, onEvent);

@@ -13,7 +13,7 @@ import { memo } from 'react';
 import type { ChatMessage } from '../../core/index.js';
 import { isTerminalRunStatus } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
-import { useMessageListAutoScroll } from './MessageList.hooks.js';
+import { useMessageListAutoScroll, useConversationUsage } from './MessageList.hooks.js';
 import { MessageRow, type MessageRowProps } from './MessageRow.js';
 
 export interface MessageListProps extends Pick<MessageRowProps, 'projectFileNames' | 'onRequestOpenFile' | 'renderAttachment'> {
@@ -58,6 +58,7 @@ export const MessageList = memo(function MessageList({
   pendingPrompt = null,
 }: MessageListProps) {
   const t = useT();
+  const usageByMessage = useConversationUsage({ messages });
   const { containerRef, onScroll } = useMessageListAutoScroll({ messages, scrollIntent }, onScrolled !== undefined ? { onScrolled } : {});
 
   return (
@@ -76,6 +77,7 @@ export const MessageList = memo(function MessageList({
           <MessageRow
             key={message.id}
             message={message}
+            {...(usageByMessage.has(message.id) ? { usageSummary: usageByMessage.get(message.id)! } : {})}
             runStreaming={runStreaming}
             runSucceeded={message.runStatus === 'succeeded'}
             questionFormInteractive={message.id === activeQuestionFormMessageId}

@@ -43,3 +43,5 @@ export {
 export type { ComposerHistoryKeyInput, ComposerHistoryState, ComposerHistoryStoragePort } from './composer-history.js';
 
 export * from './user-text-redaction.js';
+export { turnUsage, conversationUsage, type ChatUsageSummary } from './turn-usage.js';
+export { formatUsageCost } from './usage-format.js';

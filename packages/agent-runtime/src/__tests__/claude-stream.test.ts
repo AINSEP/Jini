@@ -170,7 +170,9 @@ describe('createClaudeStreamHandler', () => {
 
     const usage = events[7]!;
     expect(usage.usage).toEqual({ input_tokens: 120, output_tokens: 40 });
-    expect(usage.costUsd).toBe(0.002);
+    expect(usage.costUsd).toBeNull();
+    expect(usage.cumulativeCostUsd).toBe(0.002);
+    expect(usage.costSessionId).toBe('sess_abc');
     expect(usage.stopReason).toBe('end_turn');
   });
 

@@ -75,6 +75,8 @@ export function parseUsageEvent({ payload }: { payload: RunAgentPayload }, _opti
     ...(typeof usage.input_tokens === "number" ? { inputTokens: usage.input_tokens } : {}),
     ...(typeof usage.output_tokens === "number" ? { outputTokens: usage.output_tokens } : {}),
     ...(typeof payload.costUsd === "number" ? { costUsd: payload.costUsd } : {}),
+    ...(typeof payload.cumulativeCostUsd === "number" ? { cumulativeCostUsd: payload.cumulativeCostUsd } : {}),
+    ...(typeof payload.costSessionId === "string" ? { costSessionId: payload.costSessionId } : {}),
     ...(typeof payload.durationMs === "number" ? { durationMs: payload.durationMs } : {}),
   };
 }

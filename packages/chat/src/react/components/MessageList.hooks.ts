@@ -4,13 +4,19 @@
  * lives here (presentational), not in the headless `useConversation` hook, per that hook's own
  * "transport-agnostic hooks never touch DOM" contract.
  */
-import { useEffect, useRef, type RefObject, type UIEvent } from 'react';
+import { useEffect, useMemo, useRef, type RefObject, type UIEvent } from 'react';
+import { conversationUsage } from '../../core/turn-usage.js';
 import type { ChatMessage } from '../../core/index.js';
 import { nextStickToBottom, startsNewTurn } from './MessageList.rules.js';
 
 export interface MessageListAutoScroll {
   containerRef: RefObject<HTMLDivElement | null>;
   onScroll: (event: UIEvent<HTMLElement>) => void;
+}
+
+/** Recompute costs once per immutable transcript snapshot, including saved history on reload. */
+export function useConversationUsage({ messages }: { messages: readonly ChatMessage[] }, _optional = {}) {
+  return useMemo(() => conversationUsage({ messages }), [messages]);
 }
 
 export function useMessageListAutoScroll(

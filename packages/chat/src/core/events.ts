@@ -57,6 +57,9 @@ export type AgentEvent =
       inputTokens?: number;
       outputTokens?: number;
       costUsd?: number;
+      /** CLI session snapshot, persisted in events_json; reconciled across turns before display. */
+      cumulativeCostUsd?: number;
+      costSessionId?: string;
       durationMs?: number;
       stopReason?: string;
     }

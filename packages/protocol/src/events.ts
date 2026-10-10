@@ -117,7 +117,7 @@ export type RunAgentPayload =
    * model still only ever sees `content`, since no driver forwards `media` into a prompt.
    */
   | { type: 'tool_result'; toolUseId: string; content: string; isError?: boolean; media?: unknown }
-  | { type: 'usage'; usage?: { input_tokens?: number; output_tokens?: number }; costUsd?: number; durationMs?: number }
+  | { type: 'usage'; usage?: { input_tokens?: number; output_tokens?: number }; costUsd?: number; cumulativeCostUsd?: number; costSessionId?: string; durationMs?: number }
   | { type: 'raw'; line: string }
   /**
    * Announces a named sub-stage of a multi-step agent run beginning/ending — generic scaffolding
