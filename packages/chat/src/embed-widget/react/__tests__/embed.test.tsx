@@ -61,6 +61,8 @@ describe('embed composition', () => {
     expect(pane.props!.transport).toBe(widget.transport);
     expect(pane.props!.initialMessages).toEqual(initial);
     expect(pane.props!.placeholder).toBe('Your question');
+    expect(pane.props!.variant).toBe('embed');
+    expect(screen.getByRole('dialog', { name: 'Help' })).toHaveAttribute('aria-modal', 'true');
     expect(screen.getByRole('heading', { name: 'Help' }).tagName).toBe('H2');
     fireEvent.click(screen.getByRole('button', { name: 'Open help' }));
     expect(widget.session.save).toHaveBeenLastCalledWith({ state: { open: false, messages: initial } });

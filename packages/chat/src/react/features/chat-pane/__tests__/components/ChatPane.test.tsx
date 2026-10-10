@@ -27,6 +27,31 @@ const welcome: ChatMessage = {
 };
 
 describe('ChatPane', () => {
+  it('excludes workspace controls on the embed surface while retaining draft and send behavior', async () => {
+    const transport = createFakeChatTransport();
+    const upload = vi.fn(async () => []);
+    render(<ChatPane variant="embed" transport={transport} agents={agents}
+      workingDirectoryControlPlacement="composer" uploadAttachments={upload}
+      leadingAccessory={<button>Admin context</button>}
+      composerSlots={{ footerLeadingAccessory: <button>Admin tool</button>,
+        discoveryGroups: [{ id: 'admin', label: 'Admin tools', items: [{ id: 'secret', label: 'Admin command', insertText: '/admin' }] }] }}
+      emptyState={<p>Ask about this site.</p>} suggestions={['Find posts']} />);
+    expect(screen.queryByRole('button', { name: /working directory/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /runtime|Codex|model|attach|context|discover|Admin/i })).toBeNull();
+    expect(screen.getByText('Ask about this site.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Find posts' }));
+    expect(screen.getByRole('textbox')).toHaveValue('Find posts');
+    expect(screen.getByRole('textbox')).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Find posts' }).closest('.jini-message-list--empty')).not.toBeNull();
+    expect(transport.calls).toHaveLength(0);
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+    expect(transport.calls[0]?.input.agentId).toBe('codex');
+    expect(screen.queryByText('Ask about this site.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Find posts' })).toBeNull();
+    expect(upload).not.toHaveBeenCalled();
+    act(() => transport.finish([]));
+  });
   it('owns composer/conversation/send orchestration and forwards selection plus run context', async () => {
     const transport = createFakeChatTransport();
     const activities: ChatPaneActivity[] = [];

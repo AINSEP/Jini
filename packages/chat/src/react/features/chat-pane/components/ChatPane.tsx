@@ -22,6 +22,8 @@ import { useChatPaneAgentControl } from '../hooks/useChatPaneAgentControl.hooks.
 import { useChatPaneComposerPlaceholder } from '../hooks/useChatPaneComposerPlaceholder.hooks.js';
 import { useChatPaneControlsHeight } from '../hooks/useChatPaneControlsHeight.hooks.js';
 import { useChatPaneNewTabLinks } from '../hooks/useChatPaneNewTabLinks.hooks.js';
+import { useChatPaneSurface } from '../hooks/useChatPaneSurface.hooks.js';
+import { useChatPaneSuggestion } from '../hooks/useChatPaneSuggestion.hooks.js';
 import {
   useChatPaneFileDrop,
   type ChatPaneFileDropTargetProps,
@@ -526,6 +528,7 @@ export function ChatPane({
   placeholder,
   placeholders,
   suggestions = [],
+  emptyState,
   workingDirectory,
   initialWorkingDirectory,
   onChangeWorkingDirectory,
@@ -544,6 +547,7 @@ export function ChatPane({
   style,
 }: ChatPaneProps) {
   const t = useT();
+  const surface = useChatPaneSurface({ variant, composerSlots, workingDirectoryControlPlacement, uploadAttachments });
   const composerPlaceholder = useChatPaneComposerPlaceholder({ placeholder: placeholder, placeholders: placeholders });
   const inventory = useChatPaneRuntimeInventory(definedProps({ source: {
     access: runtimeAccess,
@@ -622,7 +626,7 @@ export function ChatPane({
   // the provider directly over HTTP and never touches the CLI inventory.
   const unavailable = pane.selectedAgent === undefined && !apiModeConfigured;
   const fileDrop = useChatPaneFileDrop({
-    enabled: uploadAttachments !== undefined
+    enabled: surface.uploadAttachments !== undefined
       && !disabled
       && !unavailable
       && !pane.conversation.isStreaming
@@ -633,9 +637,9 @@ export function ChatPane({
   // `ChatPaneProps.composerSlots`'s doc), so the two explicit keys below are never overwriting a
   // caller-supplied value — they are the ONLY source for both.
   const slots: ComposerSlots = definedProps({ source: {
-    ...composerSlots,
-    leadingAccessories: leadingAccessory,
-    footerAccessories: (
+    ...surface.composerSlots,
+    leadingAccessories: surface.embed ? undefined : leadingAccessory,
+    footerAccessories: surface.embed ? undefined : (
       <AgentRuntimePicker
         agents={runtimeView.agents}
         value={pane.selection}
@@ -652,6 +656,7 @@ export function ChatPane({
   } });
 
   const { rootRef, controlsRef } = useChatPaneControlsHeight();
+  const selectSuggestion = useChatPaneSuggestion({ rootRef, setDraft: pane.composer.setDraft });
   const openLinkInNewTab = useChatPaneNewTabLinks();
   // `MessageList` is memoized so a composer keystroke does not re-render the transcript; these two
   // props would otherwise be fresh objects on every render and defeat it.
@@ -676,6 +681,12 @@ export function ChatPane({
       <style data-jini-chat-pane-styles="true">{CHAT_PANE_STYLES}</style>
       {resolveChatPaneHeader(header, title, pane.reset, t)}
       <div className="jini-chat-pane__body">
+        {pane.conversation.messages.length === 0 && emptyState ? (
+          <div className="jini-message-list jini-message-list--empty">
+            {emptyState}
+            {surface.embed && <ChatPaneSuggestionsRow suggestions={suggestions} onSelect={selectSuggestion} t={t} />}
+          </div>
+        ) : (
         <MessageList
           messages={pane.conversation.messages}
           isStreaming={pane.conversation.isStreaming}
@@ -684,8 +695,11 @@ export function ChatPane({
           pendingPrompt={pendingPrompt}
           {...(projectFileNameSet === undefined ? {} : { projectFileNames: projectFileNameSet })}
         />
+        )}
         <div className="jini-chat-pane__controls" ref={controlsRef}>
-          <ChatPaneSuggestionsRow suggestions={suggestions} onSelect={pane.composer.setDraft} t={t} />
+          {(!surface.embed || (pane.conversation.messages.length === 0 && !emptyState)) && (
+            <ChatPaneSuggestionsRow suggestions={suggestions} onSelect={selectSuggestion} t={t} />
+          )}
           {pane.secretRedacted ? <div className="jini-chat-pane__notice" role="status">{t(SECRET_REDACTED_NOTICE)}</div> : null}
           <ChatPaneStatusMessages
             unavailable={unavailable}
@@ -707,7 +721,7 @@ export function ChatPane({
           />
           <ChatPaneComposerArea
             fileDrop={fileDrop}
-            uploadAttachments={uploadAttachments}
+            uploadAttachments={surface.uploadAttachments}
             pane={pane}
             disabled={disabled}
             unavailable={unavailable}
@@ -715,7 +729,7 @@ export function ChatPane({
             slots={slots}
             attachmentAccept={attachmentAccept}
             workingDirectoryAccess={workingDirectoryAccess}
-            workingDirectoryControlPlacement={workingDirectoryControlPlacement}
+            workingDirectoryControlPlacement={surface.workingDirectoryControlPlacement}
             t={t}
           />
         </div>

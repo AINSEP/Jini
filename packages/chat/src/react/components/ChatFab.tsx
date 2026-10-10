@@ -12,9 +12,12 @@ export interface ChatFabProps {
   readonly onToggle: () => void;
   /** Rendered as the accessible name, and announced as a state change to assistive tech. */
   readonly label?: string;
+  readonly 'aria-label'?: string;
+  readonly 'aria-controls'?: string;
+  readonly 'aria-haspopup'?: 'dialog';
 }
 
-export function ChatFab({ open, onToggle, label = 'chat' }: ChatFabProps) {
+export function ChatFab({ open, onToggle, label = 'chat', 'aria-label': accessibleLabel, 'aria-controls': controls, 'aria-haspopup': popup }: ChatFabProps) {
   const { buttonRef, position, onPointerDown, onPointerMove, onPointerUp, onPointerCancel } = useChatFabDrag({ onClick: onToggle });
 
   return (
@@ -38,7 +41,9 @@ export function ChatFab({ open, onToggle, label = 'chat' }: ChatFabProps) {
       }}
       style={position === null ? undefined : { left: position.x, top: position.y, right: 'auto', bottom: 'auto' }}
       aria-expanded={open}
-      aria-label={open ? `Hide ${label}` : `Show ${label}`}
+      aria-label={accessibleLabel ?? (open ? `Hide ${label}` : `Show ${label}`)}
+      aria-controls={controls}
+      aria-haspopup={popup}
       /*
        * Deliberately NOT tagged with `data-agent-element`. A host that scopes its page driver to
        * content `<main>` won't advertise this handle, and it's a pointless capability anyway: an

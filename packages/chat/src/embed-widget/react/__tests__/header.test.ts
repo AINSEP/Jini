@@ -138,6 +138,27 @@ describe("SiteAssistantHeader", () => {
     assert.ok(Array.from(container.querySelectorAll("button")).some((b) => b.textContent === "Discard chat?"));
   });
 
+  it("confirms before discarding an unsent draft and returns focus after cancellation", () => {
+    let resets = 0;
+    renderHeader({ title: 'Chat', hasMessages: false, onReset: () => { resets++; } });
+    container.classList.add('jini-chat-pane');
+    const textarea = document.createElement('textarea');
+    textarea.className = 'jini-composer-input';
+    textarea.value = 'Keep my question';
+    container.append(textarea);
+    for (const cancel of [() => clickButton('Cancel'), pressEscape]) {
+      clickButton('New thread');
+      assert.equal(resets, 0);
+      assert.equal(document.activeElement?.textContent, 'Cancel');
+      cancel();
+      assert.equal(textarea.value, 'Keep my question');
+      assert.equal(document.activeElement?.textContent, 'New thread');
+    }
+    clickButton('New thread');
+    clickButton('Discard chat?');
+    assert.equal(resets, 1);
+  });
+
   it("autofocuses Cancel (the safe choice), not the destructive Discard button, once the confirm step appears", () => {
     renderHeader({ title: "My Site", hasMessages: true, onReset: () => {} });
     clickButton("New thread");

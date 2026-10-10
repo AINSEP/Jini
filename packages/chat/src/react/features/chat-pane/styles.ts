@@ -582,6 +582,11 @@ export const CHAT_PANE_STYLES = `
   font-size: 13.5px;
   line-height: 1.6;
 }
+/* Shared focus-zoom floor: embeds at every width, all panes on small/touch viewports. */
+.jini-chat-embed .jini-chat-pane .jini-composer-input { font-size: 16px; }
+@media (max-width: 640px), (pointer: coarse) {
+  .jini-chat-pane.jini-chat-pane .jini-composer-input { font-size: 16px; }
+}
 .jini-chat-pane .jini-composer-input::placeholder { color: var(--jini-chat-faint); }
 .jini-chat-pane .jini-composer-footer {
   display: flex;

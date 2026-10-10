@@ -33,6 +33,15 @@ beforeAll(() => {
 });
 
 describe('ChatFab', () => {
+  it('keeps a visitor label stable while expanded state and dialog association change', () => {
+    const { rerender } = render(<ChatFab open={false} onToggle={vi.fn()} aria-label="Chat with this site" aria-controls="visitor-chat" aria-haspopup="dialog" />);
+    const bubble = screen.getByRole('button', { name: 'Chat with this site' });
+    expect(bubble).toHaveAttribute('aria-expanded', 'false');
+    expect(bubble).toHaveAttribute('aria-controls', 'visitor-chat');
+    expect(bubble).toHaveAttribute('aria-haspopup', 'dialog');
+    rerender(<ChatFab open onToggle={vi.fn()} aria-label="Chat with this site" aria-controls="visitor-chat" aria-haspopup="dialog" />);
+    expect(screen.getByRole('button', { name: 'Chat with this site' })).toHaveAttribute('aria-expanded', 'true');
+  });
   it('renders the closed state with the default label', () => {
     render(<ChatFab open={false} onToggle={vi.fn()} />);
     const button = screen.getByRole('button', { name: 'Show chat' });

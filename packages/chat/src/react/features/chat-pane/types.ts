@@ -64,7 +64,7 @@ export interface ChatPaneRuntimeAccess {
 }
 
 export type ChatPaneActivity = 'unavailable' | 'ready' | 'queued' | 'streaming' | 'failed';
-export type ChatPaneVariant = 'workspace';
+export type ChatPaneVariant = 'workspace' | 'embed';
 export type RuntimePickerPlacement = 'up' | 'down';
 
 /**
@@ -273,6 +273,8 @@ export interface ChatPaneProps extends UserTextRedactionOptions {
    */
   placeholders?: readonly string[];
   suggestions?: readonly string[];
+  /** Host greeting shown only while the transcript is empty; never persisted as a message. */
+  emptyState?: ReactNode;
   /** Controlled working-directory value. */
   workingDirectory?: string | null;
   /** Initial value used when `workingDirectory` is uncontrolled. */

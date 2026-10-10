@@ -11,6 +11,8 @@ import type { BrowserSessionStore } from '../browser/session-store.js';
 import { extractPageActions, splitPageActions, isQueuedPageAction } from '../../core/browser/page-actions.js';
 import type { NavigateAction, NonNavigateAction, PageActionPort } from '../../core/browser/page-actions.js';
 import { EmbedChatHeader } from './header.js';
+import { useEmbedChatSurface } from './dialog.hooks.js';
+export { useEmbedChatDialog } from './dialog.hooks.js';
 import type { EmbedHeaderCopy, EscapeKeyPort } from './header.js';
 export { EmbedChatHeader } from './header.js';
 export type { EmbedChatHeaderArgs, EmbedHeaderCopy, EscapeKeyPort } from './header.js';
@@ -51,9 +53,9 @@ const shellStyles = `
 export function EmbedChatWidget(args: EmbedChatWidgetArgs) {
   const { agent, copy, transport, session, pageActions, directiveEventName, keyboard, scheduleFrame } = args;
   const [initial] = useState(() => session.load({}));
-  const [open, setOpen] = useState(initial.open);
-  const [messages, setMessages] = useState(initial.messages);
   const [paneKey, setPaneKey] = useState(0);
+  const { open, toggle, panelRef, launcherRef, panelId } = useEmbedChatSurface({ initialOpen: initial.open }, { resetKey: paneKey });
+  const [messages, setMessages] = useState(initial.messages);
   const [pending, setPending] = useState<PendingProposal | null>(null);
   const processed = useRef(new Set(initial.messages.map(message => message.id)));
   useEffect(() => { session.save({ state: { open, messages } }); }, [session, open, messages]);
@@ -93,11 +95,13 @@ export function EmbedChatWidget(args: EmbedChatWidgetArgs) {
   }, [directiveEventName, pageActions, go]);
   return <div className="jini-chat-embed">
     <style>{shellStyles}</style>
-    <ChatFab open={open} onToggle={() => setOpen(current => !current)} label={copy.fabLabel} />
+    <div ref={launcherRef} tabIndex={-1}>
+      <ChatFab open={open} onToggle={toggle} aria-label={copy.fabLabel} label={copy.fabLabel} aria-controls={panelId} aria-haspopup="dialog" />
+    </div>
     <JiniChatProvider transport={transport}>
-      <div className="jini-chat-embed__panel" hidden={!open}>
+      <div id={panelId} className="jini-chat-embed__panel" hidden={!open} ref={panelRef} role="dialog" aria-modal="true" aria-label={copy.title}>
         <ChatPane key={paneKey} transport={transport} agents={[agent]} initialSelection={{ agentId: agent.id }}
-          initialMessages={messages} title={copy.title} placeholder={copy.placeholder} workingDirectoryControlPlacement="none"
+          initialMessages={messages} title={copy.title} placeholder={copy.placeholder} variant="embed"
           header={<EmbedChatHeader title={copy.title} hasMessages={messages.length > 0} onReset={reset} copy={copy} keyboard={keyboard} />}
           onMessagesChange={onMessagesChange} />
         {pending ? <div className="jini-chat-embed__proposal">
