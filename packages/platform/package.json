@@ -27,7 +27,8 @@
       "./net": "node",
       "./net/endpoint-policy": "universal",
       "./fs/file-lock": "node",
-      "./secrets/credential-token": "universal"
+      "./secrets/credential-token": "universal",
+      "./web": "node"
     }
   },
   "type": "module",
@@ -109,6 +110,11 @@
       "types": "./dist/secrets/credential-token.d.ts",
       "import": "./dist/secrets/credential-token.js",
       "default": "./dist/secrets/credential-token.js"
+    },
+    "./web": {
+      "types": "./dist/web/index.d.ts",
+      "import": "./dist/web/index.js",
+      "default": "./dist/web/index.js"
     }
   },
   "files": [
@@ -125,7 +131,12 @@
   ],
   "dependencies": {
     "undici": "^7.25.0",
-    "@jini-ai/core": "^0.4.0"
+    "@jini-ai/core": "^0.4.0",
+    "parse5": "7.3.0",
+    "hast-util-from-parse5": "8.0.3",
+    "hast-util-to-mdast": "10.1.2",
+    "mdast-util-to-markdown": "2.1.2",
+    "mdast-util-gfm-table": "2.0.0"
   },
   "publishConfig": {
     "access": "public",
