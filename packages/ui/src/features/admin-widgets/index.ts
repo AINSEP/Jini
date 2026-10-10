@@ -17,3 +17,7 @@ export { ComingSoonPanel } from './components/ComingSoonPanel.js';
 export type { ComingSoonPanelProps } from './components/ComingSoonPanel.js';
 export { ComingSoonNotice } from './components/ComingSoonNotice.js';
 export type { ComingSoonNoticeProps } from './components/ComingSoonNotice.js';
+export { SuggestInput } from './components/SuggestInput/SuggestInput.js';
+export type { SuggestInputProps } from './components/SuggestInput/SuggestInput.js';
+export { useSuggestInput, matchSuggestions } from './components/SuggestInput/SuggestInput.hooks.js';
+export type { SuggestInputController } from './components/SuggestInput/SuggestInput.hooks.js';

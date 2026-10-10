@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { agentHandle } from "@jini-ai/agentic";
 
@@ -35,10 +35,13 @@ export interface InfoTipProps {
   // Agent clicks toggle the tip like a tap, so the handle advertises button semantics.
   // Omission leaves existing markup untagged.
   agentHandle?: string | undefined;
+  /** What the trigger shows instead of the default ⓘ, e.g. a status icon whose meaning the bubble
+   *  explains. Decorative: the trigger is still named by `triggerLabel`/`label`. */
+  icon?: ReactNode | undefined;
 }
 
 /** Focus/hover tooltip that portals outside clipping ancestors; Escape dismisses in place. */
-export function InfoTip({ label, triggerLabel, descriptionId, placement: preferredPlacement, useTip = useInfoTip, agentHandle: handle }: InfoTipProps) {
+export function InfoTip({ label, triggerLabel, descriptionId, placement: preferredPlacement, useTip = useInfoTip, agentHandle: handle, icon }: InfoTipProps) {
   const { open, placement, coords, iconRef, bubbleRef, show, hide, leave, toggle, handleIconKeyDown } = useTip({}, { placement: preferredPlacement === "inline" ? undefined : preferredPlacement });
   const autoId = useId();
   const name = triggerLabel ?? label;
@@ -51,7 +54,7 @@ export function InfoTip({ label, triggerLabel, descriptionId, placement: preferr
     <span className={preferredPlacement === "inline" ? "info-tip info-tip--inline" : "info-tip"}>
       <span
         ref={iconRef}
-        className="info-tip-icon"
+        className={icon ? "info-tip-icon info-tip-icon--custom" : "info-tip-icon"}
         role="button"
         tabIndex={0}
         aria-label={name}
@@ -65,7 +68,7 @@ export function InfoTip({ label, triggerLabel, descriptionId, placement: preferr
         onKeyDown={handleIconKeyDown}
         {...(handle ? agentHandle({ handle: handle }, { role: "button", label: name }) : {})}
       >
-        ⓘ
+        {icon ?? "ⓘ"}
       </span>
       {textId ? <span id={textId} hidden>{label}</span> : null}
       {open && preferredPlacement === "inline" ? <span className="info-tip-inline-copy" aria-hidden="true">{label}</span> : open

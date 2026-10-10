@@ -32,6 +32,16 @@ describe("InfoTip", () => {
     expect(screen.getByRole('button')).toHaveFocus();
   });
 
+  it("shows a caller's icon instead of the default glyph, still named and still opening the bubble", () => {
+    render(<InfoTip label={LABEL} triggerLabel="Subagents" icon={<svg data-testid="custom-icon" />} placement="bottom" />);
+    const trigger = screen.getByRole("button", { name: "Subagents" });
+    expect(trigger).toContainElement(screen.getByTestId("custom-icon"));
+    expect(trigger).not.toHaveTextContent("ⓘ");
+    expect(trigger).toHaveClass("info-tip-icon--custom");
+    fireEvent.mouseEnter(trigger);
+    expect(screen.getByText(LABEL, { selector: ".info-tip-bubble" })).toBeInTheDocument();
+  });
+
   it("is closed by default, with the icon reachable by its accessible name", () => {
     render(<InfoTip label={LABEL} />);
     expect(screen.queryByText(LABEL)).not.toBeInTheDocument();
