@@ -167,3 +167,26 @@ test("SharpImageTransformer.transform deliberately flattens an animated source t
   assert.strictEqual(outMeta.height, 10, "must be a single clean frame, not all frames stacked into one image");
   assert.strictEqual(outMeta.pages, undefined);
 });
+
+test('transparent PNG pixels become white in JPEG while PNG retains alpha', async () => {
+  const source = await sharp({ create: { width: 8, height: 8, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+  const transformer = new SharpImageTransformer();
+  const jpeg = await transformer.transform({ bytes: source, params: { format: 'jpeg', quality: 82 } });
+  const pixels = await sharp(jpeg.bytes).raw().toBuffer();
+  assert.deepEqual(pixels, Buffer.alloc(8 * 8 * 3, 255), 'transparent pixels must flatten onto white, not black');
+  const png = await transformer.transform({ bytes: source, params: { format: 'png' } });
+  assert.deepEqual(await sharp(png.bytes).raw().toBuffer(), await sharp(source).raw().toBuffer(), 'alpha-capable formats retain transparent pixels');
+});
+
+test('og JPEG applies named dimensions and quality to real pixels', async () => {
+  const source = await sharp({ create: { width: 1200, height: 630, channels: 3, background: { r: 173, g: 91, b: 37 } } }).png().toBuffer();
+  const params = { width: 1200, height: 630, fit: 'cover' as const, format: 'jpeg' as const, quality: 82 };
+  const transformed = await new SharpImageTransformer().transform({ bytes: source, params });
+  const expected = await sharp(source).resize(1200, 630, { fit: 'cover' }).jpeg({ quality: 82 }).toBuffer();
+  assert.equal(transformed.contentType, 'image/jpeg');
+  assert.deepEqual(Buffer.from(transformed.bytes), expected);
+  const decoded = await sharp(transformed.bytes).metadata();
+  assert.equal(decoded.width, 1200);
+  assert.equal(decoded.height, 630);
+  assert.equal(decoded.format, 'jpeg');
+});

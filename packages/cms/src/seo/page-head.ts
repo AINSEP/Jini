@@ -27,7 +27,12 @@ function buildOpenGraphElements(og: SeoMeta["openGraph"]): HeadElement[] {
     { kind: "og", property: "og:type", content: og.type, priority: 141 },
     { kind: "og", property: "og:url", content: og.url, priority: 142 },
   ];
-  if (og.image) elements.push({ kind: "og", property: "og:image", content: og.image, priority: 143 });
+  if (og.image) {
+    elements.push({ kind: "og", property: "og:image", content: og.image, priority: 143 });
+    if (og.imageWidth !== undefined) elements.push({ kind: "og", property: "og:image:width", content: String(og.imageWidth), priority: 143 });
+    if (og.imageHeight !== undefined) elements.push({ kind: "og", property: "og:image:height", content: String(og.imageHeight), priority: 143 });
+    if (og.imageType) elements.push({ kind: "og", property: "og:image:type", content: og.imageType, priority: 143 });
+  }
   if (og.description) elements.push({ kind: "og", property: "og:description", content: og.description, priority: 144 });
   return elements;
 }

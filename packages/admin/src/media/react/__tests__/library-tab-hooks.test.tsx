@@ -1,4 +1,5 @@
-import { act, cleanup, render, waitFor } from '@testing-library/react';
+import { useFetchQuery } from "@jini-ai/ui/fetch-query";
+import { act, cleanup, render, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useLibraryTab } from '../hooks/LibraryTab.hooks.js';
 import { MediaPortsContext } from '../hooks/MediaPorts.hooks.js';
@@ -309,4 +310,38 @@ describe('useLibraryTab inside a shared media page', () => {
     mount({ shared: retrying });
     expect(retrying.load).not.toHaveBeenCalled();
   });
+});
+
+describe('media shared query ownership', () => {
+  it('a confirmed trash revalidates another mounted library tree', async () => {
+    const api = createMemoryMediaApi({ assets: seed() });
+    let first!: ReturnType<typeof useLibraryTab>, second!: ReturnType<typeof useLibraryTab>;
+    function Consumers() {
+      first = useLibraryTab({ params: {}, permissions: ALL });
+      second = useLibraryTab({ params: {}, permissions: ALL });
+      return null;
+    }
+    render(<MediaPortsContext.Provider value={{ mediaApi: api }}><Consumers /></MediaPortsContext.Provider>);
+    await waitFor(() => expect(second.items.map(item => item.id)).toEqual(['a', 'b', 'c']));
+    await act(async () => { first.actions.find(action => action.item.id === 'a')!.onTrash!(); });
+    await waitFor(() => expect(second.items.find(item => item.id === 'a')?.status).toBe('trashed'));
+  });
+});
+
+
+it('invalidates the host media list contract after a library write', async () => {
+  const api = createMemoryMediaApi({ assets: seed() });
+  let view!: ReturnType<typeof useLibraryTab>;
+  let hostItems: readonly MediaAsset[] | undefined;
+  function Pair() {
+    view = useLibraryTab({ params: {}, permissions: ALL });
+    const host = useFetchQuery({ key: ['media'], fetch: async () => ({ media: await api.list({}) }) });
+    hostItems = host.data?.media;
+    return null;
+  }
+  render(<MediaPortsContext.Provider value={{ mediaApi: api }}><Pair /></MediaPortsContext.Provider>);
+  await waitFor(() => expect(hostItems?.find(item => item.id === 'a')?.status).toBe('active'));
+  await waitFor(() => expect(view.items.length).toBe(3));
+  await act(async () => { await view.actions.find(action => action.item.id === 'a')!.onTrash!(); });
+  await waitFor(() => expect(hostItems?.find(item => item.id === 'a')?.status).toBe('trashed'));
 });

@@ -1,9 +1,9 @@
 import type { IdentityRefreshPort } from "../../ports.js";
-import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
 import type { AdminMember } from "../../models.js";
 import { describeApiError, emptyRowState, type RowActionState } from "../rules.js";
-import { useSettlementGeneration } from "@jini-ai/ui/panel-kit";
+import { useCachedLoader, useFetchMutation, useFetchQuery, useInvalidate } from "@jini-ai/ui/fetch-query";
 import type { MembersPort } from "../../ports.js";
 import type { Translate } from "@jini-ai/ui/panel-kit";
 
@@ -38,6 +38,8 @@ import type { Translate } from "@jini-ai/ui/panel-kit";
 
 export interface MembersDependencies {
   port: MembersPort;
+  /** Same session/workspace scope as Users; isolated providers retain legacy composition. */
+  queryScope?: string;
   translate: Translate;
 }
 
@@ -76,62 +78,66 @@ export interface MembersController {
 }
 
 export interface MembersOptions { refresh?: IdentityRefreshPort | undefined }
-export function useMembers({ port, translate }: MembersDependencies, { refresh }: MembersOptions = {}): MembersController {
+export function useMembers({ port, translate, queryScope = "members" }: MembersDependencies, { refresh }: MembersOptions = {}): MembersController {
+  const scopeRef = useRef(queryScope); scopeRef.current = queryScope;
   const boundT = translate;
   const describeError = (error: unknown, fallback: string) => describeApiError({ error, fallback, translate });
-  const [members, setMembers] = useState<AdminMember[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const listKey = [queryScope, 'members', 'list'] as const;
+  const detailRoot = [queryScope, 'members', 'detail'] as const;
+  const invalidate = useInvalidate();
+  // Mount reads and assistant refreshes can overlap; the shared cache owns list settlement
+  // order so a slow earlier success or failure cannot replace a newer roster.
+  const list = useFetchQuery({ key: listKey, fetch: () => port.listMembers({}) });
+  const members = list.data?.members ?? null;
+  const error = list.error ? describeError(list.error, translate("failed to load members")) : null;
+  const listLoader = useCachedLoader({ key: listKey, fetch: () => port.listMembers({}) }, { staleTime: 0 });
+  const disable = useFetchMutation({ run: ({ input: id }: { input: string }) => port.disableMember({ id }) }, { invalidates: [listKey, detailRoot] });
+  // Sending a link changes no list/detail fields; do not refetch the roster on success.
+  const resend = useFetchMutation({ run: ({ input: email }: { input: string }) => port.requestMemberMagicLink({ email }) });
   const [rowState, setRowState] = useState<Record<string, RowActionState>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [detailById, setDetailById] = useState<Record<string, AdminMember>>({});
-  const [detailError, setDetailError] = useState<string | null>(null);
-  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
+
 
   // Disable now confirms via a `RowMenu` item -> `ConfirmDialog` modal (replacing the in-place
   // two-click `ConfirmButton`, which has no menu-item equivalent — same migration Posts.tsx/
   // Redirects.tsx/Users.tsx already made). `null` when the dialog is closed.
   const [confirmingDisable, setConfirmingDisable] = useState<AdminMember | null>(null);
-  const settlement = useSettlementGeneration();
   // Which row's detail panel is actually open (C7, plan-access.md §8, N2) — a ref, not just
-  // `expandedId` state, because `onToggleDetail`'s `catch`/`finally` read it after an `await`, where
-  // a state read would see the closure's stale value. Set by `onToggleDetail` alone. Without this,
-  // expanding row A (slow, then failing), then row B, lets A's `finally` blank B's loading indicator
-  // and lets A's failure paint onto B's now-open panel — the same "entity-scoped panel, unkeyed
-  // settle" shape `use-roles.hooks.ts`'s `permissionPolicyIdRef` fixes for `loadPermissions`.
+  // expandedId state, because onToggleDetail reads it after await, when a closure can be stale.
+  // Expanding slow/failing A then B must not let A's failure or finally blank B's panel/spinner.
   const expandedIdRef = useRef<string | null>(null);
-  // Latest-wins for `onToggleDetail`'s detail loads, a separate instance from `settlement` (which
-  // tracks `load()`'s list reads).
-  const detailSettlement = useSettlementGeneration();
-
-  const load = useCallback(() => {
-    // Claim this call's generation BEFORE the request starts — see `useSettlementGeneration`'s own
-    // doc for why a synchronous ref bump, not `useState`, is what makes two overlapping calls each
-    // see the other's claim. Needed now that a content refresh can fire more than once per run
-    // (mid-run tool progress, see `AssistantDock.hooks.tsx`), so two overlapping `load()` calls have
-    // no ordering guarantee on their responses.
-    const generation = settlement.next();
-    port
-      .listMembers({})
-      .then((r) => {
-        if (!settlement.isCurrent({ generation })) return;
-        setMembers(r.members);
-        setError(null);
-      })
-      .catch((e) => {
-        if (!settlement.isCurrent({ generation })) return;
-        setError(e instanceof Error ? e.message : translate("failed to load members"));
-      });
-    // `port`/`locale`/`settlement` are added — see `use-page-editor.hooks.ts`'s identical note:
-    // function-scoped values ESLint's exhaustive-deps rule can see, referentially stable in
-    // production, so this changes nothing about when this callback's identity changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [port, settlement, translate]);
-
+  const detailGenerations = useRef<Record<string, number>>({});
+  const [detailGeneration, setDetailGeneration] = useState(0);
+  // Entity keys own settlement: a late A response cannot paint B's error/spinner. Detail
+  // data remains cached on collapse, while successful disables invalidate both resources.
+  const detail = useFetchQuery({
+    key: [...detailRoot, expandedId ?? '', detailGeneration],
+    fetch: () => port.getMember({ id: expandedId! }),
+  }, { enabled: expandedId !== null, staleTime: Infinity });
+  const detailLoader = useCachedLoader({ key: [...detailRoot, expandedId ?? '', detailGeneration], fetch: () => port.getMember({ id: expandedId! }) }, { staleTime: Infinity });
   useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => refresh?.subscribe({ onRefresh: load }), [refresh, load]);
+    expandedIdRef.current = null;
+    detailGenerations.current = {};
+    setExpandedId(null);
+    setDetailGeneration(0);
+    setDetailById({});
+    setRowState({});
+    setConfirmingDisable(null);
+  }, [queryScope]);
+  // Only paint the failure onto the panel that is still expanded: the observer's entity key
+  // selects the current row, so a late rejection for a collapsed row cannot surface here.
+  const detailError = detail.error ? describeError(detail.error, translate("Failed to load member detail.")) : null;
+  // A superseded load leaves the spinner to its successor. Derive it from the current keyed
+  // observer instead of letting an old request's finally clear the new row's loading state.
+  const detailLoadingId = expandedId !== null && !detail.data && detail.isFetching ? expandedId : null;
+  useEffect(() => {
+    if (expandedId && detail.data) setDetailById(current => ({ ...current, [expandedId]: detail.data!.member }));
+  }, [expandedId, detail.data]);
+  useEffect(() => refresh?.subscribe({ onRefresh: () => {
+    invalidate({ key: listKey });
+    invalidate({ key: detailRoot });
+  } }), [refresh, invalidate, queryScope]);
 
   function stateFor({ id }: { id: string }): RowActionState {
     return rowState[id] ?? emptyRowState({});
@@ -145,8 +151,9 @@ export function useMembers({ port, translate }: MembersDependencies, { refresh }
     if (stateFor({ id: member.id }).disabling) return;
     patchRowState(member.id, { disabling: true, error: null, notice: null });
     try {
-      const result = await port.disableMember({ id: member.id });
-      setMembers((current) => (current ? current.map((m) => (m.id === member.id ? result.member : m)) : current));
+      const result = await disable.mutate({ input: member.id });
+      await listLoader.load().catch(() => {}); // Await roster settlement; list.error owns a failed read, not the accepted disable.
+      setDetailById(current => current[member.id] ? { ...current, [member.id]: result.member } : current);
       patchRowState(member.id, { disabling: false, notice: translate("Member disabled.") });
     } catch (e) {
       patchRowState(member.id, { disabling: false, error: describeError(e, translate("Failed to disable member.")) });
@@ -157,7 +164,7 @@ export function useMembers({ port, translate }: MembersDependencies, { refresh }
     if (stateFor({ id: member.id }).resending) return;
     patchRowState(member.id, { resending: true, error: null, notice: null });
     try {
-      await port.requestMemberMagicLink({ email: member.email });
+      await resend.mutate({ input: member.email });
       patchRowState(member.id, { resending: false, notice: translate("Sign-in link sent.") });
     } catch (e) {
       patchRowState(member.id, { resending: false, error: describeError(e, translate("Failed to send sign-in link.")) });
@@ -181,27 +188,21 @@ export function useMembers({ port, translate }: MembersDependencies, { refresh }
     }
     expandedIdRef.current = member.id;
     setExpandedId(member.id);
-    setDetailError(null);
-    if (detailById[member.id]) return;
-
-    setDetailLoadingId(member.id);
-    // Claimed before the `await`, so a later detail load (another row's, or this same row's after
-    // a close and reopen) supersedes this one. The row-id key alone cannot tell two loads of the
-    // SAME row apart.
-    const generation = detailSettlement.next();
+    // A collapsed unfinished request cannot own a reopened panel. A primitive generation
+    // creates a new read fence for that member, preserving the prior latest-wins contract;
+    // successful details keep their current generation so reopen reuses the cache.
+    // Claimed before await: even two loads of the SAME row must be distinguishable, since a
+    // row-id key alone cannot fence an unfinished request after collapse/reopen.
+    const generation = detailById[member.id] ? detailGenerations.current[member.id] ?? 1 : (detailGenerations.current[member.id] ?? 0) + 1;
+    detailGenerations.current[member.id] = generation;
+    setDetailGeneration(generation);
+    // Start through the same cache synchronously so imperative callers still await the
+    // detail read; the reactive observer joins it when React commits the selected identity.
+    const requestedScope = queryScope;
     try {
-      const result = await port.getMember({ id: member.id });
-      setDetailById((current) => ({ ...current, [member.id]: result.member }));
-    } catch (e) {
-      // Only paint the failure onto the panel this load was actually for — a different row may
-      // already be open by the time this settles, or a newer load of this row may be running.
-      if (detailSettlement.isCurrent({ generation }) && expandedIdRef.current === member.id) {
-        setDetailError(describeError(e, translate("Failed to load member detail.")));
-      }
-    } finally {
-      // A superseded load leaves the spinner to the load that superseded it.
-      if (detailSettlement.isCurrent({ generation })) setDetailLoadingId(null);
-    }
+      const result = await detailLoader.load({ key: [...detailRoot, member.id, generation], fetch: () => port.getMember({ id: member.id }) });
+      if (scopeRef.current === requestedScope && detailGenerations.current[member.id] === generation) setDetailById(current => ({ ...current, [member.id]: result.member }));
+    } catch { /* The keyed observer owns the failure for the panel that is still expanded. */ }
   }
 
   return {

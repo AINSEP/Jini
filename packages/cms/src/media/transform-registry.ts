@@ -63,7 +63,7 @@ export async function registerTransform(
   if (!name) throw new TransformValidationError({ message: "transform name is required" });
   const owner = input.owner.trim();
   if (!owner) throw new TransformValidationError({ message: "owner is required" });
-  assertValidTransformParams({ format: input.params.format }, { width: input.params.width, height: input.params.height, fit: input.params.fit });
+  assertValidTransformParams({ format: input.params.format }, { width: input.params.width, height: input.params.height, fit: input.params.fit, quality: input.params.quality });
 
   return withTransformRegistryLock({ key: `${input.workspaceId}:${name}`, criticalSection: async () => {
     const existingVersions = await deps.transformRepo.listByName({ workspaceId: input.workspaceId, name });

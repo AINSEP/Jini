@@ -55,7 +55,7 @@ export function MediaRefField({
 }: MediaRefFieldProps, _optional: Record<string, never> = {}) {
   const t = useSeoCopy();
   const { Picker = MediaPickerBridge, storedReference } = useMediaRefPresentation({ value });
-  const { pickerOpen, openPicker, closePicker, handleSelect, clear, previewUrl, accept } = useField({ value, onChange });
+  const { pickerOpen, openPicker, closePicker, handleSelect, clear, previewUrl, accept, warning, onPreviewLoad, onPreviewError } = useField({ value, onChange });
 
   return (
     <div className="jini-field jini-media-ref-field">
@@ -69,6 +69,7 @@ export function MediaRefField({
           name={storedReference ? undefined : name}
           value={storedReference ? t({ locale, key: "Selected image" }) : value}
           readOnly={storedReference}
+          aria-describedby={warning ? `${id}-warning` : undefined}
           onChange={(e) => onChange(e.target.value)}
           {...(base ? agentHandle({ handle: base }, { role: "field", label }) : {})}
         />
@@ -92,7 +93,8 @@ export function MediaRefField({
           </button>
         ) : null}
       </div>
-      {previewUrl ? <img className="jini-media-ref-field-preview" src={previewUrl} alt={`${label} preview`} /> : null}
+      {previewUrl ? <img key={previewUrl} className="jini-media-ref-field-preview" src={previewUrl} alt={`${label} preview`} onLoad={onPreviewLoad} onError={onPreviewError} /> : null}
+      {warning ? <p id={`${id}-warning`} className="jini-notice jini-notice-warning" role="status">{warning}</p> : null}
       {pickerOpen ? (
         <Picker onSelect={handleSelect} onCancel={closePicker} accept={accept} agentHandle={base ? `${base}-dialog` : undefined} />
       ) : null}

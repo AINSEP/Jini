@@ -1,6 +1,6 @@
 import type { UUID } from "@jini-ai/core/primitives";
 import type { MediaRecord } from "../media/types.js";
-import type { TransformDefinitionRecord, TransformFormat } from "../media/transform-types.js";
+import { mimeForTransformFormat, type TransformDefinitionRecord, type TransformFormat } from "../media/transform-types.js";
 import type { SeoMediaPort, SeoFeaturedImagePort } from "./ports.js";
 
 /**
@@ -109,22 +109,56 @@ export async function resolveSeoImageRef(
   required: { deps: ResolveSeoImageRefDeps; input: ResolveSeoImageRefInput },
   _optional: Record<string, never> = {}
 ): Promise<string | undefined> {
+  return (await resolveSeoImageDetails(required))?.url;
+}
+
+/** Metadata belongs to the selected transform, never the asset's editable display-size fields. */
+export interface SeoImageDetails {
+  url: string;
+  /** Original source choice for admin diagnostics; a resized rendition can conceal a tiny source. */
+  ref?: string | undefined;
+  width?: number | undefined;
+  height?: number | undefined;
+  type?: string | undefined;
+}
+
+/** Resolve through the existing media owners, optionally selecting a host's share transform.
+ * Absolute external URLs remain unchanged with unknown metadata; no remote fetch occurs.
+ * The latest definition keeps the anonymous lazy-generation guarantee documented above.
+ * @param required Media ports, workspace and persisted reference.
+ * @param optional Host-selected transform; omitted or unregistered retains the reference's named transform.
+ * @returns URL and known output metadata, or undefined on a lookup miss.
+ * @complexity O(v) in registered transform versions; up to three bounded repository reads.
+ */
+export async function resolveSeoImageDetails(
+  required: { deps: ResolveSeoImageRefDeps; input: ResolveSeoImageRefInput },
+  optional: { transformName?: string | undefined } = {},
+): Promise<SeoImageDetails | undefined> {
   const { deps, input } = required;
   const ref = input.ref?.trim();
   if (!ref) return undefined;
-  if (isAbsoluteUrl(ref)) return ref;
-
+  if (isAbsoluteUrl(ref)) return { url: ref, ...(optional.transformName === undefined ? {} : { ref }) };
   const parts = parseMediaRefParts(ref);
   if (!parts) return undefined;
-  const { idOrSlug, transformName } = parts;
-
-  const asset = await resolveVisibleAsset(deps, input.workspaceId, idOrSlug);
+  const asset = await resolveVisibleAsset(deps, input.workspaceId, parts.idOrSlug);
   if (!asset) return undefined;
-
-  const latest = await resolveLatestTransformVersion(deps, input.workspaceId, transformName);
+  let transformName = optional.transformName ?? parts.transformName;
+  let latest = await resolveLatestTransformVersion(deps, input.workspaceId, transformName);
+  // Share-transform registration may still be in flight at boot. Keep the persisted reference
+  // servable through its own transform rather than dropping the image from both social cards.
+  if (!latest && transformName !== parts.transformName) {
+    transformName = parts.transformName;
+    latest = await resolveLatestTransformVersion(deps, input.workspaceId, transformName);
+  }
   if (!latest) return undefined;
-
-  return buildSeoImageUrl(deps, asset, transformName, latest);
+  // inside/outside fit does not produce the exact declared box, so don't advertise that box.
+  const exactBox = latest.params.width !== undefined && latest.params.height !== undefined && latest.params.fit !== "inside" && latest.params.fit !== "outside";
+  return {
+    url: buildSeoImageUrl(deps, asset, transformName, latest),
+    ...(optional.transformName === undefined ? {} : { ref }),
+    ...(exactBox ? { width: latest.params.width, height: latest.params.height } : {}),
+    type: mimeForTransformFormat({ format: latest.params.format }),
+  };
 }
 
 /**

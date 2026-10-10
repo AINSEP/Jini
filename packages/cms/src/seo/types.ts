@@ -196,6 +196,12 @@ export interface OpenGraph {
   type: OpenGraphType;
   url: string;
   image?: string | undefined;
+  /** Original selected source for admin diagnostics, before any share-card resize. */
+  imageRef?: string | undefined;
+  /** Known output metadata from the selected named transform, omitted for external URLs. */
+  imageWidth?: number | undefined;
+  imageHeight?: number | undefined;
+  imageType?: string | undefined;
   siteName?: string | undefined;
 }
 
@@ -204,6 +210,8 @@ export interface TwitterCard {
   title: string;
   description?: string | undefined;
   image?: string | undefined;
+  /** Original selected source for admin diagnostics, before any share-card resize. */
+  imageRef?: string | undefined;
   site?: string | undefined;
 }
 

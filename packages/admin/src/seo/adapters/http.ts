@@ -1,4 +1,5 @@
 import type { AdminSeoPort } from '../ports.js';
+import { resolveMediaRefPreviewUrl } from '../rules.js';
 import type { AdminSeoSettings, AdminSeoMeta, AdminSeoAnalysis, AdminSeoEntryChoice } from '../../core/ports/seo.js';
 /** Host owns authentication, workspace addressing, retries, JSON and API error decoding. */
 export interface SeoTransportPort {
@@ -9,10 +10,14 @@ export interface SeoTransportPort {
 export interface SeoSitemapTransportPort {
   get(required: { path: '/sitemap.xml'; credentials: 'same-origin' }, optional?: { signal?: AbortSignal }): Promise<Pick<Response, 'ok' | 'status' | 'headers' | 'text'>>;
 }
+/** Host supplies raw HEAD I/O; no browser globals, auth state or image implementation here. */
+export interface SeoImageTransportPort {
+  head(required: { url: string }, optional?: { signal?: AbortSignal }): Promise<Pick<Response, 'status' | 'headers'>>;
+}
 /** Preserves every existing SEO request path and body; basePath is the host workspace path. */
 export function createHttpSeoApi(
   { transport, basePath }: { transport: SeoTransportPort; basePath: string },
-  { sitemapTransport }: { sitemapTransport?: SeoSitemapTransportPort } = {},
+  { sitemapTransport, imageTransport, siteOrigin }: { sitemapTransport?: SeoSitemapTransportPort; imageTransport?: SeoImageTransportPort; siteOrigin?: string | undefined } = {},
 ): AdminSeoPort {
   const base = basePath.replace(/\/$/, '');
   const entryPath = (entryId: string) => `${base}/seo/entries/${encodeURIComponent(entryId)}`;
@@ -34,6 +39,15 @@ export function createHttpSeoApi(
     listSeoPosts: () => choices('posts'),
     listSeoPages: () => choices('pages'),
     mediaOriginalUrl: ({ id }) => transport.url({ path: `${base}/media/${encodeURIComponent(id)}/original` }),
+    mediaPreviewUrl: ({ value }) => resolveMediaRefPreviewUrl({ value, mediaOriginalUrl: id => transport.url({ path: `${base}/media/${encodeURIComponent(id)}/original` }) }, { siteOrigin }),
+    ...(imageTransport ? { async inspectShareImage({ url }: { url: string }, options: { signal?: AbortSignal } = {}) {
+      options.signal?.throwIfAborted();
+      const response = await imageTransport.head({ url }, options);
+      // Number(null) is zero: an omitted header must not accuse a healthy image of being empty.
+      const raw = response.headers.get('content-length');
+      const length = raw === null || raw.trim() === '' ? NaN : Number(raw);
+      return { status: response.status, byteSize: Number.isSafeInteger(length) && length >= 0 ? length : null };
+    } } : {}),
     async fetchSitemapXml(_required, options = {}) {
       if (!sitemapTransport) throw new Error('SEO sitemap transport unavailable');
       options.signal?.throwIfAborted();

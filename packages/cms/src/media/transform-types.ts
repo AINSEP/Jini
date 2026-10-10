@@ -44,6 +44,8 @@ export interface TransformParams {
   height?: number | undefined;
   fit?: TransformFit | undefined;
   format: TransformFormat;
+  /** Encoder quality, 1–100; omitted preserves the codec default. */
+  quality?: number | undefined;
 }
 
 /**
@@ -115,6 +117,9 @@ export function assertValidTransformParams(required: Pick<TransformParams, "form
       throw new TransformValidationError({ message: `transform params.${key} must be an integer between 1 and ${MAX_TRANSFORM_DIMENSION_PX}` }
       );
     }
+  }
+  if (params.quality !== undefined && (!Number.isInteger(params.quality) || params.quality < 1 || params.quality > 100)) {
+    throw new TransformValidationError({ message: "transform params.quality must be an integer between 1 and 100" });
   }
   if (params.fit !== undefined && !(params.width && params.height)) {
     throw new TransformValidationError({ message: "transform params.fit requires both width and height" });

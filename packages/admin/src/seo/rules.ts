@@ -1,4 +1,6 @@
 import type { AdminSeoIssue as SeoIssue, AdminSeoSettingsPatch as SeoSettingsPatch } from "../core/ports/seo.js";
+import { interpolate } from '@jini-ai/ui/panel-kit';
+import type { SeoTranslator } from './models.js';
 
 /**
  * @file Pure logic for the `seo` feature — everything that computes a value rather than rendering
@@ -162,7 +164,8 @@ export function buildMediaRef({ item }: { item: { id: string; slug?: string } },
 }
 
 /** `MediaRefField`'s thumbnail `<img src>` for the field's current value. An absolute URL (the
- *  field's other legal shape — someone pasted a raw URL) renders directly; a `{assetId}:{transform}`
+ *  field's other legal shape — someone pasted a raw URL) renders directly unless siteOrigin
+ *  identifies it as this host's rendition, in which case diagnostics inspect its original; a `{assetId}:{transform}`
  *  ref resolves through the injected `mediaOriginalUrl` builder — the admin media library's own
  *  preview URL (`MediaPickerPort.mediaOriginalUrl`), same as `MediaPickerDialog`'s own grid
  *  thumbnails use, NOT the public `/m/...` rendition URL (that needs a live workspace/transform
@@ -175,12 +178,48 @@ export function buildMediaRef({ item }: { item: { id: string; slug?: string } },
  *
  * @complexity O(1) — string parsing only, no I/O (the returned URL is a template; the browser
  * performs the actual fetch only once it is used as an `<img src>`). */
-export function resolveMediaRefPreviewUrl({ value, mediaOriginalUrl }: { value: string; mediaOriginalUrl: (id: string) => string }, _optional: Record<string, never> = {}): string | null {
+export function resolveMediaRefPreviewUrl({ value, mediaOriginalUrl }: { value: string; mediaOriginalUrl: (id: string) => string }, { siteOrigin }: { siteOrigin?: string | undefined } = {}): string | null {
   const trimmed = typeof value === "string" ? value.trim() : "";
   if (!trimmed) return null;
-  if (isAbsoluteMediaRef(trimmed)) return trimmed;
+  if (isAbsoluteMediaRef(trimmed)) {
+    const key = siteOrigin ? localRenditionAssetKey({ value: trimmed, siteOrigin }) : null;
+    return key ? mediaOriginalUrl(key) : trimmed;
+  }
   const assetId = parseMediaRefAssetId(trimmed);
   return assetId ? mediaOriginalUrl(assetId) : null;
+}
+
+/** Only same-origin public rendition URLs identify an original in this host's media library.
+ * External URLs retain their own source. @complexity O(n) URL parsing; no I/O.
+ */
+function localRenditionAssetKey({ value, siteOrigin }: { value: string; siteOrigin: string }, _optional: Record<string, never> = {}): string | null {
+  try {
+    const url = new URL(value, siteOrigin);
+    if (url.origin !== new URL(siteOrigin).origin) return null;
+    const match = url.pathname.match(/^\/m\/([^/]+)\/[^/]+\.v\d+\/[^/]+$/);
+    return match ? decodeURIComponent(match[1]!) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Diagnostic policy: unknown measurements stay unknown; measured failures name their reason.
+ * @param required Controlled field, decoded preview width and original HTTP metadata.
+ * @returns A non-blocking explanation, or null for an image without a measured problem.
+ * @complexity O(n) in value/error length; fixed-count checks, no I/O.
+ */
+export function shareImageWarning({ value, previewUrl, width, byteSize, error, previewFailed }: {
+  value: string; previewUrl: string | null; width?: number | undefined; byteSize?: number | null | undefined;
+  error?: string | null | undefined; previewFailed?: boolean | undefined;
+}, { t = key => key }: { t?: SeoTranslator | undefined } = {}): string | null {
+  if (typeof value !== 'string' || !value.trim()) return t('No share image is selected. Link previews may show no picture.');
+  if (!previewUrl) return t('The share image reference is invalid. Choose an image or enter an absolute image URL.');
+  if (error) return error;
+  if (previewFailed) return t('The share image could not be loaded. Choose an available image.');
+  const reasons: string[] = [];
+  if (width !== undefined && width < 600) reasons.push(interpolate({ template: t('The share image is only {width} px wide; use an image at least 600 px wide.', { width }), vars: { width } }));
+  if (byteSize !== undefined && byteSize !== null && byteSize < 5120) reasons.push(interpolate({ template: t('The share image is only {byteSize} bytes; use an image of at least 5 KB (5120 bytes).', { byteSize }), vars: { byteSize } }));
+  return reasons.length ? reasons.join(' ') : null;
 }
 
 /** One `FormData` field as a string, with the caller's fallback for an absent field. Its own named

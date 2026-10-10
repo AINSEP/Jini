@@ -3,7 +3,7 @@ import type { OriginRegistryPort, VerifiedOrigin } from "@jini-ai/http-kit/verif
 import type { SeoPostRecord as PostRecord, SeoPostReadPort, SeoSettingsReaderPort, SeoUrlsPort, SeoLivenessPort } from "./ports.js";
 import { resolveWorkspaceOrigin, toAbsoluteUrl } from "./absolute-url.js";
 import { SeoEntryNotFoundError } from "./errors.js";
-import { resolveSeoImageRef, type ResolveSeoImageRefDeps } from "./media.js";
+import { resolveSeoImageDetails, type SeoImageDetails, type ResolveSeoImageRefDeps } from "./media.js";
 /** Featured image (2026-10-05) as a share-image ref: the core "public" transform every `/m/` URL
  *  already serves (`deps.ts`'s ADR-027 §4 registration). */
 function featuredImageRef(post: PostRecord): string | undefined {
@@ -84,6 +84,8 @@ export interface GetEntryMetaDeps {
   postRepo: SeoPostReadPort;
   settings: SeoSettingsReaderPort;
   media: ResolveSeoImageRefDeps;
+  /** Host-owned share-card variant; omitted preserves persisted transform choices. */
+  shareImageTransform?: string | undefined;
   originRegistry: OriginRegistryPort;
   runtimeMode: string;
   urls: SeoUrlsPort;
@@ -154,9 +156,9 @@ async function resolveRobots(
 }
 
 /** The first of `refs` that resolves through media, or `undefined`. @complexity O(r) resolves. */
-async function firstResolvedImage(deps: GetEntryMetaDeps, workspaceId: string, refs: ReadonlyArray<string | undefined>): Promise<string | undefined> {
+async function firstResolvedImage(deps: GetEntryMetaDeps, workspaceId: string, refs: ReadonlyArray<string | undefined>): Promise<SeoImageDetails | undefined> {
   for (const ref of refs) {
-    const resolved = ref ? await resolveSeoImageRef({ deps: deps.media, input: { workspaceId, ref } }) : undefined;
+    const resolved = ref ? await resolveSeoImageDetails({ deps: deps.media, input: { workspaceId, ref } }, { transformName: deps.shareImageTransform }) : undefined;
     if (resolved) return resolved;
   }
   return undefined;
@@ -174,7 +176,7 @@ async function resolveShareImages(
   settings: ResolvedSeoSettings,
   workspaceId: string,
   origin: VerifiedOrigin | undefined
-): Promise<{ ogImage: string | undefined; twitterImage: string | undefined }> {
+): Promise<{ ogImage: SeoImageDetails | undefined; twitterImage: SeoImageDetails | undefined }> {
   // Precedence: explicit per-entry override > the entry's featured image > the site default. An
   // override is final (unresolved means no image, as before); a featured image that no longer
   // resolves (trashed, deleted) falls through to the site default rather than leaving none.
@@ -182,8 +184,8 @@ async function resolveShareImages(
   const ogImageResolved = await firstResolvedImage(deps, workspaceId, overrides.ogImage ? [overrides.ogImage] : fallbacks);
   const twitterImageResolved = await firstResolvedImage(deps, workspaceId, overrides.twitterImage ? [overrides.twitterImage] : fallbacks);
   return {
-    ogImage: ogImageResolved ? toAbsoluteUrl({ origin, path: ogImageResolved }) : undefined,
-    twitterImage: twitterImageResolved ? toAbsoluteUrl({ origin, path: twitterImageResolved }) : undefined,
+    ogImage: ogImageResolved ? { ...ogImageResolved, url: toAbsoluteUrl({ origin, path: ogImageResolved.url }) } : undefined,
+    twitterImage: twitterImageResolved ? { ...twitterImageResolved, url: toAbsoluteUrl({ origin, path: twitterImageResolved.url }) } : undefined,
   };
 }
 
@@ -218,14 +220,18 @@ function buildOpenGraph(
   description: string | undefined,
   ogType: OpenGraphType,
   canonical: string,
-  ogImage: string | undefined
+  ogImage: SeoImageDetails | undefined
 ): SeoMeta["openGraph"] {
   return {
     title: overrides.ogTitle ?? title,
     description: overrides.ogDescription ?? description,
     type: ogType,
     url: canonical,
-    image: ogImage,
+    image: ogImage?.url,
+    ...(ogImage?.ref === undefined ? {} : { imageRef: ogImage.ref }),
+    ...(ogImage?.width === undefined ? {} : { imageWidth: ogImage.width }),
+    ...(ogImage?.height === undefined ? {} : { imageHeight: ogImage.height }),
+    ...(ogImage?.type === undefined ? {} : { imageType: ogImage.type }),
     siteName: undefined,
   };
 }
@@ -234,14 +240,15 @@ function buildTwitter(
   overrides: SeoExtFields,
   title: string,
   description: string | undefined,
-  twitterImage: string | undefined,
+  twitterImage: SeoImageDetails | undefined,
   settings: ResolvedSeoSettings
 ): SeoMeta["twitter"] {
   return {
     card: overrides.twitterCard ?? "summary_large_image",
     title: overrides.twitterTitle ?? title,
     description: overrides.twitterDescription ?? description,
-    image: twitterImage,
+    image: twitterImage?.url,
+    ...(twitterImage?.ref === undefined ? {} : { imageRef: twitterImage.ref }),
     site: settings.twitterSite,
   };
 }

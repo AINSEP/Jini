@@ -69,7 +69,8 @@ interface SharpInstance {
     height?: number,
     options?: { fit?: string }
   ): SharpInstance;
-  toFormat(format: string): SharpInstance;
+  toFormat(format: string, options?: { quality?: number }): SharpInstance;
+  flatten(options: { background: string }): SharpInstance;
   toBuffer(): Promise<Buffer>;
 }
 type SharpFactory = (input: Buffer, options?: { animated?: boolean }) => SharpInstance;
@@ -178,7 +179,9 @@ export class SharpImageTransformer implements ImageTransformerPort {
         });
       }
 
-      pipeline = pipeline.toFormat(input.params.format);
+      // JPEG cannot carry alpha; explicit white avoids libvips' black background for logos.
+      if (input.params.format === "jpeg") pipeline = pipeline.flatten({ background: "#ffffff" });
+      pipeline = pipeline.toFormat(input.params.format, input.params.quality === undefined ? undefined : { quality: input.params.quality });
       const outBuffer = await pipeline.toBuffer();
 
       return {

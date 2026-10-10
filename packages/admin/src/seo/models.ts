@@ -152,6 +152,10 @@ export interface MediaRefFieldController {
   /** The field's current value resolved to a thumbnail `<img src>`, or `null` when the value is
    *  empty or unparseable — see `resolveMediaRefPreviewUrl`'s own doc. */
   previewUrl: string | null;
+  /** Shared diagnostics for defaults, OG and Twitter fields; optional for injected legacy views. */
+  warning?: string | null;
+  onPreviewLoad?: (event: { currentTarget: HTMLImageElement }) => void;
+  onPreviewError?: (event: { currentTarget: HTMLImageElement }) => void;
   /** `MediaPickerDialog`'s `accept` — images only: every field this backs is an og:image /
    *  twitter:image, and a crawler cannot use a video there (2026-10-05, same filter the post
    *  featured-image chooser passes). */

@@ -316,7 +316,7 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
         locale={locale}
         id="seo-entry-og-image"
         label={t({ locale: locale, key: "OG image" })}
-        value={fieldValue("ogImage", resolved.openGraph.image ?? "") ?? ""}
+        value={fieldValue("ogImage", resolved.openGraph.imageRef ?? resolved.openGraph.image ?? "") ?? ""}
         onChange={(value) => setField("ogImage", value)}
         agentHandle="seo-entry-og-image"
       />
@@ -342,7 +342,7 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
         locale={locale}
         id="seo-entry-twitter-image"
         label={t({ locale: locale, key: "Twitter image" })}
-        value={fieldValue("twitterImage", resolved.twitter.image ?? "") ?? ""}
+        value={fieldValue("twitterImage", resolved.twitter.imageRef ?? resolved.twitter.image ?? "") ?? ""}
         onChange={(value) => setField("twitterImage", value)}
         agentHandle="seo-entry-twitter-image"
       />

@@ -167,3 +167,10 @@ test("registerTransform serializes concurrent registrations of the same name int
   const versions = results.map((r) => r.definition.version).sort((a, b) => a - b);
   assert.deepEqual(versions, [1, 2, 3, 4, 5], "no two concurrent registrations collided on the same version number");
 });
+
+// Encoder quality is registered declaratively and validated before any registry write.
+test.each([0, 101, 82.5, NaN])('registerTransform refuses invalid quality %s with its real validation message', async quality => {
+  const deps = makeDeps();
+  await assert.rejects(() => registerTransform({ deps, input: { workspaceId: WORKSPACE_ID, name: 'og', owner: 'core', params: { format: 'jpeg', quality } } }), { name: 'Error', message: 'transform params.quality must be an integer between 1 and 100' });
+  assert.equal((await deps.transformRepo.listByName({ workspaceId: WORKSPACE_ID, name: 'og' })).length, 0);
+});

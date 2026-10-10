@@ -79,6 +79,8 @@ export interface AdminSeoOpenGraph {
   readonly url: string;
   /** Already resolved to a renderable URL — never a media ref. */
   readonly image?: string;
+  /** Source reference before resizing, used to diagnose the selected share image. */
+  readonly imageRef?: string;
   readonly siteName?: string;
 }
 
@@ -87,6 +89,8 @@ export interface AdminSeoTwitterCard {
   readonly title: string;
   readonly description?: string;
   readonly image?: string;
+  /** Source reference before resizing, used to diagnose the selected share image. */
+  readonly imageRef?: string;
   readonly site?: string;
 }
 
@@ -173,6 +177,10 @@ export interface AdminSeoPort {
   listSeoPages(requiredArgs: Record<string, never>, optionalArgs?: Record<string, never>): Promise<readonly AdminSeoEntryChoice[]>;
   /** Exact public sitemap response, never reconstructed from admin entries. */
   fetchSitemapXml(requiredArgs: Record<string, never>, optionalArgs?: { signal?: AbortSignal }): Promise<{ text: string }>;
+  /** Optional host-bound probe: byte size is unknown when Content-Length is unavailable. */
+  inspectShareImage?(required: { url: string }, optional?: { signal?: AbortSignal }): Promise<{ status: number; byteSize: number | null }>;
+  /** Resolve local rendered share URLs back to their original source for image diagnostics. */
+  mediaPreviewUrl?(required: { value: string }, optional?: Record<string, never>): string | null;
   /** Original thumbnail URL; media-reference resolution stays on the server. */
   mediaOriginalUrl(requiredArgs: { id: string }, optionalArgs?: Record<string, never>): string;
 }
