@@ -135,6 +135,31 @@ test("updateSubscription on an unknown id throws WebhookSubscriptionNotFoundErro
   );
 });
 
+test("updateSubscription refuses a soft-deleted row before egress or writes", async () => {
+  const deps = makeDeps();
+  const { subscription: created } = await createSubscription({ deps, input: baseInput });
+  const { subscription: disabled } = await deleteSubscription({ deps, input: { workspaceId: created.workspaceId, id: created.id } });
+  let egressCalls = 0;
+  await assert.rejects(updateSubscription({
+    deps: { ...deps, isAllowedTarget: async () => { egressCalls++; return true; } },
+    input: { workspaceId: created.workspaceId, id: created.id, label: "Edited", targetUrl: "https://example.com/new", topics: ["page.published"] },
+  }), (error: unknown) => error instanceof WebhookSubscriptionValidationError
+    && error.message === `webhook subscription '${created.id}' is disabled (deleted) and cannot be updated`);
+  assert.equal(egressCalls, 0);
+  assert.deepEqual(await deps.repo.findById({ workspaceId: created.workspaceId, id: created.id }), disabled);
+});
+
+test("updateSubscription still permits paused rows without resuming them", async () => {
+  const deps = makeDeps();
+  const { subscription: created } = await createSubscription({ deps, input: baseInput });
+  await pauseSubscription({ deps, input: { workspaceId: created.workspaceId, id: created.id } });
+  const { subscription: updated } = await updateSubscription({ deps,
+    input: { workspaceId: created.workspaceId, id: created.id, label: "Paused edit", targetUrl: created.targetUrl, topics: created.topics },
+  });
+  assert.equal(updated.status, "paused");
+  assert.equal(updated.label, "Paused edit");
+});
+
 test("pauseSubscription toggles active <-> paused", async () => {
   const repo = new InMemoryWebhookSubscriptionRepo();
   const deps = makeDeps({ repo });

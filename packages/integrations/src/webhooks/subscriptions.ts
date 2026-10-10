@@ -89,7 +89,7 @@ export interface UpdateSubscriptionRequired {
   input: UpdateSubscriptionInput;
 }
 
-/** Validate a replacement before saving; missing workspace-scoped rows throw. */
+/** Validate a replacement before saving; missing or soft-deleted workspace-scoped rows throw. */
 export async function updateSubscription(
   required: UpdateSubscriptionRequired,
   _optional: WebhookSubscriptionOptional = {}
@@ -99,6 +99,10 @@ export async function updateSubscription(
   const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.id });
   if (!existing) {
     throw new WebhookSubscriptionNotFoundError({ message: `webhook subscription '${input.id}' was not found` });
+  }
+  // Soft deletion is terminal: an update must preserve the disabled row's audit history.
+  if (existing.status === "disabled") {
+    throw new WebhookSubscriptionValidationError({ message: `webhook subscription '${input.id}' is disabled (deleted) and cannot be updated` });
   }
 
   const label = input.label.trim();
