@@ -1,10 +1,44 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { PassThrough } from "node:stream";
+import type { Worker, WorkerOptions } from "node:worker_threads";
 import { test } from "vitest";
 import { createNodeWorkerFactory, createNodeWorkerScheduler, renderInWorkerSandbox, runInWorkerSandbox } from "../node-worker.js";
+
+// Pin the creation boundary for both entry modes; neither may auto-forward worker
+// output to parent streams, and captured output must be drained to avoid backpressure.
+test("native and bootstrap workers disable stdin and drain isolated stdout/stderr", () => {
+  for (const typescriptBootstrap of [undefined, { registerModulePath: "/host/register.cjs" }]) {
+    const native = Object.assign(new EventEmitter(), {
+      stdout: new PassThrough(), stderr: new PassThrough(), terminate: async () => 0,
+    });
+    let createdOptions: WorkerOptions | undefined;
+    const factory = createNodeWorkerFactory({ env: {} }, {
+      ...(typescriptBootstrap ? { typescriptBootstrap } : {}),
+      createWorker: ({ options }) => { createdOptions = options; return native as unknown as Worker; },
+    });
+    try {
+      const handle = factory.spawn({ workerEntry: "/host/worker.js", payload: { value: 7 }, resourceLimits: {} });
+      assert.ok(createdOptions);
+      assert.equal(createdOptions.stdin, false);
+      assert.equal(createdOptions.stdout, true);
+      assert.equal(createdOptions.stderr, true);
+      assert.equal(native.stdout.readableFlowing, true);
+      assert.equal(native.stderr.readableFlowing, true);
+      let reply: unknown;
+      handle.once({ event: "message", listener: ({ message }) => { reply = message; } });
+      native.emit("message", { ok: true, html: "rendered" });
+      assert.deepEqual(reply, { ok: true, html: "rendered" });
+    } finally {
+      native.stdout.destroy();
+      native.stderr.destroy();
+    }
+  }
+});
 
 test("the native adapter preserves the original exit-without-reply characterization", async () => {
   for (const errorLabel of ["Example", "Alternate"]) {

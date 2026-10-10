@@ -123,6 +123,8 @@ export interface NodeWorkerFactoryOptions {
 
 /**
  * Native Node worker factory. TypeScript bootstrap configuration is explicit and host-owned.
+ * Worker stdin is disabled and output is drained without forwarding to parent stdio;
+ * results and controlled failures travel over the message/error ports instead.
  * @param required Environment copied to each worker; nothing reads the parent environment.
  * @param options Optional native creation port and TypeScript registration module; its eval entry suppresses V8 coverage.
  * @returns WorkerFactory for caller-owned JS/TS entry paths, with no package-relative lookup.
@@ -132,6 +134,10 @@ export function createNodeWorkerFactory({ env }: { env: NodeJS.ProcessEnv }, opt
   return {
     spawn({ workerEntry, payload, resourceLimits }) {
       const workerEnv = { ...env };
+      const workerOptions: WorkerOptions = {
+        workerData: payload, resourceLimits, env: workerEnv, execArgv: [],
+        stdin: false, stdout: true, stderr: true,
+      };
       let worker: Worker;
       // A CommonJS-typed TS entry bypasses --import loader hooks for its first file and
       // can fail with "Cannot use import statement outside a module" despite the flag.
@@ -147,12 +153,15 @@ export function createNodeWorkerFactory({ env }: { env: NodeJS.ProcessEnv }, opt
         // directory is created merely to leave cleanup behind.
         delete workerEnv.NODE_V8_COVERAGE;
         const bootstrap = `require(${JSON.stringify(options.typescriptBootstrap.registerModulePath)}).register();\nrequire(${JSON.stringify(workerEntry)});\n`;
-        const workerOptions = { eval: true, workerData: payload, resourceLimits, env: workerEnv, execArgv: [] };
+        workerOptions.eval = true;
         worker = options.createWorker ? options.createWorker({ entry: bootstrap, options: workerOptions }, {}) : new Worker(bootstrap, workerOptions);
       } else {
-        const workerOptions = { workerData: payload, resourceLimits, env: workerEnv, execArgv: [] };
         worker = options.createWorker ? options.createWorker({ entry: workerEntry, options: workerOptions }, {}) : new Worker(workerEntry, workerOptions);
       }
+      // Explicit output streams avoid Node's automatic forwarding to detached parent
+      // streams. Drain them so worker logging cannot block a render or grow a buffer.
+      worker.stdout.resume();
+      worker.stderr.resume();
       return {
         once(input) {
           if (input.event === "message") worker.once("message", (message) => input.listener({ message }));
