@@ -193,12 +193,9 @@ export function LocalCliAgentCard({
             <span className="jini-agent-card-name">
               <span className="jini-agent-card-title">{agent.label}</span>
               {description ? (
-                <>
-                  <span className="jini-agent-card-name-divider" aria-hidden="true">
-                    ·
-                  </span>
-                  <span className="jini-agent-card-tagline">{description}</span>
-                </>
+                <span className="jini-agent-card-tagline">
+                  {description}
+                </span>
               ) : null}
             </span>
             {agent.badges?.length ? (

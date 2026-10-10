@@ -40,6 +40,14 @@ function renderCard(props: Partial<Parameters<typeof LocalCliAgentCard>[0]> = {}
 }
 
 describe('LocalCliAgentCard — diagnostics', () => {
+  it('keeps the CLI name and tagline in the selection button without announcing the decorative separator', async () => {
+    const props = renderCard({ selected: false, config: { agentId: null } });
+    const select = screen.getByRole('button', { name: /Claude Code/ });
+    expect(select).toHaveTextContent('Anthropic official CLI');
+    expect(select).not.toHaveAccessibleName(/·/);
+    await userEvent.click(select);
+    expect(props.onSelect).toHaveBeenCalledWith('claude');
+  });
   it('renders a diagnostic row on an installed card', () => {
     renderCard({
       agent: agent({
