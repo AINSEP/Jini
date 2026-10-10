@@ -5,6 +5,7 @@
  * Recovery policy stays with each store: salvage, restart, or leave untouched is not decided here.
  * Native effects are Electron-free so desktop, CLI, and bridge processes can share the mechanism.
  */
+import { readBootIdentity, type BootIdentity } from "./boot-identity.js";
 import nodeFs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
@@ -20,7 +21,7 @@ export interface DurableJsonPorts {
   filesystem: Pick<typeof nodeFs, "readFileSync" | "mkdirSync" | "openSync" | "writeFileSync" | "fsyncSync" | "closeSync" | "renameSync" | "rmSync" | "writeSync" | "statSync" | "fstatSync" | "lstatSync" | "chmodSync">;
   clock: Clock;
   sleep: { sleep(required: { durationMs: number }): void };
-  process: { pid: number; isAlive(required: { pid: number }): boolean };
+  process: { pid: number; isAlive(required: { pid: number }): boolean; bootIdentity?: () => BootIdentity | undefined };
   random: { token(_required: Record<string, never>): string };
   report: { error(required: { message: string }): void };
 }
@@ -33,7 +34,7 @@ export function createNodeDurableJsonPorts(_required: Record<string, never>): Du
     clock: { nowMs: () => Date.now() },
     // Synchronous store/IPC writers cannot await lock polling without changing all callers' ABI.
     sleep: { sleep: ({ durationMs }) => { Atomics.wait(cell, 0, 0, durationMs); } },
-    process: { pid: process.pid, isAlive: ({ pid }) => {
+    process: { pid: process.pid, bootIdentity: () => readBootIdentity({}), isAlive: ({ pid }) => {
       // Signal zero sends nothing. Only ESRCH proves death; permission failure must count as alive
       // because a false "dead" authorizes breaking a lock still owned by another process.
       try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code !== "ESRCH"; }
@@ -58,7 +59,8 @@ export function createDurableJsonFile(
   { pollMs = 10, staleMs = 30000 }: { pollMs?: number; staleMs?: number } = {},
 ): DurableJsonFile {
   if (!filePath) throw new TypeError("filePath is required");
-  for (const value of [pollMs, staleMs]) if (!Number.isSafeInteger(value) || value <= 0) throw new TypeError("lock intervals must be positive safe integers");
+  if (!Number.isSafeInteger(pollMs) || pollMs <= 0 ||
+    ((!Number.isSafeInteger(staleMs) && staleMs !== Infinity) || staleMs <= 0)) throw new TypeError("lock intervals must be positive safe integers");
   // A synchronous read-modify-write normally takes milliseconds; five seconds allows contention
   // while refusing a wedged change. Short ten-millisecond polling fits those short critical sections.
   // Thirty-second staleness also handles pid reuse after a crash:
@@ -180,4 +182,3 @@ function endOfString(text: string, start: number): number {
   }
   return text.length;
 }
-

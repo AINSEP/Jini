@@ -1,0 +1,87 @@
+import type { DurableJsonFile } from "./durable-json.js";
+
+export interface DirectoryRecord {
+  id: string; name: string; path: string; createdBy: string; lastOpened: string | null;
+}
+interface RegistryState { version: 1; entries: DirectoryRecord[]; migrations: string[]; }
+export interface DirectoryRegistry {
+  hasMigration(required: { migration: string }, options?: {}): boolean;
+  migrations(required: Record<string, never>, options?: {}): string[];
+  list(required: Record<string, never>, options?: {}): DirectoryRecord[];
+  merge(required: { entries: readonly DirectoryRecord[]; migration?: string; migrations?: readonly string[] }, options?: {}): DirectoryRecord[];
+  opened(required: { path: string; at: string }, options?: {}): void;
+  remove(required: { path: string }, options?: {}): void;
+  relocate(required: { from: string; to: string }, options?: {}): void;
+}
+
+/** Shared catalog: corrupt state fails closed; every update holds one durable file lock.
+ * Canonical paths deduplicate symlink aliases. Identity collisions require explicit relocation.
+ * @complexity O(n + m) records for merge, O(n) for other mutations, plus file I/O/lock wait.
+ */
+export function createDirectoryRegistry(
+  { file, canonicalPath }: { file: DurableJsonFile; canonicalPath: (required: { path: string }) => string }, _options = {},
+): DirectoryRegistry {
+  function read(): RegistryState {
+    const result = file.read({});
+    if (result.state === "missing") return { version: 1, entries: [], migrations: [] };
+    if (result.state !== "ok") throw new Error("The shared directory registry is unreadable; nothing was overwritten.");
+    const state = result.value as RegistryState | null;
+    if (state?.version !== 1 || !Array.isArray(state.entries) || !Array.isArray(state.migrations) ||
+      !state.migrations.every((item) => typeof item === "string") || !state.entries.every(validRecord)) {
+      throw new Error("The shared directory registry has an invalid format; nothing was overwritten.");
+    }
+    return state;
+  }
+  const canonical = (value: string) => canonicalPath({ path: value });
+  const update = (change: (state: RegistryState) => RegistryState) => file.withLock({ critical: () => {
+    const previous = read(), next = change(previous);
+    if (JSON.stringify(next) !== JSON.stringify(previous)) file.write({ value: next });
+  } });
+  const registry: DirectoryRegistry = {
+    hasMigration: ({ migration }, _optional = {}) => read().migrations.includes(migration),
+    migrations: (_required, _optional = {}) => read().migrations,
+    list: (_required, _optional = {}) => read().entries,
+    merge({ entries, migration, migrations = [] }, _optional = {}) {
+      let result: DirectoryRecord[] = [];
+      update((state) => {
+        if (migration && state.migrations.includes(migration)) { result = state.entries; return state; }
+        const byPath = new Map(state.entries.map((entry) => [canonical(entry.path), { ...entry, path: canonical(entry.path) }]));
+        const byId = new Map([...byPath.values()].map((entry) => [entry.id, entry.path]));
+        for (const entry of entries) {
+          if (!validRecord(entry)) throw new Error("Cannot register an invalid directory record.");
+          const dir = canonical(entry.path);
+          const previous = byPath.get(dir);
+          if (byId.has(entry.id) && byId.get(entry.id) !== dir) throw new Error(`Directory identity ${entry.id} is already registered at another path.`);
+          // Reopening a site cannot reset who originally created it or its stable identity.
+          const lastOpened = [previous?.lastOpened, entry.lastOpened].filter((at): at is string => typeof at === "string").sort((a, b) => Date.parse(a) - Date.parse(b)).at(-1) ?? null;
+          const next = previous ? { ...previous, name: entry.name, lastOpened } : { ...entry, path: dir };
+          byPath.set(dir, next); byId.set(next.id, dir);
+        }
+        result = [...byPath.values()];
+        return { ...state, entries: result, migrations: [...new Set([...state.migrations, ...migrations, ...(migration ? [migration] : [])])] };
+      });
+      return result;
+    },
+    opened({ path, at }, _optional = {}) {
+      if (!Number.isFinite(Date.parse(at))) throw new Error("The last-opened timestamp is invalid.");
+      update((state) => ({ ...state, entries: state.entries.map((entry) => canonical(entry.path) === canonical(path) ? { ...entry, lastOpened: at } : entry) }));
+    },
+    remove({ path }, _optional = {}) {
+      update((state) => ({ ...state, entries: state.entries.filter((entry) => canonical(entry.path) !== canonical(path)) }));
+    },
+    relocate({ from, to }, _optional = {}) {
+      update((state) => {
+        const target = canonical(to), source = canonical(from);
+        if (state.entries.some((entry) => canonical(entry.path) === target && canonical(entry.path) !== source)) throw new Error("Relocation would overwrite a registered directory.");
+        return { ...state, entries: state.entries.map((entry) => canonical(entry.path) === source ? { ...entry, path: target } : entry) };
+      });
+    },
+  };
+  return registry;
+}
+function validRecord(entry: unknown): entry is DirectoryRecord {
+  if (!entry || typeof entry !== "object") return false;
+  const row = entry as DirectoryRecord;
+  return [row.id, row.name, row.path, row.createdBy].every((value) => typeof value === "string" && value.length > 0) &&
+    (row.lastOpened === null || (typeof row.lastOpened === "string" && Number.isFinite(Date.parse(row.lastOpened))));
+}

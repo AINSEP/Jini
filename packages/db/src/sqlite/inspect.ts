@@ -61,28 +61,8 @@ export async function inspectSqliteDatabase(input: { db: SqliteDb; file: string 
     schemaVersion = null;
   }
 
-  // 2. Table list with row counts.
-  const tables: DaemonDbTableInfo[] = [];
-  try {
-    const names = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`).all() as Array<{
-      name: string;
-    }>;
-    for (const { name } of names) {
-      if (isSystemTable(name)) continue;
-      try {
-        const safe = sanitizeTableName(name);
-        if (!safe) continue;
-        const row = db.prepare(`SELECT count(*) AS c FROM "${safe}"`).get() as { c: number } | undefined;
-        tables.push({ name: safe, rowCount: row?.c ?? 0 });
-      } catch {
-        // A malformed view / corrupted table shouldn't fail the whole report; record 0 rows.
-        tables.push({ name, rowCount: 0 });
-      }
-    }
-  } catch {
-    // ignore — empty tables[] surfaces "cannot read schema" to the caller (a CLI shows 0 tables,
-    // which is itself a useful signal).
-  }
+  // 2. Table list with row counts (the diagnostics contract is deliberately forgiving).
+  const tables = readSqliteTableCounts({ db });
 
   // 3. File size = primary + -wal + -shm so the number matches du.
   const sizeBytes = await sumFileSizes([file, `${file}-wal`, `${file}-shm`]);
@@ -95,6 +75,38 @@ export async function inspectSqliteDatabase(input: { db: SqliteDb; file: string 
     tables,
     generatedAt: Date.now(),
   };
+}
+
+/** Per-table counts shared by diagnostics and strict transfer verification. Diagnostics retains
+ * its ASCII-name/zero-on-error compatibility contract; transfers quote all schema-owned names and
+ * fail closed on any query error, because a missing table must never compare equal to an empty one.
+ * @complexity O(all table rows), one metadata query plus one count query per table.
+ */
+function readSqliteTableCounts({ db }: { db: SqliteDb }, { strict = false }: { strict?: boolean } = {}): DaemonDbTableInfo[] {
+  const tables: DaemonDbTableInfo[] = [];
+  try {
+    const names = db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all() as { name: string }[];
+    for (const { name } of names) {
+      if (strict ? name.startsWith('sqlite_') : isSystemTable(name)) continue;
+      try {
+        const safe = strict ? name : sanitizeTableName(name);
+        if (!safe) continue;
+        const quoted = '"' + safe.replaceAll('"', '""') + '"';
+        const row = db.prepare(`SELECT count(*) AS c FROM ${quoted}`).get() as { c: number } | undefined;
+        if (strict && (!row || !Number.isSafeInteger(row.c) || row.c < 0)) throw new Error(`Could not count table ${name}.`);
+        tables.push({ name: safe, rowCount: row?.c ?? 0 });
+      } catch (error) {
+        if (strict) throw error;
+        // A malformed view / corrupted table shouldn't fail the whole report; record 0 rows.
+        tables.push({ name, rowCount: 0 });
+      }
+    }
+  } catch (error) {
+    if (strict) throw error;
+    // ignore — empty tables[] surfaces "cannot read schema" to the caller (a CLI shows 0 tables,
+    // which is itself a useful signal).
+  }
+  return tables;
 }
 
 async function sumFileSizes(paths: ReadonlyArray<string>): Promise<number> {
@@ -131,6 +143,8 @@ export interface DbIntegrityReport {
   issues: DbIntegrityIssue[];
   elapsedMs: number;
   generatedAt: number;
+  /** Strict counts when requested by a stopped database transfer. */
+  rowCounts?: DaemonDbTableInfo[] | undefined;
 }
 
 export interface VerifyDbOptions {
@@ -148,7 +162,7 @@ export interface VerifyDbOptions {
  *   A pragma that throws is itself recorded as one `integrity`/`foreign_key` issue rather than
  *   propagating — a caller polling DB health should always get a report, not an exception.
  */
-export function verifySqliteIntegrity(opts: VerifyDbOptions): DbIntegrityReport {
+export function verifySqliteIntegrity(opts: VerifyDbOptions, { includeRowCounts = false }: { includeRowCounts?: boolean } = {}): DbIntegrityReport {
   const { db, quick = false } = opts;
   const startedAt = Date.now();
   const issues: DbIntegrityIssue[] = [];
@@ -157,6 +171,9 @@ export function verifySqliteIntegrity(opts: VerifyDbOptions): DbIntegrityReport 
   const pragma = quick ? 'quick_check' : 'integrity_check';
   try {
     const rows = db.pragma(pragma) as Array<Record<string, unknown>>;
+    if (includeRowCounts && (rows.length !== 1 || String(rows[0]?.[pragma] ?? Object.values(rows[0] ?? {})[0]).toLowerCase() !== 'ok')) {
+      issues.push({ kind: 'integrity', message: 'A stopped transfer requires exactly one successful integrity result.' });
+    }
     for (const row of rows) {
       // SQLite returns the string under either `integrity_check`, `quick_check`, or just the
       // first column. Normalise to the first string-valued field.
@@ -191,7 +208,13 @@ export function verifySqliteIntegrity(opts: VerifyDbOptions): DbIntegrityReport 
     issues.push({ kind: 'foreign_key', message: `pragma foreign_key_check threw: ${(err as Error).message}` });
   }
 
+  let rowCounts: DaemonDbTableInfo[] | undefined;
+  if (includeRowCounts && issues.length === 0) {
+    try { rowCounts = readSqliteTableCounts({ db }, { strict: true }); }
+    catch (error) { issues.push({ kind: 'integrity', message: `row count verification failed: ${(error as Error).message}` }); }
+  }
   return {
+    ...(includeRowCounts ? { rowCounts } : {}),
     ok: issues.length === 0,
     mode: quick ? 'quick_check' : 'integrity_check',
     issues,

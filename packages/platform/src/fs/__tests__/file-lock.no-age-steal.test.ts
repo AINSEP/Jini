@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { withFileLockSync } from '../file-lock.js';
+import { withFileLock, withFileLockSync } from '../file-lock.js';
 const roots: string[] = [];
 function makeTemporaryDirectory(): string { const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shared-sync-lock-')); roots.push(root); return root; }
 afterEach(() => { vi.restoreAllMocks(); for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
@@ -119,4 +119,27 @@ describe('synchronous file lock with no age-based stealing', () => {
       })).toThrow('remove denied');
     });
 
+});
+
+for (const format of ["json", "token"] as const) it(`reclaims a ${format} previous-boot lock despite PID reuse with Infinity staleness`, () => {
+  const root = makeTemporaryDirectory(), lockPath = path.join(root, "migration.lock");
+  fs.writeFileSync(lockPath, format === "token" ? "10:abandoned:previous" : JSON.stringify({ pid: 10, token: "abandoned", hostname: "fixture", acquiredAt: "2000-01-01T00:00:00Z", bootId: "previous" }));
+  let now = 1000;
+  const value = withFileLockSync({ lockPath, run: () => {
+    const raw = fs.readFileSync(lockPath, "utf8");
+    expect(format === "token" ? raw : JSON.parse(raw).bootId).toBe(format === "token" ? "20:new:current" : "current"); return "acquired";
+  } }, { format, staleMs: Infinity, timeoutMs: 10, pollMs: 1, clock: { nowMs: () => now }, sleep: () => { now++; }, hostname: () => "fixture", token: () => "new",
+    process: { pid: 20, isAlive: () => true, bootIdentity: () => ({ id: "current", startedAtMs: 500 }) } });
+  expect(value).toBe("acquired"); expect(fs.existsSync(lockPath)).toBe(false);
+});
+
+it("the async migration lane also reclaims a previous-boot PID with Infinity staleness", async () => {
+  const lockPath = path.join(makeTemporaryDirectory(), "migration.lock");
+  fs.writeFileSync(lockPath, JSON.stringify({ pid: 10, token: "abandoned", hostname: "fixture", acquiredAt: "2000-01-01T00:00:00Z", bootId: "previous" }));
+  let now = 1000;
+  const value = await withFileLock({ lockPath, run: () => {
+    expect(JSON.parse(fs.readFileSync(lockPath, "utf8")).bootId).toBe("current"); return "acquired";
+  } }, { staleMs: Infinity, timeoutMs: 10, pollMs: 1, clock: { nowMs: () => now }, sleep: () => { now++; }, hostname: () => "fixture",
+    process: { pid: 20, isAlive: () => true, bootIdentity: () => ({ id: "current", startedAtMs: 500 }) } });
+  expect(value).toBe("acquired"); expect(fs.existsSync(lockPath)).toBe(false);
 });

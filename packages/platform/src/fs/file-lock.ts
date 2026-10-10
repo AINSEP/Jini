@@ -10,6 +10,7 @@
  * multi-process races and are deliberately avoided. Atomic file replacement independently prevents
  * torn content. Hosts whose operations can legitimately exceed the stale budget use staleMs: Infinity.
  */
+import { readBootIdentity, type BootIdentity } from "./boot-identity.js";
 import fs from "node:fs";
 import * as asyncFs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -20,7 +21,7 @@ import { defaultPlatformMessages, type PlatformMessages } from "../messages.js";
 
 export const DEFAULT_LOCK_TIMEOUT_MS = 15_000;
 export const DEFAULT_LOCK_STALE_AFTER_MS = 10_000;
-export interface FileLockHolder { readonly pid: number; readonly hostname: string; readonly token: string; readonly acquiredAt: string; }
+export interface FileLockHolder { readonly pid: number; readonly hostname: string; readonly token: string; readonly acquiredAt: string; readonly bootId?: string; }
 export interface HeldFileLock { readonly lockPath: string; assertHeld(required: Record<string, never>): Promise<void>; }
 export interface HeldFileLockSync { readonly lockPath: string; assertHeld(required: Record<string, never>): void; }
 export type FileLockSyncFilesystem = Pick<typeof fs, "mkdirSync" | "openSync" | "writeSync" | "fstatSync" | "readFileSync" | "statSync" | "closeSync" | "rmSync">;
@@ -36,7 +37,7 @@ export interface FileLockOptions {
    * stays on `clock.nowMs`, because lock-file mtimes are wall-clock times. */
   monotonicMs?: () => number;
   sleep?: (required: { durationMs: number }) => void | Promise<void>;
-  process?: { pid: number; isAlive(required: { pid: number }): boolean };
+  process?: { pid: number; isAlive(required: { pid: number }): boolean; bootIdentity?: () => BootIdentity | undefined };
   token?: () => string;
   hostname?: () => string;
   onStaleLockRemoved?: (required: { holder: FileLockHolder | undefined }) => void;
@@ -75,7 +76,7 @@ function parseHolder(raw: string): FileLockHolder | undefined {
   try {
     const value: unknown = JSON.parse(raw);
     if (typeof value !== "object" || value === null || !("pid" in value) || !validPid(value.pid) || !("hostname" in value) || typeof value.hostname !== "string" || !("token" in value) || typeof value.token !== "string" || !("acquiredAt" in value) || typeof value.acquiredAt !== "string") return undefined;
-    return { pid: value.pid, hostname: value.hostname, token: value.token, acquiredAt: value.acquiredAt };
+    return { pid: value.pid, hostname: value.hostname, token: value.token, acquiredAt: value.acquiredAt, ...("bootId" in value && typeof value.bootId === "string" ? { bootId: value.bootId } : {}) };
   } catch { return undefined; }
 }
 interface LockSnapshot { raw: string; holder: FileLockHolder | undefined; mtimeMs: number; ino: number; dev: number; }
@@ -87,21 +88,27 @@ export function isLockStale(required: { nowMs: number; mtimeMs: number; staleMs:
 function settings(options: FileLockOptions) {
   const timeoutMs = options.timeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS, staleMs = options.staleMs ?? DEFAULT_LOCK_STALE_AFTER_MS, pollMs = options.pollMs ?? 10;
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 0 || (!Number.isSafeInteger(staleMs) && staleMs !== Infinity) || staleMs <= 0 || !Number.isSafeInteger(pollMs) || pollMs <= 0) throw new RangeError((options.messages ?? defaultPlatformMessages).fileLockIntervalsInvalid());
-  const processPort = options.process ?? { pid: process.pid, isAlive: ({ pid }: { pid: number }) => { try { process.kill(pid, 0); return true; } catch (error) { return errorCode(error) !== "ESRCH"; } } };
+  const processPort = options.process ?? { pid: process.pid, bootIdentity: () => readBootIdentity({}), isAlive: ({ pid }: { pid: number }) => { try { process.kill(pid, 0); return true; } catch (error) { return errorCode(error) !== "ESRCH"; } } };
   const clock = options.clock ?? createSystemClock();
   const monotonicMs = options.monotonicMs ?? (() => clock.nowMs());
-  return { timeoutMs, staleMs, pollMs, processPort, clock, monotonicMs, hostname: (options.hostname ?? nodeHostname)(), token: (options.token ?? randomUUID)() };
+  return { timeoutMs, staleMs, pollMs, processPort, clock, monotonicMs, boot: processPort.bootIdentity?.(), hostname: (options.hostname ?? nodeHostname)(), token: (options.token ?? randomUUID)() };
 }
 type Settings = ReturnType<typeof settings>;
 function ownership(s: Settings, options: FileLockOptions): string {
-  return options.format === "token" ? `${s.processPort.pid}:${s.token}` : JSON.stringify({ pid: s.processPort.pid, hostname: s.hostname, token: s.token, acquiredAt: new Date(s.clock.nowMs()).toISOString() });
+  return options.format === "token" ? `${s.processPort.pid}:${s.token}${s.boot ? ":" + s.boot.id : ""}` : JSON.stringify({ pid: s.processPort.pid, hostname: s.hostname, token: s.token, acquiredAt: new Date(s.clock.nowMs()).toISOString(), ...(s.boot ? { bootId: s.boot.id } : {}) });
 }
 function ownerAlive(snapshot: LockSnapshot, s: Settings): boolean | undefined {
   const holder = snapshot.holder;
-  if (holder) return holder.hostname === s.hostname ? s.processPort.isAlive({ pid: holder.pid }) : undefined;
+  if (holder) {
+    if (holder.hostname !== s.hostname) return undefined;
+    if (s.boot && (holder.bootId !== undefined ? holder.bootId !== s.boot.id : Date.parse(holder.acquiredAt) < s.boot.startedAtMs)) return false;
+    return s.processPort.isAlive({ pid: holder.pid });
+  }
   // Legacy synchronous stores wrote pid:random rather than JSON. Malformed pids remain unknown.
   if (!/^\d+:/.test(snapshot.raw)) return undefined;
-  const pid = Number(snapshot.raw.split(":", 1)[0]);
+  const parts = snapshot.raw.split(":");
+  const pid = Number(parts[0]);
+  if (validPid(pid) && s.boot && (parts[2] ? parts[2] !== s.boot.id : snapshot.mtimeMs < s.boot.startedAtMs)) return false;
   return validPid(pid) ? s.processPort.isAlive({ pid }) : undefined;
 }
 function unchanged(a: LockSnapshot, b: LockSnapshot): boolean { return a.ino === b.ino && a.dev === b.dev && a.raw === b.raw && a.mtimeMs === b.mtimeMs; }
