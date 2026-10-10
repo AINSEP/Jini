@@ -35,6 +35,8 @@
 export type { CommandInvocation, CommandInvocationRequest } from "./command.js";
 export { createCommandInvocation, createPackageManagerInvocation } from "./command.js";
 
+export { omitEnvironmentKeys } from "./child-environment.js";
+
 export type { ResolveSystemProxyEnvOptions, SystemProxyCommandRunner } from "./proxy-env.js";
 export {
   mergeProxyAwareEnv,
@@ -95,6 +97,7 @@ export {
   assetCacheKey,
   assetCacheRewriteUrl,
   createAssetCache,
+  createAssetCacheDispatcher,
   createValidatingLookup,
   isCacheableExternalUrl,
 } from "./asset-cache.js";
