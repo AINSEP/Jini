@@ -18,6 +18,28 @@ function attachIcon(result: { current: ReturnType<typeof useInfoTip> }, rect: Pa
 }
 
 describe("useInfoTip", () => {
+  it("uses measured height for a requested top placement, and falls back below without enough room", () => {
+    const { result } = renderHook(() => useInfoTip({}, { placement: "top" }));
+    attachIcon(result, { top: 120, bottom: 140, left: 500, width: 20 });
+    const bubble = document.createElement("span");
+    bubble.getBoundingClientRect = () => ({ height: 80 }) as DOMRect;
+    result.current.bubbleRef!.current = bubble;
+    act(() => result.current.show());
+    expect(result.current.placement).toBe("above");
+    expect(result.current.coords.top).toBe(120);
+    attachIcon(result, { top: 40, bottom: 60, left: 500, width: 20 });
+    act(() => result.current.show());
+    expect(result.current.placement).toBe("below");
+    expect(result.current.coords.top).toBe(60);
+  });
+
+  it("honors a requested bottom placement even with ample headroom", () => {
+    const { result } = renderHook(() => useInfoTip({}, { placement: "bottom" }));
+    attachIcon(result, { top: 400, bottom: 420, left: 500, width: 20 });
+    act(() => result.current.show());
+    expect(result.current.placement).toBe("below");
+    expect(result.current.coords.top).toBe(420);
+  });
   it("starts closed", () => {
     const { result } = renderHook(() => useInfoTip());
     expect(result.current.open).toBe(false);
@@ -114,5 +136,30 @@ describe("useInfoTip", () => {
     expect(() => act(() => result.current.handleIconKeyDown(event))).not.toThrow();
     expect(result.current.open).toBe(false);
     expect(stopPropagation).not.toHaveBeenCalled();
+  });
+
+  it("leave() closes a hover-opened tip but not a pinned one; hide() unpins", () => {
+    const { result } = renderHook(() => useInfoTip());
+    attachIcon(result, { top: 400, bottom: 420, left: 500, right: 520, width: 20, height: 20 });
+    act(() => result.current.show());
+    act(() => result.current.leave());
+    expect(result.current.open).toBe(false);
+
+    act(() => result.current.toggle());
+    act(() => result.current.leave());
+    expect(result.current.open).toBe(true);
+    act(() => result.current.hide());
+    act(() => result.current.show());
+    act(() => result.current.leave());
+    expect(result.current.open).toBe(false);
+  });
+
+  it("toggle() closes a pinned tip", () => {
+    const { result } = renderHook(() => useInfoTip());
+    attachIcon(result, { top: 400, bottom: 420, left: 500, right: 520, width: 20, height: 20 });
+    act(() => result.current.toggle());
+    expect(result.current.open).toBe(true);
+    act(() => result.current.toggle());
+    expect(result.current.open).toBe(false);
   });
 });

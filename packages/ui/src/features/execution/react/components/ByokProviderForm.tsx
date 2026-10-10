@@ -1,17 +1,16 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
 import { CUSTOM_MODEL_SENTINEL, DEFAULT_PROVIDER_PRESETS } from '../../constants.js';
 import {
   apiKeyFormatWarning,
-  isBaseUrlInvalid,
-  missingRequiredFields,
   parseMaxTokens,
   presetRequiresApiKey,
   shouldShowCustomModelInput,
   showsBaseUrlField,
 } from '../../rules.js';
 import { SearchableModelSelect } from './SearchableModelSelect.js';
+import { useByokFieldValidation } from '../hooks/use-byok-field-validation.hooks.js';
 import type {
   ByokConfig,
   ConnectionTestState,
@@ -77,6 +76,8 @@ export interface ByokProviderFormProps {
    * Omitted by every existing caller, so the rendered output is byte-identical without it.
    */
   formFooter?: ReactNode;
+  /** Host actions directly below Model and its results, before any Advanced disclosure. */
+  modelFooter?: ReactNode;
   /**
    * `true` when a key is already held somewhere the browser cannot read — so the API-key input is
    * legitimately empty and must NOT be treated as a missing required field.
@@ -110,6 +111,21 @@ export interface ByokProviderFormProps {
   apiKeyPlaceholder?: string;
   /** This card's own agent handle — see `ExecutionTab`'s `agentHandle` doc for the split. */
   agentHandle?: string;
+  /**
+   * A host's button row for the key (Test key / Save key), directly UNDER the input; Show stays on
+   * the input's own line (owner, 2026-10-09: the input with Show beside it, actions beneath). Given,
+   * the key field renders as a `<div>` whose `<label>` wraps only the field name, so these buttons are
+   * never nested inside a label (which would fold their text into the input's accessible name).
+   */
+  apiKeyActions?: ReactNode;
+  /**
+   * Moves Base URL and Max tokens into a collapsed "Advanced" disclosure after the Model row. For
+   * hosts where those two are rarely touched; it opens on its own while Base URL is invalid or
+   * missing, so a required-field problem is never hidden. Default `false` keeps the original order.
+   */
+  collapseAdvanced?: boolean;
+  /** Paint required-field errors after that field loses focus; validation gates stay immediate. */
+  deferMissingFeedback?: boolean;
 }
 
 /**
@@ -129,11 +145,17 @@ export function ByokProviderForm({
   canTestConnection = true,
   apiKeyFooter,
   formFooter,
+  modelFooter,
   apiKeyStoredExternally = false,
   apiKeyPlaceholder,
   agentHandle,
+  apiKeyActions,
+  collapseAdvanced = false,
+  deferMissingFeedback = false,
 }: ByokProviderFormProps) {
   const t = useT();
+  const keyInputId = useId();
+  const KeyField = apiKeyActions ? 'div' : 'label';
   const [revealKey, setRevealKey] = useState(false);
 
   /** Whether the operator explicitly picked "Custom…" in the model picker — distinct from "the
@@ -158,12 +180,9 @@ export function ByokProviderForm({
     setRevealKey(false);
   }, [config.providerId]);
 
-  const missing = new Set(missingRequiredFields(config, preset));
-  // A stored-but-unreadable key satisfies the requirement. Subtracted here rather than threaded into
-  // `missingRequiredFields` because that function is a pure rule over `ByokConfig` and this is a fact
-  // about the HOST's storage, which does not belong in the config shape.
-  if (apiKeyStoredExternally) missing.delete('apiKey');
-  const baseUrlInvalid = isBaseUrlInvalid(config);
+  const { missing, baseUrlInvalid, isMissing, markTouched } = useByokFieldValidation(
+    { config, preset, apiKeyStoredExternally }, { deferMissingFeedback },
+  );
   /** Deliberately NOT folded into `missing` above: that set drives `is-missing` styling and the
    *  Test-connection disable, and a wrong-SHAPED key must never reach either. */
   const keyFormatWarning = apiKeyFormatWarning(config, preset, presets);
@@ -198,84 +217,8 @@ export function ByokProviderForm({
 
   const patch = (next: Partial<ByokConfig>) => onConfigChange({ ...config, ...next });
 
-  return (
-    <div className="jini-byok-card">
-      <div className="jini-byok-card-head">
-        <h4 className="jini-byok-card-title">{preset ? preset.title : t('Custom endpoint')}</h4>
-      </div>
-
-      {presetRequiresApiKey(preset) ? (
-        <>
-        <label className="jini-field">
-          <span className="jini-field-label">
-            {t('API key')}
-            <span className="jini-field-required" aria-hidden="true">
-              *
-            </span>
-            {preset?.apiKeyConsoleUrl ? (
-              <a
-                className="jini-field-link"
-                href={preset.apiKeyConsoleUrl}
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                {t('Get key')}
-              </a>
-            ) : null}
-          </span>
-          <span className="jini-field-input-row">
-            <input
-              className={'jini-input' + (missing.has('apiKey') ? ' is-missing' : '')}
-              type={revealKey ? 'text' : 'password'}
-              /* `new-password`, NOT `"off"` — Chrome deliberately ignores `off` on credential-shaped
-                 fields (a long-standing intentional decision, not a bug). `off` here is what let the
-                 reported autofill through: Chrome filled this field with the admin's own saved
-                 PASSWORD, the form sent it, and the provider answered with its own "API key not
-                 valid" — a true message about a string the operator never typed. `new-password` is
-                 the value Chrome/Safari/Firefox actually honor for "this is not a saved-login
-                 field", which suppresses both the credential dropdown and the silent fill.
-
-                 Known trade-off, not fixed here: Chrome may now offer to GENERATE a password on
-                 this field — a suggestion popup, not a silently wrong value. */
-              autoComplete="new-password"
-              spellCheck={false}
-              placeholder={apiKeyPlaceholder}
-              value={config.apiKey}
-              onChange={(event) => patch({ apiKey: event.target.value })}
-              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'api-key', role: 'field', label: t('API key') }) })}
-            />
-            <button
-              type="button"
-              className="jini-input-affix-btn"
-              aria-pressed={revealKey}
-              onClick={() => setRevealKey((shown) => !shown)}
-              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'reveal-key', role: 'button', label: t('Reveal API key') }) })}
-            >
-              {revealKey ? t('Hide') : t('Show')}
-            </button>
-          </span>
-          <span className="jini-field-hint">{t('Stored only by this host.')}</span>
-          {/* Advisory, never a gate: `Save`/`Test connection` stay exactly as enabled as they were,
-              and the typed key is still sent verbatim. See `apiKeyFormatWarning`'s own doc for why
-              a client-side format guess must not be allowed to block a credential.
-
-              `role="status"` rather than `alert`: this is a suggestion the operator may correctly
-              ignore, not a failure. It reuses the `is-error` hint styling because that is the one
-              emphasised hint style this package ships and a silent-looking warning would not do the
-              job — the emphasis is the point, the blocking is not. */}
-          {keyFormatWarning ? (
-            <span className="jini-field-hint is-error" role="status">
-              {t(keyFormatWarning.message, keyFormatWarning.vars)}
-            </span>
-          ) : null}
-        </label>
-        {/* No wrapper styling of its own — `.jini-byok-card` is a flex column with a 14px gap, so a
-            bare sibling inherits the card's own field rhythm. A host that wants a tighter coupling to
-            the field above can supply its own margin from the outside. */}
-        {apiKeyFooter ? <div className="jini-byok-key-footer">{apiKeyFooter}</div> : null}
-        </>
-      ) : null}
-
+  const connectionFields = (
+    <>
       {/* Base URL and Max tokens share a row (owner ruling, 2026-09-02) — neither needs the card's
           full width, and stacking them wasted a whole line on a number input. A WRAPPING flex row,
           not a two-column grid: the card is rendered at very different widths (a settings modal, a
@@ -284,15 +227,15 @@ export function ByokProviderForm({
           With `showsBaseUrlField` false the row holds one child, which then fills it. */}
       <div className="jini-byok-field-row">
         {showsBaseUrlField(preset) ? (
-          <label className="jini-field">
+          <label className="jini-field" onBlurCapture={() => markTouched({ field: 'baseUrl' })}>
             <span className="jini-field-label">
               {t('Base URL')}
-              <span className="jini-field-required" aria-hidden="true">
+              {preset?.baseUrl ? null : <span className="jini-field-required" aria-hidden="true">
                 *
-              </span>
+              </span>}
             </span>
             <input
-              className={'jini-input' + (baseUrlInvalid || missing.has('baseUrl') ? ' is-missing' : '')}
+              className={'jini-input' + (isMissing({ field: 'baseUrl' }) ? ' is-missing' : '')}
               type="url"
               inputMode="url"
               spellCheck={false}
@@ -324,6 +267,99 @@ export function ByokProviderForm({
           </span>
         </label>
       </div>
+    </>
+  );
+
+  return (
+    <div className="jini-byok-card">
+      <div className="jini-byok-card-head">
+        <h4 className="jini-byok-card-title">{preset ? preset.title : t('Custom endpoint')}</h4>
+      </div>
+
+      {presetRequiresApiKey(preset) ? (
+        <>
+        <KeyField className="jini-field" onBlurCapture={() => markTouched({ field: 'apiKey' })}>
+          <span className="jini-field-label">
+            {apiKeyActions ? (
+              <label className="jini-field-label" htmlFor={keyInputId}>
+                <span>{t('API key')}</span>
+                <span className="jini-field-required" aria-hidden="true">*</span>
+              </label>
+            ) : (
+              <>
+                {t('API key')}
+                <span className="jini-field-required" aria-hidden="true">
+                  *
+                </span>
+              </>
+            )}
+            {preset?.apiKeyConsoleUrl ? (
+              <a
+                className="jini-field-link"
+                href={preset.apiKeyConsoleUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                {t('Get key')}
+              </a>
+            ) : null}
+          </span>
+          <span className="jini-field-input-row">
+            <input
+              {...(apiKeyActions ? { id: keyInputId } : {})}
+              className={'jini-input' + (isMissing({ field: 'apiKey' }) ? ' is-missing' : '')}
+              type={revealKey ? 'text' : 'password'}
+              /* `new-password`, NOT `"off"` — Chrome deliberately ignores `off` on credential-shaped
+                 fields (a long-standing intentional decision, not a bug). `off` here is what let the
+                 reported autofill through: Chrome filled this field with the admin's own saved
+                 PASSWORD, the form sent it, and the provider answered with its own "API key not
+                 valid" — a true message about a string the operator never typed. `new-password` is
+                 the value Chrome/Safari/Firefox actually honor for "this is not a saved-login
+                 field", which suppresses both the credential dropdown and the silent fill.
+
+                 Known trade-off, not fixed here: Chrome may now offer to GENERATE a password on
+                 this field — a suggestion popup, not a silently wrong value. */
+              autoComplete="new-password"
+              spellCheck={false}
+              placeholder={apiKeyPlaceholder}
+              value={config.apiKey}
+              onChange={(event) => patch({ apiKey: event.target.value })}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'api-key', role: 'field', label: t('API key') }) })}
+            />
+            <button
+              type="button"
+              className="jini-input-affix-btn"
+              aria-pressed={revealKey}
+              onClick={() => setRevealKey((shown) => !shown)}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'reveal-key', role: 'button', label: t('Reveal API key') }) })}
+            >
+              {revealKey ? t('Hide') : t('Show')}
+            </button>
+          </span>
+          {apiKeyActions ? <span className="jini-byok-key-actions">{apiKeyActions}</span> : null}
+          <span className="jini-field-hint">{t('Stored only by this host.')}</span>
+          {/* Advisory, never a gate: `Save`/`Test connection` stay exactly as enabled as they were,
+              and the typed key is still sent verbatim. See `apiKeyFormatWarning`'s own doc for why
+              a client-side format guess must not be allowed to block a credential.
+
+              `role="status"` rather than `alert`: this is a suggestion the operator may correctly
+              ignore, not a failure. It reuses the `is-error` hint styling because that is the one
+              emphasised hint style this package ships and a silent-looking warning would not do the
+              job — the emphasis is the point, the blocking is not. */}
+          {keyFormatWarning ? (
+            <span className="jini-field-hint is-error" role="status">
+              {t(keyFormatWarning.message, keyFormatWarning.vars)}
+            </span>
+          ) : null}
+        </KeyField>
+        {/* No wrapper styling of its own — `.jini-byok-card` is a flex column with a 14px gap, so a
+            bare sibling inherits the card's own field rhythm. A host that wants a tighter coupling to
+            the field above can supply its own margin from the outside. */}
+        {apiKeyFooter ? <div className="jini-byok-key-footer">{apiKeyFooter}</div> : null}
+        </>
+      ) : null}
+
+      {collapseAdvanced ? null : connectionFields}
 
       {/* "Test connection" sits BESIDE the Model control (owner ruling, 2026-09-02), not on a row of
           its own underneath it. It probes the endpoint the Model field belongs to, and a row's
@@ -340,7 +376,7 @@ export function ByokProviderForm({
           either sit beside the button or, as label children, push it out of line the moment either
           appeared. */}
       <div className="jini-byok-model-row">
-        <label className="jini-field">
+        <label className="jini-field" onBlurCapture={() => markTouched({ field: 'model' })}>
           <span className="jini-field-label">
             {t('Model')}
             <span className="jini-field-required" aria-hidden="true">
@@ -349,7 +385,7 @@ export function ByokProviderForm({
           </span>
           {showModelPicker ? (
             <SearchableModelSelect
-              className={'jini-input' + (missing.has('model') ? ' is-missing' : '')}
+              className={'jini-input' + (isMissing({ field: 'model' }) ? ' is-missing' : '')}
               ariaLabel={t('Model')}
               searchPlaceholder={t('Search models')}
               testId="jini-byok-model-select"
@@ -375,7 +411,7 @@ export function ByokProviderForm({
               keeps an unlisted model id typeable instead of unreachable. */}
           {!showModelPicker || customModelActive ? (
             <input
-              className={'jini-input' + (missing.has('model') ? ' is-missing' : '')}
+              className={'jini-input' + (isMissing({ field: 'model' }) ? ' is-missing' : '')}
               list={!showModelPicker && suggestions.length > 0 ? modelListId : undefined}
               spellCheck={false}
               value={config.model}
@@ -443,6 +479,15 @@ export function ByokProviderForm({
 
       {/* Same bare-sibling treatment as `apiKeyFooter` above — `.jini-byok-card` is a flex column
           with a 14px gap, so this inherits the card's own rhythm rather than defining its own. */}
+      {modelFooter ? <div className="jini-byok-model-footer">{modelFooter}</div> : null}
+
+      {collapseAdvanced ? (
+        <details className="jini-byok-advanced" open={baseUrlInvalid || missing.has('baseUrl') || undefined}>
+          <summary>{t('Advanced')}</summary>
+          {connectionFields}
+        </details>
+      ) : null}
+
       {formFooter ? <div className="jini-byok-form-footer">{formFooter}</div> : null}
     </div>
   );

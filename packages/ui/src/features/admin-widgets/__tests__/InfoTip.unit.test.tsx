@@ -18,6 +18,20 @@ import type { InfoTipController } from "../components/InfoTip.hooks";
 describe("InfoTip", () => {
   const LABEL = "An untouched original is kept separately.";
 
+  it("keeps inline help in its label row and supports focus and Escape without an overlay", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<div className="label-row"><InfoTip label={LABEL} placement="inline" /></div>);
+    await user.tab();
+    const copy = screen.getByText(LABEL);
+    expect(container.querySelector('.label-row')).toContainElement(copy);
+    expect(copy).toHaveClass('info-tip-inline-copy');
+    expect(document.querySelector('.info-tip-bubble')).toBeNull();
+    expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'true');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByText(LABEL)).not.toBeInTheDocument();
+    expect(screen.getByRole('button')).toHaveFocus();
+  });
+
   it("is closed by default, with the icon reachable by its accessible name", () => {
     render(<InfoTip label={LABEL} />);
     expect(screen.queryByText(LABEL)).not.toBeInTheDocument();
@@ -114,8 +128,73 @@ describe("InfoTip", () => {
   });
 });
 
+/**
+ * Tap-to-pin (2026-10-09, AI Assistant redesign): explainers moved off the page into InfoTips, so
+ * the tip must be readable on a phone, where there is no hover to hold it open.
+ */
+describe("InfoTip tap and description wiring", () => {
+  const LABEL = "Off by default. Applies to new runs only.";
+
+  it("a click pins the tip open past the pointer leaving; a second click closes it", async () => {
+    const user = userEvent.setup();
+    render(<InfoTip label={LABEL} triggerLabel="About subagents" />);
+    const icon = screen.getByRole("button", { name: "About subagents" });
+    await user.click(icon);
+    expect(icon).toHaveAttribute("aria-expanded", "true");
+    await user.unhover(icon);
+    expect(icon).toHaveAttribute("aria-expanded", "true");
+    await user.click(icon);
+    expect(icon).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("a tap outside closes a pinned tip", async () => {
+    const user = userEvent.setup();
+    render(<div><InfoTip label={LABEL} triggerLabel="About subagents" /><p>elsewhere</p></div>);
+    const icon = screen.getByRole("button", { name: "About subagents" });
+    await user.click(icon);
+    await user.click(screen.getByText("elsewhere"));
+    expect(icon).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("Enter toggles like a button for keyboard users", async () => {
+    const user = userEvent.setup();
+    render(<InfoTip label={LABEL} triggerLabel="About subagents" />);
+    const icon = screen.getByRole("button", { name: "About subagents" });
+    await user.tab();
+    await user.keyboard("{Enter}");
+    await user.unhover(icon);
+    expect(icon).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{Enter}");
+    expect(icon).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("with a short name, the full text is the icon's description and can describe another control", () => {
+    render(<><input type="checkbox" aria-label="Allow subagents" aria-describedby="tip-text" />
+      <InfoTip label={LABEL} triggerLabel="About subagents" descriptionId="tip-text" /></>);
+    expect(screen.getByRole("button", { name: "About subagents" })).toHaveAccessibleDescription(LABEL);
+    expect(screen.getByRole("checkbox", { name: "Allow subagents" })).toHaveAccessibleDescription(LABEL);
+  });
+
+  it("without a short name, the icon keeps the full text as its name and gets no duplicate description", () => {
+    render(<InfoTip label={LABEL} />);
+    expect(screen.getByRole("button", { name: LABEL })).not.toHaveAttribute("aria-describedby");
+  });
+});
+
 describe("InfoTip tip-hook injection", () => {
   const LABEL = "An untouched original is kept separately.";
+
+  it("forwards the host placement to its hook while retaining the explanation as a description", () => {
+    let requested: string | undefined;
+    const useTip: typeof import('../components/InfoTip.hooks.js').useInfoTip = (_input, options) => {
+      requested = options?.placement;
+      return { open: false, placement: 'above', coords: { top: 0, left: 0 }, iconRef: { current: null },
+        show() {}, hide() {}, leave() {}, toggle() {}, handleIconKeyDown() {} };
+    };
+    render(<InfoTip label={LABEL} triggerLabel="About folders" placement="top" useTip={useTip} />);
+    expect(requested).toBe('top');
+    expect(screen.getByRole('button', { name: 'About folders' })).toHaveAccessibleDescription(LABEL);
+  });
 
   it("renders purely off an injected fake, proving useInfoTip is not hardcoded", () => {
     // The real `useInfoTip` always starts `open: false` — a first render can never show the
@@ -130,6 +209,8 @@ describe("InfoTip tip-hook injection", () => {
         iconRef: { current: null },
         show: () => {},
         hide: () => {},
+        leave: () => {},
+        toggle: () => {},
         handleIconKeyDown: () => {},
       };
     }

@@ -95,6 +95,8 @@
 }
 
 .jini-input {
+  min-height: var(--jini-control-h, 37px);
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
   padding: 8px 10px;
@@ -105,6 +107,17 @@
   border: 1px solid var(--jini-border);
   border-radius: var(--jini-radius-sm);
   transition: border-color 120ms var(--jini-ease-out), box-shadow 120ms var(--jini-ease-out);
+}
+
+/* Native selects share one affordance across execution settings and host forms. */
+select.jini-input {
+  appearance: none;
+  padding-right: 2rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 10px 6px;
 }
 
 .jini-input:focus {
@@ -127,6 +140,8 @@
 .jini-settings-section .jini-btn,
 .jini-settings-section .jini-button,
 .jini-settings-section a.jini-button {
+  min-height: var(--jini-control-h, 37px);
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -394,6 +409,21 @@
 
    `align-items: start` so a field with a two-line hint (an invalid base URL) does not stretch its
    neighbour's input to match. */
+/* `ByokProviderForm`'s `collapseAdvanced`: Base URL + Max tokens behind one disclosure after Model. */
+.jini-byok-advanced > summary {
+  cursor: pointer;
+  width: max-content;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--jini-text-muted);
+}
+.jini-byok-advanced > summary:hover { color: var(--jini-text-strong); }
+.jini-byok-advanced[open] > summary { margin-bottom: 12px; }
+
+/* `ByokProviderForm`'s `apiKeyActions`: the host's button row directly under the key input (Show
+   stays on the input's line). Wraps on a narrow card. */
+.jini-byok-key-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 2px; }
+
 .jini-byok-field-row {
   display: flex;
   flex-wrap: wrap;
@@ -482,8 +512,17 @@
    more when the host gives the dialog room. */
 .jini-agent-grid {
   display: grid;
+  align-items: stretch;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 10px;
+}
+
+/* "Show N not installed" — the uninstalled tail of the grid sits behind this toggle. */
+.jini-local-cli-more {
+  display: block;
+  width: auto;
+  align-self: flex-start;
+  margin: 10px 0;
 }
 
 .jini-agent-card {
@@ -500,6 +539,7 @@
 }
 
 .jini-agent-card.is-selected {
+  grid-column: 1 / -1;
   border-color: var(--jini-accent);
   box-shadow: 0 0 0 1px var(--jini-accent);
 }
@@ -532,11 +572,8 @@
 
 /* The whole card is the click target, not just the text at the top of it.
  *
- * `.jini-agent-grid` is a grid, so selecting one CLI stretches every card in
- * that row to match the expanded one — while `-select` keeps its natural
- * content height. The space the row-mate's expansion added was therefore
- * inert: clicking the lower two-thirds of a stretched-but-unselected card did
- * nothing, which reads as a broken card rather than as "aim higher".
+ * Normal rows stretch evenly; an expanded selection spans its own row. The select
+ * button owns the whole unselected header, including its padding.
  *
  * `:last-child` is load-bearing. A card renders its diagnostics, model config,
  * test result and path-repair actions as SIBLINGS after `-main`, and those
@@ -603,10 +640,6 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--jini-text);
-}
-
-.jini-agent-card-name-divider {
-  color: var(--jini-text-disabled);
 }
 
 .jini-agent-card-tagline {
@@ -895,7 +928,21 @@
   width: 100%;
 }
 
+/* Hosts may pass the input class to the wrapper; only the trigger paints the control. */
+.jini-select.jini-input {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  min-height: 0;
+}
+.jini-select.is-missing > .jini-select-trigger {
+  border-color: color-mix(in srgb, var(--jini-danger) 55%, var(--jini-border));
+}
+
 .jini-select-trigger {
+  min-height: var(--jini-control-h, 37px);
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -910,6 +957,17 @@
   border: 1px solid var(--jini-border);
   border-radius: var(--jini-radius-sm);
   cursor: pointer;
+}
+
+.jini-select-trigger:focus-visible {
+  outline: none;
+  border-color: var(--jini-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jini-accent) 18%, transparent);
+}
+
+@media (max-width: 640px) {
+  .jini-input,
+  .jini-select-trigger { font-size: 16px; min-height: 40px; }
 }
 
 .jini-select-trigger:hover:not(:disabled) {

@@ -349,6 +349,24 @@ export function sortDetectedAgents<T extends { installed: boolean; label: string
 }
 
 /**
+ * Splits the CLI grid into what to show up front and what sits behind the "Show N not installed"
+ * toggle. Installed CLIs are the ones an operator can pick, so a long tail of uninstalled cards
+ * buried every setting below the grid. The selected agent always stays visible even when it is
+ * not installed (a stale pick after an uninstall), so the current choice is never hidden.
+ */
+export function partitionAgentsByInstalled<T extends { id: string; installed: boolean }>(
+  agents: readonly T[],
+  selectedAgentId: string | null | undefined,
+): { visible: T[]; collapsed: T[] } {
+  const visible: T[] = [];
+  const collapsed: T[] = [];
+  for (const agent of agents) {
+    (agent.installed || agent.id === selectedAgentId ? visible : collapsed).push(agent);
+  }
+  return { visible, collapsed };
+}
+
+/**
  * Strips a redundant trailing agent name from a CLI's `--version` output, so
  * "1.2.3 (Claude Code)" renders as "1.2.3" beside a card already titled
  * "Claude Code". Origin: `cleanAgentVersionLabel`.

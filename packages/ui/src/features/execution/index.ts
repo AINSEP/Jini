@@ -50,6 +50,7 @@ export {
   shouldShowCustomModelInput,
   showsBaseUrlField,
   sortDetectedAgents,
+  partitionAgentsByInstalled,
   splitReasoningModelId,
 } from './rules.js';
 export type {
