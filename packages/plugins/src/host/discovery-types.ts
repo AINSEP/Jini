@@ -11,6 +11,7 @@ export interface BuiltInPluginSource {
  * once activation state is projected onto it by the caller (the HTTP route layer, C-016/C-017 —
  * discovery itself does not know about `plugin_activations`). */
 export interface PluginDiscoveryRecord {
+  readonly warnings?: readonly string[];
   readonly id: string;
   readonly name: string;
   readonly version: string;
@@ -29,9 +30,11 @@ export interface PluginDiscoveryRecord {
   readonly errors: readonly PluginValidationError[];
   /**
    * (Milestone 1b, 2026-08-20) The already-parsed, already-`validateManifest()`-checked manifest
-   * this record was built from — present if and only if `status === "valid"` (`undefined`
-   * otherwise: an invalid/incompatible candidate's raw JSON may not conform to `PluginManifest`'s
-   * shape at all, so this field never claims a validated type for a record that failed validation).
+   * this record was built from — present after manifest validation (`undefined` otherwise:
+   * an invalid/incompatible candidate's raw JSON may not conform to `PluginManifest`'s shape at
+   * all, so this field never claims a validated type for a manifest that failed validation).
+   * A later whole-set publisher collision omits the losing manifest and marks its record invalid.
+   * The incumbent keeps its reservation; the rejected claim must not reappear in host lookup.
    *
    * Exists so a composition root's enable path (`server/plugin-runtime.ts`'s `onPluginEnabled()`)
    * can hand `loadPlugin()` the SAME manifest object this discovery pass already parsed, instead of
@@ -51,4 +54,3 @@ export interface PluginDiscoveryRecord {
    */
   readonly manifest?: PluginManifest | undefined;
 }
-

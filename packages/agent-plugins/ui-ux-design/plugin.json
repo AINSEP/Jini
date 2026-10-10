@@ -1,5 +1,19 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "ui-ux-design",
-  "description": "UI/UX design, interface-design-system, accessibility, and shadcn/ui component skills bundled as one portable Agent Plugin."
+  "description": "UI/UX design, interface-design-system, accessibility, and shadcn/ui component skills bundled as one portable Agent Plugin.",
+  "extensions": {
+    "tovu": {
+      "id": "jini/ui-ux-design",
+      "provides": [
+        "ui-design"
+      ]
+    }
+  },
+  "keywords": [
+    "design",
+    "ui",
+    "ux",
+    "ui-design"
+  ]
 }

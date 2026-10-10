@@ -27,6 +27,7 @@
 
 import * as semver from "semver";
 
+import { readPluginIdentity, validatePluginIdentity, type PluginIdentityExtension } from "@jini-ai/core/plugin-directory";
 import type { HookPoints, ManifestHostPorts } from "./ports.js";
 
 
@@ -66,7 +67,10 @@ export interface PluginManifestFieldDecl {
 
 /** `tovu.plugin.json` — the ecosystem compatibility surface (state.spec.md §2, ADR-004). */
 export interface PluginManifest {
+  /** Storage/activation key. Publisher identity lives in extensions[identityNamespace].id. */
   readonly id: string;
+  readonly keywords?: readonly string[];
+  readonly extensions?: Readonly<Record<string, PluginIdentityExtension>>;
   readonly name: string;
   readonly version: string;
   readonly sdkRange: string;
@@ -135,6 +139,7 @@ export interface ValidateManifestRequired<H extends HookPoints = HookPoints> ext
 export type ValidateManifestOptional = Record<string, never>;
 
 export interface ValidateManifestResult {
+  readonly warnings?: readonly string[];
   /** Every applicable error, collected — NOT first-failure (BR-02). Empty when the manifest is
    * statically valid (integrity/`sdkRange` are separate, load-pipeline-time checks, BR-01). */
   readonly errors: readonly PluginValidationError[];
@@ -166,7 +171,7 @@ const REQUIRED_KEYS = [
 ] as const;
 
 /** REQ-01's "parsed-and-stored but unused in v1" forward-compat keys — allowed, never validated. */
-const OPTIONAL_KEYS = ["adminSurfaces", "contentTypes", "provenance", "dependencies", "contributes"] as const;
+const OPTIONAL_KEYS = ["adminSurfaces", "contentTypes", "provenance", "dependencies", "contributes", "keywords", "extensions"] as const;
 
 const ALLOWED_KEYS = new Set<string>([...REQUIRED_KEYS, ...OPTIONAL_KEYS]);
 const VALID_TIERS = new Set<PluginTier>(["tier-1", "tier-2", "tier-3"]);
@@ -548,6 +553,7 @@ export function validateManifest<H extends HookPoints>(
 
   const errors: PluginValidationError[] = [
     ...validateKeys(raw),
+    ...validatePluginIdentity({ manifest: raw, namespace: required.identityNamespace ?? "tovu" }).errors.map(message => ({ code: "PLUGIN_IDENTITY_INVALID", file: null, message })),
     ...idErrors,
     ...validateIdentityFields(raw),
     ...validateEngine(raw),
@@ -560,5 +566,8 @@ export function validateManifest<H extends HookPoints>(
     ...required.declarativeContentTypes.validateManifest({ manifest: raw }).errors,
   ];
 
-  return { errors };
+  const warnings = errors.length === 0
+    ? readPluginIdentity({ manifest: raw, name: id!, namespace: required.identityNamespace ?? "tovu" }).warnings
+    : [];
+  return { errors, warnings };
 }

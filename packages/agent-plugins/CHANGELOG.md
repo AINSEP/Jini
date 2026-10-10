@@ -2,6 +2,8 @@
 
 ## 0.4.2
 
+- Use shared plugin identity metadata with a required `@jini-ai/core` peer at `^0.4.2`. Repair identity-lock publication syntax and isolate unreadable or invalid installed manifests with warnings so one damaged install cannot block healthy installs or bundled seeding.
+
 ### Patch Changes
 
 - Tovu clean-up release (2026-10-08): code Tovu moved into Jini, plus the Jini clean-up (see the commit log since 0.4.1).

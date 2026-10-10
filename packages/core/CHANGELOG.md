@@ -2,6 +2,8 @@
 
 ## 0.4.2 — pending release
 
+- Add source-backed `./plugin-directory` publisher identity and live metadata lookup. Warn and omit invalid advisory keywords; scope legacy `unknown/<name>` IDs to each plugin family, with optional family selection for ambiguous lookups.
+
 - Own generic settings at `./settings` and its optional Express adapter at `./settings/express`; keep both out of the root runtime closure. Move the existing permission helper into core, preserving the CMS command denial class through re-export.
 
 - Own the shared surface-exchange interfaces and reserved parameter constants, formerly declared in daemon. Add the `SurfaceAskThenReport` port so UI can consume the existing daemon lifecycle without depending on its runtime.

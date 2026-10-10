@@ -20,17 +20,23 @@
       "./contribution-registry": "universal",
       "./naming": "universal",
       "./primitives": "universal",
+      "./fetch": "universal",
       "./text": "universal",
       "./settings": "universal",
-      "./settings/express": "node"
+      "./settings/express": "node",
+      "./plugin-directory": "universal"
     },
     "isolation": {
       "entries": {
         "./primitives": "core",
+        "./fetch": "fetch",
         "./settings": "settings",
         "./settings/express": "settings"
       },
       "domains": {
+        "fetch": [
+          "src/fetch"
+        ],
         "settings": [
           "src/settings"
         ]
@@ -100,6 +106,11 @@
       "import": "./dist/primitives/index.js",
       "default": "./dist/primitives/index.js"
     },
+    "./fetch": {
+      "types": "./dist/fetch/index.d.ts",
+      "import": "./dist/fetch/index.js",
+      "default": "./dist/fetch/index.js"
+    },
     "./text": {
       "types": "./dist/text/index.d.ts",
       "import": "./dist/text/index.js",
@@ -114,6 +125,11 @@
       "types": "./dist/settings/express/index.d.ts",
       "import": "./dist/settings/express/index.js",
       "default": "./dist/settings/express/index.js"
+    },
+    "./plugin-directory": {
+      "types": "./plugin-directory.d.ts",
+      "import": "./plugin-directory.js",
+      "default": "./plugin-directory.js"
     }
   },
   "files": [
@@ -127,7 +143,9 @@
     "!dist/**/*.test.d.ts.map",
     "!dist/**/__tests__/**",
     "!dist/**/*.typecheck.*",
-    "!dist/**/*.map"
+    "!dist/**/*.map",
+    "plugin-directory.js",
+    "plugin-directory.d.ts"
   ],
   "publishConfig": {
     "access": "public",

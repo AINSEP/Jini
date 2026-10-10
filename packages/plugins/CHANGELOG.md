@@ -9,6 +9,8 @@
 
 ## Unreleased
 
+- Share publisher identity validation with core, retain the built-in incumbent on duplicate publisher IDs, and omit broken unrelated installed manifests from admission with warnings while preserving link refusals.
+
 - Publish the plugin host runtime at universal `./host` and Node `./host/node`, `./host/worker`,
   `./host/sql`; keep `./glue` unchanged. Require host SDK/catalog, declaration, tier, executable
   import/digest, archive and storage-table ports; preserve package layout, diagnostics and states.

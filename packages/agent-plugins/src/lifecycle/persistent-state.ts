@@ -1,4 +1,5 @@
 import { createPluginMemory, migratePluginLayout, assertPluginStatePath, withPluginStateLock } from '../../core/persistent-state.js';
+import path from 'node:path';
 import { withFileLock } from '@jini-ai/platform/fs/file-lock';
 import { createPackagePathsModule } from './package-paths.js';
 import { parseAgentPluginManifest } from './manifest.js';
@@ -18,6 +19,8 @@ export function createPersistentStateModule(ports: AgentPluginLifecyclePorts, _o
     }),
   };
   return {
+    withIdentityLock: <T>(required: { workspaceRoot: string; run(): Promise<T> }, _optional = {}) =>
+      effects.withLock({ lockPath: path.join(required.workspaceRoot, '.publisher-identity.lock'), run: required.run }),
     withPluginLock: <T>(required: { workspaceRoot: string; pluginId: string; run(): Promise<T> }, optional = {}) => withPluginStateLock({ ...effects, ...required }, optional),
     memory: (required: { workspaceRoot: string; pluginId: string }, optional = {}) => createPluginMemory({ ...effects, ...required }, optional),
     assertOwnedPath: (required: { workspaceRoot: string; entryPath: string }, optional = {}) => assertPluginStatePath({ ...effects, ...required }, optional),

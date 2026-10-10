@@ -95,19 +95,16 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
     "yazl": "^3.3.1",
-    "@jini-ai/core": "^0.4.0",
+    "@jini-ai/core": "^0.4.2",
     "@jini-ai/platform": "^0.5.0"
   },
   "peerDependencies": {
     "yauzl": "^3.4.0",
-    "@jini-ai/core": "^0.4.0",
+    "@jini-ai/core": "^0.4.2",
     "@jini-ai/platform": "^0.5.0"
   },
   "peerDependenciesMeta": {
     "yauzl": {
-      "optional": true
-    },
-    "@jini-ai/core": {
       "optional": true
     },
     "@jini-ai/platform": {

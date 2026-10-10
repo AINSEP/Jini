@@ -9,6 +9,8 @@ export interface InstalledAgentPluginSkill {
 }
 
 export interface InstalledAgentPlugin {
+  readonly id?: string | undefined;
+  readonly provides?: readonly string[] | undefined;
   readonly pluginId: string;
   readonly version?: (string) | undefined;
 

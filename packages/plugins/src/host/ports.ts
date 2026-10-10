@@ -14,6 +14,7 @@ export type ExtPatch = Readonly<Record<string, string | number | boolean>>;
 export type BeforeSaveFilter = (entry: Readonly<ContentEntryDraft>, ctx: HookContext) => ExtPatch | Promise<ExtPatch>;
 export type HookPoints = Readonly<Record<string, unknown>>;
 export interface PluginSdk<H extends HookPoints = HookPoints> {
+  readonly plugins?: import("@jini-ai/core/plugin-directory").PluginLookupPort;
   readonly content: { read(): Readonly<ContentEntryDraft>; extend(field: string, value: string | number | boolean): void };
   addFilter<K extends keyof H & string>(hookName: K, filter: H[K] extends (...args: never[]) => unknown ? H[K] : BeforeSaveFilter): void;
   addAction(...args: never[]): void;
@@ -51,6 +52,8 @@ export interface DeclarativeContentTypesPort {
   apply(required: { ports: DeclaredContentTypePorts; workspaceId: string; pluginId: string; plan: DeclaredContentTypePlan }, optional?: Record<string, never>): Promise<unknown>;
 }
 export interface ManifestHostPorts<H extends HookPoints = HookPoints> {
+  /** Namespace containing publisher id/provides; default retains the existing site contract. */
+  readonly identityNamespace?: string;
   readonly pluginSdkBinding: PluginSdkBinding<H>;
   readonly capabilityVocabulary: readonly string[];
   readonly declarativeContentTypes: DeclarativeContentTypesPort;

@@ -52,6 +52,7 @@
  * own "receives a JS value, never a file path or raw bytes" contract. `install.ts` is the only
  * caller that reads the file and hands the parsed value here.
  */
+import { readPluginIdentity, validatePluginIdentity } from "@jini-ai/core/plugin-directory";
 export { validatePluginManifest, validateMcpManifest } from '../manifest.js';
 export type { PluginManifest, McpManifest, McpServerEntry } from '../manifest.js';
 import type { PluginManifestAuthor } from '../manifest.js';
@@ -84,6 +85,9 @@ export interface AgentPluginManifest {
   readonly license?: (string) | undefined;
   readonly keywords?: (readonly string[]) | undefined;
   readonly extensions?: (Readonly<Record<string, unknown>>) | undefined;
+  /** Normalized publisher identity, independent of name/storage key and version. */
+  readonly id?: string | undefined;
+  readonly provides?: readonly string[] | undefined;
 }
 
 export type ParseAgentPluginManifestResult =
@@ -107,14 +111,6 @@ function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>
  */
 function coerceOptionalString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
-}
-
-/**
- * `value` narrowed to a `string[]` (non-string entries dropped), or `undefined` when `value`
- * itself isn't an array — `keywords`'s own coercion.
- */
-function coerceStringArray(value: unknown): readonly string[] | undefined {
-  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : undefined;
 }
 
 function parseManifestAuthor(value: unknown): string | PluginManifestAuthor | undefined {
@@ -152,7 +148,7 @@ function resolveManifestName(raw: Readonly<Record<string, unknown>>): { name: st
  * `plugin-runtime/discovery.ts`).
  * @complexity O(k + n) time and space in the input keys and keyword entries.
  */
-export function parseAgentPluginManifest({ value }: { readonly value: unknown }): ParseAgentPluginManifestResult {
+export function parseAgentPluginManifest({ value }: { readonly value: unknown }, { identityNamespace = "tovu" }: { readonly identityNamespace?: string } = {}): ParseAgentPluginManifestResult {
   if (!isJsonObject(value)) return { ok: false, errors: ["plugin.json must be a JSON object"] };
 
   const raw = value;
@@ -172,15 +168,20 @@ export function parseAgentPluginManifest({ value }: { readonly value: unknown })
     if (!KNOWN_MANIFEST_KEYS.has(key)) warnings.push(`unrecognized plugin.json field '${key}' (ignored per spec)`);
   }
 
+  errors.push(...validatePluginIdentity({ manifest: raw, namespace: identityNamespace }).errors);
   if (errors.length > 0) return { ok: false, errors };
+  const identity = readPluginIdentity({ manifest: raw, namespace: identityNamespace });
+  warnings.push(...identity.warnings);
 
   const manifest: AgentPluginManifest = {
     name: nameResult.name as string,
+    id: identity.id,
+    provides: identity.provides,
     version: coerceOptionalString(raw.version),
     description: coerceOptionalString(raw.description),
     author: parseManifestAuthor(raw.author),
     license: coerceOptionalString(raw.license),
-    keywords: coerceStringArray(raw.keywords),
+    keywords: raw.keywords === undefined ? undefined : identity.keywords,
     ...(isJsonObject(raw.extensions) ? { extensions: raw.extensions } : {}),
   };
   return { ok: true, manifest, warnings };

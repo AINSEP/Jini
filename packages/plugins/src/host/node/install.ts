@@ -1,3 +1,4 @@
+import { readPluginIdentity, assertPluginIdentityAvailable } from "@jini-ai/core/plugin-directory";
 /** Local-install environment consent is host-owned; archiveReader owns zip-slip/decompression
  * checks and tierPolicy.checkInstall owns publisher admission. */
 /** Site plugin folder installer governed by plugin-install-plan.md, M1a.
@@ -5,7 +6,7 @@
  * Staging is a sibling of discovery's root, on the same filesystem, so partial copies never list.
  */
 import { constants } from "node:fs";
-import { lstat, realpath, readdir, open, mkdir, mkdtemp, writeFile, rename, rm } from "node:fs/promises";
+import { lstat, realpath, readdir, readFile, open, mkdir, mkdtemp, writeFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import * as semver from "semver";
@@ -18,6 +19,10 @@ export class PluginInstallError extends Error {
   constructor(public readonly code: string, message: string) { super(message); this.name = "PluginInstallError"; }
 }
 export interface PluginInstallPreview {
+  readonly warnings?: readonly string[];
+  readonly publisherId?: string;
+  readonly provides?: readonly string[];
+  readonly keywords?: readonly string[];
   id: string; name: string; version: string; tier: PluginTier;
   capabilities: readonly string[]; hooks: readonly string[];
   /** `false` only for a tier-1 (manifest-only) package — the runtime never imports anything for it. */
@@ -30,9 +35,16 @@ export interface PluginInstallPreview {
 }
 export type PluginInstallInput = ({ sourceDir: string; archive?: never } | { archive: Uint8Array; sourceDir?: never }) & { replace?: boolean };
 export interface PluginInstallDeps extends ManifestHostPorts {
+  readonly warn?: (message: string) => void;
   readonly archiveReader: ArchiveReaderPort;
   readonly tierPolicy: PluginTierPolicy;
   installDir: string; builtInIds: readonly string[];
+  /** Built-in publisher reservations, independent of their local storage ids. Hosts supplying
+   * only builtInIds must wrap publication in their cross-family identity-admission transaction;
+   * publisher identities cannot be inferred from a local name or extension namespace. */
+  readonly builtInManifests?: readonly PluginManifest[];
+  /** Installed-neighbour reads only; extraction and publication retain their native effects. */
+  readonly identityFilesystem?: Pick<typeof import('node:fs/promises'), 'lstat' | 'readdir' | 'readFile'>;
   repo: Pick<PluginActivationRepoPort, "listAll">;
   /** Names the staged manifest would take that core or an enabled plugin already holds. Install is
    *  site-wide but activation is per workspace: the admin root answers for the workspace it serves
@@ -140,7 +152,57 @@ function validatePackage(files: Map<string, Buffer>, deps: PluginInstallDeps): P
 
 async function checkDestination(manifest: PluginManifest, input: PluginInstallInput, deps: PluginInstallDeps): Promise<string | undefined> {
   const root = path.resolve(deps.installDir);
-  const entries = await readdir(root).catch((e: NodeJS.ErrnoException) => { if (e.code === "ENOENT") return []; throw e; });
+  const scan = deps.identityFilesystem ?? { lstat, readdir, readFile };
+  const entries = await scan.readdir(root).catch((e: NodeJS.ErrnoException) => { if (e.code === "ENOENT") return []; throw e; });
+  const identity = readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name: manifest.id, namespace: deps.identityNamespace ?? "tovu" });
+  const candidate = { ...identity, family: "site-runtime", localId: manifest.id };
+  const builtIns = (deps.builtInManifests ?? []).map(builtIn => ({
+    ...readPluginIdentity({ manifest: builtIn as unknown as Readonly<Record<string, unknown>>, name: builtIn.id, namespace: deps.identityNamespace ?? "tovu" }),
+    family: "site-runtime", localId: builtIn.id, version: builtIn.version, enabled: false,
+  }));
+  try { assertPluginIdentityAvailable({ candidate, installed: builtIns }); }
+  catch { fail("PLUGIN_ID_CONFLICT", "The publisher-qualified plugin id conflicts with an installed package."); }
+  const warnUnavailableSlot = (localId: string, error: unknown) => {
+    if (!['ENOENT', 'EACCES'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
+    // A disappearing/unreadable neighbour is isolated; link refusals and other I/O faults remain fatal.
+    (deps.warn ?? console.warn)(`Plugin '${localId}': installed slot is unavailable; omitted from identity admission.`);
+  };
+  for (const localId of entries) {
+    const slot = path.join(root, localId);
+    let versions: string[];
+    try {
+      const info = await scan.lstat(slot);
+      if (info.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Installed plugin directory must not be a link.");
+      if (!info.isDirectory()) continue;
+      versions = await scan.readdir(slot);
+    } catch (error) { warnUnavailableSlot(localId, error); continue; }
+    for (const version of versions) {
+      if (!semver.valid(version)) continue;
+      const versionDir = path.join(slot, version);
+      try {
+        const versionInfo = await scan.lstat(versionDir);
+        if (versionInfo.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Installed plugin version must not be a link.");
+        if (!versionInfo.isDirectory()) continue;
+      } catch (error) { warnUnavailableSlot(localId, error); continue; }
+      const manifestPath = path.join(versionDir, MANIFEST);
+      let installed: ReturnType<typeof readPluginIdentity>;
+      try {
+        const manifestInfo = await scan.lstat(manifestPath);
+        if (!manifestInfo.isFile() || manifestInfo.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Installed plugin manifests must not be links.");
+        const installedManifest = JSON.parse(await scan.readFile(manifestPath, "utf8"));
+        installed = readPluginIdentity({ manifest: installedManifest, name: localId, namespace: deps.identityNamespace ?? "tovu" });
+      } catch (error) {
+        if (error instanceof PluginInstallError) throw error;
+        // Preserve link refusals while isolating one broken unrelated manifest.
+        (deps.warn ?? console.warn)(`Plugin '${localId}': installed identity manifest is unreadable or invalid; omitted from identity admission.`);
+        continue;
+      }
+      try {
+        assertPluginIdentityAvailable({ candidate,
+          installed: [{ ...installed, family: "site-runtime", localId, version, enabled: false }] });
+      } catch { fail("PLUGIN_ID_CONFLICT", "The publisher-qualified plugin id conflicts with an installed package."); }
+    }
+  }
   if (entries.some((name) => name.toLowerCase() === manifest.id.toLowerCase() && name !== manifest.id)) fail("PLUGIN_ID_CONFLICT", "A plugin id differs only by letter case.");
   if (await exists(path.join(path.dirname(root), path.basename(root) + "-trash", manifest.id))) fail("PLUGIN_IN_TRASH", "Restore or delete this plugin in Trash first.");
   if ((await deps.repo.listAll()).some((row) => row.pluginId.toLowerCase() === manifest.id.toLowerCase() && row.enabled)) fail("PLUGIN_ENABLED", "Turn the plugin off in every workspace first.");
@@ -162,7 +224,8 @@ async function inspect(input: PluginInstallInput, deps: PluginInstallDeps) {
   const upgradeFrom = await checkDestination(manifest, input, deps);
   // Include manifest bytes: changed capabilities/name/version must invalidate human consent too.
   const digest = hash(Buffer.from(JSON.stringify([...files].map(([key, bytes]) => [key, hash(bytes)]).sort(([a], [b]) => a! < b! ? -1 : a! > b! ? 1 : 0))));
-  const preview: PluginInstallPreview = { id: manifest.id, name: manifest.name, version: manifest.version, tier: manifest.tier, capabilities: manifest.capabilities, hooks: manifest.hooks, hasCode: manifest.tier !== "tier-1", contentTypes: deps.declarativeContentTypes.parse({ value: manifest.contentTypes }).decls.map((decl) => decl.key), conflicts: await deps.conflicts({ manifest }), digest, ...(upgradeFrom ? { upgradeFrom } : {}) };
+  const identity = readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name: manifest.id, namespace: deps.identityNamespace ?? "tovu" });
+  const preview: PluginInstallPreview = { warnings: identity.warnings, publisherId: identity.id, provides: identity.provides, keywords: identity.keywords, id: manifest.id, name: manifest.name, version: manifest.version, tier: manifest.tier, capabilities: manifest.capabilities, hooks: manifest.hooks, hasCode: manifest.tier !== "tier-1", contentTypes: deps.declarativeContentTypes.parse({ value: manifest.contentTypes }).decls.map((decl) => decl.key), conflicts: await deps.conflicts({ manifest }), digest, ...(upgradeFrom ? { upgradeFrom } : {}) };
   return { files, manifest, preview };
 }
 

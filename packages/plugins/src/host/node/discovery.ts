@@ -1,3 +1,4 @@
+import { readPluginIdentity } from "@jini-ai/core/plugin-directory";
 /** Site tier admission belongs to tierPolicy.siteErrors; static validation uses host-supplied
  * catalogs and declaration grammar. */
 /**
@@ -254,5 +255,19 @@ export async function discoverPlugins(
     siteRecords = markCaseInsensitiveDuplicates(candidates.filter((r): r is PluginDiscoveryRecord => r !== null));
   }
 
-  return orderTb01([...builtInRecords, ...siteRecords]);
+  const records = orderTb01([...builtInRecords, ...siteRecords]);
+  const qualifiedIds = new Set<string>();
+  // TB-01 places built-ins first: the incumbent keeps its id; only later claims are invalid.
+  // Disabled valid installs still own ids.
+  return records.map(record => {
+    if (record.status !== "valid" || !record.manifest) return record;
+    const identity = readPluginIdentity({ manifest: record.manifest as unknown as Readonly<Record<string, unknown>>, name: record.id, namespace: required.identityNamespace ?? "tovu" });
+    if (!qualifiedIds.has(identity.id)) {
+      qualifiedIds.add(identity.id);
+      return { ...record, warnings: identity.warnings };
+    }
+    return { ...record, status: "invalid" as const, manifest: undefined, warnings: identity.warnings,
+      errors: [...record.errors, { code: "PLUGIN_ID_DUPLICATE", file: null, message: `duplicate publisher-qualified plugin id '${identity.id}'` }],
+    };
+  });
 }

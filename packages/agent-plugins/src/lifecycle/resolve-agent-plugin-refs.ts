@@ -1,3 +1,4 @@
+import { listInstalledPackageRoots, INSTALLED_PLUGIN_DIGEST_PATTERN } from "./installed-package-roots.js";
 /**
  * @file Resolves a run's pinned Agent Plugin refs (`pluginRefIds` — `run-start-context.ts`'s
  * decoded `contextRef` field, itself sourced from the composer's `pluginRefId` chips,
@@ -90,13 +91,11 @@ export type ResolveAgentPluginRefsResult =
 function buildModule(ports: AgentPluginLifecyclePorts) {
   const persistentState = createPersistentStateModule(ports);
   const { assertContainedOnDisk } = createPackagePathsModule(ports);
-  const readdir = ports.filesystem.readdir.bind(ports.filesystem);
   const stat = ports.filesystem.stat.bind(ports.filesystem);
   const { resolveAgentPluginActivation } = createActivationModule(ports);
   const { preferBundledAgentPluginDigests, readBundledAgentPluginDigests } = createBundledDigestsModule(ports);
   const { indexInstalledRoot } = createInstallModule(ports);
   const { readInstalledSkillMarkdown } = createCapabilityProjectionModule(ports);
-  const SHA256_DIGEST_DIRNAME_PATTERN = /^[a-f0-9]{64}$/;
 
 
   /** Reads the delivery mode for this process. An unset or unrecognised value is `inject` — an A/B
@@ -186,27 +185,13 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  *  re-walking `packages/sha256/*` a second, less-validated way keeps the digest-directory-name check
  *  and the per-digest failure isolation in exactly one place. */
   async function listInstalledPlugins(workspaceRoot: string): Promise<readonly InstalledAgentPlugin[]> {
-    let folders;
-    try { folders = await readdir(workspaceRoot, { withFileTypes: true }); }
-    catch (error) { if (isEnoent(error)) return []; throw error; }
     const installed: InstalledAgentPlugin[] = [];
-    for (const folder of folders) {
-      if (!folder.isDirectory() || !/^[a-z0-9]+(?:[-.][a-z0-9]+)*$/.test(folder.name) || folder.name.length > 64) continue;
-      const packagesDir = path.join(workspaceRoot, folder.name, "package", "sha256");
-      let entries;
+    for (const root of await listInstalledPackageRoots({ ports, workspaceRoot })) {
       try {
-        await persistentState.assertOwnedPath({ workspaceRoot, entryPath: path.relative(workspaceRoot, packagesDir) });
-        entries = await readdir(packagesDir, { withFileTypes: true });
-      } catch { continue; }
-      for (const entry of entries) {
-        if (!entry.isDirectory() || !SHA256_DIGEST_DIRNAME_PATTERN.test(entry.name)) continue;
-        try {
-          const packageRoot = await assertContainedOnDisk(workspaceRoot, path.relative(workspaceRoot, path.join(packagesDir, entry.name)));
-          const plugin = await indexInstalledRoot(packageRoot, entry.name);
-          if (plugin.pluginId === folder.name) installed.push(plugin);
-        } catch {
-          // One corrupt package never hides another plugin. Memory-only folders are not installs.
-        }
+        const plugin = await indexInstalledRoot(root.packageRoot, root.archiveDigest);
+        if (plugin.pluginId === root.localId) installed.push(plugin);
+      } catch {
+        // One corrupt package never hides another plugin. Memory-only folders are not installs.
       }
     }
     return installed;
@@ -235,16 +220,12 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  * @complexity One `stat`.
  */
   async function isInstalledDigestPresent(packagesDir: string, archiveDigest: string): Promise<boolean> {
-    if (!SHA256_DIGEST_DIRNAME_PATTERN.test(archiveDigest)) return false;
+    if (!INSTALLED_PLUGIN_DIGEST_PATTERN.test(archiveDigest)) return false;
     try {
       return (await stat(path.join(packagesDir, archiveDigest))).isDirectory();
     } catch {
       return false;
     }
-  }
-
-  function isEnoent(error: unknown): boolean {
-    return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "ENOENT";
   }
 
   /**

@@ -70,6 +70,8 @@ export interface AgentPluginSearchCandidate {
   readonly summary?: string | undefined;
   readonly description?: (string) | undefined;
   readonly keywords: readonly string[];
+  readonly id?: string | undefined;
+  readonly provides?: readonly string[] | undefined;
 
   /** Whether this workspace currently has the plugin enabled — reflects `activation.ts`'s
    *  absent-means-active default, same as everywhere else this codebase reads activation state. */
@@ -108,8 +110,8 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  *  plain, independently-readable list rather than interleaved with the scoring loop itself. */
   function fieldHaystacks(candidate: AgentPluginSearchCandidate): readonly { readonly text: string; readonly weight: number }[] {
     return [
-      { text: candidate.pluginId.toLowerCase(), weight: ID_FIELD_WEIGHT },
-      { text: candidate.keywords.join(" ").toLowerCase(), weight: KEYWORD_FIELD_WEIGHT },
+      { text: `${candidate.pluginId} ${candidate.id ?? ""}`.toLowerCase(), weight: ID_FIELD_WEIGHT },
+      { text: [...candidate.keywords, ...(candidate.provides ?? [])].join(" ").toLowerCase(), weight: KEYWORD_FIELD_WEIGHT },
       { text: (candidate.description ?? "").toLowerCase(), weight: DESCRIPTION_FIELD_WEIGHT },
       {
         text: candidate.skills.map((skill) => `${skill.name} ${skill.summary}`).join(" ").toLowerCase(),

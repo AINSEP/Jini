@@ -3,6 +3,10 @@
  * ships as — written by `seed-bundled.ts` on every boot, read by the surfaces that have to pick one
  * installed package for a plugin id.
  *
+ * Current install policy (frpid, 2026-10-09): successful publication prunes superseded revisions.
+ * The rationale below describes retained legacy stores and interrupted cleanup. This ledger still
+ * selects the build's authoritative digest there; the ledger itself never deletes package bytes.
+ *
  * ---------------------------------------------------------------------------
  * The gap this closes
  * ---------------------------------------------------------------------------
