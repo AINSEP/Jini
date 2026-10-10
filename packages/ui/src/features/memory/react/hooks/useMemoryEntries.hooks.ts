@@ -28,7 +28,7 @@ import type {
   MemoryTreeNode,
   MemoryType,
 } from '../../types.js';
-import { memoryEntriesPort } from '../../dependencies.js';
+import { useMemoryPorts } from '../MemoryPorts.js';
 
 /** Runtime coordination the entries hook receives from a host: fire a flash
  *  pill, hydrate the config flags off the shared GET, and open/close the
@@ -389,10 +389,9 @@ export function useMemoryEntries(port: MemoryEntriesPort, coord: MemoryEntriesCo
 }
 
 /**
- * Wirer: binds the real entries transport and returns a hook that still takes
- * a host's runtime coordination. The default a host injects; swap it via the
- * component prop in tests.
+ * Reads the host-injected entries port from MemoryPortsProvider (required),
+ * retaining the host's runtime coordination. No /api/memory* transport is chosen implicitly.
  */
 export function useWiredMemoryEntries(coord: MemoryEntriesCoordination): MemoryEntriesController {
-  return useMemoryEntries(memoryEntriesPort, coord);
+  return useMemoryEntries(useMemoryPorts().entries, coord);
 }

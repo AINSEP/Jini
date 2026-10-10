@@ -14,7 +14,7 @@ import { englishComments, type CommentsTranslator } from '../messages.en.js';
  */
 export function createCommentQueueController(
   { api, permissions = [] }: { api: AdminCommentsPort; permissions?: readonly string[] },
-  { t = englishComments, onInvalidate }: { t?: CommentsTranslator; onInvalidate?: () => void } = {},
+  { t = englishComments, onInvalidate, loadPage }: { t?: CommentsTranslator; onInvalidate?: () => void; loadPage?: (required: { status: CommentStatus; cursor: string }) => Promise<AdminCommentsQueuePage> } = {},
 ) {
   const store = createControllerStore<CommentQueueState>({ initial: {
     status: 'pending', items: null, nextCursor: null, error: null, loadingMore: false,
@@ -100,7 +100,7 @@ export function createCommentQueueController(
     store.set({ patch: { loadingMore: true } });
     publishPages();
     try {
-      const page = await api.listCommentsQueue({}, { status, cursor: nextCursor });
+      const page = await (loadPage ? loadPage({ status, cursor: nextCursor }) : api.listCommentsQueue({}, { status, cursor: nextCursor }));
       if (generation !== pageGeneration || store.signal.aborted) return;
       morePages = [...morePages, ...page.items];
       store.set({ patch: { nextCursor: page.nextCursor } });

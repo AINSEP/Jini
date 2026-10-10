@@ -1,5 +1,5 @@
-import { useCallback, useEffect, type Dispatch, type SetStateAction } from 'react';
-import { useFetchQuery, useInvalidate } from '@jini-ai/ui/fetch-query';
+import { useCallback, useEffect, useMemo, useRef, type Dispatch, type SetStateAction } from 'react';
+import { useCachedLoader, useFetchQuery, useInvalidate } from '@jini-ai/ui/fetch-query';
 import { useController } from '../../../core/react/use-controller.js';
 import type { AdminComment, AdminCommentsPort, CommentModerationAction, CommentStatus } from '../../../core/ports/comments.js';
 import { createCommentQueueController } from '../../controllers/comment-queue.controller.js';
@@ -34,12 +34,23 @@ export function useCommentQueue(
 ): CommentQueueController {
   const invalidate = useInvalidate();
   const invalidateQueue = useCallback(() => invalidate({ key: KEYS.queueRoot }), [invalidate]);
+  const loadPageRef = useRef<((required: { status: CommentStatus; cursor: string }) => Promise<import('../../../core/ports/comments.js').AdminCommentsQueuePage>) | null>(null);
   const { controller, snapshot } = useController({
-    create: () => createCommentQueueController({ api, permissions }, { t, onInvalidate: invalidateQueue }),
+    create: () => createCommentQueueController({ api, permissions }, { t, onInvalidate: invalidateQueue, loadPage: required => loadPageRef.current!(required) }),
     dependencies: [api, invalidateQueue],
   });
   useEffect(() => { controller?.configure({ permissions, t }); }, [controller, permissions, t]);
   const status = snapshot?.status ?? 'pending';
+  const cursor = snapshot?.nextCursor ?? '';
+  const cursorKey = useMemo(() => [...KEYS.queue(status), 'cursor', cursor], [status, cursor]);
+  const fetchCursor = useCallback(() => api.listCommentsQueue({}, { status, cursor }), [api, status, cursor]);
+  const cursorLoader = useCachedLoader({ key: cursorKey, fetch: fetchCursor }, { staleTime: 0 });
+  // The gesture remains controller-owned, including its same-tick lock and generation fence.
+  // Only I/O changes: cursor pages now share page one's provider and status invalidation prefix.
+  loadPageRef.current = ({ status: requestedStatus, cursor: requestedCursor }) => cursorLoader.load({
+    key: [...KEYS.queue(requestedStatus), 'cursor', requestedCursor],
+    fetch: () => api.listCommentsQueue({}, { status: requestedStatus, cursor: requestedCursor }),
+  });
   const firstPage = useFetchQuery({ key: KEYS.queue(status), fetch: () => api.listCommentsQueue({}, { status }) });
   useEffect(() => { controller?.settleFirstPage({ page: firstPage.data ?? null, error: firstPage.error, status }); }, [controller, firstPage.data, firstPage.error, status]);
   // Stable identity avoids resubscribing on every render. The host filters out unrelated

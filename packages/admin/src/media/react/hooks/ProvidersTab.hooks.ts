@@ -1,3 +1,5 @@
+import { useFetchMutation } from '@jini-ai/ui/fetch-query';
+import { MEDIA_QUERY_KEYS, useMediaProvidersQuery } from './MediaQuery.hooks.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useMediaProvidersTab, sortProvidersByConfigured, isEntryPresent, isMarkerOnlyEntry,
@@ -15,6 +17,8 @@ function configuration({ items }: { items: readonly MediaProvider[] }, _optional
 
 export function useProvidersTab(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
   const { mediaProviders } = useMediaPorts();
+  const cached = useMediaProvidersQuery({ port: mediaProviders });
+  const reads = useRef(cached.loader); reads.current = cached.loader;
   const [discoveredCatalog, setDiscoveredCatalog] = useState<readonly MediaProviderOption[]>([]);
   const [visibleKeys, setVisibleKeys] = useState<ReadonlySet<string>>(() => new Set());
   const lifetime = useRef<AbortController | null>(null);
@@ -24,13 +28,13 @@ export function useProvidersTab(_required: Record<string, never> = {}, _optional
   }, [mediaProviders]);
   // Always invoke the hook. An unavailable optional port uses an inert, scoped fallback.
   // Reuse the established editor's send-time serialization, reload merge and clear rollback.
-  const editorPort = useMemo(() => {
+  const rawEditorPort = useMemo(() => {
     let lastRead: readonly MediaProvider[] = [];
     return {
       async fetchMediaProviders() {
         try {
           const signal = lifetime.current!.signal;
-          const items = await mediaProviders?.list({}, { signal });
+          const items = await reads.current.load();
           if (!items || signal.aborted) return null;
           lastRead = items;
           setDiscoveredCatalog(items.map(({ id, label }) => ({ id, label })));
@@ -70,6 +74,19 @@ export function useProvidersTab(_required: Record<string, never> = {}, _optional
       },
     };
   }, [mediaProviders]);
+  const save = useFetchMutation({ run: async ({ input }: { input: MediaProviderConfigurationMap }) => {
+    const result = await rawEditorPort.saveMediaProviders(input);
+    return result;
+  } }, { invalidates: [MEDIA_QUERY_KEYS.providers] });
+  const saves = useRef(save); saves.current = save;
+  const editorPort = useMemo(() => ({
+    fetchMediaProviders: async () => {
+      // staleTime: 0 on the loader forces a new settled read on explicit reload, while the
+      // initial editor read joins the observer's in-flight request instead of cancelling it.
+      return rawEditorPort.fetchMediaProviders();
+    },
+    saveMediaProviders: (providers: MediaProviderConfigurationMap) => saves.current.mutate({ input: providers }),
+  }), [rawEditorPort]);
   const editor = useMediaProvidersTab({ port: editorPort });
   const catalog = mediaProviders?.catalog ?? discoveredCatalog;
   const pinnedIds = mediaProviders?.pinnedProviderIds ?? [];

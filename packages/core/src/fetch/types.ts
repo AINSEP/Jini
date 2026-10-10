@@ -111,7 +111,9 @@ export interface CachedLoader<T> {
   // Non-reactive snapshot: use only as a render seed, never as the subsequent display truth.
   peek: () => T | undefined;
   
-  load: () => Promise<T>;
+  // Event-driven selections (cursor pages, row detail lookups) may name another key of
+  // the same resource type. They still share this provider's cache and error contract.
+  load: (required?: Pick<CachedLoaderOptions<T>, "key" | "fetch">) => Promise<T>;
   
   // A write response can replace the value immediately; an older load already in flight
   // must resolve to this replacement rather than overwrite it with a stale answer.

@@ -68,6 +68,7 @@ kernel · [README](packages/core/README.md)
 | `@jini-ai/core/contribution-registry` | Own a contribution collection with replacement by key and detached snapshots. | `createContributionRegistry` | universal | none yet |
 | `@jini-ai/core/naming` | Find collision-free names using the host's suffix and exhaustion policy. | `deriveAvailableName`, `deriveDuplicateName` | universal | Tovu: website |
 | `@jini-ai/core/primitives` | Canonical clocks, IDs, JSON, HTTP, inbound SSE framing, logging, Result and lexical path containment. | `Clock`, `IdGenerator`, `JsonValue`, `HttpClientPort`, `decodeSseFrames`, `parseSseRecord`, `pathContains` | universal | Tovu: website; Jini: agent-plugins, agent-runtime, agentic, analytics, chat, cms, cms-forms, commerce, daemon, db, desktop-host, devops, diagnostics, http-kit, infra, integrations, mcp, oauth, platform, protocol, registry, ui, user-management |
+| `@jini-ai/core/fetch` | Framework-neutral query keys, transport callbacks, cache and host clock/scheduler/environment ports. | `FetchQueryCache`, `QueryKey`, `QueryResult`, `FetchQueryEnvironmentPort` | universal | Tovu: admin; Jini: ui |
 | `@jini-ai/core/text` | Strip terminal controls, mask secrets and bound untrusted display text. | `sanitizeUntrustedText`, `stripControlSequences` | universal | Jini: cli, mcp |
 
 ## engine · `@jini-ai/protocol`
@@ -227,6 +228,7 @@ abstraction · [README](packages/platform/README.md)
 | `@jini-ai/platform/fs/guarded-reader` | Bounded filesystem reads with roots, deny rules and traversal limits. | `createNodeGuardedReaderFilesystem`, `createGuardedFileReader` | node | Tovu: website |
 | `@jini-ai/platform/fs/durable-json` | Atomic JSON replacement, corruption/quarantine handling and coordinated updates. | `createNodeDurableJsonPorts`, `createDurableJsonFile`, `salvageJsonPrefix` | node | Tovu: desktop |
 | `@jini-ai/platform/fs` | Atomic file/JSON writes, path containment, env-line helpers and shared file locks. | `writeFileAtomic`, `writeJsonFileAtomicAsync`, `resolvePathWithin`, `upsertEnvLine` | node | Jini: mcp, sidecar |
+| `@jini-ai/platform/fs` | Configurable shared directory homes, atomic registries, PID running leases and verified moves; reuses durable JSON/file locks. | `resolveDirectoryHome`, `createNodeDirectoryWorkspace`, `createDirectoryRegistry`, `createDirectoryRunningLock`, `selectWorkspaceDirectory`, `moveDirectoryVerified` | node | Tovu: website, desktop, dev scripts |
 | `@jini-ai/platform/net` | Shared private-IP, IPv6, loopback and external-provider hostname policies. | `isPrivateAddress`, `expandIpv6`, `isLoopbackApiHost` | node | Tovu: website; Jini: agent-runtime, cli, http-kit, integrations, mcp |
 | `@jini-ai/platform/net/endpoint-policy` | Browser-safe literal endpoint hostname policy; permits configured loopback without doing DNS/peer checks. | `isLoopbackApiHost`, `isBlockedExternalApiHostname` | universal | Jini: ui |
 | `@jini-ai/platform/fs/file-lock` | Sync/async cross-process locks with ownership checks and stale-owner policy. | `isContendedLockError`, `isLockStale`, `withFileLockSync` | node | Tovu: website; Jini: agent-plugins |
@@ -335,7 +337,7 @@ react-library · [README](packages/ui/README.md)
 | `@jini-ai/ui/remixicon.css` | Remix icon styling; no JavaScript exports. | stylesheet | browser | none yet |
 | `@jini-ai/ui/admin-widgets` | Rich select, info tips, expandable content, image previews and coming-soon widgets. | `Select`, `InfoTip`, `SeeMore`, `ImagePreviewModal` | browser | Tovu: admin; Jini: admin, user-management |
 | `@jini-ai/ui/panel-kit` | Focus/dirty/async/serial-write helpers, timestamp formatting and panel infrastructure. | `useFocusTrap`, `useDirtyGuard`, `useSerialWrites`, `formatTimestamp` | browser | Tovu: admin; Jini: commerce, user-management |
-| `@jini-ai/ui/fetch-query` | Owned query cache/provider, cached loaders, mutations and invalidation hooks. | `FetchQueryProvider`, `useFetchQuery`, `useFetchMutation`, `useCachedLoader` | browser | Tovu: admin |
+| `@jini-ai/ui/fetch-query` | React provider, cached loaders, mutations and invalidation hooks over core/fetch; deprecated neutral type re-exports. | `FetchQueryProvider`, `useFetchQuery`, `useFetchMutation`, `useCachedLoader` | browser | Tovu: admin |
 | `@jini-ai/ui/tab-strip` | Shared draggable/reorderable/closable tab strip, tabs and drag hooks. | `TabBar`, `TabStrip`, `TabStripItem`, `useTabStripDragReorder` | browser | Tovu: admin |
 | `@jini-ai/ui/admin-widgets.css` | Admin widget styling; no JavaScript exports. | stylesheet | browser | Tovu: admin |
 | `@jini-ai/ui/theme` | Validate/apply palettes, fonts and density; resolve user/system color scheme. | `AdminTheme`, `validateAdminTheme`, `applyAdminTheme`, `resolveColorScheme` | browser | Jini: admin |

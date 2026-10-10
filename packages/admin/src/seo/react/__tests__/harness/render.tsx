@@ -1,6 +1,6 @@
 import { createElement, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { render as renderOriginal, renderHook as renderHookOriginal, type RenderResult } from '@testing-library/react';
+import { render as renderOriginal, renderHook as renderHookOriginal, type RenderResult } from '../../../../__tests__/fetch-query-support.js';
 import { Dialog } from '@jini-ai/ui-kit/react';
 import { acceptsMedia } from '../../../../media/rules.js';
 import { SeoPortsContext, SeoOptionsContext } from '../../hooks/SeoPorts.hooks.js';
@@ -8,7 +8,7 @@ import { createMemorySeoApi } from '../../../adapters/memory.js';
 import type { SeoReactOptions, SeoMediaPickerSlotProps } from '../../options.js';
 import type { AdminMedia } from '../../../models.js';
 import { api } from './api.js';
-export * from '@testing-library/react';
+export * from '../../../../__tests__/fetch-query-support.js';
 
 /** Host-owned legacy picker fixture. Tests keep driving the source slot's callbacks and DOM;
  * the picker service itself has separate media conformance/render suites. */

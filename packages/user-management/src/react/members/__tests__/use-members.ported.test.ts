@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from '../../__tests__/fetch-query-support.js';
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AdminMember } from "../../models.js";
 import { createFakeMembersPort } from "../../testing.js";
@@ -234,5 +234,27 @@ describe("useMembers — a slow row's detail settle does not blank or error anot
     });
     expect(result.current.detailError).toBeNull();
     expect(result.current.detailLoadingId).toBeNull();
+  });
+});
+
+describe('Members shared query ownership', () => {
+  it('a successful disable refreshes a second mounted roster', async () => {
+    const port = createFakeMembersPort({}, { members: [MEMBER] });
+    const { result } = renderHook(() => ({ first: useMembers({ port, translate, queryScope: 'w1' }), second: useMembers({ port, translate, queryScope: 'w1' }) }));
+    await waitFor(() => expect(result.current.second.members).toEqual([MEMBER]));
+    act(() => result.current.first.setConfirmingDisable(MEMBER));
+    await act(async () => { await result.current.first.confirmDisable(); });
+    await waitFor(() => expect(result.current.second.members?.[0]?.status).toBe('disabled'));
+  });
+
+  it('keeps distinct workspace/session scopes isolated in the same provider', async () => {
+    const other = { ...MEMBER, id: 'm2', workspaceId: 'w2', email: 'other@example.com' };
+    const first = createFakeMembersPort({}, { members: [MEMBER] });
+    const second = createFakeMembersPort({}, { members: [other] });
+    const { result } = renderHook(() => ({ first: useMembers({ port: first, translate, queryScope: 'w1' }), second: useMembers({ port: second, translate, queryScope: 'w2' }) }));
+    await waitFor(() => {
+      expect(result.current.first.members).toEqual([MEMBER]);
+      expect(result.current.second.members).toEqual([other]);
+    });
   });
 });

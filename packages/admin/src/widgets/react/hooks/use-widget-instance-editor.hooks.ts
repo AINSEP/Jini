@@ -1,4 +1,5 @@
-import type { AdminWidget, AdminWidgetType, AdminWidgetWhereUsed, AdminWidgetRegionBinding, AdminWidgetArea, AdminWidgetPlacement, WidgetsTranslate as Translate } from '../../models.js';
+import { useWidgetInstanceQuery } from './WidgetsQuery.hooks.js';
+import type { AdminWidget, AdminWidgetType, AdminWidgetWhereUsed, WidgetsTranslate as Translate } from '../../models.js';
 import type { DirtyGuard } from '@jini-ai/ui/panel-kit';
 export interface WidgetInstanceEditorController {
   isNew: boolean;
@@ -31,7 +32,7 @@ export interface WidgetInstanceEditorController {
    *  needs it, not `t`. */
   locale: string;
 }
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { useDirtyGuard } from '@jini-ai/ui/panel-kit';
 import { useController } from '../../../core/react/use-controller.js';
 import { createWidgetInstanceEditorController } from '../../controllers/instance-editor.controller.js';
@@ -47,14 +48,15 @@ export function useWidgetInstanceEditor(
   { params, api, defaultConfig }: { params: WidgetEditorParams; api: AdminWidgetsPort; defaultConfig: (type: AdminWidgetType) => Record<string, unknown> },
   { t = widgetsEnglish, locale = 'en', navigate, slugRedirectPath }: { t?: Translate | undefined; locale?: string | undefined; navigate?: ((path: string, options?: { replace?: boolean }) => void) | undefined; slugRedirectPath?: WidgetSlugRedirectPath | undefined } = {},
 ): WidgetInstanceEditorController {
+  const cachedApi = useWidgetInstanceQuery({ api, widgetId: params.widgetId });
   const paramsRef = useRef(params);
   // Saves compare with the latest rendered identity, before a route effect can run.
   const renderedKey = useRef(widgetEntityKey({ params })); renderedKey.current = widgetEntityKey({ params });
   const latest = useRef({ t, navigate, slugRedirectPath }); latest.current = { t, navigate, slugRedirectPath };
-  const { controller, snapshot } = useController({ create: () => createWidgetInstanceEditorController({ api, params: paramsRef.current, defaultConfig }, {
+  const { controller, snapshot } = useController({ create: () => createWidgetInstanceEditorController({ api: cachedApi, params: paramsRef.current, defaultConfig }, {
     getEntityKey: () => renderedKey.current, t: key => latest.current.t(key), navigate: (path, options) => latest.current.navigate?.(path, options),
     slugRedirectPath: (base, id, item) => latest.current.slugRedirectPath?.(base, id, item) ?? null,
-  }), dependencies: [api, defaultConfig] }, { start: ({ controller }) => { void controller.load(); } });
+  }), dependencies: [cachedApi, defaultConfig] }, { start: ({ controller }) => { void controller.load(); } });
   useEffect(() => {
     if (paramsRef.current.widgetId === params.widgetId && paramsRef.current.widgetType === params.widgetType) return;
     paramsRef.current = params; controller?.setParams({ params });

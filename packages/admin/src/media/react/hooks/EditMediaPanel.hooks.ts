@@ -1,3 +1,4 @@
+import { useMediaLibraryQuery } from './MediaQuery.hooks.js';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useController } from '../../../core/react/use-controller.js';
 import { createEditMediaController } from '../../controllers/edit-media.controller.js';
@@ -12,9 +13,10 @@ export interface EditMediaPanelProps {
   readonly onClose: () => void;
 }
 export function useEditMediaPanel(props: EditMediaPanelProps, _optional: Record<string, never> = {}) {
+  const cached = useMediaLibraryQuery({ api: props.api }, { enabled: false });
   const { controller, snapshot } = useController({
-    create: () => createEditMediaController({ api: props.api, item: props.item }),
-    dependencies: [props.api, props.item.id],
+    create: () => createEditMediaController({ api: cached.api, item: props.item }),
+    dependencies: [cached.api, props.item.id],
   });
   const [copied, setCopied] = useState<Record<string, boolean>>({});
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());

@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup, act, configure } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act, configure } from '../../../__tests__/fetch-query-support.js';
 import { StrictMode, Suspense, createRef } from 'react';
 import { createAdmin, defineAdminModule } from '../../../core/module/index.js';
 import { mediaPickerToken } from '../../../contracts/media-picker.js';

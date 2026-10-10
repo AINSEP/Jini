@@ -3,6 +3,8 @@ import type { AdminSeoPort } from '../ports.js';
 import { initialEntryPickerState, describeSeoError } from '../models.js';
 import type { EntryPickerController, SeoTranslator, SeoErrorFormatter } from '../models.js';
 /** Two existing reads, combined posts first then pages; no new content repository. */
+/** @deprecated React entry picking uses the shared query owner in use-entry-picker.hooks.
+ * Retained for headless package consumers until an owner-approved export removal. */
 export function createEntryPickerController({ api }: { api: AdminSeoPort }, { t = key => key, describeError = describeSeoError }: { t?: SeoTranslator | undefined; describeError?: SeoErrorFormatter | undefined } = {}) {
   const store = createControllerStore<EntryPickerController>({ initial: initialEntryPickerState });
   async function load(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {

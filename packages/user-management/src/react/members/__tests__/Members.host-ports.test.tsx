@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen } from '../../__tests__/fetch-query-support.js';
 import { expect, it } from "vitest";
 import { Members } from "../../index.js";
 import { createFakeMembersPort } from "../../testing.js";

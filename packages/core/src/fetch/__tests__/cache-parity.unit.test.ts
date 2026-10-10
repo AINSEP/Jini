@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { FetchQueryCache, type FetchQueryEnvironmentPort } from '../cache.js';
+import { FetchQueryCache, type FetchQueryEnvironmentPort } from '../index.js';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

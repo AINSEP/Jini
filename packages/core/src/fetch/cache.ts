@@ -1,4 +1,4 @@
-import type { Clock } from '@jini-ai/core/primitives';
+import type { Clock } from '../primitives/time.js';
 import type { QueryKey } from './types.js';
 
 /**

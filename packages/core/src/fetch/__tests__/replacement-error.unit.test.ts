@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FetchQueryCache } from '../cache.js';
+import { FetchQueryCache } from '../index.js';
 
 describe('replacement writes supersede read failures', () => {
   it.each([false, true])('keeps a replacement successful after an older read rejects (cached: %s)', async cached => {

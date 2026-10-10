@@ -1,5 +1,6 @@
 import { describeSeoError } from '../../models.js';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
+import { useSeoEntryQuery } from './SeoQuery.hooks.js';
 import { useController } from '../../../core/react/use-controller.js';
 import { createSeoEntryController } from '../../controllers/seo-entry.controller.js';
 import { initialSeoEntryState } from '../../models.js';
@@ -8,11 +9,16 @@ import type { AdminSeoPort } from '../../ports.js';
 import { useSeoOptions, useSeoPorts } from './SeoPorts.hooks.js';
 export type { SeoEntryPanelController, SeoEntryPanelOptions } from '../../models.js';
 export function useSeoEntryPanel({ api, entryId }: { api: AdminSeoPort; entryId: string }, { t, describeError }: { t?: SeoTranslator | undefined; describeError?: SeoErrorFormatter | undefined } = {}): SeoEntryPanelController {
+  const cached = useSeoEntryQuery({ api, entryId });
   const translator = useRef(t);
   translator.current = t;
   const formatter = useRef(describeError);
   formatter.current = describeError;
-  const { controller, snapshot } = useController({ create: () => createSeoEntryController({ api, entryId }, { t: (key, vars) => translator.current?.(key, vars) ?? key, describeError: required => formatter.current ? formatter.current(required) : describeSeoError(required) }), dependencies: [api, entryId] }, { start: ({ controller }) => { void controller.load({}); } });
+  const { controller, snapshot } = useController({ create: () => createSeoEntryController({ api: cached.api, entryId }, { t: (key, vars) => translator.current?.(key, vars) ?? key, describeError: required => formatter.current ? formatter.current(required) : describeSeoError(required) }), dependencies: [cached.api, entryId] }, { start: ({ controller }) => { void controller.load({}); } });
+  useEffect(() => {
+    // Revalidation updates server truth without discarding touched override fields.
+    if (controller && cached.query.data) controller.set({ patch: cached.query.data });
+  }, [controller, cached.query.data]);
   const state = snapshot ?? initialSeoEntryState;
   return {
     ...state,

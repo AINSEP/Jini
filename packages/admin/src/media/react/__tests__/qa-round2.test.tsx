@@ -1,6 +1,6 @@
 import { Suspense, useState } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '../../../__tests__/fetch-query-support.js';
 import { createMemoryMediaApi } from '../../adapters/memory.js';
 import { createLibraryController } from '../../controllers/library.controller.js';
 import { createAdmin } from '../../../core/module/index.js';

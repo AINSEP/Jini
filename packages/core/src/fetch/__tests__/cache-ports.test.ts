@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { expect, it } from 'vitest';
-import { FetchQueryCache } from '../cache.js';
+import { FetchQueryCache } from '../index.js';
 
 it('uses host clock/scheduler ports and replacement supersedes an in-flight read', async () => {
   let now = 100;

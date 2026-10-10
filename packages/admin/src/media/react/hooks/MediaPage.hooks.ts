@@ -1,3 +1,5 @@
+import { useInvalidate } from '@jini-ai/ui/fetch-query';
+import { MEDIA_QUERY_KEYS, useMediaLibraryQuery, useMediaProvidersQuery } from './MediaQuery.hooks.js';
 import type { ReactNode } from 'react';
 import { createElement, createContext, useContext, useEffect, useState } from 'react';
 import type { ModulePageProps } from '../../../core/react/bind-react.js';
@@ -15,19 +17,16 @@ export interface MediaPageProps extends ModulePageProps { readonly headerActions
 export function useMediaPage(props: MediaPageProps, _optional: Record<string, never> = {}) {
   const [localTab, setLocalTab] = useState('all');
   const { mediaApi, mediaEvents, mediaProviders } = useMediaPorts();
-  const library = useController({ create: () => createLibraryController({ api: mediaApi }, { query: { filter: requestedFilter({ tabId: props.requestedTab ?? localTab }) } }), dependencies: [mediaApi] },
+  const cached = useMediaLibraryQuery({ api: mediaApi }, { enabled: props.description.visible });
+  const providers = useMediaProvidersQuery({ port: mediaProviders }, { enabled: props.description.visible && props.description.grants.includes('media.providers') });
+  const invalidate = useInvalidate();
+  const library = useController({ create: () => createLibraryController({ api: cached.api }, { query: { filter: requestedFilter({ tabId: props.requestedTab ?? localTab }) } }), dependencies: [cached.api] },
     { start: ({ controller }) => { if (props.description.visible) void controller.load(); } });
-  useEffect(() => props.description.visible ? mediaEvents?.subscribe({ onRefresh: () => { void library.controller?.load(); } }) : undefined,
-    [props.description.visible, mediaEvents, library.controller]);
-  const [providerCount, setProviderCount] = useState<number | null>(null);
-  useEffect(() => {
-    if (!props.description.visible || !mediaProviders || !props.description.grants.includes('media.providers')) return;
-    const abort = new AbortController();
-    void mediaProviders.list({}, { signal: abort.signal }).then(items => {
-      if (!abort.signal.aborted && items) setProviderCount(items.length);
-    }).catch(() => { /* An unavailable read is not evidence of a zero catalogue. */ });
-    return () => abort.abort();
-  }, [mediaProviders, props.description.grants, props.description.visible]);
+  useEffect(() => props.description.visible ? mediaEvents?.subscribe({ onRefresh: () => { invalidate({ key: MEDIA_QUERY_KEYS.root }); } }) : undefined,
+    [props.description.visible, mediaEvents, library.controller, invalidate]);
+  useEffect(() => { library.controller?.settleLibrary({ ...(cached.query.data ? { all: cached.query.data } : {}), error: cached.query.error }); }, [library.controller, cached.query.data, cached.query.error]);
+  /* An unavailable read is not evidence of a zero catalogue. */
+  const providerCount = providers.query.data?.length ?? null;
   const visible = props.description.visible
     ? props.description.tabs.filter((tab) => tab.visible)
     : [];

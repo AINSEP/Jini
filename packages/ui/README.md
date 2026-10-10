@@ -467,6 +467,8 @@ extraction job at the owner's direction.
 
 ## Kernel contracts
 
+Import `FetchQueryCache` and neutral query contracts from `@jini-ai/core/fetch`.
+The existing UI fetch-query entries retain deprecated type re-exports for compatibility.
 Fetch-query caches accept the shared `Clock` from `@jini-ai/core/primitives` through
 `new FetchQueryCache({}, { clock })`; clocks implement `nowMs()`. Freshness remains ten seconds
 by default and idle retention five minutes. Browser HTTP defaults now use injected

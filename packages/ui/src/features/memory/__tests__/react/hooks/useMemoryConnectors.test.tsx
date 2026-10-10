@@ -1,3 +1,6 @@
+import { createElement, type ReactNode } from 'react';
+import { MemoryPortsProvider } from '../../../react/MemoryPorts.js';
+import { memoryConfigPort as hostConfig, memoryEntriesPort as hostEntries, memoryExtractionsPort as hostExtractions, memoryConnectorsPort as hostConnectors } from '../../../dependencies.js';
 // Unit tests for the connectors cluster hook — the largest, most
 // concurrency-sensitive hook in the memory feature. The port-injection
 // paradigm pays off here: we drive the whole OAuth + scan/suggest/save flow
@@ -1554,7 +1557,7 @@ describe('useMemoryConnectors — multi-app plurals + non-Error save throw', () 
 describe('useWiredMemoryConnectors', () => {
   it('binds the real memoryConnectorsPort and returns a fully-populated controller', () => {
     window.sessionStorage.removeItem('jini:memory:pending-connector-auth');
-    const { result } = renderHook(() => useWiredMemoryConnectors(makeCoord()));
+    const { result } = renderHook(() => useWiredMemoryConnectors(makeCoord()), { wrapper: ({ children }: { children: ReactNode }) => createElement(MemoryPortsProvider, { ports: { config: hostConfig, entries: hostEntries, extractions: hostExtractions, connectors: hostConnectors }, children }) });
 
     // The real fake-catalogue port starts with no connectors, so all six
     // memory-connector apps come back as synthesized placeholder rows.

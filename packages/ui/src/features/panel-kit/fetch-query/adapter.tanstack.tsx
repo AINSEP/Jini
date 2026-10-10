@@ -1,11 +1,11 @@
 /** Optional TanStack translation layer. No library types escape the fetch-query contract. */
 import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { isCancelledError, QueryClient, QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
-import { DEFAULT_STALE_TIME, FetchQueryCache, IDLE_RETENTION, toQueryError, type FetchQueryEnvironmentPort } from './cache.js';
+import { DEFAULT_STALE_TIME, FetchQueryCache, IDLE_RETENTION, toQueryError, type FetchQueryEnvironmentPort } from '@jini-ai/core/fetch';
 import { browserFetchQueryEnvironment } from './environment.browser.js';
 import { resolveFetchQueryError, resolveFetchQueryStatus } from './adapter.react.js';
 import { FetchQueryBinding } from './binding.react.js';
-import type { CachedLoader, CachedLoaderOptions, FetchMutationOptions, FetchQueryAdapter, FetchQueryOptions, MutationResult, QueryKey, QueryResult } from './types.js';
+import type { CachedLoader, CachedLoaderOptions, FetchMutationOptions, FetchQueryAdapter, FetchQueryOptions, MutationResult, QueryKey, QueryResult } from '@jini-ai/core/fetch';
 
 interface Scope {
   client: QueryClient;
@@ -109,11 +109,15 @@ function useFetchQuery<T>({ key, fetch }: Pick<FetchQueryOptions<T>, 'key' | 'fe
   const query = useQuery<T, unknown>({ queryKey: key, queryFn: () => read({ scope, key, fetch }), enabled: enabled && online, staleTime, gcTime: gcTimeFor({ staleTime }) }, scope.client);
   const { refetch: refresh } = query;
   const refetch = useCallback(() => {
-    if (scope.environment.isOnline()) { void refresh(); return; }
+    if (scope.environment.isOnline()) {
+      supersedeInitialRead({ scope, key });
+      void refresh();
+      return;
+    }
     // Reconnect may already have started a fetch (re-enabled observer or provider refetch);
     // that request postdates this one, so join it instead of cancelling it into a duplicate.
     void scope.gate.runOnline({ run: () => refresh({ cancelRefetch: false }) });
-  }, [scope, refresh]);
+  }, [scope, refresh, JSON.stringify(key)]);
   useEffect(() => {
     if (!enabled || !refetchOnWindowFocus) return;
     return scope.environment.subscribeFocus({ listener: () => {
@@ -142,7 +146,7 @@ function useFetchMutation<TInput, TOutput>({ run }: Pick<FetchMutationOptions<TI
     onSuccess: () => {
       // Do not await dependent reads: the mutation promise means the write succeeded,
       // not that every list finished reloading. Refetches proceed on their own schedule.
-      for (const key of invalidates ?? []) void scope.client.invalidateQueries({ queryKey: key });
+      for (const key of invalidates ?? []) invalidateResource({ scope, key });
     },
   }, scope.client);
   const { mutateAsync, reset } = mutation;
@@ -163,13 +167,16 @@ function useCachedLoader<T>({ key, fetch }: Pick<CachedLoaderOptions<T>, 'key' |
     const options = { queryKey: key, queryFn: () => read({ scope, key, fetch }), staleTime, gcTime: gcTimeFor({ staleTime }) };
     return {
       peek: () => scope.client.getQueryData<T>(key),
-      load: () => scope.client.fetchQuery(options).catch(error => {
-        // A forced refresh can supersede a loader's request without aborting its transport.
-        // Follow the new request instead of exposing TanStack's cancellation vocabulary.
-        if (!isCancelledError(error)) throw error;
-        const query = scope.client.getQueryCache().find({ queryKey: key, exact: true })!;
-        return (query.promise ?? scope.client.getQueryData<T>(key)) as Promise<T> | T;
-      }),
+      load: (required = { key, fetch }) => {
+        const selected = { ...options, queryKey: required.key, queryFn: () => read({ scope, key: required.key, fetch: required.fetch }) };
+        return scope.client.fetchQuery(selected).catch(error => {
+          // A forced refresh can supersede a loader's request without aborting its transport.
+          // Follow the new request instead of exposing TanStack's cancellation vocabulary.
+          if (!isCancelledError(error)) throw error;
+          const query = scope.client.getQueryCache().find({ queryKey: required.key, exact: true })!;
+          return (query.promise ?? scope.client.getQueryData<T>(required.key)) as Promise<T> | T;
+        });
+      },
       replace: ({ value }: { value: T }) => {
         const query = scope.client.getQueryCache().build(scope.client, options);
         const history = historyFor({ scope, query });
@@ -181,10 +188,23 @@ function useCachedLoader<T>({ key, fetch }: Pick<CachedLoaderOptions<T>, 'key' |
   }, [scope, key, fetch, staleTime]);
 }
 
+/** A host write/refresh postdates the initial GET as well as a background GET. TanStack
+ * normally joins an initial fetch with no data, which would let that pre-write snapshot win.
+ * Cancel its cache ownership before requesting the replacement; transports need no abort API. */
+function supersedeInitialRead({ scope, key }: { scope: Scope; key: QueryKey }, { exact = true }: { exact?: boolean } = {}): void {
+  void scope.client.cancelQueries({ queryKey: key, exact, predicate: query => query.isActive() && query.state.data === undefined && query.state.fetchStatus === 'fetching' });
+}
+
+/** One invalidation path serves both imperative refreshes and accepted writes. */
+function invalidateResource({ scope, key }: { scope: Scope; key: QueryKey }, _optional: Record<string, never> = {}): void {
+  supersedeInitialRead({ scope, key }, { exact: false });
+  void scope.client.invalidateQueries({ queryKey: key });
+}
+
 /** Prefix invalidation also reaches child keys read by other mounted consumers. */
 function useInvalidate(): (required: { key: QueryKey }) => void {
-  const { client } = useScope();
-  return useCallback(({ key }: { key: QueryKey }) => { void client.invalidateQueries({ queryKey: key }); }, [client]);
+  const scope = useScope();
+  return useCallback(({ key }: { key: QueryKey }) => { invalidateResource({ scope, key }); }, [scope]);
 }
 
 const adapter: FetchQueryAdapter = { useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate };

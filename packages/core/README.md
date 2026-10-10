@@ -94,6 +94,7 @@ Tool handlers receive required execution context first and optional `{ emitSurfa
 
 | subpath | what's behind it |
 |---|---|
+| `./fetch` | Framework-neutral query contracts and `FetchQueryCache`; inject transport callbacks, `Clock`, scheduler and connectivity/focus ports. No React, DOM or TanStack dependency. |
 | `.` | The public surface above: tokens, packs, daemon composition, tool registry (descriptors only), principal, redact, auth primitives. |
 | `./composition` | **Not part of the public contract.** Exposes `authorizeToolInvocation` (resolves a registry's tool and runs its authorization gate — a security-sensitive value export, but one that only ever hands back a handler alongside an `'allow'` decision) plus type-only `AnyPack`/`RequiredTokenIds`/`MissingTokenIds` re-derivation helpers. Its sole intended consumers are `@jini-ai/daemon`'s `ToolExecutor` and `@jini-ai/server`'s `createLocalNodeDaemon`. Node's resolver will happily let any consumer import it — the boundary is enforced by `scripts/check-engine-boundaries.ts`, not by the exports map — so external adopters should treat it as off-limits regardless. |
 

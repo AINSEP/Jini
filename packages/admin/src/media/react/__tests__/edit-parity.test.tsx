@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { EditMediaPanel } from '../components/EditMediaPanel.js';
 import { useEditMediaPanel } from '../hooks/EditMediaPanel.hooks.js';
 import { createMemoryMediaApi } from '../../adapters/memory.js';

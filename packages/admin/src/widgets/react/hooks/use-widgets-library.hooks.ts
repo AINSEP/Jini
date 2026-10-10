@@ -1,5 +1,6 @@
-import type { AdminWidget, AdminWidgetType, AdminWidgetWhereUsed, AdminWidgetRegionBinding, AdminWidgetArea, AdminWidgetPlacement, WidgetsTranslate as Translate } from '../../models.js';
-import type { DirtyGuard } from '@jini-ai/ui/panel-kit';
+import { useInvalidate } from '@jini-ai/ui/fetch-query';
+import { WIDGET_QUERY_KEYS, useWidgetsListQuery } from './WidgetsQuery.hooks.js';
+import type { AdminWidget, AdminWidgetType, WidgetsTranslate as Translate } from '../../models.js';
 export interface WidgetsLibraryController {
   /** `null` until the initial load settles — the caller renders a loading state. */
   widgets: AdminWidget[] | null;
@@ -34,11 +35,13 @@ import { widgetsEnglish } from '../../messages.en.js';
 import { WIDGETS_LIBRARY_RESOURCE } from '../../rules.js';
 import { useWidgetsPorts, useWidgetsOptions } from './WidgetsPorts.hooks.js';
 export function useWidgetsLibrary({ api }: { api: AdminWidgetsPort }, { t = widgetsEnglish, locale = 'en', events }: { t?: Translate | undefined; locale?: string | undefined; events?: WidgetsEventsPort | undefined } = {}): WidgetsLibraryController {
+  const cached = useWidgetsListQuery({ api });
+  const invalidate = useInvalidate();
   const latestT = useRef(t); latestT.current = t;
-  const { controller, snapshot } = useController({ create: () => createWidgetsLibraryController({ api }, { t: key => latestT.current(key) }), dependencies: [api] }, { start: ({ controller }) => { void controller.load(); } });
-  useEffect(() => { if (!controller) return; return events?.subscribe({ resource: WIDGETS_LIBRARY_RESOURCE, onRefresh: () => { void controller.load(); } }); }, [controller, events]);
+  const { controller, snapshot } = useController({ create: () => createWidgetsLibraryController({ api: cached.api }, { t: key => latestT.current(key) }), dependencies: [cached.api] }, { start: ({ controller }) => { void controller.load(); } });
+  useEffect(() => { if (!controller) return; return events?.subscribe({ resource: WIDGETS_LIBRARY_RESOURCE, onRefresh: () => invalidate({ key: WIDGET_QUERY_KEYS.library }) }); }, [controller, events, invalidate]);
   const state = snapshot ?? { widgets: null, error: null, skippedCount: 0, skippedIds: [], createType: 'text', pendingTrash: null, trashingId: null };
-  return { ...state, trashing: state.pendingTrash !== null && state.trashingId === state.pendingTrash.id,
+  return { ...state, widgets: cached.query.data?.widgets ?? state.widgets, skippedCount: cached.query.data?.skippedCount ?? state.skippedCount, skippedIds: cached.query.data?.skippedIds ?? state.skippedIds, error: state.error ?? cached.query.error?.message ?? null, trashing: state.pendingTrash !== null && state.trashingId === state.pendingTrash.id,
     setCreateType: type => controller?.setCreateType({ type }), requestTrash: widget => controller?.requestTrash({ widget }),
     confirmTrash: async () => { await controller?.confirmTrash(); }, cancelTrash: () => controller?.cancelTrash(), t, locale };
 }

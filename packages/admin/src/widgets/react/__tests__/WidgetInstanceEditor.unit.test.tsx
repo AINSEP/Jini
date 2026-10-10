@@ -1,6 +1,6 @@
 import { useState } from "react";
 import userEvent from "@testing-library/user-event";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from '../../../__tests__/fetch-query-support.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WidgetInstanceEditor, widgetInstanceGuard } from "./fixtures/pages.js";

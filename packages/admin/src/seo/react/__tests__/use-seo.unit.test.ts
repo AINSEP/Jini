@@ -163,3 +163,24 @@ describe("SEO selection and modal state", () => {
     expect(result.current.entryId).toBe("");
   });
 });
+
+describe("SEO shared query ownership", () => {
+  it("a settings save updates a second mounted settings reader", async () => {
+    const port = createFakeSeoPort({ settings: settingsFixture({ titleTemplate: "%s | Before" }) });
+    const { result } = renderHook(() => ({ first: useSeo(port, "en"), second: useSeo(port, "en") }));
+    await waitFor(() => expect(result.current.second.settings?.titleTemplate).toBe("%s | Before"));
+    await act(async () => { await result.current.first.save({ titleTemplate: "%s | After" }); });
+    await waitFor(() => expect(result.current.second.settings?.titleTemplate).toBe("%s | After"));
+  });
+});
+
+
+it("revalidates shared SEO settings without replacing a sibling image draft", async () => {
+  const port = createFakeSeoPort({ settings: settingsFixture({ defaultOgImage: "media:baseline" }) });
+  const { result } = renderHook(() => ({ first: useSeo(port, "en"), second: useSeo(port, "en") }));
+  await waitFor(() => expect(result.current.second.defaultOgImage).toBe("media:baseline"));
+  act(() => { result.current.second.setDefaultOgImage("media:my-draft"); });
+  await act(async () => { await result.current.first.save({ defaultOgImage: "media:published" }); });
+  await waitFor(() => expect(result.current.second.settings?.defaultOgImage).toBe("media:published"));
+  expect(result.current.second.defaultOgImage).toBe("media:my-draft");
+});

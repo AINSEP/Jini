@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '../../../__tests__/fetch-query-support.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useMediaLightbox } from '../hooks/MediaLightbox.hooks.js';
 import type { MediaLightboxProps } from '../hooks/MediaLightbox.hooks.js';

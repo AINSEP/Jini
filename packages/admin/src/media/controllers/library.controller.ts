@@ -84,6 +84,16 @@ export function createLibraryController(
       if (ticket === generation) store.set({ patch: { loading: false } });
     }
   }
+  // A reactive cache observer may refresh this library without calling load again. Keep
+  // filtering/counts in the headless domain; accepting cache data must spend no extra read.
+  function settleLibrary({ all, error }: { all?: readonly MediaAsset[]; error?: Error | null }, _optional: Record<string, never> = {}) {
+    if (store.signal.aborted) return;
+    if (all) {
+      library = all;
+      store.set({ patch: { items: queryMedia({ media: all, query: store.getSnapshot().query }), counts: countMediaTabs({ media: all }), hasUntyped: all.some(item => item.contentType === null), error: null } });
+    }
+    if (error) store.set({ patch: { error: error.message } });
+  }
   let writes: Promise<unknown> = Promise.resolve();
   let exclusiveWrite = false;
   function write(run: () => Promise<unknown>, id?: string) {
@@ -119,6 +129,7 @@ export function createLibraryController(
     getSnapshot: store.getSnapshot,
     subscribe: store.subscribe,
     load,
+    settleLibrary,
     async setQuery({ query }: { query: MediaQuery }, _optional: Record<string, never> = {}) {
       // Already-fetched full library owns display order/filtering. Tab/search/order changes
       // never spend another request or flash a loading zero badge.

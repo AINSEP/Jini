@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import type { FetchQueryAdapter } from './types.js';
+import type { FetchQueryAdapter } from '@jini-ai/core/fetch';
 
 const AdapterContext = createContext<FetchQueryAdapter | null>(null);
 

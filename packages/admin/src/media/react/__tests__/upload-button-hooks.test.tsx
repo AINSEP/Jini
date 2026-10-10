@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook } from '../../../__tests__/fetch-query-support.js';
 import type { ChangeEvent, DragEvent } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { readMediaFile, useUploadButton } from '../hooks/UploadButton.hooks.js';

@@ -1,29 +1,11 @@
 /**
- * The only file in this feature allowed to touch a concrete transport
- * adapter. Everything else in the slice depends on `ports.ts`.
- *
- * Split, deliberately, into two different defaults:
- *
- * - `memoryConfigPort`/`memoryEntriesPort`/`memoryExtractionsPort` bind REAL
- *   `fetch`-based adapters against a plain `/api/memory*` REST surface (list/
- *   tree/entry CRUD, config PATCH, extraction history CRUD). Unlike
- *   `features/connectors`' data port — which fakes its transport by design,
- *   because the real one is a specific third-party OAuth-catalog vendor's
- *   API shape — this is a generic JSON/REST contract with no vendor coupling,
- *   and the pinned source's one open bug (`fetchMemoryList()` trusting an
- *   under-validated response — see the fix below and
- *   `packages/ui/archived provenance ledger`) only exists to fix in a real, testable
- *   adapter. A host is still free to supply its own binding; this default
- *   just isn't a fake.
- * - `memoryConnectorsPort` binds a fake/in-memory connector catalogue (same
- *   reasoning as `features/connectors`' own fake — the real catalogue is a
- *   vendor-specific OAuth discovery transport this package doesn't assume),
- *   plus REAL browser-only bridges for the two pieces that touch only
- *   generic browser APIs: pending-authorization persistence (sessionStorage)
- *   and the cross-tab "connectors changed" signal (a `CustomEvent`).
- *   `saveMemoryEntry` on this port is the same real HTTP adapter the entries
- *   cluster uses — saving a connector suggestion is an ordinary memory write,
- *   not a connector-transport concern.
+ * Explicit legacy/test transport bindings; Memory's wired hooks never select them implicitly.
+ * Production hosts supply MemoryPortsProvider with authorized config/entries/extractions and
+ * connector ports. createMemoryHttpPorts binds a host-selected REST contract; exported singletons
+ * retain the old /api/memory* paths for compatibility only. memoryConnectorsPort is a demo catalogue
+ * with sessionStorage/CustomEvent bridges and real REST memory writes, not production discovery.
+ * Removal plan: migrate singleton consumers to host factories/providers, then remove deprecated
+ * defaults in an owner-approved breaking release. Do not silently turn a demo into a live port.
  */
 import { requestWithTimeout } from '../../utils/browser-request.js';
 import type { Connector, ConnectorActionResult, ConnectorStatusMap } from '../connectors/types.js';
@@ -229,6 +211,7 @@ export function createMemoryHttpPorts(
   return { config: memoryConfigPort, entries: memoryEntriesPort, extractions: memoryExtractionsPort };
 }
 
+/** @deprecated Explicit legacy REST binding. Host UI composition must use MemoryPortsProvider. */
 export const { config: memoryConfigPort, entries: memoryEntriesPort, extractions: memoryExtractionsPort } = createMemoryHttpPorts({});
 /** Standalone default read shares the entries port's validated REST implementation. */
 export const fetchMemoryList = memoryEntriesPort.fetchMemoryList;
@@ -328,4 +311,5 @@ function notifyConnectorsChanged(): void {
   window.dispatchEvent(new CustomEvent(CONNECTORS_CHANGED_EVENT));
 }
 
+/** @deprecated Demo catalogue; hosts supply their own connectors port through MemoryPortsProvider. */
 export const memoryConnectorsPort: MemoryConnectorsPort = createFakeMemoryConnectorsPort();

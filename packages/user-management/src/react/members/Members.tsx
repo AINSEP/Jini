@@ -158,7 +158,7 @@ function MemberRow({
   );
 }
 
-export function Members({ useMembersHook = useMembers, port, translate: injectedTranslate, refresh,
+export function Members({ useMembersHook = useMembers, port, translate: injectedTranslate, queryScope, refresh,
   description = "People who have registered an account — review status, resend a sign-in link, or disable access.",
   emptyDescription = "Registered members will show up here.", renderServerLabel }: MembersProps) {
   const {
@@ -176,7 +176,7 @@ export function Members({ useMembersHook = useMembers, port, translate: injected
     confirmDisable,
     t,
     translate,
-  } = useMembersHook({ port, translate: injectedTranslate }, { refresh });
+  } = useMembersHook({ port, translate: injectedTranslate, ...(queryScope === undefined ? {} : { queryScope }) }, { refresh });
 
   if (error) return <div className="notice error">{error}</div>;
   if (!members) return <div className="notice">{t("Loading members…")}</div>;

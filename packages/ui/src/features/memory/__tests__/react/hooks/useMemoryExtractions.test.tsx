@@ -1,3 +1,6 @@
+import { createElement, type ReactNode } from 'react';
+import { MemoryPortsProvider } from '../../../react/MemoryPorts.js';
+import { memoryConfigPort as hostConfig, memoryEntriesPort as hostEntries, memoryExtractionsPort as hostExtractions, memoryConnectorsPort as hostConnectors } from '../../../dependencies.js';
 // Unit tests for the extraction-history hook, organized as the interleaving
 // matrix of its three event sources: live SSE frames, GET snapshots (reloads
 // and failure-recovery reads), and local optimistic mutations (delete/clear).
@@ -551,7 +554,7 @@ describe('useWiredMemoryExtractions', () => {
     const rows = [record('wired')];
     const fetchExtractions = vi.spyOn(memoryExtractionsPort, 'fetchExtractions').mockResolvedValue(rows);
 
-    const { result } = renderHook(() => useWiredMemoryExtractions());
+    const { result } = renderHook(() => useWiredMemoryExtractions(), { wrapper: ({ children }: { children: ReactNode }) => createElement(MemoryPortsProvider, { ports: { config: hostConfig, entries: hostEntries, extractions: hostExtractions, connectors: hostConnectors }, children }) });
     await act(async () => {
       await result.current.reloadExtractions();
     });

@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '../../../__tests__/fetch-query-support.js';
 import { createMemoryMediaApi } from '../../adapters/memory.js';
 import { MediaCard } from '../components/MediaCard.js';
 import { formatUploadDate } from '../../rules.js';

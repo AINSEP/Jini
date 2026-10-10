@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { DEFAULT_STALE_TIME, FetchQueryCache, toQueryError, type FetchQueryEnvironmentPort } from './cache.js';
+import { DEFAULT_STALE_TIME, FetchQueryCache, toQueryError, type FetchQueryEnvironmentPort } from '@jini-ai/core/fetch';
 import { browserFetchQueryEnvironment } from './environment.browser.js';
 import { FetchQueryBinding } from './binding.react.js';
-import type { CachedLoader, CachedLoaderOptions, FetchMutationOptions, FetchQueryOptions, MutationResult, QueryKey, QueryResult } from './types.js';
+import type { CachedLoader, CachedLoaderOptions, FetchMutationOptions, FetchQueryOptions, MutationResult, QueryKey, QueryResult } from '@jini-ai/core/fetch';
 
 const CacheContext = createContext<FetchQueryCache | null>(null);
 
@@ -110,7 +110,7 @@ export function useCachedLoader<T>({ key, fetch }: Pick<CachedLoaderOptions<T>, 
   const cache = useCache();
   return useMemo(() => ({
     peek: () => cache.entry({ key: key }, { staleTime: staleTime }).state.data as T | undefined,
-    load: () => cache.load({ entry: cache.entry({ key: key }, { staleTime: staleTime }), fetch: fetch, staleTime: staleTime }),
+    load: (required = { key, fetch }) => cache.load({ entry: cache.entry({ key: required.key }, { staleTime }), fetch: required.fetch, staleTime }),
     replace: ({ value }: { value: T }) => cache.replace({ entry: cache.entry({ key: key }, { staleTime: staleTime }), data: value }),
   }), [cache, key, fetch, staleTime]);
 }

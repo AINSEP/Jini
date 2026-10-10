@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { useMediaLibraryQuery } from './MediaQuery.hooks.js';
 import { useController } from '../../../core/react/use-controller.js';
 import { createLibraryController } from '../../controllers/library.controller.js';
 import type { MediaAsset } from '../../models.js';
@@ -10,14 +12,16 @@ export interface MediaPickerProps {
   readonly onClose: () => void;
 }
 export function useMediaPicker(props: MediaPickerProps, _optional: Record<string, never> = {}) {
+  const cached = useMediaLibraryQuery({ api: props.api });
   const { controller, snapshot } = useController(
-    { create: () => createLibraryController({ api: props.api }), dependencies: [props.api] },
+    { create: () => createLibraryController({ api: cached.api }), dependencies: [cached.api] },
     {
       start: ({ controller }) => {
         void controller.load();
       },
     },
   );
+  useEffect(() => { controller?.settleLibrary({ ...(cached.query.data ? { all: cached.query.data } : {}), error: cached.query.error }); }, [controller, cached.query.data, cached.query.error]);
   const actions = (snapshot?.items ?? [])
     .filter((item) => item.status === 'active' && acceptsMedia({ item, accept: props.accept }))
     .map((item) => ({ item, onChoose: () => props.onChoose(item) }));

@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '../../../__tests__/fetch-query-support.js';
 import type { ChangeEvent, ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { useProvidersTab } from '../hooks/ProvidersTab.hooks.js';

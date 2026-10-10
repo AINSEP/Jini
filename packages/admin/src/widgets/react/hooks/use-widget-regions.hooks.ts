@@ -1,5 +1,6 @@
-import type { AdminWidget, AdminWidgetType, AdminWidgetWhereUsed, AdminWidgetRegionBinding, AdminWidgetArea, AdminWidgetPlacement, WidgetsTranslate as Translate } from '../../models.js';
-import type { DirtyGuard } from '@jini-ai/ui/panel-kit';
+import { useInvalidate } from '@jini-ai/ui/fetch-query';
+import { WIDGET_QUERY_KEYS, useWidgetRegionsQuery } from './WidgetsQuery.hooks.js';
+import type { AdminWidgetRegionBinding, WidgetsTranslate as Translate } from '../../models.js';
 export interface WidgetRegionsController {
   /** `null` until the initial load settles — the caller renders a loading state. */
   regions: AdminWidgetRegionBinding[] | null;
@@ -19,10 +20,12 @@ import { widgetsEnglish } from '../../messages.en.js';
 import { WIDGETS_REGIONS_RESOURCE } from '../../rules.js';
 import { useWidgetsPorts, useWidgetsOptions } from './WidgetsPorts.hooks.js';
 export function useWidgetRegions({ api }: { api: AdminWidgetsPort }, { t = widgetsEnglish, locale = 'en', events, navigate }: { t?: Translate | undefined; locale?: string | undefined; events?: WidgetsEventsPort | undefined; navigate?: ((path: string) => void) | undefined } = {}): WidgetRegionsController {
+  const cached = useWidgetRegionsQuery({ api });
+  const invalidate = useInvalidate();
   const latest = useRef({ t, navigate }); latest.current = { t, navigate };
-  const { controller, snapshot } = useController({ create: () => createWidgetRegionsController({ api }, { t: key => latest.current.t(key), navigate: path => latest.current.navigate?.(path) }), dependencies: [api] }, { start: ({ controller }) => { void controller.load(); } });
-  useEffect(() => { if (!controller) return; return events?.subscribe({ resource: WIDGETS_REGIONS_RESOURCE, onRefresh: () => { void controller.load(); } }); }, [controller, events]);
-  return { ...(snapshot ?? { regions: null, error: null, newRegionKey: '', binding: false }), setNewRegionKey: value => controller?.setNewRegionKey({ value }), bind: async () => { await controller?.bind(); }, t };
+  const { controller, snapshot } = useController({ create: () => createWidgetRegionsController({ api: cached.api }, { t: key => latest.current.t(key), navigate: path => latest.current.navigate?.(path) }), dependencies: [cached.api] }, { start: ({ controller }) => { void controller.load(); } });
+  useEffect(() => { if (!controller) return; return events?.subscribe({ resource: WIDGETS_REGIONS_RESOURCE, onRefresh: () => invalidate({ key: WIDGET_QUERY_KEYS.regions }) }); }, [controller, events, invalidate]);
+  return { ...(snapshot ?? { regions: null, error: null, newRegionKey: '', binding: false }), regions: cached.query.data?.regions ?? snapshot?.regions ?? null, error: snapshot?.error ?? cached.query.error?.message ?? null, setNewRegionKey: value => controller?.setNewRegionKey({ value }), bind: async () => { await controller?.bind(); }, t };
 }
 export function useWiredWidgetRegions(): WidgetRegionsController {
   const { widgetsApi: api, widgetsEvents: events, widgetsNavigation } = useWidgetsPorts();

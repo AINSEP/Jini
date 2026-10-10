@@ -1,3 +1,5 @@
+import { useInvalidate } from '@jini-ai/ui/fetch-query';
+import { MEDIA_QUERY_KEYS, useMediaLibraryQuery } from './MediaQuery.hooks.js';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { TabViewProps } from '../../../core/react/bind-react.js';
 import { useController } from '../../../core/react/use-controller.js';
@@ -15,10 +17,12 @@ export function useLibraryTab(
   const filter: MediaContentTabId =
     params.filter === 'images' || params.filter === 'videos' ? params.filter : 'all';
   const shared = useSharedMediaLibrary();
+  const cached = useMediaLibraryQuery({ api: mediaApi }, { enabled: !shared });
+  const invalidate = useInvalidate();
   const local = useController(
     {
-      create: () => createLibraryController({ api: mediaApi }, { query: { filter } }),
-      dependencies: [mediaApi, filter],
+      create: () => createLibraryController({ api: cached.api }, { query: { filter } }),
+      dependencies: [cached.api, filter],
     },
     {
       start: ({ controller }) => {
@@ -27,7 +31,8 @@ export function useLibraryTab(
     },
   );
   const { controller, snapshot } = shared ?? local;
-  useEffect(() => !shared ? mediaEvents?.subscribe({ onRefresh: () => { void controller?.load(); } }) : undefined, [mediaEvents, controller, shared]);
+  useEffect(() => !shared ? mediaEvents?.subscribe({ onRefresh: () => invalidate({ key: MEDIA_QUERY_KEYS.root }) }) : undefined, [mediaEvents, controller, shared, invalidate]);
+  useEffect(() => { if (!shared) local.controller?.settleLibrary({ ...(cached.query.data ? { all: cached.query.data } : {}), error: cached.query.error }); }, [shared, local.controller, cached.query.data, cached.query.error]);
   const gridRef = useRef<HTMLDivElement>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [focusAfterAction, setFocusAfterAction] = useState<{ id: string; index: number } | null>(null);

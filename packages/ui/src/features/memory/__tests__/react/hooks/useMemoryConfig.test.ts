@@ -1,3 +1,6 @@
+import { createElement, type ReactNode } from 'react';
+import { MemoryPortsProvider } from '../../../react/MemoryPorts.js';
+import { memoryConfigPort as hostConfig, memoryEntriesPort as hostEntries, memoryExtractionsPort as hostExtractions, memoryConnectorsPort as hostConnectors } from '../../../dependencies.js';
 // Unit tests for the config hook (master switch + the four per-hook flags).
 // The wire-body rules are already characterized in rules.test.ts; this pins
 // the hook's OWN behavior: optimistic toggle, rollback on a failed/rejected
@@ -647,7 +650,7 @@ describe('useWiredMemoryConfig', () => {
     const fetchMock = vi.fn(async () => ({ ok: true }) as Response);
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const { result } = renderHook(() => useWiredMemoryConfig());
+    const { result } = renderHook(() => useWiredMemoryConfig(), { wrapper: ({ children }: { children: ReactNode }) => createElement(MemoryPortsProvider, { ports: { config: hostConfig, entries: hostEntries, extractions: hostExtractions, connectors: hostConnectors }, children }) });
 
     await act(async () => {
       await result.current.onToggleEnabled(false);

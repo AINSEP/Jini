@@ -441,3 +441,27 @@ describe("useCommentQueue — Load more paging (2026-09-20)", () => {
     expect(result.current.nextCursor).toBe("c4");
   });
 });
+
+
+describe("cursor pages share the query cache", () => {
+  it("deduplicates the same cursor between consumers and appends it to each queue", async () => {
+    let complete!: (value: AdminCommentsQueuePage) => void;
+    let cursorCalls = 0;
+    const source = createFakeCommentQueuePort({ items: [COMMENT], nextCursor: "cursor-shared" });
+    const port: CommentQueuePort = { ...source, listCommentsQueue: options => {
+      if (!options.cursor) return source.listCommentsQueue(options);
+      cursorCalls++;
+      return new Promise(resolve => { complete = resolve; });
+    } };
+    const { result } = renderHook(() => ({ first: useCommentQueue({ port, locale: "en" }), second: useCommentQueue({ port, locale: "en" }) }), { wrapper });
+    await waitFor(() => expect(result.current.second.nextCursor).toBe("cursor-shared"));
+    act(() => { result.current.first.loadMore(); result.current.second.loadMore(); });
+    await waitFor(() => expect(cursorCalls).toBe(1));
+    const next = { ...COMMENT, id: "c2", threadRootId: "c2" };
+    await act(async () => { complete({ items: [next], nextCursor: null }); });
+    await waitFor(() => {
+      expect(result.current.first.items).toEqual([COMMENT, next]);
+      expect(result.current.second.items).toEqual([COMMENT, next]);
+    });
+  });
+});

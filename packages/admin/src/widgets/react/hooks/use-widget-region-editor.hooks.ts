@@ -1,5 +1,5 @@
-import type { AdminWidget, AdminWidgetType, AdminWidgetWhereUsed, AdminWidgetRegionBinding, AdminWidgetArea, AdminWidgetPlacement, WidgetsTranslate as Translate } from '../../models.js';
-import type { DirtyGuard } from '@jini-ai/ui/panel-kit';
+import { useWidgetRegionQuery } from './WidgetsQuery.hooks.js';
+import type { AdminWidgetArea, AdminWidgetPlacement, WidgetsTranslate as Translate } from '../../models.js';
 export interface WidgetRegionEditorController {
   area: AdminWidgetArea | null;
   placements: AdminWidgetPlacement[];
@@ -26,8 +26,9 @@ import { widgetsEnglish } from '../../messages.en.js';
 import { useWidgetsPorts, useWidgetsOptions } from './WidgetsPorts.hooks.js';
 export function staleVersionMessage({ t = widgetsEnglish }: { t?: Translate | undefined } = {}, _optional: Record<string, never> = {}): string { return t('This region changed since you loaded it, refresh and try again.'); }
 export function useWidgetRegionEditor({ regionKey, api }: { regionKey: string; api: AdminWidgetsPort }, { t = widgetsEnglish, locale = 'en' }: { t?: Translate | undefined; locale?: string | undefined } = {}): WidgetRegionEditorController {
+  const cachedApi = useWidgetRegionQuery({ api, regionKey });
   const keyRef = useRef(regionKey), latestT = useRef(t); latestT.current = t;
-  const { controller, snapshot } = useController({ create: () => createWidgetRegionEditorController({ api, regionKey: keyRef.current }, { t: key => latestT.current(key) }), dependencies: [api] }, { start: ({ controller }) => { void controller.load(); } });
+  const { controller, snapshot } = useController({ create: () => createWidgetRegionEditorController({ api: cachedApi, regionKey: keyRef.current }, { t: key => latestT.current(key) }), dependencies: [cachedApi] }, { start: ({ controller }) => { void controller.load(); } });
   useEffect(() => { if (keyRef.current !== regionKey) { keyRef.current = regionKey; controller?.setRegionKey({ regionKey }); } }, [controller, regionKey]);
   return { ...(snapshot ?? { area: null, placements: [], message: null, error: null, loading: true, saving: false }), removeAt: placementId => controller?.removeAt({ placementId }), moveAt: (index, direction) => controller?.moveAt({ index, direction }), toggleEnabled: placementId => controller?.toggleEnabled({ placementId }), addPlacement: widgetInstanceId => controller?.addPlacement({ widgetInstanceId }), save: async () => { await controller?.save(); }, t, locale };
 }

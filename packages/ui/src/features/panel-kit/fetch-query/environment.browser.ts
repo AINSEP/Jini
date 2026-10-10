@@ -1,4 +1,4 @@
-import type { FetchQueryEnvironmentPort } from './cache.js';
+import type { FetchQueryEnvironmentPort } from '@jini-ai/core/fetch';
 
 /** Browser-only adapter: subscriptions are owned by the provider effect, never module scope. */
 export const browserFetchQueryEnvironment: FetchQueryEnvironmentPort = {

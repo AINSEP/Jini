@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, api, type AdminWidget } from "./fixtures/api.js";
