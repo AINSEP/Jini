@@ -500,6 +500,7 @@ const TOOL_INPUTS: Record<string, Record<string, unknown>> = {
   identity_policy_list: {},
   identity_user_create: { username: "newcomer" },
   identity_user_update_email: { principalId: "target-principal", email: "a@b.test" },
+  identity_user_change_username: { principalId: "target-principal", username: "renamed-target" },
   identity_user_disable: { principalId: "target-principal" },
   identity_user_enable: { principalId: "target-principal" },
   identity_role_create: { name: "Custom Role" },
@@ -580,7 +581,7 @@ test("every catalog tool remains wired with its schema, description, and derived
   const { deps } = await buildHarness();
   const registrations = identityRegistrations(deps);
   assert.deepEqual([...registrations.keys()].sort(), Object.keys(TOOL_INPUTS).sort());
-  assert.equal(registrations.size, 15);
+  assert.equal(registrations.size, 16);
   for (const entry of identityAgentToolCatalog) {
     const registration = registrations.get(entry.name);
     assert.ok(registration);

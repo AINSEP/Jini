@@ -169,8 +169,11 @@ export class IdentityNotFoundError extends Error {
  * See docs/decisions/DR-001-identity-and-session-boundary.md.
  */
 export class IdentityConflictError extends Error {
-  constructor({ message }: { message: string }, optional: ErrorOptions = {}) {
+  /** Rename conflicts carry a precise reason; legacy conflicts retain their existing contract. */
+  readonly code?: "RESOURCE_CONFLICT" | "USER_IN_TRASH" | "USERNAME_IN_TRASH";
+  constructor({ message, code }: { message: string; code?: "RESOURCE_CONFLICT" | "USER_IN_TRASH" | "USERNAME_IN_TRASH" }, optional: ErrorOptions = {}) {
     super(message, optional);
+    if (code !== undefined) this.code = code;
   }
 }
 /** Raised by `login` on bad credentials, a disabled principal, or a blank field. See docs/decisions/DR-001-identity-and-session-boundary.md. */

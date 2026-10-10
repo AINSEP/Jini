@@ -8,7 +8,7 @@ export interface LoginPort {
 export interface UsersPort {
   listUsers(required: Record<string, never>): Promise<{ users: AdminIdentityUser[] }>;
 
-  me(required: Record<string, never>): Promise<{ user: { id: string }; canManageUserTrash: boolean }>;
+  me(required: Record<string, never>): Promise<{ user: { id: string }; canManageUserTrash: boolean; effectivePermissions?: string[] | undefined }>;
   listRoles(required: Record<string, never>): Promise<{ roles: AdminRole[] }>;
   listPolicies(required: Record<string, never>): Promise<{ policies: AdminPolicy[] }>;
   createUser(
@@ -17,7 +17,7 @@ export interface UsersPort {
   ): Promise<{ user: AdminIdentityUser }>;
   updateUser(
     target: { principalId: string },
-    options?: { email?: string  | undefined},
+    options?: { email?: string | undefined; username?: string | undefined },
   ): Promise<{ user: AdminIdentityUser }>;
   disableUser(required: { principalId: string }): Promise<{ user: AdminIdentityUser }>;
   enableUser(required: { principalId: string }): Promise<{ user: AdminIdentityUser }>;

@@ -69,6 +69,7 @@ export interface UserRowMenuHandlers {
   onEnable: (user: AdminIdentityUser) => void;
   onManage: (user: AdminIdentityUser) => void;
   onResetPassword: (user: AdminIdentityUser) => void;
+  onChangeUsername?: ((user: AdminIdentityUser) => void) | undefined;
   /** Delete-user plan v2 (2026-09-24) — always opens the confirm dialog, never fires immediately:
    *  unlike Enable, "Delete" moves the user to the Trash, a destructive-looking action even though
    *  it is recoverable there for 60 days. Only asked for when `userRowMenuItems`'s own `canDelete`
@@ -167,6 +168,9 @@ export function userRowMenuItems({ user, toggleSaving, handlers, translate, canD
   const permissions = typeof capabilities === "boolean"
     ? { canDelete: capabilities, canDisable: true, canEnable: true, canResetPassword: true }
     : capabilities;
+  if (handlers.onChangeUsername) {
+    items.push({ key: "change-username", label: translate("Change username"), onSelect: () => handlers.onChangeUsername?.(user) });
+  }
   if (permissions.canDelete) {
     items.push({
       key: "delete",

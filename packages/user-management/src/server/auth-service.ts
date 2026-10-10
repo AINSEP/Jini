@@ -1,6 +1,6 @@
 import { defaultUserManagementMessages, type UserManagementMessages } from "./messages.js";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
-import type { SessionTokenPort } from "../core/runtime-ports.js";
+import type { SessionTokenPort, UsernameChangePort } from "../core/runtime-ports.js";
 
 import type { Clock, IdGenerator, ISODateTime, UUID } from "@jini-ai/core/primitives";
 import { resolveEffectivePermissions } from "./authorize.js";
@@ -40,6 +40,8 @@ export interface AuthServiceDeps {
   clock: Clock;
   idGen: IdGenerator;
   tokens: SessionTokenPort;
+  /** Additive: legacy email updates need no rename lifecycle; renames require it. */
+  usernameChanges?: UsernameChangePort | undefined;
 }
 
 function isoPlusMs(nowIso: ISODateTime, ms: number): ISODateTime {

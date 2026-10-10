@@ -2,6 +2,7 @@ import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
 import type { IdentityRepos, PasswordHasherPort } from "../core/ports.js";
 import { normalizeUsername } from "./username.js";
+import { IdentityNotFoundError } from "../core/types.js";
 
 /**
  * @file First-boot identity seed (state.spec `SEED_FIRST_BOOT`).
@@ -23,7 +24,7 @@ import { normalizeUsername } from "./username.js";
  * Seed data lives in one place so both composition roots stay identical
  * (mirrors `server/seed.ts`'s reasoning for workspace/post/presentation seed
  * data). Idempotent: re-seeding an already-seeded workspace is a no-op
- * (checked via the owner username).
+ * (checked via a host-supplied stable principal id, or the legacy owner username).
  * See docs/decisions/DR-001-identity-and-session-boundary.md.
  */
 
@@ -189,6 +190,8 @@ export interface SeedIdentityInput {
 
 export interface SeedIdentityOptions {
   ownerEmail?: string | undefined;
+  /** Stable bootstrap binding persisted by the host. Never derive this from a mutable login/title. */
+  seededOwnerPrincipalId?: UUID | undefined;
 }
 
 export interface SeedIdentityResult {
@@ -384,8 +387,8 @@ async function ensureOwnerRoleBinding(required: {
  * Seed first-boot identity data.
  *
  * Idempotent in two distinct senses, and both are load-bearing:
- * - A seed that RAN TO COMPLETION is a no-op — the owner-username lookup below early-returns after
- *   a single confirming read (`ensureOwnerRoleBinding`) and writes nothing. (This path does not
+ * - A seed that RAN TO COMPLETION is a no-op — the owner lookup below early-returns after
+ *   confirming its role binding (`ensureOwnerRoleBinding`) and writes nothing. (This path does not
  *   reconcile a built-in policy whose permission list has since grown; that is the host's job — see
  *   the host's `applyBuiltinRoleGrants` / `migrateDeprecatedPermissionGrants`, chained onto
  *   `identityReady`.)
@@ -396,8 +399,9 @@ async function ensureOwnerRoleBinding(required: {
  *   previous attempt already wrote and fills in only what is missing. See the block comment above
  *   `ensureBuiltinRole` for why this function must survive being killed halfway.
  *
- * @complexity O(1) — fixed small number of inserts (4 roles/policies, ~2
- * dozen policy_permissions, 3 principals, 1 user, 1 role assignment).
+ * @complexity O(1) owner lookup plus the existing principal roster read; fresh seeds make a
+ * fixed small number of inserts (4 roles/policies, ~2 dozen policy_permissions,
+ * 3 principals, 1 user, 1 role assignment).
  * @overallScore 100
  */
 export async function seedIdentity(required: {
@@ -411,7 +415,14 @@ export async function seedIdentity(required: {
   const ownerPassword = input.ownerPassword;
   const nowIso = kernelNowIso({ clock: deps.clock });
 
-  const existingOwnerUser = await deps.repos.users.findByUsername({
+  // An explicit binding is authoritative, even when somebody has reused its former login name.
+  // A missing bound row is an error, never permission to mint a replacement owner.
+  const seededOwnerUser = input.seededOwnerPrincipalId !== undefined
+    ? await deps.repos.users.findByPrincipalId({ workspaceId, principalId: input.seededOwnerPrincipalId }) : null;
+  if (input.seededOwnerPrincipalId !== undefined && !seededOwnerUser) {
+    throw new IdentityNotFoundError({ message: "the bound seeded owner user was not found; restore the owner identity before booting" });
+  }
+  const existingOwnerUser = seededOwnerUser ?? await deps.repos.users.findByUsername({
     workspaceId,
     username: ownerUsername,
   });

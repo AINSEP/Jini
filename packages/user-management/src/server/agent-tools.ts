@@ -196,6 +196,17 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
     },
   },
   {
+    name: "identity_user_change_username",
+    description: "Changes an operator user's login username. Call after finding their principalId with identity_user_list. Returns { user } with the normalized username; email, password and existing sessions stay unchanged. Requires user.manage even for your own profile; only owners may rename owner accounts. Fails for blank names, missing users, users in Trash, or names reserved by any user including Trash. Choose a different name or restore/purge the conflicting trashed user before retrying.",
+    sideEffects: "mutates-durable-state",
+    authorization: { permission: "user.manage" },
+    inputSchema: {
+      type: "object", additionalProperties: false, required: ["principalId", "username"],
+      properties: { principalId: PRINCIPAL_ID_SCHEMA, username: { type: "string", minLength: 1,
+        description: "New login name. Trimmed, lowercased and Unicode NFC normalized; unique per workspace, including users in Trash." } },
+    },
+  },
+  {
     name: "identity_user_disable",
     description:
       "Disables a user, revoking their access. Principals are never hard-deleted because the audit trail references them, so this is how a user is removed. Refuses to disable the seeded owner, and refuses any disable that would leave the workspace with no active owner. Already-disabled is a no-op.",
