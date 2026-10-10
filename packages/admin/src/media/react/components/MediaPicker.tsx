@@ -1,5 +1,5 @@
 import { MediaDialog } from './MediaDialog.js';
-import { Button, TextField } from '@jini-ai/ui-kit/react';
+import { Button, IconButton, TextField } from '@jini-ai/ui-kit/react';
 import { useMediaPicker } from '../hooks/MediaPicker.hooks.js';
 import type { MediaPickerProps } from '../hooks/MediaPicker.hooks.js';
 import { MediaGrid } from './MediaGrid.js';
@@ -24,12 +24,24 @@ export function MediaPicker(props: MediaPickerProps, _optional: Record<string, n
       ) : (
         <MediaGrid actions={vm.actions} api={vm.api} />
       )}
-      <Button
-        attrs={{ 'data-jini-part': 'media.picker.cancel', 'data-jini-autofocus': true }}
-        onPress={vm.onClose}
-      >
-        Cancel
-      </Button>
+      {/* Back (left) and Cancel (right) share one footer row; both return to whatever opened the
+          picker without choosing. */}
+      <div className="jini-media-picker-footer" data-jini-part="media.picker.footer">
+        <IconButton
+          className="jini-media-picker-back"
+          label="Back"
+          attrs={{ 'data-jini-part': 'media.picker.back' }}
+          onPress={vm.onClose}
+        >
+          ←
+        </IconButton>
+        <Button
+          attrs={{ 'data-jini-part': 'media.picker.cancel', 'data-jini-autofocus': true }}
+          onPress={vm.onClose}
+        >
+          Cancel
+        </Button>
+      </div>
     </MediaDialog>
   );
 }

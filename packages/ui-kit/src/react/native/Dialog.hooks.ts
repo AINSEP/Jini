@@ -38,7 +38,19 @@ export function useNativeDialog(required: DialogProps, optional: {
     props: { 'aria-labelledby': titleId, 'data-jini-part': 'kit.dialog', ...required.attrs, className: `jini-dialog ${required.className ?? ''}`.trim(), ref: dialogRef, tabIndex: -1,
       'aria-busy': required.pending,
       onCancel: (event: SyntheticEvent<HTMLDialogElement>) => { event.preventDefault(); if (!required.pending) required.onClose({}); },
-      onClick: (event: MouseEvent<HTMLDialogElement>) => { if (event.target === event.currentTarget && !required.pending) required.onClose({}); } } };
+      // A click whose target is the <dialog> itself is not always the backdrop: the dialog's own
+      // padding and gaps hit it too, and so does the click that dismisses a native date/select
+      // popup inside it (seen live: closing a datetime picker closed the whole modal). Only a point
+      // outside the dialog's box is a backdrop click.
+      onClick: (event: MouseEvent<HTMLDialogElement>) => { if (event.target === event.currentTarget && !required.pending && isOutsideBox(event)) required.onClose({}); } } };
+}
+/** True when the pointer is outside the dialog's own rectangle, i.e. on the ::backdrop. A click with no
+ *  coordinates (keyboard activation, synthetic test clicks) keeps the old target-only behaviour. */
+function isOutsideBox(event: MouseEvent<HTMLDialogElement>): boolean {
+  const { clientX: x, clientY: y } = event;
+  if (x === 0 && y === 0) return true;
+  const r = event.currentTarget.getBoundingClientRect();
+  return x < r.left || x > r.right || y < r.top || y > r.bottom;
 }
 export function useNativeConfirm(required: ConfirmViewProps, _optional: Record<string, never> = {}) {
   const c = required.controller;
