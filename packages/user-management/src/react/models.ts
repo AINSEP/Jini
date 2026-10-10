@@ -15,6 +15,8 @@ export interface AdminIdentityUser {
   /** Server classification covers ownership granted by policy, not only named roles. */
   isOwner?: boolean | undefined;
   isProtectedAccount?: boolean | undefined;
+  /** Host refusal for accounts whose bootstrap identity cannot safely follow a rename yet. */
+  canRename?: boolean | undefined;
   roleIds: string[];
   policyIds: string[];
 }
@@ -55,4 +57,3 @@ export interface AdminMember {
   updatedAt: string;
   version: number;
 }
-

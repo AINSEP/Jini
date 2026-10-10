@@ -11,6 +11,11 @@ export interface SourceClassificationRules {
 export type SourceClassifier = (args: { file: string }) => boolean;
 
 /** LCOV's empty denominator is vacuously 100%; area checks separately reject empty scopes. */
+/** `pct(0, 0)` is 100: a file with no branches is fully branch-covered. Correct per file, and
+ *  dangerous per area — which is why {@link evaluateArea} never relies on it to decide whether an
+ *  area was measured at all.
+ *  @complexity O(1). */
+// evaluateArea is the disk inventory owner, now evaluateDiskArea in ./disk.ts.
 export function pct({ hit, found }: { hit: number; found: number }): number { return found === 0 ? 100 : 100 * hit / found; }
 
 /** Normalize paths with a directory boundary check, including Windows paths on non-Windows hosts. */

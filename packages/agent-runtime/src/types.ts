@@ -81,6 +81,8 @@ export type RuntimeReasoningInModelId = {
 };
 
 export type RuntimeBuildOptions = {
+  /** Host-scoped capability flags; absent retains the published compatibility cache. */
+  capabilities?: RuntimeCapabilityMap;
   model?: string | null;
   reasoning?: string | null;
   // Every def that has one auto-approves its CLI's own permission prompts by default
@@ -360,6 +362,8 @@ export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
     optionalArgs?: { extraAllowedDirs?: string[]; options?: RuntimeBuildOptions; runtimeContext?: RuntimeContext },
   ) => string[];
   streamFormat: string;
+  /** Reported money spans a session or one run; absent preserves per-run adapter behavior. */
+  usageCostBasis?: 'session' | 'run';
   fallbackBins?: string[];
   versionProbeTimeoutMs?: number;
   helpArgs?: string[];

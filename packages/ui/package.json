@@ -184,6 +184,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "@jini-ai/integrations": "workspace:^",
     "@tanstack/react-query": "^5.0.0",
     "@excalidraw/excalidraw": "0.18.1",
     "@lexical/react": "0.36.2",
@@ -224,6 +225,7 @@
     "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
+    "@jini-ai/integrations": "^0.4.2",
     "@tanstack/react-query": "^5.0.0",
     "@excalidraw/excalidraw": "0.18.1",
     "@lexical/react": "0.36.2",
@@ -251,6 +253,9 @@
     "zod": "^3.25.76"
   },
   "peerDependenciesMeta": {
+    "@jini-ai/integrations": {
+      "optional": true
+    },
     "@tanstack/react-query": {
       "optional": true
     },

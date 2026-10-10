@@ -8,29 +8,61 @@
  */
 import type { AudioKind, MediaModel, MediaProvider, MediaSurface } from './types.js';
 
+/** One adapter-owned endpoint catalog; protocols and UI presets project this data. */
+export const VENDOR_API_BASE_URLS = {
+  anthropic: 'https://api.anthropic.com', openai: 'https://api.openai.com/v1', azure: '',
+  google: 'https://generativelanguage.googleapis.com', openrouter: 'https://openrouter.ai/api/v1',
+  ollama: 'http://localhost:11434/v1', volcengine: 'https://ark.cn-beijing.volces.com/api/v3',
+  grok: 'https://api.x.ai/v1',
+  imagerouter: 'https://api.imagerouter.io/v1/openai', comfyui: 'http://127.0.0.1:8188',
+  bfl: 'https://api.bfl.ai', fal: 'https://fal.run', leonardo: 'https://cloud.leonardo.ai/api/rest/v1',
+  replicate: 'https://api.replicate.com', minimax: 'https://api.minimaxi.chat/v1',
+  elevenlabs: 'https://api.elevenlabs.io', fishaudio: 'https://api.fish.audio',
+  senseaudio: 'https://api.senseaudio.cn', aihubmix: 'https://aihubmix.com/v1', tavily: 'https://api.tavily.com',
+} as const;
+
+/** Old UI ids remain accepted at boundaries; canonical ids match the existing dispatch catalog. */
+export const MEDIA_PROVIDER_ID_ALIASES: Readonly<Record<string, string>> = {
+  'nano-banana': 'nanobanana', 'custom-image-api': 'custom-image', 'fal-ai': 'fal',
+  'leonardo-ai': 'leonardo', 'tavily-search': 'tavily', 'volcengine-ark': 'volcengine', 'xai-grok-imagine': 'grok',
+};
+/** Resolve legacy aliases without changing unknown extension IDs. @complexity O(1). */
+export function canonicalMediaProviderId({ id }: { id: string }, _optional: Record<string, never> = {}): string {
+  return Object.prototype.hasOwnProperty.call(MEDIA_PROVIDER_ID_ALIASES, id) ? MEDIA_PROVIDER_ID_ALIASES[id]! : id;
+}
+/** Canonical entries win conflicts, so an old alias can never replace a newer explicit edit.
+ * Returns a copy without changing supplied values or reading credentials. @complexity O(n) entries. */
+export function normalizeMediaProviderMap<T>({ providers }: { providers: Readonly<Record<string, T>> }, _optional: Record<string, never> = {}): Record<string, T> {
+  const entries = Object.entries(providers);
+  return Object.fromEntries([
+    ...entries.filter(([id]) => canonicalMediaProviderId({ id }) !== id).map(([id, value]) => [canonicalMediaProviderId({ id }), value]),
+    ...entries.filter(([id]) => canonicalMediaProviderId({ id }) === id),
+  ]);
+}
+
 export const MEDIA_PROVIDERS: readonly MediaProvider[] = [
-  { id: 'openai', label: 'OpenAI', hint: 'gpt-image-2 / dall-e-3', integrated: true, defaultBaseUrl: 'https://api.openai.com/v1' },
-  { id: 'volcengine', label: 'Volcengine Ark (Doubao)', hint: 'Seedance 2.0 / Seedream', integrated: true, defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3' },
-  { id: 'grok', label: 'xAI Grok Imagine', hint: 'grok-imagine — image + video with native audio', integrated: true, defaultBaseUrl: 'https://api.x.ai/v1' },
+  { id: 'openai', label: 'OpenAI', hint: 'gpt-image-2 / dall-e-3', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.openai },
+  { id: 'volcengine', label: 'Volcengine Ark (Doubao)', hint: 'Seedance 2.0 / Seedream', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.volcengine },
+  { id: 'grok', label: 'xAI Grok Imagine', hint: 'grok-imagine — image + video with native audio', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.grok },
   { id: 'hyperframes', label: 'HyperFrames', hint: 'Local HTML -> MP4 renderer', integrated: false, credentialsRequired: false, settingsVisible: false },
-  { id: 'nanobanana', label: 'Nano Banana', hint: 'Google official by default; custom gateway configurable', integrated: true, defaultBaseUrl: 'https://generativelanguage.googleapis.com', supportsCustomModel: true },
-  { id: 'imagerouter', label: 'ImageRouter', hint: 'OpenAI-compatible image + video routing', integrated: true, defaultBaseUrl: 'https://api.imagerouter.io/v1/openai', docsUrl: 'https://docs.imagerouter.io/api-reference/image-generation/', supportsCustomModel: true, customModelPlaceholder: 'openai/gpt-image-2 or xAI/grok-imagine-video' },
-  { id: 'openrouter', label: 'OpenRouter', hint: 'Unified gateway for image + video models', integrated: true, credentialsRequired: true, settingsVisible: true, defaultBaseUrl: 'https://openrouter.ai/api/v1', docsUrl: 'https://openrouter.ai/settings/keys' },
+  { id: 'nanobanana', label: 'Nano Banana', hint: 'Google official by default; custom gateway configurable', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.google, supportsCustomModel: true },
+  { id: 'imagerouter', label: 'ImageRouter', hint: 'OpenAI-compatible image + video routing', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.imagerouter, docsUrl: 'https://docs.imagerouter.io/api-reference/image-generation/', supportsCustomModel: true, customModelPlaceholder: 'openai/gpt-image-2 or xAI/grok-imagine-video' },
+  { id: 'openrouter', label: 'OpenRouter', hint: 'Unified gateway for image + video models', integrated: true, credentialsRequired: true, settingsVisible: true, defaultBaseUrl: VENDOR_API_BASE_URLS.openrouter, docsUrl: 'https://openrouter.ai/settings/keys' },
   { id: 'custom-image', label: 'Custom Media API', hint: 'OpenAI-compatible images/generations + images/edits (local or cloud)', integrated: true, docsUrl: 'https://platform.openai.com/docs/api-reference/images', supportsCustomModel: true, customModelPlaceholder: 'my-image-model' },
-  { id: 'comfyui', label: 'ComfyUI', hint: 'Local JSON workflow server (planned adapter)', integrated: false, defaultBaseUrl: 'http://127.0.0.1:8188', docsUrl: 'https://docs.comfy.org/development/core-concepts/workflow' },
-  { id: 'bfl', label: 'Black Forest Labs', hint: 'FLUX 1.1 Pro / FLUX Pro / Dev', integrated: false, defaultBaseUrl: 'https://api.bfl.ai' },
-  { id: 'fal', label: 'Fal.ai', hint: 'FLUX / Sora / Veo / Wan / Ideogram / Recraft and any fal-ai/* model', integrated: false, defaultBaseUrl: 'https://fal.run', supportsCustomModel: true },
-  { id: 'leonardo', label: 'Leonardo.ai', hint: 'Phoenix / Kino XL / FLUX', integrated: false, credentialsRequired: true, settingsVisible: true, defaultBaseUrl: 'https://cloud.leonardo.ai/api/rest/v1' },
-  { id: 'replicate', label: 'Replicate', hint: 'FLUX / SDXL / Ideogram', integrated: false, defaultBaseUrl: 'https://api.replicate.com' },
+  { id: 'comfyui', label: 'ComfyUI', hint: 'Local JSON workflow server (planned adapter)', integrated: false, defaultBaseUrl: VENDOR_API_BASE_URLS.comfyui, docsUrl: 'https://docs.comfy.org/development/core-concepts/workflow' },
+  { id: 'bfl', label: 'Black Forest Labs', hint: 'FLUX 1.1 Pro / FLUX Pro / Dev', integrated: false, defaultBaseUrl: VENDOR_API_BASE_URLS.bfl },
+  { id: 'fal', label: 'Fal.ai', hint: 'FLUX / Sora / Veo / Wan / Ideogram / Recraft and any fal-ai/* model', integrated: false, defaultBaseUrl: VENDOR_API_BASE_URLS.fal, supportsCustomModel: true },
+  { id: 'leonardo', label: 'Leonardo.ai', hint: 'Phoenix / Kino XL / FLUX', integrated: false, credentialsRequired: true, settingsVisible: true, defaultBaseUrl: VENDOR_API_BASE_URLS.leonardo },
+  { id: 'replicate', label: 'Replicate', hint: 'FLUX / SDXL / Ideogram', integrated: false, defaultBaseUrl: VENDOR_API_BASE_URLS.replicate },
   { id: 'google', label: 'Google AI / Vertex', hint: 'Imagen 4 / Veo 3 / Lyria', integrated: false },
   { id: 'kling', label: 'Kuaishou Kling', hint: 'Kling 1.6 / 2.0 video', integrated: false },
   { id: 'midjourney', label: 'Midjourney (proxy)', hint: 'midjourney-v7', integrated: false },
-  { id: 'minimax', label: 'MiniMax', hint: 'TTS / video-01', integrated: true, defaultBaseUrl: 'https://api.minimaxi.chat/v1' },
+  { id: 'minimax', label: 'MiniMax', hint: 'TTS / video-01', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.minimax },
   { id: 'suno', label: 'Suno', hint: 'Music generation', integrated: false },
   { id: 'udio', label: 'Udio', hint: 'Music generation', integrated: false },
-  { id: 'elevenlabs', label: 'ElevenLabs', hint: 'Voice / SFX', integrated: true, defaultBaseUrl: 'https://api.elevenlabs.io', docsUrl: 'https://elevenlabs.io/app/settings/api-keys' },
-  { id: 'fishaudio', label: 'FishAudio', hint: 'Speech / voice clone', integrated: true, defaultBaseUrl: 'https://api.fish.audio' },
-  { id: 'senseaudio', label: 'SenseAudio', hint: '', integrated: true, defaultBaseUrl: 'https://api.senseaudio.cn', docsUrl: 'https://docs.senseaudio.cn' },
+  { id: 'elevenlabs', label: 'ElevenLabs', hint: 'Voice / SFX', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.elevenlabs, docsUrl: 'https://elevenlabs.io/app/settings/api-keys' },
+  { id: 'fishaudio', label: 'FishAudio', hint: 'Speech / voice clone', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.fishaudio },
+  { id: 'senseaudio', label: 'SenseAudio', hint: '', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.senseaudio, docsUrl: 'https://docs.senseaudio.cn' },
   {
     id: 'aihubmix',
     label: 'AIHubMix',
@@ -38,12 +70,12 @@ export const MEDIA_PROVIDERS: readonly MediaProvider[] = [
     integrated: true,
     credentialsRequired: true,
     settingsVisible: true,
-    defaultBaseUrl: 'https://aihubmix.com/v1',
+    defaultBaseUrl: VENDOR_API_BASE_URLS.aihubmix,
     docsUrl: 'https://docs.aihubmix.com',
     supportsCustomModel: true,
     customModelPlaceholder: 'gpt-image-2 or dall-e-3',
   },
-  { id: 'tavily', label: 'Tavily Search', hint: 'Agent-callable web research', integrated: true, defaultBaseUrl: 'https://api.tavily.com' },
+  { id: 'tavily', label: 'Tavily Search', hint: 'Agent-callable web research', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.tavily },
   { id: 'stub', label: 'Stub (placeholder)', hint: 'Deterministic local placeholder bytes', integrated: true },
 ] as const;
 
@@ -168,7 +200,7 @@ export function findMediaModel({ id }: { id: string }): MediaModel | null {
 
 /** Finds a provider by id in `MEDIA_PROVIDERS`. */
 export function findProvider({ id }: { id: string }): MediaProvider | null {
-  return MEDIA_PROVIDERS.find((p) => p.id === id) ?? null;
+  return MEDIA_PROVIDERS.find((p) => p.id === canonicalMediaProviderId({ id })) ?? null;
 }
 
 /** Returns the model list for a surface; `audioKind` selects which audio sub-list (defaults to `'music'`). */

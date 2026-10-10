@@ -67,6 +67,7 @@ export interface IdentityToolDeps {
   /** Bind the same transaction port as every grant/status writer. */
   transactions: IdentityRepos["transactions"];
   tokens: AuthServiceDeps["tokens"];
+  usernameChanges?: AuthServiceDeps["usernameChanges"];
 }
 
 /**
@@ -101,6 +102,7 @@ function identityServiceDepsFrom(deps: IdentityToolDeps): AuthServiceDeps {
     clock: deps.clock,
     idGen: deps.idGen,
     tokens: deps.tokens,
+    usernameChanges: deps.usernameChanges,
   };
 }
 
@@ -118,6 +120,8 @@ export const identityDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToo
   ["identity_user_create", "mutates-durable-state"],
   // -> updateUser (admin-crud-service.ts): users.save, email field only.
   ["identity_user_update_email", "mutates-durable-state"],
+  // -> updateUser (admin-crud-service.ts): users.save, username field only, plus the transactional audit.
+  ["identity_user_change_username", "mutates-durable-state"],
   // -> disablePrincipal (admin-crud-service.ts): status flip, guarded by the owner floor. See docs/decisions/DR-007-workspace-and-owner-floors.md.
   ["identity_user_disable", "mutates-durable-state"],
   // -> enablePrincipal (admin-crud-service.ts): status flip back to active.
@@ -395,6 +399,17 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
       const principal = await routeDeps.principalRepo.findById({ workspaceId: routeDeps.workspaceId, id: input.req("principalId") });
       if (!principal) throw new Error(`principal '${input.req("principalId")}' was not found`);
       return { user: toIdentityUserView({ principal, user, roleIds: await roleIdsFor(routeDeps, principal.id) }) };
+    },
+
+    identity_user_change_username: async (ctx) => {
+      const input = identityInput("identity_user_change_username", ctx.input);
+      const principalId = input.req("principalId");
+      const { user } = await updateUser({ deps: serviceDeps(), input: {
+        workspaceId: routeDeps.workspaceId, callerPrincipalId: ctx.principal.id, principalId,
+      } }, { username: input.req("username") });
+      const principal = await routeDeps.principalRepo.findById({ workspaceId: routeDeps.workspaceId, id: principalId });
+      if (!principal) throw new Error(`principal '${principalId}' was not found`);
+      return { user: toIdentityUserView({ principal, user, roleIds: await roleIdsFor(routeDeps, principalId) }) };
     },
 
     identity_user_disable: async (ctx) => {

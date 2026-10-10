@@ -111,7 +111,7 @@ export function createFakeUsersPort(_required: Record<string, never>, options: F
     async updateUser(target, opts) {
       if (options.updateUserError) throw options.updateUserError;
       const current = requireUser(target.principalId);
-      return { user: replaceUser({ ...current, ...opts }) };
+      return { user: replaceUser({ ...current, ...opts, username: opts?.username ?? current.username }) };
     },
     async disableUser({ principalId }) {
       if (options.toggleStatusError) throw options.toggleStatusError;

@@ -13,6 +13,11 @@ import {
 } from 'node:path';
 import {
   agentCapabilities,
+  bindRuntimeAgentDef,
+  defaultRuntimeState,
+  getRuntimeModelDiscoveryDeps,
+  userToolchainBinDirs,
+  type AgentRuntimeState,
   applyAgentLaunchEnv,
   ensureAgentCapabilities,
   resolveModelForLaunch,
@@ -218,6 +223,21 @@ function buildAgentEnv(hostEnv: NodeJS.ProcessEnv, credentialEnv: Record<string,
   return result;
 }
 
+/** Snapshot only host configuration used by spawn and config staging; credentials stay per-run.
+ * Returns an independent allowlisted record. @complexity O(1), fixed key list. */
+export function selectAgentExecutorHostEnv({ env }: { env: NodeJS.ProcessEnv }, { runtimeState }: { runtimeState?: AgentRuntimeState } = {}): NodeJS.ProcessEnv {
+  const selected = buildAgentEnv(env, undefined);
+  for (const key of ['CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'VELA_OPENCODE_BIN', 'AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VP_HOME', 'NPM_CONFIG_PREFIX', 'npm_config_prefix', 'APPDATA', 'LOCALAPPDATA', 'MISE_DATA_DIR', 'FNM_DIR'] as const) {
+    if (typeof env[key] === 'string') selected[key] = env[key];
+  }
+  // Host-configured resolution names are explicit configuration, never a scan of the env bag.
+  const state = runtimeState ?? defaultRuntimeState;
+  for (const key of Object.values(state.executable.envNames)) {
+    if (typeof env[key] === 'string') selected[key] = env[key];
+  }
+  return selected;
+}
+
 /**
  * Resolves once `child` emits `'spawn'`, or rejects on `'error'`. Replicates
  * `@jini-ai/platform`'s own internal (non-exported) `waitForChildSpawn` race
@@ -255,11 +275,17 @@ interface ResolvedAgentRuntimeDeps {
  * hiding which options belong together. Pure.
  */
 function resolveAgentRuntimeDeps(options: CreateAgentExecutorOptions): ResolvedAgentRuntimeDeps {
+  const runtimeOptions = options.runtimeState ? { state: options.runtimeState } : {};
+  const envOptions = options.hostEnv ? { env: options.hostEnv } : {};
+  const lookupDef = options.getAgentDef ?? getAgentDef;
   return {
-    getAgentDef: options.getAgentDef ?? getAgentDef,
-    resolveAgentLaunch: options.resolveAgentLaunch ?? resolveAgentLaunch,
-    ensureAgentCapabilities: options.ensureAgentCapabilities ?? ensureAgentCapabilities,
-    applyAgentLaunchEnv: options.applyAgentLaunchEnv ?? applyAgentLaunchEnv,
+    getAgentDef: (input) => {
+      const def = lookupDef(input);
+      return def && options.runtimeState ? bindRuntimeAgentDef({ def, state: options.runtimeState }) : def;
+    },
+    resolveAgentLaunch: options.resolveAgentLaunch ?? ((input, optional = {}) => resolveAgentLaunch(input, { ...optional, ...runtimeOptions, ...envOptions })),
+    ensureAgentCapabilities: options.ensureAgentCapabilities ?? ((input) => ensureAgentCapabilities(input, runtimeOptions)),
+    applyAgentLaunchEnv: options.applyAgentLaunchEnv ?? ((input, optional = {}) => applyAgentLaunchEnv(input, { appendPathDirs: userToolchainBinDirs({}, { ...runtimeOptions, ...envOptions }), ...optional })),
     attachAcpSession: options.attachAcpSession ?? attachAcpSession,
     attachPiRpcSession: options.attachPiRpcSession ?? attachPiRpcSession,
     preparePromptFileForAgent: options.preparePromptFileForAgent ?? preparePromptFileForAgent,
@@ -586,7 +612,7 @@ export function resolveSystemPromptOverlayDelivery(input: {
   readonly overlay: string | null | undefined;
   readonly prompt: string;
   readonly resumeSessionId: string | null | undefined;
-}): SystemPromptOverlayDelivery {
+}, { state }: { state?: AgentRuntimeState } = {}): SystemPromptOverlayDelivery {
   const { defId, systemPromptDelivery, resumesSessionViaCli, resumesSessionViaAcpLoad, overlay, prompt, resumeSessionId } = input;
   if (typeof overlay !== 'string' || overlay.length === 0) {
     return { promptPrefix: '', prompt, extraArgs: [], envOverrides: {} };
@@ -600,7 +626,7 @@ export function resolveSystemPromptOverlayDelivery(input: {
     // `--help` probe ran and did not find the flag) withholds it. `capabilityKey === undefined`
     // (e.g. `pi`'s existing `--append-system-prompt`, trusted unconditionally) always passes, same
     // as an absent key.
-    const capabilityOk = capabilityKey === undefined || agentCapabilities.get(defId)?.[capabilityKey] !== false;
+    const capabilityOk = capabilityKey === undefined || (state?.capabilities ?? agentCapabilities).get(defId)?.[capabilityKey] !== false;
     return { promptPrefix: '', prompt, extraArgs: capabilityOk ? [systemPromptDelivery.flag, overlay] : [], envOverrides: {} };
   }
 
@@ -831,9 +857,10 @@ export async function confirmChildSpawned({ input, deps }: { readonly input: { r
  * @complexity `run()`'s own setup is O(1); steady-state cost is the chosen stream parser's.
  * @overallScore 100/100
  */
-export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
+export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "hostEnv" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
   const options: CreateAgentExecutorOptions = { ...requiredArgs, ...optionalArgs };
   const lifecycle = options.lifecycle;
+  const hostEnv = selectAgentExecutorHostEnv({ env: options.hostEnv ?? process.env }, options.runtimeState ? { runtimeState: options.runtimeState } : {});
   const {
     getAgentDef: getAgentDefFn,
     resolveAgentLaunch: resolveAgentLaunchFn,
@@ -843,7 +870,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     attachPiRpcSession: attachPiRpcSessionFn,
     preparePromptFileForAgent: preparePromptFileForAgentFn,
     prepareAgentLogFile: prepareAgentLogFileFn,
-  } = resolveAgentRuntimeDeps(options);
+  } = resolveAgentRuntimeDeps({ ...options, hostEnv });
   const {
     createCommandInvocation: createCommandInvocationFn,
     spawn: spawnFn,
@@ -961,12 +988,12 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       overlay: systemPromptOverlay,
       prompt: imageDelivery.prompt,
       resumeSessionId: preStagingRuntimeContext?.resumeSessionId,
-    });
+    }, options.runtimeState ? { state: options.runtimeState } : {});
 
     // The def's own declared env (e.g. claude's `ENABLE_TOOL_SEARCH=false`) is a default the run's
     // env can override. Detection already spawns with it (`detection.ts`); without this the run
     // spawn silently dropped it. Declared by the def itself, so it never widens SEC-001's allowlist.
-    const resolvedEnv = { ...(def.env ?? {}), ...resolveRunEnv({ input: input, hostEnv: process.env }) };
+    const resolvedEnv = { ...(def.env ?? {}), ...resolveRunEnv({ input: input, hostEnv }) };
     const launch = await resolveLaunch({ input: { runId: input.runId, def, resolvedEnv }, deps: { resolveAgentLaunch: resolveAgentLaunchFn, failBeforeSpawn } }
     );
 
@@ -975,7 +1002,8 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // concrete ID that the picker displays; an opaque native route cannot silently start a run.
     let modelCatalog: ModelCatalogSnapshot;
     try {
-      const selection = await (options.resolveModelForLaunch ?? resolveModelForLaunch)({ def, context: {
+      const selectModel = options.resolveModelForLaunch ?? ((input: Parameters<typeof resolveModelForLaunch>[0]) => resolveModelForLaunch(input, options.runtimeState ? { deps: getRuntimeModelDiscoveryDeps({ state: options.runtimeState }) } : {}));
+      const selection = await selectModel({ def, context: {
         executable: launch.launchPath, cwd: input.cwd, env: spawnEnv,
         ...(input.model && input.model !== 'default' ? { model: input.model } : {}),
         ...(input.resumeSessionId ? { resumeSessionId: input.resumeSessionId } : {}),
@@ -1131,7 +1159,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `codex.ts`'s `buildArgs` needs no argv change for this (CODEX_HOME is an env var, not a flag),
     // so — unlike the `.mcp.json` staging above — this can run after `buildArgs` with no ordering
     // constraint of its own; it is placed here only to keep the two staging steps adjacent.
-    preparedCodexHome = await prepareCodexHomeIfNeeded({ input: { runId: input.runId, def, mcpBridge }, deps: { mcpJsonInjection, hostEnv: process.env, releaseStagedResources, failBeforeSpawn } }
+    preparedCodexHome = await prepareCodexHomeIfNeeded({ input: { runId: input.runId, def, mcpBridge }, deps: { mcpJsonInjection, hostEnv, releaseStagedResources, failBeforeSpawn } }
     );
     // Finding 1 of SEC-assistant-env-isolation-2026-09-07's one effect — stage this run's scratch
     // `CLAUDE_CONFIG_DIR` directory. Unconditional for a `claude`-id run (unlike CODEX_HOME above,
@@ -1142,7 +1170,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     preparedClaudeConfigDir = await prepareClaudeConfigDirIfNeeded({ input: { runId: input.runId, def }, deps: {
         enabled: claudeConfigDirIsolationEnabled,
         claudeConfigDirIsolation,
-        hostEnv: process.env,
+        hostEnv,
         releaseStagedResources,
         failBeforeSpawn,
       } }

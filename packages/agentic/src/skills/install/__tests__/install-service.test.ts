@@ -132,3 +132,35 @@ test('aggregate cap rejects a mixed bundle before writes', () => fixture(async a
   await assert.rejects(() => api.installSkill({ ...ctx, files }), { message: 'Skill files exceed 8 MiB combined.' });
   assert.deepEqual(await api.listManagedSkills(ctx), []);
 }));
+
+// The host prepares before approval and commits those bytes afterwards. Re-fetching here could
+// install a different package than the one approved, even when the repository URL is unchanged.
+test('prepare writes nothing and concurrent commits publish the exact prepared bytes once', () => fixture(async (api, root) => {
+  const upload = [file('SKILL.md', MD)];
+  const prepared = await api.prepareSkillInstall({ ...ctx, files: upload });
+  assert.deepEqual(await readdir(root), []);
+  upload[0]!.contentBase64 = Buffer.from(MD + 'unapproved change').toString('base64');
+  const commits = await Promise.allSettled([api.commitSkillInstall({ ...ctx, prepared }), api.commitSkillInstall({ ...ctx, prepared })]);
+  assert.equal(commits.filter(result => result.status === 'fulfilled').length, 1);
+  assert.equal(commits.filter(result => result.status === 'rejected').length, 1);
+  assert.equal(await readFile(path.join(root, 'tenants/workspace-local/incident-response/SKILL.md'), 'utf8'), MD);
+}));
+
+test('GitHub preparation pins content and commit performs no second network request', async () => {
+  let requests = 0;
+  const commit = 'a'.repeat(40), blob = 'b'.repeat(40);
+  const fetch: SkillFetchPort = async ({ url }) => {
+    requests++;
+    if (url.endsWith('/commits/HEAD')) return Response.json({ sha: commit });
+    if (url.includes('/git/trees/')) return Response.json({ truncated: false, tree: [{ path: 'SKILL.md', type: 'blob', mode: '100644', sha: blob, size: Buffer.byteLength(MD) }] });
+    if (url.endsWith(`/git/blobs/${blob}`)) return Response.json({ encoding: 'base64', content: Buffer.from(MD).toString('base64') });
+    throw new Error('unexpected fixture URL');
+  };
+  await fixture(async (api, root) => {
+    const prepared = await api.prepareSkillInstall({ ...ctx, githubUrl: 'https://github.com/example/skills' });
+    assert.equal(requests, 3);
+    await api.commitSkillInstall({ ...ctx, prepared });
+    assert.equal(requests, 3);
+    assert.equal(await readFile(path.join(root, 'tenants/workspace-local/incident-response/SKILL.md'), 'utf8'), MD);
+  }, fetch);
+});

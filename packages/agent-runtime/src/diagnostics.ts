@@ -2,7 +2,7 @@
  * @module diagnostics
  * Explain three detection failures: unresolved executable, uninvocable executable or missing authentication.
  */
-import { agentBinEnvKey, agentSearchDirs } from './executables.js';
+import { agentBinEnvKey, agentSearchDirs, type ExecutableResolutionOptions } from './executables.js';
 import type { AgentLaunchResolution } from './launch.js';
 import type { AgentAuthProbeResult } from './auth.js';
 import type { AgentDiagnostic, AgentFixIntent, RuntimeAgentDef } from './types.js';
@@ -22,7 +22,7 @@ function setEnvIntent(agentId: string): AgentFixIntent[] {
 // user-supplied `*_BIN` override points at a missing/invalid file. The two
 // cases get different copy + fix affordances because the remedy differs
 // (install / point us at the binary vs. fix or clear the override).
-export function buildExecutableDiagnostic({ def }: { def: Pick<RuntimeAgentDef, 'id' | 'name' | 'bin'> }, { configuredEnv = {} }: { configuredEnv?: Record<string, string> } = {}
+export function buildExecutableDiagnostic({ def }: { def: Pick<RuntimeAgentDef, 'id' | 'name' | 'bin'> }, { configuredEnv = {}, ...options }: ExecutableResolutionOptions & { configuredEnv?: Record<string, string> } = {}
 ): AgentDiagnostic {
   const envKey = agentBinEnvKey({ agentId: def.id });
   const overrideRaw = envKey ? configuredEnv?.[envKey]?.trim() : '';
@@ -39,7 +39,7 @@ export function buildExecutableDiagnostic({ def }: { def: Pick<RuntimeAgentDef, 
     reason: 'not-on-path',
     severity: 'error',
     message: `${def.name} (\`${def.bin}\`) was not found on your PATH.`,
-    searchedDirs: agentSearchDirs().slice(0, MAX_SEARCHED_DIRS),
+    searchedDirs: agentSearchDirs({}, options).slice(0, MAX_SEARCHED_DIRS),
     fixActions: [{ kind: 'openInstall' }, ...setEnvIntent(def.id), { kind: 'rescan' }],
   };
 }

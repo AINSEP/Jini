@@ -97,18 +97,12 @@ import { redactSecrets } from '@jini-ai/core';
  */
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
-import { validateBaseUrl } from '@jini-ai/agent-runtime';
+import { createTavilyResearchProvider } from './research-tavily.adapter.js';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
 import { validationError } from '@jini-ai/http-kit';
 import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 
-const DEFAULT_TAVILY_BASE_URL = 'https://api.tavily.com';
-/** Tavily's own documented cap on `max_results` (see OD's `tavily.ts#TAVILY_MAX_RESULTS_LIMIT`). */
-const TAVILY_MAX_RESULTS_LIMIT = 20;
-const DEFAULT_MAX_SOURCES = 5;
-/** Matches OD's own `tavily.ts` timeout — see module doc. */
-const DEFAULT_TAVILY_TIMEOUT_MS = 30_000;
 /** Matches OD's real `research/index.ts#searchResearch` query cap — see module doc. */
 const MAX_QUERY_LENGTH = 1000;
 
@@ -141,7 +135,16 @@ export interface ResearchProviderCredentials {
   readonly model?: string;
 }
 
+/** Research transport contract: the route owns validation/HTTP errors; adapters own vendor I/O. */
+export interface ResearchProvider {
+  readonly id: string;
+  search(required: { apiKey: string; credentials: ResearchProviderCredentials; request: ResearchSearchRequest }, optional: Record<string, never>): Promise<{ readonly answer: string; readonly sources: readonly ResearchSource[] }>;
+}
+
 export interface ResearchHttpDeps {
+  readonly provider?: ResearchProvider;
+  readonly fetch?: typeof globalThis.fetch;
+  readonly env?: Readonly<Record<string, string | undefined>>;
   /** Resolves per-provider credentials. Defaults to `TAVILY_API_KEY` for the built-in Tavily transport. */
   readonly resolveCredentials?: ({ providerId }: { providerId: string }) => Promise<ResearchProviderCredentials>;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
@@ -163,8 +166,8 @@ function defaultInternalErrorSink(context: ResearchInternalErrorContext): void {
  * other provider name at parse time. A host that supports a second provider injects its own
  * `resolveCredentials` rather than reaching this function with a different id.
  */
-async function defaultResolveCredentials(): Promise<ResearchProviderCredentials> {
-  const apiKey = process.env.TAVILY_API_KEY?.trim();
+async function defaultResolveCredentials({ env }: { env: Readonly<Record<string, string | undefined>> }): Promise<ResearchProviderCredentials> {
+  const apiKey = env.TAVILY_API_KEY?.trim();
   return apiKey ? { apiKey } : {};
 }
 
@@ -176,7 +179,7 @@ function nonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
 
-interface ResearchSearchRequest {
+export interface ResearchSearchRequest {
   readonly query: string;
   readonly maxSources?: number;
 }
@@ -186,17 +189,17 @@ interface ResearchSearchRequest {
  * doc). OD only inspects `providers[0]` and treats a non-array `providers` value as absent rather
  * than rejecting it; this mirrors both.
  */
-function validateRequestedProvider(rawProviders: unknown): Result<null> {
+function validateRequestedProvider(rawProviders: unknown, providerId: string): Result<null> {
   if (!Array.isArray(rawProviders)) return ok({ value: null });
   const filtered = rawProviders.filter((p): p is string => typeof p === 'string' && p.length > 0);
   const requested = filtered[0];
-  if (requested !== undefined && requested !== 'tavily') {
-    return err({ error: validationError({ message: `provider "${requested}" is not supported — only "tavily" is available` }) });
+  if (requested !== undefined && requested !== providerId) {
+    return err({ error: validationError({ message: `provider "${requested}" is not supported — only "${providerId}" is available` }) });
   }
   return ok({ value: null });
 }
 
-function parseResearchSearch(input: RouteInputContext): Result<ResearchSearchRequest> {
+function parseResearchSearch(input: RouteInputContext, providerId = 'tavily'): Result<ResearchSearchRequest> {
   if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
   const rawQuery = nonEmptyString(input.body.query);
   if (!rawQuery) return err({ error: validationError({ message: 'query must be a non-empty string' }, { issues: [{ path: 'query', message: 'required non-empty string' }] }) });
@@ -205,130 +208,9 @@ function parseResearchSearch(input: RouteInputContext): Result<ResearchSearchReq
   if (maxSources !== undefined && (typeof maxSources !== 'number' || !Number.isFinite(maxSources) || maxSources <= 0)) {
     return err({ error: validationError({ message: 'maxSources must be a positive number when provided' }) });
   }
-  const providerCheck = validateRequestedProvider(input.body.providers);
+  const providerCheck = validateRequestedProvider(input.body.providers, providerId);
   if (!providerCheck.ok) return providerCheck;
   return ok({ value: { query, ...(maxSources !== undefined ? { maxSources: maxSources as number } : {}) } });
-}
-
-interface TavilyRawResult {
-  readonly title?: unknown;
-  readonly url?: unknown;
-  readonly content?: unknown;
-  readonly score?: unknown;
-  readonly published_date?: unknown;
-}
-
-interface TavilyRawResponse {
-  readonly answer?: unknown;
-  readonly results?: unknown;
-}
-
-/** The raw Tavily client's own output shape — deliberately distinct from the route-level `ResearchSearchResponse` (see module doc's "an earlier version of this port conflated..." note). The route handler below assembles the real response from this. */
-interface TavilySearchOutput {
-  readonly answer: string;
-  readonly sources: ResearchSource[];
-}
-
-/**
- * Calls Tavily's real `POST /search` endpoint directly — see module doc for the port's exact
- * scope/provenance. Throws (never a `Result`) on any failure; the route handler below is the one
- * place that converts a thrown error into the package's SEC-005 response shape.
- *
- * `apiKey` is a separate, non-optional parameter rather than being read off `credentials`, so the
- * "credential is present" invariant is carried by the type system instead of by a runtime guard.
- * This function used to take only `credentials` and re-check `credentials.apiKey` itself, but the
- * sole caller below already returns `NOT_CONFIGURED` before it ever gets here — the check was
- * unreachable by construction, so it is now expressed as a required argument instead of dead code.
- * `credentials` is still passed for its optional transport config (`baseUrl`).
- */
-async function tavilySearch(
-  apiKey: string,
-  credentials: ResearchProviderCredentials,
-  request: ResearchSearchRequest,
-): Promise<TavilySearchOutput> {
-  const baseUrl = credentials.baseUrl ?? DEFAULT_TAVILY_BASE_URL;
-  const baseUrlCheck = validateBaseUrl({ baseUrl });
-  if (baseUrlCheck.error) {
-    throw new Error(baseUrlCheck.error);
-  }
-  const base = baseUrl.replace(/\/+$/, '');
-  // Floor before clamping, matching OD's real `clampMaxSources` — see module doc. Without the
-  // floor, a fractional `maxSources` (e.g. `2.7`, or `0.5` before the `Math.max(1, ...)` floor
-  // below) would forward a non-integer `max_results` straight to Tavily's real API.
-  const maxResults = Math.max(1, Math.min(Math.floor(request.maxSources ?? DEFAULT_MAX_SOURCES), TAVILY_MAX_RESULTS_LIMIT));
-  const body = {
-    query: request.query,
-    search_depth: 'basic',
-    max_results: maxResults,
-    include_answer: true,
-    include_raw_content: false,
-  };
-
-  // The timeout must stay armed for the full operation, not just until `fetch` resolves —
-  // `fetch` resolves as soon as response headers arrive, before the body is read. A round-2
-  // external audit caught (and locally reproduced) an earlier version of this fix that cleared
-  // the timer right after `fetch` resolved, leaving `response.text()`/`response.json()` below
-  // completely unbounded against a server that sends headers promptly and then stalls the body.
-  //
-  // `TavilyHttpError` marks an error already redacted and formatted by the `!response.ok` branch
-  // below, so the outer catch can rethrow it verbatim instead of wrapping it a second time (which
-  // would otherwise produce a "Tavily request failed: Tavily 429: ..." double-prefixed message).
-  class TavilyHttpError extends Error { }
-
-  const timeoutController = new AbortController();
-  const timeoutHandle = setTimeout(() => timeoutController.abort(), DEFAULT_TAVILY_TIMEOUT_MS);
-  // Assigned in the `try` and returned *after* the `finally`, rather than returned from inside the
-  // `try`. Both forms behave identically, but a return-through-`finally` compiles to three copies of
-  // the `finally` body (normal completion, return, throw) and one of those is unreachable here — the
-  // `try` cannot fall off its end and the `catch` always throws. Falling through to a single return
-  // keeps the cleanup path honestly measurable instead of permanently one-third uncovered.
-  let output: TavilySearchOutput;
-  try {
-    const response = await fetch(`${base}/search`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify(body),
-      signal: timeoutController.signal,
-    });
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      throw new TavilyHttpError(redactSecrets({ input: `Tavily ${response.status}: ${text.slice(0, 200) || 'no body'}` }, { exactSecrets: [apiKey] }));
-    }
-
-    const json = (await response.json()) as TavilyRawResponse;
-    const answer = typeof json.answer === 'string' ? json.answer : '';
-    const rawResults = Array.isArray(json.results) ? json.results : [];
-    const sources: ResearchSource[] = [];
-    for (const raw of rawResults as TavilyRawResult[]) {
-      const url = typeof raw.url === 'string' ? raw.url : '';
-      if (!url) continue;
-      const publishedAt = typeof raw.published_date === 'string' && raw.published_date.trim() ? raw.published_date.trim() : undefined;
-      sources.push({
-        title: typeof raw.title === 'string' && raw.title.trim() ? raw.title.trim() : url,
-        url,
-        snippet: typeof raw.content === 'string' ? raw.content.trim().slice(0, 800) : '',
-        provider: 'tavily',
-        ...(publishedAt ? { publishedAt } : {}),
-      });
-    }
-    output = { answer, sources };
-  } catch (error) {
-    if (!timeoutController.signal.aborted && error instanceof TavilyHttpError) {
-      throw error;
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      redactSecrets({
-        input: timeoutController.signal.aborted
-          ? `Tavily request timed out after ${DEFAULT_TAVILY_TIMEOUT_MS}ms`
-          : `Tavily request failed: ${message}`,
-      }, { exactSecrets: [apiKey] }),
-    );
-  } finally {
-    clearTimeout(timeoutHandle);
-  }
-  return output;
 }
 
 /** Ported verbatim from OD's real `research/index.ts#synthesizeFallbackSummary` — see module doc. Used when Tavily returns no `answer` text so the caller still gets a usable `summary`. */
@@ -340,14 +222,18 @@ function synthesizeFallbackSummary(sources: readonly ResearchSource[]): string {
   return `(No provider summary; top snippets follow.)\n${lead}`;
 }
 
-export const researchSearchRoute = defineJsonRoute<ResearchSearchRequest, ResearchSearchResponse, ResearchHttpDeps>({
-  method: 'post', path: '/api/research/search', parse: parseResearchSearch, handle: async ({ input: request, deps }) => {
-    const resolveCredentials = deps.resolveCredentials ?? defaultResolveCredentials;
+/** Builds one route over a host-selected provider, preserving the default Tavily validation contract. */
+export function createResearchSearchRoute({ provider }: { provider?: ResearchProvider }, _optional: Record<string, never> = {}) {
+  const providerId = provider?.id ?? 'tavily';
+  return defineJsonRoute<ResearchSearchRequest, ResearchSearchResponse, ResearchHttpDeps>({
+  method: 'post', path: '/api/research/search', parse: (input) => parseResearchSearch(input, providerId), handle: async ({ input: request, deps }) => {
+    const selectedProvider = provider ?? deps.provider ?? createTavilyResearchProvider({}, deps.fetch ? { fetch: deps.fetch } : {});
+    const resolveCredentials = deps.resolveCredentials ?? (() => selectedProvider.id === 'tavily' ? defaultResolveCredentials({ env: deps.env ?? process.env }) : Promise.resolve({}));
     const onInternalError = deps.onInternalError ?? defaultInternalErrorSink;
 
     let credentials: ResearchProviderCredentials;
     try {
-      credentials = await resolveCredentials({ providerId: 'tavily' });
+      credentials = await resolveCredentials({ providerId: selectedProvider.id });
     } catch (error) {
       const correlationId = randomUUID();
       onInternalError({ correlationId, error });
@@ -356,11 +242,11 @@ export const researchSearchRoute = defineJsonRoute<ResearchSearchRequest, Resear
 
     const apiKey = credentials.apiKey;
     if (!apiKey) {
-      return err({ error: createApiError({ code: 'NOT_CONFIGURED', message: 'tavily provider not configured' }) });
+      return err({ error: createApiError({ code: 'NOT_CONFIGURED', message: `${selectedProvider.id} provider not configured` }) });
     }
 
     try {
-      const raw = await tavilySearch(apiKey, credentials, request);
+      const raw = await selectedProvider.search({ apiKey, credentials, request }, {});
       // Matches OD's real `NO_RESEARCH_SOURCES` (404) — see module doc. Zero usable sources is a
       // failure, not an empty success, even when the upstream Tavily call itself succeeded.
       if (raw.sources.length === 0) {
@@ -370,20 +256,31 @@ export const researchSearchRoute = defineJsonRoute<ResearchSearchRequest, Resear
         query: request.query,
         summary: raw.answer || synthesizeFallbackSummary(raw.sources),
         sources: raw.sources,
-        provider: 'tavily',
+        provider: selectedProvider.id,
         depth: 'shallow',
         fetchedAt: Date.now(),
       };
       return ok({ value: result });
     } catch (error) {
       const correlationId = randomUUID();
-      onInternalError({ correlationId, error });
+      // A host provider can throw transport text too; keep its configured key out of the sink.
+      const safeMessage = redactSecrets({ input: error instanceof Error ? error.message : String(error) }, { exactSecrets: [apiKey] });
+      const safeError = new Error(safeMessage);
+      if (error instanceof Error) {
+        safeError.name = redactSecrets({ input: error.name }, { exactSecrets: [apiKey] });
+        if (error.stack === undefined) delete safeError.stack;
+        else safeError.stack = redactSecrets({ input: error.stack }, { exactSecrets: [apiKey] });
+      }
+      onInternalError({ correlationId, error: safeError });
       return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
     }
   }
 }, { requireSameOrigin: true });
+}
+
+export const researchSearchRoute = createResearchSearchRoute({});
 
 /** Mounts `POST /api/research/search` on `app`. A pack's `http(app, services)` calls this directly. */
 export function registerResearchRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ResearchHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: researchSearchRoute, deps, adapter });
+  mountJsonRoute({ app, spec: deps.provider ? createResearchSearchRoute({ provider: deps.provider }) : researchSearchRoute, deps, adapter });
 }

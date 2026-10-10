@@ -1,3 +1,4 @@
+import { createFederatedMcpPresetRegistry } from "../presets.js";
 import { createDefaultConnect } from "../stdio/default-connect.js";
 import { IDENTITY_STDIO_LAUNCH_RESOLVER } from "../stdio/stdio-launch-resolver.js";
 import { messages as federationMessages, clientInfo, testPermissionGate } from "./fixtures.js";
@@ -1091,4 +1092,18 @@ test("a hosted server that rejects the token is reported as a failed connection,
   } finally {
     await server.close();
   }
+});
+
+// Proves the factory is actually on the boot path, rather than merely available as an unused API.
+test("bootstrap resolves the injected host registry and an independent host boots with no presets", async () => {
+  const presetRegistry = createFederatedMcpPresetRegistry({});
+  presetRegistry.register({ preset: { presetId: "host", resolve: () => ({ config: CONFIG, launch: FAKE_LAUNCH }) } });
+  const connect = async () => sessionFor();
+  const { logger } = collectingLogger();
+  const populated = await attachFederatedMcpTools({ registry: fakeRegistry(), deps: fakeDeps().deps, connect }, { presetRegistry, logger, env: {} });
+  assert.ok(populated.registeredToolIds.includes("mcp__supabase__list_tables"));
+  assert.equal(populated.reports[0]!.isPreset, true);
+  const empty = await attachFederatedMcpTools({ registry: fakeRegistry(), deps: fakeDeps().deps, connect }, { presetRegistry: createFederatedMcpPresetRegistry({}), logger, env: {} });
+  assert.deepEqual(empty.registeredToolIds, []);
+  assert.deepEqual(empty.reports, []);
 });

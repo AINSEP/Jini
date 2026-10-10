@@ -4,8 +4,11 @@ import type { YamlReaderPort } from "./ports.js";
 
 export type SkillYamlPort = YamlReaderPort;
 export class SkillInputError extends Error {
-  constructor({ message }: { message: string }, optional: { cause?: unknown } = {}) {
-    super(message, optional);
+  constructor(required: { message: string }, optional?: { cause?: unknown });
+  /** Published host adapters may still use the native Error call shape during migration. */
+  constructor(message: string, optional?: { cause?: unknown });
+  constructor(required: { message: string } | string, optional: { cause?: unknown } = {}) {
+    super(typeof required === "string" ? required : required.message, optional);
   }
 }
 export interface SkillUploadFile { readonly path: string; readonly contentBase64: string }

@@ -1,3 +1,4 @@
+import { VENDOR_API_BASE_URLS } from '@jini-ai/integrations/media-providers/catalog';
 /**
  * @module llm-provider
  *
@@ -86,9 +87,9 @@ export const DEFAULT_TIMEOUT_MS = 30_000;
 const ANTHROPIC_MAX_TOKENS = 1024;
 
 const DEFAULT_BASE_URLS: Record<Exclude<LlmProviderId, 'azure'>, string> = {
-  anthropic: 'https://api.anthropic.com',
-  openai: 'https://api.openai.com',
-  google: 'https://generativelanguage.googleapis.com',
+  anthropic: VENDOR_API_BASE_URLS.anthropic,
+  openai: VENDOR_API_BASE_URLS.openai,
+  google: VENDOR_API_BASE_URLS.google,
 };
 
 interface ResolvedLlmCall {

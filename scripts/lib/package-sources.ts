@@ -34,7 +34,7 @@ export function sourcePackages(required: { packagesDir: string }, _optional: Rec
   return packages;
 }
 
-export function packageSourceFiles(required: { directory: string }, _optional: Record<string, never> = {}): string[] {
+export function packageSourceFiles(required: { directory: string }, { includeJavaScript = false }: { includeJavaScript?: boolean } = {}): string[] {
   const files: string[] = [];
   function visit(directory: string): void {
     if (!existsSync(directory)) return;
@@ -42,7 +42,7 @@ export function packageSourceFiles(required: { directory: string }, _optional: R
       if (['__tests__', 'node_modules', 'dist', '.git'].includes(entry.name)) continue;
       const child = join(directory, entry.name);
       if (entry.isDirectory()) visit(child);
-      else if (/\.(?:ts|tsx|mts|cts|css)$/.test(entry.name) && !/\.test\./.test(entry.name)) files.push(child);
+      else if ((/\.(?:ts|tsx|mts|cts|css)$/.test(entry.name) || (includeJavaScript && /\.[cm]?jsx?$/.test(entry.name))) && !/\.test\./.test(entry.name)) files.push(child);
     }
   }
   visit(join(required.directory, 'src'));

@@ -26,7 +26,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { isIP, type LookupFunction } from 'node:net';
 import path from 'node:path';
 
-import { Agent } from 'undici';
+import { Agent, type Dispatcher } from 'undici';
 import { isPrivateAddress } from './net/address.js';
 
 /** Media extensions we are willing to cache + proxy. Anything else (HTML,
@@ -164,17 +164,26 @@ export interface AssetCacheOptions {
   fetchImpl?: typeof fetch;
   /** Injectable `dns.lookup` for the connection-time SSRF guard (tests). */
   lookupImpl?: DnsLookupCb;
+  /** Host-supplied dispatcher must enforce the same connection-time public-address guard. */
+  dispatcher?: Dispatcher;
 }
 
 export interface AssetCache {
   get(rawUrl: string): Promise<AssetCacheResult>;
+  /** Closes only the default adapter; an injected dispatcher remains owned by its host. */
+  close?(): Promise<void>;
+}
+
+/** Default adapter: validate DNS at connection time, so the checked address is the connected one. */
+export function createAssetCacheDispatcher(_required: Record<string, never>, { lookupImpl }: { lookupImpl?: DnsLookupCb } = {}): Agent {
+  return new Agent({ connect: { lookup: createValidatingLookup(lookupImpl) as unknown as LookupFunction } });
 }
 
 /** Build a disk-backed cache for external sandboxed-content media. Concurrent
  *  requests for the same URL share one in-flight fetch; completed fetches
  *  persist to `<cacheDir>/<sha256>` (+ `.json` sidecar) and are replayed from
  *  disk. */
-export function createAssetCache(opts: AssetCacheOptions): AssetCache {
+export function createAssetCache(opts: AssetCacheOptions, options: { dispatcher?: Dispatcher } = {}): AssetCache {
   const cacheDir = opts.cacheDir;
   const maxBytes = opts.maxBytes ?? 64 * 1024 * 1024;
   const timeoutMs = opts.fetchTimeoutMs ?? 15_000;
@@ -182,9 +191,8 @@ export function createAssetCache(opts: AssetCacheOptions): AssetCache {
   // Pin SSRF validation to the actual outbound connection: the Agent resolves
   // the host once, and `validatingLookup` rejects the connection if that exact
   // address is private. No separate pre-validation lookup to rebind around.
-  const dispatcher = new Agent({
-    connect: { lookup: createValidatingLookup(opts.lookupImpl) as unknown as LookupFunction },
-  });
+  const suppliedDispatcher = options.dispatcher ?? opts.dispatcher;
+  const dispatcher = suppliedDispatcher ?? createAssetCacheDispatcher({}, opts.lookupImpl ? { lookupImpl: opts.lookupImpl } : {});
   const inflight = new Map<string, Promise<AssetCacheResult>>();
 
   function keyFor(rawUrl: string): string {
@@ -318,7 +326,7 @@ export function createAssetCache(opts: AssetCacheOptions): AssetCache {
     return pending;
   }
 
-  return { get };
+  return { get, close: async () => { if (!suppliedDispatcher) await dispatcher.close(); } };
 }
 
 /** Exposed for tests that need to assert the on-disk key layout. */

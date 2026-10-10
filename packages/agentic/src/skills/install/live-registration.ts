@@ -23,6 +23,7 @@ export function createLiveSkillRegistration<Descriptor extends { id: string }, C
   registry.has = input => slots.has(input.id) ? active.has(input.id) : has(input);
   let fingerprint = '';
   return ({ tools }: { tools: readonly SkillRegistration<Descriptor, Context>[] }): boolean => {
+    // Discovery changes invalidate the search snapshot; handlers always use current guidance.
     const nextFingerprint = JSON.stringify(tools.map(t => t.descriptor));
     const next = new Map(tools.map(t => [t.descriptor.id, t]));
     if (next.size !== tools.length) throw new Error('Duplicate skill registration ID.');

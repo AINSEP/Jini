@@ -1,5 +1,6 @@
 import { terminalMessageNotice, continuingRunNotice } from '../../core/durable-projection.js';
-import { turnUsage } from '../../core/turn-usage.js';
+import type { ChatUsageSummary } from '../../core/turn-usage.js';
+import { useMessageUsage, useUsageSummary } from './MessageRow.usage.js';
 /**
  * @module MessageRow
  *
@@ -69,6 +70,8 @@ import { QuestionForm } from './QuestionForm.js';
 
 export interface MessageRowProps {
   message: ChatMessage;
+  /** Per-turn charge and prefix total derived from the complete conversation's persisted events. */
+  usageSummary?: ChatUsageSummary;
   /** Whether this message's own run is still streaming. */
   runStreaming?: boolean;
   runSucceeded?: boolean;
@@ -80,15 +83,6 @@ export interface MessageRowProps {
   onRequestOpenFile?: (name: string) => void;
   /** Host-supplied renderer for a `ChatAttachment` chip. Falls back to a plain filename chip. */
   renderAttachment?: (attachment: ChatAttachment) => ReactNode;
-}
-
-type UsageEvent = Extract<AgentEvent, { kind: 'usage' }>;
-
-function formatDuration(ms: number): string {
-  const totalSeconds = Math.round(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 }
 
 /**
@@ -129,18 +123,16 @@ function isRunInProgress(runStatus: ChatRunStatus | undefined): boolean {
   return runStatus !== undefined && !isTerminalRunStatus({ status: runStatus });
 }
 
-/** One "Done · 6m 29s · 2612 out · $0.4028" summary line, from the run's own `kind:'usage'` event — never estimated client-side. Renders only the fields the event actually carries, so a transport that supplies partial usage data degrades gracefully instead of showing fabricated zeros. */
-function UsageSummary({ usage }: { usage: UsageEvent }) {
+/** One "Done · 6m 29s · $0.41 (Total: $2.50)" line from reported usage, never estimated.
+ * Partial usage stays partial; output tokens are available to assistive technology and in the tooltip. */
+function UsageSummary({ usage }: { usage: ChatUsageSummary }) {
   const t = useT();
-  const parts: string[] = [];
-  if (usage.durationMs !== undefined) parts.push(formatDuration(usage.durationMs));
-  if (usage.outputTokens !== undefined) parts.push(t('{n} out', { n: usage.outputTokens }));
-  if (usage.costUsd !== undefined) parts.push(`$${usage.costUsd.toFixed(4)}`);
-  if (parts.length === 0) return null;
+  const { text, title, ariaLabel } = useUsageSummary({ usage });
+  if (!text) return null;
   return (
-    <div className="jini-message-usage">
+    <div className="jini-message-usage" title={title} role="note" aria-label={ariaLabel}>
       <span className="jini-message-usage-dot" aria-hidden>●</span>
-      {t('Done')} · {parts.join(' · ')}
+      {t('Done')} · {text}
     </div>
   );
 }
@@ -172,7 +164,7 @@ function messageAwaitingAnswer(
 
 function AssistantMessageFooter(
   { message, usageEvent, terminalNotice, pending, runInProgress, runStreaming, visibleContent }: {
-    message: ChatMessage; usageEvent: UsageEvent | undefined; terminalNotice: string | null;
+    message: ChatMessage; usageEvent: ChatUsageSummary | undefined; terminalNotice: string | null;
     pending: boolean; runInProgress: boolean; runStreaming?: boolean; visibleContent: string;
   }, _optional = {},
 ) {
@@ -233,6 +225,7 @@ function CopyMessageButton({ text, label }: CopyMessageButtonProps) {
  */
 export const MessageRow = memo(function MessageRow({
   message,
+  usageSummary,
   runStreaming = false,
   runSucceeded = false,
   questionFormInteractive = false,
@@ -243,6 +236,7 @@ export const MessageRow = memo(function MessageRow({
   renderAttachment,
 }: MessageRowProps) {
   const t = useT();
+  const usageEvent = useMessageUsage({ message, ...(usageSummary === undefined ? {} : { summary: usageSummary }) });
   const timeline = useToolTimeline({ events: message.events }, { runStreaming, runSucceeded });
   const extGroups = useExtEventGroups({ events: message.events }, { slotOf: (name, data) => extEventSlot({ name, data }) });
   // Which attachment chip (if any) this row's preview modal is open for. Row-local, not
@@ -289,7 +283,6 @@ export const MessageRow = memo(function MessageRow({
   const terminalNotice = terminalMessageNotice({ message }, {});
   const visibleContent = stripArtifact({ content: message.content });
   const segments = splitOnQuestionForms({ input: visibleContent });
-  const usageEvent = turnUsage({ events: message.events }, {});
 
   const blocks = messageBlocks({ visibleContent, message, rows: timeline.rows }, {});
   const pending = isPendingWithNoContent(message, visibleContent, timeline.rows.length);

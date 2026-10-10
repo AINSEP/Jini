@@ -8,9 +8,9 @@ export function createSourceControlProviderKit(required: {
   httpClient: HttpClientPort;
   fetch: SourceControlFetchPort;
   describeTransportError(required: { error: unknown }): DescribedTransportError;
-}): SourceControlProviderKit {
+}, optional: { fetchRedirectPolicy?: "guard" | "caller" } = {}): SourceControlProviderKit {
   return {
-    fetch: ({ url, init }) => required.fetch({ url }, { init: redirectGuardInit({ init }) }),
+    fetch: ({ url, init }) => required.fetch({ url }, { init: optional.fetchRedirectPolicy === "caller" ? init : redirectGuardInit({ init }) }),
     redirectGuardInit: ({ init }) => redirectGuardInit({ init }),
     assertNotRedirected: ({ response, hostName }) => assertNotRedirected({ resp: response, providerLabel: hostName }),
     isRedirectRefusal: ({ error }) => error instanceof DeployError,

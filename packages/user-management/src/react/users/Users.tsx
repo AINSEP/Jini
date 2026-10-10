@@ -5,11 +5,12 @@ import { agentHandle } from "@jini-ai/agentic";
 import { buildAgentListHandles } from "@jini-ai/ui/panel-kit";
 
 import { formatGrantLabel, grantOptionLabel, userRowMenuItems, isOwnerAccount, type UserAccountCapabilities } from "./rules.js";
-import { useUsers, type UsersDependencies, type UsersOptions } from "./hooks/use-users.hooks.js";
+import { useUsers, type UsersController, type UsersDependencies, type UsersOptions } from "./hooks/use-users.hooks.js";
 import type { ReactNode } from "react";
 import type { Translate } from "@jini-ai/ui/panel-kit";
 import { InfoTip } from "@jini-ai/ui/admin-widgets";
 import { useResetPasswordFields } from "./hooks/use-reset-password-fields.hooks.js";
+import { ChangeUsernameDialog } from "./ChangeUsernameDialog.js";
 
 /**
  * @file Admin "Users" screen (SPEC-006 §3 human grant-writing transitions + 0.6.0 CRUD-completion
@@ -313,6 +314,7 @@ export interface UserRowActionsController {
   requestDisable: (user: AdminIdentityUser) => void;
   toggleStatus: (user: AdminIdentityUser) => Promise<void>;
   openResetPassword: (user: AdminIdentityUser) => void;
+  renameUserHandler?: UsersController["renameUserHandler"];
   /** Delete-user plan v2 (2026-09-24): whether the row's `RowMenu` should carry a "Delete" item at
    *  all — see `use-users.hooks.ts`'s `canManageUserTrash` doc comment for where this comes from. */
   canDelete: boolean;
@@ -394,6 +396,7 @@ function UserRow({ user, roleById, policyById, showGrants, actions, manage, agen
                 onEnable: (u) => void actions.toggleStatus(u),
                 onManage: actions.toggleExpanded,
                 onResetPassword: actions.openResetPassword,
+                onChangeUsername: actions.renameUserHandler?.({ user }),
                 onRequestDelete: actions.requestDelete,
               }, translate, canDelete: actions.canDelete,
               capabilities: actions.rowCapabilities?.(user) ?? actions.canDelete,
@@ -897,6 +900,11 @@ export function Users({ useUsersHook = useUsers, port, translate: injectedTransl
 
     canManageUserTrash,
     rowCapabilities,
+    ownProfile,
+    canRenameOwnProfile,
+    openOwnRename,
+    renameUserHandler,
+    changeUsername,
     confirmingDelete,
     setConfirmingDelete,
     requestDelete,
@@ -915,6 +923,12 @@ export function Users({ useUsersHook = useUsers, port, translate: injectedTransl
   return (
     <div className="page">
       <UsersPageHeader formOpen={formOpen} setFormOpen={setFormOpen} t={t} />
+      {ownProfile ? <section className="notice" aria-label={t("My profile")}>
+        <h2>{t("My profile")}</h2><p>{ownProfile.username}</p>
+        {canRenameOwnProfile ? <button type="button" onClick={openOwnRename}
+          {...agentHandle({ handle: "users-profile-change-username" }, { role: "button", label: "Change my login username" })}>
+          {t("Change username")}</button> : null}
+      </section> : null}
 
       {formOpen ? (
         <NewUserForm
@@ -945,6 +959,7 @@ export function Users({ useUsersHook = useUsers, port, translate: injectedTransl
           requestDisable,
           toggleStatus: onToggleStatus,
           openResetPassword,
+          renameUserHandler,
           canDelete: canManageUserTrash,
           rowCapabilities,
           requestDelete,
@@ -990,6 +1005,7 @@ export function Users({ useUsersHook = useUsers, port, translate: injectedTransl
         confirmResetPassword={confirmResetPassword}
         t={t}
       />
+      {changeUsername ? <ChangeUsernameDialog controller={changeUsername} translate={t} /> : null}
     </div>
   );
 }

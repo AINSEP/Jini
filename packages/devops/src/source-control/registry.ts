@@ -1,47 +1,53 @@
-import type { DescriptorExtensionReader, LoadedSourceControlProvider, ProviderCatalogPort, SourceControlProvider, SourceControlProviderDescriptor, SourceControlProviderKit, SourceControlProviderModule, SourceControlProviderRegistry } from './contracts.js';
+import type { SourceControlProviderOperations, DescriptorExtensionReader, LoadedSourceControlProvider, ProviderCatalogPort, SourceControlProvider, SourceControlProviderDescriptor, SourceControlProviderKit, SourceControlProviderModule, SourceControlProviderRegistry } from './contracts.js';
 
 type ParseResult = { ok: true; descriptors: SourceControlProviderDescriptor[] } | { ok: false; reason: string };
 function object(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && !Array.isArray(value); }
 function relativeModule(value: unknown): value is string {
   return typeof value === 'string' && value.endsWith('.mjs') && !/[\\\x00-\x1f\x7f:]/.test(value) && value.split('/').every(segment => segment !== '' && segment !== '.' && segment !== '..');
 }
+/** True for `https://host[:port]` exactly — what `new URL(x).origin` gives back. @complexity O(1). */
 function httpsOrigin(value: unknown): value is string {
   if (typeof value !== 'string') return false;
   try { const url = new URL(value); return url.protocol === 'https:' && url.origin === value; } catch { return false; }
 }
-function pathList(value: unknown): value is string[] {
-  return Array.isArray(value) && value.length <= 20 && value.every(entry => typeof entry === 'string' && entry.length <= 200 && !/[\\\x00-\x1f\x7f:]/.test(entry) && entry.split('/').every(segment => segment !== '' && segment !== '.' && segment !== '..'));
+export interface DescriptorPathPolicy {
+  /** Trusted catalogs may defer module containment to their own fail-closed import gate. */
+  modulePath?(required: { path: string }): boolean;
+  folderPath?(required: { path: string }): boolean;
 }
-function parseDescriptor(entry: unknown, at: string, readExtensions: DescriptorExtensionReader): SourceControlProviderDescriptor | string {
+function pathList(value: unknown, policy: DescriptorPathPolicy = {}): value is string[] {
+  return Array.isArray(value) && value.length <= 20 && value.every(entry => typeof entry === 'string' && entry.length <= 200 && (policy.folderPath ? policy.folderPath({ path: entry }) : !/[\\\x00-\x1f\x7f:]/.test(entry) && entry.split('/').every(segment => segment !== '' && segment !== '.' && segment !== '..')));
+}
+function parseDescriptor(entry: unknown, at: string, readExtensions: DescriptorExtensionReader, policy: DescriptorPathPolicy): SourceControlProviderDescriptor | string {
   if (!object(entry)) return `${at} must be an object`;
   const { id, label, apiOrigin, maxFileBytes, reservedPaths, workflowPaths, module } = entry;
   if (typeof id !== 'string' || id.length > 64 || /\s/.test(id) || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) return `${at}.id must be a lowercase hyphenated id`;
   if (typeof label !== 'string' || label.trim() === '' || label.length > 100) return `${at}.label must be a non-empty string`;
   if (!httpsOrigin(apiOrigin)) return `${at}.apiOrigin must be an https origin with no path`;
   if (maxFileBytes !== undefined && (typeof maxFileBytes !== 'number' || !Number.isSafeInteger(maxFileBytes) || maxFileBytes <= 0)) return `${at}.maxFileBytes must be a positive integer`;
-  if (reservedPaths !== undefined && !pathList(reservedPaths)) return `${at}.reservedPaths must be a list of at most 20 relative folder paths`;
-  if (workflowPaths !== undefined && !pathList(workflowPaths)) return `${at}.workflowPaths must be a list of at most 20 relative folder paths`;
-  if (!relativeModule(module)) return `${at}.module must be a relative path ending in .mjs`;
+  if (reservedPaths !== undefined && !pathList(reservedPaths, policy)) return `${at}.reservedPaths must be a list of at most 20 relative folder paths`;
+  if (workflowPaths !== undefined && !pathList(workflowPaths, policy)) return `${at}.workflowPaths must be a list of at most 20 relative folder paths`;
+  if (!(typeof module === "string" && module.endsWith(".mjs") && (policy.modulePath ? policy.modulePath({ path: module }) : relativeModule(module)))) return `${at}.module must be a relative path ending in .mjs`;
   const extras = readExtensions({ entry, at });
   if (!extras.ok) return extras.reason;
-  return { ...extras.extensions, id, label, apiOrigin, module, ...(typeof maxFileBytes === 'number' ? { maxFileBytes } : {}), ...(pathList(reservedPaths) ? { reservedPaths } : {}), ...(pathList(workflowPaths) ? { workflowPaths } : {}) };
+  return { ...extras.extensions, id, label, apiOrigin, module, ...(typeof maxFileBytes === 'number' ? { maxFileBytes } : {}), ...(pathList(reservedPaths, policy) ? { reservedPaths } : {}), ...(pathList(workflowPaths, policy) ? { workflowPaths } : {}) };
 }
 /** Parse generic host facts; the caller validates credential/i18n extensions. Unknown keys are ignored. */
-export function parseSourceControlProvidersFile(required: { raw: string; readExtensions: DescriptorExtensionReader }): ParseResult {
+export function parseSourceControlProvidersFile(required: { raw: string; readExtensions: DescriptorExtensionReader }, optional: DescriptorPathPolicy = {}): ParseResult {
   let value: unknown;
   try { value = JSON.parse(required.raw); } catch { return { ok: false, reason: 'not valid JSON' }; }
   if (!object(value) || value.schemaVersion !== 1) return { ok: false, reason: 'schemaVersion must be 1' };
   if (!Array.isArray(value.providers)) return { ok: false, reason: 'providers must be an array' };
   const descriptors: SourceControlProviderDescriptor[] = [];
   for (const [index, entry] of value.providers.entries()) {
-    const descriptor = parseDescriptor(entry, `providers[${index}]`, required.readExtensions);
+    const descriptor = parseDescriptor(entry, `providers[${index}]`, required.readExtensions, optional);
     if (typeof descriptor === 'string') return { ok: false, reason: descriptor };
     if (descriptors.some(prior => prior.id === descriptor.id)) return { ok: false, reason: `providers[${index}].id '${descriptor.id}' is declared twice` };
     descriptors.push(descriptor);
   }
   return { ok: true, descriptors };
 }
-function moduleError(value: unknown): string | null {
+export function sourceControlProviderModuleError({ value }: { value: unknown }, _optional = {}): string | null {
   if (!object(value) || typeof value.create !== 'function') return 'its module has no create() function';
   if (value.validateTarget !== undefined && typeof value.validateTarget !== 'function') return "its module's validateTarget is not a function";
   return null;
@@ -68,7 +74,7 @@ export async function loadSourceControlProviderRegistry(required: {
     for (const descriptor of parsed.descriptors) {
       try {
         const candidate = await item.importModule({ relativePath: descriptor.module });
-        const reason = moduleError(candidate);
+        const reason = sourceControlProviderModuleError({ value: candidate });
         if (reason) { refusals.push(`${item.pluginId}/${descriptor.id}: ${reason}`); continue; }
         providers.push({ descriptor, pluginId: item.pluginId, module: candidate as SourceControlProviderModule });
       } catch (error) { refusals.push(`${item.pluginId}/${descriptor.id}: ${required.describeError({ error })}`); }
@@ -78,12 +84,27 @@ export async function loadSourceControlProviderRegistry(required: {
   return { list: () => frozen, get: ({ providerId }) => frozen.find(provider => provider.descriptor.id === providerId), refusals: Object.freeze(refusals.slice()), switchedOff };
 }
 /** Build operations and host facts without allowing module operations to overwrite declared facts. */
-export function buildLoadedSourceControlProvider(required: { loaded: LoadedSourceControlProvider; kit: SourceControlProviderKit }): SourceControlProvider {
+export interface SharedLoadedProvider<Kit, Operations> {
+  readonly descriptor: SourceControlProviderDescriptor;
+  readonly module: { create(required: { kit: Kit }): Operations; validateTarget?: (required: { owner: string; repo: string }) => string | null };
+}
+export function buildLoadedSourceControlProvider<Kit, Operations>(required: { loaded: SharedLoadedProvider<Kit, Operations>; kit: Kit }, _optional = {}): Operations & import('./contracts.js').SourceControlHostFacts & { validateTarget?: (required: { owner: string; repo: string }) => string | null } {
   const { loaded, kit } = required;
   const { id, label, apiOrigin, maxFileBytes, reservedPaths, workflowPaths } = loaded.descriptor;
   return { ...loaded.module.create({ kit }), ...(loaded.module.validateTarget ? { validateTarget: loaded.module.validateTarget } : {}), id, label, apiOrigin,
     ...(maxFileBytes !== undefined ? { maxFileBytes } : {}), ...(reservedPaths !== undefined ? { reservedPaths } : {}), ...(workflowPaths !== undefined ? { workflowPaths } : {}) };
 }
+export interface SharedProviderRegistry<Kit, Operations> {
+  list(required: Record<string, never>): readonly SharedLoadedProvider<Kit, Operations>[];
+  get(required: { providerId: string }): SharedLoadedProvider<Kit, Operations> | undefined;
+  readonly refusals: readonly string[];
+}
+export interface SharedBuildProviderArgs<Kit = SourceControlProviderKit, Operations = SourceControlProviderOperations, Registry extends SharedProviderRegistry<Kit, Operations> = SharedProviderRegistry<Kit, Operations>> {
+  workspaceId: string; kit: Kit;
+  load(required: { workspaceId: string }): Promise<Registry>;
+  noProviderMessage(required: { registry: Registry; providerId?: string }): string;
+}
+
 export type BuildSourceControlProviderResult = { ok: true; provider: SourceControlProvider } | { ok: false; message: string; refusals: readonly string[] };
 export interface BuildProviderArgs {
   workspaceId: string; providerId: string; kit: SourceControlProviderKit;
@@ -91,11 +112,11 @@ export interface BuildProviderArgs {
   noProviderMessage(required: { registry: SourceControlProviderRegistry; providerId: string }): string;
 }
 /** Operator navigation/copy is supplied by the host, with no descriptor or product defaults. */
-export async function buildSourceControlProvider(required: BuildProviderArgs): Promise<BuildSourceControlProviderResult> {
+export async function buildSourceControlProvider<Kit = SourceControlProviderKit, Operations = SourceControlProviderOperations, Registry extends SharedProviderRegistry<Kit, Operations> = SharedProviderRegistry<Kit, Operations>>(required: Omit<SharedBuildProviderArgs<Kit, Operations, Registry>, "noProviderMessage"> & { providerId: string; noProviderMessage(required: { registry: Registry; providerId: string }): string }, _optional = {}) {
   const registry = await required.load({ workspaceId: required.workspaceId });
   const loaded = registry.get({ providerId: required.providerId });
-  if (!loaded) return { ok: false, message: required.noProviderMessage({ registry, providerId: required.providerId }), refusals: registry.refusals };
-  return { ok: true, provider: buildLoadedSourceControlProvider({ loaded, kit: required.kit }) };
+  if (!loaded) return { ok: false as const, message: required.noProviderMessage({ registry, providerId: required.providerId }), refusals: registry.refusals };
+  return { ok: true as const, provider: buildLoadedSourceControlProvider<Kit, Operations>({ loaded, kit: required.kit }) };
 }
 export interface BuildProvidersArgs {
   workspaceId: string; kit: SourceControlProviderKit;
@@ -103,14 +124,14 @@ export interface BuildProvidersArgs {
   noProviderMessage(required: { registry: SourceControlProviderRegistry }): string;
 }
 /** Build every enabled provider over the same guarded kit, in catalog order. */
-export async function buildSourceControlProviders(required: BuildProvidersArgs): Promise<{ providers: readonly SourceControlProvider[]; refusals: readonly string[]; noProviderMessage: string }> {
+export async function buildSourceControlProviders<Kit = SourceControlProviderKit, Operations = SourceControlProviderOperations, Registry extends SharedProviderRegistry<Kit, Operations> = SharedProviderRegistry<Kit, Operations>>(required: SharedBuildProviderArgs<Kit, Operations, Registry>, _optional = {}) {
   const registry = await required.load({ workspaceId: required.workspaceId });
-  return { providers: registry.list({}).map(loaded => buildLoadedSourceControlProvider({ loaded, kit: required.kit })), refusals: registry.refusals, noProviderMessage: required.noProviderMessage({ registry }) };
+  return { providers: registry.list({}).map(loaded => buildLoadedSourceControlProvider<Kit, Operations>({ loaded, kit: required.kit })), refusals: registry.refusals, noProviderMessage: required.noProviderMessage({ registry }) };
 }
 /** Build and select a provider for one custom credential's API origin. */
-export async function buildSourceControlProviderForApi(required: BuildProvidersArgs & { baseUrl: string }): Promise<BuildSourceControlProviderResult> {
-  const built = await buildSourceControlProviders(required);
-  const picked = pickSourceControlProviderForApi({ providers: built.providers, baseUrl: required.baseUrl, noProviderMessage: built.noProviderMessage });
+export async function buildSourceControlProviderForApi<Kit = SourceControlProviderKit, Operations = SourceControlProviderOperations, Registry extends SharedProviderRegistry<Kit, Operations> = SharedProviderRegistry<Kit, Operations>>(required: SharedBuildProviderArgs<Kit, Operations, Registry> & { baseUrl: string }, optional: { missingProviderMessage?: (required: { origin: string | undefined; baseUrl: string }) => string } = {}) {
+  const built = await buildSourceControlProviders<Kit, Operations, Registry>(required);
+  const picked = pickSourceControlProviderForApi({ providers: built.providers, baseUrl: required.baseUrl, noProviderMessage: built.noProviderMessage }, optional);
   if (picked.ok) return picked;
   return { ...picked, refusals: built.refusals };
 }
@@ -128,9 +149,9 @@ export function originOf(required: { url: string }): string | undefined {
   try { return new URL(required.url).origin; } catch { return undefined; }
 }
 /** Exact API-origin match first; a sole provider may serve a self-hosted origin. */
-export function pickSourceControlProviderForApi(required: { providers: readonly SourceControlProvider[]; baseUrl: string; noProviderMessage: string }): { ok: true; provider: SourceControlProvider } | { ok: false; message: string } {
+export function pickSourceControlProviderForApi<Provider extends { apiOrigin: string }>(required: { providers: readonly Provider[]; baseUrl: string; noProviderMessage: string }, optional: { missingProviderMessage?: (required: { origin: string | undefined; baseUrl: string }) => string } = {}): { ok: true; provider: Provider } | { ok: false; message: string } {
   const origin = originOf({ url: required.baseUrl });
   const match = required.providers.find(provider => originOf({ url: provider.apiOrigin }) === origin) ?? (required.providers.length === 1 ? required.providers[0] : undefined);
   if (match) return { ok: true, provider: match };
-  return { ok: false, message: required.providers.length === 0 ? required.noProviderMessage : `No enabled provider supplies source control for ${origin ?? required.baseUrl}.` };
+  return { ok: false, message: required.providers.length === 0 ? required.noProviderMessage : (optional.missingProviderMessage?.({ origin, baseUrl: required.baseUrl }) ?? `No enabled provider supplies source control for ${origin ?? required.baseUrl}.`) };
 }

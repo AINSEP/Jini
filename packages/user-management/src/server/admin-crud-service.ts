@@ -3,6 +3,7 @@ import { inIdentityTransaction } from "./identity-transaction.js";
 import type { UUID } from "@jini-ai/core/primitives";
 import { assertCallerHasAnyPermission, assertGrantClamp, assertOwnerTargetMayBeModified, principalHoldsOwnerWildcard } from "./grant-service.js";
 import { validatePasswordPolicy } from "./password-policy.js";
+import { normalizeUsername } from "./username.js";
 import { isKnownPermission } from "../core/permissions.js";
 import { principalKindMayExercisePermission } from "../core/principal-kind-policy.js";
 import type { AuthServiceDeps } from "./auth-service.js";
@@ -172,18 +173,19 @@ export async function enablePrincipal(required: {
 
 /**
  * `UPDATE_USER` (feature.spec.md ). Gated by `user.manage`; existing self-profile edits also
- * accept `member.manage`. Only owners may edit owner targets — `email` only; `username`/`password` are not
- * this transition's concern ( respectively). An absent or empty-string `email`
+ * accept `member.manage`. Username changes require `user.manage`, including self edits.
+ * Only owners may edit owner targets. Password is not this transition's concern.
+ * An absent or empty-string `email`
  * clears the stored value to `undefined` ( — no distinct "blank but present" state).
  *
- * @complexity O(1) — one lookup, one save.
- * @overallScore 100
+ * @complexity O(n) normalization for n username characters; fixed repo/Trash reads, one user save
+ * and one audit append for an actual rename, all inside the shared identity transaction.
  * See docs/decisions/DR-002-grant-authority-and-admin-safety.md.
  */
 export async function updateUser(required: {
   deps: AuthServiceDeps;
   input: { workspaceId: UUID; callerPrincipalId: UUID; principalId: UUID; };
-}, optional: { email?: string | undefined } = {}): Promise<{ user: UserRecord }> {
+}, optional: { email?: string | undefined; username?: string | undefined } = {}): Promise<{ user: UserRecord }> {
   const { deps } = required;
   const input = { ...required.input, ...optional };
 
@@ -196,7 +198,7 @@ export async function updateUser(required: {
         workspaceId: input.workspaceId,
         callerPrincipalId: input.callerPrincipalId,
         // Preserve existing self-profile access without letting member.manage edit other operators.
-        permissions: input.callerPrincipalId === input.principalId
+        permissions: input.username === undefined && input.callerPrincipalId === input.principalId
           ? ["user.manage", "member.manage"]
           : ["user.manage"],
       });
@@ -214,11 +216,53 @@ export async function updateUser(required: {
         principalId: input.principalId,
       });
 
-      const updated: UserRecord = { ...target, email: input.email ? input.email : undefined };
+      const username = input.username === undefined ? target.username : await resolveUpdatedUsername({ deps, input, target });
+      // Preserve the old email setter contract, while a username-only call retains email.
+      const email = input.username !== undefined && !Object.hasOwn(optional, "email")
+        ? target.email : (input.email || undefined);
+      const updated: UserRecord = { ...target, username, email };
       await deps.repos.users.save(updated);
+      if (username !== target.username) {
+        // Renaming never changes the principal id or credentials: existing sessions stay valid.
+        await deps.usernameChanges!.record({ workspaceId: input.workspaceId, principalId: input.principalId,
+          callerPrincipalId: input.callerPrincipalId, previousUsername: target.username, username,
+          occurredAt: kernelNowIso({ clock: deps.clock }) });
+      }
       return { user: updated };
     },
   });
+}
+
+/** Validate and reserve a normalized name inside the caller's identity transaction.
+ * Permission/owner gates run first, so conflicts never disclose accounts to unauthorized callers.
+ * @complexity O(n) normalization for n username characters; one indexed lookup and up to two Trash reads.
+ * Throws validation or conflict errors; performs no writes.
+ */
+async function resolveUpdatedUsername(required: {
+  deps: AuthServiceDeps; target: UserRecord;
+  input: { workspaceId: string; principalId: string; username?: string | undefined };
+}, _optional: Record<string, never> = {}): Promise<string> {
+  const { deps, input, target } = required;
+  if (typeof input.username !== "string") throw new IdentityValidationError({ message: "username must be a string" });
+  const username = normalizeUsername({ raw: input.username });
+  if (!username) throw new IdentityValidationError({ message: "username must not be blank" });
+  // Missing host ports are internal wiring faults, not user input errors (HTTP 500, not 400).
+  if (!deps.usernameChanges) throw new Error("username changes are not configured");
+  if (await deps.usernameChanges.isInTrash({ workspaceId: input.workspaceId, principalId: input.principalId })) {
+    throw new IdentityConflictError({ message: "this user is in the Trash; restore them first", code: "USER_IN_TRASH" });
+  }
+  if (username !== target.username) {
+    await deps.usernameChanges.assertSupported?.({ workspaceId: input.workspaceId, principalId: input.principalId });
+  }
+  // Trash keeps credential rows until purge, so the unfiltered lookup reserves those names too.
+  const existing = await deps.repos.users.findByUsername({ workspaceId: input.workspaceId, username });
+  if (existing && existing.principalId !== target.principalId) {
+    if (await deps.usernameChanges.isInTrash({ workspaceId: input.workspaceId, principalId: existing.principalId })) {
+      throw new IdentityConflictError({ message: "a user with this username is in the Trash; restore or delete them permanently first", code: "USERNAME_IN_TRASH" });
+    }
+    throw new IdentityConflictError({ message: `username '${username}' is already in use`, code: "RESOURCE_CONFLICT" });
+  }
+  return username;
 }
 
 /**

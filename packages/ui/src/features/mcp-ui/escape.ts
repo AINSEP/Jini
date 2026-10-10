@@ -1,3 +1,5 @@
+import { escapeHtml as sharedEscapeHtml } from "@jini-ai/core/text";
+
 /**
  * @module features/mcp-ui/escape
  *
@@ -22,12 +24,7 @@
  * @complexity O(n) in the value's length.
  */
 export function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  return sharedEscapeHtml({ text: value });
 }
 
 /**

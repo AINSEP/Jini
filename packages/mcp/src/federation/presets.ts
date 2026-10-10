@@ -46,8 +46,17 @@ export interface FederatedMcpPreset {
   readonly resolve: FederatedMcpPresetResolver;
 }
 
-let presets: FederatedMcpPreset[] = [];
-
+export interface FederatedMcpPresetRegistry {
+  register(required: { preset: FederatedMcpPreset }, optional?: Record<string, never>): void;
+  list(required: Record<string, never>, optional?: Record<string, never>): readonly FederatedMcpPreset[];
+  reset(required: Record<string, never>, optional?: Record<string, never>): void;
+}
+/** Each host owns one ordered registry. Replacement retains order; snapshots cannot mutate it.
+ * The preserved reset rationale below describes the legacy module registry; reset now clears
+ * only this instance. The published default registry is a compatibility adapter. */
+export function createFederatedMcpPresetRegistry(_required: Record<string, never>, _optional: Record<string, never> = {}): FederatedMcpPresetRegistry {
+  let presets: FederatedMcpPreset[] = [];
+  return {
 /**
  * Registers a preset, called once at composition-root boot by the preset's own module.
  *
@@ -58,23 +67,21 @@ let presets: FederatedMcpPreset[] = [];
  * a module imported from two places. Last registration wins, and registration order is otherwise
  * preserved so a replacement does not silently reorder connections.
  */
-export function registerFederatedMcpPreset({ preset }: { preset: FederatedMcpPreset }): void {
-  const existing = presets.findIndex((candidate) => candidate.presetId === preset.presetId);
-  if (existing >= 0) {
-    presets[existing] = preset;
-    return;
-  }
-  presets.push(preset);
-}
-
+    register({ preset }) {
+      const existing = presets.findIndex(candidate => candidate.presetId === preset.presetId);
+      if (existing >= 0) presets[existing] = preset;
+      else presets.push(preset);
+    },
 /** Registration order. `bootstrap.ts` resolves in this order, and that order decides which
  * connection claims a contested tool id first (R1). */
-export function listFederatedMcpPresets(): readonly FederatedMcpPreset[] {
-  return presets;
-}
-
+    list: () => Object.freeze(presets.slice()),
 /** Test-only reset of the module-level registry (mirrors `page-head.ts`'s
  * `resetPageHeadRegistry`, though that one is no longer test-only — see its own doc). */
-export function resetFederatedMcpPresetsForTests(_required: Record<string, never>): void {
-  presets = [];
+    reset: () => { presets = []; },
+  };
 }
+/** Compatibility owner for published callers; hosts inject their own instance at boot. */
+export const defaultFederatedMcpPresetRegistry = createFederatedMcpPresetRegistry({});
+export function registerFederatedMcpPreset(required: { preset: FederatedMcpPreset }, optional = {}): void { defaultFederatedMcpPresetRegistry.register(required, optional); }
+export function listFederatedMcpPresets(): readonly FederatedMcpPreset[] { return defaultFederatedMcpPresetRegistry.list({}); }
+export function resetFederatedMcpPresetsForTests(required: Record<string, never>): void { defaultFederatedMcpPresetRegistry.reset(required); }

@@ -266,10 +266,12 @@ describe('MessageRow', () => {
         { kind: 'ext', name: 'user_message', data: { id: 'u2', text: 'change course' } },
         { kind: 'usage', inputTokens: 10, outputTokens: 5, costUsd: 0.0198, durationMs: 1_000 },
       ] }} />);
-      expect(document.querySelector('.jini-message-usage')?.textContent).toBe('●Done · 14s · 1000 out · $0.0498');
+      expect(document.querySelector('.jini-message-usage')?.textContent).toBe('●Done · 14s · $0.05 (Total: $0.05)');
+      expect(document.querySelector('.jini-message-usage')).toHaveAttribute('title', '1000 out');
+      expect(screen.getByRole('note', { name: 'Done · 14s · $0.05 (Total: $0.05) · 1000 out' })).toBeInTheDocument();
     });
 
-    it('renders duration, output tokens, and cost from the message\'s usage event', () => {
+    it('renders duration and upward-rounded cost, with output tokens in the tooltip', () => {
       const message: ChatMessage = {
         id: 'u1',
         role: 'assistant',
@@ -281,8 +283,10 @@ describe('MessageRow', () => {
       const usageText = document.querySelector('.jini-message-usage')?.textContent;
       expect(usageText).toContain('Done');
       expect(usageText).toContain('46s');
-      expect(usageText).toContain('2612 out');
-      expect(usageText).toContain('$0.4028');
+      expect(usageText).not.toContain('2612 out');
+      expect(screen.getByRole('note', { name: 'Done · 46s · $0.41 (Total: $0.41) · 2612 out' })).toBeInTheDocument();
+      expect(document.querySelector('.jini-message-usage')).toHaveAttribute('title', '2612 out');
+      expect(usageText).toContain('$0.41 (Total: $0.41)');
     });
 
     it('formats a duration over a minute as "Xm Ys"', () => {
@@ -306,7 +310,7 @@ describe('MessageRow', () => {
         runStatus: 'succeeded',
       };
       render(<MessageRow message={message} runSucceeded />);
-      expect(screen.getByText(/\$0\.0100/)).toBeInTheDocument();
+      expect(screen.getByText(/\$0\.01 \(Total: \$0\.01\)/)).toBeInTheDocument();
       expect(screen.queryByText(/out/)).not.toBeInTheDocument();
     });
 
@@ -334,7 +338,7 @@ describe('MessageRow', () => {
         runStatus: 'succeeded',
       };
       render(<MessageRow message={message} runSucceeded />);
-      expect(document.querySelector('.jini-message-usage')?.textContent).toBe('●Done · $1.0000');
+      expect(document.querySelector('.jini-message-usage')?.textContent).toBe('●Done · $1.00 (Total: $1.00)');
     });
   });
 

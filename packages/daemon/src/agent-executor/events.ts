@@ -98,7 +98,7 @@ function statusWithChildIdentity(
  * parser's own documented behavior. Never called for `streamFormat:
  * 'plain'` — `wireChildLifecycle` handles that format inline with no
  * parser at all (see `ChildDrivenStreamFormat`'s doc).
- * @param def - The resolved agent def (only `.eventParser` is read beyond `streamFormat`).
+ * @param def - The resolved agent def (`.eventParser` and `.usageCostBasis` configure parser behavior).
  * @param streamFormat - `def.streamFormat`, already narrowed by {@link isSupportedStreamFormat}.
  * @param onEvent - Sink the parser calls once per parsed (or malformed-raw) event.
  * @returns A `{feed, flush}` handle for the chosen parser.
@@ -112,7 +112,7 @@ function createStreamHandlerForDef(
 ): StreamHandler {
   switch (streamFormat) {
     case 'claude-stream-json':
-      return createClaudeStreamHandler({ onEvent: onEvent });
+      return createClaudeStreamHandler({ onEvent: onEvent }, { costBasis: def.usageCostBasis ?? 'run' });
     case 'copilot-stream-json':
       return createCopilotStreamHandler({ onEvent: onEvent });
     case 'qoder-stream-json':

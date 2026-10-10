@@ -81,6 +81,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "@jini-ai/integrations": "workspace:^",
     "@vitest/coverage-v8": "^2.1.9",
     "@jini-ai/oauth": "workspace:^",
     "@jini-ai/platform": "workspace:^",
@@ -91,12 +92,16 @@
     "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
+    "@jini-ai/integrations": "^0.4.2",
     "@github/copilot-sdk": "*",
     "@jini-ai/oauth": "^0.2.0",
     "@jini-ai/platform": "^0.5.1",
     "@jini-ai/protocol": "^0.4.1"
   },
   "peerDependenciesMeta": {
+    "@jini-ai/integrations": {
+      "optional": true
+    },
     "@github/copilot-sdk": {
       "optional": true
     },

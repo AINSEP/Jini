@@ -30,6 +30,7 @@ export async function readSkillArchive({ base64, archiveReader }: { base64: stri
       }
       return files;
     } finally { reader.close({}); }
+  /** Converts malformed archive parser failures into a client-actionable validation refusal. */
   } catch (error) {
     if (error instanceof SkillInputError) throw error;
     throw new SkillInputError({ message: "Could not read skill ZIP. Use a valid ZIP with regular files only." });

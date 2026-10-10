@@ -39,7 +39,8 @@
  * two-phase boot reconciliation. See `createInMemoryMediaTaskStore` in
  * `task-store.ts` for the reference behavior this mirrors.
  */
-import type Database from 'better-sqlite3';
+import type { SqliteSyncOpener } from '@jini-ai/db/sqlite';
+import { loadMediaSqliteOpener } from './sqlite-driver.adapter.js';
 import type {
   MediaTask,
   MediaTaskCreateInput,
@@ -139,7 +140,8 @@ export interface SqliteMediaTaskStore extends MediaTaskStore {
  * `reconcileOnBoot` can then mark anything still `queued`/`running` as
  * `interrupted`.
  *
- * `better-sqlite3` (a native compiled addon) is dynamically imported here
+ * `better-sqlite3` (a native compiled addon) is dynamically imported by the default
+ * adapter only when no host opener is supplied
  * rather than statically at module scope (mirroring `@jini-ai/daemon`'s
  * `loadRealSpawnPty`/`node-pty` pattern) — this package's root barrel
  * re-exports this module unconditionally, so a static top-level import would
@@ -149,9 +151,14 @@ export interface SqliteMediaTaskStore extends MediaTaskStore {
  * fails cleanly (a rejected promise) rather than crashing unrelated imports
  * if the platform/environment lacks a usable prebuild.
  */
-export async function createSqliteMediaTaskStore(dbPath: string): Promise<SqliteMediaTaskStore> {
-  const { default: Database } = await import('better-sqlite3');
-  const db = new Database(dbPath);
+export async function createSqliteMediaTaskStore(
+  required: { dbPath: string; open?: SqliteSyncOpener } | string,
+  options: { open?: SqliteSyncOpener } = {},
+): Promise<SqliteMediaTaskStore> {
+  // The string overload remains for published callers; new hosts supply an argument object.
+  const dbPath = typeof required === 'string' ? required : required.dbPath;
+  const open = (typeof required === 'string' ? undefined : required.open) ?? options.open ?? await loadMediaSqliteOpener({});
+  const db = open(dbPath, {});
   db.pragma('journal_mode = WAL');
 
   db.exec(`

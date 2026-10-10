@@ -71,7 +71,7 @@ export const cursorAgentDef = {
     // piped for prompt delivery, but do not append a fake prompt arg.
     buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs: _extra, options = {}, runtimeContext = {} } = {}
     ) => {
-      const caps = agentCapabilities.get('cursor-agent') || {};
+      const caps = (options.capabilities ?? agentCapabilities.get('cursor-agent')) || {};
       const args = [];
       args.push(
         '--print',

@@ -8,15 +8,15 @@ import { sniffContentType } from './content-type-sniffer.js';
 import { getVideoFrameEdge, parseVideoProbe, planVideoFrames, planVideoContactSheets, VIDEO_EXTRACTION_TIMEOUT_MS, VIDEO_MAX_SHEET_BYTES, VIDEO_MAX_FRAME_BYTES, VIDEO_MAX_INPUT_BYTES, VIDEO_MAX_OUTPUT_BYTES, type VideoFrameExtractor, type VideoFrameResult } from './video-frames.js';
 
 export interface VideoBinaries { readonly nice: string; readonly ffmpeg: string; readonly ffprobe: string }
-export type VideoBinaryFinder = (required: Record<string, never>, optional: Record<string, never>) => Promise<VideoBinaries | undefined>;
+export type VideoBinaryFinder = (required: Record<string, never>, optional: { env?: NodeJS.ProcessEnv; platform?: NodeJS.Platform }) => Promise<VideoBinaries | undefined>;
 export type VideoProcessRunner = (required: { command: string; args: readonly string[] }, optional: { timeoutMs: number; maxOutputBytes: number; signal?: AbortSignal }) => Promise<Uint8Array>;
 class VideoProcessError extends Error {
   constructor(readonly reason: 'unavailable' | 'timeout' | 'canceled' | 'invalid', message: string) { super(message); }
 }
 
-async function executable(required: { name: string }, { configured }: { configured?: string | undefined } = {}): Promise<string | undefined> {
+async function executable(required: { name: string }, { configured, env = process.env }: { configured?: string | undefined; env?: NodeJS.ProcessEnv } = {}): Promise<string | undefined> {
   const candidates = configured ? [configured] : [
-    ...(process.env['PATH'] ?? '').split(delimiter).filter(isAbsolute).map(directory => join(directory, required.name)),
+    ...(env['PATH'] ?? '').split(delimiter).filter(isAbsolute).map(directory => join(directory, required.name)),
     join('/opt/homebrew/bin', required.name), join('/usr/local/bin', required.name), join('/usr/bin', required.name),
   ];
   for (const candidate of candidates) {
@@ -28,11 +28,11 @@ async function executable(required: { name: string }, { configured }: { configur
 
 /** Discovery never executes a version/probe command. Configured paths are host configuration,
  * never tool arguments, and all subprocesses (including ffprobe) still go through nice. */
-export const findVideoBinaries: VideoBinaryFinder = async (_required, _optional) => {
-  if (process.platform === 'win32') return undefined; // Never silently omit the low-priority guarantee.
-  const nice = await executable({ name: 'nice' }, {});
-  const ffmpeg = await executable({ name: 'ffmpeg' }, { configured: process.env['FFMPEG_PATH'] });
-  const ffprobe = await executable({ name: 'ffprobe' }, { configured: process.env['FFPROBE_PATH'] });
+export const findVideoBinaries: VideoBinaryFinder = async (_required, { env = process.env, platform = process.platform } = {}) => {
+  if (platform === 'win32') return undefined; // Never silently omit the low-priority guarantee.
+  const nice = await executable({ name: 'nice' }, { env });
+  const ffmpeg = await executable({ name: 'ffmpeg' }, { configured: env['FFMPEG_PATH'], env });
+  const ffprobe = await executable({ name: 'ffprobe' }, { configured: env['FFPROBE_PATH'], env });
   return nice && ffmpeg && ffprobe ? { nice, ffmpeg, ffprobe } : undefined;
 };
 
@@ -83,9 +83,24 @@ export const runLowPriorityVideoProcess = async (
   });
 };
 
+export interface VideoExtractionLock {
+  /** Synchronous acquisition prevents races before the first awaited probe. */
+  tryAcquire(required: Record<string, never>, optional: Record<string, never>): (() => void) | undefined;
+}
+/** A host may share this lock across its adapters to enforce a decoder budget.
+ * Returns a synchronous try-acquire port; release follows decoder cleanup. @complexity O(1). */
+export function createVideoExtractionLock(_required: Record<string, never>, _optional: Record<string, never> = {}): VideoExtractionLock {
+  let extracting = false;
+  return { tryAcquire() {
+    if (extracting) return undefined;
+    extracting = true;
+    let released = false;
+    return () => { if (!released) { released = true; extracting = false; } };
+  } };
+}
 // Shared across ALL adapter instances: a second catalog/tenant cannot run a second ffmpeg in this
 // process. Fail busy instead of holding arbitrary numbers of uploaded videos in a pending queue.
-let extracting = false;
+const defaultExtractionLock = createVideoExtractionLock({});
 const UNAVAILABLE = 'video preview unavailable on this host (nice, ffmpeg and ffprobe are required).';
 // Eight amortizes process/seek overhead while bounding expensive source decoders to
 // one eighth of the 64-frame maximum. Thread caps alone do not bound decoder memory.
@@ -94,21 +109,21 @@ const SOURCE_BATCH_SIZE = 8;
 const localInputFlags = ['-threads', '1', '-protocol_whitelist', 'file', '-format_whitelist', 'mov,matroska,webm'];
 
 export function createFfmpegVideoFrameExtractor(
-  { findBinaries = findVideoBinaries, runProcess = runLowPriorityVideoProcess, nowMs = () => performance.now() }: { findBinaries?: VideoBinaryFinder; runProcess?: VideoProcessRunner; nowMs?: (required: Record<string, never>, optional: Record<string, never>) => number },
+  { findBinaries = findVideoBinaries, runProcess = runLowPriorityVideoProcess, nowMs = () => performance.now(), lock = defaultExtractionLock, env, platform }: { lock?: VideoExtractionLock; env?: NodeJS.ProcessEnv; platform?: NodeJS.Platform; findBinaries?: VideoBinaryFinder; runProcess?: VideoProcessRunner; nowMs?: (required: Record<string, never>, optional: Record<string, never>) => number },
   _optional: Record<string, never> = {},
 ): VideoFrameExtractor {
   return { extract: async ({ bytes }, options): Promise<VideoFrameResult> => {
     if (bytes.byteLength > VIDEO_MAX_INPUT_BYTES) return { ok: false, reason: 'too-large', message: `Video preview input exceeds ${VIDEO_MAX_INPUT_BYTES} bytes.` };
     const type = sniffContentType({ bytes });
     if (type !== 'video/mp4' && type !== 'video/webm') return { ok: false, reason: 'invalid', message: 'Video preview requires stored MP4 or WebM bytes.' };
-    if (extracting) return { ok: false, reason: 'busy', message: 'Video preview is busy. Try again after the current extraction finishes.' };
-    extracting = true;
+    const release = lock.tryAcquire({}, {});
+    if (!release) return { ok: false, reason: 'busy', message: 'Video preview is busy. Try again after the current extraction finishes.' };
     const deadline = nowMs({}, {}) + VIDEO_EXTRACTION_TIMEOUT_MS;
     let directory: string | undefined;
     try {
       if (options.signal?.aborted) throw new VideoProcessError('canceled', 'Video preview canceled.');
       if (options.layout !== undefined && options.layout !== 'frames' && options.layout !== 'sheet') throw new VideoProcessError('invalid', 'Video layout must be frames or sheet.');
-      const binaries = await findBinaries({}, {});
+      const binaries = await findBinaries({}, { ...(env ? { env } : {}), ...(platform ? { platform } : {}) });
       if (!binaries) return { ok: false, reason: 'unavailable', message: UNAVAILABLE };
       directory = await mkdtemp(join(tmpdir(), 'video-preview-'));
       const input = join(directory, 'input');
@@ -216,7 +231,7 @@ export function createFfmpegVideoFrameExtractor(
     } finally {
       try { if (directory) await rm(directory, { recursive: true, force: true }); }
       catch { return { ok: false, reason: 'invalid', message: 'Video preview temporary files could not be removed.' }; }
-      finally { extracting = false; }
+      finally { release(); }
     }
   } };
 }

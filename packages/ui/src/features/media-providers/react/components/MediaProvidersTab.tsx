@@ -1,3 +1,4 @@
+import { canonicalMediaProviderId } from '@jini-ai/integrations/media-providers/catalog';
 import { Fragment, useState } from 'react';
 import { agentHandleProps, buildAgentListHandles } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
@@ -127,7 +128,7 @@ export function MediaProvidersTab({
     });
   };
 
-  const orderedCatalog = sortProvidersByConfigured(catalog, providers, pinnedProviderIds);
+  const orderedCatalog = sortProvidersByConfigured(catalog.map((entry) => ({ ...entry, id: canonicalMediaProviderId({ id: entry.id }) })), providers, pinnedProviderIds?.map((id) => canonicalMediaProviderId({ id })));
   const providerHandles = agentHandle
     ? buildAgentListHandles({ prefix: agentHandle, ids: orderedCatalog.map((option) => option.id) })
     : undefined;
@@ -135,7 +136,7 @@ export function MediaProvidersTab({
   // pinned id absent from `catalog` never appears in `orderedCatalog` either (see
   // `sortProvidersByConfigured`'s own "silently skipped" doc), so this stays correct without
   // re-deriving which pinned ids actually resolved to a real card.
-  const pinnedIdSet = new Set(pinnedProviderIds ?? []);
+  const pinnedIdSet = new Set(pinnedProviderIds?.map((id) => canonicalMediaProviderId({ id })) ?? []);
   const hasPendingChanges = pendingProviderIds.size > 0;
   // Save writes every provider at once, so ONE unacceptable endpoint blocks the
   // whole button rather than being silently persisted alongside the good ones.

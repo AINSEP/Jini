@@ -1,12 +1,13 @@
+import { VENDOR_API_BASE_URLS } from '@jini-ai/integrations/media-providers/catalog';
 import type { AgentCliEnvFieldSpec, ApiProtocol, ProviderPreset } from './types.js';
 
 /** Fallback endpoint per protocol, used when a host supplies no preset and
  *  the operator has not typed a base URL. Origin: `DEFAULT_BASE_URL_BY_PROTOCOL`. */
 export const DEFAULT_BASE_URL_BY_PROTOCOL: Readonly<Record<ApiProtocol, string>> = {
-  anthropic: 'https://api.anthropic.com',
-  openai: 'https://api.openai.com/v1',
-  azure: '',
-  google: 'https://generativelanguage.googleapis.com',
+  anthropic: VENDOR_API_BASE_URLS.anthropic,
+  openai: VENDOR_API_BASE_URLS.openai,
+  azure: VENDOR_API_BASE_URLS.azure,
+  google: VENDOR_API_BASE_URLS.google,
 };
 
 /** Display order and English labels for the protocol row. Values are i18n
@@ -73,7 +74,7 @@ export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset[] = [
     id: 'anthropic',
     title: 'Anthropic',
     protocol: 'anthropic',
-    baseUrl: 'https://api.anthropic.com',
+    baseUrl: VENDOR_API_BASE_URLS.anthropic,
     preferredModels: ['claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5'],
     kind: 'protocol',
     apiKeyPrefix: 'sk-ant-',
@@ -82,7 +83,7 @@ export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset[] = [
     id: 'openai',
     title: 'OpenAI',
     protocol: 'openai',
-    baseUrl: 'https://api.openai.com/v1',
+    baseUrl: VENDOR_API_BASE_URLS.openai,
     // `gpt-4o`/`gpt-4o-mini`/`o3`/`o4-mini` are stale: OpenAI's GPT-5.6 family
     // (released 2026-07-09, per the API changelog) replaced the old
     // flagship/mini/nano naming with named tiers — sol/terra/luna. `sol` is
@@ -99,7 +100,7 @@ export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset[] = [
     id: 'azure-openai',
     title: 'Azure OpenAI',
     protocol: 'azure',
-    baseUrl: '',
+    baseUrl: VENDOR_API_BASE_URLS.azure,
     preferredModels: [],
     kind: 'protocol',
     // No `apiKeyPrefix` deliberately: an Azure OpenAI key is a bare hex string with no vendor
@@ -112,7 +113,7 @@ export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset[] = [
     id: 'google-gemini',
     title: 'Google Gemini',
     protocol: 'google',
-    baseUrl: 'https://generativelanguage.googleapis.com',
+    baseUrl: VENDOR_API_BASE_URLS.google,
     // Ordered newest-first: `rules.ts`'s `saved?.model ?? preset.preferredModels[0]` makes entry [0]
     // the default for anyone who has never picked a model, so a stale head silently pins new users
     // to an old generation. Reported live: the field defaulted to `gemini-2.5-flash` while the
@@ -130,7 +131,7 @@ export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset[] = [
     id: 'openrouter',
     title: 'OpenRouter',
     protocol: 'openai',
-    baseUrl: 'https://openrouter.ai/api/v1',
+    baseUrl: VENDOR_API_BASE_URLS.openrouter,
     preferredModels: ['anthropic/claude-sonnet-5', 'google/gemini-2.5-pro', 'openai/gpt-5.6-sol'],
     kind: 'gateway',
     // Longer than OpenAI's `sk-`, and deliberately so: `apiKeyFormatWarning` resolves a key to the
@@ -141,7 +142,7 @@ export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset[] = [
     id: 'ollama',
     title: 'Ollama',
     protocol: 'openai',
-    baseUrl: 'http://localhost:11434/v1',
+    baseUrl: VENDOR_API_BASE_URLS.ollama,
     preferredModels: [],
     kind: 'gateway',
     requiresApiKey: false,

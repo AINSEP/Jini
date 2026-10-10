@@ -29,7 +29,8 @@ import type { RequiredArgs, OptionalArgs } from '../../args.js';
  * `better-sqlite3` to embed SQLite >= 3.35; verified against this repo's pinned version before
  * writing this file.
  */
-import type Database from 'better-sqlite3';
+import type { SqliteSyncOpener } from '@jini-ai/db/sqlite';
+import { loadMediaSqliteOpener } from '../sqlite-driver.adapter.js';
 
 import {
   ASYNC_OPERATION_SCHEMA_VERSION,
@@ -126,9 +127,12 @@ export interface SqliteAsyncOperationStore extends AsyncOperationStore {
  * operation exactly as it was left, and `recoverAfterRestart`/`reconcileOnBoot` can then release
  * dead leases and expire blown deadlines.
  */
-export async function createSqliteAsyncOperationStore({ dbPath }: { dbPath: string }): Promise<SqliteAsyncOperationStore> {
-  const { default: Database } = await import('better-sqlite3');
-  const db = new Database(dbPath);
+export async function createSqliteAsyncOperationStore(
+  { dbPath, open: injectedOpen }: { dbPath: string; open?: SqliteSyncOpener },
+  options: { open?: SqliteSyncOpener } = {},
+): Promise<SqliteAsyncOperationStore> {
+  const open = injectedOpen ?? options.open ?? await loadMediaSqliteOpener({});
+  const db = open(dbPath, {});
   db.pragma('journal_mode = WAL');
 
   db.exec(`

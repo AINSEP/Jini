@@ -1,11 +1,26 @@
 import path from 'node:path';
 import { builtinModules } from 'node:module';
 import type { PackagingFilesystemPort, ImportReaderPort, ImportAliasPort } from './ports.js';
+// The #src mapping documented below is the Tovu host alias; aliases supplies each host's
+// actual resolution policy without hard-coding that namespace into the shared walk.
 export interface DistImportInput {
-  distDir: string; entry: string; declared: ReadonlySet<string>; fs: PackagingFilesystemPort; imports: ImportReaderPort; aliases: ImportAliasPort;
+  /** The built tree's root (`dist/`), which `#src/*` resolves against as `./src/*.js`. */
+  distDir: string;
+  /** Absolute path of the file the walk starts from (the CLI entry). */
+  entry: string;
+  /** Package names allowed as bare imports besides builtins: root `dependencies` plus workspaces. */
+  declared: ReadonlySet<string>;
+  fs: PackagingFilesystemPort; imports: ImportReaderPort; aliases: ImportAliasPort;
 }
 const builtins = new Set(builtinModules);
 /** Walk reachable files once. The injected AST parser owns import syntax and comment handling. */
+/**
+ * Every bare import reachable from `entry` that is neither a builtin nor in `declared`, as
+ * `"<package> (<file relative to distDir>)"`, in walk order. A relative import whose target file
+ * does not exist is reported too, so a broken walk can never read as a clean one.
+ *
+ * @complexity O(files + imports) reachable from `entry`; each file is read once.
+ */
 export function undeclaredDistImports(required: DistImportInput): string[] {
   const { distDir, entry, declared, fs, imports, aliases } = required;
   const queue = [path.resolve(entry)];

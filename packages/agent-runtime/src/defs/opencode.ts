@@ -61,7 +61,7 @@ export const opencodeAgentDef = {
       // (`skipPermissions`, probed from `--help` text) AND whether the caller wants it — see
       // `RuntimeBuildOptions.permissionMode`'s doc. Bypass remains the default (unchanged
       // behavior) unless a caller explicitly opts into a restricted run.
-      if (agentCapabilities.get('opencode')?.skipPermissions && options.permissionMode !== 'restricted') {
+      if ((options.capabilities ?? agentCapabilities.get('opencode'))?.skipPermissions && options.permissionMode !== 'restricted') {
         args.push(SKIP_PERMISSIONS_FLAG);
       }
       // Capture-style resume: OpenCode mints its own session id (reported on

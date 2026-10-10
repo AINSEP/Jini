@@ -4,6 +4,11 @@ import path from 'node:path';
 import type { EnvLoaderPort } from '../local-dev/index.js';
 import type { FilesystemPort, PackageInstallerPort, ProcessRunnerPort } from './ports.js';
 
+// Parser is supplied by the caller, so this Node entry keeps TypeScript an optional peer.
+export { createHardwiringInspector, diffHardwiringDebt, HARDWIRING_RULES } from './hardwiring.js';
+export { sourceFiles, createResolver, displayGraphFile, installedPublicFunctions, runHardwiring } from './hardwiring-node.js';
+export type { HardwiringSource, HardwiringViolation } from './hardwiring.js';
+
 /** Explicit Node filesystem adapter. Temporary parents must already exist. */
 export function createNodeFilesystem(_args: Record<string, never>): FilesystemPort {
   return {

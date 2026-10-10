@@ -1,3 +1,4 @@
+import type { ExecutableResolutionOptions } from './executables.js';
 /**
  * @module launch
  * Resolve a launchable process, including Codex native-binary/node-wrapper selection and child PATH.
@@ -16,9 +17,9 @@ export type AgentLaunchResolution = ReturnType<typeof inspectAgentExecutableReso
   diagnostic: string | null;
 };
 
-export function resolveAgentLaunch({ def }: { def: RuntimeAgentDef }, { configuredEnv = {} }: { configuredEnv?: Record<string, string> } = {}
+export function resolveAgentLaunch({ def }: { def: RuntimeAgentDef }, options: ExecutableResolutionOptions & { configuredEnv?: Record<string, string> } = {}
 ): AgentLaunchResolution {
-  const resolution = inspectAgentExecutableResolution({ def: def }, { configuredEnv: configuredEnv });
+  const resolution = inspectAgentExecutableResolution({ def: def }, options);
   if (!resolution.selectedPath) {
     return { ...resolution, launchPath: null, launchKind: 'selected', childPathPrepend: [], diagnostic: null };
   }

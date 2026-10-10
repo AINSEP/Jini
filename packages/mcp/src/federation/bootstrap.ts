@@ -3,7 +3,7 @@ import type { ToolRegistration, ToolRegistry } from "@jini-ai/core";
 
 import type { ResolvedFederatedConnection } from "./config.js";
 import type { McpSessionPort } from "./ports.js";
-import { listFederatedMcpPresets } from "./presets.js";
+import { defaultFederatedMcpPresetRegistry, type FederatedMcpPresetRegistry } from "./presets.js";
 import { federateSession, type FederationDeps } from "./registrations.js";
 // `registrations.ts` imports this type from `trust.ts` for its own use but does not re-export it,
 // so it has to come from the module that declares it.
@@ -113,6 +113,7 @@ export interface AttachFederatedToolsResult {
  * @complexity O(c · t) in connections and their advertised tools.
  */
 export interface AttachFederatedMcpToolsParams {
+  readonly presetRegistry?: FederatedMcpPresetRegistry;
   registry: ToolRegistry;
   deps: FederationDeps;
   connections?: readonly ResolvedFederatedConnection[] | undefined;
@@ -168,7 +169,7 @@ function resolveFederationAttachInputs(params: AttachFederatedMcpToolsParams): {
 } {
   const logger = params.logger ?? consoleLogger;
   const connect = params.connect;
-  const presetConnections = params.connections ?? resolveRegisteredPresets(params.env ?? process.env, logger);
+  const presetConnections = params.connections ?? resolveFederatedMcpPresets({ env: params.env ?? process.env, logger, registry: params.presetRegistry ?? defaultFederatedMcpPresetRegistry });
   const connections = [
     ...presetConnections.map((connection): OriginTaggedConnection => ({ connection: withPresetOrigin(connection), isPreset: true })),
     ...(params.extraConnections ?? []).map((connection): OriginTaggedConnection => ({ connection, isPreset: false })),
@@ -303,10 +304,10 @@ async function attachOneFederatedConnection(params: {
  * A preset that declines (`null`) is silent: "not configured" is the expected default state, and
  * logging it every boot would train operators to ignore this channel.
  */
-function resolveRegisteredPresets(env: NodeJS.ProcessEnv, logger: Logger): ResolvedFederatedConnection[] {
+export function resolveFederatedMcpPresets({ env, logger, registry }: { env: NodeJS.ProcessEnv; logger: Pick<Logger, "warn">; registry: FederatedMcpPresetRegistry }, _optional = {}): ResolvedFederatedConnection[] {
   const connections: ResolvedFederatedConnection[] = [];
 
-  for (const preset of listFederatedMcpPresets()) {
+  for (const preset of registry.list({})) {
     try {
       const connection = preset.resolve({ env: env });
       if (connection) connections.push(connection);

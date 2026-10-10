@@ -1,3 +1,5 @@
+// evaluateArea and formatArea in the preserved rationale below are now evaluateDiskArea and
+// formatDiskArea; scripts/check-coverage.ts and coverage-floors.json are host-owned consumers.
 import { pct } from './lcov.js';
 
 export interface LcovCounters {
@@ -11,6 +13,8 @@ export interface LcovCounters {
 
 export type CoverageAxis = "line" | "branch" | "funcs";
 
+/** One entry of `coverage-floors.json`'s `areas`, as far as this file reads it. `dirs`,
+ *  `excludeDirs` and `extensions` are read by `scripts/check-coverage.ts` to build `onDisk`. */
 export interface CoverageArea {
   id: string;
   dirs?: readonly string[];
@@ -48,7 +52,12 @@ export function isMeasurableSource({ file: relPath }: { file: string }): boolean
   return true;
 }
 
-/** Match excluded directories on segment boundaries. */
+/** Whether `relPath` is one of `excludeDirs` or lies anywhere beneath one. Anchored at the start and
+ *  matched on a whole directory segment, so `src/renderer` excludes `src/renderer/x.ts` but never
+ *  `src/renderer-foo/x.js`: a bare `startsWith` would move a main-process file out of its area with
+ *  no failure. Both sides are desktop-root-relative and `/`-separated; a trailing `/` on a
+ *  configured directory is ignored.
+ *  @complexity O(d) in excluded directories. */
 export function isInExcludedDir({ file: relPath, excludeDirs }: { file: string; excludeDirs: readonly string[] }): boolean {
   return excludeDirs.some((dir) => {
     const base = dir.replace(/\/+$/, "");
@@ -56,7 +65,11 @@ export function isInExcludedDir({ file: relPath, excludeDirs }: { file: string; 
   });
 }
 
-/** Read a chain of node test commands into runner/glob records; reject other commands. */
+/** Splits an npm script of `&&`-chained `node [args] --test <globs>` commands into
+ *  `{ nodeArgs, globs }` passes, with double quotes stripped. Every token after `--test` counts as a
+ *  glob, so a flag placed there shows up as drift rather than being skipped. Any other command
+ *  throws, so a script this cannot read fails loudly instead of comparing as zero globs.
+ *  @complexity O(n) in script length. */
 export function parseNodeTestScript({ script }: { script: string }): RunnerGlobs[] {
   return script.split("&&").map((command) => {
     const tokens = [...command.matchAll(/"([^"]*)"|(\S+)/g)].map((match) => match[1] ?? match[2]!);
@@ -90,7 +103,11 @@ function unmatchedGlobs(
   return unmatched;
 }
 
-/** Report every runner/glob mismatch between two explicitly supplied inventories. */
+/** Every glob that `TEST_PASSES` and `package.json`'s parsed `test` script disagree on, one message
+ *  per glob per side; empty when they agree. Globs are compared per runner as literal strings: order
+ *  is ignored, a glob moved between runners is reported on both, and two spellings of one pattern
+ *  count as drift.
+ *  @complexity O(g) in globs. */
 export function runnerSplitDrift({ passes, scriptPasses }: { passes: readonly RunnerGlobs[]; scriptPasses: readonly RunnerGlobs[] }): string[] {
   const inPasses = globsByRunner(passes);
   const inScript = globsByRunner(scriptPasses);
@@ -117,6 +134,12 @@ function total(records: readonly LcovCounters[]): LcovCounters {
   return sum;
 }
 
+/**
+ * Which declared floors this area misses. Only the axes the area actually configures are checked:
+ * an axis with no floor is still reported, but never fails.
+ *
+ * @complexity O(1).
+ */
 function floorFailures(
   area: CoverageArea,
   measured: LcovCounters
@@ -144,6 +167,8 @@ export function evaluateDiskArea({ area, onDisk, coverage }: { area: CoverageAre
   const unmeasured = diskPaths.filter((p) => !coverage.has(p));
   const measured = total(measuredPaths.map((p) => coverage.get(p)!));
   const { actual, failures } = floorFailures(area, measured);
+  // A file with no coverage record that nobody declared. This is the check the percentages cannot
+  // make, and the reason this function takes `onDisk` at all.
   const newlyUnmeasured = unmeasured.filter((p) => !known.has(p));
   if (newlyUnmeasured.length > 0) {
     failures.push(
@@ -151,6 +176,8 @@ export function evaluateDiskArea({ area, onDisk, coverage }: { area: CoverageAre
         `${newlyUnmeasured.join(", ")}. Add a test, or grandfather them explicitly with a reason.`
     );
   }
+  // Zero files on disk is never a legitimate pass — it means a directory was renamed or a glob went
+  // stale, which is precisely how four scopes in `check-src-complexity-drift.ts` went quiet.
   const minOnDisk = area.minFilesOnDisk ?? 1;
   if (diskPaths.length < minOnDisk) {
     failures.push(
@@ -158,6 +185,8 @@ export function evaluateDiskArea({ area, onDisk, coverage }: { area: CoverageAre
         `The glob is stale (directory renamed?) or the scan is broken — this is NOT a pass.`
     );
   }
+  // A declared gap that now HAS coverage: good news, but the list must shrink or it rots into a
+  // permanent exemption nobody revisits.
   const recovered = [...known].filter((p) => coverage.has(p));
 
   return {
@@ -172,14 +201,16 @@ export function evaluateDiskArea({ area, onDisk, coverage }: { area: CoverageAre
   };
 }
 
-/** Render floors and every measured/unmeasured source path in an area. */
-export function formatDiskArea({ result, area }: { result: DiskAreaResult; area: CoverageArea }): string {
+/** One area's result, rendered. The unmeasured files are named on EVERY run — a gap nobody is told
+ *  about is the trap; a gap printed every run is a decision.
+ *  @complexity O(n). */
+export function formatDiskArea({ result, area }: { result: DiskAreaResult; area: CoverageArea }, optional: { noFloorMessage?: string } = {}): string {
   const lines = [`  ${result.failures.length === 0 ? "OK  " : "FAIL"}  ${result.id}`];
   const floors: Partial<Record<CoverageAxis, number>> = area.floors ?? {};
   for (const axis of ["line", "branch", "funcs"] as const) {
     const floor = floors[axis];
     const shown = `${result.actual[axis].toFixed(2)}%`;
-    lines.push(`          ${axis.padEnd(6)} ${shown.padStart(7)}  ${typeof floor === "number" ? `(floor ${floor}%)` : "(no floor configured)"}`);
+    lines.push(`          ${axis.padEnd(6)} ${shown.padStart(7)}  ${typeof floor === "number" ? `(floor ${floor}%)` : (optional.noFloorMessage ?? "(no floor configured)")}`);
   }
   lines.push(`          files:  ${result.measuredCount} measured of ${result.onDiskCount} on disk`);
   if (result.unmeasured.length > 0) {

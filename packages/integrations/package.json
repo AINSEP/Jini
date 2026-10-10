@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/integrations",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Third-party vendor integrations and outbound services, each independently importable: media generation, credentialed HTTP and webhooks.",
   "license": "Apache-2.0",
   "repository": {
@@ -85,10 +85,14 @@
     "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
+    "@jini-ai/db": "^0.3.0",
     "better-sqlite3": "^13.0.0",
     "@jini-ai/platform": "^0.5.1"
   },
   "peerDependenciesMeta": {
+    "@jini-ai/db": {
+      "optional": true
+    },
     "better-sqlite3": {
       "optional": true
     },
@@ -97,6 +101,7 @@
     }
   },
   "devDependencies": {
+    "@jini-ai/db": "workspace:^",
     "@types/better-sqlite3": "^7.6.11",
     "better-sqlite3": "^13.0.0",
     "@vitest/coverage-v8": "^2.1.9",

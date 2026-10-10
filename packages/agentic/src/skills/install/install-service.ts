@@ -7,7 +7,26 @@ import type { SkillInstallDeps } from "./ports.js";
 
 export interface ManagedSkill { readonly toolId: string; readonly name: string; readonly description: string; readonly enabled: boolean; readonly source: "uploaded" | GitHubSkillSource }
 export type SkillInstallInput = { readonly workspaceId: string } & ({ readonly githubUrl: string } | { readonly files: readonly SkillUploadFile[] } | { readonly archiveBase64: string });
+/** A fetched and fully validated skill package, not yet written. Holding the validated bytes (not
+ * the source) means commitSkillInstall writes exactly what was validated, with no second fetch. */
+export interface PreparedSkillInstall {
+  readonly toolId: string; readonly name: string; readonly description: string; readonly source: ManagedSkill["source"];
+  readonly files: ReturnType<typeof validateSkillFiles>["files"];
+}
+/** Fetch/decode and validate before asking for mutation approval. No filesystem writes. */
+export async function prepareSkillInstall(required: { input: SkillInstallInput; deps: Pick<SkillInstallDeps, "fetch" | "archiveReader" | "yamlReader" | "toolId"> }, _optional = {}): Promise<PreparedSkillInstall> {
+  const { input, deps } = required;
+  let upload: readonly SkillUploadFile[];
+  let source: ManagedSkill["source"] = "uploaded";
+  if ("githubUrl" in input) ({ files: upload, source } = await fetchGitHubSkill({ githubUrl: input.githubUrl, fetch: deps.fetch }));
+  else if ("archiveBase64" in input) upload = await readSkillArchive({ base64: input.archiveBase64, archiveReader: deps.archiveReader });
+  else upload = input.files;
+  const validated = validateSkillFiles({ files: upload, yamlReader: deps.yamlReader });
+  return { ...validated, toolId: deps.toolId({ name: validated.name }), source };
+}
 export interface SkillInstaller {
+  prepareSkillInstall(required: SkillInstallInput): Promise<PreparedSkillInstall>;
+  commitSkillInstall(required: { workspaceId: string; prepared: PreparedSkillInstall }): Promise<ManagedSkill>;
   installSkill(required: SkillInstallInput): Promise<ManagedSkill>;
   listManagedSkills(required: { workspaceId: string }): Promise<ManagedSkill[]>;
   setSkillEnabled(required: { workspaceId: string; toolId: string; enabled: boolean }): Promise<void>;
@@ -25,6 +44,7 @@ export function createSkillInstaller(deps: SkillInstallDeps, optional: { onChang
     if (!layout.stateFileName || /[/\\\x00]/.test(layout.stateFileName) || [".", ".."].includes(layout.stateFileName) || ["SKILL.md", "README.md", "LICENSE", "references", "scripts", "assets"].includes(layout.stateFileName)) throw new SkillInputError({ message: "Invalid skill state file name." });
     return layout;
   };
+  /** Serializes mutations in this server without leaving persistent locks after a crash. */
   async function locked<T>(workspaceId: string, work: () => Promise<T>): Promise<T> {
     const key = layoutFor(workspaceId).workspaceRoot;
     const result = (queues.get(key) ?? Promise.resolve()).catch(() => {}).then(work);
@@ -49,16 +69,15 @@ export function createSkillInstaller(deps: SkillInstallDeps, optional: { onChang
     return directory;
   }
   const changed = async (workspaceId: string, toolId: string) => { await optional.onChanged?.({ workspaceId, toolId }); };
-  return {
+  const installer: SkillInstaller = {
     listManagedSkills,
+    prepareSkillInstall: input => prepareSkillInstall({ input, deps }),
     async installSkill(input) {
-      let upload: readonly SkillUploadFile[];
-      let source: ManagedSkill["source"] = "uploaded";
-      if ("githubUrl" in input) ({ files: upload, source } = await fetchGitHubSkill({ githubUrl: input.githubUrl, fetch: deps.fetch }));
-      else if ("archiveBase64" in input) upload = await readSkillArchive({ base64: input.archiveBase64, archiveReader: deps.archiveReader });
-      else upload = input.files;
-      const validated = validateSkillFiles({ files: upload, yamlReader: deps.yamlReader });
-      const toolId = deps.toolId({ name: validated.name });
+      return installer.commitSkillInstall({ workspaceId: input.workspaceId, prepared: await prepareSkillInstall({ input, deps }) });
+    },
+    async commitSkillInstall(input) {
+      const validated = input.prepared;
+      const { toolId, source } = validated;
       const layout = layoutFor(input.workspaceId);
       return locked(input.workspaceId, async () => {
         if ((await listManagedSkills(input)).some(skill => skill.toolId === toolId)) throw new SkillInputError({ message: `Skill '${validated.name}' is already installed. Remove it before installing another version.` });
@@ -103,6 +122,7 @@ export function createSkillInstaller(deps: SkillInstallDeps, optional: { onChang
       });
     },
   };
+  return installer;
 }
 
 function containedDirectory(root: string, directory: string): string {

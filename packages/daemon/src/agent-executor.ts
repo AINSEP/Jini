@@ -56,6 +56,7 @@ export {
   resolveDefAndStreamFormat,
   resolveImageDeliveryAndArgvBudget,
   resolveRunEnv,
+  selectAgentExecutorHostEnv,
   resolveLaunch,
   stagePromptFile,
   stageLogFile,

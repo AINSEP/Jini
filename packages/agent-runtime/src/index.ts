@@ -107,4 +107,6 @@ export {
 } from './agent-protocol/index.js';
 
 export * from './model-discovery.js';
-export { defaultModelDiscoveryDeps, parseClaudeInitializeMetadata, parsePiRpcMetadata } from './model-discovery-adapters.js';
+export { getRuntimeModelDiscoveryDeps, defaultModelDiscoveryDeps, parseClaudeInitializeMetadata, parsePiRpcMetadata } from './model-discovery-adapters.js';
+
+export * from './runtime-state.js';

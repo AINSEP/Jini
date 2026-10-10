@@ -11,6 +11,7 @@ import type {
    RunErrorPayload,
 } from '@jini-ai/protocol';
 import type {
+   AgentRuntimeState,
    applyAgentLaunchEnv,
    ensureAgentCapabilities,
    resolveModelForLaunch,
@@ -583,6 +584,9 @@ export interface FailureClassificationContext {
 export type ClassifyFailure = (context: FailureClassificationContext) => boolean | Promise<boolean>;
 
 export interface CreateAgentExecutorOptions {
+  /** Host environment snapshot; baseline spawn keys and source config paths are allowlisted. */
+  readonly hostEnv?: NodeJS.ProcessEnv;
+  readonly runtimeState?: AgentRuntimeState;
   readonly lifecycle: RunLifecycle;
   /** Resolves/pins the concrete starting model against the actual launch scope. */
   readonly resolveModelForLaunch?: typeof resolveModelForLaunch;

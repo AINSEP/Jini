@@ -1,5 +1,7 @@
 import type { RepositoryTarget, RepositoryTargetValidator } from './contracts.js';
 
+/** Owner and repo, whatever the host: one URL path segment each, so never empty, never `.`/`..`,
+ *  never a slash, whitespace or control character. */
 const GENERIC_SEGMENT_PATTERN = /^[^\s/\\\x00-\x1f\x7f]{1,100}$/;
 const BRANCH_PATTERN = /^[A-Za-z0-9._/-]{1,250}$/;
 function isGenericSegment(value: string): boolean {

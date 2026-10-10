@@ -1,3 +1,4 @@
+import { defaultRuntimeState, type AgentRuntimeState } from './runtime-state.js';
 /**
  * @module claude-code-models
  *
@@ -219,8 +220,7 @@ const defaultIo: ClaudeCodeModelIo = {
 
 let activeIo: ClaudeCodeModelIo = defaultIo;
 
-type CacheEntry = { expiresAt: number; value: Promise<readonly RuntimeModelOption[] | null> };
-const cache = new Map<string, CacheEntry>();
+const cache = defaultRuntimeState.claudeModels;
 
 /** Test-only: install fake I/O (or `null` to restore the real one) and clear the process cache. */
 export function setClaudeCodeModelIoForTesting(io: ClaudeCodeModelIo | null): void {
@@ -239,12 +239,12 @@ function cacheKeyFor(bin: string, env: RuntimeEnv): string {
 }
 
 /** Source (1), then source (2). Never rejects. */
-async function discoverClaudeCodeModels(bin: string, env: RuntimeEnv): Promise<readonly RuntimeModelOption[] | null> {
+async function discoverClaudeCodeModels(bin: string, env: RuntimeEnv, io: ClaudeCodeModelIo): Promise<readonly RuntimeModelOption[] | null> {
   try {
-    const stdout = await activeIo.runInitialize(bin, env);
+    const stdout = await io.runInitialize(bin, env);
     const fromCli = stdout ? parseClaudeInitializeModels(stdout) : null;
     if (fromCli) return fromCli;
-    const raw = await activeIo.readConfigFile(resolveClaudeConfigPath(env));
+    const raw = await io.readConfigFile(resolveClaudeConfigPath(env));
     const cached = raw === null ? null : parseClaudeCodePickerCache(raw);
     if (!cached?.ok) return null;
     return cached.ids
@@ -265,16 +265,27 @@ async function discoverClaudeCodeModels(bin: string, env: RuntimeEnv): Promise<r
  * @complexity O(f + l) plus, at most once per {@link CLAUDE_CODE_MODEL_CACHE_TTL_MS} per cache key,
  * one CLI spawn bounded by {@link CLAUDE_CODE_INIT_TIMEOUT_MS} and one file read.
  */
+export interface ClaudeCodeModelsOptions { state?: AgentRuntimeState; io?: ClaudeCodeModelIo; now?: () => number }
+export function loadClaudeCodeModels(required: { bin: string; env: RuntimeEnv; fallbackModels?: readonly RuntimeModelOption[] }, optional?: ClaudeCodeModelsOptions): Promise<RuntimeModelOption[] | null>;
+/** Published positional form remains additive compatibility. */
+export function loadClaudeCodeModels(bin: string, env: RuntimeEnv, fallbackModels: readonly RuntimeModelOption[], now?: () => number): Promise<RuntimeModelOption[] | null>;
 export async function loadClaudeCodeModels(
-  bin: string,
-  env: RuntimeEnv,
-  _fallbackModels: readonly RuntimeModelOption[],
-  now: () => number = Date.now,
+  required: string | { bin: string; env: RuntimeEnv; fallbackModels?: readonly RuntimeModelOption[] },
+  optional: RuntimeEnv | ClaudeCodeModelsOptions = {},
+  _fallbackModels: readonly RuntimeModelOption[] = [],
+  clock: () => number = Date.now,
 ): Promise<RuntimeModelOption[] | null> {
+  const bin = typeof required === 'string' ? required : required.bin;
+  const env = typeof required === 'string' ? optional as RuntimeEnv : required.env;
+  const options = typeof required === 'string' ? {} : optional as ClaudeCodeModelsOptions;
+  const state = options.state ?? defaultRuntimeState;
+  const cache = state.claudeModels;
+  const io = options.io ?? (state === defaultRuntimeState ? activeIo : defaultIo);
+  const now = options.now ?? clock;
   const key = cacheKeyFor(bin, env);
   const cached = cache.get(key);
   const pending = cached && cached.expiresAt > now() ? cached.value : null;
-  const value = pending ?? discoverClaudeCodeModels(bin, env);
+  const value = pending ?? discoverClaudeCodeModels(bin, env, io);
   if (!pending) cache.set(key, { expiresAt: now() + CLAUDE_CODE_MODEL_CACHE_TTL_MS, value });
   const live = await value;
   return live && live.length > 0 ? [...live] : null;

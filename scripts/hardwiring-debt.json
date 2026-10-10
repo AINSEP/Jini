@@ -1,0 +1,1769 @@
+{
+  "_comment": "2026-10-09 hardwiring adoption. Identifying-value occurrence hashes. Shrink after cleanup; never regenerate in CI.",
+  "violations": [
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/agent-plugins/rules.ts",
+      "line": 8,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "1f82db00dbef729cc6ad46844d047003dd7d562e33ee060e259dfb26a0643837"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/forms/rules.ts",
+      "line": 357,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "334af53f84bdde74f563fd4fab607566ff45f4a162eb97207aafb422bc83fa0d"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/admin/src/media/react/hooks/ProvidersTab.hooks.ts",
+      "line": 113,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/react/components/Sidebar.tsx",
+      "line": 134,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "ba969abe920e292a50bc1a9ba59d405644ccff7812e069dced469c8c729133c3"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/react/components/Sidebar.tsx",
+      "line": 197,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "a98d492b5f5995ac867674aad64b6e38f5baeca47560c8ee93f813b5812cbb1b"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/widgets/rules.ts",
+      "line": 43,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "e149f641cada1e1b416f317b68be659b98a59440151405198fa16ad18e61e45f"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-plugins/src/lifecycle/manifest.ts",
+      "line": 97,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "4ac5fd5d5072767ed22e0e94f309a40ea73f98a9da63ce3b3aed3707be38a060"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/acp-model-probe.ts",
+      "line": 35,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "cea5044d0cacb17ae414dc02fd6b411dc75d8f33a57b0d9c67d38251db3950d8"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/agent-protocol/acp/constants.ts",
+      "line": 43,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "320a5f654896dbaa61be4374d304207cc4defc123f0fd3d4d20a34416637e943"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/agent-protocol/pi-rpc/session.ts",
+      "line": 47,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "16db7c5b4c46e9ca218678b00e08f41ff6fb5e8fe9f180dc829032fa2d441ee5"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/agent-protocol/pi-rpc/session.ts",
+      "line": 49,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "7b987a9cad303c6497f716bdac111d10eaf27322d150dc30c23d55c5614fc6b5"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/agent-runtime/src/agent-protocol/pi-rpc/session.ts",
+      "line": 414,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "a9dfb04490d74e1ec6e7b3f8e10773ca057e7c423713790884be9fe670c2da83"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/agent-runtime/src/anthropic-live-models.ts",
+      "line": 31,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "85f13dfe69cdbb330d13438aeb5c3242dfa646d8a5e4e28ac81e7056b6ee2fb4"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/anthropic-live-models.ts",
+      "line": 51,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "5e1ecee06a7fc06f305ae5c12acfe7a7f67b8ece7af76932ed3afab00c3c6921"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/auth.ts",
+      "line": 308,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "239672591b3165248dffb2c0150cb075ea55b430cf045a7e54b96d92deba02c9"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/claude-code-models.ts",
+      "line": 221,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "941c24488558499fb471e1a38bc7c951fa44487c6440bf6d460148f8b90995d3"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/claude-stream.ts",
+      "line": 119,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "564f19d77a1cabb28958d48de3de39b643af31b158da40e4a3087871ed673373"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/defs/amp.ts",
+      "line": 34,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "0742f6f003e70405c31a752b2194f6ad477efefcfa7821bb4f426c7c8144d4bd"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/agent-runtime/src/defs/codex.ts",
+      "line": 307,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "2319faaa73ca8d43999d9f2247b2d7470957050dcf325c860106478c016729fc"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/agent-runtime/src/defs/reasonix.ts",
+      "line": 13,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "0229a335ed697ed0026820ccd934f3e56277a01fba0f53ff435c8bd69324eab6"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/agent-runtime/src/defs/reasonix.ts",
+      "line": 13,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "0229a335ed697ed0026820ccd934f3e56277a01fba0f53ff435c8bd69324eab6"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/agent-runtime/src/defs/reasonix.ts",
+      "line": 15,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "a7f2893dd29073c21bf76c6d9d2cd367a875752f617512c3b0a4dbb22c9d61d9"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/executables.ts",
+      "line": 31,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "d65d22c0e82ac230c05e21d3ee7c4bea2f1d07da2cb797bb1f580bfc94be48bb"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/providers/aihubmix.ts",
+      "line": 242,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "fea60cc566c64debe7b2691f0f3a25c3165fb7a8e07a677cc4ce3a22b27d4781"
+    },
+    {
+      "rule": "HW4-injected-fetch",
+      "file": "packages/agent-runtime/src/providers/connection-test.ts",
+      "line": 383,
+      "reason": "Call an injected fetch port; the global fetch may only supply its default.",
+      "fingerprint": "e7d3799ecc09f5cbc446aa0a79bb1fb9d0126395fa19a5903b7425f42e5e92e7"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/providers/elevenlabs.ts",
+      "line": 57,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "afe89e641bdabe48ac1e2c82a4859527b4597f4e1557899ed5319c9a7412e7bb"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/providers/model-catalog.ts",
+      "line": 50,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "7d01bedff106e76d9523d3dc629aefa6c3c35778e4041b76ae90339a5314dce2"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/providers/oauth-tokens.ts",
+      "line": 107,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "e82ec02788704bf000fedd833b4525e7705586fc8930b0630d58aac1d94c3b9b"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/registry.ts",
+      "line": 88,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "23466067f626bf8a3ae1a39cdf81f31303220b331b5064c6e00662dcc34deaaf"
+    },
+    {
+      "rule": "HW4-injected-fetch",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/asset-harvest.mjs",
+      "line": 157,
+      "reason": "Call an injected fetch port; the global fetch may only supply its default.",
+      "fingerprint": "e7d3799ecc09f5cbc446aa0a79bb1fb9d0126395fa19a5903b7425f42e5e92e7"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/asset-harvest.mjs",
+      "line": 185,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "ba159dbf9d2f740f56bc2ea7245187ee726da4263440b055ceb89485f4dbcf38"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/asset-harvest.mjs",
+      "line": 191,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "0230c6b1d833c51cc426492022677b74c60d82891931221a42db9e7bb06205e9"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/asset-harvest.mjs",
+      "line": 192,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "d4c3e8a11256ab82a4fc72560eb4a2b0e87bad820c290dd9b03616de240aa6db"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/asset-harvest.mjs",
+      "line": 207,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "a1fce4363854ff888cff4b8e7875d600c2682390412a8cf79b37d0b11148b0fa"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/asset-harvest.mjs",
+      "line": 230,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "7685574bc6142170a366c78f562ed51b41e2c85df9f0bc88411fb0b4f444ef00"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/audit-clone.mjs",
+      "line": 34,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "6e35e3f6a7776e24a4172c3599e0cac3efbdbb93724526a01ca7c944b6e3b1b5"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/audit-clone.mjs",
+      "line": 128,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "819d99f4aa3aaae4a12d1130f60c77cec909a6b5ee027edd5c5c710f9aed207e"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/audit-clone.mjs",
+      "line": 129,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "81f4892a2f2f09b64015411222bcff55c7b90b34be1971ba6429b47c7b540b70"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/audit-clone.mjs",
+      "line": 130,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "2960605b381f56d7be8ad67d77420ea8984e66c43a9e8797776023632e3ff3c1"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/audit-clone.mjs",
+      "line": 249,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "f611beab46437c769c2c4a665d0ab8fbe29827c1ec42cb173838b66863e0771c"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/dna-scaffold.mjs",
+      "line": 193,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "d0331ca087d6901424950a896dcc66d77de4758143396fa594bbdf343e09a843"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/interaction-probe.mjs",
+      "line": 266,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "1bc04b5291c26a46d918139138b992d2de976d6851d0893b0476b85bfbdfc6e6"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/lib/playwright-loader.mjs",
+      "line": 18,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "07de9d512893f6af0aa8accd54f9bcd618ec5ed2f49bca3b3abf790ec03c7d83"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/mirror-site.mjs",
+      "line": 63,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "e30b3910ffd943c99f7edd7543c56c608522784ec521e85a91cf296f14a13e72"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/mirror-site.mjs",
+      "line": 78,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "a1fce4363854ff888cff4b8e7875d600c2682390412a8cf79b37d0b11148b0fa"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/mirror-site.mjs",
+      "line": 91,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/mirror-site.mjs",
+      "line": 91,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "51280dabfbc880cdc5f92cc2f4f22c8032de5aba401c3268250a11eeb2df1f73"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/od-preview-rewrite.mjs",
+      "line": 25,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "819d99f4aa3aaae4a12d1130f60c77cec909a6b5ee027edd5c5c710f9aed207e"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/od-preview-rewrite.mjs",
+      "line": 26,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "81f4892a2f2f09b64015411222bcff55c7b90b34be1971ba6429b47c7b540b70"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/od-preview-rewrite.mjs",
+      "line": 37,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "d39f5cc49e4bbb59c6aabb20d07fc2d324ca597a0fec88501e1c186b3f94c887"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/od-preview-rewrite.mjs",
+      "line": 68,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "9e993d30efe188c2daab7964d0a1de9587803ff53b09d0baa45fdbaaf6518ca3"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/route-crawl.mjs",
+      "line": 146,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "7208794c984ea1c75d13877c7427336fe98722c41a056eeee4f37360ec367123"
+    },
+    {
+      "rule": "HW4-injected-fetch",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/sourcemap-hunt.mjs",
+      "line": 51,
+      "reason": "Call an injected fetch port; the global fetch may only supply its default.",
+      "fingerprint": "e7d3799ecc09f5cbc446aa0a79bb1fb9d0126395fa19a5903b7425f42e5e92e7"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agentic/src/core/guards.ts",
+      "line": 41,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "47d169b58c8b29daf41032c30fe320878c9cdcea2853567422fb05893e878756"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agentic/src/core/guards.ts",
+      "line": 44,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "eab23784fdbd5ebb23831f58361c3c63419bceb407e271779ff314bbfcea3567"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agentic/src/core/guards.ts",
+      "line": 114,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "7f3886a5bb8146943f8ca6d7baa028be0d457f9282f6889ec487e6d227c782a5"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/agentic/src/skills/install/github.ts",
+      "line": 20,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "bc93d1acbea31b622a7f7f78639e38d73cf1d99f701bbf1eee2d4c532ce833ba"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agentic/src/skills/install/validation.ts",
+      "line": 18,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "fc9dec7a99c845e00a5d66125fae8a22cc52bc09d58b16bd6fd65aade82464df"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/agentic/src/skills/install/validation.ts",
+      "line": 19,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "3299793053238f6b1ec482195c504308eae26ea6d06b2297ec266a5c2f449ee8"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/artifacts/src/manifest.ts",
+      "line": 30,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "71567f55017733989d3dc53825d743071636289239c1b9de7a4a73bbcde7aa5b"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/capability-providers/src/visitor-auth/lifecycle.ts",
+      "line": 16,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "ef7258aa67cc901a1486e5aac39115f59af9209b3c5d4da2d53833c557afc615"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/capability-providers/src/visitor-auth/lifecycle.ts",
+      "line": 17,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "d6a1fe5d3dc92e334535443e1f209af5774197d8c73db4b195c7ccc8242e2819"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/chat/src/core/run-activity.ts",
+      "line": 43,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "ed78b6b934bc5b3a3f0f40c82fc1c44ac6779b9155d2ba8523356747860dcbab"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/chat/src/core/run-activity.ts",
+      "line": 52,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "4cc468a824e3380a8702373e022c7d7aa33594bc8fc71c84fa13c6745b6f2a9e"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/chat/src/react/components/A2uiSurfaceCard.tsx",
+      "line": 47,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "331da961fb407a2818621f38e1ce056f97a7f4bbc9194c65d37b1b0b3217df3d"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/chat/src/react/components/AttachmentPreviewModal.hooks.ts",
+      "line": 47,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "7ca655b3bc61b9e626a6503eb7c57cfdac545ef01159c686a678994df3ebf0fb"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/chat/src/react/components/AttachmentPreviewModal.hooks.ts",
+      "line": 50,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "d202f856cee19c603618967e28f602bc730244551d834c546b190831d66e7fd6"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/chat/src/react/components/ToolCard.tsx",
+      "line": 49,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "746fbe9599cf846bdae72d7eeb40eaa0093f9ebaab95bd1dadc3065fb0c2caf4"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/chat/src/react/components/ToolCard.tsx",
+      "line": 50,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "cc5faa1e412ac4dff52729a52b08355fb7f873b75066889d9ea3b95f9f6161d7"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/chat/src/react/ext-event-renderer-registry.ts",
+      "line": 90,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "b36d435b647af98202bcaff51d7263c176690565e53a2253c73839a06e5258cb"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPaneNewTabLinks.hooks.ts",
+      "line": 25,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "bc04cdbdfde75f34fb8d9ee5163bc99d436c9ddeb13dd05bf50a2fd8d55b48fa"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/chat/src/react/hooks/attachment-preview-cache.ts",
+      "line": 34,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "878a52fc5ff6a57d50b7b870aa51637a3dfd38fc22352a39f95a3c292eb976d5"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/chat/src/react/hooks/composer-draft-cache.ts",
+      "line": 94,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "bd949e87e66b03461a15a805e4a9bb25749113df57b391987d307855aa632c80"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/chat/src/react/hooks/composer-draft-cache.ts",
+      "line": 95,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "87b98f11a8ac6028e8db966093bd81fc1ae8bef0d10ac3abfa73ce5cc2a824a5"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/chat/src/react/hooks/composer-draft-cache.ts",
+      "line": 99,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "2b4a9dd1d4a3b63051769785664fc7b7473aac339dd73c3c072b3492ee911ce2"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/chat/src/react/hooks/useConversation.ts",
+      "line": 56,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "ed8632e6bc1cd3667cb5bc5b208623143c16cee5874816a5b446957ba8d92877"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/chat/src/react/tool-renderer-registry.ts",
+      "line": 33,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "b36d435b647af98202bcaff51d7263c176690565e53a2253c73839a06e5258cb"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/cms/src/content-types/tool-registrations.ts",
+      "line": 65,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "84e4f0b0bc127603cf4419d8ec85cefe958f5e19268f56149e62c2a41bac27c3"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/cms/src/content-types/tool-registrations.ts",
+      "line": 72,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "ad6bb41a34110f374771c1e0bed3027c5428cae33a1e1a1bde5b2fd7772ba6ea"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/cms/src/content-types/write-service.ts",
+      "line": 149,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "2d1cc9c179852f4126095349bdd0378219e8b349bd85258a5372e78d51107960"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/cms/src/entries/tool-registrations.ts",
+      "line": 57,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "9b43dcde2aea6d4e978aa4ea8260c233fe7d2c468d82b2c58e2261521c4af47d"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/cms/src/forms/forms.ts",
+      "line": 15,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "7bb68fccfe1051870b074e4f414b135d9e9161cf53d32b8b15d5ba10a44ed2b9"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/cms/src/media/blob-gc-lock.ts",
+      "line": 32,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "a58815fb7af222983bb3d1ea7bba61f0d929d49505ff812692e6012acaad6f43"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/cms/src/media/image-transformer.sharp.ts",
+      "line": 97,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "632e93023886160a2a5494cd49aeb72994fc61f6834355d175a423b99715a9df"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/cms/src/media/tool-registrations.ts",
+      "line": 116,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "585fabc079688e96ec66f0bff7c2a07e0b3c8b5be806523494f28b668a0e7c51"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/cms/src/navigation/menu-service.ts",
+      "line": 142,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "60461886844df576f2e35161cccbcdd32d4b2f118a2577af1a7b0a50cbe28d13"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/cms/src/navigation/menu-service.ts",
+      "line": 144,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "1bfa380a30829aa9e0163fe6c117c2cb70a86a8c87742d5dfdb2b358802f4e09"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/cms/src/navigation/tool-registrations.ts",
+      "line": 55,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "0ffdf3df5950e9a74a9776752b7e48381f4012e7ccc57284e0df2e41825045d1"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/cms/src/workspace/tool-registrations.ts",
+      "line": 43,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "e1585c06a3d03ff2df284ac8675947fb5fd7fa96ac8fb2dbe9d19766b7b50a9e"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/cms/src/workspace/tool-registrations.ts",
+      "line": 54,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "fffcc5cc390ba28c968dbb826d4245a7d9043714d9810fd9c96417444e189974"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/cms/forms/src/forms.ts",
+      "line": 15,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "7bb68fccfe1051870b074e4f414b135d9e9161cf53d32b8b15d5ba10a44ed2b9"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/commerce/src/payments/providers/lipay-gateway.ts",
+      "line": 94,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "bc731c97d0ba85aa7a8d4ff4fad6a59bd4d10b65f583c606925906bd360a9eb5"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/commerce/src/tools.ts",
+      "line": 18,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "34ae5043d99fab76052b2377256087b21cd59f3bdb12fc6856ede6b6ed386dc6"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/core/src/registration-kit.ts",
+      "line": 81,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "acab57357b6a3fd806edc015ab865de552ed4e2d9d5726913673d6e5c4b7edf9"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/core/src/settings/settings.ts",
+      "line": 129,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "556cbfdb1283936105ea5adb7972acb529cbd24859230a391d39720f5f529833"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/core/src/settings/tool-registrations.ts",
+      "line": 151,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "becbbfe57714746078e7734df26486bd0df9f7c426556115d53ba378c965e303"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/core/src/settings/tool-registrations.ts",
+      "line": 170,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "ec266c78d5788a246de754196fe9b36cc164ce3c6cd6fab6414b9e42422d9c61"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/daemon/src/close-status.ts",
+      "line": 75,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/daemon/src/http/host-tools.ts",
+      "line": 103,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/daemon/src/http/xai.ts",
+      "line": 152,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "396fbae1cae141eb85e04bf8071c2fc131c8523bec3cecea3cc85a821c1b0692"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/daemon/src/terminal-session.ts",
+      "line": 51,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "e1af4e799ab7cd58faa620466efb8a5e319670e5e3abbc4015b8e1f3575d5365"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/daemon/src/terminal-session.ts",
+      "line": 121,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "e1af4e799ab7cd58faa620466efb8a5e319670e5e3abbc4015b8e1f3575d5365"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/db/src/kernel/sqlite/driver.ts",
+      "line": 44,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "fd9343fc57e7664085c689b8eef29c6fbfd9b42fa2fde569096e69d74afe01c5"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/db/src/pglite/owner.ts",
+      "line": 22,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "4c7b2e56404457ed910be72ab259ec26092103333adfe71a7ee8365001aa2e23"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/db/src/pglite/owner.ts",
+      "line": 93,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "56bb8d9c8b4b83e5b3f6c55bd32209e83d062cbac990c2666d42bfab30b8e691"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/db/src/pglite/socket-server.ts",
+      "line": 9,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "4c7b2e56404457ed910be72ab259ec26092103333adfe71a7ee8365001aa2e23"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/db/src/pglite/socket-server.ts",
+      "line": 43,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "d78da23d17fb8cbbd6a31f772804932a6ca29d4c8f30be9851978cc69494e1f6"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/db/src/pglite/types.ts",
+      "line": 1,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "4c7b2e56404457ed910be72ab259ec26092103333adfe71a7ee8365001aa2e23"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/db/src/testing/sqlite-snapshot-client.ts",
+      "line": 1,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "696a1c4c44390d69fa9bf5787097d24230daae8bce74538f5117515410968210"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/db/src/transfer/internal-ddl.ts",
+      "line": 85,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "8aadd97342053f1c112533470ceecb238184676c97165445b7a0db6fb3fb8c79"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/desktop-host/src/paths.ts",
+      "line": 43,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "b08a539459724a893ce64927cf5cea2a99629134a0a65841e0c1ec72eea8e92e"
+    },
+    {
+      "rule": "HW4-injected-fetch",
+      "file": "packages/desktop-host/src/protocol.ts",
+      "line": 48,
+      "reason": "Call an injected fetch port; the global fetch may only supply its default.",
+      "fingerprint": "e7d3799ecc09f5cbc446aa0a79bb1fb9d0126395fa19a5903b7425f42e5e92e7"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/desktop-host/src/tauri/tauri-window-lifecycle.ts",
+      "line": 4,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "017537ee02048ec78d0cc0e8f31de581b841d063485901ba13b31777d81ff890"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/devops/src/checks/coverage/integrity.ts",
+      "line": 4,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "b28e6bdb18da322bbdc6160e4f3fa5184663b76a217da82214d088b39ad077c8"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/devops/src/deploy/node.ts",
+      "line": 3,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "9043402da0ddf12f45b1a71e6925019336c448f3e11e5601d1bfdde8f338a463"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/devops/src/packaging/electron/imports.ts",
+      "line": 15,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "e513fb1f0504a951919688029321eaa02b4e2ad014c0979c4b602b946f9cafc8"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/diagnostics/src/web-evidence/playwright-browser.ts",
+      "line": 59,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "67b47f0fcd4d4fe53b5b74005e57f3d8634dddf9d6d69e75d40e927802395612"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/http-kit/src/api-security-middleware.ts",
+      "line": 38,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "9996465bd0597ec92e1ed5c364256d41e742bb70dbd497c26c4012acc3edef5c"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/http-kit/src/verified-origin/configured-origin.ts",
+      "line": 11,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "ef7258aa67cc901a1486e5aac39115f59af9209b3c5d4da2d53833c557afc615"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/integrations/src/media-providers/video-request.ts",
+      "line": 69,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "c65281c7cb91ed0db5b33e7257c9f941692bebb56115d02af6a4134f5628caa5"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/mcp/src/core/config.ts",
+      "line": 264,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "e82ec02788704bf000fedd833b4525e7705586fc8930b0630d58aac1d94c3b9b"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/mcp/src/core/tokens.ts",
+      "line": 218,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "e82ec02788704bf000fedd833b4525e7705586fc8930b0630d58aac1d94c3b9b"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/mcp/src/federation/trust.ts",
+      "line": 389,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "fb5cea04d61a1f637f90b661e55871d5711c3f3833a45b05700a0acb6b5e4821"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/mcp/src/server/resource-protocol.ts",
+      "line": 13,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "34caf4b1a23e8a4a59ac627abd9a9190b1e2854d11548a95ff54f360fa416945"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/mcp/src/server/sdk-transport.ts",
+      "line": 1,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "c5d0155c0b8c1c139c3fe04f3308a3f89003fcb031581d0f998373cd095f49a5"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/mcp/src/server/tool-protocol.ts",
+      "line": 48,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "fab7250cc9c20e63365fb3a7edef43b2f601ada1f404b4fd5d7b1522ceff4306"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/mcp/src/server/tool-protocol.ts",
+      "line": 49,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "a6ea392ef94b35b9dc07434df0c7b83737d537c6b298dbf9e17e9122c9627df1"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/mcp/src/server/tool-protocol.ts",
+      "line": 50,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "34caf4b1a23e8a4a59ac627abd9a9190b1e2854d11548a95ff54f360fa416945"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/mcp/src/server/tool-protocol.ts",
+      "line": 51,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "34caf4b1a23e8a4a59ac627abd9a9190b1e2854d11548a95ff54f360fa416945"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/mcp/src/server/tool-server.ts",
+      "line": 13,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "0529e3b6b70f9b82d7d029935776121e0133175b88d6788f3cd764bcba53f1b3"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/mcp/src/server/tool-server.ts",
+      "line": 14,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "0529e3b6b70f9b82d7d029935776121e0133175b88d6788f3cd764bcba53f1b3"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/mcp/src/server/tool-server.ts",
+      "line": 15,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "b62282ac6582615fb52e47ff8b35d71ed5268785691dd1e9dca2504361d6421f"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/mcp/src/server/tool-server.ts",
+      "line": 16,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "34caf4b1a23e8a4a59ac627abd9a9190b1e2854d11548a95ff54f360fa416945"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/mcp/src/server/tool-server.ts",
+      "line": 22,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "34caf4b1a23e8a4a59ac627abd9a9190b1e2854d11548a95ff54f360fa416945"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/memory/src/verify.ts",
+      "line": 79,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "8eeea72548aa4d356a55641a466f47de23451be0127299713d394a8f7ccbf12b"
+    },
+    {
+      "rule": "HW2-vendor-adapter",
+      "file": "packages/platform/src/asset-cache.ts",
+      "line": 29,
+      "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
+      "fingerprint": "9043402da0ddf12f45b1a71e6925019336c448f3e11e5601d1bfdde8f338a463"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/platform/src/command.ts",
+      "line": 69,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "faab2f4d1f42e85435cac88b6426abfde91e334e6f902d8000c42f7c25b5108b"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/command.ts",
+      "line": 74,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "ce162ce129f9b3f04ca2b6cc2696e428129a5c8dadb0dde4f338cbeed6efc510"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/download.ts",
+      "line": 228,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "496779ecb5a1223eeb542784d6f189e71e17cf167879a3b78f6639d8c93c87ba"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/download.ts",
+      "line": 229,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "713b59583c84b68deb1e56dabc40b03dd0cc54546bd206e89a9528c80c60d88a"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/download.ts",
+      "line": 230,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "3bc10be06d08501eef60546e2fda57771271b9d08f2bad8efbacc7c3600b9122"
+    },
+    {
+      "rule": "HW4-injected-fetch",
+      "file": "packages/platform/src/fetch-with-timeout.ts",
+      "line": 124,
+      "reason": "Call an injected fetch port; the global fetch may only supply its default.",
+      "fingerprint": "e7d3799ecc09f5cbc446aa0a79bb1fb9d0126395fa19a5903b7425f42e5e92e7"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/home-expansion.ts",
+      "line": 25,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "b08a539459724a893ce64927cf5cea2a99629134a0a65841e0c1ec72eea8e92e"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/http/guarded/client.ts",
+      "line": 42,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "ee3651df556f07b100c59f12b42f55104914efc9727699b45492df322810370d"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/http/guarded/client.ts",
+      "line": 159,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "0040a0f6cef55ad27b0983a4dd140b451ad70051d4f98963f260a5dbb6ccf19a"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/mail/smtp.ts",
+      "line": 31,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "541709b7e55c37622e056e313c6e9d215df3512cdb3a3068cbb1daae5a743a54"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/proxy-env.ts",
+      "line": 22,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "d096c07630275b135669f646de2c1a21d5c6751749b75a62edb6eb136a2f489a"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/platform/src/resource-paths.ts",
+      "line": 116,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/platform/src/resource-paths.ts",
+      "line": 197,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "92b7b421992ef490f3b75898ec0e511f1a5c02422819d89719b20362b023ee4f"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/platform/src/resource-paths.ts",
+      "line": 197,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "42b2ada5446160d1b82ef9aa9bbfc3fa10ddffc2b4a62b2ce4cb1ccad056026c"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/sandbox-env.ts",
+      "line": 60,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "71b15c343ffb4eddcba3f913106feeabb776f342d0e3061f76637cb0f51740f7"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/sandbox-env.ts",
+      "line": 61,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "54b899f9e586ee9f1195c47fdbac34d7ff0c557d306785c44fb2f8926bfdb18d"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/platform/src/shell.ts",
+      "line": 71,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "d4db71eecc1adeeae61a48d9a283751048b92e46fa4a99d7aea7228d02cbd523"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/platform/src/shell.ts",
+      "line": 96,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "665d998270647c7ad8e0914d20424f5393bb87111100034ba3279dc73899d171"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/platform/src/shell.ts",
+      "line": 98,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/terminal.ts",
+      "line": 139,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "19af8b4311d68ef4faf49b062b05dd181679344461ff169886d89bb955c74acd"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/platform/src/terminal.ts",
+      "line": 367,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/web/html-document.ts",
+      "line": 35,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "efbe81e82130c6017868be120fd2fe13e5dfe72ea442539e923ff274439ba5c0"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/web/html-document.ts",
+      "line": 37,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "03f65a90b780528da96b69e5a344589bbb6a0066671052fcc8ec491041768538"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/web/html-document.ts",
+      "line": 38,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "b68c6e8d20cd190e4af4e7f59a3733ae94494eec5b7df927dc4ad3da2b80c412"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/web/html-document.ts",
+      "line": 40,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "a8ea188433f1df4e68301913f19f00230388bc10b0e7b444809664978d86c1c9"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/web/html-to-markdown.ts",
+      "line": 16,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "9b9c54b618dbc5bee1fcc89caae27f7dd2dbac1ff5b27483c0081e73f1403cfa"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/plugins/src/glue/manifest.ts",
+      "line": 39,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "3de594e56147c63004712e134a1f452552cfea35ff74818d49820171c4a82cca"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/plugins/src/host/manifest.ts",
+      "line": 176,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "3de594e56147c63004712e134a1f452552cfea35ff74818d49820171c4a82cca"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/plugins/src/host/manifest.ts",
+      "line": 177,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "e9688fb8bc630b9a2dcd6a62df139db856f26c44db40a279351d7704b3fedcde"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/plugins/src/host/manifest.ts",
+      "line": 178,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "e75e8485fbeb0ad987cd0f2e2952052afdad1d9f97c15fb64ca49711aacbb2d1"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/plugins/src/host/manifest.ts",
+      "line": 472,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "e3b960128b96095460bfbcbba25fc2cc8414c44723e638fcb39f148ef7aa8e8b"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/plugins/src/host/node/discovery.ts",
+      "line": 58,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "e9688fb8bc630b9a2dcd6a62df139db856f26c44db40a279351d7704b3fedcde"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/registry/src/github-client.ts",
+      "line": 32,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "b2fd47bfbc5a4de17a621c69c1407b826d21731da4f7ea0c3c01cb6e044b8b9c"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/sandbox/src/e2b/wrap-e2b-sandbox.ts",
+      "line": 60,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "5cc596f6bb8cdabe0cd3f3b8afc5713c4c59ce5a225cf34fe3ae85986f3bfc1f"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/sidecar/src/json-ipc.ts",
+      "line": 35,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "55d0aba3152a91d7005c1eb7ed416f860d459aeb206e7a8bf8a776a5fe8f8d30"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/sidecar/src/json-ipc.ts",
+      "line": 41,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "4be69a2b18c33ce906a4945f4749d1c8b9b8bf2e5b56bc75a49bc93e6e44138b"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/asset-grid/rules.ts",
+      "line": 263,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "cc225d2f023c340b83677f60bd7af58cc77d6a0cefbde5f9644e59a835035813"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/ui/src/features/html-editor/react/hooks/useInteractiveHtmlEditor.ts",
+      "line": 191,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "bad235beef56966ca0b4887eb3a3787b1db890efb2414aa61a405af40daa7f2a"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/html-editor/source-splice.ts",
+      "line": 34,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "aab55430fc2acffa0955fe13013dc5ef3aefa3f20984b16f450201d11254746a"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.ar.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.ar.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.bn.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.bn.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.de.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.de.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.en.ts",
+      "line": 241,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.en.ts",
+      "line": 241,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.es.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.es.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.fa.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.fa.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.fr.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.fr.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.hi.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.hi.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.hu.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.hu.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.id.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.id.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.it.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.it.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.ja.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.ja.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.ko.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.ko.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.pl.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.pl.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.pt-BR.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.pt-BR.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.ru.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.ru.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.th.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.th.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.tr.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.tr.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.uk.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.uk.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.ur.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.ur.ts",
+      "line": 215,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.zh-CN.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.zh-CN.ts",
+      "line": 225,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.zh-TW.ts",
+      "line": 228,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/i18n/dictionaries/settings-dialog.zh-TW.ts",
+      "line": 228,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/iframe-pool/react/dom-sync.ts",
+      "line": 43,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "cce286426f611dcd2e79385816016d3ce1c0c6f4b827f717a0b79831b9457e76"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/ui/src/features/lexical-rich-text-editor/react/components/RichTextInput.tsx",
+      "line": 261,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "bad235beef56966ca0b4887eb3a3787b1db890efb2414aa61a405af40daa7f2a"
+    },
+    {
+      "rule": "HW8-provider-url",
+      "file": "packages/ui/src/features/media-providers/react/components/MediaProvidersTab.tsx",
+      "line": 104,
+      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
+      "fingerprint": "137b9e5e4e13211ce3487cb1f3148ad0ef4147e2a4647ca12191bd2c8528b646"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/observability/boot-timing.ts",
+      "line": 26,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "b737815f5ca9697f685dfe2b5fe1f7b12a180562f97da5a72e90eaedd9890876"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/observability/install.ts",
+      "line": 33,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "a51a6c19a1ffc7416827e89adf20749d23ad42452c396cf7e627409f2896922c"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/observability/long-task.ts",
+      "line": 23,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "e41f1d834710df8c7bc2befedb7b92339973a92288d8581b3696604c0d04c5f7"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/observability/resource-error.ts",
+      "line": 13,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "a765a567f3d6cd79214b82af45af68aa53d086ac3aa2e9c3bb6458e2499d9140"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/observability/resource-error.ts",
+      "line": 19,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "a51a6c19a1ffc7416827e89adf20749d23ad42452c396cf7e627409f2896922c"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/observability/stuck-run.ts",
+      "line": 30,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "1f64fff08d787e732e04559f4d241876b399d9d4251af79833bd22adbb2d331a"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/observability/visibility.ts",
+      "line": 21,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "a51a6c19a1ffc7416827e89adf20749d23ad42452c396cf7e627409f2896922c"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/progress-card/reference-adapters.ts",
+      "line": 74,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "970d8f10896416237c67a245d6e05dce6ac4416658ea4917e4bc378d7c3c11da"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/progress-card/reference-adapters.ts",
+      "line": 155,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "a1020ddebed241dadf30ce6f0c7ceceeee43ee5b8c65c88d4910a0505f06bfc2"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/progress-card/reference-adapters.ts",
+      "line": 156,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "564f19d77a1cabb28958d48de3de39b643af31b158da40e4a3087871ed673373"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/progress-card/reference-adapters.ts",
+      "line": 157,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "f0eb2589782167f987c3aa4a76bf2c1dfbc590ce868a56da48e4e71191b83b2f"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/progress-card/reference-adapters.ts",
+      "line": 158,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "7c68e095f4965874a8b45630e108dd65c44dc2f807c35ec6aa3ac2fcd53072ea"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/project-locations/dependencies.ts",
+      "line": 23,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "e70eef7d065aab43e67dbc42fe8fc432a41036055d7fa7a7ca7cf03e61aec5d8"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/sketch-editor/react/dependencies-fake.tsx",
+      "line": 20,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "0c1ab4f82cd788cb6e7f9120e7b24a657cfbe4615d4fc6ceb4a41dea1c08aca9"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/features/skills/dependencies.ts",
+      "line": 25,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "e70eef7d065aab43e67dbc42fe8fc432a41036055d7fa7a7ca7cf03e61aec5d8"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/react/components/AgentIcon.tsx",
+      "line": 52,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "fc96fc3915277b2bf02c5f01e235eb5c78d38d9981ae0e825c201ad23f85cdbf"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/react/components/RemixIcon.tsx",
+      "line": 27,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "c6c331958744bb3f00902fd3e507045e2fa152ea81b0f53f56299c6f8f0e82a2"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/react/components/RemixIcon.tsx",
+      "line": 28,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "da0e6487d4b4061217d83eda6cfad73d08393082c7602e80014e8322e635cdcc"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/renderers/shiki.ts",
+      "line": 8,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "5f92825aedd6375f6d0c78028845e55a5bee64317c5bbf697ea50cbf33a0c446"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/renderers/shiki.ts",
+      "line": 10,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "5e1ecee06a7fc06f305ae5c12acfe7a7f67b8ece7af76932ed3afab00c3c6921"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/utils/markdown-scroll-sync.ts",
+      "line": 13,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "9c1f11d97d0bf2614a9ebb00f57294870316fa215dbfe4c757430eb7cf9e5a73"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/utils/markdown-scroll-sync.ts",
+      "line": 14,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "10052d5e56605dadf886f443320a727d992ad18131243d8a190169d8d1ec27d0"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/utils/notifications.ts",
+      "line": 36,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "0230c6b1d833c51cc426492022677b74c60d82891931221a42db9e7bb06205e9"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui/src/utils/notifications.ts",
+      "line": 37,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "ee655aa989214a6ab5dcc458233efaf5ab3faee9ea7d5fb849a4c5deeaabf702"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/ui-kit/src/react/Kit.hooks.ts",
+      "line": 11,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "b5bd866e65a9f2fc2d6a398642b8c5b6cf14df5df507ba60b65646235cf2750f"
+    },
+    {
+      "rule": "HW1-env-default",
+      "file": "packages/ui-kit/src/react/context.ts",
+      "line": 8,
+      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
+      "fingerprint": "bad235beef56966ca0b4887eb3a3787b1db890efb2414aa61a405af40daa7f2a"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/user-management/src/server/agent-tool-input.ts",
+      "line": 27,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "2690bf4c8a8227cf8fcbde439f891ca0814bd5845707ef62aa1d4d5a65c652ee"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/user-management/src/server/agent-tool-input.ts",
+      "line": 28,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "06b2f9d0ad3f15b5ae1bf20a36b9d16d424fa965fb64b1f4d1c90c430ab374f3"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/user-management/src/server/agent-tool-registrations.ts",
+      "line": 114,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "7c2d8968d6fb39d446d2272cbcb6e7419343eaa80d923ade6283fa335a8cfec6"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/vibecoding/src/html/node/parse5-region-parser.ts",
+      "line": 80,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "f53b00f5e8c58cb53dc18f09b8ef0242bc3be990358be49ad2f659953cf55565"
+    }
+  ]
+}

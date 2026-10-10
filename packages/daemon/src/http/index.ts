@@ -305,13 +305,15 @@ export {
   registerConnectorsRoutes,
 } from './connectors.js';
 export type {
+  ResearchProvider,
+  ResearchSearchRequest,
   ResearchHttpDeps,
   ResearchInternalErrorContext,
   ResearchProviderCredentials,
   ResearchSearchResponse,
   ResearchSource,
 } from './research.js';
-export { registerResearchRoutes, researchSearchRoute } from './research.js';
+export { createResearchSearchRoute, registerResearchRoutes, researchSearchRoute } from './research.js';
 export type {
   MediaGenerateResponse,
   MediaHttpDeps,
@@ -370,3 +372,5 @@ export {
   xaiSearchRoute,
 } from './xai.js';
 export * from './run-credentials.js';
+
+export { createTavilyResearchProvider } from './research-tavily.adapter.js';

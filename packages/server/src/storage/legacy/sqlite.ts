@@ -1,12 +1,10 @@
-/** Local app.sqlite singleton policy; the host explicitly supplies its SQLite driver. */
+/** Host-owned app.sqlite lifecycle; the host explicitly supplies its SQLite driver. */
 import path from 'node:path';
 import fs from 'node:fs';
 import { openSqliteConnection, type SqliteDb, type SqliteSyncOpener } from '@jini-ai/db/sqlite';
 import { LEGACY_CHAT_DDL } from '@jini-ai/chat/store/legacy/sqlite';
 import { LEGACY_AGENT_SESSIONS_DDL } from '@jini-ai/daemon/store/agent-sessions/sqlite';
 import { LEGACY_PROJECTS_DDL } from '../../store/projects/sqlite.js';
-let dbInstance: SqliteDb | null = null;
-let dbFile: string | null = null;
 
 /**
  * Explicit idempotent bootstrap of unchanged legacy tables; no versioned migration ledger.
@@ -23,13 +21,18 @@ export function migrate({ db }: { db: SqliteDb }): void {
  db.exec(LEGACY_PROJECTS_DDL + LEGACY_CHAT_DDL + LEGACY_AGENT_SESSIONS_DDL);
 }
 
+/** Creates one owned connection cache; other hosts' paths and handles are independent.
+ * Returns lazy open/close ports; creation performs no I/O. @complexity O(1). */
+export function createLegacySqliteStorage(_required: Record<string, never>, _optional: Record<string, never> = {}) {
+ let dbInstance: SqliteDb | null = null;
+ let dbFile: string | null = null;
 /**
  * Opens/caches <dataDir>/app.sqlite using the injected opener, WAL and foreign keys.
- * A new path closes the previous singleton; setup failure closes only the newly acquired handle.
+ * A new path closes the previous handle owned by this storage instance; setup failure closes only the newly acquired handle.
  * @throws The original host acquisition/schema failure, or a missing opener.
  * @complexity O(1) acquisition/bootstrap calls, independent of stored row count.
  */
-export function openDatabase(
+function openDatabase(
  { projectRoot, open }: { projectRoot: string; open: SqliteSyncOpener },
  options: { dataDir?: string; filesystem?: Pick<typeof fs, 'mkdirSync'> } = {},
 ): SqliteDb {
@@ -49,7 +52,14 @@ export function openDatabase(
   throw error;
  }
 }
-/** Close the active owned singleton once; clearing state first permits a clean retry after failure. */
-export function closeDatabase():void {
+/** Close the active owned handle once; clearing state first permits a clean retry after failure. */
+function closeDatabase():void {
  const db=dbInstance;dbInstance=null;dbFile=null;db?.close();
 }
+ return { openDatabase, closeDatabase };
+}
+
+// Compatibility facade for existing hosts; new hosts inject their own storage instance.
+const defaultStorage = createLegacySqliteStorage({});
+export const openDatabase = defaultStorage.openDatabase;
+export const closeDatabase = defaultStorage.closeDatabase;

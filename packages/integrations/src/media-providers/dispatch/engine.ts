@@ -1,3 +1,4 @@
+import { normalizeMediaProviderMap } from '../providers.js';
 import type { RequiredArgs, OptionalArgs } from '../../args.js';
 /**
  * The media dispatch engine — validates a generation request against the
@@ -144,11 +145,13 @@ function resolveRenderer(providerId: string, routeKey: string): Renderer | undef
 }
 
 export function createMediaDispatchEngine(_required: Record<string, never>, optional: MediaDispatchEngineOptions = {}): MediaDispatchEngine {
-    const options = optional;
+  const options = optional;
   const allowStubFallback = options.allowStubFallback === true;
 
   return {
     async generate(required: RequiredArgs<MediaGenerationRequest>, optional: OptionalArgs<MediaGenerationRequest> = {}): Promise<MediaGenerationResult> {
+      // Credentials remain live: a host may rotate them between generation requests.
+      const configuredCredentials = options.credentials ? normalizeMediaProviderMap({ providers: options.credentials }) : {};
       const request = { ...required, ...optional };
       const { surface, model } = request;
       if (!SURFACES.has(surface)) {
@@ -200,7 +203,7 @@ export function createMediaDispatchEngine(_required: Record<string, never>, opti
         ...(options.outboundMessages === undefined ? {} : { outboundMessages: options.outboundMessages }),
       };
 
-      const credentials = options.credentials?.[def.provider] ?? {};
+      const credentials = configuredCredentials[def.provider] ?? {};
 
       // `openai` + image can be overridden by a caller-configured
       // `custom-image` credential that names the same model — mirrors the
@@ -209,7 +212,7 @@ export function createMediaDispatchEngine(_required: Record<string, never>, opti
       let renderer: Renderer | undefined;
       let effectiveCredentials = credentials;
       if (def.provider === 'openai' && surface === 'image') {
-        const customImageCredentials = options.credentials?.['custom-image'] ?? null;
+        const customImageCredentials = configuredCredentials['custom-image'] ?? null;
         const override = { ctx, credentials: customImageCredentials };
         if (customImageOverridesOpenAIModel(override)) {
           providerId = 'custom-image';

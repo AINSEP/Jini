@@ -1,3 +1,4 @@
+import { normalizeMediaProviderMap, canonicalMediaProviderId } from '@jini-ai/integrations/media-providers/catalog';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MediaProvidersPort } from '../../ports.js';
 import {
@@ -71,7 +72,7 @@ export interface UseMediaProvidersTabResult {
  * server manages nothing" and silently wipe local edits.
  */
 export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvidersTabOptions): UseMediaProvidersTabResult {
-  const [providers, setProviders] = useState<MediaProviderMap>(() => ({ ...(initialProviders ?? {}) }));
+  const [providers, setProviders] = useState<MediaProviderMap>(() => normalizeMediaProviderMap({ providers: initialProviders ?? {} }));
   const [pendingProviderIds, setPendingProviderIds] = useState<ReadonlySet<string>>(() => new Set());
   const [load, setLoad] = useState<MediaProvidersLoadState>({ status: 'loading' });
   const [save, setSave] = useState<MediaProvidersSaveState>({ status: 'idle' });
@@ -185,7 +186,7 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
       for (const providerId of clearsInFlight) {
         if (!touched.has(providerId)) clearedProviderIds.current.delete(providerId);
       }
-      const next: MediaProviderMap = { ...saved };
+      const next: MediaProviderMap = normalizeMediaProviderMap({ providers: saved });
       for (const providerId of touched) {
         const local = providersRef.current[providerId];
         if (local === undefined) delete next[providerId];
@@ -277,7 +278,7 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
           setLoad({ status: 'unreachable' });
           return;
         }
-        const merged = mergeDaemonProviders(providersRef.current, daemonResult, {
+        const merged = mergeDaemonProviders(providersRef.current, normalizeMediaProviderMap({ providers: daemonResult }), {
           preserveLocalProviderIds: pendingRef.current,
           dropProviderIds: clearedProviderIds.current,
         });
@@ -304,6 +305,7 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
 
   const updateProvider = useCallback(
     (providerId: string, patch: MediaProviderEditPatch) => {
+      providerId = canonicalMediaProviderId({ id: providerId });
       const current = providersRef.current;
       const nextEntry: MediaProviderCredentials = { ...(current[providerId] ?? {}), ...patch };
       const nextMap = { ...current };
@@ -322,6 +324,7 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
 
   const clearProvider = useCallback(
     (providerId: string) => {
+      providerId = canonicalMediaProviderId({ id: providerId });
       void (async () => {
         const previousEntry = providersRef.current[providerId];
         const next = { ...providersRef.current };

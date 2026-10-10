@@ -159,7 +159,7 @@ export const claudeAgentDef = {
     // default), which has no length cap. Mirrors the codex/opencode/
     // cursor/qwen entries below.
     buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}) => {
-      const caps = agentCapabilities.get('claude') || {};
+      const caps = (options.capabilities ?? agentCapabilities.get('claude')) || {};
       // `--input-format stream-json` lets the daemon stream multiple JSONL
       // messages into stdin instead of closing it after the initial prompt,
       // keeping the turn open so the daemon can stream further user messages
@@ -248,6 +248,7 @@ export const claudeAgentDef = {
     promptViaStdin: true,
     promptInputFormat: 'stream-json',
     streamFormat: 'claude-stream-json',
+    usageCostBasis: 'session',
     // Claude Code auto-loads `.mcp.json` from the project cwd at spawn,
     // so the daemon writes the user's external MCP servers there before
     // launching (server.ts handles the cwd guard).

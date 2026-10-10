@@ -1,3 +1,6 @@
+import { userToolchainBinDirs } from './executables.js';
+import { defaultRuntimeState, type AgentRuntimeState } from './runtime-state.js';
+import { getRuntimeModelDiscoveryDeps } from './model-discovery-adapters.js';
 /**
  * @module detection
  *
@@ -15,7 +18,6 @@ import { execAgentFile } from './invocation.js';
 import { offlineSnapshot, modelDiscoveryForDef } from './model-discovery.js';
 import type { ModelDiscoveryContext, ModelDiscoveryDeps, ModelCatalogSnapshot, DefaultModelResolution } from './model-discovery-types.js';
 import { rememberLiveModels } from './models.js';
-import { agentCapabilities } from './capabilities.js';
 import { installMetaForAgent } from './metadata.js';
 import { AGENT_DEFS } from './registry.js';
 import { applyAgentLaunchEnv, resolveAgentLaunch } from './launch.js';
@@ -167,9 +169,6 @@ async function readCapabilities(
   return caps;
 }
 
-/** One in-flight or settled `--help` probe per def id + launch path, so a run never re-spawns it. */
-const capabilityProbes = new Map<string, Promise<void>>();
-
 /**
  * Makes sure `agentCapabilities` holds this def's `--help`-probed flags before its `buildArgs` runs.
  *
@@ -189,20 +188,28 @@ const capabilityProbes = new Map<string, Promise<void>>();
  * @param env - The env the run will spawn with.
  * @complexity O(1) after the first call per def + path; the first call costs one `--help` spawn (5 s cap).
  */
-export function ensureAgentCapabilities({ def, launchPath, env }: { def: RuntimeAgentDef; launchPath: string; env: NodeJS.ProcessEnv }): Promise<void> {
+export function ensureAgentCapabilities(
+  { def, launchPath, env }: { def: RuntimeAgentDef; launchPath: string; env: NodeJS.ProcessEnv },
+  { state = defaultRuntimeState, probe = ({ helpArgs, capabilityFlags, launchPath, env }) => readCapabilities(helpArgs, capabilityFlags, launchPath, env) }: {
+    state?: AgentRuntimeState;
+    probe?: (required: { helpArgs: readonly string[]; capabilityFlags: Readonly<Record<string, string>>; launchPath: string; env: NodeJS.ProcessEnv }, optional: Record<string, never>) => Promise<RuntimeCapabilityMap>;
+  } = {},
+): Promise<void> {
+  const agentCapabilities = state.capabilities;
+  const capabilityProbes = state.capabilityProbes;
   const { helpArgs, capabilityFlags } = def;
   if (!helpArgs || !capabilityFlags || agentCapabilities.has(def.id)) return Promise.resolve();
   const key = `${def.id}\u0000${launchPath}`;
   const existing = capabilityProbes.get(key);
   if (existing) return existing;
-  const probe = readCapabilities(helpArgs, capabilityFlags, launchPath, env).then(
+  const pending = probe({ helpArgs, capabilityFlags, launchPath, env }, {}).then(
     (caps) => {
       if (!agentCapabilities.has(def.id)) agentCapabilities.set(def.id, caps);
     },
     () => undefined,
   );
-  capabilityProbes.set(key, probe);
-  return probe;
+  capabilityProbes.set(key, pending);
+  return pending;
 }
 
 /**
@@ -230,8 +237,9 @@ function probeEnvForLaunch(
   def: RuntimeAgentDef,
   configuredEnv: Record<string, string>,
   launch: ReturnType<typeof resolveAgentLaunch>,
+  options: { state?: AgentRuntimeState; env?: NodeJS.ProcessEnv } = {},
 ): NodeJS.ProcessEnv {
-  return applyAgentLaunchEnv({ env: spawnEnvForAgent({ agentId: def.id, baseEnv: { ...process.env, ...(def.env || {}) } }, { configuredEnv: configuredEnv, hooks: {} }), launch: launch }
+  return applyAgentLaunchEnv({ env: spawnEnvForAgent({ agentId: def.id, baseEnv: { ...(options.env ?? process.env), ...(def.env || {}) } }, { configuredEnv: configuredEnv, hooks: {} }), launch: launch }, { appendPathDirs: userToolchainBinDirs({}, options) }
   );
 }
 
@@ -255,15 +263,15 @@ export type ProbedAgentModels = FetchedRuntimeModels;
  * `source: 'fallback'` (including when the binary is not found). Never rejects.
  * @complexity At most one model-listing spawn, bounded by the def's own timeout.
  */
-export async function probeAgentModels({ def }: { def: RuntimeAgentDef }, { configuredEnv = {}, amrProfileResolver = noopAmrProfileResolver, context, deps, force = false }: { configuredEnv?: Record<string, string>; amrProfileResolver?: AmrProfileResolver; context?: ModelDiscoveryContext; deps?: ModelDiscoveryDeps; force?: boolean } = {}
+export async function probeAgentModels({ def }: { def: RuntimeAgentDef }, { configuredEnv = {}, amrProfileResolver = noopAmrProfileResolver, context, deps, force = false, state = defaultRuntimeState, env = process.env }: { state?: AgentRuntimeState; env?: NodeJS.ProcessEnv; configuredEnv?: Record<string, string>; amrProfileResolver?: AmrProfileResolver; context?: ModelDiscoveryContext; deps?: ModelDiscoveryDeps; force?: boolean } = {}
 ): Promise<ProbedAgentModels> {
   try {
-    const launch = resolveAgentLaunch({ def: def }, { configuredEnv: configuredEnv });
+    const launch = resolveAgentLaunch({ def: def }, { configuredEnv: configuredEnv, state, env });
     if (!launch.launchPath) return unavailableModels(def);
-    const probeEnv = probeEnvForLaunch(def, configuredEnv, launch);
-    const fetched = await fetchModels(def, launch.launchPath, probeEnv, { ...(context ? { context } : {}), ...(deps ? { deps } : {}), force });
+    const probeEnv = probeEnvForLaunch(def, configuredEnv, launch, { state, env });
+    const fetched = await fetchModels(def, launch.launchPath, probeEnv, { ...(context ? { context } : {}), deps: deps ?? getRuntimeModelDiscoveryDeps({ state }), force });
     const result = withRememberedAmrModels(def, probeEnv, fetched, amrProfileResolver);
-    rememberDetectedModelList(def, configuredEnv, result.models, amrProfileResolver);
+    rememberDetectedModelList(def, configuredEnv, result.models, amrProfileResolver, { state, env });
     return result;
   } catch {
     return unavailableModels(def);
@@ -284,11 +292,11 @@ async function probe(
   // detection probes the shim but chat/run spawns the native binary, the
   // UI incorrectly reports "not installed" until the user pins the bin
   // override by hand even though the real launch path is healthy.
-  const launch = resolveAgentLaunch({ def: def }, { configuredEnv: configuredEnv });
+  const launch = resolveAgentLaunch({ def: def }, { configuredEnv: configuredEnv, ...(options.state ? { state: options.state } : {}), ...(options.env ? { env: options.env } : {}) });
   if (!launch.selectedPath || !launch.launchPath) {
-    return unavailableAgent(def, [buildExecutableDiagnostic({ def: def }, { configuredEnv: configuredEnv })]);
+    return unavailableAgent(def, [buildExecutableDiagnostic({ def: def }, { configuredEnv: configuredEnv, ...(options.state ? { state: options.state } : {}), ...(options.env ? { env: options.env } : {}) })]);
   }
-  const probeEnv = probeEnvForLaunch(def, configuredEnv, launch);
+  const probeEnv = probeEnvForLaunch(def, configuredEnv, launch, options);
   const outcome = await probeVersionAtPath(def, launch.launchPath, probeEnv);
   if (outcome.kind === 'not-invocable') {
     return unavailableAgent(def, [buildNotInvocableDiagnostic({ def: def, launch: launch, cause: outcome.cause })]);
@@ -300,12 +308,12 @@ async function probe(
   // cached on `agentCapabilities` for buildArgs to consult.
   const [caps, modelResult, auth] = await Promise.all([
     probeCapabilities(def, launch.launchPath, probeEnv),
-    fetchModels(def, launch.launchPath, probeEnv, { version: outcome.version, ...options }),
+    fetchModels(def, launch.launchPath, probeEnv, { version: outcome.version, ...options, deps: options.deps ?? getRuntimeModelDiscoveryDeps({ state: options.state ?? defaultRuntimeState }) }),
     probeAgentAuthStatus({ def: def, resolvedBin: launch.launchPath, env: probeEnv }),
   ]);
   const surfacedModelResult = withRememberedAmrModels(def, probeEnv, modelResult, amrProfileResolver);
   if (caps) {
-    agentCapabilities.set(def.id, caps);
+    (options.state ?? defaultRuntimeState).capabilities.set(def.id, caps);
   }
   const authDiagnostic = auth ? buildAuthDiagnostic({ def: def, auth: auth }) : null;
   return {
@@ -390,8 +398,9 @@ function rememberDetectedLiveModels(
   configuredEnv: Record<string, string>,
   agent: DetectedAgent,
   amrProfileResolver: AmrProfileResolver,
+  options: { state?: AgentRuntimeState; env?: NodeJS.ProcessEnv } = {},
 ): void {
-  rememberDetectedModelList(def, configuredEnv, agent.models, amrProfileResolver);
+  rememberDetectedModelList(def, configuredEnv, agent.models, amrProfileResolver, options);
 }
 
 function rememberDetectedModelList(
@@ -399,21 +408,22 @@ function rememberDetectedModelList(
   configuredEnv: Record<string, string>,
   models: RuntimeModelOption[],
   amrProfileResolver: AmrProfileResolver,
+  options: { state?: AgentRuntimeState; env?: NodeJS.ProcessEnv } = {},
 ): void {
   if (def.id === 'amr' && models.length === 0) return;
   const scope =
     def.id === 'amr'
-      ? amrModelScopeFromEnv({ ...process.env, ...(def.env || {}), ...configuredEnv }, amrProfileResolver)
+      ? amrModelScopeFromEnv({ ...(options.env ?? process.env), ...(def.env || {}), ...configuredEnv }, amrProfileResolver)
       : null;
-  rememberLiveModels({ agentId: def.id, models: models.filter((row) => row.identityKind !== 'routing-mode') }, { scope: scope });
+  rememberLiveModels({ agentId: def.id, models: models.filter((row) => row.identityKind !== 'routing-mode') }, { scope: scope, ...(options.state ? { state: options.state } : {}) });
 }
 
-export interface AgentDetectionModelOptions { context?: ModelDiscoveryContext; deps?: ModelDiscoveryDeps; force?: boolean }
+export interface AgentDetectionModelOptions { context?: ModelDiscoveryContext; deps?: ModelDiscoveryDeps; force?: boolean; state?: AgentRuntimeState; env?: NodeJS.ProcessEnv }
 
-export async function detectAgents({  }: {  }, { configuredEnvByAgent = {}, amrProfileResolver = noopAmrProfileResolver, modelContextByAgent = {}, modelDiscoveryDeps, force = false }: { configuredEnvByAgent?: Record<string, Record<string, string>>; amrProfileResolver?: AmrProfileResolver; modelContextByAgent?: Record<string, ModelDiscoveryContext>; modelDiscoveryDeps?: ModelDiscoveryDeps; force?: boolean } = {}
+export async function detectAgents({  }: {  }, { configuredEnvByAgent = {}, amrProfileResolver = noopAmrProfileResolver, modelContextByAgent = {}, modelDiscoveryDeps, force = false, state = defaultRuntimeState, env = process.env }: { state?: AgentRuntimeState; env?: NodeJS.ProcessEnv; configuredEnvByAgent?: Record<string, Record<string, string>>; amrProfileResolver?: AmrProfileResolver; modelContextByAgent?: Record<string, ModelDiscoveryContext>; modelDiscoveryDeps?: ModelDiscoveryDeps; force?: boolean } = {}
 ) {
   const results = await Promise.all(
-    AGENT_DEFS.map((def) => safeProbe(def, configuredEnvByAgent?.[def.id] ?? {}, amrProfileResolver, { ...(modelContextByAgent[def.id] ? { context: modelContextByAgent[def.id]! } : {}), ...(modelDiscoveryDeps ? { deps: modelDiscoveryDeps } : {}), force })),
+    AGENT_DEFS.map((def) => safeProbe(def, configuredEnvByAgent?.[def.id] ?? {}, amrProfileResolver, { ...(modelContextByAgent[def.id] ? { context: modelContextByAgent[def.id]! } : {}), deps: modelDiscoveryDeps ?? getRuntimeModelDiscoveryDeps({ state }), force, state, env })),
   );
   // Refresh the validation cache from whatever we just surfaced to the UI
   // so a chat endpoint can accept any model the user could have just
@@ -423,7 +433,7 @@ export async function detectAgents({  }: {  }, { configuredEnvByAgent = {}, amrP
     // is in-bounds for `AGENT_DEFS` too — the assertion just satisfies
     // `noUncheckedIndexedAccess`.
     const def = AGENT_DEFS[index]!;
-    rememberDetectedLiveModels(def, configuredEnvByAgent?.[def.id] ?? {}, agent, amrProfileResolver);
+    rememberDetectedLiveModels(def, configuredEnvByAgent?.[def.id] ?? {}, agent, amrProfileResolver, { state, env });
   }
   return results;
 }
@@ -434,11 +444,11 @@ export async function detectAgents({  }: {  }, { configuredEnvByAgent = {}, amrP
 // validation cache is refreshed per-agent (same effect as the batch path,
 // just incrementally). `detectAgents` keeps the array contract for callers
 // that don't care about incremental delivery.
-export async function* detectAgentsStream({  }: {  }, { configuredEnvByAgent = {}, amrProfileResolver = noopAmrProfileResolver, modelContextByAgent = {}, modelDiscoveryDeps, force = false }: { configuredEnvByAgent?: Record<string, Record<string, string>>; amrProfileResolver?: AmrProfileResolver; modelContextByAgent?: Record<string, ModelDiscoveryContext>; modelDiscoveryDeps?: ModelDiscoveryDeps; force?: boolean } = {}
+export async function* detectAgentsStream({  }: {  }, { configuredEnvByAgent = {}, amrProfileResolver = noopAmrProfileResolver, modelContextByAgent = {}, modelDiscoveryDeps, force = false, state = defaultRuntimeState, env = process.env }: { state?: AgentRuntimeState; env?: NodeJS.ProcessEnv; configuredEnvByAgent?: Record<string, Record<string, string>>; amrProfileResolver?: AmrProfileResolver; modelContextByAgent?: Record<string, ModelDiscoveryContext>; modelDiscoveryDeps?: ModelDiscoveryDeps; force?: boolean } = {}
 ): AsyncGenerator<DetectedAgent> {
   const tagged = AGENT_DEFS.map((def, index) =>
-    safeProbe(def, configuredEnvByAgent?.[def.id] ?? {}, amrProfileResolver, { ...(modelContextByAgent[def.id] ? { context: modelContextByAgent[def.id]! } : {}), ...(modelDiscoveryDeps ? { deps: modelDiscoveryDeps } : {}), force }).then((agent) => {
-      rememberDetectedLiveModels(def, configuredEnvByAgent?.[def.id] ?? {}, agent, amrProfileResolver);
+    safeProbe(def, configuredEnvByAgent?.[def.id] ?? {}, amrProfileResolver, { ...(modelContextByAgent[def.id] ? { context: modelContextByAgent[def.id]! } : {}), deps: modelDiscoveryDeps ?? getRuntimeModelDiscoveryDeps({ state }), force, state, env }).then((agent) => {
+      rememberDetectedLiveModels(def, configuredEnvByAgent?.[def.id] ?? {}, agent, amrProfileResolver, { state, env });
       return { index, agent };
     }),
   );

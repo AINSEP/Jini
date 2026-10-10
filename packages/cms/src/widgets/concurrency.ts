@@ -18,7 +18,13 @@
  * Architectural role:
  * `widgets` domain-internal helper, not a frozen public contract.
  */
-const locks = new Map<string, Promise<void>>();
+export type EntryLockState = Map<string, Promise<void>>;
+/** A host can own this state; the compatibility adapter still serializes existing callers.
+ * Idle keys are removed by withEntryLock. @complexity O(1). */
+export function createEntryLockState(_required: Record<string, never>, _optional: Record<string, never> = {}): EntryLockState {
+  return new Map();
+}
+const defaultLocks = createEntryLockState({});
 
 /**
  * Runs `fn` exclusively with respect to every other `withEntryLock` call sharing the same `key` —
@@ -27,18 +33,21 @@ const locks = new Map<string, Promise<void>>();
  * @complexity O(1) scheduling overhead beyond `fn`'s own cost.
  * @overallScore 100
  */
-export async function withEntryLock<T>({ key, fn }: { key: string; fn: () => Promise<T> }, _optional: Record<string, never> = {}): Promise<T> {
+export async function withEntryLock<T>({ key, fn }: { key: string; fn: () => Promise<T> }, { locks = defaultLocks }: { locks?: EntryLockState } = {}): Promise<T> {
   const previous = locks.get(key) ?? Promise.resolve();
   let release!: () => void;
   const next = new Promise<void>((resolve) => {
     release = resolve;
   });
-  locks.set(key, previous.then(() => next));
+  const tail = previous.then(() => next);
+  locks.set(key, tail);
 
   await previous;
   try {
     return await fn();
   } finally {
     release();
+    // A newer waiter owns the key until it finishes; deleting its tail would let callers race.
+    if (locks.get(key) === tail) locks.delete(key);
   }
 }

@@ -5,6 +5,6 @@ export { SharpImageTransformer, ImageTransformUnavailableError, ImageSourceCorru
 
 // Video previews: policy/port plus a bounded optional-host codec adapter.
 export {
-  createFfmpegVideoFrameExtractor, findVideoBinaries, runLowPriorityVideoProcess,
-  type VideoBinaries, type VideoBinaryFinder, type VideoProcessRunner,
+  createFfmpegVideoFrameExtractor, createVideoExtractionLock, findVideoBinaries, runLowPriorityVideoProcess,
+  type VideoExtractionLock, type VideoBinaries, type VideoBinaryFinder, type VideoProcessRunner,
 } from './video-frames.ffmpeg.js';

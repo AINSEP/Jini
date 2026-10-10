@@ -1,3 +1,4 @@
+import { defaultRuntimeState, type AgentRuntimeState } from './runtime-state.js';
 /**
  * @module models
  * Model-option defaults, a per-agent last-surfaced live-model cache and model-id sanitization.
@@ -14,26 +15,25 @@ export const DEFAULT_MODEL_OPTION: RuntimeModelOption = {
 // recent live list (refreshed every detectAgents() call) and additionally
 // trust any value present in the static fallback. A model that's neither
 // gets rejected so a stale or hostile value can't smuggle arbitrary flags.
-const liveModelCache = new Map<string, Set<string>>();
-const liveModelOrder = new Map<string, string[]>();
+// Host state carries these maps; legacy callers use defaultRuntimeState.
 
 function liveModelCacheKey(agentId: string, scope?: string | null): string {
   const trimmedScope = typeof scope === 'string' ? scope.trim() : '';
   return trimmedScope ? `${agentId}\0${trimmedScope}` : agentId;
 }
 
-export function rememberLiveModels({ agentId, models }: { agentId: string; models: RuntimeModelOption[] }, { scope }: { scope?: string | null } = {}) {
+export function rememberLiveModels({ agentId, models }: { agentId: string; models: RuntimeModelOption[] }, { scope, state = defaultRuntimeState }: { scope?: string | null; state?: AgentRuntimeState } = {}) {
   if (!Array.isArray(models)) return;
   const ids = models
     .map((m) => m && m.id)
     .filter((id): id is string => typeof id === 'string');
   const key = liveModelCacheKey(agentId, scope);
-  liveModelCache.set(key, new Set(ids));
-  liveModelOrder.set(key, ids);
+  state.liveModelCache.set(key, new Set(ids));
+  state.liveModelOrder.set(key, ids);
 }
 
-export function getRememberedLiveModels({ agentId }: { agentId: string }, { scope }: { scope?: string | null } = {}): RuntimeModelOption[] {
-  const ids = liveModelOrder.get(liveModelCacheKey(agentId, scope)) ?? [];
+export function getRememberedLiveModels({ agentId }: { agentId: string }, { scope, state = defaultRuntimeState }: { scope?: string | null; state?: AgentRuntimeState } = {}): RuntimeModelOption[] {
+  const ids = state.liveModelOrder.get(liveModelCacheKey(agentId, scope)) ?? [];
   return ids.map((id) => ({ id, label: id }));
 }
 
@@ -42,10 +42,10 @@ export function preferFreshLiveModels({ freshModels, rememberedModels }: { fresh
   return freshModels.length > 0 ? freshModels : rememberedModels;
 }
 
-export function isKnownModel({ def, modelId }: { def: RuntimeAgentDef; modelId: string | null | undefined }, { scope }: { scope?: string | null } = {}
+export function isKnownModel({ def, modelId }: { def: RuntimeAgentDef; modelId: string | null | undefined }, { scope, state = defaultRuntimeState }: { scope?: string | null; state?: AgentRuntimeState } = {}
 ) {
   if (!modelId) return false;
-  const live = liveModelCache.get(liveModelCacheKey(def.id, scope));
+  const live = state.liveModelCache.get(liveModelCacheKey(def.id, scope));
   if (live && live.has(modelId)) return true;
   if (Array.isArray(def.fallbackModels)) {
     return def.fallbackModels.some((m) => m.id === modelId);
@@ -61,7 +61,7 @@ export function isKnownModel({ def, modelId }: { def: RuntimeAgentDef; modelId: 
 // surfaced to the UI, then fall back to the def's first concrete fallback
 // id so the spawn layer always has a real model to forward. Defs that DO
 // list 'default' (the common case) are left untouched.
-export function resolveModelForAgent({ def, resolved }: { def: RuntimeAgentDef; resolved: string | null }, { env = process.env, liveModelScope }: { env?: Record<string, string | undefined>; liveModelScope?: string | null } = {}
+export function resolveModelForAgent({ def, resolved }: { def: RuntimeAgentDef; resolved: string | null }, { env = process.env, liveModelScope, state = defaultRuntimeState }: { env?: Record<string, string | undefined>; liveModelScope?: string | null; state?: AgentRuntimeState } = {}
 ): string | null {
   if (resolved && resolved !== 'default') return resolved;
   // Host-process env override. Lets an operator pin a different fallback
@@ -76,7 +76,7 @@ export function resolveModelForAgent({ def, resolved }: { def: RuntimeAgentDef; 
   // state the type system already excludes (CR-R7).
   const fallbacks = def.fallbackModels;
   if (fallbacks.some((m) => m.id === 'default')) return resolved;
-  const liveModels = liveModelOrder.get(liveModelCacheKey(def.id, liveModelScope)) ?? [];
+  const liveModels = state.liveModelOrder.get(liveModelCacheKey(def.id, liveModelScope)) ?? [];
   const firstLive = liveModels[0];
   if (firstLive) return firstLive;
   if (fallbacks.length === 0) return resolved;

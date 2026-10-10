@@ -83,7 +83,7 @@ export const codebuddyAgentDef = {
       { id: 'max', label: 'Max' },
     ],
     buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}) => {
-      const caps = agentCapabilities.get('codebuddy') || {};
+      const caps = (options.capabilities ?? agentCapabilities.get('codebuddy')) || {};
       // Same stdin strategy as Claude Code: `--input-format stream-json`
       // enables JSONL stdin so the daemon can answer AskUserQuestion tool
       // calls. `--output-format stream-json` gives us SSE-style events.

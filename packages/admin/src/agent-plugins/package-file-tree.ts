@@ -46,19 +46,19 @@ interface MutableFolder {
 const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 
 /** Files first, then folders, each alphabetical (owner's call, 2026-09-29 — VS Code's default is the reverse). */
-function compareNodes(a: PackageFileTreeNode, b: PackageFileTreeNode): number {
+function compareNodes(a: PackageFileTreeNode, b: PackageFileTreeNode, sorter = collator): number {
   if (a.kind !== b.kind) return a.kind === "file" ? -1 : 1;
-  return collator.compare(a.name, b.name) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+  return sorter.compare(a.name, b.name) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
 }
 
-function freeze(folder: MutableFolder, prefix: string): PackageFileTreeNode[] {
+function freeze(folder: MutableFolder, prefix: string, sorter = collator): PackageFileTreeNode[] {
   const nodes: PackageFileTreeNode[] = [];
   for (const [name, child] of folder.folders) {
     const path = prefix ? `${prefix}/${name}` : name;
-    nodes.push({ kind: "folder", name, path, children: freeze(child, path) });
+    nodes.push({ kind: "folder", name, path, children: freeze(child, path, sorter) });
   }
   for (const file of folder.files) nodes.push({ kind: "file", ...file });
-  return nodes.sort(compareNodes);
+  return nodes.sort((a, b) => compareNodes(a, b, sorter));
 }
 
 /**
@@ -68,7 +68,7 @@ function freeze(folder: MutableFolder, prefix: string): PackageFileTreeNode[] {
  *
  * @complexity O(n·d + n log n) for n paths of depth d.
  */
-export function buildPackageFileTree({ paths }: { paths: readonly string[] }, _optional = {}): PackageFileTreeNode[] {
+export function buildPackageFileTree({ paths }: { paths: readonly string[] }, optional: { locale?: string | string[] } = {}): PackageFileTreeNode[] {
   const root: MutableFolder = { folders: new Map(), files: [] };
   const seen = new Set<string>();
   for (const path of paths) {
@@ -89,7 +89,7 @@ export function buildPackageFileTree({ paths }: { paths: readonly string[] }, _o
     seen.add(normalized);
     folder.files.push({ name: fileName, path });
   }
-  return freeze(root, "");
+  return freeze(root, "", optional.locale === undefined ? collator : new Intl.Collator(optional.locale, { numeric: true, sensitivity: "base" }));
 }
 
 /**

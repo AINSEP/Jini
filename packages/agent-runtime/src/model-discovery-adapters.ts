@@ -1,3 +1,5 @@
+import { defaultRuntimeState, type AgentRuntimeState } from './runtime-state.js';
+import { VENDOR_API_BASE_URLS } from '@jini-ai/integrations/media-providers/catalog';
 import { execFile, type ExecFileOptions, type SpawnOptions } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -248,13 +250,13 @@ export const defaultModelDiscoveryDeps: ModelDiscoveryDeps = {
     // Deliberately do not steal tokens from another CLI's store. Hosts can inject keychain/OAuth
     // handles. BYOK env is usable only when it identifies this CLI's effective provider.
     const env = context.env;
-    if (agentId === 'claude' && env.ANTHROPIC_API_KEY) return { protocol: 'anthropic', baseUrl: env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com', apiKey: env.ANTHROPIC_API_KEY };
+    if (agentId === 'claude' && env.ANTHROPIC_API_KEY) return { protocol: 'anthropic', baseUrl: env.ANTHROPIC_BASE_URL || VENDOR_API_BASE_URLS.anthropic, apiKey: env.ANTHROPIC_API_KEY };
     const selected = context.model || (agentId === 'aider' ? env.AIDER_MODEL : agentId === 'qwen' ? env.QWEN_MODEL || env.OPENAI_MODEL : undefined);
     if (!selected) return null;
-    if (/^(anthropic\/|claude-)/.test(selected) && env.ANTHROPIC_API_KEY) return { protocol: 'anthropic', baseUrl: env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com', apiKey: env.ANTHROPIC_API_KEY };
-    if (/^(gemini\/|google\/|gemini-)/.test(selected) && env.GEMINI_API_KEY) return { protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com', apiKey: env.GEMINI_API_KEY };
-    if (/^openrouter\//.test(selected) && env.OPENROUTER_API_KEY) return { protocol: 'openai', baseUrl: env.OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1', apiKey: env.OPENROUTER_API_KEY };
-    if ((/^(openai\/|gpt-|o\d)/.test(selected) || agentId === 'qwen' && (env.OPENAI_MODEL || env.OPENAI_BASE_URL)) && env.OPENAI_API_KEY) return { protocol: 'openai', baseUrl: env.OPENAI_BASE_URL || env.OPENAI_API_BASE || 'https://api.openai.com/v1', apiKey: env.OPENAI_API_KEY };
+    if (/^(anthropic\/|claude-)/.test(selected) && env.ANTHROPIC_API_KEY) return { protocol: 'anthropic', baseUrl: env.ANTHROPIC_BASE_URL || VENDOR_API_BASE_URLS.anthropic, apiKey: env.ANTHROPIC_API_KEY };
+    if (/^(gemini\/|google\/|gemini-)/.test(selected) && env.GEMINI_API_KEY) return { protocol: 'google', baseUrl: VENDOR_API_BASE_URLS.google, apiKey: env.GEMINI_API_KEY };
+    if (/^openrouter\//.test(selected) && env.OPENROUTER_API_KEY) return { protocol: 'openai', baseUrl: env.OPENROUTER_API_BASE || VENDOR_API_BASE_URLS.openrouter, apiKey: env.OPENROUTER_API_KEY };
+    if ((/^(openai\/|gpt-|o\d)/.test(selected) || agentId === 'qwen' && (env.OPENAI_MODEL || env.OPENAI_BASE_URL)) && env.OPENAI_API_KEY) return { protocol: 'openai', baseUrl: env.OPENAI_BASE_URL || env.OPENAI_API_BASE || VENDOR_API_BASE_URLS.openai, apiKey: env.OPENAI_API_KEY };
     return null;
   } },
   acp: { async probe({ context, args, signal }) {
@@ -273,7 +275,7 @@ export const defaultModelDiscoveryDeps: ModelDiscoveryDeps = {
       } });
     return parsePiRpcMetadata(stdout);
   } },
-  clock: { now: Date.now }, cache: new Map(),
+  clock: { now: Date.now }, cache: defaultRuntimeState.modelCatalog,
 };
 /** Pi's native RPC supplies catalog AND current provider/id without making an inference call. */
 export function parsePiRpcMetadata(stdout: string): ModelProbeResult {
@@ -292,4 +294,10 @@ export function parsePiRpcMetadata(stdout: string): ModelProbeResult {
   }
   if (!models.length) throw new ModelProbeError('malformed-response');
   return { models, source: 'rpc', coverage: 'account', ...(defaultSelectionId ? { defaultSelectionId } : {}) };
+}
+
+/** Stable dependency identity preserves the existing per-host four-probe budget as well as its cache. */
+export function getRuntimeModelDiscoveryDeps({ state }: { state: AgentRuntimeState }, _optional: Record<string, never> = {}): ModelDiscoveryDeps {
+  if (state === defaultRuntimeState) return defaultModelDiscoveryDeps;
+  return state.discoveryDeps ??= { ...defaultModelDiscoveryDeps, cache: state.modelCatalog };
 }

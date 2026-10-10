@@ -6,6 +6,7 @@ import { useFetchMutation, useFetchQuery } from "@jini-ai/ui/panel-kit";
 import { useAsyncAction } from "@jini-ai/ui/panel-kit";
 import { describeApiError, KEYS, isOwnerAccount, userAccountCapabilities, type UserAccountCapabilities } from "../rules.js";
 import type { UsersPort } from "../../ports.js";
+import { useChangeUsername } from "./use-change-username.hooks.js";
 
 /**
  * @file Everything the Users screen does, so `Users.tsx` is only markup.
@@ -149,6 +150,12 @@ export interface UsersController {
    *  the real boundary is server-side, not this flag. */
   canManageUserTrash: boolean;
   rowCapabilities: (user: AdminIdentityUser) => UserAccountCapabilities;
+  ownProfile?: AdminIdentityUser | null;
+  canRenameUser?: ((user: AdminIdentityUser) => boolean) | undefined;
+  canRenameOwnProfile?: boolean | undefined;
+  openOwnRename?: (() => void) | undefined;
+  renameUserHandler?: ((required: { user: AdminIdentityUser }) => ((user: AdminIdentityUser) => void) | undefined) | undefined;
+  changeUsername?: ReturnType<typeof useChangeUsername> | undefined;
   /** The user a `RowMenu` "Delete" selection is asking to confirm; `null` when the dialog is shut.
    *  Mirrors `confirmingDisable` exactly (own state, own request/confirm pair) rather than sharing
    *  it — Delete and Disable are two independent confirms an operator could otherwise not tell apart
@@ -360,6 +367,7 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
    *  one opened via `/users/change-password`. One extra `me()` call per screen load is cheaper than
    *  threading two different notice code paths for what is, to the operator, the same event. */
   const [ownPrincipalId, setOwnPrincipalId] = useState<string | null>(null);
+  const [effectivePermissions, setEffectivePermissions] = useState<string[]>([]);
   // `canManageUserTrash` (delete-user plan v2, Slice 4): resolved by this SAME one-shot `me()` call
   // rather than a second request — see `UsersController.canManageUserTrash`'s own doc comment.
   const [canManageUserTrash, setCanManageUserTrash] = useState(false);
@@ -370,6 +378,7 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
       .then((res) => {
         if (!cancelled) {
           setOwnPrincipalId(res.user.id);
+          setEffectivePermissions(res.effectivePermissions ?? []);
           setCanManageUserTrash(res.canManageUserTrash);
         }
       })
@@ -395,6 +404,26 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     return userAccountCapabilities({ user, callerPrincipalId: ownPrincipalId,
       callerIsOwner: ownRow ? isOwnerAccount({ user: ownRow, roles: roleMap }) : false,
       canManageUserTrash, roles: roleMap });
+  }
+
+  const ownProfile = users?.find(user => user.principalId === ownPrincipalId) ?? null;
+  function canRenameUser(user: AdminIdentityUser): boolean {
+    if (user.canRename === false) return false;
+    if (!ownPrincipalId || (!effectivePermissions.includes("*") && !effectivePermissions.includes("user.manage"))) return false;
+    const roleMap = new Map((roles ?? []).map(role => [role.id, role]));
+    const callerIsOwner = ownProfile ? isOwnerAccount({ user: ownProfile, roles: roleMap }) : false;
+    // Server-supplied owner flags remain authoritative when role.manage is unavailable.
+    const targetIsOwner = user.isOwner ?? (user.roleIds.some(id => !roleMap.has(id)) || isOwnerAccount({ user, roles: roleMap }));
+    return !targetIsOwner || callerIsOwner;
+  }
+  const changeUsername = useChangeUsername({ port, queryScope, translate, canRename: canRenameUser });
+  const canRenameOwnProfile = ownProfile !== null && canRenameUser(ownProfile);
+  /** Profile and row actions enter the same guarded dialog; the view only renders affordances. */
+  function openOwnRename() {
+    if (ownProfile) changeUsername.open({ user: ownProfile });
+  }
+  function renameUserHandler({ user }: { user: AdminIdentityUser }, _options: Record<string, never> = {}) {
+    return canRenameUser(user) ? (target: AdminIdentityUser) => changeUsername.open({ user: target }) : undefined;
   }
 
   const deepLinkAttemptedRef = useRef(false);
@@ -664,6 +693,12 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
 
     canManageUserTrash,
     rowCapabilities,
+    ownProfile,
+    canRenameUser,
+    canRenameOwnProfile,
+    openOwnRename,
+    renameUserHandler,
+    changeUsername,
     confirmingDelete,
     setConfirmingDelete,
     requestDelete,
@@ -674,4 +709,3 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     translate,
   };
 }
-
