@@ -509,9 +509,14 @@ select.jini-input {
 
 /* Agent cards. The origin drew a responsive grid of selectable vendor cards;
    `auto-fill` keeps it one column inside a narrow settings panel and two or
-   more when the host gives the dialog room. */
+   more when the host gives the dialog room.
+
+   `dense` is what keeps the selected CLI's settings strip under its own row:
+   the strip spans every column, so without it the cell beside the selected card
+   would sit empty and the next card would wait until after the strip. */
 .jini-agent-grid {
   display: grid;
+  grid-auto-flow: row dense;
   align-items: stretch;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 10px;
@@ -539,7 +544,6 @@ select.jini-input {
 }
 
 .jini-agent-card.is-selected {
-  grid-column: 1 / -1;
   border-color: var(--jini-accent);
   box-shadow: 0 0 0 1px var(--jini-accent);
 }
@@ -572,27 +576,27 @@ select.jini-input {
 
 /* The whole card is the click target, not just the text at the top of it.
  *
- * Normal rows stretch evenly; an expanded selection spans its own row. The select
- * button owns the whole unselected header, including its padding.
+ * Rows stretch evenly. The select button owns the whole header, including its
+ * padding.
  *
  * `:last-child` is load-bearing. A card renders its diagnostics, model config,
  * test result and path-repair actions as SIBLINGS after `-main`, and those
  * blocks contain their own buttons; growing `-main` unconditionally would push
  * them to the card's bottom edge, and a full-card overlay would swallow their
  * clicks outright. `-main:last-child` is true exactly when nothing rendered
- * after it — the unselected, no-diagnostics case this bug is about.
+ * after it — the no-diagnostics case this bug is about.
  *
- * `:not(.is-selected)` guards the padding move specifically: a SELECTED card
- * can render its Test button inside `-main`, and zeroing the padding there
- * would shove that button flush against the card edge. */
-.jini-agent-card:not(.is-selected) .jini-agent-card-main:last-child {
+ * A selected card used to carry its Test button inside `-main` and was
+ * excluded here; since 2026-10-09 Test lives in `LocalCliAgentSettings`, so a
+ * selected card gets the same full hit area as the rest. */
+.jini-agent-card .jini-agent-card-main:last-child {
   flex: 1 1 auto;
   /* Handed to the button below — left here it would ring the card in 12px of
      unclickable margin, a smaller version of the same bug. */
   padding: 0;
 }
 
-.jini-agent-card:not(.is-selected) .jini-agent-card-main:last-child > .jini-agent-card-select {
+.jini-agent-card .jini-agent-card-main:last-child > .jini-agent-card-select {
   /* The row is `align-items: flex-start` so the Test button never stretches;
      this opts the select button alone into filling the card. Its own
      `align-items: flex-start` keeps icon and text at the top — only the hit
@@ -690,14 +694,133 @@ select.jini-input {
   opacity: 0.7;
 }
 
-.jini-agent-card-config {
+/* Selection reads as the accent ring plus this check, never as a bigger card. */
+.jini-agent-card-check {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--jini-accent);
+  color: var(--jini-accent-ink);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* The selected CLI's settings strip (`LocalCliAgentSettings`): one row under
+   the selected card's grid row, labels inline with content-sized controls. */
+.jini-agent-settings {
+  grid-column: 1 / -1;
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 0 12px 12px;
-  border-top: 1px solid var(--jini-border);
-  margin-top: 2px;
-  padding-top: 10px;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  background: var(--jini-bg-subtle);
+}
+
+.jini-agent-settings-row,
+.jini-agent-settings-tail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.jini-agent-settings-tail {
+  gap: 8px 10px;
+}
+
+/* Wide enough for "Testing…", so starting a test never reflows the strip. */
+.jini-agent-settings-tail > .jini-agent-card-test {
+  min-width: 5.5rem;
+}
+
+.jini-agent-settings-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.jini-agent-settings-field > .jini-field-label {
+  white-space: nowrap;
+}
+
+.jini-agent-settings .jini-searchable-select {
+  width: 13rem;
+  max-width: 100%;
+}
+
+.jini-agent-settings select.jini-input {
+  width: auto;
+  min-width: 8rem;
+  max-width: 12rem;
+}
+
+.jini-agent-settings .jini-agent-settings-custom {
+  width: 14rem;
+}
+
+.jini-agent-settings-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.jini-agent-settings-source > .jini-agent-model-source {
+  margin-left: 0;
+  white-space: nowrap;
+}
+
+.jini-agent-settings .jini-agent-card-test-result {
+  padding: 0;
+}
+
+.jini-agent-settings .jini-agent-card-path-repair {
+  margin: 0;
+}
+
+.jini-agent-settings .jini-agent-cli-env {
+  margin: 0;
+  padding-top: 8px;
+}
+
+/* Narrow strip (a phone, or a slim settings panel): controls stack, each label
+   (with the source badge beside "Model") above a full-width select. */
+@container (max-width: 480px) {
+  .jini-agent-settings-row,
+  .jini-agent-settings-tail {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .jini-agent-settings-field {
+    flex-wrap: wrap;
+    gap: 4px 6px;
+  }
+
+  .jini-agent-settings-source {
+    order: 1;
+  }
+
+  .jini-agent-settings .jini-searchable-select,
+  .jini-agent-settings select.jini-input,
+  .jini-agent-settings .jini-agent-settings-custom {
+    order: 2;
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: none;
+  }
+
+  .jini-agent-settings-tail > .jini-agent-card-test {
+    align-self: flex-start;
+  }
 }
 
 /* The source badge is load-bearing, not decoration: a built-in list can be
