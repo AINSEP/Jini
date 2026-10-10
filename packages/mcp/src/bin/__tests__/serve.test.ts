@@ -86,8 +86,10 @@ describe('serve() — wiring, with a fully-injected fake createMcpToolServer', (
     const readonlyGateway = seenOptions?.tools.find((t) => t.name === 'execute_readonly_delegated_tool');
     expect(readonlyGateway?.annotations).toMatchObject({ readOnlyHint: true });
     expect(seenOptions?.resources).toEqual(
-      expect.arrayContaining([expect.objectContaining({ uri: 'jini://active' })]),
+      expect.arrayContaining([expect.objectContaining({ uri: 'jini://active' }), expect.objectContaining({ uri: 'jini://site-guide' })]),
     );
+    expect(seenOptions?.instructions).toContain('When the host provides site_guide');
+    expect(seenOptions?.instructions).not.toContain('Before planning or building a site');
   });
 
   it('omits fetchImpl/stdin/stdout from the built options entirely when not injected', async () => {

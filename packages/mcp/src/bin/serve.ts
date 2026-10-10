@@ -46,6 +46,7 @@ import { TOOL_CATALOG_TOOLS } from '../server/tools/tool-catalog-tools.js';
 import { COMPONENT_CATALOG_TOOLS } from '../server/tools/component-catalog-tools.js';
 import { createExecuteDelegatedToolTool, createExecuteReadonlyDelegatedToolTool } from '../server/tools/delegated-tool.js';
 import { KERNEL_RESOURCES } from '../server/resources/active-resource.js';
+import { createSiteGuideResource } from '../server/resources/site-guide-resource.js';
 
 /** The one run this process is scoped to for its entire lifetime. Set by the spawning daemon, never by the MCP client. */
 export const RUN_ID_ENV_VAR = 'JINI_RUN_ID';
@@ -82,7 +83,10 @@ const SERVER_VERSION = '0.0.0';
 const INSTRUCTIONS =
   'Tools proxying this host\'s Jini daemon over loopback HTTP, scoped to the run that spawned this MCP server process. ' +
   'Use execute_delegated_tool to invoke a Jini-registered tool (never an agent-vendor-specific tool name) against that run — ' +
-  'every call is routed through the daemon\'s deny-by-default ToolExecutor gate.';
+  'every call is routed through the daemon\'s deny-by-default ToolExecutor gate. ' +
+  'When the host provides site_guide, consult jini://site-guide or call site_guide with operation overview ' +
+  'through execute_readonly_delegated_tool; follow with explain for the relevant topic ids. ' +
+  'If the host does not provide site_guide, report that availability gap.';
 
 export interface ServeDeps {
   /** @default process.env */
@@ -193,7 +197,7 @@ export async function serve(_requiredArgs: Record<string, never>, deps: ServeDep
 
   const requiredArgs: McpToolServerRequiredArgs = { name: SERVER_NAME, version: SERVER_VERSION, tools, resolveBaseUrl };
   const serverOptions: McpToolServerOptions = {
-    resources: KERNEL_RESOURCES,
+    resources: [...KERNEL_RESOURCES, createSiteGuideResource({ runId }, delegatedGatewayOptions)],
     instructions: INSTRUCTIONS,
     ...(authHeaders !== undefined ? { authHeaders } : {}),
     ...(deps.fetchImpl !== undefined ? { fetchImpl: deps.fetchImpl } : {}),
