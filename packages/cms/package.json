@@ -16,6 +16,7 @@
       ".": "universal",
       "./core": "universal",
       "./navigation": "universal",
+      "./routing": "universal",
       "./media": "node",
       "./settings": "universal",
       "./workspace": "universal",
@@ -46,7 +47,11 @@
       "./widgets/markers": "universal",
       "./widgets/html": "node",
       "./widgets/resolvers": "universal",
-      "./widgets/sql": "node"
+      "./widgets/sql": "node",
+      "./consent": "universal",
+      "./consent/html": "node",
+      "./consent/express": "node",
+      "./consent/node": "node"
     },
     "isolation": {
       "domains": {
@@ -64,6 +69,9 @@
         ],
         "navigation": [
           "src/navigation"
+        ],
+        "routing": [
+          "src/routing"
         ],
         "presentation": [
           "src/presentation"
@@ -94,6 +102,9 @@
         ],
         "widgets": [
           "src/widgets"
+        ],
+        "consent": [
+          "src/consent"
         ]
       },
       "forbidden": {
@@ -133,6 +144,11 @@
       "types": "./dist/navigation/index.d.ts",
       "import": "./dist/navigation/index.js",
       "default": "./dist/navigation/index.js"
+    },
+    "./routing": {
+      "types": "./dist/routing/index.d.ts",
+      "import": "./dist/routing/index.js",
+      "default": "./dist/routing/index.js"
     },
     "./media": {
       "types": "./dist/media/index.d.ts",
@@ -288,6 +304,26 @@
       "types": "./dist/widgets/sql/index.d.ts",
       "import": "./dist/widgets/sql/index.js",
       "default": "./dist/widgets/sql/index.js"
+    },
+    "./consent": {
+      "types": "./dist/consent/index.d.ts",
+      "import": "./dist/consent/index.js",
+      "default": "./dist/consent/index.js"
+    },
+    "./consent/html": {
+      "types": "./dist/consent/html/index.d.ts",
+      "import": "./dist/consent/html/index.js",
+      "default": "./dist/consent/html/index.js"
+    },
+    "./consent/express": {
+      "types": "./dist/consent/express/index.d.ts",
+      "import": "./dist/consent/express/index.js",
+      "default": "./dist/consent/express/index.js"
+    },
+    "./consent/node": {
+      "types": "./dist/consent/node/index.d.ts",
+      "import": "./dist/consent/node/index.js",
+      "default": "./dist/consent/node/index.js"
     }
   },
   "files": [

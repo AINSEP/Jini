@@ -75,7 +75,8 @@
       "./widgets/react": "browser",
       "./widgets/adapters/http": "universal",
       "./widgets/adapters/memory": "universal",
-      "./widgets/conformance": "universal"
+      "./widgets/conformance": "universal",
+      "./consent/react": "browser"
     },
     "isolation": {
       "forbidden": {
@@ -406,6 +407,11 @@
       "types": "./dist/widgets/conformance/widgets-api.conformance.d.ts",
       "import": "./dist/widgets/conformance/widgets-api.conformance.js",
       "default": "./dist/widgets/conformance/widgets-api.conformance.js"
+    },
+    "./consent/react": {
+      "types": "./dist/consent/react/index.d.ts",
+      "import": "./dist/consent/react/index.js",
+      "default": "./dist/consent/react/index.js"
     }
   },
   "files": [
