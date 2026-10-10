@@ -1,3 +1,4 @@
+import { installLegacyRevision } from '../fixtures/install-legacy-revision.js';
 import assert from "node:assert/strict";
 import { readAgentPluginActivations, recordBundledAgentPluginIfAbsent, setAgentPluginActivation } from "../test-support.js";
 import { createHash } from "node:crypto";
@@ -227,7 +228,7 @@ test("a failed uninstall puts every staged package tree back — no digest is le
   const { cwd, instanceLayout, workspaceLayout } = await freshLayout();
   try {
     const first = await installTestPackage(instanceLayout, "multi-digest", "archive-multi-digest-a");
-    const second = await installTestPackage(instanceLayout, "multi-digest", "archive-multi-digest-b");
+    const second = await installLegacyRevision({ packagesDir: workspaceLayout.pluginPackagesDir({ pluginId: "multi-digest" }), install: () => installTestPackage(instanceLayout, "multi-digest", "archive-multi-digest-b") });
     await setAgentPluginActivation({ workspaceRoot: workspaceLayout.root, pluginId: "multi-digest", enabled: true, actor: "op-1" });
 
     // Freeze the workspace ROOT only. `<pluginId>/package/sha256/` keeps its own mode, so every digest can be
@@ -353,12 +354,12 @@ test("a confirmed preview refuses — removing nothing — when an archive for t
         error instanceof AgentPluginChangedSincePreviewError &&
         error.message ===
           `Agent Plugin 'changed-plugin' changed after its uninstall was previewed (previewed archive digests: ${first.archiveDigest}; ` +
-            `installed now: ${[first.archiveDigest, second.archiveDigest].sort().join(", ")}) — nothing was removed`,
+            `installed now: ${second.archiveDigest}) — nothing was removed`,
     );
 
-    assert.equal((await stat(first.packageRoot)).isDirectory(), true);
+    await assert.rejects(stat(first.packageRoot), { code: "ENOENT" });
     assert.equal((await stat(second.packageRoot)).isDirectory(), true);
-    assert.deepEqual((await readdir(workspaceLayout.pluginPackagesDir({ pluginId: "changed-plugin" }))).sort(), [first.archiveDigest, second.archiveDigest].sort());
+    assert.deepEqual(await readdir(workspaceLayout.pluginPackagesDir({ pluginId: "changed-plugin" })), [second.archiveDigest]);
     const activations = await readAgentPluginActivations(workspaceLayout.root);
     assert.equal(activations.plugins["changed-plugin"]?.enabled, false);
   } finally {
@@ -377,7 +378,7 @@ test("a confirmed preview refuses when one of its previewed archives was removed
 
     await assert.rejects(() => uninstallAgentPlugin(req, { confirmedPreview: preview }), AgentPluginChangedSincePreviewError);
 
-    assert.equal((await stat(first.packageRoot)).isDirectory(), true);
+    await assert.rejects(stat(first.packageRoot), { code: "ENOENT" });
   } finally {
     await forceRemove(cwd);
   }

@@ -1,3 +1,4 @@
+import { installLegacyRevision } from '../fixtures/install-legacy-revision.js';
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, readdir, realpath, writeFile } from "node:fs/promises";
@@ -206,7 +207,7 @@ test("fails closed with an exact ambiguity reason naming both digests when two i
   const { cwd, layout } = await freshLayout();
   try {
     const first = await installRealPackage(cwd, "ui-ux-design", "# Variant A\n", "archive-real-5a");
-    const second = await installRealPackage(cwd, "ui-ux-design", "# Variant B\n", "archive-real-5b");
+    const second = await installLegacyRevision({ packagesDir: layout.pluginPackagesDir({ pluginId: "ui-ux-design" }), install: () => installRealPackage(cwd, "ui-ux-design", "# Variant B\n", "archive-real-5b") });
     const sortedDigests = [first.archiveDigest, second.archiveDigest].sort();
 
     const result = await resolveAgentPluginRefs(["ui-ux-design"], layout);

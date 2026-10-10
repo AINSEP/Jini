@@ -102,7 +102,7 @@ function toTitleCase(word: string): string {
   return word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : word;
 }
 
-function trimLatinTitle(input: string): string {
+function trimLatinTitle(input: string, { casing }: { casing: 'title' | 'sentence' }): string {
   const words = input
     .replace(LEADING_LATIN_FILLER, '')
     .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
@@ -114,7 +114,8 @@ function trimLatinTitle(input: string): string {
   while (words.length > 0 && LATIN_NEVER_TRAILING.has(words[words.length - 1]!.toLowerCase())) {
     words.pop();
   }
-  return words.map(toTitleCase).join(' ');
+  const title = casing === 'title' ? words.map(toTitleCase).join(' ') : words.join(' ');
+  return title ? title.charAt(0).toUpperCase() + title.slice(1) : title;
 }
 
 function trimCjkTitle(input: string): string {
@@ -133,13 +134,25 @@ function trimCjkTitle(input: string): string {
  *
  * @complexity O(n) in prompt length; no allocation beyond the intermediate strings.
  */
-export function deriveConversationTitle({ prompt }: { prompt: string }): string {
+export function deriveConversationTitle({ prompt }: { prompt: string }, { casing = 'title' }: { casing?: 'title' | 'sentence' } = {}): string {
   const cleaned = cleanPrompt(prompt);
   if (!cleaned) return '';
   const firstClause = cleaned.split(/[\n\r。！？!?]/)[0]?.trim() ?? cleaned;
   if (!firstClause) return '';
-  const title = CJK_PATTERN.test(firstClause) ? trimCjkTitle(firstClause) : trimLatinTitle(firstClause);
+  const title = CJK_PATTERN.test(firstClause) ? trimCjkTitle(firstClause) : trimLatinTitle(firstClause, { casing });
   // Truncated without an ellipsis: this is a working title, not prose, and a `…` would end up stored
   // and shown as if the author wrote it.
   return title.length > MAX_TITLE_CHARS ? title.slice(0, MAX_TITLE_CHARS).trimEnd() : title;
+}
+
+/** Sentence-case only a known heuristic title using the original prompt's proper names/acronyms.
+ * Manual names, model-authored names and unloaded transcripts keep their saved title; no writes.
+ * @complexity O(n) time/space in the first prompt's length, using the existing bounded heuristic.
+ */
+export function conversationTitleForDisplay({ title, titleSource, firstPrompt }: {
+  title: string | null; titleSource: 'fallback' | 'generated' | 'manual'; firstPrompt?: string | undefined;
+}, _options = {}): string | null {
+  if (!title || titleSource !== 'generated' || !firstPrompt) return title;
+  if (title !== deriveConversationTitle({ prompt: firstPrompt })) return title;
+  return deriveConversationTitle({ prompt: firstPrompt }, { casing: 'sentence' });
 }

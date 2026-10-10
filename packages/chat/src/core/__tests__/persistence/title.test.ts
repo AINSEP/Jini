@@ -8,9 +8,27 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { deriveConversationTitle } from '../../persistence/title.js';
+import { conversationTitleForDisplay, deriveConversationTitle } from '../../persistence/title.js';
 
 describe('deriveConversationTitle', () => {
+  it('can display sentence case without losing proper names or acronyms from the original prompt', () => {
+    const prompt = 'I want to connect a Mailchimp account using API keys';
+    expect(deriveConversationTitle({ prompt }, { casing: 'sentence' })).toBe('I want connect Mailchimp account using');
+    const acronymPrompt = 'Fix the API login bug';
+    expect(deriveConversationTitle({ prompt: acronymPrompt }, { casing: 'sentence' })).toBe('API login bug');
+    expect(conversationTitleForDisplay({ title: deriveConversationTitle({ prompt }), titleSource: 'generated', firstPrompt: prompt }))
+      .toBe('I want connect Mailchimp account using');
+  });
+
+  it.each([
+    { title: 'My Own TITLE', titleSource: 'manual' as const, firstPrompt: 'Fix the login bug' },
+    { title: 'A model chose this', titleSource: 'generated' as const, firstPrompt: 'Fix the login bug' },
+    { title: 'Login Bug', titleSource: 'generated' as const },
+    { title: 'Untitled', titleSource: 'fallback' as const, firstPrompt: 'Fix the login bug' },
+    { title: null, titleSource: 'generated' as const, firstPrompt: 'Fix the login bug' },
+  ])('keeps saved or unloaded titles verbatim: %j', input => {
+    expect(conversationTitleForDisplay(input)).toBe(input.title);
+  });
   it('strips leading filler and stop words, title-casing what is left', () => {
     // "of"/"the"/"in" dropped, as in Open Design's own UI. Deliberate divergence: Open Design
     // renders this as "Do You See All Files This", because its six-word cap lands mid-phrase and

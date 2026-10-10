@@ -1,3 +1,4 @@
+import { installLegacyRevision } from '../fixtures/install-legacy-revision.js';
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
@@ -76,7 +77,8 @@ async function withWorkspace<T>(fn: (context: { readonly cwd: string; readonly w
  *  call for the same `pluginId` produces a genuinely different digest. */
 async function installRealPackage(pluginId: string, skillMarkdown: string, archiveSeed: string) {
   const archive = new Uint8Array(Buffer.from(archiveSeed));
-  return installAgentPlugin({
+  // These ledger tests deliberately reproduce the retained digests of pre-pruning installs.
+  return installLegacyRevision({ packagesDir: resolveAgentPluginLayout().forWorkspace({ workspaceId: WORKSPACE_ID }).pluginPackagesDir({ pluginId }), install: () => installAgentPlugin({
     archive,
     expectedSha256: createHash("sha256").update(archive).digest("hex"),
     archiveReader: reader([
@@ -85,7 +87,7 @@ async function installRealPackage(pluginId: string, skillMarkdown: string, archi
     ]),
     layout: resolveAgentPluginLayout(),
     workspaceId: WORKSPACE_ID,
-  });
+  }) });
 }
 
 test("normalizeBundledDigests keeps only well-formed entries and rejects a foreign envelope", () => {
