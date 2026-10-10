@@ -83,6 +83,7 @@ export type {
 // ── server: the generic MCP resource surface + kernel resource defs ────────
 export {
   activeContextResource,
+  createSiteGuideResource,
   buildResourceIndex,
   handleResourceRead,
   KERNEL_RESOURCES,

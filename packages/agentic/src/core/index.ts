@@ -161,3 +161,4 @@ export {
 
 export { defaultAgenticMessages } from "./messages.js";
 export { createAnnotatedActionsScript } from './annotated-actions-script.js';
+export * from './site-guide/index.js';
