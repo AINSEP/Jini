@@ -34,7 +34,10 @@
       "./browser/session-store": "browser",
       "./browser/page-actions": "browser",
       "./server/durable-runs": "node",
-      "./store/runtime": "node"
+      "./store/runtime": "node",
+      "./vanilla": "browser",
+      "./browser/lazy-loader": "browser",
+      "./vanilla/style.css": "browser"
     },
     "neutralEntries": [
       "src/store/contracts"
@@ -155,7 +158,18 @@
       "types": "./dist/store/runtime/entry.d.ts",
       "import": "./dist/store/runtime/entry.js",
       "default": "./dist/store/runtime/entry.js"
-    }
+    },
+    "./vanilla": {
+      "types": "./dist/embed-widget/vanilla/index.d.ts",
+      "import": "./dist/embed-widget/vanilla/index.js",
+      "default": "./dist/embed-widget/vanilla/index.js"
+    },
+    "./browser/lazy-loader": {
+      "types": "./dist/embed-widget/browser/lazy-loader.d.ts",
+      "import": "./dist/embed-widget/browser/lazy-loader.js",
+      "default": "./dist/embed-widget/browser/lazy-loader.js"
+    },
+    "./vanilla/style.css": "./dist/embed-widget/vanilla/style.css"
   },
   "files": [
     "dist",
@@ -176,7 +190,7 @@
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && mkdir -p dist/react/styles && cp src/react/styles/reference.css dist/react/styles/",
+    "build": "tsc -p tsconfig.json && mkdir -p dist/react/styles && cp src/react/styles/reference.css dist/react/styles/ && mkdir -p dist/embed-widget/vanilla && node --input-type=module -e \"import {writeFileSync,readFileSync} from 'node:fs'; import {CHAT_BUBBLE_STYLE} from './dist/embed-widget/browser/lazy-loader.js'; writeFileSync('dist/embed-widget/vanilla/style.css',CHAT_BUBBLE_STYLE+'\\n'+readFileSync('src/embed-widget/vanilla/style.css','utf8'));\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -284,6 +298,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitest/coverage-v8": "^2.1.9",
+    "zod": "^3.25.76",
     "jsdom": "^25.0.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -356,6 +371,12 @@
       ],
       "store/runtime": [
         "./dist/store/runtime/entry.d.ts"
+      ],
+      "vanilla": [
+        "./dist/embed-widget/vanilla/index.d.ts"
+      ],
+      "browser/lazy-loader": [
+        "./dist/embed-widget/browser/lazy-loader.d.ts"
       ]
     }
   }
