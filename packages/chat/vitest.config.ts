@@ -22,7 +22,7 @@ export default defineConfig({
     // `src/react/**` is routed to jsdom by GLOB rather than per-file pragma, same reasoning as
     // admin's own config: React Testing Library needs a DOM for every test in that tree without
     // exception, so a pragma there protects nothing and only creates a way to forget.
-    environmentMatchGlobs: [['src/react/**', 'jsdom'], ['src/embed-widget/react/**', 'jsdom']],
+    environmentMatchGlobs: [['src/react/**', 'jsdom'], ['src/embed-widget/react/**', 'jsdom'], ['src/embed-widget/vanilla/**', 'jsdom']],
     setupFiles: ['./vitest.setup.ts'],
     coverage: {
       provider: 'v8',
