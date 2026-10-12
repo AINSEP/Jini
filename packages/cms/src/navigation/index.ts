@@ -141,6 +141,9 @@ export {
   type RebuildNavLocationBindingsResult,
 } from "./reconcile.js";
 
+/** Dropdown menus (2026-10-11): toggle markup + the inline keyboard/touch script (see `dropdown.ts`). */
+export { renderMenuToggle, injectMenuDropdownScript, MENU_DROPDOWN_SCRIPT } from "./dropdown.js";
+
 /** The agent-tool surface for this domain (see `agent-tools.ts` for what is deliberately omitted). */
 export {
   menusAgentToolCatalog,
