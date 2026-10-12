@@ -57,14 +57,24 @@ export interface SubmissionAttempts {
  * The key one attempt is remembered under: a SHA-256 of workspace, slug, source IP, attempt token
  * (null when the request carried none) and the body. Body keys are sorted so their order cannot
  * change the key. Held only in memory, only for the window.
- * @complexity O(b log b) for b body keys.
+ * @complexity O(b log b + n) for b body keys and n uploaded bytes, hashed in 8 KiB chunks.
  */
 export function submissionAttemptKey(
   { input, attemptToken, hash }: { input: SubmitFormInput; attemptToken: unknown; hash: (input: string) => string },
   _optional: Record<string, never> = {},
 ): string {
   // Object keys are unique, so the comparator never sees a tie.
-  const body = Object.entries(input.body).sort(([a], [b]) => (a < b ? -1 : 1));
+  const body = Object.entries(input.body).map(([key, value]) => {
+    if (!value || typeof value !== "object" || !("bytes" in value) || !(value.bytes instanceof Uint8Array)) return [key, value] as const;
+    // Hash bounded chunks rather than JSON-encoding millions of Uint8Array index properties.
+    // Chunk order and byte length remain bound to the digest; no uploaded bytes are remembered.
+    const digests: string[] = [];
+    for (let offset = 0; offset < value.bytes.byteLength; offset += 8192) {
+      digests.push(hash(String.fromCharCode(...value.bytes.subarray(offset, offset + 8192))));
+    }
+    const { bytes, ...metadata } = value;
+    return [key, { ...metadata, byteLength: bytes.byteLength, bytesHash: hash(JSON.stringify(digests)) }] as const;
+  }).sort(([a], [b]) => (a < b ? -1 : 1));
   return hash(JSON.stringify([input.workspaceId, input.slug, input.sourceIp, attemptToken ?? null, body]));
 }
 

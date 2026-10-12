@@ -73,8 +73,8 @@ test("HTML authoring requires raw-HTML permission even when forms.manage is allo
   assert.deepEqual(await repo.list({ workspaceId: "ws" }), []);
 });
 
-test("reserved names and multi-valued/file controls cannot become scalar submission columns", () => {
-  for (const html of ['<input name="_hp">', '<input name="constructor">', '<input name="document" type="file">', '<select name="many" multiple></select>']) {
+test("reserved names and password controls cannot become submission columns", () => {
+  for (const html of ['<input name="_hp">', '<input name="constructor">', '<input name="secret" type="password">']) {
     assert.throws(() => deriveHtmlForm({ html }));
   }
 });

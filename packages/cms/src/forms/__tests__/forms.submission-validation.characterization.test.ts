@@ -39,17 +39,17 @@ function errorsOf(body: Record<string, unknown>, def: FormDefinitionRecord = def
 // ---------------------------------------------------------------------------
 
 test("validateSubmissionPayload: each rejecting branch reports its exact reason code", () => {
-  assert.deepEqual(errorsOf({ name: "a", email: "b", nope: "x" }), [{ field: "nope", reason: "unregistered_key" }]);
+  assert.deepEqual(errorsOf({ name: "a", email: "b@example.com", nope: "x" }), [{ field: "nope", reason: "unregistered_key" }]);
 
-  assert.deepEqual(errorsOf({ email: "b" }), [{ field: "name", reason: "required" }]);
+  assert.deepEqual(errorsOf({ email: "b@example.com" }), [{ field: "name", reason: "required" }]);
 
-  assert.deepEqual(errorsOf({ name: 42, email: "b" }), [{ field: "name", reason: "must be a string" }]);
+  assert.deepEqual(errorsOf({ name: 42, email: "b@example.com" }), [{ field: "name", reason: "must be a string" }]);
 
-  assert.deepEqual(errorsOf({ name: "a", email: "b", subscribe: "yes" }), [
+  assert.deepEqual(errorsOf({ name: "a", email: "b@example.com", subscribe: "yes" }), [
     { field: "subscribe", reason: "must be a boolean" },
   ]);
 
-  assert.deepEqual(errorsOf({ name: "a", email: "b", message: "x".repeat(101) }), [
+  assert.deepEqual(errorsOf({ name: "a", email: "b@example.com", message: "x".repeat(101) }), [
     { field: "message", reason: "too_long" },
   ]);
 });
@@ -59,40 +59,40 @@ test("validateSubmissionPayload: each rejecting branch reports its exact reason 
 // ---------------------------------------------------------------------------
 
 test("validateSubmissionPayload: an explicit null is treated exactly like an omitted key", () => {
-  assert.deepEqual(errorsOf({ name: null, email: "b" }), [{ field: "name", reason: "required" }]);
+  assert.deepEqual(errorsOf({ name: null, email: "b@example.com" }), [{ field: "name", reason: "required" }]);
 
-  const result = validateSubmissionPayload({ definition: definition(), body: { name: "a", email: "b", message: null } });
-  assert.deepEqual(result, { valid: true, data: { name: "a", email: "b" } });
+  const result = validateSubmissionPayload({ definition: definition(), body: { name: "a", email: "b@example.com", message: null } });
+  assert.deepEqual(result, { valid: true, data: { name: "a", email: "b@example.com" } });
 });
 
 test("validateSubmissionPayload: an explicit undefined is treated exactly like an omitted key", () => {
-  assert.deepEqual(errorsOf({ name: undefined, email: "b" }), [{ field: "name", reason: "required" }]);
+  assert.deepEqual(errorsOf({ name: undefined, email: "b@example.com" }), [{ field: "name", reason: "required" }]);
 });
 
 test("validateSubmissionPayload: a required field present but whitespace-only is 'required', not accepted", () => {
-  assert.deepEqual(errorsOf({ name: "   ", email: "b" }), [{ field: "name", reason: "required" }]);
+  assert.deepEqual(errorsOf({ name: "   ", email: "b@example.com" }), [{ field: "name", reason: "required" }]);
 });
 
 test("validateSubmissionPayload: an OPTIONAL field may be the empty string — the trim check is gated on requiredness", () => {
-  const result = validateSubmissionPayload({ definition: definition(), body: { name: "a", email: "b", message: "   " } });
-  assert.deepEqual(result, { valid: true, data: { name: "a", email: "b", message: "   " } });
+  const result = validateSubmissionPayload({ definition: definition(), body: { name: "a", email: "b@example.com", message: "   " } });
+  assert.deepEqual(result, { valid: true, data: { name: "a", email: "b@example.com", message: "   " } });
 });
 
-test("validateSubmissionPayload: a required checkbox submitted as false is accepted — false is a value, not an absence", () => {
+test("validateSubmissionPayload: required native consent submitted as false is rejected — matches the browser required checkbox", () => {
   const def = definition({
     fields: [{ id: "agree", label: "Agree", type: "checkbox", required: true }],
   });
   const result = validateSubmissionPayload({ definition: def, body: { agree: false } });
-  assert.deepEqual(result, { valid: true, data: { agree: false } });
+  assert.deepEqual(result, { valid: false, fieldErrors: [{ field: "agree", reason: "required" }] });
 });
 
 test("validateSubmissionPayload: maxLength is enforced on optional fields too, and the boundary length is accepted", () => {
-  assert.deepEqual(errorsOf({ name: "a", email: "b", message: "x".repeat(101) }), [
+  assert.deepEqual(errorsOf({ name: "a", email: "b@example.com", message: "x".repeat(101) }), [
     { field: "message", reason: "too_long" },
   ]);
   const atLimit = validateSubmissionPayload({
     definition: definition(),
-    body: { name: "a", email: "b", message: "x".repeat(100) },
+    body: { name: "a", email: "b@example.com", message: "x".repeat(100) },
   });
   assert.equal(atLimit.valid, true);
 });
@@ -133,13 +133,13 @@ test("validateSubmissionPayload: each field contributes at most one error — a 
 test("validateSubmissionPayload: `_hp` is accepted as a key but never lands in `data`", () => {
   const result = validateSubmissionPayload({
     definition: definition(),
-    body: { name: "a", email: "b", _hp: "bot-filled-this" },
+    body: { name: "a", email: "b@example.com", _hp: "bot-filled-this" },
   });
-  assert.deepEqual(result, { valid: true, data: { name: "a", email: "b" } });
+  assert.deepEqual(result, { valid: true, data: { name: "a", email: "b@example.com" } });
 });
 
 test("validateSubmissionPayload: absent optional fields are omitted from `data` rather than set to null/undefined", () => {
-  const result = validateSubmissionPayload({ definition: definition(), body: { name: "a", email: "b" } });
+  const result = validateSubmissionPayload({ definition: definition(), body: { name: "a", email: "b@example.com" } });
   assert.equal(result.valid, true);
   assert.deepEqual(Object.keys(result.valid === true ? result.data : {}), ["name", "email"]);
 });
@@ -160,7 +160,7 @@ test("validateSubmissionPayload: a fully-populated body returns every declared f
 });
 
 test("validateSubmissionPayload: a rejected payload carries no `data` key at all", () => {
-  const result = validateSubmissionPayload({ definition: definition(), body: { email: "b" } });
+  const result = validateSubmissionPayload({ definition: definition(), body: { email: "b@example.com" } });
   assert.deepEqual(result, { valid: false, fieldErrors: [{ field: "name", reason: "required" }] });
 });
 
@@ -170,10 +170,10 @@ test("validateSubmissionPayload: a definition with no declared fields accepts an
   assert.deepEqual(errorsOf({ anything: "x" }, empty), [{ field: "anything", reason: "unregistered_key" }]);
 });
 
-test("validateSubmissionPayload: email accepts arbitrary non-empty strings; email and textarea reject non-string JSON values", () => {
+test("validateSubmissionPayload: email rejects malformed strings; email and textarea reject non-string JSON values", () => {
   assert.deepEqual(
     validateSubmissionPayload({ definition: definition(), body: { name: "Ada", email: "not-an-email", message: "hello" } }),
-    { valid: true, data: { name: "Ada", email: "not-an-email", message: "hello" } }
+    { valid: false, fieldErrors: [{ field: "email", reason: "invalid_email" }] }
   );
   for (const field of ["email", "message"]) {
     for (const value of [123, ["x"], {}, true]) {

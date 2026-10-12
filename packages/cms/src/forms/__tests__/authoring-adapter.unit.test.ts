@@ -131,7 +131,7 @@ test("withFormAuthoring forwards reads unchanged, clearing fields on findById on
   ]);
 });
 
-test("htmlSubmissionDefinition presents authored checkbox strings as optional text, only for HTML forms", () => {
+test("htmlSubmissionDefinition retains authored checkbox rules and requiredness for both form modes", () => {
   const fields = [
     { id: "consent", type: "checkbox", required: true, checkboxValue: "yes" },
     { id: "news", type: "checkbox", required: true, checkboxValue: "" },
@@ -142,11 +142,8 @@ test("htmlSubmissionDefinition presents authored checkbox strings as optional te
   const definition = { id: "f", mode: "html", fields } as unknown as FormDefinitionRecord;
   const body = { consent: "yes", news: "", bool: true, plain: "on", name: "Ada" };
   const result = htmlSubmissionDefinition({ definition, body });
-  assert.deepEqual(result.fields, [
-    { id: "consent", type: "text", required: false, checkboxValue: "yes" },
-    { id: "news", type: "text", required: false, checkboxValue: "" },
-    fields[2], fields[3], fields[4],
-  ]);
+  assert.equal(result, definition);
+  assert.deepEqual(result.fields, fields);
   assert.equal((result as HtmlFormDefinitionRecord).mode, "html");
   // The stored definition is not mutated.
   assert.equal(fields[0]!.type, "checkbox");

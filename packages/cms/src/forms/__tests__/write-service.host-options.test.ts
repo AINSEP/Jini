@@ -83,7 +83,7 @@ test("createFormDefinition: AC-03 — rejects an out-of-vocabulary field type, n
           actor: ACTOR,
           name: "Contact",
           slug: "contact",
-          fields: [{ id: "when", label: "When", type: "date" as never, required: false }],
+          fields: [{ id: "when", label: "When", type: "password" as never, required: false }],
         },
       }),
     FormFieldValidationError

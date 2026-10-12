@@ -14,3 +14,4 @@ export * from "./submission-email-validation.js";
 export * from "./delete-submission.js";
 export * from "./duplicate-slug.js";
 export * from "./repo.memory.js";
+export * from "./field-registry.js";

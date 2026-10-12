@@ -4,6 +4,7 @@
 import { parseFragment, serialize, type DefaultTreeAdapterMap } from "parse5";
 import { FormFieldValidationError } from "../errors.js";
 import type { FieldDescriptor } from "../types.js";
+import { FIELD_TYPE_REGISTRY } from "../field-registry.js";
 
 type Node = DefaultTreeAdapterMap["childNode"];
 type Element = DefaultTreeAdapterMap["element"];
@@ -43,6 +44,18 @@ function labelText(node: Element): string {
     }
   }
   return text.trim();
+}
+
+/** Read only the nearest fieldset's direct legend; blank/missing text keeps control-label fallback.
+ * No I/O or mutation; O(d + c + t) time for ancestor depth, fieldset children and legend text,
+ * with labelText's O(t) traversal space. */
+function groupLabel({ element }: { element: Element }, _optional = {}): string | undefined {
+  for (let parent = element.parentNode; parent && "tagName" in parent; parent = parent.parentNode) {
+    if (parent.tagName !== "fieldset") continue;
+    const legend = parent.childNodes.find((child): child is Element => "tagName" in child && child.tagName === "legend");
+    return legend ? labelText(legend) || undefined : undefined;
+  }
+  return undefined;
 }
 
 /** Keep the author's required-attribute spelling while retaining parser normalization that
@@ -101,12 +114,22 @@ export function deriveHtmlForm(
       element.attrs = element.attrs.filter((attribute) => attribute.name !== "name");
       continue;
     }
-    if (element.tagName === "input" && ["file", "password"].includes(inputType)) invalid(`Input type '${inputType}' is not supported`);
-    if (element.tagName === "select" && attr(element, "multiple") !== undefined) invalid("Multiple selections are not supported");
-    if (fields.has(name)) {
-      if (inputType === "radio" && fields.get(name)?.type === "text") {
-        const group = fields.get(name)!;
-        group.required = group.required || attr(element, "required") !== undefined;
+    if (element.tagName === "input" && inputType === "password") invalid("Password fields are not supported");
+    const existing = fields.get(name);
+    if (existing) {
+      // Radio/checkbox controls share a successful-control name by design; collect their allowed
+      // values rather than admitting arbitrary strings as the old HTML compatibility view did.
+      if (inputType === "radio" && existing.type === "radio" || inputType === "checkbox" && ["checkbox", "checkbox-group"].includes(existing.type)) {
+        const value = attr(element, "value") ?? "on";
+        if (existing.type === "checkbox") {
+          existing.type = "checkbox-group";
+          existing.options = [{ value: existing.checkboxValue ?? "on", label: existing.label }];
+          // Seed option one before replacing its standalone label with the group's legend.
+          existing.label = groupLabel({ element }) ?? existing.label;
+          delete existing.checkboxValue;
+        }
+        existing.options!.push({ value, label: element.parentNode && "tagName" in element.parentNode && element.parentNode.tagName === "label" ? labelText(element.parentNode) || value : value });
+        existing.required = existing.required || attr(element, "required") !== undefined;
         continue;
       }
       invalid(`Duplicate field name '${name}'`);
@@ -119,17 +142,34 @@ export function deriveHtmlForm(
       ? element.parentNode : undefined;
     const label = labels.find((item) => id !== undefined && attr(item, "for") === id) ?? parentLabel;
     const maxLength = attr(element, "maxlength");
-    fields.set(name, {
+    const type: FieldDescriptor["type"] = element.tagName === "select" ? (attr(element, "multiple") !== undefined ? "multi-select" : "select")
+      : element.tagName === "textarea" ? "textarea"
+      : inputType === "checkbox" && attr(element, "role") === "switch" ? "toggle"
+      : (Object.entries(FIELD_TYPE_REGISTRY).find(([, kind]) => kind.control === "input" && kind.htmlType === inputType)?.[0] as FieldDescriptor["type"] | undefined) ?? (inputType === "radio" ? "radio" : "text");
+    const choices = element.tagName === "select" ? elements(element.childNodes).filter((child) => child.tagName === "option").map((option) => ({ value: attr(option, "value") ?? labelText(option), label: labelText(option) })).filter((option) => option.value !== "")
+      : inputType === "radio" ? [{ value: attr(element, "value") ?? "on", label: label ? labelText(label) || name : attr(element, "value") ?? "on" }] : undefined;
+    const numeric = type === "number" || type === "range";
+    const descriptor: HtmlFieldDescriptor = {
       id: name,
-      label: label ? labelText(label) || name : attr(element, "aria-label") || name,
-      type: element.tagName === "textarea" ? "textarea" : inputType === "email" ? "email" : inputType === "checkbox" ? "checkbox" : "text",
+      label: (type === "radio" ? groupLabel({ element }) : undefined) ?? (label ? labelText(label) || name : attr(element, "aria-label") || name),
+      type,
       required: attr(element, "required") !== undefined,
-      ...(checkboxValue !== undefined ? { checkboxValue } : {}),
+      ...(checkboxValue !== undefined && type === "checkbox" ? { checkboxValue } : {}),
       ...(maxLength !== undefined ? { maxLength: Number(maxLength) } : {}),
-    });
+      ...(choices ? { options: choices } : {}),
+    };
+    for (const key of ["placeholder", "pattern"] as const) {
+      const value = attr(element, key); if (value !== undefined) descriptor[key] = value;
+    }
+    for (const key of ["min", "max"] as const) {
+      const value = attr(element, key); if (value !== undefined) descriptor[key] = numeric ? Number(value) : value;
+    }
+    const minLength = attr(element, "minlength"); if (minLength !== undefined) descriptor.minLength = Number(minLength);
+    const step = attr(element, "step"); if (step !== undefined) descriptor.step = Number(step);
+    const accept = attr(element, "accept"); if (accept !== undefined && type === "file") descriptor.accept = accept.split(",").map((item) => item.trim());
+    fields.set(name, descriptor);
   }
   // Re-serialization also discards ignored/dangling </form> tokens: they must never close our
   // server-owned wrapper early. Raw-text script contents are preserved by the HTML serializer.
   return { mode: "html", html: serializeAuthoredRequired({ fragment, html }), fields: [...fields.values()] };
 }
-

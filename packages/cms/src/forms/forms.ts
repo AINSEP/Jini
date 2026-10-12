@@ -1,5 +1,7 @@
 /** Pure field/submission validation and honeypot decisions. Error order and stored value normalization are stable. */
-import type { FieldDescriptor, FormDefinitionRecord } from "./types.js";
+import type { FieldDescriptor, FormDefinitionRecord, FormAnswer, FormFileInput, FormFileStoragePort } from "./types.js";
+import { FIELD_TYPE_REGISTRY, resolveFormField } from "./field-registry.js";
+import { commonDescriptorErrors } from "./descriptor-rules.js";
 
 // Domain validation stays independent of feature manifests, and returns decisions without I/O
 // or exceptions so write and submission services can choose their own error presentation.
@@ -12,7 +14,7 @@ export const MAX_LABEL_LENGTH = 200;
 export const MIN_MAX_LENGTH = 1;
 export const MAX_MAX_LENGTH = 5000;
 export const FIELD_ID_PATTERN = /^[a-z][a-z0-9_]*$/;
-export const FIELD_TYPES = new Set(["text", "email", "textarea", "checkbox"]);
+export const FIELD_TYPES = new Set<string>(Object.keys(FIELD_TYPE_REGISTRY));
 
 export const MAX_CLASS_NAME_LENGTH = 300;
 export const MAX_ATTRIBUTES_PER_FIELD = 12;
@@ -40,7 +42,7 @@ export type FieldValidationResult = { valid: true } | { valid: false; fieldError
 // Malformed IDs are never claimed: repeated malformed IDs must each report their shape error
 // rather than misleading the second field's author with a duplicate-ID diagnosis.
 function fieldIdErrors(descriptor: FieldDescriptor, label: string, claimedIds: Set<string>): FieldError[] {
-  if (!descriptor.id || !FIELD_ID_PATTERN.test(descriptor.id)) {
+  if (typeof descriptor.id !== "string" || !descriptor.id || !FIELD_ID_PATTERN.test(descriptor.id)) {
     return [{ field: label, reason: "id must match ^[a-z][a-z0-9_]*$" }];
   }
   if (claimedIds.has(descriptor.id)) {
@@ -58,6 +60,7 @@ function fieldTypeErrors(descriptor: FieldDescriptor, label: string): FieldError
 }
 
 function labelLengthErrors(descriptor: FieldDescriptor, label: string): FieldError[] {
+  if (typeof descriptor.label !== "string") return [{ field: label, reason: "label must be a string" }];
   if (descriptor.label.length < MIN_LABEL_LENGTH || descriptor.label.length > MAX_LABEL_LENGTH) {
     return [{ field: label, reason: `label must be ${MIN_LABEL_LENGTH}-${MAX_LABEL_LENGTH} characters` }];
   }
@@ -137,7 +140,8 @@ function attributeErrors(descriptor: FieldDescriptor, label: string): FieldError
  * Empty helper results mean a satisfied rule. Bounds are 1-20 fields, labels 1-200 characters,
  * and maxLength 1-5000 (never on checkboxes), with unique lowercase field IDs.
  */
-export function validateFieldDescriptors({ fields }: { fields: FieldDescriptor[] }): FieldValidationResult {
+export function validateFieldDescriptors({ fields }: { fields: FieldDescriptor[] }, _optional = {}): FieldValidationResult {
+  if (!Array.isArray(fields)) return { valid: false, fieldErrors: [{ field: "fields", reason: "must be an array" }] };
   const fieldErrors: FieldError[] = [];
 
   if (fields.length < MIN_FIELDS) {
@@ -149,6 +153,7 @@ export function validateFieldDescriptors({ fields }: { fields: FieldDescriptor[]
 
   const claimedIds = new Set<string>();
   for (const descriptor of fields) {
+    if (!descriptor || typeof descriptor !== "object" || Array.isArray(descriptor)) { fieldErrors.push({ field: "fields", reason: "each field must be an object" }); continue; }
     const label = descriptor.id || "(unknown)";
     fieldErrors.push(
       ...fieldIdErrors(descriptor, label, claimedIds),
@@ -158,6 +163,7 @@ export function validateFieldDescriptors({ fields }: { fields: FieldDescriptor[]
       ...checkboxValueErrors(descriptor, label),
       ...classNameErrors(descriptor, label),
       ...attributeErrors(descriptor, label),
+      ...commonDescriptorErrors({ field: descriptor }),
     );
   }
 
@@ -171,57 +177,21 @@ export interface ValidateSubmissionPayloadInput {
 }
 
 export type SubmissionValidationResult =
-  | { valid: true; data: Record<string, string | boolean> }
+  | { valid: true; data: Record<string, FormAnswer>; files?: Record<string, FormFileInput> }
   | { valid: false; fieldErrors: FieldError[] };
 
 // Absence is distinct from acceptance: treating an omitted optional field as an accepted value
 // would write undefined and violate the guarantee that stored answers contain only declared keys.
-type SubmittedValue =
-  | { kind: "absent" }
-  | { kind: "rejected"; reason: string }
-  | { kind: "accepted"; value: string | boolean };
-
 // The honeypot is tolerated in the raw body, but is excluded from stored answers.
-function unregisteredKeyErrors(body: Record<string, unknown>, fieldsById: ReadonlyMap<string, FieldDescriptor>): FieldError[] {
-  const errors: FieldError[] = [];
-  for (const key of Object.keys(body)) {
-    if (key === HONEYPOT_KEY) continue;
-    if (!fieldsById.has(key)) {
-      errors.push({ field: key, reason: "unregistered_key" });
-    }
-  }
-  return errors;
-}
-
 // Whitespace is rejected only for required text; optional whitespace is an answer the definition
 // permits. Preserve the submitted string instead of silently trimming its stored value.
-function resolveTextValue(field: FieldDescriptor, value: unknown): SubmittedValue {
-  if (typeof value !== "string") return { kind: "rejected", reason: "must be a string" };
-  if (field.required && value.trim() === "") return { kind: "rejected", reason: "required" };
-  if (field.maxLength != null && value.length > field.maxLength) return { kind: "rejected", reason: "too_long" };
-  return { kind: "accepted", value };
-}
-
 // Native URL-encoded forms submit "on" for checked boxes without a value attribute; accepting
 // only JSON booleans would reject every checked checkbox when client JavaScript is disabled.
 // An unticked native checkbox omits its key; submission resolution treats that as absence.
-const HTML_CHECKBOX_ON_VALUE = "on";
-
-function resolveCheckboxValue(field: FieldDescriptor, value: unknown): SubmittedValue {
-  if (field.checkboxValue !== undefined && typeof value === "string") return { kind: "accepted", value };
-  if (typeof value === "boolean") return { kind: "accepted", value };
-  if (value === HTML_CHECKBOX_ON_VALUE) return { kind: "accepted", value: true };
-  return { kind: "rejected", reason: "must be a boolean" };
-}
-
 // JSON and native forms differ in how they represent missing values, so null/undefined both
-// mean absence. Boolean false is a real checkbox answer, including for a required checkbox.
-function resolveSubmittedValue(field: FieldDescriptor, value: unknown): SubmittedValue {
-  if (value === undefined || value === null) {
-    return field.required ? { kind: "rejected", reason: "required" } : { kind: "absent" };
-  }
-  if (field.type === "checkbox") return resolveCheckboxValue(field, value);
-  return resolveTextValue(field, value);
+// mean absence. Boolean false is a real checkbox answer, only for optional native checkboxes; required consent must be checked.
+function unregisteredKeyErrors(body: Record<string, unknown>, fieldsById: ReadonlyMap<string, FieldDescriptor>): FieldError[] {
+  return Object.keys(body).filter((key) => key !== HONEYPOT_KEY && !fieldsById.has(key)).map((field) => ({ field, reason: "unregistered_key" }));
 }
 
 /**
@@ -229,29 +199,33 @@ function resolveSubmittedValue(field: FieldDescriptor, value: unknown): Submitte
  * body keys first, then declared-field errors in definition order, independent of body key order.
  * This keeps the declared-field portion of the error list stable across equivalent submissions.
  */
-export function validateSubmissionPayload(input: ValidateSubmissionPayloadInput): SubmissionValidationResult {
+export function validateSubmissionPayload(input: ValidateSubmissionPayloadInput, optional: { files?: Pick<FormFileStoragePort, "detectContentType"> } = {}): SubmissionValidationResult {
   const { definition, body } = input;
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { valid: false, fieldErrors: [{ field: "body", reason: "must be an object" }] };
   const fieldsById = new Map<string, FieldDescriptor>(definition.fields.map((f) => [f.id, f]));
 
   const fieldErrors: FieldError[] = unregisteredKeyErrors(body, fieldsById);
-  const data: Record<string, string | boolean> = {};
+  const data: Record<string, FormAnswer> = {};
+  const files: Record<string, FormFileInput> = {};
 
   for (const field of definition.fields) {
-    const resolved = resolveSubmittedValue(field, body[field.id]);
+    const resolved = resolveFormField({ field, value: Object.hasOwn(body, field.id) ? body[field.id] : undefined }, optional);
     if (resolved.kind === "rejected") {
       fieldErrors.push({ field: field.id, reason: resolved.reason });
     } else if (resolved.kind === "accepted") {
       data[field.id] = resolved.value;
+    } else if (resolved.kind === "upload") {
+      files[field.id] = resolved.file;
     }
   }
 
   if (fieldErrors.length > 0) return { valid: false, fieldErrors };
-  return { valid: true, data };
+  return Object.keys(files).length ? { valid: true, data, files } : { valid: true, data };
 }
 
 // Only a non-empty trimmed string trips the trap; absent, non-string or whitespace-only values
 // do not reject an otherwise valid submission.
-export function isHoneypotTripped(input: { hp: unknown }): boolean {
+export function isHoneypotTripped(input: { hp: unknown }, _optional = {}): boolean {
   if (typeof input.hp !== "string") return false;
   return input.hp.trim().length > 0;
 }

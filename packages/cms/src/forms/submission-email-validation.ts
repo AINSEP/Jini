@@ -2,9 +2,7 @@ import { FormSubmissionValidationError } from "./errors.js";
 import { isHoneypotTripped, validateSubmissionPayload, type FieldError } from "./forms.js";
 import type { FormDefinitionRecord } from "./types.js";
 
-// Match native type=email syntax (WHATWG HTML email state), including single-label domains.
-// Do not trim or rewrite answers: Jini's payload contract preserves submitted strings.
-const EMAIL_PATTERN = /^[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+import { isValidFormEmail } from "./email-format.js";
 
 /** Compatibility guard until Jini validates email fields itself. Lookup remains the first step;
  * disabled forms and honeypots retain the package's response before any validation or writes. */
@@ -20,7 +18,7 @@ export function assertSubmissionEmails(
     if (field.type !== "email" || typeof value !== "string" || value === "") return false;
     if (existing.some((error) => error.field === field.id)) return false;
     // JS's $ can match before a final newline; comparing the full match refuses that bypass.
-    return EMAIL_PATTERN.exec(value)?.[0] !== value;
+    return !isValidFormEmail({ value });
   }).map((field) => field.id));
   if (invalid.size === 0) return;
   const declared = new Set(definition.fields.map((field) => field.id));

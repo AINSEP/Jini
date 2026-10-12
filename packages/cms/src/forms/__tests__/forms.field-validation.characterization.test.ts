@@ -40,8 +40,8 @@ test("validateFieldDescriptors: each per-field branch reports its exact reason",
     { field: "dup", reason: "duplicate field id" },
   ]);
 
-  assert.deepEqual(errorsOf([field({ type: "date" as FieldDescriptor["type"] })]), [
-    { field: "name", reason: "type 'date' is not in the registered vocabulary" },
+  assert.deepEqual(errorsOf([field({ type: "password" as FieldDescriptor["type"] })]), [
+    { field: "name", reason: "type 'password' is not in the registered vocabulary" },
   ]);
 
   assert.deepEqual(errorsOf([field({ label: "" })]), [{ field: "name", reason: "label must be 1-200 characters" }]);
@@ -73,7 +73,7 @@ test("validateFieldDescriptors: one descriptor accumulates every failing branch,
   const broken = {
     id: "1bad",
     label: "",
-    type: "date",
+    type: "password",
     required: false,
     maxLength: 99999,
     className: "x".repeat(MAX_CLASS_NAME_LENGTH + 1),
@@ -82,7 +82,7 @@ test("validateFieldDescriptors: one descriptor accumulates every failing branch,
 
   assert.deepEqual(errorsOf([broken]), [
     { field: "1bad", reason: "id must match ^[a-z][a-z0-9_]*$" },
-    { field: "1bad", reason: "type 'date' is not in the registered vocabulary" },
+    { field: "1bad", reason: "type 'password' is not in the registered vocabulary" },
     { field: "1bad", reason: "label must be 1-200 characters" },
     { field: "1bad", reason: "maxLength must be 1-5000" },
     { field: "1bad", reason: "className must be at most 300 characters" },

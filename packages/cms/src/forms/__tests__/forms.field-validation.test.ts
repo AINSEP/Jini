@@ -25,7 +25,7 @@ test("validateFieldDescriptors: accepts every vocabulary type (text/email/textar
 });
 
 test("validateFieldDescriptors: rejects a field type outside the registered vocabulary (AC-03)", () => {
-  const result = validateFieldDescriptors([field({ type: "date" as FieldDescriptor["type"] })]);
+  const result = validateFieldDescriptors([field({ type: "password" as FieldDescriptor["type"] })]);
   assert.equal(result.valid, false);
   if (!result.valid) {
     assert.ok(result.fieldErrors.some((e) => e.field === "name" && e.reason.includes("type")));
@@ -132,9 +132,11 @@ test("validateFieldDescriptors: accepts every allowlisted attribute name", () =>
     "spellcheck",
     "readonly",
   ];
-  const attributes = Object.fromEntries(allowlisted.map((name) => [name, "value"]));
-  const result = validateFieldDescriptors([field({ attributes })]);
-  assert.equal(result.valid, true);
+  for (const name of allowlisted) {
+    const numeric = ["min", "max", "step"].includes(name);
+    const value = numeric || name === "minlength" ? "1" : "value";
+    assert.equal(validateFieldDescriptors([field({ type: numeric ? "number" : "text", attributes: { [name]: value } })]).valid, true);
+  }
 });
 
 test("validateFieldDescriptors: accepts aria-* and data-* prefixed attribute names", () => {

@@ -8,7 +8,7 @@ describe("authored checkbox values", () => {
     expect(validateSubmissionPayload({ definition, body: { consent: "yes" } })).toEqual({ valid: true, data: { consent: "yes" } });
   });
   it("preserves an explicitly authored empty value and still rejects an omitted required box", () => {
-    expect(validateSubmissionPayload({ definition, body: { consent: "" } })).toEqual({ valid: true, data: { consent: "" } });
+    expect(validateSubmissionPayload({ definition: { ...definition, fields: [{ ...definition.fields[0]!, checkboxValue: "" }] }, body: { consent: "" } })).toEqual({ valid: true, data: { consent: "" } });
     expect(validateSubmissionPayload({ definition, body: {} })).toEqual({ valid: false, fieldErrors: [{ field: "consent", reason: "required" }] });
   });
   it("keeps the native default boolean and refuses arrays/objects", () => {

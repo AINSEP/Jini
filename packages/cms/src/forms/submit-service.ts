@@ -37,7 +37,7 @@ import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js"
 import type { FormDefinitionViewPort } from "./ports.js";
 import { assertSubmissionEmails } from "./submission-email-validation.js";
 import { DUPLICATE_ATTEMPT, FORM_ATTEMPT_FIELD, type SubmissionAttempts } from "./submission-attempts.js";
-import type { FormSubmissionRecord } from "./types.js";
+import type { FormSubmissionRecord, FormFileStoragePort, FormFileReference } from "./types.js";
 
 const HONEYPOT_KEY = "_hp";
 
@@ -50,6 +50,8 @@ export interface SubmitFormDeps {
   clock: Clock;
   idGen: IdGenerator;
   rateLimiter: RateLimiterPort;
+  /** Anonymous uploads go through the host media owner only after validation/rate/dedupe. */
+  files?: FormFileStoragePort;
   /** Omitted: the two writes run back to back with no rollback between them. */
   transaction?: SubmissionTransactionPort;
 }
@@ -108,9 +110,15 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
     return { status: "accepted" };
   }
 
-  const validation = validateSubmissionPayload({ definition, body: input.body });
+  const validation = validateSubmissionPayload({ definition, body: input.body }, deps.files ? { files: deps.files } : {});
   if (!validation.valid) {
     throw new FormSubmissionValidationError({ message: "submission failed field validation", fieldErrors: validation.fieldErrors });
+  }
+
+  if (validation.files && !deps.transaction) {
+    // Without rollback, a failed outbox write would leave a stored row pointing at compensated
+    // files. Existing scalar-only hosts retain their legacy optional-transaction contract.
+    throw new FormSubmissionValidationError({ message: "file submissions require transactional storage", fieldErrors: Object.keys(validation.files).map((field) => ({ field, reason: "file_storage_unavailable" })) });
   }
 
   // Scope by both IP and form so one client's different forms cannot cross-throttle each other.
@@ -141,10 +149,32 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
   // Only a persisted accepted submission gets this event; honeypot discards emit nothing. Row and
   // event commit together: a failed enqueue must not leave a stored submission nobody is told about.
   const transaction: SubmissionTransactionPort = deps.transaction ?? ((work) => work());
-  const persist = () => transaction(async () => {
-    await deps.submissionRepo.create(submission);
-    await deps.outbox.enqueue(event);
-  });
+  const persist = async () => {
+    // Blob backends cannot participate in a SQL transaction. Store within the dedupe claim,
+    // then compensate only this attempt's new media assets when any upload/row/event write fails.
+    // Byte buffers never reach data_json, notifications or the outbox payload.
+    const uploaded: FormFileReference[] = [];
+    try {
+      for (const [fieldId, file] of Object.entries(validation.files ?? {})) {
+        const reference = await deps.files!.store({ workspaceId: input.workspaceId, submissionId, fieldId, file });
+        uploaded.push(reference);
+        submission.data[fieldId] = reference;
+      }
+      await transaction(async () => {
+        await deps.submissionRepo.create(submission);
+        await deps.outbox.enqueue(event);
+      });
+    } catch (error) {
+      for (const reference of uploaded) {
+        try { await deps.files!.discard({ workspaceId: input.workspaceId, reference }); }
+        catch (cleanupError) {
+          // Retain the original submission failure; a failed cleanup is visible to operators.
+          try { deps.logger.warn({ message: "form upload cleanup failed" }, { error: cleanupError }); } catch { /* Logging cannot replace the original error. */ }
+        }
+      }
+      throw error;
+    }
+  };
   if (optional.attempts) {
     // The attempt is claimed only where persistence begins, after validation and rate limiting.
     // A copy waits outside the database transaction; failed first copies free the claim for retry.

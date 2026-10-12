@@ -58,16 +58,11 @@ export interface CreateFormSubmitHandlerRequired {
  * this travels via a cookie rather than the query string.
  */
 
-const MAX_BODY_STRING_LENGTH = 5000;
-
-/** Truncates string values in an untrusted body before it reaches `submitForm`; other types pass through unchanged so `validateSubmissionPayload` can reject them by type, mirroring `analytics-ingest.ts`'s `parseBeacon`. */
+/** Leave values intact so the server validator rejects oversize input instead of silently
+ * accepting truncated answers. The transport's JSON/urlencoded/multipart parsers bound memory.
+ * Unknown keys and duplicate scalar controls remain visible to the domain validator. */
 function boundBody(body: unknown): Record<string, unknown> {
-  const raw = (body ?? {}) as Record<string, unknown>;
-  const bounded: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(raw)) {
-    bounded[key] = typeof value === "string" ? value.slice(0, MAX_BODY_STRING_LENGTH) : value;
-  }
-  return bounded;
+  return (body ?? {}) as Record<string, unknown>;
 }
 
 /** True for a real browser's form-POST navigation (`Accept: text/html,...`); false for the
