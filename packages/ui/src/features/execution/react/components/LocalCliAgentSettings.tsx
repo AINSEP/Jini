@@ -1,5 +1,4 @@
 import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
-import { InfoTip } from '../../../admin-widgets/components/InfoTip.js';
 import { useT } from '../../../i18n/index.js';
 import { CUSTOM_MODEL_SENTINEL } from '../../constants.js';
 import type { AgentCliEnvFieldSpec, DetectedAgent, LocalCliConfig } from '../../types.js';
@@ -14,18 +13,15 @@ export interface LocalCliAgentSettingsProps {
   cliEnvFields: readonly AgentCliEnvFieldSpec[];
   onModelChange: (agentId: string, model: string) => void;
   onEnvChange: (agentId: string, envKey: string, value: string) => void;
-  onTest?: ((agent: DetectedAgent) => void) | undefined;
   agentHandle?: string | undefined;
 }
 
 /**
- * The selected CLI's settings, as one compact strip under its grid row.
+ * The selected CLI's settings, stacked inside its own card.
  *
- * Owner, 2026-10-09: a selected card used to span the whole grid row and stack full-width
- * Model and Reasoning selects, a hint paragraph and the Advanced disclosure inside itself —
- * "takes up the whole row, unnecessarily long". The card now keeps its grid cell and only
- * marks the selection; everything it configures lives here, labels inline with content-sized
- * selects, and the provenance sentence behind the source badge's ⓘ.
+ * Owner, 2026-10-09: both the full-row card and the separate settings strip
+ * spread selection beyond its own column. Keep full-width controls and a
+ * visible provenance sentence inside the card so only that card grows taller.
  */
 export function LocalCliAgentSettings({
   agent,
@@ -34,11 +30,10 @@ export function LocalCliAgentSettings({
   cliEnvFields,
   onModelChange,
   onEnvChange,
-  onTest,
   agentHandle,
 }: LocalCliAgentSettingsProps) {
   const t = useT();
-  const { reasoning, source, sourceLabel, sourceHint, testing, result, repair, repairField } = card;
+  const { reasoning, source, sourceLabel, sourceHint, result, repair, repairField } = card;
   const {
     hasModels,
     hasReasoning,
@@ -62,7 +57,12 @@ export function LocalCliAgentSettings({
       <div className="jini-agent-settings-row">
         {hasModels ? (
           <div className="jini-agent-settings-field jini-agent-settings-model">
-            <span className="jini-field-label">{t('Model')}</span>
+            <div className="jini-agent-settings-label">
+              <span className="jini-field-label">{t('Model')}</span>
+              {sourceLabel ? (
+                <span className={`jini-agent-model-source ${source}`}>{sourceLabel}</span>
+              ) : null}
+            </div>
             <SearchableModelSelect
               className="jini-input jini-agent-model-select"
               ariaLabel={t('Model')}
@@ -75,12 +75,7 @@ export function LocalCliAgentSettings({
               additionalOptions={allowCustomModel ? [{ value: CUSTOM_MODEL_SENTINEL, label: t('Custom…') }] : undefined}
               onChange={card.selectModel}
             />
-            {sourceLabel ? (
-              <span className="jini-agent-settings-source">
-                <span className={`jini-agent-model-source ${source}`}>{sourceLabel}</span>
-                {sourceHint ? <InfoTip label={sourceHint} triggerLabel={sourceLabel} /> : null}
-              </span>
-            ) : null}
+            {sourceHint ? <p className="jini-field-hint">{sourceHint}</p> : null}
           </div>
         ) : null}
 
@@ -100,41 +95,27 @@ export function LocalCliAgentSettings({
           </label>
         ) : null}
 
-        {/* Effort and Test wrap as one unit, so Test never strands alone on a line. */}
-        <div className="jini-agent-settings-tail">
-          {hasReasoning ? (
-            <label className="jini-agent-settings-field">
-              <span className="jini-field-label">{t('Reasoning effort')}</span>
-              <select
-                className="jini-input jini-agent-settings-reasoning"
-                data-testid={`jini-agent-reasoning-${agent.id}`}
-                value={reasoningValue}
-                disabled={reasoningDisabled}
-                onChange={(event) => card.selectReasoning(event.target.value)}
-                {...agentHandleProps({}, { base: agentHandle, ...({ action: 'reasoning', role: 'field', label: t('Reasoning effort') }) })}
-              >
-                {reasoningOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-
-          {onTest ? (
-            <button
-              type="button"
-              className={'jini-btn jini-agent-card-test' + (testing ? ' is-loading' : '')}
-              data-testid={`jini-agent-test-${agent.id}`}
-              disabled={testing}
-              onClick={() => onTest(agent)}
-              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'test', role: 'button', label: t('Test') }) })}
+        {/* Effort follows the model controls; Test belongs to the card header
+            so it stays separate from both field interactions. */}
+        {hasReasoning ? (
+          <label className="jini-agent-settings-field">
+            <span className="jini-field-label">{t('Reasoning effort')}</span>
+            <select
+              className="jini-input jini-agent-settings-reasoning"
+              data-testid={`jini-agent-reasoning-${agent.id}`}
+              value={reasoningValue}
+              disabled={reasoningDisabled}
+              onChange={(event) => card.selectReasoning(event.target.value)}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'reasoning', role: 'field', label: t('Reasoning effort') }) })}
             >
-              {testing ? t('Testing…') : t('Test')}
-            </button>
-          ) : null}
-        </div>
+              {reasoningOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
 
       {result ? (

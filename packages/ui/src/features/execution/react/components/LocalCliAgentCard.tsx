@@ -53,10 +53,9 @@ export interface LocalCliAgentCardProps {
  * sign-in pill, and upgrade coachmarks are bound to that product's hosted
  * service, not to the idea of "a CLI on a machine".
  *
- * A selected card renders TWO grid items: itself, unchanged in size, and
- * `LocalCliAgentSettings` spanning the row beneath it (owner, 2026-10-09 — see
- * that component). `.jini-agent-grid`'s dense flow backfills the cell beside
- * the card, so the strip lands directly under the selected card's row.
+ * Owner, 2026-10-09: selection grows this card inside its own grid column.
+ * `LocalCliAgentSettings` stays inside it, so the neighbour keeps its normal
+ * height rather than sharing a full-row settings strip.
  */
 export function LocalCliAgentCard({
   agent,
@@ -86,81 +85,92 @@ export function LocalCliAgentCard({
   const summary = agentModelSummary(config, agent);
 
   return (
-    <>
-      <div
-        className={
-          'jini-agent-card' +
-          (selected ? ' is-selected' : '') +
-          (agent.installed ? ' is-installed' : ' is-missing')
-        }
-        data-testid={`jini-agent-card-${agent.id}`}
-      >
-        <div className="jini-agent-card-main">
-          <button
-            type="button"
-            className="jini-agent-card-select"
-            data-testid={`jini-agent-select-${agent.id}`}
-            aria-pressed={selected}
-            disabled={!agent.installed}
-            onClick={() => onSelect(agent.id)}
-            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'select', role: 'button', label: agent.label }) })}
-          >
-            <span className="jini-agent-card-icon" aria-hidden="true">
-              {renderIcon ? renderIcon(agent) : agent.label.slice(0, 1).toUpperCase()}
+    <div
+      className={
+        'jini-agent-card' +
+        (selected ? ' is-selected' : '') +
+        (agent.installed ? ' is-installed' : ' is-missing')
+      }
+      data-testid={`jini-agent-card-${agent.id}`}
+    >
+      <div className="jini-agent-card-main">
+        <button
+          type="button"
+          className="jini-agent-card-select"
+          data-testid={`jini-agent-select-${agent.id}`}
+          aria-pressed={selected}
+          disabled={!agent.installed}
+          onClick={() => onSelect(agent.id)}
+          {...agentHandleProps({}, { base: agentHandle, ...({ action: 'select', role: 'button', label: agent.label }) })}
+        >
+          <span className="jini-agent-card-icon" aria-hidden="true">
+            {renderIcon ? renderIcon(agent) : agent.label.slice(0, 1).toUpperCase()}
+          </span>
+          <span className="jini-agent-card-body">
+            <span className="jini-agent-card-name">
+              <span className="jini-agent-card-title">{agent.label}</span>
+              {description ? (
+                <span className="jini-agent-card-tagline">
+                  {description}
+                </span>
+              ) : null}
             </span>
-            <span className="jini-agent-card-body">
-              <span className="jini-agent-card-name">
-                <span className="jini-agent-card-title">{agent.label}</span>
-                {description ? (
-                  <span className="jini-agent-card-tagline">
-                    {description}
+            {agent.badges?.length ? (
+              <span className="jini-agent-card-badges">
+                {agent.badges.map((badge) => (
+                  <span key={badge} className="jini-agent-card-badge">
+                    {badge}
                   </span>
-                ) : null}
-              </span>
-              {agent.badges?.length ? (
-                <span className="jini-agent-card-badges">
-                  {agent.badges.map((badge) => (
-                    <span key={badge} className="jini-agent-card-badge">
-                      {badge}
-                    </span>
-                  ))}
-                </span>
-              ) : null}
-              {/* Pre-existing (not part of this pass's six gaps): `agentMetaLabel`
-                  (this feature's own `rules.ts`) always returns a non-empty
-                  `text` for every branch of its own contract, so this ternary's
-                  `false` side is
-                  provably unreachable through the rule as written today — kept
-                  defensive rather than asserted-non-null in case that contract
-                  ever changes. */}
-              {meta.text ? (
-                <span className="jini-agent-card-meta">
-                  <span title={meta.title || undefined}>{meta.text}</span>
-                </span>
-              ) : null}
-              {/* Shown on the selected card too, so selecting never changes a card's shape. */}
-              {summary ? (
-                <span className="jini-agent-card-model-summary">
-                  <span>{t('Model')}</span>
-                  <strong>{summary}</strong>
-                </span>
-              ) : null}
-            </span>
-            {selected ? (
-              <span className="jini-agent-card-check" aria-hidden="true">
-                ✓
+                ))}
               </span>
             ) : null}
+            {/* Pre-existing (not part of this pass's six gaps): `agentMetaLabel`
+                (this feature's own `rules.ts`) always returns a non-empty
+                `text` for every branch of its own contract, so this ternary's
+                `false` side is
+                provably unreachable through the rule as written today — kept
+                defensive rather than asserted-non-null in case that contract
+                ever changes. */}
+            {meta.text ? (
+              <span className="jini-agent-card-meta">
+                <span title={meta.title || undefined}>{meta.text}</span>
+              </span>
+            ) : null}
+            {/* The selected card has the full model picker below; keep the
+                compact summary on the other cards so their model stays visible. */}
+            {!selected && summary ? (
+              <span className="jini-agent-card-model-summary">
+                <span>{t('Model')}</span>
+                <strong>{summary}</strong>
+              </span>
+            ) : null}
+          </span>
+          {selected ? (
+            <span className="jini-agent-card-check" aria-hidden="true">
+              ✓
+            </span>
+          ) : null}
+        </button>
+        {selected && onTest ? (
+          <button
+            type="button"
+            className={'jini-btn jini-agent-card-test' + (card.testing ? ' is-loading' : '')}
+            data-testid={`jini-agent-test-${agent.id}`}
+            disabled={card.testing}
+            onClick={() => onTest(agent)}
+            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'test', role: 'button', label: t('Test') }) })}
+          >
+            {card.testing ? t('Testing…') : t('Test')}
           </button>
-        </div>
-
-        {/* Why is this CLI unavailable, or only partially usable? Shown on
-            BOTH an installed-but-troubled card and a not-installed one — a
-            diagnostic is a property of detection, not of selection. */}
-        {(agent.diagnostics ?? []).map((diagnostic, index) => (
-          <AgentDiagnosticRow key={`${diagnostic.reason}-${index}`} diagnostic={diagnostic} handlers={card.diagnosticHandlers} />
-        ))}
+        ) : null}
       </div>
+
+      {/* Why is this CLI unavailable, or only partially usable? Shown on
+          BOTH an installed-but-troubled card and a not-installed one — a
+          diagnostic is a property of detection, not of selection. */}
+      {(agent.diagnostics ?? []).map((diagnostic, index) => (
+        <AgentDiagnosticRow key={`${diagnostic.reason}-${index}`} diagnostic={diagnostic} handlers={card.diagnosticHandlers} />
+      ))}
       {selected && card.hasSettings ? (
         <LocalCliAgentSettings
           agent={agent}
@@ -169,10 +179,9 @@ export function LocalCliAgentCard({
           cliEnvFields={cliEnvFields}
           onModelChange={onModelChange}
           onEnvChange={onEnvChange}
-          onTest={onTest}
           agentHandle={agentHandle}
         />
       ) : null}
-    </>
+    </div>
   );
 }
