@@ -279,6 +279,12 @@ export interface SidebarProps {
    * @default false
    */
   railDefaultCollapsed?: boolean;
+  /** Temporary displayed rail state. A boolean controls it without changing the stored preference;
+   *  null/undefined restores that preference. @example railOverride={dockOpen ? true : null} */
+  railOverride?: boolean | null | undefined;
+  /** Toggle requests while `railOverride` is active. The host updates its override to accept them;
+   *  without a callback the controlled rail stays fixed. Uncontrolled toggles persist as usual. */
+  onRailCollapsedChange?: ((collapsed: boolean) => void) | undefined;
   /** Accessible name for the `<nav>` landmark. @default "Admin" */
   label?: string;
   /** Extra class names appended to `.cms-nav`. */
@@ -298,6 +304,7 @@ const sidebarStorage: Pick<Storage, 'getItem' | 'setItem'> = {
 function SidebarRoot(props: SidebarProps) {
   const rail = useSidebarRail({ storage: sidebarStorage, events: window }, {
     storageKey: props.railStorageKey, defaultCollapsed: props.railDefaultCollapsed,
+    railOverride: props.railOverride, onCollapsedChange: props.onRailCollapsedChange,
   });
   const [tooltip, setTooltip] = useState<TooltipTarget | null>(null);
   const open = props.open ?? false;
