@@ -35,6 +35,10 @@
   border-radius: var(--jini-radius-lg);
   box-shadow: var(--jini-shadow-lg);
   overflow: hidden;
+  /* Layout follows the dialog's OWN width, not the viewport's: an inline settings page beside an
+     expanded nav and an open assistant dock is narrow on a wide screen, and a 375px modal is narrow
+     on any screen. See the `@container jini-tabbed-dialog` block at the end. */
+  container: jini-tabbed-dialog / inline-size;
 }
 
 /* Page (non-modal) variant: the shell renders without `onClose`, so it should
@@ -270,4 +274,91 @@
 .jini-tabbed-dialog:hover .jini-tabbed-dialog-sidebar-toggle,
 .jini-tabbed-dialog-sidebar-toggle:focus-visible {
   opacity: 1;
+}
+
+/* ============================================================
+   Narrow dialog: the side nav becomes one top tab row
+   ============================================================
+   A 240px side nav inside a ~500px dialog left the form a thin column with
+   its controls spilling past the edge (Chat settings at 500px, Chrome check
+   2026-10-11). Below 600px of DIALOG width (a 40rem dialog, e.g. Sites
+   settings, keeps its desktop look) the nav turns into a horizontal,
+   swipeable tab row over a full-width panel. The collapse chevron has
+   nothing to reclaim there, so it hides, and a collapsed nav reappears as
+   the row: a narrow dialog never loses its tabs. Modal-only spacing skips
+   the inline (page) variant, whose host owns its page insets. */
+@container jini-tabbed-dialog (max-width: 600px) {
+  .jini-tabbed-dialog:not(.jini-tabbed-dialog--inline) .jini-tabbed-dialog-head {
+    padding: 20px 56px 8px 16px;
+  }
+
+  .jini-tabbed-dialog:not(.jini-tabbed-dialog--inline) .jini-tabbed-dialog-chrome {
+    top: 16px;
+    right: 16px;
+  }
+
+  .jini-tabbed-dialog:not(.jini-tabbed-dialog--inline) .jini-tabbed-dialog-head-line h2,
+  .jini-tabbed-dialog:not(.jini-tabbed-dialog--inline) .jini-tabbed-dialog-head h2 {
+    font-size: 22px;
+  }
+
+  .jini-tabbed-dialog-body,
+  .jini-tabbed-dialog-sidebar-collapsed .jini-tabbed-dialog-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .jini-tabbed-dialog-sidebar,
+  .jini-tabbed-dialog-sidebar-collapsed .jini-tabbed-dialog-sidebar {
+    display: flex;
+    flex-direction: row;
+    gap: 2px;
+    padding: 0 16px;
+    background: transparent;
+    border-right: 0;
+    box-shadow: inset 0 -1px 0 var(--jini-border);
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .jini-tabbed-dialog-sidebar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .jini-tabbed-dialog-nav-item {
+    flex: 0 0 auto;
+    width: auto;
+    grid-template-columns: auto auto;
+    gap: 6px;
+    padding: 9px 10px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    white-space: nowrap;
+  }
+
+  .jini-tabbed-dialog-nav-item:hover {
+    background: transparent;
+    color: var(--jini-text);
+  }
+
+  .jini-tabbed-dialog-nav-item.active,
+  .jini-tabbed-dialog-nav-item.active:hover {
+    background: transparent;
+    border-bottom-color: var(--jini-accent);
+  }
+
+  .jini-tabbed-dialog-nav-text small {
+    display: none;
+  }
+
+  .jini-tabbed-dialog-sidebar-toggle {
+    display: none;
+  }
+
+  .jini-tabbed-dialog:not(.jini-tabbed-dialog--inline) .jini-tabbed-dialog-content {
+    padding: 14px 16px 18px;
+  }
 }

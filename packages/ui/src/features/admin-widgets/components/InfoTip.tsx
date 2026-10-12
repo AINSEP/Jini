@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { agentHandle } from "@jini-ai/agentic";
 
 import { useInfoTip } from "./InfoTip.hooks.js";
+import { infoTipBubbleStyle } from "./InfoTip.rules.js";
 
 /**
  * Native title tooltips have an OS-dependent hover delay, inconsistent screen-reader exposure
@@ -10,7 +11,8 @@ import { useInfoTip } from "./InfoTip.hooks.js";
  * focus, which onBlur alone cannot do.
  * A body portal escapes overflow:hidden/scrolling ancestors: z-index cannot rescue an absolutely
  * positioned descendant from clipping. Measured viewport coordinates position it above by
- * preference, with the hook's headroom guard choosing below near the viewport's top.
+ * preference, with the hook's headroom guard choosing below near the viewport's top; near a side
+ * edge (or a host panel marked `data-jini-tip-bounds`) it shifts by its real width, never squeezes.
  * Keep state and DOM measurement in the injectable hook so rendering can use fixed fake state.
  * Touch has no hover, so a tap (or Enter/Space) pins the tip open until a second tap, an outside
  * tap, blur or Escape; a hover-opened tip still closes when the pointer leaves.
@@ -78,7 +80,7 @@ export function InfoTip({ label, triggerLabel, descriptionId, placement: preferr
               className={placement === "below" ? "info-tip-bubble info-tip-bubble-below" : "info-tip-bubble"}
               role="presentation"
               aria-hidden="true"
-              style={{ top: coords.top, left: coords.left }}
+              style={infoTipBubbleStyle(coords)}
             >
               {label}
             </span>,

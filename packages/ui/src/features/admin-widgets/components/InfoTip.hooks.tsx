@@ -1,30 +1,19 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useDismissOnOutsideOrEscape } from "../../../browser/index.js";
+import { placeInfoTipBubble } from "./InfoTip.rules.js";
 
 /** Separate the hook for injectable rendering state. Its only outside effect is synchronous DOM
  * measurement, so another async dependency/port layer would provide no rejection seam to test. */
-/** Above is a preference: require this much headroom before allowing an above-opening bubble. */
-const ABOVE_HEADROOM_PX = 176;
 
-/** Half the bubble's 18rem CSS max-width at a 16px root font. This worst-case width keeps narrow
- * copy safe too. Pure icon-centering previously placed half a tip offscreen near a viewport edge. */
-const HALF_MAX_BUBBLE_WIDTH_PX = 144;
-
-/** Keep breathing room between the clamped bubble and either viewport edge. */
-const EDGE_MARGIN_PX = 8;
-
-/** Below 304px the clamp's minimum exceeds its maximum; center instead of using an inverted range. */
-function clampBubbleLeft(idealLeft: number): number {
-  const minLeft = EDGE_MARGIN_PX + HALF_MAX_BUBBLE_WIDTH_PX;
-  const maxLeft = window.innerWidth - EDGE_MARGIN_PX - HALF_MAX_BUBBLE_WIDTH_PX;
-  if (maxLeft < minLeft) return window.innerWidth / 2;
-  return Math.min(Math.max(idealLeft, minLeft), maxLeft);
-}
+/** Hosts mark a panel (e.g. an assistant dock) with this attribute to keep tips inside it. */
+export const TIP_BOUNDS_ATTRIBUTE = "data-jini-tip-bounds";
 
 export interface InfoTipController {
   open: boolean;
   placement: "above" | "below";
-  coords: { top: number; left: number };
+  /** `arrowLeft` (px inside the bubble) keeps the arrow on the icon after an edge shift; optional
+   *  for injected controllers, whose arrow stays centred. */
+  coords: { top: number; left: number; arrowLeft?: number | undefined };
   iconRef: React.RefObject<HTMLSpanElement | null>;
   /** Portal measurement for a requested placement; optional for injected controllers. */
   bubbleRef?: React.RefObject<HTMLSpanElement | null>;
@@ -46,28 +35,38 @@ export interface InfoTipController {
 export function useInfoTip(_input: Record<string, never> = {}, { placement: preferredPlacement }: { placement?: "top" | "bottom" | undefined } = {}): InfoTipController {
   const [open, setOpen] = useState(false);
   const [placement, setPlacement] = useState<"above" | "below">("above");
-  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const [coords, setCoords] = useState<InfoTipController["coords"]>({ top: 0, left: 0 });
   const [pinned, setPinned] = useState(false);
   const iconRef = useRef<HTMLSpanElement>(null);
   const bubbleRef = useRef<HTMLSpanElement>(null);
 
-  const show = () => {
-    const rect = iconRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const measuredHeight = bubbleRef.current?.getBoundingClientRect().height ?? 0;
-    const headroom = preferredPlacement === "top" && measuredHeight > 0 ? measuredHeight + 16 : ABOVE_HEADROOM_PX;
-    const nextPlacement = preferredPlacement === "bottom" || rect.top < headroom ? "below" : "above";
-    setPlacement(nextPlacement);
-    setCoords({
-      top: nextPlacement === "above" ? rect.top : rect.bottom,
-      left: clampBubbleLeft(rect.left + rect.width / 2),
-    });
-    setOpen(true);
+  // Placement math lives in `placeInfoTipBubble`; this only gathers the measurements. Before the
+  // portal exists the bubble is unmeasured and the rules assume the worst-case width.
+  const place = () => {
+    const icon = iconRef.current;
+    const rect = icon?.getBoundingClientRect();
+    if (!icon || !rect) return false;
+    const measured = bubbleRef.current?.getBoundingClientRect();
+    const boundsRect = icon.closest(`[${TIP_BOUNDS_ATTRIBUTE}]`)?.getBoundingClientRect();
+    const next = placeInfoTipBubble(
+      {
+        anchor: { left: rect.left, top: rect.top, width: rect.width, height: rect.bottom - rect.top },
+        bubble: measured ? { width: measured.width, height: measured.height } : null,
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+      },
+      { bounds: boundsRect ? { left: boundsRect.left, right: boundsRect.right } : undefined, preferred: preferredPlacement },
+    );
+    setPlacement(next.placement);
+    setCoords(measured && measured.width > 0 ? { top: next.top, left: next.left, arrowLeft: next.arrowLeft } : { top: next.top, left: next.left });
+    return true;
   };
-  // The portal exists only after opening. Measure before paint to avoid covering a field when
-  // a short tip fits above its label; insufficient headroom still uses the automatic fallback.
+  const show = () => {
+    if (place()) setOpen(true);
+  };
+  // The portal exists only after opening. Re-place before paint with its real size, so a short tip
+  // near an edge shifts only as far as it must and a short tip fits above its label.
   useLayoutEffect(() => {
-    if (open && preferredPlacement === "top") show();
+    if (open) place();
   }, [open, preferredPlacement]);
   const hide = () => {
     setOpen(false);
