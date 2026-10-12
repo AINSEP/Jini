@@ -34,6 +34,51 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  vi.useRealTimers();
+});
+
+describe('font recovery through the real component lifecycle', () => {
+  it('recovers a failed host style font once across several icon mounts', async () => {
+    vi.useFakeTimers();
+    const override = document.createElement('style');
+    override.setAttribute(MARKER, '');
+    override.textContent = '@font-face { font-family: "remixicon"; src: url("/admin/assets/icons.woff2") format("woff2"); }';
+    document.head.appendChild(override);
+    const applied: FontFace[] = [];
+    let probes = 0;
+    let replacements = 0;
+    const fonts = {
+      async load() { probes++; throw new Error('server restarting'); },
+      check: () => false,
+      add: (face: FontFace) => { applied.push(face); },
+    };
+    const original = Object.getOwnPropertyDescriptor(document, 'fonts');
+    Object.defineProperty(document, 'fonts', { configurable: true, value: fonts });
+    class FakeFontFace {
+      readonly status = 'loaded';
+      constructor(readonly family: string, readonly source: string) { replacements++; }
+      async load() { return this; }
+    }
+    vi.stubGlobal('FontFace', FakeFontFace);
+    try {
+      const { RemixIcon } = await loadFresh();
+      render(<><RemixIcon name="group-line" /><RemixIcon name="settings-line" /></>);
+      await Promise.resolve(); await Promise.resolve();
+      expect(probes).toBe(1);
+      expect(replacements).toBe(0);
+      expect(applied).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(replacements).toBe(1);
+      expect(applied).toHaveLength(1);
+      expect(applied[0]?.family).toBe('remixicon');
+      expect((applied[0] as unknown as FakeFontFace).source).toContain('jini-font-retry=1');
+      expect(markedElements()).toEqual([override]);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      if (original) Object.defineProperty(document, 'fonts', original);
+      else Reflect.deleteProperty(document, 'fonts');
+    }
+  });
 });
 
 describe('default self-injection', () => {
