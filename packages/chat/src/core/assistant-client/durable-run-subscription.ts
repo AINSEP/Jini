@@ -7,7 +7,8 @@ export interface DurableRunBinding { readonly messageId: string; readonly conver
 
 
 export interface DurableSubscriptionPorts {
-  readonly read: (required: { runId: string; messageId?: string }, optional: {}) => Promise<ChatMessage | null | "gone">;
+  /** Absent recover intent preserves legacy recovery; false requests only the saved checkpoint. */
+  readonly read: (required: { runId: string; messageId?: string }, optional: { recover?: boolean }) => Promise<ChatMessage | null | "gone">;
   readonly stream: (required: { runId: string; cursor: string; frame: (kind: string, data: string, cursor: string) => void; dropped: () => void }, optional: {}) => () => void;
   readonly schedule: (required: { work: () => void; delayMs: number }, optional: {}) => () => void;
 }
@@ -23,6 +24,7 @@ export function followDurableRun(
   let cursor = "";
   let stopped = false;
   let reading = false;
+  let recoveryPending = true;
   let dropped = false;
   let stopStream: (() => void) | undefined;
   let stopTimer: (() => void) | undefined;
@@ -45,7 +47,7 @@ export function followDurableRun(
   function open() {
     dropped = false;
     stopStream?.();
-    stopStream = ports.stream({ runId, cursor, frame, dropped: () => { dropped = true; void read().catch(() => undefined); } }, {});
+    stopStream = ports.stream({ runId, cursor, frame, dropped: () => { dropped = true; recoveryPending = true; void read().catch(() => undefined); } }, {});
   }
 
   function frame(kind: string, data: string, nextCursor: string) {
@@ -53,7 +55,7 @@ export function followDurableRun(
     if (nextCursor) cursor = nextCursor;
     const outcome = translateRunFrame({ kind, raw: data, notices }, {});
     // An attempt's error/end may be followed by a continuation. Only the row can finalize it.
-    if (outcome.terminal || outcome.error) { void read().catch(() => undefined); return; }
+    if (outcome.terminal || outcome.error) { recoveryPending = true; void read().catch(() => undefined); return; }
     // With the checkpoint-capable hook, render only durable projections. Replaying a daemon
     // prefix into a seeded bubble would duplicate its text; the server folds those deltas once.
     if (handlers.onCheckpoint) return;
@@ -65,14 +67,20 @@ export function followDurableRun(
     reading = true;
     stopTimer?.();
     stopTimer = undefined;
+    const recover = recoveryPending;
+    // Consume only when a read starts: faults during its await latch one follow-up recovery.
+    recoveryPending = false;
     try {
-      const message = await ports.read({ runId, ...(messageId ? { messageId } : {}) }, {});
+      const message = await ports.read({ runId, ...(messageId ? { messageId } : {}) }, { recover });
       if (stopped || !message) return;
       if (message === "gone") { stop(); return; }
       applySavedMessage(message);
     } finally {
       reading = false;
-      if (!stopped) stopTimer = ports.schedule({ work: () => void read().catch(() => undefined), delayMs: 1_000 }, {});
+      if (!stopped) {
+        if (recoveryPending) void read().catch(() => undefined);
+        else stopTimer = ports.schedule({ work: () => void read().catch(() => undefined), delayMs: 1_000 }, {});
+      }
     }
   }
 
