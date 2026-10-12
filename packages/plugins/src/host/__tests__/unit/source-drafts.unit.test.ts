@@ -5,7 +5,7 @@ import { tmpdir, hostname } from 'node:os';
 import { afterEach, test } from 'vitest';
 import { createPluginSourceService, PLUGIN_SOURCE_LIMITS } from '../../node/source-drafts.js';
 import { computePluginIntegrity, installSitePlugin, previewSitePluginInstall, pruneSitePluginVersions, snapshotSitePluginPackage, type PluginInstallerPort } from '../../node/install.js';
-import { createPluginSourcePolicy } from '../../source-policy.js';
+import { addedPluginCapabilities, createPluginSourcePolicy, pluginCapabilitySet } from '../../source-policy.js';
 import { discoverPlugins, siteEntryPath } from '../../node/discovery.js';
 import { manifestHost, tierPolicy, createInvocationCoreDeps } from '../support/fixture-bindings.js';
 import { InMemoryPluginActivationRepo } from '../support/repo.memory.js';
@@ -330,11 +330,37 @@ test('retention refuses unsafe ids, concurrent installs and malformed slots befo
   assert.equal(await readFile(path.join(f.installDir, id, '0.1.0/server/index.mjs'), 'utf8'), entry);
 });
 
-test('policy keeps unsealed plugin enable confirmation and permits only packages sealed here to enable directly', () => {
+test('policy always confirms unsealed plugins; a package sealed here enables directly only when it adds nothing beyond the last approval', () => {
   const policy = createPluginSourcePolicy({ hosted: false, localInstallOptIn: false });
   assert.equal(policy.localInstallEnabled(), true);
-  assert.equal(policy.confirmEnable({ sealedHere: true }), false);
-  assert.equal(policy.confirmEnable({ sealedHere: false }), true);
+  // Consent gap (2026-10-12): sealed here with no prior approval must still ask.
+  assert.equal(policy.confirmEnable({ sealedHere: true, added: addedPluginCapabilities({ approved: undefined, next: ['tier:tier-3'] }) }), true);
+  assert.equal(policy.confirmEnable({ sealedHere: true, added: [] }), false);
+  assert.equal(policy.confirmEnable({ sealedHere: true, added: ['route:GET /x'] }), true);
+  assert.equal(policy.confirmEnable({ sealedHere: false, added: [] }), true);
   assert.equal(createPluginSourcePolicy({ hosted: true, localInstallOptIn: false }).localInstallEnabled(), false);
   assert.equal(createPluginSourcePolicy({ hosted: true, localInstallOptIn: true }).localInstallEnabled(), true);
+});
+
+test('capability sets name every declared surface and widen only on additions', () => {
+  const base = { tier: 'tier-3' as const, capabilities: ['hooks.attach'], hooks: ['content.entry.beforeSave'], fields: [{ path: 'ext.x.v', type: 'integer' as const, queryable: false }] };
+  const caps = pluginCapabilitySet({ manifest: { ...base, contentTypes: [{ key: 'event' }], contributes: { routes: ['GET /hello'], tools: ['echo'], tables: ['p_x__t'], settings: ['s'], widgets: ['w'], permissions: ['x.read'] } } });
+  assert.deepEqual(caps, ['capability:hooks.attach', 'content-type:event', 'field:ext.x.v', 'hook:content.entry.beforeSave', 'permission:x.read', 'route:GET /hello', 'setting:s', 'table:p_x__t', 'tier:tier-3', 'tool:echo', 'widget:w']);
+  const plain = pluginCapabilitySet({ manifest: base });
+  assert.deepEqual(addedPluginCapabilities({ approved: caps, next: plain }), [], 'narrowing is not widening');
+  assert.deepEqual(addedPluginCapabilities({ approved: plain, next: caps }), ['content-type:event', 'permission:x.read', 'route:GET /hello', 'setting:s', 'table:p_x__t', 'tool:echo', 'widget:w']);
+  assert.deepEqual(addedPluginCapabilities({ approved: plain, next: pluginCapabilitySet({ manifest: { ...base, tier: 'tier-1' } }) }), ['tier:tier-1']);
+});
+
+test('approvals persist beside provenance, survive pruning, ignore damage and cannot be written through a draft path', async () => {
+  const f = await fixture(); await f.create();
+  assert.equal(await f.service.readApproval({ id }), undefined);
+  await f.service.recordApproval({ id, capabilities: ['tier:tier-3', 'hook:a'] });
+  assert.deepEqual(await f.service.readApproval({ id }), ['tier:tier-3', 'hook:a']);
+  for (let i = 0; i < 5; i++) { await f.service.write({ id, path: 'README.md', content: String(i) }); await f.service.seal({ id }); }
+  assert.deepEqual(await f.service.readApproval({ id }), ['tier:tier-3', 'hook:a']);
+  await assert.rejects(f.service.write({ id, path: '../.sealed/' + id + '/approved.json', content: '{"capabilities":[]}' }), { code: 'PLUGIN_SOURCE_PATH_INVALID' });
+  await writeFile(path.join(f.installDir, '.drafts/.sealed', id, 'approved.json'), '{not json');
+  assert.equal(await f.service.readApproval({ id }), undefined);
+  await assert.rejects(f.service.readApproval({ id: '../x' }), { code: 'PLUGIN_SOURCE_PATH_INVALID' });
 });

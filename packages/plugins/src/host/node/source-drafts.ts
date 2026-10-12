@@ -1,6 +1,6 @@
 /** Site-scoped source authoring. Drafts never enter discovery; publication belongs to the
  * existing installer. Node filesystem effects live here, host SDK/policy/reload stay ports. */
-import { lstat, mkdir, mkdtemp, readdir, rename, rm, writeFile, unlink } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import * as semver from 'semver';
@@ -36,6 +36,10 @@ export interface PluginSourcePort {
   seal(required: Id, optional?: Options): Promise<PluginSourceSealResult>;
   rollback(required: Id, optional?: Options): Promise<PluginSourceSealResult>;
   isSealedHere(required: Id & { version: string }, optional?: Options): Promise<boolean>;
+  /** The capability set (`pluginCapabilitySet`) the owner last approved for this id, if any. */
+  readApproval(required: Id, optional?: Options): Promise<readonly string[] | undefined>;
+  /** Host-only: called after the owner confirmed an enable. Never exposed as a model tool. */
+  recordApproval(required: Id & { capabilities: readonly string[] }, optional?: Options): Promise<void>;
 }
 export interface PluginSourceDeps extends ManifestHostPorts {
   readonly installDir: string;
@@ -103,6 +107,9 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
   const drafts = path.join(root, '.drafts');
   const draft = (id: string) => path.join(drafts, id);
   const marker = (id: string, version: string) => path.join(drafts, '.sealed', id, version, 'digest.json');
+  // Beside the per-version provenance markers, so version pruning never removes it and no draft
+  // path (ids cannot start with '.') can write it. Per site: one approval covers every workspace.
+  const approval = (id: string) => path.join(drafts, '.sealed', id, 'approved.json');
 
   /** Cross-process source lock serializes edits with seal snapshots. Installer keeps its own
    * publication lock. Platform records pid/time and reclaims only dead owners; age alone must
@@ -282,6 +289,22 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
       const markers = await snapshotSitePluginPackage({ sourceDir: parent }, PLUGIN_SOURCE_LIMITS);
       const digest = JSON.parse(markers.get(path.basename(provenance))!.toString('utf8')).digest;
       return digest === digestSitePluginSnapshot({ files: await snapshot(path.join(root, id, version)) });
+    },
+    // Lock-free like isSealedHere: rename-published, and enabling during a seal must not fail BUSY.
+    readApproval: async ({ id }, _options = {}) => {
+      safeId(id);
+      if (!await exists(root)) return undefined;
+      await confined(root, approval(id));
+      if (!await exists(approval(id))) return undefined;
+      // A damaged record means "not approved": the owner is simply asked again.
+      let parsed: unknown;
+      try { parsed = JSON.parse(await readFile(approval(id), 'utf8')).capabilities; } catch { return undefined; }
+      return Array.isArray(parsed) && parsed.every(entry => typeof entry === 'string') ? parsed : undefined;
+    },
+    recordApproval: async ({ id, capabilities }, _options = {}) => {
+      safeId(id);
+      await mkdir(root, { recursive: true });
+      await writeAtomic(root, approval(id), jsonBytes({ capabilities: [...capabilities] }));
     },
   };
 }
