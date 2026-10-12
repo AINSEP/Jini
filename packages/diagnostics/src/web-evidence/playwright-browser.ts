@@ -1,46 +1,6 @@
-/**
- * @file The one and only module in this repository that touches a real headless browser.
- * Implements `SiteEvidenceBrowserPort` (`browser-port.ts`) on Playwright's Chromium.
- *
- * ---------------------------------------------------------------------------
- * Why the import is dynamic, and why the module's types are declared here
- * ---------------------------------------------------------------------------
- * The host may optionally install `playwright`; this package adds no browser dependency. The BROWSER
- * BINARY it drives needs a separate `playwright install chromium` step in the host deployment.
- * Installing the module alone does not supply that binary. So both halves can
- * legitimately be missing at runtime, independently:
- *
- * - the module itself, on a deployment that pruned it;
- * - the Chromium binary, on a deployment that installed the module but not the browser.
- *
- * Both are caught here and converted into `{ available: false, reason }`, never a thrown error and
- * never a boot failure. The tool then reports "no browser in this deployment" and the compliance
- * skill is required by its own output contract to downgrade every rendered-truth finding to
- * `cannot-determine`. That is the entire reason this adapter must not be a static import: a static
- * one would make an optional capability a hard boot dependency for every host install.
- *
- * {@link PlaywrightLike} declares, structurally, exactly the eight or so members this adapter uses.
- * That is deliberate rather than importing Playwright's own (very large) `.d.ts`: typechecking this
- * repository must not depend on a browser automation library's type surface being resolvable, and
- * naming the members used makes the actual coupling one short, reviewable block instead of an
- * open-ended import.
- *
- * ---------------------------------------------------------------------------
- * Privacy properties, enforced here rather than promised
- * ---------------------------------------------------------------------------
- * - **Ephemeral context.** `browser.newContext()` with no `storageState` and no user-data
- *   directory. Cookies, storage, and cache exist only in memory and die with `close()`. Nothing is
- *   written to disk by this module.
- * - **One context per page.** Each `observe()` call gets a fresh context, so a cookie set by page A
- *   can never be reported as though page B set it — which would be an outright false citation in a
- *   pre-consent cookie finding.
- * - **No non-GET request ever leaves the process.** Every request is intercepted; anything that is
- *   not GET or HEAD is aborted and recorded as blocked. This is what makes "never submits forms" a
- *   structural property instead of a policy: even if a page auto-submits, or a consent widget POSTs
- *   preferences, the attempt is observed and the bytes do not go out.
- * - **Values are never read.** Cookie values, request bodies, and form-field values are not
- *   extracted anywhere below, because `browser-port.ts`'s shapes have nowhere to put them.
- */
+/** Evidence adapter over the shared render function. Optional-import, sandbox and privacy
+ * rationale moved with the browser opener to playwright-runtime.ts; context lifecycle is in
+ * render-page.ts. Keeping one opener avoids a second vendor/browser stack for public reads. */
 import type {
   CookieEvidence,
   ObservationPhase,
@@ -53,10 +13,15 @@ import type {
   SiteEvidenceBrowserPort,
 } from "./browser-port.js";
 import { collectPageStructure, type PageStructureCapture, type PageStructureLimits } from "./page-structure-script.js";
+import { renderPage, OffOriginNavigationError, type RenderBrowser, type RenderCookie as PwCookie, type RenderPage as PwPage } from "./render-page.js";
+import { openPlaywrightRenderBrowser, type PlaywrightAdapterOptions } from "./playwright-runtime.js";
+export { openPlaywrightRenderBrowser, PUBLIC_RENDER_LAUNCH_OPTIONS } from "./playwright-runtime.js";
+export type { PlaywrightLike, PlaywrightAdapterOptions } from "./playwright-runtime.js";
+export * from "./render-page.js";
+export { PageWorkTimeout } from "./page-work-budget.js";
+export * from "./request-guard.js";
+export * from "./lazy-browser.js";
 import { PageWorkBudget, PageWorkTimeout } from "./page-work-budget.js";
-
-/** Methods allowed out of the browser. Everything else is aborted — see this file's header. */
-const SAFE_METHODS = new Set(["GET", "HEAD"]);
 
 /** How long to wait for the page to settle after the consent click before re-reading state. Short
  *  on purpose: this is a debounce for the widget's own DOM/network reaction, not a crawl budget,
@@ -67,123 +32,20 @@ const CONSENT_SETTLE_MS = 1_500;
 // The structural slice of Playwright this adapter uses. See the file header.
 // ---------------------------------------------------------------------------
 
-interface PwRoute {
-  request(): PwRequest;
-  abort(errorCode?: string): Promise<void>;
-  continue(): Promise<void>;
-}
-
-interface PwRequest {
-  url(): string;
-  method(): string;
-  resourceType(): string;
-}
-
-interface PwResponse {
-  status(): number;
-  url(): string;
-  headers(): Record<string, string>;
-}
-
-interface PwCookie {
-  name: string;
-  value: string;
-  domain: string;
-  path: string;
-  expires: number;
-  httpOnly: boolean;
-  secure: boolean;
-  sameSite: string;
-}
-
-interface PwLocator {
-  first(): PwLocator;
-  count(): Promise<number>;
-  click(options?: { timeout?: number }): Promise<void>;
-}
-
-interface PwPage {
-  goto(url: string, options?: { waitUntil?: string; timeout?: number }): Promise<PwResponse | null>;
-  /** Only the STRING form is used — see {@link buildPageStructureExpression} for why passing the
-   *  function reference directly is not safe here. */
-  evaluate<T>(expression: string): Promise<T>;
-  locator(selector: string): PwLocator;
-  waitForTimeout(ms: number): Promise<void>;
-  title(): Promise<string>;
-}
-
-interface PwContext {
-  newPage(): Promise<PwPage>;
-  route(pattern: string, handler: (route: PwRoute) => void | Promise<void>): Promise<void>;
-  cookies(): Promise<PwCookie[]>;
-  close(): Promise<void>;
-}
-
-interface PwBrowser {
-  newContext(options?: Record<string, unknown>): Promise<PwContext>;
-  close(): Promise<void>;
-}
-
-export interface PlaywrightLike {
-  chromium: {
-    launch(options?: { headless?: boolean; args?: readonly string[] }): Promise<PwBrowser>;
-  };
-}
-
-/**
- * Opens a real Chromium and returns a `SiteEvidenceBrowserPort` over it, or explains why this
- * deployment cannot.
- *
- * @returns `{ available: true, browser }` on success; `{ available: false, reason }` when the
- * `playwright` module or its Chromium binary is not present. Never throws for either case — see
- * this file's header for why an absent browser must be a reportable state rather than an error.
- * @complexity One process launch. The caller is responsible for calling `close()`, which
- * `collectPageEvidence` does in a `finally`.
- */
-export interface PlaywrightAdapterOptions {
- readonly moduleLoader?: { load(required: { moduleName: string }): Promise<PlaywrightLike> };
- readonly launchOptions?: { headless?: boolean; args?: string[] };
-}
-
-/** Opens the optional browser capability; import and launch failures become availability results. */
-// A successful launch transfers process ownership to the caller; close the browser in a finally
-// block so an unreachable or unstable page cannot leak the browser process.
+/** Evidence facade over the same browser opener and render lifecycle used for public reading. */
 export async function openPlaywrightSiteEvidenceBrowser(
- _required: Record<string, never>, options: PlaywrightAdapterOptions = {},
+  required: Record<string, never>, options: PlaywrightAdapterOptions = {},
 ): Promise<SiteEvidenceBrowserAvailability> {
-  let playwright: PlaywrightLike;
-  try {
-    const moduleName = "playwright";
-    playwright = options.moduleLoader
-      ? await options.moduleLoader.load({ moduleName })
-      : (await import(moduleName)) as unknown as PlaywrightLike;
-  } catch (error) {
-    return {
-      available: false,
-      reason:
-        "the 'playwright' package is not installed in this deployment, so rendered-page behaviour " +
-        `cannot be observed here (${messageOf(error)})`,
-    };
-  }
-
-  let browser: PwBrowser;
-  try {
-    browser = await playwright.chromium.launch({ headless: true, ...options.launchOptions });
-  } catch (error) {
-    return {
-      available: false,
-      reason:
-        "Chromium could not be launched in this deployment — the 'playwright' package is present but its " +
-        `browser binary is not installed (run 'npx playwright install --with-deps chromium'). Underlying error: ${messageOf(error)}`,
-    };
-  }
-
-  return { available: true, browser: new PlaywrightSiteEvidenceBrowser({ browser }) };
+  const opened = await openPlaywrightRenderBrowser(required, options);
+  return opened.available ? { available: true, browser: new PlaywrightSiteEvidenceBrowser({ browser: opened.browser }, options) } : opened;
 }
 
 class PlaywrightSiteEvidenceBrowser implements SiteEvidenceBrowserPort {
-  private readonly browser: PwBrowser;
-  constructor({ browser }: { browser: PwBrowser }) { this.browser = browser; }
+  private readonly browser: RenderBrowser;
+  private readonly routerFactory: PlaywrightAdapterOptions["routerFactory"];
+  constructor({ browser }: { browser: RenderBrowser }, options: PlaywrightAdapterOptions = {}) {
+    this.browser = browser; this.routerFactory = options.routerFactory;
+  }
 
   /**
    * Loads one page in a fresh ephemeral context and returns what was observed.
@@ -196,117 +58,60 @@ class PlaywrightSiteEvidenceBrowser implements SiteEvidenceBrowserPort {
    */
   async observe(required: ObservePageRequest, options: ObservePageOptions = {}): Promise<ObservePageResult> {
     const request = { ...required, ...options };
-    const budget = new PageWorkBudget({ timeoutMs: request.timeoutMs });
-    // No `storageState`, no `recordVideo`, no `recordHar`, no user-data dir: nothing this context
-    // observes can outlive `close()` below or reach the filesystem. See this file's header.
-    let context: PwContext;
-    try {
-      context = await budget.run({ work: async () => {
-        const created = await this.browser.newContext({ ignoreHTTPSErrors: false });
-        // A context can finish opening after our race timed out. It still belongs to this call.
-        if (budget.remainingMs() <= 0) {
-          void created.close().catch(() => {});
-          throw new PageWorkTimeout({ timeoutMs: request.timeoutMs });
-        }
-        return created;
-      } });
-    } catch (error) {
-      return { ok: false, reason: `page capture failed before load: ${messageOf(error)}` };
-    }
+    const abort = new AbortController();
+    const router = this.routerFactory?.({ originBaseUrl: request.originBaseUrl, signal: abort.signal });
     const requests: RequestEvidence[] = [];
     const notes: string[] = [];
     let phase: ObservationPhase = "before";
-
     try {
-      await budget.run({ work: () => context.route("**/*", async (route) => {
-        const pending = route.request();
-        const method = pending.method().toUpperCase();
-        const blocked = !SAFE_METHODS.has(method);
-
-        recordRequest(requests, request, {
-          method,
-          url: pending.url(),
-          resourceType: pending.resourceType(),
-          phase,
-          ...(blocked
-            ? {
-                blockedReason:
-                  "aborted: this tool never sends a non-GET request, so no form, consent preference, or " +
-                  "analytics beacon it observes is ever actually submitted. The attempt itself is the evidence.",
-              }
-            : {}),
-        });
-
-        if (blocked) {
-          await route.abort("blockedbyclient");
-          return;
-        }
-        await route.continue();
-      }) });
-
-      const page = await budget.run({ work: () => context.newPage() });
-
-      let response: PwResponse | null;
-      try {
-        response = await budget.run({ work: () => page.goto(request.url, { waitUntil: "load", timeout: budget.remainingMs() }) });
-      } catch (error) {
-        return { ok: false, reason: `navigation failed or timed out after ${request.timeoutMs}ms: ${messageOf(error)}` };
-      }
-
-      if (response === null) {
-        return { ok: false, reason: "the browser produced no response for this navigation (no HTTP exchange to observe)" };
-      }
-
-      const finalUrl = response.url();
-      const structureLimits: PageStructureLimits = {
-        maxTextExcerptChars: request.maxTextExcerptChars,
-        maxNodesPerCategory: request.maxAccessibilityNodesPerCategory,
-        maxContrastSamples: request.maxContrastSamples,
-        collectAccessibility: request.collectAccessibility,
-      };
-
-      let structure: PageStructureCapture;
-      let cookies: PwCookie[];
-      try {
-        structure = await budget.run({ work: () => page.evaluate<PageStructureCapture>(buildPageStructureExpression(structureLimits)) });
-
-        if (request.consentAcceptSelector !== undefined) {
-          await this.performConsentClick(page, request, notes, () => {
-            phase = "after";
-          }, budget);
-        }
-
-        cookies = await budget.run({ work: () => context.cookies() });
-      } catch (error) {
-        // The page can navigate away, close, or crash between `goto` resolving above and either of
-        // these reads — most commonly surfacing as Playwright's own "Execution context was
-        // destroyed". That is exactly the class of failure this port's contract exists to report as
-        // `{ ok: false, reason }` rather than let escape as a thrown error: one unreachable/unstable
-        // page must not end the whole `site_collect_page_evidence` run (`collect-page-evidence.ts`'s
-        // own per-page catch is the second, defense-in-depth layer for a port that does not honor
-        // this).
-        return { ok: false, reason: `page capture failed after load: ${messageOf(error)}` };
-      }
-
-      return {
-        ok: true,
-        observation: buildObservation({
-          request,
-          finalUrl,
-          httpStatus: response.status(),
-          headers: response.headers(),
-          title: structure.title,
-          structure,
-          cookies,
-          requests,
-          notes,
-          consentPhase: phase,
-        }),
-      };
+      return await renderPage({
+        browser: this.browser, url: request.url,
+        consume: async ({ page, context, response, finalUrl, budget }): Promise<ObservePageResult> => {
+          if (!response) return { ok: false, reason: "the browser produced no response for this navigation (no HTTP exchange to observe)" };
+          const structureLimits: PageStructureLimits = {
+            maxTextExcerptChars: request.maxTextExcerptChars,
+            maxNodesPerCategory: request.maxAccessibilityNodesPerCategory,
+            maxContrastSamples: request.maxContrastSamples,
+            collectAccessibility: request.collectAccessibility,
+          };
+          // A page can navigate, close or crash after goto (Execution context was destroyed).
+          // Such gaps remain evidence, never an exception that ends the whole collection run.
+          const structure = await budget.run({ work: async () => await page.evaluate(buildPageStructureExpression(structureLimits)) as PageStructureCapture });
+          if (request.consentAcceptSelector !== undefined) {
+            await this.performConsentClick(page, request, notes, () => { phase = "after"; }, budget);
+          }
+          if (!context.cookies) throw new Error("Browser cannot observe cookies");
+          const cookies = await budget.run({ work: () => context.cookies!() });
+          return { ok: true, observation: buildObservation({
+            request, finalUrl, httpStatus: response.status(), headers: response.headers?.() ?? {},
+            title: structure.title, structure, cookies, requests, notes, consentPhase: phase,
+          }) };
+        },
+      }, {
+        ...(router ? { router } : {}), signal: abort.signal,
+        timeoutMs: request.timeoutMs, originBaseUrl: request.originBaseUrl,
+        // Consent evidence must stay pre-consent until the operator's explicit selector is clicked.
+        dismissCookieBanners: false, loadWaitMs: 5_000,
+        onRequest: ({ route, blocked }) => {
+          const pending = route.request();
+          const requestIndex = requests.length;
+          recordRequest(requests, request, {
+            method: pending.method().toUpperCase(), url: pending.url(), resourceType: pending.resourceType(), phase,
+            ...(blocked ? { blockedReason:
+              "aborted: this tool never sends a non-GET request, so no form, consent preference, or " +
+              "analytics beacon it observes is ever actually submitted. Off-origin navigation is also refused." } : {}),
+          });
+          // Preserve the phase of the attempt even if a DNS/transport refusal finishes after consent.
+          return ({ reason }: { reason: string }) => {
+            const observed = requests[requestIndex];
+            if (observed) requests[requestIndex] = { ...observed, blockedReason: reason };
+          };
+        },
+      });
     } catch (error) {
-      return { ok: false, reason: `page capture failed: ${messageOf(error)}` };
+      return { ok: false, reason: `page capture failed after load or navigation: ${messageOf(error)}`, ...(error instanceof OffOriginNavigationError ? { offOriginUrl: error.origin } : {}) };
     } finally {
-      await budget.release({ close: () => context.close() });
+      abort.abort();
     }
   }
 
@@ -331,7 +136,7 @@ class PlaywrightSiteEvidenceBrowser implements SiteEvidenceBrowserPort {
     const selector = request.consentAcceptSelector as string;
     let matches: number;
     try {
-      matches = await budget.run({ work: () => page.locator(selector).count() });
+      matches = await budget.run({ work: () => page.locator!(selector).count() });
     } catch (error) {
       if (error instanceof PageWorkTimeout) throw error;
       notes.push(`consent selector '${selector}' is not a usable selector on this page: ${messageOf(error)}`);
@@ -348,7 +153,7 @@ class PlaywrightSiteEvidenceBrowser implements SiteEvidenceBrowserPort {
 
     markAfterPhase();
     try {
-      await budget.run({ work: () => page.locator(selector).first().click({ timeout: Math.min(budget.remainingMs(), 5_000) }) });
+      await budget.run({ work: () => page.locator!(selector).first().click({ timeout: Math.min(budget.remainingMs(), 5_000) }) });
       await budget.run({ work: () => page.waitForTimeout(CONSENT_SETTLE_MS) });
       notes.push(
         `consent selector '${selector}' matched ${matches} element(s); the first was clicked. Cookies and requests ` +
@@ -540,3 +345,5 @@ function normalizeUrlForComparison(url: string): string {
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+export { renderPublicPage, createJsonCapture, publicPageExpression } from "./public-page.js";
+export type { PublicPageInput, PublicPageCapture, CapturedJsonResponse } from "./public-page.js";

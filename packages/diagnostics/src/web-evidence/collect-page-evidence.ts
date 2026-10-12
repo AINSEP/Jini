@@ -288,6 +288,10 @@ async function observeOnePage(
   }, input.consentAcceptSelector === undefined ? {} : { consentAcceptSelector: input.consentAcceptSelector });
 
   if (!result.ok) {
+    if (result.offOriginUrl && !isSameOriginUrl({ baseUrl: originBaseUrl, candidateUrl: result.offOriginUrl })) {
+      return { kind: "skipped", skipped: skip(path, "off-origin-redirect",
+        `redirected off the inspected origin to '${redactToOrigin(result.offOriginUrl)}' — not inspected; this tool only observes ${originBaseUrl}`) };
+    }
     return { kind: "skipped", skipped: skip(path, "navigation-failed", result.reason) };
   }
 

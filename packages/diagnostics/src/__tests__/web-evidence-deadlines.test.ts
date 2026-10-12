@@ -107,8 +107,9 @@ it('charges navigation and evaluation against the consent click budget', async (
   }) }) } };
   const available = await openPlaywrightSiteEvidenceBrowser({}, { moduleLoader: { load: async () => loader } });
   if (!available.available) throw new Error(available.reason);
-  const promise = available.browser.observe(request, { consentAcceptSelector: '#accept' });
-  await vi.advanceTimersByTimeAsync(100);
+  // Shared DOM settle consumes 1200ms; navigation/evaluation still leave only 20ms to click.
+  const promise = available.browser.observe({ ...request, timeoutMs: 1300 }, { consentAcceptSelector: '#accept' });
+  await vi.advanceTimersByTimeAsync(1300);
   const result = await promise;
   expect(clickTimeouts).toEqual([20]);
   expect(result.ok).toBe(false);
@@ -127,7 +128,7 @@ it('releases a context that finishes opening after its page deadline', async () 
   if (!available.available) throw new Error(available.reason);
   const promise = available.browser.observe(request);
   await vi.advanceTimersByTimeAsync(100);
-  expect(await promise).toEqual({ ok: false, reason: 'page capture failed before load: page work timed out after 100ms' });
+  expect(await promise).toEqual({ ok: false, reason: 'page capture failed after load or navigation: page work timed out after 100ms' });
   expect(close).not.toHaveBeenCalled();
   release();
   await vi.advanceTimersByTimeAsync(0);

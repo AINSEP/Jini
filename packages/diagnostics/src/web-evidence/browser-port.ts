@@ -151,7 +151,7 @@ export interface ObservePageRequest {
 
 export type ObservePageResult =
   | { readonly ok: true; readonly observation: PageObservation }
-  | { readonly ok: false; readonly reason: string };
+  | { readonly ok: false; readonly reason: string; readonly offOriginUrl?: string };
 
 /** A supplied consent selector triggers one click and a second observation; absence means no
  * interaction. This belongs to call options rather than the required page/limit contract. */

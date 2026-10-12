@@ -15,7 +15,7 @@ test('fresh context, read-only requests, cookie-value omission and teardown work
  const loader: PlaywrightLike = { chromium: { launch: async () => ({
   close: async () => { calls.push('browser-close'); },
   newContext: async options => {
-   expect(options).toEqual({ ignoreHTTPSErrors: false }); calls.push('context');
+   expect(options).toEqual({ ignoreHTTPSErrors: false, serviceWorkers: "block", acceptDownloads: false }); calls.push('context');
    return { close: async () => { calls.push('context-close'); }, route: async (_pattern, handler) => { routeHandler = handler; },
     cookies: async () => [{ name: 'session', value: 'DO-NOT-EXPOSE', domain: 'example.com', path: '/', expires: -1, httpOnly: true, secure: true, sameSite: 'Lax' }],
     newPage: async () => ({
