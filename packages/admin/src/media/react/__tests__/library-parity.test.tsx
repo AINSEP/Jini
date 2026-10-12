@@ -90,7 +90,7 @@ describe('legacy library presentation guards', () => {
     expect(page.changed).toHaveBeenCalledWith({ tab: 'videos' });
     expect(screen.getByRole('tab', { name: 'Videos' })).toHaveAttribute('data-agent-element', 'media-tab-videos');
   });
-  it('rereads injected refresh events and unsubscribes/aborts on unmount', async () => {
+  it('rereads injected refresh events and releases the subscription on unmount', async () => {
     const { api } = await fixture(); let refresh!: () => void;
     const off = vi.fn(), list = vi.fn(api.list);
     const events: MediaEventsPort = { subscribe: ({ onRefresh }) => { refresh = onRefresh; return off; } };
@@ -100,8 +100,11 @@ describe('legacy library presentation guards', () => {
     await api.upload({ ...upload, filename: 'new.png' });
     await act(async () => refresh()); await screen.findByRole('heading', { name: 'new.png' });
     expect(list.mock.calls.length).toBe(before + 1);
-    const lastSignal = list.mock.calls.at(-1)?.[1]?.signal;
-    view.unmount(); expect(off).toHaveBeenCalled(); expect(lastSignal?.aborted).toBe(true);
+    // Reads now belong to the provider cache, which can serve another observer.
+    // The page owns its event subscription, not a shared transport AbortSignal.
+    const subscriptions = off.mock.calls.length;
+    view.unmount(); expect(off).toHaveBeenCalledTimes(subscriptions + 1);
+    expect(screen.queryByRole('heading', { name: 'new.png' })).toBeNull();
     const after = list.mock.calls.length;
     await act(async () => refresh()); expect(list.mock.calls.length).toBe(after);
   });

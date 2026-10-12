@@ -34,6 +34,24 @@ function fixture({ online = true }: { online?: boolean } = {}) {
 // Deferred requests exercise response ordering through public state and promises, not
 // private request counters: superseded reads must never replace a newer refresh or write.
 describe('fetch-query cache parity', () => {
+  it.each(['resolve', 'reject'] as const)('invalidation restarts a loader-only read and supersedes its old %s', async outcome => {
+    const { cache } = fixture();
+    const entry = cache.entry({ key: ['rows', 'detail'] });
+    const old = deferred<string>();
+    let calls = 0;
+    const first = cache.load({ entry, fetch: () => ++calls === 1 ? old.promise : Promise.resolve('after write'), staleTime: 0 });
+    await Promise.resolve();
+    cache.invalidate({ prefix: ['rows'] });
+    await entry.pending;
+    expect(calls).toBe(2);
+    expect(entry.state.data).toBe('after write');
+    if (outcome === 'resolve') old.resolve('before write');
+    else old.reject(new Error('obsolete failure'));
+    expect(await first).toBe('after write');
+    expect(entry.state.error).toBeNull();
+    cache.dispose();
+  });
+
   it.each(['resolve', 'reject'] as const)('restarts a cached forced read and ignores its old %s', async outcome => {
     const { cache } = fixture();
     const entry = cache.entry({ key: ['rows'] });

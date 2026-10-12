@@ -54,6 +54,7 @@ export interface CacheEntry {
   invalidated: boolean;
   replacement: number;
   pending: Promise<unknown> | undefined;
+  pendingRead: { fetch: () => Promise<unknown>; staleTime: number } | undefined;
   refreshAfterPending: boolean;
   listeners: Set<() => void>;
   observers: Set<QueryObserver>;
@@ -93,7 +94,7 @@ export class FetchQueryCache {
     if (!entry) {
       entry = {
         key: [...key], state: { data: undefined, error: null, status: 'pending', isFetching: false },
-        updatedAt: 0, invalidated: false, replacement: 0, pending: undefined,
+        updatedAt: 0, invalidated: false, replacement: 0, pending: undefined, pendingRead: undefined,
         refreshAfterPending: false, listeners: new Set(), observers: new Set(),
         retention: IDLE_RETENTION, eviction: undefined,
       };
@@ -169,6 +170,7 @@ export class FetchQueryCache {
     }).finally(() => {
       if (entry.pending !== pending) return;
       entry.pending = undefined;
+      entry.pendingRead = undefined;
       if (entry.refreshAfterPending) {
         entry.refreshAfterPending = false;
         this.refresh(entry);
@@ -176,6 +178,7 @@ export class FetchQueryCache {
       this.scheduleEviction(entry);
     });
     entry.pending = pending;
+    entry.pendingRead = { fetch, staleTime };
     // Mark handled even when a UI caller deliberately discards the promise.
     void pending.catch(() => {});
     // Like TanStack's background refetches, retain the last error until success clears it
@@ -198,7 +201,14 @@ export class FetchQueryCache {
     for (const entry of this.entries.values()) {
       if (!prefix.every((part, index) => entry.key[index] === part)) continue;
       entry.invalidated = true;
-      this.refresh(entry);
+      // Revoke loader-only requests too: an active parent may read this child after
+      // the write. Its next load must start after invalidation, never join old bytes.
+      const pendingRead = entry.pendingRead;
+      entry.pending = undefined;
+      entry.pendingRead = undefined;
+      if (entry.observers.size) this.refresh(entry);
+      // An awaiting loader still needs an answer even if no observer is mounted.
+      else if (pendingRead) void this.load({ entry, ...pendingRead });
     }
   }
 

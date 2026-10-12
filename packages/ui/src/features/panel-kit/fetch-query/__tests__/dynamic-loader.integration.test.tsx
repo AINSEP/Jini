@@ -50,6 +50,32 @@ describe.each([['built-in', BuiltInProvider], ['tanstack', TanStackProvider]] as
 
 
 describe.each([['built-in', BuiltInProvider], ['tanstack', TanStackProvider]] as const)('%s refresh ordering', (_name, Provider) => {
+  it.each(['success', 'failure'] as const)('a write supersedes a loader-only read ending in %s', async outcome => {
+    const key = ['resource', 'detail'] as const;
+    let finishOld!: (value: string) => void;
+    let failOld!: (error: Error) => void;
+    let calls = 0;
+    const fetch = () => ++calls === 1
+      ? new Promise<string>((resolve, reject) => { finishOld = resolve; failOld = reject; })
+      : Promise.resolve('after write');
+    const wrapper = ({ children }: { children: ReactNode }) => <Provider>{children}</Provider>;
+    const { result } = renderHook(() => ({
+      loader: useCachedLoader({ key, fetch }, { staleTime: 0 }),
+      invalidate: useInvalidate(),
+    }), { wrapper });
+    let old!: Promise<string>;
+    act(() => { old = result.current.loader.load(); });
+    await waitFor(() => expect(calls).toBe(1));
+    await act(async () => {
+      result.current.invalidate({ key: ['resource'] });
+      expect(await result.current.loader.load()).toBe('after write');
+      if (outcome === 'success') finishOld('before write');
+      else failOld(new Error('obsolete failure'));
+      expect(await old).toBe('after write');
+    });
+    expect(result.current.loader.peek()).toBe('after write');
+  });
+
   it.each(['refresh', 'write'] as const)('%s supersedes a pending initial snapshot', async intent => {
     let calls = 0;
     let finishOld!: (value: string) => void;

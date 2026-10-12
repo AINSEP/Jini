@@ -173,7 +173,10 @@ function useCachedLoader<T>({ key, fetch }: Pick<CachedLoaderOptions<T>, 'key' |
           // A forced refresh can supersede a loader's request without aborting its transport.
           // Follow the new request instead of exposing TanStack's cancellation vocabulary.
           if (!isCancelledError(error)) throw error;
+          // Invalidation also supersedes loader-only reads. Join (or start) the post-write
+          // request rather than returning an obsolete value while the key is invalidated.
           const query = scope.client.getQueryCache().find({ queryKey: required.key, exact: true })!;
+          if (query.state.isInvalidated) return scope.client.fetchQuery(selected);
           return (query.promise ?? scope.client.getQueryData<T>(required.key)) as Promise<T> | T;
         });
       },
@@ -197,7 +200,10 @@ function supersedeInitialRead({ scope, key }: { scope: Scope; key: QueryKey }, {
 
 /** One invalidation path serves both imperative refreshes and accepted writes. */
 function invalidateResource({ scope, key }: { scope: Scope; key: QueryKey }, _optional: Record<string, never> = {}): void {
-  supersedeInitialRead({ scope, key }, { exact: false });
+  // A loader-only detail request may feed an active parent query. It is just as stale
+  // after a write as an observed read, even though TanStack considers it inactive.
+  // Silent cancellation follows the replacement promise instead of resolving old cached data.
+  void scope.client.cancelQueries({ queryKey: key, predicate: query => query.state.fetchStatus === 'fetching' }, { silent: true });
   void scope.client.invalidateQueries({ queryKey: key });
 }
 
