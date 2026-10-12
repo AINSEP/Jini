@@ -360,3 +360,27 @@ describe('useChatPaneRuntimeInventory', () => {
     expect(result.current.daemonOnline).toBe(false);
   });
 });
+
+it('shows cached models immediately and refreshes while the host probe is pending', async () => {
+  vi.useFakeTimers();
+  let calls = 0;
+  const access: ChatPaneRuntimeAccess = {
+    daemonOnline: async () => true,
+    rescanAgents: async () => [],
+    listAgents: async () => {
+      calls++;
+      return [{ id: 'claude', name: 'Claude', discoveryPending: calls === 1,
+        models: [{ id: calls === 1 ? 'previous-v1' : 'exact-model-v2', label: calls === 1 ? 'previous-v1' : 'exact-model-v2' }] }];
+    },
+  };
+  const { result, unmount } = renderHook(() => useChatPaneRuntimeInventory({ access, retryDelaysMs: [20] }));
+  await act(async () => {});
+  expect(result.current.agents[0]?.models?.[0]?.id).toBe('previous-v1');
+  expect(result.current.scanningAgents).toBe(false);
+  await act(async () => vi.advanceTimersByTime(20));
+  expect(result.current.agents[0]?.models?.[0]?.id).toBe('exact-model-v2');
+  expect(calls).toBe(2);
+  await act(async () => vi.advanceTimersByTime(100));
+  expect(calls).toBe(2);
+  unmount();
+});

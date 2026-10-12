@@ -37,6 +37,8 @@ export interface DetectAcpModelsOptions {
   defaultModelOption?: ModelOption;
   signal?: AbortSignal;
   onSessionResult?: (result: UnknownRecord) => void;
+  /** Process effect port; metadata tests use a child fake rather than replacing modules. */
+  spawnProcess?: typeof spawn;
 }
 /**
  * Normalises a raw config-option field value to a lowercase, whitespace- and
@@ -223,10 +225,11 @@ export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions,
   defaultModelOption = { id: 'default', label: 'Default (CLI config)' },
   signal,
   onSessionResult,
+  spawnProcess = spawn,
 }: DetectAcpModelsOptions = { ...optionalArgs, ...requiredArgs };
   const effectiveTimeoutMs = resolveAcpTimeoutMs(env, timeoutMs);
   return await new Promise<ModelOption[]>((resolve, reject) => {
-    const child = spawn(bin, args, {
+    const child = spawnProcess(bin, args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...env },
@@ -235,6 +238,7 @@ export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions,
     child.stderr.setEncoding('utf8');
 
     let settled = false;
+    let closed = false;
     let stderrBuf = '';
     let stdoutBytes = 0;
     let expectedId = 1;
@@ -252,7 +256,10 @@ export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions,
       if (!child.killed) child.kill('SIGTERM');
       const killTimer = setTimeout(() => { if (child.exitCode === null) child.kill('SIGKILL'); }, 250);
       killTimer.unref();
-      fn(value);
+      // The process scheduler must retain its slot until exit, including the SIGKILL grace
+      // period. Returning at metadata receipt would overlap this child with the next probe.
+      if (closed) { clearTimeout(killTimer); fn(value); }
+      else child.once('close', () => { clearTimeout(killTimer); fn(value); });
     };
 
     const fail = (message: string) => {
@@ -314,6 +321,7 @@ export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions,
     });
     child.on('error', (err) => fail(`spawn failed: ${err.message}`));
     child.on('close', (code, signal) => {
+      closed = true;
       parser.flush();
       if (!settled) {
         const errTail = stderrBuf.trim();

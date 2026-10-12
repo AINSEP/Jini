@@ -250,9 +250,12 @@ class FakeChild extends EventEmitter {
   stdout = new FakeStream();
   stderr = new FakeStream();
   killed = false;
+  exitCode: number | null = null;
   kill(signal?: string) {
     this.killed = true;
     this.emit('__killed', signal);
+    // Real children emit close after termination; the scheduler waits for that lifecycle edge.
+    void Promise.resolve().then(() => { this.exitCode = 0; this.emit('close', 0, signal); });
     return true;
   }
 }

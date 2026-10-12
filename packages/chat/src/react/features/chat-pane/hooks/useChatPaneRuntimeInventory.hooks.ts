@@ -89,6 +89,9 @@ export function useChatPaneRuntimeInventory({
       const nextAgents = await (rescan ? access.rescanAgents() : access.listAgents());
       token.ensureCurrent();
       retry.answered();
+      // Successful cached data paints immediately. Poll only while the host says its single
+      // background scan is pending; reads never imply an explicit Rescan.
+      if (nextAgents.some(agent => agent.discoveryPending)) retry.schedule(() => void loadAgents(false));
       setAgents([...nextAgents]);
       setConnectingAgents(false);
       setScanningAgents(false);

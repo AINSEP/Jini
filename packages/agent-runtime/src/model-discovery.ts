@@ -29,11 +29,11 @@ export function modelLaunchFingerprint(context: ModelDiscoveryContext, configMat
 }
 class ProbeTimeout extends Error {}
 const probePools = new WeakMap<ModelDiscoveryDeps, { active: number; queue: (() => void)[] }>();
-/** Four simultaneous cold probes per host; queued callers keep cancellation responsive. */
+/** One cold catalog probe per host; queued callers keep cancellation responsive. */
 async function boundedProbe<T>(deps: ModelDiscoveryDeps, work: () => Promise<T>, signal?: AbortSignal): Promise<T> {
   const pool = probePools.get(deps) || { active: 0, queue: [] };
   probePools.set(deps, pool);
-  if (pool.active >= 4) {
+  if (pool.active >= 1) {
     await new Promise<void>((resolve, reject) => {
       const ready = () => { signal?.removeEventListener('abort', abort); resolve(); };
       const abort = () => { const index = pool.queue.indexOf(ready); if (index >= 0) pool.queue.splice(index, 1); reject(new ProbeTimeout('Probe cancelled')); };

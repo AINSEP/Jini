@@ -98,16 +98,19 @@ export function useExecutionTab({
   const describeProbeErrorRef = useRef(describeProbeError);
   describeProbeErrorRef.current = describeProbeError;
 
+  const detectionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
     return () => {
       alive.current = false;
+      clearTimeout(detectionTimer.current);
     };
   }, []);
 
-  const runDetection = useCallback(
+  const runDetection: (detect: () => Promise<readonly DetectedAgent[]>) => void = useCallback(
     (detect: () => Promise<readonly DetectedAgent[]>) => {
+      clearTimeout(detectionTimer.current);
       const ticket = ++detectionTicket.current;
       const isCurrent = () => alive.current && detectionTicket.current === ticket;
       setScan({ status: 'scanning' });
@@ -117,6 +120,11 @@ export function useExecutionTab({
           const sorted = sortDetectedAgents(found);
           setAgents(sorted);
           setScan({ status: 'ok', count: sorted.filter((agent) => agent.installed).length });
+          if (found.some(agent => agent.discoveryPending)) {
+            detectionTimer.current = setTimeout(() => {
+              if (isCurrent()) runDetection(() => port.detectLocalAgents());
+            }, 1000);
+          }
         },
         (error: unknown) => {
           if (!isCurrent()) return;
@@ -124,7 +132,7 @@ export function useExecutionTab({
         },
       );
     },
-    [],
+    [port],
   );
 
   useEffect(() => {

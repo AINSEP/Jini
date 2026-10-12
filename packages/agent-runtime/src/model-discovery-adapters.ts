@@ -9,6 +9,7 @@ import { detectAcpModelMetadata } from './agent-protocol/acp/models.js';
 import { CLAUDE_CODE_INITIALIZE_ARGS, CLAUDE_CODE_INITIALIZE_REQUEST } from './claude-code-models.js';
 import { listProviderModels } from './providers/model-catalog.js';
 import { execAgentFile } from './invocation.js';
+import { scheduleProbeProcess } from './probe-scheduler.js';
 import { probeCopilotSdk, probeDroidSdk } from './model-discovery-sdk.js';
 import { parseSettingsJson, readModelConfiguration } from './model-discovery-config.js';
 import { ModelProbeError, modelIdentityKind, withModelProbeTimeout, type AgentDiscoveryConfiguration } from './model-discovery.js';
@@ -199,7 +200,7 @@ function runProcess(input: Parameters<ModelDiscoveryDeps['process']['run']>[0]):
     cwd: input.context.cwd, env: input.context.env as NodeJS.ProcessEnv, signal: input.signal,
     timeout: input.timeoutMs, killSignal: 'SIGKILL', maxBuffer: 8 * 1024 * 1024,
   } }).then(({ stdout, stderr }) => ({ stdout: String(stdout), stderr: String(stderr) }));
-  return new Promise((resolve, reject) => {
+  return scheduleProbeProcess({ work: () => new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
     let completed = false;
     let captured = '';
     const invocation = createCommandInvocation({ command: input.context.executable, args: [...input.args], env: input.context.env });
@@ -217,7 +218,9 @@ function runProcess(input: Parameters<ModelDiscoveryDeps['process']['run']>[0]):
       if (treeTimer) clearTimeout(treeTimer);
       input.signal.removeEventListener('abort', killTree);
       if (error) killTree();
-      error && !completed ? reject(error) : resolve({ stdout: String(stdout), stderr: String(stderr) });
+      const settle = () => { error && !completed ? reject(error) : resolve({ stdout: String(stdout), stderr: String(stderr) }); };
+      if (child.pid && child.exitCode === null && child.signalCode === null) child.once('close', settle);
+      else settle();
     });
     if (tree) {
       input.signal.addEventListener('abort', killTree, { once: true });
@@ -230,7 +233,7 @@ function runProcess(input: Parameters<ModelDiscoveryDeps['process']['run']>[0]):
     });
     child.stdin?.on('error', () => {});
     child.stdin?.end(input.stdin);
-  });
+  }) }, { signal: input.signal });
 }
 export const defaultModelDiscoveryDeps: ModelDiscoveryDeps = {
   process: { run: runProcess },
@@ -261,12 +264,12 @@ export const defaultModelDiscoveryDeps: ModelDiscoveryDeps = {
   } },
   acp: { async probe({ context, args, signal }) {
     const invocation = createCommandInvocation({ command: context.executable, args: [...args], env: context.env });
-    const result = await detectAcpModelMetadata({ bin: invocation.command, args: invocation.args }, { cwd: context.cwd, env: context.env as NodeJS.ProcessEnv, timeoutMs: 15_000, signal });
+    const result = await scheduleProbeProcess({ work: () => detectAcpModelMetadata({ bin: invocation.command, args: invocation.args }, { cwd: context.cwd, env: context.env as NodeJS.ProcessEnv, timeoutMs: 15_000, signal }) }, { signal });
     return { models: result.models, source: 'rpc', coverage: 'account', ...(result.currentModelId ? { defaultSelectionId: result.currentModelId } : {}) };
   } },
   rpc: { async probe({ agentId, context, signal }) {
     // UNVERIFIED locally: use official prompt-free SDK interfaces, not invented CLI flags.
-    if (agentId === 'copilot') return probeCopilotSdk(context, signal);
+    if (agentId === 'copilot') return scheduleProbeProcess({ work: () => probeCopilotSdk(context, signal) }, { signal });
     if (agentId === 'droid') return probeDroidSdk(context, defaultModelDiscoveryDeps, signal);
     if (agentId !== 'pi') throw new ModelProbeError('unsupported-version');
     const { stdout } = await defaultModelDiscoveryDeps.process.run({ context, args: ['--mode', 'rpc'], stdin: '{"type":"get_available_models","id":"catalog"}\n{"type":"get_state","id":"state"}\n', signal, timeoutMs: 15_000,
@@ -296,7 +299,7 @@ export function parsePiRpcMetadata(stdout: string): ModelProbeResult {
   return { models, source: 'rpc', coverage: 'account', ...(defaultSelectionId ? { defaultSelectionId } : {}) };
 }
 
-/** Stable dependency identity preserves the existing per-host four-probe budget as well as its cache. */
+/** Stable dependency identity preserves the existing per-host single-probe budget as well as its cache. */
 export function getRuntimeModelDiscoveryDeps({ state }: { state: AgentRuntimeState }, _optional: Record<string, never> = {}): ModelDiscoveryDeps {
   if (state === defaultRuntimeState) return defaultModelDiscoveryDeps;
   return state.discoveryDeps ??= { ...defaultModelDiscoveryDeps, cache: state.modelCatalog };

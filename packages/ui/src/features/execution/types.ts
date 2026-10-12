@@ -195,6 +195,8 @@ export type AgentSupportsCustomModel = boolean;
  * the route boundary throws away data the card is built to render.
  */
 export interface DetectedAgent {
+  /** Cached inventory is usable now; retry a normal read until background discovery settles. */
+  discoveryPending?: boolean;
   id: string;
   label: string;
   installed: boolean;

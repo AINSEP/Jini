@@ -3,7 +3,7 @@ import type { ExecutionPort } from './ports.js';
 
 /** Decoded HTTP operations; hosts retain auth, URLs and transport validation. */
 export interface ExecutionProbeTransport {
-  detectExecutionAgents(required: Record<string, never>, optional?: Record<string, never>): Promise<{ data: readonly DetectedAgent[] }>;
+  detectExecutionAgents(required: Record<string, never>, optional?: { force?: boolean }): Promise<{ data: readonly DetectedAgent[] }>;
   testExecutionConnection(required: Pick<ByokConfig, "protocol" | "baseUrl" | "apiKey" | "model"> & ExecutionProbeFlags, optional?: Record<string, never>): Promise<{ ok: boolean; message?: string }>;
   testExecutionAgent(required: { agentId: string; model?: string }, optional?: Record<string, never>): ReturnType<NonNullable<ExecutionPort["testAgent"]>>;
   listExecutionModels(required: Pick<ByokConfig, "protocol" | "baseUrl" | "apiKey"> & ExecutionProbeFlags, optional?: Record<string, never>): Promise<{ ok: boolean; models: readonly string[]; message?: string }>;
@@ -111,8 +111,8 @@ export function createExecutionHttpAdapter(
    *   route call itself fails (session expired, network down, this admin's own
    *   route 500ing) — a case with no provider-side answer to report as a value.
    */
-  async function requestAgentDetection() {
-    return requireExecutionResponseData({ response: await transport.detectExecutionAgents({}, {}), callSite: "detectExecutionAgents" }, {});
+  async function requestAgentDetection({ force = false }: { force?: boolean } = {}) {
+    return requireExecutionResponseData({ response: await transport.detectExecutionAgents({}, force ? { force: true } : {}), callSite: "detectExecutionAgents" }, {});
   }
 
 
@@ -152,7 +152,11 @@ export function createExecutionHttpAdapter(
     // error in place for the rest of the session, and the port's contract is
     // that a failure REJECTS (see this function's doc) — so a retry has to be
     // able to actually retry.
-    inFlight.catch(() => {
+    inFlight.then((agents) => {
+      // A background snapshot is usable but provisional. Subsequent reads must reach the host
+      // cache so completed discovery replaces it; they never request another CLI probe.
+      if (agents.some(agent => agent.discoveryPending) && cachedDetection === inFlight) cachedDetection = null;
+    }, () => {
       if (cachedDetection === inFlight) cachedDetection = null;
     });
     return inFlight;
@@ -173,7 +177,7 @@ export function createExecutionHttpAdapter(
       async rescanLocalAgents() {
         // Explicit operator action: always re-probe, and make the fresh result
         // the new baseline for subsequent mounts.
-        return cacheDetection(requestAgentDetection());
+        return cacheDetection(requestAgentDetection({ force: true }));
       },
       async testConnection(config: ByokConfig) {
         return transport.testExecutionConnection({

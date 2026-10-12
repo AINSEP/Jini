@@ -312,3 +312,25 @@ describe('parser fixtures', () => {
     expect(parseClaudeInitializeMetadata('{"type":"control_response","response":{"subtype":"success","response":{"models":[{"value":"default","displayName":"Default (recommended)"}]}}}')).toEqual({ models: [], source: 'rpc', coverage: 'account' });
   });
 });
+
+it('serializes distinct CLI catalogs even when both requests start together', async () => {
+  const fake = fakeDeps();
+  const port = cliPort();
+  let finish!: () => void; let started!: () => void;
+  const blocked = new Promise<void>(resolve => { finish = resolve; });
+  const ready = new Promise<void>(resolve => { started = resolve; });
+  let calls = 0; let active = 0; let peak = 0;
+  fake.deps.process.run = async () => {
+    const number = ++calls; peak = Math.max(peak, ++active); started();
+    if (number === 1) await blocked;
+    active--; return { stdout: `provider/model-${number}\n`, stderr: '' };
+  };
+  const first = port.discoverModels({ context }, { deps: fake.deps });
+  const second = port.discoverModels({ context: { ...context, executable: '/other-cli' } }, { deps: fake.deps });
+  await ready;
+  finish();
+  const catalogs = await Promise.all([first, second]);
+  expect(peak).toBe(1);
+  expect(calls).toBe(2);
+  expect(catalogs.map(catalog => catalog.models[0]?.id)).toEqual(['provider/model-1', 'provider/model-2']);
+});

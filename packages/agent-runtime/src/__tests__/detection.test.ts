@@ -235,7 +235,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     mockState.responses.set(JSON.stringify(['--version']), {
       error: Object.assign(new Error('exit 127'), { code: 127 }),
     });
-    const results127 = await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin) });
+    const results127 = await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin), force: true });
     expect(results127.find((a) => a.id === 'cursor-agent')!.diagnostics?.[0]?.reason).toBe('shim-broken');
   });
 
@@ -399,15 +399,16 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
       error: new Error('malformed response'),
     });
     const throwingResolver: AmrProfileResolver = {
-      resolveProfile: () => {
+      resolveProfile: vi.fn(() => {
         throw new Error('resolver blew up');
-      },
+      }),
     };
     const results = await detectAgents({  }, { configuredEnvByAgent: { amr: { VELA_BIN: bin } }, amrProfileResolver: throwingResolver });
     const amr = results.find((a) => a.id === 'amr')!;
     expect(amr.available).toBe(true);
     expect(amr.models).toEqual([]);
     expect(amr.modelCatalog?.freshness).toBe('offline-fallback');
+    expect(throwingResolver.resolveProfile).not.toHaveBeenCalled();
   });
 
   it('amr: a successful live fetch short-circuits withRememberedAmrModels without consulting remembered state', async () => {

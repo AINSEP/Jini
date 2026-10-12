@@ -76,3 +76,27 @@ describe('execution HTTP adapter contracts', () => {
     await expect(port.listModels!(config)).rejects.toThrow('provider unavailable');
   });
 });
+
+it('explicit Rescan sends force while ordinary inventory reads do not', async () => {
+  const options: unknown[] = [];
+  const adapter = createExecutionHttpAdapter({ transport: transport({
+    detectExecutionAgents: async (_input, optional) => { options.push(optional); return { data: [] }; },
+  }) });
+  const port = adapter.createPort({});
+  await port.detectLocalAgents();
+  await port.rescanLocalAgents!();
+  await port.detectLocalAgents();
+  expect(options).toEqual([{}, { force: true }]);
+});
+
+it('does not pin a pending background snapshot in the browser cache', async () => {
+  let calls = 0;
+  const adapter = createExecutionHttpAdapter({ transport: transport({
+    detectExecutionAgents: async () => ({ data: [{ id: 'claude', label: 'Claude', installed: true, discoveryPending: ++calls === 1 }] }),
+  }) });
+  const port = adapter.createPort({});
+  expect((await port.detectLocalAgents())[0]?.discoveryPending).toBe(true);
+  expect((await port.detectLocalAgents())[0]?.discoveryPending).toBe(false);
+  await port.detectLocalAgents();
+  expect(calls).toBe(2);
+});

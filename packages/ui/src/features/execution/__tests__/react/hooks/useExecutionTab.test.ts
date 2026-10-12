@@ -222,3 +222,21 @@ describe('useExecutionTab — describeProbeError', () => {
     expect(result.current.modelDiscovery).toEqual({ status: 'error', message: 'new wording' });
   });
 });
+
+it('replaces the cached catalog after a background probe and stops polling when settled', async () => {
+  let calls = 0;
+  const port: ExecutionPort = {
+    testConnection: async () => ({ ok: true }),
+    detectLocalAgents: async () => {
+      calls++;
+      return [{ id: 'claude', label: 'Claude', installed: true, discoveryPending: calls === 1,
+        models: [{ id: calls === 1 ? 'previous-v1' : 'exact-model-v2', label: calls === 1 ? 'previous-v1' : 'exact-model-v2' }] }];
+    },
+  };
+  const { result, unmount } = renderHook(() => useExecutionTab({ port }));
+  await waitFor(() => expect(result.current.agents[0]?.models?.[0]?.id).toBe('previous-v1'));
+  expect(result.current.scan.status).toBe('ok');
+  await waitFor(() => expect(result.current.agents[0]?.models?.[0]?.id).toBe('exact-model-v2'), { timeout: 2000 });
+  expect(calls).toBe(2);
+  unmount();
+});
