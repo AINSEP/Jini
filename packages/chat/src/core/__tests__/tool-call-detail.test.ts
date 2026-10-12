@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeToolCallDetail } from '../index.js';
+import { COLLAPSED_DETAIL_MAX_CHARS, describeCollapsedToolCall, describeToolCallDetail } from '../index.js';
 
 /**
  * Every tool row in the chat expands to show what the agent sent and what came back — including a
@@ -93,5 +93,22 @@ describe('describeToolCallDetail', () => {
 
   it('leaves text at exactly the cap untouched', () => {
     expect(describeToolCallDetail({ input: 'x'.repeat(10) }, { maxChars: 10 }).inputText).toBe('x'.repeat(10));
+  });
+});
+
+describe('describeCollapsedToolCall', () => {
+  it('joins the input and the output, each capped at the collapsed limit', () => {
+    const text = describeCollapsedToolCall({ input: { element: 'a' }, result: { content: 'y'.repeat(5_000) } });
+    expect(text).toBe(`${JSON.stringify({ element: 'a' }, null, 2)}\n${'y'.repeat(COLLAPSED_DETAIL_MAX_CHARS - 1)}…`);
+  });
+
+  it('falls back to the note when there is no output, and to the output alone when the input has no JSON form', () => {
+    expect(describeCollapsedToolCall({ input: undefined }, { runSucceeded: true })).toBe('No result was recorded for this call.');
+    expect(describeCollapsedToolCall({ input: null, result: { content: 'ok' } })).toBe('ok');
+  });
+
+  it('honours an explicit cap and the redactor', () => {
+    expect(describeCollapsedToolCall({ input: 'abcdef', result: { content: 'ok' } }, { maxChars: 3 })).toBe('ab…\nok');
+    expect(describeCollapsedToolCall({ input: 'key', result: { content: 'ok' } }, { redact: ({ text }) => ({ text: text.toUpperCase(), secretRedacted: false, count: 0 }) })).toBe('KEY\nOK');
   });
 });

@@ -21,7 +21,7 @@
  */
 import { useId, useState, type ReactNode } from 'react';
 import type { AgentEvent, ToolResultMediaBlock } from '../../core/index.js';
-import { describeToolCallDetail, formatToolOutputForDisplay, isDelegatedWrapperToolName, isTodoWriteToolName, parseTodoWriteInput, toRenderProps } from '../../core/index.js';
+import { describeCollapsedToolCall, describeToolCallDetail, formatToolOutputForDisplay, isDelegatedWrapperToolName, isTodoWriteToolName, parseTodoWriteInput, toRenderProps } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
 import { getToolRenderer } from '../tool-renderer-registry.js';
 import { Icon } from './Icon.js';
@@ -164,6 +164,7 @@ function DelegatedToolCard({ name, input, result, runStreaming, runSucceeded }: 
   return (
     <ExpandableCard
       className="op-jini-tool"
+      call={{ input: args ?? {}, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
       head={
         <>
           <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
@@ -187,6 +188,7 @@ function SearchToolsCard({ input, result, runStreaming, runSucceeded }: CardProp
   return (
     <ExpandableCard
       className="op-jini-tool"
+      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
       head={
         <>
           <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
@@ -208,6 +210,7 @@ function DescribeToolCard({ input, result, runStreaming, runSucceeded }: CardPro
   return (
     <ExpandableCard
       className="op-jini-tool"
+      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
       head={
         <>
           <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
@@ -262,6 +265,7 @@ function FileWriteCard({ input, result, runStreaming, runSucceeded, ctx }: CardP
   return (
     <ExpandableCard
       className="op-file"
+      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
       head={
         <>
             <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
@@ -294,6 +298,7 @@ function FileEditCard({ input, result, runStreaming, runSucceeded, ctx }: CardPr
   return (
     <ExpandableCard
       className="op-file"
+      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
       head={
         <>
             <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
@@ -324,6 +329,7 @@ function FileReadCard({ input, result, runStreaming, runSucceeded, ctx }: CardPr
   return (
     <ExpandableCard
       className="op-file"
+      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
       head={
         <>
             <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
@@ -351,6 +357,7 @@ function BashCard({ input, result, runStreaming, runSucceeded }: CardProps) {
   return (
     <ExpandableCard
       className="op-bash"
+      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
       head={
         <>
             <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
@@ -373,6 +380,7 @@ function GlobCard({ input, result, runStreaming, runSucceeded }: CardProps) {
   return (
     <ExpandableCard
       className="op-search"
+      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
       head={
         <>
           <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
@@ -395,6 +403,7 @@ function GrepCard({ input, result, runStreaming, runSucceeded }: CardProps) {
   return (
     <ExpandableCard
       className="op-search"
+      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
       head={
         <>
           <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
@@ -417,6 +426,7 @@ function WebFetchCard({ input, result, runStreaming, runSucceeded }: CardProps) 
   return (
     <ExpandableCard
       className="op-web"
+      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
       head={
         <>
           <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
@@ -436,6 +446,7 @@ function WebSearchCard({ input, result, runStreaming, runSucceeded }: CardProps)
   return (
     <ExpandableCard
       className="op-web"
+      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
       head={
         <>
           <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
@@ -455,6 +466,7 @@ function GenericCard({ name, input, result, runStreaming, runSucceeded }: CardPr
   return (
     <ExpandableCard
       className="op-generic"
+      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
       head={
         <>
           <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
@@ -471,11 +483,14 @@ function GenericCard({ name, input, result, runStreaming, runSucceeded }: CardPr
 
 /**
  * The one row shell every card shares: a real `<button>` head (Enter/Space toggle it) that reports
- * `aria-expanded` and points `aria-controls` at its panel, and a panel that stays mounted while
- * collapsed — a `page.*` DOM reader sees the detail through `textContent` without anyone clicking.
+ * `aria-expanded` and points `aria-controls` at its panel. The panel's `children` mount only while
+ * open: a long chat mounts hundreds of collapsed rows, and keeping every full detail mounted made a
+ * 38-message chat carry ~13k DOM nodes and 3.45 MB of hidden text. Collapsed, the panel holds one
+ * hidden node with the call's capped gist instead, so a `page.*` DOM reader still sees what was
+ * called and what came back through `textContent` without anyone clicking.
  * `after` renders outside the panel, for content that must stay visible collapsed (an error, media).
  */
-function ExpandableCard({ className, head, after, children }: { className: string; head: ReactNode; after?: ReactNode; children: ReactNode }) {
+function ExpandableCard({ className, head, after, call, children }: { className: string; head: ReactNode; after?: ReactNode; call: CardProps; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   return (
@@ -487,11 +502,17 @@ function ExpandableCard({ className, head, after, children }: { className: strin
         </span>
       </button>
       <div id={panelId} className={`accordion-collapsible${open ? ' open' : ''}`}>
-        <div className="accordion-collapsible-inner">{children}</div>
+        {open ? <div className="accordion-collapsible-inner">{children}</div> : <CollapsedReaderText call={call} />}
       </div>
       {after}
     </div>
   );
+}
+
+/** The collapsed row's stand-in for its panel — see {@link ExpandableCard} and `describeCollapsedToolCall`. */
+function CollapsedReaderText({ call }: { call: CardProps }) {
+  const text = describeCollapsedToolCall({ input: call.input, result: call.result }, { runStreaming: call.runStreaming, runSucceeded: call.runSucceeded });
+  return <span className="op-card-reader-text" hidden>{text}</span>;
 }
 
 /** The call's input, its result (or why there is none), and any extra `children` — see `describeToolCallDetail` for the redaction and formatting rules. */

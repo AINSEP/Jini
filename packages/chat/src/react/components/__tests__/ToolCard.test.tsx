@@ -20,9 +20,9 @@ describe('ToolCard', () => {
     const bashEl = bashContainer.querySelector('[data-agent-element="tool-call-call-1"]');
     expect(bashEl).toHaveAttribute('data-agent-role', 'region');
     expect(bashEl).toHaveAttribute('data-agent-label', 'A Bash tool call the AI made');
-    // The collapsed accordion detail lives inside this same tagged element, not gated behind it —
-    // `textContent` (what a `page.*` DOM reader actually uses) sees it whether or not a human has
-    // clicked to expand the accordion.
+    // A collapsed row keeps its call's capped gist inside this same tagged element (the full panel
+    // mounts only when opened) — `textContent` (what a `page.*` DOM reader actually uses) sees it
+    // whether or not a human has clicked to expand the accordion.
     expect(bashEl?.textContent).toContain('ls');
 
     const { container: genericContainer } = render(<ToolCard use={{ kind: 'tool_use', id: 'call-2', name: 'CustomTool', input: {} }} runSucceeded />);
@@ -86,7 +86,7 @@ describe('ToolCard', () => {
     expect(bytes.slice(0, 8)).toEqual(PNG_SIGNATURE);
   });
 
-  it('renders an image block on the DelegatedToolCard path (a dotted Jini tool id) too, mimeType and data in the right positions', () => {
+  it('renders an image block on the DelegatedToolCard path (a dotted Jini tool id) too, mimeType and data in the right positions', async () => {
     const { container } = render(
       <ToolCard
         use={{ kind: 'tool_use', id: 't2c', name: 'demo.image', input: {} }}
@@ -94,6 +94,8 @@ describe('ToolCard', () => {
         runSucceeded
       />,
     );
+    // This card's media sits inside its panel, which mounts only while the row is open.
+    await userEvent.click(screen.getByRole('button'));
     const img = container.querySelector('.op-media-image');
     expect(img).toBeInTheDocument();
     const src = img!.getAttribute('src')!;
@@ -106,7 +108,7 @@ describe('ToolCard', () => {
     expect(decodedBytesFromDataUri(src).slice(0, 8)).toEqual(PNG_SIGNATURE);
   });
 
-  it('an empty mimeType produces a non-standard data URI, but the image still renders — verified against a real browser, not assumed', () => {
+  it('an empty mimeType produces a non-standard data URI, but the image still renders — verified against a real browser, not assumed', async () => {
     const { container } = render(
       <ToolCard
         use={{ kind: 'tool_use', id: 't2e', name: 'demo.image', input: {} }}
@@ -114,6 +116,7 @@ describe('ToolCard', () => {
         runSucceeded
       />,
     );
+    await userEvent.click(screen.getByRole('button'));
     const img = container.querySelector('.op-media-image');
     const src = img!.getAttribute('src')!;
     // `ToolResultMedia` does not validate `mimeType` — it trusts the daemon's extraction, which only
@@ -678,8 +681,9 @@ describe('ToolCard', () => {
           result={{ kind: 'tool_result', toolUseId: 's4', content: 'page.fill — Type text into a field', isError: false }}
         />,
       );
-      // Collapsed by default: the output exists in the DOM but the accordion is closed.
+      // Collapsed by default: the full output block is not mounted until the row opens.
       expect(document.querySelector('.accordion-collapsible.open')).toBeNull();
+      expect(document.querySelector('.op-output')).toBeNull();
       await userEvent.click(screen.getByRole('button'));
       expect(document.querySelector('.accordion-collapsible.open')).not.toBeNull();
       expect(document.querySelector('.op-output')?.textContent).toBe('page.fill — Type text into a field');
@@ -742,7 +746,7 @@ describe('ToolCard', () => {
       expect(document.querySelector('.op-meta')).toBeNull();
     });
 
-    it('surfaces a describe_tool error result as an error detail block, not a silent failure', () => {
+    it('surfaces a describe_tool error result as an error detail block, not a silent failure', async () => {
       // The §29.4 schema-on-error path: an agent that asked about an unknown id must see why.
       render(
         <ToolCard
@@ -750,14 +754,16 @@ describe('ToolCard', () => {
           result={{ kind: 'tool_result', toolUseId: 's12', content: 'unknown tool "page.nope"', isError: true }}
         />,
       );
-      // Two blocks carry it: the always-mounted (collapsed) accordion output, plus the
-      // FileErrorDetail block that is visible without expanding anything.
-      expect(document.querySelectorAll('.op-output')).toHaveLength(2);
+      // Collapsed, the FileErrorDetail block carries it, visible without expanding anything; opening
+      // the row adds the panel's own output block.
+      expect(document.querySelectorAll('.op-output')).toHaveLength(1);
       expect(document.querySelector('.op-card')?.lastElementChild?.textContent).toBe('unknown tool "page.nope"');
+      await userEvent.click(screen.getByRole('button'));
+      expect(document.querySelectorAll('.op-output')).toHaveLength(2);
     });
   });
 
-  it('shows a compact JSON tool result re-indented for a person to read (the wire stays compact)', () => {
+  it('shows a compact JSON tool result re-indented for a person to read (the wire stays compact)', async () => {
     render(
       <ToolCard
         use={{ kind: 'tool_use', id: 'st1', name: 'mcp__jini__search_tools', input: { query: 'posts' } }}
@@ -765,6 +771,7 @@ describe('ToolCard', () => {
         runSucceeded
       />,
     );
+    await userEvent.click(screen.getByRole('button'));
     expect(document.querySelector('.op-output')?.textContent).toBe(JSON.stringify({ tools: [{ id: 'content_post_list' }] }, null, 2));
   });
 
@@ -845,8 +852,9 @@ describe('ToolCard', () => {
       expect(head).toHaveAttribute('aria-expanded', 'true');
     });
 
-    it('shows the input a search_tools / describe_tool call sent, not only what came back', () => {
+    it('shows the input a search_tools / describe_tool call sent, not only what came back', async () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'dt-in', name: 'describe_tool', input: { id: 'assistant_ask_choice' } }} runSucceeded />);
+      await userEvent.click(screen.getByRole('button'));
       expect(document.querySelector('.op-input')?.textContent).toBe(JSON.stringify({ id: 'assistant_ask_choice' }, null, 2));
     });
 
@@ -854,14 +862,16 @@ describe('ToolCard', () => {
       ['Write', { file_path: '/site/index.html', content: '<h1>Hi</h1>' }],
       ['Edit', { file_path: '/site/index.html', old_string: 'Hi', new_string: 'Hello' }],
       ['Read', { file_path: '/site/index.html', offset: 10 }],
-    ])('shows the full %s input beside the file path', (name, input) => {
+    ])('shows the full %s input beside the file path', async (name, input) => {
       render(<ToolCard use={{ kind: 'tool_use', id: `fi-${name}`, name: name, input: input }} result={{ kind: 'tool_result', toolUseId: `fi-${name}`, content: 'ok', isError: false }} runSucceeded />);
+      await userEvent.click(screen.getByRole('button'));
       expect(document.querySelector('.op-input')?.textContent).toBe(JSON.stringify(input, null, 2));
       expect(document.querySelector('.op-output')?.textContent).toBe('ok');
     });
 
-    it('pretty-prints a delegated Jini tool call input', () => {
+    it('pretty-prints a delegated Jini tool call input', async () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'dg-in', name: 'page.fill', input: { element: 'name-input', value: 'Ada' } }} runSucceeded />);
+      await userEvent.click(screen.getByRole('button'));
       expect(document.querySelector('.op-input')?.textContent).toBe(JSON.stringify({ element: 'name-input', value: 'Ada' }, null, 2));
     });
 
@@ -871,14 +881,19 @@ describe('ToolCard', () => {
       expect(document.querySelector('.op-output')?.textContent).toBe('fetch failed: 404');
     });
 
-    it('explains a call whose run ended before it returned', () => {
+    it('explains a call whose run ended before it returned', async () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'int1', name: 'assistant_ask_choice', input: askInput }} />);
+      await userEvent.click(screen.getByRole('button'));
       expect(screen.getByText('The run ended before this call returned a result.')).toBeInTheDocument();
     });
 
-    it('redacts a credential in the expanded input the same way chat text is redacted', () => {
+    it('redacts a credential in the expanded input the same way chat text is redacted', async () => {
       const key = 'sk-' + 'AbCdEf0123456789'.repeat(2);
       render(<ToolCard use={{ kind: 'tool_use', id: 'sec1', name: 'Mystery', input: { note: `use ${key}` } }} runSucceeded />);
+      // The collapsed gist a page reader sees goes through the same redactor.
+      expect(document.querySelector('.op-card-reader-text')?.textContent).toContain('[token removed]');
+      expect(document.querySelector('.op-card-reader-text')?.textContent).not.toContain(key);
+      await userEvent.click(screen.getByRole('button'));
       const shown = document.querySelector('.op-input')?.textContent ?? '';
       expect(shown).not.toContain(key);
       expect(shown).toContain('[token removed]');
@@ -891,6 +906,40 @@ describe('ToolCard', () => {
       await userEvent.click(screen.getByRole('button'));
       expect(document.querySelector('.op-input')).toBeNull();
       expect(screen.getByText('No result was recorded for this call.')).toBeInTheDocument();
+    });
+  });
+
+  // 2026-10-11: a 38-message chat mounted 713 collapsed rows with 1,420 hidden <pre> (3.45 MB of
+  // text). The full panel now mounts only while open; collapsed, one hidden capped node remains.
+  describe('a collapsed row keeps only a capped gist mounted', () => {
+    const longOutput = 'x'.repeat(20_000);
+
+    it('mounts no detail block while collapsed, mounts it on open and drops it again on close', async () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'lz1', name: 'page.fill', input: { element: 'name-input' } }} result={{ kind: 'tool_result', toolUseId: 'lz1', content: longOutput, isError: false }} runSucceeded />);
+      expect(document.querySelectorAll('pre')).toHaveLength(0);
+      const head = screen.getByRole('button');
+      await userEvent.click(head);
+      expect(document.querySelector('.op-output')?.textContent).toHaveLength(10_000);
+      expect(document.querySelector('.op-card-reader-text')).toBeNull();
+      await userEvent.click(head);
+      expect(document.querySelectorAll('pre')).toHaveLength(0);
+    });
+
+    it('keeps the input and capped output readable through the tagged region\'s textContent', () => {
+      const { container } = render(<ToolCard use={{ kind: 'tool_use', id: 'lz2', name: 'page.fill', input: { element: 'name-input' } }} result={{ kind: 'tool_result', toolUseId: 'lz2', content: longOutput, isError: false }} runSucceeded />);
+      const reader = container.querySelector('.op-card-reader-text');
+      expect(reader).toHaveAttribute('hidden');
+      expect(reader?.textContent).toBe(`${JSON.stringify({ element: 'name-input' }, null, 2)}\n${'x'.repeat(399)}…`);
+      expect(container.querySelector('[data-agent-element="tool-call-lz2"]')?.textContent).toContain('name-input');
+    });
+
+    it('keeps the note explaining a missing result, and the output alone when the input has no JSON form', () => {
+      const { container } = render(<ToolCard use={{ kind: 'tool_use', id: 'lz3', name: 'Mystery', input: null }} runStreaming />);
+      expect(container.querySelector('.op-card-reader-text')?.textContent).toBe('Waiting for the result or answer…');
+      const circular: Record<string, unknown> = {};
+      circular.self = circular;
+      const { container: empty } = render(<ToolCard use={{ kind: 'tool_use', id: 'lz4', name: 'Mystery', input: circular }} result={{ kind: 'tool_result', toolUseId: 'lz4', content: 'ok', isError: false }} runSucceeded />);
+      expect(empty.querySelector('.op-card-reader-text')?.textContent).toBe('ok');
     });
   });
 });

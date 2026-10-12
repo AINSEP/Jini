@@ -107,6 +107,7 @@ export type { CreateExecuteDelegatedToolToolOptions } from './server/index.js';
 
 // ── agent-install: register an MCP server into external agents ──────────────
 export {
+  CHROME_DEVTOOLS_MCP_PRESET,
   AGENT_SLUGS,
   isAgentSlug,
   planAgentInstall,

@@ -252,6 +252,7 @@ state · [README](packages/chat/README.md)
 |---|---|---|---|---|
 | `@jini-ai/chat` | Framework-free chat contracts, transcript projection and streaming parsers; same owner as core. | `ChatTransport`, `buildTranscript`, `parsePartialJson`, `parseQuestionForm` | universal | none yet |
 | `@jini-ai/chat/core` | Message/transport contracts, transcripts, partial JSON, question forms and tool/artifact parsing. | `ChatTransport`, `buildTranscript`, `parsePartialJson`, `parseQuestionForm` | universal | Tovu: admin, desktop, site-chat, website |
+| `@jini-ai/chat/testing` | Synthetic long transcripts for explicit local/staging checks. | `createLongTranscriptFixture` | universal | none yet |
 | `@jini-ai/chat/react` | Chat hooks, composer/pane components and agentic surface cards over injected transport. | `ChatPane`, `useRunStream`, `registerToolRenderer` | browser | Tovu: admin, desktop, site-chat |
 | `@jini-ai/chat/react/chat-pane` | Focused ChatPane assembly, model/agent picker and attachment/answer adapters. | `ChatPane`, `AgentRuntimePicker`, `useChatPane` | browser | Tovu: desktop |
 | `@jini-ai/chat/react/styles/reference.css` | Optional reference chat stylesheet; no JavaScript exports. | stylesheet | browser | none yet |
@@ -572,7 +573,7 @@ plugin-packaging · [README](packages/agent-plugins/README.md)
 
 ## tooling · `@jini-ai/diagnostics`
 
-diagnostics · [README](packages/diagnostics/README.md)
+diagnostics · [README](packages/diagnostics/README.md) · [On-demand UI performance recipe](packages/diagnostics/docs/ui-performance-check.md)
 
 | Entry point | What it does | Key exports / assets | Runtime | Used by |
 |---|---|---|---|---|

@@ -58,6 +58,7 @@ engine nor retries a challenged request automatically.
 returning a discriminated `InstallPlan` (`CliInstallPlan` | `JsonInstallPlan` | `ManualInstallPlan`),
 and `applyJsonInstall` / `removeJsonInstall` to execute the JSON-file variant. Plus
 `buildMcpInstallPayload` for the install-info payload a UI renders.
+For an explicit UI check, pass `CHROME_DEVTOOLS_MCP_PRESET` to `planAgentInstall` with `ctx.serverName: "chrome-devtools"`; it pins 1.10.1 and disables usage statistics and CrUX. See the [on-demand recipe](../diagnostics/docs/ui-performance-check.md).
 
 **Client-side runtime helpers** — `extractRelativeRefs`, `isTextualMime`.
 

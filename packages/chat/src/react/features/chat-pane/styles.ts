@@ -31,7 +31,10 @@ export const CHAT_PANE_STYLES = `
   min-width: 0;
   min-height: 0;
   height: 100%;
+  /* clip after the hidden fallback: a hidden box still scrolls programmatically (a focus() or
+     scrollIntoView() inside it), which shifts the pinned composer up and leaves blank pane below. */
   overflow: hidden;
+  overflow: clip;
   color: var(--jini-chat-text);
   background: var(--jini-chat-bg);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Noto Sans", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -84,6 +87,7 @@ export const CHAT_PANE_STYLES = `
   position: relative;
   min-height: 0;
   overflow: hidden;
+  overflow: clip;
 }
 .jini-chat-pane .jini-message-list {
   height: 100%;
@@ -112,6 +116,30 @@ export const CHAT_PANE_STYLES = `
   line-height: 1.62;
 }
 /*
+ * Off-screen rows skip style, layout and paint. Owner report 2026-10-11: typing in a long chat
+ * lagged. React was not the cost (no row re-renders per key); the browser was. A keystroke's DOM
+ * change can invalidate style for the whole document (a host :has() rule did, in the Tovu dock),
+ * and a transcript with ~2,000 tool cards and 3.5 MB of tool output then cost ~50 ms of style
+ * recalc per key. With this, only the rows on screen are recalculated (~8 ms). The DOM stays
+ * whole: find-in-page, textContent readers and screen readers still see every row.
+ * 'auto' in contain-intrinsic-size keeps a row's last real height once it has rendered; the
+ * auto-scroll ResizeObserver re-sticks to the bottom as estimated rows resolve.
+ * Containment clips paint at the row's edge, so overflow-clip-margin leaves room for focus rings
+ * (2px outline + 2px offset); @supports keeps browsers without it on the old, unclipped path.
+ */
+@supports (overflow-clip-margin: 8px) {
+  .jini-chat-pane .jini-message {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 160px;
+    overflow-clip-margin: 8px;
+  }
+}
+/* A mid-run user bubble is nested inside an assistant turn, so the preceding tool/text block
+ * has no message-row bottom margin. Give it the same separation as an ordinary next turn. */
+.jini-chat-pane .jini-message-user--mid-run {
+  margin-top: 20px;
+}
+/*
  * Bubble on the content, not the row: MessageRow.tsx renders attachments as siblings of
  * .jini-message-content inside .jini-message-user, each with their own chip styling -- bubbling
  * the whole row would nest one background box inside another. This replaces a dead rule this file
@@ -124,7 +152,9 @@ export const CHAT_PANE_STYLES = `
   padding: 10px 13px;
   width: fit-content;
   max-width: 88%;
-  background: var(--jini-chat-subtle);
+  /* User bubbles share this style at every nesting depth, regardless of message length. */
+  background: var(--jini-chat-user-bubble, #1a1b1c);
+  color: var(--jini-chat-user-bubble-ink, #fff);
   border-radius: 12px 12px 3px 12px;
 }
 .jini-chat-pane .jini-message-user .jini-message-attachments {
@@ -148,6 +178,25 @@ export const CHAT_PANE_STYLES = `
 .jini-chat-pane .jini-message-user .jini-message-attachment-chip:hover {
   color: var(--jini-chat-text);
   border-color: var(--jini-chat-border-strong);
+}
+/* A sent image this browser still holds (SentAttachment.tsx): a small square thumbnail instead of
+ * the filename pill. Same click target and preview modal; cover-cropped so mixed aspect ratios line up. */
+.jini-chat-pane .jini-message-user .jini-message-attachment-chip.is-thumbnail {
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 10px;
+}
+.jini-chat-pane .jini-message-user .jini-message-attachment-chip.is-thumbnail:focus-visible {
+  outline: 2px solid var(--jini-chat-accent);
+  outline-offset: 2px;
+}
+.jini-chat-pane .jini-message-attachment-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .jini-chat-pane .jini-message-agent {
   font-size: 11px;
@@ -1296,6 +1345,36 @@ export const CHAT_PANE_STYLES = `
   margin-top: 2px;
 }
 .jini-chat-pane .jini-message-usage-dot { font-size: 8px; color: #4e875f; }
+/* toolCallDisplay 'collapsed' (ToolCallGroup.tsx): one quiet line per turn, cards open under it. */
+.jini-chat-pane .jini-tool-group { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.jini-chat-pane .jini-tool-group__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 2px 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--jini-chat-muted);
+  cursor: pointer;
+}
+.jini-chat-pane .jini-tool-group__toggle:hover { color: inherit; }
+.jini-chat-pane .jini-tool-group__toggle:focus-visible { outline: 2px solid var(--jini-chat-accent); outline-offset: 2px; border-radius: 4px; }
+.jini-chat-pane .jini-tool-group__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jini-chat-pane .jini-tool-group[data-failed="true"] .jini-tool-group__toggle { color: var(--danger); }
+/* showThinking (MessageRow.tsx's ThinkingBlock): the model's reasoning, folded, set apart from the answer. */
+.jini-chat-pane .jini-message-thinking { font-size: 12px; color: var(--jini-chat-muted); }
+.jini-chat-pane .jini-message-thinking > summary { cursor: pointer; width: fit-content; }
+.jini-chat-pane .jini-message-thinking__text {
+  margin-top: 4px;
+  padding-left: 10px;
+  border-left: 2px solid var(--jini-chat-border);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 /*
  * Fenced code block ('Markdown.tsx''s 'renderBlock' case 'code') and inline 'code' span visual
  * treatment — previously entirely unstyled (bare UA-default '<pre><code>', no background, border,

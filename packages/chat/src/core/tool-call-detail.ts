@@ -55,6 +55,29 @@ export function describeToolCallDetail(
   return { inputText, outputText: show(formatToolOutputForDisplay({ text: result.content })), noteKey: null };
 }
 
+/** Per-block cap for the text a collapsed row keeps mounted — see {@link describeCollapsedToolCall}. */
+export const COLLAPSED_DETAIL_MAX_CHARS = 400;
+
+/**
+ * The short, single-node text a collapsed row keeps in the DOM in place of its full detail. A long
+ * chat mounts hundreds of collapsed rows (713 in a 38-message chat, 3.45 MB of hidden text at the
+ * full 10 000-char cap), so the full panel is mounted only while open; this keeps the gist —
+ * input, then output or the note explaining its absence — readable through the row's
+ * `textContent` for a `page.*` DOM reader that never clicks.
+ *
+ * @param required - Same as {@link describeToolCallDetail}.
+ * @param options - Same as {@link describeToolCallDetail}; `maxChars` defaults to {@link COLLAPSED_DETAIL_MAX_CHARS}.
+ * @returns Input (when it has a JSON form) and output or note, joined by a newline — never empty, since a missing output always carries a note.
+ * @complexity O(n) in the serialized input plus result length (redaction runs before the cap).
+ */
+export function describeCollapsedToolCall(
+  required: Parameters<typeof describeToolCallDetail>[0],
+  options: ToolCallDetailOptions = {},
+): string {
+  const detail = describeToolCallDetail(required, { maxChars: COLLAPSED_DETAIL_MAX_CHARS, ...options });
+  return [detail.inputText, detail.outputText ?? detail.noteKey].filter((part): part is string => part !== null).join('\n');
+}
+
 function missingResultNote({ runStreaming, runSucceeded }: { runStreaming: boolean; runSucceeded: boolean }): ToolCallDetailNote {
   if (runStreaming) return 'Waiting for the result or answer…';
   return runSucceeded ? 'No result was recorded for this call.' : 'The run ended before this call returned a result.';
