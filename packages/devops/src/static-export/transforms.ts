@@ -38,6 +38,16 @@ function srcsetRanges(value: string): Array<{ start: number; end: number }> {
   }
   return ranges;
 }
+/** A route path naming a `.json` file (e.g. a see-more JSON batch): written as that file, not `<path>/index.html`. */
+function isJsonRoute(path: string): boolean {
+  return /\.json$/i.test(path.split(/[?#]/)[0]!);
+}
+/** JSON's link fields (`href`/`url`/`src` string values) get the base path, as HTML attributes do; a body that is not JSON is left as is. */
+function rewriteJson(body: string, basePath: string): string {
+  let parsed: unknown;
+  try { parsed = JSON.parse(body); } catch { return body; }
+  return JSON.stringify(parsed, (key, value: unknown) => (typeof value === 'string' && (key === 'href' || key === 'url' || key === 'src') ? prefix(value, basePath) : value));
+}
 function rewriteHtml(html: string, basePath: string): string {
   if (!basePath) return html;
   return html.replace(/\b(href|src|srcset)=(["'])([^"']*)\2/g, (_match, attr: string, quote: string, value: string) => {
@@ -52,6 +62,7 @@ export function rewriteRouteBodyForBasePath(required: { path: string; body: stri
   if (!basePath || path === '/feed.xml') return body;
   if (path === '/sitemap.xml') return body.replace(/<loc>([^<]*)<\/loc>/g, (_match, value: string) => `<loc>${prefix(value, basePath)}</loc>`);
   if (path === '/robots.txt') return body.replace(/^Sitemap: (.*)$/gm, (_match, value: string) => `Sitemap: ${prefix(value.trim(), basePath)}`);
+  if (isJsonRoute(path)) return rewriteJson(body, basePath);
   return rewriteHtml(body, basePath);
 }
 type RedirectDecision = { kind: 'failed'; reason: string } | { kind: 'redirect-to'; location: string };
@@ -75,6 +86,10 @@ export function extractAssetUrls(required: { html: string; prefixes: readonly st
     const value = match[3]!;
     const values = match[1] === 'srcset' ? srcsetRanges(value).map(({ start, end }) => value.slice(start, end)) : [value];
     for (const url of values) if (!url.startsWith('//') && required.prefixes.some(prefix => url.startsWith(prefix))) found.add(url.split('#')[0]!);
+  }
+  // JSON link fields too (a see-more JSON batch's covers), as `rewriteJson` prefixes them.
+  for (const [, url = ''] of required.html.matchAll(/"(?:href|src|url)"\s*:\s*"([^"\\]+)"/g)) {
+    if (!url.startsWith('//') && required.prefixes.some(prefix => url.startsWith(prefix))) found.add(url.split('#')[0]!);
   }
   return [...found];
 }
@@ -105,6 +120,6 @@ export function outputFileForUrl(required: { url: string }, optional: { contentR
   try { decoded = decodeURIComponent(required.url.split(/[?#]/)[0]!); } catch { throw new ExportPathError('Invalid URL encoding — refused'); }
   const relative = decoded.replace(/^\//, '').replace(/\/+$/, '');
   if (relative) safeRelativeOutputFile({ value: relative });
-  const output = optional.contentRoute ? (relative ? relative + '/index.html' : 'index.html') : relative;
+  const output = optional.contentRoute && !isJsonRoute(relative) ? (relative ? relative + '/index.html' : 'index.html') : relative;
   return safeRelativeOutputFile({ value: output });
 }

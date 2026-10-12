@@ -5,7 +5,7 @@ import path from 'node:path';
 import { test } from 'vitest';
 import { exportSite } from '../runner.js';
 import { createNodeArtifactWriter } from '../node-adapters.js';
-import { redirectOutcomeFor, renderRedirectStub, rewriteRouteBodyForBasePath } from '../transforms.js';
+import { extractAssetUrls, outputFileForUrl, redirectOutcomeFor, renderRedirectStub, rewriteRouteBodyForBasePath } from '../transforms.js';
 import { firstExportFailure } from '../failure-summary.js';
 import type { ExportSiteArgs, RouteManifest } from '../contracts.js';
 
@@ -134,6 +134,15 @@ test('base path normalization is inert when absent and rewrites output while cra
     assert.equal(f.fetched.some(url => url.startsWith('/repo/')), false);
   }
   assert.equal(rewriteRouteBodyForBasePath({ path: '/', body: '<a href="/repo/about"></a><img src="//cdn.test/x"><img srcset="data:image/png;base64,AAA 1x, /a 2x">', basePath: '/repo' }), '<a href="/repo/about"></a><img src="//cdn.test/x"><img srcset="data:image/png;base64,AAA 1x, /repo/a 2x">');
+});
+
+test('a .json content route is written as that file, and its link fields get the base path', () => {
+  assert.equal(outputFileForUrl({ url: '/blog/_more/1/12.json' }, { contentRoute: true }), 'blog/_more/1/12.json');
+  assert.equal(outputFileForUrl({ url: '/blog/_more/1/12' }, { contentRoute: true }), 'blog/_more/1/12/index.html');
+  const body = JSON.stringify({ items: [{ title: '/not-a-link', href: '/posts/a', cover: { url: '/m/a.jpg' } }, { href: 'https://x.test/b' }], nextCursor: 24 });
+  assert.deepEqual(JSON.parse(rewriteRouteBodyForBasePath({ path: '/blog/_more/1/12.json', body, basePath: '/repo' })), { items: [{ title: '/not-a-link', href: '/repo/posts/a', cover: { url: '/repo/m/a.jpg' } }, { href: 'https://x.test/b' }], nextCursor: 24 });
+  assert.equal(rewriteRouteBodyForBasePath({ path: '/x.json', body: 'not json', basePath: '/repo' }), 'not json');
+  assert.deepEqual(extractAssetUrls({ html: body, prefixes: ['/m/'] }), ['/m/a.jpg'], 'a JSON batch\'s covers are crawled like <img src>');
 });
 
 test('crashed error pages and nonredirect responses fail without writing their artifacts', async () => {

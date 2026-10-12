@@ -1,4 +1,4 @@
-import { LISTING_KEY_MAX } from './paths.js';
+import { LISTING_KEY_MAX, listingBatchPath, parseListingBatchPath } from './paths.js';
 import { LISTING_SEE_MORE_SCRIPT } from './see-more-script.js';
 
 /**
@@ -9,7 +9,10 @@ import { LISTING_SEE_MORE_SCRIPT } from './see-more-script.js';
  *   what {@link extractListingBatch} slices a batch response out of;
  * - the button is a `<button>` carrying the next batch URL in `data-jini-more-href`
  *   ({@link renderListingMore}), `hidden` until the inline script runs, so with no JS it is simply
- *   absent (a batch URL alone is a bare fragment, so a plain link adds nothing for no-JS readers).
+ *   absent (a batch URL alone is a bare fragment, so a plain link adds nothing for no-JS readers);
+ * - a listing that carries a `<template data-jini-card>` card ({@link extractListingCardTemplate})
+ *   loads its next batches as JSON (`.json` batch URLs) and the script fills a copy of the card per
+ *   item; without one it keeps loading server-rendered HTML batches.
  */
 
 export const LISTING_SEE_MORE_ATTRIBUTE = 'data-jini-see-more';
@@ -94,4 +97,22 @@ export function renderListingBatchDocument({ key, items, moreHref }: { key: numb
 /** Every see-more button's batch URL in `html`, for a static exporter to follow. @complexity O(n). */
 export function extractListingMoreHrefs({ html }: { html: string }, _optional: Record<string, never> = {}): readonly string[] {
   return moreHrefsIn(html);
+}
+
+const CARD_TEMPLATE = /<template\b[^<>]*\sdata-jini-card(?:=(?:""|''))?[\s>][\s\S]*?<\/template>/i;
+
+/** The first `<template data-jini-card>…</template>` element in a listing's authored markup, whole,
+ *  or `undefined` when the listing has no client-side card. @complexity O(n). */
+export function extractListingCardTemplate({ html }: { html: string }, _optional: Record<string, never> = {}): string | undefined {
+  return CARD_TEMPLATE.exec(html)?.[0];
+}
+
+/** The next `.json` batch URL a JSON batch at `path` points to, for a static exporter to follow, or
+ *  `undefined` after the last batch or for a body that is not a JSON batch. @complexity O(n). */
+export function listingJsonNextPath({ path, body }: { path: string; body: string }, _optional: Record<string, never> = {}): string | undefined {
+  const request = parseListingBatchPath({ path });
+  if (request?.format !== 'json') return undefined;
+  let nextCursor: unknown;
+  try { nextCursor = (JSON.parse(body) as { nextCursor?: unknown }).nextCursor; } catch { return undefined; }
+  return typeof nextCursor === 'number' && Number.isInteger(nextCursor) && nextCursor > request.after ? listingBatchPath({ ...request, after: nextCursor }) : undefined;
 }

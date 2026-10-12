@@ -4,9 +4,11 @@ import {
   arrayListingSource,
   assignListingKeys,
   extractListingBatch,
+  extractListingCardTemplate,
   extractListingMoreHrefs,
   injectListingScript,
   listingBatchPath,
+  listingJsonNextPath,
   listingKeyOfAttributes,
   parseListingBatchPath,
   parseListingBatchSize,
@@ -70,8 +72,24 @@ describe('batch paths', () => {
     expect(parseListingBatchPath({ path: '/docs/guides/_more/10/0' })).toEqual({ pagePath: '/docs/guides', key: 10, after: 0 });
   });
 
+  it('round-trips the .json form', () => {
+    expect(listingBatchPath({ pagePath: '/blog', key: 1, after: 12, format: 'json' })).toBe('/blog/_more/1/12.json');
+    expect(parseListingBatchPath({ path: '/blog/_more/1/12.json' })).toEqual({ pagePath: '/blog', key: 1, after: 12, format: 'json' });
+    expect(parseListingBatchPath({ path: '/_more/2/0.json' })).toEqual({ pagePath: '/', key: 2, after: 0, format: 'json' });
+  });
+
+  it('follows a JSON batch to its next .json URL, and stops after the last or on a bad body', () => {
+    expect(listingJsonNextPath({ path: '/blog/_more/1/12.json', body: '{"items":[],"nextCursor":24}' })).toBe('/blog/_more/1/24.json');
+    for (const [path, body] of [
+      ['/blog/_more/1/12.json', '{"items":[],"nextCursor":null}'],
+      ['/blog/_more/1/12.json', '{"nextCursor":12}'],
+      ['/blog/_more/1/12.json', 'not json'],
+      ['/blog/_more/1/12', '{"nextCursor":24}'],
+    ] as const) expect(listingJsonNextPath({ path, body })).toBeUndefined();
+  });
+
   it('refuses bad keys, cursors, traversal and reserved first segments', () => {
-    for (const path of ['/blog/_more/0/12', '/blog/_more/11/12', '/blog/_more/1/x', '/blog/_more/1/100001', '/blog/_more/1/1234567', '/../_more/1/12', '/a/_more/b/_more/1/1', '/admin/_more/1/12', '/api/x/_more/1/12', '/blog/_more/1', '/blog/page/2'])
+    for (const path of ['/blog/_more/1/12.xml', '/blog/_more/1/12/.json', '/blog/_more/0/12', '/blog/_more/11/12', '/blog/_more/1/x', '/blog/_more/1/100001', '/blog/_more/1/1234567', '/../_more/1/12', '/a/_more/b/_more/1/1', '/admin/_more/1/12', '/api/x/_more/1/12', '/blog/_more/1', '/blog/page/2'])
       expect(parseListingBatchPath({ path })).toBeUndefined();
   });
 });
@@ -98,6 +116,12 @@ describe('listing markup', () => {
     expect(doc).not.toContain(' hidden');
     expect(extractListingMoreHrefs({ html: doc })).toEqual(['/blog/_more/1/12?x=1&y=2']);
     expect(extractListingMoreHrefs({ html: renderListingBatchDocument({ key: 1, items: '' }) })).toEqual([]);
+  });
+
+  it('finds a listing\'s card template, whole, and only one marked data-jini-card', () => {
+    const card = '<template data-jini-card><article><h3 data-field="title"></h3></article></template>';
+    expect(extractListingCardTemplate({ html: `<p>none yet</p>${card}<template data-jini-card>2</template>` })).toBe(card);
+    expect(extractListingCardTemplate({ html: '<template><li></li></template><template data-jini-cards>x</template>' })).toBeUndefined();
   });
 
   it('adds the script once, before </body>, only when a see-more button exists', () => {
