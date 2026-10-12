@@ -8,9 +8,68 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { conversationTitleForDisplay, deriveConversationTitle } from '../../persistence/title.js';
+import { conversationTitleForDisplay, deriveConversationTitle, stripConversationTitleMarkdown } from '../../persistence/title.js';
 
 describe('deriveConversationTitle', () => {
+  it.each([
+    ['# **Plannie** and _marketplace_ with `API`', 'Plannie Marketplace Api'],
+    ['Build [Plannie](https://plannie.com) marketplace', 'Plannie Marketplace'],
+    ['Build **Plannie** at **plannie', 'Plannie At Plannie'],
+    ['## **博客** 的 _搜索_ 功能', '博客的搜索功能'],
+  ])('strips markdown before deriving a bounded title: %s', (prompt, title) => {
+    expect(deriveConversationTitle({ prompt })).toBe(title);
+  });
+
+  it('cuts long Latin titles at a word boundary', () => {
+    const word = 'a'.repeat(50);
+    expect(deriveConversationTitle({ prompt: `alpha ${word} ${word}` })).toBe(`Alpha ${'A' + word.slice(1)}`);
+  });
+
+  it.each(['generated', 'fallback', 'manual'] as const)('cleans a stored %s title without a transcript or a write', titleSource => {
+    expect(conversationTitleForDisplay({ title: 'Page: **Plannie** at **plannie', titleSource })).toBe('Page: Plannie at **plannie');
+    expect(conversationTitleForDisplay({ title: '# [Plannie](https://plannie.com) *marketplace* `API`', titleSource })).toBe('Plannie marketplace API');
+  });
+
+  it('bounds stored titles after removing markup and uses the last complete word', () => {
+    expect(conversationTitleForDisplay({ title: `**Plannie** ${'x'.repeat(70)} finalword`, titleSource: 'generated' }))
+      .toBe(`Plannie ${'x'.repeat(70)}`);
+  });
+
+  it('keeps link labels, inline code and underscores inside identifiers', () => {
+    expect(stripConversationTitleMarkdown({ text: '### **Plannie** _marketplace_ `API_key` [home](https://example.com) [docs][ref]\n[ref]: https://example.com' }))
+      .toBe('Plannie marketplace API_key home docs');
+    expect(stripConversationTitleMarkdown({ text: '```ts\nconst x = 1\n```' })).toBe('');
+    expect(stripConversationTitleMarkdown({ text: '```ts\nconst x = 1' })).toBe('');
+    expect(conversationTitleForDisplay({ title: '**', titleSource: 'generated' })).toBe('**');
+    expect(stripConversationTitleMarkdown({ text: '[Plannie](https://example.com/path_(page))' })).toBe('Plannie');
+    expect(deriveConversationTitle({ prompt: 'Fix `login` bug' })).toBe('Login Bug');
+  });
+
+  it.each([
+    ['**bold** *italic* _emphasis_ __strong__', 'bold italic emphasis strong'],
+    ['Rename *.ts files', 'Rename *.ts files'],
+    ['__dirname and API_key', '__dirname and API_key'],
+    ['prefix_word_suffix and prefix__word__suffix', 'prefix_word_suffix and prefix__word__suffix'],
+    ['**unfinished and _unfinished', '**unfinished and _unfinished'],
+    [String.raw`Rename \* files`, 'Rename * files'],
+    [String.raw`Use \*literal\* and **bold**`, 'Use *literal* and bold'],
+    ['Page: [Plannie', 'Page: Plannie'],
+    ['Page: [', 'Page:'],
+    ['(**bold**) and (_word_)', '(bold) and (word)'],
+  ])('strips paired emphasis while retaining literal text: %s', (text, expected) => {
+    expect(stripConversationTitleMarkdown({ text })).toBe(expected);
+  });
+
+  it('keeps a whole word that ends exactly at the character ceiling', () => {
+    const title = `${'x'.repeat(70)} ${'y'.repeat(9)}`;
+    expect(conversationTitleForDisplay({ title: `${title} **next**`, titleSource: 'generated' })).toBe(title);
+  });
+
+  it('cleans links whose destination was already cut off in a stored title', () => {
+    expect(conversationTitleForDisplay({ title: 'Page: [Plannie](https://planni', titleSource: 'generated' })).toBe('Page: Plannie');
+    expect(conversationTitleForDisplay({ title: 'Page: [Plannie][ref', titleSource: 'generated' })).toBe('Page: Plannie');
+  });
+
   it('can display sentence case without losing proper names or acronyms from the original prompt', () => {
     const prompt = 'I want to connect a Mailchimp account using API keys';
     expect(deriveConversationTitle({ prompt }, { casing: 'sentence' })).toBe('I want connect Mailchimp account using');
