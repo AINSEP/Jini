@@ -16,7 +16,7 @@ import { useT } from '../hooks/context.js';
 import { useMessageListAutoScroll, useConversationUsage } from './MessageList.hooks.js';
 import { MessageRow, type MessageRowProps } from './MessageRow.js';
 
-export interface MessageListProps extends Pick<MessageRowProps, 'projectFileNames' | 'onRequestOpenFile' | 'renderAttachment'> {
+export interface MessageListProps extends Pick<MessageRowProps, 'projectFileNames' | 'onRequestOpenFile' | 'renderAttachment' | 'showUsageTotal' | 'showUsageLine' | 'toolCallDisplay' | 'showThinking'> {
   messages: ChatMessage[];
   isStreaming?: boolean;
   /** Mirrors `useConversation().scrollIntent` — when `true`, this component scrolls to the bottom on mount/update. */
@@ -55,6 +55,10 @@ export const MessageList = memo(function MessageList({
   projectFileNames,
   onRequestOpenFile,
   renderAttachment,
+  showUsageTotal = true,
+  showUsageLine = true,
+  toolCallDisplay = 'show',
+  showThinking = false,
   pendingPrompt = null,
 }: MessageListProps) {
   const t = useT();
@@ -78,6 +82,10 @@ export const MessageList = memo(function MessageList({
             key={message.id}
             message={message}
             {...(usageByMessage.has(message.id) ? { usageSummary: usageByMessage.get(message.id)! } : {})}
+            showUsageTotal={showUsageTotal}
+            showUsageLine={showUsageLine}
+            toolCallDisplay={toolCallDisplay}
+            showThinking={showThinking}
             runStreaming={runStreaming}
             runSucceeded={message.runStatus === 'succeeded'}
             questionFormInteractive={message.id === activeQuestionFormMessageId}

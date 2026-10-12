@@ -29,8 +29,8 @@ function setup(overrides: Partial<React.ComponentProps<typeof ConversationList>>
     confirmDelete: () => true,
     ...overrides,
   };
-  render(<ConversationList {...props} />);
-  return { props, user: userEvent.setup() };
+  const view = render(<ConversationList {...props} />);
+  return { props, user: userEvent.setup(), view };
 }
 
 async function openMenu(user: ReturnType<typeof userEvent.setup>) {
@@ -38,6 +38,26 @@ async function openMenu(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('opening and listing', () => {
+  it('shows clean stored titles in the row, trigger tooltip and accessible label without renaming', async () => {
+    const conversations = [{ id: 'c1', title: 'Page: **Plannie** at **plannie' }];
+    const { props, user } = setup({ conversations });
+    const trigger = screen.getByTestId('conversation-trigger');
+    expect(trigger).toHaveAttribute('title', 'Page: Plannie at **plannie');
+    expect(trigger).toHaveAttribute('aria-label', 'Conversations — Page: Plannie at **plannie');
+    await openMenu(user);
+    expect(screen.getByTestId('conversation-select-c1')).toHaveTextContent('Page: Plannie at **plannie');
+    expect(props.onRename).not.toHaveBeenCalled();
+    expect(conversations[0]!.title).toBe('Page: **Plannie** at **plannie');
+  });
+
+  it('cleans server search result titles before displaying them', async () => {
+    const onSearch = vi.fn(async () => [{ id: 'found', title: '# [Plannie](https://plannie.com) `API`' }]);
+    const { user } = setup({ onSearch });
+    await openMenu(user);
+    await user.type(screen.getByPlaceholderText('Search conversations'), 'Plannie');
+    await waitFor(() => expect(screen.getByTestId('conversation-select-found')).toHaveTextContent('Plannie API'));
+  });
+
   it('renders every conversation once open, and an untitled fallback', async () => {
     const { user } = setup();
     await openMenu(user);
@@ -106,6 +126,63 @@ describe('the four actions', () => {
 });
 
 describe('rename on double-click', () => {
+  it('does not write an untouched draft after the host refreshes the stored title', async () => {
+    const { props, user, view } = setup();
+    await openMenu(user);
+    await user.dblClick(screen.getByTestId('conversation-select-c1'));
+    view.rerender(<ConversationList {...props} conversations={[{ id: 'c1', title: 'Refreshed title' }]} />);
+    await user.keyboard('{Enter}');
+    expect(props.onRename).not.toHaveBeenCalled();
+    expect(screen.getByTestId('conversation-select-c1')).toHaveTextContent('Refreshed title');
+  });
+
+  it.each([
+    { title: `**Long title** ${'retained words '.repeat(12)}tail`, finish: 'Enter' },
+    { title: '  **Deliberate** _markers_ and *.ts  ', finish: 'blur' },
+    { title: null, finish: 'Enter' },
+  ])('preserves the raw title and skips an unchanged rename on $finish: $title', async ({ title, finish }) => {
+    const conversations = [{ id: 'c1', title }];
+    const { props, user } = setup({ conversations });
+    await openMenu(user);
+    await user.dblClick(screen.getByTestId('conversation-select-c1'));
+    expect(screen.getByTestId('conversation-rename-c1')).toHaveValue(title ?? '');
+    if (finish === 'Enter') await user.keyboard('{Enter}');
+    else await user.click(screen.getByTestId('conversation-search'));
+    expect(screen.queryByTestId('conversation-rename-c1')).not.toBeInTheDocument();
+    expect(props.onRename).not.toHaveBeenCalled();
+    expect(conversations[0]!.title).toBe(title);
+  });
+
+  it('displays the full cleaned title and retains the raw tail and markers when edited', async () => {
+    const rawTitle = `**Deliberate** ${'retained words '.repeat(12)}tail`;
+    const { props, user } = setup({ conversations: [{ id: 'c1', title: rawTitle }] });
+    await openMenu(user);
+    expect(screen.getByTestId('conversation-select-c1').querySelector('.jini-conv-item-title')?.textContent)
+      .toBe(rawTitle.replace('**Deliberate**', 'Deliberate'));
+    await user.dblClick(screen.getByTestId('conversation-select-c1'));
+    await user.keyboard('{End} revised{Enter}');
+    expect(props.onRename).toHaveBeenCalledTimes(1);
+    expect(props.onRename).toHaveBeenCalledWith('c1', `${rawTitle} revised`);
+  });
+
+  it.each(['c1', 'unloaded'])('uses the raw server result for %s, including newer titles for loaded ids', async id => {
+    const rawTitle = `**Search title** ${'full title '.repeat(12)}tail`;
+    const onSearch = async () => [{ id, title: rawTitle }];
+    const { props, user } = setup({ onSearch });
+    await openMenu(user);
+    await user.type(screen.getByTestId('conversation-search'), 'search');
+    await waitFor(() => expect(screen.getByTestId(`conversation-select-${id}`)).toHaveTextContent('Search title'));
+    await user.dblClick(screen.getByTestId(`conversation-select-${id}`));
+    expect(screen.getByTestId(`conversation-rename-${id}`)).toHaveValue(rawTitle);
+    await user.keyboard('{Enter}');
+    expect(props.onRename).not.toHaveBeenCalled();
+    await user.dblClick(screen.getByTestId(`conversation-select-${id}`));
+    await user.keyboard('{End} revised');
+    await user.click(screen.getByTestId('conversation-search'));
+    expect(props.onRename).toHaveBeenCalledTimes(1);
+    expect(props.onRename).toHaveBeenCalledWith(id, `${rawTitle} revised`);
+  });
+
   it('opens an editor seeded with the current title and commits on Enter', async () => {
     const { props, user } = setup();
     await openMenu(user);

@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode, RefObject } from 'react';
 import type { ChatAttachment, ChatMessage } from '@jini-ai/chat';
 
 import type { ComposerSlots } from '../../slots.js';
+import type { ToolCallDisplay } from '../../tool-call-display.js';
 import type { ComposerHistoryStoragePort } from '../../../core/composer-history.js';
 import type { ChatTransport, RunContext } from '@jini-ai/chat';
 
@@ -19,6 +20,8 @@ export interface ChatPaneAgentOption {
  * coupling the React package to `@jini-ai/http-kit`.
  */
 export interface ChatPaneAgent {
+  /** Read cached models now and refresh while the host finishes its background probe. */
+  discoveryPending?: boolean;
   id: string;
   name: string;
   available?: boolean;
@@ -195,6 +198,7 @@ export interface ChatPaneProps extends UserTextRedactionOptions {
   title?: string;
   variant?: ChatPaneVariant;
   initialMessages?: ChatMessage[];
+  refreshSignal?: import('../../hooks/useConversation.js').UseConversationOptions['refreshSignal'];
   conversationId?: string | null;
   initialSelection?: ChatPaneAgentSelection;
   selection?: ChatPaneAgentSelection;
@@ -305,6 +309,15 @@ export interface ChatPaneProps extends UserTextRedactionOptions {
    */
   workingDirectoryControlPlacement?: 'below' | 'composer' | 'none';
   projectFileNames?: ReadonlySet<string>;
+  /**
+   * Transcript display choices (a host's chat settings, 2026-10-11), passed straight to
+   * `MessageList`: how tool calls show (`'show'` default, `'collapsed'` one line per turn, `'hidden'`
+   * all but failed ones — see `tool-call-display.ts`), whether the "Done · time · cost" lines show
+   * (default `true`), and whether the model's reasoning shows (default `false`).
+   */
+  toolCallDisplay?: ToolCallDisplay;
+  showUsageLine?: boolean;
+  showThinking?: boolean;
   uploadAttachments?: (
     files: File[],
     options?: ChatPaneAttachmentUploadOptions,

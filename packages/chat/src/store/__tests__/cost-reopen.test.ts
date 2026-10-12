@@ -39,7 +39,7 @@ it('retains cumulative session snapshots through a real SQLite close/reopen and 
     await reloaded.appendMessage({ conversationId: 'c', message: { id: 'continued', role: 'assistant', agentId: 'claude', content: 'third',
       events: [parseUsageEvent({ payload: { type: 'usage', cumulativeCostUsd: 2.75, costSessionId: 's' } })] } });
     const usage = conversationUsage({ messages: (await reloaded.pageMessages({ conversationId: 'c' })).items }).get('continued')!;
-    expect(formatUsageCost({ costUsd: usage.costUsd!, totalCostUsd: usage.totalCostUsd! })).toBe('$0.25 (Total: $2.75)');
+    expect(formatUsageCost({ costUsd: usage.costUsd!, totalCostUsd: usage.totalCostUsd! })).toBe('$0.25 · total $2.75');
   } finally {
     db.close();
     rmSync(dir, { recursive: true, force: true });

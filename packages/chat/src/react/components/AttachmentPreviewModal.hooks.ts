@@ -92,7 +92,7 @@ export function readFileAsText(
  * package cannot assume every embedding host is a browser tab. Feature-detected the same way this
  * file already feature-detects `<dialog>`'s `showModal`/`close`, rather than assumed.
  */
-function canCreateObjectUrl(): boolean {
+export function canCreateObjectUrl(): boolean {
   return typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function';
 }
 

@@ -9,10 +9,12 @@
  * It is an event of the assistant turn, not a `ChatMessage` of its own, because the agent folded it
  * into the turn it was already running — there is no separate reply to hang off it.
  */
+import { MID_RUN_USER_MESSAGE_EVENT_NAME } from '../../core/turn-usage.js';
 import { registerExtEventRenderer, type ExtEventRenderProps } from '../ext-event-renderer-registry.js';
 
-/** The ext-event name the daemon's mid-run `user_message` run event arrives under. */
-export const MID_RUN_USER_MESSAGE_EXT_EVENT_NAME = 'user_message';
+/** The ext-event name the daemon's mid-run `user_message` run event arrives under. One source with
+ * the core reply split (`replySegments`), which ends a reply's usage at this same event. */
+export const MID_RUN_USER_MESSAGE_EXT_EVENT_NAME = MID_RUN_USER_MESSAGE_EVENT_NAME;
 
 function field(data: unknown, key: 'id' | 'text'): string | undefined {
   const value = typeof data === 'object' && data !== null ? (data as Record<string, unknown>)[key] : undefined;

@@ -500,6 +500,7 @@ export function ChatPane({
   title,
   variant = 'workspace',
   initialMessages,
+  refreshSignal,
   conversationId,
   initialSelection,
   selection: controlledSelection,
@@ -535,6 +536,9 @@ export function ChatPane({
   workingDirectoryAccess,
   workingDirectoryControlPlacement = 'below',
   projectFileNames,
+  toolCallDisplay = 'show',
+  showUsageLine = true,
+  showThinking = false,
   uploadAttachments,
   attachmentAccept,
   disabled = false,
@@ -570,6 +574,7 @@ export function ChatPane({
     transport,
     agents: runtimeView.agents,
     initialMessages,
+    refreshSignal,
     conversationId,
     initialSelection,
     selection: controlledSelection,
@@ -693,6 +698,9 @@ export function ChatPane({
           scrollIntent={pane.conversation.scrollIntent}
           onScrolled={pane.conversation.acknowledgeScroll}
           pendingPrompt={pendingPrompt}
+          toolCallDisplay={toolCallDisplay}
+          showUsageLine={showUsageLine}
+          showThinking={showThinking}
           {...(projectFileNameSet === undefined ? {} : { projectFileNames: projectFileNameSet })}
         />
         )}

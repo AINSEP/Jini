@@ -21,6 +21,8 @@ import { useRunStream } from './useRunStream.js';
 export interface UseConversationOptions extends UserTextRedactionOptions {
   transport: ChatTransport;
   initialMessages?: ChatMessage[];
+  /** Optional host loader and browser ports, e.g. `{ loadMessages, visibility: document, focus: window }`; refresh stays passive. */
+  refreshSignal?: { loadMessages: () => Promise<ChatMessage[]>; visibility: EventTarget & { readonly visibilityState: string }; focus: EventTarget };
   conversationId?: string | null;
   agentId?: string;
   /** Defaults to a `crypto.randomUUID()`-based id generator when available, else a counter. */
@@ -76,6 +78,29 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   const setMessages = useCallback((updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
     setMessagesState((prev) => (typeof updater === 'function' ? (updater as (p: ChatMessage[]) => ChatMessage[])(prev) : updater));
   }, []);
+
+  // Map upserts preserve order in O(local + saved) time/space; cleanup fences late reads on switch/unmount/local runs.
+  useEffect(() => {
+    const source = options.refreshSignal;
+    if (!source || run.isStreaming) return;
+    let disposed = false, pending = false, timer: ReturnType<typeof setTimeout>;
+    const refresh = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const saved = await source.loadMessages();
+        if (!disposed) setMessagesState(prev => [...new Map([...prev, ...saved].map(message => [message.id, message])).values()]);
+      } catch (error) { if (!disposed) console.error('[chat] conversation refresh failed', error); }
+      finally { pending = false; }
+    };
+    const schedule = () => {
+      clearTimeout(timer);
+      if (source.visibility.visibilityState === 'visible') timer = setTimeout(() => { void refresh(); }, 500);
+    };
+    const events: [EventTarget, string][] = [[source.visibility, 'visibilitychange'], [source.focus, 'focus']];
+    for (const [target, event] of events) target.addEventListener(event, schedule);
+    return () => { disposed = true; clearTimeout(timer); for (const [target, event] of events) target.removeEventListener(event, schedule); };
+  }, [options.refreshSignal, run.isStreaming]);
 
   /**
    * The mount-time snapshot of `initialMessages`, captured once — the same "read once, never react

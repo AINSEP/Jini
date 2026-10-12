@@ -3,6 +3,7 @@ import { useUserTextGuard } from '../../../hooks/useUserTextGuard.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  appendQueuedTurn,
   describeChatPaneSendBlocker,
   findAwaitedTypedAnswerId,
   findChatPaneSendBlocker,
@@ -48,6 +49,7 @@ export interface UseChatPaneOptions extends UserTextRedactionOptions {
   transport: ChatTransport;
   agents: readonly ChatPaneAgent[];
   initialMessages?: ChatMessage[];
+  refreshSignal?: import('../../../hooks/useConversation.js').UseConversationOptions['refreshSignal'];
   conversationId?: string | null;
   initialSelection?: ChatPaneAgentSelection;
   selection?: ChatPaneAgentSelection;
@@ -309,6 +311,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     redactUserText: options.redactUserText,
     onSecretRedacted: guard.notifyRedaction,
     initialMessages: options.initialMessages,
+    refreshSignal: options.refreshSignal,
     conversationId: options.conversationId,
     // Keys off an empty string, not `undefined` — `selection.agentId` is always a string (never
     // absent), so only the falsy "no agent selected" case should omit the key.
@@ -531,6 +534,15 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     if (latestDraftRef.current === submittedDraft) composer.setDraft('');
   }, [awaitedQuestionId, composer, guard.redactText]);
 
+  // Every queue path goes through here: a message joins the turn already queued behind this run
+  // (`appendQueuedTurn`) instead of replacing it, which dropped the earlier message. A turn queued
+  // against another conversation is not joined — it would never be flushed there anyway.
+  const enqueueTurn = useCallback((turn: UserTextRedaction) => {
+    const sameConversation = queuedConversationIdRef.current === options.conversationId;
+    queuedConversationIdRef.current = options.conversationId;
+    setQueuedTurn((queued) => appendQueuedTurn({ queued: sameConversation ? queued : null, next: turn }));
+  }, [options.conversationId]);
+
   // A text-only message sent while a run streams goes INTO that run when the host can deliver it.
   // The draft clears before the await so the human sees it go out; whatever the outcome, the text
   // ends up somewhere — in the run, or queued as the next turn (after stopping the run when the
@@ -538,13 +550,12 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const sendIntoRunningTurn = useCallback(async (
     { deliver, runId, turn }: { deliver: DeliverMidRunMessage; runId: string; turn: UserTextRedaction },
   ) => {
-    queuedConversationIdRef.current = options.conversationId;
     composer.setDraft('');
     const outcome = await deliverMidRunMessageSafely({ deliver, runId, text: turn.text });
     if (outcome === 'delivered' || !mountedRef.current) return;
-    setQueuedTurn(turn);
+    enqueueTurn(turn);
     if (outcome === 'unsupported') conversation.cancel();
-  }, [composer, conversation, options.conversationId]);
+  }, [composer, conversation, enqueueTurn]);
 
   // The ordinary next-turn path: into the running run, else queue behind it, else send now.
   const sendOrdinaryTurn = useCallback(async (prompt: string) => {
@@ -562,8 +573,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       }
       // Queue instead of no-op'ing. `setDraft('')` and NOT `composer.reset()`: reset also discards
       // staged attachments, which this turn still needs when it finally goes out.
-      queuedConversationIdRef.current = options.conversationId;
-      setQueuedTurn(turn);
+      enqueueTurn(turn);
       composer.setDraft('');
       return;
     }
@@ -573,7 +583,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     canSend,
     composer,
     conversation.messages,
-    options.conversationId,
+    enqueueTurn,
     options.deliverMidRunMessage,
     sendBlocker,
     sendIntoRunningTurn,
@@ -626,11 +636,10 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const interruptSend = useCallback(() => {
     const prompt = composerPrompt(composer);
     if (!prompt) return;
-    queuedConversationIdRef.current = options.conversationId;
-    setQueuedTurn(guard.redact({ text: prompt }, {}));
+    enqueueTurn(guard.redact({ text: prompt }, {}));
     composer.setDraft('');
     conversation.cancel();
-  }, [composer, conversation, options.conversationId, guard.redact]);
+  }, [composer, conversation, enqueueTurn, guard.redact]);
 
   const cancelQueued = useCallback(() => {
     queuedConversationIdRef.current = undefined;

@@ -219,6 +219,13 @@ describe('interleaveMessageBlocks', () => {
     expect(blocks.map((b) => (b.kind === 'ext' ? `ext ${b.slot}` : b.kind))).toEqual(['ext mcp-ui', 'text']);
   });
 
+  it('marks where each reply ends at every mid-run user message, even when their ext slots fold into one', () => {
+    const events = [text('first'), ext('user_message', { id: 'm1' }), text('second'), ext('user_message', { id: 'm2' }), text('third')];
+    const blocks = interleaveMessageBlocks({ events, content: contentOf(events), rows: [] })!;
+    expect(blocks.map((b) => b.kind)).toEqual(['text', 'reply-end', 'ext', 'text', 'reply-end', 'text']);
+    expect(blocks.filter((b) => b.kind === 'reply-end')).toMatchObject([{ index: 0 }, { index: 1 }]);
+  });
+
   it('ignores non-text, non-tool events when reconstructing', () => {
     const events: AgentEvent[] = [
       { kind: 'status', label: 'starting' },

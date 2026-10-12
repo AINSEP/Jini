@@ -17,7 +17,7 @@ it('subtracts resumed session snapshots and adds all turn charges across agent a
     message('d', [snapshot('new', 0.5)]), message('e', [snapshot('new', 0.75)])];
   const usage = conversationUsage({ messages });
   expect(usage.get('a')).toEqual({ kind: 'usage', costUsd: 2.05, totalCostUsd: 2.05 });
-  expect(formatUsageCost({ costUsd: usage.get('b')!.costUsd!, totalCostUsd: usage.get('b')!.totalCostUsd! })).toBe('$0.45 (Total: $2.50)');
+  expect(formatUsageCost({ costUsd: usage.get('b')!.costUsd!, totalCostUsd: usage.get('b')!.totalCostUsd! })).toBe('$0.45 · total $2.50');
   expect(usage.get('c')).toEqual({ kind: 'usage', costUsd: 0.25, totalCostUsd: 2.75 });
   expect(usage.get('d')).toEqual({ kind: 'usage', costUsd: 0.5, totalCostUsd: 3.25 });
   expect(usage.get('e')).toEqual({ kind: 'usage', costUsd: 0.25, totalCostUsd: 3.5 });
@@ -58,15 +58,19 @@ it('preserves metadata in both native and AG-UI persisted event projections', ()
 });
 
 it.each([
-  [0.445, 2.5, '$0.45 (Total: $2.50)'],
-  [0.4028355, 1.0001, '$0.41 (Total: $1.01)'],
-  [0.07, 0.14, '$0.07 (Total: $0.14)'],
-  [25.60 - 25.15, Array.from({ length: 200 }, () => 0.07).reduce((a, b) => a + b, 0), '$0.45 (Total: $14.00)'],
-  [0, 0, '$0.00 (Total: $0.00)'],
-  [1e-16, 1e-16, '$0.01 (Total: $0.01)'],
-  [0.004, 0.008, '$0.01 (Total: $0.01)'],
+  [0.445, 2.5, '$0.45 · total $2.50'],
+  [0.4028355, 1.0001, '$0.41 · total $1.01'],
+  [0.07, 0.14, '$0.07 · total $0.14'],
+  [25.60 - 25.15, Array.from({ length: 200 }, () => 0.07).reduce((a, b) => a + b, 0), '$0.45 · total $14.00'],
+  [0, 0, '$0.00 · total $0.00'],
+  [1e-16, 1e-16, '$0.01 · total $0.01'],
+  [0.004, 0.008, '$0.01 · total $0.01'],
 ] as const)('rounds only the displayed amounts up to cents: %s, %s', (costUsd, totalCostUsd, expected) => {
   expect(formatUsageCost({ costUsd, totalCostUsd })).toBe(expected);
+});
+
+it('formats only the turn charge when no conversation total is passed', () => {
+  expect(formatUsageCost({ costUsd: 0.4028355 })).toBe('$0.41');
 });
 
 it('charges nonzero counter resets and resumes from the new baseline', () => {

@@ -23,6 +23,8 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../hooks/context.js';
 import { Icon } from './Icon.js';
+import { useConversationListTitles } from './ConversationList.hooks.js';
+import { conversationTriggerAttributes } from './ConversationList.rules.js';
 
 /**
  * How long a click waits to see whether it is really the first half of a double-click.
@@ -62,6 +64,13 @@ export interface ConversationListProps {
   /** Disables the "New" action — e.g. while the current conversation is still empty. */
   createDisabled?: boolean;
   emptyState?: React.ReactNode;
+  /** Replaces the trigger's accessible name (default "Conversations — {active title}"). */
+  triggerLabel?: string;
+  /**
+   * `false` drops the trigger's native `title` tooltip, for a host that draws its own tooltip over
+   * the icon (the browser's dark tip would otherwise show on top of it). Defaults to true.
+   */
+  nativeTitle?: boolean;
 }
 
 function reportConversationListHostEffectFailure(effectName: string, error: unknown) {
@@ -94,7 +103,7 @@ function relativeTime(updatedAt: number | undefined, now: number): string {
 }
 
 export function ConversationList({
-  conversations,
+  conversations: savedConversations,
   activeConversationId,
   onSelect,
   onCreate,
@@ -104,13 +113,17 @@ export function ConversationList({
   confirmDelete,
   createDisabled = false,
   emptyState,
+  triggerLabel,
+  nativeTitle = true,
 }: ConversationListProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [serverResults, setServerResults] = useState<ConversationListItem[] | null>(null);
+  const [savedServerResults, setServerResults] = useState<ConversationListItem[] | null>(null);
+  const { conversations, serverResults, rawTitles } = useConversationListTitles({ conversations: savedConversations, serverResults: savedServerResults });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const originalDraftRef = useRef('');
   const rootRef = useRef<HTMLDivElement | null>(null);
   const deferredQuery = useDeferredValue(query);
   /**
@@ -214,7 +227,8 @@ export function ConversationList({
       // No optimistic title update happens here — the row keeps rendering `item.title` from
       // props until the host's own state updates, so a rejection cannot leave the UI showing a
       // title the server didn't accept. Reporting the failure is what closes the remaining gap.
-      if (next) runConversationListHostEffect('onRename', () => onRename(id, next));
+      // Merely opening and leaving the editor must not normalize a deliberately saved title.
+      if (next && draft !== originalDraftRef.current) runConversationListHostEffect('onRename', () => onRename(id, next));
     },
     [draft, onRename],
   );
@@ -251,8 +265,7 @@ export function ConversationList({
         className={`jini-conv-trigger${open ? ' jini-conv-trigger-open' : ''}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={active?.title ? `${t('Conversations')} — ${active.title}` : t('Conversations')}
-        title={active?.title ?? t('Conversations')}
+        {...conversationTriggerAttributes({ activeTitle: active?.title, t }, { label: triggerLabel, nativeTitle })}
         data-testid="conversation-trigger"
         onClick={() => setOpen((v) => !v)}
       >
@@ -342,8 +355,10 @@ export function ConversationList({
                       }}
                       onDoubleClick={() => {
                         cancelPendingSelect();
+                        // Snapshot the raw seed: a host refresh during editing is not a user edit.
+                        originalDraftRef.current = rawTitles.get(item.id) ?? '';
                         setEditingId(item.id);
-                        setDraft(item.title ?? '');
+                        setDraft(originalDraftRef.current);
                       }}
                     >
                       <span className="jini-conv-item-title">{item.title ?? t('Untitled')}</span>

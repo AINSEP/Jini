@@ -285,6 +285,10 @@ export { appendComposerDiscovery } from './components/composer-discovery.js';
  */
 export { interleaveMessageBlocks } from './message-blocks.js';
 export type { MessageBlock } from './message-blocks.js';
+/** Transcript display modes for tool calls (`ChatPaneProps.toolCallDisplay`, 2026-10-11) — public so
+ * a custom message row can apply the same show / collapsed / hidden rules to its own blocks. */
+export { applyToolCallDisplay, isFailedToolRow, summarizeToolGroup, toolGroupLabel, toolRowsForDisplay } from './tool-call-display.js';
+export type { ToolCallDisplay, ToolDisplayRow, ToolGroupSummary } from './tool-call-display.js';
 
 export { TodoCard } from './components/TodoCard.js';
 export type { TodoCardProps } from './components/TodoCard.js';

@@ -35,8 +35,8 @@
  * so every check below prefers the former.
  *
  * It refuses when:
- * - there are no events, or no tool rows AND no ext events to interleave (nothing to do — the flat
- *   path is identical);
+ * - there are no events, or no tool rows AND no ext events (AND no thinking, when the caller asked
+ *   for it) to interleave (nothing to do — the flat path is identical);
  * - the concatenated text events do not reproduce `content` byte for byte. This is the load-bearing
  *   check. A message persisted before the events schema settled, one rebuilt by a host that
  *   assembles `content` some other way, or any future divergence between the two, all land here;
@@ -46,7 +46,7 @@
  * Artifacts are handled by the caller, not here — see `MessageRow.tsx`.
  */
 import type { AgentEvent } from '../core/index.js';
-import { assistantContentFromEvents, legacyAssistantContentFromEvents } from '../core/index.js';
+import { assistantContentFromEvents, isReplyBoundary, legacyAssistantContentFromEvents } from '../core/index.js';
 
 /**
  * One rendered block. Consecutive tool cards are coalesced into a single `tools` block so they keep
@@ -61,7 +61,14 @@ import { assistantContentFromEvents, legacyAssistantContentFromEvents } from '..
 export type MessageBlock<Row> =
   | { readonly kind: 'text'; readonly text: string; readonly key: string }
   | { readonly kind: 'tools'; readonly rows: readonly Row[]; readonly key: string }
-  | { readonly kind: 'ext'; readonly name: string; readonly slot: string; readonly key: string };
+  | { readonly kind: 'ext'; readonly name: string; readonly slot: string; readonly key: string }
+  /** Where reply `index` of a run ends: just before the mid-run user message that started the next
+   * reply (`isReplyBoundary`). `MessageRow` hangs that reply's own "Done" line here. */
+  | { readonly kind: 'reply-end'; readonly index: number; readonly key: string }
+  /** The model's reasoning (`kind: 'thinking'` events), where it happened. Emitted only when the
+   * caller passes `includeThinking` (a host's "show thinking" display choice, 2026-10-11);
+   * back-to-back thinking events with no text between them join into one block. */
+  | { readonly kind: 'thinking'; readonly text: string; readonly key: string };
 
 /**
  * Rebuilds an assistant message as ordered blocks, or returns `null` if that cannot be done
@@ -72,16 +79,23 @@ export type MessageBlock<Row> =
  * @param rows - The tool timeline rows, already deduped and paired by `useToolTimeline`. Only rows
  *   present here are emitted, so a row the timeline chose to drop stays dropped.
  * @param slotOf - The render slot an ext event belongs to (default: its `name`).
+ * @param includeThinking - Emit `thinking` blocks for the model's reasoning (default `false`: thinking
+ *   events are skipped, the layout every host had before this option). Thinking text is not part of
+ *   `content`, so it never affects the lossless check below.
  * @returns Ordered blocks, or `null` to signal "render the flat layout instead".
  * @complexity O(n + m) in the event and row counts.
  */
 export function interleaveMessageBlocks<Row extends { id: string }>(
   { events, content, rows }: { events: readonly AgentEvent[] | undefined; content: string; rows: readonly Row[] },
-  { slotOf = (ev) => ev.name }: { slotOf?: (ev: { readonly name: string; readonly data: unknown }) => string } = {},
+  { slotOf = (ev) => ev.name, includeThinking = false }: {
+    slotOf?: (ev: { readonly name: string; readonly data: unknown }) => string;
+    includeThinking?: boolean;
+  } = {},
 ): MessageBlock<Row>[] | null {
   if (!events || events.length === 0) return null;
   const hasExtEvent = events.some((ev) => ev.kind === 'ext');
-  if (rows.length === 0 && !hasExtEvent) return null;
+  const hasThinking = includeThinking && events.some((ev) => ev.kind === 'thinking' && ev.text.trim() !== '');
+  if (rows.length === 0 && !hasExtEvent && !hasThinking) return null;
 
   // The reconstruction is only trustworthy if the text events are demonstrably the source `content`
   // was built from. Anything else and the offsets below are fiction.
@@ -94,6 +108,7 @@ export function interleaveMessageBlocks<Row extends { id: string }>(
   const emitted = new Set<string>();
   const emittedExtSlots = new Set<string>();
   let buffer = '';
+  let replies = 0;
 
   const flushText = (): void => {
     if (buffer.length === 0) return;
@@ -105,6 +120,20 @@ export function interleaveMessageBlocks<Row extends { id: string }>(
     if (ev.kind === 'text') {
       buffer += ev.text;
       continue;
+    }
+    if (ev.kind === 'thinking') {
+      if (!includeThinking) continue;
+      flushText();
+      const last = blocks[blocks.length - 1];
+      if (last && last.kind === 'thinking') blocks[blocks.length - 1] = { kind: 'thinking', text: last.text + ev.text, key: last.key };
+      else blocks.push({ kind: 'thinking', text: ev.text, key: `thinking-${blocks.length}` });
+      continue;
+    }
+    if (isReplyBoundary({ event: ev })) {
+      // Emitted per boundary, before any slot dedupe below, so every reply gets its own end marker.
+      flushText();
+      blocks.push({ kind: 'reply-end', index: replies, key: `reply-end-${replies}` });
+      replies += 1;
     }
     if (ev.kind === 'ext') {
       // One block per SLOT, at its first occurrence — later events in the same slot fold into it
