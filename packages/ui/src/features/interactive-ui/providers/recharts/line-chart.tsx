@@ -26,9 +26,8 @@ export function LineChart({ data, categoryKey, valueKey, color = CHART_PRIMARY_C
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} strokeOpacity={0.6} vertical={false} />
-        {/* Same reasoning as bar-chart.tsx: always show every category tick rather than recharts'
-            default measured-overlap skip. */}
-        <XAxis dataKey={categoryKey} interval={0} {...CHART_AXIS_PROPS} />
+        {/* Same reasoning as bar-chart.tsx: thin only overlapping labels, keep the first and last. */}
+        <XAxis dataKey={categoryKey} interval="preserveStartEnd" minTickGap={8} {...CHART_AXIS_PROPS} />
         <YAxis {...CHART_AXIS_PROPS} tickFormatter={chartTickFormatter} width={48} />
         {/* Recharts deduplicates by dataKey before rendering custom content. Preserve the two
             graphical items here so the decorative area cannot displace the line's tooltip. */}

@@ -18,10 +18,11 @@ export function BarChart({ data, categoryKey, valueKey, color = CHART_PRIMARY_CO
     <ChartContainer config={config} title={title} description={description}>
       <RechartsBarChart data={data as Record<string, unknown>[]} accessibilityLayer title={title} desc={description} margin={{ top: 16, right: 12, bottom: 8, left: 0 }} barCategoryGap="24%">
         <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} strokeOpacity={0.6} vertical={false} />
-        {/* `interval={0}` always shows every category tick — an agent-authored chart usually has
-            few categories, so recharts' default overlap-avoidance skip (which drops ticks based
-            on measured text width) costs more legibility than it saves. */}
-        <XAxis dataKey={categoryKey} interval={0} {...CHART_AXIS_PROPS} />
+        {/* `preserveStartEnd` drops only the ticks whose measured label would overlap a neighbour,
+            always keeping the first and last. Few categories still show every label; a 24-month
+            series in the narrow assistant dock no longer smears (`interval={0}` forced every tick,
+            2026-10-12). `minTickGap` keeps a little air between the labels that remain. */}
+        <XAxis dataKey={categoryKey} interval="preserveStartEnd" minTickGap={8} {...CHART_AXIS_PROPS} />
         <YAxis {...CHART_AXIS_PROPS} tickFormatter={chartTickFormatter} width={48} />
         <Tooltip cursor={CHART_CURSOR} content={<ChartTooltipContent />} isAnimationActive={false} />
         {/* Animation depends on a `requestAnimationFrame`-driven transition (`react-smooth`); an

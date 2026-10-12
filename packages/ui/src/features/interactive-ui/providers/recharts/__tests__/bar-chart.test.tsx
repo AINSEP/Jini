@@ -11,17 +11,16 @@ describe('recharts BarChart', () => {
   // recharts' ResponsiveContainer measures its parent via getBoundingClientRect before it draws
   // any children — jsdom reports 0x0 for every element by default, so without this stub the
   // chart mounts but renders an empty SVG. See vitest.setup.ts's ResizeObserver shim doc.
+  // recharts also sizes tick text through its hidden `#recharts_measurement_span` (and caches each
+  // string's size for the whole file), so that span reports a text-proportional width (7px/char):
+  // a flat 600px would make every label "overlap" and the x axis would thin even two ticks.
   beforeEach(() => {
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
-      width: 600,
-      height: 300,
-      top: 0,
-      left: 0,
-      bottom: 300,
-      right: 600,
-      x: 0,
-      y: 0,
-      toJSON: () => {},
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.id === 'recharts_measurement_span') {
+        const width = (this.textContent ?? '').length * 7;
+        return { width, height: 14, top: 0, left: 0, bottom: 14, right: width, x: 0, y: 0, toJSON: () => {} };
+      }
+      return { width: 600, height: 300, top: 0, left: 0, bottom: 300, right: 600, x: 0, y: 0, toJSON: () => {} };
     });
   });
 
@@ -93,5 +92,27 @@ describe('recharts BarChart', () => {
     const { container } = render(<BarChart data={[{ month: 'Jan', revenue: 12000 }]} categoryKey="month" valueKey="revenue" />);
     expect(container.querySelector('.recharts-yAxis-tick-labels')).toHaveTextContent('12K');
     expect(container.querySelector('.jini-chart-legend')).toHaveTextContent('revenue');
+  });
+
+  // 2026-10-12: a 24-month chart in the narrow assistant dock drew every x label on top of the
+  // next (`interval={0}`). Relies on the text-proportional measurement stub above.
+  describe('x-axis label density', () => {
+    const tickLabels = (container: HTMLElement) =>
+      Array.from(container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')).map((el) => el.textContent);
+
+    it('thins crowded category labels and keeps the first and last', () => {
+      const months = Array.from({ length: 24 }, (_, i) => ({ month: `Month ${i + 1}`, value: i }));
+      const { container } = render(<BarChart data={months} categoryKey="month" valueKey="value" />);
+      const ticks = tickLabels(container);
+      expect(ticks.length).toBeLessThan(24);
+      expect(ticks[0]).toBe('Month 1');
+      expect(ticks.at(-1)).toBe('Month 24');
+    });
+
+    it('still shows every label when a few categories fit', () => {
+      const quarters = ['Q1', 'Q2', 'Q3', 'Q4'].map((quarter, i) => ({ quarter, value: i }));
+      const { container } = render(<BarChart data={quarters} categoryKey="quarter" valueKey="value" />);
+      expect(tickLabels(container)).toEqual(['Q1', 'Q2', 'Q3', 'Q4']);
+    });
   });
 });
