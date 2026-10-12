@@ -7,7 +7,7 @@ import { redirectMatcher } from "../matcher.js";
 import type { RedirectDbHandle } from "../ports.internal.js";
 import { InMemoryRedirectRepo } from "../repo.memory.js";
 import { createRedirect, tombstoneRedirect, updateRedirect, type RedirectsWriteDeps } from "../redirects.js";
-import { RedirectTargetNotAllowedError } from "../types.js";
+import { RedirectTargetNotAllowedError, RedirectValidationError } from "../types.js";
 import type { RedirectRecord } from "../types.js";
 import { isNeverInTrash, removeVia, restoreVia } from "./remove-redirect-double.js";
 
@@ -494,5 +494,31 @@ test("createRedirect still allows targets that only resemble the Referer alias",
     const deps = makeDeps();
     const { record } = await create(deps, "/old", target);
     assert.equal(record.toTarget, target);
+  }
+});
+
+for (const [fromPattern, surface] of [["/admin", "admin"], ["/%61dmin", "admin"], ["/API/x", "api"], ["/admin/*", "admin"]] as const) {
+  for (const matchType of ["exact", "prefix", "wildcard"] as const) {
+    test(`${matchType}: reserved redirect source ${fromPattern} is refused on create and update`, async () => {
+      const deps = makeDeps();
+      const expected = (error: unknown) => {
+        assert.ok(error instanceof RedirectValidationError);
+        assert.equal(error.message, `fromPattern '${fromPattern}' is reserved for the '${surface}' surface`);
+        return true;
+      };
+      await assert.rejects(createRedirect({ deps, input: { workspaceId: WORKSPACE_ID, actorId: ACTOR_ID, matchType, fromPattern, toTarget: "/new", statusCode: 301 } }), expected);
+      assert.equal(await deps.repo.findByFromPattern({ workspaceId: WORKSPACE_ID, fromPattern }), null);
+      const { record } = await create(deps, "/safe-source", "/new");
+      await assert.rejects(updateRedirect({ deps, input: { workspaceId: WORKSPACE_ID, actorId: ACTOR_ID, id: record.id, matchType, fromPattern } }), expected);
+      assert.deepEqual(await deps.repo.findById({ workspaceId: WORKSPACE_ID, id: record.id }), record);
+    });
+  }
+}
+
+test("redirect sources sharing only the reserved prefix or a deeper segment remain available", async () => {
+  const deps = makeDeps();
+  for (const fromPattern of ["/apiary", "/administration", "/public/admin", "/"]) {
+    const { record } = await create(deps, fromPattern, "/new");
+    assert.equal(record.fromPattern, fromPattern);
   }
 });

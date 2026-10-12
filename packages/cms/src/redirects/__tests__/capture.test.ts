@@ -5,7 +5,7 @@ import type { SlugChangeCaptureInput } from "../ports.js";
 import { InMemoryRedirectRepo } from "../repo.memory.js";
 import { RedirectSlugChangeCapture } from "../capture.js";
 import type { RedirectDbHandle } from "../ports.internal.js";
-import type { RedirectRecord, RedirectRevision } from "../types.js";
+import { RedirectValidationError, type RedirectRecord, type RedirectRevision } from "../types.js";
 
 /**
  * @file T005 (AC-18, AC-20, INV-01, INV-02, EC-05) — `capture.ts`'s
@@ -190,4 +190,18 @@ test("repeated renames a→b→a→c→a→b leave /a pointing at the live /b, n
   }
   const winner = await repo.lookupExact({ workspaceId: baseInput.workspaceId, path: "/a", includeOverrideOnly: false });
   assert.equal(winner?.toTarget, "/b");
+});
+
+test("automatic slug-change capture refuses a host-reserved source before writing", async () => {
+  for (const [oldPath, surface] of [["/admin", "admin"], ["/%61dmin", "admin"], ["/API/x", "api"]] as const) {
+    const { db, records, revisions } = makeFakeDb();
+    const capture = new RedirectSlugChangeCapture({ repo: makeFakeRepo(), db, clock, idGen: makeIdGen(), reservedSegments: new Set(["admin", "api"]) });
+    await assert.rejects(capture.onSlugChange({ ...baseInput, oldPath }), error => {
+      assert.ok(error instanceof RedirectValidationError);
+      assert.equal(error.message, `fromPattern '${oldPath}' is reserved for the '${surface}' surface`);
+      return true;
+    });
+    assert.deepEqual(records, []);
+    assert.deepEqual(revisions, []);
+  }
 });

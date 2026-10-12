@@ -118,6 +118,8 @@ export interface ContentTypeWriteServiceDeps {
   indexProvisioner: IndexProvisionerPort;
   outbox: OutboxPort;
   watermark?: WatermarkPort;
+  /** Host-owned public route segments which a collection key cannot claim. */
+  reservedKeys?: ReadonlySet<string>;
 }
 
 /** Reserved forever for the legacy `posts` table — an operator Collection can never take these keys. */
@@ -204,6 +206,9 @@ export async function registerContentType(
   // Guard 2: reserved key.
   if (RESERVED_CONTENT_TYPE_KEYS.has(input.key)) {
     return { ok: false, error: new ReservedContentTypeKeyError({ message: `key '${input.key}' is permanently reserved for the legacy 'posts' table` }) };
+  }
+  if (deps.reservedKeys?.has(input.key.toLowerCase())) {
+    return { ok: false, error: new ReservedContentTypeKeyError({ message: `key '${input.key}' is reserved for a host route` }) };
   }
   // Guard 3: field-name grammar, then uniqueness (every field, before any kind/cap check).
   const nameErrorOnRegister = fieldNameError(input.fields);

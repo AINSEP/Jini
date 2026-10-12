@@ -1,4 +1,5 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
+import { assertRedirectSourceAllowed } from "./redirects.js";
 /**
  * @file `RedirectSlugChangeCapture` — the `SlugChangeCapture` implementation
  * (SPEC-009 REQ-15/16/17; ADR-PIPE-009 Decision A).
@@ -59,6 +60,8 @@ export interface RedirectSlugChangeCaptureReadDeps {
 }
 
 export interface RedirectSlugChangeCaptureDeps {
+  /** Optional for existing hosts; route-owning hosts supply their reserved segment policy. */
+  reservedSegments?: ReadonlySet<string>;
   repo: RedirectSlugChangeCaptureReadDeps;
   db: RedirectDbHandle;
   clock: ClockPort;
@@ -85,6 +88,9 @@ export class RedirectSlugChangeCapture implements SlugChangeCapture {
    * @complexity O(1) — one read (idempotency check) + two writes.
    */
   async onSlugChange(input: SlugChangeCaptureInput, _optional: Record<string, never> = {}): Promise<void> {
+    if (this.deps.reservedSegments) {
+      assertRedirectSourceAllowed({ fromPattern: input.oldPath, reservedSegments: this.deps.reservedSegments });
+    }
     const existing = await this.deps.repo.lookupExact({
       workspaceId: input.workspaceId,
       path: input.oldPath,

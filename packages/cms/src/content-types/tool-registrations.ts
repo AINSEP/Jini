@@ -59,6 +59,8 @@ export interface ContentTypesToolDeps {
   outbox: OutboxPort;
   contentTypeRepo: ContentTypeRepoPort & ContentTypeListPort;
   contentTypeIndexProvisioner: IndexProvisionerPort & TeardownIndexProvisionerPort;
+  /** The same host route policy applied to direct content-type registration. */
+  reservedContentTypeKeys?: ReadonlySet<string>;
 }
 
 /** Descriptors for the 2 cleanup tools this pass does not wire — see file header. */
@@ -157,6 +159,7 @@ function contentTypesDeps(routeDeps: ContentTypesToolDeps) {
     authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }),
     outbox: routeDeps.outbox,
     indexProvisioner: routeDeps.contentTypeIndexProvisioner,
+    ...(routeDeps.reservedContentTypeKeys !== undefined ? { reservedKeys: routeDeps.reservedContentTypeKeys } : {}),
   };
 }
 

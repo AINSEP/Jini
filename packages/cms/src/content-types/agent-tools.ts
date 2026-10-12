@@ -154,7 +154,7 @@ export const contentTypesAgentToolCatalog: AgentToolDefinition[] = [
         key: {
           type: "string",
           pattern: IDENTIFIER_GRAMMAR_PATTERN,
-          description: "Permanent identifier for the content type. Cannot be changed later. 'post' and 'page' are permanently reserved and will be rejected.",
+          description: "Permanent identifier for the content type. Cannot be changed later. 'post' and 'page' are permanently reserved and will be rejected. Host-reserved route keys (such as 'admin' or 'api') are also rejected when configured.",
         },
         label: { type: "string", description: "Human-readable display name shown in the admin UI." },
         fields: FIELDS_SCHEMA,

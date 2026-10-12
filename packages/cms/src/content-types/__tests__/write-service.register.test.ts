@@ -346,3 +346,21 @@ test("S9/row 7: the in-transaction re-check closes the race — a row saved betw
   assert.equal(saves.length, 0, "the loser must not overwrite the winner's row");
   assert.equal(indexProvisioner.calls.length, 0, "provisioning must not run on refusal");
 });
+
+test("host-reserved keys are refused after authorization and before any row, revision or index write", async () => {
+  for (const key of ["admin", "api"]) {
+    const repo = fakeRepo();
+    const provisioner = fakeIndexProvisioner();
+    const result = await registerContentType({
+      deps: { repo, clock, ids, authorize: alwaysAllow, indexProvisioner: provisioner, outbox, reservedKeys: new Set(["admin", "api"]) },
+      input: { workspaceId: "ws-1", actorId: "user-1", key, label: "Reserved", fields: validFields() },
+    });
+    assert.equal(result.ok, false);
+    if (result.ok) assert.fail("reserved key accepted");
+    assert.ok(result.error instanceof ReservedContentTypeKeyError);
+    assert.equal(result.error.message, `key '${key}' is reserved for a host route`);
+    assert.deepEqual(repo.rows, []);
+    assert.deepEqual(repo.revisions, []);
+    assert.deepEqual(provisioner.calls, []);
+  }
+});

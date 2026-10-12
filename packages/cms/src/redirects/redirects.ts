@@ -236,6 +236,20 @@ function siteRelativeRefusalReason(check: SiteRelativeTargetCheck): string | nul
   }
 }
 
+/** Refuse source patterns whose decoded first segment belongs to a host route.
+ * Uses the same decoding and case folding as the target gate; wildcard tails remain patterns.
+ * @throws RedirectValidationError before any write. @complexity O(n) in the pattern length.
+ */
+export function assertRedirectSourceAllowed(
+  { fromPattern, reservedSegments }: { fromPattern: string; reservedSegments: ReadonlySet<string> },
+  _optional: Record<string, never> = {},
+): void {
+  const verdict = checkSiteRelativeTarget({ raw: fromPattern, reservedSegments }, {});
+  if (verdict.kind === "reserved") {
+    throw new RedirectValidationError(`fromPattern '${fromPattern}' is reserved for the '${verdict.surface}' surface`);
+  }
+}
+
 /**
  * The site-relative half of the write gate: routing's structural + reserved-path verdict, then the
  * redirect oracle's own raw-character rule. The read path hands a relative location to that oracle
@@ -373,6 +387,7 @@ export async function checkRedirectFieldsWouldWrite(
     validateToTargetLength(fields.toTarget);
     validateStatusCode(fields.statusCode);
     validatePriority(fields.priority);
+    assertRedirectSourceAllowed({ fromPattern: fields.fromPattern, reservedSegments: deps.reservedSegments });
     await assertTargetAllowed(deps.originRegistry, fields.workspaceId, fields.toTarget, deps.reservedSegments);
     const finalTarget = await resolveCollapsedTarget(deps.repo, fields.workspaceId, fields.fromPattern, fields.toTarget);
     if (finalTarget !== fields.toTarget) {
@@ -434,6 +449,7 @@ export async function createRedirect(required: CreateRedirectRequired, _optional
   const priority = input.priority ?? DEFAULT_PRIORITY;
   validatePriority(priority);
 
+  assertRedirectSourceAllowed({ fromPattern: input.fromPattern, reservedSegments: deps.reservedSegments });
   await assertTargetAllowed(deps.originRegistry, input.workspaceId, input.toTarget, deps.reservedSegments);
   const finalTarget = await resolveCollapsedTarget(deps.repo, input.workspaceId, input.fromPattern, input.toTarget);
   if (finalTarget !== input.toTarget) {
@@ -570,6 +586,7 @@ async function validateUpdateFields(
   validateStatus(fields.status);
   validatePriority(fields.priority);
 
+  assertRedirectSourceAllowed({ fromPattern: fields.fromPattern, reservedSegments: deps.reservedSegments });
   await assertTargetAllowed(deps.originRegistry, workspaceId, fields.toTarget, deps.reservedSegments);
   const finalTarget = await resolveCollapsedTarget(deps.repo, workspaceId, fields.fromPattern, fields.toTarget);
   if (finalTarget !== fields.toTarget) {
@@ -604,6 +621,7 @@ export async function updateRedirect(required: UpdateRedirectRequired, _optional
       assertEntityLive({ entityType: "redirect", entityId: input.id, state: "trashed" });
     }
 
+    assertRedirectSourceAllowed({ fromPattern: existing.fromPattern, reservedSegments: deps.reservedSegments });
     const outcome = await deps.restore({
       workspaceId: input.workspaceId,
       id: input.id,
