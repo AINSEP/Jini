@@ -1,3 +1,4 @@
+export { useGallerySelection, type GallerySelectionImage } from './hooks/GallerySelection.hooks.js';
 import type { ReactNode } from 'react';
 import { createElement } from 'react';
 import { bindReact } from '../../core/react/bind-react.js';

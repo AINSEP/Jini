@@ -851,3 +851,13 @@ test("updateMediaMetadata rejects a trashed row with ENTITY_IN_TRASH and leaves 
   assert.equal(stillTrashed.version, trashed.version);
   assert.equal(stillTrashed.status, "trashed");
 });
+
+
+for (const contentType of ["audio/wav", "audio/mpeg", "audio/flac", "audio/mp4"]) {
+  test(`mediawidget uploads accept ${contentType} through the existing media owner`, async () => {
+    const { deps } = makeDeps();
+    const { media } = await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, bytes: bytesFrom(contentType), filename: "sound", contentType, createdByPrincipal: "user-1" } });
+    assert.equal(media.status, "active");
+    assert.equal((await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id }))[0]?.transformName, "original");
+  });
+}

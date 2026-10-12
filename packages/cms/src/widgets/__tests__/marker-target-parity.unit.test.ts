@@ -64,7 +64,7 @@ test("marker-target parity: every server-registered page-embed type declares its
     assert.ok(keys, `EMBED_MARKER_TARGET_KEYS is missing an entry for registered type "${type}"`);
     // resolveTaxonomyEmbeds reads only ref.id (an ID or a unique taxonomy name), never ref.slug.
     // The other registered resolvers, including resolveFormTypeEmbeds, read id before slug.
-    assert.deepEqual(keys, type === "taxonomy" ? ["id"] : ["id", "slug"], `incorrect resolver target keys for "${type}"`);
+    assert.deepEqual(keys, type === "gallery" ? [] : type === "taxonomy" ? ["id"] : ["id", "slug"], `incorrect resolver target keys for "${type}"`);
   }
 });
 

@@ -68,19 +68,19 @@ test("scanHtmlEmbeds: finds two embeds of different types, in document order", (
     `<p>intro</p><div data-embed-config='{"type":"widget","id":"w1"}'></div><div data-embed-config='{"type":"media","id":"asset-1"}'></div>`
   );
   assert.deepEqual(refs, [
-    { type: "widget", id: "w1", slug: null, name: null, variant: null, header: true },
-    { type: "media", id: "asset-1", slug: null, name: null, variant: null, header: true },
+    { type: "widget", id: "w1", slug: null, name: null, variant: null, header: true, config: {"type": "widget", "id": "w1"} },
+    { type: "media", id: "asset-1", slug: null, name: null, variant: null, header: true, config: {"type": "media", "id": "asset-1"} },
   ]);
 });
 
 test("scanHtmlEmbeds: an unregistered/future type token scans exactly like a known one — the scanner never gates on type", () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"some-future-type","id":"x1"}'></div>`);
-  assert.deepEqual(refs, [{ type: "some-future-type", id: "x1", slug: null, name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "some-future-type", id: "x1", slug: null, name: null, variant: null, header: true, config: {"type": "some-future-type", "id": "x1"} }]);
 });
 
 test('scanHtmlEmbeds: the "form" type scans like any other token — its 2026-08-10 removal and 2026-10-04 restoration changed resolution, never scanning', () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"form","id":"f1"}'></div>`);
-  assert.deepEqual(refs, [{ type: "form", id: "f1", slug: null, name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "form", id: "f1", slug: null, name: null, variant: null, header: true, config: {"type": "form", "id": "f1"} }]);
 });
 
 test('scanHtmlEmbeds: only mode "html" is carried onto the ref; any other mode value is dropped', () => {
@@ -88,52 +88,52 @@ test('scanHtmlEmbeds: only mode "html" is carried onto the ref; any other mode v
     `<div data-embed-config='{"type":"form","id":"f1","mode":"html"}'></div><div data-embed-config='{"type":"form","id":"f2","mode":"fancy"}'></div>`,
   );
   assert.deepEqual(refs, [
-    { type: "form", id: "f1", slug: null, name: null, variant: null, header: true, mode: "html" },
-    { type: "form", id: "f2", slug: null, name: null, variant: null, header: true },
+    { type: "form", id: "f1", slug: null, name: null, variant: null, header: true, mode: "html", config: {"type": "form", "id": "f1", "mode": "html"} },
+    { type: "form", id: "f2", slug: null, name: null, variant: null, header: true, config: {"type": "form", "id": "f2", "mode": "fancy"} },
   ]);
 });
 
 test("scanHtmlEmbeds: name and variant config keys are captured alongside id", () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"media","id":"asset-1","variant":"thumb"}'></div>`);
-  assert.deepEqual(refs, [{ type: "media", id: "asset-1", slug: null, name: null, variant: "thumb", header: true }]);
+  assert.deepEqual(refs, [{ type: "media", id: "asset-1", slug: null, name: null, variant: "thumb", header: true, config: {"type": "media", "id": "asset-1", "variant": "thumb"} }]);
 });
 
 test("scanHtmlEmbeds: the marker attribute may sit anywhere among the element's other attributes, which survive the scan untouched", () => {
   const refs = scanHtmlEmbeds(
     `<div class="slot" data-extra="y" data-embed-config='{"type":"media","id":"asset-1","variant":"thumb"}'></div>`
   );
-  assert.deepEqual(refs, [{ type: "media", id: "asset-1", slug: null, name: null, variant: "thumb", header: true }]);
+  assert.deepEqual(refs, [{ type: "media", id: "asset-1", slug: null, name: null, variant: "thumb", header: true, config: {"type": "media", "id": "asset-1", "variant": "thumb"} }]);
 });
 
 test("scanHtmlEmbeds: whitespace between the opening and closing tag is tolerated", () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"widget","id":"w1"}'>\n  \n</div>`);
-  assert.deepEqual(refs, [{ type: "widget", id: "w1", slug: null, name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "widget", id: "w1", slug: null, name: null, variant: null, header: true, config: {"type": "widget", "id": "w1"} }]);
 });
 
 test("scanHtmlEmbeds: an element with real content between the tags DOES match — that content is a fallback the parser deliberately preserves, not a reason to skip the marker (this inverts the pre-b7acc21 empty-div-only rule)", () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"widget","id":"w1"}'><span>authored fallback</span></div>`);
-  assert.deepEqual(refs, [{ type: "widget", id: "w1", slug: null, name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "widget", id: "w1", slug: null, name: null, variant: null, header: true, config: {"type": "widget", "id": "w1"} }]);
 });
 
 test("scanHtmlEmbeds: an id longer than the sanity bound normalizes to null rather than being carried into a resolver/entry_refs lookup — the reference itself is still reported (scanning never gates on id validity, see this file's own header)", () => {
   const longId = "x".repeat(500);
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"widget","id":"${longId}"}'></div>`);
-  assert.deepEqual(refs, [{ type: "widget", id: null, slug: null, name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "widget", id: null, slug: null, name: null, variant: null, header: true, config: {"type": "widget", "id": longId} }]);
 });
 
 test("scanHtmlEmbeds: an empty id normalizes to null", () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"widget","id":""}'></div>`);
-  assert.deepEqual(refs, [{ type: "widget", id: null, slug: null, name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "widget", id: null, slug: null, name: null, variant: null, header: true, config: {"type": "widget", "id": ""} }]);
 });
 
 test("scanHtmlEmbeds: a missing id key reports id: null rather than dropping the reference — resolution (not scanning) decides whether a targetless reference is usable", () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"widget"}'></div>`);
-  assert.deepEqual(refs, [{ type: "widget", id: null, slug: null, name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "widget", id: null, slug: null, name: null, variant: null, header: true, config: {"type": "widget"} }]);
 });
 
 test("scanHtmlEmbeds: a non-string id is exactly as unusable as a missing one", () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"widget","id":7}'></div>`);
-  assert.deepEqual(refs, [{ type: "widget", id: null, slug: null, name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "widget", id: null, slug: null, name: null, variant: null, header: true, config: {"type": "widget", "id": 7} }]);
 });
 
 test("scanHtmlEmbeds: a marker whose config does not parse is absent from the result entirely — render-time stays forgiving, and the unparseable markup survives untouched because substituteHtmlEmbeds cannot see it either", () => {
@@ -159,33 +159,33 @@ test("scanHtmlEmbeds: truncates at MAX_HTML_EMBEDS_PER_PAGE, never returns more"
 
 test('scanHtmlEmbeds: a "slug" config key is captured alongside (and independently of) id/name/variant', () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"widget","slug":"contact-form"}'></div>`);
-  assert.deepEqual(refs, [{ type: "widget", id: null, slug: "contact-form", name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "widget", id: null, slug: "contact-form", name: null, variant: null, header: true, config: {"type": "widget", "slug": "contact-form"} }]);
 });
 
 test('scanHtmlEmbeds: both "id" and "slug" present on one marker are both reported by the scanner — deciding which wins is a resolver-side concern, not a scanner-side one', () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"widget","id":"w1","slug":"contact-form"}'></div>`);
-  assert.deepEqual(refs, [{ type: "widget", id: "w1", slug: "contact-form", name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "widget", id: "w1", slug: "contact-form", name: null, variant: null, header: true, config: {"type": "widget", "id": "w1", "slug": "contact-form"} }]);
 });
 
 test("scanHtmlEmbeds: a missing slug key reports slug: null, exactly like a missing id", () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"widget","id":"w1"}'></div>`);
-  assert.deepEqual(refs, [{ type: "widget", id: "w1", slug: null, name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "widget", id: "w1", slug: null, name: null, variant: null, header: true, config: {"type": "widget", "id": "w1"} }]);
 });
 
 test("scanHtmlEmbeds: an empty slug normalizes to null", () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"widget","slug":""}'></div>`);
-  assert.deepEqual(refs, [{ type: "widget", id: null, slug: null, name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "widget", id: null, slug: null, name: null, variant: null, header: true, config: {"type": "widget", "slug": ""} }]);
 });
 
 test("scanHtmlEmbeds: a non-string slug is exactly as unusable as a missing one", () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"widget","slug":7}'></div>`);
-  assert.deepEqual(refs, [{ type: "widget", id: null, slug: null, name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "widget", id: null, slug: null, name: null, variant: null, header: true, config: {"type": "widget", "slug": 7} }]);
 });
 
 test("scanHtmlEmbeds: a slug longer than the sanity bound normalizes to null, same guard as an oversized id", () => {
   const longSlug = "x".repeat(500);
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"widget","slug":"${longSlug}"}'></div>`);
-  assert.deepEqual(refs, [{ type: "widget", id: null, slug: null, name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "widget", id: null, slug: null, name: null, variant: null, header: true, config: {"type": "widget", "slug": longSlug} }]);
 });
 
 // ---------------------------------------------------------------------------
@@ -201,22 +201,22 @@ test("scanHtmlEmbeds: a slug longer than the sanity bound normalizes to null, sa
 
 test('scanHtmlEmbeds: a "header" config key of JSON boolean false is captured as header: false', () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"content","id":"c1","header":false}'></div>`);
-  assert.deepEqual(refs, [{ type: "content", id: "c1", slug: null, name: null, variant: null, header: false }]);
+  assert.deepEqual(refs, [{ type: "content", id: "c1", slug: null, name: null, variant: null, header: false, config: {"type": "content", "id": "c1", "header": false} }]);
 });
 
 test('scanHtmlEmbeds: a missing "header" key reports header: true — the no-silent-behavior-change default', () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"content","id":"c1"}'></div>`);
-  assert.deepEqual(refs, [{ type: "content", id: "c1", slug: null, name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "content", id: "c1", slug: null, name: null, variant: null, header: true, config: {"type": "content", "id": "c1"} }]);
 });
 
 test('scanHtmlEmbeds: "header":true is reported as header: true, same as an absent key', () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"content","id":"c1","header":true}'></div>`);
-  assert.deepEqual(refs, [{ type: "content", id: "c1", slug: null, name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "content", id: "c1", slug: null, name: null, variant: null, header: true, config: {"type": "content", "id": "c1", "header": true} }]);
 });
 
 test('scanHtmlEmbeds: a non-boolean "header" value (a string "false") is NOT a recognized opt-out — only the JSON boolean literal false suppresses the header, so this normalizes to true rather than silently mis-suppressing on a typo', () => {
   const refs = scanHtmlEmbeds(`<div data-embed-config='{"type":"content","id":"c1","header":"false"}'></div>`);
-  assert.deepEqual(refs, [{ type: "content", id: "c1", slug: null, name: null, variant: null, header: true }]);
+  assert.deepEqual(refs, [{ type: "content", id: "c1", slug: null, name: null, variant: null, header: true, config: {"type": "content", "id": "c1", "header": "false"} }]);
 });
 
 test("substituteHtmlEmbeds: replaces each placeholder with resolve()'s return value, leaves surrounding markup untouched", () => {
@@ -428,4 +428,19 @@ test("substituteHtmlEmbeds: controls is NEVER forwarded via occurrence.elementAt
     return "<video>RESOLVED</video>";
   });
   assert.deepEqual(collapseNames, ["muted"], "the collapse case must never hand a controls entry to the occurrence either");
+});
+
+// Nested inline content resolves by its synthetic id; saved-widget overlays resolve by placement.
+test("inline media content uses its occurrence id without a saved-widget placement key", () => {
+  const html = `<div data-embed-config='{"type":"media","content":{"items":[{"slug":"sound"}]}}'></div>` +
+    `<div data-embed-config='{"type":"media","content":{"items":[{"slug":"photo"}]}}'></div>` +
+    `<div data-embed-config='{"type":"widget","slug":"photos","content":{"items":[{"slug":"override"}]}}'></div>`;
+  const refs = scanHtmlEmbeds(html);
+  assert.deepEqual(refs, [
+    { type: "media", id: "media:1", slug: null, name: null, variant: null, header: true, config: { type: "media", content: { items: [{ slug: "sound" }] } } },
+    { type: "media", id: "media:2", slug: null, name: null, variant: null, header: true, config: { type: "media", content: { items: [{ slug: "photo" }] } } },
+    { type: "widget", id: null, slug: "photos", name: null, variant: null, header: true, placementKey: "placement:3", config: { type: "widget", slug: "photos", content: { items: [{ slug: "override" }] } } },
+  ]);
+  const replacements = new Map([["media:1", "<audio></audio>"], ["media:2", "<img>"], ["placement:3", "<b>override</b>"]]);
+  assert.equal(substituteHtmlEmbeds(html, ref => replacements.get(ref.placementKey ?? ref.id ?? ref.slug!)), '<div><audio></audio></div><div><img></div><b>override</b>');
 });

@@ -150,6 +150,11 @@ function decodeAttributeValue(value: string): string {
   });
 }
 
+/** Shared decoding seam for authored media references; parsing and indexing use one entity policy. */
+export function decodeMarkerHtmlAttribute({ value }: { value: string }, _optional: Record<string, never> = {}): string {
+  return decodeAttributeValue(value);
+}
+
 /** The inverse of {@link decodeAttributeValue} for a value written back double-quoted. */
 function encodeDoubleQuotedValue(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
@@ -605,6 +610,8 @@ export const EMBED_MARKER_TARGET_KEYS: Readonly<Record<string, readonly ("id" | 
   form: ["id", "slug"],
   taxonomy: ["id"],
   media: ["id", "slug"],
+  // Inline ordered images, not a persisted gallery entity; each mediaId is its own reference.
+  gallery: [],
   post: ["id", "slug"],
   content: ["id", "slug"],
   [COLLECTION_MARKER_TYPE]: ["id", "typeKey"],

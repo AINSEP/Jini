@@ -60,7 +60,7 @@ export const WIDGET_AREA_FIELD_NAMESPACE = "widgets" as const;
  * a bare `string` so a typo in a registration or a call site is a compile error,
  * not a runtime `unknown-type` surprise.
  */
-export type WidgetTypeKey = "text" | "social-links" | "recent-entries" | "menu" | "contact-form";
+export type WidgetTypeKey = "text" | "social-links" | "recent-entries" | "menu" | "contact-form" | "gallery" | "media";
 
 /**
  * A widget type's declared capability class (ADR-047 Debate Fold-In Amendment
@@ -149,6 +149,8 @@ export interface WidgetPlacementNode {
   readonly placementId: UUID;
   readonly widgetEntryId: UUID;
   readonly enabled: boolean;
+  /** Optional per-placement config overlay, resolved before media lookup. */
+  readonly content?: JsonObject;
 }
 
 /** The full region-composition document stored in a `widget_area` entry's `bodyJson`. */

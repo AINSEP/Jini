@@ -42,12 +42,12 @@ test("sniffContentType: recognizes WebP (RIFF____WEBP)", () => {
   assert.equal(sniffContentType({ bytes: bytes }), "image/webp");
 });
 
-test("sniffContentType: a RIFF container that is NOT WebP (wrong form type) is not misidentified", () => {
+test("sniffContentType: distinguishes WAV from WebP in the shared RIFF container", () => {
   const bytes = new Uint8Array(16);
   bytes.set(textBytes("RIFF"), 0);
   bytes.set(bytesOf([0x24, 0, 0, 0]), 4);
   bytes.set(textBytes("WAVE"), 8); // a .wav file, not .webp
-  assert.equal(sniffContentType({ bytes: bytes }), "application/octet-stream");
+  assert.equal(sniffContentType({ bytes: bytes }), "audio/wav");
 });
 
 test("sniffContentType: recognizes MP4/ISO-BMFF by the ftyp box at offset 4", () => {
@@ -172,4 +172,14 @@ test("sniffContentType: HEIC is not claimed as AVIF (its own mislabel as video/m
 
 test("sniffContentType: an ftyp box truncated mid-brand never throws and stays video/mp4", () => {
   assert.equal(sniffContentType({ bytes: bytesOf([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76]) }), "video/mp4");
+});
+
+
+test("mediawidget audio: identifies positive audio signatures and rejects invalid MPEG headers", () => {
+  assert.equal(sniffContentType({ bytes: textBytes("ID3audio") }), "audio/mpeg");
+  assert.equal(sniffContentType({ bytes: bytesOf([0xff, 0xfb, 0x90, 0]) }), "audio/mpeg");
+  assert.equal(sniffContentType({ bytes: bytesOf([0xff, 0xfb, 0xfc, 0]) }), "application/octet-stream");
+  assert.equal(sniffContentType({ bytes: textBytes("fLaCaudio") }), "audio/flac");
+  const m4a = new Uint8Array(16); m4a.set(textBytes("ftypM4A "), 4);
+  assert.equal(sniffContentType({ bytes: m4a }), "audio/mp4");
 });

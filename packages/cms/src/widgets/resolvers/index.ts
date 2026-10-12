@@ -37,6 +37,7 @@ import type {
 // isolation (2026-08-18 widgets/resolvers deep-import triage), so each factory is re-exported here
 // narrowly, one line per consumer:
 // `createRecentEntriesResolver` — `widgets/__tests__/unit/resolvers-recent-entries.unit.test.ts`.
+export { createGalleryWidgetResolver } from "./gallery.js";
 export { createRecentEntriesResolver } from "./recent-entries.js";
 // `createMenuResolver` — `widgets/__tests__/unit/resolvers-menu.unit.test.ts`.
 export { createMenuResolver } from "./menu.js";

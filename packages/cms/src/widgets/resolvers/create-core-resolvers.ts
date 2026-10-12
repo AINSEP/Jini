@@ -3,6 +3,7 @@ import type { EntryListPort } from "../../entries/index.js";
 
 import type { NavMenuReadModel, ResolveTargetHrefFn } from "../../navigation/index.js";
 import type { WidgetResolver, WidgetTypeKey } from "../types.js";
+import { createGalleryWidgetResolver } from "./gallery.js";
 import { createContactFormResolver } from "./contact-form.js";
 import { createMenuResolver } from "./menu.js";
 import { createRecentEntriesResolver, type ContentTypeLookup } from "./recent-entries.js";
@@ -18,6 +19,8 @@ import { createRecentEntriesResolver, type ContentTypeLookup } from "./recent-en
  * test would otherwise need to construct.
  */
 export interface CoreResolverDeps {
+  /** Media remains host-owned. Older hosts degrade nonempty galleries until this port is wired. */
+  galleryMedia?: Parameters<typeof createGalleryWidgetResolver>[0]["resolveMedia"];
   menus: MenusPort;
   collectionList: CollectionListPort;
   resolveMenuTargetHref?: ResolveTargetHrefFn;
@@ -37,6 +40,7 @@ export interface CoreResolverDeps {
 
 export function createCoreResolvers(deps: CoreResolverDeps, _optional: Record<string, never> = {}): Partial<Record<WidgetTypeKey, WidgetResolver>> {
   return {
+    gallery: createGalleryWidgetResolver({ resolveMedia: deps.galleryMedia ?? (async () => new Map()) }),
     "recent-entries": createRecentEntriesResolver({ collectionList: deps.collectionList, entryList: deps.entryList, contentTypes: deps.contentTypes }),
     menu: createMenuResolver({ menus: deps.menus, navMenuReadModel: deps.navMenuReadModel, ...(deps.resolveMenuTargetHref === undefined ? {} : { resolveTargetHref: deps.resolveMenuTargetHref }), publicOnly: true }),
     "contact-form": createContactFormResolver({ formDefinitionRepo: deps.formDefinitionRepo }),

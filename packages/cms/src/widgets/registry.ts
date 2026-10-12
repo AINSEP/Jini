@@ -170,7 +170,49 @@ const CONTACT_FORM_REGISTRATION = {
  * Iterate with `Object.values(...)` where the whole table is needed (e.g. `agent-tools.ts`'s
  * published-type-list).
  */
+/** Gallery owns no media lifecycle: its resolver adapts the existing gallery embed pipeline. */
+const GALLERY_REGISTRATION = {
+  typeKey: "gallery",
+  capability: "entry-reference",
+  configSchema: {
+    type: "object", "x-gallery-config": true,
+    properties: {
+      mode: { type: 'string' }, html: { type: 'string' }, htmlAttributes: { type: 'string' }, cssClass: { type: 'string' },
+      items: { type: 'array', maxItems: 50, items: { type: 'object', properties: {
+        slug: { type: 'string', 'x-ref-target': 'asset' }, alt: { type: 'string' }, caption: { type: 'string' },
+      }, required: ['slug'], additionalProperties: false } },
+      images: { type: "array", maxItems: 50, items: { type: "object", properties: {
+        mediaId: { type: "string", "x-ref-target": "asset" }, alt: { type: "string" }, caption: { type: "string" },
+      }, required: ["mediaId"], additionalProperties: false } },
+      layout: { type: "string", enum: ["grid", "carousel", "masonry"] },
+      columns: { type: "integer", minimum: 1, maximum: 6 },
+      aspectRatio: { type: "string" },
+    }, additionalProperties: false,
+  },
+  placementContexts: ["region", "inline"],
+  clamps: { maxItems: 50, timeoutMs: 10000 }, resolverId: "gallery",
+} satisfies WidgetTypeRegistration;
+
+/** Generic media content; Gallery is a compatibility preset over the same resolver lifecycle. */
+const MEDIA_REGISTRATION = {
+  typeKey: 'media', capability: 'entry-reference',
+  configSchema: {
+    type: 'object', 'x-gallery-config': true,
+    properties: {
+      mode: { type: 'string' }, html: { type: 'string' },
+      items: { type: 'array', maxItems: 50, items: { type: 'object', properties: {
+        slug: { type: 'string', 'x-ref-target': 'asset' }, alt: { type: 'string' }, caption: { type: 'string' },
+      }, required: ['slug'], additionalProperties: false } },
+      layout: { type: 'string' }, columns: { type: 'integer', minimum: 1, maximum: 6 },
+      aspectRatio: { type: 'string' }, htmlAttributes: { type: 'string' }, cssClass: { type: 'string' },
+    }, additionalProperties: false,
+  },
+  placementContexts: ['region', 'inline'], clamps: { maxItems: 50, timeoutMs: 10000 }, resolverId: 'gallery',
+} satisfies WidgetTypeRegistration;
+
 export const WIDGET_TYPE_REGISTRATIONS = {
+  media: MEDIA_REGISTRATION,
+  gallery: GALLERY_REGISTRATION,
   text: TEXT_REGISTRATION,
   "social-links": SOCIAL_LINKS_REGISTRATION,
   "recent-entries": RECENT_ENTRIES_REGISTRATION,

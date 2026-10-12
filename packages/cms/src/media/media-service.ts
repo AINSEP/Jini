@@ -122,6 +122,10 @@ function formatMaxUploadBytesAsMb(bytes: number): string {
  * `routes/site/media-rendition.ts`). This widens the SAME advisory,
  * client-declared-string check item 4 above already discloses as untrusted —
  * no new ingress hardening was added for video.
+ *
+ * Audio (owner-approved mediawidget, 2026-10-10/11) follows that same original-byte
+ * lifecycle. Only formats recognized by the shared sniffer are allowed; no image
+ * transform is requested for them.
  */
 export const DEFAULT_ALLOWED_MIME_TYPES: ReadonlySet<string> = new Set([
   "image/jpeg",
@@ -131,6 +135,10 @@ export const DEFAULT_ALLOWED_MIME_TYPES: ReadonlySet<string> = new Set([
   "image/avif",
   "video/mp4",
   "video/webm",
+  "audio/wav",
+  "audio/mpeg",
+  "audio/flac",
+  "audio/mp4",
 ]);
 
 /**

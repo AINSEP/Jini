@@ -12,9 +12,9 @@ import type { WidgetTypeRegistration } from "../../types.js";
  * the data layer before any resolver behavior is implemented.
  */
 
-test("REQ-09: registers exactly the five v1 widget types", () => {
+test("REQ-09: registers the built-in widget types including Media and Gallery", () => {
   const keys = Object.values(WIDGET_TYPE_REGISTRATIONS).map((r) => r.typeKey).sort();
-  assert.deepEqual(keys, ["contact-form", "menu", "recent-entries", "social-links", "text"]);
+  assert.deepEqual(keys, ["contact-form", "gallery", "media", "menu", "recent-entries", "social-links", "text"]);
 });
 
 test("REQ-10: static-capability types (text, social-links) declare no resolverId", () => {

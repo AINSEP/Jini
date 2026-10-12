@@ -78,6 +78,7 @@ export function isProtectedEmbedElement({ el }: { readonly el: Element }): boole
  */
 const EMBED_KIND_LABELS: Readonly<Record<string, string>> = {
   media: 'Media',
+  gallery: 'Gallery',
   widget: 'Widget',
   post: 'Post',
   content: 'Content',
@@ -147,6 +148,10 @@ export function describeEmbedPlaceholder({ el }: { readonly el: Element }): Canv
   if (typeof config.type !== 'string' || config.type === '') return undefined;
 
   const type = config.type.toLowerCase();
+  if (type === 'gallery') {
+    const count = Array.isArray(config.images) ? config.images.length : 0;
+    return { kindLabel: EMBED_KIND_LABELS.gallery!, identityLabel: count === 0 ? 'no images set' : `${count} ${count === 1 ? 'image' : 'images'}` };
+  }
   return { kindLabel: EMBED_KIND_LABELS[type] ?? titleCase(type), identityLabel: identityLabel(config) };
 }
 

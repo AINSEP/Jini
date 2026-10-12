@@ -1,4 +1,6 @@
 import { isNonArrayRecord } from "@jini-ai/core";
+import { resolveGalleryEmbeds } from "./gallery-resolver.js";
+import { isPlausibleMediaRefId } from "./markers/media-reference.js";
 /**
  * @file `resolvePageWidgets` — the batch-first page-render resolution orchestrator (SPEC-043
  * REQ-23..28; ADR-047 Debate Fold-In Amendment 2).
@@ -96,6 +98,7 @@ function toRenderIr(result: WidgetResolveResult | undefined): WidgetRenderIR {
 interface InlineEmbedRef {
   placementId: UUID;
   widgetEntryId: UUID;
+  content?: JsonObject;
 }
 
 /** Walks a TipTap-shaped bodyJson tree collecting every `widgetEmbed` node (REQ-21) — same shape `core/entry-refs/extractor.ts` walks, kept separate since this module has no dependency on `core/entry-refs`. */
@@ -115,7 +118,7 @@ function collectWidgetEmbeds(root: unknown, out: InlineEmbedRef[]): void {
     }
     if (!isNonArrayRecord(candidate)) continue;
     if (isNonArrayRecord(attrs) && typeof attrs.value.widgetEntryId === "string" && typeof attrs.value.placementId === "string") {
-      out.push({ placementId: attrs.value.placementId, widgetEntryId: attrs.value.widgetEntryId });
+      out.push({ placementId: attrs.value.placementId, widgetEntryId: attrs.value.widgetEntryId, ...(isNonArrayRecord({ value: attrs.value.content }) ? { content: attrs.value.content as JsonObject } : {}) });
     }
     if (Array.isArray(candidate.value.content)) stack.push(candidate.value.content);
   }
@@ -175,12 +178,23 @@ async function resolveWidgetInstances(
   deps: WidgetInstanceResolutionDeps,
   workspaceId: UUID,
   referencedIds: ReadonlySet<UUID>,
-  context: WidgetResolveContext
+  context: WidgetResolveContext,
+  overrides: readonly { key: string; widgetEntryId: string; content: JsonObject }[] = [],
+  originalIds: ReadonlySet<UUID> = referencedIds,
 ): Promise<ReadonlyMap<UUID, WidgetResolveResult>> {
   const widgetRows =
     referencedIds.size > 0 ? await deps.entryRepo.listByWorkspace({ workspaceId }, { type: WIDGET_CONTENT_TYPE }) : [];
-  const byType = groupWidgetInstancesByType(widgetRows, referencedIds);
+  const byType = groupWidgetInstancesByType(widgetRows, originalIds);
+  const rowsById = new Map(widgetRows.map(row => [row.id, row]));
 
+  for (const override of overrides) {
+    const row = rowsById.get(override.widgetEntryId);
+    const saved = row ? parseWidgetInstanceRow(row) : null;
+    if (!saved) continue;
+    const instances = byType.get(saved.widgetType) ?? [];
+    instances.push({ ...saved, id: override.key, config: { ...saved.config, ...override.content } });
+    byType.set(saved.widgetType, instances);
+  }
   const resolvedById = new Map<UUID, WidgetResolveResult>();
   for (const [typeKey, instances] of byType) {
     const results = await resolveWidgetType({ typeKey, instances, context });
@@ -260,16 +274,23 @@ export async function resolvePageWidgets(required: ResolvePageWidgetsRequired, _
   // handles them as "unresolved", not a crash), at most one `resolveWidgetType` call per distinct
   // type present (REQ-24) — see `resolveWidgetInstances`'s own doc for why this is shared rather
   // than inlined here.
-  const resolvedById = await resolveWidgetInstances(deps, input.workspaceId, referencedIds, context);
+  const allPlacements = [...inlineEmbeds, ...[...regionPlacements.values()].flat()];
+  const originalIds = new Set(allPlacements.filter(placement => !placement.content).map(placement => placement.widgetEntryId));
+  const resolvedById = await resolveWidgetInstances(deps, input.workspaceId, referencedIds, context, inlineContentOverrides(allPlacements), originalIds);
 
   // 6. Assemble region -> IR[] (missing/failed placements degrade to the REQ-28 placeholder).
   const regions: Record<WidgetRegionKey, WidgetRenderIR[]> = {};
   for (const [regionKey, placements] of regionPlacements) {
-    regions[regionKey] = placements.map((placement) => toRenderIr(resolvedById.get(placement.widgetEntryId)));
+    regions[regionKey] = placements.map((placement) => toRenderIr(resolvedById.get(placement.content ? placement.placementId : placement.widgetEntryId)));
   }
 
   // 7. Assemble placementId -> IR for inline embeds.
   return { regions, inlineResolved: assembleInlineResolved(inlineEmbeds, resolvedById) };
+}
+
+/** Placement config merges before asset resolution; a repeated widget never shares overridden IR. */
+function inlineContentOverrides(embeds: readonly InlineEmbedRef[]): { key: string; widgetEntryId: string; content: JsonObject }[] {
+  return embeds.flatMap(embed => embed.content ? [{ key: embed.placementId, widgetEntryId: embed.widgetEntryId, content: embed.content }] : []);
 }
 
 /** placementId -> IR for every inline embed; a missing/trashed/failed widget degrades to the REQ-28
@@ -280,7 +301,7 @@ function assembleInlineResolved(
 ): Map<UUID, WidgetRenderIR> {
   const inlineResolved = new Map<UUID, WidgetRenderIR>();
   for (const embed of inlineEmbeds) {
-    inlineResolved.set(embed.placementId, toRenderIr(resolvedById.get(embed.widgetEntryId)));
+    inlineResolved.set(embed.placementId, toRenderIr(resolvedById.get(embed.content ? embed.placementId : embed.widgetEntryId)));
   }
   return inlineResolved;
 }
@@ -490,8 +511,20 @@ async function resolveWidgetTypeEmbeds(
   const slugRefs = refs.filter((ref) => ref.id === null && ref.slug !== null);
   const idBySlug = await resolveWidgetSlugsToIds(slugRefs, deps, context);
   const ids = collectWidgetIdsToLoad(refs, idBySlug, context);
-  const resolvedRaw = await resolveWidgetInstances(deps, context.workspaceId, ids, context);
-  return buildResolvedWidgetMap(refs, idBySlug, resolvedRaw);
+  const overrides = refs.flatMap(ref => {
+    const content = ref.config?.content;
+    const widgetEntryId = ref.id ?? (ref.slug ? idBySlug.get(ref.slug) : undefined);
+    return widgetEntryId && ref.placementKey && isNonArrayRecord({ value: content })
+      ? [{ key: ref.placementKey, widgetEntryId, content: content as JsonObject }] : [];
+  });
+  const originalIds = new Set(refs.filter(ref => !ref.placementKey).flatMap(ref => {
+    const id = ref.id ?? (ref.slug ? idBySlug.get(ref.slug) : undefined);
+    return id ? [id] : [];
+  }));
+  const resolvedRaw = await resolveWidgetInstances(deps, context.workspaceId, ids, context, overrides, originalIds);
+  const resolved = buildResolvedWidgetMap(refs, idBySlug, resolvedRaw);
+  for (const override of overrides) if (resolvedRaw.has(override.key)) resolved.set(override.key, toRenderIr(resolvedRaw.get(override.key)));
+  return resolved;
 }
 
 /** A form slug/id is a synthetic contact-form instance, resolved through the widget pipeline. */
@@ -507,21 +540,6 @@ async function resolveFormTypeEmbeds(
     instances: keys.map((id) => ({ id, widgetType: "contact-form", config: { formDefinitionRef: id } })),
   });
   return new Map(keys.map((key) => [key, toRenderIr(results.get(key))]));
-}
-
-/** Mirrors `render.ts`'s own `MAX_MEDIA_REF_ID_LENGTH`/`PLAUSIBLE_MEDIA_REF_ID_PATTERN` shape check
- * for an `assetId`/`transformName` that will eventually become a `/m/` URL path segment —
- * duplicated here rather than imported for the same reason `core/entry-refs/extractor.ts`
- * duplicates `html-embeds.ts`'s scan pattern instead of importing it: `widgets/` (this file) must
- * not depend on `server/http/site/render.ts`, which sits above it in this codebase's layering. Both
- * copies guard the SAME hazard — this copy stops a malformed id/name from being used as a
- * repo-lookup key at resolve time; `render.ts`'s copy (`renderWidgetMediaImage`) re-checks
- * defense-in-depth immediately before URL templating. */
-const MAX_MEDIA_REF_ID_LENGTH = 200;
-const PLAUSIBLE_MEDIA_REF_ID_PATTERN = /^[^\s/]+$/;
-
-function isPlausibleMediaRefId(value: string): boolean {
-  return value.length > 0 && value.length <= MAX_MEDIA_REF_ID_LENGTH && PLAUSIBLE_MEDIA_REF_ID_PATTERN.test(value);
 }
 
 /**
@@ -598,7 +616,7 @@ function parseMediaEmbedRef(
 ): { assetId: string; transformName: string } | undefined {
   const assetId = ref.id ?? ref.slug;
   const transformName = ref.variant ?? host.media.publicTransformName;
-  if (assetId === null || !isPlausibleMediaRefId(assetId) || !isPlausibleMediaRefId(transformName)) {
+  if (assetId === null || !isPlausibleMediaRefId({ value: assetId }) || !isPlausibleMediaRefId({ value: transformName })) {
     console.warn(
       '[widgets] resolveHtmlPageEmbeds: unresolved "media" reference — missing or invalid "id"/"slug"/"variant" in data-embed-config',
       { workspaceId: context.workspaceId }
@@ -677,8 +695,10 @@ async function resolveOneMediaEmbed(
   // value; now it is `media_slug_history` (S2a/S2b) keeping the OLD slug resolving too.
   const { assetId: refAssetId, transformName } = parsed;
 
-  const record = await host.media.findMediaByIdOrSlug({ deps: { mediaRepo }, input: { workspaceId: context.workspaceId, idOrSlug: refAssetId } });
-  if (!record) {
+  const record = ref.id === null && ref.slug !== null
+    ? await mediaRepo.findBySlug({ workspaceId: context.workspaceId, slug: ref.slug })
+    : await host.media.findMediaByIdOrSlug({ deps: { mediaRepo }, input: { workspaceId: context.workspaceId, idOrSlug: refAssetId } });
+  if (!record || record.status !== "active") {
     console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "media" reference — no such asset', {
       workspaceId: context.workspaceId,
       assetId: refAssetId,
@@ -692,8 +712,8 @@ async function resolveOneMediaEmbed(
         record.source.sha256
       )
     : undefined;
-  if (contentType?.startsWith("video/")) {
-    // Video needs no transform lookup at all: `render.ts`'s video branch points straight at
+  if (contentType?.startsWith("video/") || contentType?.startsWith("audio/")) {
+    // Video/audio need no image transform lookup: the shared native-player renderer points at
     // `/m/{assetId}/original` (the byte-passthrough route — see that route's own doc for why
     // video can't go through the image-transform pipeline below), so `transformName`/`version`
     // would be unused props for this IR.
@@ -744,6 +764,14 @@ async function resolveMediaTypeEmbeds(
   }
 
   return resolved;
+}
+
+/** Gallery widget adapter over the same media owner used by gallery HTML embeds. */
+export function resolveGalleryWidgetMedia(
+  { refs, deps, context }: { refs: readonly PageHtmlEmbedRef[]; deps: ResolveHtmlPageEmbedsDeps; context: WidgetResolveContext },
+  _optional: Record<string, never> = {},
+): Promise<ReadonlyMap<string, WidgetRenderIR>> {
+  return resolveMediaTypeEmbeds(refs, deps, context);
 }
 
 /** Scans a TipTap-shaped `bodyJson` tree for every ref-based `image`/`media` node's `assetId`
@@ -916,7 +944,7 @@ async function resolvePostContentWidgetContext(
   collectWidgetEmbeds(bodyJson, inlineEmbeds);
   if (inlineEmbeds.length === 0) return { inlineWidgets: {} };
   const referencedIds = new Set(inlineEmbeds.map((embed) => embed.widgetEntryId));
-  const resolvedById = await resolveWidgetInstances(deps, context.workspaceId, referencedIds, context);
+  const resolvedById = await resolveWidgetInstances(deps, context.workspaceId, referencedIds, context, inlineContentOverrides(inlineEmbeds), new Set(inlineEmbeds.filter(embed => !embed.content).map(embed => embed.widgetEntryId)));
   const inlineResolved = assembleInlineResolved(inlineEmbeds, resolvedById);
   return { inlineWidgets: Object.fromEntries(inlineResolved) as unknown as JsonObject };
 }
@@ -1216,7 +1244,22 @@ export const HTML_EMBED_RESOLVERS: Readonly<Record<string, HtmlEmbedResolver>> =
   widget: resolveWidgetTypeEmbeds,
   form: resolveFormTypeEmbeds,
   taxonomy: (refs, deps) => resolveTaxonomyEmbeds({ refs, deps }),
-  media: resolveMediaTypeEmbeds,
+  media: async (refs, deps, context) => {
+    const inline = refs.filter(ref => ref.config?.content !== undefined || ref.config?.items !== undefined || ref.config?.html !== undefined);
+    const ordinary = refs.filter(ref => !inline.includes(ref));
+    const media = await resolveMediaTypeEmbeds(ordinary, deps, context);
+    const content = await resolveGalleryEmbeds({
+      refs: inline.map(ref => ({ ...ref, config: (ref.config?.content ?? ref.config) as Readonly<Record<string, unknown>> })),
+      resolveMedia: ({ refs }) => resolveMediaTypeEmbeds(refs, deps, context),
+    }, { reportIssue: ({ key, messages }) => console.warn('[widgets] unresolved media content', { key, messages }) });
+    return new Map([...media, ...content]);
+  },
+  gallery: (refs, deps, context) => resolveGalleryEmbeds({
+    refs,
+    resolveMedia: ({ refs: mediaRefs }) => resolveMediaTypeEmbeds(mediaRefs, deps, context),
+  }, {
+    reportIssue: ({ key, messages }) => console.warn('[widgets] unresolved gallery embed', { workspaceId: context.workspaceId, key, messages }),
+  }),
   post: resolvePostTypeEmbeds,
   content: resolveContentTypeEmbeds,
 } satisfies Record<PageEmbedType, HtmlEmbedResolver>;
@@ -1270,8 +1313,12 @@ export const HTML_EMBED_RESOLVERS: Readonly<Record<string, HtmlEmbedResolver>> =
  *
  * `"featured-image"` (2026-10-05) joins for the identical reason: `static-render.ts`'s
  * `injectFeaturedImage` resolves it (see `FEATURED_IMAGE_MARKER_TYPE`, `core/embeds/marker.ts`).
+ *
+ * `"post-author"` (2026-10-11) joins for the identical reason: `static-render.ts`'s
+ * `injectPostAuthor` fills the byline. Without it this stage warned once per post render while the
+ * byline rendered correctly.
  */
-export const THEME_OWNED_MARKER_TYPES: ReadonlySet<string> = new Set(["partial", "menu", "post-previews", "collection", "featured-image"]);
+export const THEME_OWNED_MARKER_TYPES: ReadonlySet<string> = new Set(["partial", "menu", "post-previews", "collection", "featured-image", "post-author"]);
 
 /**
  * `isPageEmbedType` (the "does this stage OWN the marker type" question, with its own doc) lives in
@@ -1279,4 +1326,3 @@ export const THEME_OWNED_MARKER_TYPES: ReadonlySet<string> = new Set(["partial",
  * without loading this file's service graph. Re-exported so existing importers keep working.
  */
 export { isPageEmbedType } from "./page-embed-types.js";
-

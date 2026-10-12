@@ -112,8 +112,18 @@ describe('describeEmbedPlaceholder', () => {
 
   it('title-cases an unrecognized future type rather than dropping it — the marker scanner treats type as a free string', () => {
     const el = document.createElement('div');
-    el.setAttribute('data-embed-config', '{"type":"gallery","id":"g1"}');
-    expect(describeEmbedPlaceholder({ el: el })?.kindLabel).toBe('Gallery');
+    el.setAttribute('data-embed-config', '{"type":"future-grid","id":"g1"}');
+    expect(describeEmbedPlaceholder({ el: el })?.kindLabel).toBe('Future-grid');
+  });
+
+  it('describes an inline gallery by image count rather than claiming its absent id is an error', () => {
+    const el = document.createElement('div');
+    el.setAttribute('data-embed-config', '{"type":"gallery","images":[{"mediaId":"one"},{"mediaId":"two"}],"layout":"grid"}');
+    expect(describeEmbedPlaceholder({ el })).toEqual({ kindLabel: 'Gallery', identityLabel: '2 images' });
+    el.setAttribute('data-embed-config', '{"type":"gallery","images":[{"mediaId":"one"}]}');
+    expect(describeEmbedPlaceholder({ el })?.identityLabel).toBe('1 image');
+    el.setAttribute('data-embed-config', '{"type":"gallery","images":null}');
+    expect(describeEmbedPlaceholder({ el })?.identityLabel).toBe('no images set');
   });
 
   // The exact case the owner's follow-up question was about: a marketplace theme (or any future

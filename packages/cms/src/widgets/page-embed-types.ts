@@ -11,7 +11,7 @@
  * under `server/inbound/public-http/http/site/`).
  */
 
-export const PAGE_EMBED_TYPES = ["widget", "form", "taxonomy", "media", "post", "content"] as const;
+export const PAGE_EMBED_TYPES = ["widget", "form", "taxonomy", "media", "gallery", "post", "content"] as const;
 
 export type PageEmbedType = (typeof PAGE_EMBED_TYPES)[number];
 

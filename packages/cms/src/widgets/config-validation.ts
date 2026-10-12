@@ -1,3 +1,4 @@
+import { parseGalleryConfig } from "./markers/gallery.js";
 import { isNonArrayRecord } from "@jini-ai/core";
 
 /**
@@ -157,6 +158,10 @@ export function validateWidgetConfig(
 ): ValidateWidgetConfigResult {
   const errors: WidgetConfigFieldError[] = [];
   walk(required.config, required.schema as WidgetConfigJsonSchema, "config", errors);
+  // The shared parser owns layout, id and CSS-ratio invariants; the schema narrows widgets to library images.
+  if (required.schema["x-gallery-config"] === true) {
+    for (const reason of parseGalleryConfig({ config: required.config }, { allowEmpty: true }).errors) errors.push({ field: "config", reason });
+  }
   return { valid: errors.length === 0, fieldErrors: errors };
 }
 

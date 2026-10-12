@@ -122,6 +122,8 @@ import { normalizeLegacyWidgetMarkers } from "./legacy-widget-markers.js";
  * — this interface is the compatibility seam, not a ceiling.
  */
 export interface PageHtmlEmbedRef {
+  /** Occurrence identity for placement overrides sharing one saved widget. */
+  readonly placementKey?: string;
   readonly type: string;
   readonly id: string | null;
   /** See this file's header for why this is NOT the same mechanism as `name` below, despite the
@@ -144,6 +146,8 @@ export interface PageHtmlEmbedRef {
    */
   readonly header: boolean;
   readonly mode?: "html";
+  /** Full inline configuration for compound embeds; existing scalar projections remain stable. */
+  readonly config?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -213,12 +217,18 @@ function configBooleanDefaultTrue(config: Readonly<Record<string, unknown>>, key
 function toEmbedRef(marker: EmbedMarker): PageHtmlEmbedRef {
   return {
     type: marker.type.toLowerCase(),
-    id: normalizeEmbedId(configString(marker.config, "id")),
+    // Only saved widget overlays use placement keys. Inline Media content already has its own
+    // occurrence id below; a second key would make rendering miss the resolver's media:<n> result.
+    ...(marker.type.toLowerCase() === "widget" && marker.config.content !== undefined ? { placementKey: `placement:${marker.occurrence}` } : {}),
+    // Inline galleries have no target entity. Key by occurrence so repeated assets with different
+    // layouts/captions cannot overwrite each other's resolved IR, even with an authored id.
+    id: (marker.type.toLowerCase() === "gallery" || (marker.type.toLowerCase() === "media" && (marker.config.content !== undefined || marker.config.items !== undefined || marker.config.html !== undefined))) ? `${marker.type.toLowerCase()}:${marker.occurrence}` : normalizeEmbedId(configString(marker.config, "id")),
     slug: normalizeEmbedSlug(configString(marker.config, "slug")),
     name: configString(marker.config, "name"),
     variant: configString(marker.config, "variant"),
     header: configBooleanDefaultTrue(marker.config, "header"),
     ...(marker.config.mode === "html" ? { mode: "html" as const } : {}),
+    config: marker.config,
   };
 }
 
