@@ -112,6 +112,11 @@
       "types": "./dist/recovery/index.d.ts",
       "import": "./dist/recovery/index.js",
       "default": "./dist/recovery/index.js"
+    },
+    "./secrets-vault": {
+      "types": "./dist/secrets-vault/index.d.ts",
+      "import": "./dist/secrets-vault/index.js",
+      "default": "./dist/secrets-vault/index.js"
     }
   },
   "typesVersions": {
@@ -163,6 +168,9 @@
       ],
       "recovery": [
         "./dist/recovery/index.d.ts"
+      ],
+      "secrets-vault": [
+        "./dist/secrets-vault/index.d.ts"
       ]
     }
   },
@@ -191,7 +199,8 @@
     "test:postgres": "vitest run --config vitest.postgres.config.ts"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/platform": "workspace:^"
   },
   "peerDependencies": {
     "kysely": "^0.29.6",

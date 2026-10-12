@@ -85,6 +85,12 @@ describe("reseedIdentitySql", () => {
 });
 
 describe("indexSql", () => {
+  it("writes ordered trusted expression terms instead of quoting them as identifiers", () => {
+    expect(indexSql("copy", table({ name: "rows", indexes: [
+      { name: "nullable_scope", columns: ["id"], expressions: ['"id"', '(coalesce("owner", \'\'))'], unique: true, where: "is_default = true" },
+    ] }))).toBe('CREATE UNIQUE INDEX "nullable_scope" ON "copy"."rows" ("id", (coalesce("owner", \'\'))) WHERE is_default = true;\n');
+  });
+
   it("preserves a host-declared partial predicate in the emitted index", () => {
     expect(indexSql("copy", table({ name: "rows", indexes: [
       { name: "retention", columns: ["submitted_at", "id"], unique: false, where: "source_ip IS NOT NULL" },
@@ -105,6 +111,16 @@ describe("indexSql", () => {
 });
 
 describe("constraintSql", () => {
+  it("never treats an expression unique index as a foreign-key target", () => {
+    const parent = table({ name: "parent", indexes: [
+      { name: "expression_code", columns: ["code"], expressions: ['(lower("code"))'], unique: true },
+    ] });
+    const child = table({ name: "child", foreignKeys: [
+      { name: "expression_fk", columns: ["code"], foreignTable: "parent", foreignColumns: ["code"], onDelete: "restrict", onUpdate: "no action" },
+    ] });
+    expect(constraintSql("copy", [parent, child], "u")).toBe('CREATE TEMP TABLE "u" (name text NOT NULL) ON COMMIT DROP;\n');
+  });
+
   it("never treats a partial unique index as a foreign-key target", () => {
     const parent = table({ name: "parent", indexes: [
       { name: "partial_code", columns: ["code"], unique: true, where: "code IS NOT NULL" },

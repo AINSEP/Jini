@@ -11,6 +11,9 @@ export interface TransferColumn {
 export interface TransferIndex {
   readonly name: string;
   readonly columns: readonly string[];
+  /** Complete ordered index terms as trusted host SQL, replacing columns for expression indexes.
+   * Never populate from operator input or introspected plugin SQL; these cannot be FK targets. */
+  readonly expressions?: readonly string[];
   readonly unique: boolean;
   /** Trusted, host-declared Postgres predicate SQL; never operator input or SQLite plugin SQL. */
   readonly where?: string;

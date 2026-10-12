@@ -1,19 +1,20 @@
 import { defaultOAuthMessages, type OAuthMessages } from './messages.js';
 import type { OAuthRequiredArgs, OAuthOptionalArgs } from './args.js';
-/** Browser grant split across the redirect. Persist PKCE and resource binding before redirect; consume owner-bound state before exchanging the code once. */
+/** Browser grant split across the redirect. Store or seal PKCE and resource binding before redirect; validate owner-bound state before exchanging the code once. */
 // A cloud-hosted client needs a stable, browser-reachable callback. A per-agent subprocess's
 // transient localhost listener is unreachable from a remote user's browser and can die between
-// the redirect and callback. The host owns that callback and storage; this module owns the grant.
+// the redirect and callback. The host owns that callback and storage/sealing; this module owns the grant.
 import { assertOAuthAppOptions } from "./options.js";
 import { applyResourceIndicators } from "./resource.js";
 import { assertSafeProviderEndpoint } from "./endpoint-safety.js";
 import { OAuthError } from "./errors.js";
 import type { PendingAuthorizationStore } from "./pending-authorizations.js";
+import { invalidState } from './pending-authorizations.js';
 import { assertValidCodeVerifier, createPkcePair } from "./pkce.js";
 import type { OAuthClient, OAuthProviderDescriptor, OAuthRandomBytes, OAuthTokenSet, OAuthUrlGuard, OAuthAppOptions, OAuthResource } from "./ports.js";
 import { requestOAuthToken, type TokenRequestDeps } from "./token-endpoint.js";
+import { MAX_AUTHORIZATION_STATE_LENGTH, type SealedAuthorizationState } from './sealed-state.js';
 const MAX_CODE_LENGTH = 2048;
-const MAX_STATE_LENGTH = 256;
 const PROVIDER_ERROR_PATTERN = /^[a-z_]{1,64}$/;
 export interface BeginAuthorizationCodeDeps {
     readonly provider: OAuthProviderDescriptor;
@@ -21,6 +22,10 @@ export interface BeginAuthorizationCodeDeps {
     readonly randomBytesFn: OAuthRandomBytes;
     readonly guard: OAuthUrlGuard;
     readonly options: OAuthAppOptions;
+}
+/** Explicit stateless mode; the host supplies sealing bound to the expected connection. */
+export interface BeginStatelessAuthorizationCodeDeps extends Omit<BeginAuthorizationCodeDeps, 'pending'> {
+    readonly stateless: SealedAuthorizationState;
 }
 export interface BeginAuthorizationCodeInput {
     readonly messages?: OAuthMessages;
@@ -65,7 +70,9 @@ function assertGrantSupported(provider: OAuthProviderDescriptor, grant: "authori
         });
     }
 }
-export async function beginAuthorizationCode(requiredArgs: OAuthRequiredArgs<BeginAuthorizationCodeDeps & BeginAuthorizationCodeInput>, optionalArgs: OAuthOptionalArgs<BeginAuthorizationCodeDeps & BeginAuthorizationCodeInput> = {}): Promise<BeginAuthorizationCodeResult> {
+type BeginAuthorizationCodeArgs = OAuthRequiredArgs<Omit<BeginAuthorizationCodeDeps, 'pending'> & BeginAuthorizationCodeInput>
+    & ({ pending: PendingAuthorizationStore } | { stateless: SealedAuthorizationState });
+export async function beginAuthorizationCode(requiredArgs: BeginAuthorizationCodeArgs, optionalArgs: OAuthOptionalArgs<BeginAuthorizationCodeDeps & BeginAuthorizationCodeInput> = {}): Promise<BeginAuthorizationCodeResult> {
     const deps = requiredArgs;
     const input = { ...optionalArgs, ownerKey: requiredArgs.ownerKey, client: requiredArgs.client, redirectUri: requiredArgs.redirectUri };
     assertOAuthAppOptions(deps.options);
@@ -91,15 +98,20 @@ export async function beginAuthorizationCode(requiredArgs: OAuthRequiredArgs<Beg
     const pkce = provider.usesPkce ? createPkcePair({
         randomBytesFn: deps.randomBytesFn
     }) : undefined;
-    const entry = await deps.pending.put({
+    const authorization = {
         ownerKey: input.ownerKey,
         providerId: provider.providerId,
         codeVerifier: pkce?.codeVerifier ?? "",
         redirectUri: redirectUri.toString(),
         scopes: [...scopes]
-    }, {
-        ...(input.resource === undefined ? {} : { resource: input.resource })
-    });
+    };
+    const resource = input.resource === undefined ? {} : { resource: input.resource };
+    const entry = 'stateless' in deps
+        ? await deps.stateless.seal({ entry: { ...authorization, ...resource } })
+        : await deps.pending.put(authorization, resource);
+    if (entry.state.length === 0 || entry.state.length > MAX_AUTHORIZATION_STATE_LENGTH) {
+        throw invalidState({});
+    }
     authorizationUrl.searchParams.set("response_type", "code");
     authorizationUrl.searchParams.set("client_id", input.client.clientId);
     authorizationUrl.searchParams.set("redirect_uri", redirectUri.toString());
@@ -116,6 +128,11 @@ export interface CompleteAuthorizationCodeDeps extends TokenRequestDeps {
     readonly provider: OAuthProviderDescriptor;
     readonly pending: PendingAuthorizationStore;
 }
+/** The exact callback URI is mandatory in stateless mode and is checked before exchange. */
+export interface CompleteStatelessAuthorizationCodeDeps extends Omit<CompleteAuthorizationCodeDeps, 'pending'> {
+    readonly stateless: SealedAuthorizationState;
+    readonly redirectUri: string;
+}
 export interface AuthorizationCallbackParams {
     readonly state: string;
     readonly code?: string;
@@ -127,12 +144,17 @@ export interface CompleteAuthorizationCodeInput {
     readonly params: AuthorizationCallbackParams;
     readonly timeoutMs?: number;
 }
-export async function completeAuthorizationCode(requiredArgs: OAuthRequiredArgs<CompleteAuthorizationCodeDeps & CompleteAuthorizationCodeInput>, optionalArgs: OAuthOptionalArgs<CompleteAuthorizationCodeDeps & CompleteAuthorizationCodeInput> = {}): Promise<OAuthTokenSet> {
+type CompleteAuthorizationCodeArgs = OAuthRequiredArgs<Omit<CompleteAuthorizationCodeDeps, 'pending'> & CompleteAuthorizationCodeInput>
+    & ({ pending: PendingAuthorizationStore } | { stateless: SealedAuthorizationState; redirectUri: string });
+export async function completeAuthorizationCode(requiredArgs: CompleteAuthorizationCodeArgs, optionalArgs: OAuthOptionalArgs<CompleteAuthorizationCodeDeps & CompleteAuthorizationCodeInput> = {}): Promise<OAuthTokenSet> {
     const deps = requiredArgs;
     const input = { ...optionalArgs, ownerKey: requiredArgs.ownerKey, client: requiredArgs.client, params: requiredArgs.params };
     assertGrantSupported(deps.provider, "authorization_code");
     assertCallbackShape(input.params);
-    const entry = await deps.pending.take({ state: input.params.state, ownerKey: input.ownerKey });
+    const entry = 'stateless' in deps
+        ? await deps.stateless.open({ state: input.params.state, ownerKey: input.ownerKey,
+            providerId: deps.provider.providerId, redirectUri: deps.redirectUri })
+        : await deps.pending.take({ state: input.params.state, ownerKey: input.ownerKey });
     if (entry.providerId !== deps.provider.providerId) {
         throw new OAuthError({
             code: "OAUTH_INVALID_STATE", message: "the authorization request could not be matched — it may have expired or already been used",
@@ -170,7 +192,7 @@ export async function completeAuthorizationCode(requiredArgs: OAuthRequiredArgs<
     });
 }
 function assertCallbackShape(params: AuthorizationCallbackParams): void {
-    if (params.state === "" || params.state.length > MAX_STATE_LENGTH) {
+    if (params.state === "" || params.state.length > MAX_AUTHORIZATION_STATE_LENGTH) {
         throw new OAuthError({
             code: "OAUTH_INVALID_STATE", message: "the authorization request could not be matched — it may have expired or already been used",
             operatorAction: "Start the connection again from the connection settings."

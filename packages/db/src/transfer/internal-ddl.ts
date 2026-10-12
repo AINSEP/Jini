@@ -73,12 +73,12 @@ export function reseedIdentitySql(schema: string, table: TransferTable, sqlTag =
     .join("");
 }
 
-/** Writes declared indexes, retaining trusted host predicates and their uniqueness scope.
+/** Writes declared indexes, retaining trusted host expression terms, predicates and uniqueness.
  * @complexity O(index columns plus predicate bytes); emits SQL without executing it.
  */
 export function indexSql(schema: string, table: TransferTable): string {
   return table.indexes
-    .map((index) => `CREATE ${index.unique ? "UNIQUE " : ""}INDEX ${quoteIdent(fitIdentifier(index.name))} ON ${qualified(schema, table.name)} (${index.columns.map(quoteIdent).join(", ")})${index.where === undefined ? "" : ` WHERE ${index.where}`};\n`)
+    .map((index) => `CREATE ${index.unique ? "UNIQUE " : ""}INDEX ${quoteIdent(fitIdentifier(index.name))} ON ${qualified(schema, table.name)} (${(index.expressions ?? index.columns.map(quoteIdent)).join(", ")})${index.where === undefined ? "" : ` WHERE ${index.where}`};\n`)
     .join("");
 }
 
@@ -99,8 +99,8 @@ function parentColumns(fk: TransferForeignKey, byName: ReadonlyMap<string, Trans
   if (parent === undefined) return null;
   const columns = fk.foreignColumns ?? parent.primaryKey;
   if (columns.length !== fk.columns.length) return null;
-  // A partial unique index covers only some rows; Postgres cannot use it as an FK target.
-  const unique = sameColumns(columns, parent.primaryKey) || parent.indexes.some((index) => index.unique && index.where === undefined && sameColumns(index.columns, columns));
+  // Partial or expression uniqueness cannot establish an FK target over the named columns.
+  const unique = sameColumns(columns, parent.primaryKey) || parent.indexes.some((index) => index.unique && index.where === undefined && index.expressions === undefined && sameColumns(index.columns, columns));
   return unique ? columns : null;
 }
 
