@@ -148,16 +148,27 @@ function isUnsafeUrlValue(value: string): boolean {
  * Whether a `style` value carries a known CSS injection or CSS-escape-bypass vector:
  * `expression(...)` (legacy IE script-in-CSS), a `javascript:`/`vbscript:` value inside a CSS
  * `url(...)`, `-moz-binding`/`behavior:` (XBL/HTC script bindings), `@import` (pulls in a second,
- * unvetted stylesheet), or ANY backslash — a CSS escape sequence (`\65` is `e`) can respell any of
- * the above past a plain substring check, so a backslash anywhere in the value is rejected outright
+ * unvetted stylesheet), or ANY backslash in an inline attribute — a CSS escape sequence (`\65`
+ * is `e`) can respell any of the above past a plain substring check, so a backslash anywhere in
+ * an inline value is rejected outright
  * rather than trying to first decode every possible CSS escape. Plain `url(...)` values (background
  * images) are otherwise allowed — authors here are the owner/admins, not anonymous input.
+ * Stylesheets additionally allow non-ASCII scalar hex escapes (e.g. `\2713` for a checkmark).
+ * They cannot respell the ASCII injection vocabulary. Only the validation projection changes;
+ * the accepted value remains byte-for-byte authored CSS. ASCII/invalid/other escapes still fail.
  *
- * @complexity O(n) in the value's length (one regex test).
+ * @complexity O(n) time/space in the value's length; escape matches consume at most six digits.
  */
 const UNSAFE_STYLE_PATTERN = /expression\(|javascript:|vbscript:|-moz-binding|behavior:|@import|\\/i;
-function isUnsafeStyleValue(value: string): boolean {
-  return UNSAFE_STYLE_PATTERN.test(value);
+function isUnsafeStyleValue(value: string, { styleContext }: { styleContext?: "stylesheet" } = {}): boolean {
+  const inspected = styleContext === "stylesheet"
+    ? value.replace(/\\([0-9a-f]{1,6})(?:\r\n|[ \t\n\r\f])?/gi, (escape, hex: string) => {
+      const codePoint = Number.parseInt(hex, 16);
+      if (codePoint < 0xa0 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) return escape;
+      return String.fromCodePoint(codePoint);
+    })
+    : value;
+  return UNSAFE_STYLE_PATTERN.test(inspected);
 }
 
 /**
@@ -177,11 +188,11 @@ function isUnsafeStyleValue(value: string): boolean {
  * @complexity O(1) — four fixed checks against one already-extracted token; each check's own O(n) in
  * the token's length is linear, not nested.
  */
-function classifyEmbedHtmlAttributeToken(name: string, value: string): EmbedHtmlAttributeError | null {
+function classifyEmbedHtmlAttributeToken(name: string, value: string, options: { styleContext?: "stylesheet" } = {}): EmbedHtmlAttributeError | null {
   if (name.startsWith("on")) return { reason: "event-handler", attribute: name };
   if (isUnsafeUrlValue(value)) return { reason: "unsafe-url", attribute: name };
   if (!isAllowedEmbedHtmlAttributeName({ name: name })) return { reason: "disallowed-name", attribute: name };
-  if (name === "style" && isUnsafeStyleValue(value)) return { reason: "unsafe-style", attribute: name };
+  if (name === "style" && isUnsafeStyleValue(value, options)) return { reason: "unsafe-style", attribute: name };
   return null;
 }
 
@@ -203,10 +214,13 @@ const HTML_ATTRIBUTE_TOKEN = /([^\s="']+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s"']+)))
  * therefore the ONLY path to acceptance for a name; nothing here tries to sanitize an otherwise-
  * disallowed name or value into something safe.
  *
+ * @param options.styleContext Use `stylesheet` only for a style element's CSS text; allows
+ *   non-ASCII scalar hex escapes for glyphs while preserving the inline escape restriction.
+ *
  * @complexity Time O(n) in `text`'s length (one regex pass over it), space O(k) for k accepted
  *   attributes plus O(e) for e rejected tokens.
  */
-export function parseEmbedHtmlAttributes({ text }: { text: string }, _optional: Record<string, never> = {}): ParsedEmbedHtmlAttributes {
+export function parseEmbedHtmlAttributes({ text }: { text: string }, options: { styleContext?: "stylesheet" } = {}): ParsedEmbedHtmlAttributes {
   const trimmed = text.trim();
   if (trimmed === "") return { attributes: {}, errors: [], error: null };
 
@@ -230,7 +244,7 @@ export function parseEmbedHtmlAttributes({ text }: { text: string }, _optional: 
 
     const name = (match[1] ?? "").toLowerCase();
     const value = match[2] ?? match[3] ?? match[4] ?? "";
-    const rejection = classifyEmbedHtmlAttributeToken(name, value);
+    const rejection = classifyEmbedHtmlAttributeToken(name, value, options);
     if (rejection) {
       errors.push(rejection);
       continue;
