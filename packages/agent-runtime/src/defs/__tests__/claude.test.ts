@@ -63,7 +63,10 @@ describe('claudeAgentDef shape', () => {
   // the daemon's own server (`--strict-mcp-config`), so loading it up front is cheap. Documented
   // at code.claude.com/docs/en/mcp: `ENABLE_TOOL_SEARCH=false` = "All MCP tools loaded upfront".
   it('loads MCP tools up front instead of deferring them behind ToolSearch', () => {
-    expect(claudeAgentDef.env).toEqual({ ENABLE_TOOL_SEARCH: 'false' });
+    expect(claudeAgentDef.env).toEqual({
+      ENABLE_TOOL_SEARCH: 'false',
+      CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0',
+    });
   });
 });
 

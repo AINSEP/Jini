@@ -489,24 +489,60 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   // Set once this run has interrupted its agent: from then on a turn the interrupt aborted
   // (`aborted_*` stop reason) is not the run's last — the message that follows starts a new one.
   let interruptSent = false;
-  // stdout carry-over for spotting acks; only filled while an interrupt waits for one.
-  let ackScanBuffer = '';
+  // Claude Code's background tasks still running (a subagent or shell it started in the
+  // background), from its latest `background_tasks_changed` line, which lists them all. While any
+  // runs, an `end_turn` is not the run's end: the CLI keeps going until they finish and reports on
+  // them, so stdin must stay open for mid-run messages. Closing it there (2026-10-10, plannie chat)
+  // made every message sent while two subagents worked come back 'not-running' and wait for the run
+  // to end — and at EOF the CLI stops background tasks at its own wait ceiling (10 minutes).
+  let backgroundTaskCount = 0;
+  // Set when a turn ended and stdin stayed open only for background tasks: no turn is running, so a
+  // mid-run message has nothing to interrupt, and the last task finishing closes stdin (below).
+  let heldForBackgroundTasks = false;
+  // stdout carry-over for the control lines below; holds at most the current partial line.
+  let controlScanBuffer = '';
 
-  /** Resolves every waiting interrupt whose `control_response` is in this stdout chunk. @complexity O(chunk length). */
-  function scanForInterruptAcks(text: string): void {
-    if (pendingInterruptAcks.size === 0) return;
-    ackScanBuffer += text;
-    const lines = ackScanBuffer.split('\n');
-    ackScanBuffer = lines.pop() ?? '';
-    for (const line of lines) {
-      if (!line.includes('"control_response"')) continue;
-      const requestId = controlResponseRequestId({ line: line });
-      const settle = requestId === undefined ? undefined : pendingInterruptAcks.get(requestId);
-      if (!settle) continue;
-      pendingInterruptAcks.delete(requestId!);
-      settle(true);
+  /** Resolves the waiting interrupt this `control_response` line acknowledges, if any. @complexity O(line length). */
+  function settleInterruptAck(line: string): void {
+    const requestId = controlResponseRequestId({ line: line });
+    const settle = requestId === undefined ? undefined : pendingInterruptAcks.get(requestId);
+    if (!settle) return;
+    pendingInterruptAcks.delete(requestId!);
+    settle(true);
+  }
+
+  /**
+   * Tracks a `background_tasks_changed` line. The last background task finishing while stdin is
+   * held only for them closes it, exactly as the turn end would have: the CLI then answers what it
+   * still owes (the tasks' report) and exits. @complexity O(line length).
+   */
+  function updateBackgroundTasks(line: string): void {
+    const count = backgroundTaskListLength({ line: line });
+    if (count === undefined) return;
+    backgroundTaskCount = count;
+    if (count === 0 && heldForBackgroundTasks) {
+      heldForBackgroundTasks = false;
+      closeStdinOnce();
     }
-    if (pendingInterruptAcks.size === 0) ackScanBuffer = '';
+  }
+
+  /**
+   * Reads the stdout lines a mid-run message depends on: interrupt acks and background-task
+   * changes. Only agents that take mid-run messages are scanned. A chunk with no newline is only
+   * appended, so a long line split across many chunks is split once, not once per chunk.
+   * @complexity O(chunk length) amortized.
+   */
+  function scanControlLines(text: string): void {
+    if (!acceptsMidRunUserMessages({ def: def })) return;
+    controlScanBuffer += text;
+    if (!text.includes('\n')) return;
+    const lines = controlScanBuffer.split('\n');
+    controlScanBuffer = lines.pop() ?? '';
+    for (const line of lines) {
+      // Both checked: either word can also appear inside the other kind of line's text.
+      if (line.includes('"control_response"')) settleInterruptAck(line);
+      if (line.includes('"background_tasks_changed"')) updateBackgroundTasks(line);
+    }
   }
 
   /**
@@ -528,17 +564,21 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   }
 
   /**
-   * Whether a `turn_end` leaves stdin open for a live agent that takes mid-run messages, because
-   * the run is not over: a `tool_use` stop (the CLI runs the tool itself and carries on, and a
+   * Whether a `turn_end` leaves stdin open for a live agent that takes mid-run messages — and why:
+   * `'background-tasks'` when only background tasks keep the run going (no turn runs until the next
+   * message or task report), `'turn-continues'` for the reasons below, `'close'` otherwise. Open
+   * because the run is not over: a `tool_use` stop (the CLI runs the tool itself and carries on, and a
    * message sent while the tool runs must still reach it), any end while an interrupt still waits
    * for its ack (the message is about to be written), and the end of a turn an interrupt aborted
-   * (the message written after it starts the next turn). Every other end closes stdin, so the CLI
-   * exits once it has answered everything written before EOF.
+   * (the message written after it starts the next turn), and any end while background tasks still
+   * run (see `backgroundTaskCount`). Every other end closes stdin, so the CLI exits once it has
+   * answered everything written before EOF.
    */
-  function keepsStdinOpenAfterTurnEnd(stopReason: string | undefined): boolean {
-    if (!acceptsMidRunUserMessages({ def: def })) return false;
-    if (stopReason === 'tool_use' || pendingInterruptAcks.size > 0) return true;
-    return interruptSent && stopReason !== undefined && stopReason.startsWith('aborted');
+  function stdinHoldAfterTurnEnd(stopReason: string | undefined): 'close' | 'turn-continues' | 'background-tasks' {
+    if (!acceptsMidRunUserMessages({ def: def })) return 'close';
+    if (stopReason === 'tool_use' || pendingInterruptAcks.size > 0) return 'turn-continues';
+    if (interruptSent && stopReason !== undefined && stopReason.startsWith('aborted')) return 'turn-continues';
+    return backgroundTaskCount > 0 ? 'background-tasks' : 'close';
   }
 
   /**
@@ -560,7 +600,9 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
       resolveContinuationTransport({ def: def }) === 'stdin-injection' &&
       continuation.autonomousToolNames.has(toolUse.name);
     if (!shouldInject) {
-      if (!keepsStdinOpenAfterTurnEnd(stopReason)) closeStdinOnce();
+      const hold = stdinHoldAfterTurnEnd(stopReason);
+      heldForBackgroundTasks = hold === 'background-tasks';
+      if (hold === 'close') closeStdinOnce();
       return;
     }
     pendingToolUse = undefined;
@@ -710,8 +752,9 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
     }
     enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'stdout', data: { chunk: text } } }));
     // Before the parser: an ack and the aborted turn's end can share a chunk, and the turn end must
-    // see that no interrupt is still waiting (see `keepsStdinOpenAfterTurnEnd`).
-    scanForInterruptAcks(text);
+    // see that no interrupt is still waiting (see `stdinHoldAfterTurnEnd`); a background task
+    // starting and the turn's end can share one too.
+    scanControlLines(text);
     // Non-null: `streamHandler` is only ever null when `streamFormat === 'plain'` (see its
     // construction above), the branch this statement is provably unreachable from.
     streamHandler!.feed({ chunk: text });
@@ -788,12 +831,18 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
    * An ack that never comes (an agent that ignores control requests) only delays the write by
    * {@link INTERRUPT_ACK_TIMEOUT_MS}: the CLI then folds the line in at its next step. Once
    * `turn_end` has closed stdin, or the process exits before the ack, there is no session left to
-   * reach — `'not-running'`.
+   * reach — `'not-running'`. Between turns, while stdin is held only for background tasks, there is
+   * no generation to stop: the line is written at once and starts the next turn.
    */
   async function sendUserMessage(text: string): Promise<UserMessageDelivery> {
     if (!acceptsMidRunUserMessages({ def: def })) return 'unsupported';
     const stdin = child.stdin;
     if (stdinClosed || !stdin) return 'not-running';
+    if (heldForBackgroundTasks) {
+      heldForBackgroundTasks = false;
+      writeUserMessage(stdin, text);
+      return 'delivered';
+    }
     const requestId = `jini-interrupt-${randomUUID()}`;
     interruptSent = true;
     // Capture before requesting the interrupt. Its result can precede the acknowledgement, or
@@ -813,10 +862,15 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
     clearTimeout(timer);
     pendingInterruptAcks.delete(requestId);
     if (!processAlive || stdinClosed) return 'not-running';
+    writeUserMessage(stdin, text);
+    return 'delivered';
+  }
+
+  /** Writes a mid-run message as the next user line, journals it, and emits its `user_message` run event. */
+  function writeUserMessage(stdin: NonNullable<typeof child.stdin>, text: string): void {
     stdin.write(`${JSON.stringify(streamJsonUserMessage({ content: [{ type: 'text', text: text }] }))}\n`, 'utf8');
     if (journal) enqueueEmit(() => journal.record({ runId: runId, entry: sentJournalEntry(text) }));
     enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: { type: 'user_message', id: randomUUID(), text: text } } }));
-    return 'delivered';
   }
 
   return {
@@ -851,6 +905,17 @@ function controlResponseRequestId({ line }: { readonly line: string }): string |
     const parsed: unknown = JSON.parse(line);
     if (!isRecord(parsed) || parsed.type !== 'control_response' || !isRecord(parsed.response)) return undefined;
     return typeof parsed.response.request_id === 'string' ? parsed.response.request_id : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** How many tasks a `background_tasks_changed` line lists, or `undefined` for any other line. */
+function backgroundTaskListLength({ line }: { readonly line: string }): number | undefined {
+  try {
+    const parsed: unknown = JSON.parse(line);
+    if (!isRecord(parsed) || parsed.type !== 'system' || parsed.subtype !== 'background_tasks_changed') return undefined;
+    return Array.isArray(parsed.tasks) ? parsed.tasks.length : undefined;
   } catch {
     return undefined;
   }

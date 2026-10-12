@@ -74,6 +74,27 @@ describe('useChatPane — a message sent mid-run goes to the running agent', () 
     expect(transport.stoppedRunIds).toEqual([]);
   });
 
+  // Owner, 2026-10-10: two messages sent while a run streams, neither taken mid-run, left only the
+  // second — the one queue slot was overwritten. Both must reach the agent as the next turn.
+  it('keeps BOTH messages sent while a run streams when neither goes into the run, and sends both next', async () => {
+    for (const deliver of [vi.fn(async (): Promise<MidRunMessageDelivery> => 'not-running'), undefined]) {
+      const { result, transport, unmount } = await startStreamingRun(deliver);
+
+      await act(() => result.current.send());
+      act(() => result.current.composer.setDraft('and save some context'));
+      await act(() => result.current.send());
+
+      expect(result.current.queuedPrompt).toBe('also fix the footer\n\nand save some context');
+      await act(async () => {
+        transport.finish();
+      });
+      await waitFor(() => expect(transport.calls).toHaveLength(2));
+      expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('also fix the footer\n\nand save some context');
+      expect(result.current.queuedPrompt).toBeNull();
+      unmount();
+    }
+  });
+
   it('queues a turn with attachments rather than delivering text-only into the run', async () => {
     const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => 'delivered');
     const { result } = await startStreamingRun(deliver);

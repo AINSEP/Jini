@@ -242,6 +242,60 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
     await harness.lifecycle.waitForTerminal({ runId });
   });
 
+  // Owner, 2026-10-10 (plannie chat, run f8c84ba3): the turn ended `end_turn` a minute in while two
+  // background subagents ran ten more minutes. stdin closed at that end, so every message sent in
+  // those ten minutes came back 'not-running' and waited for the run to end — and the CLI, at EOF,
+  // killed both subagents at its 10-minute background-wait ceiling.
+  it('keeps stdin open after an end_turn while background tasks run, and takes a message then without an interrupt', async () => {
+    const harness = createHarness(createDef({}));
+    const runId = await startRun(harness);
+    const task = { task_id: 'bg-1', task_type: 'local_agent', description: 'Port pages' };
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: [task] })}\n`);
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'assistant', message: { id: 'm1', content: [{ type: 'text', text: 'Both agents are working.' }], stop_reason: 'end_turn' } })}\n`);
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'result', subtype: 'success', stop_reason: 'end_turn' })}\n`);
+    await flush();
+    expect(harness.child.stdin.ended).toBe(false);
+
+    // No turn is running to interrupt: the message goes straight in as the next user line.
+    await expect(harness.executor.sendUserMessage({ runId, text: 'save some context' })).resolves.toBe('delivered');
+    expect(harness.child.stdin.writes).toHaveLength(2);
+    expect(JSON.parse(harness.child.stdin.writes[1]!).message.content[0].text).toBe('save some context');
+    expect(harness.child.stdin.ended).toBe(false);
+
+    harness.child.emit('close', 0, null);
+    await harness.lifecycle.waitForTerminal({ runId });
+  });
+
+  it('closes stdin held for background tasks once the last one finishes, so the CLI can exit', async () => {
+    const harness = createHarness(createDef({}));
+    const runId = await startRun(harness);
+    const task = { task_id: 'bg-1', task_type: 'local_agent', description: 'Port pages' };
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: [task] })}\n`);
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'assistant', message: { id: 'm1', content: [{ type: 'text', text: 'working' }], stop_reason: 'end_turn' } })}\n`);
+    await flush();
+    expect(harness.child.stdin.ended).toBe(false);
+
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: [] })}\n`);
+    await flush();
+    expect(harness.child.stdin.ended).toBe(true);
+
+    harness.child.emit('close', 0, null);
+    await harness.lifecycle.waitForTerminal({ runId });
+  });
+
+  it('does not close stdin when background tasks finish while a turn is still running', async () => {
+    const harness = createHarness(createDef({}));
+    const runId = await startRun(harness);
+    const task = { task_id: 'bg-1', task_type: 'local_agent', description: 'Port pages' };
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: [task] })}\n`);
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: [] })}\n`);
+    await flush();
+    expect(harness.child.stdin.ended).toBe(false);
+
+    harness.child.emit('close', 0, null);
+    await harness.lifecycle.waitForTerminal({ runId });
+  });
+
   it('still writes the message when the CLI never acknowledges the interrupt', async () => {
     const harness = createHarness(createDef({}));
     const runId = await startRun(harness);

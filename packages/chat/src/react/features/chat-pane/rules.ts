@@ -1,5 +1,6 @@
 import { configuredPickerModel, pickerModelOptions, isConcretePickerModel } from './model-options.js';
 import type { ChatMessage } from '@jini-ai/chat';
+import type { UserTextRedaction } from '../../../core/user-text-redaction.js';
 
 import type { ByokRuntimeSummary, ChatPaneAgent, ChatPaneAgentSelection, TypedAnswerNotice } from './types.js';
 
@@ -262,6 +263,27 @@ export function findMidRunMessageRunId({ blocker, attachmentCount, messages }: {
   if (!isChatPaneQueueableBlocker({ blocker }) || attachmentCount !== 0) return null;
   const last = messages.at(-1);
   return last?.role === 'assistant' && last.runId ? last.runId : null;
+}
+
+/**
+ * The queued next turn after one more message joins it. The pane holds ONE queued turn, so a second
+ * message sent behind the same run is appended to it (a blank line apart) rather than replacing it:
+ * replacing silently dropped the first message (owner, 2026-10-10). One turn, not two, because both
+ * were written for the run still going and the agent should read them together — two queued turns
+ * would also start two paid runs back to back.
+ *
+ * @complexity O(n) in the combined text length.
+ */
+export function appendQueuedTurn({ queued, next }: {
+  queued: UserTextRedaction | null;
+  next: UserTextRedaction;
+}): UserTextRedaction {
+  if (queued === null) return next;
+  return {
+    text: `${queued.text}\n\n${next.text}`,
+    secretRedacted: queued.secretRedacted || next.secretRedacted,
+    count: queued.count + next.count,
+  };
 }
 
 const TYPED_ANSWER_NOTICES: Record<TypedAnswerNotice, string> = {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { AgentEvent, ChatMessage } from '../../../../core/index.js';
 import {
+  appendQueuedTurn,
   defaultChatPaneSelection,
   describeTypedAnswerNotice,
   findAwaitedTypedAnswerId,
@@ -388,5 +389,19 @@ describe('describeTypedAnswerNotice', () => {
     expect(describeTypedAnswerNotice({ notice: 'failed' })).toBe(
       'Your answer could not be delivered. Try sending it again.',
     );
+  });
+});
+
+describe('appendQueuedTurn — a second message behind the same run joins the queued turn', () => {
+  it('returns the message itself when nothing is queued', () => {
+    const next = { text: 'b', secretRedacted: false, count: 0 };
+    expect(appendQueuedTurn({ queued: null, next })).toBe(next);
+  });
+
+  it('appends rather than replaces, keeping either message\'s redaction signal', () => {
+    expect(appendQueuedTurn({
+      queued: { text: 'a [token removed]', secretRedacted: true, count: 1 },
+      next: { text: 'b', secretRedacted: false, count: 0 },
+    })).toEqual({ text: 'a [token removed]\n\nb', secretRedacted: true, count: 1 });
   });
 });

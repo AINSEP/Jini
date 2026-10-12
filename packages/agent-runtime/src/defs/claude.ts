@@ -260,7 +260,14 @@ export const claudeAgentDef = {
     // code.claude.com/docs/en/mcp ("`false` — All MCP tools loaded upfront, no deferral"); verified
     // in the installed 2.1.283 binary (a defined-falsy value selects the "standard" tool mode).
     // A default only: a run's own env can still set ENABLE_TOOL_SEARCH (see agent-executor).
-    env: { ENABLE_TOOL_SEARCH: 'false' },
+    env: {
+      ENABLE_TOOL_SEARCH: 'false',
+      // 2026-10-10 plannie incident: the CLI stopped two background theme subagents ten minutes
+      // after the reply ended. Installed Claude Code 2.1.296 confirms 0 waits indefinitely.
+      // Complements the daemon's stdin hold while background tasks run (agent-executor/events.ts).
+      // A default only: the host can override it through the run's explicit env passthrough.
+      CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0',
+    },
     // Formerly inline in `buildArgs` above (see the comment there) — moved to the declarative
     // shape every def now uses to receive `RuntimeBuildOptions.systemPromptOverlay`. Same flag,
     // same probe gate (`capabilityFlags['--append-system-prompt']` above), same "append, never
