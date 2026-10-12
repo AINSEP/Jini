@@ -233,3 +233,34 @@ test('first export failure checks routes before assets and counts each collectio
   report.assets.failed = [];
   assert.equal(firstExportFailure({ report }), undefined);
 });
+
+test('discoverRoutes follows a chain of discovered routes once each, scanning raw html, and caps the total', async () => {
+  const f = fixture();
+  const originalFetch = f.args.fetch;
+  f.args.fetch = async (input, options) => {
+    const match = /\/_more\/1\/(\d+)$/.exec(new URL(input.url).pathname);
+    if (!match) return originalFetch(input, options);
+    f.fetched.push(match[0]);
+    const after = Number(match[1]);
+    return new Response(after < 24 ? `<a data-more href="/_more/1/${after + 12}">more</a>` : 'last', { headers: { 'content-type': 'text/html' } });
+  };
+  const seen: string[] = [];
+  f.args.discoverRoutes = ({ path: from, html }) => {
+    seen.push(from);
+    const hrefs = from === '/' ? ['/_more/1/12', '/_more/1/12'] : [...html.matchAll(/href="(\/_more\/[^"]+)"/g)].map(m => m[1]!);
+    return hrefs.map(href => ({ path: href, kind: 'listing-batch', label: href }));
+  };
+  const report = await exportSite(f.args, { basePath: '/site' });
+  assert.deepEqual(report.routes.failed, []);
+  assert.ok(f.writes.has('_more/1/12/index.html') && f.writes.has('_more/1/24/index.html'));
+  assert.equal(f.fetched.filter(url => url === '/_more/1/12').length, 1);
+  assert.match(String(f.writes.get('_more/1/12/index.html')), /href="\/site\/_more\/1\/24"/);
+  assert.ok(seen.includes('/_more/1/12') && seen.includes('/_more/1/24'));
+
+  const capped = fixture();
+  let n = 0;
+  capped.args.discoverRoutes = () => (n++ === 0 ? Array.from({ length: 2001 }, (_, i) => ({ path: `/missing-${i}`, kind: 'listing-batch', label: 'x' })) : []);
+  const cappedReport = await exportSite(capped.args);
+  assert.deepEqual(cappedReport.skippedManifestEntries.at(-1), { reason: 'discovered-route-cap', detail: '/missing-2000 (over 2000 discovered routes)' });
+  assert.equal(cappedReport.routes.failed.length, 2000);
+});

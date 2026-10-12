@@ -51,7 +51,8 @@
       "./consent": "universal",
       "./consent/html": "node",
       "./consent/express": "node",
-      "./consent/node": "node"
+      "./consent/node": "node",
+      "./listing": "universal"
     },
     "isolation": {
       "domains": {
@@ -105,6 +106,9 @@
         ],
         "consent": [
           "src/consent"
+        ],
+        "listing": [
+          "src/listing"
         ]
       },
       "forbidden": {
@@ -324,6 +328,11 @@
       "types": "./dist/consent/node/index.d.ts",
       "import": "./dist/consent/node/index.js",
       "default": "./dist/consent/node/index.js"
+    },
+    "./listing": {
+      "types": "./dist/listing/index.d.ts",
+      "import": "./dist/listing/index.js",
+      "default": "./dist/listing/index.js"
     }
   },
   "files": [
@@ -331,7 +340,6 @@
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
-    
     "!dist/identity/**",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",

@@ -1,5 +1,5 @@
 import { ExportPathError } from "./contracts.js";
-import type { ExportedAsset, ExportedRoute, ExportReport, ExportSiteArgs, ExportSiteOptions, FailedAsset, FailedRoute, ManifestRoute, RouteManifest } from './contracts.js';
+import type { ExportedAsset, ExportedRoute, ExportReport, ExportSiteArgs, ExportSiteOptions, FailedAsset, FailedRoute, ManifestRoute, ManifestSkip, RouteManifest } from './contracts.js';
 import { extractAssetUrls, extractCssUrls, normalizeBasePath, outputFileForUrl, redirectOutcomeFor, renderRedirectStub, rewriteRouteBodyForBasePath, safeRelativeOutputFile } from './transforms.js';
 
 const BASE_PATH_REWRITE_WARNING = "base-path rewriting is a best-effort TEXT rewrite over already-rendered responses — it cannot rewrite a path a theme's own JavaScript constructs at runtime from a string (same category of gap as the unreferenced-theme-file warning, just invisible to this rewrite instead of to the asset crawl).";
@@ -39,18 +39,33 @@ async function writeRoute(ctx: RunContext, route: ManifestRoute): Promise<Writte
   await ctx.args.writer.write({ outputDir: ctx.args.outputDir, outputFile, data: body });
   return { route: { path: route.path, kind: route.kind, outputFile, data: body, contentType }, ...(rawBody !== undefined && route.kind !== 'not-found' ? { crawlHtml: rawBody } : {}) };
 }
-async function writeRoutes(ctx: RunContext, routes: readonly ManifestRoute[]): Promise<{ succeeded: ExportedRoute[]; failed: FailedRoute[]; assets: Set<string> }> {
-  const succeeded: ExportedRoute[] = [], failed: FailedRoute[] = [];
+/** Most routes `discoverRoutes` may add to one export; the rest are reported as skipped. */
+const MAX_DISCOVERED_ROUTES = 2000;
+async function writeRoutes(ctx: RunContext, routes: readonly ManifestRoute[]): Promise<{ succeeded: ExportedRoute[]; failed: FailedRoute[]; assets: Set<string>; skipped: ManifestSkip[] }> {
+  const succeeded: ExportedRoute[] = [], failed: FailedRoute[] = [], skipped: ManifestSkip[] = [];
   const assets = new Set<string>();
-  for (const route of routes) {
+  // A queue, not a loop over the manifest: discovered routes are appended and scanned in turn.
+  const queue = [...routes];
+  const queued = new Set(routes.map(route => route.path));
+  let discovered = 0;
+  for (let index = 0; index < queue.length; index++) {
+    const route = queue[index]!;
     try {
       const outcome = await writeRoute(ctx, route);
       if ('reason' in outcome) { failed.push({ path: route.path, kind: route.kind, reason: outcome.reason }); continue; }
       succeeded.push(outcome.route);
-      if (outcome.crawlHtml !== undefined) for (const url of extractAssetUrls({ html: outcome.crawlHtml, prefixes: ctx.args.assetUrlPrefixes })) assets.add(url);
+      if (outcome.crawlHtml === undefined) continue;
+      for (const url of extractAssetUrls({ html: outcome.crawlHtml, prefixes: ctx.args.assetUrlPrefixes })) assets.add(url);
+      for (const next of ctx.args.discoverRoutes?.({ path: route.path, html: outcome.crawlHtml }) ?? []) {
+        if (queued.has(next.path)) continue;
+        queued.add(next.path);
+        if (discovered >= MAX_DISCOVERED_ROUTES) { skipped.push({ reason: 'discovered-route-cap', detail: `${next.path} (over ${MAX_DISCOVERED_ROUTES} discovered routes)` }); continue; }
+        discovered += 1;
+        queue.push(next);
+      }
     } catch (error) { failed.push({ path: route.path, kind: route.kind, reason: failureReason(ctx, route.path, error) }); }
   }
-  return { succeeded, failed, assets };
+  return { succeeded, failed, assets, skipped };
 }
 async function writeAssets(ctx: RunContext, initial: readonly string[]): Promise<{ succeeded: ExportedAsset[]; failed: FailedAsset[] }> {
   const succeeded: ExportedAsset[] = [], failed: FailedAsset[] = [];
@@ -103,7 +118,7 @@ export async function exportSite(required: ExportSiteArgs, optional: ExportSiteO
     const ctx: RunContext = { args: required, baseUrl: origin.origin, basePath, timeoutMs };
     const routes = await writeRoutes(ctx, manifest.routes);
     const assets = await writeAssets(ctx, [...routes.assets]);
-    return { outputDir: required.outputDir, routes: { succeeded: routes.succeeded, failed: routes.failed }, assets, skippedManifestEntries: manifest.skipped,
+    return { outputDir: required.outputDir, routes: { succeeded: routes.succeeded, failed: routes.failed }, assets, skippedManifestEntries: [...manifest.skipped, ...routes.skipped],
       unreferencedThemeFiles: await unreferenced(ctx, manifest, assets.succeeded), ...(basePath ? { basePath, basePathRewriteWarning: BASE_PATH_REWRITE_WARNING } : {}) };
   } finally { await session.close({}); }
 }

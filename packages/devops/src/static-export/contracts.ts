@@ -45,6 +45,9 @@ export interface ExportSiteArgs {
   assetPathFailureReason?: string;
   /** Caller-safe error description; used for failed network, body or artifact writes. */
   describeError(required: { error: unknown }): string;
+  /** Further routes a written page links to (e.g. see-more batch URLs), exported in turn and
+   *  themselves scanned, so a chain of batches is followed to its end. Given the raw, pre-rewrite html. */
+  discoverRoutes?(required: { path: string; html: string }): readonly ManifestRoute[];
 }
 export interface ExportSiteOptions { clean?: boolean; basePath?: string; fetchTimeoutMs?: number }
 export class ExportOutputNotEmptyError extends Error {}
