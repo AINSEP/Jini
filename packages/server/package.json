@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/server",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -85,13 +85,13 @@
   },
   "peerDependencies": {
     "better-sqlite3": "^13.0.0",
-    "@jini-ai/agent-runtime": "^0.4.4",
-    "@jini-ai/daemon": "^0.6.0",
+    "@jini-ai/agent-runtime": "^0.4.5",
+    "@jini-ai/daemon": "^0.6.1",
     "@jini-ai/http-kit": "^0.4.0",
     "@jini-ai/sidecar": "^0.4.0",
     "express": "^4.21.0",
-    "@jini-ai/db": "^0.3.0",
-    "@jini-ai/chat": "^0.5.7",
+    "@jini-ai/db": "^0.3.2",
+    "@jini-ai/chat": "^0.5.8",
     "@jini-ai/registry": "^0.5.1"
   },
   "peerDependenciesMeta": {
