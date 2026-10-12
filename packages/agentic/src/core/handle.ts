@@ -67,6 +67,25 @@ export function agentHandle({ handle }: { handle: string }, options: AgentHandle
 }
 
 /**
+ * Derives a bounded handle segment from an opaque id without rewriting that id.
+ * Short valid ids keep their spelling; other ids use a stable 64-bit FNV-1a fingerprint
+ * of their UTF-16 code units. The `h-<16 hex digits>` namespace is reserved for fingerprints.
+ * Unlike list collision suffixes, this segment does not depend on filtering or row order.
+ * This is display identity, not a cryptographic or authorization primitive.
+ * @param required - The original id; arbitrary characters, empty and long strings are accepted.
+ * @returns A valid segment of at most 40 characters; callers reserve space for their fixed prefix.
+ * @complexity O(n) time in id characters, O(1) auxiliary space. No effects or errors.
+ */
+export function agentHandleSegment({ value }: { value: string }, _optional: Record<string, never> = {}): string {
+  if (value.length <= 40 && isValidElementHandle({ handle: value }) && !/^h-[0-9a-f]{16}$/.test(value)) return value;
+  let hash = 0xcbf29ce484222325n;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = BigInt.asUintN(64, (hash ^ BigInt(value.charCodeAt(index))) * 0x100000001b3n);
+  }
+  return `h-${hash.toString(16).padStart(16, '0')}`;
+}
+
+/**
  * The handle for one sub-element published under `base` — `<base>-<action>`.
  *
  * The one join rule every multi-control component under a single host-supplied base handle needs

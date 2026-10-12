@@ -59,6 +59,7 @@ export {
 
 export {
   agentHandle,
+  agentHandleSegment,
   agentSubHandle,
   agentHandleProps,
   type AgentHandleOptions,
