@@ -1,0 +1,25 @@
+import { expect, it } from 'vitest';
+import { createToolRegistry, createToolRegistrationScope, toolRegistryRevision, type ToolRegistration } from '../tool-registry.js';
+const registration = (id: string): ToolRegistration => ({ descriptor: { id }, handler: async () => null, policy: { authorize: () => 'allow' } });
+it('atomically replaces only a scope, refuses native and other-scope collisions, revokes retained handlers', async () => {
+  const registry = createToolRegistry({});
+  registry.register(registration('native'));
+  const scope = createToolRegistrationScope({ registry });
+  const other = createToolRegistrationScope({ registry });
+  scope.replace({ registrations: [registration('old')] });
+  const before = toolRegistryRevision({ registry });
+  expect(() => scope.replace({ registrations: [registration('new'), registration('native')] })).toThrow(/already registered/);
+  expect(registry.list({}).map(tool => tool.id)).toEqual(['native', 'old']);
+  expect(() => other.replace({ registrations: [registration('old')] })).toThrow();
+  expect(toolRegistryRevision({ registry })).toBe(before);
+  const { authorizeToolInvocation: authorizeBeforeReplace } = await import('../tool-registry.js');
+  const retained = await authorizeBeforeReplace({ registry, toolId: 'old', principal: { id: 'p' }, run: { id: 'r' }, input: {} });
+  expect(retained?.decision).toBe('allow');
+  scope.replace({ registrations: [registration('new')] });
+  if (retained?.decision === 'allow') expect(() => retained.handler({ executionId: 'e', principal: { id: 'p' }, run: { id: 'r' }, input: {}, signal: new AbortController().signal })).toThrow(/revoked/);
+  expect(registry.has({ toolId: 'old' })).toBe(false);
+  const { authorizeToolInvocation } = await import('../tool-registry.js');
+  expect(await authorizeToolInvocation({ registry, toolId: 'old', principal: { id: 'p' }, run: { id: 'r' }, input: {} })).toBeUndefined();
+  scope.replace({ registrations: [] });
+  expect(registry.list({}).map(tool => tool.id)).toEqual(['native']);
+});

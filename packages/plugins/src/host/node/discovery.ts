@@ -39,7 +39,12 @@ export interface DiscoverPluginsRequired extends ManifestHostPorts {
   readonly installDir?: string;
   readonly tierPolicy: PluginTierPolicy;
 }
-export type DiscoverPluginsOptional = Record<string, never>;
+/** Activation/boot may pin an enabled revision while newer packages remain installed for review.
+ * Admin discovery defaults to the latest version; a missing pinned version never falls forward. */
+export interface DiscoverPluginsOptional { readonly versions?: ReadonlyMap<string, string> }
+export class PluginDiscoveryVersionError extends Error {
+  constructor(message: string) { super(message); this.name = 'PluginDiscoveryVersionError'; }
+}
 
 /**
  * Enumerates every built-in and (when `installDir` is present) site-installed plugin, in TB-01
@@ -128,7 +133,9 @@ export function siteEntryPath(
 async function listInstalledPluginIdFolders(installDir: string): Promise<string[]> {
   try {
     const entries = await readdir(installDir, { withFileTypes: true });
-    return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+    // Hidden working/staging areas (notably .drafts) are never install candidates. Valid manifest
+    // ids cannot start with a dot, so no valid installed package loses discovery reachability.
+    return entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.')).map((entry) => entry.name);
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return [];
     throw error;
@@ -167,10 +174,15 @@ async function discoverOneSiteCandidate(
   installDir: string,
   idFolderName: string,
   builtInIds: readonly string[],
-  host: DiscoverPluginsRequired
+  host: DiscoverPluginsRequired,
+  options: DiscoverPluginsOptional = {},
 ): Promise<PluginDiscoveryRecord | null> {
   const idFolderPath = path.join(installDir, idFolderName);
-  const versionFolderName = await pickLatestVersionFolder(idFolderPath);
+  const requestedVersion = options.versions?.get(idFolderName);
+  if (requestedVersion !== undefined && (!semver.valid(requestedVersion) || !/^[0-9A-Za-z][0-9A-Za-z.+-]*$/.test(requestedVersion))) {
+    throw new PluginDiscoveryVersionError('The requested plugin activation version is not a safe semantic version.');
+  }
+  const versionFolderName = requestedVersion ?? await pickLatestVersionFolder(idFolderPath);
   if (versionFolderName === null) return null;
 
   const manifestPath = path.join(idFolderPath, versionFolderName, "tovu.plugin.json");
@@ -229,7 +241,7 @@ function orderTb01(records: readonly PluginDiscoveryRecord[]): PluginDiscoveryRe
 
 export async function discoverPlugins(
   required: DiscoverPluginsRequired,
-  _optional: DiscoverPluginsOptional = {}
+  optional: DiscoverPluginsOptional = {}
 ): Promise<readonly PluginDiscoveryRecord[]> {
   const { builtIns, installDir } = required;
   const builtInIds = builtIns.map((b) => b.manifest.id);
@@ -250,7 +262,7 @@ export async function discoverPlugins(
   if (installDir !== undefined) {
     const idFolders = await listInstalledPluginIdFolders(installDir);
     const candidates = await Promise.all(
-      idFolders.map((idFolderName) => discoverOneSiteCandidate(installDir, idFolderName, builtInIds, required))
+      idFolders.map((idFolderName) => discoverOneSiteCandidate(installDir, idFolderName, builtInIds, required, optional))
     );
     siteRecords = markCaseInsensitiveDuplicates(candidates.filter((r): r is PluginDiscoveryRecord => r !== null));
   }

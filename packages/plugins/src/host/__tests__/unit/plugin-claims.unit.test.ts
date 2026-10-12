@@ -42,8 +42,8 @@ test("pluginClaimsFromManifest: every declared contribution becomes an exclusive
     }),
   });
   assert.deepEqual(claims, [
-    { kind: "route", key: "GET /shop", mode: "exclusive" },
-    { kind: "tool", key: "shop_list", mode: "exclusive" },
+    { kind: "route", key: "GET /api/p/shop/shop", mode: "exclusive" },
+    { kind: "tool", key: "p_shop__shop_list", mode: "exclusive" },
     { kind: "table", key: "p_shop__items", mode: "exclusive" },
     { kind: "setting", key: "shop.currency", mode: "exclusive" },
     { kind: "widget", key: "shop-cart", mode: "exclusive" },
@@ -78,8 +78,8 @@ test("pluginClaimsFromManifest: every declared content type claims its key, so t
 });
 
 test("resolvePluginConflicts (boot order): the plugin enabled LATER is refused, whatever its id", () => {
-  const older = manifest("zeta", { tools: ["shop_list"] });
-  const newer = manifest("alpha", { tools: ["shop_list"] });
+  const older = manifest("zeta", { widgets: ["shop-cart"] });
+  const newer = manifest("alpha", { widgets: ["shop-cart"] });
   const conflicts = resolvePluginConflicts({
     workspaceId: WORKSPACE,
     discovery: [record(newer), record(older)],
@@ -87,7 +87,7 @@ test("resolvePluginConflicts (boot order): the plugin enabled LATER is refused, 
     coreClaims: [],
   });
   assert.deepEqual([...conflicts.keys()], ["alpha"]);
-  assert.deepEqual(conflicts.get("alpha"), [{ kind: "tool", key: "shop_list", heldBy: "zeta", heldByName: "Plugin zeta", heldKey: "shop_list" }]);
+  assert.deepEqual(conflicts.get("alpha"), [{ kind: "widget", key: "shop-cart", heldBy: "zeta", heldByName: "Plugin zeta", heldKey: "shop-cart" }]);
 });
 
 test("resolvePluginConflicts (enable time): the candidate is newest even when timestamps tie", () => {
@@ -109,7 +109,7 @@ test("resolvePluginConflicts: core claims always win, including reserved prefixe
     activations: [enabledAt("shop", "2026-10-01T00:00:00.000Z")],
     coreClaims: [{ kind: "route", key: "/api/*", mode: "exclusive" }],
   });
-  assert.deepEqual(conflicts.get("shop"), [{ kind: "route", key: "GET /api/shop", heldBy: "core", heldByName: "Tovu core", heldKey: "/api/*" }]);
+  assert.deepEqual(conflicts.get("shop"), [{ kind: "route", key: "GET /api/p/shop/api/shop", heldBy: "core", heldByName: "Tovu core", heldKey: "/api/*" }]);
 });
 
 test("resolvePluginConflicts: a DISABLED plugin is reported with the conflicts it would have if enabled now", () => {
@@ -155,4 +155,22 @@ test("describePluginConflicts / PluginConflictError: one human sentence naming w
   assert.equal(error.pluginId, "b");
   assert.equal(error.conflicts.length, 1);
   assert.match(error.message, /^Plugin 'b' was not turned on/);
+});
+
+
+test('plugin-local route and tool names coexist with each other and raw core names', () => {
+  const a = manifest('shop-a', { routes: ['GET /items', 'ANY /things/:id'], tools: ['search'] });
+  const b = manifest('shop-b', { routes: ['GET /items'], tools: ['search'] });
+  const conflicts = resolvePluginConflicts({ workspaceId: WORKSPACE, discovery: [record(a), record(b)],
+    activations: [enabledAt(a.id, '2026-10-01'), enabledAt(b.id, '2026-10-02')],
+    coreClaims: [{ kind: 'tool', key: 'search', mode: 'exclusive' }, { kind: 'route', key: 'GET /items', mode: 'exclusive' }],
+  });
+  assert.equal(conflicts.size, 0);
+  const claims = pluginClaimsFromManifest({ manifest: a });
+  assert.equal(claims.filter(claim => claim.kind === 'tool').length, 1);
+  assert.ok(claims.some(claim => claim.key === 'POST /api/p/shop-a/things/:'));
+  const reserved = resolvePluginConflicts({ workspaceId: WORKSPACE, discovery: [record(a)],
+    activations: [enabledAt(a.id, '2026-10-01')], coreClaims: [{ kind: 'tool', key: 'p_shop_a__search', mode: 'exclusive' }],
+  });
+  assert.equal(reserved.get(a.id)?.[0]?.key, 'p_shop_a__search');
 });

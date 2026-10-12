@@ -13,3 +13,6 @@ export * from './capability-sdk.js';
 export * from './quarantine.js';
 export * from './repo.memory.js';
 export * from './uninstall.js';
+export * from './source-policy.js';
+export * from './contributions.js';
+export * from './tool-contributions.js';

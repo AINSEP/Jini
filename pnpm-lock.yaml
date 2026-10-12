@@ -657,6 +657,9 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
+      '@jini-ai/platform':
+        specifier: workspace:^
+        version: link:../platform
     devDependencies:
       '@electric-sql/pglite':
         specifier: 0.5.8
@@ -854,6 +857,9 @@ importers:
       '@jini-ai/db':
         specifier: workspace:*
         version: link:../db
+      '@jini-ai/platform':
+        specifier: workspace:^
+        version: link:../platform
       '@types/semver':
         specifier: ^7.5.8
         version: 7.8.0

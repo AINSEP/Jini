@@ -4,3 +4,4 @@ export * from './loader.js';
 export * from './package-files.js';
 export * from './install.js';
 export * from './module-snapshot.js';
+export * from './source-drafts.js';

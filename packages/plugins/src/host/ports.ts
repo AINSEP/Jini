@@ -17,8 +17,11 @@ export interface PluginSdk<H extends HookPoints = HookPoints> {
   readonly plugins?: import("@jini-ai/core/plugin-directory").PluginLookupPort;
   readonly content: { read(): Readonly<ContentEntryDraft>; extend(field: string, value: string | number | boolean): void };
   addFilter<K extends keyof H & string>(hookName: K, filter: H[K] extends (...args: never[]) => unknown ? H[K] : BeforeSaveFilter): void;
+  readonly routes: { add(required: import('./contributions.js').PluginRouteContribution, optional?: Record<string, never>): void };
+  readonly tools: { add(required: import('./contributions.js').PluginToolContribution, optional?: Record<string, never>): void };
+  readonly widgets: { add(required: import('./contributions.js').PluginWidgetContribution, optional?: Record<string, never>): void };
   addAction(...args: never[]): void;
-  addContribution(...args: never[]): void;
+  addContribution(required: import('./contributions.js').PluginContribution, optional?: Record<string, never>): void;
 }
 export interface DefinedPlugin<H extends HookPoints = HookPoints> {
   readonly definition: { setup(sdk: PluginSdk<H>): void | Promise<void> };

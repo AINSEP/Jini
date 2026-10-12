@@ -4,7 +4,7 @@
  * `{descriptor, handler, policy}` triples; the registry's *public* surface
  * (this file's `ToolRegistry` interface, and everything re-exported from
  * this package's root `index.ts`) exposes only `ToolDescriptor`s —
- * `register`/`has`/`list`. It never exposes a way to retrieve a `handler`
+ * `register`/`has`/`list`. Revocable host scopes add replacement without retrieval. It never exposes a way to retrieve a `handler`
  * or `policy` back out.
  *
  * That's the load-bearing invariant this task is named after: "handlers
@@ -214,6 +214,44 @@ export interface ToolRegistry {
 }
 
 const registrationsByRegistry = new WeakMap<ToolRegistry, Map<string, ToolRegistration>>();
+// Static register() remains append-only; scoped host contributions below explicitly own removal.
+const registryRevisions = new WeakMap<object, number>();
+/** A host can invalidate its disposable discovery snapshot without exposing handlers. */
+export function toolRegistryRevision(required: { registry: object }, _optional: Record<string, never> = {}): number | undefined {
+  return registryRevisions.get(required.registry);
+}
+/** Revocable registration scope on the SAME registry the executor owns. Collision validation
+ * completes before mutation, so a failed replacement cannot lose the working generation.
+ * Only this closure may remove its own registrations; native and other scopes remain protected.
+ * Already-authorized closures are revoked too: confirmation can await a human across disable. */
+export function createToolRegistrationScope(required: { registry: ToolRegistry }, _optional: Record<string, never> = {}) {
+  const registrations = registrationsByRegistry.get(required.registry);
+  if (!registrations) throw new Error('registration scopes require a core ToolRegistry');
+  let owned = new Set<string>();
+  let generation = 0;
+  return {
+    replace({ registrations: next }: { registrations: readonly ToolRegistration[] }, _optional: Record<string, never> = {}) {
+      const ids = new Set<string>();
+      for (const registration of next) {
+        const id = registration.descriptor.id;
+        if (ids.has(id) || (registrations.has(id) && !owned.has(id))) throw new Error(`ToolRegistry: tool "${id}" is already registered`);
+        ids.add(id);
+      }
+      generation++;
+      const current = generation;
+      for (const id of owned) registrations.delete(id);
+      for (const registration of next) registrations.set(registration.descriptor.id, { ...registration,
+        handler: (input, options) => {
+          if (generation !== current) throw new Error('tool registration was revoked');
+          return registration.handler(input, options);
+        },
+      });
+      owned = ids;
+      registryRevisions.set(required.registry, (registryRevisions.get(required.registry) ?? 0) + 1);
+    },
+  };
+}
+
 
 /**
  * Creates an empty, append-only `ToolRegistry`.
@@ -234,6 +272,7 @@ export function createToolRegistry(_required: Record<string, never>): ToolRegist
         throw new Error(`ToolRegistry: tool "${registration.descriptor.id}" is already registered`);
       }
       registrations.set(registration.descriptor.id, registration);
+      registryRevisions.set(registry, (registryRevisions.get(registry) ?? 0) + 1);
     },
     has({ toolId }: { toolId: string }): boolean {
       return registrations.has(toolId);
@@ -244,6 +283,7 @@ export function createToolRegistry(_required: Record<string, never>): ToolRegist
   };
 
   registrationsByRegistry.set(registry, registrations);
+  registryRevisions.set(registry, 0);
   return registry;
 }
 

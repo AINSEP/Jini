@@ -28,7 +28,7 @@ export type {
   ToolRegistration,
   ToolRegistry,
 } from './tool-registry.js';
-export { createToolRegistry, isReadOnlyTool, ToolInputError } from './tool-registry.js';
+export { createToolRegistrationScope, toolRegistryRevision, createToolRegistry, isReadOnlyTool, ToolInputError } from './tool-registry.js';
 export * from './tool-tokens.js';
 
 export * from './gated-mutations.js';

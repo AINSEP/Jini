@@ -57,6 +57,7 @@ export interface CapabilityScopedSdkCoreDeps {
   writeExtField(field: string, value: string | number | boolean): void;
   /** Backing implementation for the granted `addFilter()` surface. */
   attachFilter(hookName: string, filter: BeforeSaveFilter): void;
+  readonly contributions?: Pick<PluginSdk, 'routes' | 'tools' | 'widgets'>;
 }
 
 export interface BuildCapabilityScopedSdkRequired<H extends HookPoints = HookPoints> {
@@ -78,8 +79,7 @@ export type BuildCapabilityScopedSdkOptional = Record<string, never>
  *
  * @throws Nothing at build time. The returned object's ungranted-surface stubs throw
  * `CapabilityDeniedError` synchronously when invoked by the plugin.
- * @complexity O(1) — three capability checks, trivially small and bounded regardless of
- * plugin-declared array length (the vocabulary itself is fixed-size at exactly three).
+ * @complexity O(capabilities.length) to build the granted set; every surface check is O(1).
  */
 export function buildCapabilityScopedSdk<H extends HookPoints>(
   required: BuildCapabilityScopedSdkRequired<H>,
@@ -112,13 +112,41 @@ export function buildCapabilityScopedSdk<H extends HookPoints>(
     addFilter: gate("hooks.attach", (hookName: string, filter: BeforeSaveFilter) =>
       coreDeps.attachFilter(hookName, filter)
     ) as PluginSdk<H>["addFilter"],
-    // `ActionHookName`/`ContributionHookName` (@tovu/sdk hooks.ts) have no catalog members yet
-    // (hooks v2 plan §3.3 Waves 1/2 land in a later slice), so no name type-checks as an argument
-    // to either surface today -- both are present-but-unreachable, same "always present" contract
-    // as `addFilter`, gated on the same `hooks.attach` capability. No `coreDeps` backing exists
-    // yet because there is nothing real to delegate to until a hook is cataloged.
-    addAction: gate("hooks.attach", (..._args: never[]) => undefined),
-    addContribution: gate("hooks.attach", (..._args: never[]) => undefined),
+    routes: { add: gate("http.route.register", (input: import("./contributions.js").PluginRouteContribution, options: Record<string, never> = {}) => {
+      if (!coreDeps.contributions) throw new Error('plugin routes are not bound by this host');
+      coreDeps.contributions.routes.add(input, options);
+    }) },
+    tools: { add: gate("tools.register", (input: import("./contributions.js").PluginToolContribution, options: Record<string, never> = {}) => {
+      if (!coreDeps.contributions) throw new Error('plugin tools are not bound by this host');
+      coreDeps.contributions.tools.add(input, options);
+    }) },
+    widgets: { add: gate("render.contribute", (input: import("./contributions.js").PluginWidgetContribution, options: Record<string, never> = {}) => {
+      if (!coreDeps.contributions) throw new Error('plugin widgets are not bound by this host');
+      coreDeps.contributions.widgets.add(input, options);
+    }) },
+    // V1 rationale retained: `ActionHookName`/`ContributionHookName` (@tovu/sdk hooks.ts) have no
+    // catalog members yet (hooks v2 plan §3.3 Waves 1/2 land in a later slice), so no name
+    // type-checks as an argument to either legacy surface. They remain present-but-unreachable,
+    // following the same "always present" contract as addFilter, gated on hooks.attach. There
+    // is still no action-hook coreDeps backing until a hook is cataloged. Explicit contribution
+    // records below now have real route/tool/widget owners and use those owners' capabilities.
+    // No action hooks are cataloged. Preserve CIC U-003's callable denial boundary, but remove
+    // the silent no-op: a granted unsupported action fails explicitly until a real owner exists.
+    addAction: gate("hooks.attach", (..._args: never[]) => { throw new Error('no plugin action hooks are cataloged'); }),
+    addContribution: (input, options = {}) => {
+      // Legacy positional hook calls have no contribution hook in the catalog. Deny first for
+      // ungranted hooks, preserving the old SDK's classified security failure.
+      if (!input || typeof input !== 'object') {
+        gate("hooks.attach", () => { throw new Error('use an explicit route, tool or widget contribution'); })();
+        return;
+      }
+      switch (input.kind) {
+        case 'route': sdk.routes.add(input.value, options); return;
+        case 'tool': sdk.tools.add(input.value, options); return;
+        case 'widget': sdk.widgets.add(input.value, options); return;
+        default: throw new Error('unsupported plugin contribution kind');
+      }
+    },
   };
   return required.pluginSdkBinding.buildSdk({ sdk });
 }

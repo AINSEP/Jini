@@ -42,3 +42,46 @@ partial mount. A failed mount does not reserve IDs against later modules.
 
 This entry adds no plugin loader, lifecycle, persistence, quarantine threshold or application policy.
 The package remains private, with its version unchanged. Verification is deferred by owner directive.
+
+## Executable contributions (owner dispatch 2026-10-09)
+
+The existing loader builds one capability-scoped SDK per load. Declare every name in
+`contributes.routes/tools/widgets` and request `http.route.register`, `tools.register`, or
+`render.contribute` respectively. Registrations occur during `setup`; late registration fails.
+`routes.add`, `tools.add`, `widgets.add`, and `addContribution({kind,value}, {})` all accept two
+argument objects. Claims are checked before code import and registrations before publication.
+
+```js
+export default { definition: { setup(sdk) {
+  sdk.routes.add({method:'POST',path:'/echo',access:'member',
+    handler:async ({body,auth,sdk})=>({body:{body,memberId:auth.principalId}})}, {});
+  sdk.tools.add({name:'echo',description:'Echo a site payload',inputSchema:{type:'object'},
+    handler:async ({input,auth,sdk,signal})=>input}, {});
+  sdk.widgets.add({name:'sample-banner',render:()=>'<strong>Hello</strong>'}, {});
+} } };
+```
+
+Tovu mounts relative routes at `/api/p/<pluginId>/...`; only literal segments and `:parameter`
+segments are supported. The host authenticates public/member/admin access, then parses JSON,
+form, text, or binary input at 128 KiB. JSON responses are `{status?,body?}`; exceptions are redacted.
+No raw request/response, session tokens, app dependency bag, or route-mount handle reaches a plugin.
+Tools use `p_<pluginId with hyphens folded to underscores>__<name>`, the existing assistant registry
+and executor, host operator authorization, and conservative confirmation. Input schemas are JSON
+object schemas, detached from the author object and limited to 64 KiB. Plugin handlers must validate
+their domain-specific input. Disable/reload removes or replaces complete generations, and pending
+confirmation handlers recheck activation and generation before execution.
+
+Widgets are public SSR fragments. Place one using the existing theme partial marker:
+`<div data-embed-config='{"type":"partial","id":"sample-banner"}'></div>`.
+Unknown/disabled names retain authored fallback; invalid/failed/expired renders produce an empty
+fragment. Work is bounded to 32 names per page, 2 seconds per renderer and 64 KiB per fragment.
+The CMS HTML validator rejects scripts, SVG, iframe, event/style attributes and executable URLs.
+TODO: client JS requires an ADR-025 owner amendment. Tier-3 still has full in-process machine
+access; TODO: hardened worker at the contribution boundary. Tier-2 contributions are refused until
+its existing worker RPC gains these contracts.
+
+No action hooks are cataloged, so `addAction` now fails explicitly rather than silently doing
+nothing. Its present callable capability-denial surface remains for CIC U-003 compatibility.
+Legacy positional `addContribution` calls also fail explicitly; explicit route/tool/widget records
+use each surface's own grant. SDK content reads/extends retain their existing beforeSave-only
+invocation contract; passing the SDK to a route/tool does not invent new content permissions.

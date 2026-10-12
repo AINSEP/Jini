@@ -36,10 +36,11 @@
  * - list (admin screen, `plugins_list`): `listPluginConflicts` reports enabled losers and the clash a
  *   disabled plugin WOULD hit if turned on now, so the operator sees it before clicking.
  */
+import { pluginToolIdFor } from './contributions.js';
 import type { ManifestHostPorts } from "./ports.js";
 
 import type { PluginActivationRecord } from "./activation.js";
-import { resolveClaimConflicts, type ClaimConflict, type ClaimMode, type ClaimOwner, type ExtensionClaim } from "./claim-conflicts.js";
+import { normalizeRoute, resolveClaimConflicts, type ClaimConflict, type ClaimMode, type ClaimOwner, type ExtensionClaim } from "./claim-conflicts.js";
 import type { PluginDiscoveryRecord } from "./discovery-types.js";
 import { CORE_OWNER_ID, type PluginContributions, type PluginManifest } from "./manifest.js";
 
@@ -88,7 +89,15 @@ export function pluginClaimsFromManifest(
   const hookSemantics = optional.hookSemantics ?? required.pluginSdkBinding.hookSemantics;
   const contributes = manifest.contributes ?? {};
   const declared = CONTRIBUTION_KINDS.flatMap(([list, kind]) =>
-    (contributes[list] ?? []).map((key): ExtensionClaim => ({ kind, key, mode: "exclusive" })),
+    (contributes[list] ?? []).flatMap((key): ExtensionClaim[] => {
+      // Claim the mounted identity, not the plugin-local spelling. Two plugins may both search
+      // or serve /items without competing for either other's names or a core tool's name.
+      if (list === 'routes') return normalizeRoute({ key }).map(slot => {
+        const space = slot.indexOf(' ');
+        return { kind, key: `${slot.slice(0, space)} /api/p/${manifest.id}${slot.slice(space + 1)}`, mode: 'exclusive' };
+      });
+      return [{ kind, key: list === 'tools' ? pluginToolIdFor({ pluginId: manifest.id, name: key }) : key, mode: 'exclusive' }];
+    }),
   );
   const hooks = manifest.hooks.map((key): ExtensionClaim => ({ kind: "hook", key, mode: hookSemantics[key] ?? "exclusive" }));
   const generated: ExtensionClaim[] =

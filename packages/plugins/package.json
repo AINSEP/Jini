@@ -80,11 +80,15 @@
     "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
+    "@jini-ai/platform": "^0.5.2",
     "semver": "^7.6.2",
     "kysely": "^0.29.6",
     "@jini-ai/db": "^0.3.0"
   },
   "peerDependenciesMeta": {
+    "@jini-ai/platform": {
+      "optional": true
+    },
     "semver": {
       "optional": true
     },
@@ -97,6 +101,7 @@
   },
   "devDependencies": {
     "@jini-ai/core": "workspace:^",
+    "@jini-ai/platform": "workspace:^",
     "semver": "^7.6.2",
     "@types/semver": "^7.5.8",
     "kysely": "^0.29.6",

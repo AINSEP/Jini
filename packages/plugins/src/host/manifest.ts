@@ -219,6 +219,12 @@ function validateIdFormat(id: string): PluginValidationError[] {
   return [];
 }
 
+/** Shared id grammar for source paths and manifests. Identity admission (reserved ids, folder
+ * match and built-in shadowing) still belongs to full manifest validation. */
+export function validatePluginIdFormat(required: { id: string }, _optional: Record<string, never> = {}): readonly PluginValidationError[] {
+  return validateIdFormat(required.id);
+}
+
 /** The owner id the claim system gives Tovu core (`plugin-claims.ts` re-exports it). Conflict
  * detection never compares an owner with itself, so a plugin with this id would never conflict with
  * core's reserved routes, tools or permissions — it is refused as an id instead. */
