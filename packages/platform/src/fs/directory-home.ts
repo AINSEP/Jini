@@ -8,11 +8,12 @@ export function resolveDirectoryHome(
   { homeDir, defaultFolder, envName, env, setting }: {
     homeDir: string; defaultFolder: string; envName: string;
     env: Record<string, string | undefined>; setting?: string | undefined;
-  }, { cwd = homeDir }: { cwd?: string } = {},
+  }, { cwd = homeDir, platform = process.platform }: { cwd?: string; platform?: NodeJS.Platform } = {},
 ): string {
-  const selected = env[envName] ?? setting ?? path.join(homeDir, defaultFolder);
+  const paths = platform === "win32" ? path.win32 : path;
+  const selected = env[envName] ?? setting ?? paths.join(homeDir, defaultFolder);
   if (!selected.trim()) throw new Error(`${envName} must name a directory`);
-  if (selected === "~") return path.resolve(homeDir);
-  if (selected.startsWith("~/") || selected.startsWith("~\\")) return path.resolve(homeDir, selected.slice(2));
-  return path.resolve(cwd, selected);
+  if (selected === "~") return paths.resolve(homeDir);
+  if (selected.startsWith("~/") || selected.startsWith("~\\")) return paths.resolve(homeDir, selected.slice(2));
+  return paths.resolve(cwd, selected);
 }

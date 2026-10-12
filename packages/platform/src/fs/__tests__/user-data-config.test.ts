@@ -100,7 +100,7 @@ it('incremental root writers reread inside the settings lock and preserve siblin
     const first = f.make(), second = f.make(); second.config({});
     first.updateRoots({ add: ['~/one'] }); second.updateConfig({ patch: { databases: 'appData' } });
     second.updateRoots({ add: ['~/two', '~/one'] }); first.updateRoots({ remove: ['~/one'] });
-    expect(f.make().config({})).toMatchObject({ siteRoots: [path.join(f.root, 'repo', 'sites'), path.join(f.root, 'two')], databases: 'appData' });
+    expect(f.make().config({})).toMatchObject({ siteRoots: [path.join(f.root, 'two')], databases: 'appData' });
     const locked = f.make({ PROJECT_ROOTS: '~/env' });
     expect(() => locked.updateRoots({ add: ['~/three'] })).toThrow('PROJECT_ROOTS overrides this setting. Unset it before changing site roots.');
   } finally { f.cleanup(); }
@@ -143,4 +143,149 @@ it("defaults OneDrive-redirected Windows Documents to appData, retaining explici
   expect(config.syncWarning({})?.message).toBe("OneDrive syncs the sites folder. New databases use OS app-data for safety. Site folders are not self-contained: include their app-data databases when transferring them.");
   config.update({ patch: { databases: "inSite" } });
   expect(config.read({}).databases).toBe("inSite");
+});
+
+
+it("deskfx S2: incremental extras never persist implicit defaults and removal preserves unrelated config", () => {
+  const f = fixture();
+  try {
+    const workspace = f.make(); const defaults = workspace.config({}).defaultRoots;
+    workspace.updateConfig({ patch: { databases: "appData" } });
+    const before = fs.readFileSync(workspace.config({}).configPath, "utf8");
+    workspace.updateRoots({ add: [path.join(f.root, "extra")] });
+    workspace.updateRoots({ add: [...defaults, workspace.home({})] });
+    expect(workspace.config({}).extraRoots).toEqual([path.join(f.root, "extra")]);
+    expect(workspace.roots({})).toEqual([workspace.home({}), ...defaults, path.join(f.root, "extra")]);
+    expect(JSON.parse(fs.readFileSync(workspace.config({}).configPath, "utf8")).siteRoots).toEqual([path.join(f.root, "extra")]);
+    const sibling = f.make(); sibling.updateRoots({ add: [path.join(f.root, "second")] });
+    workspace.updateRoots({ remove: [path.join(f.root, "extra")] });
+    expect(sibling.config({}).extraRoots).toEqual([path.join(f.root, "second")]);
+    sibling.updateRoots({ remove: [path.join(f.root, "second")] });
+    expect(fs.readFileSync(workspace.config({}).configPath, "utf8")).toBe(before);
+    expect(workspace.config({}).extraRoots).toEqual([]); expect(workspace.config({}).siteRoots).toEqual(defaults);
+  } finally { f.cleanup(); }
+});
+
+for (const sample of [
+  { platform: "darwin" as const, homeDir: "/users/a", documents: "/users/a/Documents", env: {} },
+  { platform: "linux" as const, homeDir: "/users/a", documents: "/users/a/Dokumente", env: {} },
+  { platform: "win32" as const, homeDir: "C:\\Users\\a", documents: "D:\\Personal", env: { APPDATA: "D:\\Roaming" } },
+]) it(`nested defaults use injected ${sample.platform} Documents and retain custom/env precedence`, () => {
+  const paths = sample.platform === "win32" ? path.win32 : path.posix;
+  let saved: unknown;
+  const file: DurableJsonFile = {
+    read: () => saved === undefined ? { state: "missing" } : { state: "ok", value: saved },
+    write: () => { throw new Error("default reads cannot write"); },
+    withLock: ({ critical }) => critical(), quarantine: () => false, tempPath: () => "unused",
+  };
+  const make = (env: NodeJS.ProcessEnv = sample.env) => createDirectoryUserConfig({ homeDir: sample.homeDir, defaultFolder: "Product", envName: "PRODUCT_HOME",
+    policy: { appName: "Example", rootsEnvName: "PRODUCT_ROOTS", defaultSubfolder: "sites" }, fileAt: () => file,
+    canonicalPath: ({ path }) => path, exists: () => false, isDirectory: () => false,
+  }, { platform: sample.platform, env, windowsDocuments: () => sample.documents, windowsOneDriveRoots: () => [],
+    readText: (file) => file.endsWith("user-dirs.dirs") ? 'XDG_DOCUMENTS_DIR="$HOME/Dokumente"' : undefined });
+  const old = paths.join(sample.documents, "Product"), nested = paths.join(old, "sites");
+  expect(make().read({}).sitesHome).toBe(nested);
+  expect(make().roots({})).toEqual([nested]);
+  expect(make().legacyHomes({})).toEqual([]);
+  expect(make().legacyHomes({}, { includeMissing: true })).toEqual([old, paths.join(sample.homeDir, "Product")]);
+  saved = { sitesHome: old };
+  expect(make().read({}).sitesHome).toBe(nested);
+  saved = { sitesHome: paths.join(sample.homeDir, "Product") };
+  expect(make().read({}).sitesHome).toBe(paths.join(sample.homeDir, "Product", "sites"));
+  saved = { sitesHome: paths.join(sample.homeDir, "custom") };
+  expect(make().read({}).sitesHome).toBe(paths.join(sample.homeDir, "custom"));
+  expect(make({ ...sample.env, PRODUCT_HOME: old }).read({}).sitesHome).toBe(old);
+});
+
+it("nested sync warnings suggest the nested local fallback and creation requires mounted Documents", () => {
+  const f = fixture();
+  try {
+    const workspace = createNodeDirectoryWorkspace({ homeDir: f.root, defaultFolder: "Product", envName: "PRODUCT_HOME",
+      settingsFile: "unused", registryName: "catalog.json", runningName: ".running.json",
+      userConfig: { appName: "Example", rootsEnvName: "PRODUCT_ROOTS", defaultSubfolder: "sites" },
+    }, { platform: "linux", env: {}, readText: (file) => file.endsWith("user-dirs.dirs") ? 'XDG_DOCUMENTS_DIR="$HOME/Dropbox/Documents"' : undefined });
+    fs.mkdirSync(path.join(f.root, "Dropbox", ".dropbox.cache"), { recursive: true });
+    expect(workspace.config({}).warning?.localHome).toBe(path.join(f.root, "Product", "sites"));
+    expect(workspace.homeAvailable({})).toBe(false);
+    fs.mkdirSync(path.join(f.root, "Dropbox", "Documents"), { recursive: true });
+    expect(workspace.homeAvailable({})).toBe(true);
+    expect(fs.existsSync(workspace.home({}))).toBe(false);
+  } finally { f.cleanup(); }
+});
+
+
+it("discovery includes only the existing parent of the selected nested home", () => {
+  const f = fixture();
+  try {
+    const make = (env: NodeJS.ProcessEnv = {}) => createNodeDirectoryWorkspace({ homeDir: f.root, defaultFolder: "Product", envName: "PRODUCT_HOME",
+      settingsFile: "unused", registryName: "catalog.json", runningName: ".running.json",
+      userConfig: { appName: "Example", rootsEnvName: "PRODUCT_ROOTS", defaultSubfolder: "sites" },
+    }, { platform: "linux", env });
+    const old = path.join(f.root, "Documents", "Product"), local = path.join(f.root, "Product");
+    const workspace = make();
+    expect(workspace.roots({})).toEqual([path.join(old, "sites")]);
+    fs.mkdirSync(old, { recursive: true }); fs.mkdirSync(local);
+    expect(workspace.legacyHomes({})).toEqual([old, local]);
+    expect(workspace.roots({})).toEqual([path.join(old, "sites"), old]);
+    expect(make({ PRODUCT_HOME: path.join(local, "sites") }).roots({})).toEqual([path.join(local, "sites"), local]);
+    expect(make({ PRODUCT_HOME: old }).roots({})).toEqual([old]);
+    expect(make({ PRODUCT_HOME: path.join(f.root, "custom", "sites") }).roots({})).toEqual([path.join(f.root, "custom", "sites")]);
+  } finally { f.cleanup(); }
+});
+
+for (const savedHome of ["~/Documents/Product", "~/custom"]) it(`relocation nests only saved home ${savedHome}, never the environment override`, () => {
+  const f = fixture();
+  try {
+    const make = (env: NodeJS.ProcessEnv = {}) => createNodeDirectoryWorkspace({ homeDir: f.root, defaultFolder: "Product", envName: "PRODUCT_HOME",
+      settingsFile: "unused", registryName: "catalog.json", runningName: ".running.json",
+      userConfig: { appName: "Example", rootsEnvName: "PRODUCT_ROOTS", defaultSubfolder: "sites" },
+    }, { platform: "linux", env });
+    const workspace = make(), file = workspace.config({}).configPath;
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.mkdirSync(path.join(f.root, "Product"));
+    fs.writeFileSync(file, JSON.stringify({ sitesHome: savedHome, siteRoots: ["~/unrelated", "~/Product"] }));
+    const override = make({ PRODUCT_HOME: "~/override/sites" });
+    override.relocate({ from: path.join(f.root, "from"), to: path.join(f.root, "to"),
+      entry: { id: "move-id", name: "Move", path: path.join(f.root, "from"), createdBy: "test", lastOpened: null } });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).toEqual({ sitesHome: savedHome === "~/Documents/Product" ? "~/Documents/Product/sites" : savedHome, siteRoots: ["~/unrelated", "~/Product"] });
+    expect(override.home({})).toBe(path.join(f.root, "override", "sites"));
+  } finally { f.cleanup(); }
+});
+
+it("corrupt Dropbox metadata cannot break workspace config reads", () => {
+  const f = fixture();
+  try {
+    fs.mkdirSync(path.join(f.root, ".dropbox")); fs.writeFileSync(path.join(f.root, ".dropbox", "info.json"), "{broken");
+    expect(f.make().config({}).databases).toBe("inSite");
+    expect(f.make().config({}).warning).toBeNull();
+    expect(fs.readFileSync(path.join(f.root, ".dropbox", "info.json"), "utf8")).toBe("{broken");
+  } finally { f.cleanup(); }
+});
+
+
+for (const backupSuffix of [".home2-backup", ".relocation-fixture-backup"]) it(`interrupted moves recover using ${backupSuffix} without creating a second live database`, () => {
+  const f = fixture();
+  try {
+    const workspace = f.make(), dir = path.join(f.root, "site"), source = path.join(dir, "content.db"), target = path.join(dir, "data.nosync", "content.db");
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(source + backupSuffix, "recovery"); fs.writeFileSync(target, "verified");
+    fs.writeFileSync(source + ".home2-relocation.json", JSON.stringify({ to: target,
+      ...(backupSuffix === ".home2-backup" ? {} : { backup: source + backupSuffix }),
+    }));
+    expect(workspace.databasePath({ dir, id: "safe-id", filename: "content.db" })).toBe(target);
+    expect(fs.readFileSync(source + backupSuffix, "utf8")).toBe("recovery");
+    expect(fs.existsSync(source)).toBe(false);
+  } finally { f.cleanup(); }
+});
+
+it("an interrupted move refuses unrelated backup evidence", () => {
+  const f = fixture();
+  try {
+    const workspace = f.make(), dir = path.join(f.root, "site"), source = path.join(dir, "content.db"), target = path.join(dir, "data.nosync", "content.db");
+    fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, "verified");
+    const backup = path.join(f.root, "unrelated.relocation-fixture-backup"); fs.writeFileSync(backup, "other site");
+    fs.writeFileSync(source + ".home2-relocation.json", JSON.stringify({ to: target, backup }));
+    expect(() => workspace.databasePath({ dir, id: "safe-id", filename: "content.db" })).toThrow("invalid recovery marker");
+    expect(fs.readFileSync(backup, "utf8")).toBe("other site");
+  } finally { f.cleanup(); }
 });

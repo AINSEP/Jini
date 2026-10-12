@@ -42,7 +42,10 @@ export function detectDirectorySync(
   for (const file of dropboxFiles) {
     const text = readText(file);
     if (!text) continue;
-    const accounts = JSON.parse(text) as Record<string, { path?: unknown }>;
+    // Provider-owned metadata can be torn/corrupt; it is optional evidence, never a boot gate.
+    let accounts: unknown;
+    try { accounts = JSON.parse(text); } catch { continue; }
+    if (!accounts || typeof accounts !== "object" || Array.isArray(accounts)) continue;
     for (const account of Object.values(accounts)) if (typeof account?.path === "string") add(account.path, "Dropbox");
   }
   const canonical = (value: string) => { const resolved = canonicalPath({ path: value }); return platform === "win32" ? resolved.toLowerCase() : resolved; };

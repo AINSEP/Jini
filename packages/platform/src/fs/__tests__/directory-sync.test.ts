@@ -18,6 +18,13 @@ describe("sync detection uses containment and provider evidence", () => {
     expect(detectDirectorySync({ ...input, dir: "/custom/Dropbox/Documents/Project" }, { ...ports, readText: (file) => file === "/user/.dropbox/info.json" ? JSON.stringify({ personal: { path: "/custom/Dropbox" } }) : undefined })).toBe("Dropbox");
     expect(detectDirectorySync({ ...input, dir: "/user/Library/CloudStorage/GoogleDrive-a/Documents/Project" }, { ...ports, listDirectories: () => ["GoogleDrive-a"] })).toBe("Google Drive");
   });
+  it("ignores corrupt Dropbox metadata without masking other provider evidence", () => {
+    for (const text of ["{broken", "null", "42"]) {
+      const readText = (file: string) => file.endsWith("info.json") ? text : undefined;
+      expect(detectDirectorySync(input, { ...ports, readText })).toBeNull();
+      expect(detectDirectorySync(input, { ...ports, readText, env: { OneDrive: "/user/Documents" } })).toBe("OneDrive");
+    }
+  });
   it("uses ancestor marker files rather than the site's folder name", () => {
     expect(detectDirectorySync(input, { ...ports, exists: (file) => file === path.join("/user/Documents", ".tmp.drivedownload") })).toBe("Google Drive");
     expect(detectDirectorySync(input, { ...ports, exists: (file) => file === path.join("/user", ".dropbox.cache") })).toBe("Dropbox");

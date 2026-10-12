@@ -3,6 +3,8 @@ import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 
 export interface UserDirectoryOptions {
+  /** Resolved host profile directory; owns config/catalog/DB/lease paths without an app-name suffix. */
+  appDataDir?: string;
   platform?: NodeJS.Platform;
   env?: NodeJS.ProcessEnv;
   readText?: (file: string) => string | undefined;
@@ -17,19 +19,20 @@ export interface UserDirectoryOptions {
  */
 export function resolveUserDataDirectories(
   { homeDir, appName }: { homeDir: string; appName: string },
-  { platform = process.platform, env = process.env, readText = (file) => readOptionalText({ file }), windowsDocuments = readWindowsDocuments }: UserDirectoryOptions = {},
+  { platform = process.platform, env = process.env, appDataDir, readText = (file) => readOptionalText({ file }), windowsDocuments = readWindowsDocuments }: UserDirectoryOptions = {},
 ): { appData: string; documents: string } {
   const paths = platform === "win32" ? path.win32 : path.posix;
+  if (appDataDir !== undefined && (!appDataDir.trim() || !paths.isAbsolute(appDataDir))) throw new Error("appDataDir must be an absolute profile directory.");
   if (platform === "win32") {
     const personal = windowsDocuments();
     const documents = personal?.replace(/%([^%]+)%/g, (match, key: string) => env[key] ?? match);
-    return { appData: paths.join(env.APPDATA ?? paths.join(homeDir, "AppData", "Roaming"), appName),
+    return { appData: appDataDir ?? paths.join(env.APPDATA ?? paths.join(homeDir, "AppData", "Roaming"), appName),
       documents: documents ?? paths.join(homeDir, "Documents") };
   }
-  if (platform === "darwin") return { appData: paths.join(homeDir, "Library", "Application Support", appName), documents: paths.join(homeDir, "Documents") };
+  if (platform === "darwin") return { appData: appDataDir ?? paths.join(homeDir, "Library", "Application Support", appName), documents: paths.join(homeDir, "Documents") };
   const userDirs = readText(paths.join(env.XDG_CONFIG_HOME ?? paths.join(homeDir, ".config"), "user-dirs.dirs"));
   const configured = /^XDG_DOCUMENTS_DIR="([^"\n]*)"/m.exec(userDirs ?? "")?.[1]?.replace(/\$HOME/g, homeDir);
-  return { appData: paths.join(env.XDG_DATA_HOME ?? paths.join(homeDir, ".local", "share"), appName),
+  return { appData: appDataDir ?? paths.join(env.XDG_DATA_HOME ?? paths.join(homeDir, ".local", "share"), appName),
     documents: configured && paths.isAbsolute(configured) ? configured : paths.join(homeDir, "Documents") };
 }
 

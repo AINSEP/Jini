@@ -16,10 +16,14 @@ export interface DirectoryRegistry {
 
 /** Shared catalog: corrupt state fails closed; every update holds one durable file lock.
  * Canonical paths deduplicate symlink aliases. Identity collisions require explicit relocation.
+ * Optional host admission prunes rejected entries on list under that same lock, then reports once.
  * @complexity O(n + m) records for merge, O(n) for other mutations, plus file I/O/lock wait.
  */
 export function createDirectoryRegistry(
-  { file, canonicalPath }: { file: DurableJsonFile; canonicalPath: (required: { path: string }) => string }, _options = {},
+  { file, canonicalPath }: { file: DurableJsonFile; canonicalPath: (required: { path: string }) => string }, { discard, reportDiscarded = () => {} }: {
+    discard?: (required: { entry: DirectoryRecord }) => boolean;
+    reportDiscarded?: (required: { entries: DirectoryRecord[] }) => void;
+  } = {},
 ): DirectoryRegistry {
   function read(): RegistryState {
     const result = file.read({});
@@ -40,7 +44,21 @@ export function createDirectoryRegistry(
   const registry: DirectoryRegistry = {
     hasMigration: ({ migration }, _optional = {}) => read().migrations.includes(migration),
     migrations: (_required, _optional = {}) => read().migrations,
-    list: (_required, _optional = {}) => read().entries,
+    list: (_required, _optional = {}) => {
+      const current = read();
+      if (!discard || !current.entries.some((entry) => discard({ entry }))) return current.entries;
+      let entries = current.entries;
+      let removed: DirectoryRecord[] = [];
+      // Re-read under the same mutation lock; never overwrite a sibling process's new rows.
+      update((state) => {
+        removed = state.entries.filter((entry) => discard({ entry }));
+        const discarded = new Set(removed);
+        entries = state.entries.filter((entry) => !discarded.has(entry));
+        return { ...state, entries };
+      });
+      if (removed.length) reportDiscarded({ entries: removed });
+      return entries;
+    },
     merge({ entries, migration, migrations = [] }, _optional = {}) {
       let result: DirectoryRecord[] = [];
       update((state) => {

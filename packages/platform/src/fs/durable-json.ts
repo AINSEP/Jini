@@ -182,3 +182,53 @@ function endOfString(text: string, start: number): number {
   }
   return text.length;
 }
+
+export interface DurableJsonChange {
+  filePath: string;
+  /** Missing optional references stay missing; transforms must reject unreadable schemas. */
+  transform: (value: unknown | undefined) => unknown | undefined;
+}
+
+/** Update related JSON pointers under their existing locks, with atomic replacement per file.
+ * Compute every change before writing; a failed write restores prior bytes before releasing locks.
+ * The host supplies schema transforms, so this owner knows nothing about product catalogs.
+ * @throws Unreadable input, transform, lock or persistence failures (including rollback failures).
+ * @example updateDurableJsonFiles({ changes, fileAt, remove });
+ * @complexity O(total JSON bytes), O(total JSON bytes) rollback storage, one lock per file.
+ */
+export function updateDurableJsonFiles(
+  { changes, fileAt, remove }: { changes: readonly DurableJsonChange[]; fileAt: (path: string) => DurableJsonFile; remove: (required: { filePath: string }) => void },
+  _options = {},
+): void {
+  if (new Set(changes.map((change) => change.filePath)).size !== changes.length) throw new Error("Duplicate JSON transaction path.");
+  const ordered = [...changes].sort((a, b) => a.filePath.localeCompare(b.filePath));
+  const files = ordered.map((change) => fileAt(change.filePath));
+  const lock = (index: number): void => {
+    if (index < files.length) { files[index]!.withLock({ critical: () => lock(index + 1) }); return; }
+    const updates = ordered.map((change, i) => {
+      const before = files[i]!.read({});
+      if (before.state === "unreadable") throw new Error(`JSON reference is unreadable: ${change.filePath}. Nothing was moved.`);
+      const previous = before.state === "ok" ? before.value : undefined;
+      return { file: files[i]!, filePath: change.filePath, previous, next: change.transform(previous) };
+    }).filter((item) => JSON.stringify(item.previous) !== JSON.stringify(item.next));
+    const attempted: typeof updates = [];
+    try {
+      for (const item of updates) {
+        attempted.push(item); // A write can fail after its rename; include it in rollback.
+        if (item.next === undefined) remove({ filePath: item.filePath });
+        else item.file.write({ value: item.next });
+      }
+    } catch (failure) {
+      const errors: unknown[] = [failure];
+      for (const item of attempted.reverse()) {
+        try {
+          if (item.previous === undefined) remove({ filePath: item.filePath });
+          else item.file.write({ value: item.previous });
+        } catch (error) { errors.push(error); }
+      }
+      if (errors.length > 1) throw new AggregateError(errors, "JSON reference rollback failed.");
+      throw failure;
+    }
+  };
+  lock(0);
+}
