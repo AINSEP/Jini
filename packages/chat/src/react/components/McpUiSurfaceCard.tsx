@@ -74,7 +74,7 @@ import {
 import { registerExtEventRenderer, type ExtEventCall, type ExtEventRenderProps } from '../ext-event-renderer-registry.js';
 import { useT } from '../hooks/context.js';
 import { useSurfaceExpiry, type SurfaceExpiryClock } from '../hooks/useSurfaceExpiry.js';
-import { closedSurfaceLabel } from './mcp-ui-surface-state.js';
+import { closedSurfaceLabel, reportDeliveredAnswer } from './mcp-ui-surface-state.js';
 
 /** The `kind: 'ext'` event name this renderer claims. */
 export const MCP_UI_EXT_EVENT_NAME = 'mcp-ui';
@@ -173,20 +173,24 @@ function ClosedSurface({ call, label }: { call: ExtEventCall | undefined; label:
 }
 
 /** Registered against `ext-event-renderer-registry.ts`'s `'mcp-ui'` name — see module doc. */
-export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLink, maxHeight, call, runStreaming, expiryClock }: McpUiSurfaceCardProps) {
+export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLink, maxHeight, call, runStreaming, expiryClock, answered, onAnswered }: McpUiSurfaceCardProps) {
   const t = useT();
   const resources = useMemo(() => latestResourcesByUri(events), [events]);
   // One card per slot is the registered shape (`mcpUiSurfaceSlotKey`), so `call` belongs to exactly
   // that card. A group holding several URIs has no single call to judge them by, and stays live.
   const single = resources.length === 1 ? resources[0] : undefined;
+  // An answered card has no deadline left: its countdown goes, and the deadline passing while the
+  // answer's work still runs must not relabel it "This question expired".
   const expiry = useSurfaceExpiry(
-    { expiresAtMs: single === undefined ? undefined : readExpiresAt(single) },
+    { expiresAtMs: single === undefined || answered === true ? undefined : readExpiresAt(single) },
     expiryClock === undefined ? {} : { clock: expiryClock },
   );
   const closed = single === undefined
     ? undefined
     : closedSurfaceLabel({ t, call, runStreaming, documentsForUri: events.length, expired: expiry?.expired === true });
   if (closed !== undefined) return <ClosedSurface call={call} label={closed} />;
+  // Reports the person's delivered answer to the row, which stops the "Waiting for your answer" line.
+  const toolCall = onToolCall === undefined || onAnswered === undefined ? onToolCall : reportDeliveredAnswer({ onToolCall, onAnswered });
 
   if (resources.length === 0) {
     // Visible rather than silent: an `ext` event named `mcp-ui` that carries no parseable resource
@@ -220,7 +224,7 @@ export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLi
               // the OLD document's state. The URI stays in the key because it is real identity; the
               // length was never a substitute for content.
               sessionKey={`${resource.resource.uri}:${resource.resource.text}`}
-              {...(onToolCall === undefined ? {} : { onToolCall })}
+              {...(toolCall === undefined ? {} : { onToolCall: toolCall })}
               {...(onOpenLink === undefined ? {} : { onOpenLink })}
               {...(height === undefined || Number.isNaN(height) ? {} : { initialHeight: height })}
               {...(maxHeight === undefined ? {} : { maxHeight })}

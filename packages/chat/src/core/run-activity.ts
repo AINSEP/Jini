@@ -99,6 +99,20 @@ interface Scan {
   visibleCount: number;
   /** A2UI surfaces whose `createSurface` declared display-only: a chart, not a question. */
   displayOnlySurfaces: Set<string>;
+  /** See {@link RunActivityOptions.isAnsweredCard}. */
+  isAnsweredCard: IsAnsweredCard | undefined;
+}
+
+/** Whether the person already answered a card, before its tool call returned. */
+export type IsAnsweredCard = (card: { name: string; data: unknown }) => boolean;
+
+export interface RunActivityOptions {
+  /**
+   * A card the person answered no longer waits on them, even though its tool call stays open while
+   * the confirmed work runs (a publish can take minutes). Without this the line kept saying
+   * "Waiting for your answer above" under a card that already read "Done." (owner, 2026-10-11).
+   */
+  isAnsweredCard?: IsAnsweredCard | undefined;
 }
 
 function isVisible(event: AgentEvent): boolean {
@@ -113,6 +127,7 @@ function isVisible(event: AgentEvent): boolean {
  */
 function isAnswerCard(scan: Scan, name: string, data: unknown): boolean {
   if (!CARD_EXT_NAMES.has(name)) return false;
+  if (scan.isAnsweredCard?.({ name, data }) === true) return false;
   if (name !== A2UI_EXT_NAME) return true;
   const displayOnlyId = displayOnlySurfaceIdOf({ message: data });
   if (displayOnlyId !== undefined) scan.displayOnlySurfaces.add(displayOnlyId);
@@ -150,8 +165,11 @@ function scanEvent(scan: Scan, event: AgentEvent, index: number): void {
  *
  * @complexity O(n) in events, O(open tool calls) extra space.
  */
-export function deriveRunActivity({ events }: { events: readonly AgentEvent[] | undefined }): RunActivityState {
-  const scan: Scan = { open: [], lastVisible: null, lastCardIndex: -1, retry: null, progress: null, visibleCount: 0, displayOnlySurfaces: new Set() };
+export function deriveRunActivity(
+  { events }: { events: readonly AgentEvent[] | undefined },
+  { isAnsweredCard }: RunActivityOptions = {},
+): RunActivityState {
+  const scan: Scan = { open: [], lastVisible: null, lastCardIndex: -1, retry: null, progress: null, visibleCount: 0, displayOnlySurfaces: new Set(), isAnsweredCard };
   (events ?? []).forEach((event, index) => scanEvent(scan, event, index));
   const visibleCount = scan.visibleCount;
   const lastVisibleIndex = scan.lastVisible?.index ?? -1;
@@ -204,8 +222,8 @@ export function deriveRunActivity({ events }: { events: readonly AgentEvent[] | 
  *
  * @complexity O(n) in events.
  */
-export function isAwaitingAnswer({ events }: { events: readonly AgentEvent[] | undefined }): boolean {
-  return deriveRunActivity({ events }).activity.kind === 'awaiting-answer';
+export function isAwaitingAnswer({ events }: { events: readonly AgentEvent[] | undefined }, options: RunActivityOptions = {}): boolean {
+  return deriveRunActivity({ events }, options).activity.kind === 'awaiting-answer';
 }
 
 /** `4` → `"4 s"`, `80` → `"1 m 20 s"`, `120` → `"2 m 0 s"`. */

@@ -36,6 +36,8 @@ function runBridge(options: { resizeObserver?: unknown } = {}) {
   const listeners: ((event: { data: unknown }) => void)[] = [];
   const setAttribute = vi.fn();
   const observe = vi.fn();
+  let resize = () => {};
+  let contentHeight = 240;
 
   const fakeWindow: Record<string, unknown> = {
     parent: { postMessage: (message: JsonRpcish) => posted.push(message) },
@@ -43,6 +45,7 @@ function runBridge(options: { resizeObserver?: unknown } = {}) {
   };
   const fakeDocument = {
     documentElement: { scrollWidth: 360, scrollHeight: 240, setAttribute },
+    body: { getBoundingClientRect: () => ({ height: contentHeight }) },
   };
 
   const source = renderBridgeScript({ appName: 'test-surface', appVersion: '2' });
@@ -52,7 +55,7 @@ function runBridge(options: { resizeObserver?: unknown } = {}) {
     fakeDocument,
     options.resizeObserver ?? (class {
       constructor(callback: () => void) {
-        void callback;
+        resize = callback;
       }
       observe = observe;
     }),
@@ -62,6 +65,8 @@ function runBridge(options: { resizeObserver?: unknown } = {}) {
     posted,
     setAttribute,
     observe,
+    document: fakeDocument,
+    resizeContent(height: number) { contentHeight = height; resize(); },
     api: fakeWindow[SURFACE_BRIDGE_GLOBAL] as SurfaceApi,
     deliver(data: unknown) {
       for (const listener of listeners) listener({ data });
@@ -122,10 +127,23 @@ describe('renderBridgeScript', () => {
     expect(bridge.api.hostContext()).toBeNull();
   });
 
-  it('observes the document for resizes when ResizeObserver exists', async () => {
+  it('observes the content body for resizes when ResizeObserver exists', async () => {
     const bridge = runBridge();
     await bridge.handshake();
     expect(bridge.observe).toHaveBeenCalledTimes(1);
+    expect(bridge.observe).toHaveBeenCalledWith(bridge.document.body);
+  });
+
+  it('fits short content below the viewport and follows content shrinking and growing', async () => {
+    const bridge = runBridge();
+    bridge.document.documentElement.scrollHeight = 377;
+    bridge.resizeContent(212);
+    await bridge.handshake();
+    expect(bridge.posted.at(-1)?.params).toEqual({ height: 212 });
+    bridge.resizeContent(165.2);
+    expect(bridge.posted.at(-1)?.params).toEqual({ height: 166 });
+    bridge.resizeContent(480);
+    expect(bridge.posted.at(-1)?.params).toEqual({ height: 480 });
   });
 
   it('skips the observer rather than throwing when ResizeObserver is unavailable', async () => {

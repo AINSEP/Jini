@@ -117,7 +117,7 @@ export function renderOutcomeDocument(spec: SurfaceOutcomeSpec): string {
 
   const bodyHtml = [
     renderSurfaceHeader(spec.description === undefined ? { title: spec.title } : { title: spec.title, description: spec.description }),
-    renderDetailList(spec.details ?? []),
+    renderDetailList(spec.details ?? [], { layout: 'outcome' }),
     statusHtml,
     actionsHtml,
   ]

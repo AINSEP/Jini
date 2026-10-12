@@ -118,6 +118,20 @@ describe('McpUiSurfaceCard', () => {
       expect(queryByRole('timer')).toBeNull();
     });
 
+    // Owner, 2026-10-11: after Confirm the card read "Done." while "Expires in 4:14" kept counting
+    // under it — the confirmed work held the call open. An answered card has no deadline left.
+    it('drops the countdown, and never closes as expired, once the card is answered', async () => {
+      const fake = fakeClock(DEADLINE - 3_000);
+      const { container, queryByRole } = render(
+        <McpUiSurfaceCard {...BASE_PROPS} runStreaming events={approval} call={approveCall} expiryClock={fake.clock} answered />,
+      );
+      await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
+      expect(queryByRole('timer')).toBeNull();
+      fake.advance(5_000);
+      expect(queryByRole('status')).toBeNull();
+      expect(container.querySelectorAll('iframe')).toHaveLength(1);
+    });
+
     it('opens already closed when the deadline passed before it rendered', () => {
       const fake = fakeClock(DEADLINE + 5_000);
       const { container, getByRole } = render(

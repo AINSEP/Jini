@@ -6,7 +6,7 @@
  * so the caller renders nothing and no timer runs.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { AgentEvent } from '../../core/index.js';
+import type { AgentEvent, IsAnsweredCard } from '../../core/index.js';
 import { deriveRunActivity, describeRunActivity } from '../../core/index.js';
 import { useT } from './context.js';
 
@@ -17,12 +17,16 @@ export type NowFn = () => number;
  * @param events - The running message's events.
  * @param active - True while the turn is in progress; the clock only ticks while true.
  * @param now - Clock source (default `Date.now`).
+ * @param isAnsweredCard - Cards the person already answered (see `RunActivityOptions`).
  * @returns The activity line's text, or `null` when `active` is false.
- * @complexity O(n) in events per render (memoized on the events array).
+ * @complexity O(n) in events per render (memoized on the events array and the answered predicate).
  */
-export function useRunActivity({ events, active }: { events: readonly AgentEvent[] | undefined; active: boolean }, { now = Date.now }: { now?: (NowFn) | undefined } = {}): string | null {
+export function useRunActivity(
+  { events, active }: { events: readonly AgentEvent[] | undefined; active: boolean },
+  { now = Date.now, isAnsweredCard }: { now?: (NowFn) | undefined; isAnsweredCard?: IsAnsweredCard | undefined } = {},
+): string | null {
   const t = useT();
-  const state = useMemo(() => deriveRunActivity({ events: events }), [events]);
+  const state = useMemo(() => deriveRunActivity({ events: events }, { isAnsweredCard }), [events, isAnsweredCard]);
   const [, setTick] = useState(0);
   const signal = useRef<{ key: string; at: number } | null>(null);
   const visible = useRef<{ count: number; at: number } | null>(null);

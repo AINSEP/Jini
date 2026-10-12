@@ -22,6 +22,46 @@ const PUBLISH_FAILURE = {
 };
 
 describe('renderOutcomeDocument', () => {
+  it('keeps short result statuses on one line beside long labels and stacks rows in a narrow card', () => {
+    const label = 'GitHub Pages deployment token for the production documentation project';
+    const html = renderOutcomeDocument({
+      title: 'Copy results', state: 'partial', message: '',
+      details: [
+        { label, description: 'custom · github', value: 'copied ✓ …3vjN', format: 'status' },
+        { label: 'Site assistant', description: 'vendor · openai', value: 'skipped — already there', format: 'status' },
+        { label: 'DNS <token>', description: 'custom · <provider>', value: 'not copied — source-missing', format: 'status' },
+      ],
+    });
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const rows = [...doc.querySelectorAll('.mcpui-outcome-row')];
+    expect(rows).toHaveLength(3);
+    expect(rows[0]?.querySelector('dt')?.firstChild?.textContent).toBe(label);
+    expect(rows.map(row => row.querySelector('.mcpui-hint')?.textContent)).toEqual([
+      'custom · github', 'vendor · openai', 'custom · <provider>',
+    ]);
+    expect(rows.map(row => row.querySelector('dd.mcpui-detail-status')?.textContent)).toEqual([
+      'copied ✓ …3vjN', 'skipped — already there', 'not copied — source-missing',
+    ]);
+    expect(rows[2]?.querySelector('dt')?.firstChild?.textContent).toBe('DNS <token>');
+    expect(doc.querySelector('provider, token')).toBeNull();
+    const css = doc.querySelector('style')!.textContent!;
+    expect(css).toMatch(/\.mcpui-outcome-row dt \{[^}]*min-width: 0;[^}]*overflow-wrap: anywhere;/);
+    expect(rows.map(row => row.querySelector('dd.mcpui-detail-status')?.getAttribute('title'))).toEqual([
+      'copied ✓ …3vjN', 'skipped — already there', 'not copied — source-missing',
+    ]);
+    expect(css).toMatch(/\.mcpui-outcome-row dd\.mcpui-detail-status \{[^}]*flex: 0 1 auto;[^}]*max-width: 60%;[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/);
+    expect(css).toMatch(/@media \(max-width: 352px\) \{\s*\.mcpui-outcome-row \{[^}]*flex-direction: column;[^}]*\}\s*\.mcpui-outcome-row dd\.mcpui-detail-status \{[^}]*white-space: normal;/);
+  });
+
+  it('renders a plain outcome detail as a row with no status styling or hint', () => {
+    const html = renderOutcomeDocument({ title: 'Done', state: 'success', message: '', details: [{ label: 'Target', value: 'github-pages' }] });
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    expect(doc.querySelector('dl')?.className).toBe('mcpui-details mcpui-details-outcome');
+    expect(doc.querySelector('.mcpui-outcome-row dd')?.className).toBe('');
+    expect(doc.querySelector('.mcpui-outcome-row dd')?.textContent).toBe('github-pages');
+    expect(doc.querySelector('.mcpui-outcome-row .mcpui-hint')).toBeNull();
+  });
+
   it('renders the true outcome directly, with no click required to see it', () => {
     const { doc } = mountSurface(renderOutcomeDocument(PUBLISH_SUCCESS));
     expect(doc.querySelector('h1')?.textContent).toBe('Site published');

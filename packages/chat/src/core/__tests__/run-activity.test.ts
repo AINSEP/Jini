@@ -54,6 +54,19 @@ describe('run activity line — one table, exact words', () => {
     expect(line(events, 220)).toBe('Waiting for your answer above');
   });
 
+  // Owner, 2026-10-11: the tool call stays open while a confirmed publish runs; once the card is
+  // answered the line names that work instead of waiting on the person.
+  it('names the running tool once the card was answered, though its call is still open', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'p', name: 'deployment_execute_static_publish', input: {} },
+      { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://confirm' } },
+    ];
+    const isAnsweredCard = ({ data }: { name: string; data: unknown }) => (data as { uri: string }).uri === 'ui://confirm';
+    expect(deriveRunActivity({ events }, { isAnsweredCard }).activity).toEqual({ kind: 'running-tool', tool: 'Deployment Execute Static Publish' });
+    expect(isAwaitingAnswer({ events }, { isAnsweredCard })).toBe(false);
+    expect(isAwaitingAnswer({ events }, { isAnsweredCard: () => false })).toBe(true);
+  });
+
   it('stays Waiting for your answer while tool_progress heartbeats and a slow-run notice arrive under the card', () => {
     const events: AgentEvent[] = [
       { kind: 'tool_use', id: 'w', name: 'mcp__jini__execute_delegated_tool', input: { toolId: 'source_control_propose_credential' } },

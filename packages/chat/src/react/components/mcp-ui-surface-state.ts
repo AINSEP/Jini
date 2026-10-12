@@ -5,6 +5,7 @@
  * `McpUiSurfaceCard.tsx` so the component only renders; moved here from that file 2026-10-04 when
  * the card's own deadline (`useSurfaceExpiry`) became a second reason to close it.
  */
+import type { McpUiToolCallHandler } from '@jini-ai/ui/mcp-ui';
 import type { ExtEventCall } from '../ext-event-renderer-registry.js';
 import type { useT } from '../hooks/context.js';
 
@@ -52,4 +53,33 @@ export function closedSurfaceLabel({ t, call, runStreaming, documentsForUri, exp
   expired: boolean;
 }): string | undefined {
   return settledLabel(t, call, runStreaming, documentsForUri) ?? (expired ? t('This question expired') : undefined);
+}
+
+/**
+ * Whether a View's `tools/call` result is a held-open question's delivery receipt: the host route
+ * answers `{delivered: true}` (HTTP 202) the moment the click reaches the parked tool call. That
+ * call then keeps running the work the answer started, so this receipt — not its later result — is
+ * when the card stops waiting on the person.
+ *
+ * @complexity O(1).
+ */
+export function isDeliveredAnswer(result: unknown): boolean {
+  return typeof result === 'object' && result !== null && (result as { delivered?: unknown }).delivered === true;
+}
+
+/**
+ * Wraps a card's tool executor so a delivered answer is reported once it resolves. The result is
+ * passed through unchanged, and a rejected call reports nothing (the dialog shows its error and can
+ * be answered again).
+ *
+ * @complexity O(1) per call, plus `onToolCall`'s own cost.
+ */
+export function reportDeliveredAnswer(
+  { onToolCall, onAnswered }: { onToolCall: McpUiToolCallHandler; onAnswered: () => void },
+): McpUiToolCallHandler {
+  return async (call) => {
+    const result = await onToolCall(call);
+    if (isDeliveredAnswer(result)) onAnswered();
+    return result;
+  };
 }

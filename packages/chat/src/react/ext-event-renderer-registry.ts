@@ -50,6 +50,13 @@ export interface ExtEventRenderProps {
   runId: string | undefined;
   /** See {@link ExtEventCall}. Absent when the group's first event arrived outside any tool call. */
   call?: ExtEventCall;
+  /** Whether this card already reported its answer delivered (see {@link onAnswered}). */
+  answered?: boolean;
+  /**
+   * A card calls this once the person's answer reached the server. Its tool call may stay open for
+   * the work the answer started, and the run must stop reading as "waiting for your answer".
+   */
+  onAnswered?: () => void;
 }
 
 /**

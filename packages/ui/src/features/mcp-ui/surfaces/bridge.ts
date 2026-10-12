@@ -152,7 +152,9 @@ export function renderBridgeScript(spec: BridgeScriptSpec): string {
   // good (owner bug 2026-10-08: an ask-choice card stuck at 192px after a reload). Leaving width out
   // keeps the frame at the host's width: 100%, and the ResizeObserver below re-reports height on resize.
   function reportSize() {
-    notify("ui/notifications/size-changed", { height: document.documentElement.scrollHeight });
+    // Root scrollHeight includes the iframe viewport, so a short card could never shrink.
+    // The body box includes the surface and its padding without that viewport floor.
+    notify("ui/notifications/size-changed", { height: Math.ceil(document.body.getBoundingClientRect().height) });
   }
 
   window.addEventListener("message", function (event) {
@@ -193,7 +195,7 @@ export function renderBridgeScript(spec: BridgeScriptSpec): string {
     readyHandlers = [];
     for (var i = 0; i < calls.length; i++) request(calls[i].method, calls[i].params).then(calls[i].resolve, calls[i].reject);
     for (var j = 0; j < handlers.length; j++) handlers[j]();
-    if (typeof ResizeObserver === "function") new ResizeObserver(reportSize).observe(document.documentElement);
+    if (typeof ResizeObserver === "function") new ResizeObserver(reportSize).observe(document.body);
   }
 
   function onHandshakeFailed(error) {
