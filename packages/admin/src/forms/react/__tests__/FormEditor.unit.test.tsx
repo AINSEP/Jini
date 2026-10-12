@@ -115,10 +115,10 @@ describe("field attributes modal", () => {
 
     renderScreen(<FormEditor formId="f1" tab="fields" />);
 
-    const trigger = await screen.findByRole("button", { name: /attributes for field "email"/i });
+    const trigger = await screen.findByRole("button", { name: /settings for field "email"/i });
     await user.click(trigger);
 
-    const dialog = await screen.findByRole("dialog", { name: /field attributes/i });
+    const dialog = await screen.findByRole("dialog", { name: /field settings/i });
     const dialogScope = within(dialog);
 
     await user.type(dialogScope.getByLabelText(/css classes/i), "md:col-span-2 w-1/2");
@@ -128,7 +128,7 @@ describe("field attributes modal", () => {
     await user.click(dialogScope.getByRole("button", { name: /^save$/i }));
 
     // Modal closed, back to the field table.
-    expect(screen.queryByRole("dialog", { name: /field attributes/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /field settings/i })).not.toBeInTheDocument();
 
     const saveButton = screen.getByRole("button", { name: /^save$/i });
     await user.click(saveButton);
@@ -146,10 +146,10 @@ describe("field attributes modal", () => {
 
     renderScreen(<FormEditor formId="f1" tab="fields" />);
 
-    const trigger = await screen.findByRole("button", { name: /attributes for field "email"/i });
+    const trigger = await screen.findByRole("button", { name: /settings for field "email"/i });
     await user.click(trigger);
 
-    const dialog = await screen.findByRole("dialog", { name: /field attributes/i });
+    const dialog = await screen.findByRole("dialog", { name: /field settings/i });
     const dialogScope = within(dialog);
 
     await user.click(dialogScope.getByRole("button", { name: /add attribute/i }));
@@ -159,7 +159,7 @@ describe("field attributes modal", () => {
 
     expect(await dialogScope.findByRole("alert")).toHaveTextContent(/onclick.*isn't allowed/i);
     // Still open — the save did not go through.
-    expect(screen.getByRole("dialog", { name: /field attributes/i })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: /field settings/i })).toBeInTheDocument();
   });
 
   it("Cancel discards edits without touching the field", async () => {
@@ -168,19 +168,19 @@ describe("field attributes modal", () => {
 
     renderScreen(<FormEditor formId="f1" tab="fields" />);
 
-    const trigger = await screen.findByRole("button", { name: /attributes for field "email"/i });
+    const trigger = await screen.findByRole("button", { name: /settings for field "email"/i });
     await user.click(trigger);
 
-    let dialog = await screen.findByRole("dialog", { name: /field attributes/i });
+    let dialog = await screen.findByRole("dialog", { name: /field settings/i });
     await user.type(within(dialog).getByLabelText(/css classes/i), "should-not-persist");
     await user.click(within(dialog).getByRole("button", { name: /^cancel$/i }));
 
-    expect(screen.queryByRole("dialog", { name: /field attributes/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /field settings/i })).not.toBeInTheDocument();
     // WCAG 2.1 AA — focus returns to the trigger that opened the dialog.
     expect(trigger).toHaveFocus();
 
     await user.click(trigger);
-    dialog = await screen.findByRole("dialog", { name: /field attributes/i });
+    dialog = await screen.findByRole("dialog", { name: /field settings/i });
     expect(within(dialog).getByLabelText(/css classes/i)).toHaveValue("");
   });
 });

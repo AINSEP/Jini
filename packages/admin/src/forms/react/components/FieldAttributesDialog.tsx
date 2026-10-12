@@ -1,10 +1,11 @@
 import { useFieldAttributesView } from "../hooks/forms-view.hooks.js";
 import type { AdminFormField } from '../../models.js';
 import { Dialog } from '@jini-ai/ui-kit/react';
-import { SeeMore } from '@jini-ai/ui/admin-widgets';
+import { InfoTip } from '@jini-ai/ui/admin-widgets';
 import { agentHandle } from '@jini-ai/agentic';
 import { ATTRIBUTE_NAME_SUGGESTIONS } from '../../rules.js';
 import { useFieldAttributesDialog } from '../hooks/use-field-attributes-dialog.hooks.js';
+import { FieldSettingsSection } from './FieldSettingsSection.js';
 
 export interface FieldAttributesDialogProps {
   field: AdminFormField;
@@ -36,41 +37,37 @@ export function FieldAttributesDialog({
   // one field's own CSS-class/HTML-attribute rows (a handful at most), cheap enough that memoizing
   // it was not judged worth the added indirection.
   const { className, addRow, error, submit } = controller;
-  const { rows, displayName, onClose, onClassName } = useFieldAttributesView({ field, fieldIndex, controller, onCancel });
+  const { rows, displayName, onClose, onClassName, hasStyling } = useFieldAttributesView({ field, fieldIndex, controller, onCancel });
 
   return (
-    <Dialog open title={`${t("Field attributes —")} ${displayName}`}
+    <Dialog open title={`${t("Field settings —")} ${displayName}`}
       onClose={onClose} className="settings-dialog tovu-domain-dialog field-attrs-dialog">
       <form
         onSubmit={submit}
         {...agentHandle({ handle: "form-field-attrs-dialog" }, {
           role: "region",
-          label: "Field attributes dialog — CSS classes and HTML attributes for one form field",
+          label: "Field settings dialog — type-specific settings, CSS classes and HTML attributes for one form field",
         })}
       >
-        {/* Clamped to two lines rather than shortened. Measured in a real browser at this dialog's
-            461px content width: the full text is 5 lines / 98px and the dialog 389px tall;
-            collapsed it is 2 lines / 39px and the dialog 330px — a 59px reduction, and the
-            explainer no longer outweighs the two inputs below it. Kept whole rather than trimmed
-            because the allowlist half is the part a first-time user actually needs, and cutting it
-            would leave `onclick` rejections unexplained. Two lines is also the natural break: the
-            collapsed view ends after the Tailwind example, on a complete sentence. The
-            attribute-name `<datalist>` below already communicates the allowlist implicitly by only
-            offering valid names, so this paragraph is reinforcement, not the sole channel. */}
-        <SeeMore lines={2} textClassName="field-attrs-hint" toggleAriaLabel={t("See more about field attributes")}>
-          {t("Add CSS classes and HTML attributes to this field’s input. Classes are unrestricted — Tailwind utility classes like ")}
-          <code>md:col-span-2</code> {t("or ")}<code>w-1/2</code>{t(" work as expected. Attribute names are limited to a safe allowlist (")}
-          <code>aria-*</code>{t(", ")}<code>data-*</code>{t(", and a fixed list of layout/behavior attributes) — anything else, including event handlers like ")}
-          <code>onclick</code>{t(", is rejected.")}
-        </SeeMore>
+        <FieldSettingsSection field={field} controller={controller} t={t} />
+
+        {/* Styling hooks are rarely needed, so they fold away below the field's own settings; a
+            field that already has classes or attributes opens with them showing. */}
+        <details className="field-settings-advanced" open={hasStyling}>
+          <summary>{t("CSS classes and HTML attributes")}</summary>
 
         <div className="field">
-          <label className="field-label" htmlFor="field-attrs-classname">
-            {t("CSS classes")}
-          </label>
+          {/* The section used to open with a five-line explainer paragraph; it is an ⓘ tip now so
+              the two inputs lead (Chrome check, 2026-10-11). The attribute-name `<datalist>` below
+              still offers only allowlisted names, so the tip is reinforcement, not the only channel. */}
+          <span className="field-settings-label">
+            <label className="field-label" htmlFor="field-attrs-classname">
+              {t("CSS classes")}
+            </label>
+            <InfoTip label={t("Classes are unrestricted, e.g. Tailwind md:col-span-2. Attribute names must be aria-*, data-* or a safe layout attribute; event handlers like onclick are rejected.")} />
+          </span>
           <input
             id="field-attrs-classname"
-            data-jini-autofocus=""
             value={className}
             placeholder="e.g. md:col-span-2 w-1/2 focus:ring-2"
             onChange={onClassName}
@@ -147,10 +144,11 @@ export function FieldAttributesDialog({
             {t("Add attribute")}
           </button>
         </div>
+        </details>
 
         {error ? (
           <span className="save-error" role="alert">
-            {error}
+            {t(error)}
           </span>
         ) : null}
 

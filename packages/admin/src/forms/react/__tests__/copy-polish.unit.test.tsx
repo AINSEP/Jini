@@ -37,7 +37,7 @@ describe('forms copy polish', () => {
     await user.click(screen.getByRole('button', { name: 'View' }));
     const name = await screen.findByText('Full name');
     expect(within(name.closest('tr')!).getByRole('cell')).toHaveTextContent('Sample Visitor');
-    expect(within(screen.getByText('I agree').closest('tr')!).getByRole('cell')).toHaveTextContent('false');
+    expect(within(screen.getByText('I agree').closest('tr')!).getByRole('cell')).toHaveTextContent('No');
     expect(within(screen.getByText('Unknown field').closest('tr')!).getByRole('cell')).toHaveTextContent('Retained answer');
     expect(screen.queryByText('full_name')).not.toBeInTheDocument();
     expect(screen.queryByText('removed_field')).not.toBeInTheDocument();
@@ -47,11 +47,11 @@ describe('forms copy polish', () => {
     const columns = formAnswerColumns({ fields: [{ id: 'known', label: ' ', type: 'text', required: false }] });
     const data = JSON.parse('{"known":"","__proto__":false}') as Record<string, string | boolean>;
     expect(formSubmissionRows({ data, answerColumns: columns }, { unknownFieldLabel: 'Campo desconocido' })).toEqual([
-      { key: 'known', label: 'Campo desconocido', value: '' },
-      { key: '__proto__', label: 'Campo desconocido', value: 'false' },
+      { key: 'known', label: 'Campo desconocido', value: '', file: null },
+      { key: '__proto__', label: 'Campo desconocido', value: 'No', file: null },
     ]);
     expect(formSubmissionRows({ data: { missing: 'saved' }, answerColumns: [] })).toEqual([
-      { key: 'missing', label: 'Unknown field', value: 'saved' },
+      { key: 'missing', label: 'Unknown field', value: 'saved', file: null },
     ]);
   });
 

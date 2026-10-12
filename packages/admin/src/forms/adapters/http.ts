@@ -5,15 +5,20 @@ export interface FormsTransportPort {
   request<T>(required: { path: string; method: 'GET' | 'POST' | 'PUT' | 'DELETE'; body?: unknown }, optional?: { signal?: AbortSignal }): Promise<T>;
   url(required: { path: string }, optional?: Record<string, never>): string;
 }
-/** Preserve the existing forms wire, including its data envelopes and explicit authoring route. */
+/** Preserve the existing forms wire, including its data envelopes and explicit authoring route.
+ * `mediaBasePath` (the host's media collection path) enables file-answer download links. */
 export function createHttpFormsApi(
   { transport, basePath }: { transport: FormsTransportPort; basePath: string },
-  _optional: Record<string, never> = {},
+  { mediaBasePath }: { mediaBasePath?: string } = {},
 ): AdminFormsPort {
   const base = basePath.replace(/\/$/, '');
   const formPath = (id: string) => `${base}/${encodeURIComponent(id)}`;
   const submissionPath = (formId: string, submissionId?: string) => `${formPath(formId)}/submissions${submissionId === undefined ? '' : `/${encodeURIComponent(submissionId)}`}`;
+  const mediaBase = mediaBasePath?.replace(/\/$/, '');
   return {
+    ...(mediaBase === undefined ? {} : {
+      submissionFileUrl: ({ mediaId }: { mediaId: string }, _optional: Record<string, never> = {}) => transport.url({ path: `${mediaBase}/${encodeURIComponent(mediaId)}/original` }),
+    }),
     async listFormDefinitions(_required, _optional = {}) {
       return (await transport.request<{ data: AdminFormDefinition[] }>({ path: base, method: 'GET' })).data;
     },

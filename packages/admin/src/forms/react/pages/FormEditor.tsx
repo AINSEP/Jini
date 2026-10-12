@@ -1,4 +1,5 @@
 import { agentHandle } from '@jini-ai/agentic';
+import { ConfirmDialog } from '../../../react/components/ConfirmDialog/ConfirmDialog.js';
 import { useWiredFormEditor } from "../hooks/use-form-editor.hooks.js";
 import { FormEditorFieldsBody } from "../components/FormEditorFieldsBody.js";
 import { FormEditorHeaderText } from "../components/FormEditorHeaderText.js";
@@ -42,6 +43,7 @@ export function FormEditor({ formId, tab, useFormEditorHook = useWiredFormEditor
     onTabsKeyDown,
     handleSave,
     handleStatusToggle,
+    leave,
     t,
   } = useFormEditorHook({ formId, tab });
 
@@ -110,6 +112,7 @@ export function FormEditor({ formId, tab, useFormEditorHook = useWiredFormEditor
             className="btn-secondary"
             href="/admin/forms"
             aria-label={t("Back to forms")}
+            onClick={leave.onBack}
             {...agentHandle({ handle: "form-editor-back" }, { role: "link", label: "Back to the list of all forms" })}
           >
             &larr; {t("Back")}
@@ -122,6 +125,18 @@ export function FormEditor({ formId, tab, useFormEditorHook = useWiredFormEditor
       <FormEditorTabStrip showTabs={showTabs} tab={activeTab} onTabChange={onTabChange} tabRefs={tabRefs} onTabsKeyDown={onTabsKeyDown} t={t} />
 
       <FormEditorMainPanel isNew={isNew} tab={activeTab} formId={formId} fieldsBody={fieldsBody} t={t} answerColumns={answerColumns} />
+      {/* Back with unsaved edits asks first (Chrome check, 2026-10-11) — the admin's confirm modal. */}
+      <ConfirmDialog
+        open={leave.confirmOpen}
+        agentHandle="form-editor-leave-confirm"
+        title={t("Discard unsaved changes?")}
+        body={<p>{t("Your changes to this form have not been saved.")}</p>}
+        confirmLabel={t("Discard changes")}
+        cancelLabel={t("Keep editing")}
+        tone="danger"
+        onConfirm={leave.confirm}
+        onCancel={leave.cancel}
+      />
     </div>
   );
 }

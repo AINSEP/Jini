@@ -2,7 +2,7 @@ import { useController } from "../../../core/react/use-controller.js";
 import { createFormFieldsEditorController, initialFormFieldsEditorState, type FormFieldsEditorState } from "../../controllers/form-fields-editor.controller.js";
 import { useRef } from "react";
 import type { AdminFormField } from "../../models.js";
-import { addFormField, removeFormField, updateFormField } from "../../rules.js";
+import { addFormField, removeFormField, replaceFormField, updateFormField } from "../../rules.js";
 
 /**
  * @file `FormFieldsEditor`'s own state (which row's attributes modal is open, plus the per-row
@@ -30,6 +30,8 @@ export interface FormFieldsEditorController {
    *  callback in the view. */
   kebabRefs: React.MutableRefObject<Array<HTMLButtonElement | null>>;
   updateField: (index: number, patch: Partial<AdminFormField>) => void;
+  /** Replaces the whole field, so keys absent from `field` are dropped (a type change). */
+  replaceField: (index: number, field: AdminFormField) => void;
   addField: () => void;
   removeField: (index: number) => void;
 }
@@ -53,6 +55,9 @@ export function useFormFieldsEditor(props: {
   function updateField(index: number, patch: Partial<AdminFormField>) {
     props.onChange(updateFormField({ fields: props.fields, index, patch }));
   }
+  function replaceField(index: number, field: AdminFormField) {
+    props.onChange(replaceFormField({ fields: props.fields, index, field }));
+  }
   function addField() {
     props.onChange(addFormField({ fields: props.fields }));
   }
@@ -66,6 +71,7 @@ export function useFormFieldsEditor(props: {
     closeAttrsDialog,
     kebabRefs,
     updateField,
+    replaceField,
     addField,
     removeField,
   };

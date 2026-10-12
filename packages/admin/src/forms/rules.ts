@@ -3,6 +3,7 @@ import { AdminApiError as ApiError, describeApiError as describeCoreApiError } f
 import type { AdminFormDefinition, AdminFormField } from "./models.js";
 const describeApiError = (e: unknown, fallback: string) => describeCoreApiError({ e, fallback });
 import type { QueryKey } from "@jini-ai/ui/fetch-query";
+import { FIELD_TYPE_REGISTRY, type FieldType } from "@jini-ai/cms/forms";
 
 /**
  * @file Pure logic for the `forms` feature (`FormEditor.tsx` — see `FormsList.tsx`'s own
@@ -260,7 +261,8 @@ export function formRowMenuItems({ form, handlers, t }: { form: AdminFormDefinit
   ];
 }
 
-export const FIELD_TYPES = ["text", "email", "textarea", "checkbox"] as const;
+/** Every registered field type, in registry order; the picker groups them via `field-settings.ts`. */
+export const FIELD_TYPES = Object.keys(FIELD_TYPE_REGISTRY) as FieldType[];
 
 /** The two tab-panel views on an existing form's editor (`formId !== "new"`). */
 export const FORM_TABS = [
@@ -296,6 +298,12 @@ export function fieldDisplayName({ field, index }: { field: AdminFormField; inde
 /** @complexity O(n) in `fields.length`. */
 export function updateFormField({ fields, index, patch }: { fields: AdminFormField[]; index: number; patch: Partial<AdminFormField> }, _optional: Record<string, never> = {}): AdminFormField[] {
   return fields.map((f, i) => (i === index ? { ...f, ...patch } : f));
+}
+
+/** Swap in a whole field (a type change drops settings, which a merge would keep).
+ *  @complexity O(n) in `fields.length`. */
+export function replaceFormField({ fields, index, field }: { fields: AdminFormField[]; index: number; field: AdminFormField }, _optional: Record<string, never> = {}): AdminFormField[] {
+  return fields.map((f, i) => (i === index ? field : f));
 }
 
 /** @complexity O(n) in `fields.length`. */

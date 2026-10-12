@@ -58,6 +58,8 @@ export interface FormSubmissionDetailController {
    *  either way, so a failed delete doesn't leave the operator stuck behind it — the failure is
    *  still visible via `error` below. */
   confirmDelete: () => Promise<void>;
+  /** Download URL for a file answer, or `null` when the host wired no media path. */
+  fileUrl: (file: { mediaId: string }) => string | null;
 }
 
 export function useFormSubmissionDetail(
@@ -142,6 +144,7 @@ export function useFormSubmissionDetail(
     requestDelete,
     cancelDelete,
     confirmDelete,
+    fileUrl: ({ mediaId }) => port.submissionFileUrl?.({ mediaId }) ?? null,
   };
 }
 

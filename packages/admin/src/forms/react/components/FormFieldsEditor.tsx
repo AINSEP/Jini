@@ -1,7 +1,6 @@
 import { useFormFieldsView } from "../hooks/forms-view.hooks.js";
 import type { AdminFormField } from '../../models.js';
 import { agentHandle } from '@jini-ai/agentic';
-import { FIELD_TYPES } from '../../rules.js';
 import { useFormFieldsEditor } from '../hooks/use-form-fields-editor.hooks.js';
 import { FieldAttributesDialog } from "./FieldAttributesDialog.js";
 export interface FormFieldsEditorProps {
@@ -53,13 +52,17 @@ export function FormFieldsEditor({
             30px round icon button and never needs more. Taken entirely out of the Remove column's
             own share (26% -> 18%) rather than shrinking any of the five text/control columns, so
             ID/Label/Type/Req/Max length keep the exact widths the 640px fix already measured and
-            fixed. */}
+            fixed.
+
+            Type 17% -> 21%, taken from Max length (18% -> 14%; it holds "—" or a short number):
+            with the dock open the type select cut its label ("Toggle switc", Chrome check
+            2026-10-11). */}
         <colgroup>
           <col style={{ width: "14%" }} />
           <col style={{ width: "17%" }} />
-          <col style={{ width: "17%" }} />
+          <col style={{ width: "21%" }} />
           <col style={{ width: "8%" }} />
-          <col style={{ width: "18%" }} />
+          <col style={{ width: "14%" }} />
           <col style={{ width: "8%" }} />
           <col style={{ width: "18%" }} />
         </colgroup>
@@ -84,9 +87,9 @@ export function FormFieldsEditor({
           </tr>
         </thead>
         <tbody>
-          {rows.map(({ field, index, isExisting, base, displayName, onId, onLabel, onType, onRequired, onMaxLength, ref, onAttributes, onRemove }) => (
+          {rows.map(({ field, index, isExisting, base, displayName, typeGroups, hasLength, onId, onLabel, onType, onRequired, onMaxLength, ref, onAttributes, onRemove }) => (
               <tr key={index}>
-                <td>
+                <td data-label={t("ID")}>
                   <input
                     aria-label={`Field ${index + 1} id`}
                     value={field.id}
@@ -98,7 +101,7 @@ export function FormFieldsEditor({
                     })}
                   />
                 </td>
-                <td>
+                <td data-label={t("Label")}>
                   <input
                     aria-label={`Field ${index + 1} label`}
                     value={field.label}
@@ -106,7 +109,7 @@ export function FormFieldsEditor({
                     {...agentHandle({ handle: `${base}-label` }, { role: "field", label: "This field's on-page label" })}
                   />
                 </td>
-                <td>
+                <td data-label={t("Type")}>
                   <select
                     aria-label={`Field ${index + 1} type`}
                     value={field.type}
@@ -116,14 +119,18 @@ export function FormFieldsEditor({
                       label: "This field's input type — set with page.select_option, not click",
                     })}
                   >
-                    {FIELD_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
+                    {typeGroups.map(({ group, types }) => (
+                      <optgroup key={group} label={t(group)}>
+                        {types.map((type) => (
+                          <option key={type.type} value={type.type}>
+                            {t(type.label)}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </td>
-                <td>
+                <td data-label={t("Required")}>
                   <input
                     type="checkbox"
                     aria-label={`Field ${index + 1} required`}
@@ -135,8 +142,8 @@ export function FormFieldsEditor({
                     })}
                   />
                 </td>
-                <td>
-                  {field.type === "checkbox" ? (
+                <td data-label={t("Max length")}>
+                  {!hasLength ? (
                     <span aria-hidden="true">—</span>
                   ) : (
                     <input
@@ -151,7 +158,7 @@ export function FormFieldsEditor({
                     />
                   )}
                 </td>
-                <td>
+                <td data-label={t("Settings")}>
                   {/* Reuses `RowMenu`'s (`@jini-ai/admin/react`) own kebab glyph and
                       `.row-menu-trigger` class (`styles.css`) rather than drawing a second kebab —
                       see this file's header comment for why this is a plain button (single action)
@@ -160,11 +167,11 @@ export function FormFieldsEditor({
                     ref={ref}
                     type="button"
                     className="row-menu-trigger"
-                    aria-label={`Attributes for field "${displayName}"`}
+                    aria-label={t('Settings for field "{name}"').replace("{name}", displayName)}
                     onClick={onAttributes}
                     {...agentHandle({ handle: `${base}-attributes` }, {
                       role: "button",
-                      label: "Open this field's CSS classes and HTML attributes dialog",
+                      label: "Open this field's settings dialog: placeholder, help text, default, options, limits, CSS classes and HTML attributes",
                     })}
                   >
                     <svg viewBox="0 0 18 18" fill="currentColor" aria-hidden="true">
@@ -174,7 +181,7 @@ export function FormFieldsEditor({
                     </svg>
                   </button>
                 </td>
-                <td>
+                <td className="form-field-remove-cell">
                   <button
                     type="button"
                     disabled={isExisting}

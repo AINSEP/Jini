@@ -26,7 +26,7 @@ export function FormSubmissionDetail({
   answerColumns = [],
 }: FormSubmissionDetailProps, _optional: Record<string, never> = {}) {
   const formatDate = useFormSubmissionDate({});
-  const { submission, error, confirmOpen, deleting, requestDelete, cancelDelete, confirmDelete } = useFormSubmissionDetailHook({
+  const { submission, error, confirmOpen, deleting, requestDelete, cancelDelete, confirmDelete, fileUrl } = useFormSubmissionDetailHook({
     formId,
     submissionId,
     onDeleted,
@@ -63,12 +63,15 @@ export function FormSubmissionDetail({
               <th>{t("Source IP")}</th>
               <td>{submission.sourceIp}</td>
             </tr>
-            {formSubmissionRows({ data: submission.data, answerColumns }, { unknownFieldLabel: t("Unknown field") }).map(({ key, label, value }) => (
-              <tr key={key}>
-                <th className="jini-submission-field-label">{label}</th>
-                <td>{value}</td>
-              </tr>
-            ))}
+            {formSubmissionRows({ data: submission.data, answerColumns }, { unknownFieldLabel: t("Unknown field") }).map(({ key, label, value, file }) => {
+              const href = file ? fileUrl(file) : null;
+              return (
+                <tr key={key}>
+                  <th className="jini-submission-field-label">{label}</th>
+                  <td>{href && file ? <a href={href} download={file.filename} {...agentHandle({ handle: `form-submission-file-${key}` }, { role: "link", label: `Download the uploaded file ${file.filename}` })}>{value}</a> : value}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -12,6 +12,14 @@ const field: AdminFormField = {
   className: "old-class", attributes: { "aria-label": "Old email", "data-section": "contact" },
 };
 
+// Field settings now saves the complete patch, including explicit clears for blank settings.
+// Keep the full expected wire shape: dropping these keys would leave stale persisted settings.
+const blankEmailSettings = {
+  placeholder: undefined, pattern: undefined, minLength: undefined, maxLength: null,
+  min: undefined, max: undefined, step: undefined, helpText: undefined,
+  options: undefined, default: undefined,
+};
+
 function setup(input: AdminFormField = field) {
   const onSave = vi.fn();
   const hook = renderHook(() => useFieldAttributesDialog({ field: input, onSave, onCancel: vi.fn() }));
@@ -71,7 +79,7 @@ describe("field-attributes draft and submit contract", () => {
     act(() => result.current.updateRow(added._rowId, { name: " title ", value: "Email help" }));
     submit();
     expect(onSave.mock.calls).toEqual([[{
-      className: "new-class", attributes: { "aria-label": "Work email", title: "Email help" },
+      ...blankEmailSettings, className: "new-class", attributes: { "aria-label": "Work email", title: "Email help" },
     }]]);
     expect(field.attributes).toEqual({ "aria-label": "Old email", "data-section": "contact" });
   });
@@ -86,7 +94,7 @@ describe("field-attributes draft and submit contract", () => {
     act(() => result.current.updateRow(row._rowId, { name: "data-action", value: "contact" }));
     submit();
     expect(result.current.error).toBeNull();
-    expect(onSave.mock.calls).toEqual([[{ className: "old-class", attributes: { "data-action": "contact" } }]]);
+    expect(onSave.mock.calls).toEqual([[{ ...blankEmailSettings, className: "old-class", attributes: { "data-action": "contact" } }]]);
   });
 
   // F4.4: each limit fixture has otherwise valid values so another guard cannot mask it.
@@ -94,7 +102,7 @@ describe("field-attributes draft and submit contract", () => {
     const { result, onSave, submit } = setup({ ...field, attributes: undefined });
     act(() => result.current.setClassName("x".repeat(300)));
     submit();
-    expect(onSave.mock.calls).toEqual([[{ className: "x".repeat(300), attributes: undefined }]]);
+    expect(onSave.mock.calls).toEqual([[{ ...blankEmailSettings, className: "x".repeat(300), attributes: undefined }]]);
     act(() => result.current.setClassName("x".repeat(301)));
     submit();
     expect(result.current.error).toBe("CSS classes must be at most 300 characters.");
@@ -111,7 +119,7 @@ describe("field-attributes draft and submit contract", () => {
     act(() => result.current.removeRow(row._rowId));
     submit();
     expect(result.current.error).toBeNull();
-    expect(onSave.mock.calls).toEqual([[{ className: "old-class", attributes: {
+    expect(onSave.mock.calls).toEqual([[{ ...blankEmailSettings, className: "old-class", attributes: {
       "data-key-0": "value-0", "data-key-1": "value-1", "data-key-2": "value-2",
       "data-key-3": "value-3", "data-key-4": "value-4", "data-key-5": "value-5",
       "data-key-6": "value-6", "data-key-7": "value-7", "data-key-8": "value-8",
@@ -125,6 +133,6 @@ describe("field-attributes draft and submit contract", () => {
     expect(result.current.rows).toEqual([]);
     act(() => { result.current.setClassName("   "); result.current.addRow(); });
     submit();
-    expect(onSave.mock.calls).toEqual([[{ className: undefined, attributes: undefined }]]);
+    expect(onSave.mock.calls).toEqual([[{ ...blankEmailSettings, className: undefined, attributes: undefined }]]);
   });
 });

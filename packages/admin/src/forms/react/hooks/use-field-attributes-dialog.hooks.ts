@@ -2,6 +2,7 @@ import { useController } from "../../../core/react/use-controller.js";
 import { createFieldAttributesDialogController, type FieldAttributesDialogState } from "../../controllers/field-attributes-dialog.controller.js";
 import type { AdminFormField } from "../../models.js";
 import { type AttrRow } from "../../rules.js";
+import { settingsFormFromField, type FieldSettingsForm, type OptionRow } from "../../field-settings.js";
 
 /**
  * @file `FieldAttributesDialog`'s own state and submit action (per-field CSS classes + HTML
@@ -24,6 +25,15 @@ export interface FieldAttributesDialogController {
   updateRow: (rowId: number, patch: Partial<AttrRow>) => void;
   removeRow: (rowId: number) => void;
   addRow: () => void;
+  /** The field type's builder settings draft (`field-settings.ts`). */
+  settings: FieldSettingsForm;
+  setSettings: (patch: Partial<FieldSettingsForm>) => void;
+  toggleDefaultChoice: (value: string, on: boolean, single: boolean) => void;
+  toggleAccept: (value: string, on: boolean) => void;
+  updateOption: (rowId: number, patch: Partial<Pick<OptionRow, "value" | "label">>) => void;
+  addOption: () => void;
+  removeOption: (rowId: number) => void;
+  moveOption: (rowId: number, offset: -1 | 1) => void;
   error: string | null;
   submit: (e: React.FormEvent) => void;
 }
@@ -34,7 +44,7 @@ export function useFieldAttributesDialog(props: {
   onCancel: () => void;
 }, _optional: Record<string, never> = {}): FieldAttributesDialogController {
   const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFieldAttributesDialogController({ field: props.field }), dependencies: [] });
-  const state = stateSnapshot ?? { className: props.field.className ?? "", rows: [], error: null };
+  const state = stateSnapshot ?? { className: props.field.className ?? "", rows: [], settings: settingsFormFromField({ field: props.field }), error: null };
   const className = state.className;
   const setClassName = (value: FieldAttributesDialogStateValue<"className">) => stateController?.update({ key: "className", value });
   const rows = state.rows;
@@ -43,13 +53,22 @@ export function useFieldAttributesDialog(props: {
   function updateRow(rowId: number, patch: Partial<AttrRow>) { stateController?.updateRow({ rowId, patch }); }
   function removeRow(rowId: number) { stateController?.removeRow({ rowId }); }
   function addRow() { stateController?.addRow({}); }
+  const settingsActions = {
+    setSettings: (patch: Partial<FieldSettingsForm>) => stateController?.setSettings({ patch }),
+    toggleDefaultChoice: (value: string, on: boolean, single: boolean) => stateController?.toggleDefaultChoice({ value, on, single }),
+    toggleAccept: (value: string, on: boolean) => stateController?.toggleAccept({ value, on }),
+    updateOption: (rowId: number, patch: Partial<Pick<OptionRow, "value" | "label">>) => stateController?.updateOption({ rowId, patch }),
+    addOption: () => stateController?.addOption({}),
+    removeOption: (rowId: number) => stateController?.removeOption({ rowId }),
+    moveOption: (rowId: number, offset: -1 | 1) => stateController?.moveOption({ rowId, offset }),
+  };
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const result = stateController?.submit({});
     if (result?.ok) props.onSave(result.patch);
   }
 
-  return { className, setClassName, rows, updateRow, removeRow, addRow, error, submit };
+  return { className, setClassName, rows, updateRow, removeRow, addRow, settings: state.settings, ...settingsActions, error, submit };
 }
 
 type FieldAttributesDialogStateValue<K extends keyof FieldAttributesDialogState> = FieldAttributesDialogState[K] | ((current: FieldAttributesDialogState[K]) => FieldAttributesDialogState[K]);

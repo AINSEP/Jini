@@ -54,9 +54,9 @@
  *
  * `FormFieldType` and `FormDefinitionStatus` are reference-implementation-specific vocabularies — OPEN, via the
  * `T | (string & {})` idiom `seo.ts`'s file header introduces for this port set. `FormFieldType` in
- * particular is a small, deliberately-not-yet-exhaustive set on the reference implementation (four
- * field kinds today); a host offering a richer form builder needs room to add its own without this
- * contract standing in the way.
+ * particular names only the original four kinds; the reference implementation's field registry
+ * (`@jini-ai/cms/forms` `FIELD_TYPE_REGISTRY`) now owns the full vocabulary, and a host offering a
+ * richer form builder needs room to add its own without this contract standing in the way.
  */
 
 /** A form field's input kind — open, see file header. */
@@ -74,6 +74,20 @@ export interface AdminFormField {
   readonly maxLength?: number | null;
   readonly className?: string | undefined;
   readonly attributes?: Readonly<Record<string, string>> | undefined;
+  // Optional descriptor settings of the reference field registry (2026-10-11). The wire carries
+  // them verbatim; a host that omits a setting simply never sends it.
+  readonly placeholder?: string | undefined;
+  readonly helpText?: string | undefined;
+  readonly default?: string | number | boolean | readonly string[] | undefined;
+  readonly options?: ReadonlyArray<{ readonly value: string; readonly label: string }> | undefined;
+  readonly minLength?: number | undefined;
+  readonly pattern?: string | undefined;
+  readonly min?: number | string | undefined;
+  readonly max?: number | string | undefined;
+  readonly step?: number | undefined;
+  readonly accept?: readonly string[] | undefined;
+  readonly maxFileSize?: number | undefined;
+  readonly checkboxValue?: string | undefined;
 }
 
 export interface AdminFormNotifyConfig {
@@ -148,4 +162,7 @@ export interface AdminFormsPort {
   /** Move to Trash, preserving data while hiding it from active list/detail reads. The form must
    * own this submission; restoration and permanent deletion remain with the generic Trash owner. */
   deleteFormSubmission(requiredArgs: { formId: string; submissionId: string }, optionalArgs?: Record<string, never>): Promise<void>;
+  /** Download URL for a file answer's stored media. Optional: without it the view shows the
+   * filename as plain text. */
+  submissionFileUrl?(requiredArgs: { mediaId: string }, optionalArgs?: Record<string, never>): string;
 }

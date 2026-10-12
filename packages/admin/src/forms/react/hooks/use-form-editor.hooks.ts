@@ -4,7 +4,9 @@ import { useFormsPorts, useFormsOptions } from "./FormsPorts.hooks.js";
 import { useController } from "../../../core/react/use-controller.js";
 import { createFormEditorController, initialFormEditorState, type FormEditorState } from "../../controllers/form-editor.controller.js";
 import { formHtmlEmbed, formAnswerColumns, type FormAnswerColumn } from "../../html-rules.js";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useDirtyGuard } from "@jini-ai/ui/panel-kit";
+import { formEditorBaseline, formEditorDraft } from "../../form-editor-dirty.js";
 import type { AdminFormDefinition, AdminFormField, AdminFormNotify } from "../../models.js";
 import { useFetchMutation, useFetchQuery } from "@jini-ai/ui/fetch-query";
 import { FORM_TABS, KEYS, existingFieldIdsOf, nextTabIndex, visibleFormEditorError } from "../../rules.js";
@@ -105,6 +107,10 @@ export interface FormEditorController {
   onTabsKeyDown: (e: React.KeyboardEvent) => void;
   handleSave: () => void;
   handleStatusToggle: () => void;
+  /** Back with unsaved edits opens an app confirm modal instead of discarding them silently
+   *  (Chrome check, 2026-10-11). `onBack` routes through the injected navigation port;
+   *  only a dirty draft requires confirmation. */
+  leave: { confirmOpen: boolean; onBack: (event: { preventDefault: () => void }) => void; confirm: () => void; cancel: () => void };
   /** Bound translator — see this file's own header for why it arrives via the hook rather than
    *  `FormEditor.tsx` calling `useAdminLocale()`/`FORMS_DICT` directly. */
   t: (key: string) => string;
@@ -247,6 +253,24 @@ export function useFormEditor(
     }
   }
 
+  // Same guard as the post and widget editors (reload/close prompt included); the in-app Back
+  // gets the admin's confirm modal rather than `confirmLeave`'s `window.confirm`.
+  const { isDirty } = useDirtyGuard({ current: formEditorDraft({ name, slug, fields, mode, html }), original: formEditorBaseline({ form, isNew }) });
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const leave = {
+    confirmOpen: leaveConfirmOpen,
+    onBack(event: { preventDefault: () => void }) {
+      event.preventDefault();
+      if (!isDirty) { navigate("/forms"); return; }
+      setLeaveConfirmOpen(true);
+    },
+    confirm() {
+      setLeaveConfirmOpen(false);
+      navigate("/forms");
+    },
+    cancel: () => setLeaveConfirmOpen(false),
+  };
+
   const saving = updateMutation.status === "pending" || createMutation.status === "pending" || statusMutation.status === "pending";
   const error = visibleFormEditorError({
     updateError: updateMutation.error,
@@ -279,7 +303,7 @@ export function useFormEditor(
     isNew,
     form,
     mode, onModeChange, html, setHtml, copyEmbed, copyFeedback,
-    answerColumns: formAnswerColumns({ fields: form?.fields ?? [] }),
+    answerColumns: formAnswerColumns({ fields: form?.fields ?? [] }, { yes: t("Yes"), no: t("No") }),
     name,
     setName,
     slug,
@@ -296,6 +320,7 @@ export function useFormEditor(
     onTabsKeyDown,
     handleSave,
     handleStatusToggle,
+    leave,
     t,
   };
 }
