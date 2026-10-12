@@ -87,6 +87,8 @@ export interface ChatSearchCapability {
 // Binding authentication once removes the per-call opportunity to forget the owner predicate.
 // A bare ID may name somebody else's conversation; the store must never expose an unscoped read.
 export interface ChatStore {
+  /** Bounded history discovery/read capability; always uses this store's immutable owner scope. */
+  readonly history?: ChatHistoryReader;
   /** Compatibility read: all owned conversations, updatedAt descending. */
   list(): Promise<ChatConversation[]>;
   /** Unknown and other-owned IDs both return null. */
@@ -118,12 +120,18 @@ export interface ChatStore {
   readonly search?: ChatSearchCapability;
 }
 
-/** Eight-method subset for hosts/fakes without paging; shares the object call contract. */
+/** Eight-method compatibility subset plus optional bounded history; old hosts/fakes still fit. */
 export type ChatHistoryStore = Pick<
   ChatStore,
   | 'list' | 'get' | 'create' | 'rename' | 'touch' | 'delete'
-  | 'messages' | 'appendMessage'
+  | 'messages' | 'appendMessage' | 'history'
 >;
+
+/** Internal persistence projections. Model-facing tools redact and cap these before returning. */
+export interface ChatHistoryReader {
+  list(required: Record<string, never>, optional?: { query?: string; limit?: number }): Promise<readonly (ChatConversation & { firstUserLine: string })[]>;
+  read(required: { chatId: string }, optional?: { fromPosition?: number; limit?: number; includeToolEvents?: boolean }): Promise<{ messages: readonly (ChatMessage & { position: number })[]; hasMore: boolean }>;
+}
 
 /** Authority for cross-owner retention must never reach ordinary request handlers. */
 export interface ChatHistoryMaintenance {

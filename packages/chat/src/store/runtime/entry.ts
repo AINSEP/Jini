@@ -4,3 +4,4 @@ export * from "./chat-history-store.js";
 export * from "./run-guarded-chat-store.js";
 export type { ChatKernel, ChatDatabase } from "./kernel.js";
 export * from "./chat-expiry-sweep.js";
+export * from "./history-tools.js";

@@ -268,6 +268,53 @@ export function createSqlChatStore<DB extends ChatDatabase>(
   }
 
   const store: ChatStore = {
+    history: {
+      /** Literal search uses two scoped projections, not a transcript fetch per conversation.
+       * @complexity The database scans owned content for search; only limit rows cross the port.
+       */
+      async list(_required, { query, limit = 20 } = {}) {
+        if (!Number.isInteger(limit) || limit < 1 || limit > 50 || (query !== undefined && (typeof query !== 'string' || query.length > 200))) {
+          throw new ChatStoreError({ code: 'invalid-input' });
+        }
+        const rows = await run(db => {
+          let statement = ownedConversations(db).select(eb => eb.selectFrom('ai_chat_messages as first')
+            .select('first.content').whereRef('first.conversation_id', '=', 'c.id').where('first.role', '=', 'user')
+            .orderBy('first.position').limit(1).as('first_user_line'));
+          if (query?.trim()) {
+            // Escape LIKE wildcards: user search is literal text, never an SQL/FTS expression.
+            const pattern = '%' + query.trim().toLowerCase().replace(/[!%_]/g, char => '!' + char) + '%';
+            statement = statement.where(eb => eb.or([
+              sql<boolean>`lower(c.title) like ${pattern} escape '!'`,
+              eb.exists(eb.selectFrom('ai_chat_messages as found').select('found.id')
+                .whereRef('found.conversation_id', '=', 'c.id')
+                .where(sql<boolean>`lower(found.content) like ${pattern} escape '!'`)),
+            ]));
+          }
+          return statement.orderBy('c.updated_at', 'desc').orderBy(ordinalId(kernel.dialect, 'c.id')).limit(limit).execute();
+        });
+        return rows.map(row => ({ ...toConversation(row as ConversationRow), firstUserLine: row.first_user_line ?? '' }));
+      },
+      /** No attachment column is read. O(limit) rows; default tail is reversed into position order. */
+      async read({ chatId }, { fromPosition, limit = 50, includeToolEvents = false } = {}) {
+        if (!Number.isInteger(limit) || limit < 1 || limit > 100 || (fromPosition !== undefined && (!Number.isSafeInteger(fromPosition) || fromPosition < 0))) {
+          throw new ChatStoreError({ code: 'invalid-input' });
+        }
+        const rows = await run(db => {
+          let statement = ownedMessages(db, chatId).clearSelect().select([
+            'm.id', 'm.role', 'm.content', 'm.position', 'm.created_at',
+          ]);
+          if (fromPosition !== undefined) statement = statement.where('m.position', '>=', fromPosition);
+          return statement.select(includeToolEvents ? sql<string | null>`m.events_json`.as('events_json') : sql<null>`null`.as('events_json'))
+            .orderBy('m.position', fromPosition === undefined ? 'desc' : 'asc').limit(limit + 1).execute();
+        });
+        const page = rows.slice(0, limit);
+        if (fromPosition === undefined) page.reverse();
+        return { messages: page.map(row => ({ id: row.id, role: row.role as ChatMessage['role'], content: row.content,
+          position: Number(row.position), createdAt: Number(row.created_at),
+          ...(includeToolEvents ? { events: row.events_json ? safeParse(row.events_json) : undefined } : {}),
+        })), hasMore: rows.length > limit };
+      },
+    },
     async list() {
       const rows = await run((db) => ownedConversations(db).orderBy("c.updated_at", "desc").execute());
       return rows.map((row) => toConversation(row as ConversationRow));
@@ -399,6 +446,10 @@ export function createSqlChatStore<DB extends ChatDatabase>(
     },
   };
   return {
+    history: {
+      list: (required, optional = {}) => atStoreBoundary({ operation: () => store.history!.list(required, optional) }),
+      read: (required, optional = {}) => atStoreBoundary({ operation: () => store.history!.read(required, optional) }),
+    },
     list: () => atStoreBoundary({ operation: () => store.list() }),
     get: (required, optional = {}) => atStoreBoundary({ operation: () => store.get(required, optional) }),
     create: (required, optional = {}) => atStoreBoundary({ operation: () => store.create(required, optional) }),
