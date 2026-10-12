@@ -82,7 +82,7 @@ function makeFakeEditor(options: { wrapper?: FakeComponent | undefined; editing?
         (handlers[event] ??= []).push(cb);
       }),
       off: vi.fn(),
-      getCss: vi.fn(() => ''),
+      getCss: vi.fn((): { toCSS: () => string }[] => []),
       getHtml: vi.fn(() => RAW_HTML),
       getWrapper: vi.fn(() => options.wrapper),
       getEditing: vi.fn(() => options.editing),
@@ -265,9 +265,11 @@ describe('useInteractiveHtmlEditor — lossless splice (Bug C, Slice C2)', () =>
     nextEditing = undefined;
   });
 
-  it('passes avoidInlineStyle: false to grapesjs.init', () => {
+  it('keeps authored inline styles and whitespace in grapesjs.init', () => {
     render(<SpliceTestHarness html={SPLICE_ORIGINAL_HTML} onChange={vi.fn()} />);
     expect(lastInitConfig?.avoidInlineStyle).toBe(false);
+    expect(lastInitConfig?.forceClass).toBe(false);
+    expect(lastInitConfig?.parser).toEqual({ optionsHtml: { allowScripts: false, keepEmptyTextNodes: true } });
   });
 
   it('emits no onChange at all while nothing has changed — mount, load, and a selection event only', () => {
@@ -365,7 +367,8 @@ describe('useInteractiveHtmlEditor — lossless splice (Bug C, Slice C2)', () =>
     lastFake!.editor.getHtml.mockReturnValue(
       '<body><style>* { box-sizing: border-box; } body {margin: 0;}</style><p id="a">Hello</p></body>',
     );
-    lastFake!.editor.getCss.mockReturnValue('');
+    const toCSS = vi.fn(() => '.authored{color:red;}');
+    lastFake!.editor.getCss.mockReturnValue([{ toCSS }]);
 
     // A block move/copy/delete fires component:remove (and, for a move, an add) on the live tree —
     // the Interactive tab keeps all three (owner decision 2026-09-23).
@@ -374,6 +377,9 @@ describe('useInteractiveHtmlEditor — lossless splice (Bug C, Slice C2)', () =>
 
     expect(onChange).toHaveBeenCalledTimes(1);
     const output = onChange.mock.calls[0]?.[0] as string;
+    expect(output).toBe('<style>.authored {\n  color: red;\n}</style><p id="a">Hello</p><p id="b">Old &mdash; New</p>');
+    expect(lastFake!.editor.getCss).toHaveBeenCalledWith({ json: true, avoidProtected: true, keepUnusedStyles: true });
+    expect(toCSS).toHaveBeenCalledTimes(1);
     expect(output).not.toContain('box-sizing: border-box');
     expect(output).not.toContain('<body');
     expect(warnSpy).toHaveBeenCalledTimes(1);
@@ -544,7 +550,7 @@ describe('useInteractiveHtmlEditor — canvas hidden until theme stylesheets set
 // never left bare.
 describe('useInteractiveHtmlEditor — embed markers are selectable atomic blocks', () => {
   function ProtectedHarness({ describeEmbedPlaceholder }: { describeEmbedPlaceholder?: Parameters<typeof useInteractiveHtmlEditor>[4] }) {
-    const { containerRef } = useInteractiveHtmlEditor(RAW_HTML, () => {}, () => true, {}, describeEmbedPlaceholder);
+    const { containerRef } = useInteractiveHtmlEditor(RAW_HTML, () => {}, el => el.getAttribute('data-embed-config') !== null, {}, describeEmbedPlaceholder);
     return <div ref={containerRef} />;
   }
 
@@ -573,6 +579,8 @@ describe('useInteractiveHtmlEditor — embed markers are selectable atomic block
       editable: false,
       droppable: false,
       stylable: false,
+      resizable: false,
+      traits: [],
       layerable: false,
       badgable: false,
       selectable: true,

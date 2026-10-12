@@ -260,3 +260,54 @@ describe('applyCanvasEmbedPlaceholders — the marker is the card\'s clickable s
     expect(Array.from(body.children).map((c) => c.tagName)).toEqual(['P', 'DIV']);
   });
 });
+
+describe('scriptblocks use the existing card and bounded canvas-only geometry', () => {
+  it('shows a runtime label, identity and locked guidance with a clamped declared height', () => {
+    const body = bodyWith('<div id="ring" style="height:4000px"></div>');
+    const marker = body.querySelector('#ring')!;
+    const original = marker.outerHTML;
+    applyCanvasEmbedPlaceholders(body, el => el === marker ? {
+      kindLabel: 'Animation · Kuinetic', identityLabel: '#ring', presentation: 'runtime',
+      guidanceLabel: 'Locked · Edit in HTML · Preview plays it', declaredHeight: 4000,
+    } : undefined);
+    const card = marker.parentElement!;
+    expect(card.textContent).toBe('Animation · Kuinetic#ringLocked · Edit in HTML · Preview plays it');
+    expect(card.style.height).toBe('960px');
+    expect(card.style.overflow).toBe('hidden');
+    expect(marker.children).toHaveLength(0);
+    expect(original).toBe('<div id="ring" style="height:4000px"></div>');
+  });
+  it('inline cards stay inline and use the short footprint', () => {
+    const body = bodyWith('<p>Hello <span id="word"></span></p>');
+    applyCanvasEmbedPlaceholders(body, el => el.id === 'word' ? {
+      kindLabel: 'Animation · Kuinetic', identityLabel: '#word', presentation: 'runtime', inline: true,
+    } : undefined);
+    const card = body.querySelector('#word')!.parentElement!;
+    expect(card.tagName).toBe('SPAN');
+    expect(card.style.display).toBe('inline-flex');
+    expect(card.style.height).toBe('64px');
+  });
+});
+
+it('re-measures a runtime card after its authored height changes', () => {
+  // The real canvas is attached. jsdom only invalidates computed-style caches for attached nodes.
+  const body = document.createElement('div');
+  body.innerHTML = '<div id="height-probe" style="height:120px"></div>';
+  document.body.appendChild(body);
+  try {
+    const marker = body.querySelector('#height-probe') as HTMLElement;
+    const describe = vi.fn((el: Element): CanvasEmbedPlaceholderDescriptor | undefined => el === marker
+      ? { kindLabel: 'Canvas', identityLabel: '#height-probe', presentation: 'runtime' } : undefined);
+    applyCanvasEmbedPlaceholders(body, describe);
+    expect(marker.parentElement!.style.height).toBe('120px');
+    describe.mockClear();
+    marker.style.height = '640px';
+    applyCanvasEmbedPlaceholders(body, describe);
+    expect(marker.parentElement!.style.height).toBe('640px');
+    expect(body.querySelectorAll('[data-jini-embed-placeholder-root]')).toHaveLength(1);
+    expect(describe).toHaveBeenCalledTimes(1);
+    expect(describe).toHaveBeenCalledWith(marker);
+  } finally {
+    body.remove();
+  }
+});

@@ -138,3 +138,67 @@ export function spliceElementInner(html: string, path: ElementPath, expectedTagN
   if (!range || range.tagName !== expectedTagName) return null;
   return html.slice(0, range.start) + newInner + html.slice(range.end);
 }
+
+const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+
+/** Verified offsets are JS string indexes (UTF-16), suitable for slice and textarea selection. */
+export interface ElementOuterRange {
+  readonly outerStart: number;
+  readonly outerEnd: number;
+  readonly openingEnd: number;
+}
+
+/** Source tree shared by block detection and preparation; raw atoms never consume a splice slot. */
+export interface SourceElement {
+  readonly tagName: string;
+  readonly attributes: Readonly<Record<string, string>>;
+  readonly path: ElementPath | null;
+  readonly outerRange: ElementOuterRange | null;
+  readonly sourceSupported: boolean;
+  readonly children: readonly SourceElement[];
+}
+
+/**
+ * Extends the inner-splice index without changing its published range shape. Missing end tags,
+ * implicit nodes and reordered/foster-parented children cannot establish an opaque source owner.
+ * Validation is linear in source nodes; ranges are checked against their immediate source parent.
+ */
+export function indexSourceElements({ html }: { html: string }, _options: object = {}): SourceElement[] {
+  const fragment = parseFragment(html, { sourceCodeLocationInfo: true });
+  const walk = (nodes: readonly Parse5Node[], parentPath: ElementPath, parentStart: number, parentEnd: number): SourceElement[] => {
+    let slot = 0;
+    const elements = nodes.filter(isElement).map(node => {
+      const atom = UNINDEXED_TAGS.has(node.tagName);
+      const path = atom ? null : [...parentPath, slot++];
+      const loc = node.sourceCodeLocation;
+      const start = loc?.startTag;
+      const end = loc?.endTag;
+      const voidTag = VOID_TAGS.has(node.tagName) || (node.namespaceURI !== 'http://www.w3.org/1999/xhtml'
+        && !!start && html.slice(start.startOffset, start.endOffset).endsWith('/>'));
+      const outerEnd = voidTag ? start?.endOffset : end?.endOffset;
+      const boundsValid = !!start && outerEnd !== undefined && start.startOffset >= parentStart && outerEnd <= parentEnd;
+      const children = walk(node.childNodes, path ?? parentPath, start?.endOffset ?? parentStart, end?.startOffset ?? parentEnd);
+      // Template content is a separate fragment; it has no ordinary component path/shell here.
+      const valid = boundsValid && node.tagName !== 'template';
+      return {
+        tagName: node.tagName,
+        attributes: Object.fromEntries(node.attrs.map(attr => [attr.name, attr.value])),
+        path,
+        outerRange: valid ? { outerStart: start!.startOffset, outerEnd: outerEnd!, openingEnd: start!.endOffset } : null,
+        sourceSupported: valid && children.every(child => child.sourceSupported),
+        children,
+      };
+    });
+    // Foster parenting can move a valid-looking node ahead of a source-earlier table. Neither
+    // sibling can be trusted as a model-addressable source owner in that recovered ordering.
+    for (let i = 1; i < elements.length; i++) {
+      const previous = elements[i - 1]!;
+      const current = elements[i]!;
+      if (previous.outerRange && current.outerRange && previous.outerRange.outerEnd > current.outerRange.outerStart) {
+        previous.sourceSupported = current.sourceSupported = false;
+      }
+    }
+    return elements;
+  };
+  return walk(fragment.childNodes, [], 0, html.length);
+}

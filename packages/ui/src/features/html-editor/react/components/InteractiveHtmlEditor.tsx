@@ -2,7 +2,7 @@ import { forwardRef, useImperativeHandle, type CSSProperties } from 'react';
 import 'grapesjs/dist/css/grapes.min.css';
 import type { CanvasEmbedPlaceholderDescriptor } from '../../canvas-embed-placeholders.js';
 import type { CanvasStyling } from '../../canvas-style.js';
-import { useInteractiveHtmlEditor } from '../hooks/useInteractiveHtmlEditor.js';
+import { useInteractiveHtmlEditor, type InteractiveEditorOptions } from '../hooks/useInteractiveHtmlEditor.js';
 
 /**
  * @file A visual, click-into-text editing surface for a bespoke HTML document, built on GrapesJS
@@ -35,7 +35,8 @@ import { useInteractiveHtmlEditor } from '../hooks/useInteractiveHtmlEditor.js';
  * is an optional predicate the caller supplies to turn specific elements (identified however the
  * caller likes) into atomic blocks: their content can never be edited, dropped into or styled, but a
  * click selects the element itself (never the block around it), and it can be deliberately moved,
- * copied or deleted. When omitted, no elements are protected.
+ * copied or deleted. Runtime/native and author-opted blocks are always protected; the predicate
+ * adds host-owned embed recognition.
  * `describeEmbedPlaceholder` is the same idea for a second, independent concern: recognizing an
  * unresolved embed marker and labeling it for `../../canvas-embed-placeholders.ts`'s explicit
  * placeholder card. See `@jini-ai/admin/react`'s `InteractiveHtmlEditor` for a worked example of both:
@@ -69,7 +70,7 @@ import { useInteractiveHtmlEditor } from '../hooks/useInteractiveHtmlEditor.js';
  * guaranteed by WHEN it is applied (against the live canvas, after GrapesJS has already parsed
  * `html`), not by a strip-on-export step.
  */
-export interface InteractiveHtmlEditorProps {
+export interface InteractiveHtmlEditorProps extends InteractiveEditorOptions {
   /** The document to load into the editor. Read once, at mount — see this file's header and
    *  `react/hooks/useInteractiveHtmlEditor.ts` for why. */
   html: string;
@@ -82,7 +83,7 @@ export interface InteractiveHtmlEditorProps {
   /** Identifies elements whose content must never be edited or dropped into inside the editor. Each
    *  one is selectable as a single block that can be deliberately moved, copied or deleted. Read once, at mount, same as `html`. Predicates that check attributes should use
    *  `hasAttributeOnAnyNodeShape` (exported alongside this component) rather than `el.hasAttribute`
-   *  directly — see that helper's own doc for why. Omit to protect nothing. */
+   *  directly — see that helper's own doc for why. Omit for runtime/native blocks only. */
   isProtectedElement?: (el: Element) => boolean;
   /** CSS to render the edited document against inside the editing canvas, so the operator sees
    *  roughly what the document publishes as rather than browser defaults. Read once, at mount, same
@@ -93,7 +94,7 @@ export interface InteractiveHtmlEditorProps {
    *  fallback content it authored) — see `../../canvas-embed-placeholders.ts`'s own file header for
    *  the export-safety argument. Read once, at mount, same as `isProtectedElement`. Returning
    *  `undefined` for an element means "not a marker this host owns" — left completely untouched.
-   *  Omit to decorate nothing, the pre-existing behavior. This component has the same zero knowledge
+   *  Omit for runtime/native cards only. This component has the same zero knowledge
    *  of any host's marker convention that `isProtectedElement` documents above. */
   describeEmbedPlaceholder?: (el: Element) => CanvasEmbedPlaceholderDescriptor | undefined;
 }
@@ -116,18 +117,19 @@ export interface InteractiveHtmlEditorHandle {
 
 export const InteractiveHtmlEditor = forwardRef<InteractiveHtmlEditorHandle, InteractiveHtmlEditorProps>(
   function InteractiveHtmlEditor(
-    { html, onChange, className, isProtectedElement, canvasStyling, describeEmbedPlaceholder },
+    { html, onChange, className, isProtectedElement, canvasStyling, describeEmbedPlaceholder, onRequestEditHtml, translate, onSerializationError },
     ref,
   ) {
-    const { containerRef, flush } = useInteractiveHtmlEditor(
+    const { containerRef, flush, sourceError } = useInteractiveHtmlEditor(
       html,
       onChange,
       isProtectedElement,
       canvasStyling,
       describeEmbedPlaceholder,
+      { onRequestEditHtml, translate, onSerializationError },
     );
     useImperativeHandle(ref, () => ({ flush }), [flush]);
     const wrapperClassName = className ? `interactive-html-editor ${className}` : 'interactive-html-editor';
-    return <div ref={containerRef} className={wrapperClassName} style={GJS_STYLE_VARS} />;
+    return <div ref={containerRef} className={wrapperClassName} style={GJS_STYLE_VARS}>{sourceError && <p role="alert">{sourceError}</p>}</div>;
   },
 );

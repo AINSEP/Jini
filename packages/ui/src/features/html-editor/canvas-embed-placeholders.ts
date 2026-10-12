@@ -36,7 +36,8 @@
  * Re-entrancy (defensive, mirroring `canvas-content-wrapper.ts`'s own `WRAPPER_ROOT_MARKER` guard): a
  * marker already sitting inside a placeholder card (`el.closest('[' + CARD_ROOT_MARKER + ']')`) is
  * skipped, so a second call — or a caller's own `load` handler firing twice — cannot nest a second card
- * around an already-decorated marker.
+ * around an already-decorated marker. Only a runtime card's direct marker is described again, to
+ * refresh its footprint after theme styles settle; card chrome is always skipped.
  */
 
 /** What to show on one embed's placeholder card — supplied per-element by the host's own `describe`
@@ -48,12 +49,29 @@ export interface CanvasEmbedPlaceholderDescriptor {
   /** Human-identifiable target, shown under the heading — e.g. a name, or a truncated id, or a note
    *  that none was set. Never fetched by this module; the host decides what's cheap enough to show. */
   identityLabel: string;
+  /** Runtime blocks use the same card with a bounded view-only footprint and locked guidance. */
+  presentation?: 'embed' | 'runtime';
+  guidanceLabel?: string;
+  inline?: boolean | undefined;
+  declaredHeight?: number | undefined;
+}
+
+/** Finite positive declared/native geometry wins, otherwise use the bounded runtime fallback. */
+export function editorBlockHeight(
+  { declaredHeight, nativeHeight, inline }: { declaredHeight?: number | undefined; nativeHeight?: number | undefined; inline?: boolean | undefined },
+  _options: object = {},
+): number {
+  const height = [declaredHeight, nativeHeight].find(value => typeof value === 'number' && Number.isFinite(value) && value > 0);
+  return Math.max(inline ? 48 : 96, Math.min(inline ? 160 : 960, height ?? (inline ? 64 : 280)));
 }
 
 /** Marks a placeholder card's own root, so a later pass (this function called again, or a re-entrant
  *  `load`) can recognize an already-decorated marker via `el.closest` and skip it — see this file's
  *  header. */
 const CARD_ROOT_MARKER = 'data-jini-embed-placeholder-root';
+
+/** Canvas-only flag permitting footprint refreshes without describing embed cards or chrome again. */
+const CARD_RUNTIME_MARKER = 'data-jini-embed-placeholder-runtime';
 
 /** Flags every child the card itself builds (icon, text), so the one unflagged child is always the
  *  marker. {@link OVERLAY_RULE} and the stale-card check in `removeStaleCards` both rely on it. */
@@ -131,22 +149,23 @@ function buildPlaceholderIcon(doc: Document): SVGSVGElement {
  *  owner's own ask: "make it very explicit as a placeholder"). Every piece of text goes through
  *  `textContent`, never string-concatenated markup, so a marker's own config values (which flow into
  *  `descriptor.identityLabel`) can never be interpreted as HTML. */
-function buildPlaceholderCard(doc: Document, descriptor: CanvasEmbedPlaceholderDescriptor): HTMLDivElement {
-  const card = doc.createElement('div');
+function buildPlaceholderCard(doc: Document, descriptor: CanvasEmbedPlaceholderDescriptor): HTMLElement {
+  const card = doc.createElement(descriptor.inline ? 'span' : 'div');
   card.setAttribute(CARD_ROOT_MARKER, '');
+  if (descriptor.presentation === 'runtime') card.setAttribute(CARD_RUNTIME_MARKER, '');
   card.setAttribute('style', CARD_STYLE);
 
   const text = doc.createElement('div');
   text.setAttribute(CARD_CHROME_MARKER, '');
   const heading = doc.createElement('div');
   heading.setAttribute('style', 'font-weight:600;');
-  heading.textContent = `Placeholder — ${descriptor.kindLabel}`;
+  heading.textContent = descriptor.presentation === 'runtime' ? descriptor.kindLabel : `Placeholder — ${descriptor.kindLabel}`;
   const identity = doc.createElement('div');
   identity.setAttribute('style', 'opacity:.8;margin-top:2px;');
   identity.textContent = descriptor.identityLabel;
   const note = doc.createElement('div');
   note.setAttribute('style', 'opacity:.6;margin-top:4px;font-size:11px;');
-  note.textContent = 'Shown here for editing only — the real content renders on the published page.';
+  note.textContent = descriptor.guidanceLabel ?? 'Shown here for editing only — the real content renders on the published page.';
   text.append(heading, identity, note);
 
   const icon = buildPlaceholderIcon(doc);
@@ -181,8 +200,9 @@ function buildPlaceholderCard(doc: Document, descriptor: CanvasEmbedPlaceholderD
  * behavior every existing caller of this module had before this function existed.
  */
 function applyResolvedMaxWidth(marker: Element, card: HTMLElement): void {
-  if (typeof getComputedStyle !== 'function') return;
-  const maxWidth = getComputedStyle(marker).maxWidth;
+  const win = marker.ownerDocument.defaultView;
+  if (!win) return;
+  const maxWidth = win.getComputedStyle(marker).maxWidth;
   if (maxWidth && maxWidth !== 'none') card.style.setProperty('max-width', maxWidth);
 }
 
@@ -238,13 +258,17 @@ export function applyCanvasEmbedPlaceholders(
   const candidates = Array.from(body.querySelectorAll('*'));
 
   for (const el of candidates) {
-    // Already inside a placeholder card from an earlier pass over this same element — see this file's
-    // header on re-entrancy. Checked via ancestor lookup rather than a marker attribute on `el` itself,
-    // so a decorated marker's own attributes stay completely untouched by this function, not just its
-    // children.
-    if (el.closest(`[${CARD_ROOT_MARKER}]`)) continue;
+    // Skip existing embed cards and all chrome before calling the host. Runtime cards still
+    // re-describe their direct marker so theme changes can refresh its bounded footprint.
+    const existingCard = el.closest(`[${CARD_ROOT_MARKER}]`) as HTMLElement | null;
+    if (existingCard && (!existingCard.hasAttribute(CARD_RUNTIME_MARKER)
+      || el.parentElement !== existingCard || el.hasAttribute(CARD_CHROME_MARKER))) continue;
     const descriptor = describe(el);
     if (!descriptor) continue;
+    if (existingCard) {
+      if (descriptor.presentation === 'runtime') applyRuntimeFootprint(el, existingCard, descriptor);
+      continue;
+    }
     const parent = el.parentNode;
     if (!parent) continue; // Unreachable for a live `body` descendant; defensive only.
 
@@ -255,11 +279,38 @@ export function applyCanvasEmbedPlaceholders(
     // author set that `CARD_STYLE` doesn't touch (like `max-width`) still applies unopposed. Guarded
     // on presence so a marker with no `style` attribute at all is a no-op, not a leading `;`.
     const authoredStyle = el.getAttribute('style');
-    if (authoredStyle) card.setAttribute('style', `${authoredStyle};${card.getAttribute('style')}`);
+    if (authoredStyle && descriptor.presentation !== 'runtime') card.setAttribute('style', `${authoredStyle};${card.getAttribute('style')}`);
     applyResolvedMaxWidth(el, card);
+    if (descriptor.presentation === 'runtime') applyRuntimeFootprint(el, card, descriptor);
 
     parent.insertBefore(card, el);
     card.appendChild(el); // Moves the SAME node (auto-detaches from `parent`) — never cloned.
     ensureOverlayRule(doc);
   }
+}
+
+/** Geometry belongs to canvas DOM only; arbitrary transforms/min-height cannot defeat the clamp. */
+function applyRuntimeFootprint(el: Element, card: HTMLElement, descriptor: CanvasEmbedPlaceholderDescriptor): void {
+  // Re-measure the authored shell after theme links settle, without our selection overlay's
+  // !important auto-height masking its declarations. No component/model styles are changed.
+  const overlay = el.ownerDocument.head.querySelector<HTMLStyleElement>(`style[${OVERLAY_STYLE_MARKER}]`);
+  const sheet = overlay?.sheet;
+  const wasDisabled = sheet?.disabled;
+  let resolved: string | undefined;
+  try {
+    if (sheet) sheet.disabled = true;
+    resolved = el.ownerDocument.defaultView?.getComputedStyle(el).height;
+  } finally {
+    if (sheet) sheet.disabled = wasDisabled ?? false;
+  }
+  const native = el.getAttribute('height');
+  const declared = descriptor.declaredHeight ?? (resolved?.endsWith('px') ? Number.parseFloat(resolved) : undefined);
+  card.style.height = `${editorBlockHeight({ declaredHeight: declared, nativeHeight: native ? Number(native) : undefined, inline: descriptor.inline }, {})}px`;
+  card.style.minHeight = '0';
+  card.style.maxHeight = descriptor.inline ? '160px' : '960px';
+  card.style.overflow = 'hidden';
+  if (descriptor.inline) { card.style.display = 'inline-flex'; card.style.verticalAlign = 'middle'; }
+  // The marker is the selectable hit surface, never an authored layout/transform or media view.
+  (el as HTMLElement).style.setProperty('transform', 'none', 'important');
+  (el as HTMLElement).style.setProperty('overflow', 'hidden', 'important');
 }

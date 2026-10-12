@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import grapesjs, { type Component, type Editor } from 'grapesjs';
 import { applyCanvasContentWrapper } from '../../canvas-content-wrapper.js';
 import { applyCanvasEmbedPlaceholders, type CanvasEmbedPlaceholderDescriptor } from '../../canvas-embed-placeholders.js';
 import { buildCanvasStyleConfig, CANVAS_STYLES_PENDING_CLASS, type CanvasStyling } from '../../canvas-style.js';
-import { prettifyCss } from '../../css.js';
-import { indexElementSourceRanges, pathKey, spliceElementInner, type ElementPath } from '../../source-splice.js';
+import { serializeEditorSource, type DirtyTextEdit } from '../../editor-serialization.js';
+import { prepareEditorSource, type PreparedEditorSource, type RequestEditHtml } from '../../editor-blocks.js';
+import { assertPreparedSourceModel, assertProtectedSourceMetadata, EditorSourceError, PROTECTED_ELEMENT_TYPE, protectedCanvasDescriber, protectTextAncestors, registerProtectedElementType } from '../../protected-elements.js';
+import { pathKey, type ElementPath } from '../../source-splice.js';
 
 /**
  * @file `InteractiveHtmlEditor`'s GrapesJS lifecycle: construct the editor once per mount against
@@ -23,10 +25,9 @@ import { indexElementSourceRanges, pathKey, spliceElementInner, type ElementPath
  * fresh document only mounts this component while it's active and remounts with fresh `html` — see
  * `@jini-ai/admin/react`'s `InteractiveHtmlEditor` adapter and its caller in the host product's `PageEditor.tsx`.
  *
- * **This module has zero knowledge of what "protected" means.** It only knows how to register a
- * locked GrapesJS component type for whatever `isProtectedElement` predicate its caller supplies —
- * see this file's `registerProtectedElementType`. The predicate itself (e.g. recognizing a host's own
- * embed-placeholder convention) belongs to the caller, not this primitive.
+ * **This module has zero knowledge of host embed conventions.** The shared source detector owns
+ * native/runtime blocks; the caller owns its embed predicate and descriptions. Both go through
+ * `../../protected-elements.ts`'s single raw-source type and the existing canvas card renderer.
  *
  * **`canvasStyling.contentWrapper` is applied on `load`, against the live canvas — never folded into
  * `components` above.** See `../../canvas-content-wrapper.ts`'s own file header for why: GrapesJS's
@@ -34,98 +35,51 @@ import { indexElementSourceRanges, pathKey, spliceElementInner, type ElementPath
  * never touches, so it cannot leak into a save no matter how the canvas is edited afterward.
  */
 
-const PROTECTED_ELEMENT_TYPE = 'protected-element';
-
 /** Bold/italic/link only. GrapesJS's other built-in RTE actions (underline, strikethrough, wrap) are
  *  omitted, not merely unconfigured, by naming exactly these three rather than leaving the default
  *  action list in place. */
 const RTE_ACTIONS = ['bold', 'italic', 'link'];
 
-/**
- * Registers the `protected-element` component type so any parsed element `isProtectedElement`
- * recognizes becomes one atomic block: its content can never be edited (excluded from RTE
- * content-editing, including as a nested island inside a `text` component), dropped into, or styled,
- * but the element itself is selectable and can be deliberately moved, copied or deleted like any other
- * block. Selectable matters for safety: a non-selectable element hands a click to its nearest
- * selectable ancestor, so clicking an embed selected the block around it and Delete then removed that
- * block together with the embed. Pair it with `applyCanvasEmbedPlaceholders`, which makes the marker
- * the clickable surface of its card. Passed as a `plugins` entry so it registers before
- * `editor.setComponents` parses the initial `html` (see `initInteractiveHtmlEditor` below).
- *
- * @complexity O(1) — one type registration; the per-element check GrapesJS then runs during parsing
- * is O(1) per element (whatever `isProtectedElement` costs), not owned by this function.
- * @overallScore 100
- */
-function registerProtectedElementType(editor: Editor, isProtectedElement: (el: Element) => boolean): void {
-  editor.Components.addType(PROTECTED_ELEMENT_TYPE, {
-    isComponent: (el) => (isProtectedElement(el) ? { type: PROTECTED_ELEMENT_TYPE } : undefined),
-    model: {
-      defaults: {
-        editable: false,
-        droppable: false,
-        stylable: false,
-        layerable: false,
-        badgable: false,
-        selectable: true,
-        hoverable: true,
-        highlightable: true,
-        removable: true,
-        draggable: true,
-        copyable: true,
-      },
-    },
-  });
-}
 
 function initInteractiveHtmlEditor(
   container: HTMLElement,
-  html: string,
-  isProtectedElement: ((el: Element) => boolean) | undefined,
+  sourcePlan: PreparedEditorSource,
   canvasStyling: CanvasStyling,
+  options: InteractiveEditorOptions,
 ): Editor {
   return grapesjs.init({
     container,
     height: '100%',
     fromElement: false,
-    components: html,
+    components: sourcePlan.html,
     storageManager: { type: 'none' },
     panels: { defaults: [] },
     blockManager: { blocks: [] },
     richTextEditor: { actions: RTE_ACTIONS },
-    // Default `true`. Left `true`, GrapesJS rewrites every inline `style="…"` into a generated
-    // `#iXXXX` CSS rule the moment ANY edit triggers a re-sync — including on elements the operator
-    // never touched — which is one of Bug C's root-cause symptoms (see this repo's `pages-redo` plan,
-    // "Bug C"). `false` here is the editor-wide config half of that fix; `serializeCleaned` below is
-    // the other half (the splice path does not depend on this at all, since it never re-serializes
-    // untouched elements from the component model in the first place).
+    // Both default to `true`: avoidInlineStyle moves styles into ID rules; forceClass converts
+    // them to .cNNNN rules even with avoidInlineStyle disabled, including on untouched elements.
+    // Keep authored styles inline for structural saves (Bug C in this repo's `pages-redo` plan).
+    // serializeCleaned's JSON CSS export is the other half; the splice path already keeps bytes.
     avoidInlineStyle: false,
-    canvas: buildCanvasStyleConfig(canvasStyling),
-    plugins: isProtectedElement
-      ? [(editor: Editor) => registerProtectedElementType(editor, isProtectedElement)]
-      : [],
+    forceClass: false,
+    canvas: buildCanvasStyleConfig({ ...canvasStyling, css: [canvasStyling.css, sourcePlan.canvasCss].filter(Boolean).join('\n') }),
+    // Structural export can only preserve whitespace gaps the parser retained in the model.
+    parser: { optionsHtml: { allowScripts: false, keepEmptyTextNodes: true } },
+    plugins: [(editor: Editor) => registerProtectedElementType({ editor, sourcePlan }, {
+      onRequestEditHtml: options.onRequestEditHtml, editHtmlLabel: options.translate?.('Edit HTML'),
+      beforeRequestEditHtml: () => disableActiveTextEditing(editor), onSerializationError: options.onSerializationError,
+    })],
   });
-}
-
-/** One accumulated text edit, keyed by `pathKey(path)` in the caller's `dirty` map: the element-only
- *  path and tag name `spliceElementInner` needs to locate and verify the target, plus the edited
- *  component itself. Its inner HTML is read at serialize time, not recorded here: GrapesJS fires
- *  `rte:disable` BEFORE `syncContent` writes the edited text into the model, so a snapshot taken at
- *  that event is the OLD text. See `serializeWithSplice`'s own doc for why the map accumulates across
- *  the whole mount rather than resetting per edit. */
-interface DirtyTextEdit {
-  readonly path: ElementPath;
-  readonly tagName: string;
-  readonly component: Component;
 }
 
 /** Mirrors `source-splice.ts`'s own `UNINDEXED_TAGS` filter, but for GrapesJS's live component tree
  *  rather than a parsed HTML string: `textnode` and `comment` components never consume a path slot,
- *  matching how `indexElementSourceRanges` numbers the original string. No equivalent check is needed
- *  for `style`/`script` here — GrapesJS never represents either as a tree component in the first
- *  place (moved into `CssComposer`, or dropped outright), so a live sibling list already excludes
- *  them without this hook's help. */
+ *  matching how `indexElementSourceRanges` numbers the original string. Raw style/script atoms
+ *  now stay in the tree, but their original source tag still excludes them from path slots; before
+ *  source preservation GrapesJS moved styles into CssComposer and dropped scripts outright. */
 function isPathableComponent(component: Component): boolean {
-  return !component.is('textnode') && !component.is('comment');
+  return !component.is('textnode') && !component.is('comment')
+    && !['style', 'script'].includes(component.get?.('sourceTagName') as string);
 }
 
 /**
@@ -186,104 +140,6 @@ function isInsideTextComponent(component: Component): boolean {
   return false;
 }
 
-/** Dev-only, so a fallback is never silent — see `serializeWithSplice` for each trigger this names. */
-function warnFallback(reason: string): void {
-  if (process.env.NODE_ENV !== 'production') {
-    console.warn(`[useInteractiveHtmlEditor] falling back to full re-serialization: ${reason}`);
-  }
-}
-
-/**
- * Fallback whole-document serialization for when the lossless splice (see `serializeWithSplice`)
- * cannot be trusted. This is the "cleaned" formula from this repo's `pages-redo` plan ("Bug C"), and
- * differs from the whole-document serialization this hook used before the splice existed:
- * `avoidProtected: true` on `getCss()` drops GrapesJS's own `* { box-sizing: border-box; } body
- * {margin: 0;}` block, which GrapesJS otherwise prepends even to a page with no CSS of its own; and
- * `getWrapper().getInnerHTML()` — the wrapper's INNER content — omits the `<body>` tag `editor.
- * getHtml()` serializes the wrapper component itself as. Combined with `avoidInlineStyle: false` on
- * the editor's own config (see `initInteractiveHtmlEditor`), inline `style="…"` attributes also
- * survive here instead of being rewritten into generated `#iXXXX` CSS rules. Still not a byte-
- * identical round trip — this is a full re-serialization from GrapesJS's component model, which
- * cannot recover the original string's entities or authored formatting — just the least-lossy shape
- * available when a true splice is not possible.
- *
- * `keepUnusedStyles: true` carries over unchanged from the serialization this replaces: real
- * documents commonly carry `@media` blocks and `::before`/`::after` rules that don't correspond to
- * any single "matched" component in the tree, which GrapesJS's default CSS export can otherwise drop.
- */
-function serializeCleaned(editor: Editor): string {
-  const css = editor.getCss({ avoidProtected: true, keepUnusedStyles: true });
-  const wrapper = editor.getWrapper();
-  // `wrapper` is undefined only before/without a successful init, which cannot be true once this
-  // hook's `editor` has fired `update` — defensive only, mirroring `serializeCleaned`'s own doc.
-  const html = wrapper ? wrapper.getInnerHTML() : editor.getHtml();
-  return css ? `<style>${prettifyCss(css)}</style>${html}` : html;
-}
-
-/**
- * Builds this edit cycle's exported HTML. The default path splices every accumulated dirty text edit
- * (see `recordDirtyTextEdit`) back into the ORIGINAL source string via `spliceElementInner` (see
- * `source-splice.ts`), so every other byte — entities, attribute quoting, an untouched embed marker,
- * unrelated formatting — passes through unchanged instead of being rebuilt from GrapesJS's component
- * model. Falls back to `serializeCleaned` (and warns via `warnFallback`, so it is never silent)
- * whenever that guarantee cannot be trusted:
- *  - `structuralChange` — a block was added or removed since mount (a block move, clone, or delete;
- *    a move fires a remove then an add). Its value names the first such event, for the warning. The
- *    child churn inside a text component that every RTE close causes does not count (see
- *    `isInsideTextComponent`); that is a text edit, which the splice covers. Every dirty path's offset was computed against the
- *    pristine `original` string; once the LIVE tree's shape has diverged from it, those offsets (and
- *    even the paths themselves) can silently address the wrong element instead of failing loudly, so
- *    this is checked first and unconditionally, regardless of what is or isn't in `dirty`. There is no
- *    path back to `false` once this flips — a later purely-textual edit still cannot trust offsets
- *    computed before the structural change, so the whole rest of the mount stays on the cleaned path.
- *  - `dirty` is empty — `update` fired (a real content/style/attribute mutation happened) but no
- *    text-component edit was ever recorded for it. Nothing addressable means nothing spliceable.
- *  - any individual `spliceElementInner` call returns `null` — that path's element is no longer where
- *    it was, or its tag no longer matches what the live component believes.
- *
- * Dirty edits are applied in descending original-offset order (highest first): a splice at a later
- * offset never shifts the byte positions of anything before it, so replaying strictly back-to-front
- * lets every subsequent `spliceElementInner` call re-locate its own (still-untouched-until-its-turn)
- * range correctly without this function tracking running offset deltas itself.
- *
- * @complexity O(n·k) where n = size of `original` (each of up to k dirty splices re-indexes the
- * current string internally) and k = number of dirty edits accumulated this mount — small in
- * practice (an operator edits a handful of elements per session), never a hot loop here.
- */
-function serializeWithSplice(
-  editor: Editor,
-  original: string,
-  dirty: Map<string, DirtyTextEdit>,
-  structuralChange: string | undefined,
-): string {
-  if (structuralChange) {
-    warnFallback(`a block was added, moved, copied or deleted since mount (first: ${structuralChange})`);
-    return serializeCleaned(editor);
-  }
-  if (dirty.size === 0) {
-    warnFallback('no text edit was recorded for this change');
-    return serializeCleaned(editor);
-  }
-
-  const originalIndex = indexElementSourceRanges(original);
-  const ordered = [...dirty.values()].sort((a, b) => {
-    const aStart = originalIndex.get(pathKey(a.path))?.start ?? -1;
-    const bStart = originalIndex.get(pathKey(b.path))?.start ?? -1;
-    return bStart - aStart;
-  });
-
-  let result = original;
-  for (const edit of ordered) {
-    const spliced = spliceElementInner(result, edit.path, edit.tagName, edit.component.getInnerHTML());
-    if (spliced === null) {
-      warnFallback(`element at path "${pathKey(edit.path)}" could not be spliced (removed, or its tag drifted)`);
-      return serializeCleaned(editor);
-    }
-    result = spliced;
-  }
-  return result;
-}
-
 /**
  * Ends whatever RTE session is currently open, so its pending edit syncs into the component model
  * before `flush` reads it — GrapesJS only writes an RTE session's edited text into the model when
@@ -329,7 +185,7 @@ const STYLESHEET_SETTLE_TIMEOUT_MS = 3000;
  * @complexity O(n) in the number of `<link rel="stylesheet">` elements found — one listener pair per
  *   link, no polling.
  */
-function revealCanvasWhenStylesheetsSettle(editor: Editor, body: HTMLElement): () => void {
+function revealCanvasWhenStylesheetsSettle(editor: Editor, body: HTMLElement, onSettled: () => void): () => void {
   body.classList.add(CANVAS_STYLES_PENDING_CLASS);
 
   const canvasDocument = editor.Canvas.getDocument();
@@ -350,6 +206,7 @@ function revealCanvasWhenStylesheetsSettle(editor: Editor, body: HTMLElement): (
       link.removeEventListener('error', handleSettle);
     }
     pending.clear();
+    if (links.length > 0) onSettled();
     body.classList.remove(CANVAS_STYLES_PENDING_CLASS);
   };
 
@@ -406,14 +263,22 @@ function revealCanvasWhenStylesheetsSettle(editor: Editor, body: HTMLElement): (
  * beyond that.
  * @overallScore 100
  */
+export interface InteractiveEditorOptions {
+  onRequestEditHtml?: RequestEditHtml | undefined;
+  translate?: ((key: string) => string) | undefined;
+  onSerializationError?: ((error: EditorSourceError) => void) | undefined;
+}
+
 export function useInteractiveHtmlEditor(
   html: string,
   onChange: (html: string) => void,
   isProtectedElement?: (el: Element) => boolean,
   canvasStyling: CanvasStyling = {},
   describeEmbedPlaceholder?: (el: Element) => CanvasEmbedPlaceholderDescriptor | undefined,
+  options: InteractiveEditorOptions = {},
 ) {
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const [sourceError, setSourceError] = useState<string>();
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   // Delegated to by the stable `flush` callback returned below. Reset to a no-op on cleanup, before
@@ -423,10 +288,39 @@ export function useInteractiveHtmlEditor(
   useEffect(() => {
     const wrapper = wrapperRef.current;
     if (!wrapper) return;
+    const sourcePlan = prepareEditorSource({ html }, { isProtectedElement, describeHostElement: describeEmbedPlaceholder, translate: options.translate });
+    let integrityFailure: EditorSourceError | undefined;
+    const reportSourceError = (error: EditorSourceError) => {
+      integrityFailure = error;
+      setSourceError(options.translate?.(error.message) ?? error.message);
+      options.onSerializationError?.(error);
+    };
+    if (!sourcePlan.ok) {
+      reportSourceError(new EditorSourceError({ message: sourcePlan.problem }, {}));
+      return;
+    }
     const mountEl = document.createElement('div');
     mountEl.style.height = '100%';
     wrapper.appendChild(mountEl);
-    const editor = initInteractiveHtmlEditor(mountEl, html, isProtectedElement, canvasStyling);
+    let editor: Editor;
+    try { editor = initInteractiveHtmlEditor(mountEl, sourcePlan, canvasStyling, { ...options, onSerializationError: reportSourceError }); }
+    catch { reportSourceError(new EditorSourceError()); mountEl.remove(); return; }
+    const decorate = () => {
+      protectTextAncestors({ editor }, {});
+      const describe = sourcePlan.instances.length ? protectedCanvasDescriber({ editor }, {}) : describeEmbedPlaceholder;
+      if (describe) applyCanvasEmbedPlaceholders(editor.Canvas.getBody(), describe);
+    };
+    const serialize = () => {
+      try {
+        const next = serializeEditorSource({ editor, html, edits: dirty, sourcePlan }, { structuralChange });
+        if (next.includes(sourcePlan.markerAttribute)) throw new EditorSourceError();
+        return next;
+      } catch (error) {
+        const failure = error instanceof EditorSourceError ? error : new EditorSourceError();
+        reportSourceError(failure);
+        throw failure;
+      }
+    };
 
     // Splice bookkeeping — see `serializeWithSplice`'s own doc for how these two are used. Plain
     // closure state scoped to this one mount-only effect run (like `editor`/`mountEl` above), not
@@ -440,22 +334,23 @@ export function useInteractiveHtmlEditor(
     // Set inside `handleLoad`, once the canvas body exists — see `revealCanvasWhenStylesheetsSettle`.
     // `undefined` until then (or if `load` never fires before unmount), so cleanup below guards it.
     let cancelStylesheetWait: (() => void) | undefined;
+    let canvasWindow: Window | null | undefined;
     // Embed placeholder cards live only in the canvas DOM, so a structural edit (delete, move, clone,
     // undo) can leave one stale. Repaired on the tick after the edit, once GrapesJS has rendered it;
     // see `applyCanvasEmbedPlaceholders`. Only after `load`: before it, adds are the initial parse.
     let loaded = false;
     let cardRepair: ReturnType<typeof setTimeout> | undefined;
     const scheduleCardRepair = () => {
-      if (!loaded || !describeEmbedPlaceholder || cardRepair !== undefined) return;
+      if (!loaded || cardRepair !== undefined) return;
       cardRepair = setTimeout(() => {
         cardRepair = undefined;
-        applyCanvasEmbedPlaceholders(editor.Canvas.getBody(), describeEmbedPlaceholder);
+        decorate();
       }, 0);
     };
 
     const handleUpdate = () => {
       changed = true;
-      onChangeRef.current(serializeWithSplice(editor, html, dirty, structuralChange));
+      try { onChangeRef.current(serialize()); } catch { /* Source error is already visible; retain the last intact working copy. */ }
     };
     // `component:update:content` fires with the changed component itself as its argument (GrapesJS's
     // general `component:update:{propertyName}` pattern); `rte:disable` fires with `(view, rte)` —
@@ -471,7 +366,7 @@ export function useInteractiveHtmlEditor(
     // for the rest of this mount; see its own doc for why this never resets.
     const handleStructuralChange = (event: 'component:add' | 'component:remove') => (component?: Component) => {
       scheduleCardRepair();
-      if (structuralChange || (component && isInsideTextComponent(component))) return;
+      if (structuralChange || (component && !component.is(PROTECTED_ELEMENT_TYPE) && isInsideTextComponent(component))) return;
       structuralChange = `${event} <${component?.tagName?.toLowerCase() || 'unknown'}>`;
     };
     const handleAdd = handleStructuralChange('component:add');
@@ -489,8 +384,11 @@ export function useInteractiveHtmlEditor(
     // structural change happened either.
     flushRef.current = async () => {
       await disableActiveTextEditing(editor);
+      if (integrityFailure) throw integrityFailure;
+      try { assertProtectedSourceMetadata({ editor }, {}); }
+      catch { const failure = new EditorSourceError(); reportSourceError(failure); throw failure; }
       if (!changed && dirty.size === 0 && !structuralChange) return undefined;
-      const next = serializeWithSplice(editor, html, dirty, structuralChange);
+      const next = serialize();
       onChangeRef.current(next);
       return next;
     };
@@ -503,13 +401,21 @@ export function useInteractiveHtmlEditor(
     // Applied AFTER the content wrapper so a placeholder can sit correctly however deep the wrapper
     // chain nests its marker, though nothing about either function actually depends on this order.
     const handleLoad = () => {
+      if (sourcePlan.instances.length) {
+        try { assertPreparedSourceModel({ editor, sourcePlan }, {}); }
+        catch { reportSourceError(new EditorSourceError()); return; }
+      }
       const body = editor.Canvas.getBody();
       applyCanvasContentWrapper(body, canvasStyling.contentWrapper);
-      if (describeEmbedPlaceholder) applyCanvasEmbedPlaceholders(body, describeEmbedPlaceholder);
+      decorate();
       // Runs LAST, after both decorations above — see `revealCanvasWhenStylesheetsSettle`'s own doc
       // for why that order matters even in the zero-stylesheet case.
-      cancelStylesheetWait = revealCanvasWhenStylesheetsSettle(editor, body);
+      cancelStylesheetWait = revealCanvasWhenStylesheetsSettle(editor, body, decorate);
       loaded = true;
+      // An iframe window's native resize event already covers canvas-width changes. Reuse it
+      // instead of maintaining a second ResizeObserver lifecycle for the same view geometry.
+      canvasWindow = editor.Canvas.getDocument()?.defaultView;
+      canvasWindow?.addEventListener('resize', scheduleCardRepair);
     };
     editor.on('load', handleLoad);
     return () => {
@@ -523,6 +429,7 @@ export function useInteractiveHtmlEditor(
       editor.off('component:remove', handleRemove);
       editor.off('load', handleLoad);
       cancelStylesheetWait?.();
+      canvasWindow?.removeEventListener('resize', scheduleCardRepair);
       clearTimeout(cardRepair);
       editor.destroy();
       mountEl.remove();
@@ -534,5 +441,5 @@ export function useInteractiveHtmlEditor(
   // so a caller can safely pass `flush` into a `useCallback`/`useImperativeHandle` dependency array.
   const flush = useCallback(() => flushRef.current(), []);
 
-  return { containerRef: wrapperRef, flush };
+  return { containerRef: wrapperRef, flush, sourceError };
 }
