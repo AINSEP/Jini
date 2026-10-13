@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { acpFixtureDef } from './acp-fixture.js';
 import { createAgentExecutor } from '@jini-ai/daemon';
-import type { AgentLaunchResolution } from '@jini-ai/agent-runtime';
+import { createNativeAgentRuntime, type AgentLaunchResolution } from '@jini-ai/agent-runtime';
 import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
 import { createLocalNodeDaemon } from '@jini-ai/server';
 
@@ -42,9 +42,14 @@ function sseEventIds(body: string): string[] {
 async function main(): Promise<void> {
   const dataDir = mkdtempSync(join(tmpdir(), 'jini-minimal-host-'));
   const cancellationCompletions = new Map<string, Promise<unknown>>();
-  const startDaemon = () =>
-    createLocalNodeDaemon({
+  const startDaemon = () => {
+    const runtime = createNativeAgentRuntime({ env: process.env });
+    const runtimeExecutorOptions = { runtimeState: runtime.state, hostEnv: runtime.hostEnv,
+      codexDisablePlugins: runtime.codexDisablePlugins, piGracefulShutdownMs: runtime.piGracefulShutdownMs };
+    return createLocalNodeDaemon({
       dataDir,
+      agentExecutor: runtimeExecutorOptions,
+      onShutdown: () => runtime.dispose({}),
       packs: [],
       onRunStarted: async ({ request, run, lifecycle }) => {
         if (request.agentId === 'wait-for-cancel') {
@@ -59,6 +64,7 @@ async function main(): Promise<void> {
 
         if (request.agentId === 'acp-fixture') {
           const executor = createAgentExecutor({ lifecycle }, {
+            ...runtimeExecutorOptions,
             getAgentDef: ({ id }) => (id === 'acp-fixture' ? acpFixtureDef() : null),
             resolveAgentLaunch: () =>
               ({
@@ -86,6 +92,7 @@ async function main(): Promise<void> {
         await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
       },
     });
+  };
 
   let daemon = await startDaemon();
   try {

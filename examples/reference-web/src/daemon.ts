@@ -12,6 +12,7 @@ import {
   type RendererToAgentMessage,
 } from '@jini-ai/agentic/a2ui';
 import { createAgentExecutor } from '@jini-ai/daemon';
+import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';
 import type { ToolRegistration } from '@jini-ai/core';
 import { createDiskAttachmentStore, registerAttachmentRoutes, registerMediaRoutes, registerMemoryRoutes } from '@jini-ai/daemon/http';
 import { createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/integrations/media-providers';
@@ -430,6 +431,10 @@ async function main(): Promise<void> {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
   };
+  const runtime = createNativeAgentRuntime({ env });
+  const runtimeExecutorOptions = { runtimeState: runtime.state, hostEnv: runtime.hostEnv,
+    codexDisablePlugins: runtime.codexDisablePlugins, piGracefulShutdownMs: runtime.piGracefulShutdownMs,
+    getAgentDef: runtime.getAgentDef, resolveAgentLaunch: runtime.resolveAgentLaunch };
   const mediaTaskStore = await createSqliteMediaTaskStore(resolve(dataDir, 'media-tasks.db'));
   const memoryRoutesDeps = {
     notes: createNoteStore({ validTypes: ['note'], defaultType: 'note' }),
@@ -481,6 +486,7 @@ async function main(): Promise<void> {
   let daemon: Awaited<ReturnType<typeof createLocalNodeDaemon>>;
   try {
     daemon = await createLocalNodeDaemon({
+      agentExecutor: runtimeExecutorOptions,
       dataDir,
       port: PLAYGROUND_PORT,
       packs: [],
@@ -552,6 +558,7 @@ async function main(): Promise<void> {
         clearInterval(attachmentPruneTimer);
         await attachmentStore.dispose();
         await mediaTaskStore.close();
+        await runtime.dispose({});
       },
       onRunStarted: (context) => {
         // Bind first: the run must be reachable from its own tab before the agent starts asking.
@@ -601,8 +608,8 @@ async function main(): Promise<void> {
               decoded.workingDirectory,
               decoded.project,
             );
-            const executor = createAgentExecutor({
-              lifecycle,
+            const executor = createAgentExecutor({ lifecycle }, {
+              ...runtimeExecutorOptions,
               // Gives the spawned CLI `execute_delegated_tool`, the agent-native route into the
               // same `ToolExecutor` gate `frontendControl` registers its capabilities behind.
               ...(mcpBridge !== undefined ? { mcpJsonInjection: mcpBridge } : {}),
