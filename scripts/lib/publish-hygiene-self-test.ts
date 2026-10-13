@@ -34,14 +34,14 @@ export function runPublishHygieneSelfTest(_required: Record<string, never> = {},
     write('packages/core/src/identity.mts', '// tOvU consumer\nexport const value = 1;');
     // REGRESSION: fails if only the website path is forbidden.
     write('packages/core/src/path.cts', '// apps/desktop/bootstrap\nexport const value = 1;');
-    const forbidden = ['Settings →', 'this site', 'EXTERNAL_MCP', 'g3-approval', 'U-001', 'REQ-42', 'SEC-42', 'INV-42', 'SPEC-42'];
+    const forbidden = ['Settings →', 'EXTERNAL_MCP', 'g3-approval', 'U-001', 'REQ-42', 'SEC-42', 'INV-42', 'SPEC-42'];
     for (const [index, token] of forbidden.entries()) {
       write(`packages/core/src/literal-${index}.ts`, `export const value = ${JSON.stringify(token)};`);
     }
     // REGRESSION: fails if template substitutions hide a runtime specification ID.
     write('packages/core/src/template.ts', 'export const value = `host ${42} SPEC-42`;');
-    write('packages/core/src/css.css', 'a { content: "this site"; }');
-    write('packages/core/src/jsx.tsx', 'export const view = <p>this site</p>;');
+    write('packages/core/src/css.css', 'a { content: "EXTERNAL_MCP"; }');
+    write('packages/core/src/jsx.tsx', 'export const view = <p>Settings →</p>;');
     // PARITY: specification references remain legal in rationale comments, URLs and regexes
     // must not make the parser discard a following runtime literal.
     write('packages/core/src/ok.ts', '// SPEC-42; this site was the old wording\nexport const url = "https://example.com";\nexport const pattern = /https?:\\/\\//;');
@@ -49,12 +49,17 @@ export function runPublishHygieneSelfTest(_required: Record<string, never> = {},
     write('packages/core/src/escaped.ts', 'export const value = "R\\u0045Q-42";');
     write('packages/core/src/__tests__/fixture.ts', 'export const value = "tovu";');
     write('packages/core/src/fixture.test.ts', 'export const value = "tovu";');
+    // Generic site wording must pass in strings, CSS and JSX while real host tokens fail.
+    write('packages/core/src/site-copy.ts', 'export const value = "this site";');
+    write('packages/core/src/site-copy.css', 'a { content: "this site"; }');
+    write('packages/core/src/site-copy.tsx', 'export const view = <p>this site</p>;');
     const neutrality = checkSourceNeutrality({ repoRoot: root });
     const has = (file: string, rule?: string) => neutrality.some(v => v.file.endsWith(file) && (!rule || v.rule === rule));
     expect(has('identity.mts', 'N1-consumer-identity'), 'identity comments must fail case-insensitively');
     expect(has('path.cts', 'N2-consumer-path'), 'desktop path comments must fail');
     for (let index = 0; index < forbidden.length; index++) expect(has(`literal-${index}.ts`), `literal ${forbidden[index]} must fail`);
     for (const file of ['template.ts', 'css.css', 'jsx.tsx', 'after-regex.ts', 'escaped.ts']) expect(has(file), `${file} must fail`);
+    for (const file of ['site-copy.ts', 'site-copy.css', 'site-copy.tsx']) expect(!has(file), `${file} generic site wording must pass`);
     expect(!has('ok.ts'), 'neutral URLs/regexes and rationale comments must pass');
     expect(!has('fixture.ts') && !has('fixture.test.ts'), 'both test exclusions must work');
     write('scripts/source-neutrality-allowlist.json', JSON.stringify([{ file: 'packages/core/src/identity.mts', rule: 'N1-consumer-identity', reason: '' }]));

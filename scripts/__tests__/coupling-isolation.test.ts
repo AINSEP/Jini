@@ -41,3 +41,26 @@ describe('model-discovery policy import isolation', () => {
     expect(native?.files).toContain('packages/agent-runtime/src/model-discovery-sdk.ts');
   });
 });
+
+
+describe('verified shared leaves retain their existing owners', () => {
+  it.each([
+    ['@jini-ai/platform', './http/guarded'],
+    ['@jini-ai/platform', './net'],
+    ['@jini-ai/platform', './web'],
+    ['@jini-ai/devops', './source-control'],
+    ['@jini-ai/devops', './static-export/failure-summary'],
+  ])('%s%s crosses no domain boundary', (owner, subpath) => {
+    expect(audit.findings.filter(finding => finding.package === owner
+      && finding.subpath === subpath && (finding.kind === 'a' || finding.kind === 'resolution'))).toEqual([]);
+  });
+
+  it('only the web entry loads HTML peers; the platform root keeps its required Undici', () => {
+    const htmlPeers = ['parse5', 'hast-util-from-parse5', 'hast-util-to-mdast', 'mdast-util-to-markdown', 'mdast-util-gfm-table'].sort();
+    const platform = audit.closures.filter(closure => closure.package === '@jini-ai/platform');
+    for (const closure of platform) {
+      expect(closure.dependencies.filter(name => htmlPeers.includes(name)).sort()).toEqual(closure.subpath === './web' ? htmlPeers : []);
+    }
+    expect(platform.find(closure => closure.subpath === '.')?.dependencies).toContain('undici');
+  });
+});

@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "file": "packages/agent-plugins/src/manifest.ts",
+    "rule": "N1-consumer-identity",
+    "reason": "The default \"tovu\" namespace reads extensions.tovu in existing plugin.json manifests. Renaming it silently changes validation and canonical plugin identity for legacy callers. Host namespaces are already injectable via identityNamespace; retain this format until an explicit compatibility migration."
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/manifest.ts",
+    "rule": "N1-consumer-identity",
+    "reason": "The default \"tovu\" namespace reads extensions.tovu in existing plugin.json manifests. Renaming it silently changes validation and canonical plugin identity for legacy callers. Host namespaces are already injectable via identityNamespace; retain this format until an explicit compatibility migration."
+  }
+]

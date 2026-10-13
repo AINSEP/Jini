@@ -23,7 +23,8 @@ const rawRules = [
   { rule: 'N2-consumer-path', pattern: /apps\/(?:website|admin|desktop)|#src\// },
 ];
 const literalRules = [
-  { rule: 'N3-host-copy', pattern: /Settings →|this site|EXTERNAL_MCP|g3-approval/ },
+  // Generic site capabilities can say "this site"; only host-specific copy/tokens are forbidden.
+  { rule: 'N3-host-copy', pattern: /Settings →|EXTERNAL_MCP|g3-approval/ },
   { rule: 'N4-runtime-spec-id', pattern: /U-0\d\d|REQ-|SEC-|INV-|SPEC-/ },
 ];
 
