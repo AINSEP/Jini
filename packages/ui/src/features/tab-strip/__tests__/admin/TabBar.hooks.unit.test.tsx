@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { TabBar, type TabBarTab } from "../../react/components/TabBar.js";
 import { resolveTabBarKeyTarget, useTabBarKeyboard } from "../../react/components/TabBar.hooks.js";
 
@@ -95,5 +95,51 @@ describe("TabBar key origin guard", () => {
     expect(screen.getByRole("tab", { name: "A" })).toBeDisabled();
     await user.tab();
     expect(document.activeElement).toBe(screen.getByRole("tab", { name: "B" }));
+  });
+});
+
+describe("TabBar active tab in view", () => {
+  // jsdom has no layout: stub the strip's overflow, each tab's box (by label) and a writable
+  // scrollLeft so the hook's arithmetic is observable.
+  const scrollLeftDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, "scrollLeft")!;
+  const scrollLeft = new WeakMap<Element, number>();
+  function stubLayout({ overflow, boxes }: { overflow: boolean; boxes: Record<string, [number, number]> }) {
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(overflow ? 600 : 300);
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(300);
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      const [left, right] = this.getAttribute("role") === "tablist" ? [0, 300] : boxes[this.textContent ?? ""] ?? [0, 0];
+      return { left, right, top: 0, bottom: 40, width: right - left, height: 40, x: left, y: 0, toJSON: () => ({}) } as DOMRect;
+    });
+    Object.defineProperty(Element.prototype, "scrollLeft", {
+      configurable: true,
+      get(this: Element) { return scrollLeft.get(this) ?? 0; },
+      set(this: Element, value: number) { scrollLeft.set(this, value); },
+    });
+  }
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Object.defineProperty(Element.prototype, "scrollLeft", scrollLeftDescriptor);
+  });
+  const row: readonly TabBarTab[] = [{ id: "a", label: "A" }, { id: "b", label: "B" }, { id: "c", label: "C" }];
+
+  it("scrolls the strip so a deep-linked tab past the right edge, then one past the left edge, is fully shown", () => {
+    stubLayout({ overflow: true, boxes: { A: [-50, 20], B: [20, 280], C: [280, 380] } });
+    const { rerender } = render(<TabBar tabs={row} activeId="c" onChange={() => {}} ariaLabel="Sections" />);
+    const strip = screen.getByRole("tablist");
+    expect(strip.scrollLeft).toBe(80);
+    rerender(<TabBar tabs={row} activeId="a" onChange={() => {}} ariaLabel="Sections" />);
+    expect(strip.scrollLeft).toBe(30);
+  });
+
+  it("leaves an already-visible tab where it is", () => {
+    stubLayout({ overflow: true, boxes: { B: [20, 280] } });
+    render(<TabBar tabs={row} activeId="b" onChange={() => {}} ariaLabel="Visible" />);
+    expect(screen.getByRole("tablist").scrollLeft).toBe(0);
+  });
+
+  it("leaves a wrapping strip (no horizontal overflow) alone", () => {
+    stubLayout({ overflow: false, boxes: { C: [280, 380] } });
+    render(<TabBar tabs={row} activeId="c" onChange={() => {}} ariaLabel="Wrapping" />);
+    expect(screen.getByRole("tablist").scrollLeft).toBe(0);
   });
 });

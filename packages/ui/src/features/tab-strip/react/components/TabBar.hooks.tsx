@@ -1,4 +1,4 @@
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
 import { agentHandle } from "@jini-ai/agentic";
 import type { TabBarTab } from "./TabBar.js";
 
@@ -120,4 +120,32 @@ export function useTabBarKeyboard({ tabs, activeId, onChange }: { tabs: readonly
     e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')[target]?.focus();
   }
   return { onKeyDown };
+}
+
+/**
+ * Keeps the selected tab visible when the strip scrolls sideways — a host may turn the wrapping
+ * row into one swipeable row on phones, and a deep link to a later tab (`?tab=…`) otherwise opens
+ * with its own label cut off at the edge. Only the strip's own `scrollLeft` moves: `scrollIntoView`
+ * would also scroll the page vertically to the strip, a jump on every tab change below the fold.
+ * A strip that wraps (no horizontal overflow) is left alone.
+ *
+ * @param input.activeId - The currently active tab's id; the strip re-checks when it changes.
+ * @returns A ref for the tablist container.
+ * @complexity O(n) per active-id change in the strip's tab count (one selector query).
+ * @example const stripRef = useActiveTabInView({ activeId });
+ */
+export function useActiveTabInView({ activeId }: { activeId: string }, _optional: Record<string, never> = {}): RefObject<HTMLDivElement | null> {
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const strip = stripRef.current;
+    const tab = strip?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    if (!strip || !tab || strip.scrollWidth <= strip.clientWidth) return;
+    const stripBox = strip.getBoundingClientRect();
+    const tabBox = tab.getBoundingClientRect();
+    // A host's end padding (e.g. room for an edge fade) counts as off-screen.
+    const visibleRight = stripBox.right - (parseFloat(getComputedStyle(strip).paddingRight) || 0);
+    if (tabBox.left < stripBox.left) strip.scrollLeft += tabBox.left - stripBox.left;
+    else if (tabBox.right > visibleRight) strip.scrollLeft += tabBox.right - visibleRight;
+  }, [activeId]);
+  return stripRef;
 }

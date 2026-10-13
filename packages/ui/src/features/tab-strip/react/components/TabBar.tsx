@@ -1,7 +1,7 @@
 import { TabStripFrame } from "./TabStripFrame.js";
 import type { ReactNode } from "react";
 import { agentHandle } from "@jini-ai/agentic";
-import { resolveTabBarTabIndex, tabHandleProps, useTabBarKeyboard } from "./TabBar.hooks.js";
+import { resolveTabBarTabIndex, tabHandleProps, useActiveTabInView, useTabBarKeyboard } from "./TabBar.hooks.js";
 
 /**
  * @file Controlled horizontal tabs: id/label pairs, active id and change callback, with no routing,
@@ -113,8 +113,10 @@ function TabBarButton({
 /** Controlled button-based selection strip, including roving focus and optional agent handles. */
 export function TabBar({ tabs, activeId, onChange, ariaLabel, containerHandle }: TabBarProps, _optional: Record<string, never> = {}) {
   const { onKeyDown } = useTabBarKeyboard({ tabs: tabs, activeId: activeId, onChange: onChange });
+  const stripRef = useActiveTabInView({ activeId: activeId });
   return (
     <TabStripFrame
+      ref={stripRef}
       className="tab-bar"
       role="tablist"
       aria-label={ariaLabel}
