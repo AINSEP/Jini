@@ -133,6 +133,20 @@ describe('source subpath and installation isolation', () => {
     expect(findings()).toEqual([]);
   });
 
+  it('keeps OAuth mandatory for the agent-runtime root without exempting other dependencies', () => {
+    manifest({ name: '@jini-ai/agent-runtime', dependencies: { '@jini-ai/oauth': '*', driver: '*' } });
+    write({ file: 'packages/oauth/package.json', content: JSON.stringify({ name: '@jini-ai/oauth',
+      sideEffects: false, exports: { '.': './dist/index.js' } }) });
+    write({ file: 'packages/oauth/src/index.ts', content: 'export const value = true;' });
+    write({ file: 'packages/sample/src/beta/index.ts', content: "import '@jini-ai/oauth'; import 'driver'; export const beta = true;" });
+    expect(findings()).toEqual([{
+      rule: 'SI-dependency', file: 'packages/sample/package.json',
+      reason: 'driver is an install-time dependency used by 1/3 source closures; declare an optional peer and a development dependency',
+    }]);
+    manifest({ dependencies: { '@jini-ai/oauth': '*' } });
+    expect(findings().some(finding => finding.rule === 'SI-dependency' && finding.reason.startsWith('@jini-ai/oauth '))).toBe(true);
+  });
+
   it.each(['dependencies', 'optionalDependencies', 'peerDependencies'])('rejects a forced subset installation via %s', field => {
     manifest({ [field]: { driver: '*' } });
     write({ file: 'packages/sample/src/beta/index.ts', content: "import 'driver'; export const beta = true;" });

@@ -270,13 +270,13 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
+      '@jini-ai/oauth':
+        specifier: workspace:^
+        version: link:../oauth
     devDependencies:
       '@jini-ai/integrations':
         specifier: workspace:^
         version: link:../integrations
-      '@jini-ai/oauth':
-        specifier: workspace:^
-        version: link:../oauth
       '@jini-ai/platform':
         specifier: workspace:^
         version: link:../platform

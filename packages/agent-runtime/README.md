@@ -50,6 +50,8 @@ Browser consumers import the universal subpaths directly. The package root and
 provider adapters load Node modules. Provider PKCE adapters delegate protocol
 operations to `@jini-ai/oauth`; the host still owns endpoint policy, credentials,
 callback handling and persistence. None of these entries selects a site layout.
+OAuth is a regular runtime dependency because the root statically imports its
+redaction and PKCE helpers; consumers receive it automatically on installation.
 
 ## Design decisions
 

@@ -295,6 +295,10 @@ export function auditSubpathIsolation(
           pkg.manifest.peerDependenciesMeta?.[name]?.optional !== true)) };
       for (const dependency of Object.keys(forced)) {
         if (FOUNDATION.has(dependency)) continue;
+        // agent-runtime's root statically loads the OAuth redactor and PKCE bridge.
+        // The packaged root must boot without consumer-supplied peers; lightweight leaves
+        // do not make this required root dependency optional (desktop launch regression).
+        if (pkg.manifest.name === '@jini-ai/agent-runtime' && dependency === '@jini-ai/oauth') continue;
         const used = distinct.filter(closure => closure.dependencies.includes(dependency));
         if (used.length < distinct.length) add(pkg, used.map(closure => closure.subpath).join(', ') || '(none)',
           'b', join(pkg.directory, 'package.json'),
