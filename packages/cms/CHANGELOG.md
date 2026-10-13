@@ -1,3 +1,8 @@
+## 0.5.10 — 2026-10-13
+
+- `./entries`: `InMemoryEntryRepo.hardDelete({ workspaceId, id })` removes one workspace-scoped entry and its revisions (memory-only purge seam, not part of the port).
+- `./forms`: `InMemoryFormSubmissionRepo.listAllForDefinition({ workspaceId, formDefinitionId })` lists a form's submissions, trashed ones included, so a host can drop their Trash rows before the purge cascade (memory-only, not part of the port).
+
 ## 0.5.9 — 2026-10-13
 
 - `./widgets`: write, embed and region services take an optional `entryLocks` dependency, threaded into every `withEntryLock` call. New `getEntryLockState({ owner })` returns one lock state per store object, so a host that rebuilds dependency bags per request still shares one queue per store. Omitting `entryLocks` keeps the previous module-wide state.
