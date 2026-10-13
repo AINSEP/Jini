@@ -39,12 +39,12 @@ import {
   type RuntimeBuildOptions,
   type RuntimeContext,
 } from '@jini-ai/agent-runtime';
+import { createCommandInvocation } from '@jini-ai/platform/command';
 import {
   collectProcessTreePids,
-  createCommandInvocation,
   listProcessSnapshots,
   stopProcesses,
-} from '@jini-ai/platform';
+} from '@jini-ai/platform/process';
 import {
   applyImagePromptDelivery,
   type ImagePromptDelivery,

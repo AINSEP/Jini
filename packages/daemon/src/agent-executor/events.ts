@@ -30,7 +30,7 @@ import {
   collectProcessTreePids,
   listProcessSnapshots,
   stopProcesses,
-} from '@jini-ai/platform';
+} from '@jini-ai/platform/process';
 import {
   classifyRunCloseStatus,
 } from '../close-status.js';

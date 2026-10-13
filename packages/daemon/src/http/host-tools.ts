@@ -19,7 +19,7 @@
  */
 import { spawn as nodeSpawn } from 'node:child_process';
 import { access as fsAccess, constants as fsConstants } from 'node:fs/promises';
-import { createCommandInvocation } from '@jini-ai/platform';
+import { createCommandInvocation } from '@jini-ai/platform/command';
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';

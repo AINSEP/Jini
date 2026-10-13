@@ -25,14 +25,14 @@ import type {
    AcpPermissionHandler,
    PromptAugmenter,
 } from '@jini-ai/agent-runtime';
+import type { createCommandInvocation } from '@jini-ai/platform/command';
 import type {
    collectProcessTreePids,
-   createCommandInvocation,
    listProcessSnapshots,
    stopProcesses,
    ProcessSnapshot,
    StopProcessesResult,
-} from '@jini-ai/platform';
+} from '@jini-ai/platform/process';
 import type {
    RunByteJournal,
 } from '../continuation/journal.js';
