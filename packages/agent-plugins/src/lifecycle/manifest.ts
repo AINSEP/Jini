@@ -183,6 +183,7 @@ function resolveManifestName(raw: Readonly<Record<string, unknown>>): { name: st
 
 /**
  * Validates an already-`JSON.parse`d `plugin.json` value against the 1.0.0/1.1.0 grammar.
+ * Hosts inject identityNamespace; the default retains the existing plugin extension format.
  *
  * @throws Nothing — every failure is reported via the returned `errors`, matching this codebase's
  * own convention for expected validation outcomes (`plugin-runtime/manifest.ts`,

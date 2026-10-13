@@ -18,6 +18,28 @@ test('object validators preserve legacy structural validation', () => {
   expect(validateMcpManifest({ value: { mcpServers: {} } })).toBe(true);
 });
 
+test('identity namespace injection preserves the legacy plugin format and selects host metadata', () => {
+  const value = {
+    $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'toolkit',
+    extensions: {
+      tovu: { id: 'legacy/toolkit', provides: ['source-control'] },
+      example: { id: 'example/toolkit', provides: ['deploy-target:fly'] },
+    },
+  };
+  expect(parseAgentPluginManifest({ value })).toMatchObject({
+    ok: true, manifest: { id: 'legacy/toolkit', provides: ['source-control'] }, warnings: [],
+  });
+  expect(parseAgentPluginManifest({ value }, { identityNamespace: 'example' })).toMatchObject({
+    ok: true, manifest: { id: 'example/toolkit', provides: ['deploy-target:fly'] }, warnings: [],
+  });
+  const invalid = { ...value, extensions: { ...value.extensions, example: { id: 'invalid' } } };
+  expect(validatePluginManifest({ value: invalid })).toBe(true);
+  expect(validatePluginManifest({ value: invalid }, { identityNamespace: 'example' })).toBe(false);
+  expect(parseAgentPluginManifest({ value: invalid }, { identityNamespace: 'example' })).toEqual({
+    ok: false, errors: ['Plugin id must have the form publisher/name (lowercase letters, digits, dots and hyphens).'],
+  });
+});
+
 test('strict parser preserves standard author objects and legacy author strings', () => {
   const author = { name: 'Example', email: 'author@example.com', url: 'https://example.com' };
   for (const value of [author, 'Example']) {

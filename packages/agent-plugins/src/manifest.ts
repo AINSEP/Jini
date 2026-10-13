@@ -80,7 +80,8 @@ export function isMcpManifest(value: unknown): value is McpManifest {
   return typeof servers === 'object' && servers !== null && !Array.isArray(servers);
 }
 
-/** Object-argument facade for the legacy structural validator. */
+/** Object-argument facade for the legacy structural validator.
+ * Hosts inject identityNamespace; the default retains the existing plugin extension format. */
 export function validatePluginManifest(required: { readonly value: unknown }, optional: { readonly identityNamespace?: string } = {}): boolean {
   return isPluginManifest(required.value) && validatePluginIdentity({ manifest: required.value, namespace: optional.identityNamespace ?? "tovu" }).errors.length === 0;
 }

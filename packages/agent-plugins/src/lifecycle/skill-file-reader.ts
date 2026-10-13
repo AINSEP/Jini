@@ -4,7 +4,7 @@ import { TextDecoder } from "node:util";
 import { createPackagePathsModule } from "./package-paths.js";
 import type { FilesystemPort } from "./ports.js";
 
-const TEXT_EXTENSIONS = new Set([".md", ".mdx", ".txt", ".json", ".yaml", ".yml", ".ts", ".tsx", ".js", ".jsx", ".css", ".html", ".csv", ".svg", ".py", ".sh"]);
+const TEXT_EXTENSIONS: ReadonlySet<string> = new Set([".md", ".mdx", ".txt", ".json", ".yaml", ".yml", ".ts", ".tsx", ".js", ".jsx", ".css", ".html", ".csv", ".svg", ".py", ".sh"]);
 const MAX_FILE_BYTES = 256 * 1024;
 const MAX_WALK_ENTRIES = 4096;
 const MAX_WALK_DEPTH = 32;
