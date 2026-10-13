@@ -1,4 +1,4 @@
-import { createAgentModelDiscovery } from '../model-discovery.js';
+import { createAgentModelDiscovery } from '../model-discovery-native.js';
 /**
  * @module defs/auggie
  *

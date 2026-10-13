@@ -40,7 +40,7 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import { join } from 'node:path';
 
-import { createCommandInvocation } from '@jini-ai/platform';
+import { createCommandInvocation } from '@jini-ai/platform/command';
 
 import { sanitizeCustomModel } from './models.js';
 import type { RuntimeEnv, RuntimeModelOption } from './types.js';

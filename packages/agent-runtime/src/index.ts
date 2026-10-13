@@ -106,7 +106,7 @@ export {
   type PiRpcSessionOptions,
 } from './agent-protocol/index.js';
 
-export * from './model-discovery.js';
+export * from './model-discovery-native.js';
 export { getRuntimeModelDiscoveryDeps, defaultModelDiscoveryDeps, parseClaudeInitializeMetadata, parsePiRpcMetadata } from './model-discovery-adapters.js';
 
 export * from './runtime-state.js';

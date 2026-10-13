@@ -1,4 +1,4 @@
-import { createAgentModelDiscovery } from '../model-discovery.js';
+import { createAgentModelDiscovery } from '../model-discovery-native.js';
 /** CODEX_SANDBOX_MODE and CODEX_DISABLE_PLUGINS are adapter-scoped operator overrides;
  * no product-specific environment naming is required. */
 import { DEFAULT_MODEL_OPTION, clampCodexReasoning } from './shared.js';

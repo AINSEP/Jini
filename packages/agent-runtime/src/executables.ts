@@ -24,7 +24,7 @@ import { accessSync, constants, existsSync, statSync } from 'node:fs';
 import { delimiter } from 'node:path';
 import path from 'node:path';
 import { homedir } from 'node:os';
-import { wellKnownUserToolchainBins } from '@jini-ai/platform';
+import { wellKnownUserToolchainBins } from '@jini-ai/platform/toolchain';
 import { expandHomePath } from './paths.js';
 import type { RuntimeAgentDef } from './types.js';
 

@@ -1,33 +1,18 @@
 import { createHash } from 'node:crypto';
 import type { RuntimeModelOption } from './types.js';
-import type { AgentModelDiscoveryPort, DefaultModelResolution, DiscoveredModel, ModelCatalogSnapshot, ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from './model-discovery-types.js';
+import type { AgentModelDiscoveryPort, AgentDiscoveryConfiguration, DefaultModelResolution, ModelCatalogSnapshot, ModelDiscoveryContext, ModelDiscoveryDeps, ModelDiscoveryProbes, ModelProbeResult } from './model-discovery-types.js';
 import { readModelConfiguration } from './model-discovery-config.js';
-import { defaultModelDiscoveryDeps, probeAgentCatalog, probeCliCache, modelProbeTimeoutMs } from './model-discovery-adapters.js';
-export * from './model-discovery-types.js';
+import { ModelProbeError, ProbeTimeout, modelIdentityKind, normalizeDiscoveredModels, withModelProbeTimeout } from './model-discovery-shared.js';
+export { ModelProbeError, modelIdentityKind, normalizeDiscoveredModels, withModelProbeTimeout } from './model-discovery-shared.js';
+export type * from './model-discovery-types.js';
 export const MODEL_CATALOG_TTL_MS = 15 * 60_000;
 export const MODEL_NEGATIVE_TTL_MS = 30_000;
 const MAX_CATALOG_SCOPES = 128;
 
-export function modelIdentityKind(id: string): DiscoveredModel['identityKind'] {
-  const token = id.slice(id.lastIndexOf('/') + 1);
-  if (/^(default|auto|adaptive|smart|deep|rush|ultimate|premium|balanced|fast|vercel-ai-gateway|grok-build)$/i.test(token) || /(?:^|[-/])gateway$/i.test(id)) return 'routing-mode';
-  if (/^(opus|sonnet|haiku|fable|best|latest|claude|gemini|gpt|codex|swe)(?:\[.*\])?$/i.test(token) || /(?:^|[-/])latest$/i.test(id)) return 'alias';
-  return 'concrete';
-}
-export function normalizeDiscoveredModels(models: readonly RuntimeModelOption[]): DiscoveredModel[] {
-  const seen = new Set<string>();
-  return models.flatMap((row) => {
-    if (!row.id || row.id === 'default' || seen.has(row.id)) return [];
-    seen.add(row.id);
-    const model = row as Partial<DiscoveredModel>;
-    return [{ ...row, identityKind: model.identityKind ?? modelIdentityKind(row.id), ...(model.resolvedId ? { resolvedId: model.resolvedId } : {}) }];
-  });
-}
 /** Hash all launch-affecting state, including env credentials; none of the raw material escapes. */
 export function modelLaunchFingerprint(context: ModelDiscoveryContext, configMaterial = ''): string {
   return createHash('sha256').update(JSON.stringify({ ...context, env: Object.entries(context.env).sort(([a], [b]) => a.localeCompare(b)), configMaterial })).digest('hex');
 }
-class ProbeTimeout extends Error {}
 const probePools = new WeakMap<ModelDiscoveryDeps, { active: number; queue: (() => void)[] }>();
 /** One cold catalog probe per host; queued callers keep cancellation responsive. */
 async function boundedProbe<T>(deps: ModelDiscoveryDeps, work: () => Promise<T>, signal?: AbortSignal): Promise<T> {
@@ -44,41 +29,22 @@ async function boundedProbe<T>(deps: ModelDiscoveryDeps, work: () => Promise<T>,
   try { if (signal?.aborted) throw new ProbeTimeout('Probe cancelled'); return await work(); }
   finally { const next = pool.queue.shift(); if (next) next(); else pool.active -= 1; }
 }
-/** Cancellation always reaches the effect port. A broken port cannot hold callers indefinitely. */
-export async function withModelProbeTimeout<T>(work: (signal: AbortSignal) => Promise<T>, timeoutMs: number, parent?: AbortSignal): Promise<T> {
-  if (parent?.aborted) throw new ProbeTimeout('Probe cancelled');
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let abortListener: (() => void) | undefined;
-  const stopped = new Promise<never>((_resolve, reject) => {
-    abortListener = () => { controller.abort(); reject(new ProbeTimeout('Probe cancelled')); };
-    if (parent?.aborted) abortListener();
-    else parent?.addEventListener('abort', abortListener, { once: true });
-    timer = setTimeout(() => { controller.abort(); reject(new ProbeTimeout('Probe timed out')); }, timeoutMs);
-  });
-  try { return await Promise.race([work(controller.signal), stopped]); }
-  finally { if (timer) clearTimeout(timer); if (abortListener) parent?.removeEventListener('abort', abortListener); }
-}
 function diagnostic(error: unknown): ModelCatalogSnapshot['diagnostics'][number] {
   // Never stringify vendor errors: stderr/HTTP bodies may include credentials or OAuth URLs.
   const code = error instanceof ProbeTimeout ? 'timeout' : error instanceof ModelProbeError ? error.code : 'offline';
   return { code, message: ({ timeout: 'Model discovery timed out or was cancelled.', 'auth-missing': 'CLI credentials are unavailable.', 'unsupported-version': 'Native metadata discovery is unavailable for this version.', 'malformed-response': 'Native metadata contained no usable catalog.', offline: 'Model discovery could not reach its source.' })[code] };
 }
-export class ModelProbeError extends Error {
-  constructor(readonly code: ModelCatalogSnapshot['diagnostics'][number]['code']) { super(code); }
-}
-export interface AgentDiscoveryConfiguration {
-  fallbackModels: () => readonly RuntimeModelOption[];
-  parse?: (input: { stdout: string }) => RuntimeModelOption[] | null;
-  args?: readonly string[];
-}
-export function createAgentModelDiscovery(agentId: string, configuration: AgentDiscoveryConfiguration): AgentModelDiscoveryPort {
+/** Bind supplied effect ports and probes without loading their native implementations. */
+export function createAgentModelDiscovery(
+  { agentId, configuration, deps: suppliedDeps, probes }: { agentId: string; configuration: AgentDiscoveryConfiguration; deps: ModelDiscoveryDeps; probes: ModelDiscoveryProbes },
+  _optional: Record<string, never> = {},
+): AgentModelDiscoveryPort {
   async function scoped(context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal?: AbortSignal) {
     const config = await withModelProbeTimeout((active) => readModelConfiguration(agentId, context, deps, active), 1000, signal);
     return { config, key: `${agentId}:${modelLaunchFingerprint(context, config.fingerprintMaterial)}` };
   }
   const port: AgentModelDiscoveryPort = {
-    async discoverModels({ context }, { signal, force = false, staleWhileRevalidate = false, deps = defaultModelDiscoveryDeps } = {}) {
+    async discoverModels({ context }, { signal, force = false, staleWhileRevalidate = false, deps = suppliedDeps } = {}) {
       let state: Awaited<ReturnType<typeof scoped>>;
       try { state = await scoped(context, deps, signal); }
       catch (error) {
@@ -98,7 +64,7 @@ export function createAgentModelDiscovery(agentId: string, configuration: AgentD
       // immediately; keep stale provenance and refresh without holding the first user prompt.
       if (staleWhileRevalidate && !cached.good && ['codex', 'opencode', 'claude', 'codebuddy'].includes(agentId)) {
         try {
-          const disk = await withModelProbeTimeout(active => probeCliCache(agentId, context, deps, active), 1000, signal);
+          const disk = await withModelProbeTimeout(active => probes.cliCache({ agentId, context, deps, signal: active }), 1000, signal);
           const models = normalizeDiscoveredModels(disk.models);
           if (models.length) cached.good = { models, source: 'cli-cache', coverage: disk.coverage,
             freshness: 'stale', fetchedAt: new Date(now).toISOString(), expiresAt: new Date(now).toISOString(),
@@ -111,7 +77,7 @@ export function createAgentModelDiscovery(agentId: string, configuration: AgentD
       }
       const pending = (async (): Promise<ModelCatalogSnapshot> => {
         try {
-          const result: ModelProbeResult = await boundedProbe(deps, () => withModelProbeTimeout((active) => probeAgentCatalog(agentId, context, configuration, deps, active), modelProbeTimeoutMs(agentId), signal), signal);
+          const result: ModelProbeResult = await boundedProbe(deps, () => withModelProbeTimeout((active) => probes.catalog({ agentId, context, configuration, deps, signal: active }), probes.timeoutMs({ agentId }), signal), signal);
           const models = normalizeDiscoveredModels(result.models);
           if (models.length === 0) throw new ModelProbeError('malformed-response');
           const fetched = deps.clock.now();
@@ -140,7 +106,7 @@ export function createAgentModelDiscovery(agentId: string, configuration: AgentD
       // catalog while this coalesced, timeout-bounded refresh updates the cache in the background.
       return staleWhileRevalidate && lastGood() || pending;
     },
-    async resolveDefaultModel({ context, catalog }, { signal, deps = defaultModelDiscoveryDeps } = {}): Promise<DefaultModelResolution> {
+    async resolveDefaultModel({ context, catalog }, { signal, deps = suppliedDeps } = {}): Promise<DefaultModelResolution> {
       let state: Awaited<ReturnType<typeof scoped>>;
       try { state = await scoped(context, deps, signal); } catch { return { status: 'unresolved', reason: 'Launch configuration could not be read.' }; }
       const fingerprint = state.key.slice(agentId.length + 1);
@@ -161,16 +127,19 @@ export function offlineSnapshot(fingerprint: string, now: number, fallback: read
   return { models: normalizeDiscoveredModels(fallback), source: 'offline-fallback', freshness: 'offline-fallback', fetchedAt: new Date(now).toISOString(), expiresAt: new Date(now + MODEL_NEGATIVE_TTL_MS).toISOString(), coverage: 'configured', launchFingerprint: fingerprint, diagnostics: issue ? [issue] : [] };
 }
 /** Hosts may supply either discovery port independently; static definitions need no probes. */
-type ModelDiscoveryDefinition = Partial<AgentModelDiscoveryPort> & {
+export type ModelDiscoveryDefinition = Partial<AgentModelDiscoveryPort> & {
   id?: string;
   fallbackModels?: readonly RuntimeModelOption[];
   defaultModelEnvVar?: string;
   supportsCustomModel?: boolean;
   supportsConcreteModelSelection?: boolean;
 };
-export function modelDiscoveryForDef(def: ModelDiscoveryDefinition): AgentModelDiscoveryPort {
+export function modelDiscoveryForDef(
+  { def, deps: suppliedDeps }: { def: ModelDiscoveryDefinition; deps: ModelDiscoveryDeps },
+  _optional: Record<string, never> = {},
+): AgentModelDiscoveryPort {
   return {
-    discoverModels: def.discoverModels?.bind(def) || (async ({ context }, { deps = defaultModelDiscoveryDeps } = {}) => {
+    discoverModels: def.discoverModels?.bind(def) || (async ({ context }, { deps = suppliedDeps } = {}) => {
       const catalog = offlineSnapshot(modelLaunchFingerprint(context), deps.clock.now(), def.fallbackModels || []);
       const configured = def.defaultModelEnvVar && context.env[def.defaultModelEnvVar]?.trim();
       // Static hosts used their first concrete fallback before discovery existed. Preserve
@@ -178,7 +147,7 @@ export function modelDiscoveryForDef(def: ModelDiscoveryDefinition): AgentModelD
       const selection = context.model || context.resumedModelId || configured || catalog.models.find(row => row.identityKind === 'concrete')?.id;
       return { ...catalog, ...(selection ? { defaultSelectionId: selection } : {}) };
     }),
-    resolveDefaultModel: def.resolveDefaultModel?.bind(def) || (async ({ context, catalog }, { deps = defaultModelDiscoveryDeps } = {}) => {
+    resolveDefaultModel: def.resolveDefaultModel?.bind(def) || (async ({ context, catalog }, { deps = suppliedDeps } = {}) => {
       if (context.resumeSessionId && !context.resumedModelId && !context.model) return { status: 'unresolved', reason: 'Resumed session model metadata is required.' };
       const configured = def.defaultModelEnvVar && context.env[def.defaultModelEnvVar]?.trim();
       const selection = context.model || context.resumedModelId || configured || catalog.defaultSelectionId;
@@ -193,15 +162,15 @@ export function modelDiscoveryForDef(def: ModelDiscoveryDefinition): AgentModelD
   };
 }
 /** Resolve against the actual launch scope, pinning the same ID shown by the picker. */
-export async function resolveModelForLaunch({ def, context }: { def: ModelDiscoveryDefinition; context: ModelDiscoveryContext }, optional: { deps?: ModelDiscoveryDeps; signal?: AbortSignal } = {}): Promise<{ model: string; catalog: ModelCatalogSnapshot; resolution: DefaultModelResolution }> {
+export async function resolveModelForLaunch({ def, context, deps }: { def: ModelDiscoveryDefinition; context: ModelDiscoveryContext; deps: ModelDiscoveryDeps }, optional: { signal?: AbortSignal } = {}): Promise<{ model: string; catalog: ModelCatalogSnapshot; resolution: DefaultModelResolution }> {
   if (def.supportsConcreteModelSelection === false) throw new Error('This CLI cannot pin a concrete starting model.');
-  const discovery = modelDiscoveryForDef(def);
-  const catalog = await discovery.discoverModels({ context }, { ...optional, staleWhileRevalidate: true });
+  const discovery = modelDiscoveryForDef({ def, deps });
+  const catalog = await discovery.discoverModels({ context }, { ...optional, deps, staleWhileRevalidate: true });
   // Custom input is allowed unless the definition explicitly disables it: an unlisted user ID is already
   // the intended launch value. Never substitute a catalog default or reinterpret its spelling.
   const resolution: DefaultModelResolution = context.model && def.supportsCustomModel !== false && !catalog.models.some(row => row.id === context.model)
-    ? { status: 'resolved', id: context.model, selectionId: context.model, source: 'config-file', resolvedAt: new Date((optional.deps || defaultModelDiscoveryDeps).clock.now()).toISOString(), launchFingerprint: catalog.launchFingerprint }
-    : await discovery.resolveDefaultModel({ context, catalog }, optional);
+    ? { status: 'resolved', id: context.model, selectionId: context.model, source: 'config-file', resolvedAt: new Date(deps.clock.now()).toISOString(), launchFingerprint: catalog.launchFingerprint }
+    : await discovery.resolveDefaultModel({ context, catalog }, { ...optional, deps });
   if (resolution.status !== 'resolved') throw new Error(resolution.reason);
   return { model: resolution.id, catalog, resolution };
 }

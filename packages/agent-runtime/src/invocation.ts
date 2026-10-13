@@ -13,7 +13,7 @@ import { execFile } from 'node:child_process';
 import { scheduleProbeProcess } from './probe-scheduler.js';
 import os from 'node:os';
 import { promisify } from 'node:util';
-import { createCommandInvocation } from '@jini-ai/platform';
+import { createCommandInvocation } from '@jini-ai/platform/command';
 import type { RuntimeExecOptions } from './types.js';
 
 const execFileP = promisify(execFile);

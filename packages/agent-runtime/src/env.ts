@@ -7,7 +7,7 @@
  * sandboxOverlay. The engine must not import a product's config/sandbox subsystems or env names.
  */
 import os from 'node:os';
-import { mergeProxyAwareEnv, resolveSystemProxyEnv } from '@jini-ai/platform';
+import { mergeProxyAwareEnv, resolveSystemProxyEnv } from '@jini-ai/platform/proxy-env';
 import { expandConfiguredEnv } from './paths.js';
 import { resolveAmrOpenCodeExecutable } from './executables.js';
 

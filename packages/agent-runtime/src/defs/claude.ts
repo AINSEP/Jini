@@ -1,4 +1,4 @@
-import { createAgentModelDiscovery } from '../model-discovery.js';
+import { createAgentModelDiscovery } from '../model-discovery-native.js';
 /**
  * Claude Code has no dedicated image-attachment flag. imageDelivery: 'prompt-path' makes the
  * executor append local image paths to the prompt and add their directories to extraAllowedDirs;

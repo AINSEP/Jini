@@ -1,4 +1,4 @@
-import { createAgentModelDiscovery } from '../model-discovery.js';
+import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 

@@ -69,3 +69,15 @@ export interface ModelDiscoveryDeps {
   clock: { now(): number };
   cache: Map<string, ModelCacheEntry>;
 }
+
+export interface AgentDiscoveryConfiguration {
+  fallbackModels: () => readonly RuntimeModelOption[];
+  parse?: (input: { stdout: string }) => RuntimeModelOption[] | null;
+  args?: readonly string[];
+}
+/** Host composition selects native probes or substitutes another discovery mechanism. */
+export interface ModelDiscoveryProbes {
+  catalog(required: { agentId: string; context: ModelDiscoveryContext; configuration: AgentDiscoveryConfiguration; deps: ModelDiscoveryDeps; signal: AbortSignal }, optional?: Record<string, never>): Promise<ModelProbeResult>;
+  cliCache(required: { agentId: string; context: ModelDiscoveryContext; deps: ModelDiscoveryDeps; signal: AbortSignal }, optional?: Record<string, never>): Promise<ModelProbeResult>;
+  timeoutMs(required: { agentId: string }, optional?: Record<string, never>): number;
+}

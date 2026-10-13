@@ -1,4 +1,4 @@
-import { createAgentModelDiscovery } from '../model-discovery.js';
+import { createAgentModelDiscovery } from '../model-discovery-native.js';
 /** Reasonix's declarative definition stays product-neutral (R5, checkEngineBoundaries).
  * Per-run system overlays use REASONIX_ACP_SYSTEM_APPEND via the shared systemPromptDelivery
  * dispatch and computeChildEnv. Static def.env is computed once and cannot carry host/per-run

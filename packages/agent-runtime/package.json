@@ -16,7 +16,21 @@
       ".": "node",
       "./providers/tool-turn": "node",
       "./model-catalog/cache": "universal",
-      "./providers/sse-decode": "universal"
+      "./providers/sse-decode": "universal",
+      "./model-discovery": "node"
+    },
+    "isolation": {
+      "forbidden": {
+        "./model-discovery": [
+          "node:child_process",
+          "child_process",
+          "node:fs",
+          "fs",
+          "./model-discovery-adapters.js",
+          "./model-discovery-native.js",
+          "./model-discovery-sdk.js"
+        ]
+      }
     }
   },
   "type": "module",
@@ -43,6 +57,11 @@
       "types": "./dist/providers/sse-decode.d.ts",
       "import": "./dist/providers/sse-decode.js",
       "default": "./dist/providers/sse-decode.js"
+    },
+    "./model-discovery": {
+      "types": "./dist/model-discovery.d.ts",
+      "import": "./dist/model-discovery.js",
+      "default": "./dist/model-discovery.js"
     }
   },
   "typesVersions": {
@@ -55,6 +74,9 @@
       ],
       "providers/sse-decode": [
         "./dist/providers/sse-decode.d.ts"
+      ],
+      "model-discovery": [
+        "./dist/model-discovery.d.ts"
       ]
     }
   },

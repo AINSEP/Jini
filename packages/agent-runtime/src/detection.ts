@@ -16,7 +16,7 @@ import { getRuntimeModelDiscoveryDeps } from './model-discovery-adapters.js';
  * `archived provenance ledger`.
  */
 import { execAgentFile } from './invocation.js';
-import { offlineSnapshot, modelDiscoveryForDef } from './model-discovery.js';
+import { offlineSnapshot, modelDiscoveryForDef } from './model-discovery-native.js';
 import type { ModelDiscoveryContext, ModelDiscoveryDeps, ModelCatalogSnapshot, DefaultModelResolution } from './model-discovery-types.js';
 import { rememberLiveModels } from './models.js';
 import { installMetaForAgent } from './metadata.js';

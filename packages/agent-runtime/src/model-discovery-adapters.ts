@@ -4,7 +4,7 @@ import { execFile, type ExecFileOptions, type SpawnOptions } from 'node:child_pr
 import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { createCommandInvocation } from '@jini-ai/platform';
+import { createCommandInvocation } from '@jini-ai/platform/command';
 import { detectAcpModelMetadata } from './agent-protocol/acp/models.js';
 import { CLAUDE_CODE_INITIALIZE_ARGS, CLAUDE_CODE_INITIALIZE_REQUEST } from './claude-code-models.js';
 import { listProviderModels } from './providers/model-catalog.js';
@@ -12,8 +12,8 @@ import { execAgentFile } from './invocation.js';
 import { scheduleProbeProcess } from './probe-scheduler.js';
 import { probeCopilotSdk, probeDroidSdk } from './model-discovery-sdk.js';
 import { parseSettingsJson, readModelConfiguration } from './model-discovery-config.js';
-import { ModelProbeError, modelIdentityKind, withModelProbeTimeout, type AgentDiscoveryConfiguration } from './model-discovery.js';
-import type { DiscoveredModel, ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from './model-discovery-types.js';
+import { ModelProbeError, modelIdentityKind, withModelProbeTimeout } from './model-discovery-shared.js';
+import type { AgentDiscoveryConfiguration, DiscoveredModel, ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from './model-discovery-types.js';
 
 const ACP_ARGS: Record<string, readonly string[]> = {
   amr: ['agent', 'run', '--runtime', 'opencode'],

@@ -1,5 +1,5 @@
 import type { ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from './model-discovery-types.js';
-import { ModelProbeError, modelIdentityKind } from './model-discovery.js';
+import { ModelProbeError, modelIdentityKind } from './model-discovery-shared.js';
 
 /** UNVERIFIED locally. The host may install the official SDK or inject the RPC port.
  * Use the CLI's authenticated server, not an unrelated HTTP token or an inference prompt.
