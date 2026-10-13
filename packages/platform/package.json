@@ -28,7 +28,23 @@
       "./net/endpoint-policy": "universal",
       "./fs/file-lock": "node",
       "./secrets/credential-token": "universal",
-      "./web": "node"
+      "./web": "node",
+      "./command": "node",
+      "./process": "node",
+      "./toolchain": "node",
+      "./proxy-env": "node",
+      "./shell": "node",
+      "./child-environment": "node"
+    },
+    "isolation": {
+      "entries": {
+        "./command": "os",
+        "./process": "os",
+        "./toolchain": "os",
+        "./proxy-env": "os",
+        "./shell": "os",
+        "./child-environment": "os"
+      }
     }
   },
   "type": "module",
@@ -115,6 +131,36 @@
       "types": "./dist/web/index.d.ts",
       "import": "./dist/web/index.js",
       "default": "./dist/web/index.js"
+    },
+    "./command": {
+      "types": "./dist/command.d.ts",
+      "import": "./dist/command.js",
+      "default": "./dist/command.js"
+    },
+    "./process": {
+      "types": "./dist/process.d.ts",
+      "import": "./dist/process.js",
+      "default": "./dist/process.js"
+    },
+    "./toolchain": {
+      "types": "./dist/toolchain.d.ts",
+      "import": "./dist/toolchain.js",
+      "default": "./dist/toolchain.js"
+    },
+    "./proxy-env": {
+      "types": "./dist/proxy-env.d.ts",
+      "import": "./dist/proxy-env.js",
+      "default": "./dist/proxy-env.js"
+    },
+    "./shell": {
+      "types": "./dist/shell.d.ts",
+      "import": "./dist/shell.js",
+      "default": "./dist/shell.js"
+    },
+    "./child-environment": {
+      "types": "./dist/child-environment.d.ts",
+      "import": "./dist/child-environment.js",
+      "default": "./dist/child-environment.js"
     }
   },
   "files": [
