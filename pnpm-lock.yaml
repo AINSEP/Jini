@@ -44,15 +44,33 @@ importers:
       '@jini-ai/daemon':
         specifier: workspace:*
         version: link:../../packages/daemon
+      '@jini-ai/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@jini-ai/http-kit':
+        specifier: workspace:*
+        version: link:../../packages/http-kit
+      '@jini-ai/oauth':
+        specifier: workspace:*
+        version: link:../../packages/oauth
       '@jini-ai/platform':
         specifier: workspace:*
         version: link:../../packages/platform
+      '@jini-ai/registry':
+        specifier: workspace:*
+        version: link:../../packages/registry
       '@jini-ai/server':
         specifier: workspace:*
         version: link:../../packages/server
+      '@jini-ai/sidecar':
+        specifier: workspace:*
+        version: link:../../packages/sidecar
       better-sqlite3:
         specifier: ^13.0.0
         version: 13.0.3
+      express:
+        specifier: ^4.21.0
+        version: 4.22.2
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.11

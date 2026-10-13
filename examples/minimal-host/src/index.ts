@@ -13,7 +13,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
-import { acpFixtureDef } from './acp-fixture.js';
+// health-boot runs this file with plain `node`, whose type stripping never maps .js to .ts.
+import { acpFixtureDef } from './acp-fixture.ts';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import { createNativeAgentRuntime, type AgentLaunchResolution } from '@jini-ai/agent-runtime';
 import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
