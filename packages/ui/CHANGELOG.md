@@ -3,6 +3,9 @@
 ## 0.5.1 — 2026-10-13
 
 - Phone layout fixes. Media provider cards put one field per line on phones and keep the fields plus Clear on one row on wider screens (was a three-column grid that squeezed inputs to a few characters). The snippet block's Copy button no longer covers the command: phones start the code below it, wider screens reserve its width. `TabBar` scrolls a sideways-scrolling strip so the active tab is fully visible (only the strip scrolls, never the page).
+- HTML viewer imports `renderers/new-tab-preview` and `renderers/sandbox-bridge` directly instead of the renderer barrel (no Markdown renderers or srcdoc assembly in its closure).
+- New universal `./i18n` subpath re-exporting `interpolate` from the existing template-i18n owner.
+- TanStack fetch-query adapter: replacement writes win at TanStack's save boundary, so an older read that settles after `replace()` can no longer overwrite it (hook data, loaders and `peek()` keep their public types).
 
 ## 0.5.0 — 2026-10-13
 

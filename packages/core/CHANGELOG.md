@@ -1,5 +1,9 @@
 # @jini-ai/core
 
+## 0.4.5 — 2026-10-13
+
+- `FetchQueryCache`: a `replace()` that lands after a read's transport resolves but before publication now wins; arbitration and publication share one continuation.
+
 ## 0.4.4 — 2026-10-12
 
 - New `./records` subpath exports `isRecord` and `isNonArrayRecord` without loading the core barrel; the root and `registration-kit` keep re-exporting both.

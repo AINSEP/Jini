@@ -1,3 +1,7 @@
+## 0.6.1 — 2026-10-13
+
+- Owned renderer registries: `createToolRendererRegistry` / `createExtEventRendererRegistry`, optional `JiniChatProvider` props `toolRendererRegistry` / `extEventRendererRegistry`, and `registerMcpUiSurfaceRenderer({ registry })`. The global register/get/clear functions keep working against a compatibility default. A stale unregister handle no longer removes a replacement registered with the same callback.
+
 ## 0.6.0 — 2026-10-13
 
 - Remove Recharts peer/dev dependencies. Legacy chart wire components now use the neutral UI host with a styled table fallback; require the extracted UI ^0.5.0 so older built-in Recharts imports cannot leak into a clean consumer.

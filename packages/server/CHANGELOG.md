@@ -1,3 +1,7 @@
+## 0.6.2 — 2026-10-13
+
+- Widen the optional `@jini-ai/chat` peer to `^0.5.8 || ^0.6.0` (it rejected the published chat 0.6.0).
+
 ## 0.5.1 — 2026-10-08
 
 - Align pack contributions, bindings, HTTP mounting, retry classification, executor settings and

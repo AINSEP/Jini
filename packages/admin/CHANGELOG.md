@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.8 — 2026-10-13
+
+- Share-image warning checks decoded size against 1200×630 (width and height independently; was width ≥ 600). New copy key: `The share image is only {height} px tall; use an image at least 630 px tall.`; the width key now says 1200 px.
+- SEO rules import `interpolate` from the universal `@jini-ai/ui/i18n`, so the SEO entries stay React-free. UI peer floor ^0.5.1.
+
 ## 0.4.7 — 2026-10-13
 
 - Accept UI ^0.5.0 for the chart contract extraction.
