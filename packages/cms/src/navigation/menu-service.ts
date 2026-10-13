@@ -28,7 +28,7 @@ import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
 import type { DomainEvent, OutboxPort } from "../core/ports.js";
 import type { MenuRepoPort } from "./repo.memory.js";
 import type { NavLocationBindingRepoPort } from "./ports.js";
-import { menuHtmlInputProblem, mergeMenuHtml, type MenuHtmlAuthoring } from "./menu-html.js";
+import { menuHtmlInputProblem, mergeMenuHtml, type MenuHtmlAuthoring, type MenuHtmlNormalizer } from "./menu-html.js";
 import {
   NAV_DOC_TYPE,
   type MenuStatus,
@@ -337,6 +337,8 @@ function assertValidTitleAndSlug(title: string, slug: string): void {
 // ---------------------------------------------------------------------------
 
 export interface CreateMenuDeps {
+  /** Required for submitted HTML; Node hosts can use the navigation/node adapter. */
+  normalizeMenuHtml?: MenuHtmlNormalizer | undefined;
   repo: MenuRepoPort;
   clock: Clock;
   idGen: IdGenerator;
@@ -346,11 +348,11 @@ export interface CreateMenuDeps {
 
 /** Validated, merged HTML-mode doc fields — `menu-html.ts`'s problem check raised as this file's own error. */
 function menuHtmlFields(
-  { input, existing }: { input: MenuHtmlAuthoring; existing?: Pick<NavMenuDoc, "mode" | "html"> | undefined },
+  { input, existing, normalizeHtml }: { input: MenuHtmlAuthoring; existing?: Pick<NavMenuDoc, "mode" | "html"> | undefined; normalizeHtml?: MenuHtmlNormalizer | undefined },
 ): Pick<NavMenuDoc, "mode" | "html"> {
   const problem = menuHtmlInputProblem(input);
   if (problem) throw new MenuValidationError({ message: problem });
-  return mergeMenuHtml({ input, existing });
+  return mergeMenuHtml({ input, existing }, { normalizeHtml });
 }
 
 export interface CreateMenuServiceInput {
@@ -401,7 +403,7 @@ export async function createMenu(
   if (duplicate) throw new MenuConflictError({ message: `slug '${slug}' already exists` });
 
   const items = validateAndCloneTree({ items: input.items ?? [] }, optional.limits);
-  const htmlFields = menuHtmlFields({ input });
+  const htmlFields = menuHtmlFields({ input, normalizeHtml: deps.normalizeMenuHtml });
 
   const menu: NavMenuEntry = {
     id: deps.idGen.newId(),
@@ -436,6 +438,8 @@ export async function createMenu(
 // ---------------------------------------------------------------------------
 
 export interface UpdateMenuTreeDeps {
+  /** Required for submitted HTML; omitted markup retains the already-normalized stored value. */
+  normalizeMenuHtml?: MenuHtmlNormalizer | undefined;
   repo: MenuRepoPort;
   clock: Clock;
   /** Not previously present on this deps bag — needed to mint the outbox event's id. */ 
@@ -562,7 +566,7 @@ export async function updateMenuTree(
   });
   // Every writer (admin, agent tool, publish repoint, reverters) comes through here, so the stored
   // HTML-mode fields are carried forward unless this write sets them — an items-only save never drops them.
-  const htmlFields = menuHtmlFields({ input, existing: existing.doc });
+  const htmlFields = menuHtmlFields({ input, existing: existing.doc, normalizeHtml: deps.normalizeMenuHtml });
 
   const menu: NavMenuEntry = {
     ...existing,

@@ -5,7 +5,7 @@ import type { OutboxPort } from "../../../core/ports.js";
 import {
   createMenu, createNavMenuReadModel, InMemoryMenuRepo, InMemoryNavLocationBindingRepo,
   resolveMenuDoc, updateMenuTree,
-} from "../../../navigation/index.js";
+} from "../../../navigation/node/index.js";
 import type { NavMenuMode } from "../../../navigation/index.js";
 import { createMenuResolver } from "../../resolvers/index.js";
 

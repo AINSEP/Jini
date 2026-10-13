@@ -19,7 +19,7 @@ import { buildDomainRegistrations, indexCatalogById, requireInputRecord, require
 import { requireToolPermission } from "../core/tools/index.js";
 import { menusAgentToolCatalog } from "./agent-tools.js";
 import { assignLocation, createMenu, MenuNotFoundError, MenuValidationError, updateMenuTree } from "./menu-service.js";
-import { isMenuHtmlAuthoring } from "./menu-html.js";
+import { isMenuHtmlAuthoring, type MenuHtmlNormalizer } from "./menu-html.js";
 import type { NavLocationBindingRepoPort } from "./ports.js";
 import type { MenuRepoPort } from "./repo.memory.js";
 import type { NavItemNode, NavMenuEntry, NavMenuMode } from "./types.js";
@@ -33,6 +33,8 @@ const CATALOG_BY_ID = indexCatalogById({ catalog: menusAgentToolCatalog });
  * route-deps object after binding the kernel clock/ID contracts.
  */
 export interface MenusToolDeps {
+  /** Environment-owned fragment normalizer, forwarded to the audited menu write services. */
+  normalizeMenuHtml?: MenuHtmlNormalizer | undefined;
   authorize: AuthorizeFn;
   workspaceId: string;
   clock: Clock;
@@ -128,7 +130,7 @@ async function requireHtmlAuthoringPermission(
 }
 
 function menusDeps(routeDeps: MenusToolDeps) {
-  return { repo: routeDeps.menuRepo, clock: routeDeps.clock, idGen: routeDeps.idGen, outbox: routeDeps.outbox };
+  return { repo: routeDeps.menuRepo, clock: routeDeps.clock, idGen: routeDeps.idGen, outbox: routeDeps.outbox, normalizeMenuHtml: routeDeps.normalizeMenuHtml };
 }
 
 export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistration[] {

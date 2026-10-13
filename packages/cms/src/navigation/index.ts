@@ -122,6 +122,8 @@ export {
   menuHtmlInputProblem,
   mergeMenuHtml,
   type MenuHtmlAuthoring,
+  type MenuHtmlNormalizer,
+  type MenuHtmlOptions,
 } from "./menu-html.js";
 
 export {

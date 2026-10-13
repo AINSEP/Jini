@@ -78,6 +78,13 @@ coordination.
 `taxonomy`, `workspace`, and `trash`. `settings` is now a compatibility shim, with implementation
 in `@jini-ai/core/settings`. `./core/tools` re-exports the shared core permission helpers; `./media/import` exports bounded image fetching with injected policies and ports.
 
+`./navigation` stays universal: submitted menu HTML requires an injected `normalizeMenuHtml`
+dependency (`normalizeHtml` for `mergeMenuHtml`). Item-only writes and retained markup need no
+parser. Node hosts use `./navigation/node`, which re-exports the navigation API and supplies
+parse5 normalization to create/update, merge and tool registration. The existing validation,
+raw-HTML permission checks, OCC and outbox owners remain unchanged; an unconfigured universal
+HTML write fails before saving rather than persisting markup that could escape its theme container.
+
 **Still to move:** `post`, `seo`, `comments`, `redirects`, `widgets`, `newsletter`,
 `members`. The unimplemented `./widgets` export has been removed.
 The nested forms package is maintained by its separate owner and is excluded from this parent package.

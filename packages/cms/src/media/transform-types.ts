@@ -22,16 +22,11 @@
  * permission catalog.
  */
 import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
+import { MIME_BY_TRANSFORM_FORMAT, type TransformFormat } from "../core/transform-format.js";
+export { mimeForTransformFormat, type TransformFormat } from "../core/transform-format.js";
 
 /** Resize behavior, mirrors `sharp`'s `fit` vocabulary (a deliberately small subset). */
 export type TransformFit = "cover" | "contain" | "fill" | "inside" | "outside";
-
-/**
- * Output re-encode format. Matches `media-service.ts`'s
- * `DEFAULT_ALLOWED_MIME_TYPES` image set minus SVG (never a transform output —
- * SVG has no raster pixels to resize).
- */
-export type TransformFormat = "jpeg" | "png" | "webp" | "gif";
 
 /**
  * Declarative transform parameters (named definitions only, never
@@ -70,23 +65,6 @@ export class TransformValidationError extends Error {
   constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
     super(message, optionalArgs);
   }
-}
-
-/** Maps a {@link TransformFormat} to the MIME type served on the rendition response. */
-const MIME_BY_TRANSFORM_FORMAT: Record<TransformFormat, string> = {
-  jpeg: "image/jpeg",
-  png: "image/png",
-  webp: "image/webp",
-  gif: "image/gif",
-};
-
-/**
- * @complexity O(1).
- * @overallScore 100
- */
-export function mimeForTransformFormat(requiredArgs: { format: TransformFormat }, optionalArgs: Record<string, never> = {}): string {
-  const { format } = requiredArgs;
-  return MIME_BY_TRANSFORM_FORMAT[format];
 }
 
 /** Upper bound on a requested resize dimension — an output-side resource-use guard (not the

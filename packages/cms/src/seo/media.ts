@@ -1,6 +1,7 @@
 import type { UUID } from "@jini-ai/core/primitives";
 import type { MediaRecord } from "../media/types.js";
-import { mimeForTransformFormat, type TransformDefinitionRecord, type TransformFormat } from "../media/transform-types.js";
+import type { TransformDefinitionRecord } from "../media/transform-types.js";
+import { mimeForTransformFormat, type TransformFormat } from "../core/transform-format.js";
 import type { SeoMediaPort, SeoFeaturedImagePort } from "./ports.js";
 
 /**

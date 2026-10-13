@@ -6,9 +6,11 @@ import type { ToolExecutionContext } from "@jini-ai/core";
 import type { OutboxPort } from "../../core/ports.js";
 import { menusAgentToolCatalog } from "../agent-tools.js";
 import { MAX_MENU_HTML_LENGTH } from "../menu-html.js";
-import { createMenu, MenuValidationError, updateMenuTree } from "../menu-service.js";
+import { mergeMenuHtml } from "../menu-html.js";
+import { createMenu as createUniversalMenu } from "../menu-service.js";
+import { createMenu, MenuValidationError, updateMenuTree, buildMenusRegistrations } from "../node/index.js";
 import { InMemoryMenuRepo, InMemoryNavLocationBindingRepo } from "../repo.memory.js";
-import { buildMenusRegistrations, type MenusToolDeps } from "../tool-registrations.js";
+import type { MenusToolDeps } from "../tool-registrations.js";
 
 /**
  * @file Menu HTML mode (owner 2026-10-08): a menu stores author-written HTML beside its item tree,
@@ -24,6 +26,38 @@ function deps(repo: InMemoryMenuRepo) {
   let n = 0;
   return { repo, clock: { nowMs: () => Date.parse("2026-10-08T00:00:00.000Z") }, idGen: { newId: () => `id-${++n}` }, outbox };
 }
+
+test("universal HTML writes require a normalizer before saving or publishing an event", async () => {
+  const repo = new InMemoryMenuRepo({});
+  let events = 0;
+  await assert.rejects(() => createUniversalMenu({
+    deps: { ...deps(repo), outbox: { ...outbox, enqueue: async () => { events++; } } },
+    input: { workspaceId: WS, title: "Header", slug: "header", html: "</nav><div>" },
+  }), { message: "Menu HTML normalization is not configured" });
+  assert.equal(await repo.findBySlug({ workspaceId: WS, slug: "header" }), null);
+  assert.equal(events, 0);
+});
+
+test("a universal create forwards its injected normalizer and stores the balanced output", async () => {
+  const repo = new InMemoryMenuRepo({});
+  const submitted: string[] = [];
+  const { menu } = await createUniversalMenu({
+    deps: { ...deps(repo), normalizeMenuHtml: ({ html }) => { submitted.push(html); return "<p>host fragment</p>"; } },
+    input: { workspaceId: WS, title: "Header", slug: "header", mode: "html", html: "<p>host fragment" },
+  });
+  assert.deepEqual(submitted, ["<p>host fragment"]);
+  assert.equal(menu.doc.html, "<p>host fragment</p>");
+  assert.equal((await repo.findById({ workspaceId: WS, id: menu.id }))?.doc.html, "<p>host fragment</p>");
+});
+
+test("the universal merge uses an injected normalizer only for submitted markup", () => {
+  const submitted: string[] = [];
+  const normalizeHtml = ({ html }: { html: string }) => { submitted.push(html); return "<div>balanced</div>"; };
+  assert.deepEqual(mergeMenuHtml({ input: { mode: "html", html: "<div>" } }, { normalizeHtml }), { mode: "html", html: "<div>balanced</div>" });
+  assert.deepEqual(mergeMenuHtml({ input: { mode: "items" }, existing: { mode: "html", html: "<p>stored</p>" } }, { normalizeHtml }), { mode: "items", html: "<p>stored</p>" });
+  assert.deepEqual(submitted, ["<div>"]);
+  assert.throws(() => mergeMenuHtml({ input: { html: "<div>" } }), { message: "Menu HTML normalization is not configured" });
+});
 
 async function seed(repo: InMemoryMenuRepo, extra: { mode?: "items" | "html"; html?: string } = {}) {
   return (await createMenu({ deps: deps(repo), input: { workspaceId: WS, title: "Header", slug: "header", items: [item], ...extra } })).menu;

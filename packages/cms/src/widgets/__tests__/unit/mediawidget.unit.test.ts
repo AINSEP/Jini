@@ -1,6 +1,6 @@
 /** Owner-approved mediawidget brief, 2026-10-10/11: slug-first media with gallery compatibility. */
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test from '../support/test-runner.js';
 import { parseGalleryConfig, galleryMediaReferences } from '../../markers/gallery.js';
 import { resolveGalleryEmbeds } from '../../gallery-resolver.js';
 import { scanHtmlEmbeds } from '../../html/html-embeds.js';

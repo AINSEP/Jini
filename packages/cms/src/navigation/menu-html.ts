@@ -4,14 +4,14 @@
  *
  * Same trust model as HTML-mode forms (`forms/html/html-authoring.ts`) and HTML Pages: the markup is
  * admin/owner-trusted and NOT sanitized. Hosts gate it behind their raw-HTML permission (Tovu binds
- * `pages.edit_html`, the one forms use); this module only validates and normalizes. parse5 balances
- * the fragment so a stray `</nav>` or an unclosed `<div>` cannot close or swallow the theme element
- * the menu renders inside.
+ * `pages.edit_html`, the one forms use); this module only validates and merges. The injected
+ * normalizer balances the fragment so a stray `</nav>` or an unclosed `<div>` cannot close or
+ * swallow the theme element the menu renders inside. The Node adapter supplies parse5; the
+ * universal entry never loads a parser or assumes a browser DOM.
  *
  * Both modes' data live side by side in the doc: switching mode never deletes the other one, so an
  * author can flip back and find their items (or their HTML) still there.
  */
-import { parseFragment, serialize } from "parse5";
 import type { NavMenuDoc, NavMenuMode } from "./types.js";
 
 /** Same ceiling HTML-mode forms use. */
@@ -32,9 +32,12 @@ export function isMenuHtmlAuthoring({ mode, html }: MenuHtmlAuthoring, _optional
   return html !== undefined || mode === "html";
 }
 
-/** Balance the fragment; scripts and authored styling stay as written (trusted markup). */
-function normalizeMenuHtml(html: string): string {
-  return serialize(parseFragment(html));
+/** Balance a trusted HTML fragment while preserving scripts and authored styling. */
+export type MenuHtmlNormalizer = (required: { html: string }, optional?: Record<string, never>) => string;
+
+/** A host supplies its environment's fragment parser; omitted is valid for item-only writes. */
+export interface MenuHtmlOptions {
+  normalizeHtml?: MenuHtmlNormalizer | undefined;
 }
 
 /**
@@ -54,13 +57,19 @@ export function menuHtmlInputProblem({ mode, html }: MenuHtmlAuthoring, _optiona
  * The doc's `mode`/`html` after a valid write: submitted values win, omitted ones keep what is
  * stored, and a menu that never used HTML mode gets neither key, so its stored doc (and publish
  * hash) is unchanged. Call {@link menuHtmlInputProblem} first.
+ * @param optional Host fragment normalizer, required when input.html is supplied.
+ * @throws {Error} Submitted markup has no configured normalizer; never saves unbalanced HTML.
  * @complexity O(h) in the submitted html length (one parse + serialize).
  */
 export function mergeMenuHtml(
   { input, existing }: { input: MenuHtmlAuthoring; existing?: Pick<NavMenuDoc, "mode" | "html"> | undefined },
-  _optional: Record<string, never> = {},
+  optional: MenuHtmlOptions = {},
 ): Pick<NavMenuDoc, "mode" | "html"> {
   const mode = input.mode ?? existing?.mode;
-  const html = input.html !== undefined ? normalizeMenuHtml(input.html) : existing?.html;
+  let html = existing?.html;
+  if (input.html !== undefined) {
+    if (!optional.normalizeHtml) throw new Error("Menu HTML normalization is not configured");
+    html = optional.normalizeHtml({ html: input.html });
+  }
   return { ...(mode !== undefined ? { mode } : {}), ...(html !== undefined ? { html } : {}) };
 }

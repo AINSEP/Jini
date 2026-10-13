@@ -36,6 +36,7 @@
       "./widgets/html/gallery-render": "universal",
       "./navigation/types": "universal",
       "./navigation/dropdown": "universal",
+      "./navigation/node": "node",
       "./media/slug": "universal",
       "./forms": "universal",
       "./forms/html": "node",
@@ -256,6 +257,11 @@
       "types": "./dist/navigation/dropdown.d.ts",
       "import": "./dist/navigation/dropdown.js",
       "default": "./dist/navigation/dropdown.js"
+    },
+    "./navigation/node": {
+      "types": "./dist/navigation/node/index.d.ts",
+      "import": "./dist/navigation/node/index.js",
+      "default": "./dist/navigation/node/index.js"
     },
     "./media/slug": {
       "types": "./dist/media/slug.d.ts",
