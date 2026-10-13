@@ -11,6 +11,7 @@ import {
   type AgentToRendererMessage,
   type RendererToAgentMessage,
 } from '@jini-ai/agentic/a2ui';
+import Database from 'better-sqlite3';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';
 import type { ToolRegistration } from '@jini-ai/core';
@@ -146,7 +147,7 @@ async function runDemo(
     canceled = true;
   } });
 
-  const emitAgent = (data: RunAgentPayload) => lifecycle.emit(runId, { event: 'agent', data });
+  const emitAgent = (data: RunAgentPayload) => lifecycle.emit({ runId, input: { event: 'agent', data } });
   const stopIfCanceled = async (): Promise<boolean> => {
     if (!canceled) return false;
     await lifecycle.finish({ runId, status: 'cancelled', code: null, signal: null, resumable: false });
@@ -282,7 +283,7 @@ async function runA2uiDemo(
   lifecycle.onCancelRequested({ runId, listener: () => {
     canceled = true;
   } });
-  const emitAgent = (data: RunAgentPayload) => lifecycle.emit(runId, { event: 'agent', data });
+  const emitAgent = (data: RunAgentPayload) => lifecycle.emit({ runId, input: { event: 'agent', data } });
   /**
    * Validates every outgoing message against `@jini-ai/agentic/a2ui`'s own `parseAgentToRendererMessage`
    * before it goes out over the wire — this demo dogfoods the same schema the browser-side
@@ -290,14 +291,14 @@ async function runA2uiDemo(
    * instead of silently reaching the renderer as a message it then has to reject.
    */
   const emitA2ui = (message: AgentToRendererMessage) => {
-    const validated = parseAgentToRendererMessage(message);
+    const validated = parseAgentToRendererMessage({ raw: message });
     if (!validated.ok) {
       throw new Error(`[A2UI Lab] refusing to emit a message that fails its own schema: ${validated.message}`);
     }
     emitAgent({ type: 'a2ui', message: validated.message });
   };
 
-  const catalog = createLabCatalog();
+  const catalog = createLabCatalog({});
   const surfaceId = `${runId}-surface`;
 
   await emitAgent({ type: 'status', label: 'Building an A2UI surface', detail: catalog.catalogId });
@@ -402,7 +403,7 @@ function startA2uiActionRelay(port: number): HttpServer {
       // Real spec-conformance enforcement, not a rubber stamp: an envelope that fails
       // `@jini-ai/agentic/a2ui`'s own renderer -> agent schema (missing version, malformed action shape, ...)
       // is refused here at the network boundary, before it can ever reach `runA2uiDemo`.
-      const parsed = parseRendererToAgentMessage(body.message);
+      const parsed = parseRendererToAgentMessage({ raw: body.message });
       if (!parsed.ok) {
         res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: parsed.reason }));
         return;
@@ -438,8 +439,8 @@ async function main(): Promise<void> {
   const mediaTaskStore = await createSqliteMediaTaskStore(resolve(dataDir, 'media-tasks.db'));
   const memoryRoutesDeps = {
     notes: createNoteStore({ validTypes: ['note'], defaultType: 'note' }),
-    extractions: createExtractionLog(),
-    verifications: createVerifyLog(),
+    extractions: createExtractionLog({}),
+    verifications: createVerifyLog({}),
     dataDir,
   };
   const workingDirectoryAuthority = await createPlaygroundWorkingDirectoryAuthority({
@@ -455,7 +456,7 @@ async function main(): Promise<void> {
     uploadDirectory: uploadDir,
   });
   const attachmentPruneTimer = setInterval(() => {
-    void attachmentStore.pruneExpired().catch((error: unknown) => {
+    void attachmentStore.pruneExpired({}).catch((error: unknown) => {
       console.error('[Jini Playground] attachment retention cleanup failed', error);
     });
   }, 5 * 60 * 1_000);
@@ -467,8 +468,7 @@ async function main(): Promise<void> {
    */
   const frontendControl = createFrontendControl({
     capabilities: [...PAGE_CAPABILITIES, ...CHAT_CAPABILITIES, ...WEBMCP_LAB_CAPABILITIES],
-    policy: { authorize: () => 'allow' },
-    resolveBindToken: (request) => {
+    resolveBindToken: ({ request }) => {
       try {
         return decodePlaygroundRunRequest({
           contextRef: request.contextRef,
@@ -481,21 +481,23 @@ async function main(): Promise<void> {
         return undefined;
       }
     },
-  });
+  }, { policy: { authorize: () => 'allow' } });
 
   let daemon: Awaited<ReturnType<typeof createLocalNodeDaemon>>;
   try {
     daemon = await createLocalNodeDaemon({
       agentExecutor: runtimeExecutorOptions,
       dataDir,
+      // The host supplies the SQLite driver; Jini never autoloads it.
+      open: (file, options) => new Database(file, options),
       port: PLAYGROUND_PORT,
       packs: [],
       env,
-      resolveWorkspaceRoot: ({ resourceRef }) =>
+      resolveWorkspaceRoot: ({ request: { resourceRef } }) =>
         PROJECTS.has(resourceRef) ? resolve(repoRoot, 'examples/sample-projects', resourceRef) : undefined,
       toolRegistrations: [...frontendControl.toolRegistrations, showMcpUiWidgetTool],
       httpExtensions: [
-        frontendControl.httpExtension,
+        (app, context) => frontendControl.httpExtension({ app, context }),
         (app) => {
           // Served from THIS daemon's own origin — a genuinely different port than the Vite dev
           // server hosting `McpUiLab.tsx` — because the MCP Apps spec requires the View to be a
@@ -550,8 +552,15 @@ async function main(): Promise<void> {
         (app, { adapter }) => registerMemoryRoutes({ app, deps: memoryRoutesDeps, adapter }),
         (app, { adapter }) =>
           registerMediaRoutes({ app, deps: {
-              engine: createMediaDispatchEngine({ credentials: {} }),
-              taskStore: mediaTaskStore,
+              engine: createMediaDispatchEngine({}, { credentials: {} }),
+              // The daemon's route port takes object args; the integrations store is positional.
+              taskStore: {
+                create: ({ input }) => mediaTaskStore.create(input),
+                get: ({ id }) => mediaTaskStore.get(id),
+                update: ({ id, patch }) => mediaTaskStore.update(id, patch),
+                listByOwner: ({ ownerRef }, options) => mediaTaskStore.listByOwner(ownerRef, options),
+                delete: ({ id }) => mediaTaskStore.delete(id),
+              },
             }, adapter }),
       ],
       onShutdown: async () => {
@@ -580,10 +589,10 @@ async function main(): Promise<void> {
               allowedProjects: PROJECTS,
               prefix: PLAYGROUND_PREFIX,
             });
-            const claimed = await attachmentStore.claim(
-              decoded.attachments ?? [],
-              run.id,
-            );
+            const claimed = await attachmentStore.claim({
+              attachments: decoded.attachments ?? [],
+              runId: run.id,
+            });
             const {
               attachments: _untrustedAttachments,
               ...decodedWithoutAttachments
@@ -619,6 +628,7 @@ async function main(): Promise<void> {
               agentId: request.agentId,
               prompt: promptWithPlaygroundAttachments(trustedRequest),
               cwd,
+            }, {
               env: createPlaygroundRuntimeEnvironment(process.env),
               ...(decoded.model !== undefined ? { model: decoded.model } : {}),
               ...(decoded.reasoning !== undefined ? { reasoning: decoded.reasoning } : {}),
@@ -640,7 +650,7 @@ async function main(): Promise<void> {
               runId: run.id,
             });
           } finally {
-            await attachmentStore.cleanupRun(run.id);
+            await attachmentStore.cleanupRun({ runId: run.id });
           }
         })();
       },

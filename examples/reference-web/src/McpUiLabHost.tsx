@@ -134,7 +134,7 @@ export function useMcpUiLabHost(options: UseMcpUiLabHostOptions): UseMcpUiLabHos
     const id = `host-teardown-${nextHostRequestIdRef.current++}`;
     setStateBoth('tearing-down');
     setTeardownAcknowledged(null);
-    postToView(createJsonRpcRequest(id, MCP_UI_HOST_REQUESTS.teardown, { reason: 'user requested' }));
+    postToView(createJsonRpcRequest({ id, method: MCP_UI_HOST_REQUESTS.teardown }, { params: { reason: 'user requested' } }));
     appendLog('out', `ui/resource-teardown request sent (id=${id}) — waiting up to ${TEARDOWN_TIMEOUT_MS}ms`);
     const timer = window.setTimeout(() => {
       appendLog(
@@ -191,11 +191,11 @@ export function useMcpUiLabHost(options: UseMcpUiLabHostOptions): UseMcpUiLabHos
         if (request.method !== MCP_UI_VIEW_METHODS.initialize) {
           appendLog('refused', `refused ${request.method}: handshake has not started`);
           postToView(
-            createJsonRpcError(
-              request.id,
-              JSON_RPC_ERROR_CODES.invalidRequest,
-              'Handshake has not started; call ui/initialize first.',
-            ),
+            createJsonRpcError({
+              id: request.id,
+              code: JSON_RPC_ERROR_CODES.invalidRequest,
+              message: 'Handshake has not started; call ui/initialize first.',
+            }),
           );
           return;
         }
@@ -206,11 +206,14 @@ export function useMcpUiLabHost(options: UseMcpUiLabHostOptions): UseMcpUiLabHos
           // sent `hostCapabilities.sampling` as a boolean instead of the object shape the spec
           // defines (`{ tools?: {} }`, present only when the Host actually supports sampling —
           // omitted here since this demo Host does not implement `sampling/createMessage`).
-          createJsonRpcResult(request.id, {
-            protocolVersion: '2026-01-26',
-            hostInfo: { name: 'jini-mcpui-lab-host', version: '0.1.0' },
-            hostContext: { theme: 'light', displayMode: 'inline' },
-            hostCapabilities: {},
+          createJsonRpcResult({
+            id: request.id,
+            result: {
+              protocolVersion: '2026-01-26',
+              hostInfo: { name: 'jini-mcpui-lab-host', version: '0.1.0' },
+              hostContext: { theme: 'light', displayMode: 'inline' },
+              hostCapabilities: {},
+            },
           }),
         );
         appendLog('out', 'ui/initialize response sent');
@@ -227,18 +230,18 @@ export function useMcpUiLabHost(options: UseMcpUiLabHostOptions): UseMcpUiLabHos
       if (stateRef.current !== 'ready') {
         appendLog('refused', `refused ${request.method}: handshake not complete (state=${stateRef.current})`);
         postToView(
-          createJsonRpcError(
-            request.id,
-            JSON_RPC_ERROR_CODES.invalidRequest,
-            `Handshake not complete (state=${stateRef.current}).`,
-          ),
+          createJsonRpcError({
+            id: request.id,
+            code: JSON_RPC_ERROR_CODES.invalidRequest,
+            message: `Handshake not complete (state=${stateRef.current}).`,
+          }),
         );
         return;
       }
 
       appendLog('info', `${request.method} received post-handshake; demo Host has no implementation for it`);
       postToView(
-        createJsonRpcError(request.id, JSON_RPC_ERROR_CODES.methodNotFound, `Demo Host does not implement ${request.method}.`),
+        createJsonRpcError({ id: request.id, code: JSON_RPC_ERROR_CODES.methodNotFound, message: `Demo Host does not implement ${request.method}.` }),
       );
     }
 
@@ -262,20 +265,22 @@ export function useMcpUiLabHost(options: UseMcpUiLabHostOptions): UseMcpUiLabHos
         appendLog('rejected', `dropped message: origin "${raw.origin}" !== expected "${viewOrigin}"`);
         return;
       }
-      if (!isJsonRpcMessage(raw.data)) {
+      const candidate = { value: raw.data };
+      if (!isJsonRpcMessage(candidate)) {
         appendLog('rejected', `dropped malformed (non-JSON-RPC) message: ${JSON.stringify(raw.data)}`);
         return;
       }
-      const message = raw.data;
-      if (isJsonRpcRequest(message)) {
-        handleViewRequest(message);
+      const candidateRequest = { message: candidate.value };
+      if (isJsonRpcRequest(candidateRequest)) {
+        handleViewRequest(candidateRequest.message);
         return;
       }
-      if (typeof (message as { method?: unknown }).method === 'string') {
-        handleViewNotification(message as { method: string; params?: unknown });
+      const message = candidate.value;
+      if ('method' in message) {
+        handleViewNotification(message);
         return;
       }
-      handleViewResponse(message as { id: number | string; result?: unknown; error?: unknown });
+      handleViewResponse(message);
     });
 
     return () => {

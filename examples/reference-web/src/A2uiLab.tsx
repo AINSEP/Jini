@@ -1,7 +1,7 @@
 import { createSystemClock } from "@jini-ai/core/primitives";
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
-import { createA2uiInterpreter, createLabCatalog, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
+import { createA2uiInterpreter, createLabCatalog, DynamicValueSchema, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
 import { A2uiSurfaceCard, registerExtEventRenderer } from '@jini-ai/chat/react';
 
 /**
@@ -164,7 +164,9 @@ function RenderComponent({
   const childProps = { interpreter, surfaceId, ancestors: nextAncestors, onAction };
 
   function resolveText(value: unknown): string {
-    const result = interpreter.resolve(surfaceId, value as Parameters<A2uiInterpreter['resolve']>[1]);
+    const parsed = DynamicValueSchema.safeParse(value);
+    if (!parsed.success) return '⚠ unresolved (invalid dynamic value)';
+    const result = interpreter.resolve({ surfaceId, value: parsed.data });
     if (!result.ok) return `⚠ unresolved (${result.reason})`;
     return typeof result.value === 'string' ? result.value : JSON.stringify(result.value);
   }
@@ -239,8 +241,8 @@ export function A2uiLab() {
   const appendLog = (line: string) => setLog((prev) => [...prev.slice(-49), line]);
 
   useEffect(() => {
-    const unsubscribe = interpreter.subscribe(() => forceRender((n) => n + 1));
-    return unsubscribe;
+    const unsubscribe = interpreter.subscribe({ listener: () => forceRender((n) => n + 1) });
+    return () => unsubscribe({});
   }, [interpreter]);
 
   useEffect(() => {

@@ -12,6 +12,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@jini-ai/agent-runtime": "workspace:*",
     "@jini-ai/agentic": "workspace:*",
     "@jini-ai/chat": "workspace:*",
     "@jini-ai/core": "workspace:*",
@@ -24,6 +25,7 @@
     "@jini-ai/server": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
     "@jini-ai/ui": "workspace:*",
+    "better-sqlite3": "^13.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
@@ -31,6 +33,7 @@
     "@mcp-b/webmcp-polyfill": "^4.0.0",
     "@modelcontextprotocol/ext-apps": "^1.7.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

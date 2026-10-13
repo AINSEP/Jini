@@ -27,10 +27,9 @@ export interface PlaygroundRunRequest {
 }
 
 interface PlaygroundFailureLifecycle {
-  get: (runId: string) => Promise<{ state: string } | undefined>;
+  get: (input: { runId: string }) => Promise<{ state: string } | undefined>;
   emit: (
-    runId: string,
-    input: { event: 'error'; data: { message: string } },
+    input: { runId: string; input: { event: 'error'; data: { message: string } } },
   ) => Promise<unknown>;
   finish: (input: {
     runId: string;
@@ -194,7 +193,7 @@ export async function failPlaygroundRunBeforeExecutor({
   lifecycle: PlaygroundFailureLifecycle;
   runId: string;
 }): Promise<boolean> {
-  const status = await lifecycle.get(runId);
+  const status = await lifecycle.get({ runId });
   if (
     !status
     || status.state === 'succeeded'
@@ -202,14 +201,17 @@ export async function failPlaygroundRunBeforeExecutor({
     || status.state === 'cancelled'
   ) return false;
   try {
-    await lifecycle.emit(runId, {
-      event: 'error',
-      data: {
-        message: 'The run could not start because its local inputs are unavailable or no longer approved.',
+    await lifecycle.emit({
+      runId,
+      input: {
+        event: 'error',
+        data: {
+          message: 'The run could not start because its local inputs are unavailable or no longer approved.',
+        },
       },
     });
   } catch (error) {
-    const racedStatus = await lifecycle.get(runId);
+    const racedStatus = await lifecycle.get({ runId });
     if (
       racedStatus?.state === 'succeeded'
       || racedStatus?.state === 'failed'
