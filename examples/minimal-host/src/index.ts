@@ -2,7 +2,7 @@
  * @module minimal-host entry point
  *
  * The neutrality-proof entry point (README.md; ADS-memory/reports/jini-port/extraction-plan.md §2.4/§7):
- * imports ONLY `@jini-ai/*` packages, boots a real `createLocalNodeDaemon` daemon (the "host
+ * uses `@jini-ai/*` engine packages with a host-owned SQLite driver, boots a real `createLocalNodeDaemon` daemon (the "host
  * preset" — zero product concepts, zero interfaces implemented) with no feature packs, then
  * exercises its complete run vertical slice over real HTTP: create, stream, reconnect with a
  * cursor, cancel, restart and replay. `scripts/health-boot.ts` runs this file from a scratch copy
@@ -12,6 +12,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
 import { acpFixtureDef } from './acp-fixture.js';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import { createNativeAgentRuntime, type AgentLaunchResolution } from '@jini-ai/agent-runtime';
@@ -48,6 +49,8 @@ async function main(): Promise<void> {
       codexDisablePlugins: runtime.codexDisablePlugins, piGracefulShutdownMs: runtime.piGracefulShutdownMs };
     return createLocalNodeDaemon({
       dataDir,
+      // The host supplies the SQLite driver; Jini never autoloads it.
+      open: (file, options) => new Database(file, options),
       agentExecutor: runtimeExecutorOptions,
       onShutdown: () => runtime.dispose({}),
       packs: [],

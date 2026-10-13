@@ -11,6 +11,10 @@
     "@jini-ai/agent-runtime": "workspace:*",
     "@jini-ai/daemon": "workspace:*",
     "@jini-ai/platform": "workspace:*",
-    "@jini-ai/server": "workspace:*"
+    "@jini-ai/server": "workspace:*",
+    "better-sqlite3": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11"
   }
 }
