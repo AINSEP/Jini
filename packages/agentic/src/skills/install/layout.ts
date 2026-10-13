@@ -11,8 +11,8 @@ import type { SkillLayoutPort } from './ports.js';
 const SAFE_ID_SEGMENT_PATTERN = /^[a-z0-9]+(?:[-.][a-z0-9]+)*$/;
 /** Bounds the segment so a caller cannot drive a pathological path length. */
 const MAX_ID_SEGMENT_LENGTH = 64;
-// The segment grammar above moved from Tovu features/skills/layout.ts; the sibling path in its
-// historical rationale refers to Tovu features/agent-plugins/layout.ts.
+// The segment grammar above moved from host features/skills/layout.ts; the sibling path in its
+// historical rationale refers to host features/agent-plugins/layout.ts.
 
 /**
  * Deliberately does NOT import anything from `src/features/agent-plugins/` — Agent Skills and Agent
@@ -22,7 +22,7 @@ const MAX_ID_SEGMENT_LENGTH = 64;
  * between themselves: a private guard belonging to one small module, not a promise to keep two
  * independent features' internals in sync.
  */
-// This paragraph records the original Tovu module boundary; the private segment guard now
+// This paragraph records the original host module boundary; the private segment guard now
 // belongs to this Jini layout owner, and the host keeps only the site-directory adapter.
 
 /** Every storage location is host-owned; this adapter has no product or cwd defaults.
