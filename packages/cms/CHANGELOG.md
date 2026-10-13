@@ -1,3 +1,7 @@
+## 0.5.9 — 2026-10-13
+
+- `./widgets`: write, embed and region services take an optional `entryLocks` dependency, threaded into every `withEntryLock` call. New `getEntryLockState({ owner })` returns one lock state per store object, so a host that rebuilds dependency bags per request still shares one queue per store. Omitting `entryLocks` keeps the previous module-wide state.
+
 ## 0.5.8 — 2026-10-13
 
 - New `./navigation/node` subpath: re-exports the full `./navigation` API with parse5 menu-HTML normalization bound into `createMenu`, `updateMenuTree`, `mergeMenuHtml` and `buildMenusRegistrations`. Node hosts writing HTML-mode menus should import those from `./navigation/node`.
