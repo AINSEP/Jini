@@ -3,6 +3,13 @@
   "violations": [
     {
       "rule": "HW3-module-state",
+      "file": "packages/platform/src/fs/boot-identity.ts",
+      "line": 5,
+      "reason": "Process-lifetime kernel boot identity; no tenant state; injected override retained.",
+      "fingerprint": "3673014e72b67383be302485694555a57ad393afdebaed6ded110a775bd0556d"
+    },
+    {
+      "rule": "HW3-module-state",
       "file": "packages/admin/src/agent-plugins/rules.ts",
       "line": 8,
       "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
@@ -79,13 +86,6 @@
       "fingerprint": "7b987a9cad303c6497f716bdac111d10eaf27322d150dc30c23d55c5614fc6b5"
     },
     {
-      "rule": "HW1-env-default",
-      "file": "packages/agent-runtime/src/agent-protocol/pi-rpc/session.ts",
-      "line": 414,
-      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
-      "fingerprint": "a9dfb04490d74e1ec6e7b3f8e10773ca057e7c423713790884be9fe670c2da83"
-    },
-    {
       "rule": "HW8-provider-url",
       "file": "packages/agent-runtime/src/anthropic-live-models.ts",
       "line": 31,
@@ -129,13 +129,6 @@
     },
     {
       "rule": "HW1-env-default",
-      "file": "packages/agent-runtime/src/defs/codex.ts",
-      "line": 307,
-      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
-      "fingerprint": "2319faaa73ca8d43999d9f2247b2d7470957050dcf325c860106478c016729fc"
-    },
-    {
-      "rule": "HW1-env-default",
       "file": "packages/agent-runtime/src/defs/reasonix.ts",
       "line": 13,
       "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
@@ -175,13 +168,6 @@
       "line": 383,
       "reason": "Call an injected fetch port; the global fetch may only supply its default.",
       "fingerprint": "e7d3799ecc09f5cbc446aa0a79bb1fb9d0126395fa19a5903b7425f42e5e92e7"
-    },
-    {
-      "rule": "HW3-module-state",
-      "file": "packages/agent-runtime/src/providers/elevenlabs.ts",
-      "line": 57,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "afe89e641bdabe48ac1e2c82a4859527b4597f4e1557899ed5319c9a7412e7bb"
     },
     {
       "rule": "HW3-module-state",
@@ -812,13 +798,6 @@
       "line": 15,
       "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
       "fingerprint": "e513fb1f0504a951919688029321eaa02b4e2ad014c0979c4b602b946f9cafc8"
-    },
-    {
-      "rule": "HW3-module-state",
-      "file": "packages/diagnostics/src/web-evidence/playwright-browser.ts",
-      "line": 59,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "67b47f0fcd4d4fe53b5b74005e57f3d8634dddf9d6d69e75d40e927802395612"
     },
     {
       "rule": "HW3-module-state",

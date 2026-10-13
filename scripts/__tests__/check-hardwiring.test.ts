@@ -1,9 +1,38 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { collectHardwiring } from '../check-hardwiring.js';
+import ts from 'typescript';
+import { createHardwiringInspector, diffHardwiringDebt, type HardwiringViolation } from '../../packages/devops/src/checks/hardwiring.js';
+
+test('boot identity waiver retains exact file, fingerprint and occurrence count', () => {
+  const file = 'packages/platform/src/fs/boot-identity.ts';
+  const baseline = (JSON.parse(readFileSync(new URL('../hardwiring-debt.json', import.meta.url), 'utf8')) as {
+    violations: HardwiringViolation[];
+  }).violations.filter(v => v.file === file);
+  assert.deepEqual(baseline, [{
+    rule: 'HW3-module-state', file, line: 5,
+    fingerprint: '3673014e72b67383be302485694555a57ad393afdebaed6ded110a775bd0556d',
+    reason: 'Process-lifetime kernel boot identity; no tenant state; injected override retained.',
+  }]);
+  const source = readFileSync(new URL(`../../${file}`, import.meta.url), 'utf8');
+  const inspector = createHardwiringInspector({ compiler: ts });
+  const current = inspector.inspect({ file, source, mode: 'jini', server: true });
+  assert.equal(current.length, 1);
+  assert.deepEqual(diffHardwiringDebt({ baseline, current }).added, []);
+  // Moving/renaming the state or adding another occurrence must never inherit this approval.
+  const moved = inspector.inspect({ file: 'packages/platform/src/fs/other.ts', source, mode: 'jini', server: true });
+  assert.deepEqual(diffHardwiringDebt({ baseline, current: moved }).added, moved);
+  const renamed = inspector.inspect({ file, source: source.replaceAll('cached', 'tenantCache'), mode: 'jini', server: true });
+  assert.equal(renamed.length, 1);
+  assert.deepEqual(diffHardwiringDebt({ baseline, current: renamed }).added, renamed);
+  assert.deepEqual(diffHardwiringDebt({ baseline, current: [...current, ...current] }).added, current);
+  const expanded = inspector.inspect({ file, source: `${source}\nlet tenantCache;`, mode: 'jini', server: true });
+  assert.equal(expanded.length, 2);
+  assert.deepEqual(diffHardwiringDebt({ baseline, current: expanded }).added, [expanded[1]]);
+});
 
 test('Jini guard scans nested package source and excludes tests; clean DI does not add debt', () => {
   const root = mkdtempSync(join(tmpdir(), 'jini-hardwiring-'));

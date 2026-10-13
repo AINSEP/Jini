@@ -4,6 +4,97 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { checkPackageLayers } from '../check-package-layers.js';
 
+describe.each([
+  { owner: 'agent-runtime', target: 'integrations', leaf: 'media-providers/catalog', source: 'src/model-discovery-adapters.ts', layer: 3, targetLayer: 4 },
+  { owner: 'memory', target: 'integrations', leaf: 'media-providers/catalog', source: 'src/llm-provider.ts', layer: 2, targetLayer: 4 },
+  { owner: 'db', target: 'platform', leaf: 'secrets/credential-sets/contracts', source: 'src/secrets-vault/repo.sql.ts', layer: 2, targetLayer: 2 },
+])('$owner reviewed leaf edge', ({ owner, target, leaf, source, layer, targetLayer }) => {
+  let root: string;
+  const targetPackage = `@jini-ai/${target}`;
+  const spec = `${targetPackage}/${leaf}`;
+
+  /** Write isolated source/manifests; never modify the shared workspace fixture owners. */
+  function write(required: { file: string; content: string }, _options: Record<string, never> = {}): void {
+    const path = join(root, required.file);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, required.content);
+  }
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'jini-leaf-layer-test-'));
+    write({ file: `packages/${owner}/package.json`, content: JSON.stringify({
+      name: `@jini-ai/${owner}`, dependencies: { [targetPackage]: '*' },
+    }) });
+    write({ file: `packages/${target}/package.json`, content: JSON.stringify({ name: targetPackage }) });
+  });
+  afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+  it('permits the corresponding manifest declaration alone', () => {
+    expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
+  });
+
+  it('permits an optional peer declaration and the exact production leaf', () => {
+    write({ file: `packages/${owner}/package.json`, content: JSON.stringify({
+      name: `@jini-ai/${owner}`, peerDependencies: { [targetPackage]: '*' },
+      peerDependenciesMeta: { [targetPackage]: { optional: true } },
+    }) });
+    write({ file: `packages/${owner}/${source}`, content: `import { X } from '${spec}';` });
+    expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
+  });
+
+  it.each(['import type { X } from', 'export { X } from', 'const x = import', 'const x = require'])
+    ('permits only the reviewed file and leaf with %s', syntax => {
+      const content = syntax.endsWith('from') ? `${syntax} '${spec}';` : `${syntax}('${spec}');`;
+      write({ file: `packages/${owner}/${source}`, content });
+      expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
+    });
+
+  it.each(['', '/parent', '/service', '/dispatch', '/src/private', '/../contracts'])
+    ('blocks the root and other subpaths: %s', suffix => {
+      const parent = spec.slice(0, spec.lastIndexOf('/'));
+      const blocked = suffix === '/parent' ? parent : suffix ? `${parent}${suffix}` : targetPackage;
+      write({ file: `packages/${owner}/${source}`, content: `import { X } from '${blocked}';` });
+      expect(checkPackageLayers({ repoRoot: root })).toEqual([{
+        rule: 'L1-layer-edge', file: `packages/${owner}/${source}`,
+        reason: `${owner} → ${blocked}: L${layer} cannot depend on L${targetLayer}`,
+      }]);
+    });
+
+  it('checks a disallowed sibling even alongside an allowed import', () => {
+    const sibling = `packages/${owner}/src/sibling.ts`;
+    write({ file: `packages/${owner}/${source}`, content: `import { X } from '${spec}';` });
+    write({ file: sibling, content: `const x = import('${spec}');` });
+    expect(checkPackageLayers({ repoRoot: root })).toEqual([{
+      rule: 'L1-layer-edge', file: sibling,
+      reason: `${owner} → ${spec}: L${layer} cannot depend on L${targetLayer}`,
+    }]);
+  });
+
+  it('does not permit another package to use the reviewed file and leaf', () => {
+    const file = `packages/diagnostics/${source}`;
+    write({ file: 'packages/diagnostics/package.json', content: JSON.stringify({
+      name: '@jini-ai/diagnostics', dependencies: { [targetPackage]: '*' },
+    }) });
+    write({ file, content: `import { X } from '${spec}';` });
+    expect(checkPackageLayers({ repoRoot: root })).toEqual([{
+      rule: 'L1-layer-edge', file: 'packages/diagnostics/package.json',
+      reason: `diagnostics → ${targetPackage}: L2 cannot depend on L${targetLayer}`,
+    }, {
+      rule: 'L1-layer-edge', file,
+      reason: `diagnostics → ${spec}: L2 cannot depend on L${targetLayer}`,
+    }]);
+  });
+
+  it('does not exempt undeclared production imports', () => {
+    write({ file: `packages/${owner}/package.json`, content: JSON.stringify({ name: `@jini-ai/${owner}` }) });
+    write({ file: `packages/${owner}/${source}`, content: `import { X } from '${spec}';` });
+    expect(checkPackageLayers({ repoRoot: root })).toEqual([{
+      rule: 'L3-undeclared-edge', file: `packages/${owner}/${source}`,
+      reason: `${owner} → ${spec}: production import must be a dependency or peerDependency`,
+    }]);
+  });
+});
+
 describe('user-management optional admin integration layer exception', () => {
   let root: string;
 

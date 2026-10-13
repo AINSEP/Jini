@@ -24,6 +24,14 @@ const layers: Readonly<Record<string, number>> = {
 };
 const sameLayerEdges = new Set(['cli→sidecar', 'cms-forms→cms', 'admin→ui']);
 
+// Reviewed feature owners expose these contracts/catalogs without dispatch or service code.
+// Manifest declarations permit installation; each production import still needs its exact leaf/file.
+const leafEdges = [
+  { owner: 'agent-runtime', target: 'integrations', spec: '@jini-ai/integrations/media-providers/catalog', sourcePath: 'src/model-discovery-adapters.ts' },
+  { owner: 'memory', target: 'integrations', spec: '@jini-ai/integrations/media-providers/catalog', sourcePath: 'src/llm-provider.ts' },
+  { owner: 'db', target: 'platform', spec: '@jini-ai/platform/secrets/credential-sets/contracts', sourcePath: 'src/secrets-vault/repo.sql.ts' },
+] as const;
+
 function isPublicEntry(
   required: { spec: string; pkg: SourcePackage | undefined },
   _optional: Record<string, never> = {},
@@ -81,7 +89,10 @@ export function checkPackageLayers(
     const adminIntegration = owner === 'user-management' && target === 'admin' && optionalPeer
       && sourcePath !== undefined && /^src\/admin\//.test(sourcePath)
       && isPublicEntry({ spec, pkg: byName.get('@jini-ai/admin') });
-    if (targetLayer >= ownerLayer && !sameLayerEdges.has(`${owner}→${target}`) && !reactIntegration && !adminIntegration) {
+    const reviewedLeaf = leafEdges.some(edge => edge.owner === owner && edge.target === target
+      && (sourcePath === undefined ? spec === `@jini-ai/${edge.target}`
+        : spec === edge.spec && sourcePath === edge.sourcePath));
+    if (targetLayer >= ownerLayer && !sameLayerEdges.has(`${owner}→${target}`) && !reactIntegration && !adminIntegration && !reviewedLeaf) {
       violations.push({ rule: 'L1-layer-edge', file, reason: `${reason}: L${ownerLayer} cannot depend on L${targetLayer}` });
     }
     if (sourcePath !== undefined && ['ui', 'chat'].includes(owner) && target === 'platform'
