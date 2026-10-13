@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.5 — 2026-10-12 — retirement waits for usable successors
+
+- `retireBundledAgentPlugins()` (and so the boot seeder) keeps a retired bundled plugin until EVERY
+  successor is installed at the digest `bundled-digests.json` records for it. Before, a successor
+  whose seed had failed still got an activation record and the predecessor was removed — a switch
+  with no code behind it. The kept plugin's outcome is `failed` with the reason; the next boot retries.
+- `retiredBundledPlugins` (and the `retired` option) may list several successors for a plugin split
+  across them; such outcomes carry `successorIds` and, when retired, per-successor `successors`.
+  Single-successor outcomes are unchanged.
+
 ## 0.4.4 — 2026-10-12 — Agent Plugins 1.1.0
 
 - `parseAgentPluginManifest()` / `parseAgentPluginMcpConfig()` (and so the installer and MCP
