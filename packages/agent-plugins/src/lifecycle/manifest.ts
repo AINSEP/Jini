@@ -1,5 +1,5 @@
 /**
- * @file `parseAgentPluginManifest()` / `parseAgentPluginMcpConfig()` — the Agent Plugins v1.0.0
+ * @file `parseAgentPluginManifest()` / `parseAgentPluginMcpConfig()` — the Agent Plugins 1.0.0/1.1.0
  * `plugin.json` / `mcp.json` grammar (agent-plugins.org/specification), verified against the live
  * spec rather than inferred from an example manifest.
  *
@@ -10,13 +10,14 @@
  * shares none of those fields and defines no execution/trust/capability model at all — see this
  * feature's own header comment in `install.ts` for why the two formats cannot be unified.
  *
- * Pinned v1.0.0 rules from agent-plugins.org/specification:
+ * Pinned 1.0.0/1.1.0 rules from agent-plugins.org/specification:
  * - `plugin.json`'s `name`: 1-64 chars, lowercase alphanumeric/hyphen/period only, must start and
  *   end alphanumeric, no `--` or `..` consecutive delimiters (§5.5). Valid: `my-plugin`,
  *   `acme.tools`, `lint3r`, `a`. Invalid: `My-Plugin`, `-start`, `has--double`.
- * - `plugin.json`'s `$schema` MUST equal `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`
- *   for this pinned version; `mcp.json`'s MUST equal
- *   `https://agent-plugins.org/schemas/1.0.0/mcp.schema.json`.
+ * - `plugin.json`'s `$schema` MUST be a recognized canonical identifier
+ *   (`https://agent-plugins.org/schemas/<version>/plugin.schema.json`); `mcp.json`'s likewise
+ *   (`.../<version>/mcp.schema.json`), and when both are present their versions MUST match (§10).
+ *   1.0.0 and 1.1.0 are recognized — see `SUPPORTED_SPEC_VERSIONS` for why one grammar serves both.
  * - Unknown top-level `plugin.json` fields produce warnings but do not block loading — this module
  *   returns them as `warnings`, never as a rejection reason.
  * - `mcp.json`'s top-level shape is `{ "$schema": ..., "mcpServers": { "<server-id>": {...} } }` —
@@ -57,15 +58,33 @@ export { validatePluginManifest, validateMcpManifest } from '../manifest.js';
 export type { PluginManifest, McpManifest, McpServerEntry } from '../manifest.js';
 import type { PluginManifestAuthor } from '../manifest.js';
 export type { PluginManifestAuthor } from '../manifest.js';
-/** Agent Plugins 1.0.0 parsing, with application metadata confined to an explicit namespace. */
+/** Agent Plugins 1.0.0/1.1.0 parsing, with application metadata confined to an explicit namespace. */
 export type AgentPluginServerMetadataReader = (required: { readonly serverId: string; readonly value: Readonly<Record<string, unknown>>; readonly server: Readonly<Record<string, unknown>> }) => Readonly<Record<string, unknown>>;
 
 /**
- * The one plugin.json schema version this loader understands. A manifest declaring any other
- * value is rejected outright rather than guessed at: pinning the grammar must survive spec churn.
+ * The Agent Plugins versions this loader understands. 1.1.0's spec text and both schemas differ
+ * from 1.0.0 only in the version identifiers, so both map to the one grammar below — §5.1 allows
+ * mapping explicitly recognized compatible versions to one implementation. Any other value is
+ * rejected outright rather than guessed at: pinning the grammar must survive spec churn, so a
+ * future version is added here only after its schemas are diffed against this grammar.
  */
-const PLUGIN_SCHEMA_1_0_0 = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json";
-const MCP_SCHEMA_1_0_0 = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json";
+const SUPPORTED_SPEC_VERSIONS = ["1.0.0", "1.1.0"] as const;
+
+/** The canonical `$schema` identifier for one spec version's `plugin.json` or `mcp.json`. */
+function schemaUrl(version: string, file: "plugin" | "mcp"): string {
+  return `https://agent-plugins.org/schemas/${version}/${file}.schema.json`;
+}
+
+/** The supported spec version `value` names as `file`'s canonical schema identifier, or `undefined`. */
+function readSpecVersion(value: unknown, file: "plugin" | "mcp"): string | undefined {
+  return SUPPORTED_SPEC_VERSIONS.find((version) => value === schemaUrl(version, file));
+}
+
+/** The one rejection message for an unrecognized `$schema`, listing every accepted identifier. */
+function unsupportedSchemaError(value: unknown, file: "plugin" | "mcp"): string {
+  const accepted = SUPPORTED_SPEC_VERSIONS.map((version) => `'${schemaUrl(version, file)}'`).join(" or ");
+  return `${file}.json '$schema' must be ${accepted} (Agent Plugins ${SUPPORTED_SPEC_VERSIONS.join(", ")}), got '${String(value)}'`;
+}
 
 /**
  * §5.5's grammar as one regex: alnum runs separated by single `-`/`.` delimiters. This shape alone
@@ -141,7 +160,7 @@ function resolveManifestName(raw: Readonly<Record<string, unknown>>): { name: st
 }
 
 /**
- * Validates an already-`JSON.parse`d `plugin.json` value against the v1.0.0 grammar.
+ * Validates an already-`JSON.parse`d `plugin.json` value against the 1.0.0/1.1.0 grammar.
  *
  * @throws Nothing — every failure is reported via the returned `errors`, matching this codebase's
  * own convention for expected validation outcomes (`plugin-runtime/manifest.ts`,
@@ -155,9 +174,7 @@ export function parseAgentPluginManifest({ value }: { readonly value: unknown },
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  if (raw.$schema !== PLUGIN_SCHEMA_1_0_0) {
-    errors.push(`plugin.json '$schema' must be '${PLUGIN_SCHEMA_1_0_0}', got '${String(raw.$schema)}'`);
-  }
+  if (readSpecVersion(raw.$schema, "plugin") === undefined) errors.push(unsupportedSchemaError(raw.$schema, "plugin"));
 
   if (raw.extensions !== undefined && !isJsonObject(raw.extensions)) errors.push("plugin.json extensions must be an object");
 
@@ -188,7 +205,7 @@ export function parseAgentPluginManifest({ value }: { readonly value: unknown },
 }
 
 /**
- * The three closed transport variants `mcp.schema.json` v1.0.0 defines. See this file's header for
+ * The three closed transport variants `mcp.schema.json` 1.0.0/1.1.0 defines. See this file's header for
  * the verified field shape of each.
  */
 export const MCP_SERVER_TRANSPORTS = ["stdio", "streamable-http", "sse"] as const;
@@ -471,9 +488,10 @@ function parseMcpServerConfig(value: unknown, extension?: Readonly<Record<string
 }
 
 /**
- * Validates an already-`JSON.parse`d `mcp.json` value against the v1.0.0 top-level shape:
+ * Validates an already-`JSON.parse`d `mcp.json` value against the 1.0.0/1.1.0 top-level shape:
  * `{ "$schema": ..., "mcpServers": { "<server-id>": {...} } }`, then validates each declared
- * server's own transport shape (see this file's header for the three variants).
+ * server's own transport shape (see this file's header for the three variants). When
+ * `pluginManifest` declares a supported version, `mcp.json` must declare the same one (§10).
  *
  * @throws Nothing — see {@link parseAgentPluginManifest}.
  * @complexity O(s) in the number of declared servers.
@@ -485,8 +503,11 @@ export function parseAgentPluginMcpConfig({ value, extensionNamespace }: { reado
   const raw = value;
   const errors: string[] = [];
 
-  if (raw.$schema !== MCP_SCHEMA_1_0_0) {
-    errors.push(`mcp.json '$schema' must be '${MCP_SCHEMA_1_0_0}', got '${String(raw.$schema)}'`);
+  const mcpVersion = readSpecVersion(raw.$schema, "mcp");
+  const pluginVersion = isJsonObject(optional.pluginManifest) ? readSpecVersion(optional.pluginManifest.$schema, "plugin") : undefined;
+  if (mcpVersion === undefined) errors.push(unsupportedSchemaError(raw.$schema, "mcp"));
+  else if (pluginVersion !== undefined && pluginVersion !== mcpVersion) {
+    errors.push(`mcp.json targets Agent Plugins ${mcpVersion} but plugin.json targets ${pluginVersion}; the versions must match`);
   }
 
   const mcpServers = raw.mcpServers;

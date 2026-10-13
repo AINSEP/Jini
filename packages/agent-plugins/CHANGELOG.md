@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Agent Plugins 1.1.0
+
+- `parseAgentPluginManifest()` / `parseAgentPluginMcpConfig()` (and so the installer and MCP
+  projection) select the grammar by `$schema` and accept Agent Plugins 1.1.0 identifiers alongside
+  1.0.0. 1.1.0 changes only the version identifiers, so both map to the same validator; 1.0.0
+  behavior is unchanged. When a `plugin.json` is supplied, `mcp.json` must target the same version
+  (§10). An unknown version is refused with both accepted identifiers listed in the error.
+
 ## 0.4.2
 
 - Use shared plugin identity metadata with a required `@jini-ai/core` peer at `^0.4.2`. Repair identity-lock publication syntax and isolate unreadable or invalid installed manifests with warnings so one damaged install cannot block healthy installs or bundled seeding.
