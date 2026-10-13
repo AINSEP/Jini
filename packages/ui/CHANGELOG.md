@@ -1,5 +1,9 @@
 # @jini-ai/ui
 
+## 0.5.1 — 2026-10-13
+
+- Phone layout fixes. Media provider cards put one field per line on phones and keep the fields plus Clear on one row on wider screens (was a three-column grid that squeezed inputs to a few characters). The snippet block's Copy button no longer covers the command: phones start the code below it, wider screens reserve its width. `TabBar` scrolls a sideways-scrolling strip so the active tab is fully visible (only the strip scrolls, never the page).
+
 ## 0.5.0 — 2026-10-13
 
 - Add framework-neutral chart contracts, browser/table and React hosts, provider-defined kinds and legacy chart wire aliases. Extract Recharts implementations and peers into the private browser artifact; chart component export wrappers are removed (no external consumers found).
