@@ -1,5 +1,4 @@
 import { defaultRuntimeState, type AgentRuntimeState } from './runtime-state.js';
-import { VENDOR_API_BASE_URLS } from '@jini-ai/integrations/media-providers/catalog';
 import { execFile, type ExecFileOptions, type SpawnOptions } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -235,6 +234,24 @@ function runProcess(input: Parameters<ModelDiscoveryDeps['process']['run']>[0]):
     child.stdin?.end(input.stdin);
   }) }, { signal: input.signal });
 }
+/** Load the catalog owner only for a default URL, so importing the runtime never needs this peer.
+ * @param required - The vendor whose default endpoint is needed.
+ * @returns The catalog-owned base URL; explicit host URLs bypass this lookup.
+ * @throws An actionable load error retaining the original import failure as its cause.
+ * @complexity O(1) lookup after Node's cached module load.
+ */
+async function defaultProviderBaseUrl(
+  { provider }: { provider: keyof typeof import('@jini-ai/integrations/media-providers/catalog').VENDOR_API_BASE_URLS },
+  _optional: Record<string, never> = {},
+): Promise<string> {
+  try {
+    const { VENDOR_API_BASE_URLS } = await import('@jini-ai/integrations/media-providers/catalog');
+    return VENDOR_API_BASE_URLS[provider];
+  } catch (cause) {
+    throw new Error('Could not load @jini-ai/integrations/media-providers/catalog. Install the optional peer @jini-ai/integrations or inject ModelDiscoveryDeps.credential to discover models with default provider URLs.', { cause });
+  }
+}
+
 export const defaultModelDiscoveryDeps: ModelDiscoveryDeps = {
   process: { run: runProcess },
   fs: {
@@ -253,13 +270,13 @@ export const defaultModelDiscoveryDeps: ModelDiscoveryDeps = {
     // Deliberately do not steal tokens from another CLI's store. Hosts can inject keychain/OAuth
     // handles. BYOK env is usable only when it identifies this CLI's effective provider.
     const env = context.env;
-    if (agentId === 'claude' && env.ANTHROPIC_API_KEY) return { protocol: 'anthropic', baseUrl: env.ANTHROPIC_BASE_URL || VENDOR_API_BASE_URLS.anthropic, apiKey: env.ANTHROPIC_API_KEY };
+    if (agentId === 'claude' && env.ANTHROPIC_API_KEY) return { protocol: 'anthropic', baseUrl: env.ANTHROPIC_BASE_URL || await defaultProviderBaseUrl({ provider: 'anthropic' }), apiKey: env.ANTHROPIC_API_KEY };
     const selected = context.model || (agentId === 'aider' ? env.AIDER_MODEL : agentId === 'qwen' ? env.QWEN_MODEL || env.OPENAI_MODEL : undefined);
     if (!selected) return null;
-    if (/^(anthropic\/|claude-)/.test(selected) && env.ANTHROPIC_API_KEY) return { protocol: 'anthropic', baseUrl: env.ANTHROPIC_BASE_URL || VENDOR_API_BASE_URLS.anthropic, apiKey: env.ANTHROPIC_API_KEY };
-    if (/^(gemini\/|google\/|gemini-)/.test(selected) && env.GEMINI_API_KEY) return { protocol: 'google', baseUrl: VENDOR_API_BASE_URLS.google, apiKey: env.GEMINI_API_KEY };
-    if (/^openrouter\//.test(selected) && env.OPENROUTER_API_KEY) return { protocol: 'openai', baseUrl: env.OPENROUTER_API_BASE || VENDOR_API_BASE_URLS.openrouter, apiKey: env.OPENROUTER_API_KEY };
-    if ((/^(openai\/|gpt-|o\d)/.test(selected) || agentId === 'qwen' && (env.OPENAI_MODEL || env.OPENAI_BASE_URL)) && env.OPENAI_API_KEY) return { protocol: 'openai', baseUrl: env.OPENAI_BASE_URL || env.OPENAI_API_BASE || VENDOR_API_BASE_URLS.openai, apiKey: env.OPENAI_API_KEY };
+    if (/^(anthropic\/|claude-)/.test(selected) && env.ANTHROPIC_API_KEY) return { protocol: 'anthropic', baseUrl: env.ANTHROPIC_BASE_URL || await defaultProviderBaseUrl({ provider: 'anthropic' }), apiKey: env.ANTHROPIC_API_KEY };
+    if (/^(gemini\/|google\/|gemini-)/.test(selected) && env.GEMINI_API_KEY) return { protocol: 'google', baseUrl: await defaultProviderBaseUrl({ provider: 'google' }), apiKey: env.GEMINI_API_KEY };
+    if (/^openrouter\//.test(selected) && env.OPENROUTER_API_KEY) return { protocol: 'openai', baseUrl: env.OPENROUTER_API_BASE || await defaultProviderBaseUrl({ provider: 'openrouter' }), apiKey: env.OPENROUTER_API_KEY };
+    if ((/^(openai\/|gpt-|o\d)/.test(selected) || agentId === 'qwen' && (env.OPENAI_MODEL || env.OPENAI_BASE_URL)) && env.OPENAI_API_KEY) return { protocol: 'openai', baseUrl: env.OPENAI_BASE_URL || env.OPENAI_API_BASE || await defaultProviderBaseUrl({ provider: 'openai' }), apiKey: env.OPENAI_API_KEY };
     return null;
   } },
   acp: createAcpDiscoveryAdapter({ probe: nativeAcpModelProbe }),
