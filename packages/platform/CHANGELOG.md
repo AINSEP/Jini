@@ -1,5 +1,11 @@
 # @jini-ai/platform
 
+## 0.5.6 — 2026-10-13
+
+- `undici` and `hast-util-from-parse5`, `hast-util-to-mdast`, `mdast-util-to-markdown`, `mdast-util-gfm-table` (with `parse5`) are now optional peers instead of dependencies. Only `./web` needs the HTML/Markdown set; only the default `createAssetCacheDispatcher` needs undici, loaded lazily (a missing peer throws `AssetCacheError` 500; a host-supplied dispatcher needs none). Hosts using those must list the packages themselves.
+- New `./asset-cache` subpath (node) exporting the asset cache without the root barrel.
+- New universal `./secrets/credential-sets/contracts` leaf (vault contracts without the vault runtime); `@jini-ai/db` 0.3.4's SQL vault repo imports it.
+
 ## 0.5.5 — 2026-10-13
 
 - New narrow subpaths for the existing OS helpers: `./command`, `./process`, `./toolchain`, `./proxy-env`, `./shell`, `./child-environment`. Importing one loads 1-2 modules instead of the root barrel's 181 (incl. undici). The root still exports everything; no signature change.
