@@ -24,7 +24,7 @@
  * for why only the VALUE is ever blanked, never the surrounding text.
  *
  * Architectural role: `src/assistant` composition-layer adapter, same layer as
- * `tool-executor-audit.ts` and `tool-failure-recovery.ts`. Depends only on the Tovu policy
+ * `tool-executor-audit.ts` and `tool-failure-recovery.ts`. Depends only on the host policy
  * adapter over `@jini-ai/diagnostics/redaction/secrets-only` and `@jini-ai/daemon`'s `ToolExecutor` shape.
  */
 

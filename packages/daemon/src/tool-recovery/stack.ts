@@ -1,5 +1,5 @@
 /**
- * @file The one place Tovu's `ToolExecutor` decorator stack is composed.
+ * @file The one place the host's `ToolExecutor` decorator stack is composed.
  *
  * The order of these three wrappers is load-bearing in two different directions, and it was
  * previously spelled out only as an expression inside `agent-daemon-server.ts` — a module that boots
@@ -32,7 +32,7 @@
  *    "completed" row the audit records for the call the transport actually made, losing the remedy
  *    tool's own attempt from the trail entirely.
  *
- * Composed the SAME way for both of Tovu's tool-dispatch surfaces: the agent daemon's delegated-tool
+ * Composed the SAME way for both of the host's tool-dispatch surfaces: the agent daemon's delegated-tool
  * route and BYOK's `byok-tool-surface.ts` (as of 2026-09-06 — previously BYOK hand-assembled its own
  * second copy of this stack that never wrapped `withReadOnlyToolConstraint`, so a decorator known to
  * apply to "every read-only gateway" in fact applied to only one of the two; see that file's own

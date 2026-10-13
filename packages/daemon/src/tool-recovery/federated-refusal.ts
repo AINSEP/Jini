@@ -31,7 +31,7 @@
  * ---------------------------------------------------------------------------
  * Why a decorator, and why OUTERMOST
  * ---------------------------------------------------------------------------
- * `ToolExecutor` is a plain structural interface and every one of Tovu's existing decorators
+ * `ToolExecutor` is a plain structural interface and every one of the host's existing decorators
  * (`read-only-tool-constraint.ts`, `tool-executor-audit.ts`, `tool-failure-recovery.ts`,
  * `tool-executor-stack.ts`) is exactly this shape — a wrapper, not an upstream change. This one is
  * composed OUTSIDE all three of those (see `agent-daemon-server.ts`'s `toolExecutor` construction),
