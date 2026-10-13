@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.3 — 2026-10-13
+
+- Accept UI ^0.5.0 for the chart contract extraction.
+
 ## 0.3.1 — 2026-10-08
 
 - Absorbs Tovu Users/Members owner/self protections, reset handling and host ports (a319c44f).
@@ -28,8 +32,6 @@
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
 ## Unreleased
-
-- Accept UI ^0.5.0 for the chart contract extraction.
 
 ### The built-in admin role holds role.manage
 

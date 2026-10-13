@@ -1,5 +1,9 @@
 # @jini-ai/ui
 
+## 0.5.0 — 2026-10-13
+
+- Add framework-neutral chart contracts, browser/table and React hosts, provider-defined kinds and legacy chart wire aliases. Extract Recharts implementations and peers into the private browser artifact; chart component export wrappers are removed (no external consumers found).
+
 ## 0.4.6 — 2026-10-08
 
 - parse5 optional peer widened to `^7.3.0 || ^8.0.1`: 0.4.5 required ^8 while @jini-ai/cms 0.5.3 requires ^7.3, so hosts with both hit ERESOLVE. The srcdoc builder and html-editor source splice typecheck against parse5 7.
@@ -35,8 +39,6 @@
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
 ## Unreleased
-
-- Add framework-neutral chart contracts, browser/table and React hosts, provider-defined kinds and legacy chart wire aliases. Extract Recharts implementations and peers into the private browser artifact; chart component export wrappers are removed (no external consumers found).
 
 - Publish the browser entry `@jini-ai/ui/tab-strip` with types and ESM output from
   the existing feature barrel, including `TabBar` and `TabBarTab`.

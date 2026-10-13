@@ -1,3 +1,7 @@
+## 0.6.0 — 2026-10-13
+
+- Remove Recharts peer/dev dependencies. Legacy chart wire components now use the neutral UI host with a styled table fallback; require the extracted UI ^0.5.0 so older built-in Recharts imports cannot leak into a clean consumer.
+
 ## 0.5.6 — 2026-10-08
 
 - Desktop 0.1.13 release fixes: see commits a2659d24 (admin), 5695a7c3 (chat, agent-runtime), 8ad4ac5c (devops).
@@ -83,8 +87,6 @@
 - Owner-scoped transcript adapters and paging live on store subpaths; the host supplies the migrated kernel.
 
 ## Unreleased
-
-- Remove Recharts peer/dev dependencies. Legacy chart wire components now use the neutral UI host with a styled table fallback; require the extracted UI ^0.5.0 so older built-in Recharts imports cannot leak into a clean consumer.
 
 - Add neutral owner-scoped ChatStore, structured errors and bounded keyset pages.
 - Add SQLite, embedded/socket PGlite and Postgres adapters over the same borrowed kernel SQL body.

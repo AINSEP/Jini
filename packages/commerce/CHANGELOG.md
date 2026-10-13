@@ -1,6 +1,6 @@
 # @jini-ai/commerce
 
-## Unreleased
+## 0.1.1 — 2026-10-13
 
 - Accept UI ^0.5.0 for the chart contract extraction.
 

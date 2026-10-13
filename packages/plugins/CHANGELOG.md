@@ -1,5 +1,9 @@
 # @jini-ai/plugins
 
+## 0.5.0 — 2026-10-13
+
+- Admit reviewed digest-pinned compiled-in chart browser providers only, retain immutable asset bytes, and initialize bundled site plugins only when activation rows are absent.
+
 ## 0.4.0 — 2026-10-02
 
 ### BREAKING
@@ -8,8 +12,6 @@
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
 ## Unreleased
-
-- Admit reviewed digest-pinned compiled-in chart browser providers only, retain immutable asset bytes, and initialize bundled site plugins only when activation rows are absent.
 
 - Share publisher identity validation with core, retain the built-in incumbent on duplicate publisher IDs, and omit broken unrelated installed manifests from admission with warnings while preserving link refusals.
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.7 — 2026-10-13
+
+- Accept UI ^0.5.0 for the chart contract extraction.
+
 ## 0.4.4 — 2026-10-08
 
 - Desktop 0.1.13 release fixes: see commits a2659d24 (admin), 5695a7c3 (chat, agent-runtime), 8ad4ac5c (devops).
@@ -30,8 +34,6 @@
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
 ## Unreleased
-
-- Accept UI ^0.5.0 for the chart contract extraction.
 
 - Add portable Forms admin screens, HTTP/memory adapters and core-port conformance under ./forms*.
 - Add composable comments admin queue/settings module with HTTP and memory adapters and API conformance.
