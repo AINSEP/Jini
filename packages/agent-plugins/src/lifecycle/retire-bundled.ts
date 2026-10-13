@@ -19,6 +19,14 @@
  * ---------------------------------------------------------------------------
  * 1. Nothing installed and no activation record: nothing to do (the second boot after a migration).
  *    A leftover ledger entry is still dropped.
+ * 1a. Otherwise EVERY successor must be usable first: installed at the digest `bundled-digests.json`
+ *    records for it (the build's own seed — the same trust `trusted-plugin-files.ts` demands before
+ *    core takes a contribution from it), whether it seeded this boot or on an earlier one. If any
+ *    is not, the retired plugin is KEPT and the outcome is `failed` with the reason; the next boot
+ *    retries. Without this a successor whose seed failed (a broken `plugin.json`, a full disk) left
+ *    the retired plugin removed and only an activation record for the successor — a switch with no
+ *    code behind it (R6, 2026-10-12). A plugin split into several (`deploy` -> `fly`, `render`, ...)
+ *    is kept until all of them are usable: one working successor must not cost the others' capability.
  * 2. The retired plugin was ENABLED (explicitly, or by the "absent means active" default while its
  *    package is installed): the successor is switched on — unless an operator explicitly turned the
  *    successor off, which is left exactly as it is and reported in the outcome. No silent override.
@@ -53,11 +61,17 @@ import type { AgentPluginLifecyclePorts } from "./ports.js";
  *  left as it was. The other three are {@link BundledAgentPluginEnableOutcome}. */
 export type RetiredAgentPluginSuccessorOutcome = BundledAgentPluginEnableOutcome | "not-needed";
 
+/** `successorId` is the (first) successor; `successorIds` is present only when the map entry lists
+ *  several, and then names every one in map order. */
+interface RetiredAgentPluginSuccessors {
+  readonly successorId: string;
+  readonly successorIds?: readonly string[] | undefined;
+}
+
 export type RetiredAgentPluginOutcome =
-  | { readonly pluginId: string; readonly successorId: string; readonly status: "absent" }
-  | {
+  | (RetiredAgentPluginSuccessors & { readonly pluginId: string; readonly status: "absent" })
+  | (RetiredAgentPluginSuccessors & {
       readonly pluginId: string;
-      readonly successorId: string;
       readonly status: "retired";
 
       /** Every installed archive digest removed; empty when only a record or ledger entry was left. */
@@ -68,8 +82,11 @@ export type RetiredAgentPluginOutcome =
       /** `left-disabled-by-operator` is the one case a caller should surface: the retired plugin was
        *  on, its successor was explicitly turned off, and this step did not override that. */
   readonly successor: RetiredAgentPluginSuccessorOutcome;
-    }
-  | { readonly pluginId: string; readonly successorId: string; readonly status: "failed"; readonly reason: string };
+
+      /** Present only with `successorIds`: each successor's own outcome. `successor` is the first's. */
+  readonly successors?: Readonly<Record<string, RetiredAgentPluginSuccessorOutcome>> | undefined;
+    })
+  | (RetiredAgentPluginSuccessors & { readonly pluginId: string; readonly status: "failed"; readonly reason: string });
 
 export interface RetireBundledAgentPluginsRequired {
 
@@ -80,14 +97,15 @@ export interface RetireBundledAgentPluginsRequired {
 
 export interface RetireBundledAgentPluginsOptional {
 
-  /** Defaults to {@link RETIRED_BUNDLED_AGENT_PLUGINS}; tests pass their own. */
-  readonly retired?: (ReadonlyMap<string, string>) | undefined;
+  /** Defaults to the host's `retiredBundledPlugins` port; tests pass their own. A value lists
+   *  several successors when the retired plugin was split across them. */
+  readonly retired?: (ReadonlyMap<string, string | readonly string[]>) | undefined;
   readonly now?: ((required: Record<string, never>) => Date) | undefined;
 }
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
   const { deleteAgentPluginActivation, enableBundledAgentPluginUnlessOperatorDisabled, readAgentPluginActivations, resolveAgentPluginActivation } = createActivationModule(ports);
-  const { removeBundledAgentPluginDigest } = createBundledDigestsModule(ports);
+  const { readBundledAgentPluginDigests, removeBundledAgentPluginDigest } = createBundledDigestsModule(ports);
   const { listInstalledPlugins } = createResolveAgentPluginRefsModule(ports);
   const { uninstallAgentPlugin } = createUninstallModule(ports);
   /**
@@ -102,11 +120,13 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     optional: RetireBundledAgentPluginsOptional = {},
   ): Promise<readonly RetiredAgentPluginOutcome[]> {
     const outcomes: RetiredAgentPluginOutcome[] = [];
-    for (const [pluginId, successorId] of optional.retired ?? ports.retiredBundledPlugins) {
+    for (const [pluginId, successor] of optional.retired ?? ports.retiredBundledPlugins) {
+      const successorIds: readonly string[] = typeof successor === "string" ? [successor] : successor;
+      const ids = { successorId: successorIds[0] ?? "", ...(typeof successor === "string" ? {} : { successorIds }) };
       try {
-        outcomes.push(await retireOne(required, optional, pluginId, successorId));
+        outcomes.push(await retireOne(required, optional, pluginId, ids));
       } catch (error) {
-        outcomes.push({ pluginId, successorId, status: "failed", reason: error instanceof Error ? error.message : String(error) });
+        outcomes.push({ pluginId, ...ids, status: "failed", reason: error instanceof Error ? error.message : String(error) });
       }
     }
     return outcomes;
@@ -118,34 +138,45 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     required: RetireBundledAgentPluginsRequired,
     optional: RetireBundledAgentPluginsOptional,
     pluginId: string,
-    successorId: string,
+    ids: RetiredAgentPluginSuccessors,
   ): Promise<RetiredAgentPluginOutcome> {
     const workspaceLayout = required.layout.forWorkspace({ workspaceId: required.workspaceId });
     const workspaceRoot = workspaceLayout.root;
+    const successorIds = ids.successorIds ?? [ids.successorId];
 
     const verdict = await resolveAgentPluginActivation(workspaceRoot, pluginId);
     if (verdict.verdict === "undetermined") {
-      return { pluginId, successorId, status: "failed", reason: `cannot tell whether '${pluginId}' was enabled: ${verdict.reason}` };
+      return { pluginId, ...ids, status: "failed", reason: `cannot tell whether '${pluginId}' was enabled: ${verdict.reason}` };
     }
 
-    const installed = (await listInstalledPlugins(workspaceLayout.root)).filter((plugin) => plugin.pluginId === pluginId);
+    const allInstalled = await listInstalledPlugins(workspaceLayout.root);
+    const installed = allInstalled.filter((plugin) => plugin.pluginId === pluginId);
     const hasRecord = Object.hasOwn((await readAgentPluginActivations(workspaceRoot)).plugins, pluginId);
 
     if (installed.length === 0 && !hasRecord) {
       const ledgerEntryRemoved = await removeBundledAgentPluginDigest({ workspaceRoot, pluginId });
-      if (!ledgerEntryRemoved) return { pluginId, successorId, status: "absent" };
-      return { pluginId, successorId, status: "retired", removedDigests: [], activationRemoved: false, ledgerEntryRemoved, successor: "not-needed" };
+      if (!ledgerEntryRemoved) return { pluginId, ...ids, status: "absent" };
+      return { pluginId, ...ids, status: "retired", removedDigests: [], activationRemoved: false, ledgerEntryRemoved, successor: "not-needed", ...(ids.successorIds ? { successors: {} } : {}) };
     }
 
-    const successor: RetiredAgentPluginSuccessorOutcome =
-      verdict.verdict === "active"
-        ? await enableBundledAgentPluginUnlessOperatorDisabled({
-            workspaceRoot,
-            pluginId: successorId,
-            actor: `system:retire-${pluginId}`,
-            ...(optional.now !== undefined ? { now: optional.now } : {}),
-          })
-        : "not-needed";
+    const unusable = await unusableSuccessor(workspaceRoot, allInstalled, successorIds);
+    if (unusable !== undefined) {
+      return { pluginId, ...ids, status: "failed", reason: `'${pluginId}' is kept until every successor is usable: ${unusable}` };
+    }
+
+    const successors: Record<string, RetiredAgentPluginSuccessorOutcome> = {};
+    for (const successorId of successorIds) {
+      successors[successorId] =
+        verdict.verdict === "active"
+          ? await enableBundledAgentPluginUnlessOperatorDisabled({
+              workspaceRoot,
+              pluginId: successorId,
+              actor: `system:retire-${pluginId}`,
+              ...(optional.now !== undefined ? { now: optional.now } : {}),
+            })
+          : "not-needed";
+    }
+    const successor = successors[ids.successorId] ?? "not-needed";
 
     let removedDigests: readonly string[] = [];
     if (installed.length > 0) {
@@ -157,7 +188,26 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     }
 
     const ledgerEntryRemoved = await removeBundledAgentPluginDigest({ workspaceRoot, pluginId });
-    return { pluginId, successorId, status: "retired", removedDigests, activationRemoved: hasRecord, ledgerEntryRemoved, successor };
+    return { pluginId, ...ids, status: "retired", removedDigests, activationRemoved: hasRecord, ledgerEntryRemoved, successor, ...(ids.successorIds ? { successors } : {}) };
+  }
+
+  /** Why one of `successorIds` cannot take over yet, or `undefined` when every one is installed at the
+ *  digest the ledger records for it (this file's header, step 1a).
+ *  @complexity O(s * n) for s successors over n installed packages; both are small bundled counts. */
+  async function unusableSuccessor(
+    workspaceRoot: string,
+    allInstalled: readonly { readonly pluginId: string; readonly archiveDigest: string }[],
+    successorIds: readonly string[],
+  ): Promise<string | undefined> {
+    const ledger = await readBundledAgentPluginDigests(workspaceRoot);
+    for (const successorId of successorIds) {
+      const digest = ledger.get(successorId);
+      if (digest === undefined) return `successor '${successorId}' has never been seeded into this workspace`;
+      if (!allInstalled.some((plugin) => plugin.pluginId === successorId && plugin.archiveDigest === digest)) {
+        return `successor '${successorId}' is not installed at its seeded digest`;
+      }
+    }
+    return undefined;
   }
 
   return { retireBundledAgentPlugins };

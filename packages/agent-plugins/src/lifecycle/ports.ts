@@ -38,7 +38,8 @@ export interface AgentPluginLifecyclePorts {
   readonly onEvent?: ((required: { readonly event: string; readonly message: string }) => void) | undefined;
   readonly formatPluginToolPointer: (required: { readonly pluginId: string }) => string;
   readonly seededEnabledPluginIds: ReadonlySet<string>;
-  readonly retiredBundledPlugins: ReadonlyMap<string, string>;
+  /** Retired bundled plugin id -> the bundled plugin(s) that absorbed it (`retire-bundled.ts`). */
+  readonly retiredBundledPlugins: ReadonlyMap<string, string | readonly string[]>;
   readonly bundledArchiveMagic: string;
   readonly filesystem: FilesystemPort;
   readonly clock: AgentPluginClockPort;

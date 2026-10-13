@@ -92,6 +92,13 @@ async function seedPreRetirementWorkspace(layout: ReturnType<typeof resolveAgent
   return { fly, deploy };
 }
 
+/** A successor the way a successful seed leaves it: installed, and its digest in the ledger. */
+async function seedSuccessor(layout: ReturnType<typeof resolveAgentPluginLayout>, workspaceRoot: string, pluginId = SUCCESSOR) {
+  const installed = await installPackage(layout, pluginId, `archive-${pluginId}`);
+  await recordBundledAgentPluginDigests({ workspaceRoot, seeded: [{ pluginId, archiveDigest: installed.archiveDigest }] });
+  return installed;
+}
+
 async function installedIds(workspaceRoot: string): Promise<string[]> {
   return (await listInstalledPlugins(workspaceRoot)).map((plugin) => plugin.pluginId).sort();
 }
@@ -137,7 +144,7 @@ test("an enabled old-integration switches on deploy's untouched disabled seed re
   const { cwd, layout, workspaceLayout } = await freshLayout();
   try {
     await installPackage(layout, RETIRED, "archive-fly");
-    await installPackage(layout, SUCCESSOR, "archive-deploy");
+    await seedSuccessor(layout, workspaceLayout.root);
     await setAgentPluginActivation({ workspaceRoot: workspaceLayout.root, pluginId: RETIRED, enabled: true, actor: "test:operator" }, { origin: "bundled" });
     // The seeder's own disabled record, never touched by an operator.
     await recordBundledAgentPluginIfAbsent({ workspaceRoot: workspaceLayout.root, pluginId: SUCCESSOR });
@@ -159,6 +166,7 @@ test("an enabled old-integration with NO deploy record creates deploy's record e
   const { cwd, layout, workspaceLayout } = await freshLayout();
   try {
     await installPackage(layout, RETIRED, "archive-fly");
+    await seedSuccessor(layout, workspaceLayout.root);
     await setAgentPluginActivation({ workspaceRoot: workspaceLayout.root, pluginId: RETIRED, enabled: true, actor: "test:operator" }, { origin: "bundled" });
 
     const [outcome] = await retireBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID });
@@ -245,6 +253,7 @@ test("a workspace that never had old-integration: 'absent', and no state file is
 test("a record with no package left is deleted directly", async () => {
   const { cwd, layout, workspaceLayout } = await freshLayout();
   try {
+    await seedSuccessor(layout, workspaceLayout.root);
     await recordBundledAgentPluginIfAbsent({ workspaceRoot: workspaceLayout.root, pluginId: RETIRED });
 
     const [outcome] = await retireBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID });
@@ -359,5 +368,107 @@ test("seedBundledAgentPlugins never seeds a retired id from a stale source direc
   } finally {
     await forceRemove(cwd);
     await forceRemove(bundledRoot);
+  }
+});
+
+async function writeBundledSource(dir: string, pluginId: string, manifest?: string) {
+  await mkdir(path.join(dir, "skills", pluginId), { recursive: true });
+  await writeFile(
+    path.join(dir, "plugin.json"),
+    manifest ?? JSON.stringify({ $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json", name: pluginId, version: "1.0.0" }),
+    "utf8",
+  );
+  await writeFile(path.join(dir, "skills", pluginId, "SKILL.md"), `# ${pluginId}\n`, "utf8");
+}
+
+test("R6: a successor whose seed FAILED keeps the retired plugin; the boot that seeds it retires; the next is a no-op", async () => {
+  const { cwd, layout, workspaceLayout } = await freshLayout();
+  const bundledRoot = await mkdtemp(path.join(tmpdir(), "host-retire-bundled-source-"));
+  try {
+    const legacy = await installPackage(layout, RETIRED, "archive-fly");
+    await setAgentPluginActivation({ workspaceRoot: workspaceLayout.root, pluginId: RETIRED, enabled: true, actor: "test:operator" }, { origin: "bundled" });
+    await writeBundledSource(path.join(bundledRoot, SUCCESSOR), SUCCESSOR, "{");
+
+    const failedBoot = await seedBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID, sourceRoot: bundledRoot });
+
+    assert.equal(failedBoot.outcomes[0]?.status, "failed");
+    const [kept] = failedBoot.retirements;
+    assert.equal(kept?.status, "failed");
+    assert.match(kept?.status === "failed" ? kept.reason : "", /'old-integration' is kept until every successor is usable: successor 'new-integration' has never been seeded/);
+    assert.deepEqual(await installedIds(workspaceLayout.root), [RETIRED], "the retired plugin's bytes stay");
+    const activations = await readAgentPluginActivations(workspaceLayout.root);
+    assert.equal(activations.plugins[RETIRED]?.enabled, true, "the operator's enabled record stays");
+    assert.equal(Object.hasOwn(activations.plugins, SUCCESSOR), false, "no successor switch without successor code");
+
+    await writeBundledSource(path.join(bundledRoot, SUCCESSOR), SUCCESSOR);
+    const fixedBoot = await seedBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID, sourceRoot: bundledRoot });
+
+    assert.equal(fixedBoot.outcomes[0]?.status, "seeded");
+    const [retired] = fixedBoot.retirements;
+    assert.equal(retired?.status, "retired");
+    assert.deepEqual(retired?.status === "retired" && retired.removedDigests, [legacy.archiveDigest]);
+    assert.deepEqual(await installedIds(workspaceLayout.root), [SUCCESSOR]);
+    assert.equal((await readAgentPluginActivations(workspaceLayout.root)).plugins[SUCCESSOR]?.enabled, true);
+
+    const nextBoot = await seedBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID, sourceRoot: bundledRoot });
+    assert.deepEqual(nextBoot.retirements, [{ pluginId: RETIRED, successorId: SUCCESSOR, status: "absent" }]);
+  } finally {
+    await forceRemove(cwd);
+    await forceRemove(bundledRoot);
+  }
+});
+
+test("R6: a successor installed at a digest the ledger does not record (not the build's seed) keeps the retired plugin", async () => {
+  const { cwd, layout, workspaceLayout } = await freshLayout();
+  try {
+    await installPackage(layout, RETIRED, "archive-fly");
+    await installPackage(layout, SUCCESSOR, "archive-operator-copy");
+    await recordBundledAgentPluginDigests({ workspaceRoot: workspaceLayout.root, seeded: [{ pluginId: SUCCESSOR, archiveDigest: "c".repeat(64) }] });
+
+    const [outcome] = await retireBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID });
+
+    assert.equal(outcome?.status, "failed");
+    assert.match(outcome?.status === "failed" ? outcome.reason : "", /successor 'new-integration' is not installed at its seeded digest/);
+    assert.deepEqual(await installedIds(workspaceLayout.root), [RETIRED, SUCCESSOR].sort());
+  } finally {
+    await forceRemove(cwd);
+  }
+});
+
+test("R6: a plugin split across several successors is kept while ANY of them is unusable, and retired once all are", async () => {
+  const { cwd, layout, workspaceLayout } = await freshLayout();
+  const THIRD = "third-integration";
+  const retired = new Map([[RETIRED, [SUCCESSOR, THIRD]]]);
+  try {
+    await installPackage(layout, RETIRED, "archive-fly");
+    await setAgentPluginActivation({ workspaceRoot: workspaceLayout.root, pluginId: RETIRED, enabled: true, actor: "test:operator" }, { origin: "bundled" });
+    await seedSuccessor(layout, workspaceLayout.root);
+
+    const [partial] = await retireBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID }, { retired });
+
+    assert.deepEqual(partial, {
+      pluginId: RETIRED,
+      successorId: SUCCESSOR,
+      successorIds: [SUCCESSOR, THIRD],
+      status: "failed",
+      reason: "'old-integration' is kept until every successor is usable: successor 'third-integration' has never been seeded into this workspace",
+    });
+    assert.deepEqual(await installedIds(workspaceLayout.root), [RETIRED, SUCCESSOR].sort());
+    assert.equal(Object.hasOwn((await readAgentPluginActivations(workspaceLayout.root)).plugins, SUCCESSOR), false, "no successor is switched while the split is incomplete");
+
+    await seedSuccessor(layout, workspaceLayout.root, THIRD);
+    await setAgentPluginActivation({ workspaceRoot: workspaceLayout.root, pluginId: THIRD, enabled: false, actor: "test:operator" });
+
+    const [done] = await retireBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID }, { retired });
+
+    assert.equal(done?.status, "retired");
+    assert.equal(done?.status === "retired" && done.successor, "enabled");
+    assert.deepEqual(done?.status === "retired" && done.successors, { [SUCCESSOR]: "enabled", [THIRD]: "left-disabled-by-operator" });
+    assert.deepEqual(await installedIds(workspaceLayout.root), [SUCCESSOR, THIRD].sort());
+
+    const [again] = await retireBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID }, { retired });
+    assert.deepEqual(again, { pluginId: RETIRED, successorId: SUCCESSOR, successorIds: [SUCCESSOR, THIRD], status: "absent" });
+  } finally {
+    await forceRemove(cwd);
   }
 });

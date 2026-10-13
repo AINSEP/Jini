@@ -165,6 +165,8 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 // once its bytes are actually on disk for this workspace.
 // AFTER seeding and the ledger: a retired plugin's successor is itself bundled, so its record and
 // its ledger entry exist by now, and the retirement only has to decide whether to switch it on.
+// A successor whose seed FAILED has neither; `retire-bundled.ts` then keeps the retired plugin
+// rather than remove it in favour of a switch with no code behind it (its header, step 1a).
   async function seedBundledAgentPlugins(
     required: SeedBundledAgentPluginsRequired,
   ): Promise<SeedBundledAgentPluginsResult> {
