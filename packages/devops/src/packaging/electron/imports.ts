@@ -1,10 +1,10 @@
 import path from 'node:path';
 import { builtinModules } from 'node:module';
 import type { PackagingFilesystemPort, ImportReaderPort, ImportAliasPort } from './ports.js';
-// The #src mapping documented below is the Tovu host alias; aliases supplies each host's
-// actual resolution policy without hard-coding that namespace into the shared walk.
+// ImportAliasPort supplies each host's resolution policy without hard-coding
+// a consumer namespace into the shared walk.
 export interface DistImportInput {
-  /** The built tree's root (`dist/`), which `#src/*` resolves against as `./src/*.js`. */
+  /** The built tree's root (`dist/`), passed to ImportAliasPort for host alias resolution. */
   distDir: string;
   /** Absolute path of the file the walk starts from (the CLI entry). */
   entry: string;

@@ -27,6 +27,11 @@
       "./local-dev": "node",
       "./deploy/node": "node",
       "./static-export/failure-summary": "universal"
+    },
+    "isolation": {
+      "shared": [
+        "src/core/export-failure-summary.ts"
+      ]
     }
   },
   "type": "module",

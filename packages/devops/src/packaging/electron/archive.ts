@@ -1,4 +1,4 @@
-// Preserved Tovu rationale below: VERIFIED_PREFIXES and scripts/verify-package.ts are host-owned;
+// Preserved host rationale below: VERIFIED_PREFIXES and scripts/verify-package.ts are host-owned;
 // archivePath/entryPath/separator and filesystem/archive ports replace the old SDK parameters.
 import path from 'node:path';
 import type { AsarHeaderNode, ArchiveReaderPort, PackagingFilesystemPort } from './ports.js';
