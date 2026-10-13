@@ -42,9 +42,9 @@ export interface SeoController {
   defaultOgImage: string;
   setDefaultOgImage: (value: string) => void;
   /** Resolves `true` on success, `false` on a caught failure (`error` is set either way this
-   *  already did) — `SitemapModal.tsx`'s own footer Regenerate button uses the boolean to decide
-   *  whether to refetch `/sitemap.xml`, so a failed attempt never re-fetches the same stale
-   *  content. The pre-existing caller, `react/pages/SeoPage.tsx`'s own Regenerate button, still just fires this as
+   *  already did). Success invalidates the cached `/sitemap.xml` read, so `SitemapModal.tsx`'s
+   *  footer Regenerate button shows fresh XML without its own refetch; a failed attempt leaves
+   *  the viewed XML alone. The pre-existing caller, `react/pages/SeoPage.tsx`'s own Regenerate button, still just fires this as
    *  a plain `onClick` and discards the return value — this is a widening, not a breaking change. */
   regenerateSitemap: () => Promise<boolean>;
   /** Whether `SitemapModal.tsx` ("View sitemap") is open. `react/pages/SeoPage.tsx` stays markup-only (this file's
@@ -132,9 +132,8 @@ export interface SitemapModalController {
   setFilter: (value: string) => void;
   view: SitemapModalView;
   setView: (view: SitemapModalView) => void;
-  /** Re-runs the fetch — `SitemapModal.tsx`'s footer Regenerate button calls this after a
-   *  successful regenerate, so the count/table/raw view all reflect the freshly rebuilt sitemap
-   *  without the operator closing and reopening the modal. */
+  /** Re-runs the fetch. Retained for the hook ABI; after a successful regenerate the mutation's
+   *  cache invalidation already refreshes the count/table/raw view, so the modal no longer calls it. */
   refetch: () => void;
 }
 

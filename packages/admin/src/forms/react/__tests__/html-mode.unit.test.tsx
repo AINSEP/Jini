@@ -62,7 +62,8 @@ describe("HTML form authoring — owner acceptance 2026-10-04", () => {
     assert.isDefined(columns[0]);
     expect(columns[0].header).toBe("Accepted");
     const submission = { id: "s1", workspaceId: "ws", formDefinitionId: "f1", sourceIp: "127.0.0.1", submittedAt: "2026-10-04", data: { accept: false } };
-    expect(columns[0].cell(submission)).toBe("false");
+    // 669e1f88 displays boolean answers as Yes/No while retaining the stored false value.
+    expect(columns[0].cell(submission)).toBe("No");
     expect(columns[0].cell({ ...submission, data: {} })).toBe("");
   });
 

@@ -254,7 +254,7 @@ describe("useWidgetsLibrary — delete confirms first, then trashes exactly once
   });
 
   it("trashing is true only while the confirmed trash is in flight", async () => {
-    let resolveTrash: ((r: { ok: true; version: number | null }) => void) | undefined;
+    let resolveTrash!: (r: { ok: true; version: number | null }) => void;
     const port = createFakeWidgetsPort({ widgets: [WIDGET] });
     port.trashWidget = vi.fn(() => new Promise<{ ok: true; version: number | null }>((resolve) => (resolveTrash = resolve)));
     const { result } = renderHook(() => useWidgetsLibrary({ port, locale: "en", t: (key: string) => key }));
@@ -269,8 +269,13 @@ describe("useWidgetsLibrary — delete confirms first, then trashes exactly once
     });
     expect(result.current.trashing).toBe(true);
 
+    // 82ed2d32 schedules writes through fetch-query. Wait for the transport to start
+    // before releasing it; an optional resolver call would silently leave the write pending.
+    await waitFor(() => expect(port.trashWidget).toHaveBeenCalledTimes(1));
+    expect(port.trashWidget).toHaveBeenCalledWith(WIDGET.id);
+
     await act(async () => {
-      resolveTrash?.({ ok: true, version: 2 });
+      resolveTrash({ ok: true, version: 2 });
       await confirmPromise;
     });
     expect(result.current.trashing).toBe(false);

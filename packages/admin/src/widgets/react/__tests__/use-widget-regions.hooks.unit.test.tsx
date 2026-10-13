@@ -120,14 +120,16 @@ describe("useWidgetRegions — content refresh bus", () => {
     // notification — two overlapping `listWidgetRegions()` calls with no ordering guarantee on responses.
     let resolveFirst!: (v: { regions: AdminWidgetRegionBinding[] }) => void;
     let resolveSecond!: (v: { regions: AdminWidgetRegionBinding[] }) => void;
-    vi.spyOn(port, "listWidgetRegions")
+    const list = vi.spyOn(port, "listWidgetRegions")
       .mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
       .mockImplementationOnce(() => new Promise((resolve) => (resolveSecond = resolve)));
 
-    act(() => {
-      publishContentRefresh();
-      publishContentRefresh();
-    });
+    // 82ed2d32 moved refreshes to fetch-query: two notifications before I/O starts may
+    // coalesce. Start the first transport before triggering the second to keep this a race.
+    act(() => publishContentRefresh());
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(1));
+    act(() => publishContentRefresh());
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
 
     // The SECOND (more recent) request settles first, with the newer list.
     const sidebar = { ...REGION, regionKey: "sidebar", areaEntryId: "area-2" };

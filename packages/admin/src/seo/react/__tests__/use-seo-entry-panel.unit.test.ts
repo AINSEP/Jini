@@ -280,12 +280,14 @@ describe("useSeoEntryPanel — failures and entry changes", () => {
     await waitFor(() => expect(result.current.resolved).not.toBeNull());
     act(() => result.current.setField("title", "Unsaved entry one"));
     let release!: (value: { data: SeoEntryMeta }) => void;
-    vi.spyOn(port, "getSeoEntry").mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+    const read = vi.spyOn(port, "getSeoEntry").mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
     vi.spyOn(port, "getSeoEntryAnalyze").mockResolvedValueOnce({ data: analysisFixture({ entryId: "entry-2", score: 55 }) });
     rerender({ entryId: "entry-2" });
     expect(result.current.touched).toEqual({});
     expect(result.current.resolved).toBeNull();
     expect(result.current.analysis).toBeNull();
+    // 1c5d476f moved entry reads into fetch-query; the port starts after the render microtask.
+    await waitFor(() => expect(read).toHaveBeenCalledWith("entry-2"));
     await act(async () => { release({ data: metaFixture({ title: "Entry two" }) }); });
     expect(result.current.resolved?.title).toBe("Entry two");
     expect(result.current.analysis?.entryId).toBe("entry-2");

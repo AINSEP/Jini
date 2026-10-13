@@ -373,8 +373,9 @@ describe("useCommentQueue — Load more paging (2026-09-20)", () => {
       void result.current.loadMore();
     });
 
-    // 1 first-page call (on mount) + 1 loadMore call — the second same-tick call must be dropped
-    // by the in-flight guard. Today (no guard) this is 3.
+    // 82ed2d32 routes cursor reads through the shared cache, which invokes I/O in a microtask.
+    // Wait for the accepted request before asserting the exact same-tick deduplication count.
+    await waitFor(() => expect(cursorCalls).toHaveLength(1));
     expect(port.listCommentsQueue).toHaveBeenCalledTimes(2);
     expect(cursorCalls).toHaveLength(1);
 

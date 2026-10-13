@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.9 — 2026-10-13
+
+- Sitemap modal: Regenerate no longer reads `/sitemap.xml` twice. The regenerate mutation already invalidates the cached sitemap read (since 1c5d476f), so the modal's extra refetch is gone; the modal still shows the fresh XML after a successful regenerate and keeps the old XML after a failed one.
+
 ## 0.4.8 — 2026-10-13
 
 - Share-image warning checks decoded size against 1200×630 (width and height independently; was width ≥ 600). New copy key: `The share image is only {height} px tall; use an image at least 630 px tall.`; the width key now says 1200 px.

@@ -23,9 +23,8 @@ import { useSitemapModalRegenerate, useSitemapPresentation, useSitemapTable, use
  * single scrolling region between fixed header and footer.
  *
  * Domain state (fetch, parse, filter, view toggle) lives in `hooks/use-sitemap-modal
- * .hooks.ts`; this file is markup only — the one bit of sequencing that belongs to neither that
- * hook nor the outer `useSeo()` (refetching after a successful regenerate) lives in its own
- * colocated `react/hooks/SitemapModal.hooks.ts`, see that file's header for why it isn't folded into either.
+ * .hooks.ts`; this file is markup only. The outer `useSeo()` mutation owns regeneration and
+ * cache invalidation; `react/hooks/SitemapModal.hooks.ts` forwards that action without another read.
  *
  * ## Agent handles
  * Every interactive element carries its own `agentHandle` (grep `agentHandle(` in `react/pages/SeoPage.tsx` for
@@ -46,9 +45,8 @@ export interface SitemapModalProps {
   /** `saving` from `useSeo()` — shared with the outer page's own Save/Regenerate buttons, same as
    *  today's single-flag convention (`react/pages/SeoPage.tsx`'s existing `disabled={saving}` on both). */
   regenerating: boolean;
-  /** `regenerateSitemap` from `useSeo()`. Resolves `true` on success, `false` on a caught failure —
-   *  `handleRegenerate` below only refetches on `true`, matching REQ 7 ("after a SUCCESSFUL
-   *  regenerate it refetches"). */
+  /** `regenerateSitemap` from `useSeo()`. Its mutation invalidates the sitemap cache on
+   * success; a caught failure returns `false` and leaves the viewed XML alone. */
   onRegenerate: () => Promise<boolean>;
   onClose: () => void;
   /** Injectable seam for the modal's fetch/parse/filter/view state. Defaults to the real
@@ -205,7 +203,7 @@ export function SitemapModal({
   const t = useSeoCopy();
   const modal = useModal({ enabled: sitemapEnabled, onClose });
   const { title } = useSitemapPresentation({ locale, modal });
-  const { handleRegenerate } = useSitemapModalRegenerate({ onRegenerate, refetch: modal.refetch });
+  const { handleRegenerate } = useSitemapModalRegenerate({ onRegenerate });
   // Native modality keeps Tab from reaching the background, as MediaPickerDialog now does too.
 
   return (

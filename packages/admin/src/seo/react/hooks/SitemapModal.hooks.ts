@@ -1,11 +1,15 @@
 import type { SitemapModalController } from '../../models.js';
 import { useSeoCopy, useSeoOptions } from './SeoPorts.hooks.js';
 import { buildAgentListHandles } from '@jini-ai/agentic';
-/** Refetch only after accepted regeneration; a failed write must leave the viewed XML alone. */
+/** The regeneration mutation owns cache invalidation; forwarding it must not start a second
+ * XML read. Failed writes leave the viewed XML alone.
+ * @returns The mutation callback as the modal's click handler; no additional I/O.
+ * @complexity O(1).
+ */
 export function useSitemapModalRegenerate(
-  { onRegenerate, refetch }: { onRegenerate: () => Promise<boolean>; refetch: () => void }, _optional: Record<string, never> = {},
+  { onRegenerate }: { onRegenerate: () => Promise<boolean> }, _optional: Record<string, never> = {},
 ) {
-  return { handleRegenerate: async () => { if (await onRegenerate()) refetch(); } };
+  return { handleRegenerate: onRegenerate };
 }
 export function useSitemapTable({ modal }: { modal: SitemapModalController }, _optional: Record<string, never> = {}) {
   return { rowHandles: buildAgentListHandles({ prefix: 'seo-sitemap-row', ids: modal.filteredEntries.map(entry => entry.loc) }) };

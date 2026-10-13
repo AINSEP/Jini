@@ -6,6 +6,11 @@ import { SitemapModal } from "../components/SitemapModal.js";
 import { useSitemapModal } from "./harness/hooks.js";
 import { createFakeSitemapPort } from "./harness/api.js";
 import type { SitemapPort } from "./harness/api.js";
+import { coreSitemapApi } from "./harness/api.js";
+import { useSeo } from "../hooks/use-seo.hooks.js";
+import { useSitemapModal as useSitemapModalCore } from "../hooks/use-sitemap-modal.hooks.js";
+import { FetchQueryProvider as BuiltinProvider } from "@jini-ai/ui/fetch-query";
+import { FetchQueryProvider as TanstackProvider } from "@jini-ai/ui/fetch-query/tanstack";
 import { SeoOptionsContext } from "../hooks/SeoPorts.hooks.js";
 import type { SeoReactOptions } from "../options.js";
 
@@ -206,28 +211,54 @@ describe("SitemapModal — disabled and error states", () => {
   });
 });
 
-describe("SitemapModal — regenerate in the footer", () => {
+describe.each([
+  ["builtin", BuiltinProvider], ["tanstack", TanstackProvider],
+] as const)("SitemapModal — regenerate in the footer (%s)", (_adapter, Provider) => {
+  function renderRegeneratingModal({ port, fail = false }: { port: SitemapPort; fail?: boolean }) {
+    // 1c5d476f made the SEO mutation the invalidation owner. Keep that real owner in
+    // this fixture so an extra modal refetch cannot hide behind a boolean-only callback.
+    const regenerate = vi.fn(async () => {
+      if (fail) throw new Error("Regeneration denied");
+      return { accepted: true };
+    });
+    const api = { ...coreSitemapApi(port), regenerateSeoSitemap: regenerate };
+    function ConnectedModal() {
+      const seo = useSeo({ api });
+      return <SitemapModal locale="en" sitemapEnabled regenerating={seo.saving}
+        onRegenerate={seo.regenerateSitemap} onClose={() => {}}
+        useModal={inputs => useSitemapModalCore({ ...inputs, api })} />;
+    }
+    render(<Provider><ConnectedModal /></Provider>);
+    return { regenerate };
+  }
+
   it("refetches and updates the URL count after a SUCCESSFUL regenerate", async () => {
     const user = userEvent.setup();
     const port = sequencedSitemapPort([ONE_URL_XML, TWO_URL_XML]);
-    const { onRegenerate } = renderModal(port, { onRegenerate: vi.fn(async () => true) });
+    const xml = vi.spyOn(port, "fetchSitemapXml");
+    const { regenerate } = renderRegeneratingModal({ port });
     await screen.findByRole("heading", { name: "Sitemap · 1 URLs" });
+    expect(xml).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole("button", { name: "Regenerate sitemap" }));
 
-    expect(onRegenerate).toHaveBeenCalledTimes(1);
+    expect(regenerate).toHaveBeenCalledTimes(1);
+    expect(regenerate).toHaveBeenCalledWith({});
     expect(await screen.findByRole("heading", { name: "Sitemap · 2 URLs" })).toBeInTheDocument();
+    await flushPendingFetches();
+    expect(xml).toHaveBeenCalledTimes(2);
   });
 
   it("does NOT refetch after a FAILED regenerate", async () => {
     const user = userEvent.setup();
     const port = countingSitemapPort(ONE_URL_XML);
-    const { onRegenerate } = renderModal(port, { onRegenerate: vi.fn(async () => false) });
+    const { regenerate } = renderRegeneratingModal({ port, fail: true });
     await screen.findByRole("heading", { name: "Sitemap · 1 URLs" });
 
     expect(port.calls).toBe(1);
     await user.click(screen.getByRole("button", { name: "Regenerate sitemap" }));
-    expect(onRegenerate).toHaveBeenCalledTimes(1);
+    expect(regenerate).toHaveBeenCalledTimes(1);
+    expect(regenerate).toHaveBeenCalledWith({});
 
     // Give a wrongly-fired refetch a turn of the event loop to resolve before asserting it never
     // happened — the count must still read the FIRST fetch's result.
