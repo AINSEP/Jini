@@ -1,5 +1,9 @@
 # @jini-ai/platform
 
+## 0.5.5 — 2026-10-13
+
+- New narrow subpaths for the existing OS helpers: `./command`, `./process`, `./toolchain`, `./proxy-env`, `./shell`, `./child-environment`. Importing one loads 1-2 modules instead of the root barrel's 181 (incl. undici). The root still exports everything; no signature change.
+
 ## 0.5.4 — 2026-10-12
 
 - Removed unused exports: `SecretsVaultService.commitPrepared`, `VaultCommitPreparedInput`, `VaultCopyInput.targetRevisions`, the pre-vault `InMemoryVendorCredentialSetRepo` and `buildVendorCredentialAad`. No known consumer; prepared records are committed through the vault repository's `put`/`applyBatch`.

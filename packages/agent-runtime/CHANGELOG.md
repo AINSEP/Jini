@@ -1,3 +1,8 @@
+## 0.4.6 — 2026-10-13
+
+- New `./model-discovery` subpath: the discovery policy with injected `deps` and `probes` (`createAgentModelDiscovery({ agentId, configuration, deps, probes })`, `modelDiscoveryForDef({ def, deps })`, `resolveModelForLaunch({ def, context, deps })`). It loads no child_process/fs or native adapters. The root keeps the published scalar signatures, wired to the native probes.
+- Platform helpers come from the narrow platform subpaths; peer `@jini-ai/platform` floor is now `^0.5.5`.
+
 ## 0.4.3 — 2026-10-08
 
 - Desktop 0.1.13 release fixes: see commits a2659d24 (admin), 5695a7c3 (chat, agent-runtime), 8ad4ac5c (devops).

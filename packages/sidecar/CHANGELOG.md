@@ -1,5 +1,9 @@
 # @jini-ai/sidecar
 
+## 0.4.2 — 2026-10-13
+
+- The Node supervisor imports `@jini-ai/platform/command` and `/process` instead of the platform root; peer `@jini-ai/platform` floor is now `^0.5.5`.
+
 ## 0.4.1
 
 ### Patch Changes

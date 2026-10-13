@@ -1,3 +1,7 @@
+## 0.6.2 — 2026-10-13
+
+- Agent executor and host tools import `@jini-ai/platform/command` and `/process` instead of the platform root; peer `@jini-ai/platform` floor is now `^0.5.5`. No behavior change.
+
 ## 0.5.4 — pending release
 
 - Re-export the canonical core surface-exchange contracts and parameter constants. Store and ask/report behavior are unchanged; requires core 0.4.2.

@@ -1,10 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-test("0.5.4 retains published secret subpaths and adds generic platform subpaths while retaining existing exports", () => {
+test("0.5.5 retains published secret subpaths and adds generic platform subpaths while retaining existing exports", () => {
     const root = new URL("../../../", import.meta.url);
     const manifest = JSON.parse(readFileSync(new URL("package.json", root), "utf8"));
-    expect(manifest.version).toBe("0.5.4");
+    expect(manifest.version).toBe("0.5.5");
     expect(Object.keys(manifest.exports)).toEqual([".", "./fetch-with-timeout", "./secrets", "./secrets/credential-sets", "./secrets/testing", "./http/guarded", "./mail", "./mail/smtp", "./fs/guarded-reader", "./fs/durable-json", "./fs", "./net", "./net/endpoint-policy", "./fs/file-lock", "./secrets/credential-token", "./web", "./command", "./process", "./toolchain", "./proxy-env", "./shell", "./child-environment"]);
     for (const [subpath, source] of [["./net/endpoint-policy", "net/endpoint-policy"], ["./secrets/credential-token", "secrets/credential-token"], ["./net", "net/index"], ["./fs/file-lock", "fs/file-lock"], ["./secrets", "secrets/index"], ["./secrets/credential-sets", "secrets/credential-sets/index"], ["./secrets/testing", "secrets/testing"], ["./http/guarded", "http/guarded/index"], ["./mail", "mail/index"], ["./mail/smtp", "mail/smtp"], ["./fs/guarded-reader", "fs/guarded-reader"], ["./fs/durable-json", "fs/durable-json"], ["./fs", "fs/index"], ["./web", "web/index"], ["./command", "command"], ["./process", "process"], ["./toolchain", "toolchain"], ["./proxy-env", "proxy-env"], ["./shell", "shell"], ["./child-environment", "child-environment"]]) {
         expect(manifest.exports[subpath!]).toEqual({ types: `./dist/${source}.d.ts`, import: `./dist/${source}.js`, default: `./dist/${source}.js` });
