@@ -23,7 +23,7 @@ describe('agent executor split parity', () => {
       'mergeEnvContentInstructions', 'buildCodexMcpServerToml', 'buildCodexHomeConfigToml',
       'resolveSourceCodexHomeDir', 'buildMcpBridgeDelivery', 'resolveSourceClaudeConfigDir',
       'DEFAULT_BUFFERED_STDOUT_MAX_BYTES', 'applyAgentTranslationSideEffects',
-      'resolveDefAndStreamFormat', 'resolveImageDeliveryAndArgvBudget', 'resolveRunEnv', 'resolveLaunch',
+      'resolveDefAndStreamFormat', 'resolveImageDeliveryAndArgvBudget', 'resolveRunEnv', 'selectAgentExecutorHostEnv', 'resolveLaunch',
       'stagePromptFile', 'stageLogFile', 'resolveMcpBridgeForRun', 'computeChildEnv',
       'computeRuntimeContext', 'buildAgentBuildArgsOptions', 'resolveSystemPromptOverlayDelivery',
       'buildRunArgs', 'writeMcpJsonIfNeeded', 'prepareSystemPromptOverlayFileIfNeeded',
