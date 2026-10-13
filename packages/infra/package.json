@@ -75,12 +75,16 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
+    "@jini-ai/db": "workspace:^",
     "@jini-ai/core": "workspace:*"
   },
   "dependencies": {
-    "@jini-ai/db": "workspace:^",
     "@jini-ai/core": "workspace:^"
   },
-  "peerDependencies": {},
-  "peerDependenciesMeta": {}
+  "peerDependencies": {
+    "@jini-ai/db": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@jini-ai/db": { "optional": true }
+  }
 }

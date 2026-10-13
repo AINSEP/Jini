@@ -786,10 +786,10 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
+    devDependencies:
       '@jini-ai/db':
         specifier: workspace:^
         version: link:../db
-    devDependencies:
       '@vitest/coverage-v8':
         specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0))
@@ -860,6 +860,10 @@ importers:
       '@jini-ai/core':
         specifier: ^0.4.0
         version: link:../core
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.1.9
+        version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0))
       hast-util-from-parse5:
         specifier: 8.0.3
         version: 8.0.3
@@ -872,16 +876,12 @@ importers:
       mdast-util-to-markdown:
         specifier: 2.1.2
         version: 2.1.2
-      undici:
-        specifier: ^7.25.0
-        version: 7.28.0
-    devDependencies:
-      '@vitest/coverage-v8':
-        specifier: ^2.1.9
-        version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0))
       parse5:
         specifier: 7.3.0
         version: 7.3.0
+      undici:
+        specifier: ^7.25.0
+        version: 7.28.0
 
   packages/plugins:
     dependencies:

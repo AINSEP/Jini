@@ -8,6 +8,12 @@ applies npm registry deprecation at publish time; the manifest notice does not d
 registry versions by itself. The retained outbox owner is exposed as `@jini-ai/infra/events/outbox`;
 the database entries remain compatibility shims.
 
+`@jini-ai/db` is an optional peer, required only by `./db/core` and `./db/sqlite`.
+Hosts using those entries must declare and install it explicitly; the published peer range
+tracks the matching workspace db release. `./events/outbox` works without db installed and
+requires only the regular `@jini-ai/core` dependency. The compatibility entries continue to
+re-export db's implementations; no database driver is loaded by the shim itself.
+
 Version 0.4.0 keeps the 0.3.3 names at `@jini-ai/infra/db/core` and
 `@jini-ai/infra/db/sqlite` for existing ESM consumers. Database implementations and their tests
 now live in `@jini-ai/db`. This shim has no driver peer dependency and no CommonJS build.
