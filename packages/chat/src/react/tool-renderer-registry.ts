@@ -30,26 +30,47 @@ import type { ToolRenderProps } from '../core/index.js';
  */
 export type ToolRenderer = (props: ToolRenderProps) => ReactNode;
 
-const renderers = new Map<string, ToolRenderer>();
+/** Owned lookup and registration state for one chat tree. */
+export interface ToolRendererRegistry {
+  register(required: { name: string; renderer: ToolRenderer }): () => void;
+  get(required: { name: string }): ToolRenderer | undefined;
+  clear(required: Record<string, never>): void;
+}
 
-/**
- * Register a renderer for a tool name. Returns an unregister handle so
- * tests / hot-reloads can dispose cleanly. Names are matched case-sensitively
- * against `tool_use.name`. Re-registering the same name overwrites — last
- * writer wins.
+/** Create independent tool renderer state; registrations never leak to another tree.
+ * @returns A keyed registry with identity-safe unregister handles.
+ * @example const tools = createToolRendererRegistry({}); tools.register({ name: 'Read', renderer });
  */
-export function registerToolRenderer({ name, renderer }: { name: string; renderer: ToolRenderer }): () => void {
-  renderers.set(name, renderer);
-  return () => {
-    if (renderers.get(name) === renderer) renderers.delete(name);
+export function createToolRendererRegistry(_required: Record<string, never> = {}): ToolRendererRegistry {
+  const renderers = new Map<string, { renderer: ToolRenderer }>();
+  return {
+    // Names are case-sensitive; last writer wins. Compare the registration entry rather than
+    // the callback: re-registering the same callback still invalidates its old cleanup handle.
+    register({ name, renderer }) {
+      const entry = { renderer };
+      renderers.set(name, entry);
+      return () => { if (renderers.get(name) === entry) renderers.delete(name); };
+    },
+    get({ name }) { return renderers.get(name)?.renderer; },
+    clear(_required) { renderers.clear(); },
   };
 }
 
-export function getToolRenderer({ name }: { name: string }): ToolRenderer | undefined {
-  return renderers.get(name);
-}
+/** Compatibility default for hosts that have not supplied owned state. */
+export const defaultToolRendererRegistry = createToolRendererRegistry({});
 
-/** Visible mainly for tests. */
-export function clearToolRenderers(_requiredArgs: Record<string, never>): void {
-  renderers.clear();
+/**
+ * Register a renderer for a tool name in the compatibility default. Returns an unregister handle so
+ * tests / hot-reloads can dispose cleanly. Names are matched case-sensitively against
+ * `tool_use.name`. Re-registering the same name overwrites — last writer wins.
+ */
+export function registerToolRenderer(required: { name: string; renderer: ToolRenderer }): () => void {
+  return defaultToolRendererRegistry.register(required);
+}
+export function getToolRenderer(required: { name: string }): ToolRenderer | undefined {
+  return defaultToolRendererRegistry.get(required);
+}
+/** Visible mainly for tests using the compatibility default. */
+export function clearToolRenderers(required: Record<string, never>): void {
+  defaultToolRendererRegistry.clear(required);
 }

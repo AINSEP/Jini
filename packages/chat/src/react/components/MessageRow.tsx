@@ -60,8 +60,8 @@ import { useCopyToClipboard } from '../hooks/useCopyToClipboard.js';
 import { useRunActivity } from '../hooks/useRunActivity.js';
 import { useAnsweredCards } from '../hooks/useAnsweredCards.js';
 import { interleaveMessageBlocks } from '../message-blocks.js';
-import { useT } from '../hooks/context.js';
-import { extEventSlot, getExtEventRenderer } from '../ext-event-renderer-registry.js';
+import { useT, useExtEventRendererRegistry } from '../hooks/context.js';
+import type { ExtEventRendererRegistry } from '../ext-event-renderer-registry.js';
 import { ExtEventErrorBoundary } from './ExtEventErrorBoundary.js';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal.js';
 import { SentAttachmentButton } from './SentAttachment.js';
@@ -163,7 +163,7 @@ interface CopyMessageButtonProps {
 }
 
 function messageBlocks(
-  { visibleContent, message, rows }: { visibleContent: string; message: ChatMessage; rows: ToolTimelineRow[] },
+  { visibleContent, message, rows, registry }: { visibleContent: string; message: ChatMessage; rows: ToolTimelineRow[]; registry: ExtEventRendererRegistry },
   { toolCallDisplay = 'show', includeThinking = false }: { toolCallDisplay?: ToolCallDisplay; includeThinking?: boolean } = {},
 ) {
   // Interleaving is skipped outright when an artifact was stripped. `stripArtifact` operates on the
@@ -174,7 +174,7 @@ function messageBlocks(
   if (visibleContent !== message.content) return null;
   const blocks = interleaveMessageBlocks<ToolTimelineRow>(
     { events: message.events, content: message.content, rows },
-    { slotOf: (ev) => extEventSlot({ name: ev.name, data: ev.data }), includeThinking },
+    { slotOf: (ev) => registry.slot({ name: ev.name, data: ev.data }), includeThinking },
   );
   return blocks ? applyToolCallDisplay({ blocks, mode: toolCallDisplay }) : null;
 }
@@ -276,10 +276,11 @@ export const MessageRow = memo(function MessageRow({
   renderAttachment,
 }: MessageRowProps) {
   const t = useT();
+  const registry = useExtEventRendererRegistry();
   const messageUsage = useMessageUsage({ message, ...(usageSummary === undefined ? {} : { summary: usageSummary }) });
   const timeline = useToolTimeline({ events: message.events }, { runStreaming, runSucceeded });
-  const extGroups = useExtEventGroups({ events: message.events }, { slotOf: (name, data) => extEventSlot({ name, data }) });
-  const answeredCards = useAnsweredCards({ slotOf: extEventSlot });
+  const extGroups = useExtEventGroups({ events: message.events }, { slotOf: (name, data) => registry.slot({ name, data }) });
+  const answeredCards = useAnsweredCards({ slotOf: registry.slot });
   // Which attachment chip (if any) this row's preview modal is open for. Row-local, not
   // module-level: two attachments in the same message can never be "open" at once, but two
   // different messages opening their own attachments independently is fine and expected.
@@ -317,7 +318,7 @@ export const MessageRow = memo(function MessageRow({
   const visibleContent = stripArtifact({ content: message.content });
   const segments = splitOnQuestionForms({ input: visibleContent });
 
-  const blocks = messageBlocks({ visibleContent, message, rows: timeline.rows }, { toolCallDisplay, includeThinking: showThinking });
+  const blocks = messageBlocks({ visibleContent, message, rows: timeline.rows, registry }, { toolCallDisplay, includeThinking: showThinking });
   const pending = isPendingWithNoContent(message, visibleContent, timeline.rows.length);
   const runInProgress = isRunInProgress(message.runStatus);
   const awaitingAnswer = messageAwaitingAnswer({ runStreaming, runInProgress, events: message.events }, { isAnsweredCard: answeredCards.isAnsweredCard });
@@ -343,7 +344,7 @@ export const MessageRow = memo(function MessageRow({
   const flatToolRows = toolRowsForDisplay({ rows: timeline.rows, mode: toolCallDisplay });
 
   const renderExtGroup = (group: ExtEventGroup) => {
-    const renderer = getExtEventRenderer({ name: group.name });
+    const renderer = registry.get({ name: group.name });
     if (!renderer) return null;
     const node = renderer({
       name: group.name,

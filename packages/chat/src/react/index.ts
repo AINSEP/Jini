@@ -44,20 +44,24 @@ export type {
   ProjectContextValue,
 } from './slots.js';
 export {
+  createToolRendererRegistry,
   clearToolRenderers,
   getToolRenderer,
   registerToolRenderer,
 } from './tool-renderer-registry.js';
 export type {
+  ToolRendererRegistry,
   ToolRenderer,
 } from './tool-renderer-registry.js';
 export {
+  createExtEventRendererRegistry,
   clearExtEventRenderers,
   extEventSlot,
   getExtEventRenderer,
   registerExtEventRenderer,
 } from './ext-event-renderer-registry.js';
 export type {
+  ExtEventRendererRegistry,
   ExtEventRenderProps,
   ExtEventRenderer,
   ExtEventRendererOptions,

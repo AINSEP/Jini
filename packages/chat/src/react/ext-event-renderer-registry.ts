@@ -94,45 +94,74 @@ interface RegisteredExtEventRenderer {
   readonly slotKey: ExtEventSlotKey | undefined;
 }
 
-const renderers = new Map<string, RegisteredExtEventRenderer>();
-
-/**
- * Register a renderer for an ext-event `name`. Returns an unregister handle so tests / hot-reloads
- * can dispose cleanly. Re-registering the same name overwrites — last writer wins.
- */
-export function registerExtEventRenderer(
-  { name, renderer }: { name: string; renderer: ExtEventRenderer },
-  options: ExtEventRendererOptions = {},
-): () => void {
-  const entry: RegisteredExtEventRenderer = { renderer, slotKey: options.slotKey };
-  renderers.set(name, entry);
-  return () => {
-    if (renderers.get(name) === entry) renderers.delete(name);
-  };
+/** Owned renderer and slot-key state for one chat tree. */
+export interface ExtEventRendererRegistry {
+  register(required: { name: string; renderer: ExtEventRenderer }, options?: ExtEventRendererOptions): () => void;
+  get(required: { name: string }): ExtEventRenderer | undefined;
+  slot(required: { name: string; data: unknown }): string;
+  clear(): void;
 }
 
-export function getExtEventRenderer({ name }: { name: string }): ExtEventRenderer | undefined {
-  return renderers.get(name)?.renderer;
-}
-
-/**
- * The render slot an ext event belongs to: its `name`, or `name:key` when the name's renderer was
- * registered with a {@link ExtEventSlotKey} that recognizes this event. A throwing key function
- * falls back to the shared slot rather than taking the whole message down.
+/** Create independent extension renderer state, including each protocol's slot grouping.
+ * @returns A keyed registry with identity-safe unregister handles.
+ * @example const extensions = createExtEventRendererRegistry({}); extensions.register({ name: 'card', renderer });
  */
-export function extEventSlot({ name, data }: { name: string; data: unknown }): string {
-  const slotKey = renderers.get(name)?.slotKey;
-  if (!slotKey) return name;
-  let key: string | undefined;
-  try {
-    key = slotKey({ data });
-  } catch {
-    key = undefined;
+export function createExtEventRendererRegistry(_required: Record<string, never> = {}): ExtEventRendererRegistry {
+  const renderers = new Map<string, RegisteredExtEventRenderer>();
+  /**
+   * Register a renderer for an ext-event `name`. Returns an unregister handle so tests / hot-reloads
+   * can dispose cleanly. Re-registering the same name overwrites — last writer wins.
+   */
+  function register(
+    { name, renderer }: { name: string; renderer: ExtEventRenderer },
+    options: ExtEventRendererOptions = {},
+  ): () => void {
+    const entry: RegisteredExtEventRenderer = { renderer, slotKey: options.slotKey };
+    renderers.set(name, entry);
+    return () => {
+      if (renderers.get(name) === entry) renderers.delete(name);
+    };
   }
-  return key === undefined || key === '' ? name : `${name}:${key}`;
+
+  function get({ name }: { name: string }): ExtEventRenderer | undefined {
+    return renderers.get(name)?.renderer;
+  }
+
+  /**
+   * The render slot an ext event belongs to: its `name`, or `name:key` when the name's renderer was
+   * registered with a {@link ExtEventSlotKey} that recognizes this event. A throwing key function
+   * falls back to the shared slot rather than taking the whole message down.
+   */
+  function slot({ name, data }: { name: string; data: unknown }): string {
+    const slotKey = renderers.get(name)?.slotKey;
+    if (!slotKey) return name;
+    let key: string | undefined;
+    try {
+      key = slotKey({ data });
+    } catch {
+      key = undefined;
+    }
+    return key === undefined || key === '' ? name : `${name}:${key}`;
+  }
+
+  /** Visible mainly for tests. */
+  function clear(): void { renderers.clear(); }
+  return { register, get, slot, clear };
 }
 
-/** Visible mainly for tests. */
-export function clearExtEventRenderers(): void {
-  renderers.clear();
+/** Compatibility default for hosts that have not supplied owned state. */
+export const defaultExtEventRendererRegistry = createExtEventRendererRegistry({});
+
+/** Register against the compatibility default; see the owned registry's registration contract. */
+export function registerExtEventRenderer(required: { name: string; renderer: ExtEventRenderer }, options: ExtEventRendererOptions = {}): () => void {
+  return defaultExtEventRendererRegistry.register(required, options);
 }
+export function getExtEventRenderer(required: { name: string }): ExtEventRenderer | undefined {
+  return defaultExtEventRendererRegistry.get(required);
+}
+/** Resolve a slot using the compatibility default's registered slot key. */
+export function extEventSlot(required: { name: string; data: unknown }): string {
+  return defaultExtEventRendererRegistry.slot(required);
+}
+/** Visible mainly for tests using the compatibility default. */
+export function clearExtEventRenderers(): void { defaultExtEventRendererRegistry.clear(); }

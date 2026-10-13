@@ -3,8 +3,8 @@
  *
  * Renders MCP-UI Views inline in a chat transcript, fed by a message's `kind: 'ext', name: 'mcp-ui'`
  * events — the same extensibility seam `A2uiSurfaceCard.tsx` uses, and registered the same way: a
- * host calls {@link registerMcpUiSurfaceRenderer} once at module scope and every `ChatPane` that
- * surfaces a matching event renders through it thereafter.
+ * host calls {@link registerMcpUiSurfaceRenderer} with its owned registry (or the compatibility
+ * default) and matching events in that registry's chat tree render through it.
  *
  * Each event's `data` is expected to be an MCP `EmbeddedResource` carrying UI — exactly the object a
  * tool result's `content` array holds, unwrapped. One shape, deliberately: accepting several
@@ -71,7 +71,7 @@ import {
   type McpUiToolCallHandler,
   type UIResource,
 } from '@jini-ai/ui/mcp-ui';
-import { registerExtEventRenderer, type ExtEventCall, type ExtEventRenderProps } from '../ext-event-renderer-registry.js';
+import { defaultExtEventRendererRegistry, type ExtEventRendererRegistry, type ExtEventCall, type ExtEventRenderProps } from '../ext-event-renderer-registry.js';
 import { useT } from '../hooks/context.js';
 import { useSurfaceExpiry, type SurfaceExpiryClock } from '../hooks/useSurfaceExpiry.js';
 import { closedSurfaceLabel, reportDeliveredAnswer } from './mcp-ui-surface-state.js';
@@ -265,6 +265,7 @@ export function mcpUiSurfaceSlotKey({ data }: { data: unknown }): string | undef
  * @param options.maxHeight - See {@link McpUiSurfaceCardProps.maxHeight}. A host with a fixed-width
  * pane (a docked sidebar rather than a full-width transcript) should set this once here instead of
  * accepting the library's full-width-oriented 720px default.
+ * @param options.registry - Owned registry bound to JiniChatProvider; omitted for the global default.
  * @returns An unregister handle, so a test or a hot reload can dispose cleanly.
  */
 export function registerMcpUiSurfaceRenderer(options: {
@@ -273,8 +274,10 @@ export function registerMcpUiSurfaceRenderer(options: {
   onOpenLink?: (url: string) => void;
   name?: string;
   maxHeight?: number;
+  /** Register in owned state when supplied; otherwise preserve the global API. */
+  registry?: ExtEventRendererRegistry;
 }): () => void {
-  return registerExtEventRenderer({ name: options.name ?? MCP_UI_EXT_EVENT_NAME, renderer: (props) => (
+  return (options.registry ?? defaultExtEventRendererRegistry).register({ name: options.name ?? MCP_UI_EXT_EVENT_NAME, renderer: (props) => (
     <McpUiSurfaceCard
       {...props}
       sandboxProxyUrl={options.sandboxProxyUrl}

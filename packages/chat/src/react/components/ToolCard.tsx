@@ -22,8 +22,8 @@
 import { useId, useState, type ReactNode } from 'react';
 import type { AgentEvent, ToolResultMediaBlock } from '../../core/index.js';
 import { describeCollapsedToolCall, describeToolCallDetail, formatToolOutputForDisplay, isDelegatedWrapperToolName, isTodoWriteToolName, parseTodoWriteInput, toRenderProps } from '../../core/index.js';
-import { useT } from '../hooks/context.js';
-import { getToolRenderer } from '../tool-renderer-registry.js';
+import { useT, useToolRendererRegistry } from '../hooks/context.js';
+import type { ToolRendererRegistry } from '../tool-renderer-registry.js';
 import { Icon } from './Icon.js';
 import { TodoCard } from './TodoCard.js';
 
@@ -50,10 +50,11 @@ const SEARCH_TOOLS_NAMES = new Set(['search_tools', 'mcp__jini__search_tools']);
 const DESCRIBE_TOOL_NAMES = new Set(['describe_tool', 'mcp__jini__describe_tool']);
 
 export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileNames, onRequestOpenFile }: ToolCardProps) {
+  const registry = useToolRendererRegistry();
   const name = use.name;
   const isStreaming = runStreaming ?? false;
   const isSucceeded = runSucceeded ?? false;
-  const content = renderToolCardBody(name, use, result, isStreaming, isSucceeded, { projectFileNames, onRequestOpenFile });
+  const content = renderToolCardBody(name, use, result, isStreaming, isSucceeded, { projectFileNames, onRequestOpenFile }, registry);
   if (content === null) return null;
   // Tagged once here, at the single dispatch point every branch below funnels through, rather than
   // in each of the dozen card variants — one place to keep correct, and every variant (including a
@@ -74,8 +75,9 @@ function renderToolCardBody(
   isStreaming: boolean,
   isSucceeded: boolean,
   fileCtx: FileToolCtx,
+  registry: ToolRendererRegistry,
 ): ReactNode {
-  const custom = getToolRenderer({ name: name });
+  const custom = registry.get({ name });
   if (custom) {
     try {
       const node = custom(toRenderProps({ use: use, result: result, runStreaming: isStreaming }, { runSucceeded: isSucceeded }));

@@ -18,6 +18,8 @@ import { createContext, useContext } from 'react';
 import type { AnalyticsAdapter, I18nAdapter, ProjectContextValue } from '../slots.js';
 import type { ChatTransport } from '../../core/index.js';
 import type { RendererRegistry } from '../artifact-types.js';
+import { defaultToolRendererRegistry, type ToolRendererRegistry } from '../tool-renderer-registry.js';
+import { defaultExtEventRendererRegistry, type ExtEventRendererRegistry } from '../ext-event-renderer-registry.js';
 
 const PASSTHROUGH_I18N: I18nAdapter = {
   t: (key, vars) => interpolate(key, vars),
@@ -38,6 +40,8 @@ export const I18nContext = createContext<I18nAdapter>(PASSTHROUGH_I18N);
 export const AnalyticsContext = createContext<AnalyticsAdapter>(NOOP_ANALYTICS);
 export const ProjectContext = createContext<ProjectContextValue | undefined>(undefined);
 export const ChatTransportContext = createContext<ChatTransport | undefined>(undefined);
+export const ToolRendererRegistryContext = createContext<ToolRendererRegistry>(defaultToolRendererRegistry);
+export const ExtEventRendererRegistryContext = createContext<ExtEventRendererRegistry>(defaultExtEventRendererRegistry);
 export const ArtifactRegistryContext = createContext<RendererRegistry | undefined>(undefined);
 
 /** Convenience for call sites that only need the translator function. */
@@ -68,3 +72,8 @@ export function useChatTransport(): ChatTransport {
 export function useArtifactRegistry(): RendererRegistry | undefined {
   return useContext(ArtifactRegistryContext);
 }
+
+/** Read the nearest tool binding, or the compatibility default outside an owned provider. */
+export function useToolRendererRegistry(): ToolRendererRegistry { return useContext(ToolRendererRegistryContext); }
+/** Renderer lookup and grouping must read the same provider binding. */
+export function useExtEventRendererRegistry(): ExtEventRendererRegistry { return useContext(ExtEventRendererRegistryContext); }
