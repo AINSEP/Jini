@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.6 — 2026-10-13 — skills' supporting files are readable
+
+- New `createSkillFileReader()` and lifecycle `readInstalledSkillFile()`: read `SKILL.md` or a
+  supporting text file (`references/…`, `examples/…`, …) relative to one skill folder, with a sorted
+  `files` inventory. Refused: `..`, absolute or drive paths, symlinks resolving outside the skill
+  (including sibling skills), non-text extensions, binary or invalid UTF-8, files over 256 KiB.
+  Refusals return a note naming the valid files; no host path ever appears in output.
+- Run-start injection lists supporting files relative to the skill folder instead of absolute host
+  paths, and points at the plugin tool's `file` argument. Activation-read refusals no longer echo
+  the native error (which could name a host path).
+
 ## 0.4.5 — 2026-10-12 — retirement waits for usable successors
 
 - `retireBundledAgentPlugins()` (and so the boot seeder) keeps a retired bundled plugin until EVERY
