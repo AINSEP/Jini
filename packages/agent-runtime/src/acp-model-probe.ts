@@ -6,7 +6,7 @@
  * live models, allowing detection to fall back to the def's static catalog.
  */
 import type { RuntimeEnv, RuntimeModelOption } from './types.js';
-import { detectAcpModels as probeNativeModels } from './agent-protocol/acp/models.js';
+import { detectAcpModels as probeNativeModels, detectAcpModelMetadata } from './agent-protocol/acp/models.js';
 
 export interface AcpModelProbeRequest {
   bin: string;
@@ -14,6 +14,7 @@ export interface AcpModelProbeRequest {
   cwd?: string;
   env?: RuntimeEnv;
   timeoutMs?: number;
+  signal?: AbortSignal;
   clientName?: string;
   clientVersion?: string;
   defaultModelOption?: RuntimeModelOption;
@@ -22,6 +23,9 @@ export interface AcpModelProbeRequest {
 export interface AcpModelProbe {
   detectModels(requiredArgs: Pick<AcpModelProbeRequest, 'bin' | 'args'>,
     optionalArgs?: Omit<AcpModelProbeRequest, 'bin' | 'args'>): Promise<RuntimeModelOption[]>;
+  /** Optional metadata capability preserves a native current selection without guessing from order. */
+  detectMetadata?(requiredArgs: Pick<AcpModelProbeRequest, 'bin' | 'args'>,
+    optionalArgs?: Omit<AcpModelProbeRequest, 'bin' | 'args'>): Promise<{ models: RuntimeModelOption[]; currentModelId: string | null }>;
 }
 
 export const noopAcpModelProbe: AcpModelProbe = {
@@ -30,16 +34,21 @@ export const noopAcpModelProbe: AcpModelProbe = {
   },
 };
 
-const nativeAcpModelProbe: AcpModelProbe = { detectModels: (required, optional = {}) =>
-  probeNativeModels(required, { ...optional, ...(optional.env ? { env: optional.env as NodeJS.ProcessEnv } : {}) }) };
+/** Native adapter selected once by each host composition; independent of the compatibility setter. */
+export const nativeAcpModelProbe: AcpModelProbe = {
+  detectModels: (required, optional = {}) => probeNativeModels(required, optional),
+  detectMetadata: (required, optional = {}) => detectAcpModelMetadata(required, optional),
+};
 let activeAcpModelProbe: AcpModelProbe = nativeAcpModelProbe;
 
-/** Install a transport/test double. Pass `null` to restore the native transport. */
+/** Compatibility setter for unbound definitions. Owned hosts keep their selected transport.
+ * Pass `null` to restore the native transport for the legacy wrapper. */
 export function setAcpModelProbe({ probe }: { probe: AcpModelProbe | null }): void {
   activeAcpModelProbe = probe ?? nativeAcpModelProbe;
 }
 
-/** Delegate to the currently installed probe. */
-export async function detectAcpModels(requiredArgs: Pick<AcpModelProbeRequest, "bin" | "args">, optionalArgs: Omit<AcpModelProbeRequest, "bin" | "args"> = {}): Promise<RuntimeModelOption[]> {
-  return activeAcpModelProbe.detectModels(requiredArgs, optionalArgs);
+/** Delegate to an explicit host probe, or the currently installed compatibility probe. */
+export async function detectAcpModels(requiredArgs: Pick<AcpModelProbeRequest, "bin" | "args">, optionalArgs: Omit<AcpModelProbeRequest, "bin" | "args"> & { probe?: AcpModelProbe } = {}): Promise<RuntimeModelOption[]> {
+  const { probe = activeAcpModelProbe, ...request } = optionalArgs;
+  return probe.detectModels(requiredArgs, request);
 }

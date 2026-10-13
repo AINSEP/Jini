@@ -5,7 +5,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { createCommandInvocation } from '@jini-ai/platform/command';
-import { detectAcpModelMetadata } from './agent-protocol/acp/models.js';
+import { nativeAcpModelProbe, type AcpModelProbe } from './acp-model-probe.js';
 import { CLAUDE_CODE_INITIALIZE_ARGS, CLAUDE_CODE_INITIALIZE_REQUEST } from './claude-code-models.js';
 import { listProviderModels } from './providers/model-catalog.js';
 import { execAgentFile } from './invocation.js';
@@ -262,11 +262,7 @@ export const defaultModelDiscoveryDeps: ModelDiscoveryDeps = {
     if ((/^(openai\/|gpt-|o\d)/.test(selected) || agentId === 'qwen' && (env.OPENAI_MODEL || env.OPENAI_BASE_URL)) && env.OPENAI_API_KEY) return { protocol: 'openai', baseUrl: env.OPENAI_BASE_URL || env.OPENAI_API_BASE || VENDOR_API_BASE_URLS.openai, apiKey: env.OPENAI_API_KEY };
     return null;
   } },
-  acp: { async probe({ context, args, signal }) {
-    const invocation = createCommandInvocation({ command: context.executable, args: [...args], env: context.env });
-    const result = await scheduleProbeProcess({ work: () => detectAcpModelMetadata({ bin: invocation.command, args: invocation.args }, { cwd: context.cwd, env: context.env as NodeJS.ProcessEnv, timeoutMs: 15_000, signal }) }, { signal });
-    return { models: result.models, source: 'rpc', coverage: 'account', ...(result.currentModelId ? { defaultSelectionId: result.currentModelId } : {}) };
-  } },
+  acp: createAcpDiscoveryAdapter({ probe: nativeAcpModelProbe }),
   rpc: { async probe({ agentId, context, signal }) {
     // UNVERIFIED locally: use official prompt-free SDK interfaces, not invented CLI flags.
     if (agentId === 'copilot') return scheduleProbeProcess({ work: () => probeCopilotSdk(context, signal) }, { signal });
@@ -302,5 +298,26 @@ export function parsePiRpcMetadata(stdout: string): ModelProbeResult {
 /** Stable dependency identity preserves the existing per-host single-probe budget as well as its cache. */
 export function getRuntimeModelDiscoveryDeps({ state }: { state: AgentRuntimeState }, _optional: Record<string, never> = {}): ModelDiscoveryDeps {
   if (state === defaultRuntimeState) return defaultModelDiscoveryDeps;
-  return state.discoveryDeps ??= { ...defaultModelDiscoveryDeps, cache: state.modelCatalog };
+  return state.discoveryDeps ??= { ...defaultModelDiscoveryDeps, cache: state.modelCatalog,
+    acp: createAcpDiscoveryAdapter({ probe: state.acpModelProbe ?? nativeAcpModelProbe }),
+  };
+}
+
+/** Adapt the existing ACP port to catalog metadata; array-only transports cannot claim a default.
+ * Keeps invocation normalization, cancellation and the shared process budget in the native adapter.
+ * @param required - The host's existing ACP probe, optionally capable of reporting current selection.
+ * @returns A catalog adapter using that probe without changing security or concurrency guarantees.
+ * @example const acp = createAcpDiscoveryAdapter({ probe: hostProbe });
+ */
+export function createAcpDiscoveryAdapter({ probe }: { probe: AcpModelProbe }, _optional: Record<string, never> = {}): ModelDiscoveryDeps['acp'] {
+  return { async probe({ context, args, signal }) {
+    const invocation = createCommandInvocation({ command: context.executable, args: [...args], env: context.env });
+    const required = { bin: invocation.command, args: invocation.args };
+    const optional = { cwd: context.cwd, env: context.env, timeoutMs: 15_000, signal };
+    const result = await scheduleProbeProcess({ work: async () => {
+      if (probe.detectMetadata) return probe.detectMetadata(required, optional);
+      return { models: await probe.detectModels(required, optional), currentModelId: null };
+    } }, { signal });
+    return { models: result.models, source: 'rpc', coverage: 'account', ...(result.currentModelId ? { defaultSelectionId: result.currentModelId } : {}) };
+  } };
 }

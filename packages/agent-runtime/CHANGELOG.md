@@ -1,3 +1,9 @@
+## 0.4.7 — 2026-10-13
+
+- New `createNativeAgentRuntime({ env }, { state, acpModelProbe, codexDisablePlugins, piGracefulShutdownMs })`: one host-owned runtime state with detection, launch and definitions bound to it, environment policies resolved once, and `dispose({})` that drains in-flight discovery before clearing caches.
+- ACP model probes can come from the host (`AgentRuntimeState.acpModelProbe`, `fetchModels(required, { acpModelProbe })`); `setAcpModelProbe` stays as the compatibility setter for unbound definitions.
+- Codex `--disable plugins` and the pi RPC shutdown grace period are explicit (`RuntimeBuildOptions.codexDisablePlugins`, `PiRpcSessionOptions.gracefulShutdownMs`); `CODEX_DISABLE_PLUGINS` / `PI_GRACEFUL_SHUTDOWN_MS` are read at native composition instead of inside `buildArgs` / the session.
+
 ## 0.4.6 — 2026-10-13
 
 - New `./model-discovery` subpath: the discovery policy with injected `deps` and `probes` (`createAgentModelDiscovery({ agentId, configuration, deps, probes })`, `modelDiscoveryForDef({ def, deps })`, `resolveModelForLaunch({ def, context, deps })`). It loads no child_process/fs or native adapters. The root keeps the published scalar signatures, wired to the native probes.

@@ -11,6 +11,7 @@
  * Ported from OD's `apps/daemon/src/runtimes/types.ts`. Product-neutral
  * as found — see `archived provenance ledger` for the full provenance table.
  */
+import type { AcpModelProbe } from './acp-model-probe.js';
 import type { AgentModelDiscoveryPort, ModelCatalogSnapshot, DefaultModelResolution, ModelIdentityKind } from './model-discovery-types.js';
 import type { ExecFileOptions } from 'node:child_process';
 import type { AgentDiagnostic } from '@jini-ai/protocol';
@@ -81,6 +82,8 @@ export type RuntimeReasoningInModelId = {
 };
 
 export type RuntimeBuildOptions = {
+  /** Explicit host/run policy; environment defaults belong to native composition. */
+  codexDisablePlugins?: boolean;
   /** Host-scoped capability flags; absent retains the published compatibility cache. */
   capabilities?: RuntimeCapabilityMap;
   model?: string | null;
@@ -386,6 +389,7 @@ export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
   listModels?: RuntimeListModels;
   fetchModels?: (
     requiredArgs: { resolvedBin: string; env: RuntimeEnv },
+    optionalArgs?: { acpModelProbe?: AcpModelProbe },
   ) => Promise<RuntimeModelOption[] | null>;
   reasoningOptions?: RuntimeReasoningOption[];
   /**

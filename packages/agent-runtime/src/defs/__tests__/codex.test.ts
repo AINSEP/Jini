@@ -181,7 +181,6 @@ describe('codexAgentDef.buildArgs', () => {
   const originalPlatform = process.platform;
   const originalWsl = process.env.WSL_DISTRO_NAME;
   const originalSandboxMode = process.env.CODEX_SANDBOX_MODE;
-  const originalDisablePlugins = process.env.CODEX_DISABLE_PLUGINS;
 
   function setPlatform(platform: NodeJS.Platform) {
     Object.defineProperty(process, 'platform', { value: platform });
@@ -193,8 +192,6 @@ describe('codexAgentDef.buildArgs', () => {
     else process.env.WSL_DISTRO_NAME = originalWsl;
     if (originalSandboxMode === undefined) delete process.env.CODEX_SANDBOX_MODE;
     else process.env.CODEX_SANDBOX_MODE = originalSandboxMode;
-    if (originalDisablePlugins === undefined) delete process.env.CODEX_DISABLE_PLUGINS;
-    else process.env.CODEX_DISABLE_PLUGINS = originalDisablePlugins;
   });
 
   it('builds a fresh (non-resume) turn with workspace-write sandbox on a non-Windows/non-WSL host', () => {
@@ -305,20 +302,17 @@ describe('codexAgentDef.buildArgs', () => {
     expect(codexAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { reasoning: '' } }).join(' ')).not.toContain('model_reasoning_effort');
   });
 
-  it('adds --disable plugins when CODEX_DISABLE_PLUGINS=1', () => {
+  it('adds --disable plugins when the host explicitly disables plugins', () => {
     setPlatform('darwin');
-    process.env.CODEX_DISABLE_PLUGINS = '1';
-    const args = codexAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] });
+    const args = codexAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { codexDisablePlugins: true } });
     expect(args).toContain('--disable');
     expect(args[args.indexOf('--disable') + 1]).toBe('plugins');
   });
 
-  it('omits --disable plugins when CODEX_DISABLE_PLUGINS is unset or not "1"', () => {
+  it('omits --disable plugins for absent or explicitly enabled host policy', () => {
     setPlatform('darwin');
-    delete process.env.CODEX_DISABLE_PLUGINS;
     expect(codexAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] })).not.toContain('--disable');
-    process.env.CODEX_DISABLE_PLUGINS = '0';
-    expect(codexAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] })).not.toContain('--disable');
+    expect(codexAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { codexDisablePlugins: false } })).not.toContain('--disable');
   });
 
   it('defaults extraAllowedDirs/options/runtimeContext when omitted entirely', () => {

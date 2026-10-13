@@ -286,21 +286,23 @@ describe('attachPiRpcSession', () => {
     expect(session.getLastSessionPath()).toBeNull();
   });
 
-  it('respects PI_GRACEFUL_SHUTDOWN_MS for the post-agent_end SIGTERM delay', () => {
-    const original = process.env.PI_GRACEFUL_SHUTDOWN_MS;
-    process.env.PI_GRACEFUL_SHUTDOWN_MS = '100';
-    try {
-      const child = new FakeChild();
-      attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn() });
-      emitLine(child, { type: 'agent_end' });
-      vi.advanceTimersByTime(99);
-      expect(child.killed).toBe(false);
-      vi.advanceTimersByTime(2);
-      expect(child.killed).toBe(true);
-    } finally {
-      if (original === undefined) delete process.env.PI_GRACEFUL_SHUTDOWN_MS;
-      else process.env.PI_GRACEFUL_SHUTDOWN_MS = original;
-    }
+  it('allows an explicit zero shutdown grace period', () => {
+    const child = new FakeChild();
+    attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn() }, { gracefulShutdownMs: 0 });
+    emitLine(child, { type: 'agent_end' });
+    expect(child.killed).toBe(false);
+    vi.advanceTimersByTime(0);
+    expect(child.killed).toBe(true);
+  });
+
+  it('uses the explicit post-agent_end SIGTERM delay', () => {
+    const child = new FakeChild();
+    attachPiRpcSession({ child: child as any, prompt: 'hi', send: vi.fn() }, { gracefulShutdownMs: 100 });
+    emitLine(child, { type: 'agent_end' });
+    vi.advanceTimersByTime(99);
+    expect(child.killed).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(child.killed).toBe(true);
   });
 
   it('does not SIGTERM again on the grace timer if the child was already killed', () => {

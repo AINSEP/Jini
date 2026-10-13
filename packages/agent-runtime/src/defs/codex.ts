@@ -1,6 +1,6 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
-/** CODEX_SANDBOX_MODE and CODEX_DISABLE_PLUGINS are adapter-scoped operator overrides;
- * no product-specific environment naming is required. */
+/** CODEX_SANDBOX_MODE remains an adapter-scoped operator override; plugin policy is supplied
+ * explicitly by the host, whose native composition resolves CODEX_DISABLE_PLUGINS. */
 import { DEFAULT_MODEL_OPTION, clampCodexReasoning } from './shared.js';
 import type { RuntimeModelOption, RuntimeReasoningOption } from '../types.js';
 import type { RuntimeAgentDef } from '../types.js';
@@ -304,7 +304,7 @@ export const codexAgentDef = {
       const args = resumeSessionId
         ? ['exec', 'resume', '--json', '--skip-git-repo-check', ...sandboxArgs]
         : ['exec', '--json', '--skip-git-repo-check', ...sandboxArgs];
-      if (process.env.CODEX_DISABLE_PLUGINS === '1') {
+      if (options.codexDisablePlugins === true) {
         args.push('--disable', 'plugins');
       }
       // `-C <cwd>` and `--add-dir <dir>` are CREATE-only flags: `codex exec

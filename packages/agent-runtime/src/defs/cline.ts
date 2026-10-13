@@ -19,8 +19,9 @@ export const clineAgentDef = {
     name: 'Cline',
     bin: 'cline',
     versionArgs: ['--version'],
-    fetchModels: async ({ resolvedBin, env }) =>
+    fetchModels: async ({ resolvedBin, env }, { acpModelProbe } = {}) =>
       (({ bin, args, ...optionalArgs }: Parameters<typeof detectAcpModels>[0] & NonNullable<Parameters<typeof detectAcpModels>[1]>) => detectAcpModels({ bin, args }, optionalArgs))({
+        ...(acpModelProbe ? { probe: acpModelProbe } : {}),
         bin: resolvedBin,
         args: ['--acp'],
         env,

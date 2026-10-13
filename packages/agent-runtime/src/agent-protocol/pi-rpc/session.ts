@@ -31,6 +31,8 @@ export type PiRpcSessionOptions = {
   imagePaths?: string[];
   uploadRoot?: string;
   parentSession?: string;
+  /** Explicit post-completion grace period before SIGTERM. Native hosts resolve env defaults. */
+  gracefulShutdownMs?: number;
 };
 /** Handle returned by `attachPiRpcSession` for querying run state and requesting abort. */
 export type PiRpcSession = {
@@ -308,6 +310,7 @@ export function attachPiRpcSession(requiredArgs: Pick<PiRpcSessionOptions, "chil
   imagePaths,
   uploadRoot,
   parentSession,
+  gracefulShutdownMs = 5000,
 }: PiRpcSessionOptions = { ...optionalArgs, ...requiredArgs };
   const stdin = child.stdin;
   const stdout = child.stdout;
@@ -409,12 +412,11 @@ export function attachPiRpcSession(requiredArgs: Pick<PiRpcSessionOptions, "chil
     } catch (err: unknown) {
       fail(`stdin close: ${errorMessage(err)}`);
     }
-    // Grace period before SIGTERM. Configurable via PI_GRACEFUL_SHUTDOWN_MS
-    // for resource-constrained machines where the event loop drains slowly.
-    const shutdownMs = Number(process.env.PI_GRACEFUL_SHUTDOWN_MS) || 5000;
+    // Grace period before SIGTERM lets resource-constrained machines drain a slow event loop.
+    // The host supplies timing explicitly, resolving PI_GRACEFUL_SHUTDOWN_MS at composition.
     setTimeout(() => {
       if (!child.killed) child.kill('SIGTERM');
-    }, shutdownMs);
+    }, gracefulShutdownMs);
   };
 
   // ---- Inbound: parse stdout events ----
