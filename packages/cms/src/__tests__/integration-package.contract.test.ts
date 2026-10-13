@@ -91,3 +91,25 @@ it('gives every public export a source target for a subsequent clean build', () 
   }
   expect(missing).toEqual([]);
 });
+
+it('exposes rendering leaves without replacing the compatibility barrels', () => {
+  const leaves = {
+    'forms/html-render': 'universal',
+    'forms/submission-attempts': 'universal',
+    'widgets/page-embed-types': 'universal',
+    'widgets/html/html-embeds': 'node',
+    'widgets/html/gallery-render': 'universal',
+    'navigation/types': 'universal',
+    'navigation/dropdown': 'universal',
+    'media/slug': 'universal',
+  };
+  for (const [leaf, runtime] of Object.entries(leaves)) {
+    expect(manifest.jini.entries[`./${leaf}`]).toBe(runtime);
+    expect(manifest.exports[`./${leaf}`]).toEqual({
+      types: `./dist/${leaf}.d.ts`, import: `./dist/${leaf}.js`, default: `./dist/${leaf}.js`,
+    });
+  }
+  for (const barrel of ['./forms', './widgets', './widgets/html', './navigation', './media']) {
+    expect(Object.hasOwn(manifest.exports, barrel)).toBe(true);
+  }
+});

@@ -29,6 +29,14 @@
       "./trash": "universal",
       "./settings/express": "node",
       "./media/node": "node",
+      "./forms/html-render": "universal",
+      "./forms/submission-attempts": "universal",
+      "./widgets/page-embed-types": "universal",
+      "./widgets/html/html-embeds": "node",
+      "./widgets/html/gallery-render": "universal",
+      "./navigation/types": "universal",
+      "./navigation/dropdown": "universal",
+      "./media/slug": "universal",
       "./forms": "universal",
       "./forms/html": "node",
       "./forms/sql": "node",
@@ -213,6 +221,46 @@
       "types": "./dist/media/node.d.ts",
       "import": "./dist/media/node.js",
       "default": "./dist/media/node.js"
+    },
+    "./forms/html-render": {
+      "types": "./dist/forms/html-render.d.ts",
+      "import": "./dist/forms/html-render.js",
+      "default": "./dist/forms/html-render.js"
+    },
+    "./forms/submission-attempts": {
+      "types": "./dist/forms/submission-attempts.d.ts",
+      "import": "./dist/forms/submission-attempts.js",
+      "default": "./dist/forms/submission-attempts.js"
+    },
+    "./widgets/page-embed-types": {
+      "types": "./dist/widgets/page-embed-types.d.ts",
+      "import": "./dist/widgets/page-embed-types.js",
+      "default": "./dist/widgets/page-embed-types.js"
+    },
+    "./widgets/html/html-embeds": {
+      "types": "./dist/widgets/html/html-embeds.d.ts",
+      "import": "./dist/widgets/html/html-embeds.js",
+      "default": "./dist/widgets/html/html-embeds.js"
+    },
+    "./widgets/html/gallery-render": {
+      "types": "./dist/widgets/html/gallery-render.d.ts",
+      "import": "./dist/widgets/html/gallery-render.js",
+      "default": "./dist/widgets/html/gallery-render.js"
+    },
+    "./navigation/types": {
+      "types": "./dist/navigation/types.d.ts",
+      "import": "./dist/navigation/types.js",
+      "default": "./dist/navigation/types.js"
+    },
+    "./navigation/dropdown": {
+      "types": "./dist/navigation/dropdown.d.ts",
+      "import": "./dist/navigation/dropdown.js",
+      "default": "./dist/navigation/dropdown.js"
+    },
+    "./media/slug": {
+      "types": "./dist/media/slug.d.ts",
+      "import": "./dist/media/slug.js",
+      "default": "./dist/media/slug.js"
     },
     "./forms": {
       "types": "./dist/forms/index.d.ts",
