@@ -73,12 +73,12 @@ export type AbortReason = "scheme" | "method" | "resource-type" | "budget" | "re
 
 /** Redirect hops followed per request (and per page navigation), each one re-vetted. */
 export const MAX_REDIRECT_HOPS = 5;
-const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 type RoutedMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH";
 export type RequestDecision = { action: "fetch"; via: "guarded" | "own-site"; method: RoutedMethod } | { action: "abort"; reason: AbortReason };
 
 /** Streaming and media types that add nothing to a still picture and could hold a fetch open. */
-const SKIPPED_RESOURCE_TYPES = new Set(["media", "eventsource", "websocket", "texttrack"]);
+const SKIPPED_RESOURCE_TYPES: ReadonlySet<string> = new Set(["media", "eventsource", "websocket", "texttrack"]);
 
 /**
  * Pure routing decision for one request. Budget is not considered here (see the router).
@@ -100,10 +100,10 @@ export function decideRequest(
 }
 
 /** Request headers that must never leave this process, plus hop-by-hop ones the transport owns. */
-const DROPPED_REQUEST_HEADERS = new Set(["cookie", "authorization", "proxy-authorization", "host", "connection", "content-length", "transfer-encoding", "upgrade"]);
+const DROPPED_REQUEST_HEADERS: ReadonlySet<string> = new Set(["cookie", "authorization", "proxy-authorization", "host", "connection", "content-length", "transfer-encoding", "upgrade"]);
 /** Response headers that would lie about the (already decoded) body or try to persist state. */
-const DROPPED_RESPONSE_HEADERS = new Set(["set-cookie", "set-cookie2", "content-encoding", "content-length", "transfer-encoding", "connection", "keep-alive", "alt-svc"]);
-const OWN_SITE_RESPONSE_HEADERS = new Set([...DROPPED_RESPONSE_HEADERS].filter(name => name !== "set-cookie" && name !== "set-cookie2"));
+const DROPPED_RESPONSE_HEADERS: ReadonlySet<string> = new Set(["set-cookie", "set-cookie2", "content-encoding", "content-length", "transfer-encoding", "connection", "keep-alive", "alt-svc"]);
+const OWN_SITE_RESPONSE_HEADERS: ReadonlySet<string> = new Set([...DROPPED_RESPONSE_HEADERS].filter(name => name !== "set-cookie" && name !== "set-cookie2"));
 
 function filterHeaders(headers: Readonly<Record<string, string>>, dropped: ReadonlySet<string>): Record<string, string> {
   const kept: Record<string, string> = {};
