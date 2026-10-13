@@ -117,7 +117,8 @@ for (const { name, kernel } of cases) describe(`secrets vault contract [${name}]
     statements.length = 0;
     assert.equal((await measured.findDefault(query))?.id, "a");
     assert.equal(statements.length, 1);
-    assert.match(statements[0]!, /"provider" = .* and "is_default" = .* limit/);
+    // The group restated in the default index's expressions, with a literal is_default the partial index can match.
+    assert.match(statements[0]!, /"provider" = .* and coalesce\(provider,''\) = .* and is_default = (1|true) limit/);
     // findOne is a singleton contract, not a default/ordering selector over a vendor group.
     const singleton = await measured.put({ record: row("singleton", { kind: "site-assistant", provider: null }), expectedRevision: null });
     statements.length = 0;

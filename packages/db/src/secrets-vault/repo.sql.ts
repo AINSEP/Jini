@@ -6,7 +6,8 @@ import type { StorageKernel } from "../kernel/port.js";
 
 /** Fixed columns consumed by the adapter; hosts own DDL, foreign keys and migration provenance.
  * A partial unique default index and label index use the same scope as VaultRepoPort.
- * Nullable principal/provider scope columns must be normalized in those index expressions.
+ * Nullable principal/provider scope columns must be normalized in those index expressions, spelled
+ * as findDefault spells them, and the default index's predicate is `is_default = 1` on SQLite, `= true` on Postgres.
  * Read indexes: (workspace_id,kind,owner_key,principal_id,provider,is_default), and the same
  * group prefix plus (updated_at DESC,id DESC) with binary/C ID collation for promotion.
  * Singleton reads use the lookup index's (workspace_id,kind) prefix, optionally owner/principal.
@@ -99,10 +100,15 @@ export class SqlSecretsVaultRepo implements VaultRepoPort {
       return results;
     });
   }
-  /** One indexed exact-group lookup; ciphertext is loaded only for the chosen default. */
+  /** One indexed exact-group lookup; ciphertext is loaded only for the chosen default.
+   * The group is restated in the default index's normalized expressions and `is_default` is a
+   * literal, else neither SQLite nor a generic Postgres plan can match the partial index (Tovu
+   * EXPLAIN 2026-10-12: SQLite fell back to a raw-column index, Postgres to the label index). */
   async findDefault(input: VaultDefaultQuery, _options: VaultOptions = {}): Promise<VaultRecord | null> {
     const row = await this.kernel.run(db => this.scoped({ db, input }).selectAll()
-      .where("is_default", "=", true).limit(1).executeTakeFirst());
+      .where(sql<boolean>`(principal_id IS NULL)`, "=", input.principalId === null).where(sql<string>`coalesce(principal_id,'')`, "=", input.principalId ?? "")
+      .where(sql<boolean>`(provider IS NULL)`, "=", input.provider === null).where(sql<string>`coalesce(provider,'')`, "=", input.provider ?? "")
+      .where(sql<boolean>`is_default = ${sql.raw(this.kernel.dialect === "sqlite" ? "1" : "true")}`).limit(1).executeTakeFirst());
     return row ? fromRow(row) : null;
   }
   async list(input: VaultQuery, _options: VaultOptions = {}): Promise<VaultRecord[]> {
