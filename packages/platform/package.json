@@ -15,6 +15,7 @@
     "entries": {
       ".": "node",
       "./fetch-with-timeout": "node",
+      "./asset-cache": "node",
       "./secrets": "node",
       "./secrets/credential-sets": "node",
       "./secrets/credential-sets/contracts": "universal",
@@ -68,6 +69,11 @@
       "types": "./dist/fetch-with-timeout.d.ts",
       "import": "./dist/fetch-with-timeout.js",
       "default": "./dist/fetch-with-timeout.js"
+    },
+    "./asset-cache": {
+      "types": "./dist/asset-cache.d.ts",
+      "import": "./dist/asset-cache.js",
+      "default": "./dist/asset-cache.js"
     },
     "./secrets": {
       "types": "./dist/secrets/index.d.ts",
@@ -188,12 +194,7 @@
     "!dist/**/*.map"
   ],
   "dependencies": {
-    "undici": "^7.25.0",
-    "@jini-ai/core": "^0.4.0",
-    "hast-util-from-parse5": "8.0.3",
-    "hast-util-to-mdast": "10.1.2",
-    "mdast-util-to-markdown": "2.1.2",
-    "mdast-util-gfm-table": "2.0.0"
+    "@jini-ai/core": "^0.4.0"
   },
   "publishConfig": {
     "access": "public",
@@ -207,12 +208,27 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
+    "undici": "^7.25.0",
+    "hast-util-from-parse5": "8.0.3",
+    "hast-util-to-mdast": "10.1.2",
+    "mdast-util-to-markdown": "2.1.2",
+    "mdast-util-gfm-table": "2.0.0",
     "parse5": "7.3.0"
   },
   "peerDependencies": {
+    "undici": "^7.25.0",
+    "hast-util-from-parse5": "8.0.3",
+    "hast-util-to-mdast": "10.1.2",
+    "mdast-util-to-markdown": "2.1.2",
+    "mdast-util-gfm-table": "2.0.0",
     "parse5": "7.3.0"
   },
   "peerDependenciesMeta": {
+    "undici": { "optional": true },
+    "hast-util-from-parse5": { "optional": true },
+    "hast-util-to-mdast": { "optional": true },
+    "mdast-util-to-markdown": { "optional": true },
+    "mdast-util-gfm-table": { "optional": true },
     "parse5": {
       "optional": true
     }

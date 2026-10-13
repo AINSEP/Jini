@@ -8,7 +8,7 @@ spec_mode: reverse_spec
 
 ## Entry points and conventions
 
-Node ESM public entries: `.`, `./fetch-with-timeout`, `./secrets`, `./secrets/credential-sets`, `./secrets/testing`, `./http/guarded`, `./mail`, `./mail/smtp`, `./fs/guarded-reader`, `./fs/durable-json`, `./fs`, `./net`, and `./fs/file-lock`.
+Node ESM public entries include `.`, `./fetch-with-timeout`, `./asset-cache`, `./web`, `./secrets`, `./secrets/credential-sets`, `./secrets/testing`, `./http/guarded`, `./mail`, `./mail/smtp`, `./fs/guarded-reader`, `./fs/durable-json`, `./fs`, `./net`, and `./fs/file-lock`.
 
 This is the current source contract. Object APIs use `(required, optional = {})` where implemented; single-object APIs currently declare no optional argument. Many root APIs retain positional arguments or one options object. The signatures below preserve those exceptions rather than inventing future wrappers. Named source types describe the full option/result shape where listed; shared HTTP/time/ID/JSON types come from `@jini-ai/core/primitives`.
 
@@ -124,6 +124,12 @@ await terminals.shutdownActive();
 
 ## Root: downloads, cache, signing, blob stores
 
+`./asset-cache` exposes the existing asset-cache functions and types directly; their root exports
+remain available. The optional peer `undici@^7.25.0` loads only when the synchronous default
+dispatcher factory runs. The root and this leaf import successfully without it. Factory calls
+without the peer throw `AssetCacheError` with status 500 and installation guidance. Public
+declarations retain undici's `Agent`/`Dispatcher` types, requiring the peer for their type resolution.
+
 | Export | Current signature / return | Required inputs and ports |
 |---|---|---|
 | `managedDownload` | `(options: ManagedDownloadOptions): Promise<ManagedDownloadResult>` | basePath/bucket/fileName/payload; optional fetch/maxAttempts/onProgress/signal |
@@ -131,7 +137,9 @@ await terminals.shutdownActive();
 | `inspectManagedDownload` | `(options: RemoveManagedDownloadOptions): Promise<ManagedDownloadInspection>` | basePath/bucket/fileName |
 | `removeManagedDownload` | `(options: RemoveManagedDownloadOptions): Promise<RemoveManagedDownloadResult>` | Same |
 | `pruneManagedDownloads` | `(options: PruneManagedDownloadsOptions): Promise<PruneManagedDownloadsResult>` | basePath; optional now/olderThanMs |
-| `createAssetCache` | `(options: AssetCacheOptions): AssetCache` | cacheDir; optional maxBytes/fetchTimeoutMs/fetchImpl/lookupImpl |
+| `createAssetCache` | `(required: AssetCacheOptions, options: { dispatcher?: Dispatcher } = {}): AssetCache` | cacheDir; optional maxBytes/fetchTimeoutMs/fetchImpl/lookupImpl/dispatcher |
+| `createAssetCacheDispatcher` | `({}, { lookupImpl? } = {}): Agent` | Optional DNS callback adapter; requires the optional undici peer |
+| `AssetCache.close` | `(): Promise<void>` | Closes the default dispatcher; the host owns injected dispatchers |
 | `AssetCache.get` | `(rawUrl: string): Promise<AssetCacheResult>` | URL |
 | `isCacheableExternalUrl` | `(raw: unknown): raw is string` | Media HTTP(S) URL predicate |
 | `assetCacheRewriteUrl` | `(raw: string, routePath = '/api/asset-cache'): string` | Consumer route mounting |
@@ -146,7 +154,11 @@ await terminals.shutdownActive();
 
 `ManagedDownloadPayload` is `{ url, checksum: ManagedDownloadChecksum, headers? }`; checksum is `{ algorithm: 'sha256' | 'sha512', value: string }`. `ManagedDownloadProgress` reports receivedBytes/sessionReceivedBytes/optional totalBytes. Download result has bucket/fileName/path/bytes/checksum/reusedComplete/resumed/urlDigest. Copy result has bytes/outputPath/reusedComplete/resumed and cleanup removed/deferred with optional warning. Inspection has bucket/fileName/path/complete and manifest complete/missing/partial/unreadable; removal returns `{ removed }`; prune returns `{ removed, warnings }`. Error codes and class are `MANAGED_DOWNLOAD_ERROR_CODES`, `ManagedDownloadErrorCode`, `ManagedDownloadError`; all named download types above are exported.
 
-`AssetCacheOptions` defaults to 64 MiB per asset and 15000 ms per fetch. `AssetCacheResult` is `{ buf: Buffer, contentType: string }`. `AssetCacheError` is exported. No cache route is mounted automatically.
+`AssetCacheOptions` defaults to 64 MiB per asset and 15000 ms per fetch. `AssetCacheResult` is `{ buf: Buffer, contentType: string }`. `AssetCacheError` is exported. No cache route is mounted automatically. An injected dispatcher must enforce the same connection-time public-address validation; providing it avoids loading undici.
+
+`./web` requires the optional peers `parse5@7.3.0`, `hast-util-from-parse5@8.0.3`,
+`hast-util-to-mdast@10.1.2`, `mdast-util-to-markdown@2.1.2`, and
+`mdast-util-gfm-table@2.0.0` at import time. Other entries do not load these peers.
 
 `SigV4Credentials` is `{ accessKeyId, secretAccessKey, sessionToken? }`. `SignSigV4Input` requires method/path/query/headers/body/region/service/credentials, optional now: Date. Return is `{ authorization, amzDate, contentSha256 }`, also written into supplied headers.
 
@@ -320,4 +332,4 @@ These names are also reachable through the current export map. Parameter declara
 
 ## Current manifest boundary
 
-The current `package.json` exposes `.`, `./fetch-with-timeout`, `./secrets`, `./secrets/credential-sets`, `./secrets/testing`, `./http/guarded`, `./mail`, `./mail/smtp`, `./fs/guarded-reader`, `./fs/durable-json`, `./fs`, `./net`, `./fs/file-lock`. Internal source exports do not create additional supported import paths. The contracts above describe source, not generated output.
+The current `package.json` includes `.`, `./fetch-with-timeout`, `./asset-cache`, `./web`, `./secrets`, `./secrets/credential-sets`, `./secrets/testing`, `./http/guarded`, `./mail`, `./mail/smtp`, `./fs/guarded-reader`, `./fs/durable-json`, `./fs`, `./net`, `./fs/file-lock`. Internal source exports do not create additional supported import paths. The contracts above describe source, not generated output.

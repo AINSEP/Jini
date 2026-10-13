@@ -48,6 +48,7 @@ describe('verified shared leaves retain their existing owners', () => {
     ['@jini-ai/platform', './http/guarded'],
     ['@jini-ai/platform', './net'],
     ['@jini-ai/platform', './web'],
+    ['@jini-ai/platform', './asset-cache'],
     ['@jini-ai/devops', './source-control'],
     ['@jini-ai/devops', './static-export/failure-summary'],
   ])('%s%s crosses no domain boundary', (owner, subpath) => {
@@ -55,12 +56,21 @@ describe('verified shared leaves retain their existing owners', () => {
       && finding.subpath === subpath && (finding.kind === 'a' || finding.kind === 'resolution'))).toEqual([]);
   });
 
-  it('only the web entry loads HTML peers; the platform root keeps its required Undici', () => {
+  it('only the web entry reaches HTML peers; the root and asset cache retain lazy Undici access', () => {
     const htmlPeers = ['parse5', 'hast-util-from-parse5', 'hast-util-to-mdast', 'mdast-util-to-markdown', 'mdast-util-gfm-table'].sort();
     const platform = audit.closures.filter(closure => closure.package === '@jini-ai/platform');
     for (const closure of platform) {
       expect(closure.dependencies.filter(name => htmlPeers.includes(name)).sort()).toEqual(closure.subpath === './web' ? htmlPeers : []);
     }
     expect(platform.find(closure => closure.subpath === '.')?.dependencies).toContain('undici');
+    expect(platform.find(closure => closure.subpath === './asset-cache')?.dependencies).toEqual(['undici']);
+  });
+
+  it('clears platform and infra subset dependency findings without weakening the guard', () => {
+    expect(audit.findings.filter(finding => ['@jini-ai/platform', '@jini-ai/infra'].includes(finding.package)
+      && finding.rule === 'SI-dependency')).toEqual([]);
+    const outbox = audit.closures.find(closure => closure.package === '@jini-ai/infra' && closure.subpath === './events/outbox');
+    expect(outbox?.dependencies).toEqual(['@jini-ai/core']);
+    expect(outbox?.files.some(file => file.startsWith('packages/db/'))).toBe(false);
   });
 });

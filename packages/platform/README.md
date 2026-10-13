@@ -14,8 +14,14 @@ that were split out of OD's monolithic daemon (see the archived provenance ledge
 npm install @jini-ai/platform
 ```
 
-`undici` remains a regular dependency (used by the SSRF-safe asset cache's
-connection-time DNS-rebinding guard). Interactive terminal sessions (`createTerminalService`)
+`undici@^7.25.0` is an optional peer for the SSRF-safe asset cache's default dispatcher.
+Install it when calling `createAssetCacheDispatcher` or creating a cache without a host-supplied
+guarded dispatcher. Root imports and `@jini-ai/platform/asset-cache` imports do not load undici;
+the synchronous factory loads it on demand and reports a missing-peer error if it is absent.
+The root declarations retain undici types, so TypeScript consumers of those declarations also
+need the peer available. The dispatcher validates DNS at connection time, and cache `close()`
+closes only its default dispatcher; a host-supplied dispatcher remains owned by the host.
+Interactive terminal sessions (`createTerminalService`)
 need a `PtySpawn` implementation supplied by the caller — this package defines the `PtyProcess`/
 `PtySpawn` port only, it does not depend on `node-pty` itself, so bring your own adapter (or use
 `@jini-ai/daemon`'s, which wires a real `node-pty` behind the same port).
@@ -92,9 +98,15 @@ The package also exposes `./http/guarded`, `./mail`, `./mail/smtp`,
 `./fs/guarded-reader`, `./fs/durable-json`, and `./secrets`. New APIs take a required
 object followed by an optional object. Application identity and policy values belong to the caller.
 
-`@jini-ai/platform/web` loads the optional peer `parse5@7.3.0` at import time. Install it
-when using that subpath; the other entries do not load it. Existing web consumers that
-relied on transitive installation must add it before upgrading.
+`@jini-ai/platform/web` loads these optional peers at import time: `parse5@7.3.0`,
+`hast-util-from-parse5@8.0.3`, `hast-util-to-mdast@10.1.2`,
+`mdast-util-to-markdown@2.1.2`, and `mdast-util-gfm-table@2.0.0`. Install all five
+when using that subpath; the other entries do not load them. Existing web consumers that
+relied on transitive installation must add them before upgrading.
+
+```sh
+npm install parse5@7.3.0 hast-util-from-parse5@8.0.3 hast-util-to-mdast@10.1.2 mdast-util-to-markdown@2.1.2 mdast-util-gfm-table@2.0.0
+```
 
 The isolation metadata shares only the address classifiers (including their literal
 endpoint policy), timeout wrapper and egress refusal class across domains. These
