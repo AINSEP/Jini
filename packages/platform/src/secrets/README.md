@@ -6,8 +6,7 @@ Import production primitives from `@jini-ai/platform/secrets`, credential contra
 the browser-safe fetch subpath keep their existing exports.
 
 ```ts
-import { AesGcmSecretSealer, EnvOrFileKeyring } from "@jini-ai/platform/secrets";
-import { buildVendorCredentialAad } from "@jini-ai/platform/secrets/credential-sets";
+import { AesGcmSecretSealer, EnvOrFileKeyring, formatAad } from "@jini-ai/platform/secrets";
 
 const keyring = new EnvOrFileKeyring({
   env: { read: ({ name }) => process.env[name] },
@@ -18,7 +17,7 @@ const keyring = new EnvOrFileKeyring({
   hkdfSalt: "my-app-site-key-hkdf-v1",
 });
 const sealer = new AesGcmSecretSealer({ keyring });
-const aad = buildVendorCredentialAad({ workspaceId: "ws-1", vendorId: "github", id: "cred-1" });
+const aad = formatAad({ kind: "vendor-credential-set", version: "v1", parts: ["ws-1", "github", "cred-1"] });
 const sealed = await sealer.seal({ plaintext: "example-only", key: await keyring.activeKey({}), aad });
 const plaintext = await sealer.open({ sealed }, { aad });
 ```

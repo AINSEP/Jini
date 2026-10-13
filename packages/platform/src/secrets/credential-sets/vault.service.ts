@@ -3,7 +3,7 @@ import { credentialTokenHint } from "../credential-token.js";
 import { buildVaultAad } from "./vault.aad.js";
 import { isCopyableKind } from "./vault.meta.js";
 import { VAULT_KINDS, VaultError, type VaultContext, type VaultIdentity, type VaultMeta, type VaultMetaParsers,
-  type VaultBatchOp, type VaultCopyResult, type VaultDefaultQuery, type VaultOptions, type VaultQuery, type VaultRecord, type VaultRepoPort, type VaultSummary } from "./vault.types.js";
+  type VaultCopyResult, type VaultDefaultQuery, type VaultOptions, type VaultQuery, type VaultRecord, type VaultRepoPort, type VaultSummary } from "./vault.types.js";
 
 export interface VaultServiceDeps {
   repo: VaultRepoPort;
@@ -33,15 +33,6 @@ export interface VaultPutInput extends VaultContext {
   /** A host-selected token, never a URI or serialized connection object. */
   hintToken?: string;
 }
-/** Prepared records contain envelopes and stay private to the host, never a public read model.
- * Expected revisions are mandatory for every ID; null means create-only. Deletes carry full
- * expected ownership. Default side effects follow repository operation order (records, deletes).
- */
-export interface VaultCommitPreparedInput {
-  records: readonly VaultRecord[];
-  deletes: readonly VaultIdentity[];
-  expectedRevisions: Readonly<Record<string, number | null>>;
-}
 export interface VaultCopyInput {
   /** This service owns the source repository, authorization and keyring-backed sealer. */
   source: SecretsVaultService;
@@ -49,9 +40,8 @@ export interface VaultCopyInput {
   targetContext: VaultContext;
   ids: readonly string[];
   overwrite: boolean;
-  /** Optional selection-time guards; otherwise the revisions read by this operation are used. */
+  /** Optional selection-time guard; otherwise the revisions read by this operation are used. */
   sourceRevisions?: Readonly<Record<string, number>>;
-  targetRevisions?: Readonly<Record<string, number | null>>;
 }
 
 function assertContext(context: VaultContext | VaultQuery): void {
@@ -122,7 +112,8 @@ export class SecretsVaultService {
   /** Authorize, validate and seal before the host enters its transaction, without persisting.
    * Replacements retain identity/createdAt; omitted payload preserves the existing envelope.
    * Commit must CAS again because preparation does not reserve a revision or a default.
-   * @example const record = await vault.prepare(input); // pass to commitPrepared inside the host transaction
+   * Prepared records contain envelopes and stay private to the host, never a public read model.
+   * @example const record = await vault.prepare(input); await repo.put({ record, expectedRevision: input.expectedRevision }); // inside the host transaction
    */
   async prepare(input: VaultPutInput, _options: VaultOptions = {}): Promise<VaultRecord> {
     assertContext(input);
@@ -146,38 +137,6 @@ export class SecretsVaultService {
       tokenLength: input.payload === undefined ? existing!.tokenLength : hint?.length ?? null,
       createdAt: existing?.createdAt ?? now, updatedAt: now };
     return record;
-  }
-
-  /** Reauthorize prepared rows, validate ownership/metadata, then commit through the batch owner.
-   * No plaintext is opened or sealed. Missing capability/revisions and duplicate identities fail
-   * before writes; stale CAS or a later operation failure rolls back the whole repository batch.
-   * @example await vault.commitPrepared({ records: [record], deletes: [], expectedRevisions: { [record.id]: null } });
-   */
-  async commitPrepared(input: VaultCommitPreparedInput, _options: VaultOptions = {}): Promise<VaultSummary[]> {
-    if (!this.deps.repo.applyBatch) throw new VaultError({ code: "invalid-record" });
-    const { records, deletes, expectedRevisions } = structuredClone(input);
-    const identities = new Set<string>();
-    const ops: VaultBatchOp[] = [];
-    const entries = [...records.map(record => ({ put: record })), ...deletes.map(record => ({ delete: record }))];
-    for (const entry of entries) {
-      const record = "put" in entry ? entry.put : entry.delete;
-      assertContext(record);
-      const key = JSON.stringify([record.workspaceId, record.id]);
-      if (identities.has(key) || !Object.hasOwn(expectedRevisions, record.id)) throw new VaultError({ code: "invalid-record" });
-      identities.add(key);
-      const expectedRevision = expectedRevisions[record.id]!;
-      const putting = "put" in entry;
-      await this.authorize({ action: putting ? "put" : "delete", context: record });
-      const existing = await this.find(record);
-      if (expectedRevision === null ? existing !== null : existing?.revision !== expectedRevision) throw new VaultError({ code: "conflict" });
-      if ("put" in entry) ops.push({ put: { record: this.parse(entry.put), expectedRevision } });
-      else {
-        if (expectedRevision === null) throw new VaultError({ code: "invalid-record" });
-        ops.push({ delete: { workspaceId: record.workspaceId, id: record.id, expectedRevision } });
-      }
-    }
-    const results = await this.deps.repo.applyBatch({ ops });
-    return results.filter((result): result is VaultRecord => typeof result !== "boolean").map(summary);
   }
 
   /** Authorized runtime read; returns plaintext only to the caller that supplied exact ownership. */
@@ -266,7 +225,6 @@ export class SecretsVaultService {
       if (existing && !input.overwrite) return { ...result, status: "skipped", reasonCode: "target-exists" };
       if (existing && existing.provider !== record.provider) throw new VaultError({ code: "context" });
       const expectedRevision = existing?.revision ?? null;
-      if (input.targetRevisions && Object.hasOwn(input.targetRevisions, id) && input.targetRevisions[id] !== expectedRevision) throw new VaultError({ code: "conflict" });
       const now = this.deps.now({});
       const candidate = this.parse({ ...record, ...targetIdentity, isDefault: existing?.isDefault ?? false,
         revision: (expectedRevision ?? 0) + 1, createdAt: existing?.createdAt ?? now, updatedAt: now });

@@ -324,7 +324,7 @@ for (const { name, kernel } of cases) describe(`secrets vault contract [${name}]
     }
   });
 
-  test("prepared service writes commit inside a host transaction, reopen after a provider move and roll back late conflicts", async () => {
+  test("prepared service records commit through applyBatch inside a host transaction, reopen after a provider move and roll back late conflicts", async () => {
     const keyring = new InMemoryKeyring({ hkdfSalt: "vault-sql-contract" });
     const service = new SecretsVaultService({ repo, keyring, sealer: new AesGcmSecretSealer({ keyring }),
       metaParsers: createVaultMetaParsers({}), authorize: async () => {}, now: () => "2026-10-11T00:00:00Z", newId: () => "generated" });
@@ -333,7 +333,7 @@ for (const { name, kernel } of cases) describe(`secrets vault contract [${name}]
       payload: { token: "abcdefghijkl" }, hintToken: "abcdefghijkl" };
     const prepared = await service.prepare(input);
     assert.equal(await repo.find(prepared), null);
-    await kernel.transaction(() => service.commitPrepared({ records: [prepared], deletes: [], expectedRevisions: { generated: null } }));
+    await kernel.transaction(() => repo.applyBatch({ ops: [{ put: { record: prepared, expectedRevision: null } }] }));
     assert.deepEqual((await service.findOne(scope))?.payload, input.payload);
     assert.deepEqual((await repo.find(prepared))?.sealed, prepared.sealed);
     await service.put({ ...input, id: prepared.id, expectedRevision: 1, provider: "moved", payload: undefined });
@@ -341,7 +341,7 @@ for (const { name, kernel } of cases) describe(`secrets vault contract [${name}]
     assert.deepEqual((await service.findOne(scope))?.payload, input.payload);
     const before = await repo.find(prepared);
     const records = await Promise.all(["b", "c"].map(id => service.prepare({ ...input, id, label: "Duplicate", provider: "moved", isDefault: true })));
-    await assert.rejects(service.commitPrepared({ records, deletes: [], expectedRevisions: { b: null, c: null } }), { code: "conflict" });
+    await assert.rejects(repo.applyBatch({ ops: records.map(record => ({ put: { record, expectedRevision: null } })) }), { code: "conflict" });
     assert.deepEqual(await repo.find(prepared), before);
     assert.equal(await repo.find({ ...scope, id: "b" }), null);
     assert.equal(await repo.find({ ...scope, id: "c" }), null);

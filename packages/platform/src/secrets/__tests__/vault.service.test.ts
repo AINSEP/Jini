@@ -233,9 +233,6 @@ test("pre-C1 repo ports keep put/get working and never fall back to group reads 
   await assert.rejects(service.findDefault({ ...query, provider: "example", binding: null }), { code: "invalid-record" });
   assert.equal(list.mock.calls.length, 0);
   await assert.rejects(service.findOne(context), { code: "invalid-record" });
-  const prepared = await service.prepare({ ...input, id: "prepared", label: "Prepared" });
-  await assert.rejects(service.commitPrepared({ records: [prepared], deletes: [], expectedRevisions: { prepared: null } }), { code: "invalid-record" });
-  assert.equal(await repo.find({ ...context, id: "prepared" }), null);
 });
 
 test("singleton reads ignore provider/default, use one query and reject substituted ownership before open", async () => {
@@ -298,7 +295,7 @@ test("provider moves preserve envelope, identity and hints, promote the old grou
   assert.deepEqual((await repo.find(context))?.sealed, before.sealed);
 });
 
-test("prepare selects identity and seals without persistence; commit reauthorizes and never re-seals", async () => {
+test("prepare selects identity and seals without persistence; the host's repo write never re-seals", async () => {
   const { service, repo, input, sealer, authorize } = fixture();
   const put = vi.spyOn(repo, "put");
   const { id: _id, ...newInput } = input;
@@ -312,48 +309,24 @@ test("prepare selects identity and seals without persistence; commit reauthorize
   assert.equal(await repo.find(prepared), null);
   const seal = vi.spyOn(sealer, "seal");
   const open = vi.spyOn(sealer, "open");
-  const summaries = await service.commitPrepared({ records: [prepared], deletes: [], expectedRevisions: { generated: null } });
-  assert.equal(summaries[0]?.id, prepared.id);
-  assert.equal(summaries[0]?.configured, true);
-  assert.equal("sealed" in summaries[0]!, false);
+  assert.equal((await repo.put({ record: prepared, expectedRevision: null })).id, prepared.id);
   assert.equal(seal.mock.calls.length, 0);
   assert.equal(open.mock.calls.length, 0);
   assert.deepEqual((await repo.find(prepared))?.sealed, prepared.sealed);
   assert.deepEqual((await service.get(prepared))?.payload, input.payload);
   assert.equal(JSON.stringify(authorize.mock.calls).includes(secret), false);
-  // A record is structurally a VaultIdentity: extra fields must not turn a delete into a put.
-  assert.deepEqual(await service.commitPrepared({ records: [], deletes: [prepared], expectedRevisions: { generated: 1 } }), []);
-  assert.equal(await repo.findOne(query), null);
   await assert.rejects(service.prepare({ ...input, payload: undefined }), { code: "invalid-record" });
 });
 
-test("commitPrepared rolls back a late label conflict including earlier default and index changes", async () => {
+test("a prepared batch rolls back a late label conflict including earlier default and index changes", async () => {
   const { service, repo, input } = fixture();
   await service.put(input);
   const original = await repo.list(query);
   const records = await Promise.all(["b", "c"].map(id => service.prepare({ ...input, id, label: "Batch", isDefault: true })));
-  await assert.rejects(service.commitPrepared({ records, deletes: [], expectedRevisions: { b: null, c: null } }), { code: "conflict" });
+  await assert.rejects(repo.applyBatch({ ops: records.map(record => ({ put: { record, expectedRevision: null } })) }), { code: "conflict" });
   assert.deepEqual(await repo.list(query), original);
   assert.equal((await repo.findOne(query))?.id, "a");
   assert.equal(await repo.find({ ...context, id: "b" }), null);
-});
-
-test("commitPrepared rejects missing revisions, duplicate identities, metadata/context tampering and denied policy before writes", async () => {
-  const { service, repo, input, authorize } = fixture();
-  const record = await service.prepare(input);
-  const batch = vi.spyOn(repo, "applyBatch");
-  await assert.rejects(service.commitPrepared({ records: [record], deletes: [], expectedRevisions: {} }), { code: "invalid-record" });
-  await assert.rejects(service.commitPrepared({ records: [record, record], deletes: [], expectedRevisions: { a: null } }), { code: "invalid-record" });
-  await assert.rejects(service.commitPrepared({ records: [{ ...record, meta: { token: secret } }], deletes: [], expectedRevisions: { a: null } }), { code: "invalid-meta" });
-  authorize.mockRejectedValueOnce(new Error("denied"));
-  await assert.rejects(service.commitPrepared({ records: [record], deletes: [], expectedRevisions: { a: null } }), /denied/);
-  assert.equal(batch.mock.calls.length, 0);
-  assert.equal(await repo.find(context), null);
-  await service.put(input);
-  const replacement = await service.prepare({ ...input, expectedRevision: 1, payload: undefined });
-  await assert.rejects(service.commitPrepared({ records: [{ ...replacement, binding: "wrong" }], deletes: [], expectedRevisions: { a: 1 } }), { code: "context" });
-  assert.equal((await repo.find(context))?.revision, 1);
-  assert.equal(batch.mock.calls.length, 0);
 });
 
 test("a prepared replacement cannot overwrite a replacement committed while preparation was sealing", async () => {
@@ -371,7 +344,7 @@ test("a prepared replacement cannot overwrite a replacement committed while prep
   const winner = await repo.find(context);
   release();
   const record = await preparing;
-  await assert.rejects(service.commitPrepared({ records: [record], deletes: [], expectedRevisions: { a: 1 } }), { code: "conflict" });
+  await assert.rejects(repo.put({ record, expectedRevision: 1 }), { code: "conflict" });
   assert.deepEqual(await repo.find(context), winner);
   assert.deepEqual((await service.get(context))?.payload, { token: "concurrent-new" });
 });

@@ -220,8 +220,8 @@ abstraction · [README](packages/platform/README.md)
 | `@jini-ai/platform` | Process supervision, PTYs, downloads, blobs, signing, readiness and asset-cache primitives. | `spawnBackgroundProcess`, `createTerminalService`, `LocalBlobStorage`, `S3BlobStorage` | node | Jini: agent-runtime, capability-providers, daemon, devops, sidecar |
 | `@jini-ai/platform/fetch-with-timeout` | Fetch with bounded deadlines and a recognizable timeout error. | `fetchWithTimeout` | node | Jini: agent-runtime, integrations, registry |
 | `@jini-ai/platform/secrets` | Seal secrets with AES-GCM and explicit keyrings, storage and key-rotation policy. | `AesGcmSecretSealer`, `EnvOrFileKeyring`, `FixedSiteKeyKeyring` | node | Tovu: website |
-| `@jini-ai/platform/secrets/credential-sets` | Store vendor credential records and build workspace-bound encryption AAD. | `VendorCredentialSetRepoPort`, `InMemoryVendorCredentialSetRepo`, `buildVendorCredentialAad` | node | Tovu: website |
-| `@jini-ai/platform/secrets/testing` | In-memory/fixed keyrings and credential repositories for fixtures. | `InMemoryKeyring`, `FixedRootKeyKeyring` | node | none yet |
+| `@jini-ai/platform/secrets/credential-sets` | Secrets vault service, vault records and workspace-bound vault AAD; vendor credential contracts. | `SecretsVaultService`, `buildVaultAad`, `VendorCredentialSetRepoPort` | node | Tovu: website |
+| `@jini-ai/platform/secrets/testing` | In-memory/fixed keyrings for fixtures. | `InMemoryKeyring`, `FixedRootKeyKeyring` | node | none yet |
 | `@jini-ai/platform/http/guarded` | Guard outbound requests, validate peers/redirects and pin vetted DNS addresses. | `createHttpClient`, `classifyAddress`, `createNodeGuardedHttpPorts` | node | Tovu: website; Jini: integrations |
 | `@jini-ai/platform/mail` | Mail contracts and purpose/lane gates; production delivery readiness is host-owned. | `MailerPort`, `wrapMailerWithPurposeGate` | node | Tovu: website |
 | `@jini-ai/platform/mail/smtp` | SMTP adapter over an injected native transport/module and clock. | `SmtpMailerAdapter`, `createNodemailerSmtpTransport` | node | Tovu: website |

@@ -140,7 +140,7 @@ New factories/functions/methods accept a required object and, where needed, a se
 object. No-input operations take `{}`: `createNodeGuardedHttpPorts({})`,
 `createNodeGuardedReaderFilesystem({})`, `createNodeDurableJsonPorts({})`,
 `new FetchHttpTransportAdapter({})`, `new InMemoryTrashRepo({})`,
-`new InMemoryVendorCredentialSetRepo({})`, `keyring.activeKey({})`,
+`keyring.activeKey({})`,
 `mailer.capabilities({})`, `clock.nowMs({})`, `clock.nowIso({})`, `random.token({})`,
 and `file.read({})`. SMTP ports receive `sendMail({ mail })`; `NodemailerPort` exposes the
 vendor-shaped `NativeSmtpTransport` so the factory adapts the payload once. Policy errors use

@@ -255,18 +255,15 @@ const plaintext = await sealer.open({ sealed }, { aad: 'scope:v1:tenant-a' });
 
 ## ./secrets/credential-sets and ./secrets/testing
 
-`buildVendorCredentialAad({ workspaceId, vendorId, id }): string` and `new InMemoryVendorCredentialSetRepo({})` are credential-set runtime exports. Its `VendorCredentialSetRepoPort` methods are `insert(record): Promise<void>`, `update(record): Promise<void>`, `findById({ workspaceId, id }): Promise<VendorCredentialSetRecord | null>`, `findDefaultByVendor({ workspaceId, vendorId }): Promise<Record | null>`, `listByVendor({ workspaceId, vendorId }): Promise<Record[]>`, `listByWorkspace({ workspaceId }): Promise<Record[]>`, `delete({ workspaceId, id }): Promise<void>`, `updateAccountLabel({ workspaceId, id, accountLabel }): Promise<void>`.
+`VendorCredentialSetRepoPort` is a type-only contract (hosts own its adapters). Its methods are `insert(record): Promise<void>`, `update(record): Promise<void>`, `findById({ workspaceId, id }): Promise<VendorCredentialSetRecord | null>`, `findDefaultByVendor({ workspaceId, vendorId }): Promise<Record | null>`, `listByVendor({ workspaceId, vendorId }): Promise<Record[]>`, `listByWorkspace({ workspaceId }): Promise<Record[]>`, `delete({ workspaceId, id }): Promise<void>`, `updateAccountLabel({ workspaceId, id, accountLabel }): Promise<void>`.
 
 `VendorCredentialSetRecord` supplies workspaceId/id/vendorId/label/sealed/tokenTail/isDefault/accountLabel/createdAt/updatedAt. `VendorCredentialSetSummary` omits workspaceId/sealed and adds configured: true. All three named credential types are exported.
 
-Testing exports: `new InMemoryKeyring({ hkdfSalt }, { keyId? } = {})`, `FixedRootKeyKeyring`, and `InMemoryVendorCredentialSetRepo`. InMemoryKeyring extends FixedRootKeyKeyring with a new random root for each instance.
+Testing exports: `new InMemoryKeyring({ hkdfSalt }, { keyId? } = {})` and `FixedRootKeyKeyring`. InMemoryKeyring extends FixedRootKeyKeyring with a new random root for each instance.
 
 ```ts
-import { buildVendorCredentialAad } from '@jini-ai/platform/secrets/credential-sets';
-import { InMemoryKeyring, InMemoryVendorCredentialSetRepo } from '@jini-ai/platform/secrets/testing';
-const aad = buildVendorCredentialAad({ workspaceId: 'tenant-a', vendorId: 'vendor-a', id: 'key-a' });
+import { InMemoryKeyring } from '@jini-ai/platform/secrets/testing';
 const testKeys = new InMemoryKeyring({ hkdfSalt: 'test-context' }, {});
-const repo = new InMemoryVendorCredentialSetRepo({});
 ```
 
 ## ./mail and ./mail/smtp

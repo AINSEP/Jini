@@ -110,7 +110,6 @@ test("both policies and expected contexts guard opening; label conflicts and sta
     sourceContext: { ...source.context, binding: "https://other" }, targetContext: { ...target.context, binding: "https://other" } }));
   assert.equal(result[0]?.reasonCode, "context");
   assert.equal((await target.service.copyToSite(transfer(source, target, { sourceRevisions: { "same-id": 2 } })))[0]?.reasonCode, "conflict");
-  assert.equal((await target.service.copyToSite(transfer(source, target, { targetRevisions: { "same-id": 1 } })))[0]?.reasonCode, "conflict");
   assert.equal(open.mock.calls.length, 0);
   await target.service.put({ ...target.input, id: "collision" });
   assert.equal((await target.service.copyToSite(transfer(source, target)))[0]?.reasonCode, "conflict");

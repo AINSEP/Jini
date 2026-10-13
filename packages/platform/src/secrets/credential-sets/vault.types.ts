@@ -88,7 +88,8 @@ export interface VaultRepoPort {
   findDefault?(input: VaultDefaultQuery, options?: VaultOptions): Promise<VaultRecord | null>;
   /** Optional additions keep older injected ports source-compatible; built-in adapters implement both. */
   findOne?(input: VaultSingletonQuery, options?: VaultOptions): Promise<VaultRecord | null>;
-  /** All operations commit together or throw with no published changes.
+  /** All operations commit together or throw with no published changes. Default side effects
+   * follow operation order; a delete carries full expected ownership.
    * SQL joins the host transaction: callers must propagate failures to roll that transaction back.
    * @example await repo.applyBatch!({ ops: [{ put: { record, expectedRevision: null } }] });
    */
