@@ -1718,9 +1718,11 @@ select.jini-input {
   position: relative;
 }
 
+/* The right padding keeps the absolutely positioned copy button off the wrapped code; on a phone
+   that much side padding would halve the line, so the code starts below the button instead. */
 .jini-snippet-pre {
   margin: 0;
-  padding: 14px 16px;
+  padding: 14px 104px 14px 16px;
   overflow-x: auto;
   background: var(--jini-text-strong);
   border-radius: var(--jini-radius);
@@ -1746,6 +1748,12 @@ select.jini-input {
 
 .jini-snippet-copy-btn:hover {
   background: color-mix(in srgb, var(--jini-text-strong) 75%, transparent);
+}
+
+@media (max-width: 640px) {
+  .jini-snippet-pre {
+    padding: 56px 16px 14px;
+  }
 }
 
 /* ============================================================
