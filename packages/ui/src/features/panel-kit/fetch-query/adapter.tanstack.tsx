@@ -1,6 +1,6 @@
 /** Optional TanStack translation layer. No library types escape the fetch-query contract. */
 import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
-import { isCancelledError, QueryClient, QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
+import { isCancelledError, replaceEqualDeep, QueryClient, QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
 import { DEFAULT_STALE_TIME, FetchQueryCache, IDLE_RETENTION, toQueryError, type FetchQueryEnvironmentPort } from '@jini-ai/core/fetch';
 import { browserFetchQueryEnvironment } from './environment.browser.js';
 import { resolveFetchQueryError, resolveFetchQueryStatus } from './adapter.react.js';
@@ -14,6 +14,11 @@ interface Scope {
   history: WeakMap<object, { replacement: number; request: number; error: unknown }>;
 }
 const ScopeContext = createContext<Scope | null>(null);
+
+/** Internal envelopes never escape the library-free query/loader contract. Failures also
+ * cross the save boundary so a replacement can supersede an already-settled rejection. */
+interface PublishedResult<T> { generation: number; request: number; value: T }
+type ReadResult<T> = PublishedResult<T> | { generation: number; request: number; error: unknown };
 
 /** Match built-in defaults. Failed authorization/validation must surface immediately;
  * automatic retries would hide the server's first useful error behind repeated requests. */
@@ -74,26 +79,43 @@ function historyFor({ scope, query }: { scope: Scope; query: object }) {
   return history;
 }
 
-/** Replacement writes win over either outcome of an older transport, across all loaders
- * and reactive reads. Weak keys follow TanStack's own query eviction lifecycle. */
-async function read<T>({ scope, key, fetch }: { scope: Scope; key: QueryKey; fetch: () => Promise<T> }): Promise<T> {
+/** Tag transport outcomes; final arbitration belongs to TanStack's synchronous save boundary.
+ * Weak query keys follow TanStack's own eviction lifecycle. */
+async function read<T>({ scope, key, fetch }: { scope: Scope; key: QueryKey; fetch: () => Promise<T> }): Promise<ReadResult<T>> {
   const query = scope.client.getQueryCache().find({ queryKey: key, exact: true })!;
   const history = historyFor({ scope, query });
   const generation = history.replacement;
   const request = ++history.request;
   try {
     const value = await scope.gate.runOnline({ run: fetch });
-    if (generation !== history.replacement) return scope.client.getQueryData<T>(key)!;
+    if (generation !== history.replacement) return scope.client.getQueryData<PublishedResult<T>>(key)!;
     if (value === undefined) throw new Error(`${JSON.stringify(key)} data is undefined`);
-    if (request === history.request) history.error = null;
-    return value;
+    return { generation, request, value };
   } catch (error) {
-    if (generation !== history.replacement) return scope.client.getQueryData<T>(key)!;
-    // Earlier data remains useful, but a failed refresh is not a fresh cache hit.
-    // The next loader/mount must retry even when its staleTime would retain that data.
-    if (request === history.request) { history.error = toQueryError(error); query.invalidate(); }
-    throw error;
+    if (generation !== history.replacement) return scope.client.getQueryData<PublishedResult<T>>(key)!;
+    return { generation, request, error };
   }
+}
+
+/** Structural sharing runs inside setData, immediately before publication. A check in read()
+ * alone leaves a promise-continuation gap, even when the retryer has already resolved.
+ * Current failures throw here; stale failures resolve to the newer replacement like stale data.
+ * @returns The accepted envelope, reusing TanStack's normal deep structural sharing.
+ */
+function saveResult<T>({ scope, key, previous, incoming }: {
+  scope: Scope; key: QueryKey; previous: unknown; incoming: unknown;
+}): PublishedResult<T> {
+  const query = scope.client.getQueryCache().find({ queryKey: key, exact: true })!;
+  const history = historyFor({ scope, query });
+  const result = incoming as ReadResult<T>;
+  if (result.generation !== history.replacement) return scope.client.getQueryData<PublishedResult<T>>(key)!;
+  if ('error' in result) {
+    // Earlier data stays useful, but a failed refresh is not a fresh cache hit.
+    if (result.request === history.request) { history.error = toQueryError(result.error); query.invalidate(); }
+    throw result.error;
+  }
+  if (result.request === history.request) history.error = null;
+  return replaceEqualDeep(previous, result) as PublishedResult<T>;
 }
 
 /** Match the built-in cache's idle retention. TanStack's default gcTime (5 min) would
@@ -106,7 +128,8 @@ function gcTimeFor({ staleTime }: { staleTime: number }): number {
 function useFetchQuery<T>({ key, fetch }: Pick<FetchQueryOptions<T>, 'key' | 'fetch'>, { enabled = true, staleTime = DEFAULT_STALE_TIME, refetchOnWindowFocus = false }: Omit<FetchQueryOptions<T>, 'key' | 'fetch'> = {}): QueryResult<T> {
   const scope = useScope();
   const online = useOnline(scope);
-  const query = useQuery<T, unknown>({ queryKey: key, queryFn: () => read({ scope, key, fetch }), enabled: enabled && online, staleTime, gcTime: gcTimeFor({ staleTime }) }, scope.client);
+  const query = useQuery<ReadResult<T>, unknown>({ queryKey: key, queryFn: () => read({ scope, key, fetch }),
+    structuralSharing: (previous, incoming) => saveResult<T>({ scope, key, previous, incoming }), enabled: enabled && online, staleTime, gcTime: gcTimeFor({ staleTime }) }, scope.client);
   const { refetch: refresh } = query;
   const refetch = useCallback(() => {
     if (scope.environment.isOnline()) {
@@ -129,9 +152,10 @@ function useFetchQuery<T>({ key, fetch }: Pick<FetchQueryOptions<T>, 'key' | 'fe
   // recovery, so a retry is never mistaken for evidence that the last failure is gone.
   const cached = scope.client.getQueryCache().find({ queryKey: key, exact: true })!;
   const history = historyFor({ scope, query: cached });
-  const hasData = query.data !== undefined;
+  const data = query.data && 'value' in query.data ? query.data.value : undefined;
+  const hasData = data !== undefined;
   return {
-    data: query.data,
+    data,
     status: resolveFetchQueryStatus({ disabled: !enabled, hasData, status: query.status }),
     error: resolveFetchQueryError({ error: history.error ?? query.error, disabled: !enabled, hasData }),
     isFetching: online && query.isFetching, refetch,
@@ -164,11 +188,13 @@ function useFetchMutation<TInput, TOutput>({ run }: Pick<FetchMutationOptions<TI
 function useCachedLoader<T>({ key, fetch }: Pick<CachedLoaderOptions<T>, 'key' | 'fetch'>, { staleTime = DEFAULT_STALE_TIME }: Omit<CachedLoaderOptions<T>, 'key' | 'fetch'> = {}): CachedLoader<T> {
   const scope = useScope();
   return useMemo(() => {
-    const options = { queryKey: key, queryFn: () => read({ scope, key, fetch }), staleTime, gcTime: gcTimeFor({ staleTime }) };
+    const options = { queryKey: key, queryFn: () => read({ scope, key, fetch }),
+      structuralSharing: (previous: unknown, incoming: unknown) => saveResult<T>({ scope, key, previous, incoming }), staleTime, gcTime: gcTimeFor({ staleTime }) };
     return {
-      peek: () => scope.client.getQueryData<T>(key),
+      peek: () => scope.client.getQueryData<PublishedResult<T>>(key)?.value,
       load: (required = { key, fetch }) => {
-        const selected = { ...options, queryKey: required.key, queryFn: () => read({ scope, key: required.key, fetch: required.fetch }) };
+        const selected = { ...options, queryKey: required.key, queryFn: () => read({ scope, key: required.key, fetch: required.fetch }),
+          structuralSharing: (previous: unknown, incoming: unknown) => saveResult<T>({ scope, key: required.key, previous, incoming }) };
         return scope.client.fetchQuery(selected).catch(error => {
           // A forced refresh can supersede a loader's request without aborting its transport.
           // Follow the new request instead of exposing TanStack's cancellation vocabulary.
@@ -177,7 +203,15 @@ function useCachedLoader<T>({ key, fetch }: Pick<CachedLoaderOptions<T>, 'key' |
           // request rather than returning an obsolete value while the key is invalidated.
           const query = scope.client.getQueryCache().find({ queryKey: required.key, exact: true })!;
           if (query.state.isInvalidated) return scope.client.fetchQuery(selected);
-          return (query.promise ?? scope.client.getQueryData<T>(required.key)) as Promise<T> | T;
+          return (query.promise ?? scope.client.getQueryData<PublishedResult<T>>(required.key)) as Promise<ReadResult<T>> | ReadResult<T>;
+        }).then(result => {
+          const query = scope.client.getQueryCache().find({ queryKey: required.key, exact: true })!;
+          const history = historyFor({ scope, query });
+          // Query.fetch returns the transport envelope, not structuralSharing's accepted value.
+          // Unwrap against the current generation so awaiting loaders agree with observers.
+          if (result.generation !== history.replacement) return scope.client.getQueryData<PublishedResult<T>>(required.key)!.value;
+          if ('error' in result) throw result.error;
+          return result.value;
         });
       },
       replace: ({ value }: { value: T }) => {
@@ -185,7 +219,7 @@ function useCachedLoader<T>({ key, fetch }: Pick<CachedLoaderOptions<T>, 'key' |
         const history = historyFor({ scope, query });
         history.replacement += 1;
         history.error = null;
-        scope.client.setQueryData(key, value);
+        scope.client.setQueryData<PublishedResult<T>>(key, { generation: history.replacement, request: history.request, value });
       },
     };
   }, [scope, key, fetch, staleTime]);

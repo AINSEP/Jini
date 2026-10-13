@@ -144,18 +144,24 @@ export class FetchQueryCache {
       this.publish(entry, { ...entry.state, isFetching: false });
       return this.runOnline({ run });
     }).then(value => {
-      const data = replacement === entry.replacement ? value : entry.state.data as T;
       // Undefined is never successful query data, including an initial or background read.
-      if (data === undefined) throw new Error(`${JSON.stringify(entry.key)} data is undefined`);
-      return data;
-    }).then(data => {
+      // Thrown here so the rejection path below handles it (a replacement still supersedes it).
+      if (value === undefined) throw new Error(`${JSON.stringify(entry.key)} data is undefined`);
+      return value;
+    }).then(value => {
       // Only the current request may publish or clear invalidation. An older transport
       // need not support abort: its callers follow the replacement request instead.
       if (entry.pending !== pending) return (entry.pending ?? entry.state.data) as Promise<T> | T;
+      // Arbitration and publication share this continuation: a microtask between them would
+      // let an older result overwrite a replacement accepted after arbitration.
+      if (replacement !== entry.replacement) {
+        this.publish(entry, { ...entry.state, isFetching: false });
+        return entry.state.data as T;
+      }
       entry.updatedAt = this.clock.nowMs();
       entry.invalidated = false;
-      this.publish(entry, { data, error: null, status: 'success', isFetching: false });
-      return data;
+      this.publish(entry, { data: value, error: null, status: 'success', isFetching: false });
+      return value;
     }, error => {
       if (entry.pending !== pending) return (entry.pending ?? entry.state.data) as Promise<T> | T;
       // A replacement write is newer than this read's failure as well as its data.

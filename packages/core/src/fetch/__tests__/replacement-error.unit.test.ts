@@ -47,3 +47,31 @@ describe('replacement writes supersede read failures', () => {
     }
   });
 });
+
+
+describe('replacement between transport resolution and publication', () => {
+  it.each([false, true])('keeps the newer value for both callers and the cache (cached: %s)', async cached => {
+    const cache = new FetchQueryCache({}, { scheduler: { schedule: () => 0, cancel: () => {} } });
+    const entry = cache.entry({ key: ['publication'] });
+    if (cached) cache.replace({ entry, data: 'cached' });
+    let resolve!: (value: string) => void;
+    const transport = new Promise<string>(yes => { resolve = yes; });
+    const fetch = () => transport;
+    const first = cache.load({ entry, fetch, staleTime: 0 });
+    const second = cache.load({ entry, fetch, staleTime: 0 });
+    // Let the cache adopt the transport before registering the publication-gap replacement.
+    await Promise.resolve(); await Promise.resolve();
+    let replaced = false;
+    const afterReplace: unknown[] = [];
+    const release = cache.subscribe({ entry, listener: () => { if (replaced) afterReplace.push(entry.state.data); } });
+    void transport.then(() => queueMicrotask(() => { replaced = true; cache.replace({ entry, data: 'saved' }); }));
+    try {
+      resolve('obsolete');
+      await expect(first).resolves.toBe('saved');
+      await expect(second).resolves.toBe('saved');
+      expect(entry.state).toEqual({ data: 'saved', error: null, status: 'success', isFetching: false });
+      expect(afterReplace).not.toContain('obsolete');
+      expect(afterReplace.length).toBeGreaterThan(0);
+    } finally { release(); cache.dispose(); }
+  });
+});

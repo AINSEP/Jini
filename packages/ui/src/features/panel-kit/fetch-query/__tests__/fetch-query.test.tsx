@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 
 import { FetchQueryProvider as BuiltInProvider, useCachedLoader, useFetchMutation, useFetchQuery, useInvalidate } from "..";
-import { FetchQueryProvider as TanStackProvider } from "../tanstack";
+import { FetchQueryProvider as TanStackProvider } from "../tanstack.js";
 
 /**
  * @file Behavioural contract for `lib/fetch-query`.
@@ -89,6 +89,44 @@ describe("provider isolation and defaults", () => {
 });
 
 describe("loader/read cache coherence", () => {
+  it.each([
+    { cached: false, fails: false }, { cached: true, fails: false },
+    { cached: false, fails: true }, { cached: true, fails: true },
+  ])("replacement wins after transport settlement and before publication (cached: $cached, failure: $fails)", async ({ cached, fails }) => {
+    const transport = deferred<string>();
+    const key = ["settled-replacement"] as const;
+    const fetch = vi.fn<() => Promise<string>>();
+    if (cached) fetch.mockResolvedValueOnce("cached");
+    fetch.mockImplementation(() => transport.promise);
+    const observedAfterReplace: (string | undefined)[] = [];
+    let replaced = false;
+    const { result } = renderHook(() => {
+      const read = useFetchQuery({ key, fetch }, { staleTime: Infinity });
+      if (replaced) observedAfterReplace.push(read.data);
+      return { read, first: useCachedLoader({ key, fetch }, { staleTime: 0 }), second: useCachedLoader({ key, fetch }, { staleTime: 0 }) };
+    }, { wrapper: FetchQueryProvider });
+    if (cached) await waitFor(() => expect(result.current.read.data).toBe("cached"));
+    let first!: Promise<string>, second!: Promise<string>;
+    act(() => { first = result.current.first.load(); second = result.current.second.load(); });
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(cached ? 2 : 1));
+    // Register after the adapter adopted the transport. Its first outcome continuation runs
+    // before this queued replacement, but its publication continuation runs afterward.
+    const replace = () => { replaced = true; result.current.second.replace({ value: "saved" }); };
+    void transport.promise.then(() => queueMicrotask(replace), () => queueMicrotask(replace));
+    await act(async () => {
+      if (fails) transport.reject(new Error("obsolete failure"));
+      else transport.resolve("obsolete");
+      await expect(first).resolves.toBe("saved");
+      await expect(second).resolves.toBe("saved");
+    });
+    await waitFor(() => expect(result.current.read).toMatchObject({ data: "saved", status: "success", error: null, isFetching: false }));
+    expect(result.current.first.peek()).toBe("saved");
+    expect(result.current.second.peek()).toBe("saved");
+    expect(observedAfterReplace.length).toBeGreaterThan(0);
+    expect(observedAfterReplace.every(value => value === "saved")).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(cached ? 2 : 1);
+  });
+
   it("retries a failed background load even with infinite freshness", async () => {
     const error = new Error("refresh failed");
     const fetch = vi.fn<() => Promise<string>>().mockResolvedValueOnce("first").mockRejectedValueOnce(error).mockResolvedValueOnce("recovered");
