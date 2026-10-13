@@ -15,6 +15,7 @@
  */
 import { openSqliteConnection, type SqliteDb, type SqliteSyncOpener } from '@jini-ai/db/sqlite';
 import { join } from 'node:path';
+import { createNativeAgentRuntime, type NativeAgentRuntime } from '@jini-ai/agent-runtime';
 
 import { createToolRegistry, type ToolRegistry } from '@jini-ai/core';
 import {
@@ -61,6 +62,8 @@ export interface JiniKernelBase {
   readonly journalEventLog: ClosableEventLog;
   readonly lifecycle: RunLifecycle;
   readonly agentExecutor: AgentExecutor;
+  /** One runtime shared by this kernel's discovery and executor paths. */
+  readonly agentRuntime: NativeAgentRuntime;
   /** The single registry every active feature's tools land in, and the only one `toolExecutor` reads. */
   readonly registry: ToolRegistry;
   readonly toolExecutor: ToolExecutor;
@@ -153,8 +156,17 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
     throw error;
   }
 
+  const agentRuntime = createNativeAgentRuntime({ env: options.agentExecutor?.hostEnv ?? process.env }, {
+    ...(options.agentExecutor?.runtimeState ? { state: options.agentExecutor.runtimeState } : {}),
+    ...(options.agentExecutor?.codexDisablePlugins !== undefined ? { codexDisablePlugins: options.agentExecutor.codexDisablePlugins } : {}),
+    ...(options.agentExecutor?.piGracefulShutdownMs !== undefined ? { piGracefulShutdownMs: options.agentExecutor.piGracefulShutdownMs } : {}),
+  });
   const agentExecutor = createAgentExecutor({ lifecycle }, {
     ...options.agentExecutor,
+    runtimeState: agentRuntime.state,
+    hostEnv: agentRuntime.hostEnv,
+    codexDisablePlugins: agentRuntime.codexDisablePlugins,
+    piGracefulShutdownMs: agentRuntime.piGracefulShutdownMs,
     journal,
     classifyFailure: classifyRunFailureForRetry,
   });
@@ -172,13 +184,16 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
     journalEventLog,
     lifecycle,
     agentExecutor,
+    agentRuntime,
     registry,
     toolExecutor,
     sqlite,
     close(): Promise<void> {
       closed ??= (async () => {
-        try { sqlite?.connection.close(); } finally {
-          await Promise.all([eventLog.close?.({}), journalEventLog.close?.({})]);
+        try { await agentRuntime.dispose({}); } finally {
+          try { sqlite?.connection.close(); } finally {
+            await Promise.all([eventLog.close?.({}), journalEventLog.close?.({})]);
+          }
         }
       })();
       return closed;

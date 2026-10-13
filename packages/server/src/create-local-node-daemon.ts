@@ -148,6 +148,8 @@ export interface CreateLocalNodeDaemonConfig<
   onShutdown?: () => Promise<void> | void;
   /** Defaults to `process.env`. */
   env?: NodeJS.ProcessEnv;
+  /** Bind the preset and custom run handlers to the same owned runtime and explicit policies. */
+  agentExecutor?: Parameters<typeof composeJiniKernel>[0]['agentExecutor'];
   /** Optional detector override for a host with custom PATH/env policy or a deterministic test fixture. */
   agentDetector?: () => Promise<readonly DetectedAgent[]>;
   /**
@@ -323,6 +325,7 @@ export async function createLocalNodeDaemon(
           },
         },
     env,
+    ...(config.agentExecutor ? { agentExecutor: config.agentExecutor } : {}),
     featureOptions: {
       health: { getVersion: () => packageVersion, isShuttingDown: () => shuttingDown },
       runs: {

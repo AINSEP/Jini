@@ -20,7 +20,7 @@ import { statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 import { definePack, type Principal, type ToolRegistration } from '@jini-ai/core';
-import { detectAgents, getAgentDef, type DetectedAgent, type OAuthCallbackListener } from '@jini-ai/agent-runtime';
+import { getAgentDef, type DetectedAgent, type OAuthCallbackListener } from '@jini-ai/agent-runtime';
 import {
   createDefaultRunStartHandler,
   createRemoteToolEventRecorder,
@@ -327,7 +327,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
     compose: (context) => {
       // Promise-cached so concurrent clients never spawn duplicate probe sets; invalidated by
       // POST /api/agents/rescan.
-      const detector = options.agents?.detector ?? ((force: boolean) => detectAgents({}, { force }));
+      const detector = options.agents?.detector ?? ((force: boolean) => context.kernel.agentRuntime.detectAgents({}, { force }));
       let scan: Promise<readonly AgentSummary[]> | null = null;
       let expiresAt = 0;
       const scanAgents = (force: boolean): Promise<readonly AgentSummary[]> => {

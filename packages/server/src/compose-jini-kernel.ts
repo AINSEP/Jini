@@ -238,7 +238,7 @@ export async function composeJiniKernel(config: ComposeJiniKernelConfig): Promis
 
   const base = await createJiniKernelBase({
     storage: config.storage,
-    ...(config.agentExecutor === undefined ? {} : { agentExecutor: config.agentExecutor }),
+    agentExecutor: { ...config.agentExecutor, hostEnv: config.agentExecutor?.hostEnv ?? env },
   });
 
   const composed: ComposedFeature[] = [];
