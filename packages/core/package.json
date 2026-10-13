@@ -19,6 +19,7 @@
       "./model-facing-tool-errors": "universal",
       "./contribution-registry": "universal",
       "./naming": "universal",
+      "./records": "universal",
       "./primitives": "universal",
       "./fetch": "universal",
       "./text": "universal",
@@ -42,7 +43,8 @@
         ]
       },
       "shared": [
-        "src/tool-permissions.ts"
+        "src/tool-permissions.ts",
+        "src/records.ts"
       ],
       "forbidden": {
         "universal": [
@@ -100,6 +102,11 @@
       "types": "./dist/naming.d.ts",
       "import": "./dist/naming.js",
       "default": "./dist/naming.js"
+    },
+    "./records": {
+      "types": "./dist/records.d.ts",
+      "import": "./dist/records.js",
+      "default": "./dist/records.js"
     },
     "./primitives": {
       "types": "./dist/primitives/index.d.ts",

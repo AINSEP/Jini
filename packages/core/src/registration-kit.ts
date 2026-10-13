@@ -1,3 +1,5 @@
+import { isRecord } from "./records.js";
+export { isRecord, isNonArrayRecord } from "./records.js";
 /**
  * @file The cross-domain half of the agent-tool wiring split: everything a domain's own
  * `tool-registrations.ts` needs that is NOT specific to that domain.
@@ -144,21 +146,6 @@ export function indexCatalogById<T extends { name: string }>(required: { catalog
 // ---------------------------------------------------------------------------
 // Input readers — the vocabulary every handler uses to read `ctx.input`.
 // ---------------------------------------------------------------------------
-
-export function isRecord(required: { value: unknown }, _optional: Record<string, never> = {}): required is { value: Record<string, unknown> } {
-  const { value } = required;
-  return typeof value === "object" && value !== null;
-}
-
-/**
- * Accepts non-null, non-array objects, including class instances and null-prototype records.
- * This is a shape check, not plain-object validation or sanitization. Keep `isRecord`'s
- * broader contract: existing tool readers deliberately continue to accept arrays.
- * @param required.value - The untrusted value whose object shape is checked.
- */
-export function isNonArrayRecord(required: { value: unknown }, _optional: Record<string, never> = {}): required is { value: Record<string, unknown> } {
-  return isRecord(required) && !Array.isArray(required.value);
-}
 
 /** Narrows `ctx.input` to a record, refusing anything else. The first line of most handlers. */
 export function requireInputRecord(required: { input: unknown }, _optional: Record<string, never> = {}): Record<string, unknown> {
