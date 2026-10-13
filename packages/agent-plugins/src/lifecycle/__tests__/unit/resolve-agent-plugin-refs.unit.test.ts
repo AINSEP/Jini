@@ -141,7 +141,7 @@ test("does not include the SKILL.md content when pluginRefIds is absent (regress
   }
 });
 
-test("lists every other installed file as an absolute path, excluding the injected SKILL.md itself", async () => {
+test("lists readable supporting files relative to the skill and never exposes an absolute package path", async () => {
   const { cwd, layout } = await freshLayout();
   try {
     const entries = [
@@ -164,7 +164,9 @@ test("lists every other installed file as an absolute path, excluding the inject
     assert.equal(result.ok, true);
     assert.ok(result.ok);
     const expectedAbsolutePath = path.join(layout.pluginPackagesDir({ pluginId: "ui-ux-design" }), digest, "skills/ui-ux-design/references/foundations.md");
-    assert.ok(result.promptPrefix.includes(expectedAbsolutePath));
+    assert.equal(result.promptPrefix.includes(expectedAbsolutePath), false);
+    assert.ok(result.promptPrefix.includes('files: ["references/foundations.md"]'));
+    assert.equal(result.promptPrefix.includes(cwd), false);
     assert.ok(!result.promptPrefix.includes(path.join(layout.pluginPackagesDir({ pluginId: "ui-ux-design" }), digest, "skills/ui-ux-design/SKILL.md")));
   } finally {
     await forceRemove(cwd);
@@ -242,13 +244,10 @@ test("refuses a pinned ref when the activation record cannot be read — and nev
     assert.equal(result.ok, false);
     assert.ok(result.ok === false);
     assert.match(result.reason, /activation record .*could not be read/);
-    assert.ok(
-      result.reason.startsWith(
-        "Agent Plugin 'ui-ux-design' was not loaded: this workspace's activation record could not be read, so whether it is enabled cannot be confirmed (",
-      ),
-    );
-    assert.ok(result.reason.endsWith("). Nothing was injected; repair activations.json and start the run again."));
+    assert.equal(result.reason, "Agent Plugin 'ui-ux-design' was not loaded: this workspace's activation record could not be read, so whether it is enabled cannot be confirmed. Nothing was injected; repair activations.json and start the run again.");
+    assert.equal(result.reason.includes(cwd), false);
     assert.ok(!result.reason.includes("8px spacing grid"), "the refusal must never carry the plugin's own skill content");
+
   } finally {
     await forceRemove(cwd);
   }
@@ -338,8 +337,7 @@ test("frames the file inventory as instructions to follow, never as an optional 
     assert.ok(
       result.promptPrefix.includes(
         "The SKILL.md above is this Agent Plugin's own instructions — follow them, including any " +
-          "files it directs you to load before starting work. Every other file in the installed " +
-          "package is listed below by absolute path and is readable now:",
+          "files it directs you to load before starting work. Readable supporting files are listed relative to this skill folder.",
       ),
       `inventory header did not match the expected imperative framing. Actual prefix:\n${result.promptPrefix}`,
     );

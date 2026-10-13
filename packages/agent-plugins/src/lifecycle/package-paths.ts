@@ -27,7 +27,7 @@ export class PackagePathViolation extends Error {
   constructor({ message }: { readonly message: string }, optional: ErrorOptions = {}) { super(message, optional); }
 }
 
-function buildModule(ports: AgentPluginLifecyclePorts) {
+function buildModule(ports: Pick<AgentPluginLifecyclePorts, "filesystem">) {
   const realpath = ports.filesystem.realpath.bind(ports.filesystem);
   /**
  * Rejects an absolute path, a NUL byte, a Windows drive prefix, or a lexical `..`/`.` segment —
@@ -137,9 +137,9 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   return { normalizePackageEntryPath, assertContainedOnDisk };
 }
 
-const instances = new WeakMap<AgentPluginLifecyclePorts, ReturnType<typeof buildModule>>();
+const instances = new WeakMap<Pick<AgentPluginLifecyclePorts, "filesystem">, ReturnType<typeof buildModule>>();
 /** Internal composition; one state/queue instance per injected host context. */
-export function createPackagePathsModule(ports: AgentPluginLifecyclePorts) {
+export function createPackagePathsModule(ports: Pick<AgentPluginLifecyclePorts, "filesystem">) {
   let instance = instances.get(ports);
   if (!instance) { instance = buildModule(ports); instances.set(ports, instance); }
   return instance;

@@ -23,6 +23,8 @@ import type { InstalledDigestIdentity } from './bundled-digests.js';
 export type { SeededAgentPluginOutcome, SeedBundledAgentPluginsRequired, SeedBundledAgentPluginsResult } from './seed-bundled.js';
 export type { RetireBundledAgentPluginsRequired, RetireBundledAgentPluginsOptional, RetiredAgentPluginOutcome, RetiredAgentPluginSuccessorOutcome } from './retire-bundled.js';
 export * from './ports.js';
+export { createSkillFileReader } from './skill-file-reader.js';
+export type { SkillFileReader, SkillFileResult } from './skill-file-reader.js';
 export * from './layout.js';
 export * from './manifest.js';
 export * from './fetch-archive.js';
@@ -106,6 +108,7 @@ export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequire
     assertContainedOnDisk: (input: { readonly packageRoot: string; readonly entryPath: string }) => paths.assertContainedOnDisk(input.packageRoot, input.entryPath),
     classifyAgentPluginMcpServerTrust: (input: { readonly server: Parameters<typeof capabilities.classifyAgentPluginMcpServerTrust>[0] }) => capabilities.classifyAgentPluginMcpServerTrust(input.server),
     readInstalledSkillMarkdown: (input: { readonly packageRoot: string; readonly skillPath: string }) => capabilities.readInstalledSkillMarkdown(input.packageRoot, input.skillPath),
+    readInstalledSkillFile: capabilities.readInstalledSkillFile,
     readInstalledMcpServerIds: (input: { readonly packageRoot: string }) => capabilities.readInstalledMcpServerIds(input.packageRoot),
     readInstalledMcpServers: (input: { readonly packageRoot: string }) => capabilities.readInstalledMcpServers(input.packageRoot),
     resolveAgentPluginRefs: (input: { readonly pluginRefIds: readonly string[]; readonly workspaceLayout: Parameters<typeof refs.resolveAgentPluginRefs>[1] }, optional: { readonly deliveryMode?: AgentPluginDeliveryMode } = {}) => refs.resolveAgentPluginRefs(input.pluginRefIds, input.workspaceLayout, optional.deliveryMode ?? context.deliveryMode),

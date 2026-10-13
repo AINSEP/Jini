@@ -3,6 +3,8 @@ import type { AgentPluginMcpConfig, McpServerConfig } from "./manifest.js";
 import { parseAgentPluginMcpConfig as parseAgentPluginMcpConfigValue } from "./manifest.js";
 import { createPackagePathsModule } from "./package-paths.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
+import path from "node:path";
+import { createSkillFileReader, type SkillFileResult } from "./skill-file-reader.js";
 
 
 
@@ -17,6 +19,20 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   async function readInstalledSkillMarkdown(packageRoot: string, skillPath: string): Promise<string> {
     const absolute = await assertContainedOnDisk(packageRoot, skillPath);
     return readFile(absolute, "utf8");
+  }
+
+  /** One shared progressive-disclosure read; the install's skillPath, never caller file input,
+   * selects the skill folder. Unknown/refused files produce a recoverable model-facing note. */
+  async function readInstalledSkillFile(
+    { packageRoot, skillPath }: { readonly packageRoot: string; readonly skillPath: string },
+    options: { readonly file?: string } = {},
+  ): Promise<SkillFileResult> {
+    try {
+      const skillRoot = path.dirname(await assertContainedOnDisk(packageRoot, skillPath));
+      return await createSkillFileReader({ skillRoot, filesystem: ports.filesystem }).read({}, options);
+    } catch {
+      return { text: "", files: [], note: "File request refused: the installed skill folder is missing, unreadable, or outside the package. Valid supporting files: (none)." };
+    }
   }
 
   async function readInstalledMcpConfig(packageRoot: string): Promise<AgentPluginMcpConfig | null> {
@@ -56,7 +72,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     return config?.servers ?? {};
   }
 
-  return { classifyAgentPluginMcpServerTrust, readInstalledSkillMarkdown, readInstalledMcpServerIds, readInstalledMcpServers };
+  return { classifyAgentPluginMcpServerTrust, readInstalledSkillMarkdown, readInstalledSkillFile, readInstalledMcpServerIds, readInstalledMcpServers };
 }
 
 const instances = new WeakMap<AgentPluginLifecyclePorts, ReturnType<typeof buildModule>>();

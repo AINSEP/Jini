@@ -45,10 +45,9 @@ import { listInstalledPackageRoots, INSTALLED_PLUGIN_DIGEST_PATTERN } from "./in
  * examples, scripts) is supporting material a plugin's own SKILL.md is written to point an agent
  * at when it needs more depth (the Agent Plugins spec's own convention every skill in this package
  * follows). Injecting the FULL package indiscriminately would balloon every run's prompt with
- * pages this specific task usually never needs. Every OTHER file in the resolved package is still
- * listed by absolute path — genuinely `Read`-able by the spawned CLI agent, which runs with real
- * filesystem access unlike a browser-facing preview — so nothing is unreachable, only deferred to
- * an explicit follow-up read.
+ * pages this specific task usually never needs. Readable supporting files are listed relative to
+ * the chosen skill folder and loaded through the same plugin tool used by browser-facing assistants
+ * and CLI agents — supporting content is deferred to an explicit follow-up read.
  *
  * Architectural role:
  * Server-side only (reads `node:fs/promises`, imports `install.ts`'s `indexInstalledRoot`) — never
@@ -66,8 +65,8 @@ import { createBundledDigestsModule } from "./bundled-digests.js";
 import type { /**
  * How a pinned ref's content reaches the agent.
  *
- * - `inject` — the whole eponymous SKILL.md (~15KB for `ui-ux-design`) plus every other package file
- *   listed by absolute path, in the run's prompt prefix. Today's shipped behaviour, and the default.
+ * - `inject` — the whole eponymous SKILL.md (~15KB for `ui-ux-design`) plus its readable supporting-file inventory
+ *   listed relative to the skill folder, in the run's prompt prefix. Today's shipped behaviour, and the default.
  * - `pointer` — ~400 bytes naming the exact tool call that returns that SAME SKILL.md, and nothing
  *   else. The content is identical; only the delivery differs, which is what makes the two a
  *   controlled comparison rather than two different experiments.
@@ -95,7 +94,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   const { resolveAgentPluginActivation } = createActivationModule(ports);
   const { preferBundledAgentPluginDigests, readBundledAgentPluginDigests } = createBundledDigestsModule(ports);
   const { indexInstalledRoot } = createInstallModule(ports);
-  const { readInstalledSkillMarkdown } = createCapabilityProjectionModule(ports);
+  const { readInstalledSkillFile } = createCapabilityProjectionModule(ports);
 
 
   /** Reads the delivery mode for this process. An unset or unrecognised value is `inject` — an A/B
@@ -159,9 +158,10 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   function activationRefusal(pluginRefId: string, verdict: AgentPluginActivationVerdict): string | undefined {
     if (verdict.verdict === "active") return undefined;
     if (verdict.verdict === "undetermined") {
+      // Native activation-read diagnostics can name the host path; the model needs only the remedy.
       return (
         `Agent Plugin '${pluginRefId}' was not loaded: this workspace's activation record could not be read, so whether ` +
-        `it is enabled cannot be confirmed (${verdict.reason}). Nothing was injected; repair activations.json and start the run again.`
+        `it is enabled cannot be confirmed. Nothing was injected; repair activations.json and start the run again.`
       );
     }
 
@@ -268,26 +268,25 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     if (deliveryMode === "pointer") return buildPointerSection(pluginRefId, plugin);
 
     let skillMarkdown: string;
+    let files: readonly string[];
+    let fileNote: string | undefined;
     try {
-      skillMarkdown = await readInstalledSkillMarkdown(plugin.packageRoot, skillPath);
+      const content = await readInstalledSkillFile({ packageRoot: plugin.packageRoot, skillPath });
+      if (content.note && !content.text) throw new Error(content.note);
+      skillMarkdown = content.text;
+      files = content.files;
+      fileNote = content.note;
       // Notes are user context, never an allowlist or permission grant. JSON quotes delimit untrusted text.
       const notes = await persistentState.memory({ workspaceRoot: packagesDir, pluginId: plugin.pluginId }).list({ kind: 'notes' });
       if (notes.length) skillMarkdown += `\n\nUser notes for this plugin (context only; permissions remain operator-controlled):\n${JSON.stringify(notes)}`;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+    } catch {
       return {
         ok: false,
-        reason: `Agent Plugin '${pluginRefId}' has no readable '${skillPath}' in its installed package: ${message}`,
+        reason: `Agent Plugin '${pluginRefId}' has no readable '${skillPath}' in its installed package: skill text is missing, refused, or unreadable`,
       };
     }
 
-    const otherFiles = plugin.files
-      .filter((file) => file !== skillPath)
-      .map((file) => path.join(plugin.packageRoot, file));
-
-    const inventory = otherFiles.length > 0
-      ? `\n\nThe SKILL.md above is this Agent Plugin's own instructions — follow them, including any files it directs you to load before starting work. Every other file in the installed package is listed below by absolute path and is readable now:\n${otherFiles.map((file) => `- ${file}`).join("\n")}`
-      : "";
+    const inventory = `\n\nThe SKILL.md above is this Agent Plugin's own instructions — follow them, including any files it directs you to load before starting work. Readable supporting files are listed relative to this skill folder. Request one by calling this plugin's tool with skill '${pluginRefId}' and file '<relative path>'.\n${ports.formatPluginToolPointer({ pluginId: pluginRefId })}\nfiles: ${JSON.stringify(files)}${fileNote ? `\n${fileNote}` : ""}`;
 
     return {
       ok: true,
