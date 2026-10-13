@@ -1,5 +1,9 @@
 # @jini-ai/platform
 
+## 0.5.4 — 2026-10-12
+
+- Removed unused exports: `SecretsVaultService.commitPrepared`, `VaultCommitPreparedInput`, `VaultCopyInput.targetRevisions`, the pre-vault `InMemoryVendorCredentialSetRepo` and `buildVendorCredentialAad`. No known consumer; prepared records are committed through the vault repository's `put`/`applyBatch`.
+
 ## 0.5.2
 
 ### Patch Changes

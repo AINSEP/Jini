@@ -1,3 +1,7 @@
+## 0.3.3 — 2026-10-12
+
+- Vault `findDefault` restates the default group in the normalized expressions and binds `is_default` as a dialect literal, so a host's partial default index is matched (SQLite and Postgres). Raw-column filters stay; results are unchanged.
+
 ## 0.3.1 — 2026-10-08
 
 - Tovu clean-up release: code Tovu moved into Jini, plus the Jini clean-up (see the commit log).
