@@ -5,7 +5,8 @@ const mocks = vi.hoisted(() => ({
   read: vi.fn(), write: vi.fn(), remove: vi.fn(),
 }));
 vi.mock("node:child_process", () => ({ spawn: mocks.spawn, execFileSync: mocks.exec }));
-vi.mock("@jini-ai/platform", () => ({ createCommandInvocation: mocks.invocation, listProcessSnapshots: mocks.snapshots, collectProcessTreePids: mocks.collect, stopProcesses: mocks.stop }));
+vi.mock("@jini-ai/platform/command", () => ({ createCommandInvocation: mocks.invocation }));
+vi.mock("@jini-ai/platform/process", () => ({ listProcessSnapshots: mocks.snapshots, collectProcessTreePids: mocks.collect, stopProcesses: mocks.stop }));
 vi.mock("../daemon-registry.js", () => ({ readLiveDaemonRegistryRecord: mocks.read, writeDaemonRegistryRecord: mocks.write, removeDaemonRegistryRecordIfCurrent: mocks.remove }));
 
 import { createNodeDaemonProcessAdapter, createSupervisorRegistry } from "../supervisor-node.js";

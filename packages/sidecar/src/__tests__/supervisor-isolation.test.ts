@@ -4,6 +4,8 @@ import { createRespawnPolicy } from '../respawn-policy.js';
 
 // REGRESSION: fails if supervisor.ts re-exports supervisor-node.ts.
 vi.mock('@jini-ai/platform', () => { throw new Error('Node platform adapter must remain optional'); });
+vi.mock('@jini-ai/platform/command', () => { throw new Error('Node platform adapter must remain optional'); });
+vi.mock('@jini-ai/platform/process', () => { throw new Error('Node platform adapter must remain optional'); });
 it('runs the generic supervisor using process ports while the platform adapter is unavailable', () => {
   const on = vi.fn();
   const spawnDaemonProcess = vi.fn(() => ({ pid: 7, on, kill: () => true }));

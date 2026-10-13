@@ -1,7 +1,8 @@
 import { execFileSync, spawn } from "node:child_process";
 import type { Writable } from "node:stream";
 import type { ChildProcess, SpawnOptions } from "node:child_process";
-import { collectProcessTreePids, createCommandInvocation, listProcessSnapshots, stopProcesses } from "@jini-ai/platform";
+import { createCommandInvocation } from "@jini-ai/platform/command";
+import { collectProcessTreePids, listProcessSnapshots, stopProcesses } from "@jini-ai/platform/process";
 import { readLiveDaemonRegistryRecord, removeDaemonRegistryRecordIfCurrent, writeDaemonRegistryRecord } from "./daemon-registry.js";
 import type { LocalDaemonRegistryRecord } from "./daemon-registry.js";
 import type { SpawnedDaemonProcess, SupervisorScheduler } from "./supervisor.js";
