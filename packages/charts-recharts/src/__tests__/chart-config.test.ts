@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { CHART_PRIMARY_COLOR, CHART_SERIES_COLORS, chartTickFormatter, createChartConfig, formatChartValue } from '../index.js';
+import { CHART_PRIMARY_COLOR, CHART_SERIES_COLORS } from '../chart-tokens.js';
+import { chartTickFormatter, createChartConfig, formatChartValue } from '../chart-config.js';
 
 describe('chart config', () => {
-  it('exports all six host-overridable series tokens through the public provider entry', () => {
+  it('exports all six host-overridable series tokens in the private provider implementation', () => {
     expect(CHART_SERIES_COLORS).toEqual([
       'var(--jini-chart-1, var(--jini-chart-default-1))',
       'var(--jini-chart-2, var(--jini-chart-default-2))',

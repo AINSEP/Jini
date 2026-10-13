@@ -9,13 +9,14 @@ export interface LineChartProps {
   readonly categoryKey: string;
   readonly valueKey: string;
   readonly color?: string;
+  readonly label?: string;
+  readonly title?: string;
+  readonly description?: string;
 }
 
-export function LineChart({ data, categoryKey, valueKey, color = CHART_PRIMARY_COLOR }: LineChartProps) {
+export function LineChart({ data, categoryKey, valueKey, color = CHART_PRIMARY_COLOR, label = valueKey, title = `${valueKey} by ${categoryKey}`, description = `Line chart with ${data.length} points. Use arrow keys to explore values.` }: LineChartProps) {
   const gradientId = `jini-chart-area-${useId().replace(/:/g, '')}`;
-  const config = createChartConfig({ series: [{ key: valueKey, label: valueKey }] }, { color });
-  const title = `${valueKey} by ${categoryKey}`;
-  const description = `Line chart with ${data.length} points. Use arrow keys to explore values.`;
+  const config = createChartConfig({ series: [{ key: valueKey, label }] }, { color });
   return (
     <ChartContainer config={config} title={title} description={description}>
       <ComposedChart data={data as Record<string, unknown>[]} accessibilityLayer title={title} desc={description} margin={{ top: 16, right: 12, bottom: 8, left: 0 }}>
@@ -26,9 +27,8 @@ export function LineChart({ data, categoryKey, valueKey, color = CHART_PRIMARY_C
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} strokeOpacity={0.6} vertical={false} />
-        {/* Same reasoning as bar-chart.tsx: always show every category tick rather than recharts'
-            default measured-overlap skip. */}
-        <XAxis dataKey={categoryKey} interval={0} {...CHART_AXIS_PROPS} />
+        {/* Same reasoning as bar-chart.tsx: thin only overlapping labels, keep the first and last. */}
+        <XAxis dataKey={categoryKey} interval="preserveStartEnd" minTickGap={8} {...CHART_AXIS_PROPS} />
         <YAxis {...CHART_AXIS_PROPS} tickFormatter={chartTickFormatter} width={48} />
         {/* Recharts deduplicates by dataKey before rendering custom content. Preserve the two
             graphical items here so the decorative area cannot displace the line's tooltip. */}

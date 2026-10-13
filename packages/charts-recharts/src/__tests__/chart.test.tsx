@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { Bar, BarChart, Cell, Pie, PieChart, Tooltip, XAxis } from 'recharts';
-import { ChartContainer, ChartLegendContent, ChartTooltipContent } from '../index.js';
+import { ChartContainer, ChartLegendContent, ChartTooltipContent } from '../chart.js';
 
 describe('shared chart presentation with real Recharts', () => {
   beforeEach(() => {
