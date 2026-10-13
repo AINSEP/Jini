@@ -1,19 +1,18 @@
-import { useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, createElement } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
-import { KitContext } from './context.js';
+import { useKitContext } from './context.js';
 import { createKit } from './kit.js';
 import { assertKitContract, KitConfigError } from '../needs.js';
 import { kitSpec, type ImplementedComponentName } from '../kit.spec.js';
 import type { KitContextValue, KitProviderProps, ReactKitProps, ToastProps } from './types.js';
 import { createToastService } from '../toast.js';
-import { Toast } from './facade.js';
 let defaultValue: KitContextValue | undefined;
 function getDefault() {
   return defaultValue ??= { kit: createKit({}), agent: undefined, overlayContainer: null, toast: undefined, cancelLabel: 'Cancel', guard: 'fallback' };
 }
 export function useKit(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): KitContextValue {
-  return useContext(KitContext) ?? getDefault();
+  return useKitContext({}) ?? getDefault();
 }
 export function useKitProvider(required: KitProviderProps, _optional: Record<string, never> = {}) {
   const fallback = useMemo(() => createKit({}), []);
@@ -69,12 +68,11 @@ export function useToast(_required: Record<string, never> = {}, _optional: Recor
   if (!service) throw new KitConfigError({ issues: ['useToast requires a KitProvider or an injected toast service'] });
   return service;
 }
+/** Observe toast messages and disposal-owned service state; ToastRegion owns element creation. */
 export function useToastRegion(required: { service?: ReturnType<typeof createToastService>; attrs?: ToastProps['attrs'] }, _optional: Record<string, never> = {}) {
   const context = useKit({});
   const service = required.service ?? context.toast;
   if (!service) throw new KitConfigError({ issues: ['ToastRegion requires a KitProvider or a service'] });
   const messages = useSyncExternalStore(listener => service.subscribe({ listener }), () => service.snapshot({}), () => service.snapshot({}));
-  const children = messages.map(message => createElement(Toast, { key: message.id, message: message.message,
-    ...(message.tone ? { tone: message.tone } : {}), onDismiss: () => service.dismiss({ id: message.id }) }));
-  return { container: useOverlayContainer({}), attrs: { 'data-jini-part': 'kit.toast-region', ...required.attrs }, children };
+  return { container: useOverlayContainer({}), attrs: { 'data-jini-part': 'kit.toast-region', ...required.attrs }, messages, service };
 }

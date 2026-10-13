@@ -1,4 +1,4 @@
-import { createContext, type Context } from 'react';
+import { createContext, useContext, type Context } from 'react';
 import type { KitContextValue } from './types.js';
 const CONTEXT_KEY = Symbol.for('@jini-ai/ui-kit/react/context@1');
 interface SharedContext { context: Context<KitContextValue | null>; versions: Set<string> }
@@ -18,3 +18,10 @@ export function getSharedKitContext(required: { version: string }, _optional: Re
   return slot.context;
 }
 export const KitContext = getSharedKitContext({ version: '0.1.0' });
+
+/** Context-only lookup for native views: no default-kit assembly or facade dependency.
+ * @returns The nearest provider binding, or null so a native view can use its own defaults.
+ */
+export function useKitContext(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): KitContextValue | null {
+  return useContext(KitContext);
+}

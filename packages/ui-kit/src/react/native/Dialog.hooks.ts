@@ -1,7 +1,6 @@
 import { useId, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import type { MouseEvent, SyntheticEvent } from 'react';
-import type { DialogProps, ConfirmViewProps } from '../types.js';
-import { Button } from '../facade.js';
+import type { DialogProps, ConfirmViewProps, ReactKit } from '../types.js';
 import { NativeButton } from './Controls.js';
 /** Native modal lifecycle shared by kit views and compatibility adapters; DOM effects are O(1).
  * The document port preserves hosts' focus injection seam without introducing another lifecycle.
@@ -52,7 +51,13 @@ function isOutsideBox(event: MouseEvent<HTMLDialogElement>): boolean {
   const r = event.currentTarget.getBoundingClientRect();
   return x < r.left || x > r.right || y < r.top || y > r.bottom;
 }
-export function useNativeConfirm(required: ConfirmViewProps, _optional: Record<string, never> = {}) {
+/** Native confirmation lifecycle with the view-selected Button. A failed conformance guard
+ * forces native actions even when a provider supplied a custom Button.
+ * @param required The shared confirmation controller.
+ * @param options Button selected by the native view's context-only lookup.
+ * @returns Dialog bindings and the action component that preserves the safety override.
+ */
+export function useNativeConfirm(required: ConfirmViewProps, { Button = NativeButton }: { Button?: ReactKit['Button'] } = {}) {
   const c = required.controller;
   const vm = useNativeDialog({ open: c.open, title: c.title, pending: c.pending, onClose: () => c.requestDismiss({ reason: 'close' }) },
     { initialFocus: () => c.focusInitial({}) });
