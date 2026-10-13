@@ -26,6 +26,7 @@
  */
 
 import * as semver from "semver";
+import { validateBrowserProviders, type BrowserProviderDeclaration } from "./browser-providers.js";
 
 import { readPluginIdentity, validatePluginIdentity, type PluginIdentityExtension } from "@jini-ai/core/plugin-directory";
 import type { HookPoints, ManifestHostPorts } from "./ports.js";
@@ -82,6 +83,8 @@ export interface PluginManifest {
   readonly integrity: Readonly<Record<string, string>>;
   /** Parsed-and-stored, UNUSED in v1 (forward-compat, no behavior — state.spec.md §2). */
   readonly adminSurfaces?: readonly unknown[] | null;
+  /** Reviewed bundled chart assets only; host admission supplies trust outside this manifest. */
+  readonly browserProviders?: readonly BrowserProviderDeclaration[];
   /** Content types the plugin declares (AW-7 Tier 1, 2026-10-04) — no longer unused: validated by
    *  `declarative-content-types.ts`, claimed by key (`plugin-claims.ts`), created at enable. */
   readonly contentTypes?: readonly unknown[] | null;
@@ -171,7 +174,7 @@ const REQUIRED_KEYS = [
 ] as const;
 
 /** REQ-01's "parsed-and-stored but unused in v1" forward-compat keys — allowed, never validated. */
-const OPTIONAL_KEYS = ["adminSurfaces", "contentTypes", "provenance", "dependencies", "contributes", "keywords", "extensions"] as const;
+const OPTIONAL_KEYS = ["adminSurfaces", "contentTypes", "provenance", "dependencies", "contributes", "keywords", "extensions", "browserProviders"] as const;
 
 const ALLOWED_KEYS = new Set<string>([...REQUIRED_KEYS, ...OPTIONAL_KEYS]);
 const VALID_TIERS = new Set<PluginTier>(["tier-1", "tier-2", "tier-3"]);
@@ -568,6 +571,7 @@ export function validateManifest<H extends HookPoints>(
     ...validateHooks(raw, required.pluginSdkBinding.hookIds),
     ...validateFields(raw, id),
     ...validateContributes(raw, id),
+    ...validateBrowserProviders({ browserProviders: raw.browserProviders, integrity: typeof raw.integrity === "object" && raw.integrity !== null ? raw.integrity as Record<string, unknown> : {} }),
     // AW-7 Tier 1: `contentTypes` grammar and the tier-1 "no code surface" rule.
     ...required.declarativeContentTypes.validateManifest({ manifest: raw }).errors,
   ];

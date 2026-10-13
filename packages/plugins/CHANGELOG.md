@@ -9,6 +9,8 @@
 
 ## Unreleased
 
+- Admit reviewed digest-pinned compiled-in chart browser providers only, retain immutable asset bytes, and initialize bundled site plugins only when activation rows are absent.
+
 - Share publisher identity validation with core, retain the built-in incumbent on duplicate publisher IDs, and omit broken unrelated installed manifests from admission with warnings while preserving link refusals.
 
 - Publish the plugin host runtime at universal `./host` and Node `./host/node`, `./host/worker`,

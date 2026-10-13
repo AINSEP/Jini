@@ -19,6 +19,9 @@
  */
 import { PluginSnapshotIntegrityError } from "./module-snapshot.js";
 import path from "node:path";
+import { admitBrowserProviderAssets } from "./browser-provider-assets.js";
+import { isPluginRelativePath, type AdmittedBrowserProvider } from "../browser-providers.js";
+import type { BundledBrowserProviderApproval } from "../ports.js";
 
 import * as semver from "semver";
 
@@ -74,6 +77,8 @@ export interface LoadPluginRequired<H extends HookPoints = HookPoints> {
    * module and therefore owns building the capability-scoped SDK passed to its `setup()` call;
    * the root owns what each granted handle actually delegates to. */
   readonly coreDeps: CapabilityScopedSdkCoreDeps;
+  /** Compiled-in review records; absent means all browser providers are refused. */
+  readonly browserProviderApprovals?: readonly BundledBrowserProviderApproval[];
 }
 
 export type LoadPluginOptional = Record<string, never>;
@@ -83,7 +88,9 @@ export type PluginLoadFailureReason =
   | "SDK_RANGE_UNSATISFIED"
   | "CODE_ENTRY_MISSING"
   | "PLUGIN_EXPORT_INVALID"
-  | "PLUGIN_SETUP_FAILED";
+  | "PLUGIN_SETUP_FAILED"
+  | "BROWSER_PROVIDER_FORBIDDEN"
+  | "BROWSER_PROVIDER_INVALID";
 
 export type PluginEnableFailureReason = PluginLoadFailureReason | "PLUGIN_HOOK_NOT_ATTACHED" | "PLUGIN_HOOK_ATTACH_FAILED";
 
@@ -103,7 +110,7 @@ export class PluginLoadError extends Error {
 }
 
 export type LoadPluginResult =
-  | { readonly loaded: true }
+  | { readonly loaded: true; readonly browserProviders?: readonly AdmittedBrowserProvider[] }
   | {
       readonly loaded: false;
       readonly reason: PluginLoadFailureReason;
@@ -134,6 +141,7 @@ export async function loadPlugin<H extends HookPoints>(
     return { loaded: false, reason: "INTEGRITY_FAILED" };
   }
   for (const [relativeFilePath, expectedHash] of Object.entries(manifest.integrity)) {
+    if (!isPluginRelativePath({ path: relativeFilePath })) return { loaded: false, reason: "INTEGRITY_FAILED" };
     let actualHash: string;
     try {
       actualHash = await computeFileHash(path.join(pluginRoot, relativeFilePath));
@@ -150,9 +158,16 @@ export async function loadPlugin<H extends HookPoints>(
     return { loaded: false, reason: "SDK_RANGE_UNSATISFIED" };
   }
 
+  let browserProviders: readonly AdmittedBrowserProvider[] | undefined;
+  if (manifest.browserProviders?.length) {
+    const admission = await admitBrowserProviderAssets({ record, manifest, pluginRoot, approvals: required.browserProviderApprovals ?? [] });
+    if (!admission.admitted) return { loaded: false, reason: admission.reason };
+    browserProviders = admission.providers;
+  }
+
   // Declarative plugins never reach an executable importer. A worker port is mandatory for tier-2,
   // and tier-3 must be admitted explicitly by the host (CMS-JINI-MODULAR-DESIGN Rev 3 §5).
-  if (manifest.tier === "tier-1") return { loaded: true };
+  if (manifest.tier === "tier-1") return { loaded: true, ...(browserProviders ? { browserProviders } : {}) };
   if ((manifest.tier === "tier-2" && tierPolicy.execution !== "worker") || !tierPolicy.allowLoad({ record, manifest })) {
     return { loaded: false, reason: "CODE_ENTRY_MISSING" };
   }
@@ -194,6 +209,6 @@ export async function loadPlugin<H extends HookPoints>(
   // the caller's `coreDeps`; only after this successful return does the root call the shared
   // `attachLoadedPlugin()` path below. That split prevents a late setup failure from leaving a
   // partially-attached filter behind.
-  return { loaded: true };
+  return { loaded: true, ...(browserProviders ? { browserProviders } : {}) };
 }
 

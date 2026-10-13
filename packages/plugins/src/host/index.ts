@@ -16,3 +16,5 @@ export * from './uninstall.js';
 export * from './source-policy.js';
 export * from './contributions.js';
 export * from './tool-contributions.js';
+export * from './browser-providers.js';
+export * from './bundled-initialization.js';

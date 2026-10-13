@@ -369,3 +369,17 @@ test("a tampered secondary packaged module prevents importing its verified entry
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('bundled chart assets cannot bypass the existing integrity-before-SDK-before-import order', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'jini-chart-order-'));
+  try {
+    const entryPath = await writeFixtureEntry(dir, 'export default {}');
+    let imported = false;
+    const candidate = { ...manifest({ integrity: { 'server/index.mjs': sha256('export default {}') } }), browserProviders: [{ id: 'plugin.chart', kind: 'chart' as const, contractVersion: 1 as const, kinds: ['bar'], javascript: 'client/provider.js' }] };
+    const result = await loadPlugin({ record: record(), manifest: candidate, entryPath, coreDeps: coreDeps() }, {
+      computeFileHash: async () => 'sha256-wrong', runtimeSdkVersion: '9.0.0', importModule: async () => { imported = true; return {}; },
+    });
+    assert.deepEqual(result, { loaded: false, reason: 'INTEGRITY_FAILED' });
+    assert.equal(imported, false);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

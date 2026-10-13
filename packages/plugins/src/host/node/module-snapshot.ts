@@ -25,14 +25,7 @@ export async function snapshotPluginModuleGraph(
   { writeSnapshotFile = writeFile }: { writeSnapshotFile?: typeof writeFile } = {},
 ): Promise<string> {
   const files = await snapshotSitePluginPackage({ sourceDir: required.pluginRoot });
-  for (const [key, bytes] of files) {
-    if (key === "tovu.plugin.json") continue;
-    const digest = `sha256-${createHash("sha256").update(bytes).digest("hex")}`;
-    if (required.manifest.integrity[key] !== digest) throw new PluginSnapshotIntegrityError("Package changed before loading.");
-  }
-  for (const key of Object.keys(required.manifest.integrity)) {
-    if (!files.has(key)) throw new PluginSnapshotIntegrityError("Package file disappeared before loading.");
-  }
+  verifyPluginSnapshotIntegrity({ files, integrity: required.manifest.integrity });
   const cacheRoot = path.dirname(path.dirname(required.pluginRoot)) + "-runtime";
   await mkdir(cacheRoot, { recursive: true, mode: 0o700 });
   const info = await lstat(cacheRoot);
@@ -48,5 +41,23 @@ export async function snapshotPluginModuleGraph(
   } catch (error) {
     await rm(snapshotRoot, { recursive: true, force: true });
     throw error;
+  }
+}
+
+/** The package integrity owner, shared by executable snapshots and retained browser assets.
+ * @throws {PluginSnapshotIntegrityError} A retained file differs from a reviewed digest or is missing.
+ */
+export function verifyPluginSnapshotIntegrity(
+  required: { files: ReadonlyMap<string, Uint8Array>; integrity: Readonly<Record<string, string>> },
+  _options: Record<string, never> = {},
+): void {
+  const { files, integrity } = required;
+  for (const [key, bytes] of files) {
+    if (key === "tovu.plugin.json") continue;
+    const digest = `sha256-${createHash("sha256").update(bytes).digest("hex")}`;
+    if (integrity[key] !== digest) throw new PluginSnapshotIntegrityError("Package changed before loading.");
+  }
+  for (const key of Object.keys(integrity)) {
+    if (!files.has(key)) throw new PluginSnapshotIntegrityError("Package file disappeared before loading.");
   }
 }

@@ -365,3 +365,17 @@ test("AW-7 Tier 1: a tier-1 manifest whose code-surface lists are malformed repo
   const result = validateManifest(required(validManifest({ tier: "tier-1", capabilities: "all" as never, hooks: [], fields: [], integrity: {} })));
   assert.deepEqual(codesOf(result), ["MANIFEST_MALFORMED"]);
 });
+
+test('chart browser providers declare open kinds and digest-covered relative client assets', () => {
+  const browserProviders = [{ id: 'plugin.recharts', kind: 'chart', contractVersion: 1 as const, kinds: ['bar', 'calendar'], javascript: 'client/provider.js', stylesheet: 'client/styles.css' }];
+  const integrity = { 'client/provider.js': `sha256-${'ab'.repeat(32)}`, 'client/styles.css': `sha256-${'cd'.repeat(32)}` };
+  assert.deepEqual(validateManifest(required(validManifest({ browserProviders, integrity }))).errors, []);
+  for (const javascript of ['../provider.js', '/provider.js', 'client/../provider.js', 'client\\provider.js', 'https://example.com/provider.js']) {
+    const result = validateManifest(required(validManifest({ browserProviders: [{ ...browserProviders[0]!, javascript }], integrity })));
+    assert.ok(codesOf(result).includes('BROWSER_PROVIDER_INVALID'));
+  }
+  for (const overrides of [{ contractVersion: 2 }, { kinds: [] }, { javascript: 'client/missing.js' }, { trust: 'first-party' }]) {
+    const result = validateManifest(required(validManifest({ browserProviders: [{ ...browserProviders[0]!, ...overrides }] as never, integrity })));
+    assert.ok(codesOf(result).includes('BROWSER_PROVIDER_INVALID'));
+  }
+});
