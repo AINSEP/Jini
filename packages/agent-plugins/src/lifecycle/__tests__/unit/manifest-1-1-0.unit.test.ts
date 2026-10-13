@@ -4,7 +4,8 @@
  * 1.1.0 changes only the `$schema` identifiers (spec text and both schemas otherwise match 1.0.0),
  * so these tests pin version selection: a real 1.1.0 package parses and installs, 1.1.0 grammar
  * violations are still refused, 1.0.0 keeps working, a plugin.json/mcp.json version mismatch
- * disables MCP (§10), and an unknown version is refused with the accepted identifiers listed.
+ * disables MCP (§10), an unknown 1.x is read with the newest known grammar plus one warning, and
+ * a different major is refused.
  *
  * The fixture is Open Marketing's `content/agent-plugins/higgsfield-media` plugin.json + mcp.json,
  * copied verbatim at Open Marketing commit 13bbfa9.
@@ -140,28 +141,60 @@ test("mcp.json alone (no plugin.json supplied) is checked only against the suppo
 });
 
 for (const schema of [
-  "https://agent-plugins.org/schemas/1.2.0/plugin.schema.json",
-  "https://agent-plugins.org/schemas/2.0.0/plugin.schema.json",
   "https://agent-plugins.org/schemas/1.1/plugin.schema.json",
   "http://agent-plugins.org/schemas/1.1.0/plugin.schema.json",
   MCP_1_1_0,
+  undefined,
 ]) {
-  test(`plugin.json refuses the unrecognized $schema '${schema}' and lists the accepted identifiers`, () => {
+  test(`plugin.json refuses the non-canonical $schema '${schema}' and lists the accepted identifiers`, () => {
     const result = parseAgentPluginManifest({ value: { ...OM_PLUGIN, $schema: schema } });
     assert.equal(result.ok, false);
     if (!result.ok) {
       assert.deepEqual(result.errors, [
-        `plugin.json '$schema' must be '${PLUGIN_1_0_0}' or '${PLUGIN_1_1_0}' (Agent Plugins 1.0.0, 1.1.0), got '${schema}'`,
+        `plugin.json '$schema' must be '${PLUGIN_1_0_0}' or '${PLUGIN_1_1_0}' (Agent Plugins 1.0.0, 1.1.0, or another 1.x), got '${schema}'`,
       ]);
     }
   });
 }
 
-test("mcp.json refuses an unknown version even when plugin.json is valid", () => {
-  const schema = "https://agent-plugins.org/schemas/1.2.0/mcp.schema.json";
-  const result = parseMcp({ ...OM_MCP, $schema: schema }, OM_PLUGIN);
-  assert.equal(result.ok, false);
-  if (!result.ok) {
-    assert.deepEqual(result.errors, [`mcp.json '$schema' must be '${MCP_1_0_0}' or '${MCP_1_1_0}' (Agent Plugins 1.0.0, 1.1.0), got '${schema}'`]);
-  }
+for (const version of ["1.2.0", "1.5.3"]) {
+  test(`an unknown newer ${version} is read with the 1.1.0 grammar and exactly one warning naming the version`, () => {
+    const pluginManifest = { ...OM_PLUGIN, $schema: `https://agent-plugins.org/schemas/${version}/plugin.schema.json` };
+    const manifest = parseAgentPluginManifest({ value: pluginManifest });
+    assert.equal(manifest.ok, true);
+    if (manifest.ok) {
+      assert.deepEqual(manifest.warnings.filter((warning) => warning.includes("Agent Plugins")), [
+        `plugin.json targets Agent Plugins ${version}, newer than this loader knows; validated with the 1.1.0 grammar`,
+      ]);
+    }
+    const mcp = parseMcp({ ...OM_MCP, $schema: `https://agent-plugins.org/schemas/${version}/mcp.schema.json` }, pluginManifest);
+    assert.equal(mcp.ok, true);
+    if (mcp.ok) assert.deepEqual(Object.keys(mcp.config.servers), ["higgsfield"]);
+  });
+}
+
+test("an unknown 1.x still enforces the known grammar (bad name refused, unknown top-level field only warns)", () => {
+  const schema = "https://agent-plugins.org/schemas/1.2.0/plugin.schema.json";
+  const badName = parseAgentPluginManifest({ value: { $schema: schema, name: "Not Valid" } });
+  assert.equal(badName.ok, false);
+  const extra = parseAgentPluginManifest({ value: { $schema: schema, name: "ok", futureField: true } });
+  assert.equal(extra.ok, true);
+  if (extra.ok) assert.ok(extra.warnings.includes("unrecognized plugin.json field 'futureField' (ignored per spec)"));
 });
+
+test("a 1.2.0 mcp.json is refused beside a 1.1.0 plugin.json (versions must still match)", () => {
+  const result = parseMcp({ ...OM_MCP, $schema: "https://agent-plugins.org/schemas/1.2.0/mcp.schema.json" }, OM_PLUGIN);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.deepEqual(result.errors, ["mcp.json targets Agent Plugins 1.2.0 but plugin.json targets 1.1.0; the versions must match"]);
+});
+
+for (const version of ["2.0.0", "0.9.0"]) {
+  test(`a different major (${version}) is refused as an unsupported major version`, () => {
+    const manifest = parseAgentPluginManifest({ value: { ...OM_PLUGIN, $schema: `https://agent-plugins.org/schemas/${version}/plugin.schema.json` } });
+    assert.equal(manifest.ok, false);
+    if (!manifest.ok) assert.deepEqual(manifest.errors, [`plugin.json targets Agent Plugins ${version}, an unsupported major version (supported: 1.x)`]);
+    const mcp = parseMcp({ ...OM_MCP, $schema: `https://agent-plugins.org/schemas/${version}/mcp.schema.json` });
+    assert.equal(mcp.ok, false);
+    if (!mcp.ok) assert.deepEqual(mcp.errors, [`mcp.json targets Agent Plugins ${version}, an unsupported major version (supported: 1.x)`]);
+  });
+}

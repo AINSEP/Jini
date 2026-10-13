@@ -6,7 +6,11 @@
   projection) select the grammar by `$schema` and accept Agent Plugins 1.1.0 identifiers alongside
   1.0.0. 1.1.0 changes only the version identifiers, so both map to the same validator; 1.0.0
   behavior is unchanged. When a `plugin.json` is supplied, `mcp.json` must target the same version
-  (§10). An unknown version is refused with both accepted identifiers listed in the error.
+  (§10).
+- Forward-compatible within major 1 (owner decision): an unknown 1.x (e.g. 1.2.0) is validated with
+  the newest known (1.1.0) grammar and reports one warning naming the version. A different major
+  (2.x, 0.x) is refused as an unsupported major version; a non-canonical `$schema` is refused with
+  the accepted identifiers listed.
 
 ## 0.4.2
 

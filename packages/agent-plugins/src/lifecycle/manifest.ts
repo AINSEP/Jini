@@ -17,7 +17,8 @@
  * - `plugin.json`'s `$schema` MUST be a recognized canonical identifier
  *   (`https://agent-plugins.org/schemas/<version>/plugin.schema.json`); `mcp.json`'s likewise
  *   (`.../<version>/mcp.schema.json`), and when both are present their versions MUST match (§10).
- *   1.0.0 and 1.1.0 are recognized — see `SUPPORTED_SPEC_VERSIONS` for why one grammar serves both.
+ *   1.0.0 and 1.1.0 are recognized; an unknown 1.x is read with the newest known grammar plus one
+ *   warning; any other major is refused — see `KNOWN_SPEC_VERSIONS`.
  * - Unknown top-level `plugin.json` fields produce warnings but do not block loading — this module
  *   returns them as `warnings`, never as a rejection reason.
  * - `mcp.json`'s top-level shape is `{ "$schema": ..., "mcpServers": { "<server-id>": {...} } }` —
@@ -62,28 +63,49 @@ export type { PluginManifestAuthor } from '../manifest.js';
 export type AgentPluginServerMetadataReader = (required: { readonly serverId: string; readonly value: Readonly<Record<string, unknown>>; readonly server: Readonly<Record<string, unknown>> }) => Readonly<Record<string, unknown>>;
 
 /**
- * The Agent Plugins versions this loader understands. 1.1.0's spec text and both schemas differ
- * from 1.0.0 only in the version identifiers, so both map to the one grammar below — §5.1 allows
- * mapping explicitly recognized compatible versions to one implementation. Any other value is
- * rejected outright rather than guessed at: pinning the grammar must survive spec churn, so a
- * future version is added here only after its schemas are diffed against this grammar.
+ * The Agent Plugins versions whose schemas have been diffed against this file's grammar. 1.1.0's
+ * spec text and both schemas differ from 1.0.0 only in the version identifiers, so both map to the
+ * one grammar below — §5.1 allows mapping explicitly recognized compatible versions to one
+ * implementation. Add a version here only after diffing its schemas against this grammar.
  */
-const SUPPORTED_SPEC_VERSIONS = ["1.0.0", "1.1.0"] as const;
+const KNOWN_SPEC_VERSIONS = ["1.0.0", "1.1.0"] as const;
+const SUPPORTED_MAJOR = "1";
+
+/**
+ * Owner decision (2026-10-12): any other 1.x is accepted with the newest known grammar and one
+ * warning, so a minor spec release does not lock out packages that target it. This goes beyond
+ * §5.1, which says a client MUST reject a version it does not explicitly recognize. Unknown fields
+ * stay tolerated only where the known grammar already allows them (unknown top-level fields warn,
+ * `extensions` is opaque). A different major is refused, since majors may break the grammar.
+ */
+const SCHEMA_URL_PATTERN = /^https:\/\/agent-plugins\.org\/schemas\/((\d+)\.\d+\.\d+)\/(plugin|mcp)\.schema\.json$/;
 
 /** The canonical `$schema` identifier for one spec version's `plugin.json` or `mcp.json`. */
 function schemaUrl(version: string, file: "plugin" | "mcp"): string {
   return `https://agent-plugins.org/schemas/${version}/${file}.schema.json`;
 }
 
-/** The supported spec version `value` names as `file`'s canonical schema identifier, or `undefined`. */
-function readSpecVersion(value: unknown, file: "plugin" | "mcp"): string | undefined {
-  return SUPPORTED_SPEC_VERSIONS.find((version) => value === schemaUrl(version, file));
-}
+type SpecVersion =
+  | { readonly version: string; readonly warning?: string; readonly error?: undefined }
+  | { readonly version?: undefined; readonly warning?: undefined; readonly error: string };
 
-/** The one rejection message for an unrecognized `$schema`, listing every accepted identifier. */
-function unsupportedSchemaError(value: unknown, file: "plugin" | "mcp"): string {
-  const accepted = SUPPORTED_SPEC_VERSIONS.map((version) => `'${schemaUrl(version, file)}'`).join(" or ");
-  return `${file}.json '$schema' must be ${accepted} (Agent Plugins ${SUPPORTED_SPEC_VERSIONS.join(", ")}), got '${String(value)}'`;
+/**
+ * Reads the spec version `value` names as `file`'s canonical schema identifier: a known version,
+ * an unknown 1.x (with its warning), or the error for a different major or a non-canonical value.
+ */
+function readSpecVersion(value: unknown, file: "plugin" | "mcp"): SpecVersion {
+  const match = typeof value === "string" ? SCHEMA_URL_PATTERN.exec(value) : null;
+  if (!match || match[3] !== file) {
+    const accepted = KNOWN_SPEC_VERSIONS.map((version) => `'${schemaUrl(version, file)}'`).join(" or ");
+    return { error: `${file}.json '$schema' must be ${accepted} (Agent Plugins ${KNOWN_SPEC_VERSIONS.join(", ")}, or another ${SUPPORTED_MAJOR}.x), got '${String(value)}'` };
+  }
+  const version = match[1]!;
+  if (match[2] !== SUPPORTED_MAJOR) {
+    return { error: `${file}.json targets Agent Plugins ${version}, an unsupported major version (supported: ${SUPPORTED_MAJOR}.x)` };
+  }
+  if ((KNOWN_SPEC_VERSIONS as readonly string[]).includes(version)) return { version };
+  const newest = KNOWN_SPEC_VERSIONS[KNOWN_SPEC_VERSIONS.length - 1];
+  return { version, warning: `${file}.json targets Agent Plugins ${version}, newer than this loader knows; validated with the ${newest} grammar` };
 }
 
 /**
@@ -174,7 +196,9 @@ export function parseAgentPluginManifest({ value }: { readonly value: unknown },
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  if (readSpecVersion(raw.$schema, "plugin") === undefined) errors.push(unsupportedSchemaError(raw.$schema, "plugin"));
+  const specVersion = readSpecVersion(raw.$schema, "plugin");
+  if (specVersion.error) errors.push(specVersion.error);
+  else if (specVersion.warning) warnings.push(specVersion.warning);
 
   if (raw.extensions !== undefined && !isJsonObject(raw.extensions)) errors.push("plugin.json extensions must be an object");
 
@@ -503,9 +527,11 @@ export function parseAgentPluginMcpConfig({ value, extensionNamespace }: { reado
   const raw = value;
   const errors: string[] = [];
 
-  const mcpVersion = readSpecVersion(raw.$schema, "mcp");
-  const pluginVersion = isJsonObject(optional.pluginManifest) ? readSpecVersion(optional.pluginManifest.$schema, "plugin") : undefined;
-  if (mcpVersion === undefined) errors.push(unsupportedSchemaError(raw.$schema, "mcp"));
+  // plugin.json already reports an unknown-1.x warning; mcp.json adds none of its own.
+  const mcpSpec = readSpecVersion(raw.$schema, "mcp");
+  const mcpVersion = mcpSpec.version;
+  const pluginVersion = isJsonObject(optional.pluginManifest) ? readSpecVersion(optional.pluginManifest.$schema, "plugin").version : undefined;
+  if (mcpSpec.error) errors.push(mcpSpec.error);
   else if (pluginVersion !== undefined && pluginVersion !== mcpVersion) {
     errors.push(`mcp.json targets Agent Plugins ${mcpVersion} but plugin.json targets ${pluginVersion}; the versions must match`);
   }
