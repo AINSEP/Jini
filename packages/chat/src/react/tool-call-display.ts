@@ -1,7 +1,7 @@
 /**
  * @module tool-call-display
  *
- * How a transcript shows tool calls (owner, 2026-10-11 — the Tovu dock's Chat settings → Display):
+ * How a transcript shows tool calls (owner, 2026-10-11 — Chat settings → Display):
  *
  * - `'show'`      — every tool card, where it happened. The layout every host had before this.
  * - `'collapsed'` — each turn's tool cards fold into ONE line ("Used 3 tools") that expands on

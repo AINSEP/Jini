@@ -248,6 +248,12 @@ describe('MessageList', () => {
     ];
     const onRequestOpenFile = vi.fn();
     render(<MessageList messages={withTool} projectFileNames={new Set(['known.txt'])} onRequestOpenFile={onRequestOpenFile} />);
+    // fc592b9f mounts tool details on expansion; opening a file starts by opening its card.
+    expect(screen.queryByRole('button', { name: 'Open' })).toBeNull();
+    const readButton = screen.getByRole('button', { name: 'Read known.txt' });
+    expect(readButton).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(readButton);
+    expect(readButton).toHaveAttribute('aria-expanded', 'true');
     const openButton = screen.getByRole('button', { name: 'Open' });
     await userEvent.click(openButton);
     expect(onRequestOpenFile).toHaveBeenCalledWith('known.txt');

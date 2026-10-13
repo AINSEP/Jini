@@ -21,9 +21,13 @@ it('validates and renders nested provider components against the same injected r
     ],
   } }];
   const baseline = render(<A2uiSurfaceCard name="a2ui" runId="run-registry" events={events} runStreaming={false} runSucceeded />);
-  expect(screen.getByRole('status')).toHaveTextContent('A2UI surface refused:');
+  // 13114809 added this registry seam. Valid parents survive a refused child, so the
+  // existing root renders with an action-refusal notice rather than a rootless surface notice.
+  expect(screen.getByRole('status')).toHaveTextContent(`Action refused: Component type "fixture.caption" is not in catalog "${createLabCatalog({}).catalogId}" — refused, not rendered.`);
+  expect(screen.getByText('⚠ missing component “caption”')).toBeInTheDocument();
   baseline.unmount();
   render(<A2uiSurfaceCard name="a2ui" runId="run-registry" events={events} runStreaming={false} runSucceeded registry={registry} />);
   expect(screen.getByRole('status')).toHaveTextContent('Injected provider rendered');
-  expect(screen.queryByText(/A2UI surface refused:/)).toBeNull();
+  expect(screen.queryByText(/(?:A2UI surface|Action) refused:/)).toBeNull();
+  expect(screen.queryByText('⚠ missing component “caption”')).toBeNull();
 });

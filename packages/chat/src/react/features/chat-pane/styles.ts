@@ -118,7 +118,7 @@ export const CHAT_PANE_STYLES = `
 /*
  * Off-screen rows skip style, layout and paint. Owner report 2026-10-11: typing in a long chat
  * lagged. React was not the cost (no row re-renders per key); the browser was. A keystroke's DOM
- * change can invalidate style for the whole document (a host :has() rule did, in the Tovu dock),
+ * change can invalidate style for the whole document (a host dock's :has() rule did),
  * and a transcript with ~2,000 tool cards and 3.5 MB of tool output then cost ~50 ms of style
  * recalc per key. With this, only the rows on screen are recalculated (~8 ms). The DOM stays
  * whole: find-in-page, textContent readers and screen readers still see every row.
