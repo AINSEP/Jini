@@ -333,6 +333,9 @@ importers:
       recharts:
         specifier: ^3.10.1
         version: 3.10.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react-is@17.0.2)(react@19.2.7)(redux@5.0.1)
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
     devDependencies:
       '@jini-ai/ui':
         specifier: workspace:^
@@ -349,9 +352,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.0
         version: 19.2.3(@types/react@19.2.17)
-      esbuild:
-        specifier: ^0.28.1
-        version: 0.28.1
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1
@@ -452,6 +452,9 @@ importers:
       react-dom:
         specifier: ^19.2.0
         version: 19.2.7(react@19.2.7)
+      recharts:
+        specifier: ^3.10.1
+        version: 3.10.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react-is@17.0.2)(react@19.2.7)(redux@5.0.1)
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -670,13 +673,13 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
+      '@jini-ai/platform':
+        specifier: workspace:^
+        version: link:../platform
     devDependencies:
       '@electric-sql/pglite':
         specifier: 0.5.8
         version: 0.5.8
-      '@jini-ai/platform':
-        specifier: workspace:*
-        version: link:../platform
       '@types/better-sqlite3':
         specifier: 7.6.13
         version: 7.6.13
@@ -850,6 +853,9 @@ importers:
       mdast-util-to-markdown:
         specifier: 2.1.2
         version: 2.1.2
+      parse5:
+        specifier: 7.3.0
+        version: 7.3.0
       undici:
         specifier: ^7.25.0
         version: 7.28.0
@@ -857,9 +863,6 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0))
-      parse5:
-        specifier: 7.3.0
-        version: 7.3.0
 
   packages/plugins:
     dependencies:
@@ -1101,6 +1104,9 @@ importers:
       react-dom:
         specifier: ^19.2.0
         version: 19.2.7(react@19.2.7)
+      recharts:
+        specifier: ^3.10.1
+        version: 3.10.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react-is@17.0.2)(react@19.2.7)(redux@5.0.1)
       shiki:
         specifier: ^1.24.4
         version: 1.29.2
