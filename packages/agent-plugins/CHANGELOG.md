@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — Agent Plugins 1.1.0
+## 0.4.4 — 2026-10-12 — Agent Plugins 1.1.0
 
 - `parseAgentPluginManifest()` / `parseAgentPluginMcpConfig()` (and so the installer and MCP
   projection) select the grammar by `$schema` and accept Agent Plugins 1.1.0 identifiers alongside

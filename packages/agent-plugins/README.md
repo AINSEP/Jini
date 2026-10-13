@@ -2,8 +2,8 @@
 
 > **Leon, this is you from the past. Do not try to merge `plugins` and `agent-plugins`.**
 
-Support for **Agent Plugins**, an open, vendor-neutral spec (v1.0.0, published 2026-08-06; v1.1.0
-manifests are also accepted) for bundling Agent Skills and MCP servers into one portable
+Support for **Agent Plugins**, an open, vendor-neutral spec (v1.0.0, published 2026-08-06; v1.1.0 and
+later 1.x manifests are also accepted) for bundling Agent Skills and MCP servers into one portable
 directory. Published by a Technical Steering Committee with maintainers from Amazon, Cursor, Google, Microsoft, OpenAI, and Vercel.
 Source: https://developers.googleblog.com/agent-plugins-package-your-skills-tools-and-more/
 
