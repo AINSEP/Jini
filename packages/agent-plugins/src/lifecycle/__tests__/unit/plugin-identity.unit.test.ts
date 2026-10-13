@@ -136,7 +136,7 @@ describe('plugin identity (owner 2026-10-09)', () => {
 
   it('requires the core peer version that exports the runtime identity entry', async () => {
     const pkg = JSON.parse(await readFile(new URL('../../../../package.json', import.meta.url), 'utf8'));
-    expect(pkg.peerDependencies['@jini-ai/core']).toBe('^0.4.2');
+    expect(pkg.peerDependencies['@jini-ai/core']).toBe('^0.4.3');
     expect(pkg.peerDependenciesMeta['@jini-ai/core']?.optional).not.toBe(true);
   });
 

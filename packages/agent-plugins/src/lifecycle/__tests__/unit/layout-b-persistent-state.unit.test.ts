@@ -43,12 +43,14 @@ test('neutral lifecycle uses Layout B, never refreezes a deduplicated install, a
     await memory.writeNote({ entryPath: 'project.md', text: 'USER-CONTEXT' });
     await memory.learned.write({ entryPath: 'account.json', text: 'LEARNED-CACHE' });
     await fs.writeFile(path.join(workspace.pluginDataDir({ pluginId: 'example' }), 'cache'), 'STATE');
-    await install('2.0.0');
+    const updated = await install('2.0.0');
     expect(await memory.read({ kind: 'notes', entryPath: 'project.md' })).toBe('USER-CONTEXT');
     expect(await memory.learned.read({ entryPath: 'account.json' })).toBe('LEARNED-CACHE');
     expect(await fs.readFile(path.join(workspace.pluginDataDir({ pluginId: 'example' }), 'cache'), 'utf8')).toBe('STATE');
     const refs = createResolveAgentPluginRefsModule(ports);
-    expect(await refs.listInstalledPlugins(workspace.root)).toHaveLength(2);
+    expect(await refs.listInstalledPlugins(workspace.root)).toHaveLength(1);
+    await expect(fs.stat(first.packageRoot)).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(JSON.parse(await fs.readFile(path.join(updated.packageRoot, 'plugin.json'), 'utf8')).version).toBe('2.0.0');
     const uninstall = createUninstallModule(ports);
     const request = { layout, workspaceId, pluginId: 'example' };
     await uninstall.uninstallAgentPlugin(request);

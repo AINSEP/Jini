@@ -371,14 +371,15 @@ test("a confirmed preview refuses when one of its previewed archives was removed
   const { cwd, instanceLayout, workspaceLayout } = await freshLayout();
   try {
     const first = await installTestPackage(instanceLayout, "shrunk-plugin", "archive-shrunk-a");
-    const second = await installTestPackage(instanceLayout, "shrunk-plugin", "archive-shrunk-b");
+    // Install now prunes superseded revisions (1c5d476f), so two coexisting archives are the legacy store.
+    const second = await installLegacyRevision({ packagesDir: workspaceLayout.pluginPackagesDir({ pluginId: "shrunk-plugin" }), install: () => installTestPackage(instanceLayout, "shrunk-plugin", "archive-shrunk-b") });
     const req = { layout: instanceLayout, workspaceId: WORKSPACE_ID, pluginId: "shrunk-plugin" };
     const preview = await previewAgentPluginUninstall(req);
     await forceRemove(second.packageRoot);
 
     await assert.rejects(() => uninstallAgentPlugin(req, { confirmedPreview: preview }), AgentPluginChangedSincePreviewError);
 
-    await assert.rejects(stat(first.packageRoot), { code: "ENOENT" });
+    assert.equal((await stat(first.packageRoot)).isDirectory(), true);
   } finally {
     await forceRemove(cwd);
   }
