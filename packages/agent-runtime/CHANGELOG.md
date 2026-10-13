@@ -1,3 +1,8 @@
+## 0.4.8 — 2026-10-13
+
+- The root import no longer needs the optional `@jini-ai/integrations` peer: the media-provider catalog loads lazily, only when a default provider URL is needed. A missing peer at that point throws an actionable error with the import failure as its `cause`; explicit `*_BASE_URL` env values never touch it.
+- New `createElevenLabsVoiceClient({ http, clock }, { maxCacheEntries })`: voices listed through an injected `HttpClientPort`, expired entries swept, oldest evicted past the bound, `clearCache()`. `listElevenLabsVoiceOptions` stays as the compatibility wrapper over native fetch.
+
 ## 0.4.7 — 2026-10-13
 
 - New `createNativeAgentRuntime({ env }, { state, acpModelProbe, codexDisablePlugins, piGracefulShutdownMs })`: one host-owned runtime state with detection, launch and definitions bound to it, environment policies resolved once, and `dispose({})` that drains in-flight discovery before clearing caches.
