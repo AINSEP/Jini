@@ -36,7 +36,10 @@
       "./tab-strip": "browser",
       "./admin-widgets.css": "browser",
       "./theme": "browser",
-      "./styles/*": "browser"
+      "./styles/*": "browser",
+      "./charts": "universal",
+      "./charts/browser": "browser",
+      "./charts/react": "browser"
     },
     "isolation": {
       "entries": {
@@ -158,7 +161,22 @@
       "import": "./dist/theme/index.js",
       "default": "./dist/theme/index.js"
     },
-    "./styles/*": "./dist/styles/*"
+    "./styles/*": "./dist/styles/*",
+    "./charts": {
+      "types": "./dist/features/charts/index.d.ts",
+      "import": "./dist/features/charts/index.js",
+      "default": "./dist/features/charts/index.js"
+    },
+    "./charts/browser": {
+      "types": "./dist/features/charts/browser.d.ts",
+      "import": "./dist/features/charts/browser.js",
+      "default": "./dist/features/charts/browser.js"
+    },
+    "./charts/react": {
+      "types": "./dist/features/charts/react.d.ts",
+      "import": "./dist/features/charts/react.js",
+      "default": "./dist/features/charts/react.js"
+    }
   },
   "files": [
     "dist",
@@ -207,7 +225,6 @@
     "lexical": "0.36.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "recharts": "^3.10.1",
     "tailwindcss": "^4.1.16",
     "@jini-ai/platform": "workspace:^",
     "@jini-ai/agentic": "workspace:^",
@@ -240,7 +257,6 @@
     "lexical": "0.36.2",
     "react": "^18.3.0 || ^19.0.0",
     "react-dom": "^18.3.0 || ^19.0.0",
-    "recharts": "^3.10.1",
     "@jini-ai/platform": "^0.5.3",
     "@jini-ai/agentic": "^0.4.4",
     "class-variance-authority": "^0.7.1",
@@ -296,9 +312,6 @@
       "optional": true
     },
     "react-dom": {
-      "optional": true
-    },
-    "recharts": {
       "optional": true
     },
     "@jini-ai/platform": {
