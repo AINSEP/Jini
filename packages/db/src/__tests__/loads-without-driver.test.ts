@@ -82,6 +82,21 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
     dirs: ["migrate", "kernel", "core"], kernel: true,
     probe: `m.sourceChecksum("") === "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" && typeof m.runMigrations === "function"`,
   },
+  "secrets-vault": {
+    dirs: ["secrets-vault", "kernel"], kernel: true,
+    probe: `await (async () => {
+      const calls = [];
+      const query = {
+        selectAll() { calls.push(["selectAll"]); return this; },
+        where(...args) { calls.push(["where", ...args]); return this; },
+        async executeTakeFirst() { return undefined; },
+      };
+      const kernel = { run: fn => fn({ selectFrom: table => { calls.push(["selectFrom", table]); return query; } }) };
+      const repo = new m.SqlSecretsVaultRepo({ kernel });
+      return await repo.find({ workspaceId: "workspace", id: "missing" }) === null
+        && JSON.stringify(calls) === '[["selectFrom","secrets_vault"],["selectAll"],["where","workspace_id","=","workspace"],["where","id","=","missing"]]';
+    })()`,
+  },
 };
 
 SUBPATHS.recovery = {
@@ -155,6 +170,12 @@ beforeAll(() => {
   }
   // The optional peer for kernel consumers, copied from its real path (pnpm links it from the store).
   cpSync(realpathSync(join(packageRoot, "node_modules", "kysely")), join(fixtureDir, "node_modules", "kysely"), { recursive: true });
+  // The SQL vault consumes the platform's driver-free credential contract and validation owner.
+  const platformRoot = fileURLToPath(new URL("../../../platform/", import.meta.url));
+  const installedPlatform = join(fixtureDir, "node_modules", "@jini-ai", "platform");
+  mkdirSync(installedPlatform, { recursive: true });
+  cpSync(join(platformRoot, "dist"), join(installedPlatform, "dist"), { recursive: true });
+  cpSync(join(platformRoot, "package.json"), join(installedPlatform, "package.json"));
 }, 180_000);
 
 afterAll(() => {
@@ -219,7 +240,9 @@ describe("@jini-ai/db in an install with no database driver present", () => {
         expect(packages.length).toBeGreaterThan(0);
         for (const url of packages) expect(url, `tools loaded an optional peer other than core`).toMatch(/\/node_modules\/@jini-ai\/core\//);
       } else if (!SUBPATHS[subpath]!.kernel) expect(packages).toEqual([]);
-      else for (const url of packages) expect(url, `${subpath} loaded a package other than kysely`).toMatch(/\/node_modules\/kysely\//);
+      else if (subpath === "secrets-vault") {
+        for (const url of packages) expect(url, `${subpath} loaded a package other than kysely/platform`).toMatch(/\/node_modules\/(?:kysely|@jini-ai\/platform)\//);
+      } else for (const url of packages) expect(url, `${subpath} loaded a package other than kysely`).toMatch(/\/node_modules\/kysely\//);
     });
   }
 });
