@@ -1,3 +1,9 @@
+## 0.5.8 — 2026-10-13
+
+- New `./navigation/node` subpath: re-exports the full `./navigation` API with parse5 menu-HTML normalization bound into `createMenu`, `updateMenuTree`, `mergeMenuHtml` and `buildMenusRegistrations`. Node hosts writing HTML-mode menus should import those from `./navigation/node`.
+- `./navigation` no longer loads the optional peer `parse5`, so it is universal again. Every name is still exported; an HTML-mode write through it needs an injected `normalizeMenuHtml` (`normalizeHtml` for `mergeMenuHtml`) and otherwise fails before saving. Item-only writes are unchanged.
+- `./seo` no longer reaches the media transform module for rendition MIME types; `TransformFormat` and `mimeForTransformFormat` remain exported from the media entries.
+
 ## 0.5.7 — 2026-10-12
 
 - New render-only leaf subpaths: `./forms/html-render`, `./forms/submission-attempts`, `./widgets/page-embed-types`, `./widgets/html/html-embeds`, `./widgets/html/gallery-render`, `./navigation/types`, `./navigation/dropdown` and `./media/slug` (the media slug rule, still re-exported from `./media`). Existing barrels are unchanged.
