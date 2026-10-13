@@ -13,6 +13,11 @@ The supervisor requires `spawnDaemonProcess`, `terminateProcess`, `policy`, `now
 
 The child port receives `on({ event: 'exit', listener: ({ code, signal }) => ... })`, `on({ event: 'error', listener: ({ error }) => ... })` and `kill({}, { signal? })`. Native Node events/signals are translated inside the adapter. No-argument lifecycle actions (`start`, `restart`, `ensureStarted`, `shutdown`) carry no data.
 
+On Windows the Node adapter supplies a stdin pipe and `JINI_STOP_ON_STDIN_EOF=1`.
+The daemon host must resume stdin and run its existing graceful disposal on `end` when that flag is set.
+The child port exposes `closeStdin({}, {})`; termination closes it and uses platform's existing 5000ms exit wait before `taskkill /T /F` escalation.
+Ports without stdin retain immediate tree-stop fallback. POSIX group signalling is unchanged.
+
 Registry calls are `readLiveDaemonRegistryRecord({ registryPath })`, `writeDaemonRegistryRecord({ registryPath, record })` and `removeDaemonRegistryRecordIfCurrent({ registryPath, pid })`. The bound registry port exposes `readLive()`, `write({ record })` and `removeIfCurrent({ pid })`.
 
 All product paths, environment names, stamp normalizers and exit classification are host inputs. A scheduler must defer its callback until after `schedule` returns. Restart waits for child exit and termination completion; shutdown prevents pending retries from spawning another child.

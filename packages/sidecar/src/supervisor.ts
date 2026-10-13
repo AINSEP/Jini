@@ -14,6 +14,8 @@ export interface SpawnedDaemonProcess {
   readonly pid?: number | undefined;
   on(input: DaemonProcessSubscription): void;
   kill(requiredArgs: Record<string, never>, optionalArgs?: { signal?: NodeJS.Signals }): boolean;
+  /** Close the host-owned stdin pipe to request graceful shutdown on Windows. */
+  closeStdin?(requiredArgs: Record<string, never>, optionalArgs?: Record<string, never>): void;
 }
 
 /** Scheduling must defer run until after schedule returns; the returned function cancels it. */

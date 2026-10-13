@@ -2,7 +2,7 @@ import { execFileSync, spawn } from "node:child_process";
 import type { Writable } from "node:stream";
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { createCommandInvocation } from "@jini-ai/platform/command";
-import { collectProcessTreePids, listProcessSnapshots, stopProcesses } from "@jini-ai/platform/process";
+import { collectProcessTreePids, listProcessSnapshots, stopProcesses, waitForProcessExit } from "@jini-ai/platform/process";
 import { readLiveDaemonRegistryRecord, removeDaemonRegistryRecordIfCurrent, writeDaemonRegistryRecord } from "./daemon-registry.js";
 import type { LocalDaemonRegistryRecord } from "./daemon-registry.js";
 import type { SpawnedDaemonProcess, SupervisorScheduler } from "./supervisor.js";
@@ -39,6 +39,12 @@ export interface NodeDaemonProcessOptions {
   stdout?: Writable; stderr?: Writable; platform?: NodeJS.Platform;
   /** Native spawn effect port; the adapter still constructs argv, environment and process options. */
   spawn?: (input: { command: string; args: string[]; options: SpawnOptions }, optional?: Record<string, never>) => ChildProcess;
+  /** Native effect ports retain their platform ABI so tests can supply DI fakes. */
+  listProcessSnapshots?: typeof listProcessSnapshots;
+  waitForProcessExit?: typeof waitForProcessExit;
+  stopProcesses?: typeof stopProcesses;
+  signalProcess?: typeof process.kill;
+  execFileSync?: (file: string, args: readonly string[], options: { stdio: "ignore" }) => unknown;
 }
 
 /**
@@ -54,14 +60,15 @@ export function createNodeDaemonProcessAdapter(required: NodeDaemonProcessRequir
 } {
   return {
     spawnDaemonProcess() {
+      const win32 = (options.platform ?? process.platform) === "win32";
       const invocation = createCommandInvocation({ command: required.command, args: [...required.args], env: required.env });
       // detached creates a POSIX process group so teardown reaches the daemon below a
       // launcher hop; windowsHide avoids an otherwise visible detached Windows console.
       // Pipe output through the parent instead of inheriting its descriptors: an orphan
       // retaining those descriptors previously kept parent/test teardown waiting forever.
       const spawnOptions: SpawnOptions = {
-        cwd: required.cwd, env: { ...required.env }, detached: true, windowsHide: true,
-        stdio: ["ignore", "pipe", "pipe"],
+        cwd: required.cwd, env: { ...required.env, ...(win32 ? { JINI_STOP_ON_STDIN_EOF: "1" } : {}) }, detached: true, windowsHide: true,
+        stdio: [win32 ? "pipe" : "ignore", "pipe", "pipe"],
         ...(invocation.windowsVerbatimArguments === undefined ? {} : { windowsVerbatimArguments: invocation.windowsVerbatimArguments }),
       };
       const child = options.spawn
@@ -78,24 +85,41 @@ export function createNodeDaemonProcessAdapter(required: NodeDaemonProcessRequir
           else child.on("error", (error) => input.listener({ error }));
         },
         kill(_required, { signal } = {}) { return child.kill(signal); },
+        ...(win32 && child.stdin ? { closeStdin(_required: Record<string, never>) {
+          // EPIPE when the daemon exits first must not become an unhandled stream error.
+          child.stdin!.once("error", () => undefined).end();
+        } } : {}),
       };
     },
     async terminateProcess({ child }) {
       if (child.pid === undefined) return;
       const pid = child.pid;
-      const snapshotRequest = listProcessSnapshots();
-      // Signal before the first await: even a parent exiting immediately after shutdown reaps its tree.
-      // Windows has no group signal, so taskkill supplies the synchronous tree-stop equivalent.
+      const snapshotRequest = (options.listProcessSnapshots ?? listProcessSnapshots)();
+      // Request stop before the first await: even a parent exiting immediately starts tree teardown.
+      // Windows has no group signal, so taskkill supplies the tree-stop escalation.
       // Windows has no POSIX group signal. Killing only the immediate launcher would
       // orphan its daemon; taskkill /T walks the entire descendant tree instead.
-      try {
-        if ((options.platform ?? process.platform) === "win32") {
-          execFileSync("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore" });
-        } else { process.kill(-pid, "SIGTERM"); }
-      } catch { child.kill({}, { signal: "SIGTERM" }); }
+      if ((options.platform ?? process.platform) === "win32") {
+        let exited = false;
+        if (child.closeStdin !== undefined) {
+          try {
+            child.closeStdin({});
+            // Reuse platform's existing 5s grace before any forced Windows termination.
+            exited = await (options.waitForProcessExit ?? waitForProcessExit)(pid);
+          } catch { /* A broken pipe cannot request shutdown; escalate to the whole tree. */ }
+        }
+        if (!exited) {
+          try {
+            (options.execFileSync ?? execFileSync)("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore" });
+          } catch { child.kill({}, { signal: "SIGTERM" }); }
+        }
+      } else {
+        try { (options.signalProcess ?? process.kill)(-pid, "SIGTERM"); }
+        catch { child.kill({}, { signal: "SIGTERM" }); }
+      }
       const snapshots = await snapshotRequest;
       const pids = collectProcessTreePids(snapshots, [pid]);
-      const result = await stopProcesses(pids);
+      const result = await (options.stopProcesses ?? stopProcesses)(pids);
       if (result.remainingPids.length > 0) throw new Error(`daemon processes still running: ${result.remainingPids.join(", ")}`);
       await required.registry.removeIfCurrent({ pid });
     },
