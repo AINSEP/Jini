@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2 — 2026-10-13
+
+- `@jini-ai/db` is now an optional peer: only `./db/core` and `./db/sqlite` re-export it; `./events/outbox` needs `@jini-ai/core` only. Hosts using the db entries list `@jini-ai/db` themselves.
+
 ## 0.5.1
 
 ### Patch Changes
