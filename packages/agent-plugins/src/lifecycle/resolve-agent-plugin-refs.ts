@@ -50,7 +50,7 @@ import { listInstalledPackageRoots, INSTALLED_PLUGIN_DIGEST_PATTERN } from "./in
  * and CLI agents — supporting content is deferred to an explicit follow-up read.
  *
  * Architectural role:
- * Server-side only (reads `node:fs/promises`, imports `install.ts`'s `indexInstalledRoot`) — never
+ * Server-side only (reads injected filesystem ports through the installed-package index) — never
  * imported into a browser bundle. Returns a discriminated result rather than throwing, so
  * `agent-daemon-server.ts`'s `onStarted` gets one place to branch on success/failure without a
  * second try/catch layer duplicating this module's own error classification.
@@ -76,7 +76,7 @@ import type { /**
  * Selecting an unconditional mode requires the measurement result.
  */
 AgentPluginDeliveryMode, InstalledAgentPlugin } from "./types.js";
-import { createInstallModule } from "./install.js";
+import { createInstalledPackageIndex } from "./installed-package-index.js";
 import { createCapabilityProjectionModule } from "./capability-projection.js";
 import type { AgentPluginWorkspaceLayout } from "./layout.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
@@ -93,7 +93,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   const stat = ports.filesystem.stat.bind(ports.filesystem);
   const { resolveAgentPluginActivation } = createActivationModule(ports);
   const { preferBundledAgentPluginDigests, readBundledAgentPluginDigests } = createBundledDigestsModule(ports);
-  const { indexInstalledRoot } = createInstallModule(ports);
+  const { indexInstalledRoot } = createInstalledPackageIndex({ ports });
   const { readInstalledSkillFile } = createCapabilityProjectionModule(ports);
 
 
@@ -188,7 +188,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     const installed: InstalledAgentPlugin[] = [];
     for (const root of await listInstalledPackageRoots({ ports, workspaceRoot })) {
       try {
-        const plugin = await indexInstalledRoot(root.packageRoot, root.archiveDigest);
+        const plugin = await indexInstalledRoot({ packageRoot: root.packageRoot, archiveDigest: root.archiveDigest });
         if (plugin.pluginId === root.localId) installed.push(plugin);
       } catch {
         // One corrupt package never hides another plugin. Memory-only folders are not installs.

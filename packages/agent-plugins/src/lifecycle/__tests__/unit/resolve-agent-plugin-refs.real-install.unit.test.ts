@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { createAgentPluginLifecycle, createAgentPluginLayout, type AgentPluginArchiveReaderPort } from '../../index.js';
 import { ports } from '../test-support.js';
+import { createInstalledPackageIndex } from '../../installed-package-index.js';
 import { forceRemove } from '../fixtures/force-remove.js';
 
 // Replaces the consumer's opt-in real-site proof with an isolated, real on-disk installation.
@@ -28,6 +29,9 @@ test('a real install injects exact skill markdown and refuses an absent pinned r
   try {
     const installed = await api.installAgentPlugin({ archive, archiveReader, expectedSha256: createHash('sha256').update(archive).digest('hex'), layout, workspaceId: 'workspace-a' });
     const workspaceLayout = layout.forWorkspace({ workspaceId: 'workspace-a' });
+    const index = createInstalledPackageIndex({ ports: { ...ports, layout } });
+    expect(await index.indexInstalledRoot({ packageRoot: installed.packageRoot, archiveDigest: installed.archiveDigest })).toEqual(installed);
+    expect(await api.listInstalledPlugins({ workspaceRoot: workspaceLayout.root })).toEqual([installed]);
     const result = await api.resolveAgentPluginRefs({ pluginRefIds: ['interface-design'], workspaceLayout });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.reason);

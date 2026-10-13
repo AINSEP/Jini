@@ -113,7 +113,7 @@ import type { Dirent } from "node:fs";
 import path from "node:path";
 import { createPackagePathsModule } from "./package-paths.js";
 import { createActivationModule } from "./activation.js";
-import type { InstalledAgentPlugin } from "./install.js";
+import type { InstalledAgentPlugin } from "./types.js";
 import type { AgentPluginLayout } from "./layout.js";
 import { createResolveAgentPluginRefsModule } from "./resolve-agent-plugin-refs.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";

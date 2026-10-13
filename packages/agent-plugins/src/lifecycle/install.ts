@@ -1,5 +1,7 @@
 import { listInstalledPackageRoots } from "./installed-package-roots.js";
 import { createUninstallModule } from "./uninstall.js";
+import { AgentPluginInstallError } from "./install-errors.js";
+import { createInstalledPackageIndex } from "./installed-package-index.js";
 import { readPluginIdentity, assertPluginIdentityAvailable } from "@jini-ai/core/plugin-directory";
 /**
  * @file `installAgentPlugin()` — content-addressed, adversarially-hardened extraction of one Agent
@@ -60,59 +62,20 @@ import { readPluginIdentity, assertPluginIdentityAvailable } from "@jini-ai/core
  * (archive bytes and their expected digest are caller-supplied — see the module header above for why
  * "how does the archive get here" is out of this slice) and no execution of anything extracted.
  */
-/** One trimmed, non-blank string field of the host-supplied extension namespace, capped at `maxLength`, else
- *  `undefined` — a malformed value falls back rather than failing the whole index, since every
- *  field read this way is cosmetic. The cap stops a hostile package flooding the admin row.
- *  @complexity O(maxLength). */
-/** `{ displayName }` when the host namespace's `displayName` is a non-blank string, else `{}` (callers
- *  title-case the id).
- *  @complexity O(1). */
-/** `{ summary }` when the host namespace's `summary` is a non-blank string, else `{}` (the admin shows
- *  the spec `description` instead). Inner newlines are kept: blank lines are the paragraph breaks
- *  the admin renders.
- *  @complexity O(1). */
 import { createPersistentStateModule } from "./persistent-state.js";
 /** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import path from "node:path";
 import type { AgentPluginLayout } from "./layout.js";
-import { readAgentPluginExtension, parseAgentPluginManifest as parseAgentPluginManifestValue } from "./manifest.js";
 import { PackagePathViolation } from "./package-paths.js";
 import { createPackagePathsModule } from "./package-paths.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
-import type { InstalledAgentPlugin, InstalledAgentPluginSkill } from "./types.js";
+import type { InstalledAgentPlugin } from "./types.js";
 export type { InstalledAgentPlugin, InstalledAgentPluginSkill } from "./types.js";
 
-/** One extraction/install failure reason. A caller (an admin route, a future marketplace installer)
- * branches on `code` rather than parsing `message` — this codebase's own convention
- * (`PluginLoadError.reason` in `plugin-runtime/loader.ts` is the direct precedent). */
-export type AgentPluginInstallErrorCode =
-  | "PLUGIN_ID_CONFLICT"
-  | "ARCHIVE_TOO_LARGE"
-  | "DIGEST_MISMATCH"
-  | "TOO_MANY_ENTRIES"
-  | "UNSAFE_ENTRY_PATH"
-  | "SYMLINK_ENTRY_REJECTED"
-  | "UNSUPPORTED_ENTRY_KIND"
-  | "DUPLICATE_ENTRY"
-  | "FILE_TOO_LARGE"
-  | "DECOMPRESSION_BOMB"
-  | "TOTAL_SIZE_EXCEEDED"
-  | "MANIFEST_MISSING"
-  | "MANIFEST_INVALID"
-  | "PUBLISH_FAILED";
-
-export class AgentPluginInstallError extends Error {
-  readonly code: AgentPluginInstallErrorCode;
-
-  constructor({ code, message }: { readonly code: AgentPluginInstallErrorCode; readonly message: string }, options: { cause?: unknown } = {}) {
-    super(message, options);
-    this.name = "AgentPluginInstallError";
-    this.code = code;
-  }
-}
-
+export { AgentPluginInstallError } from "./install-errors.js";
+export type { AgentPluginInstallErrorCode } from "./install-errors.js";
 /** One archive entry. A symlink is modeled as its OWN kind rather than folded into "file" — the
  * zip-slip research this module's header cites is explicit that the symlink-entry vector is
  * distinct from the lexical-traversal one, and the two need independent tests and independent
@@ -206,7 +169,8 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   const rename = ports.filesystem.rename.bind(ports.filesystem);
   const rm = ports.filesystem.rm.bind(ports.filesystem);
   const stat = ports.filesystem.stat.bind(ports.filesystem);
-  const parseAgentPluginManifest = (value: unknown) => parseAgentPluginManifestValue({ value }, { identityNamespace: ports.extensionNamespace });
+  const index = createInstalledPackageIndex({ ports });
+  const indexInstalledRoot = (packageRoot: string, archiveDigest: string) => index.indexInstalledRoot({ packageRoot, archiveDigest });
   const { assertContainedOnDisk, normalizePackageEntryPath } = createPackagePathsModule(ports);
   const LIMITS = {
     maxArchiveBytes: 32 * 1024 * 1024,
@@ -254,7 +218,6 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     _optional: Record<string, never> = {},
   ): Promise<void> {
     try {
-      // Resolve lazily: uninstall's read-side index uses this install module for manifest indexing.
       const removal = createUninstallModule(ports);
       for (const root of await listInstalledPackageRoots({ ports, workspaceRoot })) {
         if (root.localId !== installed.pluginId || root.archiveDigest === installed.archiveDigest) continue;
@@ -545,113 +508,6 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     }
 
     return totalBytes;
-  }
-
-  /** Cosmetic fields are trimmed and capped rather than invalidating the package. The cap stops
-   * a hostile package flooding an admin row. Inner newlines remain paragraph breaks in summaries.
-   * @complexity O(n) in the supplied text length; output is capped at maxLength. */
-  function readDisplayText(required: { readonly manifest: Parameters<typeof readAgentPluginExtension>[0]['manifest']; readonly key: 'displayName' | 'summary'; readonly maxLength: number }, _optional = {}): { displayName?: string; summary?: string } {
-    const text = readAgentPluginExtension({ manifest: required.manifest, namespace: ports.extensionNamespace,
-      read: ({ value }) => {
-        const field = value[required.key];
-        return typeof field === 'string' ? field.trim() : undefined;
-      } });
-    return text ? { [required.key]: text.slice(0, required.maxLength) } : {};
-  }
-
-  /**
- * Reads the (already-extracted-and-trusted, or already-published) `plugin.json` at `packageRoot`
- * and walks the tree to build the `files`/`skills` index. Shared between a fresh install and the
- * content-addressed dedup fast path so both return an identically-shaped result.
- *
- * Exported (2026-08-21) for a second caller outside this module:
- * `resolve-agent-plugin-refs.ts`'s run-time resolution of a pinned `pluginRefId` against the
- * packages already on disk needs the SAME `plugin.json`-parse-plus-tree-walk this function
- * already does correctly (manifest validation via `parseAgentPluginManifest`, sorted `files`), so
- * it re-derives an `InstalledAgentPlugin` per installed digest rather than hand-rolling a second,
- * less-validated reader.
- */
-// Conditional spreads, not `field: parsed.manifest.field` directly: an `exactOptionalPropertyTypes`-
-// style caller (and this codebase's own convention elsewhere — see `buildToolSource`'s identical
-// `defaultSkillReason` spread in `tool-registrations.ts`) must see an ABSENT key, not a key present
-// with value `undefined`, when the manifest declared none of these — `deepEqual` fixtures across
-// this feature's own tests already assert exact object shape.
-  async function indexInstalledRoot(packageRoot: string, /** SHA-256 of the raw archive bytes — the content-addressing key and the descriptor `revision`
-   * a future capability projection pins invocation to (`capability-projection.ts`). */
-archiveDigest: string): Promise<InstalledAgentPlugin> {
-    let manifestRaw: string;
-    try {
-      manifestRaw = await readFile(path.join(packageRoot, "plugin.json"), "utf8");
-    } catch (error) {
-      if (isErrnoException(error) && error.code === "ENOENT") {
-        throw new AgentPluginInstallError({ code: "MANIFEST_MISSING", message: "the archive does not contain a plugin.json at its root" });
-      }
-      throw error;
-    }
-
-    let manifestValue: unknown;
-    try {
-      manifestValue = JSON.parse(manifestRaw);
-    } catch (error) {
-      throw new AgentPluginInstallError({ code: "MANIFEST_INVALID", message: "plugin.json is not valid JSON" }, { cause: error });
-    }
-
-    const parsed = parseAgentPluginManifest(manifestValue);
-    if (!parsed.ok) {
-      throw new AgentPluginInstallError({ code: "MANIFEST_INVALID", message: `plugin.json failed validation: ${parsed.errors.join("; ")}` });
-    }
-
-    const files: string[] = [];
-    for (const message of parsed.warnings) ports.onEvent?.({ event: 'agent-plugin-identity-warning', message });
-    const skills: InstalledAgentPluginSkill[] = [];
-
-    async function walk(absolute: string, prefix: string): Promise<void> {
-      for (const entry of await readdir(absolute, { withFileTypes: true })) {
-        const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-        if (entry.isDirectory()) {
-          await walk(path.join(absolute, entry.name), relative);
-        } else if (entry.isFile()) {
-          files.push(relative);
-          const match = relative.match(/^skills\/([^/]+)\/SKILL\.md$/);
-          if (match) skills.push({ name: match[1] as string, skillPath: relative });
-        }
-        // Anything that is neither a directory nor a regular file (a symlink somehow already present,
-        // a device node) is skipped rather than indexed — extraction itself never creates one, so
-        // encountering one here would mean the filesystem changed out from under an already-published,
-        // supposedly-frozen package, which this function has no business acting on either way.
-      }
-    }
-
-    await walk(packageRoot, "");
-
-    return {
-      pluginId: parsed.manifest.name,
-      id: parsed.manifest.id,
-      provides: parsed.manifest.provides,
-      version: parsed.manifest.version,
-
-      ...(/**
-   * `plugin.json`'s own `description`/`keywords`/`author`/`license` (`manifest.ts`'s
-   * `AgentPluginManifest`) — parsed at index time but, before 2026-09-09, discarded immediately
-   * after: only `name`/`version` ever reached `InstalledAgentPlugin`. Added for
-   * `search_agent_plugin_local` (`tool-registrations.ts`), which needs the description and the
-   * author-curated keywords to rank installed plugins against a free-text query — the manifest is
-   * already read and parsed here on every call, so carrying these through is zero additional I/O,
-   * not a new read path. All four are optional because the spec itself makes them optional (the real
-   * installed `ui-ux-design` fixture ships `description` but no `keywords`; a bare-minimum manifest
-   * ships neither) — a caller must not assume any of them are present.
-   */
-parsed.manifest.description !== undefined ? { description: parsed.manifest.description } : {}),
-      ...(parsed.manifest.keywords !== undefined ? { keywords: parsed.manifest.keywords } : {}),
-      ...(parsed.manifest.author !== undefined ? { author: parsed.manifest.author } : {}),
-      ...(parsed.manifest.license !== undefined ? { license: parsed.manifest.license } : {}),
-      ...readDisplayText({ manifest: parsed.manifest, key: "displayName", maxLength: 64 }),
-      ...readDisplayText({ manifest: parsed.manifest, key: "summary", maxLength: 1200 }),
-      archiveDigest,
-      packageRoot,
-      files: files.sort(),
-      skills: skills.sort((a, b) => a.name.localeCompare(b.name)),
-    };
   }
 
   /** Makes every file/directory under `root` read-only (executables keep `+x`, per the Agent Plugins

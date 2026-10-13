@@ -11,12 +11,13 @@ const packagesRoot = fileURLToPath(new URL('../../../../', import.meta.url));
  * JavaScript imports as well as TypeScript sources; the active path
  * detects cycles while the completed set avoids revisiting shared dependencies.
  * Time is O(source bytes + V + E); graph traversal space is O(V). */
-function findCycle({ entry }: { entry: string }): string[] {
+function findCycle({ entry, forbidden = [] }: { entry: string; forbidden?: readonly string[] }): string[] {
   const completed = new Set<string>();
   const visiting = new Set<string>();
   const active: string[] = [];
 
   function visit(file: string): string[] {
+    if (forbidden.includes(file)) throw new Error('Read side imports a mutation lifecycle');
     if (visiting.has(file)) return [...active.slice(active.indexOf(file)), file];
     if (completed.has(file)) return [];
     visiting.add(file);
@@ -67,5 +68,19 @@ describe('shared contracts have no implementation import cycles', () => {
   // REGRESSION: fails if sdk-transport.ts imports McpTransportLike from './tool-server.js' again.
   it('keeps the MCP server and its SDK adapter acyclic', () => {
     expect(findCycle({ entry: resolve(packagesRoot, 'mcp/src/server/tool-server.ts') })).toEqual([]);
+  });
+});
+
+describe('installed package read ownership', () => {
+  for (const filename of ['installed-package-index.ts', 'resolve-agent-plugin-refs.ts']) {
+    it(`${filename} reaches no installation or removal module`, () => {
+      const root = resolve(packagesRoot, 'agent-plugins/src/lifecycle');
+      expect(findCycle({ entry: resolve(root, filename), forbidden: [
+        resolve(root, 'install.ts'), resolve(root, 'uninstall.ts'),
+      ] })).toEqual([]);
+    });
+  }
+  it('install.ts stays acyclic while reusing uninstall removal', () => {
+    expect(findCycle({ entry: resolve(packagesRoot, 'agent-plugins/src/lifecycle/install.ts') })).toEqual([]);
   });
 });
