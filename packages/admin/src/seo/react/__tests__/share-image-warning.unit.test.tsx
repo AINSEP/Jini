@@ -15,10 +15,11 @@ import { resolveMediaRefPreviewUrl, shareImageWarning } from '../../rules.js';
 function api(inspect: NonNullable<AdminSeoPort['inspectShareImage']>): AdminSeoPort {
   return { ...createMemorySeoApi({ mediaOriginalUrl: ({ id }) => `/original/${id}` }), inspectShareImage: inspect };
 }
-function load(width: number, src = '/original/cover'): SyntheticEvent<HTMLImageElement> {
+function load(width: number, src = '/original/cover', height = 630): SyntheticEvent<HTMLImageElement> {
   const image = document.createElement('img');
   image.setAttribute('src', src);
   Object.defineProperty(image, 'naturalWidth', { value: width });
+  Object.defineProperty(image, 'naturalHeight', { value: height });
   return { currentTarget: image } as SyntheticEvent<HTMLImageElement>;
 }
 
@@ -29,12 +30,12 @@ test('empty or malformed share images explain why a preview may have no picture'
   expect(result.current.warning).toBe('The share image reference is invalid. Choose an image or enter an absolute image URL.');
 });
 
-test.each([599, 600])('uses decoded source width at the 600 px boundary (%i)', async width => {
+test.each([1199, 1200])('uses decoded source width at the 1200 px boundary (%i)', async width => {
   const port = api(async () => ({ status: 200, byteSize: 5120 }));
   const { result } = renderHook(() => useMediaRefField({ value: 'cover:public', onChange: () => {}, api: port }));
   await waitFor(() => expect(result.current.warning).toBeNull());
   act(() => result.current.onPreviewLoad!(load(width)));
-  expect(result.current.warning).toBe(width === 599 ? 'The share image is only 599 px wide; use an image at least 600 px wide.' : null);
+  expect(result.current.warning).toBe(width === 1199 ? 'The share image is only 1199 px wide; use an image at least 1200 px wide.' : null);
 });
 
 test.each([66, 5119, 5120])('checks real byte size independently of decoded width (%i)', async byteSize => {
@@ -48,7 +49,7 @@ test('a 66-byte placeholder explains both its tiny decoded width and tiny file s
   const port = api(async () => ({ status: 200, byteSize: 66 }));
   const { result } = renderHook(() => useMediaRefField({ value: 'cover:public', onChange: () => {}, api: port }));
   act(() => result.current.onPreviewLoad!(load(1)));
-  await waitFor(() => expect(result.current.warning).toBe('The share image is only 1 px wide; use an image at least 600 px wide. The share image is only 66 bytes; use an image of at least 5 KB (5120 bytes).'));
+  await waitFor(() => expect(result.current.warning).toBe('The share image is only 1 px wide; use an image at least 1200 px wide. The share image is only 66 bytes; use an image of at least 5 KB (5120 bytes).'));
 });
 
 test.each([404, 410, 403])('reports the actual HTTP failure (%i)', async status => {
@@ -79,7 +80,7 @@ test('changing selection aborts the prior probe and ignores its late result and 
   rerender({ value: 'large:public' });
   expect(firstSignal!.aborted).toBe(true);
   await act(async () => { resolveFirst({ status: 404, byteSize: 66 }); });
-  act(() => oldLoad(load(1)));
+  act(() => oldLoad(load(1, '/original/cover', 1)));
   expect(result.current.warning).toBeNull();
   unmount();
 });
@@ -115,8 +116,8 @@ test.each(['https://external.test/cover.png', '//external.test/cover.png'])('ext
   await act(async () => {});
   expect(requests).toBe(0);
   expect(result.current.warning).toBeNull();
-  act(() => result.current.onPreviewLoad!(load(599, value)));
-  expect(result.current.warning).toBe('The share image is only 599 px wide; use an image at least 600 px wide.');
+  act(() => result.current.onPreviewLoad!(load(1199, value)));
+  expect(result.current.warning).toBe('The share image is only 1199 px wide; use an image at least 1200 px wide.');
   act(() => result.current.onPreviewError!(load(0, value)));
   expect(result.current.warning).toBe('The share image could not be loaded. Choose an available image.');
 });
@@ -135,14 +136,15 @@ test('warning policy translates each explanation with stable keys and measured v
     'No share image is selected. Link previews may show no picture.': 'Sin imagen.',
     'The share image reference is invalid. Choose an image or enter an absolute image URL.': 'Referencia inválida.',
     'The share image could not be loaded. Choose an available image.': 'Imagen no disponible.',
-    'The share image is only {width} px wide; use an image at least 600 px wide.': 'Ancho: {width} px.',
+    'The share image is only {width} px wide; use an image at least 1200 px wide.': 'Ancho: {width} px.',
+    'The share image is only {height} px tall; use an image at least 630 px tall.': 'Alto: {height} px.',
     'The share image is only {byteSize} bytes; use an image of at least 5 KB (5120 bytes).': 'Tamaño: {byteSize} bytes.',
   };
   const options = { t: (key: string) => translations[key] ?? key };
   expect(shareImageWarning({ value: '', previewUrl: null }, options)).toBe('Sin imagen.');
   expect(shareImageWarning({ value: 'bad', previewUrl: null }, options)).toBe('Referencia inválida.');
   expect(shareImageWarning({ value: 'cover:public', previewUrl: '/cover', previewFailed: true }, options)).toBe('Imagen no disponible.');
-  expect(shareImageWarning({ value: 'cover:public', previewUrl: '/cover', width: 599, byteSize: 66 }, options)).toBe('Ancho: 599 px. Tamaño: 66 bytes.');
+  expect(shareImageWarning({ value: 'cover:public', previewUrl: '/cover', width: 1199, height: 629, byteSize: 66 }, options)).toBe('Ancho: 1199 px. Alto: 629 px. Tamaño: 66 bytes.');
 });
 
 test('wired fields translate HTTP failures and update copy when the host translator changes', async () => {
@@ -204,4 +206,37 @@ test('reloaded entry fields inspect the source reference even when the public re
   expect(inspected).toEqual(['/original/cover', '/original/cover']);
   expect(screen.getByAltText('OG image preview').getAttribute('src')).toBe('/original/cover');
   expect(screen.getByAltText('Twitter image preview').getAttribute('src')).toBe('/original/cover');
+});
+
+test.each([629, 630])('checks decoded height independently at the 630 px boundary (%i)', async height => {
+  const port = api(async () => ({ status: 200, byteSize: 5120 }));
+  const { result } = renderHook(() => useMediaRefField({ value: 'cover:public', onChange: () => {}, api: port }));
+  await waitFor(() => expect(result.current.warning).toBeNull());
+  act(() => result.current.onPreviewLoad!(load(1200, '/original/cover', height)));
+  expect(result.current.warning).toBe(height === 629 ? 'The share image is only 629 px tall; use an image at least 630 px tall.' : null);
+});
+
+test('unknown dimensions stay unknown while either measured undersized dimension warns', () => {
+  const selected = { value: 'cover:public', previewUrl: '/original/cover' };
+  expect(shareImageWarning(selected)).toBeNull();
+  expect(shareImageWarning({ ...selected, width: 1200 })).toBeNull();
+  expect(shareImageWarning({ ...selected, height: 630 })).toBeNull();
+  expect(shareImageWarning({ ...selected, height: 629 })).toBe('The share image is only 629 px tall; use an image at least 630 px tall.');
+  expect(shareImageWarning({ ...selected, width: 1199 })).toBe('The share image is only 1199 px wide; use an image at least 1200 px wide.');
+});
+
+test('wired decoded dimensions use the original even when the public rendition is upscaled', async () => {
+  const port = api(async () => ({ status: 200, byteSize: 5120 }));
+  const value = `${globalThis.location.origin}/m/cover/og.v2/image.jpg`;
+  port.mediaPreviewUrl = ({ value }) => resolveMediaRefPreviewUrl({ value, mediaOriginalUrl: id => `/original/${id}` }, { siteOrigin: globalThis.location.origin });
+  const { result } = renderHook(() => useMediaRefField({ value, onChange: () => {}, api: port }, {
+    t: key => key === 'The share image is only {height} px tall; use an image at least 630 px tall.' ? 'Alto: {height} px.' : key,
+  }));
+  expect(result.current.previewUrl).toBe('/original/cover');
+  await waitFor(() => expect(result.current.warning).toBeNull());
+  // A rendition's late event is not a measurement of the source selected by this field.
+  act(() => result.current.onPreviewLoad!(load(1200, value, 630)));
+  expect(result.current.warning).toBeNull();
+  act(() => result.current.onPreviewLoad!(load(1200, '/original/cover', 629)));
+  expect(result.current.warning).toBe('Alto: 629 px.');
 });

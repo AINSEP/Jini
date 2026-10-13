@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { interpolate } from '@jini-ai/ui/panel-kit';
+import { interpolate } from '@jini-ai/ui/i18n';
 import type { AdminSeoPort } from '../../ports.js';
 import { shareImageWarning } from '../../rules.js';
 import type { MediaRefFieldController, SeoTranslator } from '../../models.js';
 
-/** Probe original file size through the host port; decoded width comes from the existing preview.
+/** Probe original file size through the host port; decoded dimensions come from the existing preview.
  * Unknown size is not zero. URL-keyed state and cancellation prevent a prior choice's response
  * or image event from warning against the current selection. The probe has a 10-second bound.
  * External HEAD responses need CORS, so only same-origin files are probed; decoded previews
- * still report external loading failures and known widths. HTTP copy is translated at render.
+ * still report external loading failures and known dimensions. HTTP copy is translated at render.
  * @param required Controlled reference, source preview URL and injected SEO API.
  * @returns Non-blocking warning and the preview's native load/error handlers.
  * @complexity O(1) state and one HEAD per selection; no image bytes are downloaded by the probe.
@@ -18,7 +18,7 @@ export function useShareImageWarning({ value, previewUrl, api }: {
 }, { t = key => key }: { t?: SeoTranslator | undefined } = {}): Pick<MediaRefFieldController, 'warning' | 'onPreviewLoad' | 'onPreviewError'> {
   const currentUrl = useRef(previewUrl);
   currentUrl.current = previewUrl;
-  const [decoded, setDecoded] = useState<{ url: string; width?: number; failed?: boolean } | null>(null);
+  const [decoded, setDecoded] = useState<{ url: string; width?: number; height?: number; failed?: boolean } | null>(null);
   const [inspection, setInspection] = useState<{ url: string; byteSize?: number | null; error?: { key: string; vars?: Record<string, string | number> } } | null>(null);
   useEffect(() => {
     const inspect = api.inspectShareImage;
@@ -59,11 +59,11 @@ export function useShareImageWarning({ value, previewUrl, api }: {
   const checked = inspection?.url === previewUrl ? inspection : null;
   const error = checked?.error;
   return {
-    warning: shareImageWarning({ value, previewUrl, width: source?.width, previewFailed: source?.failed, byteSize: checked?.byteSize,
+    warning: shareImageWarning({ value, previewUrl, width: source?.width, height: source?.height, previewFailed: source?.failed, byteSize: checked?.byteSize,
       error: error ? interpolate({ template: t(error.key, error.vars), vars: error.vars ?? {} }) : undefined }, { t }),
     onPreviewLoad: ({ currentTarget }) => {
       const url = currentTarget.getAttribute('src');
-      if (url && url === currentUrl.current) setDecoded({ url, width: currentTarget.naturalWidth });
+      if (url && url === currentUrl.current) setDecoded({ url, width: currentTarget.naturalWidth, height: currentTarget.naturalHeight });
     },
     onPreviewError: ({ currentTarget }) => {
       const url = currentTarget.getAttribute('src');

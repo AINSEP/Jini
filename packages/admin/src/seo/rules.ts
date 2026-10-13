@@ -1,5 +1,5 @@
 import type { AdminSeoIssue as SeoIssue, AdminSeoSettingsPatch as SeoSettingsPatch } from "../core/ports/seo.js";
-import { interpolate } from '@jini-ai/ui/panel-kit';
+import { interpolate } from '@jini-ai/ui/i18n';
 import type { SeoTranslator } from './models.js';
 
 /**
@@ -204,12 +204,12 @@ function localRenditionAssetKey({ value, siteOrigin }: { value: string; siteOrig
 }
 
 /** Diagnostic policy: unknown measurements stay unknown; measured failures name their reason.
- * @param required Controlled field, decoded preview width and original HTTP metadata.
+ * @param required Controlled field, decoded preview dimensions and original HTTP metadata.
  * @returns A non-blocking explanation, or null for an image without a measured problem.
  * @complexity O(n) in value/error length; fixed-count checks, no I/O.
  */
-export function shareImageWarning({ value, previewUrl, width, byteSize, error, previewFailed }: {
-  value: string; previewUrl: string | null; width?: number | undefined; byteSize?: number | null | undefined;
+export function shareImageWarning({ value, previewUrl, width, height, byteSize, error, previewFailed }: {
+  value: string; previewUrl: string | null; width?: number | undefined; height?: number | undefined; byteSize?: number | null | undefined;
   error?: string | null | undefined; previewFailed?: boolean | undefined;
 }, { t = key => key }: { t?: SeoTranslator | undefined } = {}): string | null {
   if (typeof value !== 'string' || !value.trim()) return t('No share image is selected. Link previews may show no picture.');
@@ -217,7 +217,8 @@ export function shareImageWarning({ value, previewUrl, width, byteSize, error, p
   if (error) return error;
   if (previewFailed) return t('The share image could not be loaded. Choose an available image.');
   const reasons: string[] = [];
-  if (width !== undefined && width < 600) reasons.push(interpolate({ template: t('The share image is only {width} px wide; use an image at least 600 px wide.', { width }), vars: { width } }));
+  if (width !== undefined && width < 1200) reasons.push(interpolate({ template: t('The share image is only {width} px wide; use an image at least 1200 px wide.', { width }), vars: { width } }));
+  if (height !== undefined && height < 630) reasons.push(interpolate({ template: t('The share image is only {height} px tall; use an image at least 630 px tall.', { height }), vars: { height } }));
   if (byteSize !== undefined && byteSize !== null && byteSize < 5120) reasons.push(interpolate({ template: t('The share image is only {byteSize} bytes; use an image of at least 5 KB (5120 bytes).', { byteSize }), vars: { byteSize } }));
   return reasons.length ? reasons.join(' ') : null;
 }
