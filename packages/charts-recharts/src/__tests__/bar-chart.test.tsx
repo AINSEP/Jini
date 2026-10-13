@@ -97,8 +97,10 @@ describe('recharts BarChart', () => {
   // 2026-10-12: a 24-month chart in the narrow assistant dock drew every x label on top of the
   // next (`interval={0}`). Relies on the text-proportional measurement stub above.
   describe('x-axis label density', () => {
+    // A label may wrap onto two <tspan> lines; join them back into the words shown.
     const tickLabels = (container: HTMLElement) =>
-      Array.from(container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')).map((el) => el.textContent);
+      Array.from(container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')).map((el) =>
+        Array.from(el.querySelectorAll('tspan')).map((line) => line.textContent).join(' '));
 
     it('thins crowded category labels and keeps the first and last', () => {
       const months = Array.from({ length: 24 }, (_, i) => ({ month: `Month ${i + 1}`, value: i }));
@@ -107,6 +109,23 @@ describe('recharts BarChart', () => {
       expect(ticks.length).toBeLessThan(24);
       expect(ticks[0]).toBe('Month 1');
       expect(ticks.at(-1)).toBe('Month 24');
+    });
+
+    // 2026-10-13: `preserveStartEnd` kept only 1 of 5 long labels. Each now wraps inside its band
+    // and ends in "…"; the tick's <title> keeps the full text.
+    it('shows every long label, clipped to its band, with the full text in a title', () => {
+      const labels = ['Draft landing pages awaiting review', 'Archived product announcements', 'Scheduled newsletter issues', 'Expired promotional banners', 'Media library uploads (images)'];
+      const { container } = render(<BarChart data={labels.map((name, i) => ({ name, count: i + 1 }))} categoryKey="name" valueKey="count" />);
+      const ticks = Array.from(container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value'));
+      expect(ticks).toHaveLength(5);
+      expect(Array.from(container.querySelectorAll('.recharts-xAxis-tick-labels title')).map((el) => el.textContent)).toEqual(labels);
+      // 600px / 5 bands, less 8px air, at the stub's 7px per character: two lines of at most 16 characters.
+      for (const tick of ticks) {
+        const lines = Array.from(tick.querySelectorAll('tspan')).map((el) => el.textContent ?? '');
+        expect(lines.length).toBeLessThanOrEqual(2);
+        for (const line of lines) expect(line.length * 7).toBeLessThanOrEqual(112);
+      }
+      expect(ticks[0]!.textContent).toMatch(/…$/);
     });
 
     it('still shows every label when a few categories fit', () => {
