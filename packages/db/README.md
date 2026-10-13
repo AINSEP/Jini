@@ -29,6 +29,12 @@ the tsx CommonJS bootstrap can resolve the subpaths without an active `import` c
 
 ## Import and driver isolation
 
+`@jini-ai/db/secrets-vault` requires the optional `@jini-ai/platform` peer at import
+time for the canonical credential validation and error contracts, plus Kysely for
+SQL. Install platform explicitly when using this subpath; existing vault consumers
+that relied on transitive installation must add it before upgrading. Other database
+entries do not load platform.
+
 `kysely` is an optional peer (`^0.29.6`), imported as a value or type only under `src/kernel/`
 and `src/migrate/`. `better-sqlite3`, `pg` and `@electric-sql/pglite` are also optional peers.
 Production code never imports a driver at runtime. PGlite type imports are confined to

@@ -67,6 +67,7 @@
   "peerDependencies": {},
   "peerDependenciesMeta": {},
   "devDependencies": {
-    "@jini-ai/core": "^0.4.0"
+    "@jini-ai/core": "^0.4.0",
+    "@jini-ai/platform": "workspace:*"
   }
 }

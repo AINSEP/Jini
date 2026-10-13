@@ -11,5 +11,9 @@ test("0.5.5 retains published secret subpaths and adds generic platform subpaths
         expect(existsSync(fileURLToPath(new URL(`src/${source}.ts`, root)))).toBe(true);
         expect(manifest.jini.entries[subpath!]).toBe(subpath === "./net/endpoint-policy" || subpath === "./secrets/credential-token" ? "universal" : "node");
     }
-    expect(manifest.dependencies).toEqual({ undici: "^7.25.0", "@jini-ai/core": "^0.4.0", parse5: "7.3.0", "hast-util-from-parse5": "8.0.3", "hast-util-to-mdast": "10.1.2", "mdast-util-to-markdown": "2.1.2", "mdast-util-gfm-table": "2.0.0" });
+    expect(manifest.dependencies).toEqual({ undici: "^7.25.0", "@jini-ai/core": "^0.4.0", "hast-util-from-parse5": "8.0.3", "hast-util-to-mdast": "10.1.2", "mdast-util-to-markdown": "2.1.2", "mdast-util-gfm-table": "2.0.0" });
+    const webPeers = { parse5: "7.3.0" };
+    expect(manifest.peerDependencies).toEqual(webPeers);
+    expect(manifest.peerDependenciesMeta).toEqual(Object.fromEntries(Object.keys(webPeers).map(name => [name, { optional: true }])));
+    for (const [name, version] of Object.entries(webPeers)) expect(manifest.devDependencies[name]).toBe(version);
 });

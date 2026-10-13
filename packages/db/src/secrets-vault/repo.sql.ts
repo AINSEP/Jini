@@ -102,7 +102,7 @@ export class SqlSecretsVaultRepo implements VaultRepoPort {
   }
   /** One indexed exact-group lookup; ciphertext is loaded only for the chosen default.
    * The group is restated in the default index's normalized expressions and `is_default` is a
-   * literal, else neither SQLite nor a generic Postgres plan can match the partial index (Tovu
+   * literal, else neither SQLite nor a generic Postgres plan can match the partial index (host
    * EXPLAIN 2026-10-12: SQLite fell back to a raw-column index, Postgres to the label index). */
   async findDefault(input: VaultDefaultQuery, _options: VaultOptions = {}): Promise<VaultRecord | null> {
     const row = await this.kernel.run(db => this.scoped({ db, input }).selectAll()

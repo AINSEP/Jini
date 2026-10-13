@@ -199,14 +199,14 @@
     "test:postgres": "vitest run --config vitest.postgres.config.ts"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^",
-    "@jini-ai/platform": "workspace:^"
+    "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
     "kysely": "^0.29.6",
     "better-sqlite3": "^13.0.0",
     "@electric-sql/pglite": "0.5.8",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "@jini-ai/platform": "workspace:^"
   },
   "peerDependenciesMeta": {
     "better-sqlite3": {
@@ -220,6 +220,9 @@
     },
     "kysely": {
       "optional": true
+    },
+    "@jini-ai/platform": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -230,6 +233,7 @@
     "better-sqlite3": "13.0.3",
     "kysely": "0.29.6",
     "pg": "8.23.0",
-    "@jini-ai/core": "workspace:*"
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/platform": "workspace:*"
   }
 }

@@ -116,6 +116,7 @@ const DRIVERS = ["better-sqlite3", "pg", "@electric-sql/pglite"];
 
 let fixtureDir: string;
 let emptyFixtureDir: string;
+let noPlatformFixtureDir: string;
 
 /** Runs an ESM snippet with the fixture as the bare-specifier resolution base. */
 function runInFixture(source: string, cwd = fixtureDir): { status: number; stdout: string; stderr: string } {
@@ -178,7 +179,16 @@ beforeAll(() => {
   cpSync(join(platformRoot, "package.json"), join(installedPlatform, "package.json"));
 }, 180_000);
 
+// A separate physical install proves the vault's peer requirement without module replacement.
+// Preserve Kysely/core so a missing platform is the only difference from the passing fixture.
+beforeAll(() => {
+  noPlatformFixtureDir = mkdtempSync(join(tmpdir(), "jini-db-noplatform-"));
+  cpSync(join(fixtureDir, "node_modules"), join(noPlatformFixtureDir, "node_modules"), { recursive: true });
+  rmSync(join(noPlatformFixtureDir, "node_modules/@jini-ai/platform"), { recursive: true, force: true });
+});
+
 afterAll(() => {
+  if (noPlatformFixtureDir) rmSync(noPlatformFixtureDir, { recursive: true, force: true });
   if (emptyFixtureDir) rmSync(emptyFixtureDir, { recursive: true, force: true });
   if (fixtureDir) rmSync(fixtureDir, { recursive: true, force: true });
 });
@@ -214,6 +224,21 @@ describe("@jini-ai/db in an install with no database driver present", () => {
       expect(result.stderr).toContain("Cannot find package 'kysely'");
     });
   }
+
+  it("documents the vault's optional platform peer and refuses a vault import without it", () => {
+    const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
+    expect(manifest.dependencies["@jini-ai/platform"]).toBeUndefined();
+    expect(manifest.peerDependencies["@jini-ai/platform"]).toBe("workspace:^");
+    expect(manifest.peerDependenciesMeta["@jini-ai/platform"]).toEqual({ optional: true });
+    expect(manifest.devDependencies["@jini-ai/platform"]).toBe("workspace:*");
+    const result = runInFixture('await import("@jini-ai/db/secrets-vault");', noPlatformFixtureDir);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("ERR_MODULE_NOT_FOUND");
+    expect(result.stderr).toContain("Cannot find package '@jini-ai/platform'");
+    const unaffected = runInFixture('const m = await import("@jini-ai/db/core"); process.stdout.write(m.sanitizeForFilename({ value: "a/b" }));', noPlatformFixtureDir);
+    expect(unaffected.status, unaffected.stderr).toBe(0);
+    expect(unaffected.stdout).toBe("a_b");
+  });
 
   it("exports exactly the subpaths under test (no root barrel that would load everything)", () => {
     const manifest = JSON.parse(readFileSync(join(fixtureDir, "node_modules/@jini-ai/db/package.json"), "utf8")) as { exports: Record<string, unknown>; typesVersions: { "*": Record<string, string[]> } };

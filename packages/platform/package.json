@@ -44,7 +44,13 @@
         "./proxy-env": "os",
         "./shell": "os",
         "./child-environment": "os"
-      }
+      },
+      "shared": [
+        "src/net/address.ts",
+        "src/net/endpoint-policy.ts",
+        "src/fetch-with-timeout.ts",
+        "src/http/guarded/errors.ts"
+      ]
     }
   },
   "type": "module",
@@ -178,7 +184,6 @@
   "dependencies": {
     "undici": "^7.25.0",
     "@jini-ai/core": "^0.4.0",
-    "parse5": "7.3.0",
     "hast-util-from-parse5": "8.0.3",
     "hast-util-to-mdast": "10.1.2",
     "mdast-util-to-markdown": "2.1.2",
@@ -195,6 +200,15 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9"
+    "@vitest/coverage-v8": "^2.1.9",
+    "parse5": "7.3.0"
+  },
+  "peerDependencies": {
+    "parse5": "7.3.0"
+  },
+  "peerDependenciesMeta": {
+    "parse5": {
+      "optional": true
+    }
   }
 }

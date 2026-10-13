@@ -14,7 +14,7 @@ that were split out of OD's monolithic daemon (see the archived provenance ledge
 npm install @jini-ai/platform
 ```
 
-No peer dependencies. `undici` is a regular dependency (used by the SSRF-safe asset cache's
+`undici` remains a regular dependency (used by the SSRF-safe asset cache's
 connection-time DNS-rebinding guard). Interactive terminal sessions (`createTerminalService`)
 need a `PtySpawn` implementation supplied by the caller — this package defines the `PtyProcess`/
 `PtySpawn` port only, it does not depend on `node-pty` itself, so bring your own adapter (or use
@@ -91,6 +91,14 @@ See the archived provenance ledger for per-file provenance and scope decisions. 
 The package also exposes `./http/guarded`, `./mail`, `./mail/smtp`,
 `./fs/guarded-reader`, `./fs/durable-json`, and `./secrets`. New APIs take a required
 object followed by an optional object. Application identity and policy values belong to the caller.
+
+`@jini-ai/platform/web` loads the optional peer `parse5@7.3.0` at import time. Install it
+when using that subpath; the other entries do not load it. Existing web consumers that
+relied on transitive installation must add it before upgrading.
+
+The isolation metadata shares only the address classifiers (including their literal
+endpoint policy), timeout wrapper and egress refusal class across domains. These
+leaves retain one owner so HTTP and web adapters use the same security decisions.
 
 ```ts
 import { createHttpClient, createNodeGuardedHttpPorts, guardedFetch } from "@jini-ai/platform/http/guarded";

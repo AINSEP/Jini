@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'vitest';
-import { AesGcmSecretSealer } from '../../platform/src/secrets/secret-sealer.aesgcm.js';
-import { InMemoryKeyring } from '../../platform/src/secrets/keyring.memory.js';
-import { formatAad } from '../../platform/src/secrets/aad.js';
+import { AesGcmSecretSealer, formatAad } from '@jini-ai/platform/secrets';
+import { InMemoryKeyring } from '@jini-ai/platform/secrets/testing';
 import { beginAuthorizationCode, completeAuthorizationCode, createSealedAuthorizationState,
     MAX_AUTHORIZATION_STATE_LENGTH, type AuthorizationStateCodec } from '../src/index.js';
 import { fixturePorts } from './fixtures.js';

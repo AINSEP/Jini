@@ -673,13 +673,13 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
-      '@jini-ai/platform':
-        specifier: workspace:^
-        version: link:../platform
     devDependencies:
       '@electric-sql/pglite':
         specifier: 0.5.8
         version: 0.5.8
+      '@jini-ai/platform':
+        specifier: workspace:*
+        version: link:../platform
       '@types/better-sqlite3':
         specifier: 7.6.13
         version: 7.6.13
@@ -835,6 +835,10 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
+    devDependencies:
+      '@jini-ai/platform':
+        specifier: workspace:*
+        version: link:../platform
 
   packages/platform:
     dependencies:
@@ -853,9 +857,6 @@ importers:
       mdast-util-to-markdown:
         specifier: 2.1.2
         version: 2.1.2
-      parse5:
-        specifier: 7.3.0
-        version: 7.3.0
       undici:
         specifier: ^7.25.0
         version: 7.28.0
@@ -863,6 +864,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0))
+      parse5:
+        specifier: 7.3.0
+        version: 7.3.0
 
   packages/plugins:
     dependencies:
