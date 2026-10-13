@@ -3585,13 +3585,21 @@ button.connector-action.is-loading { cursor: wait; }
   flex-wrap: wrap;
 }
 
+/* A wrapping row, not a fixed column grid: a card holds two or three fields (the model field only
+   when the provider lists models) plus Clear, and the old three-column grid squeezed each input to
+   a few characters on a phone and pushed Clear onto its own full-column row everywhere. Each field
+   asks for 11rem, so a phone gets one field per line, wider screens fit the whole row, and the cap
+   keeps a desktop field from stretching across the card. */
 .jini-media-provider-fields {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
 }
 
 .jini-media-provider-field {
+  flex: 1 1 11rem;
+  max-width: 28rem;
   min-width: 0;
 }
 
