@@ -31,7 +31,7 @@ import {
   WIDGETS_SYSTEM_ACTOR_ID,
   type WidgetsAuthorizeFn,
 } from "./authorize-helper.js";
-import { withEntryLock } from "./concurrency.js";
+import { withEntryLock, type EntryLockState } from "./concurrency.js";
 import {
   areaDocWithPlacements,
   buildWidgetAreaFieldsJson,
@@ -61,6 +61,8 @@ import type {
 } from "./types.js";
 
 export interface RegionAreaServiceDeps {
+  /** One store-owned state shared by write, embed and region services; omission preserves compatibility. */
+  entryLocks?: EntryLockState;
   host: Pick<WidgetHostPorts, "entries" | "contentTypes" | "entryRefs">;
   entryRepo: EntryRepoPort & EntryListPort;
   contentTypeRepo: ContentTypeRepoPort;
@@ -161,7 +163,7 @@ export async function bindWidgetArea(required: BindWidgetAreaRequired, _optional
     });
 
     return { areaEntry: toWidgetAreaEntry({ entry: entry }) };
-  } });
+  } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }
 
 export interface MutateWidgetAreaPlacementsInput {
@@ -263,7 +265,7 @@ export async function mutateWidgetAreaPlacements(
     });
 
     return { areaEntry: toWidgetAreaEntry({ entry: result.value.entry }) };
-  } });
+  } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }
 
 export interface ReconcileWidgetRegionBindingsInput {

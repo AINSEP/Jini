@@ -24,6 +24,17 @@ export type EntryLockState = Map<string, Promise<void>>;
 export function createEntryLockState(_required: Record<string, never>, _optional: Record<string, never> = {}): EntryLockState {
   return new Map();
 }
+const ownedLocks = new WeakMap<object, EntryLockState>();
+/** Repeated dependency composition for the same store retains one lock queue.
+ * The weak owner reference lets disposed stores and their idle state be collected. @complexity O(1). */
+export function getEntryLockState({ owner }: { readonly owner: object }, _optional: Record<string, never> = {}): EntryLockState {
+  let locks = ownedLocks.get(owner);
+  if (!locks) {
+    locks = createEntryLockState({});
+    ownedLocks.set(owner, locks);
+  }
+  return locks;
+}
 const defaultLocks = createEntryLockState({});
 
 /**

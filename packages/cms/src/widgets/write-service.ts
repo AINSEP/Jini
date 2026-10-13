@@ -35,7 +35,7 @@ import {
   requireWidgetPermission,
   type WidgetsAuthorizeFn,
 } from "./authorize-helper.js";
-import { withEntryLock } from "./concurrency.js";
+import { withEntryLock, type EntryLockState } from "./concurrency.js";
 import { validateWidgetConfig } from "./config-validation.js";
 import {
   buildWidgetInstanceFieldsJson,
@@ -56,6 +56,8 @@ import type { WidgetInstanceEntry, WidgetInstanceStatus, WidgetTypeKey } from ".
 import type { WidgetHostPorts } from "./host-ports.js";
 
 export interface WidgetWriteServiceDeps {
+  /** One store-owned state shared by write, embed and region services; omission preserves compatibility. */
+  entryLocks?: EntryLockState;
   host: Pick<WidgetHostPorts, "entries" | "contentTypes" | "entryRefs" | "slugify">;
   entryRepo: EntryRepoPort & EntryListPort;
   contentTypeRepo: ContentTypeRepoPort;
@@ -246,7 +248,7 @@ export async function updateWidgetInstance(required: UpdateWidgetInstanceRequire
     }
 
     return { instance: toWidgetInstanceEntry({ entry: result.value.entry }) };
-  } });
+  } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }
 
 export interface ImportWidgetInstanceInput {
@@ -316,7 +318,7 @@ export async function importWidgetInstance(required: ImportWidgetInstanceRequire
     });
     if (!result.ok) throw result.error;
     return { instance: toWidgetInstanceEntry({ entry: result.value.entry }) };
-  } });
+  } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }
 
 export interface TrashWidgetInstanceInput {
@@ -338,7 +340,7 @@ export interface WidgetTrashDeps extends WidgetWriteServiceDeps {
 }
 
 export interface TrashWidgetInstanceRequired {
-  deps: Pick<WidgetTrashDeps, "entryRepo" | "clock" | "authorize" | "remove">;
+  deps: Pick<WidgetTrashDeps, "entryRepo" | "clock" | "authorize" | "remove" | "entryLocks">;
   input: TrashWidgetInstanceInput;
 }
 
@@ -387,7 +389,7 @@ export async function trashWidgetInstance(
     if (!fresh) throw notFound();
     throw new WidgetVersionConflictError({ message: `widget instance '${input.widgetInstanceId}' changed while it was being deleted — reload and try again`, currentVersion: fresh.version }
     );
-  } });
+  } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }
 
 /** The payload statuses the old delete ladder left behind: `trash` (step 1) and `purged` (its

@@ -36,7 +36,7 @@ import {
   requireWidgetPermission,
   type WidgetsAuthorizeFn,
 } from "./authorize-helper.js";
-import { withEntryLock } from "./concurrency.js";
+import { withEntryLock, type EntryLockState } from "./concurrency.js";
 import { validateWidgetEmbedMutation } from "./embed-validation.js";
 import { parseWidgetInstancePayload } from "./entry-payload.js";
 import {
@@ -57,6 +57,8 @@ import type { WidgetEmbedNode } from "./types.js";
 const DEFAULT_MAX_EMBEDS_PER_DOCUMENT = 50;
 
 export interface EmbedServiceDeps {
+  /** One store-owned state shared by write, embed and region services; omission preserves compatibility. */
+  entryLocks?: EntryLockState;
   host: Pick<WidgetHostPorts, "entries" | "entryRefs" | "posts">;
   entryRepo: EntryRepoPort;
   contentTypeRepo: ContentTypeRepoPort;
@@ -508,7 +510,7 @@ export async function insertWidgetEmbed(required: InsertWidgetEmbedRequired, _op
         ? await writeHostBody(deps, input.workspaceId, input.actor, host.record, input.baseVersion, nextBodyJson)
         : await writePostHostBody(deps, input.workspaceId, input.actor, host.record, input.baseVersion, nextBodyJson);
     return { entry, placementId };
-  } });
+  } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }
 
 export interface RemoveWidgetEmbedInput {
@@ -551,7 +553,7 @@ export async function removeWidgetEmbed(required: RemoveWidgetEmbedRequired, _op
         ? await writeHostBody(deps, input.workspaceId, input.actor, host.record, input.baseVersion, nextBodyJson)
         : await writePostHostBody(deps, input.workspaceId, input.actor, host.record, input.baseVersion, nextBodyJson);
     return { entry };
-  } });
+  } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }
 
 export interface ReorderWidgetEmbedsInput {
@@ -623,5 +625,5 @@ export async function reorderWidgetEmbeds(required: ReorderWidgetEmbedsRequired,
         ? await writeHostBody(deps, input.workspaceId, input.actor, host.record, input.baseVersion, nextBodyJson)
         : await writePostHostBody(deps, input.workspaceId, input.actor, host.record, input.baseVersion, nextBodyJson);
     return { entry };
-  } });
+  } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }

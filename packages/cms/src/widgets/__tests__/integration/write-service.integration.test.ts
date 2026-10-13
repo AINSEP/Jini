@@ -14,6 +14,7 @@ import {
   updateWidgetInstance,
   type WidgetTrashDeps,
 } from "../../write-service.js";
+import { createEntryLockState } from "../../concurrency.js";
 import { WidgetForbiddenError, WidgetVersionConflictError } from "../../errors.js";
 import { WIDGET_CONTENT_TYPE } from "../../types.js";
 import { memoryWidgetTrash } from "../support/memory-widget-trash.js";
@@ -117,6 +118,7 @@ test("AC-03/REQ-03: creating a widget of an unregistered type is rejected, nothi
 
 test("AC-04/REQ-06: two concurrent updates against the same baseVersion — exactly one succeeds, the other gets a typed conflict", async () => {
   const deps = makeDeps();
+  deps.entryLocks = createEntryLockState({});
   const { instance: created } = await createWidgetInstance({
     deps,
     input: {
@@ -166,6 +168,7 @@ test("AC-04/REQ-06: two concurrent updates against the same baseVersion — exac
   assert.ok(stored);
   assert.deepEqual(toWidgetInstanceEntry(stored).config, expectedConfig);
   assert.equal(stored.version, created.version + 1);
+  assert.equal(deps.entryLocks.size, 0, "both the successful and conflicted writes release their owned queue");
 });
 
 // REQ-42/43 (superseded 2026-09-21, generic Trash): the reference-gated "purge" rung and its
