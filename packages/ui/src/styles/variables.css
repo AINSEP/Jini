@@ -28,7 +28,7 @@
 }
 
 /* Default chart palette — what `--jini-chart-1`..`-6` fall back to when a host sets none (see
-   interactive-ui/providers/recharts/chart-tokens.ts). Separate `-default-` names, so a host's own
+   the private charts-recharts/src/chart-tokens.ts). Separate `-default-` names, so a host's own
    `--jini-chart-N` always wins regardless of cascade order. Series 1 is the warm Claude orange, not
    the near-black `--jini-primary` ("Claude orange should be the default color", owner, 2026-10-05);
    2-6 are fixed-order categorical hues at matched lightness. Each mode was run through the dataviz

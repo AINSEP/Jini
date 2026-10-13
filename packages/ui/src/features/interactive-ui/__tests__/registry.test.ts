@@ -53,3 +53,13 @@ describe('InteractiveUiRegistry', () => {
     expect(updated.resolveByCapability({ capability: 'table' })).toHaveLength(0);
   });
 });
+
+it('retains every chart wire id with a neutral host and core table fallback', async () => {
+  const { DEFAULT_INTERACTIVE_UI_REGISTRY } = await import('../index.js');
+  for (const kind of ['bar', 'line', 'pie']) {
+    const chart = DEFAULT_INTERACTIVE_UI_REGISTRY.resolveById({ id: `recharts.${kind}-chart` })!;
+    expect(chart.provider).toBe('core.table');
+    expect(chart.capabilities).toContain(`${kind}-chart`);
+    expect(typeof chart.Component).toBe('function');
+  }
+});

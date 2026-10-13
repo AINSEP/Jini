@@ -26,16 +26,10 @@ export {
   ContentCard,
 } from './providers/shadcn/index.js';
 export {
-  rechartsBarChartManifest,
-  rechartsBarChartPropsSchema,
-  BarChart,
-  rechartsLineChartManifest,
-  rechartsLineChartPropsSchema,
-  LineChart,
-  rechartsPieChartManifest,
-  rechartsPieChartPropsSchema,
-  PieChart,
-} from './providers/recharts/index.js';
+  rechartsBarChartManifest, rechartsBarChartPropsSchema,
+  rechartsLineChartManifest, rechartsLineChartPropsSchema,
+  rechartsPieChartManifest, rechartsPieChartPropsSchema,
+} from '../charts/wire.js';
 
 import type { ComponentType } from 'react';
 import { InteractiveUiRegistry, type InteractiveComponentEntry } from './registry.js';
@@ -56,14 +50,9 @@ import {
   shadcnCardManifest,
   ContentCard,
 } from './providers/shadcn/index.js';
-import {
-  rechartsBarChartManifest,
-  BarChart,
-  rechartsLineChartManifest,
-  LineChart,
-  rechartsPieChartManifest,
-  PieChart,
-} from './providers/recharts/index.js';
+import { createChartProviderRegistry } from '../charts/registry.js';
+import { createChartInteractiveRegistry } from '../charts/react.js';
+import { chartWireManifests } from '../charts/wire.js';
 
 /**
  * Every provider currently registered, shadcn preferred over the dependency-free native fallback
@@ -80,7 +69,7 @@ import {
  * boundary that matters — this cast doesn't weaken that, it only widens a type this file cannot
  * make TypeScript accept structurally.
  */
-export const DEFAULT_INTERACTIVE_UI_REGISTRY = new InteractiveUiRegistry({ entries: [
+const nonChartRegistry = new InteractiveUiRegistry({ entries: [
   { ...shadcnDataTableManifest, Component: ShadcnDataTable as unknown as ComponentType<Record<string, unknown>> },
   { ...nativeDataTableManifest, Component: NativeDataTable as unknown as ComponentType<Record<string, unknown>> },
   { ...shadcnButtonManifest, Component: ActionButton as unknown as ComponentType<Record<string, unknown>> },
@@ -89,7 +78,12 @@ export const DEFAULT_INTERACTIVE_UI_REGISTRY = new InteractiveUiRegistry({ entri
   { ...shadcnTextInputManifest, Component: TextInputField as unknown as ComponentType<Record<string, unknown>> },
   { ...shadcnSelectManifest, Component: SelectField as unknown as ComponentType<Record<string, unknown>> },
   { ...shadcnCardManifest, Component: ContentCard as unknown as ComponentType<Record<string, unknown>> },
-  { ...rechartsBarChartManifest, Component: BarChart as unknown as ComponentType<Record<string, unknown>> },
-  { ...rechartsLineChartManifest, Component: LineChart as unknown as ComponentType<Record<string, unknown>> },
-  { ...rechartsPieChartManifest, Component: PieChart as unknown as ComponentType<Record<string, unknown>> },
 ] satisfies InteractiveComponentEntry[] });
+
+// Charts retain their wire IDs and validation while an unconfigured host renders the core table.
+// Runtime providers belong to the host's admitted boot snapshot, never to the default registry.
+const chartHosts = createChartInteractiveRegistry({ registry: nonChartRegistry, providers: createChartProviderRegistry({ providers: [] }) });
+export const DEFAULT_INTERACTIVE_UI_REGISTRY = new InteractiveUiRegistry({ entries: [
+  ...nonChartRegistry.list(),
+  ...chartWireManifests.map(({ id }) => chartHosts.resolveById({ id })!),
+] });

@@ -480,7 +480,7 @@ describe('A2uiSurfaceCard', () => {
     expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument();
   });
 
-  it('renders a real recharts pie chart from real data, not the placeholder', () => {
+  it('renders the legacy pie chart data as a styled table without a provider', () => {
     const events = [
       createSurfaceMessage('s1', [
         { id: 'root', component: 'Column', children: ['title', 'chart'] },
@@ -497,6 +497,8 @@ describe('A2uiSurfaceCard', () => {
     ];
     render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" />);
     expect(screen.getByText('Posts vs Pages')).toBeInTheDocument();
+    expect(screen.getByRole('table')).toHaveTextContent('Posts12Pages4');
+    expect(document.querySelector('svg.recharts-surface')).toBeNull();
     expect(screen.queryByText(/no renderer yet for component type/)).not.toBeInTheDocument();
   });
 });

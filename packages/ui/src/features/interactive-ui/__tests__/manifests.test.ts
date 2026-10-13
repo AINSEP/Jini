@@ -38,3 +38,10 @@ describe('interactive-ui manifests entry point', () => {
     expect(DEFAULT_INTERACTIVE_UI_REGISTRY.list().map((entry) => entry.id)).toEqual(manifests.ALL_MANIFESTS.map((m) => m.id));
   });
 });
+
+it('uses the neutral core wire schema owner without claiming a built-in Recharts runtime', async () => {
+  const { chartWireManifests } = await import('../../charts/index.js');
+  const charts = manifests.ALL_MANIFESTS.filter(({ capabilities }) => capabilities.includes('chart'));
+  expect(charts).toEqual(chartWireManifests);
+  expect(charts.map(({ provider }) => provider)).toEqual(['core.table', 'core.table', 'core.table']);
+});

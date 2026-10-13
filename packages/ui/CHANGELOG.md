@@ -36,6 +36,8 @@
 
 ## Unreleased
 
+- Add framework-neutral chart contracts, browser/table and React hosts, provider-defined kinds and legacy chart wire aliases. Extract Recharts implementations and peers into the private browser artifact; chart component export wrappers are removed (no external consumers found).
+
 - Publish the browser entry `@jini-ai/ui/tab-strip` with types and ESM output from
   the existing feature barrel, including `TabBar` and `TabBarTab`.
 

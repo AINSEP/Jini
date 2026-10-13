@@ -29,6 +29,8 @@
 
 ## Unreleased
 
+- Accept UI ^0.5.0 for the chart contract extraction.
+
 ### The built-in admin role holds role.manage
 
 - `seedIdentity` grants `role.manage` to the built-in admin policy (owner decision, 2026-10-05), so a

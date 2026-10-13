@@ -82,3 +82,22 @@ static preview, or (b) adding a non-sandboxed "trusted" mcp-ui mode for registry
 components. Both remain open options if a real need shows up — (a) is a small addition, (b) is a
 real security-boundary change that deserves its own review when there's an actual case for it, not
 as a byproduct of this scaffold. Revisit here before re-attempting either.
+
+## Charts (extracted 2026-10-12)
+
+The three `recharts.*` wire IDs and schemas are core-owned compatibility vocabulary. The default
+registry mounts the neutral chart host and displays a styled data table; Recharts is no longer a
+UI dependency or built-in renderer. The unused `BarChart`/`LineChart`/`PieChart` component exports
+are removed. Headless manifests remain safe to import without React.
+
+Hosts build a stable snapshot using `createChartProviderRegistry` from `@jini-ai/ui/charts` and
+`createChartInteractiveRegistry` from `@jini-ai/ui/charts/react`. The same selected entry supplies
+validation and rendering, and aliases resolve by their specific chart capability. Selection honours
+the optional spec provider, the site's `core.charts/provider` setting, then enabled providers in
+registry order. Config changes replace the snapshot and remount cards by host generation.
+
+The framework-free `@jini-ai/ui/charts/browser` owns mount/update/destroy and safe table fallback.
+Providers declare their own kinds; core implements only the current bar/line/pie wire conversion.
+The private Recharts workspace produces reviewed JS/CSS directory artifacts. Import the existing
+interactive table CSS and attach admitted provider CSS where cards render, including portals.
+`charts/html`, public embeds/loaders and provider override UI are deferred.

@@ -31,6 +31,8 @@
 
 ## Unreleased
 
+- Accept UI ^0.5.0 for the chart contract extraction.
+
 - Add portable Forms admin screens, HTTP/memory adapters and core-port conformance under ./forms*.
 - Add composable comments admin queue/settings module with HTTP and memory adapters and API conformance.
 - Add portable redirects admin module, React list, HTTP/memory adapters and API conformance.

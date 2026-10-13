@@ -84,6 +84,8 @@
 
 ## Unreleased
 
+- Remove Recharts peer/dev dependencies. Legacy chart wire components now use the neutral UI host with a styled table fallback; require the extracted UI ^0.5.0 so older built-in Recharts imports cannot leak into a clean consumer.
+
 - Add neutral owner-scoped ChatStore, structured errors and bounded keyset pages.
 - Add SQLite, embedded/socket PGlite and Postgres adapters over the same borrowed kernel SQL body.
 - Preserve the eight-method ChatHistoryStore contract and existing stored schema/projection.

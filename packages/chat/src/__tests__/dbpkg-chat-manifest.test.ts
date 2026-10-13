@@ -14,7 +14,7 @@ it('publishes every isolated extraction entry with its browser or universal clas
   const expectedPeers = {
     'react': '^18.3.0 || ^19.0.0',
     'react-dom': '^18.3.0 || ^19.0.0',
-    '@jini-ai/db': '^0.2.0 || ^0.3.0',
+    '@jini-ai/db': '^0.3.2',
     'kysely': '^0.29.6',
     'better-sqlite3': '^13.0.0',
     '@electric-sql/pglite': '0.5.8',
@@ -26,12 +26,11 @@ it('publishes every isolated extraction entry with its browser or universal clas
     '@radix-ui/react-radio-group': '^1.4.7',
     '@radix-ui/react-select': '^2.3.7',
     '@radix-ui/react-slot': '^1.3.3',
-    'recharts': '^3.10.1',
-    '@jini-ai/agent-runtime': '^0.4.4',
-    '@jini-ai/agentic': '^0.4.2',
-    '@jini-ai/protocol': '^0.4.3',
-    '@jini-ai/ui': '^0.4.7',
-    '@jini-ai/diagnostics': '^0.5.0',
+    '@jini-ai/agent-runtime': '^0.4.5',
+    '@jini-ai/agentic': '^0.4.4',
+    '@jini-ai/protocol': '^0.4.4',
+    '@jini-ai/ui': '^0.5.0',
+    '@jini-ai/diagnostics': '^0.5.2',
   };
   expect(manifest.peerDependencies).toEqual(expectedPeers);
   expect(manifest.peerDependenciesMeta).toEqual(
