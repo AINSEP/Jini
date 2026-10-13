@@ -63,6 +63,16 @@ describe("database import isolation", () => {
     expect(files.flatMap(file => violations(relative(sourceRoot, file), readFileSync(file, "utf8")).map(v => `${file}: ${v}`))).toEqual([]);
   });
 
+  it("SQL vault persistence imports platform only through the contracts leaf", () => {
+    const file = join(sourceRoot, "secrets-vault/repo.sql.ts");
+    const tree = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+    const platformImports = tree.statements.flatMap(statement =>
+      ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)
+        && statement.moduleSpecifier.text.startsWith("@jini-ai/platform")
+        ? [statement.moduleSpecifier.text] : []);
+    expect(platformImports).toEqual(["@jini-ai/platform/secrets/credential-sets/contracts"]);
+  });
+
   it.each([
     ['sqlite/bad.ts', 'import type { Kysely } from "kysely";', 'kysely outside kernel/migrate: kysely'],
     ['core/bad.ts', 'export { sql } from "kysely";', 'kysely outside kernel/migrate: kysely'],

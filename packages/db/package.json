@@ -206,7 +206,7 @@
     "better-sqlite3": "^13.0.0",
     "@electric-sql/pglite": "0.5.8",
     "pg": "^8.23.0",
-    "@jini-ai/platform": "workspace:^"
+    "@jini-ai/platform": "^0.5.6"
   },
   "peerDependenciesMeta": {
     "better-sqlite3": {

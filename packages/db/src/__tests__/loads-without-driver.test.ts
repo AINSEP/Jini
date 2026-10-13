@@ -228,7 +228,8 @@ describe("@jini-ai/db in an install with no database driver present", () => {
   it("documents the vault's optional platform peer and refuses a vault import without it", () => {
     const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
     expect(manifest.dependencies["@jini-ai/platform"]).toBeUndefined();
-    expect(manifest.peerDependencies["@jini-ai/platform"]).toBe("workspace:^");
+    // The vault SQL repo imports the credential-sets/contracts leaf first published in platform 0.5.6.
+    expect(manifest.peerDependencies["@jini-ai/platform"]).toBe("^0.5.6");
     expect(manifest.peerDependenciesMeta["@jini-ai/platform"]).toEqual({ optional: true });
     expect(manifest.devDependencies["@jini-ai/platform"]).toBe("workspace:*");
     const result = runInFixture('await import("@jini-ai/db/secrets-vault");', noPlatformFixtureDir);

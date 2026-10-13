@@ -1,3 +1,7 @@
+## Unreleased
+
+- Vault SQL repo imports `@jini-ai/platform/secrets/credential-sets/contracts`; requires @jini-ai/platform >=0.5.6 (credential-sets/contracts); publish platform first.
+
 ## 0.3.3 — 2026-10-12
 
 - Vault `findDefault` restates the default group in the normalized expressions and binds `is_default` as a dialect literal, so a host's partial default index is matched (SQLite and Postgres). Raw-column filters stay; results are unchanged.
