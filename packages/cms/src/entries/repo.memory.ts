@@ -12,7 +12,7 @@ import type { EntryRecord, EntryStatus } from "./types.js";
  */
 export class InMemoryEntryRepo implements EntryRepoPort, EntryListPort {
   private readonly byId = new Map<string, EntryRecord>();
-  private readonly revisions: EntryRevisionInput[] = [];
+  private revisions: EntryRevisionInput[] = [];
 
   private static slugKey(workspaceId: string, type: string, slug: string): string {
     return `${workspaceId}::${type}::${slug}`;
@@ -44,6 +44,15 @@ export class InMemoryEntryRepo implements EntryRepoPort, EntryListPort {
 
   async appendRevision(revision: EntryRevisionInput): Promise<void> {
     this.revisions.push(revision);
+  }
+
+  /** Memory-only purge seam: removes the scoped entry and its revision history. Missing or foreign
+   * entries are unchanged. @complexity O(r) time and space over stored revisions. */
+  async hardDelete(required: { workspaceId: string; id: string }, _optional: Record<string, never> = {}): Promise<void> {
+    const row = this.byId.get(required.id);
+    if (!row || row.workspaceId !== required.workspaceId) return;
+    this.byId.delete(required.id);
+    this.revisions = this.revisions.filter(revision => revision.workspaceId !== required.workspaceId || revision.entryId !== required.id);
   }
 
   async transaction<T>({ fn }: { fn: () => Promise<T> }): Promise<T> {

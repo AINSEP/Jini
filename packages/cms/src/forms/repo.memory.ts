@@ -243,4 +243,12 @@ export class InMemoryFormSubmissionRepo implements FormSubmissionRepoPort {
       }
     }
   }
+
+  /** Trash-blind memory seam: enumerate a form's submissions before its purge cascade, so the host
+   * can forget their Trash index rows too. @complexity O(n) time and space over stored submissions. */
+  async listAllForDefinition(required: { workspaceId: UUID; formDefinitionId: UUID }, _optional: Record<string, never> = {}): Promise<StoredFormSubmission[]> {
+    return [...this.rows.values()]
+      .filter(row => row.workspaceId === required.workspaceId && row.formDefinitionId === required.formDefinitionId)
+      .map(cloneSubmission);
+  }
 }
