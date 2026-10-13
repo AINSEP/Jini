@@ -1,6 +1,7 @@
-## Unreleased
+## 0.3.4 — 2026-10-13
 
 - Vault SQL repo imports `@jini-ai/platform/secrets/credential-sets/contracts`; requires @jini-ai/platform >=0.5.6 (credential-sets/contracts); publish platform first.
+- `@jini-ai/platform` is now an optional peer: only `./secrets-vault` loads it. Hosts using the vault list platform themselves.
 
 ## 0.3.3 — 2026-10-12
 
