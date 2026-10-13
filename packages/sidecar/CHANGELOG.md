@@ -1,5 +1,9 @@
 # @jini-ai/sidecar
 
+## 0.4.3 — 2026-10-13
+
+- Windows: the Node supervisor stops its daemon gracefully by closing a stdin pipe (launch env `JINI_STOP_ON_STDIN_EOF=1`), waits 5s, then falls back to `taskkill /T /F`. POSIX is unchanged. Hosts opt in by running their disposal on stdin `end` when the flag is set.
+
 ## 0.4.2 — 2026-10-13
 
 - The Node supervisor imports `@jini-ai/platform/command` and `/process` instead of the platform root; peer `@jini-ai/platform` floor is now `^0.5.5`.
