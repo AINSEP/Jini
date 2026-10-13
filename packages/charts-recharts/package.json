@@ -1,6 +1,7 @@
 {
   "name": "@jini-ai/charts-recharts",
   "version": "0.1.0",
+  "private": true,
   "description": "Statically bundled shadcn-style Recharts chart provider for Jini interactive-ui, with a headless chart catalog.",
   "license": "Apache-2.0",
   "repository": {
