@@ -57,7 +57,7 @@ export function validatePattern(
   const { matchType, fromPattern } = required;
 
   if (matchType === "regex") {
-    return { ok: false, reason: "matchType 'regex' is not enabled in v1 (REQ-22)" };
+    return { ok: false, reason: "matchType 'regex' is not enabled in v1" };
   }
 
   const length = fromPattern.length;

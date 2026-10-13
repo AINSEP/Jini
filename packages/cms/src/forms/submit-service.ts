@@ -71,7 +71,7 @@ export interface SubmitFormRequired {
 // Anonymous visitors have no actor/permission for an administrative command gateway; this public
 // path instead owns validation, throttling and durable submission/event persistence directly.
 /**
- * Binds Tovu's outbox delivery to Jini's anonymous submission service. The package awaits the
+ * Binds the host's outbox delivery to Jini's anonymous submission service. The package awaits the
  * object-shaped limiter check and queues delivery without awaiting notifications.
  *
  * A repeat of an attempt accepted within the window (same token, or for a request without one the

@@ -1,5 +1,5 @@
 /**
- * @file Core type definitions for the Tovu `routing` Tier-2 library (ADR-039 v0).
+ * @file Core type definitions for the host `routing` Tier-2 library (ADR-039 v0).
  *
  * Purpose:
  * Declares the `RouteTarget` vocabulary, the workspace-scoped resolve context,

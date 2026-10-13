@@ -142,12 +142,12 @@ export async function createWidgetInstance(required: CreateWidgetInstanceRequire
   // genuinely reachable, and this check is what catches an unregistered type at this boundary.
   const registration = findWidgetTypeRegistration({ raw: input.widgetType });
   if (!registration) {
-    throw new WidgetTypeUnregisteredError({ message: `widget type '${input.widgetType}' is not registered (REQ-03)`, widgetType: input.widgetType });
+    throw new WidgetTypeUnregisteredError({ message: `widget type '${input.widgetType}' is not registered`, widgetType: input.widgetType });
   }
 
   const validation = validateWidgetConfig({ schema: registration.configSchema, config: input.config });
   if (!validation.valid) {
-    throw new WidgetConfigValidationError({ message: `config for widget type '${input.widgetType}' failed schema validation (REQ-02)`, fieldErrors: validation.fieldErrors }
+    throw new WidgetConfigValidationError({ message: `config for widget type '${input.widgetType}' failed schema validation`, fieldErrors: validation.fieldErrors }
     );
   }
 
@@ -220,7 +220,7 @@ export async function updateWidgetInstance(required: UpdateWidgetInstanceRequire
 
     const validation = validateWidgetConfig({ schema: registration.configSchema, config: input.config });
     if (!validation.valid) {
-      throw new WidgetConfigValidationError({ message: `config for widget type '${currentPayload.widgetType}' failed schema validation (REQ-02)`, fieldErrors: validation.fieldErrors }
+      throw new WidgetConfigValidationError({ message: `config for widget type '${currentPayload.widgetType}' failed schema validation`, fieldErrors: validation.fieldErrors }
       );
     }
 
@@ -287,11 +287,11 @@ export async function importWidgetInstance(required: ImportWidgetInstanceRequire
 
   const registration = findWidgetTypeRegistration({ raw: input.widgetType });
   if (!registration) {
-    throw new WidgetTypeUnregisteredError({ message: `widget type '${input.widgetType}' is not registered (REQ-03)`, widgetType: input.widgetType });
+    throw new WidgetTypeUnregisteredError({ message: `widget type '${input.widgetType}' is not registered`, widgetType: input.widgetType });
   }
   const validation = validateWidgetConfig({ schema: registration.configSchema, config: input.config });
   if (!validation.valid) {
-    throw new WidgetConfigValidationError({ message: `config for widget type '${input.widgetType}' failed schema validation (REQ-02)`, fieldErrors: validation.fieldErrors });
+    throw new WidgetConfigValidationError({ message: `config for widget type '${input.widgetType}' failed schema validation`, fieldErrors: validation.fieldErrors });
   }
 
   await ensureWidgetContentTypesRegistered({ deps, workspaceId: input.workspaceId });

@@ -190,12 +190,12 @@ export async function validatePlacementWidgetsExist(
   for (const placement of placements) {
     const widget = await deps.entryRepo.findById({ workspaceId, id: placement.widgetEntryId });
     if (!widget || widget.type !== WIDGET_CONTENT_TYPE) {
-      throw new WidgetInstanceNotFoundError({ message: `placement references widget '${placement.widgetEntryId}', which does not exist in workspace '${workspaceId}' (REQ-16)` }
+      throw new WidgetInstanceNotFoundError({ message: `placement references widget '${placement.widgetEntryId}', which does not exist in workspace '${workspaceId}'` }
       );
     }
     const widgetPayload = parseWidgetInstancePayload({ fieldsJson: widget.fieldsJson });
     if (widgetPayload.status === "trash" || widgetPayload.status === "purged") {
-      throw new WidgetInstanceNotFoundError({ message: `placement references widget '${placement.widgetEntryId}', which is trashed (REQ-16)` });
+      throw new WidgetInstanceNotFoundError({ message: `placement references widget '${placement.widgetEntryId}', which is trashed` });
     }
   }
 }

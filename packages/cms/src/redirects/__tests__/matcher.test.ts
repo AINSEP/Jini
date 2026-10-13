@@ -45,8 +45,9 @@ function req(path: string): RedirectRequest {
 // ---------------------------------------------------------------------------
 
 test("validatePattern always rejects matchType 'regex' (REQ-22/INV-05)", () => {
-  const result = validatePattern({ matchType: "regex", fromPattern: "/a" });
-  assert.equal(result.ok, false);
+  assert.deepEqual(validatePattern({ matchType: "regex", fromPattern: "/a" }), {
+    ok: false, reason: "matchType 'regex' is not enabled in v1",
+  });
 });
 
 test("validatePattern accepts a well-formed exact pattern", () => {

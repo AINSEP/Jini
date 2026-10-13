@@ -1,5 +1,5 @@
 /**
- * @file Dependency contracts for the Tovu `routing` Tier-2 library (ADR-039 v0).
+ * @file Dependency contracts for the host `routing` Tier-2 library (ADR-039 v0).
  *
  * ADR-006 accounting (rule-of-two):
  * - `routing` introduces NO new persistence port. Resolving an `entryRef`

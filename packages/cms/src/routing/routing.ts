@@ -1,5 +1,5 @@
 /**
- * @file Resolution logic for the Tovu `routing` Tier-2 library (ADR-039 v0).
+ * @file Resolution logic for the host `routing` Tier-2 library (ADR-039 v0).
  *
  * Purpose:
  * Implements the inverse resolver (`urlFor`/`isActive`) Menus (ADR-029) and

@@ -3,7 +3,7 @@
  * building an item tree, so it can be styled however they want.
  *
  * Same trust model as HTML-mode forms (`forms/html/html-authoring.ts`) and HTML Pages: the markup is
- * admin/owner-trusted and NOT sanitized. Hosts gate it behind their raw-HTML permission (Tovu binds
+ * admin/owner-trusted and NOT sanitized. Hosts gate it behind their raw-HTML permission (the host binds
  * `pages.edit_html`, the one forms use); this module only validates and merges. The injected
  * normalizer balances the fragment so a stray `</nav>` or an unclosed `<div>` cannot close or
  * swallow the theme element the menu renders inside. The Node adapter supplies parse5; the

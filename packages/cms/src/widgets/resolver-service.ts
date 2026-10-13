@@ -308,7 +308,7 @@ function assembleInlineResolved(
 
 // ---------------------------------------------------------------------------
 // HTML Page embeds (SPEC-047 Slice 2, registry-restructured 2026-08-07 per
-// `project-tovu-generic-embed-contract`) — resolves `html-embeds.ts`'s `data-embed-type`
+// `generic-embed-contract`) — resolves `html-embeds.ts`'s `data-embed-type`
 // placeholder convention. A parallel entry point to `resolvePageWidgets` above, not a mode of it: an
 // `"html"`-format Page has no `bodyJson` tree and is not an `entries` row `pageEntryId` could
 // resolve (see `routes/site/pages.ts`'s `resolveWidgetsForRender`, which documents that same gap for
@@ -561,7 +561,7 @@ async function resolveFormTypeEmbeds(
  * everything else (2026-08-24).** The plan's step 3 called for dispatching by the asset's STORED
  * MIME TYPE. `MediaRecord` (`@jini-ai/cms/media`) still has no mime/contentType field of its own —
  * that remains an upstream `@jini-ai/cms` gap, not fixed here — but this host now has a
- * Tovu-owned side channel for it: `mediaContentTypeStore` (`media/content-type-store.ts`), keyed by
+ * host-owned side channel for it: `mediaContentTypeStore` (`media/content-type-store.ts`), keyed by
  * `record.source.sha256`, already populated at upload time (`routes/admin/media/upload.ts`) for the
  * admin Media screen's own Images/Videos filter. When present and it knows the asset's type as
  * `video/*`, this resolver now skips the image-transform lookup entirely and resolves a `video`-kind
@@ -1277,7 +1277,7 @@ export const HTML_EMBED_RESOLVERS: Readonly<Record<string, HtmlEmbedResolver>> =
  *
  * Without this, {@link resolveHtmlPageEmbeds}'s "unknown embed type" warning fired for `menu`/`partial`
  * on every single static-tier render — confirmed live during the 2026-08-16 GitHub Pages export
- * (`gh-pages` commit `c0e52de2`, https://leonaburime-ucla.github.io/tovu-demo/): the log claimed "every
+ * (`gh-pages` commit `c0e52de2`, published demo): the log claimed "every
  * occurrence degrades to the placeholder," which was false — curling the published page showed real,
  * resolved `<a href>` links in both the nav and footer, zero placeholder markup anywhere. The page was
  * never broken; only the diagnostic was. Left uncorrected, that false alarm fires on every render and

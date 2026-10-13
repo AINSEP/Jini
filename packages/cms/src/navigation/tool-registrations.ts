@@ -43,7 +43,7 @@ export interface MenusToolDeps {
   menuRepo: MenuRepoPort;
   navLocationBindingRepo: NavLocationBindingRepoPort;
   /**
-   * The host's raw-HTML permission (Tovu: `pages.edit_html`, the one HTML-mode forms use). A write
+   * The host's raw-HTML permission (host example: `pages.edit_html`, the one HTML-mode forms use). A write
    * carrying menu HTML is checked against it on top of the menu permission; unset, HTML menus are refused.
    */
   rawHtmlPermission?: string | undefined;

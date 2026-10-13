@@ -107,3 +107,18 @@ describe('owned widget service locks', () => {
     expect(getEntryLockState({ owner: new InMemoryEntryRepo() })).not.toBe(getEntryLockState({ owner }));
   });
 });
+
+
+it('a widget area refuses an embed with the exact portable runtime message', async () => {
+  const f = fixture(createEntryLockState({}));
+  f.deps.entryRepo = new InMemoryEntryRepo();
+  f.deps.bindingRepo = new InMemoryWidgetRegionBindingRepo();
+  const { areaEntry } = await bindWidgetArea({ deps: f.deps,
+    input: { workspaceId: common.workspaceId, regionKey: 'footer' } });
+  await expect(insertWidgetEmbed({ deps: f.deps, input: {
+    ...common, hostEntryId: areaEntry.id, baseVersion: areaEntry.version, widgetEntryId: 'widget',
+  } })).rejects.toMatchObject({
+    name: 'WidgetEmbedHostUnsupportedError', reason: 'widget-area',
+    message: `host '${areaEntry.id}' is a widget_area entry, which can never host a widgetEmbed node`,
+  });
+});

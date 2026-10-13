@@ -1,5 +1,5 @@
 /**
- * @file Ports + typed-call contracts for the Tovu `widgets` library (ADR-047, SPEC-043).
+ * @file Ports + typed-call contracts for the host `widgets` library (ADR-047, SPEC-043).
  *
  * ADR-006 (rule-of-two) applied the way ADR-029 §5 already set precedent:
  *

@@ -11,7 +11,7 @@ import { LISTING_AFTER_MAX } from './batch.js';
 export const LISTING_KEY_MAX = 10;
 
 const BATCH_PATH = /^((?:\/[^/]+)*)\/_more\/([1-9]\d?)\/(\d{1,6})(?:(\.json)|\/?)$/;
-const RESERVED_FIRST_SEGMENTS = new Set(['admin', 'api']);
+const RESERVED_FIRST_SEGMENTS: ReadonlySet<string> = new Set(['admin', 'api']);
 
 export interface ListingBatchRequest {
   /** The listing page's own path (`/` for home). */

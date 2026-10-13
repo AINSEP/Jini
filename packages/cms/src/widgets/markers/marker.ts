@@ -7,7 +7,7 @@
  *
  * - `widgets/html-embeds.ts` — `data-embed-type`/`data-embed-id` in a Page's `body_html`
  * - `features/theme/static-render.ts` — the same pair for menu/post markers, PLUS
- *   `data-tovu-slot`/`data-nav-current`/`data-slot-variant` for theme partials
+ *   host slot attributes alongside `data-nav-current`/`data-slot-variant` for theme partials
  * - `core/entry-refs/extractor.ts` — the same pair again, for reference extraction
  *
  * Four regexes for one concept is four places a fix has to land and four ways they can disagree
@@ -670,8 +670,8 @@ export function embedMarkerTarget({ type, config }: { type: string; config: Read
 /**
  * The "Copy embed code" snippet for any marker type: the same `<div data-embed-config='{"type":…,
  * "<key>":"<value>"}'></div>` wrapper {@link scanEmbedMarkers}/{@link parseEmbedMarkerConfig} already
- * parse back — generalised (readable-slugs S5b) out of `apps/admin/src/features/collections/rules.ts`'s
- * `collectionEmbedSnippet`, the one admin-generated marker that existed before this: that function is
+ * parse back — generalised (readable-slugs S5b) out of the collections admin
+ * `collectionEmbedSnippet` adapter, the one admin-generated marker that existed before this: that function is
  * now a one-line call onto this (`embedMarkerSnippet("collection", "id", key)`), byte-for-byte
  * unchanged. `features/media`'s own "Copy embed code" button (S5a) is the second caller, with
  * `("media", "slug", asset.slug)` — see {@link EMBED_MARKER_TARGET_KEYS}'s `media` row for why `slug`

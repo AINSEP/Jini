@@ -1,8 +1,8 @@
 /** Public plugin fragments are HTML, never same-origin script (ADR-025). Use the existing
  * HTML parser, not regex sanitization: decoded attributes and foreign namespaces matter. */
 import { parseFragment, serialize, type DefaultTreeAdapterMap } from 'parse5';
-const ELEMENTS = new Set(['div','span','p','br','hr','strong','em','b','i','small','h1','h2','h3','h4','h5','h6','ul','ol','li','dl','dt','dd','blockquote','pre','code','a','img','figure','figcaption','table','thead','tbody','tr','th','td','section','article','aside','header','footer','nav','form','label','input','textarea','select','option','button']);
-const ATTRIBUTES = new Set(['id','class','title','role','href','src','alt','width','height','action','method','name','value','type','required','disabled','checked','selected','multiple','placeholder','for','rows','cols','min','max','step','colspan','rowspan']);
+const ELEMENTS: ReadonlySet<string> = new Set(['div','span','p','br','hr','strong','em','b','i','small','h1','h2','h3','h4','h5','h6','ul','ol','li','dl','dt','dd','blockquote','pre','code','a','img','figure','figcaption','table','thead','tbody','tr','th','td','section','article','aside','header','footer','nav','form','label','input','textarea','select','option','button']);
+const ATTRIBUTES: ReadonlySet<string> = new Set(['id','class','title','role','href','src','alt','width','height','action','method','name','value','type','required','disabled','checked','selected','multiple','placeholder','for','rows','cols','min','max','step','colspan','rowspan']);
 /** Reject executable/unsupported markup rather than quietly preserving a plugin's unsafe output.
  * URLs are local or HTTP(S); form submission remains native. No inline style, events, SVG,
  * iframe, script, srcdoc, data URLs, or enhancement assets are admitted. */

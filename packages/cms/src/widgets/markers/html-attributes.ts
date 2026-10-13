@@ -5,7 +5,7 @@
  * narrower boundaries in the same render path:
  *
  * - `@jini-ai/cms/media`'s `parseMediaHtmlAttributes` (the Jini-side twin of
- *   `apps/admin/src/features/media/rules.ts`'s `parseMediaHtmlAttributes`, which this file's
+ *   the media admin `parseMediaHtmlAttributes` adapter, which this file's
  *   tokenizer and name pattern are ported from) — rejected `style`/`id`/`class` outright and failed
  *   the WHOLE string closed on the first bad token.
  * - `render.ts`'s own `restrictToDataAriaAttributes` — an extra widget-only restriction down to
@@ -25,7 +25,7 @@
  *    boundaries downstream of that point cannot be trusted (value text could re-parse as a name) —
  *    that failure mode still discards everything and fails the WHOLE string closed, same as before.
  *
- * The admin (`apps/admin/src/features/media/rules.ts`) keeps its OWN hand-copied allowlist, unchanged
+ * The media admin adapter keeps its OWN hand-copied allowlist, unchanged
  * by this task — it is a UX hint only (never gates `save()`, incident `a7cce060`), and the
  * browser/Node split between admin and this server-side file is the existing precedent (see that
  * file's own header). Widening ITS list, and Jini's write-path copy, is tracked separately (plan
@@ -93,7 +93,7 @@ export const EMBED_HTML_ATTRIBUTE_ALLOWED_NAMES = [
 
 /**
  * The shape EVERY accepted attribute name must have, checked before allowlist membership (ported
- * unchanged from the 2026-09-07 stored-XSS fix in `apps/admin/src/features/media/rules.ts`). The
+ * unchanged from the 2026-09-07 stored-XSS fix in the media admin attribute validator). The
  * `data-`/`aria-` families are open-ended by design — no fixed suffix list — so the prefix check
  * alone would accept whatever characters {@link HTML_ATTRIBUTE_TOKEN}'s name class (`[^\s="']+`,
  * which excludes only whitespace, `=` and quotes) lets through; `<`, `>` and `/` are all legal in

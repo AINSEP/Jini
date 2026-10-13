@@ -89,7 +89,7 @@ test("AC-02/REQ-02: creating a recent-entries widget with maxItems above the reg
           config: { maxItems: 500 }, // registry.ts clamps this type's maxItems to 20
         },
       }),
-    /WidgetConfigValidationError/
+    { name: "WidgetConfigValidationError", message: "config for widget type 'recent-entries' failed schema validation" }
   );
   assert.deepEqual(await deps.entryRepo.listByWorkspace({ workspaceId: WORKSPACE_ID }, { type: WIDGET_CONTENT_TYPE }), []);
   assert.deepEqual(await deps.entryRepo.listByWorkspace({ workspaceId: WORKSPACE_ID }), [], "invalid config must leave no entries of any type");
@@ -110,7 +110,7 @@ test("AC-03/REQ-03: creating a widget of an unregistered type is rejected, nothi
           config: {},
         },
       }),
-    /WidgetTypeUnregisteredError/
+    { name: "WidgetTypeUnregisteredError", message: "widget type 'carousel' is not registered" }
   );
   assert.deepEqual(await deps.entryRepo.listByWorkspace({ workspaceId: WORKSPACE_ID }, { type: WIDGET_CONTENT_TYPE }), []);
   assert.deepEqual(await deps.entryRepo.listByWorkspace({ workspaceId: WORKSPACE_ID }), [], "an unregistered widget must leave no entries of any type");

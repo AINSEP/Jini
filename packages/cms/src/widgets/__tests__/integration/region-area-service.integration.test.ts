@@ -6,7 +6,7 @@ import { InMemoryEntryRefsRepo } from "../support/host.fixture.js";
 import { InMemoryContentTypeRepo } from "../../../content-types/index.js";
 import { InMemoryEntryRepo } from "../../../entries/index.js";
 import { parseWidgetAreaPayload } from "../support/compat/entry-payload.js";
-import { WidgetAreaConflictError, WidgetInstanceNotFoundError } from "../../errors.js";
+import { WidgetAreaConflictError } from "../../errors.js";
 import { createWidgetInstance, type WidgetWriteServiceDeps } from "../../write-service.js";
 import { InMemoryWidgetRegionBindingRepo } from "../../repo.memory.js";
 import {
@@ -108,7 +108,7 @@ test("AC-10/REQ-16: a placement mutation referencing a widget from a different w
           placements: [{ placementId: "plc-1", widgetEntryId: foreign.id, enabled: true }],
         },
       }),
-    (error: unknown) => error instanceof WidgetInstanceNotFoundError && error.message.includes(foreign.id)
+    { name: "WidgetInstanceNotFoundError", message: `placement references widget '${foreign.id}', which does not exist in workspace '${WORKSPACE_ID}'` }
   );
   assert.deepEqual(await deps.entryRepo.findById({ workspaceId: WORKSPACE_ID, id: seeded.id }), before);
   assert.deepEqual(await deps.entryRefsRepo.findBySource({ workspaceId: WORKSPACE_ID, sourceEntryId: seeded.id }), refsBefore);

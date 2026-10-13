@@ -252,7 +252,7 @@ async function loadEmbedHost(deps: EmbedServiceDeps, workspaceId: UUID, hostEntr
     if (entry.type === WIDGET_AREA_CONTENT_TYPE) {
       // REQ-17 (D4) — a widget_area entry is itself a region's composition document; it must never
       // also be a widgetEmbed host (no recursion into a region from inside a region).
-      throw new WidgetEmbedHostUnsupportedError({ message: `host '${hostEntryId}' is a widget_area entry, which can never host a widgetEmbed node (REQ-17)`, reason: "widget-area" }
+      throw new WidgetEmbedHostUnsupportedError({ message: `host '${hostEntryId}' is a widget_area entry, which can never host a widgetEmbed node`, reason: "widget-area" }
       );
     }
     return { kind: "entry", record: entry };
@@ -290,11 +290,11 @@ function hostBodyType(host: EmbedHost): string {
 async function assertEmbedTargetIsLiveWidget(deps: EmbedServiceDeps, workspaceId: UUID, widgetEntryId: UUID): Promise<void> {
   const widget = await deps.entryRepo.findById({ workspaceId, id: widgetEntryId });
   if (!widget || widget.type !== WIDGET_CONTENT_TYPE) {
-    throw new WidgetInstanceNotFoundError({ message: `embed references widget '${widgetEntryId}', which does not exist in workspace '${workspaceId}' (REQ-16/17)` });
+    throw new WidgetInstanceNotFoundError({ message: `embed references widget '${widgetEntryId}', which does not exist in workspace '${workspaceId}'` });
   }
   const payload = parseWidgetInstancePayload({ fieldsJson: widget.fieldsJson });
   if (payload.status === "trash" || payload.status === "purged") {
-    throw new WidgetInstanceNotFoundError({ message: `embed references widget '${widgetEntryId}', which is trashed (REQ-16)` });
+    throw new WidgetInstanceNotFoundError({ message: `embed references widget '${widgetEntryId}', which is trashed` });
   }
 }
 
@@ -309,7 +309,7 @@ function assertGuardrails(deps: EmbedServiceDeps, hostEntryType: string, resulti
     maxEmbedsPerDocument: deps.maxEmbedsPerDocument ?? DEFAULT_MAX_EMBEDS_PER_DOCUMENT,
   });
   if (!result.valid) {
-    throw new WidgetEmbedGuardrailError({ message: `widgetEmbed mutation on host entry rejected: ${result.reason} (REQ-19/20)`, reason: result.reason }
+    throw new WidgetEmbedGuardrailError({ message: `widgetEmbed mutation on host entry rejected: ${result.reason}`, reason: result.reason }
     );
   }
 }

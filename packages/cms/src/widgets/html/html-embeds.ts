@@ -1,6 +1,6 @@
 /**
  * @file The embed-reference view of a `"html"`-format Page's body (SPEC-047 Slice 2, generalized
- * 2026-08-07 per `project-tovu-generic-embed-contract`, rewired onto the shared marker parser
+ * 2026-08-07 per `generic-embed-contract`, rewired onto the shared marker parser
  * 2026-08-10).
  *
  * Purpose:
@@ -72,7 +72,7 @@
  * `slug` is projected here exactly like `name`/`variant` already are (a raw, unvalidated config
  * key; deciding whether it is USABLE is a resolver-side concern), but it is a genuinely different
  * mechanism from the dormant `name` field above, not a rename of it. `name` was scaffolded
- * (2026-08-05/07 generic-embed-contract design, `project-tovu-generic-embed-contract` in
+ * (2026-08-05/07 generic-embed-contract design, `generic-embed-contract` in
  * `ADS-memory/`) for a fuzzy, POSSIBLY-AMBIGUOUS match — "exactly one match resolves; zero or >1
  * degrades to the placeholder, never a guess" — and no resolver in this codebase has ever
  * implemented that ambiguity guard. `slug` needs no such guard: it targets a column

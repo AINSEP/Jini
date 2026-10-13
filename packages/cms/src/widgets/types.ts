@@ -1,5 +1,5 @@
 /**
- * @file Core type definitions for the Tovu `widgets` library (ADR-047, SPEC-043).
+ * @file Core type definitions for the host `widgets` library (ADR-047, SPEC-043).
  *
  * Purpose:
  * Widgets are placeable, reusable, individually-configured components (a contact

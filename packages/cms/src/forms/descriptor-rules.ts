@@ -2,8 +2,8 @@
 import type { FieldDescriptor } from "./types.js";
 import { FIELD_TYPE_REGISTRY, isBrowserSafeFieldPattern, isSafeFieldPattern, MAX_FORM_FILE_BYTES, resolveFormField, SAFE_FORM_FILE_TYPES } from "./field-registry.js";
 import type { FieldError } from "./forms.js";
-const KEYS = new Set(["id", "name", "label", "type", "required", "placeholder", "helpText", "default", "options", "minLength", "maxLength", "pattern", "min", "max", "step", "accept", "maxFileSize", "checkboxValue", "className", "attributes"]);
-const TEMPORAL = new Set(["date", "time", "datetime"]);
+const KEYS: ReadonlySet<string> = new Set(["id", "name", "label", "type", "required", "placeholder", "helpText", "default", "options", "minLength", "maxLength", "pattern", "min", "max", "step", "accept", "maxFileSize", "checkboxValue", "className", "attributes"]);
+const TEMPORAL: ReadonlySet<string> = new Set(["date", "time", "datetime"]);
 const fail = (field: string, reason: string): FieldError => ({ field, reason });
 
 /** Text rules apply to explicit descriptor properties and their legacy attributes alike. */
