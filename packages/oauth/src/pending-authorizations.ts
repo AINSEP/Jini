@@ -2,7 +2,23 @@ import { nowIso } from '@jini-ai/core/primitives';
 import { generateOAuthState } from './pkce.js';
 import type { Clock } from '@jini-ai/core/primitives';
 import type { OAuthRequiredArgs, OAuthOptionalArgs, OAuthEmptyArgs } from './args.js';
-/** Async pending-authorization contract and shared constant-time owner binding helpers. Store adapters must consume state before checking ownership. */
+/** Async pending-authorization contract and shared constant-time owner binding helpers. Store adapters must consume state before checking ownership.
+ *
+ * State authenticates a public callback without a cross-site cookie: 24 cryptographically
+ * random bytes make guessing infeasible. States are single-use, expiring and owner-bound.
+ * Consumption precedes the owner check so a guessed state cannot be retried as an oracle;
+ * every failure (unknown, expired, replayed, wrong owner) has `OAUTH_INVALID_STATE`. Length is
+ * checked before constant-time comparison because `timingSafeEqual` rejects unequal
+ * lengths and length is not secret. Durable adapters reuse the same helpers/constants.
+ *
+ * The exact redirect URI is replayed on exchange (RFC 6749 §4.1.3), never rebuilt from
+ * a callback Host header. TTL permits consent/MFA but bounds abandoned attempts. Capacity
+ * bounds allocation even though starts are authenticated and rate-limited; oldest-entry
+ * eviction prevents one caller from wedging authorization for other admins. Insertion order
+ * identifies the oldest. On-access pruning avoids background work/shutdown hooks; retained
+ * expired entries are unredeemable and capacity bounds their memory cost. Invalid TTL/capacity
+ * fail at creation. Injected clocks let tests advance expiry without sleeping.
+ */
 import { timingSafeEqual } from "node:crypto";
 import type { ISODateTime } from '@jini-ai/core/primitives';
 import { OAuthError } from "./errors.js";
