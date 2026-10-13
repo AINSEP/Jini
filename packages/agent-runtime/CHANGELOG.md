@@ -1,3 +1,7 @@
+## 0.4.9 — 2026-10-13
+
+- `@jini-ai/oauth` is a regular dependency, no longer an optional peer: the root imports it statically, so a consumer without its own copy (Tovu Desktop 0.1.15) crashed at load with ERR_MODULE_NOT_FOUND.
+
 ## 0.4.8 — 2026-10-13
 
 - The root import no longer needs the optional `@jini-ai/integrations` peer: the media-provider catalog loads lazily, only when a default provider URL is needed. A missing peer at that point throws an actionable error with the import failure as its `cause`; explicit `*_BASE_URL` env values never touch it.
