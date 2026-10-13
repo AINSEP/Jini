@@ -1,11 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
+import * as contracts from "../credential-sets/contracts.js";
+import * as existingContracts from "../credential-sets/vault.types.js";
+import { VaultError } from "../credential-sets/index.js";
 test("0.5.5 retains published secret subpaths and adds generic platform subpaths while retaining existing exports", () => {
     const root = new URL("../../../", import.meta.url);
     const manifest = JSON.parse(readFileSync(new URL("package.json", root), "utf8"));
     expect(manifest.version).toBe("0.5.5");
-    expect(Object.keys(manifest.exports)).toEqual([".", "./fetch-with-timeout", "./secrets", "./secrets/credential-sets", "./secrets/testing", "./http/guarded", "./mail", "./mail/smtp", "./fs/guarded-reader", "./fs/durable-json", "./fs", "./net", "./net/endpoint-policy", "./fs/file-lock", "./secrets/credential-token", "./web", "./command", "./process", "./toolchain", "./proxy-env", "./shell", "./child-environment"]);
+    expect(Object.keys(manifest.exports)).toEqual([".", "./fetch-with-timeout", "./secrets", "./secrets/credential-sets", "./secrets/credential-sets/contracts", "./secrets/testing", "./http/guarded", "./mail", "./mail/smtp", "./fs/guarded-reader", "./fs/durable-json", "./fs", "./net", "./net/endpoint-policy", "./fs/file-lock", "./secrets/credential-token", "./web", "./command", "./process", "./toolchain", "./proxy-env", "./shell", "./child-environment"]);
     for (const [subpath, source] of [["./net/endpoint-policy", "net/endpoint-policy"], ["./secrets/credential-token", "secrets/credential-token"], ["./net", "net/index"], ["./fs/file-lock", "fs/file-lock"], ["./secrets", "secrets/index"], ["./secrets/credential-sets", "secrets/credential-sets/index"], ["./secrets/testing", "secrets/testing"], ["./http/guarded", "http/guarded/index"], ["./mail", "mail/index"], ["./mail/smtp", "mail/smtp"], ["./fs/guarded-reader", "fs/guarded-reader"], ["./fs/durable-json", "fs/durable-json"], ["./fs", "fs/index"], ["./web", "web/index"], ["./command", "command"], ["./process", "process"], ["./toolchain", "toolchain"], ["./proxy-env", "proxy-env"], ["./shell", "shell"], ["./child-environment", "child-environment"]]) {
         expect(manifest.exports[subpath!]).toEqual({ types: `./dist/${source}.d.ts`, import: `./dist/${source}.js`, default: `./dist/${source}.js` });
         expect(existsSync(fileURLToPath(new URL(`src/${source}.ts`, root)))).toBe(true);
@@ -16,4 +19,23 @@ test("0.5.5 retains published secret subpaths and adds generic platform subpaths
     expect(manifest.peerDependencies).toEqual(webPeers);
     expect(manifest.peerDependenciesMeta).toEqual(Object.fromEntries(Object.keys(webPeers).map(name => [name, { optional: true }])));
     for (const [name, version] of Object.entries(webPeers)) expect(manifest.devDependencies[name]).toBe(version);
+});
+
+test("vault contracts leaf is universal and preserves the existing runtime bindings", () => {
+    const manifest = JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8"));
+    expect(manifest.exports["./secrets/credential-sets/contracts"]).toEqual({
+        types: "./dist/secrets/credential-sets/contracts.d.ts",
+        import: "./dist/secrets/credential-sets/contracts.js",
+        default: "./dist/secrets/credential-sets/contracts.js",
+    });
+    expect(manifest.jini.entries["./secrets/credential-sets/contracts"]).toBe("universal");
+    expect(Object.keys(contracts).sort()).toEqual(Object.keys(existingContracts).sort());
+    expect(contracts.VAULT_KINDS).toBe(existingContracts.VAULT_KINDS);
+    expect(contracts.vaultGroupKey).toBe(existingContracts.vaultGroupKey);
+    expect(contracts.assertVaultReplacement).toBe(existingContracts.assertVaultReplacement);
+    expect(contracts.VaultError).toBe(VaultError);
+    const error = new contracts.VaultError({ code: "conflict" });
+    expect(error).toBeInstanceOf(VaultError);
+    expect(error.code).toBe("conflict");
+    expect(error.message).toBe("Secrets vault: conflict");
 });

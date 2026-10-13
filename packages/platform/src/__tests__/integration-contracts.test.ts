@@ -8,7 +8,7 @@ import { SmtpMailerAdapter, createNodemailerSmtpTransport } from "../mail/smtp.j
 test("each published subpath declares its intended runtime and preserves its targets", () => {
   const manifest = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
   for (const [entry, conditions] of Object.entries(manifest.exports)) {
-    const browserSafeEntries = ["./net/endpoint-policy", "./secrets/credential-token"];
+    const browserSafeEntries = ["./net/endpoint-policy", "./secrets/credential-token", "./secrets/credential-sets/contracts"];
     expect(manifest.jini.entries[entry]).toBe(browserSafeEntries.includes(entry) ? "universal" : "node");
     const target = conditions as { types: string; import: string; default: string };
     expect(target.types).toBe(target.import.replace(/\.js$/, ".d.ts"));

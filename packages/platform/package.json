@@ -17,6 +17,7 @@
       "./fetch-with-timeout": "node",
       "./secrets": "node",
       "./secrets/credential-sets": "node",
+      "./secrets/credential-sets/contracts": "universal",
       "./secrets/testing": "node",
       "./http/guarded": "node",
       "./mail": "node",
@@ -77,6 +78,11 @@
       "types": "./dist/secrets/credential-sets/index.d.ts",
       "import": "./dist/secrets/credential-sets/index.js",
       "default": "./dist/secrets/credential-sets/index.js"
+    },
+    "./secrets/credential-sets/contracts": {
+      "types": "./dist/secrets/credential-sets/contracts.d.ts",
+      "import": "./dist/secrets/credential-sets/contracts.js",
+      "default": "./dist/secrets/credential-sets/contracts.js"
     },
     "./secrets/testing": {
       "types": "./dist/secrets/testing.d.ts",
