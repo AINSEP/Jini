@@ -8,7 +8,7 @@ it('memory composition runs from the packed server with no SQLite, pg, PGlite or
   // Copy installed hard dependencies recursively, then replace server with its actual offline pack.
   copyRuntimeTree(dir,'@jini-ai/server',join(packages,'server'));
   // The host chooses these optional engine peers; memory boot still installs no DB driver or React.
-  for (const name of ['daemon', 'agent-runtime', 'http-kit', 'sidecar', 'db', 'chat', 'registry', 'oauth', 'platform', 'diagnostics']) {
+  for (const name of ['daemon', 'agent-runtime', 'http-kit', 'sidecar', 'db', 'chat', 'registry', 'oauth', 'platform', 'diagnostics', 'integrations']) {
    copyRuntimeTree(dir, `@jini-ai/${name}`, join(packages, name));
   }
   copyRuntimeTree(dir, 'express', join(packages, 'server/node_modules/express'));
