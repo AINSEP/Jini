@@ -1,5 +1,9 @@
 # @jini-ai/core
 
+## 0.4.4 — 2026-10-12
+
+- New `./records` subpath exports `isRecord` and `isNonArrayRecord` without loading the core barrel; the root and `registration-kit` keep re-exporting both.
+
 ## 0.4.2 — pending release
 
 - Add source-backed `./plugin-directory` publisher identity and live metadata lookup. Warn and omit invalid advisory keywords; scope legacy `unknown/<name>` IDs to each plugin family, with optional family selection for ambiguous lookups.

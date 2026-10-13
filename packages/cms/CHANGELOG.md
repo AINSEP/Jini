@@ -1,3 +1,7 @@
+## 0.5.7 — 2026-10-12
+
+- New render-only leaf subpaths: `./forms/html-render`, `./forms/submission-attempts`, `./widgets/page-embed-types`, `./widgets/html/html-embeds`, `./widgets/html/gallery-render`, `./navigation/types`, `./navigation/dropdown` and `./media/slug` (the media slug rule, still re-exported from `./media`). Existing barrels are unchanged.
+
 ## 0.5.4 — 2026-10-08
 
 - Ships `dist/forms/**`: 0.5.3's `files` negation `!forms/**` also stripped `dist/forms`, so `@jini-ai/cms/forms` (and `/html`, `/sql`, `/express`) failed to resolve. The negation is removed: `files` already ships only `dist`, and the nested `forms/` package is never packed.
