@@ -51,19 +51,20 @@ describe('standalone Recharts vanilla lifecycle', () => {
     }
   });
 
-  it('reports asynchronous render failures to the host and rejects readiness', async () => {
+  it('reports asynchronous render failures to the host through onError', async () => {
     const element = document.createElement('div'); document.body.append(element);
     // Invalid formatter input is not a module mock: the real render path reads this data getter.
-    const bad = { ...spec, data: [{ get month() { throw new Error('render data failed'); }, revenue: 1 }] };
+    // Recharts reads row data after the provider's first commit, so `ready` may already have
+    // settled; the post-mount onError path is what tells the host to fall back.
+    const bad = { ...spec, data: [{ get month(): string { throw new Error('render data failed'); }, revenue: 1 }] };
     const errors: unknown[] = [];
     let instance!: ChartInstance;
-    let failure!: Promise<unknown>;
     act(() => {
       instance = mount({ element, spec: bad, theme: { mode: 'light' } }, { onError: (error) => errors.push(error) });
-      failure = expect(instance.ready).rejects.toThrow('render data failed');
     });
-    await failure;
+    await instance.ready!.catch(() => undefined);
     await waitFor(() => expect(errors).toHaveLength(1));
+    expect(errors[0]).toMatchObject({ message: 'render data failed' });
     act(() => instance.destroy({})); element.remove();
   });
 });

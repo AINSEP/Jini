@@ -367,7 +367,7 @@ test("AW-7 Tier 1: a tier-1 manifest whose code-surface lists are malformed repo
 });
 
 test('chart browser providers declare open kinds and digest-covered relative client assets', () => {
-  const browserProviders = [{ id: 'plugin.recharts', kind: 'chart', contractVersion: 1 as const, kinds: ['bar', 'calendar'], javascript: 'client/provider.js', stylesheet: 'client/styles.css' }];
+  const browserProviders = [{ id: 'plugin.recharts', kind: 'chart' as const, contractVersion: 1 as const, kinds: ['bar', 'calendar'], javascript: 'client/provider.js', stylesheet: 'client/styles.css' }];
   const integrity = { 'client/provider.js': `sha256-${'ab'.repeat(32)}`, 'client/styles.css': `sha256-${'cd'.repeat(32)}` };
   assert.deepEqual(validateManifest(required(validManifest({ browserProviders, integrity }))).errors, []);
   for (const javascript of ['../provider.js', '/provider.js', 'client/../provider.js', 'client\\provider.js', 'https://example.com/provider.js']) {

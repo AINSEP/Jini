@@ -67,7 +67,10 @@ export function mount(
     update(next, _options = {}) { return render(next); },
     destroy(_input = {}, _options = {}) {
       if (destroyed) return;
-      destroyed = true; pending?.resolve(); pending = undefined; root.unmount(); element.replaceChildren();
+      destroyed = true; pending?.resolve(); pending = undefined;
+      // unmount() removes React's own nodes. Clearing them here as well races React when the host
+      // destroys from inside its own commit (unmount is deferred) and throws NotFoundError.
+      root.unmount();
     },
   };
 }

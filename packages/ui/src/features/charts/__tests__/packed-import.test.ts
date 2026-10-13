@@ -64,4 +64,5 @@ it('imports headless and React UI exports without Recharts or the private artifa
     const result = await execute(process.execPath, ['--experimental-loader', './deny-loader.mjs', './probe.mjs'], { cwd: consumer });
     expect(result.stdout).toBe('chart imports ok');
   } finally { await rm(consumer, { recursive: true, force: true }); }
-});
+  // Copies the full dist tree and spawns two Node processes; 5s default is too tight.
+}, 60_000);
