@@ -351,9 +351,6 @@ importers:
       recharts:
         specifier: ^3.10.1
         version: 3.10.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react-is@17.0.2)(react@19.2.7)(redux@5.0.1)
-      zod:
-        specifier: ^3.25.76
-        version: 3.25.76
     devDependencies:
       '@jini-ai/ui':
         specifier: workspace:^
@@ -370,6 +367,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.0
         version: 19.2.3(@types/react@19.2.17)
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1
@@ -470,9 +470,6 @@ importers:
       react-dom:
         specifier: ^19.2.0
         version: 19.2.7(react@19.2.7)
-      recharts:
-        specifier: ^3.10.1
-        version: 3.10.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react-is@17.0.2)(react@19.2.7)(redux@5.0.1)
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -1126,9 +1123,6 @@ importers:
       react-dom:
         specifier: ^19.2.0
         version: 19.2.7(react@19.2.7)
-      recharts:
-        specifier: ^3.10.1
-        version: 3.10.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react-is@17.0.2)(react@19.2.7)(redux@5.0.1)
       shiki:
         specifier: ^1.24.4
         version: 1.29.2
