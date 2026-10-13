@@ -281,13 +281,17 @@ function resolveAgentRuntimeDeps(options: CreateAgentExecutorOptions): ResolvedA
   return {
     getAgentDef: (input) => {
       const def = lookupDef(input);
-      return def && options.runtimeState ? bindRuntimeAgentDef({ def, state: options.runtimeState }) : def;
+      // Without owned state, only an enabled plugin policy needs binding; otherwise keep the published definition.
+      if (!def || (!options.runtimeState && !options.codexDisablePlugins)) return def;
+      return bindRuntimeAgentDef({ def, state: options.runtimeState ?? defaultRuntimeState }, options.codexDisablePlugins ? { codexDisablePlugins: true } : {});
     },
     resolveAgentLaunch: options.resolveAgentLaunch ?? ((input, optional = {}) => resolveAgentLaunch(input, { ...optional, ...runtimeOptions, ...envOptions })),
     ensureAgentCapabilities: options.ensureAgentCapabilities ?? ((input) => ensureAgentCapabilities(input, runtimeOptions)),
     applyAgentLaunchEnv: options.applyAgentLaunchEnv ?? ((input, optional = {}) => applyAgentLaunchEnv(input, { appendPathDirs: userToolchainBinDirs({}, { ...runtimeOptions, ...envOptions }), ...optional })),
     attachAcpSession: options.attachAcpSession ?? attachAcpSession,
-    attachPiRpcSession: options.attachPiRpcSession ?? attachPiRpcSession,
+    attachPiRpcSession: (required, optional = {}) => (options.attachPiRpcSession ?? attachPiRpcSession)(required, {
+      ...optional, ...(options.piGracefulShutdownMs !== undefined ? { gracefulShutdownMs: options.piGracefulShutdownMs } : {}),
+    }),
     preparePromptFileForAgent: options.preparePromptFileForAgent ?? preparePromptFileForAgent,
     prepareAgentLogFile: options.prepareAgentLogFile ?? prepareAgentLogFile,
   };
@@ -857,8 +861,13 @@ export async function confirmChildSpawned({ input, deps }: { readonly input: { r
  * @complexity `run()`'s own setup is O(1); steady-state cost is the chosen stream parser's.
  * @overallScore 100/100
  */
-export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "hostEnv" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
-  const options: CreateAgentExecutorOptions = { ...requiredArgs, ...optionalArgs };
+export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "codexDisablePlugins" | "piGracefulShutdownMs" | "hostEnv" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
+  // This native composition boundary resolves ambient defaults once, before allowlisting child env.
+  const env = optionalArgs.hostEnv ?? process.env;
+  const options: CreateAgentExecutorOptions = { ...requiredArgs, ...optionalArgs,
+    codexDisablePlugins: optionalArgs.codexDisablePlugins ?? (env.CODEX_DISABLE_PLUGINS === '1'),
+    piGracefulShutdownMs: optionalArgs.piGracefulShutdownMs ?? (Number(env.PI_GRACEFUL_SHUTDOWN_MS) || 5000),
+  };
   const lifecycle = options.lifecycle;
   const hostEnv = selectAgentExecutorHostEnv({ env: options.hostEnv ?? process.env }, options.runtimeState ? { runtimeState: options.runtimeState } : {});
   const {

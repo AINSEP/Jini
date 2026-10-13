@@ -1,3 +1,7 @@
+## 0.6.3 — 2026-10-13
+
+- `createAgentExecutor` accepts `codexDisablePlugins` and `piGracefulShutdownMs`; absent, they resolve once from `hostEnv` (`CODEX_DISABLE_PLUGINS`, `PI_GRACEFUL_SHUTDOWN_MS`). Peer `@jini-ai/agent-runtime` floor is now `^0.4.7`.
+
 ## 0.6.2 — 2026-10-13
 
 - Agent executor and host tools import `@jini-ai/platform/command` and `/process` instead of the platform root; peer `@jini-ai/platform` floor is now `^0.5.5`. No behavior change.

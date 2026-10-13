@@ -587,6 +587,10 @@ export interface CreateAgentExecutorOptions {
   /** Host environment snapshot; baseline spawn keys and source config paths are allowlisted. */
   readonly hostEnv?: NodeJS.ProcessEnv;
   readonly runtimeState?: AgentRuntimeState;
+  /** Host policy; native executor composition resolves its env default when absent. */
+  readonly codexDisablePlugins?: boolean;
+  /** Post-completion pi RPC grace period, resolved once at native composition. */
+  readonly piGracefulShutdownMs?: number;
   readonly lifecycle: RunLifecycle;
   /** Resolves/pins the concrete starting model against the actual launch scope. */
   readonly resolveModelForLaunch?: typeof resolveModelForLaunch;
