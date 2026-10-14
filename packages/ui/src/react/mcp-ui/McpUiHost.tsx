@@ -8,8 +8,15 @@
  *
  * Thin on purpose, same as before — every protocol decision lives in `useMcpUiHost.ts`, so a
  * consumer needing different chrome writes that chrome against the hook rather than forking this.
+ *
+ * It also themes the View: the host's live `--jini-*` theme is written into a Jini-built surface
+ * document before it is handed over (`surfaces/host-theme.ts`), and a theme change starts a fresh
+ * session with the re-themed document — the same remount any changed document gets.
  */
 import { AppRenderer } from '@mcp-ui/client';
+import { useRef } from 'react';
+import { applyHostSurfaceTokens } from '../../features/mcp-ui/surfaces/host-theme.js';
+import { useHostSurfaceTokens } from './useHostSurfaceTokens.js';
 import { useMcpUiHost, type McpUiHostOptions } from './useMcpUiHost.js';
 
 export interface McpUiHostProps extends McpUiHostOptions {
@@ -34,28 +41,35 @@ const DEFAULT_MAX_HEIGHT = 720;
  */
 export function McpUiHost(props: McpUiHostProps) {
   const { title, className, initialHeight = DEFAULT_INITIAL_HEIGHT, autoResize = true, maxHeight = DEFAULT_MAX_HEIGHT } = props;
-  const host = useMcpUiHost(props);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const hostTokens = useHostSurfaceTokens(wrapperRef);
+  const html = hostTokens === undefined ? props.html : applyHostSurfaceTokens(props.html, hostTokens);
+  // Only a document the theme actually changed takes the theme into its key, so a third-party View
+  // (left untouched) never remounts when the host's theme moves.
+  const sessionKey = `${String(props.sessionKey ?? props.html)}${html === props.html ? '' : JSON.stringify(hostTokens)}`;
+  const host = useMcpUiHost({ ...props, html, sessionKey });
 
   const reported = host.size?.height;
   const height = autoResize && reported !== undefined ? Math.min(Math.max(reported, 1), maxHeight) : initialHeight;
 
   return (
     <div
+      ref={wrapperRef}
       className={className}
       data-mcpui-host=""
       data-mcpui-state={host.state}
       aria-label={title}
       style={{ display: 'block', width: '100%', height }}
     >
-      <AppRenderer
+      {hostTokens !== undefined && <AppRenderer
         // Keyed by the session so replacing the document remounts `AppRenderer` — a fresh
         // `AppBridge`, a fresh sandbox iframe, a fresh handshake. `AppRenderer` itself provides no
         // "replace the document in place" mode; remount via `key` is the supported way to start a
         // new session, per `@mcp-ui/client`'s own docs.
-        key={String(props.sessionKey ?? props.html)}
+        key={sessionKey}
         ref={host.rendererRef}
         {...host.rendererProps}
-      />
+      />}
     </div>
   );
 }

@@ -32,6 +32,11 @@ describe('renderTokenBlock', () => {
     expect(reskinned).toContain('--jini-mcpui-accent-hover: color-mix(in srgb, var(--jini-mcpui-accent) 88%, var(--jini-mcpui-text));');
   });
 
+  it('declares overrides in a :root:root rule, so they outrank the host theme rule host-theme.ts appends', () => {
+    expect(renderTokenBlock({ '--jini-mcpui-accent': '#0055ff' })).toMatch(/\n:root:root \{\n {2}--jini-mcpui-accent: #0055ff;\n\}$/);
+    expect(block).not.toContain(':root:root');
+  });
+
   it('loads no external font — a sandboxed frame has no network to fetch one over', () => {
     expect(block).not.toContain('@import');
     expect(block).not.toContain('http');

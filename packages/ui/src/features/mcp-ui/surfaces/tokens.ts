@@ -20,7 +20,8 @@ import { defaultAdminTheme } from '../../../core/theme/default.js';
  * because all four resolve through it.
  *
  * The sandbox cannot inherit the host's CSS. These names are a document adapter of
- * defaultAdminTheme; hosts forward their active values through the existing overrides port.
+ * defaultAdminTheme; the React host forwards the active theme into every surface it mounts
+ * (`host-theme.ts`), and a builder's `tokens` overrides outrank that.
  *
  * ## Dark mode
  *
@@ -34,6 +35,7 @@ import { defaultAdminTheme } from '../../../core/theme/default.js';
  *
  * Currently moot: {@link FORCE_LIGHT_SURFACE_THEME} suppresses the dark block entirely, because
  * `prefers-color-scheme` reads the OS/browser, not any real app theme — see that constant's own doc.
+ * The host's live theme, dark or light, arrives through `host-theme.ts` instead.
  */
 
 /**
@@ -55,6 +57,8 @@ export const SURFACE_TOKENS = {
   '--jini-mcpui-text-faint': defaultAdminTheme.light.muted,
   '--jini-mcpui-accent': defaultAdminTheme.light.primary,
   '--jini-mcpui-accent-strong': defaultAdminTheme.light.primary,
+  // Text on an accent fill — the host's primary ink, so a card's primary button reads like the host's own.
+  '--jini-mcpui-accent-ink': defaultAdminTheme.light.primaryInk,
   // Desaturated and earthy, in the same family as the accent rather than a saturated pure red — a
   // destructive action should read as serious, not as an alarm the eye learns to discount.
   '--jini-mcpui-danger': defaultAdminTheme.light.danger,
@@ -92,6 +96,7 @@ export const SURFACE_TOKENS_DARK: Record<SurfaceTokenName, string> = {
   '--jini-mcpui-text-faint': defaultAdminTheme.dark.muted,
   '--jini-mcpui-accent': defaultAdminTheme.dark.primary,
   '--jini-mcpui-accent-strong': defaultAdminTheme.dark.primary,
+  '--jini-mcpui-accent-ink': defaultAdminTheme.dark.primaryInk,
   '--jini-mcpui-danger': defaultAdminTheme.dark.danger,
   '--jini-mcpui-radius-xs': SURFACE_TOKENS['--jini-mcpui-radius-xs'],
   '--jini-mcpui-radius-sm': SURFACE_TOKENS['--jini-mcpui-radius-sm'],
@@ -133,12 +138,11 @@ const DARK_SURFACE_SHADOW = '0 1px 2px color-mix(in srgb, var(--jini-mcpui-bg) 3
  * Whether every generated surface is pinned to the light palette regardless of the embedding
  * browser/OS's `prefers-color-scheme`.
  *
- * True by default because without an explicit app-level theme signal, a
- * surface that honors the OS preference doesn't track any actual app theme — it tracks whatever the
- * operator's OS happens to be set to, which produces a dark card floating in an always-light admin
- * UI. Flip this to `false` once the host product has a real app-level theme signal to forward in;
- * nothing else about
- * {@link renderTokenBlock} needs to change.
+ * True by default because `prefers-color-scheme` reads the operator's OS, not any app theme, and a
+ * surface that honored it produced a dark card floating in an always-light admin UI. The real app
+ * theme reaches a surface another way: the React host writes the host's resolved `--jini-*` values
+ * into the document at render time (`host-theme.ts`), so a host rendering in dark gets a dark card
+ * through that rule, and this pin only decides what a surface shows with no host theme at all.
  */
 export const FORCE_LIGHT_SURFACE_THEME = true;
 
@@ -152,24 +156,29 @@ export const FORCE_LIGHT_SURFACE_THEME = true;
  * verbatim — a caller passing a token value is trusted the same way it is trusted with the surface's
  * own body HTML. A caller wanting scheme-specific values is not served by this parameter; it exists
  * for a host's brand tokens, which by design apply the same way regardless of scheme.
- * @returns A `:root { … }` block, followed by a `@media (prefers-color-scheme: dark) { :root { … } }`
- * block unless {@link FORCE_LIGHT_SURFACE_THEME} suppresses it, ready to paste into the first
+ * @returns A `:root { … }` block, then a `:root:root { … }` block holding the overrides (when any),
+ * followed by a `@media (prefers-color-scheme: dark) { :root { … } }` block unless {@link FORCE_LIGHT_SURFACE_THEME} suppresses it, ready to paste into the first
  * `<style>` tag.
  * @complexity O(n) in the number of tokens.
  */
 export function renderTokenBlock(overrides: Partial<Record<SurfaceTokenName, string>> = {}): string {
   const declare = (entries: readonly (readonly [string, string])[]): string =>
     entries.map(([name, value]) => `  ${name}: ${value};`).join('\n');
+  const notOverridden = ([name]: readonly [string, string]): boolean => !(name in overrides);
 
   const light = declare([
-    ...Object.entries({ ...SURFACE_TOKENS, ...overrides }),
+    ...Object.entries(SURFACE_TOKENS).filter(notOverridden),
     ...Object.entries(DERIVED_TOKENS),
   ]);
-  const lightBlock = `:root {\n${light}\n}`;
+  // Overrides get their own, more specific rule so they outrank the host theme's plain `:root` rule
+  // (`host-theme.ts`) in both schemes: a card that chose its own colors keeps them.
+  const overrideEntries = Object.entries(overrides);
+  const overrideBlock = overrideEntries.length === 0 ? '' : `\n:root:root {\n${declare(overrideEntries)}\n}`;
+  const lightBlock = `:root {\n${light}\n}${overrideBlock}`;
   if (FORCE_LIGHT_SURFACE_THEME) return lightBlock;
 
   const dark = declare([
-    ...Object.entries({ ...SURFACE_TOKENS_DARK, ...overrides }),
+    ...Object.entries(SURFACE_TOKENS_DARK).filter(notOverridden),
     ['--jini-mcpui-surface-shadow', DARK_SURFACE_SHADOW],
   ]);
 

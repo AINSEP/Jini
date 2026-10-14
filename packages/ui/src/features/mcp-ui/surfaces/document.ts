@@ -148,7 +148,7 @@ body {
 .mcpui-button-primary {
   background: var(--jini-mcpui-accent);
   border-color: var(--jini-mcpui-accent);
-  color: var(--jini-mcpui-panel);
+  color: var(--jini-mcpui-accent-ink);
 }
 .mcpui-button-primary:hover:not([disabled]) { background: var(--jini-mcpui-accent-hover); border-color: var(--jini-mcpui-accent-hover); }
 .mcpui-button-danger {

@@ -11,8 +11,8 @@
  * `AppRenderer` would call, directly — see that file's own header for why that is still a genuine
  * exercise of this package's own adapter code, not a stub.
  */
-import { render, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { act, render, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { McpUiHost } from '../McpUiHost.js';
 
 const SANDBOX_URL = new URL('https://sandbox.example.test/sandbox_proxy.html');
@@ -77,5 +77,47 @@ describe('McpUiHost', () => {
 
     rerender(<McpUiHost title="A view" html="<p>changed</p>" sandboxProxyUrl={SANDBOX_URL} />);
     await waitFor(() => expect(container.querySelector('iframe')).not.toBe(firstIframe));
+  });
+
+  describe('host theme', () => {
+    const SURFACE = '<style>:root { --jini-mcpui-accent: #363636; }</style><p>card</p>';
+    let primary = '#a85a38';
+    afterEach(() => {
+      vi.restoreAllMocks();
+      document.documentElement.removeAttribute('style');
+    });
+    const stubHostTheme = () => {
+      const real = window.getComputedStyle.bind(window);
+      vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
+        const computed = real(element);
+        return { ...computed, getPropertyValue: (name: string) => (name === '--jini-primary' ? primary : computed.getPropertyValue(name)) } as CSSStyleDeclaration;
+      });
+    };
+
+    it("re-mounts a Jini surface with the host's new theme when the host switches it", async () => {
+      stubHostTheme();
+      const { container } = render(<McpUiHost title="A view" html={SURFACE} sandboxProxyUrl={SANDBOX_URL} sessionKey="s" />);
+      await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull());
+      const firstIframe = container.querySelector('iframe')!;
+
+      primary = '#0055ff';
+      await act(async () => {
+        document.documentElement.style.setProperty('--jini-theme-light-primary', primary);
+      });
+      await waitFor(() => expect(container.querySelector('iframe')).not.toBe(firstIframe));
+    });
+
+    it('leaves a third-party View mounted when the host theme changes, since its document is not rewritten', async () => {
+      stubHostTheme();
+      const { container } = render(<McpUiHost title="A view" html="<p>third party</p>" sandboxProxyUrl={SANDBOX_URL} />);
+      await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull());
+      const firstIframe = container.querySelector('iframe')!;
+
+      primary = '#00aa88';
+      await act(async () => {
+        document.documentElement.style.setProperty('--jini-theme-light-primary', primary);
+      });
+      expect(container.querySelector('iframe')).toBe(firstIframe);
+    });
   });
 });
