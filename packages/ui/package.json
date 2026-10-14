@@ -26,6 +26,7 @@
       "./interactive-ui/manifests": "universal",
       "./a2ui": "browser",
       "./renderers": "browser",
+      "./preview-modal-shell": "browser",
       "./interactive-ui.css": "browser",
       "./settings-dialog.css": "browser",
       "./tabbed-dialog.css": "browser",
@@ -45,7 +46,8 @@
     "isolation": {
       "entries": {
         "./fetch-query": "panel-kit",
-        "./fetch-query/tanstack": "panel-kit"
+        "./fetch-query/tanstack": "panel-kit",
+        "./preview-modal-shell": "renderers"
       },
       "shared": [
         "src/features/charts",
@@ -129,6 +131,11 @@
       "types": "./dist/renderers/index.d.ts",
       "import": "./dist/renderers/index.js",
       "default": "./dist/renderers/index.js"
+    },
+    "./preview-modal-shell": {
+      "types": "./dist/renderers/preview-modal-shell/index.d.ts",
+      "import": "./dist/renderers/preview-modal-shell/index.js",
+      "default": "./dist/renderers/preview-modal-shell/index.js"
     },
     "./interactive-ui.css": "./dist/features/interactive-ui/interactive-ui.css",
     "./settings-dialog.css": "./dist/features/settings/dialog/styles/settings-dialog.css",

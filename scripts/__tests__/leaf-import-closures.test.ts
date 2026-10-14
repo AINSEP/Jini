@@ -1,4 +1,4 @@
-/** Regression fences: HTML-viewer leaf imports, native-kit assembly cycles, universal SEO/i18n closures. */
+/** Regression fences: HTML-viewer and preview-modal-shell leaf imports, native-kit assembly cycles, universal SEO/i18n closures. */
 import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -37,6 +37,14 @@ describe('HTML viewer leaf imports', () => {
     expect(files).toContain('packages/ui/src/renderers/new-tab-preview.ts');
     expect(files).toContain('packages/ui/src/renderers/sandbox-bridge.ts');
     expect(files.filter(file => /renderers\/(?:index\.|.*(?:[Mm]arkdown|srcdoc))/.test(file))).toEqual([]);
+  });
+});
+
+describe('preview-modal-shell entry', () => {
+  it('cannot reach the renderer barrel, Markdown renderers or artifact views', () => {
+    const { files } = sourceClosure('packages/ui/src/renderers/preview-modal-shell/index.ts');
+    expect(files).toContain('packages/ui/src/renderers/preview-modal-shell/react/components/PreviewModalShell.tsx');
+    expect(files.filter(file => /renderers\/(?:index\.|.*[Mm]arkdown|.*ArtifactView|.*annotation-canvas)/.test(file))).toEqual([]);
   });
 });
 

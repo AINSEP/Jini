@@ -89,6 +89,10 @@ package's own React layer. See the chat-core/chat-react split discussion in
   i18n/observability/utils porting task (2026-07-16); see
   the archived provenance ledger.
 
+`PreviewModalShell` has its own entry, `@jini-ai/ui/preview-modal-shell`, so a modal does not load
+the whole `./renderers` barrel (Markdown, artifact views, annotation canvas). It still includes its
+sandboxed HTML renderer and parser. Framework-free execution/provider rules come from `./core`.
+
 ## `./core` — the framework-free half, importable without React
 
 **`@jini-ai/ui/core` is not a separate concern, just a separate entry point.** It re-exports
