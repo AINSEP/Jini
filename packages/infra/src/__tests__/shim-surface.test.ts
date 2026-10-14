@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
-import * as core from "../db/core/index.js";
+import * as core from "../db/driver/index.js";
 import * as sqlite from "../db/sqlite/index.js";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -11,7 +11,7 @@ const CORE_NAMES = ["DbOpsPort", "RestoreCapability", "RestoreCostClass", "Resto
 const SQLITE_NAMES = ["DEFAULT_PRAGMAS", "OpenSqliteConnectionOptions", "SqliteBackupSource", "SqliteDbOpsAdapter", "SqliteDbOpsAdapterDeps", "SqliteRecoveryHook", "openSqliteConnection"];
 
 function exportedNames(subpath: string): string[] {
-  const path = `${root}src/db/${subpath}/index.ts`;
+  const path = `${root}src/db/${subpath === "core" ? "driver" : subpath}/index.ts`;
   const program = ts.createProgram([path], { module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext });
   const checker = program.getTypeChecker();
   const source = program.getSourceFile(path)!;

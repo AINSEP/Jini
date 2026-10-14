@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { restorePointFilename, sanitizeForFilename } from '../db/core/index.js';
+import { restorePointFilename, sanitizeForFilename } from '../db/driver/index.js';
 import { DEFAULT_PRAGMAS, openSqliteConnection } from '../db/sqlite/index.js';
 
 // Pending acceptance contracts for the authoritative database package's next conversion.

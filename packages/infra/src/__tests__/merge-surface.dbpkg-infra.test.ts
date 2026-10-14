@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import * as events from '../events/index.js';
 import * as outbox from '../events/outbox/index.js';
-import * as shimCore from '../db/core/index.js';
+import * as shimCore from '../db/driver/index.js';
 
 test('the new events barrel exposes the same outbox implementations', () => {
   expect(Object.keys(events).sort()).toEqual(Object.keys(outbox).sort());

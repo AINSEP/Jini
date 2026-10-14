@@ -34,9 +34,9 @@ consumer uses `SqliteDbOpsAdapter`. The injected opener returns the host's own d
 custom pragmas still replace the defaults. See `packages/db/README.md` for the complete subpath map,
 load-time requirements and isolation tests.
 
-`src/db/core` remains an R12 neutral entry. Its explicit re-exports preserve the old surface rather
-than exposing db's new shared constants. `shim-surface.test.ts` freezes both original name lists,
-including type-only exports.
+`src/db/core` remains an R12 neutral directory declaring the naming port. The published `./db/core`
+compatibility entry binds that port in `src/db/driver` and preserves the canonical helper identities
+and original exports, including erased types. `shim-surface.test.ts` freezes both original name lists.
 
 ## Design decisions
 

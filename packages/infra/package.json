@@ -27,8 +27,8 @@
     },
     "./db/core": {
       "import": {
-        "types": "./dist/db/core/index.d.ts",
-        "default": "./dist/db/core/index.js"
+        "types": "./dist/db/driver/index.d.ts",
+        "default": "./dist/db/driver/index.js"
       }
     },
     "./db/sqlite": {
@@ -44,7 +44,7 @@
         "./dist/events/outbox/index.d.ts"
       ],
       "db/core": [
-        "./dist/db/core/index.d.ts"
+        "./dist/db/driver/index.d.ts"
       ],
       "db/sqlite": [
         "./dist/db/sqlite/index.d.ts"

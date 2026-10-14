@@ -24,13 +24,11 @@ import { createHash } from 'node:crypto';
 import { lookup as dnsLookupCb } from 'node:dns';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { isIP, type LookupFunction } from 'node:net';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import type { Agent, Dispatcher } from 'undici';
+import { createUndiciAssetCacheDispatcher } from './asset-cache.adapter.js';
 import { isPrivateAddress } from './net/address.js';
-
-const require = createRequire(import.meta.url);
 
 /** Media extensions we are willing to cache + proxy. Anything else (HTML,
  *  CSS, JS, fonts) is intentionally left alone so this surface never becomes a
@@ -182,9 +180,8 @@ export interface AssetCache {
  */
 export function createAssetCacheDispatcher(_required: Record<string, never>, { lookupImpl }: { lookupImpl?: DnsLookupCb } = {}): Agent {
   // Keep the factory synchronous while root imports and host-supplied dispatchers need no undici.
-  let undici: typeof import('undici');
   try {
-    undici = require('undici') as typeof import('undici');
+    return createUndiciAssetCacheDispatcher({ lookup: createValidatingLookup(lookupImpl) as unknown as LookupFunction });
   } catch (error) {
     if (error instanceof Error && (error as NodeJS.ErrnoException).code === 'MODULE_NOT_FOUND'
       && error.message.split('\n')[0] === "Cannot find module 'undici'") {
@@ -192,7 +189,6 @@ export function createAssetCacheDispatcher(_required: Record<string, never>, { l
     }
     throw error;
   }
-  return new undici.Agent({ connect: { lookup: createValidatingLookup(lookupImpl) as unknown as LookupFunction } });
 }
 
 /** Build a disk-backed cache for external sandboxed-content media. Concurrent
