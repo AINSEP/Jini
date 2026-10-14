@@ -29,7 +29,7 @@ export {
   rechartsBarChartManifest, rechartsBarChartPropsSchema,
   rechartsLineChartManifest, rechartsLineChartPropsSchema,
   rechartsPieChartManifest, rechartsPieChartPropsSchema,
-} from '../../shared/interactive-charts/charts/wire.js';
+} from '../charts/wire.js';
 
 import type { ComponentType } from 'react';
 import { InteractiveUiRegistry, type InteractiveComponentEntry } from './registry.js';
@@ -50,9 +50,9 @@ import {
   shadcnCardManifest,
   ContentCard,
 } from './providers/shadcn/index.js';
-import { createChartProviderRegistry } from '../../shared/interactive-charts/charts/registry.js';
-import { createChartInteractiveRegistry } from '../../shared/interactive-charts/charts/react.js';
-import { chartWireManifests } from '../../shared/interactive-charts/charts/wire.js';
+import { createChartProviderRegistry } from '../charts/registry.js';
+import { createChartInteractiveRegistry } from '../charts/react.js';
+import { chartWireManifests } from '../charts/wire.js';
 
 /**
  * Every provider currently registered, shadcn preferred over the dependency-free native fallback

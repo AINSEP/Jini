@@ -48,7 +48,9 @@
         "./fetch-query/tanstack": "panel-kit"
       },
       "shared": [
-        "src/shared/interactive-charts",
+        "src/features/charts",
+        "src/features/interactive-ui/registry.ts",
+        "src/features/interactive-ui/table-data.ts",
         "src/theme/default.ts",
         "src/theme/stylesheet.ts",
         "src/theme/validation.ts",
