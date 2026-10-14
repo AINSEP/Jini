@@ -44,7 +44,7 @@ import { KEYS, describeTrashError, formDatesLines, formsListError, newestUpdated
  *
  * the scoped formsEvents subscription (staleness-bug generalization pass, see that hook's own header):
  * `forms_create_definition`/`forms_update_definition`/`forms_set_definition_status`
- * (`apps/website/src/features/forms/agent-tools.ts`) are agent-callable, so this list re-invalidates
+ * (the host's forms agent tools) are agent-callable, so this list re-invalidates
  * `KEYS.list` on an out-of-band content-refresh notification the same way `use-taxonomy.hooks.ts`
  * does for its own resource.
  */

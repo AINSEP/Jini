@@ -46,7 +46,7 @@ export interface FieldSettings {
 }
 
 const NO_SETTINGS: FieldSettings = { placeholder: false, helpText: true, length: false, pattern: false, bounds: null, step: false, options: false, multiple: false, defaultKind: null, upload: false };
-const BOUNDS = new Set<string>(["number", "range", "date", "time", "datetime-local"]);
+const BOUNDS: ReadonlySet<string> = new Set(["number", "range", "date", "time", "datetime-local"]);
 
 /** The default value a control can carry, read from its registry kind. */
 function defaultKindOf(kind: RegistryKind): FieldDefaultKind | null {
@@ -166,10 +166,8 @@ export function retypeField({ field, type }: { field: AdminFormField; type: Admi
 // Settings dialog draft
 // ---------------------------------------------------------------------------
 
+/** Local React keys for option rows; identity is scoped to the editor's own row list. */
 export interface OptionRow { _rowId: number; value: string; label: string }
-
-/** Local React keys for option rows; same module-counter pattern as `rules.ts`'s attribute rows. */
-let nextOptionRowId = 0;
 
 /** String draft of every builder setting; numbers stay text until Save. */
 export interface FieldSettingsForm {
@@ -201,7 +199,7 @@ export function settingsFormFromField({ field }: { field: AdminFormField }, _opt
     defaultChoices: Array.isArray(defaults) ? [...defaults] : typeof defaults === "string" && fieldSettingsFor({ type: field.type }).options ? [defaults] : [],
     minLength: text(field.minLength), maxLength: text(field.maxLength), pattern: text(field.pattern),
     min: text(field.min), max: text(field.max), step: text(field.step),
-    options: (field.options ?? []).map((option) => ({ _rowId: nextOptionRowId++, value: option.value, label: option.label })),
+    options: (field.options ?? []).map((option, index) => ({ _rowId: index, value: option.value, label: option.label })),
     accept: [...(field.accept ?? [])],
     maxFileSizeMb: field.maxFileSize === undefined ? "" : String(Math.round((field.maxFileSize / 1024 / 1024) * 100) / 100),
   };
@@ -222,7 +220,9 @@ export function updateOptionRow({ rows, rowId, patch }: { rows: OptionRow[]; row
 
 /** @complexity O(o). */
 export function addOptionRow({ rows }: { rows: OptionRow[] }, _optional: Record<string, never> = {}): OptionRow[] {
-  return [...rows, { _rowId: nextOptionRowId++, value: "", label: "" }];
+  // Use the highest current key so deleting or reordering rows cannot create a duplicate.
+  const rowId = rows.reduce((max, row) => Math.max(max, row._rowId), -1) + 1;
+  return [...rows, { _rowId: rowId, value: "", label: "" }];
 }
 
 /** @complexity O(o). */

@@ -34,8 +34,8 @@ import { FIELD_TYPE_REGISTRY, type FieldType } from "@jini-ai/cms/forms";
 /**
  * This screen's name on `lib/content-refresh-bus.ts` — see `taxonomy/rules.ts`'s `TAXONOMY_RESOURCE`
  * for why this is a plain colocated constant rather than a shared registry. `forms_create_definition`/
- * `forms_update_definition`/`forms_set_definition_status` (`apps/website/src/features/forms/agent-
- * tools.ts`) are agent-callable, so `FormsList.tsx` needs the same "an assistant write shows up
+ * `forms_update_definition`/`forms_set_definition_status` (the host's forms agent tools)
+ * are agent-callable, so `FormsList.tsx` needs the same "an assistant write shows up
  * without a reload" fix `use-taxonomy.hooks.ts` shipped first.
  */
 export const FORMS_LIST_RESOURCE = "forms";
