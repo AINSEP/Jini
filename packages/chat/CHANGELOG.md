@@ -1,3 +1,9 @@
+## 0.6.2 — 2026-10-13
+
+- A lone composer send button stays at the footer's end (b1d7a7b7): a host with no attach or accessory controls (a public visitor chat) left the send group as the footer's only child, so `space-between` put it at the bottom-left; `margin-left: auto` on a first-child send group keeps it on the right, as in the admin composer.
+- Rides along (094de0bb): the assistant transport declares the minimal per-turn execution input it reads instead of importing `@jini-ai/ui`'s `ExecutionConfig`; `CHAT_BUBBLE_STYLE` moves to `src/contracts` (the lazy loader re-exports it); the React barrel exports `UserTextRedaction`; history-tools types its risk map as a `ReadonlyMap`.
+- Comment scrubs and two refreshed tests, no behavior change (8e508fb6, fb28c5a4).
+
 ## 0.6.1 — 2026-10-13
 
 - Owned renderer registries: `createToolRendererRegistry` / `createExtEventRendererRegistry`, optional `JiniChatProvider` props `toolRendererRegistry` / `extEventRendererRegistry`, and `registerMcpUiSurfaceRenderer({ registry })`. The global register/get/clear functions keep working against a compatibility default. A stale unregister handle no longer removes a replacement registered with the same callback.
