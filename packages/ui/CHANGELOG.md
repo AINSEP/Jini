@@ -1,5 +1,10 @@
 # @jini-ai/ui
 
+## 0.5.2 — 2026-10-13
+
+- MCP-UI surfaces follow the host's live theme (da019dde): `McpUiHost` reads the host's resolved `--jini-*` theme where a card mounts and writes it into Jini-built surface documents as a `:root` rule after the token block; a MutationObserver re-themes cards already on screen when the theme or accent changes. Third-party Views are not rewritten. Builder token overrides render as `:root:root`, so a card that sets its own tokens keeps them. New `--jini-mcpui-accent-ink` token (host `--jini-primary-ink`) for primary button text.
+- Rides along, no API change: interactive-ui/charts shared code declared as isolation-shared metadata instead of a file move (28e84348 moved it, bc2945ee reverted the move); html-editor lookup sets are `ReadonlySet` (27965ef0); comment scrubs (8e508fb6).
+
 ## 0.5.1 — 2026-10-13
 
 - Phone layout fixes. Media provider cards put one field per line on phones and keep the fields plus Clear on one row on wider screens (was a three-column grid that squeezed inputs to a few characters). The snippet block's Copy button no longer covers the command: phones start the code below it, wider screens reserve its width. `TabBar` scrolls a sideways-scrolling strip so the active tab is fully visible (only the strip scrolls, never the page).
