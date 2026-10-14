@@ -864,6 +864,9 @@ export const CHAT_PANE_STYLES = `
   flex-shrink: 0;
   gap: 6px;
 }
+/* A footer with no attach/accessory controls before the send group (a public visitor chat) would
+   leave the lone send button at the start under the footer's space-between; keep it at the end. */
+.jini-chat-pane .jini-composer-send-group:first-child { margin-left: auto; }
 .jini-chat-pane .jini-composer-send {
   display: grid;
   place-items: center;
