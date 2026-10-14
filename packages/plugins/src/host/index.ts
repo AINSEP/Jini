@@ -1,5 +1,6 @@
 /** Universal manifest, claims, activation and hook composition; never imports or evaluates a module. */
 export * from './ports.js';
+export * from './plugin-format.js';
 export * from './errors.js';
 export * from './manifest.js';
 export * from './discovery-types.js';

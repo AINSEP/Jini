@@ -1,3 +1,4 @@
+import { PLUGIN_MANIFEST_FILENAME } from '../../plugin-format.js';
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
@@ -22,7 +23,7 @@ function installed(t: TestContext) {
   t.after(() => rmSync(tmp, { recursive: true, force: true }));
   const pluginRoot = path.join(tmp, "plugins", "installed", "acme");
   mkdirSync(path.join(pluginRoot, "server"), { recursive: true });
-  writeFileSync(path.join(pluginRoot, "tovu.plugin.json"), "{}");
+  writeFileSync(path.join(pluginRoot, PLUGIN_MANIFEST_FILENAME), "{}");
   writeFileSync(path.join(pluginRoot, "server", "index.mjs"), ENTRY);
   const manifest = (integrity: Record<string, string>) => ({ integrity }) as unknown as PluginManifest;
   return { tmp, pluginRoot, runtimeRoot: path.join(tmp, "plugins-runtime"), manifest };

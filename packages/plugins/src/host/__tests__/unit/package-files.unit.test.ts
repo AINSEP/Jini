@@ -1,3 +1,4 @@
+import { PLUGIN_MANIFEST_FILENAME } from '../../plugin-format.js';
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -47,7 +48,7 @@ test("lists breadth-first in name order: every top-level file before any nested 
   const root = await tempRoot(t);
   const pkg = path.join(root, "pkg");
   await writeTree(pkg, {
-    "tovu.plugin.json": "{}",
+    [PLUGIN_MANIFEST_FILENAME]: "{}",
     "a-dir/deep/z.md": "deep",
     "a-dir/b.md": "b",
     "README.md": "readme",
@@ -57,7 +58,7 @@ test("lists breadth-first in name order: every top-level file before any nested 
 
   assert.deepEqual(
     result.files.map((file) => file.relativePath),
-    ["README.md", "tovu.plugin.json", "a-dir/b.md", "a-dir/deep/z.md"]
+    ["README.md", PLUGIN_MANIFEST_FILENAME, "a-dir/b.md", "a-dir/deep/z.md"]
   );
   assert.deepEqual(result.files[0], { relativePath: "README.md", sizeBytes: 6, content: "readme", omitted: null });
   assert.equal(result.truncated, false);

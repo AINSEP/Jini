@@ -1,10 +1,10 @@
 /**
- * @file `@tovu/sdk` — the entire plugin-author public contract (SPEC-005 REQ-08, ADR-005 rule 1,
+ * @file `@jini-ai/plugin-sdk` — the entire plugin-author public contract (SPEC-005 REQ-08, ADR-005 rule 1,
  * ADR-024 §3 ABI freeze).
  *
  * Purpose:
  * This file IS the public API. Everything a plugin's `server/index.mjs` may import from
- * `@tovu/sdk` is exported here and nowhere else — the runtime's internal core modules are never
+ * `@jini-ai/plugin-sdk` is exported here and nowhere else — the runtime's internal core modules are never
  * reachable through this package (enforced by `package.json`'s `exports` map, not by this file). Hook
  * names, capability tokens, and the `definePlugin`/`PluginSdk` shapes are part of this public
  * surface and follow the ADR-005 deprecation ladder — changing any exported name/shape here is
@@ -50,7 +50,7 @@ export type CapabilityToken = typeof CONTENT_READ | typeof CONTENT_EXTEND | type
 export const HOOK_CONTENT_ENTRY_BEFORE_SAVE = "content.entry.beforeSave" as const;
 
 /** hooks v2 plan §3.1 — the one typed hook catalog (data) plus its companion type map, re-exported
- * here so a plugin author imports everything from `@tovu/sdk`'s package root (ADR-005 rule 1: no
+ * here so a plugin author imports everything from `@jini-ai/plugin-sdk`'s package root (ADR-005 rule 1: no
  * other import surface exists). See `./hooks.ts`'s own file doc for why this is a value AND type
  * export while `hooks.ts` itself only ever `import type`s from this file (no runtime cycle). */
 import {

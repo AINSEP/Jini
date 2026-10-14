@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { snapshotSitePluginPackage } from "./install.js";
 import type { PluginManifest } from "../manifest.js";
+import { PLUGIN_MANIFEST_FILENAMES } from "../plugin-format.js";
 
 export class PluginSnapshotIntegrityError extends Error {}
 
@@ -53,7 +54,7 @@ export function verifyPluginSnapshotIntegrity(
 ): void {
   const { files, integrity } = required;
   for (const [key, bytes] of files) {
-    if (key === "tovu.plugin.json") continue;
+    if (PLUGIN_MANIFEST_FILENAMES.includes(key)) continue; // legacy alias
     const digest = `sha256-${createHash("sha256").update(bytes).digest("hex")}`;
     if (integrity[key] !== digest) throw new PluginSnapshotIntegrityError("Package changed before loading.");
   }

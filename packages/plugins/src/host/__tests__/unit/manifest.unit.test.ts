@@ -1,3 +1,4 @@
+import { PLUGIN_MANIFEST_FILENAME } from '../../plugin-format.js';
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
@@ -76,7 +77,7 @@ test("REQ-01: engine newer than the runtime supports is ENGINE_UNSUPPORTED", () 
   assert.ok(codesOf(result).includes("ENGINE_UNSUPPORTED"));
 });
 
-test("EC-01: tovu.plugin.json id differing from the install folder name is ID_FOLDER_MISMATCH", () => {
+test("EC-01: jini.plugin.json id differing from the install folder name is ID_FOLDER_MISMATCH", () => {
   const result = validateManifest(required(validManifest({ id: "word-count" }), "different-folder-name"));
   assert.ok(codesOf(result).includes("ID_FOLDER_MISMATCH"));
 });
@@ -257,7 +258,7 @@ test("BUG REGRESSION: an omitted queryable field is MANIFEST_MALFORMED — it is
 test("malformed top-level JSON values return a structured error without throwing", () => {
   for (const manifest of [null, [], "plugin", 42, true]) {
     assert.deepEqual(validateManifest(required(manifest)).errors, [{
-      code: "MANIFEST_MALFORMED", file: null, message: "tovu.plugin.json must be a JSON object",
+      code: "MANIFEST_MALFORMED", file: null, message: `${PLUGIN_MANIFEST_FILENAME} must be a JSON object`,
     }]);
   }
 });

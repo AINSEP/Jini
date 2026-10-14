@@ -124,7 +124,7 @@ export function buildCapabilityScopedSdk<H extends HookPoints>(
       if (!coreDeps.contributions) throw new Error('plugin widgets are not bound by this host');
       coreDeps.contributions.widgets.add(input, options);
     }) },
-    // V1 rationale retained: `ActionHookName`/`ContributionHookName` (@tovu/sdk hooks.ts) have no
+    // V1 rationale retained: `ActionHookName`/`ContributionHookName` (@jini-ai/plugin-sdk hooks.ts) have no
     // catalog members yet (hooks v2 plan §3.3 Waves 1/2 land in a later slice), so no name
     // type-checks as an argument to either legacy surface. They remain present-but-unreachable,
     // following the same "always present" contract as addFilter, gated on hooks.attach. There

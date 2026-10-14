@@ -1,3 +1,4 @@
+import { PLUGIN_MANIFEST_FILENAME } from '../../plugin-format.js';
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -76,7 +77,7 @@ test("AC-09/EC-08: when two installed versions of one site plugin id exist, only
       const versionDir = path.join(installDir, "valid-site-plugin", version);
       await mkdir(path.join(versionDir, "server"), { recursive: true });
       const entry = `export default { definition: { setup(sdk) { sdk.content.extend("marker", "${version}"); } } };\n`;
-      await writeFile(path.join(versionDir, "tovu.plugin.json"), JSON.stringify({
+      await writeFile(path.join(versionDir, PLUGIN_MANIFEST_FILENAME), JSON.stringify({
         id: "valid-site-plugin", name: "Valid Site Plugin", version,
         sdkRange: "^0.1.0 || ^0.2.0", engine: 1, tier: "tier-3",
         capabilities: ["content.extend"], hooks: [],
@@ -123,7 +124,7 @@ test("DUP-01: two site plugins with case-insensitively matching ids are BOTH mar
     const duplicateFolder = "duplicate-site-plugin";
     const versionDir = path.join(installDir, duplicateFolder, "1.0.0");
     await mkdir(path.join(versionDir, "server"), { recursive: true });
-    await writeFile(path.join(versionDir, "tovu.plugin.json"), JSON.stringify({
+    await writeFile(path.join(versionDir, PLUGIN_MANIFEST_FILENAME), JSON.stringify({
       id: duplicateId, name: "Duplicate", version: "1.0.0", sdkRange: "^1.0.0",
       engine: 1, tier: "tier-3", capabilities: [], hooks: [], fields: [], integrity: {},
     }), "utf8");
@@ -165,7 +166,7 @@ test("DUP-01: a site plugin id equal to a built-in id marks the site record SHAD
   try {
     await mkdir(versionDir, { recursive: true });
     await writeFile(
-      path.join(root, "plugins", "word-count", "1.0.0", "tovu.plugin.json"),
+      path.join(root, "plugins", "word-count", "1.0.0", PLUGIN_MANIFEST_FILENAME),
       JSON.stringify({
         id: "word-count",
         name: "Shadowing Word Count",
@@ -202,7 +203,7 @@ test("a site package declaring tier-2 is invalid (the installer's trust rule), s
   } satisfies PluginManifest;
   try {
     await mkdir(path.join(versionDir, "server"), { recursive: true });
-    await writeFile(path.join(versionDir, "tovu.plugin.json"), JSON.stringify(manifest), "utf8");
+    await writeFile(path.join(versionDir, PLUGIN_MANIFEST_FILENAME), JSON.stringify(manifest), "utf8");
     await writeFile(path.join(versionDir, "server", "index.mjs"), "export default {};\n", "utf8");
     const builtInTier2 = { manifest: { ...manifest, id: "built-in-t2", name: "Built-in Tier 2" } } as const;
 
@@ -213,7 +214,7 @@ test("a site package declaring tier-2 is invalid (the installer's trust rule), s
     assert.equal(site?.manifest, undefined, "an invalid record carries no manifest for the loader");
     assert.deepEqual(site?.errors, [{
       code: "TIER_NOT_ALLOWED",
-      file: "tovu.plugin.json",
+      file: PLUGIN_MANIFEST_FILENAME,
       message: "A site-installed plugin cannot declare tier-2: tier-2 is for verified publishers and needs a sandbox that does not exist yet. Declare tier-3 (unverified publisher).",
     }]);
     assert.equal(records.find((r) => r.id === "built-in-t2")?.status, "valid");

@@ -38,7 +38,7 @@ export interface PluginDiscoveryRecord {
    *
    * Exists so a composition root's enable path (`server/plugin-runtime.ts`'s `onPluginEnabled()`)
    * can hand `loadPlugin()` the SAME manifest object this discovery pass already parsed, instead of
-   * re-reading `tovu.plugin.json` a second time. This matters beyond avoiding duplicate I/O: every
+   * re-reading `jini.plugin.json` a second time. This matters beyond avoiding duplicate I/O: every
    * real caller of `onPluginEnabled` (`activation.ts`'s `setPluginEnabled`, BR-05 step 1) already
    * calls `discoverPlugins()` fresh, in the SAME request, immediately before invoking it (see
    * `routes/admin/plugins/set-enabled.ts`) — so reusing that record's manifest is not a staleness

@@ -26,6 +26,7 @@ import { readPluginIdentity } from "@jini-ai/core/plugin-directory";
  */
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { PLUGIN_MANIFEST_FILENAME, PLUGIN_MANIFEST_FILENAMES } from "../plugin-format.js";
 
 import * as semver from "semver";
 
@@ -77,7 +78,7 @@ function readTierField(value: unknown): PluginTier {
   return raw !== undefined && VALID_TIERS.has(raw as PluginTier) ? (raw as PluginTier) : FALLBACK_TIER;
 }
 
-/** Parses one `tovu.plugin.json` file's bytes; unparseable JSON becomes `null` — `validateManifest`
+/** Parses one `jini.plugin.json` file's bytes; unparseable JSON becomes `null` — `validateManifest`
  * already reports a `MANIFEST_MALFORMED` entry for any non-object value (its own top-level guard),
  * so a parse failure and a wrong-shape object are handled through the exact same code path. */
 function parseManifestJson(raw: string): unknown {
@@ -185,21 +186,20 @@ async function discoverOneSiteCandidate(
   const versionFolderName = requestedVersion ?? await pickLatestVersionFolder(idFolderPath);
   if (versionFolderName === null) return null;
 
-  const manifestPath = path.join(idFolderPath, versionFolderName, "tovu.plugin.json");
   let manifestValue: unknown = null;
-  let missing = false;
-  try {
-    manifestValue = parseManifestJson(await readFile(manifestPath, "utf8"));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
-      missing = true;
-    } else {
-      throw error;
+  let missing = true;
+  for (const filename of PLUGIN_MANIFEST_FILENAMES) { // legacy alias
+    try {
+      manifestValue = parseManifestJson(await readFile(path.join(idFolderPath, versionFolderName, filename), "utf8"));
+      missing = false;
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
     }
   }
 
   const errors: PluginValidationError[] = missing
-    ? [{ code: "MANIFEST_MISSING", file: "tovu.plugin.json", message: "tovu.plugin.json was not found" }]
+    ? [{ code: "MANIFEST_MISSING", file: PLUGIN_MANIFEST_FILENAME, message: `${PLUGIN_MANIFEST_FILENAME} was not found` }]
     : [...validateManifest({ ...host, manifest: manifestValue, folderName: idFolderName, builtInIds }).errors, ...host.tierPolicy.siteErrors({ manifestValue })];
 
   const id = readStringField(manifestValue, "id") ?? idFolderName;

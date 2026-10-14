@@ -1,3 +1,4 @@
+import { PLUGIN_MANIFEST_FILENAME } from '../../plugin-format.js';
 /** Narrow test host: existing Tovu ABI, admission policy and declaration-port answers.
  * This is not a production declaration grammar, executable importer or invocation owner. */
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -40,7 +41,7 @@ export const tierPolicy: PluginTierPolicy = {
   execution: 'in-process',
   allowLoad: ({ manifest }) => manifest.tier === 'tier-3',
   siteErrors: ({ manifestValue }) => (manifestValue as { tier?: unknown } | null)?.tier === 'tier-2' ? [{
-    code: 'TIER_NOT_ALLOWED', file: 'tovu.plugin.json',
+    code: 'TIER_NOT_ALLOWED', file: PLUGIN_MANIFEST_FILENAME,
     message: 'A site-installed plugin cannot declare tier-2: tier-2 is for verified publishers and needs a sandbox that does not exist yet. Declare tier-3 (unverified publisher).',
   }] : [],
   checkInstall: ({ manifest }) => { if (manifest.tier !== 'tier-3') throw new Error('Local plugins must declare tier-3 (unverified publisher).'); },

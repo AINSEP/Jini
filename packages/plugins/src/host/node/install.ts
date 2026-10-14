@@ -14,6 +14,7 @@ import { validateManifest, validatePluginIdFormat, type PluginManifest, type Plu
 import type { ArchiveReaderPort, ManifestHostPorts, PluginTierPolicy } from "../ports.js";
 import type { PluginActivationRepoPort } from "../activation.js";
 import type { PluginConflict } from "../plugin-claims.js";
+import { PLUGIN_MANIFEST_FILENAME as MANIFEST, PLUGIN_MANIFEST_FILENAMES, canonicalizePluginManifest } from "../plugin-format.js";
 
 export class PluginInstallError extends Error {
   constructor(public readonly code: string, message: string) { super(message); this.name = "PluginInstallError"; }
@@ -63,7 +64,6 @@ export interface PluginInstallOptions { readonly versionAppend?: boolean }
 export interface PluginSnapshotLimits { readonly maxEntries?: number; readonly maxFileBytes?: number; readonly maxTotalBytes?: number }
 /** Retained bytes plus the entry count, including empty directories, for authoring preflight. */
 export interface PluginPackageSnapshot extends Map<string, Buffer> { readonly entryCount: number }
-const MANIFEST = "tovu.plugin.json";
 const MAX_ENTRIES = 4096;
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 64 * 1024 * 1024;
@@ -135,7 +135,7 @@ const DECLARATIVE_DATA_FILE = /(?:^|\/)(?:LICENSE|[^/]+\.(?:json|md|txt|png|jpe?
  */
 function checkTierAndCode(candidate: PluginManifest, files: Map<string, Buffer>, tierPolicy: PluginTierPolicy): void {
   if (candidate.tier === "tier-1") {
-    const code = [...files.keys()].filter((key) => key !== MANIFEST && !DECLARATIVE_DATA_FILE.test(key));
+    const code = [...files.keys()].filter((key) => !PLUGIN_MANIFEST_FILENAMES.includes(key) && !DECLARATIVE_DATA_FILE.test(key)); // legacy alias
     if (code.length) fail("PLUGIN_MANIFEST_INVALID", `A declarative (tier-1) plugin must not ship code: ${code.join(", ")}`);
     return;
   }
@@ -146,8 +146,9 @@ function checkTierAndCode(candidate: PluginManifest, files: Map<string, Buffer>,
 function validatePackage(files: Map<string, Buffer>, deps: PluginInstallDeps): PluginManifest {
   const { builtInIds } = deps;
   let raw: unknown;
-  try { raw = JSON.parse(files.get(MANIFEST)?.toString("utf8") ?? ""); }
-  catch { return fail("PLUGIN_MANIFEST_INVALID", "A valid tovu.plugin.json is required."); }
+  const filename = PLUGIN_MANIFEST_FILENAMES.find(name => files.has(name)); // legacy alias
+  try { raw = JSON.parse(filename === undefined ? "" : files.get(filename)!.toString("utf8")); }
+  catch { return fail("PLUGIN_MANIFEST_INVALID", `A valid ${MANIFEST} is required.`); }
   const candidate = raw as PluginManifest | null;
   const id = typeof candidate?.id === "string" ? candidate.id : "";
   if (builtInIds.some((builtin) => builtin.toLowerCase() === id.toLowerCase())) fail("PLUGIN_SHADOWS_BUILT_IN", "Package id belongs to a built-in plugin.");
@@ -159,8 +160,8 @@ function validatePackage(files: Map<string, Buffer>, deps: PluginInstallDeps): P
   checkTierAndCode(candidate, files, deps.tierPolicy);
   if (typeof candidate.name !== "string" || !candidate.name.trim() || typeof candidate.sdkRange !== "string" || !semver.validRange(candidate.sdkRange)) fail("PLUGIN_MANIFEST_INVALID", "A name and valid SDK range are required.");
   if (!candidate.integrity || typeof candidate.integrity !== "object" || Array.isArray(candidate.integrity)) fail("PLUGIN_INTEGRITY_INVALID", "An integrity map is required.");
-  const packaged = [...files.keys()].filter((key) => key !== MANIFEST).sort();
-  if (JSON.stringify(Object.keys(candidate.integrity).sort()) !== JSON.stringify(packaged)) fail("PLUGIN_INTEGRITY_INVALID", "Integrity must list exactly every file except tovu.plugin.json.");
+  const packaged = [...files.keys()].filter((key) => !PLUGIN_MANIFEST_FILENAMES.includes(key)).sort(); // legacy alias
+  if (JSON.stringify(Object.keys(candidate.integrity).sort()) !== JSON.stringify(packaged)) fail("PLUGIN_INTEGRITY_INVALID", "Integrity must list exactly every file except plugin manifests.");
   for (const key of packaged) if (candidate.integrity[key] !== hash(files.get(key)!)) fail("PLUGIN_INTEGRITY_INVALID", `Integrity mismatch: ${key}`);
   return candidate;
 }
@@ -199,9 +200,14 @@ async function checkDestination(manifest: PluginManifest, input: PluginInstallIn
         if (versionInfo.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Installed plugin version must not be a link.");
         if (!versionInfo.isDirectory()) continue;
       } catch (error) { warnUnavailableSlot(localId, error); continue; }
-      const manifestPath = path.join(versionDir, MANIFEST);
       let installed: ReturnType<typeof readPluginIdentity>;
       try {
+        let manifestPath = path.join(versionDir, MANIFEST);
+        for (const filename of PLUGIN_MANIFEST_FILENAMES) { // legacy alias
+          const candidatePath = path.join(versionDir, filename);
+          try { await scan.lstat(candidatePath); manifestPath = candidatePath; break; }
+          catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+        }
         const manifestInfo = await scan.lstat(manifestPath);
         if (!manifestInfo.isFile() || manifestInfo.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Installed plugin manifests must not be links.");
         const installedManifest = JSON.parse(await scan.readFile(manifestPath, "utf8"));
@@ -303,7 +309,7 @@ export function digestSitePluginSnapshot(required: { files: ReadonlyMap<string, 
 }
 
 export async function computePluginIntegrity(required: { sourceDir: string }, _optional: Record<string, never> = {}): Promise<Record<string, string>> {
-  return Object.fromEntries([...await snapshot(required.sourceDir)].filter(([key]) => key !== MANIFEST).map(([key, bytes]) => [key, hash(bytes)]));
+  return Object.fromEntries([...await snapshot(required.sourceDir)].filter(([key]) => !PLUGIN_MANIFEST_FILENAMES.includes(key)).map(([key, bytes]) => [key, hash(bytes)])); // legacy alias
 }
 export async function previewSitePluginInstall(required: PluginInstallInput & { deps: PluginInstallDeps }, _optional: Record<string, never> = {}): Promise<PluginInstallPreview> {
   return (await inspect(required, required.deps)).preview;
@@ -338,7 +344,7 @@ export async function installSitePlugin(required: PluginInstallInput & { expecte
       staging = await mkdtemp(path.join(root + "-staging", "install-"));
       const stagedSlot = path.join(staging, "new");
       const versionDir = path.join(stagedSlot, manifest.version);
-      for (const [key, bytes] of files) {
+      for (const [key, bytes] of canonicalizePluginManifest({ files })) { // legacy alias
         const target = path.join(versionDir, key);
         await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, bytes, { flag: "wx" });
       }

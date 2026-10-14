@@ -3,7 +3,7 @@
  * (SPEC-005 REQ-01, BR-02/BR-03; ADR-024 `tier`, 1.1.1 fix).
  *
  * Purpose:
- * Pure, no-I/O validation of an already-parsed `tovu.plugin.json` object against the v1 required-
+ * Pure, no-I/O validation of an already-parsed `jini.plugin.json` object against the v1 required-
  * field set, id/folder match, capability vocabulary, hook vocabulary, and field-declaration rules.
  * Consumed by both `discovery.ts` (list-time, every discovery pass) and `loader.ts` (enable-time
  * re-validation, BR-05) — one validator, two call sites, never diverging (mirrors SPEC-004's theme
@@ -26,6 +26,7 @@
  */
 
 import * as semver from "semver";
+import { PLUGIN_MANIFEST_FILENAME } from "./plugin-format.js";
 import { validateBrowserProviders, type BrowserProviderDeclaration } from "./browser-providers.js";
 
 import { readPluginIdentity, validatePluginIdentity, type PluginIdentityExtension } from "@jini-ai/core/plugin-directory";
@@ -38,7 +39,7 @@ import type { HookPoints, ManifestHostPorts } from "./ports.js";
 export type PluginTier = "tier-1" | "tier-2" | "tier-3";
 
 /** REQ-04's exactly-three v1 capability vocabulary, as manifest-declared strings (validated
- * against this set by `validateManifest`; `@tovu/sdk`'s `CONTENT_READ`/`CONTENT_EXTEND`/
+ * against this set by `validateManifest`; `@jini-ai/plugin-sdk`'s `CONTENT_READ`/`CONTENT_EXTEND`/
  * `HOOKS_ATTACH` constants are the same literal values, kept independent here so this module has
  * no dependency on the SDK package per the Module Map). Sourced from `core/`'s
  * `SharedExtensionCapability` — the sibling `site-glue` mechanism's own capability vocabulary
@@ -66,7 +67,7 @@ export interface PluginManifestFieldDecl {
   readonly description?: string;
 }
 
-/** `tovu.plugin.json` — the ecosystem compatibility surface (state.spec.md §2, ADR-004). */
+/** `jini.plugin.json` — the ecosystem compatibility surface (state.spec.md §2, ADR-004). */
 export interface PluginManifest {
   /** Storage/activation key. Publisher identity lives in extensions[identityNamespace].id. */
   readonly id: string;
@@ -104,7 +105,7 @@ export interface PluginManifest {
   readonly contributes?: PluginContributions | null;
 }
 
-/** `tovu.plugin.json`'s `contributes` block — every list optional, every entry a plain name. */
+/** `jini.plugin.json`'s `contributes` block — every list optional, every entry a plain name. */
 export interface PluginContributions {
   /** `"METHOD /path"` or `"/path"` (every method). Parameter names do not distinguish routes. */
   readonly routes?: readonly string[];
@@ -129,7 +130,7 @@ export interface PluginValidationError {
 }
 
 export interface ValidateManifestRequired<H extends HookPoints = HookPoints> extends ManifestHostPorts<H> {
-  /** An already-parsed `tovu.plugin.json` value (unparseable JSON is `discovery.ts`'s concern —
+  /** An already-parsed `jini.plugin.json` value (unparseable JSON is `discovery.ts`'s concern —
    * this function receives a JS value, never a file path or raw bytes). */
   readonly manifest: unknown;
   /** The install folder name this manifest was read from (EC-01: `id` must equal this). */
@@ -553,7 +554,7 @@ export function validateManifest<H extends HookPoints>(
   const { manifest, folderName, builtInIds } = required;
 
   if (typeof manifest !== "object" || manifest === null || Array.isArray(manifest)) {
-    return { errors: [malformed("tovu.plugin.json must be a JSON object")] };
+    return { errors: [malformed(`${PLUGIN_MANIFEST_FILENAME} must be a JSON object`)] };
   }
 
   // Treat the input as a read-only bag of unknown values — never assigned back into.

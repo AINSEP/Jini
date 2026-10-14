@@ -1,3 +1,4 @@
+import { PLUGIN_MANIFEST_FILENAME } from '../../plugin-format.js';
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -78,7 +79,7 @@ export async function buildAc11FixtureInstallDir(): Promise<{
   for (const manifest of [VALID_SITE_PLUGIN_MANIFEST, INVALID_SITE_PLUGIN_MANIFEST]) {
     const versionDir = path.join(pluginsDir, manifest.id, manifest.version);
     await mkdir(path.join(versionDir, "server"), { recursive: true });
-    await writeFile(path.join(versionDir, "tovu.plugin.json"), JSON.stringify(manifest, null, 2), "utf8");
+    await writeFile(path.join(versionDir, PLUGIN_MANIFEST_FILENAME), JSON.stringify(manifest, null, 2), "utf8");
     await writeFile(
       path.join(versionDir, "server", "index.mjs"),
       "// fixture plugin entry — never real-imported by discovery.ts itself\nexport default {};\n",

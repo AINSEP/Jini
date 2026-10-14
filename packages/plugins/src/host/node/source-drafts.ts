@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import * as semver from 'semver';
 import { withFileLock, FileLockTimeoutError, type FileLockOptions } from '@jini-ai/platform/fs/file-lock';
 import { validateManifest, validatePluginIdFormat } from '../manifest.js';
+import { PLUGIN_MANIFEST_FILENAME as MANIFEST, LEGACY_PLUGIN_MANIFEST_FILENAME, PLUGIN_MANIFEST_FILENAMES, canonicalizePluginManifest } from '../plugin-format.js';
 import type { ManifestHostPorts } from '../ports.js';
 import type { PluginSourcePolicyPort } from '../source-policy.js';
 import { computePluginIntegrity, digestSitePluginSnapshot, snapshotSitePluginPackage, type PluginInstallerPort, type PluginInstallPreview, type PluginPackageSnapshot } from './install.js';
@@ -53,7 +54,6 @@ export interface PluginSourceDeps extends ManifestHostPorts {
   /** Installer-owned retention runs only after reload succeeds; preserves every active pointer. */
   readonly pruneVersions: (required: Id, optional?: Options) => Promise<readonly string[]>;
 }
-const MANIFEST = 'tovu.plugin.json';
 function fail(code: string, message: string): never { throw new PluginSourceError(code, message); }
 function safeId(id: string): void {
   if (typeof id !== 'string' || validatePluginIdFormat({ id }, {}).length) fail('PLUGIN_SOURCE_PATH_INVALID', 'Use a lowercase plugin id of at most 50 characters containing letters, numbers and hyphens.');
@@ -146,7 +146,7 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
     await mkdir(drafts, { recursive: true });
     const staging = await mkdtemp(path.join(drafts, '.open-'));
     try {
-      for (const [file, bytes] of files) { safeFile(file); await writeAtomic(root, path.join(staging, file), bytes); }
+      for (const [file, bytes] of canonicalizePluginManifest({ files })) { safeFile(file); await writeAtomic(root, path.join(staging, file), bytes); } // legacy alias
       await confined(root, draft(id));
       await rename(staging, draft(id));
     } finally { await rm(staging, { recursive: true, force: true }); }
@@ -162,6 +162,7 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
   }
   async function write(id: string, file: string, content: string): Promise<{ bytesWritten: number }> {
     safeFile(file);
+    if (file === LEGACY_PLUGIN_MANIFEST_FILENAME) file = MANIFEST; // legacy alias
     // Bound path depth before filesystem probes can fail with an OS-specific path-length error.
     const segments = file.split('/');
     if (segments.length > PLUGIN_SOURCE_LIMITS.maxEntries) fail('PLUGIN_SOURCE_TOO_LARGE', 'Draft exceeds 512 entries.');
@@ -180,11 +181,13 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
     }
     if (total > PLUGIN_SOURCE_LIMITS.maxTotalBytes || files.entryCount + addedEntries > PLUGIN_SOURCE_LIMITS.maxEntries) fail('PLUGIN_SOURCE_TOO_LARGE', 'Draft exceeds 8 MiB or 512 entries.');
     await writeAtomic(root, path.join(draft(id), file), bytes);
+    if (file === MANIFEST) await rm(path.join(draft(id), LEGACY_PLUGIN_MANIFEST_FILENAME), { force: true }); // legacy alias
     return { bytesWritten: bytes.length };
   }
   async function read(id: string, file: string): Promise<{ content: string; bytes: number; digest: string }> {
     safeFile(file);
     const files = await snapshot(draft(id));
+    if (PLUGIN_MANIFEST_FILENAMES.includes(file)) file = PLUGIN_MANIFEST_FILENAMES.find(name => files.has(name)) ?? MANIFEST; // legacy alias
     const bytes = files.get(file);
     if (!bytes) fail('PLUGIN_SOURCE_FILE_MISSING', 'The requested file is not in the draft.');
     return { content: bytes.toString('utf8'), bytes: bytes.length, digest: digestSitePluginSnapshot({ files: new Map([[file, bytes]]) }) };
@@ -198,8 +201,9 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
   async function publish(id: string, files: ReadonlyMap<string, Buffer>, rollbackFrom?: string): Promise<PluginSourceSealResult> {
     if (!required.policy.localInstallEnabled({}, {})) fail('PLUGIN_LOCAL_INSTALL_DISABLED', 'Hosted plugin installs require TOVU_PLUGIN_LOCAL_INSTALL=1.');
     let raw: unknown;
-    try { raw = JSON.parse(files.get(MANIFEST)?.toString('utf8') ?? ''); }
-    catch { return fail('PLUGIN_MANIFEST_INVALID', 'A valid tovu.plugin.json is required.'); }
+    const filename = PLUGIN_MANIFEST_FILENAMES.find(name => files.has(name)); // legacy alias
+    try { raw = JSON.parse(filename === undefined ? '' : files.get(filename)!.toString('utf8')); }
+    catch { return fail('PLUGIN_MANIFEST_INVALID', `A valid ${MANIFEST} is required.`); }
     validate(id, raw);
     const manifest = raw as Record<string, unknown>;
     if (manifest.id !== id) fail('PLUGIN_MANIFEST_INVALID', 'The manifest id must match the draft id.');
@@ -209,7 +213,7 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
     if (!version) fail('PLUGIN_SOURCE_VERSION_INVALID', 'A valid semantic version is required.');
     const staging = await mkdtemp(path.join(optional.temporaryDir ?? tmpdir(), 'plugin-source-'));
     try {
-      for (const [file, bytes] of files) { safeFile(file); await writeAtomic(staging, path.join(staging, file), bytes); }
+      for (const [file, bytes] of canonicalizePluginManifest({ files })) { safeFile(file); await writeAtomic(staging, path.join(staging, file), bytes); } // legacy alias
       const integrity = await computePluginIntegrity({ sourceDir: staging });
       await writeAtomic(staging, path.join(staging, MANIFEST), jsonBytes({ ...manifest, version, integrity }));
       const input = { sourceDir: staging };

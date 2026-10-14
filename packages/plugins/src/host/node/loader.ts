@@ -31,7 +31,7 @@ import type { PluginManifest } from "../manifest.js";
 import type { HookPoints, PluginSdkBinding, PluginModuleImportPort, VerifyDigestPort, PluginTierPolicy } from "../ports.js";
 export { attachLoadedPlugin } from "../attach-loaded-plugin.js";
 
-/** A packaged artifact's file layout is fixed (ADR-004): `tovu.plugin.json` + `server/index.mjs` at
+/** A packaged artifact's file layout is fixed (ADR-004): `jini.plugin.json` + `server/index.mjs` at
  * the plugin root. `entryPath` is always `<pluginRoot>/server/index.mjs`, so the root two
  * directories up from it is where `manifest.integrity`'s relative file paths resolve from. */
 function derivePluginRoot(entryPath: string): string {

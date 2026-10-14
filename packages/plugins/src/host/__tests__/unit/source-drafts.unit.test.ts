@@ -1,3 +1,4 @@
+import { PLUGIN_MANIFEST_FILENAME, LEGACY_PLUGIN_MANIFEST_FILENAME } from '../../plugin-format.js';
 import assert from 'node:assert/strict';
 import { cp, link, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -38,7 +39,9 @@ async function fixture(options: { hosted?: boolean; optIn?: boolean; reload?: ()
 
 test('scaffold has the host SDK contract and loads through real discovery and loader without imports from npm', async () => {
   const f = await fixture(); await f.create();
-  const manifest = JSON.parse((await f.service.read({ id, path: 'tovu.plugin.json' })).content);
+  assert.equal((await f.service.list({ id })).files.some(file => file.path === PLUGIN_MANIFEST_FILENAME), true);
+  assert.equal((await f.service.list({ id })).files.some(file => file.path === LEGACY_PLUGIN_MANIFEST_FILENAME), false); // legacy alias
+  const manifest = JSON.parse((await f.service.read({ id, path: PLUGIN_MANIFEST_FILENAME })).content);
   assert.equal(manifest.sdkRange, '^0.1.0'); assert.equal(manifest.engine, 1); assert.equal(manifest.tier, 'tier-3');
   assert.deepEqual(manifest.capabilities, []); assert.deepEqual(manifest.hooks, []); assert.deepEqual(manifest.fields, []);
   assert.deepEqual(manifest.integrity, await computePluginIntegrity({ sourceDir: f.draft }));
@@ -52,6 +55,40 @@ test('scaffold has the host SDK contract and loads through real discovery and lo
   assert.equal(record.status, 'valid'); assert.ok(record.manifest);
   const loaded = await loadPlugin({ record, manifest: record.manifest, entryPath: siteEntryPath({ installDir: f.installDir, id, version: '0.1.0' }), coreDeps: createInvocationCoreDeps({ pluginId: id, declaredHooks: [] }).coreDeps });
   assert.equal(loaded.loaded, true);
+});
+
+test('draft reads accept legacy manifests, prefer canonical bytes, and write only the canonical filename', async () => {
+  const f = await fixture(); await f.create();
+  const canonical = (await f.service.read({ id, path: PLUGIN_MANIFEST_FILENAME })).content;
+  await writeFile(path.join(f.draft, LEGACY_PLUGIN_MANIFEST_FILENAME), '{'); // legacy alias
+  assert.equal((await f.service.read({ id, path: LEGACY_PLUGIN_MANIFEST_FILENAME })).content, canonical); // legacy alias
+  await rm(path.join(f.draft, PLUGIN_MANIFEST_FILENAME));
+  await writeFile(path.join(f.draft, LEGACY_PLUGIN_MANIFEST_FILENAME), canonical); // legacy alias
+  assert.equal((await f.service.read({ id, path: PLUGIN_MANIFEST_FILENAME })).content, canonical);
+  await f.service.write({ id, path: LEGACY_PLUGIN_MANIFEST_FILENAME, content: canonical }); // legacy alias
+  assert.equal(await readFile(path.join(f.draft, PLUGIN_MANIFEST_FILENAME), 'utf8'), canonical);
+  await assert.rejects(readFile(path.join(f.draft, LEGACY_PLUGIN_MANIFEST_FILENAME)), { code: 'ENOENT' }); // legacy alias
+});
+
+test('opening and sealing a legacy installed package writes canonical drafts and releases', async () => {
+  const f = await fixture(); await f.create();
+  const first = await f.service.seal({ id });
+  const release = path.join(f.installDir, id, first.plugin.version);
+  const content = await readFile(path.join(release, PLUGIN_MANIFEST_FILENAME), 'utf8');
+  await rm(path.join(release, PLUGIN_MANIFEST_FILENAME));
+  await writeFile(path.join(release, LEGACY_PLUGIN_MANIFEST_FILENAME), content); // legacy alias
+  await rm(f.draft, { recursive: true });
+  await f.service.open({ id });
+  assert.equal(await readFile(path.join(f.draft, PLUGIN_MANIFEST_FILENAME), 'utf8'), content);
+  await assert.rejects(readFile(path.join(f.draft, LEGACY_PLUGIN_MANIFEST_FILENAME)), { code: 'ENOENT' }); // legacy alias
+  // Existing legacy drafts remain readable and can publish without an explicit reopen.
+  await rm(path.join(f.draft, PLUGIN_MANIFEST_FILENAME));
+  await writeFile(path.join(f.draft, LEGACY_PLUGIN_MANIFEST_FILENAME), content); // legacy alias
+  const second = await f.service.seal({ id });
+  const published = path.join(f.installDir, id, second.plugin.version);
+  assert.equal(JSON.parse(await readFile(path.join(published, PLUGIN_MANIFEST_FILENAME), 'utf8')).version, second.plugin.version);
+  await assert.rejects(readFile(path.join(published, LEGACY_PLUGIN_MANIFEST_FILENAME)), { code: 'ENOENT' }); // legacy alias
+  assert.equal(await f.service.isSealedHere({ id, version: second.plugin.version }), true);
 });
 
 test('read, write, edit and delete reject traversal, absolute paths and invalid ids without touching outside files', async () => {
@@ -157,7 +194,7 @@ test('seal hashes all files, pins the installer digest, bumps patches, preserves
   assert.equal(first.plugin.version, '0.1.0'); assert.equal(first.reloaded, true);
   assert.equal(await f.service.isSealedHere({ id, version: '0.1.0' }), true);
   const firstRoot = path.join(f.installDir, id, '0.1.0');
-  const manifest = JSON.parse(await readFile(path.join(firstRoot, 'tovu.plugin.json'), 'utf8'));
+  const manifest = JSON.parse(await readFile(path.join(firstRoot, PLUGIN_MANIFEST_FILENAME), 'utf8'));
   assert.deepEqual(Object.keys(manifest.integrity).sort(), ['README.md', 'server/helper.mjs', 'server/index.mjs']);
   assert.deepEqual(manifest.integrity, await computePluginIntegrity({ sourceDir: firstRoot }));
   await f.service.write({ id, path: 'server/helper.mjs', content: 'export const value = 2;' });
@@ -188,14 +225,14 @@ test('seal can append for enabled workspaces; ordinary installs and same-version
 
 test('manifest and missing entry errors surface without installation or reload', async () => {
   const f = await fixture(); await f.create();
-  await f.service.write({ id, path: 'tovu.plugin.json', content: '{' });
-  await assert.rejects(f.service.seal({ id }), { code: 'PLUGIN_MANIFEST_INVALID', message: 'A valid tovu.plugin.json is required.' });
+  await f.service.write({ id, path: PLUGIN_MANIFEST_FILENAME, content: '{' });
+  await assert.rejects(f.service.seal({ id }), { code: 'PLUGIN_MANIFEST_INVALID', message: `A valid ${PLUGIN_MANIFEST_FILENAME} is required.` });
   assert.deepEqual(f.calls, []);
   const manifest = { id, name: 'Bad', version: '0.1.0', engine: 99, sdkRange: '^0.1.0', tier: 'tier-3', capabilities: [], hooks: [], fields: [], integrity: {} };
-  await f.service.write({ id, path: 'tovu.plugin.json', content: JSON.stringify(manifest) });
+  await f.service.write({ id, path: PLUGIN_MANIFEST_FILENAME, content: JSON.stringify(manifest) });
   await assert.rejects(f.service.seal({ id }), error => (error as Error).message.includes('engine'));
   assert.deepEqual(f.calls, []);
-  manifest.engine = 1; await f.service.write({ id, path: 'tovu.plugin.json', content: JSON.stringify(manifest) });
+  manifest.engine = 1; await f.service.write({ id, path: PLUGIN_MANIFEST_FILENAME, content: JSON.stringify(manifest) });
   await f.service.delete({ id, path: 'server/index.mjs' });
   await assert.rejects(f.service.seal({ id }), { code: 'PLUGIN_MANIFEST_INVALID', message: 'server/index.mjs is required.' });
   assert.deepEqual(f.calls, ['preview']);
@@ -285,8 +322,8 @@ test('source lock reclaims dead owners but never evicts a live owner merely beca
 
 test('seal uses a higher manifest version exactly, then bumps it when the draft version is stale', async () => {
   const f = await fixture(); await f.create(); await f.service.seal({ id });
-  const manifest = JSON.parse((await f.service.read({ id, path: 'tovu.plugin.json' })).content);
-  await f.service.write({ id, path: 'tovu.plugin.json', content: JSON.stringify({ ...manifest, version: '2.0.0' }) });
+  const manifest = JSON.parse((await f.service.read({ id, path: PLUGIN_MANIFEST_FILENAME })).content);
+  await f.service.write({ id, path: PLUGIN_MANIFEST_FILENAME, content: JSON.stringify({ ...manifest, version: '2.0.0' }) });
   assert.equal((await f.service.seal({ id })).plugin.version, '2.0.0');
   assert.equal((await f.service.seal({ id })).plugin.version, '2.0.1');
 });

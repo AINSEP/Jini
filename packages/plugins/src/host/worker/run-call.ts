@@ -24,7 +24,7 @@ import type { Tier2FailureStage, Tier2Reply, Tier2Request } from "./protocol.js"
 export interface RunTier2CallRequired {
   readonly request: Tier2Request;
   /** Imports the plugin entry. The worker entry supplies real `import()` after registering the
-   * `@tovu/sdk` resolver; tests supply a fake. */
+   * `@jini-ai/plugin-sdk` resolver; tests supply a fake. */
   readonly importModule: PluginModuleImportPort;
   readonly pluginSdkBinding: PluginSdkBinding;
   readonly createInvocationCoreDeps: (required: { pluginId: string; declaredHooks: readonly string[] }, optional?: Record<string, never>) => {

@@ -1,3 +1,4 @@
+import { PLUGIN_MANIFEST_FILENAME } from '../../plugin-format.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtemp, mkdir, rm, readFile, symlink, writeFile } from 'node:fs/promises';
 import * as filesystem from 'node:fs/promises';
@@ -40,7 +41,7 @@ describe('site publisher identity shares the portable plugin contract', () => {
     async function source(id: string, publisherId?: string) {
       const sourceDir = path.join(root, 'sources', id + (publisherId ?? 'legacy').replace('/', '-'));
       await mkdir(sourceDir, { recursive: true });
-      await writeFile(path.join(sourceDir, 'tovu.plugin.json'), JSON.stringify(manifest(id, publisherId)));
+      await writeFile(path.join(sourceDir, PLUGIN_MANIFEST_FILENAME), JSON.stringify(manifest(id, publisherId)));
       return sourceDir;
     }
     const legacy = await previewSitePluginInstall({ sourceDir: await source('legacy'), deps });
@@ -62,25 +63,25 @@ describe('site publisher identity shares the portable plugin contract', () => {
       tierPolicy: { siteErrors: () => [], checkInstall: () => {}, allowLoad: () => true, execution: 'in-process' as const } };
     const broken = path.join(deps.installDir, 'broken', '1.0.0');
     await mkdir(broken, { recursive: true });
-    if (kind !== 'missing') await writeFile(path.join(broken, 'tovu.plugin.json'), kind === 'json' ? '{' : JSON.stringify(manifest('broken', 'invalid')));
+    if (kind !== 'missing') await writeFile(path.join(broken, PLUGIN_MANIFEST_FILENAME), kind === 'json' ? '{' : JSON.stringify(manifest('broken', 'invalid')));
     const sourceDir = path.join(root, 'source'); await mkdir(sourceDir);
-    await writeFile(path.join(sourceDir, 'tovu.plugin.json'), JSON.stringify(manifest('healthy', 'tovu/healthy')));
+    await writeFile(path.join(sourceDir, PLUGIN_MANIFEST_FILENAME), JSON.stringify(manifest('healthy', 'tovu/healthy')));
     const preview = await previewSitePluginInstall({ sourceDir, deps });
     const installed = await installSitePlugin({ sourceDir, expectedDigest: preview.digest, deps });
     expect(installed.publisherId).toBe('tovu/healthy');
-    expect(JSON.parse(await readFile(path.join(deps.installDir, 'healthy', '1.0.0', 'tovu.plugin.json'), 'utf8')).id).toBe('healthy');
+    expect(JSON.parse(await readFile(path.join(deps.installDir, 'healthy', '1.0.0', PLUGIN_MANIFEST_FILENAME), 'utf8')).id).toBe('healthy');
     expect(warnings.length).toBeGreaterThan(0);
     expect(new Set(warnings)).toEqual(new Set(["Plugin 'broken': installed identity manifest is unreadable or invalid; omitted from identity admission."]));
     // Resilience never weakens the existing no-links boundary.
-    await rm(path.join(broken, 'tovu.plugin.json'), { force: true });
-    await symlink(path.join(sourceDir, 'tovu.plugin.json'), path.join(broken, 'tovu.plugin.json'));
+    await rm(path.join(broken, PLUGIN_MANIFEST_FILENAME), { force: true });
+    await symlink(path.join(sourceDir, PLUGIN_MANIFEST_FILENAME), path.join(broken, PLUGIN_MANIFEST_FILENAME));
     await expect(previewSitePluginInstall({ sourceDir, replace: true, deps })).rejects.toMatchObject({ code: 'PLUGIN_PACKAGE_UNSAFE' });
   });
 
   it('a site claimant cannot disable a built-in incumbent with the same publisher id', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'site-plugin-incumbent-')); roots.push(root);
     const version = path.join(root, 'aaa-claimant', '1.0.0'); await mkdir(version, { recursive: true });
-    await writeFile(path.join(version, 'tovu.plugin.json'), JSON.stringify(manifest('aaa-claimant', 'tovu/shared')));
+    await writeFile(path.join(version, PLUGIN_MANIFEST_FILENAME), JSON.stringify(manifest('aaa-claimant', 'tovu/shared')));
     const records = await discoverPlugins({ ...manifestHost, installDir: root, builtIns: [{ manifest: manifest('zzz-incumbent', 'tovu/shared') }],
       tierPolicy: { siteErrors: () => [], checkInstall: () => {}, allowLoad: () => true, execution: 'in-process' }, pluginSdkBinding });
     expect(records.map(record => [record.id, record.status])).toEqual([['zzz-incumbent', 'valid'], ['aaa-claimant', 'invalid']]);
@@ -95,7 +96,7 @@ describe('site publisher identity shares the portable plugin contract', () => {
       conflicts: async () => [], archiveReader: async () => new Map<string, Uint8Array>(),
       tierPolicy: { siteErrors: () => [], checkInstall: () => {}, allowLoad: () => true, execution: 'in-process' as const } };
     const sourceDir = path.join(root, 'source'); await mkdir(sourceDir);
-    await writeFile(path.join(sourceDir, 'tovu.plugin.json'), JSON.stringify(manifest('alias', 'vendor/word-count')));
+    await writeFile(path.join(sourceDir, PLUGIN_MANIFEST_FILENAME), JSON.stringify(manifest('alias', 'vendor/word-count')));
     await expect(previewSitePluginInstall({ sourceDir, deps })).rejects.toMatchObject({ code: 'PLUGIN_ID_CONFLICT', message: 'The publisher-qualified plugin id conflicts with an installed package.' });
     await expect(installSitePlugin({ sourceDir, expectedDigest: 'unused', deps })).rejects.toMatchObject({ code: 'PLUGIN_ID_CONFLICT' });
     await expect(filesystem.readdir(deps.installDir)).rejects.toMatchObject({ code: 'ENOENT' });
@@ -127,10 +128,10 @@ describe('site publisher identity shares the portable plugin contract', () => {
       conflicts: async () => [], archiveReader: async () => new Map<string, Uint8Array>(),
       tierPolicy: { siteErrors: () => [], checkInstall: () => {}, allowLoad: () => true, execution: 'in-process' as const } };
     const sourceDir = path.join(root, 'source'); await mkdir(sourceDir);
-    await writeFile(path.join(sourceDir, 'tovu.plugin.json'), JSON.stringify(manifest('healthy', 'vendor/healthy')));
+    await writeFile(path.join(sourceDir, PLUGIN_MANIFEST_FILENAME), JSON.stringify(manifest('healthy', 'vendor/healthy')));
     const preview = await previewSitePluginInstall({ sourceDir, deps });
     await installSitePlugin({ sourceDir, expectedDigest: preview.digest, deps });
-    expect(JSON.parse(await readFile(path.join(installDir, 'healthy', '1.0.0', 'tovu.plugin.json'), 'utf8')).extensions.tovu.id).toBe('vendor/healthy');
+    expect(JSON.parse(await readFile(path.join(installDir, 'healthy', '1.0.0', PLUGIN_MANIFEST_FILENAME), 'utf8')).extensions.tovu.id).toBe('vendor/healthy');
     expect(faults).toBe(3); // Preview, install inspection, and the locked admission recheck.
     expect(warnings).toEqual(Array(3).fill("Plugin 'broken': installed slot is unavailable; omitted from identity admission."));
   });
