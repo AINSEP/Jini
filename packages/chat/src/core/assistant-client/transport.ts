@@ -2,11 +2,22 @@ import { buildTranscript, latestUserPromptFromHistory } from "../transcript.js";
 import type { AgentEvent } from "../events.js";
 import type { ChatMessage } from "../messages.js";
 import type { ChatTransport, ReattachRunOptions, RunHandlers, StartRunInput } from "../transport.js";
-import type { ExecutionConfig } from "@jini-ai/ui";
 import * as runEvents from "../run-events/entry.js";
 import type { RunAgentPayload, RunNotices } from "../run-events/entry.js";
 import type { createAgUiRunClient } from "./ag-ui-transport.js";
 import type { DurableRunBinding } from "./durable-run-subscription.js";
+
+/** Per-turn dispatch input; hosts may return their fuller saved settings without UI dependencies. */
+export interface AssistantExecutionConfig {
+  mode: 'local-cli' | 'byok';
+  byok: {
+    protocol: 'anthropic' | 'openai' | 'azure' | 'google';
+    apiKey: string;
+    baseUrl: string;
+    model: string;
+    maxTokens?: number | undefined;
+  };
+}
 
 export interface AssistantTransportOptions {
   /**
@@ -17,12 +28,11 @@ export interface AssistantTransportOptions {
    * built (`AssistantDock.tsx` memoizes the transport once, for the reason its own comment gives —
    * rebuilding it would drop in-flight runs).
    */
-  getExecutionConfig?: (required: Record<string, never>, optional: Record<string, never>) => ExecutionConfig;
+  getExecutionConfig?: (required: Record<string, never>, optional: Record<string, never>) => AssistantExecutionConfig;
   /**
-   * ADR-059's AG-UI canary toggle — deliberately NOT a value on {@link ExecutionConfig}: that type
-   * is `@jini-ai/ui`'s own closed `'local-cli' | 'byok'` union, a separate repo/package, and
-   * extending it would mean a cross-repo edit this ADR explicitly avoids (Decision 1: "a zero-touch
-   * addition to Jini"). Read fresh on every `startRun` call, same "never captured" convention
+   * ADR-059's AG-UI canary toggle — deliberately separate from {@link AssistantExecutionConfig}'s
+   * closed `'local-cli' | 'byok'` union so enabling the canary does not extend the host's saved
+   * execution modes. Read fresh on every `startRun` call, same "never captured" convention
    * {@link getExecutionConfig} already establishes, for the same reason: an operator can flip this
    * mid-session without rebuilding the memoized transport.
    */
@@ -290,8 +300,8 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
    *   conversation whose every run has failed.
    */
   function undeliveredUserPrompt(history: readonly ChatMessage[]): string {
-    // `Array.prototype.findLastIndex` would say this in one call, but it is ES2023 and this app
-    // targets ES2022 (`apps/admin/tsconfig.json`), so the index is accumulated instead.
+    // `Array.prototype.findLastIndex` would say this in one call, but it is ES2023 and the
+    // supported target is ES2022, so the index is accumulated instead.
     let lastAnsweredIndex = -1;
     history.forEach((message, position) => {
       if (message.role === "assistant" && isAnsweredAssistantTurn(message)) lastAnsweredIndex = position;
@@ -446,7 +456,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
   async function startByokRun(
     input: StartRunInput,
     handlers: RunHandlers,
-    byok: ExecutionConfig["byok"],
+    byok: AssistantExecutionConfig["byok"],
   ): Promise<{ runId: string }> {
     const runId = mintByokRunId();
     const controller = new AbortController();

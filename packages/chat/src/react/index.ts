@@ -13,6 +13,7 @@ export type {
   RunContext,
   RunHandlers,
   StartRunInput,
+  UserTextRedaction,
 } from '../core/index.js';
 export {
   RendererRegistry,

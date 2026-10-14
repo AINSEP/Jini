@@ -1,6 +1,6 @@
 /** Model-facing history tools over an authenticated owner-scoped store; no database handles. */
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, ToolInputError,
-  type AgentToolDefinition, type DerivedRiskByToolId, type ToolRegistration } from '@jini-ai/core';
+  type AgentToolDefinition, type AgentToolSideEffect, type ToolRegistration } from '@jini-ai/core';
 import { redactUserText, type RedactUserText } from '../../core/user-text-redaction.js';
 import type { ChatHistoryStore } from '../ports.js';
 import type { AgentEvent } from '../../core/events.js';
@@ -10,7 +10,7 @@ export const HISTORY_MESSAGE_CHAR_CAP = 8_000;
 export const HISTORY_TOTAL_CHAR_CAP = 40_000;
 const TOOL_EVENT_CAP = 50;
 
-export const assistantHistoryDerivedRisk: DerivedRiskByToolId = new Map([
+export const assistantHistoryDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map([
   ['assistant_chats_list', 'none'], ['assistant_chat_read', 'none'],
 ]);
 /** Exported so host contract tests can pin each registration to its catalog entry. */

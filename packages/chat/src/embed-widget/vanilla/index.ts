@@ -1,4 +1,4 @@
-import { CHAT_BUBBLE_STYLE } from '../browser/lazy-loader.js';
+import { CHAT_BUBBLE_STYLE } from '../../contracts/chat-bubble-style.js';
 import { createVanillaChatController } from './state.js';
 import type { VanillaChatControllerArgs, VanillaChatState } from './state.js';
 import { isQueuedPageAction } from '../../core/browser/page-actions.js';
