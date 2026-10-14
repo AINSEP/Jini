@@ -1,3 +1,7 @@
+## 0.6.4 — 2026-10-13
+
+- ACP runs forward the run's `permissionMode` to `attachAcpSession`, so a `bypass` run allows each ACP tool request once and a restricted run rejects it, instead of failing on the first permission request. Peer `@jini-ai/agent-runtime` floor is now `^0.4.10`.
+
 ## 0.6.3 — 2026-10-13
 
 - `createAgentExecutor` accepts `codexDisablePlugins` and `piGracefulShutdownMs`; absent, they resolve once from `hostEnv` (`CODEX_DISABLE_PLUGINS`, `PI_GRACEFUL_SHUTDOWN_MS`). Peer `@jini-ai/agent-runtime` floor is now `^0.4.7`.
