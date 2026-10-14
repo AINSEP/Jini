@@ -33,6 +33,14 @@ function attr(element: Element, name: string): string | undefined {
   return element.attrs.find((item) => item.name === name)?.value;
 }
 
+/** Native `type="url"` refuses scheme-less domains (owner bug 2026-10-13); the registry's text control keeps URL hints. */
+function toUrlTextControl(element: Element): void {
+  for (const [name, value] of Object.entries({ type: FIELD_TYPE_REGISTRY.url.htmlType, ...FIELD_TYPE_REGISTRY.url.attributes })) {
+    element.attrs = element.attrs.filter((attribute) => attribute.name !== name);
+    element.attrs.push({ name, value });
+  }
+}
+
 function labelText(node: Element): string {
   const stack: Node[] = [...node.childNodes].reverse();
   let text = "";
@@ -74,6 +82,16 @@ function serializeAuthoredRequired({ fragment, html }: { fragment: DefaultTreeAd
     if (location && required[index]) output = output.slice(0, location.startOffset) + required[index] + output.slice(location.endOffset);
   }
   return output;
+}
+
+/** Forms saved before 2026-10-13 store native `type="url"` controls, served as-is on the public page.
+ * Upgrade them on read so bare domains stop being blocked without an owner re-save; other markup is untouched. */
+export function upgradeLegacyUrlControls({ html }: { html: string }, _optional: Record<string, never> = {}): string {
+  const fragment = parseFragment(html, { sourceCodeLocationInfo: true });
+  const legacy = elements(fragment.childNodes).filter((element) => element.tagName === "input" && attr(element, "type")?.toLowerCase() === "url");
+  if (legacy.length === 0) return html;
+  legacy.forEach(toUrlTextControl);
+  return serializeAuthoredRequired({ fragment, html });
 }
 
 /** Derives the submission allowlist at save time and removes server-owned transport overrides.
@@ -145,7 +163,10 @@ export function deriveHtmlForm(
     const type: FieldDescriptor["type"] = element.tagName === "select" ? (attr(element, "multiple") !== undefined ? "multi-select" : "select")
       : element.tagName === "textarea" ? "textarea"
       : inputType === "checkbox" && attr(element, "role") === "switch" ? "toggle"
+      : inputType === "url" || inputType === "text" && attr(element, "inputmode") === FIELD_TYPE_REGISTRY.url.attributes.inputmode ? "url"
       : (Object.entries(FIELD_TYPE_REGISTRY).find(([, kind]) => kind.control === "input" && kind.htmlType === inputType)?.[0] as FieldDescriptor["type"] | undefined) ?? (inputType === "radio" ? "radio" : "text");
+    // Keep URL validation on text controls, and remove legacy native scheme validation on save.
+    if (type === "url") toUrlTextControl(element);
     const choices = element.tagName === "select" ? elements(element.childNodes).filter((child) => child.tagName === "option").map((option) => ({ value: attr(option, "value") ?? labelText(option), label: labelText(option) })).filter((option) => option.value !== "")
       : inputType === "radio" ? [{ value: attr(element, "value") ?? "on", label: label ? labelText(label) || name : attr(element, "value") ?? "on" }] : undefined;
     const numeric = type === "number" || type === "range";

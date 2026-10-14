@@ -8,7 +8,7 @@ export type FieldResolution =
   | { kind: "accepted"; value: FormAnswer }
   | { kind: "upload"; file: FormFileInput };
 type FieldValidator = (required: { field: FieldDescriptor; value: unknown }, optional?: Record<string, never>) => FieldResolution;
-interface FieldKind { control: "input" | "textarea" | "select" | "group"; htmlType: string; validate: FieldValidator; multiple?: boolean; choices?: boolean; textual?: boolean; }
+interface FieldKind { control: "input" | "textarea" | "select" | "group"; htmlType: string; validate: FieldValidator; multiple?: boolean; choices?: boolean; textual?: boolean; attributes?: Readonly<Record<string, string>>; }
 const accepted = (value: FormAnswer): FieldResolution => ({ kind: "accepted", value });
 const rejected = (reason: string): FieldResolution => ({ kind: "rejected", reason });
 const NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
@@ -39,13 +39,23 @@ function phoneValue({ field, value }: { field: FieldDescriptor; value: unknown }
   if (result.kind !== "accepted" || value === "") return result;
   return fullMatch(/^\+?[0-9() .-]{3,50}$/, value as string) && /\d/.test(value as string) ? result : rejected("invalid_phone");
 }
-/** Parse absolute HTTP(S) URLs with the platform URL API; refuse active schemes and whitespace. */
+/** Validate HTTP(S) addresses and handles with no rewriting; refuse active schemes and whitespace. */
 function urlValue({ field, value }: { field: FieldDescriptor; value: unknown }, _optional = {}): FieldResolution {
   const result = textValue({ field, value });
   if (result.kind !== "accepted" || value === "") return result;
+  // Owner decision 2026-10-13: store as typed, no forced https; any prefix below is validation-only.
+  const address = value as string;
+  if (/[\s\\\x00-\x1f\x7f]/u.test(address)) return rejected("invalid_url");
+  if (fullMatch(/@[A-Za-z0-9._]{1,30}/, address)) return result;
+  const absolute = /^https?:\/\/[^/]/i.test(address);
+  if (!absolute && !fullMatch(/[^:/?#@]+(?::[0-9]+)?(?:[/?#].*)?/, address)) return rejected("invalid_url");
+  const authority = (absolute ? address.slice(address.indexOf("://") + 3) : address).split(/[/?#]/, 1)[0]!;
+  // URL expands integer hosts to dotted IPv4; the typed host itself must contain a dot.
+  if (!authority.slice(authority.lastIndexOf("@") + 1).split(":", 1)[0]!.includes(".")) return rejected("invalid_url");
   try {
-    const url = new URL(value as string);
-    return ["http:", "https:"].includes(url.protocol) && url.hostname !== "" && (value as string).trim() === value ? result : rejected("invalid_url");
+    const url = new URL(absolute ? address : `https://${address}`);
+    const domain = fullMatch(/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?/i, url.hostname);
+    return ["http:", "https:"].includes(url.protocol) && domain ? result : rejected("invalid_url");
   } catch { return rejected("invalid_url"); }
 }
 /** Native numeric text is parsed strictly, retaining finite JSON numbers as numbers in storage. */
@@ -123,7 +133,8 @@ export const FIELD_TYPE_REGISTRY = {
   textarea: { control: "textarea", htmlType: "textarea", validate: textValue, textual: true },
   email: { control: "input", htmlType: "email", validate: emailValue, textual: true },
   phone: { control: "input", htmlType: "tel", validate: phoneValue, textual: true },
-  url: { control: "input", htmlType: "url", validate: urlValue, textual: true },
+  // Text avoids the browser's scheme requirement while retaining URL keyboard/autofill hints.
+  url: { control: "input", htmlType: "text", attributes: { inputmode: "url", autocomplete: "url", spellcheck: "false", autocapitalize: "off" }, validate: urlValue, textual: true },
   number: { control: "input", htmlType: "number", validate: numberValue },
   range: { control: "input", htmlType: "range", validate: numberValue },
   date: { control: "input", htmlType: "date", validate: temporalValue },

@@ -1,4 +1,5 @@
 import { decodeFormFields, encodeFormFields } from "../fields-json.js";
+import { upgradeLegacyUrlControls } from "../html/html-authoring.js";
 import type { Insertable, Selectable } from "kysely";
 
 import type { FormDefinitionTable, FormSubmissionTable } from "./tables.js";
@@ -20,12 +21,15 @@ export type FormSubmissionRow = Selectable<FormSubmissionTable>;
 
 /** One `form_definitions` row as a {@link FormDefinitionRecord}. */
 export function toDefinitionRecord(row: FormDefinitionRow, _optional: Record<string, never> = {}): FormDefinitionRecord {
+  const authoring = decodeFormFields({ json: row.fields_json });
   return {
     id: row.id,
     workspaceId: row.workspace_id,
     name: row.name,
     slug: row.slug,
-    ...decodeFormFields({ json: row.fields_json }),
+    ...authoring,
+    // Every stored definition is read here, so legacy HTML-mode URL controls are upgraded once for all readers.
+    ...(authoring.mode === "html" ? { html: upgradeLegacyUrlControls({ html: authoring.html ?? "" }) } : {}),
     notify: JSON.parse(row.notify_json) as NotifyConfig,
     status: row.status as FormDefinitionStatus,
     createdAt: row.created_at,

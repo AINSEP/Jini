@@ -2,6 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { renderHtmlForm, renderHtmlFormBody } from "../html-render.js";
 
+test("URL controls accept scheme-less typing and keep URL keyboard hints on the input", () => {
+  const body = renderHtmlFormBody({ fields: [{ id: "website", label: "Website", type: "url", required: false, default: "aui.la", attributes: { inputmode: "email", autocomplete: "off", spellcheck: "true", "data-hint": "<site>" } }], hooks: { field: "data-tovu-field" } });
+  const input = body.match(/<input[^>]*>/)?.[0] ?? "";
+  for (const attribute of ['type="text"', 'inputmode="url"', 'autocomplete="url"', 'spellcheck="false"', 'autocapitalize="off"', 'value="aui.la"', 'data-hint="&lt;site&gt;"']) assert.ok(input.includes(attribute), attribute);
+  for (const attribute of ["inputmode", "autocomplete", "spellcheck", "autocapitalize"]) assert.equal(input.match(new RegExp(` ${attribute}=`, "g"))?.length, 1, attribute);
+  assert.ok(!input.includes('type="url"'));
+});
+
 test("nonempty generated bodies render input and textarea with the host's field hook", () => {
   const fields = [
     { id: "name", label: "Name & title", type: "text" as const, required: true, maxLength: 80 },

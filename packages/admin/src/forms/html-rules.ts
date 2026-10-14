@@ -96,7 +96,7 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 }
 
-type StarterKind = { control: string; htmlType: string; multiple?: boolean };
+type StarterKind = { control: string; htmlType: string; multiple?: boolean; attributes?: Readonly<Record<string, string>> };
 const kindOf = (type: string): StarterKind =>
   Object.hasOwn(FIELD_TYPE_REGISTRY, type) ? FIELD_TYPE_REGISTRY[type as FieldType] as StarterKind : { control: "input", htmlType: "text" };
 const isDefault = (field: AdminFormField, value: string): boolean =>
@@ -107,6 +107,7 @@ function starterAttributes(field: AdminFormField, kind: StarterKind): string {
   const constraints: Array<[string, unknown]> = [
     ["placeholder", kind.control === "select" ? undefined : field.placeholder], ["minlength", field.minLength], ["maxlength", field.maxLength],
     ["pattern", field.pattern], ["min", field.min], ["max", field.max], ["step", field.step], ["accept", field.accept?.join(",")],
+    ...Object.entries(kind.attributes ?? {}),
   ];
   return `name="${escapeHtml(field.id)}"${field.required ? " required" : ""}` +
     constraints.filter(([, value]) => value != null && value !== "").map(([name, value]) => ` ${name}="${escapeHtml(String(value))}"`).join("");

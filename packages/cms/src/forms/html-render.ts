@@ -28,7 +28,7 @@ function extraAttributes(field: FieldDescriptor, claimed: ReadonlySet<string>): 
 /** One registry control rendered with label/legend, help/error associations and escaped defaults. */
 function renderField(field: FieldDescriptor, hooks: Pick<FormHtmlHooks, "field">, options: FormBodyOptions): string {
   if (!field || typeof field.id !== "string" || typeof field.label !== "string" || !Object.hasOwn(FIELD_TYPE_REGISTRY, field.type)) return "";
-  const kind = FIELD_TYPE_REGISTRY[field.type] as { control: string; htmlType: string; multiple?: boolean };
+  const kind = FIELD_TYPE_REGISTRY[field.type] as { control: string; htmlType: string; multiple?: boolean; attributes?: Readonly<Record<string, string>> };
   const id = `${options.idPrefix ?? "form"}-${field.id}`;
   const helpId = `${id}-help`; const errorId = `${id}-error`;
   const label = escapeFormHtml({ value: field.label });
@@ -46,6 +46,10 @@ function renderField(field: FieldDescriptor, hooks: Pick<FormHtmlHooks, "field">
     if (name === "maxlength" && (!Number.isInteger(value) || Number(value) <= 0)) continue;
     if (name === "minlength" && (!Number.isInteger(value) || Number(value) < 0)) continue;
     if (name === "pattern" && !isSafeFieldPattern({ pattern: String(value) })) continue;
+    extra += attr(name, value); claimed.add(name);
+  }
+  // Registry-owned control semantics take precedence over authored extra attributes.
+  for (const [name, value] of Object.entries(kind.attributes ?? {})) {
     extra += attr(name, value); claimed.add(name);
   }
   extra += extraAttributes(field, claimed);

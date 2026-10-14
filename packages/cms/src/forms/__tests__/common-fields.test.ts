@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { validateFieldDescriptors, validateSubmissionPayload } from "../forms.js";
 import { renderHtmlForm } from "../html-render.js";
+import { resolveFormField } from "../field-registry.js";
 import { submitForm } from "../submit-service.js";
 import type { FieldDescriptor, FormDefinitionRecord } from "../types.js";
 import { toDefinitionRecord, toDefinitionRow, toSubmissionRecord, toSubmissionRow } from "../sql/repo.rows.js";
@@ -13,7 +14,7 @@ const cases: Array<{ type: FieldDescriptor["type"]; value: unknown; invalid: unk
   { type: "textarea", value: "Hello", invalid: true, html: /<textarea/ },
   { type: "email", value: "ada@example.com", invalid: "bad@", html: /type="email"/ },
   { type: "phone", value: "+1 (555) 123-4567", invalid: "call me", html: /type="tel"/ },
-  { type: "url", value: "https:\/\/example.com", invalid: "javascript:alert(1)", html: /type="url"/ },
+  { type: "url", value: "aui.la", invalid: "javascript:alert(1)", html: /type="text"[^>]*inputmode="url"/ },
   { type: "number", value: "4", invalid: "Infinity", html: /type="number"/, extra: { min: 0, max: 10, step: 2 } },
   { type: "range", value: "4", invalid: "11", html: /type="range"/, extra: { min: 0, max: 10, step: 2 } },
   { type: "date", value: "2026-10-11", invalid: "2026-02-30", html: /type="date"/ },
@@ -30,6 +31,25 @@ const cases: Array<{ type: FieldDescriptor["type"]; value: unknown; invalid: unk
 const field = (entry: typeof cases[number]): FieldDescriptor => ({ id: "answer", name: "answer", label: "Answer", type: entry.type, required: true, helpText: "Help <here>", ...entry.extra });
 const definition = (fields: FieldDescriptor[]): FormDefinitionRecord => ({ id: "form", workspaceId: "ws", name: "Common", slug: "common", status: "active", fields, notify: { enabled: false, recipients: [] }, createdAt: "2026-10-11T00:00:00Z", updatedAt: "2026-10-11T00:00:00Z", version: 1 });
 const hooks = { field: "data-tovu-field", form: "data-tovu-form", success: "data-tovu-form-success", error: "data-tovu-form-error" };
+const urlField: FieldDescriptor = { id: "website", label: "Website or Instagram", type: "url", required: false };
+
+test("URL fields accept domains and handles while preserving every typed character", () => {
+  for (const value of ["aui.la", "tovu.dev", "www.example.co.uk/events?x=1", "example.com:8080/events?x=1", "example.com?x=1", "example.com/#event", "HTTP://Example.com:8080/events", "https://example.com/events?x=1", "https://user:pass@example.com", "@a", "@Name_123.example", `@${"a".repeat(30)}`]) {
+    assert.deepEqual(resolveFormField({ field: urlField, value }), { kind: "accepted", value }, value);
+    assert.deepEqual(validateSubmissionPayload({ definition: definition([urlField]), body: { website: value } }), { valid: true, data: { website: value } }, value);
+  }
+});
+
+test("URL fields refuse whitespace, unsupported schemes, invalid hosts and invalid handles", () => {
+  for (const value of ["hello", "http://hello", "https://hello", "1234", "http://1234", "javascript:alert(1)", "ftp://example.com", "mailto:ada@example.com", "http:example.com", "//example.com", " aui.la", "aui.la ", "https://example.com/events today", "example.com/a b", "example.com\t", "example.com/\npath", "example.com/\u0000path", "example.com\\path", "example.com:65536", ".com", "example..com", "-example.com", "@", "@two words", "@name-foo", "@é", "@a/b", `@${"a".repeat(31)}`]) {
+    assert.deepEqual(resolveFormField({ field: urlField, value }), { kind: "rejected", reason: "invalid_url" }, JSON.stringify(value));
+  }
+  assert.deepEqual(resolveFormField({ field: urlField, value: "" }), { kind: "accepted", value: "" });
+  assert.deepEqual(resolveFormField({ field: { ...urlField, required: true }, value: "" }), { kind: "rejected", reason: "required" });
+  assert.deepEqual(resolveFormField({ field: { ...urlField, maxLength: 5 }, value: "aui.la" }), { kind: "rejected", reason: "too_long" });
+  assert.deepEqual(resolveFormField({ field: { ...urlField, pattern: "[a-z.]+" }, value: "@name" }), { kind: "rejected", reason: "pattern_mismatch" });
+});
+
 for (const entry of cases) {
   test(`${entry.type}: semantic rendering, accept/reject and stored submission`, async () => {
     const f = field(entry); const d = definition([f]);

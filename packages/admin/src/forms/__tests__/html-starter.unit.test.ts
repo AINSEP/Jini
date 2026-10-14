@@ -19,6 +19,13 @@ const options = [{ value: "a", label: "Apple" }, { value: "b", label: "Banana" }
 const starter = (field: AdminFormField) => formHtmlStarter({ fields: [field] }).split("\n\n<button")[0];
 
 describe("formHtmlStarter", () => {
+  it("round-trips a URL text control with URL keyboard hints and URL validation", () => {
+    const html = formHtmlStarter({ fields: [one("url", { placeholder: "yoursite.com or @handle" })] });
+    for (const attribute of ['type="text"', 'inputmode="url"', 'autocomplete="url"', 'spellcheck="false"', 'autocapitalize="off"']) expect(html).toContain(attribute);
+    expect(html).not.toContain('type="url"');
+    expect(deriveHtmlForm({ html }).fields[0]?.type).toBe("url");
+  });
+
   it("keeps the original markup for a plain text-like field", () => {
     expect(formHtmlStarter({ fields: [{ id: "email", label: "Email", type: "email", required: true, maxLength: 120 }] }, { submitLabel: "Go" }))
       .toBe('<label>Email\n  <input type="email" name="email" required maxlength="120">\n</label>\n\n<button type="submit">Go</button>');
