@@ -679,6 +679,8 @@ export async function executeGoogleToolCalls({ executeTool, calls, onEvent }: { 
  * tool-execution loop when `options.executeTool` is supplied and the model
  * requests a function call. See `anthropic-messages.ts#runAnthropicToolTurn`'s
  * doc for the shared event-stream/`ended`-flag contract this mirrors.
+ * An initial response without text or calls emits an error with its provider finish reason,
+ * not a successful stop. Tool-only turns remain valid: the host may already have acted on them.
  */
 export async function runGoogleToolTurn(requiredArgs: Pick<GoogleTurnOptions, "apiKey" | "model" | "contents" | "onEvent">, optionalArgs: Omit<GoogleTurnOptions, "apiKey" | "model" | "contents" | "onEvent"> = {}): Promise<GoogleTurnResult> {
   const options: GoogleTurnOptions = { ...optionalArgs, ...requiredArgs };
@@ -697,6 +699,16 @@ export async function runGoogleToolTurn(requiredArgs: Pick<GoogleTurnOptions, "a
     lastFinishReason = outcome.finishReason;
 
     if (endGuard.hasEnded()) break;
+
+    if (toolTurns === 0 && outcome.toolCalls.length === 0 && !outcome.text.trim()) {
+      // Thinking can consume the entire output budget without producing any answer. Preserve
+      // the reason for operator diagnostics rather than turning a content-free response into stop.
+      options.onEvent({ type: 'error', message: redactSecrets({
+        input: `Google returned no text or tool calls (${outcome.finishReason ?? 'missing finish reason'})`,
+      }, { exactSecrets: [options.apiKey] }) });
+      emitEnd('error');
+      break;
+    }
 
     const exitReason = googleLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns });
     if (exitReason) {
