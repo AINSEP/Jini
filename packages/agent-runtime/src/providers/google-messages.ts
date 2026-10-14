@@ -304,9 +304,19 @@ export interface GoogleStreamState {
   usage: Record<string, unknown> | null;
 }
 
+/** Adds the shared `input_tokens`/`output_tokens` fields (the only ones the chat usage reducers read) to raw Gemini `usageMetadata` and emits usage. */
 export function applyGoogleUsage({ state, data, onEvent }: { state: GoogleStreamState; data: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }): void {
   if (!isRecord(data.usageMetadata)) return;
-  state.usage = data.usageMetadata;
+  const usage = data.usageMetadata;
+  const candidateTokens = typeof usage.candidatesTokenCount === 'number' ? usage.candidatesTokenCount : undefined;
+  const thoughtsTokens = typeof usage.thoughtsTokenCount === 'number' ? usage.thoughtsTokenCount : undefined;
+  state.usage = {
+    ...usage,
+    // Thoughts are reported separately from candidates; they count as output, as thinking/reasoning
+    // tokens already do inside Anthropic's `output_tokens` and OpenAI's `completion_tokens`.
+    ...(typeof usage.promptTokenCount === 'number' ? { input_tokens: usage.promptTokenCount } : {}),
+    ...(candidateTokens !== undefined || thoughtsTokens !== undefined ? { output_tokens: (candidateTokens ?? 0) + (thoughtsTokens ?? 0) } : {}),
+  };
   onEvent({ type: 'usage', usage: state.usage });
 }
 

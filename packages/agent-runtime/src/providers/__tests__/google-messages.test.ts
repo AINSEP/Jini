@@ -157,7 +157,7 @@ describe('runGoogleToolTurn', () => {
     expect(events).toEqual([
       { type: 'status', label: 'requesting' },
       { type: 'text_delta', delta: 'Hello' },
-      { type: 'usage', usage: { promptTokenCount: 3, candidatesTokenCount: 1, totalTokenCount: 4 } },
+      { type: 'usage', usage: { promptTokenCount: 3, candidatesTokenCount: 1, totalTokenCount: 4, input_tokens: 3, output_tokens: 1 } },
       { type: 'end', reason: 'stop' },
     ]);
     expect(result).toEqual({ finishReason: 'STOP', toolTurns: 0 });
@@ -166,6 +166,29 @@ describe('runGoogleToolTurn', () => {
     expect(init.headers['x-goog-api-key']).toBe('goog-key');
     expect(init.headers.authorization).toBeUndefined();
     expect(init.headers['HTTP-Referer']).toBeUndefined();
+  });
+
+  it.each(['trailer', 'candidate'] as const)('maps usage arriving only in the final %s chunk', async (location) => {
+    const metadata = { promptTokenCount: 10, candidatesTokenCount: 3, totalTokenCount: 18, cachedContentTokenCount: 4, thoughtsTokenCount: 5 };
+    const finalCandidate = { candidates: [{ finishReason: 'STOP' }] };
+    const body = location === 'trailer'
+      ? sseBody(textCandidate('Hello'), chunk(finalCandidate), usageChunk(metadata))
+      : sseBody(textCandidate('Hello'), chunk({ ...finalCandidate, usageMetadata: metadata }));
+    const events: GoogleTurnEvent[] = [];
+    const result = await runGoogleToolTurn({
+      apiKey: 'goog-test', model: 'gemini-2.5-flash', contents: baseContents,
+      onEvent: (event) => events.push(event),
+    }, {
+      fetchImpl: async () => okResponse(body),
+      dnsLookup: async () => [{ address: '8.8.8.8', family: 4 }],
+    });
+    expect(result).toEqual({ finishReason: 'STOP', toolTurns: 0 });
+    expect(events).toEqual([
+      { type: 'status', label: 'requesting' },
+      { type: 'text_delta', delta: 'Hello' },
+      { type: 'usage', usage: { ...metadata, input_tokens: 10, output_tokens: 8 } },
+      { type: 'end', reason: 'stop' },
+    ]);
   });
 
   it('merges caller-supplied extraHeaders verbatim (never a hardcoded product-identity header)', async () => {
@@ -620,6 +643,20 @@ describe('unit: applyGoogleUsage', () => {
     applyGoogleUsage({ state: state, data: { usageMetadata: { totalTokenCount: 42 } }, onEvent: (e) => events.push(e) });
     expect(state.usage).toEqual({ totalTokenCount: 42 });
     expect(events).toEqual([{ type: 'usage', usage: { totalTokenCount: 42 } }]);
+  });
+
+  it.each([
+    { metadata: {}, normalized: {} },
+    { metadata: { promptTokenCount: 0, candidatesTokenCount: 0, totalTokenCount: 0, cachedContentTokenCount: 0, thoughtsTokenCount: 0 }, normalized: { input_tokens: 0, output_tokens: 0 } },
+    { metadata: { candidatesTokenCount: 4 }, normalized: { output_tokens: 4 } },
+    { metadata: { thoughtsTokenCount: 6 }, normalized: { output_tokens: 6 } },
+    { metadata: { promptTokenCount: '3', candidatesTokenCount: '4', thoughtsTokenCount: null, totalTokenCount: '7', cachedContentTokenCount: '1' }, normalized: {} },
+  ])('maps only present numeric token counts: $metadata', ({ metadata, normalized }) => {
+    const state = freshGoogleState();
+    const events: GoogleTurnEvent[] = [];
+    applyGoogleUsage({ state, data: { usageMetadata: metadata }, onEvent: (event) => events.push(event) });
+    expect(state.usage).toEqual({ ...metadata, ...normalized });
+    expect(events).toEqual([{ type: 'usage', usage: { ...metadata, ...normalized } }]);
   });
 
   it('is a no-op when usageMetadata is absent or not a record', () => {
