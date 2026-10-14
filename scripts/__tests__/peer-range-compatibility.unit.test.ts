@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { assertCompatiblePeerRanges } from '../lib/peer-range-compatibility.js';
 import { checkPeerRanges } from '../check-peer-ranges.js';
@@ -43,6 +44,17 @@ describe('public workspace peer compatibility', () => {
     expect(() => assertCompatiblePeerRanges({ packages: [
       { name: '@jini-ai/fixture', peerDependencies: { parse5: 'not-a-range' } },
     ] })).toThrow('@jini-ai/fixture: invalid peer range for parse5: not-a-range');
+  });
+
+  it('rejects an optional workspace peer', () => {
+    expect(() => assertCompatiblePeerRanges({ packages: [
+      { name: '@jini-ai/infra', peerDependencies: { '@jini-ai/db': 'workspace:^' },
+        peerDependenciesMeta: { '@jini-ai/db': { optional: true } } },
+    ] })).toThrow('@jini-ai/infra: invalid peer range for @jini-ai/db: workspace:^');
+  });
+
+  it('passes on the real public workspace manifests', () => {
+    expect(() => checkPeerRanges({ repoRoot: fileURLToPath(new URL('../../', import.meta.url)) })).not.toThrow();
   });
 
   it('wires the workspace check to discovered public manifests, including nested members', () => {
