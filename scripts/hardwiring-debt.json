@@ -472,13 +472,6 @@
     },
     {
       "rule": "HW3-module-state",
-      "file": "packages/chat/src/react/ext-event-renderer-registry.ts",
-      "line": 90,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "b36d435b647af98202bcaff51d7263c176690565e53a2253c73839a06e5258cb"
-    },
-    {
-      "rule": "HW3-module-state",
       "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPaneNewTabLinks.hooks.ts",
       "line": 25,
       "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
@@ -518,13 +511,6 @@
       "line": 56,
       "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
       "fingerprint": "ed8632e6bc1cd3667cb5bc5b208623143c16cee5874816a5b446957ba8d92877"
-    },
-    {
-      "rule": "HW3-module-state",
-      "file": "packages/chat/src/react/tool-renderer-registry.ts",
-      "line": 33,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "b36d435b647af98202bcaff51d7263c176690565e53a2253c73839a06e5258cb"
     },
     {
       "rule": "HW3-module-state",
@@ -1192,13 +1178,6 @@
       "fingerprint": "cc225d2f023c340b83677f60bd7af58cc77d6a0cefbde5f9644e59a835035813"
     },
     {
-      "rule": "HW1-env-default",
-      "file": "packages/ui/src/features/html-editor/react/hooks/useInteractiveHtmlEditor.ts",
-      "line": 191,
-      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
-      "fingerprint": "bad235beef56966ca0b4887eb3a3787b1db890efb2414aa61a405af40daa7f2a"
-    },
-    {
       "rule": "HW3-module-state",
       "file": "packages/ui/src/features/html-editor/source-splice.ts",
       "line": 34,
@@ -1645,20 +1624,6 @@
       "line": 52,
       "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
       "fingerprint": "fc96fc3915277b2bf02c5f01e235eb5c78d38d9981ae0e825c201ad23f85cdbf"
-    },
-    {
-      "rule": "HW3-module-state",
-      "file": "packages/ui/src/react/components/RemixIcon.tsx",
-      "line": 27,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "c6c331958744bb3f00902fd3e507045e2fa152ea81b0f53f56299c6f8f0e82a2"
-    },
-    {
-      "rule": "HW3-module-state",
-      "file": "packages/ui/src/react/components/RemixIcon.tsx",
-      "line": 28,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "da0e6487d4b4061217d83eda6cfad73d08393082c7602e80014e8322e635cdcc"
     },
     {
       "rule": "HW3-module-state",
