@@ -1446,6 +1446,7 @@ describe('translateAgentRuntimeEvent', () => {
 interface FakeAcpAttachCall {
   readonly prompt: string;
   readonly cwd: string;
+  readonly permissionMode: 'bypass' | 'restricted' | undefined;
   readonly model: string | null | undefined;
   readonly imagePaths: readonly string[] | undefined;
   readonly envFormat: 'array' | 'map' | undefined;
@@ -1501,6 +1502,7 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
   const fakeAttachAcpSession = ((requiredAttachOptions: {
     prompt: string;
     cwd: string;
+    permissionMode?: 'bypass' | 'restricted';
     model?: string | null;
     imagePaths?: readonly string[];
     envFormat?: 'array' | 'map';
@@ -1512,6 +1514,7 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
     attachCalls.push({
       prompt: attachOptions.prompt,
       cwd: attachOptions.cwd,
+      permissionMode: attachOptions.permissionMode,
       model: attachOptions.model,
       imagePaths: attachOptions.imagePaths,
       envFormat: attachOptions.envFormat,
@@ -1566,7 +1569,7 @@ describe('AgentExecutor — ACP dispatch (fake attachAcpSession)', () => {
     await runPromise;
 
     expect(attachCalls).toHaveLength(1);
-    expect(attachCalls[0]).toMatchObject({ prompt: 'do the thing', cwd: '/work', envFormat: undefined, onPermissionRequest: undefined });
+    expect(attachCalls[0]).toMatchObject({ prompt: 'do the thing', cwd: '/work', permissionMode: 'restricted', envFormat: undefined, onPermissionRequest: undefined });
 
     child.stdout.emit('data', 'raw acp stdout\n');
     child.stderr.emit('data', 'raw acp stderr\n');
@@ -1678,6 +1681,15 @@ describe('AgentExecutor — ACP dispatch (fake attachAcpSession)', () => {
 
     child.emit('close', 0, null);
     await lifecycle.waitForTerminal({ runId: run.id });
+  });
+
+  it('passes explicit bypass through to the ACP session policy', async () => {
+    const { lifecycle, executor, child, attachCalls } = createAcpHarness();
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' }, { permissionMode: 'bypass' });
+    expect(attachCalls[0]?.permissionMode).toBe('bypass');
+    child.emit('close', 0, null);
+    expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
   });
 
   it('routes a send("agent", {type:"error"}) translated event to the run error channel, not agent', async () => {

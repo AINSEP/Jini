@@ -16,6 +16,7 @@
  */
 import path from 'node:path';
 import type { ExecutionProfile } from './types.js';
+import type { RuntimeBuildOptions } from '../../types.js';
 import {
   createDsmlArtifactTextSuppressor,
   createToolCallTextSuppressor,
@@ -40,6 +41,7 @@ import {
   rpcErrorRetryable,
   promotedOpenCodeSessionErrorPayload,
   formatUsage,
+  choosePermissionOutcome,
 } from './rpc.js';
 import {
   acpRawEventShape,
@@ -67,6 +69,11 @@ export interface AcpPermissionOption {
   readonly name?: string;
   readonly [key: string]: unknown;
 }
+
+/** ACP `PermissionOptionKind` values; other offered options are ignored. */
+const ACP_PERMISSION_OPTION_KINDS: readonly string[] = ['allow_once', 'allow_always', 'reject_once', 'reject_always'];
+/** ACP `ToolKind` values; anything else is logged as `other`. */
+const ACP_TOOL_KINDS: readonly string[] = ['read', 'edit', 'delete', 'move', 'search', 'execute', 'think', 'fetch', 'switch_mode', 'other'];
 
 /**
  * The complete, host-auditable context for an ACP agent's request to perform
@@ -120,11 +127,12 @@ export interface AttachAcpSessionOptions {
   send: (requiredArgs: { event: string; payload: unknown }) => void;
   /**
    * Receives every native ACP tool-permission request before the agent can
-   * execute it. Omit it only when the host intends the session to fail closed
-   * on its first permission request; a runnable ACP host injects a policy
-   * that records and selects an offered option.
+   * execute it. Omit it to answer by `permissionMode`; a handler that throws
+   * or picks an unoffered option cancels the request instead of failing the run.
    */
   onPermissionRequest?: AcpPermissionHandler;
+  /** Default policy when no handler is injected: bypass allows once; otherwise reject. */
+  permissionMode?: RuntimeBuildOptions['permissionMode'];
   clientName?: string;
   clientVersion?: string;
   stageTimeoutMs?: number;
@@ -906,6 +914,7 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
     modelUnavailableErrorCode,
     resumeSessionId,
     onPermissionRequest,
+    permissionMode,
     onCliReady,
     onSessionInit,
   } = options;
@@ -938,7 +947,7 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
   let fatal = false;
   let aborted = false;
   let stageTimer: TimerHandle | null = null;
-  const pendingPermissionRequestIds = new Set<JsonRpcId>();
+  const pendingPermissionRequests = new Map<JsonRpcId, () => void>();
   const toolCallTextSuppressor = createToolCallTextSuppressor();
   let toolCallTextSuppressorLastSuppressedChars = 0;
   const artifactTextSuppressionSummary = {
@@ -1268,64 +1277,79 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
 
   const replyPermission = (raw: UnknownRecord) => {
     const params = asObject(raw.params);
-    if (!params || !isJsonRpcId(raw.id)) {
-      fail(`unhandled ACP permission request: ${JSON.stringify(raw)}`);
+    const toolCall = asObject(params?.toolCall);
+    const optionRecords = Array.isArray(params?.options)
+      ? params.options.filter(
+          (option): option is AcpPermissionOption => {
+            const record = asObject(option);
+            return typeof record?.optionId === 'string' && record.optionId !== '' &&
+              typeof record.kind === 'string' && ACP_PERMISSION_OPTION_KINDS.includes(record.kind);
+          },
+        )
+      : [];
+
+    // One status event per request. Only protocol categories leave this
+    // boundary: titles, names, option ids and raw arguments can contain
+    // commands, paths or credentials.
+    const logDecision = (selected?: AcpPermissionOption) => {
+      try {
+        const tool = typeof toolCall?.kind === 'string' && ACP_TOOL_KINDS.includes(toolCall.kind) ? toolCall.kind : 'other';
+        send({ event: 'agent', payload: { type: 'status', label: 'acp_permission', detail: `tool=${tool} decision=${selected?.kind ?? 'cancelled'}` } });
+      } catch {
+        // Host telemetry must not turn a handled request into a run failure.
+      }
+    };
+
+    if (!isJsonRpcId(raw.id)) {
+      // No response can be correlated without a valid id; drop it rather
+      // than failing the run.
+      logDecision();
       return;
     }
     const requestId = raw.id;
 
-    const optionRecords = Array.isArray(params.options)
-      ? params.options.filter(
-          (option): option is AcpPermissionOption =>
-            Boolean(asObject(option)) && typeof asObject(option)?.optionId === 'string',
-        )
-      : [];
-    const request: AcpPermissionRequest = {
-      requestId,
-      sessionId: typeof params.sessionId === 'string' ? params.sessionId : null,
-      toolCall: asObject(params.toolCall) ?? null,
-      options: optionRecords,
-      rawParams: params,
-    };
-
     const respond = (decision: AcpPermissionDecision) => {
-      pendingPermissionRequestIds.delete(requestId);
+      pendingPermissionRequests.delete(requestId);
       if (aborted || finished) return;
-      if (
-        decision.outcome === 'selected' &&
-        !optionRecords.some((option) => option.optionId === decision.optionId)
-      ) {
-        fail(`ACP permission handler selected an unavailable option: ${decision.optionId}`);
-        return;
-      }
+      // Anything but an offered option (including an invalid handler result) cancels.
+      const choice = asObject(decision);
+      const selected = choice?.outcome === 'selected'
+        ? optionRecords.find((option) => option.optionId === choice.optionId)
+        : undefined;
       resetStageTimer('session/request_permission');
       try {
         sendRpcResult(stdin, requestId, {
-          outcome:
-            decision.outcome === 'selected'
-              ? { outcome: 'selected', optionId: decision.optionId }
-              : { outcome: 'cancelled' },
+          outcome: selected ? { outcome: 'selected', optionId: selected.optionId } : { outcome: 'cancelled' },
         });
-      } catch (err) {
-        fail(`stdin write failed: ${errorMessage(err)}`);
+      } catch {
+        // A broken pipe cannot carry a response; ordinary transport lifecycle
+        // handling still owns process failure, not the permission decision.
       }
+      logDecision(selected);
     };
+    const cancel = () => respond({ outcome: 'cancelled' });
 
-    const rejectHandlerFailure = (err: unknown) => {
-      pendingPermissionRequestIds.delete(requestId);
-      fail(`ACP permission handler failed: ${errorMessage(err)}`);
-    };
-
-    pendingPermissionRequestIds.add(requestId);
-    if (!onPermissionRequest) {
-      pendingPermissionRequestIds.delete(requestId);
-      fail('ACP permission request received without an injected permission handler');
+    if (!params) {
+      cancel();
       return;
     }
+    pendingPermissionRequests.set(requestId, () => logDecision());
     try {
-      Promise.resolve(onPermissionRequest(request)).then(respond, rejectHandlerFailure);
-    } catch (err) {
-      rejectHandlerFailure(err);
+      if (!onPermissionRequest) {
+        const optionId = choosePermissionOutcome(optionRecords, permissionMode ? { permissionMode } : {});
+        respond(optionId ? { outcome: 'selected', optionId } : { outcome: 'cancelled' });
+        return;
+      }
+      const request: AcpPermissionRequest = {
+        requestId,
+        sessionId: typeof params.sessionId === 'string' ? params.sessionId : null,
+        toolCall: toolCall ?? null,
+        options: optionRecords,
+        rawParams: params,
+      };
+      Promise.resolve(onPermissionRequest(request)).then(respond, cancel);
+    } catch {
+      cancel();
     }
   };
 
@@ -1419,14 +1443,15 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
   // closing stdin, which may otherwise make the response impossible to
   // deliver.
   const cancelPendingPermissionRequests = (): void => {
-    for (const requestId of pendingPermissionRequestIds) {
+    for (const [requestId, logCancellation] of pendingPermissionRequests) {
       try {
         sendRpcResult(stdin, requestId, { outcome: { outcome: 'cancelled' } });
       } catch {
         // Closing stdin/process signalling below remains the fallback.
       }
+      logCancellation();
     }
-    pendingPermissionRequestIds.clear();
+    pendingPermissionRequests.clear();
   };
 
   // Only cancel an established session; before session/new resolves there is

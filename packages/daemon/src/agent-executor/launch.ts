@@ -1294,6 +1294,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       // sending byte-identical text and never receive the overlay twice.
           prompt: `${overlayDelivery.promptPrefix}${input.prompt}`,
           cwd: input.cwd,
+          permissionMode: input.permissionMode,
           model: input.model,
           modelCatalog,
           imagePaths: input.imagePaths ?? [],
