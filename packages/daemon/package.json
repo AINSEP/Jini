@@ -166,7 +166,7 @@
     "@electric-sql/pglite": "0.5.8",
     "pg": "^8.23.0",
     "@jini-ai/http-kit": "^0.4.0",
-    "express": "^4.21.0",
+    "express": "^4.21.0 || ^5.0.0",
     "@jini-ai/agent-runtime": "^0.4.10",
     "@jini-ai/platform": "^0.5.5"
   },

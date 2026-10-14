@@ -37,7 +37,7 @@ it("isolates settings and its optional Express adapter from the kernel root", as
   expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());
   expect(manifest.jini.entries["./settings"]).toBe("universal");
   expect(manifest.jini.entries["./settings/express"]).toBe("node");
-  expect(manifest.peerDependencies.express).toBe("^4.21.0");
+  expect(manifest.peerDependencies.express).toBe("^4.21.0 || ^5.0.0");
   expect(manifest.peerDependenciesMeta.express.optional).toBe(true);
   expect(manifest.dependencies?.express).toBeUndefined();
   expect(manifest.optionalDependencies?.express).toBeUndefined();

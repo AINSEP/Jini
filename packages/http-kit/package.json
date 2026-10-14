@@ -87,7 +87,7 @@
   },
   "peerDependencies": {
     "@jini-ai/platform": "^0.5.1",
-    "express": "^4.21.0"
+    "express": "^4.21.0 || ^5.0.0"
   },
   "peerDependenciesMeta": {
     "@jini-ai/platform": {

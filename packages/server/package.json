@@ -89,7 +89,7 @@
     "@jini-ai/daemon": "^0.6.1",
     "@jini-ai/http-kit": "^0.4.0",
     "@jini-ai/sidecar": "^0.4.0",
-    "express": "^4.21.0",
+    "express": "^4.21.0 || ^5.0.0",
     "@jini-ai/db": "^0.3.2",
     "@jini-ai/chat": "^0.5.8 || ^0.6.0",
     "@jini-ai/registry": "^0.5.1"
