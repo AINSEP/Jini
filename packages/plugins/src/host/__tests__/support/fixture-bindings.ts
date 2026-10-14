@@ -34,6 +34,7 @@ const contentTypes: DeclarativeContentTypesPort = {
   apply: async () => { throw new Error('content-type writes are outside this fixture'); },
 };
 export const manifestHost: ManifestHostPorts = {
+  identityNamespace: 'tovu',
   pluginSdkBinding, capabilityVocabulary: ['content.read', 'content.extend', 'hooks.attach'],
   declarativeContentTypes: contentTypes, coreOwnerName: 'Tovu core',
 };

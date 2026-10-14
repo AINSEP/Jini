@@ -265,7 +265,10 @@ test('rollback seals prior bytes as a new version, reloads and leaves draft edit
 
 test('local sealing needs no switch; hosted sealing requires opt-in and returns no partial install', async () => {
   const f = await fixture({ hosted: true }); await f.create();
-  await assert.rejects(f.service.seal({ id }), { code: 'PLUGIN_LOCAL_INSTALL_DISABLED' }); assert.deepEqual(f.calls, []);
+  await assert.rejects(f.service.seal({ id }), { code: 'PLUGIN_LOCAL_INSTALL_DISABLED', message: 'Local plugin install is disabled by the host.' }); assert.deepEqual(f.calls, []);
+  const hostMessage = 'Enable local installs in the host settings.';
+  const withHint = createPluginSourceService({ ...f.sourceDeps, localInstallDisabledMessage: hostMessage }, { temporaryDir: f.root });
+  await assert.rejects(withHint.seal({ id }), { code: 'PLUGIN_LOCAL_INSTALL_DISABLED', message: hostMessage }); assert.deepEqual(f.calls, []);
   const optedIn = createPluginSourceService({ ...f.sourceDeps, policy: createPluginSourcePolicy({ hosted: true, localInstallOptIn: true }) }, { temporaryDir: f.root });
   assert.equal((await optedIn.seal({ id })).installed, true);
 });

@@ -273,7 +273,7 @@ export async function discoverPlugins(
   // Disabled valid installs still own ids.
   return records.map(record => {
     if (record.status !== "valid" || !record.manifest) return record;
-    const identity = readPluginIdentity({ manifest: record.manifest as unknown as Readonly<Record<string, unknown>>, name: record.id, namespace: required.identityNamespace ?? "tovu" });
+    const identity = readPluginIdentity({ manifest: record.manifest as unknown as Readonly<Record<string, unknown>>, name: record.id, namespace: required.identityNamespace });
     if (!qualifiedIds.has(identity.id)) {
       qualifiedIds.add(identity.id);
       return { ...record, warnings: identity.warnings };

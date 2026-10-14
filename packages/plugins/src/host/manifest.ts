@@ -229,7 +229,7 @@ export function validatePluginIdFormat(required: { id: string }, _optional: Reco
   return validateIdFormat(required.id);
 }
 
-/** The owner id the claim system gives Tovu core (`plugin-claims.ts` re-exports it). Conflict
+/** The owner id the claim system gives the host core (`plugin-claims.ts` re-exports it). Conflict
  * detection never compares an owner with itself, so a plugin with this id would never conflict with
  * core's reserved routes, tools or permissions — it is refused as an id instead. */
 export const CORE_OWNER_ID = "core";
@@ -563,7 +563,7 @@ export function validateManifest<H extends HookPoints>(
 
   const errors: PluginValidationError[] = [
     ...validateKeys(raw),
-    ...validatePluginIdentity({ manifest: raw, namespace: required.identityNamespace ?? "tovu" }).errors.map(message => ({ code: "PLUGIN_IDENTITY_INVALID", file: null, message })),
+    ...validatePluginIdentity({ manifest: raw, namespace: required.identityNamespace }).errors.map(message => ({ code: "PLUGIN_IDENTITY_INVALID", file: null, message })),
     ...idErrors,
     ...validateIdentityFields(raw),
     ...validateEngine(raw),
@@ -578,7 +578,7 @@ export function validateManifest<H extends HookPoints>(
   ];
 
   const warnings = errors.length === 0
-    ? readPluginIdentity({ manifest: raw, name: id!, namespace: required.identityNamespace ?? "tovu" }).warnings
+    ? readPluginIdentity({ manifest: raw, name: id!, namespace: required.identityNamespace }).warnings
     : [];
   return { errors, warnings };
 }

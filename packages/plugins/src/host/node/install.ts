@@ -170,10 +170,10 @@ async function checkDestination(manifest: PluginManifest, input: PluginInstallIn
   const root = path.resolve(deps.installDir);
   const scan = deps.identityFilesystem ?? { lstat, readdir, readFile };
   const entries = await scan.readdir(root).catch((e: NodeJS.ErrnoException) => { if (e.code === "ENOENT") return []; throw e; });
-  const identity = readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name: manifest.id, namespace: deps.identityNamespace ?? "tovu" });
+  const identity = readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name: manifest.id, namespace: deps.identityNamespace });
   const candidate = { ...identity, family: "site-runtime", localId: manifest.id };
   const builtIns = (deps.builtInManifests ?? []).map(builtIn => ({
-    ...readPluginIdentity({ manifest: builtIn as unknown as Readonly<Record<string, unknown>>, name: builtIn.id, namespace: deps.identityNamespace ?? "tovu" }),
+    ...readPluginIdentity({ manifest: builtIn as unknown as Readonly<Record<string, unknown>>, name: builtIn.id, namespace: deps.identityNamespace }),
     family: "site-runtime", localId: builtIn.id, version: builtIn.version, enabled: false,
   }));
   try { assertPluginIdentityAvailable({ candidate, installed: builtIns }); }
@@ -211,7 +211,7 @@ async function checkDestination(manifest: PluginManifest, input: PluginInstallIn
         const manifestInfo = await scan.lstat(manifestPath);
         if (!manifestInfo.isFile() || manifestInfo.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Installed plugin manifests must not be links.");
         const installedManifest = JSON.parse(await scan.readFile(manifestPath, "utf8"));
-        installed = readPluginIdentity({ manifest: installedManifest, name: localId, namespace: deps.identityNamespace ?? "tovu" });
+        installed = readPluginIdentity({ manifest: installedManifest, name: localId, namespace: deps.identityNamespace });
       } catch (error) {
         if (error instanceof PluginInstallError) throw error;
         // Preserve link refusals while isolating one broken unrelated manifest.
@@ -274,7 +274,7 @@ async function inspect(input: PluginInstallInput, deps: PluginInstallDeps) {
   const upgradeFrom = await checkDestination(manifest, input, deps);
   // Include manifest bytes: changed capabilities/name/version must invalidate human consent too.
   const digest = digestSitePluginSnapshot({ files });
-  const identity = readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name: manifest.id, namespace: deps.identityNamespace ?? "tovu" });
+  const identity = readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name: manifest.id, namespace: deps.identityNamespace });
   const preview: PluginInstallPreview = { warnings: identity.warnings, publisherId: identity.id, provides: identity.provides, keywords: identity.keywords, id: manifest.id, name: manifest.name, version: manifest.version, tier: manifest.tier, capabilities: manifest.capabilities, hooks: manifest.hooks, hasCode: manifest.tier !== "tier-1", contentTypes: deps.declarativeContentTypes.parse({ value: manifest.contentTypes }).decls.map((decl) => decl.key), conflicts: await deps.conflicts({ manifest }), digest, ...(upgradeFrom ? { upgradeFrom } : {}) };
   return { files, manifest, preview };
 }

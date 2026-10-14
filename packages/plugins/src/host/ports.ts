@@ -55,8 +55,8 @@ export interface DeclarativeContentTypesPort {
   apply(required: { ports: DeclaredContentTypePorts; workspaceId: string; pluginId: string; plan: DeclaredContentTypePlan }, optional?: Record<string, never>): Promise<unknown>;
 }
 export interface ManifestHostPorts<H extends HookPoints = HookPoints> {
-  /** Namespace containing publisher id/provides; default retains the existing site contract. */
-  readonly identityNamespace?: string;
+  /** Host-owned namespace containing publisher id/provides in persisted manifest extensions. */
+  readonly identityNamespace: string;
   readonly pluginSdkBinding: PluginSdkBinding<H>;
   readonly capabilityVocabulary: readonly string[];
   readonly declarativeContentTypes: DeclarativeContentTypesPort;

@@ -18,6 +18,18 @@ const manifest = (id: string, publisherId?: string): PluginManifest => ({
 });
 
 describe('site publisher identity shares the portable plugin contract', () => {
+  it('validates and discovers only the identity namespace selected by the host', async () => {
+    const host = { ...manifestHost, identityNamespace: 'vendor' };
+    const candidate = (id: string): PluginManifest => ({ ...manifest(id), extensions: { vendor: { id: 'vendor/shared' }, tovu: { id: 'invalid' } } });
+    const input = { manifest: candidate('first'), folderName: 'first', builtInIds: [] };
+    expect(validateManifest({ ...host, ...input })).toEqual({ errors: [], warnings: [] });
+    expect(validateManifest({ ...manifestHost, ...input }).errors).toEqual([{ code: 'PLUGIN_IDENTITY_INVALID', file: null, message: 'Plugin id must have the form publisher/name (lowercase letters, digits, dots and hyphens).' }]);
+    const records = await discoverPlugins({ ...host, builtIns: [{ manifest: candidate('first') }, { manifest: candidate('second') }], tierPolicy: { siteErrors: () => [], checkInstall: () => {}, allowLoad: () => true, execution: 'in-process' } });
+    expect(records.map(record => record.status)).toEqual(['valid', 'invalid']);
+    expect(records[0]!.warnings).toEqual([]);
+    expect(records[1]!.errors).toEqual([{ code: 'PLUGIN_ID_DUPLICATE', file: null, message: "duplicate publisher-qualified plugin id 'vendor/shared'" }]);
+  });
+
   it('validates metadata without changing storage id or permission capabilities', () => {
     expect(validateManifest({ ...manifestHost, manifest: manifest('bridge', 'tovu/github'), folderName: 'bridge', builtInIds: [] })).toEqual({ errors: [], warnings: [] });
     const legacy = validateManifest({ ...manifestHost, manifest: manifest('bridge'), folderName: 'bridge', builtInIds: [] });

@@ -47,6 +47,8 @@ export interface PluginSourceDeps extends ManifestHostPorts {
   readonly builtInIds: readonly string[];
   readonly installer: PluginInstallerPort;
   readonly policy: PluginSourcePolicyPort;
+  /** Host-specific opt-in instructions; omitted hosts receive a neutral refusal. */
+  readonly localInstallDisabledMessage?: string;
   /** Host ABI text, avoiding an external site's dependency on npm package resolution. */
   readonly scaffoldEntry: string;
   /** Re-enters the validated runtime loader; returns false when this workspace has it OFF. */
@@ -199,7 +201,7 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
   /** Install a sealed, immutable copy outside discovery's tree. No alternate installer or ZIP
    * encoder is needed; the folder installer refuses sources inside its own destination. */
   async function publish(id: string, files: ReadonlyMap<string, Buffer>, rollbackFrom?: string): Promise<PluginSourceSealResult> {
-    if (!required.policy.localInstallEnabled({}, {})) fail('PLUGIN_LOCAL_INSTALL_DISABLED', 'Hosted plugin installs require TOVU_PLUGIN_LOCAL_INSTALL=1.');
+    if (!required.policy.localInstallEnabled({}, {})) fail('PLUGIN_LOCAL_INSTALL_DISABLED', required.localInstallDisabledMessage ?? 'Local plugin install is disabled by the host.');
     let raw: unknown;
     const filename = PLUGIN_MANIFEST_FILENAMES.find(name => files.has(name)); // legacy alias
     try { raw = JSON.parse(filename === undefined ? '' : files.get(filename)!.toString('utf8')); }
