@@ -6,7 +6,7 @@
 /** Render YYYY-MM-DD HH:MM; hosts can select the viewer's local timezone explicitly. */
 export function formatTimestamp({ iso }: { iso: string }, { timeZone = "stored" }: { timeZone?: "stored" | "local" } = {}): string {
   if (timeZone === "local") {
-    // A stored UTC prefix can label server time as viewer time (Tovu D-06). Local getters
+    // A stored UTC prefix can label server time as viewer time (host issue D-06). Local getters
     // follow the browser's timezone and DST; zone-less ISO is already local wall time.
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return iso; // Keep malformed source data visible.

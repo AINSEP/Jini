@@ -33,7 +33,7 @@ export interface InfoTipPlacement {
  *
  * Why the real measured width: the old clamp assumed every bubble was 18rem wide, so every short tip
  * within 152px of the right edge got the same left — "Remove" sat ~86px away from its ✕ in the
- * dock (Chrome re-check, 2026-10-11). Shared by `useInfoTip` and Tovu's dock-header tips so both
+ * dock (Chrome re-check, 2026-10-11). Shared by `useInfoTip` and the host's dock-header tips so both
  * place identically.
  * @param input.anchor The icon's `getBoundingClientRect()`.
  * @param input.bubble The rendered bubble's measured size; `null` before the portal exists.

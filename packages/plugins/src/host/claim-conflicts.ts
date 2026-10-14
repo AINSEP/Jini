@@ -3,16 +3,16 @@
  * named thing (a route, a tool name, a table, a setting id, a widget id, a permission id, an
  * exclusive hook).
  *
- * JINI CANDIDATE: nothing in this file knows about Tovu, its manifest, its plugins or its storage —
+ * JINI CANDIDATE: nothing in this file knows about the host, its manifest, its plugins or its storage —
  * it takes owners and their claims as plain data and returns who keeps what. It belongs in
  * `@jini-ai/plugins` (or `@jini-ai/core`) beside the glue capability gates. Not moved yet because
- * Tovu's deploy build resolves `@jini-ai/*` from the published registry, so a Jini-side copy would be
+ * the host's deploy build resolves `@jini-ai/*` from the published registry, so a Jini-side copy would be
  * unreachable from production until the owner publishes; moving it is a file move plus one import.
  *
  * ## The rules (also in `ADS-memory/specs/005-plugin-system/conflicts.spec.md`)
  *
  * 1. Owners are processed in PRECEDENCE order — the caller's order, first wins. Core goes first;
- *    after that the caller decides (Tovu: earliest-enabled first, so the NEWER plugin is the one
+ *    after that the caller decides (the host uses earliest-enabled first, so the NEWER plugin is the one
  *    refused — the plugin that was already working keeps working).
  * 2. A claim is `exclusive` (only one owner may hold it) or `shared` (any number of owners may hold
  *    it together — a filter pipeline hook where every filter runs in a fixed order is the example).
@@ -119,7 +119,7 @@ export function normalizeRoute({ key }: { key: string }, _optional: Record<strin
   return methods.map((each) => `${each} ${path}`);
 }
 
-/** The kinds Tovu (and most hosts) need. A host adds or overrides kinds by spreading this. */
+/** The kinds most hosts need. A host adds or overrides kinds by spreading this. */
 export const DEFAULT_CLAIM_KIND_RULES: Readonly<Record<string, ClaimKindRule>> = {
   route: { normalize: (key) => normalizeRoute({ key }) },
 };

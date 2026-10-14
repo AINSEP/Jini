@@ -15,7 +15,7 @@ import type { AgentEvent, ToolResultMediaBlock } from "../events.js";
  * Purpose:
  * A daemon run streams `@jini-ai/protocol` frames (`agent`/`stdout`/`stderr`/`error`/`end`). A saved
  * chat row stores chat-core `AgentEvent`s plus a text `content` and a `run_status`. Until 2026-09-27
- * the frame-to-event translation lived only in the admin SPA (`apps/admin/src/lib/assistant-transport.ts`),
+ * the frame-to-event translation lived only in the admin SPA (the host's `lib/assistant-transport.ts`),
  * so only a connected browser could turn a run into a saved answer: close the tab, or lose it to a
  * restart, and the row stayed `running` with no content forever (FINDING A,
  * `ADS-memory/reports/2026-09-27-stuck-chat-root-cause.md`).

@@ -36,7 +36,7 @@ import type { SeoEntryAnalysis, SeoSettings, SeoSettingsPatch } from "../../mode
  * still a minimal textarea-per-rule form (unchanged from the original disclosed scope note).
  *
  * Copy comes from the module's injected t function. Legacy locale props remain render-contract
- * metadata only; Tovu retains its dictionaries and passes the bound translator through the module.
+ * metadata only; the host retains its dictionaries and passes the bound translator through the module.
  * Host publish behavior is injected as headerActions, and media selection uses its existing slot
  * or the shared mediaPickerToken service. The original rationale is archived in SOURCE-RATIONALE.
  *

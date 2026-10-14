@@ -143,12 +143,12 @@ test("describePluginConflicts / PluginConflictError: one human sentence naming w
     pluginId: "b",
     conflicts: [
       { kind: "tool", key: "shop_list", heldBy: "a", heldByName: "Shop A", heldKey: "shop_list" },
-      { kind: "route", key: "GET /api/shop", heldBy: "core", heldByName: "Tovu core", heldKey: "/api/*" },
+      { kind: "route", key: "GET /api/shop", heldBy: "core", heldByName: "the host core", heldKey: "/api/*" },
     ],
   });
   assert.equal(
     message,
-    "Plugin 'b' was not turned on because it claims things already in use: tool 'shop_list' is provided by plugin 'a' (Shop A); route 'GET /api/shop' is reserved by Tovu core ('/api/*'). Turn off the other plugin first, or keep 'b' off.",
+    "Plugin 'b' was not turned on because it claims things already in use: tool 'shop_list' is provided by plugin 'a' (Shop A); route 'GET /api/shop' is reserved by the host core ('/api/*'). Turn off the other plugin first, or keep 'b' off.",
   );
   const error = new PluginConflictError({ pluginId: "b", conflicts: [{ kind: "tool", key: "x", heldBy: "a", heldByName: "A", heldKey: "x" }] });
   assert.equal(error.name, "PluginConflictError");

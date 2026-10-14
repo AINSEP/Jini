@@ -92,7 +92,7 @@ export interface PluginContributionPorts {
   readonly readFile: (input: { readonly plugin: TrustedPluginPackage; readonly filename: string }) => Promise<string>;
   readonly importModule: PluginModuleImportPort;
 }
-/** Structural host removal port, matching Tovu trash/ports.ts without a CMS dependency edge. */
+/** Structural host removal port, matching the host's trash port without a CMS dependency edge. */
 export type RemoveEntity = (required: {
   workspaceId: string; id: string; display: { title: string; subtitle?: string | null }; at: string;
   expectedVersion: number | null; actor: { principalId: string; pluginId?: string | null }; priorMarker?: string | null;

@@ -21,7 +21,7 @@
  * Implementation Outline slice 2 (ADR-057, Implementation Outline). Depends on slice 1's frozen
  * `manifest.ts`/`ports.ts` contracts.
  */
-// Preserved host rationale: the relative paths and ADR/SPEC references above describe Tovu.
+// Preserved host rationale: the relative paths and ADR/SPEC references above describe the original host.
 import type { GlueContentLifecycleFilter, GlueFieldDecl, GlueHostPort } from "../ports.js";
 
 export interface AttachGlueContentLifecycleRequired<Filter = GlueContentLifecycleFilter> {

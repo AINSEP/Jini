@@ -29,7 +29,7 @@ export function sortIssuesBySeverity({ issues }: { issues: readonly SeoIssue[] }
 /**
  * One edited per-entry override field's outgoing value. An emptied text/URL box means "remove this
  * override so the entry falls back to the site default", which on the wire is `null` — the clear
- * sentinel `SeoExtFieldsPatch` documents (`apps/website/src/features/seo/types.ts`) and
+ * sentinel `SeoExtFieldsPatch` documents (`features/seo/types.ts`) and
  * `setEntrySeoOverrides` implements by `delete`-ing the key.
  *
  * It is NOT `""`. `write-service.ts` stores `""` as a genuine override and `seo.ts` resolves
@@ -63,7 +63,7 @@ export function actionLabel({ pending, pendingLabel, idleLabel }: { pending: boo
 }
 
 /**
- * One `<url>` entry from a parsed sitemap. Only the fields `apps/website`'s
+ * One `<url>` entry from a parsed sitemap. Only the fields the host's
  * `registerSeoSitemapRoute` (`server/inbound/public-http/routes/site/sitemap.ts`) actually emits —
  * `<loc>` always, `<lastmod>` when the entry has one — verified by reading that route rather than
  * guessed: it never writes `changefreq`/`priority`, so `SitemapModal.tsx`'s table has no columns
@@ -110,10 +110,10 @@ export function filterSitemapEntries({ entries, query }: { entries: readonly Sit
  * `MediaRefField`'s ref-building/preview logic (`ogImage`/`twitterImage`/`defaultOgImage` all
  * share this shape — SPEC intent: "make the OG image selectable, with a preview"). The reference
  * format itself is NOT reinvented here — it is verified, not guessed, against the one function that
- * actually parses it server-side: `resolveSeoImageRef` (`apps/website/src/features/seo/media.ts`)
+ * actually parses it server-side: `resolveSeoImageRef` (`features/seo/media.ts`)
  * accepts either an already-absolute URL, passed through unchanged, or a bare `{assetId}:{transformName}`
  * pair split on the FIRST `:`. `isAbsoluteMediaRef`/`parseMediaRefAssetId` below duplicate that
- * parsing rather than import across the app boundary (apps/admin has no dependency on apps/website)
+ * parsing rather than import across the app boundary (the admin UI has no dependency on the host server)
  * — kept in lockstep by this doc comment naming the source of truth; a change to that split MUST
  * update both.
  */
@@ -124,7 +124,7 @@ export function filterSitemapEntries({ entries, query }: { entries: readonly Sit
  *  post body's image node. */
 const SEO_IMAGE_TRANSFORM = "public";
 
-/** Mirrors `resolveSeoImageRef`'s own `isAbsoluteUrl` (`apps/website/src/features/seo/media.ts`) —
+/** Mirrors `resolveSeoImageRef`'s own `isAbsoluteUrl` (`features/seo/media.ts`) —
  *  see this section's file-header doc for why this is a duplicate, not an import. */
 const ABSOLUTE_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
 function isAbsoluteMediaRef(value: string): boolean {
@@ -153,7 +153,7 @@ export function isStoredMediaRef({ value }: { value: string }, _optional: Record
 /** Builds the `{slug}:public` reference `MediaRefField` writes into the field on selection —
  *  prefers the asset's readable slug over its id (readable-slugs S5b, 2026-09-23), matching
  *  `resolveSeoImageRef`'s own id-or-slug lookup server-side (`findMediaByIdOrSlug`,
- *  `apps/website/src/features/seo/media.ts`, S4) so a saved override reads as a slug, not an opaque
+ *  `features/seo/media.ts`, S4) so a saved override reads as a slug, not an opaque
  *  uuid. Falls back to `id` when `slug` is empty — defensive only; a real upload always derives one
  *  (`deriveUniqueMediaSlug`). Same `transformName: "public"` `EmbedInsertControl.tsx` already writes
  *  for an inserted image node. An old stored `{assetId}:public` value keeps resolving regardless
@@ -174,7 +174,7 @@ export function buildMediaRef({ item }: { item: { id: string; slug?: string } },
  *  "string"` also resolves to `null` rather than throwing — `MediaRefField`'s `value` prop is a
  *  `fieldValue(key, resolved) ?? ""` fallback chain (`react/pages/SeoPage.tsx`), where `??` does not replace a
  *  non-nullish-but-wrong-typed result from a misbehaving caller; matches `resolveSeoImageRef`'s own
- *  "never throws over one bad reference" contract (`apps/website/src/features/seo/media.ts`).
+ *  "never throws over one bad reference" contract (`features/seo/media.ts`).
  *
  * @complexity O(1) — string parsing only, no I/O (the returned URL is a template; the browser
  * performs the actual fetch only once it is used as an `<img src>`). */
@@ -226,7 +226,7 @@ export function shareImageWarning({ value, previewUrl, width, height, byteSize, 
 /** One `FormData` field as a string, with the caller's fallback for an absent field. Its own named
  *  function purely so {@link buildSeoSettingsPatch} below stays readable at a glance: written
  *  inline, the seven fields' `?? `/`||` chains scored the patch builder at the ESLint ceiling
- *  (`apps/admin` enforces 9/9 as a hard error) for no gain in clarity. */
+ *  (the admin lint policy enforces 9/9 as a hard error) for no gain in clarity. */
 function formString(form: FormData, key: string, fallback = ""): string {
   return String(form.get(key) ?? fallback);
 }
@@ -236,7 +236,7 @@ function formString(form: FormData, key: string, fallback = ""): string {
  *
  * `null` is what CLEARS a site default: the server registers these three (`default_description`,
  * `default_og_image`, `twitter_site`) as `nullable: true` and `buildScalarWrites`
- * (`apps/website/src/features/seo/settings.ts`) normalizes `null` to the `""` absent-sentinel that
+ * (`features/seo/settings.ts`) normalizes `null` to the `""` absent-sentinel that
  * `getSeoSettings` reads back as `undefined`.
  *
  * It used to return `undefined`, under a comment claiming "an empty box means 'no site default'".

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
  * Own hook, not inline state in `ChatFab.tsx` — the same reasoning as `useSidebarRail`: this is
  * real, testable-on-its-own behavior (persistence, clamping, free-drag). Colocated as
  * `ChatFab.hooks.tsx` next to the component it belongs to (2026-08-06 extraction, moved out of
- * the flatter `apps/admin/src/hooks/*.hooks.ts` convention `apps/admin/INFO.md` still documents
+ * the host's flatter `src/hooks/*.hooks.ts` convention its `INFO.md` still documents
  * for hooks with no single owning component) rather than left under `hooks/`, since
  * `useFabPosition` has exactly one consumer. No `-port.hooks.ts` / `-dependencies.hooks.ts` pair,
  * for the same reason as `useSidebarRail`: the only outside dependency is `localStorage`, a

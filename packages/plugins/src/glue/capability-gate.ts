@@ -26,7 +26,7 @@
  * 1). Depends on `./manifest`'s `GlueCapability` type and `core/`'s shared capability vocabulary
  * — no host-specific dependency.
  */
-// Preserved host rationale: the relative paths and ADR/SPEC references above describe Tovu.
+// Preserved host rationale: the relative paths and ADR/SPEC references above describe the original host.
 import type { GlueCapability } from './manifest.js';
 
 export class GlueCapabilityDeniedError extends Error {
@@ -74,7 +74,7 @@ export type BuildGlueCapabilityGateOptional = Record<string, never>;
  * `capabilities` array's length.
  * @overallScore 100/100
  */
-// The caller supplies the vocabulary; the preserved CIC rationale describes Tovu's eight-slot host.
+// The caller supplies the vocabulary; the preserved CIC rationale describes the original eight-slot host.
 // Capability-specific arguments remain owned by the supplied attachment-point delegates.
 export function buildGlueCapabilityGate(required: BuildGlueCapabilityGateRequired, _optional: BuildGlueCapabilityGateOptional = {}): Readonly<Record<GlueCapability, GlueCapabilityDelegate>> {
   // Defensive copy: a caller-side mutation of the `capabilities` array after this call must never

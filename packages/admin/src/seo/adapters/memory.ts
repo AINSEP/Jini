@@ -56,7 +56,7 @@ function applySeoPatch(meta: SeoEntryMeta, patch: SeoEntryOverridesPatch): SeoEn
 }
 
 /** One of the three site-wide scalars the server registers as `nullable: true` (`SEO_DEFINITIONS`,
- *  `apps/website/src/features/seo/settings.ts`), under the real write's own rule: an omitted key
+ *  `features/seo/settings.ts`), under the real write's own rule: an omitted key
  *  (`undefined`) keeps the current value, `null` clears it, and a string overwrites. */
 function settingOrCleared(patchValue: string | null | undefined, currentValue: string | undefined): string | undefined {
   if (patchValue === undefined) return currentValue;

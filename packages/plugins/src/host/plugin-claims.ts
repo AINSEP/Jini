@@ -1,6 +1,6 @@
 /**
- * @file Tovu's plugin conflict rules on top of the neutral detector (`claim-conflicts.ts`):
- * what a `tovu.plugin.json` claims, who keeps a contested name, and the sentence an operator or an
+ * @file Host plugin conflict rules on top of the neutral detector (`claim-conflicts.ts`):
+ * what a plugin manifest claims, who keeps a contested name, and the sentence an operator or an
  * agent reads when a plugin is refused.
  *
  * Spec note: `ADS-memory/specs/005-plugin-system/conflicts.spec.md`.
@@ -195,7 +195,7 @@ export function resolvePluginConflicts(
   return result;
 }
 
-/** One conflict, in words: `tool 'x' is provided by plugin 'a' (A)` / `... is reserved by Tovu core ('/api/*')`. */
+/** One conflict, in words: `tool 'x' is provided by plugin 'a' (A)` / `... is reserved by the host core ('/api/*')`. */
 function describeOne(conflict: PluginConflict): string {
   const holder =
     conflict.heldBy === CORE_OWNER_ID
