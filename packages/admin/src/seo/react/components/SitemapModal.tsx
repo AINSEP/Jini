@@ -208,7 +208,7 @@ export function SitemapModal({
 
   return (
     <Dialog open title={title} onClose={() => onClose()}
-      className="settings-dialog tovu-domain-dialog sitemap-modal">
+      className="settings-dialog jini-domain-dialog sitemap-modal">
         <div className="sitemap-modal-header">
           <SitemapModalHeaderActions locale={locale} modal={modal} />
         </div>

@@ -41,7 +41,7 @@ export function FieldAttributesDialog({
 
   return (
     <Dialog open title={`${t("Field settings —")} ${displayName}`}
-      onClose={onClose} className="settings-dialog tovu-domain-dialog field-attrs-dialog">
+      onClose={onClose} className="settings-dialog jini-domain-dialog field-attrs-dialog">
       <form
         onSubmit={submit}
         {...agentHandle({ handle: "form-field-attrs-dialog" }, {

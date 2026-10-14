@@ -20,7 +20,7 @@ function HostMediaPicker({ onSelect, onCancel, accept }: SeoMediaPickerSlotProps
     api.listMedia().then(({ media }) => { if (alive) setItems(media.filter(item => item.status === 'active' && acceptsMedia({ item, accept: accept ?? [] }))); }).catch(error => { if (alive) setError(error instanceof Error ? error.message : 'failed to load media'); });
     return () => { alive = false; };
   }, []);
-  return <Dialog open title="Choose an image" onClose={onCancel} className="settings-dialog tovu-domain-dialog media-picker-dialog">
+  return <Dialog open title="Choose an image" onClose={onCancel} className="settings-dialog jini-domain-dialog media-picker-dialog">
     <div className="media-picker-body">
       {error && <div className="notice error">{error}</div>}
       {items === null ? <p className="notice">Loading media…</p> : <div className="media-picker-grid">{items.map(item => <button key={item.id} type="button" className="media-picker-item" title={item.title} onClick={() => onSelect(item)}><img src={api.mediaOriginalUrl(item.id)} alt={item.alt || item.title} loading="lazy" /><span className="media-picker-item-title">{item.title}</span></button>)}</div>}
