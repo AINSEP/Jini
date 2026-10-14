@@ -1,3 +1,9 @@
+## 0.5.11 — 2026-10-13
+
+- `./forms`: URL fields accept bare domains (optional port, path and query), `http(s)://` URLs and `@handle`s, and store the value as typed (no forced `https://`). Whitespace, dotless hosts and other schemes are still rejected (`invalid_url`).
+- `./forms`: the `url` registry kind renders as `type="text"` with new `attributes` (`inputmode="url"`, `autocomplete="url"`, `spellcheck="false"`, `autocapitalize="off"`), so the browser no longer blocks scheme-less input. Stored HTML-mode forms with a legacy `<input type="url">` are upgraded when the row is read.
+- Runtime error text no longer carries spec IDs: widget and redirect messages drop their `(REQ-*)` suffixes. Hosts asserting the old redirect text (for example `(REQ-22)`) must update their expectations.
+
 ## 0.5.10 — 2026-10-13
 
 - `./entries`: `InMemoryEntryRepo.hardDelete({ workspaceId, id })` removes one workspace-scoped entry and its revisions (memory-only purge seam, not part of the port).

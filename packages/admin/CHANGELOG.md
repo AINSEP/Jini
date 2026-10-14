@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.10 — 2026-10-13
+
+- Forms HTML starter: URL fields emit `type="text"` plus the registry's URL hints (`inputmode`, `autocomplete`, `spellcheck`, `autocapitalize`), so bare domains such as `tovu.dev` are no longer refused by the browser. CMS peer floor ^0.5.11.
+
 ## 0.4.9 — 2026-10-13
 
 - Sitemap modal: Regenerate no longer reads `/sitemap.xml` twice. The regenerate mutation already invalidates the cached sitemap read (since 1c5d476f), so the modal's extra refetch is gone; the modal still shows the fresh XML after a successful regenerate and keeps the old XML after a failed one.
