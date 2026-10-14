@@ -7,7 +7,9 @@ import ts from 'typescript';
 
 export interface PackageManifest {
   name: string;
+  private?: boolean;
   dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
   peerDependenciesMeta?: Record<string, { optional?: boolean }>;
   exports?: Record<string, unknown>;

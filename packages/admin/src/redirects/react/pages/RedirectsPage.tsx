@@ -1,4 +1,5 @@
-import { DataTable, ConfirmDialog } from '../../../react/index.js';
+import { DataTable } from '../../../react/components/DataTable.js';
+import { ConfirmDialog } from '../../../react/components/ConfirmDialog/ConfirmDialog.js';
 import { agentHandle } from '@jini-ai/agentic';
 import { describeApiError } from '../../../core/transport/errors.js';
 import { ImportRedirectsForm } from '../components/ImportRedirectsForm.js';

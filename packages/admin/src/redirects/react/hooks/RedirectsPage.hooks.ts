@@ -1,5 +1,5 @@
 import { createElement } from 'react';
-import { RowMenu } from '../../../react/index.js';
+import { RowMenu } from '../../../react/components/RowMenu/RowMenu.js';
 import type { AdminRedirect } from '../../../core/ports/redirects.js';
 import { redirectRowMenuItems } from '../../rules.js';
 import { HitCountCell } from '../components/HitCountCell.js';

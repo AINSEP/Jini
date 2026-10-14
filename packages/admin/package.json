@@ -79,6 +79,12 @@
       "./consent/react": "browser"
     },
     "isolation": {
+      "shared": [
+        "src/react/components/DataTable.tsx",
+        "src/react/components/ConfirmDialog",
+        "src/react/components/RowMenu",
+        "src/react/types.ts"
+      ],
       "forbidden": {
         "universal": [
           "node:",
