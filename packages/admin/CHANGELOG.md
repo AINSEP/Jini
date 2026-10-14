@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.11 — 2026-10-14
+
+- `FieldAttributesDialog` and `SitemapModal` use the neutral `jini-domain-dialog` class instead of a host-named one; hosts style `.jini-domain-dialog` (47b9fa4f).
+- Rides along, no API change: forms option row keys come from the editor's own row list instead of a module-level counter (6281ddc8); redirects imports its shared widgets directly instead of the React barrel (9b45c742); comment scrubs (8e508fb6, 6281ddc8).
+
 ## 0.4.10 — 2026-10-13
 
 - Forms HTML starter: URL fields emit `type="text"` plus the registry's URL hints (`inputmode`, `autocomplete`, `spellcheck`, `autocapitalize`), so bare domains such as `tovu.dev` are no longer refused by the browser. CMS peer floor ^0.5.11.

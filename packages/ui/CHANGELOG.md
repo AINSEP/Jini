@@ -1,5 +1,9 @@
 # @jini-ai/ui
 
+## 0.5.3 — 2026-10-14
+
+- New `./preview-modal-shell` subpath exporting `PreviewModalShell` without the whole `./renderers` barrel (Markdown, artifact views, annotation canvas); it still includes its sandboxed HTML renderer and parser (ec060014).
+
 ## 0.5.2 — 2026-10-13
 
 - MCP-UI surfaces follow the host's live theme (da019dde): `McpUiHost` reads the host's resolved `--jini-*` theme where a card mounts and writes it into Jini-built surface documents as a `:root` rule after the token block; a MutationObserver re-themes cards already on screen when the theme or accent changes. Third-party Views are not rewritten. Builder token overrides render as `:root:root`, so a card that sets its own tokens keeps them. New `--jini-mcpui-accent-ink` token (host `--jini-primary-ink`) for primary button text.

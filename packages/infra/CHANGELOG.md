@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.3 — 2026-10-14
+
+- The `@jini-ai/db` optional peer is published as `^0.3.4` instead of a `workspace:` range (3fcc85e2).
+- `./db/core` now resolves to `dist/db/driver`, which binds the `@jini-ai/db/core` helpers by identity and re-exports the same names and types; the neutral `src/db/core` declares only `RestorePointNamingPort` (64eafe35). No change for importers.
+
 ## 0.5.2 — 2026-10-13
 
 - `@jini-ai/db` is now an optional peer: only `./db/core` and `./db/sqlite` re-export it; `./events/outbox` needs `@jini-ai/core` only. Hosts using the db entries list `@jini-ai/db` themselves.

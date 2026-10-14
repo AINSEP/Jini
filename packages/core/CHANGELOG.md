@@ -1,5 +1,9 @@
 # @jini-ai/core
 
+## 0.4.6 — 2026-10-14
+
+- Express 5 accepted: the optional `express` peer is now `^4.21.0 || ^5.0.0` (1442d875), so an Express 5 host no longer hits ERESOLVE.
+
 ## 0.4.5 — 2026-10-13
 
 - `FetchQueryCache`: a `replace()` that lands after a read's transport resolves but before publication now wins; arbitration and publication share one continuation.

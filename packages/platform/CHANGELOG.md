@@ -1,5 +1,9 @@
 # @jini-ai/platform
 
+## 0.5.7 — 2026-10-14
+
+- The asset cache's optional `undici` load moves behind `asset-cache.adapter.ts` (64eafe35); injected dispatchers, DNS validation and the MODULE_NOT_FOUND message are unchanged. No API change.
+
 ## 0.5.6 — 2026-10-13
 
 - `undici` and `hast-util-from-parse5`, `hast-util-to-mdast`, `mdast-util-to-markdown`, `mdast-util-gfm-table` (with `parse5`) are now optional peers instead of dependencies. Only `./web` needs the HTML/Markdown set; only the default `createAssetCacheDispatcher` needs undici, loaded lazily (a missing peer throws `AssetCacheError` 500; a host-supplied dispatcher needs none). Hosts using those must list the packages themselves.

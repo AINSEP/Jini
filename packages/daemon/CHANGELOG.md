@@ -1,3 +1,7 @@
+## 0.6.5 — 2026-10-14
+
+- Express 5 accepted: the optional `express` peer is now `^4.21.0 || ^5.0.0` (1442d875), so an Express 5 host no longer hits ERESOLVE.
+
 ## 0.6.4 — 2026-10-13
 
 - ACP runs forward the run's `permissionMode` to `attachAcpSession`, so a `bypass` run allows each ACP tool request once and a restricted run rejects it, instead of failing on the first permission request. Peer `@jini-ai/agent-runtime` floor is now `^0.4.10`.

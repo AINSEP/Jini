@@ -1,3 +1,8 @@
+## 0.4.11 — 2026-10-14
+
+- Gemini: `applyGoogleUsage` adds `input_tokens` (`promptTokenCount`) and `output_tokens` (`candidatesTokenCount` + `thoughtsTokenCount`) next to the raw `usageMetadata` fields, so usage reducers show Gemini token counts (024fe7e8).
+- Gemini: a first reply with no text and no tool calls (for example thinking consumed the whole `MAX_TOKENS` budget) now emits an error carrying the finish reason and ends with `error` instead of a blank successful `stop`. Partial text cut off by `MAX_TOKENS` and tool-only turns still succeed (a80066ae).
+
 ## 0.4.10 — 2026-10-13
 
 - ACP `session/request_permission` no longer fails the run. Without an injected `onPermissionRequest`, the session answers by the new `AttachAcpSessionOptions.permissionMode`: `bypass` selects `allow_once`; otherwise `reject_once`, falling back to `reject_always` or `cancelled`. It never picks an "always" approval. A handler that throws, rejects, or selects an unoffered option cancels the request. Each request emits one `status` event (`label: 'acp_permission'`) with only the tool kind and decision. `choosePermissionOutcome(options, { permissionMode })` follows the same policy.

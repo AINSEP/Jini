@@ -1,3 +1,7 @@
+## 0.6.3 — 2026-10-14
+
+- Express 5 accepted: the optional `express` peer is now `^4.21.0 || ^5.0.0` (1442d875), so an Express 5 host no longer hits ERESOLVE.
+
 ## 0.6.2 — 2026-10-13
 
 - Widen the optional `@jini-ai/chat` peer to `^0.5.8 || ^0.6.0` (it rejected the published chat 0.6.0).

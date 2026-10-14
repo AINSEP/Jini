@@ -1,5 +1,9 @@
 # @jini-ai/http-kit
 
+## 0.4.2 — 2026-10-14
+
+- Express 5 accepted: the optional `express` peer is now `^4.21.0 || ^5.0.0` (1442d875), so an Express 5 host no longer hits ERESOLVE.
+
 ## 0.4.1
 
 ### Patch Changes
