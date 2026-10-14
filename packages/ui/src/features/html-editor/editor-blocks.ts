@@ -28,8 +28,8 @@ const LABELS: Record<EditorBlockReason, string> = {
   kuinetic: 'Animation · Kuinetic', canvas: 'Canvas', 'autoplay-video': 'Autoplay video',
   scripted: 'Scripted section', embed: 'Content',
 };
-const INLINE_TAGS = new Set(['span', 'a', 'b', 'i', 'em', 'strong', 'small', 'mark', 's', 'u', 'sub', 'sup']);
-const UNSUPPORTED_CONTEXTS = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'select', 'option', 'svg', 'math', 'template']);
+const INLINE_TAGS: ReadonlySet<string> = new Set(['span', 'a', 'b', 'i', 'em', 'strong', 'small', 'mark', 's', 'u', 'sub', 'sup']);
+const UNSUPPORTED_CONTEXTS: ReadonlySet<string> = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'select', 'option', 'svg', 'math', 'template']);
 // A Kuinetic entrance/decoration effect (fade-up, text-reveal, split-chars, count-up…)
 // only animates authored text the canvas never runs, so locking it hid Landing's headline, ledes and
 // buttons behind grey cards. Such elements stay editable; their data-kui attribute round-trips like
@@ -37,7 +37,7 @@ const UNSUPPORTED_CONTEXTS = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr', 
 // stay locked; unknown names retain the structural rule, and data-editor="block" still forces a lock.
 // Names follow Kuinetic's core entrance, text, numbers, media and interaction catalogs; the bare
 // fade/reveal/text-reveal/glow spellings are also part of the editor's authored-effect contract.
-const EDITABLE_EFFECTS = new Set([
+const EDITABLE_EFFECTS: ReadonlySet<string> = new Set([
   'fade', 'fade-in', 'fade-up', 'fade-down', 'fade-left', 'fade-right', 'fade-blur-in', 'fade-blur-up',
   'slide-up', 'slide-down', 'slide-left', 'slide-right', 'slide-inline-start', 'slide-inline-end', 'slide-block-start', 'slide-block-end',
   'zoom-in', 'zoom-in-up', 'zoom-in-down', 'pop-in', 'flip-in-x', 'flip-in-y', 'rotate-in', 'rotate-in-left', 'rotate-in-right',
@@ -48,15 +48,15 @@ const EDITABLE_EFFECTS = new Set([
   'magnetic', 'glow', 'glow-pulse', 'border-glow', 'border-draw', 'beam-border', 'beam-border-auto', 'proximity-glow',
   'shine-sweep', 'lift', 'lift-shadow', 'pop', 'underline-slide', 'underline-center', 'icon-wiggle', 'icon-spin', 'icon-bounce',
 ]);
-const RUNTIME_EFFECTS = new Set([
+const RUNTIME_EFFECTS: ReadonlySet<string> = new Set([
   'ring', 'carousel', 'deck', 'slides', 'pin', 'pin-section', 'pin-until', 'pin-spacer', 'marquee', 'marquee-scroll-linked', 'accordion', 'tabs',
   'carousel-3d', 'carousel-3d-high', 'carousel-3d-low', 'carousel-3d-inside', 'carousel-orbit', 'carousel-stack',
   'carousel-fade', 'carousel-slide', 'slideshow', 'video-hero-slideshow', 'step-progress', 'stacking-cards', 'horizontal-scroll',
   'flip-reorder', 'flip-filter', 'flip-sort', 'flip-shuffle', 'grid-to-list', 'masonry-reflow', 'expand-to-modal', 'accordion-height',
   'card-flip-x', 'card-flip-y', 'flip-card', 'scroll-snap-x', 'scroll-snap-y',
 ]);
-const TEXT_EFFECT_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li', 'dt', 'dd', 'blockquote', 'figcaption', 'label']);
-const PHRASING_TAGS = new Set([...INLINE_TAGS, 'abbr', 'br', 'cite', 'code', 'data', 'dfn', 'img', 'kbd', 'q', 'samp', 'time', 'var', 'wbr']);
+const TEXT_EFFECT_TAGS: ReadonlySet<string> = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li', 'dt', 'dd', 'blockquote', 'figcaption', 'label']);
+const PHRASING_TAGS: ReadonlySet<string> = new Set([...INLINE_TAGS, 'abbr', 'br', 'cite', 'code', 'data', 'dfn', 'img', 'kbd', 'q', 'samp', 'time', 'var', 'wbr']);
 const isPhrasingOnly = (el: SourceElement): boolean => el.children.every(child => PHRASING_TAGS.has(child.tagName) && isPhrasingOnly(child));
 const isEditableEffect = (el: SourceElement): boolean => {
   if (el.attributes['data-editor'] === 'block') return false;

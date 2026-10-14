@@ -139,7 +139,7 @@ export function spliceElementInner(html: string, path: ElementPath, expectedTagN
   return html.slice(0, range.start) + newInner + html.slice(range.end);
 }
 
-const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+const VOID_TAGS: ReadonlySet<string> = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 
 /** Verified offsets are JS string indexes (UTF-16), suitable for slice and textarea selection. */
 export interface ElementOuterRange {
