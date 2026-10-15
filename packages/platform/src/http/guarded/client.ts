@@ -39,7 +39,7 @@ export function classifyAddress({ ip }: { ip: string }): AddressClass {
   // it is not globally routable and belongs with RFC 1918 private ranges for egress decisions.
   return "private";
 }
-const SENSITIVE_HEADERS = new Set(["authorization", "cookie"]);
+const CROSS_ORIGIN_HEADERS = new Set(["accept", "accept-language", "user-agent"]);
 
 // HTTP header names are case-insensitive; preserve the caller's explicit User-Agent in any casing.
 function hasUserAgentHeader(headers: Readonly<Record<string, string>>): boolean {
@@ -118,10 +118,10 @@ async function resolvePinnedPeer(url: URL, policy: EgressPolicy, dns: DnsResolve
   };
 }
 
-function withStrippedSensitiveHeaders(headers: Readonly<Record<string, string>>): Record<string, string> {
+function withCrossOriginHeaders(headers: Readonly<Record<string, string>>): Record<string, string> {
   const next: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) {
-    if (SENSITIVE_HEADERS.has(key.toLowerCase())) continue;
+    if (!CROSS_ORIGIN_HEADERS.has(key.toLowerCase())) continue;
     next[key] = value;
   }
   return next;
@@ -209,8 +209,9 @@ async function sendWithPolicy(
 
   const nextUrl = new URL(location, url);
   // Cross-origin hops must not inherit authorization or cookies entrusted to the original origin.
+  // Custom headers can carry credentials too; forward only the explicit noncredential allowlist.
   const nextHeaders = isCrossOrigin(url, nextUrl)
-    ? withStrippedSensitiveHeaders(request.headers)
+    ? withCrossOriginHeaders(request.headers)
     : request.headers;
 
   return sendWithPolicy(

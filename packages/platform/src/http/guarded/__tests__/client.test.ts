@@ -83,13 +83,19 @@ for (const [target, sameOrigin] of [["https://example.com:8443/next", false], ["
             { status: 200, headers: {}, bodyText: "final" },
         ]);
         const client = createHttpClient({ ...{ transport, policy: makePolicy({ allowedSchemes: ["https", "http"] }) }, dns, clock, userAgent: "Fixture/1.0" });
-        const headers = { Authorization: "Bearer secret", Cookie: "session=secret", "X-Kept": "yes" };
+        const headers = {
+            Authorization: "Bearer fixture", Cookie: "session=fixture", "X-Kept": "yes",
+            "X-Shopify-Access-Token": "fixture-shopify-token", "x-api-key": "fixture-api-key",
+            "api-key": "fixture-other-key", "X-Provider-Token": "fixture-provider-token",
+            accept: "application/json", "accept-language": "en-US", "user-agent": "Caller/1.0",
+        };
         await client.send({ request: makeRequest({ headers }) });
         assert.equal(transport.calls.length, 2);
         const sent = transport.calls[1]!.req.headers;
-        assert.equal(sent.Authorization, sameOrigin ? headers.Authorization : undefined);
-        assert.equal(sent.Cookie, sameOrigin ? headers.Cookie : undefined);
-        assert.equal(sent["X-Kept"], "yes");
+        assert.deepEqual(sent, sameOrigin ? headers : {
+            accept: "application/json", "accept-language": "en-US", "user-agent": "Caller/1.0",
+        });
+        assert.deepEqual(transport.calls[0]!.req.headers, headers);
     });
 }
 test("a repeated redirect stops after the positive redirect budget", async () => {
@@ -369,23 +375,26 @@ test("a cross-origin redirect strips auth headers and is re-verified against pol
             headers: { Authorization: "Bearer secret" },
         }) }), /rejected/);
 });
-test("a cross-origin redirect to an allowed host strips Authorization/Cookie before following", async () => {
+test.each([301, 302, 303, 307, 308])("a cross-origin %i redirect forwards only accept, accept-language and user-agent", async (status) => {
     const transport = new ScriptedTransport([
-        { status: 302, headers: { location: "https://8.8.8.8/next" }, bodyText: "" },
+        { status, headers: { location: "https://8.8.8.8/next" }, bodyText: "" },
         { status: 200, headers: {}, bodyText: "final" },
     ]);
     const client = createHttpClient({ ...{ transport, policy: makePolicy() }, dns, clock, userAgent: "Fixture/1.0" });
     const response = await client.send({ request: makeRequest({
             url: "https://example.com/",
-            headers: { Authorization: "Bearer secret", AUTHORIZATION: "Bearer uppercase", Cookie: "session=secret", cookie: "other=secret", "X-Kept": "yes" },
+            headers: {
+                Authorization: "Bearer fixture", AUTHORIZATION: "Bearer uppercase", Cookie: "session=fixture", cookie: "other=fixture",
+                "X-Shopify-Access-Token": "fixture-shopify-token", "x-api-key": "fixture-api-key",
+                "api-key": "fixture-other-key", "X-Provider-Token": "fixture-provider-token", "X-Kept": "yes",
+                Accept: "application/json", "ACCEPT-LANGUAGE": "en-US", "uSeR-aGeNt": "Caller/1.0",
+            },
         }) });
     assert.equal(response.bodyText, "final");
     assert.equal(transport.calls.length, 2);
-    assert.equal(transport.calls[1]!.req.headers.Authorization, undefined);
-    assert.equal(transport.calls[1]!.req.headers.AUTHORIZATION, undefined);
-    assert.equal(transport.calls[1]!.req.headers.Cookie, undefined);
-    assert.equal(transport.calls[1]!.req.headers.cookie, undefined);
-    assert.equal(transport.calls[1]!.req.headers["X-Kept"], "yes");
+    assert.deepEqual(transport.calls[1]!.req.headers, {
+        Accept: "application/json", "ACCEPT-LANGUAGE": "en-US", "uSeR-aGeNt": "Caller/1.0",
+    });
 });
 test("stops following redirects once maxRedirects is exhausted", async () => {
     const transport = new ScriptedTransport([
