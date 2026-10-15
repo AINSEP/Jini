@@ -127,7 +127,8 @@ export function useTabBarKeyboard({ tabs, activeId, onChange }: { tabs: readonly
  * row into one swipeable row on phones, and a deep link to a later tab (`?tab=…`) otherwise opens
  * with its own label cut off at the edge. Only the strip's own `scrollLeft` moves: `scrollIntoView`
  * would also scroll the page vertically to the strip, a jump on every tab change below the fold.
- * A strip that wraps (no horizontal overflow) is left alone.
+ * A strip that wraps (no horizontal overflow) is left alone. Re-checks once fonts are ready,
+ * since web fonts can change tab widths after the initial measurement.
  *
  * @param input.activeId - The currently active tab's id; the strip re-checks when it changes.
  * @returns A ref for the tablist container.
@@ -137,15 +138,21 @@ export function useTabBarKeyboard({ tabs, activeId, onChange }: { tabs: readonly
 export function useActiveTabInView({ activeId }: { activeId: string }, _optional: Record<string, never> = {}): RefObject<HTMLDivElement | null> {
   const stripRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    const strip = stripRef.current;
-    const tab = strip?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
-    if (!strip || !tab || strip.scrollWidth <= strip.clientWidth) return;
-    const stripBox = strip.getBoundingClientRect();
-    const tabBox = tab.getBoundingClientRect();
-    // A host's end padding (e.g. room for an edge fade) counts as off-screen.
-    const visibleRight = stripBox.right - (parseFloat(getComputedStyle(strip).paddingRight) || 0);
-    if (tabBox.left < stripBox.left) strip.scrollLeft += tabBox.left - stripBox.left;
-    else if (tabBox.right > visibleRight) strip.scrollLeft += tabBox.right - visibleRight;
+    function scrollActiveTabIntoView() {
+      const strip = stripRef.current;
+      const tab = strip?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+      if (!strip || !tab || strip.scrollWidth <= strip.clientWidth) return;
+      const stripBox = strip.getBoundingClientRect();
+      const tabBox = tab.getBoundingClientRect();
+      // A host's end padding (e.g. room for an edge fade) counts as off-screen.
+      const visibleRight = stripBox.right - (parseFloat(getComputedStyle(strip).paddingRight) || 0);
+      if (tabBox.left < stripBox.left) strip.scrollLeft += tabBox.left - stripBox.left;
+      else if (tabBox.right > visibleRight) strip.scrollLeft += tabBox.right - visibleRight;
+    }
+    scrollActiveTabIntoView();
+    let cancelled = false;
+    void document.fonts?.ready.then(() => { if (!cancelled) scrollActiveTabIntoView(); });
+    return () => { cancelled = true; };
   }, [activeId]);
   return stripRef;
 }

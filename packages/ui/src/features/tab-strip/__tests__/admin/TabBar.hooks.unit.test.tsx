@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TabBar, type TabBarTab } from "../../react/components/TabBar.js";
@@ -102,6 +102,7 @@ describe("TabBar active tab in view", () => {
   // jsdom has no layout: stub the strip's overflow, each tab's box (by label) and a writable
   // scrollLeft so the hook's arithmetic is observable.
   const scrollLeftDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, "scrollLeft")!;
+  const fontsDescriptor = Object.getOwnPropertyDescriptor(document, "fonts");
   const scrollLeft = new WeakMap<Element, number>();
   function stubLayout({ overflow, boxes }: { overflow: boolean; boxes: Record<string, [number, number]> }) {
     vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(overflow ? 600 : 300);
@@ -119,8 +120,40 @@ describe("TabBar active tab in view", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     Object.defineProperty(Element.prototype, "scrollLeft", scrollLeftDescriptor);
+    if (fontsDescriptor) Object.defineProperty(document, "fonts", fontsDescriptor);
+    else Reflect.deleteProperty(document, "fonts");
   });
   const row: readonly TabBarTab[] = [{ id: "a", label: "A" }, { id: "b", label: "B" }, { id: "c", label: "C" }];
+
+  it("scrolls again when fonts become ready after mount and change the active tab's width", async () => {
+    let resolveFonts!: () => void;
+    const ready = new Promise<void>((resolve) => { resolveFonts = resolve; });
+    Object.defineProperty(document, "fonts", { configurable: true, value: { ready } });
+    const boxes: Record<string, [number, number]> = { C: [280, 380] };
+    stubLayout({ overflow: true, boxes });
+    render(<TabBar tabs={row} activeId="c" onChange={() => {}} ariaLabel="Sections" />);
+    const strip = screen.getByRole("tablist");
+    expect(strip.scrollLeft).toBe(80);
+
+    // The font adds 40px of width after the initial 80px scroll.
+    boxes.C = [200, 340];
+    await act(async () => { resolveFonts(); });
+    expect(strip.scrollLeft).toBe(120);
+  });
+
+  it("ignores font readiness after unmount", async () => {
+    let resolveFonts!: () => void;
+    const ready = new Promise<void>((resolve) => { resolveFonts = resolve; });
+    Object.defineProperty(document, "fonts", { configurable: true, value: { ready } });
+    stubLayout({ overflow: true, boxes: { C: [280, 380] } });
+    const { unmount } = render(<TabBar tabs={row} activeId="c" onChange={() => {}} ariaLabel="Sections" />);
+    const strip = screen.getByRole("tablist");
+    expect(strip.scrollLeft).toBe(80);
+    unmount();
+
+    await act(async () => { resolveFonts(); });
+    expect(strip.scrollLeft).toBe(80);
+  });
 
   it("scrolls the strip so a deep-linked tab past the right edge, then one past the left edge, is fully shown", () => {
     stubLayout({ overflow: true, boxes: { A: [-50, 20], B: [20, 280], C: [280, 380] } });
