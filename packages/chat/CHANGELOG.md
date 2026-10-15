@@ -1,3 +1,9 @@
+## 0.6.5 — 2026-10-15
+
+- Durable recovery no longer gives up on a finished CLI turn (8c6acfea): a saved successful Claude CLI `result` line carries `modelUsage.contextWindow`, which matched the context-limit pattern case-insensitively, so a dropped stream or restart ended the answer with "The assistant could not continue this answer" instead of continuing it. The pattern now requires a separator, and attempt diagnostics skip successful CLI result lines (`type: "result"`, `is_error: false`).
+- `recover()` logs one `[durable-recovery]` info line per decision (9cc967cd) with runId, trigger, probe, decision and failure class only; `logger` is an optional injectable, default console.
+- On phones and touch screens the attachment preview's Close and previous/next get 44px tap areas (3b6a5480); desktop is unchanged.
+
 ## 0.6.4 — 2026-10-15
 
 - Image preview steps through a message's or the composer's images (2444ac4d): clicking a sent image or a staged chip opens the preview; with more than one image, previous/next buttons (bottom-right) and the arrow keys step through them; Esc or a backdrop click closes it and focus returns to the thumbnail. Staged chips show a thumbnail, labelled "Image" when the name is only a content hash.

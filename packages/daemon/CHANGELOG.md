@@ -1,3 +1,7 @@
+## 0.6.7 — 2026-10-15
+
+- An unknown tool id is a `400 BAD_REQUEST`, not a redacted `500 INTERNAL_ERROR` (b4a3abad): `ToolExecutor` throws `ToolInputError` naming up to eight registered ids the unknown id prefixes (e.g. `content_read` → `content_read.menu`), and the delegated-tools route returns that message.
+
 ## 0.6.6 — 2026-10-14
 
 - A failed jini MCP bridge now says why (8bc0f07d): the run still stops at once, but a disposable credential-free copy of the bridge is spawned, sent MCP `initialize`, and its exit code + stderr tail (e.g. `ERR_MODULE_NOT_FOUND`) go into the `MCP_BRIDGE_UNAVAILABLE` message and `error.details`, emitted before the run's end event. `probeMcpBridge` is exported so hosts can run the same check at boot; `mcpJsonInjection.probeOnFailure: false` opts out. The baseline agent env moves to `agent-env.ts` so probe and launch share one allowlist.

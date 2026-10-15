@@ -126,8 +126,8 @@ export interface FederationBootStatus {
 
 /**
  * `ToolExecutor.execute`'s own contract for an unregistered id (`@jini-ai/daemon`'s
- * `tool-executor.ts`): a thrown `Error` reading `unknown tool "<id>"`, with no code or subclass to
- * match on instead. Duplicated from `tool-executor-audit.ts`'s identical `isUnknownToolError` rather
+ * `tool-executor.ts`): a thrown `ToolInputError` (from `@jini-ai/core`) reading `unknown tool "<id>"`.
+ * This still matches on the message text, not the class. Duplicated from `tool-executor-audit.ts`'s identical `isUnknownToolError` rather
  * than imported: that file is a sibling one layer up with no dependency on `mcp-federation`, and
  * importing across that line for an 18-character regex is not worth the coupling. Both copies carry
  * the same MEDIUM message-text-coupling note that file's own doc records — if `@jini-ai/daemon`
