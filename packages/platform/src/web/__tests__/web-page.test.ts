@@ -5,6 +5,7 @@ import { ToolInputError } from "@jini-ai/core";
 import type { HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
 import { EgressRefusedError } from "../../http/guarded/errors.js";
 import { htmlToMarkdown } from "../html-to-markdown.js";
+import { MAX_HTML_CHARS } from "../html-resource.js";
 import { fetchWebPage, readWebFetchInput, WEB_FETCH_USER_AGENT, UNTRUSTED_NOTICE, type WebFetchPorts, type WebFetchEvent } from "../web-page.js";
 
 const now = Date.parse("2026-10-08T12:00:00.000Z");
@@ -42,6 +43,7 @@ test("the library converter is bounded by maxChars after conversion without spli
   const { ports } = harness(response("<h1>Hello</h1><p>abc😀def</p>"));
   const complete = await fetch(ports, { url: "https://a.example/" });
   assert.equal(complete.content, "# Hello\n\nabc😀def");
+  assert.equal(complete.truncated, false);
   const clipped = await fetch(ports, { url: "https://a.example/", maxChars: 13 });
   assert.deepEqual([clipped.content, clipped.truncated], ["# Hello\n\nabc", true]);
 });
@@ -88,23 +90,54 @@ test("input errors and binary/unsupported responses retain precise correction me
   await assert.rejects(fetch(harness(response("bytes", "image/png")).ports, { url: "https://a.example/" }), { constructor: ToolInputError, message: "web_fetch_page: 'image/png' is not a text page. Only HTML, text, XML, JSON and CSS can be read; use media_import_from_url for images." });
 });
 
-test('review wf: small output requests cap HTML before facts and the injected converter, and report truncation', async () => {
+test('small output requests retain HTML for facts and conversion below the fixed parser cap', async () => {
   const body = '<p>kept</p>' + ' '.repeat(4096) + '<a href="/tail">tail</a>';
   const { ports } = harness(response(body));
   const converted: string[] = [];
   ports.htmlToMarkdown = ({ html }) => { converted.push(html); return 'x'; };
   const result = await fetch(ports, { url: 'https://a.example/', maxChars: 1 });
-  assert.deepEqual(converted, [body.slice(0, 4096)]);
+  assert.deepEqual(converted, [body]);
   assert.equal(result.content, 'x');
-  assert.equal(result.truncated, true);
-  assert.deepEqual(result.links, []);
+  assert.equal(result.truncated, false);
+  assert.deepEqual(result.links, [{ href: 'https://a.example/tail', text: 'tail', internal: true }]);
 });
 
-test('review wf: HTML input cap uses maxChars and never splits a surrogate pair', async () => {
-  const { ports } = harness(response('a'.repeat(799_999) + '😀tail'));
+test('the fixed HTML safety cap never splits a surrogate pair and reports truncation', async () => {
+  const { ports } = harness(response('a'.repeat(MAX_HTML_CHARS - 1) + '😀tail'));
   let received = '';
   ports.htmlToMarkdown = ({ html }) => { received = html; return 'ok'; };
   const result = await fetch(ports, { url: 'https://a.example/', maxChars: 200_000 });
-  assert.equal(received, 'a'.repeat(799_999));
+  assert.equal(received, 'a'.repeat(MAX_HTML_CHARS - 1));
   assert.equal(result.truncated, true);
+});
+
+test.each([
+  ['markdown', false], ['text', false], ['markdown', true], ['text', true],
+] as const)('%s with render=%s fills the excerpt after a huge head and leaves small pages unchanged', async (format, render) => {
+  const maxChars = 60_000;
+  const text = 'Readable storefront content. '.repeat(3000);
+  // Each hidden block exceeds the old raw-HTML budget before the body starts.
+  const html = `<html><head><script>${'s'.repeat(maxChars * 4 + 1)}</script><style>${'c'.repeat(maxChars * 4 + 1)}</style></head><body><p>${text}</p></body></html>`;
+  const { ports } = harness(response(html));
+  ports.renderPage = async () => ({
+    finalUrl: 'https://a.example/', status: 200, title: '', html, text, truncated: false,
+    images: [], imagesTruncated: false, data: [], dataTruncated: false,
+  });
+  const options = { url: 'https://a.example/', format, render };
+  const result = await fetch(ports, options);
+  assert.equal(result.content.length, maxChars);
+  assert.equal(result.content, text.slice(0, maxChars));
+  assert.equal(result.truncated, true);
+  const shorter = await fetch(ports, { ...options, maxChars: 1024 });
+  assert.equal(shorter.content, text.slice(0, 1024));
+  assert.equal(shorter.truncated, true);
+
+  const small = harness(response('<p>Small page.</p>'));
+  small.ports.renderPage = async () => ({
+    finalUrl: 'https://a.example/', status: 200, title: '', html: '<p>Small page.</p>', text: 'Small page.', truncated: false,
+    images: [], imagesTruncated: false, data: [], dataTruncated: false,
+  });
+  const unchanged = await fetch(small.ports, options);
+  assert.equal(unchanged.content, 'Small page.');
+  assert.equal(unchanged.truncated, false);
 });

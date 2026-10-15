@@ -89,10 +89,11 @@ export function createJsonCapture(_required: Record<string, never>, { maxRespons
 
 /** Self-contained browser script: DOM and computed styles are native browser capabilities.
  * Ships as a string to avoid esbuild's module-scoped __name helper leaking into evaluation.
+ * HTML has a fixed transport cap so a large style head cannot consume the readable-text budget.
  * Scans at most 5000 nodes, caps images and every emitted string before crossing the browser port. */
 export function publicPageExpression({ maxChars, textMode = "full" }: { maxChars: number; textMode?: PublicPageInput["textMode"] }, _options = {}): string {
   return `(() => {
-    const cap = ${maxChars}; const htmlCap = Math.max(4096, cap * 4);
+    const cap = ${maxChars}; const htmlCap = 1_000_000;
     const mode = ${JSON.stringify(textMode)}; const textCap = mode === 'summary' ? Math.min(1000, cap) : cap;
     const images = []; const seen = new Set(); let imagesTruncated = false;
     const add = (raw, alt) => {

@@ -31,13 +31,26 @@ test("rendered image facts include absolute src, srcset candidates and computed 
 
 test("large image lists and long DOM/text output are capped and marked truncated", () => {
   const originals = Array.from({ length: 310 }, (_unused, i) => node("IMG", { src: `/image-${i}.png` }));
-  const copy = { outerHTML: "x".repeat(5000), querySelectorAll: (selector: string) => selector === "*" ? originals.map(() => ({ remove: () => {} })) : [] };
+  const copy = { outerHTML: "x".repeat(1_000_001), querySelectorAll: (selector: string) => selector === "*" ? originals.map(() => ({ remove: () => {} })) : [] };
   const result = runInNewContext(publicPageExpression({ maxChars: 1 }), {
     URL, document: { baseURI: "https://example.com/", title: "T".repeat(500), body: { innerText: "long" }, documentElement: { cloneNode: () => copy, querySelectorAll: () => originals } },
     getComputedStyle: () => ({ display: "block", visibility: "visible", backgroundImage: "none" }),
   });
   expect(result.images).toHaveLength(300); expect(result.imagesTruncated).toBe(true);
-  expect(result.title).toHaveLength(300); expect(result.html).toHaveLength(4096); expect(result.text).toHaveLength(1); expect(result.truncated).toBe(true);
+  expect(result.title).toHaveLength(300); expect(result.html).toBe("x".repeat(1_000_000)); expect(result.text).toBe("l"); expect(result.truncated).toBe(true);
+});
+
+test("browser capture retains a huge style head and body independently of the text budget", () => {
+  const maxChars = 60_000;
+  const text = 'Readable storefront content. '.repeat(3000);
+  const html = `<html><head><style>${'c'.repeat(maxChars * 4 + 1)}</style></head><body><p>${text}</p></body></html>`;
+  const copy = { outerHTML: html, querySelectorAll: () => [] };
+  const result = runInNewContext(publicPageExpression({ maxChars }), {
+    document: { title: 'Storefront', body: { innerText: text }, documentElement: { cloneNode: () => copy, querySelectorAll: () => [] } },
+  });
+  expect(result.html).toBe(html);
+  expect(result.text).toBe(text.slice(0, maxChars));
+  expect(result.truncated).toBe(true);
 });
 
 test.each([

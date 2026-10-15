@@ -281,8 +281,8 @@ function project({ input, ports, url, response }: { input: WebFetchInput; ports:
   const isHtml = mediaType === "text/html" || mediaType === "application/xhtml+xml" || (mediaType === "" && /^\s*<(?:!doctype html|html)/i.test(response.bodyText));
   const body = decodeBody(response, contentType, isHtml);
   if (body.includes("\u0000")) throw new ToolInputError({ message: "web_fetch_page: the response is binary, not a text page." });
-  // Four input characters per output character limits synchronous parsing for small requests too.
-  const bounded = isHtml ? boundHtml({ html: body }, { maxChars: Math.max(4096, input.maxChars * 4) }) : { html: body, truncated: false };
+  // A fixed ceiling limits synchronous parsing without letting a large head consume the output budget.
+  const bounded = isHtml ? boundHtml({ html: body }) : { html: body, truncated: false };
   const facts = isHtml ? readHtmlDocument({ html: bounded.html, pageUrl: finalUrl }) : /xml/.test(mediaType) ? sitemapFacts(body, finalUrl) : EMPTY_FACTS;
   const rendered = render(input.format, input.format === "raw" ? body : bounded.html, isHtml, finalUrl, ports);
   const content = clip(rendered, input.maxChars);
