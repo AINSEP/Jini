@@ -538,12 +538,14 @@ export const CHAT_PANE_STYLES = `
   overflow: visible;
   padding: 0;
 }
+/* Half the tray's width, so a sidebar-width pane fits two chips per row and its 88px cap shows two
+   rows (four chips) before scrolling; at full width each chip took a row and the third was hidden. */
 .jini-chat-pane .jini-attachment-chip {
   display: inline-flex;
   align-items: center;
   box-sizing: border-box;
   min-width: 0;
-  max-width: min(100%, 290px);
+  max-width: min(calc(50% - 3px), 290px);
   height: 36px;
   padding: 3px 4px 3px 5px;
   color: var(--jini-chat-text);
@@ -553,6 +555,7 @@ export const CHAT_PANE_STYLES = `
   box-shadow: 0 1px 1px rgba(13, 12, 10, .025);
   animation: jini-chat-chip-in .16s ease both;
 }
+.jini-chat-pane .jini-composer-leading .jini-attachment-chip { max-width: min(100%, 290px); }
 @keyframes jini-chat-chip-in {
   from { opacity: 0; transform: translateY(3px) scale(.94); }
   to { opacity: 1; transform: none; }
