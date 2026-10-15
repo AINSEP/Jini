@@ -1,4 +1,5 @@
 import type { MessageAttachmentImage } from '../attachment-content.js';
+import type { probeMcpBridge } from './mcp-bridge-probe.js';
 import type {
    spawn as nodeSpawn,
    ChildProcess,
@@ -366,6 +367,8 @@ export interface ContinuationOptions {
  * interface that defaults to *nothing* rather than a real implementation).
  */
 export interface McpJsonInjectionOptions {
+  /** Probe a reported bridge failure before emitting its error. @default true when injection is configured. */
+  readonly probeOnFailure?: boolean;
   /** Absolute path (or PATH-resolvable name) to the `jini-mcp` bin entry (`packages/mcp/src/bin/serve.ts`) this driver tells the spawned CLI to launch as its own MCP server subprocess. */
   readonly command: string;
   /** Extra argv for `command`. @default [] */
@@ -606,6 +609,8 @@ export interface CreateAgentExecutorOptions {
   readonly createCommandInvocation?: typeof createCommandInvocation;
   /** @default `node:child_process`'s `spawn` */
   readonly spawn?: typeof nodeSpawn;
+  /** Diagnostic bridge probe; independent of the agent spawn seam. @default the real MCP initialize probe. */
+  readonly probeMcpBridge?: typeof probeMcpBridge;
   /** @default the real `@jini-ai/agent-runtime` ACP session transport */
   readonly attachAcpSession?: typeof attachAcpSession;
   /**

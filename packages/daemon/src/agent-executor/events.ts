@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { probeMcpBridge, McpBridgeProbeResult } from './mcp-bridge-probe.js';
 import type { ModelCatalogSnapshot } from '@jini-ai/agent-runtime';
 import { createModelReceiptTracker } from './model-receipts.js';
 import { messageContentWithImages } from '../attachment-content.js';
@@ -334,6 +335,8 @@ interface WireChildLifecycleContext extends TerminateChildTreeDeps {
    * {@link MCP_BRIDGE_UNAVAILABLE} instead of letting it continue without the host's tools.
    */
   readonly expectsJiniBridge: boolean;
+  readonly bridgeProbeEntry: Parameters<typeof probeMcpBridge>[0]['entry'] | undefined;
+  readonly probeMcpBridge: typeof probeMcpBridge;
 }
 
 /**
@@ -691,9 +694,24 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
    */
   function stopForUnavailableBridge(initStatus: RunAgentPayload, bridgeStatus: string): void {
     bridgeUnavailable = true;
-    const message = bridgeUnavailableMessage(bridgeStatus);
     enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: initStatus } }));
-    enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: { message, error: { code: MCP_BRIDGE_UNAVAILABLE, message } } } }));
+    enqueueEmit(async () => {
+      let probe: McpBridgeProbeResult | undefined;
+      if (ctx.bridgeProbeEntry) {
+        try {
+          probe = await ctx.probeMcpBridge({ entry: ctx.bridgeProbeEntry });
+        } catch {
+          // A diagnostic failure must not suppress the original bridge error or the terminal event.
+        }
+      }
+      const message = bridgeUnavailableMessage(bridgeStatus, probe);
+      const details = probe ? {
+        exitCode: probe.exitCode, signal: probe.signal, stderrTail: probe.stderrTail, elapsedMs: probe.elapsedMs,
+      } : undefined;
+      await lifecycle.emit({ runId, input: { event: 'error', data: {
+        message, error: { code: MCP_BRIDGE_UNAVAILABLE, message, ...(details ? { details } : {}) },
+      } } });
+    });
     void terminateChildTreeBestEffort(ctx, child, runId, 'cancel', ctx.onCleanupFailure);
   }
 

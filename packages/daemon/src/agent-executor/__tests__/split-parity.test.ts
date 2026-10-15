@@ -18,7 +18,7 @@ describe('agent executor split parity', () => {
       'isSupportedStreamFormat', 'assessAgentExecutorCompatibility', 'isAgentExecutorSupported',
       'extractUsageTokens', 'translateStatusEvent', 'translateToolResultEvent', 'translateErrorEvent',
       'translateTurnEndEvent', 'translateAgentRuntimeEvent', 'AgentExecutorError',
-      'MCP_BRIDGE_UNAVAILABLE', 'unavailableJiniBridgeStatus', 'buildMcpJsonServerEntry',
+      'MCP_BRIDGE_UNAVAILABLE', 'probeMcpBridge', 'unavailableJiniBridgeStatus', 'buildMcpJsonServerEntry',
       'mergeMcpJsonContent', 'buildAcpMcpBridgeServers', 'mergeEnvContentMcpConfig',
       'mergeEnvContentInstructions', 'buildCodexMcpServerToml', 'buildCodexHomeConfigToml',
       'resolveSourceCodexHomeDir', 'buildMcpBridgeDelivery', 'resolveSourceClaudeConfigDir',

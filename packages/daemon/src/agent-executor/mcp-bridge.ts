@@ -1,6 +1,7 @@
 import {
   promises as fsPromises,
 } from 'node:fs';
+import type { McpBridgeProbeResult } from './mcp-bridge-probe.js';
 import {
   homedir,
   tmpdir,
@@ -52,8 +53,12 @@ export function unavailableJiniBridgeStatus({ rawEvent }: { readonly rawEvent: u
 }
 
 /** The user-readable reason a run stopped because its bridge did not connect. */
-export function bridgeUnavailableMessage(status: string): string {
-  return `The assistant's tools did not load (MCP bridge "${JINI_MCP_SERVER_KEY}" status: ${status}). The run was stopped instead of continuing without them.`;
+export function bridgeUnavailableMessage(status: string, probe?: McpBridgeProbeResult): string {
+  const message = `The assistant's tools did not load (MCP bridge "${JINI_MCP_SERVER_KEY}" status: ${status}). The run was stopped instead of continuing without them.`;
+  if (!probe || probe.ok) return message;
+  const lines = probe.stderrTail.trim().split(/\r?\n/);
+  const reason = lines.find((line) => line.includes('Error')) ?? lines.at(-1);
+  return `${message} Bridge exited with code ${probe.exitCode}: ${reason}`;
 }
 
 /**

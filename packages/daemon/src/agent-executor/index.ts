@@ -167,6 +167,7 @@ export {
   prepareCodexHomeIfNeeded,
   prepareClaudeConfigDirIfNeeded,
 } from './mcp-bridge.js';
+export { probeMcpBridge, type McpBridgeProbeResult } from './mcp-bridge-probe.js';
 export {
   DEFAULT_BUFFERED_STDOUT_MAX_BYTES,
   runAcpDispatch,

@@ -32,6 +32,8 @@ export {
   type ContinuationOptions,
   type McpJsonInjectionOptions,
   MCP_BRIDGE_UNAVAILABLE,
+  probeMcpBridge,
+  type McpBridgeProbeResult,
   unavailableJiniBridgeStatus,
   buildMcpJsonServerEntry,
   mergeMcpJsonContent,

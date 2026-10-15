@@ -1,3 +1,5 @@
+import { buildAgentEnv } from './agent-env.js';
+import { probeMcpBridge } from './mcp-bridge-probe.js';
 import {
   spawn as nodeSpawn,
   type ChildProcess,
@@ -185,48 +187,10 @@ function toStringEnvRecord(env: NodeJS.ProcessEnv): Record<string, string> {
   return result;
 }
 
-/**
- * Fixed baseline of host environment variables every spawned agent subprocess may see by
- * default — resolved from the host's env one name at a time, never derived programmatically
- * from `process.env` as a bag, so this can't silently widen. SEC-001's deny-by-default fix; see
- * `AgentExecutorRunInput.env`'s doc for the full threat model.
- */
-const BASELINE_AGENT_ENV_KEYS = [
-  'PATH', 'HOME', 'USERPROFILE', 'TMPDIR', 'TEMP', 'TMP', 'SHELL',
-  'LANG', 'LC_ALL', 'LC_CTYPE',
-  // `USER` is required for a spawned `claude` CLI to find its own login/credential state — with
-  // it omitted (even though `HOME` is present), `claude` fails fast with "Not logged in · Please
-  // run /login" despite real credentials existing on disk/keychain. Confirmed by bisection against
-  // a real authenticated `claude` install: `BASELINE_AGENT_ENV_KEYS` alone fails, adding back every
-  // `CLAUDE_CODE_*`/`CLAUDECODE` var still fails, `LOGNAME`/`SSH_AUTH_SOCK` alone still fail, but
-  // `USER` alone flips it to success. Login lookup requires the user identity
-  // as well as the home directory.
-  'USER',
-  'SystemRoot', 'windir', 'ComSpec', 'PATHEXT', // Windows-only; harmless no-ops elsewhere
-] as const;
-
-/**
- * Deny-by-default agent subprocess environment: `BASELINE_AGENT_ENV_KEYS` resolved from
- * `hostEnv`, plus this run's explicitly-delegated credential(s) — never a passthrough of
- * `hostEnv` itself. Only reached when the caller omits `AgentExecutorRunInput.env`; supplying
- * `env` bypasses this function entirely (see its call site).
- */
-function buildAgentEnv(hostEnv: NodeJS.ProcessEnv, credentialEnv: Record<string, string> | undefined): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const key of BASELINE_AGENT_ENV_KEYS) {
-    const value = hostEnv[key];
-    if (typeof value === 'string') result[key] = value;
-  }
-  for (const [key, value] of Object.entries(credentialEnv ?? {})) {
-    result[key] = value;
-  }
-  return result;
-}
-
 /** Snapshot only host configuration used by spawn and config staging; credentials stay per-run.
  * Returns an independent allowlisted record. @complexity O(1), fixed key list. */
 export function selectAgentExecutorHostEnv({ env }: { env: NodeJS.ProcessEnv }, { runtimeState }: { runtimeState?: AgentRuntimeState } = {}): NodeJS.ProcessEnv {
-  const selected = buildAgentEnv(env, undefined);
+  const selected = buildAgentEnv({ hostEnv: env });
   for (const key of ['CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'VELA_OPENCODE_BIN', 'AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VP_HOME', 'NPM_CONFIG_PREFIX', 'npm_config_prefix', 'APPDATA', 'LOCALAPPDATA', 'MISE_DATA_DIR', 'FNM_DIR'] as const) {
     if (typeof env[key] === 'string') selected[key] = env[key];
   }
@@ -390,7 +354,7 @@ export async function resolveImageDeliveryAndArgvBudget({ input, deps }: { reado
  */
 export function resolveRunEnv({ input, hostEnv }: { readonly input: Pick<AgentExecutorRunInput, 'env' | 'credentialEnv'>; readonly hostEnv: NodeJS.ProcessEnv }
 ): Record<string, string> {
-  return input.env !== undefined ? toStringEnvRecord(input.env) : buildAgentEnv(hostEnv, input.credentialEnv);
+  return input.env !== undefined ? toStringEnvRecord(input.env) : buildAgentEnv({ hostEnv }, { credentialEnv: input.credentialEnv });
 }
 
 /** A resolved launch whose `launchPath` is confirmed non-null — see {@link resolveLaunch}. */
@@ -861,7 +825,7 @@ export async function confirmChildSpawned({ input, deps }: { readonly input: { r
  * @complexity `run()`'s own setup is O(1); steady-state cost is the chosen stream parser's.
  * @overallScore 100/100
  */
-export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "codexDisablePlugins" | "piGracefulShutdownMs" | "hostEnv" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
+export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "codexDisablePlugins" | "piGracefulShutdownMs" | "hostEnv" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "probeMcpBridge" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
   // This native composition boundary resolves ambient defaults once, before allowlisting child env.
   const env = optionalArgs.hostEnv ?? process.env;
   const options: CreateAgentExecutorOptions = { ...requiredArgs, ...optionalArgs,
@@ -1256,6 +1220,11 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
           classifyFailure,
           bufferedStdoutMaxBytes,
           expectsJiniBridge: writtenMcpJsonPath !== undefined,
+          // probeMcpBridge itself strips the run credential and swaps in a diagnostic run id.
+          bridgeProbeEntry: mcpBridge?.kind === 'claude-mcp-json' && mcpJsonInjection?.probeOnFailure !== false
+            ? mcpBridge.serverEntry
+            : undefined,
+          probeMcpBridge: options.probeMcpBridge ?? probeMcpBridge,
         })
       : null;
 

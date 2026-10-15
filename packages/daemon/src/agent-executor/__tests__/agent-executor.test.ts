@@ -58,6 +58,8 @@ import {
   type ContinuationOptions,
   type McpBridgeDelivery,
   type McpJsonInjectionOptions,
+  type McpBridgeProbeResult,
+  probeMcpBridge,
 } from '../../index.js';
 
 const TEST_PRINCIPAL: Principal = { id: 'test-principal' };
@@ -189,6 +191,7 @@ interface SpawnCall {
 }
 
 interface HarnessOptions {
+  probeMcpBridge?: typeof probeMcpBridge;
   def?: RuntimeAgentDef | null;
   launchPath?: string | null;
   spawnThrows?: unknown;
@@ -256,7 +259,7 @@ function createHarness(options: HarnessOptions = {}): Harness {
 
   const onCleanupFailure = vi.fn();
 
-  const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def && def.id === id ? def : null), resolveAgentLaunch: () =>
+  const executor = createAgentExecutor({ lifecycle }, { ...(options.probeMcpBridge ? { probeMcpBridge: options.probeMcpBridge } : {}), resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def && def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: launchPath,
         pathResolvedPath: launchPath,
@@ -6730,6 +6733,7 @@ describe('AgentExecutor — a run whose jini MCP bridge did not connect fails lo
       externalMcpInjection: 'claude-mcp-json',
     });
   const injection: McpJsonInjectionOptions = {
+    probeOnFailure: false,
     command: '/usr/bin/jini-mcp',
     daemonUrl: 'http://127.0.0.1:4242',
     readFile: async () => {
@@ -6750,12 +6754,86 @@ describe('AgentExecutor — a run whose jini MCP bridge did not connect fails lo
   const assistantFrame =
     '{"type":"assistant","message":{"id":"m1","content":[{"type":"text","text":"I cannot see any host tools."}],"stop_reason":"end_turn"}}\n';
 
-  async function startClaudeRun(options: { mcpJsonInjection?: McpJsonInjectionOptions } = { mcpJsonInjection: injection }) {
+  async function startClaudeRun(options: { mcpJsonInjection?: McpJsonInjectionOptions; probeMcpBridge?: typeof probeMcpBridge } = { mcpJsonInjection: injection }) {
     const harness = createHarness({ def: claudeDef(), ...options });
     const { run } = await harness.lifecycle.start({ contextRef: 'ctx-1' });
     await harness.executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: '/work' });
     return { ...harness, runId: run.id };
   }
+
+  it('stops immediately, probes by default, and emits diagnostics before end', async () => {
+    const stderrTail = "startup\nError [ERR_MODULE_NOT_FOUND]: Cannot find package '@modelcontextprotocol/sdk'\nstack frame";
+    const probeResult: McpBridgeProbeResult = { ok: false, exitCode: 1, signal: null, stderrTail, elapsedMs: 12 };
+    let finishProbe!: (result: McpBridgeProbeResult) => void;
+    const pendingProbe = new Promise<McpBridgeProbeResult>((resolve) => { finishProbe = resolve; });
+    const probe = vi.fn<typeof probeMcpBridge>(() => pendingProbe);
+    const { probeOnFailure: _disabled, ...defaultInjection } = injection;
+    const { lifecycle, child, runId, stopProcessesCalls } = await startClaudeRun({
+      mcpJsonInjection: { ...defaultInjection, args: ['serve.js'], env: { ELECTRON_RUN_AS_NODE: '1' }, credential: () => 'fixture-run-token' },
+      probeMcpBridge: probe,
+    });
+    child.stdout.emit('data', initFrame([{ name: 'jini', status: 'failed' }]));
+    await flushAsync();
+    expect(stopProcessesCalls).toEqual([[4243, 4242]]);
+    expect(probe.mock.calls).toEqual([[{ entry: {
+      command: '/usr/bin/jini-mcp', args: ['serve.js'], env: {
+        ELECTRON_RUN_AS_NODE: '1', JINI_RUN_ID: runId, JINI_DAEMON_URL: 'http://127.0.0.1:4242', JINI_DAEMON_TOKEN: 'fixture-run-token',
+      },
+    } }]]);
+    child.emit('close', 0, null);
+    let terminal = false;
+    const finished = lifecycle.waitForTerminal({ runId }).then(() => { terminal = true; });
+    await flushAsync();
+    expect(terminal).toBe(false);
+    finishProbe(probeResult);
+    await finished;
+    const events = await collectEvents(lifecycle, runId);
+    const message = 'The assistant\'s tools did not load (MCP bridge "jini" status: failed). The run was stopped instead of continuing without them. Bridge exited with code 1: Error [ERR_MODULE_NOT_FOUND]: Cannot find package \'@modelcontextprotocol/sdk\'';
+    expect(events.filter((event) => event.kind === 'error').map((event) => event.payload)).toEqual([{
+      message, error: { code: 'MCP_BRIDGE_UNAVAILABLE', message, details: { exitCode: 1, signal: null, stderrTail, elapsedMs: 12 } },
+    }]);
+    expect(events.filter((event) => ['agent', 'error', 'end'].includes(event.kind)).map((event) => event.kind)).toEqual(['agent', 'error', 'end']);
+  });
+
+  it('keeps the existing message when the probe initializes successfully', async () => {
+    const probe = vi.fn<typeof probeMcpBridge>(async () => ({ ok: true, exitCode: null, signal: null, stderrTail: '', elapsedMs: 3 }));
+    const { lifecycle, child, runId } = await startClaudeRun({ mcpJsonInjection: { ...injection, probeOnFailure: true }, probeMcpBridge: probe });
+    child.stdout.emit('data', initFrame([{ name: 'jini', status: 'failed' }]));
+    child.emit('close', 1, null);
+    await lifecycle.waitForTerminal({ runId });
+    const message = 'The assistant\'s tools did not load (MCP bridge "jini" status: failed). The run was stopped instead of continuing without them.';
+    expect((await collectEvents(lifecycle, runId)).filter((event) => event.kind === 'error').map((event) => event.payload)).toEqual([{
+      message, error: { code: 'MCP_BRIDGE_UNAVAILABLE', message, details: { exitCode: null, signal: null, stderrTail: '', elapsedMs: 3 } },
+    }]);
+    expect(probe).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips the probe when disabled and still emits the original error', async () => {
+    const probe = vi.fn<typeof probeMcpBridge>();
+    const { lifecycle, child, runId } = await startClaudeRun({ mcpJsonInjection: injection, probeMcpBridge: probe });
+    child.stdout.emit('data', initFrame([{ name: 'jini', status: 'failed' }]));
+    child.emit('close', 1, null);
+    await lifecycle.waitForTerminal({ runId });
+    expect(probe).not.toHaveBeenCalled();
+    const message = 'The assistant\'s tools did not load (MCP bridge "jini" status: failed). The run was stopped instead of continuing without them.';
+    expect((await collectEvents(lifecycle, runId)).filter((event) => event.kind === 'error').map((event) => event.payload)).toEqual([{
+      message, error: { code: 'MCP_BRIDGE_UNAVAILABLE', message },
+    }]);
+  });
+
+  it('preserves the original error and end if an injected probe rejects', async () => {
+    const probe = vi.fn<typeof probeMcpBridge>(async () => { throw new Error('diagnostic unavailable'); });
+    const { lifecycle, child, runId } = await startClaudeRun({ mcpJsonInjection: { ...injection, probeOnFailure: true }, probeMcpBridge: probe });
+    child.stdout.emit('data', initFrame([{ name: 'jini', status: 'failed' }]));
+    child.emit('close', 1, null);
+    await lifecycle.waitForTerminal({ runId });
+    const events = await collectEvents(lifecycle, runId);
+    const message = 'The assistant\'s tools did not load (MCP bridge "jini" status: failed). The run was stopped instead of continuing without them.';
+    expect(events.filter((event) => event.kind === 'error').map((event) => event.payload)).toEqual([{
+      message, error: { code: 'MCP_BRIDGE_UNAVAILABLE', message },
+    }]);
+    expect(events.at(-1)?.kind).toBe('end');
+  });
 
   it.each([
     ['failed', [{ name: 'jini', status: 'failed', source: 'dynamic' }]],
