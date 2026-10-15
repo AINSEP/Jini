@@ -643,6 +643,21 @@ export const CHAT_PANE_STYLES = `
   background: var(--jini-chat-subtle);
   outline: none;
 }
+/* Phones: the 25px "x" gets an invisible 44px tap area; the chip keeps its size. The area ends at the
+   chip's bottom edge and grows up into the tray's 8px top padding / row gap, because growing down
+   past the last row would make the 88px tray scroll by a few pixels. */
+@media (max-width: 640px), (pointer: coarse) {
+  .jini-chat-pane .jini-attachment-remove { position: relative; }
+  .jini-chat-pane .jini-attachment-remove::before {
+    content: '';
+    position: absolute;
+    bottom: -5.5px;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translateX(-50%);
+  }
+}
 .jini-chat-pane .jini-composer-input {
   display: block;
   box-sizing: border-box;

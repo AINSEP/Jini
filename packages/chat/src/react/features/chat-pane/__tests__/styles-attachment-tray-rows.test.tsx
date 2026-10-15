@@ -43,3 +43,42 @@ describe('composer attachment tray rows', () => {
     expect(getComputedStyle(chip).maxWidth).toBe('min(100%, 290px)');
   });
 });
+
+// Regression: on a phone the staged chip's remove "x" was a 25px target (admin rule: >=44px).
+describe('composer attachment remove tap area', () => {
+  /** Declarations of `selector` inside the pane styles' phone/touch media block. */
+  function phoneRule(selector: string): CSSStyleDeclaration | undefined {
+    const { container } = render(<style>{CHAT_PANE_STYLES}</style>);
+    const sheet = container.querySelector('style')!.sheet!;
+    const phone = Array.from(sheet.cssRules).filter(
+      (rule): rule is CSSMediaRule => rule instanceof CSSMediaRule && rule.conditionText === '(max-width: 640px), (pointer: coarse)',
+    );
+    const rules = phone.flatMap((media) => Array.from(media.cssRules) as CSSStyleRule[]);
+    return rules.find((rule) => rule.selectorText === selector)?.style;
+  }
+
+  it('gives the 25px button an invisible 44px hit area on phones and touch screens', () => {
+    expect(phoneRule('.jini-chat-pane .jini-attachment-remove')?.position).toBe('relative');
+    const hitArea = phoneRule('.jini-chat-pane .jini-attachment-remove::before');
+    expect(hitArea).toBeDefined();
+    expect(hitArea!.position).toBe('absolute');
+    expect(hitArea!.width).toBe('44px');
+    expect(hitArea!.height).toBe('44px');
+    // Ends at the 36px chip's bottom edge ((36 - 25) / 2 below the button) so the tray never scrolls.
+    expect(hitArea!.bottom).toBe('-5.5px');
+  });
+
+  it('leaves the chip and the button their visual size', () => {
+    render(
+      <div className="jini-chat-pane">
+        <style>{CHAT_PANE_STYLES}</style>
+        <AttachmentTray attachments={attachments} onRemove={() => {}} />
+      </div>,
+    );
+    const remove = screen.getByRole('button', { name: /Remove storefront-hero\.png/ });
+
+    expect(getComputedStyle(remove).width).toBe('25px');
+    expect(getComputedStyle(remove).height).toBe('25px');
+    expect(getComputedStyle(screen.getAllByTestId('attachment-chip')[0]!).height).toBe('36px');
+  });
+});
