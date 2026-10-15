@@ -68,6 +68,17 @@ describe('composer attachment remove tap area', () => {
     expect(hitArea!.bottom).toBe('-5.5px');
   });
 
+  // Regression (ui-46, 2026-10-15): rows were 6px apart, so the second row's 44px area (which ends
+  // at its chip's bottom and grows up 8px past the 36px chip) covered the bottom of the first row's,
+  // and the top row measured 41.5px in Chrome at 375px.
+  it('spaces rows so no row\'s area covers the row above, and two rows still fit the 88px cap', () => {
+    // jsdom's CSSOM drops `row-gap`, so this reads the rule text inside the phone/touch block.
+    const rule = /@media \(max-width: 640px\), \(pointer: coarse\) \{[^@]*?\.jini-chat-pane \.jini-attachment-tray \{ row-gap: ([\d.]+)px; \}/.exec(CHAT_PANE_STYLES);
+    const rowGap = Number.parseFloat(rule?.[1] ?? '');
+    expect(rowGap).toBeGreaterThanOrEqual(44 - 36);
+    expect(8 + 36 + rowGap + 36).toBeLessThanOrEqual(88);
+  });
+
   it('leaves the chip and the button their visual size', () => {
     render(
       <div className="jini-chat-pane">
