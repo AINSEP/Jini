@@ -11,6 +11,7 @@ import {
   isAwaitingTypedAnswer,
   isTypedAnswerTurn,
   isChatPaneApiModeConfigured,
+  isChatPaneFileDropEnabled,
   isChatPaneQueueableBlocker,
   orderChatPaneAgents,
   resolveChatPaneSelection,
@@ -177,6 +178,21 @@ describe('chat-pane selection rules', () => {
       .toBe('working-directory-invalid');
     expect(findChatPaneSendBlocker({ ...ready, workingDirectoryError: new Error('disk unavailable') }))
       .toBe('working-directory-error');
+  });
+
+  describe('isChatPaneFileDropEnabled', () => {
+    const open = { canUpload: true, disabled: false, unavailable: false, uploading: false };
+
+    it('accepts drops whenever an uploader exists and nothing blocks attaching (a running run does not)', () => {
+      expect(isChatPaneFileDropEnabled(open)).toBe(true);
+    });
+
+    it('refuses drops with no uploader, a disabled or agent-less pane, or an upload in progress', () => {
+      expect(isChatPaneFileDropEnabled({ ...open, canUpload: false })).toBe(false);
+      expect(isChatPaneFileDropEnabled({ ...open, disabled: true })).toBe(false);
+      expect(isChatPaneFileDropEnabled({ ...open, unavailable: true })).toBe(false);
+      expect(isChatPaneFileDropEnabled({ ...open, uploading: true })).toBe(false);
+    });
   });
 
   describe('isChatPaneApiModeConfigured', () => {

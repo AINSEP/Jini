@@ -299,6 +299,54 @@ describe('ChatPane', () => {
     expect(await screen.findByText('dropped.txt')).toBeInTheDocument();
   });
 
+  it('stages attach-button, dropped and pasted files while a run streams and sends them with the next message', async () => {
+    const transport = createFakeChatTransport();
+    const uploadAttachments = vi.fn(async (files: File[]) => files.map((file) => ({
+      path: `/tmp/${file.name}`,
+      name: file.name,
+      kind: 'file' as const,
+    })));
+    render(<ChatPane transport={transport} agents={agents} uploadAttachments={uploadAttachments} />);
+
+    await userEvent.type(screen.getByPlaceholderText('Send a message…'), 'Run');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+    expect(screen.getByRole('button', { name: 'Stop run' })).toBeEnabled();
+    // Send behavior while running is unchanged: an empty draft shows only Stop.
+    expect(screen.queryByRole('button', { name: 'Send' })).toBeNull();
+
+    expect(screen.getByRole('button', { name: 'Attach files' })).toBeEnabled();
+    expect(screen.getByTestId('composer-attachment-input')).toBeEnabled();
+
+    const target = screen.getByTestId('chat-pane-file-drop-target');
+    const dropped = new File(['drop content'], 'dropped.txt', { type: 'text/plain' });
+    const fileTransfer = { types: ['Files'], items: [], files: [dropped], dropEffect: 'none' };
+    fireEvent.dragEnter(target, { dataTransfer: fileTransfer });
+    expect(target).toHaveClass('is-dragging-files');
+    fireEvent.dragOver(target, { dataTransfer: fileTransfer });
+    expect(fileTransfer.dropEffect).toBe('copy');
+    fireEvent.drop(target, { dataTransfer: fileTransfer });
+    expect(await screen.findByText('dropped.txt')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Attach files' })).toBeEnabled());
+
+    const pasted = new File(['png'], 'pasted.png', { type: 'image/png' });
+    fireEvent.paste(screen.getByPlaceholderText('Send a message…'), { clipboardData: { files: [pasted] } });
+    expect(await screen.findByText('pasted.png')).toBeInTheDocument();
+    expect(uploadAttachments.mock.calls.map(([files]) => files)).toEqual([[dropped], [pasted]]);
+    expect(transport.calls).toHaveLength(1);
+
+    await userEvent.type(screen.getByPlaceholderText('Send a message…'), 'Use these');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(transport.calls).toHaveLength(1);
+    act(() => transport.finish([]));
+    await waitFor(() => expect(transport.calls).toHaveLength(2));
+    expect(transport.calls[1]?.input.attachments).toEqual([
+      { path: '/tmp/dropped.txt', name: 'dropped.txt', kind: 'file' },
+      { path: '/tmp/pasted.png', name: 'pasted.png', kind: 'file' },
+    ]);
+    act(() => transport.finish([]));
+  });
+
   it('owns the package working-directory picker and delegates only native I/O plus changes', async () => {
     const transport = createFakeChatTransport();
     const onChangeWorkingDirectory = vi.fn();

@@ -16,7 +16,7 @@ import type {
   ChatPaneWorkingDirectoryAccess,
   TypedAnswerNotice,
 } from '../types.js';
-import { describeTypedAnswerNotice, isChatPaneApiModeConfigured } from '../rules.js';
+import { describeTypedAnswerNotice, isChatPaneApiModeConfigured, isChatPaneFileDropEnabled } from '../rules.js';
 import { useChatPane, type UseChatPaneResult } from '../hooks/useChatPane.hooks.js';
 import { useChatPaneAgentControl } from '../hooks/useChatPaneAgentControl.hooks.js';
 import { useChatPaneComposerPlaceholder } from '../hooks/useChatPaneComposerPlaceholder.hooks.js';
@@ -631,11 +631,12 @@ export function ChatPane({
   // the provider directly over HTTP and never touches the CLI inventory.
   const unavailable = pane.selectedAgent === undefined && !apiModeConfigured;
   const fileDrop = useChatPaneFileDrop({
-    enabled: surface.uploadAttachments !== undefined
-      && !disabled
-      && !unavailable
-      && !pane.conversation.isStreaming
-      && !pane.isUploadingAttachments,
+    enabled: isChatPaneFileDropEnabled({
+      canUpload: surface.uploadAttachments !== undefined,
+      disabled,
+      unavailable,
+      uploading: pane.isUploadingAttachments,
+    }),
     onFiles: pane.addAttachments,
   });
   // `composerSlots`'s type excludes both `leadingAccessories` and `footerAccessories` (see

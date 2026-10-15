@@ -116,6 +116,28 @@ export function isChatPaneApiModeConfigured({
 }
 
 /**
+ * Whether the composer's drop target accepts dropped files right now. A running run is NOT a
+ * reason to refuse: files staged mid-run sit in the composer and go out with the next message
+ * (`send()` queues that turn with its attachments; the queue flush waits for uploads too), the same
+ * as the attach button and paste, which were never gated on the run. Only a missing uploader, a
+ * disabled or agent-less pane, or an upload already in progress (the attach button's own gate)
+ * blocks a drop.
+ */
+export function isChatPaneFileDropEnabled({
+  canUpload,
+  disabled,
+  unavailable,
+  uploading,
+}: {
+  readonly canUpload: boolean;
+  readonly disabled: boolean;
+  readonly unavailable: boolean;
+  readonly uploading: boolean;
+}): boolean {
+  return canUpload && !disabled && !unavailable && !uploading;
+}
+
+/**
  * The single source of truth for "may this pane send right now?", shared by the composer-driven
  * `send()` and every agent-driven caller so the two can never enforce different rules.
  *
