@@ -36,10 +36,11 @@
  * fallback that `onError` can retract - never a second, competing source of truth for a format the
  * server already classified.
  */
-import { useEffect, useState, type MouseEvent, type RefCallback, type SyntheticEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent, type MouseEvent, type RefCallback, type SyntheticEvent } from 'react';
 import type { ChatAttachment } from '../../core/index.js';
 import { getAttachmentPreviewSource } from '../hooks/attachment-preview-cache.js';
-import { formatAttachmentSize } from './AttachmentTray.js';
+import { formatAttachmentSize } from './attachment-size.js';
+import type { AttachmentPreviewNavigation } from './AttachmentGallery.hooks.js';
 
 export type AttachmentPreviewStatus = 'image' | 'text' | 'unsupported';
 
@@ -60,6 +61,13 @@ function extensionOf(name: string): string {
 /** Exported for the component's own render branch, which needs the same answer without re-deriving it from `status`. */
 export function looksLikeImageAttachment({ attachment }: { attachment: Pick<ChatAttachment, 'kind' | 'name'> }): boolean {
   return attachment.kind === 'image' || IMAGE_PREVIEW_EXTENSIONS.has(extensionOf(attachment.name));
+}
+
+/** The image step an arrow key asks for in the preview (`-1`/`1`), or `0` for any other key. */
+export function galleryStepForKey({ key }: { key: string }): number {
+  if (key === 'ArrowLeft') return -1;
+  if (key === 'ArrowRight') return 1;
+  return 0;
 }
 
 function looksLikeTextAttachment(name: string): boolean {
@@ -147,6 +155,8 @@ export interface AttachmentPreviewController {
   sizeLabel: string | null;
   handleNativeCancel: (event: SyntheticEvent<HTMLDialogElement>) => void;
   handleBackdropClick: (event: MouseEvent<HTMLDialogElement>) => void;
+  /** ←/→ step through `navigation`'s images; a no-op without it. */
+  handleKeyDown: (event: KeyboardEvent<HTMLDialogElement>) => void;
 }
 
 /**
@@ -158,15 +168,18 @@ export interface AttachmentPreviewController {
  * {@link MAX_TEXT_PREVIEW_CHARS} for what actually renders).
  */
 export function useAttachmentPreviewModal(
-  { attachment, onClose }: { attachment: ChatAttachment; onClose: () => void },
+  { attachment, onClose, navigation }: { attachment: ChatAttachment; onClose: () => void; navigation?: AttachmentPreviewNavigation | undefined },
   { readText = readFileAsText }: { readText?: (required: { file: File }) => Promise<string> } = {},
 ): AttachmentPreviewController {
   // Lazy state, not `useCallback`: a new ref identity would make React detach and re-attach it,
   // closing and reopening the dialog. The caller mounts a fresh instance per opened attachment (never
   // reuses one instance across two different open attachments), so there is no "attachment changed
-  // while still open" transition for the ref to react to.
+  // while still open" transition for the ref to react to. Previous/next is the one exception: it swaps
+  // `attachment` under the same open dialog, keeping focus on the button pressed, so the failure flag
+  // below is keyed by path rather than a boolean that would carry over to the next image.
   const [dialogRef] = useState(createDialogRef);
-  const [imageFailed, setImageFailed] = useState(false);
+  const [failedImagePath, setFailedImagePath] = useState<string | null>(null);
+  const imageFailed = failedImagePath === attachment.path;
   const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
   const [text, setText] = useState<AttachmentTextPreview | undefined>(undefined);
   const [textLoading, setTextLoading] = useState(false);
@@ -233,15 +246,24 @@ export function useAttachmentPreviewModal(
     if (event.target === event.currentTarget) onClose();
   }
 
+  function handleKeyDown(event: KeyboardEvent<HTMLDialogElement>): void {
+    const step = navigation ? galleryStepForKey({ key: event.key }) : 0;
+    if (step === 0 || !navigation) return;
+    event.preventDefault();
+    if (step < 0) navigation.onPrevious();
+    else navigation.onNext();
+  }
+
   return {
     dialogRef,
     status,
     imageUrl,
-    onImageError: () => setImageFailed(true),
+    onImageError: () => setFailedImagePath(attachment.path),
     textLoading,
     text,
     sizeLabel: formatAttachmentSize({ size: attachment.size }),
     handleNativeCancel,
     handleBackdropClick,
+    handleKeyDown,
   };
 }

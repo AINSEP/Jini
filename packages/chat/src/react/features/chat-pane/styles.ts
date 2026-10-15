@@ -565,6 +565,29 @@ export const CHAT_PANE_STYLES = `
   align-items: center;
   min-width: 0;
   gap: 7px;
+  /* A button (opens the preview modal), reset to the chip's own look. */
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.jini-chat-pane .jini-attachment-chip-body:focus-visible {
+  outline: 2px solid var(--jini-chat-accent);
+  outline-offset: 2px;
+}
+/* A staged image this browser holds: the thumbnail takes the icon tile's place, same size. */
+.jini-chat-pane .jini-attachment-chip-thumb {
+  display: block;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  object-fit: cover;
+  border-radius: 7px;
+  background: var(--jini-chat-subtle);
 }
 .jini-chat-pane .jini-attachment-chip-icon {
   display: grid;
@@ -1701,5 +1724,52 @@ export const CHAT_PANE_STYLES = `
   margin-top: 6px;
   color: var(--jini-chat-muted);
   font-size: 12px;
+}
+/* Previous/next across a message's (or the composer's) images: a footer under the image, so the
+ * buttons sit on the panel colour - readable over any picture - side by side in the bottom-right. */
+/* A fixed stage while stepping: sized to each image, the dialog would resize and move the buttons
+ * out from under the pointer between clicks. */
+.jini-attachment-preview-dialog.has-nav .jini-attachment-preview-body {
+  flex: 0 0 auto;
+  height: min(calc(80vh - 152px), 480px);
+}
+.jini-attachment-preview-dialog.has-nav .jini-attachment-preview-image,
+.jini-attachment-preview-dialog.has-nav .jini-attachment-preview-text {
+  max-height: 100%;
+}
+.jini-attachment-preview-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--jini-chat-border-soft);
+}
+.jini-attachment-preview-count {
+  margin-right: auto;
+  color: var(--jini-chat-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.jini-attachment-preview-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  color: var(--jini-chat-text-strong);
+  background: var(--jini-chat-panel);
+  border: 1px solid var(--jini-chat-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.jini-attachment-preview-step:hover {
+  background: var(--jini-chat-subtle);
+  border-color: var(--jini-chat-border-strong);
+}
+.jini-attachment-preview-step:focus-visible {
+  outline: 2px solid var(--jini-chat-accent);
+  outline-offset: 2px;
 }
 `;

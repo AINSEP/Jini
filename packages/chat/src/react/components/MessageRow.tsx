@@ -51,7 +51,7 @@ import { usageLayout, usageLineMeetsActions, useMessageUsage, useUsageSummary } 
  * not appear until the whole message is done, not merely until its current
  * chunk stopped arriving.
  */
-import React, { memo, useState, type ReactNode } from 'react';
+import React, { memo, type ReactNode } from 'react';
 import type { AgentEvent, ChatAttachment, ChatMessage, ChatRunStatus, IsAnsweredCard } from '../../core/index.js';
 import { isAwaitingAnswer, isTerminalRunStatus, splitOnQuestionForms, stripArtifact } from '../../core/index.js';
 import { useToolTimeline, type ToolTimelineRow } from '../hooks/useToolTimeline.js';
@@ -65,6 +65,7 @@ import type { ExtEventRendererRegistry } from '../ext-event-renderer-registry.js
 import { ExtEventErrorBoundary } from './ExtEventErrorBoundary.js';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal.js';
 import { SentAttachmentButton } from './SentAttachment.js';
+import { useAttachmentGallery } from './AttachmentGallery.hooks.js';
 import { Icon } from './Icon.js';
 import { Markdown } from './Markdown.js';
 import { ToolCard } from './ToolCard.js';
@@ -254,6 +255,9 @@ function CopyMessageButton({ text, label }: CopyMessageButtonProps) {
   );
 }
 
+/** Stable empty list for a message with no attachments. */
+const NO_ATTACHMENTS: readonly ChatAttachment[] = [];
+
 /**
  * Memoized so a transcript re-render (a streaming update to the newest message, or a parent that
  * re-renders per composer keystroke) only re-renders rows whose props actually changed. Messages
@@ -284,7 +288,8 @@ export const MessageRow = memo(function MessageRow({
   // Which attachment chip (if any) this row's preview modal is open for. Row-local, not
   // module-level: two attachments in the same message can never be "open" at once, but two
   // different messages opening their own attachments independently is fine and expected.
-  const [openAttachment, setOpenAttachment] = useState<ChatAttachment | null>(null);
+  // Previous/next steps through this message's images only.
+  const gallery = useAttachmentGallery({ attachments: message.attachments ?? NO_ATTACHMENTS });
 
   if (message.role === 'user') {
     return (
@@ -299,7 +304,7 @@ export const MessageRow = memo(function MessageRow({
           <div className="jini-message-attachments">
             {/* Images this browser still holds draw as thumbnails; everything else is a filename chip. */}
             {message.attachments.map((a) => (
-              <SentAttachmentButton key={a.path} attachment={a} onOpen={setOpenAttachment} renderAttachment={renderAttachment} />
+              <SentAttachmentButton key={a.path} attachment={a} onOpen={gallery.open} renderAttachment={renderAttachment} />
             ))}
           </div>
         ) : null}
@@ -307,8 +312,8 @@ export const MessageRow = memo(function MessageRow({
         <div className="jini-message-actions jini-message-actions--user">
           <CopyMessageButton text={message.content} label={t('Copy message')} />
         </div>
-        {openAttachment ? (
-          <AttachmentPreviewModal attachment={openAttachment} onClose={() => setOpenAttachment(null)} />
+        {gallery.opened ? (
+          <AttachmentPreviewModal attachment={gallery.opened} onClose={gallery.close} navigation={gallery.navigation} />
         ) : null}
       </div>
     );

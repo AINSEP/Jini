@@ -113,11 +113,19 @@
 }
 
 .jini-attachment-remove,
-.jini-attachment-chip-icon {
+.jini-attachment-chip-icon,
+.jini-attachment-chip-thumb {
   flex: 0 0 auto;
 }
 
-/* chip-body is a <span> wrapping an icon <span> and a copy <span> — both inline by default, so
+/* A staged image's thumbnail, in the icon's place; without a size the raw image renders full-size. */
+.jini-attachment-chip-thumb {
+  width: 26px;
+  height: 26px;
+  object-fit: cover;
+}
+
+/* chip-body is a <button> (opens the preview) wrapping an icon/thumbnail and a copy <span>, so
    without flex here the (post-fix, block-level) copy element drops to its own line under the
    icon instead of sitting beside it. */
 .jini-attachment-chip-body {

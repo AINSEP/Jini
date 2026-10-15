@@ -13,6 +13,7 @@ export type IconName =
   | 'check'
   | 'close'
   | 'chevron-down'
+  | 'chevron-left'
   | 'chevron-right'
   | 'attach'
   | 'file'
@@ -88,6 +89,12 @@ export function Icon({ name, size = 14, strokeWidth = 1.6, ...rest }: IconProps)
         <svg {...common}>
           <path d="M12 5v14" />
           <path d="M5 12h14" />
+        </svg>
+      );
+    case 'chevron-left':
+      return (
+        <svg {...common}>
+          <path d="m15 18-6-6 6-6" />
         </svg>
       );
     case 'chevron-right':
