@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { AgentEvent } from "../../../core/index.js";
 import type { DurableRun, DurableRunStore, RecoveryPorts, RunProbe } from "../../../core/durable-runs/ports.js";
+import { translateRunFrame } from "../../../core/run-events/entry.js";
+import { notices } from "../../../core/run-events/__tests__/fixture.js";
 import { createDurableRecovery } from "../recover.js";
 
 const TIME = 1_790_000_000_000;
@@ -19,19 +21,24 @@ function harness({ events, probe }: { events: AgentEvent[]; probe: RunProbe }) {
   const settlements: Parameters<RecoveryPorts["settle"]>[0][] = [];
   const attached: string[] = [];
   const canceled: string[] = [];
+  const launches: Parameters<RecoveryPorts["launch"]>[0][] = [];
   const store = {
     async load() { return current; },
-    async advance() { return false; },
+    async advance(input: Parameters<DurableRunStore["advance"]>[0]) {
+      current = { ...current, runId: input.nextRunId, recoveryCount: current.recoveryCount + 1,
+        attemptBase: input.events, message: { ...current.message, runId: input.nextRunId, events: [...input.events] } };
+      return true;
+    },
     async recoveryClock() {},
   } as unknown as DurableRunStore;
   const ports: RecoveryPorts = {
     store, now: () => TIME + 20_000, mintRunId: () => "next",
     probe: async () => probe, attach: (run) => { attached.push(run.runId); },
-    launch: async () => {}, cancelAttempt: async (run) => { canceled.push(run.runId); },
+    launch: async (input) => { launches.push(input); }, cancelAttempt: async (run) => { canceled.push(run.runId); },
     verifyChildDead: async () => false, supportsNativeResume: () => true,
     async settle(value) { settlements.push(value); current = { ...current, message: { ...current.message, runStatus: value.status } }; return true; },
   };
-  return { recovery: createDurableRecovery(ports, {}), settlements, attached, canceled };
+  return { recovery: createDurableRecovery(ports, {}), settlements, attached, canceled, launches };
 }
 
 describe("durable recovery: diagnostics never end a live attempt", () => {
@@ -54,5 +61,36 @@ describe("durable recovery: diagnostics never end a live attempt", () => {
     expect(await h.recovery.recover({ messageId: "answer", trigger: "attempt-failed" }, {})).toBe("finalized");
     expect(h.settlements[0]!.status).toBe("canceled");
     expect(h.settlements[0]!.events.at(-1)).toEqual({ kind: "status", label: "Not logged in. Saved work is above." });
+  });
+});
+
+describe("durable recovery: bridge failure is permanent", () => {
+  it.each(["Error: bridge entry point missing", "Error: not logged in"])("finalizes MCP_BRIDGE_UNAVAILABLE once with its own message (%s)", async (reason) => {
+    const message = `The assistant's tools did not load (MCP bridge "jini" status: failed). The run was stopped instead of continuing without them. Bridge exited with code 1: ${reason}`;
+    const failure = translateRunFrame({ kind: "error", notices, raw: JSON.stringify({ payload: {
+      message, error: { code: "MCP_BRIDGE_UNAVAILABLE", message },
+    } }) });
+    const h = harness({ events: [
+      { kind: "status", label: "Agent started" }, ...failure.events,
+      { kind: "status", label: "Run failed", detail: "exit code 1, signal none, resumable no" },
+    ], probe: "dead" });
+
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "attempt-failed" }, {})).toBe("finalized");
+    expect(h.launches).toEqual([]);
+    expect(h.settlements).toHaveLength(1);
+    expect(h.settlements[0]!.status).toBe("failed");
+    expect(h.settlements[0]!.events.at(-1)).toEqual({ kind: "status", label: message });
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "browser" }, {})).toBe("terminal");
+    expect(h.settlements).toHaveLength(1);
+  });
+
+  it("still retries an HTTP 429 rate-throttled attempt", async () => {
+    const h = harness({ events: [{ kind: "status", label: "HTTP 429: rate limit exceeded" }], probe: "dead" });
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "attempt-failed" }, {})).toBe("continued");
+    expect(h.launches).toHaveLength(1);
+    expect(h.launches[0]!.run.runId).toBe("next");
+    expect(h.launches[0]!.run.recoveryCount).toBe(1);
+    expect(h.attached).toEqual(["next"]);
+    expect(h.settlements).toEqual([]);
   });
 });

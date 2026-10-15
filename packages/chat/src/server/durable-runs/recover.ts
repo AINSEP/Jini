@@ -5,6 +5,9 @@ import type { DurableRecovery, DurableRun, RecoveryPorts, RecoveryResult, Recove
 
 import { RECOVERY_LIMIT, RECOVERY_WINDOW_MS, RUN_STALENESS_MS, SAVED_WORK_NOTICE, EXHAUSTED_NOTICE } from "../../core/durable-runs/policies.js";
 export { RECOVERY_LIMIT, RECOVERY_WINDOW_MS, RUN_STALENESS_MS, SAVED_WORK_NOTICE, EXHAUSTED_NOTICE } from "../../core/durable-runs/policies.js";
+// translateRunFrame saves a run error frame as a status label holding only its message: the
+// daemon's MCP_BRIDGE_UNAVAILABLE code is dropped, so the bridge failure is matched by its text.
+const MCP_BRIDGE_FAILURE = /The assistant's tools did not load \(MCP bridge "jini" status: [^\r\n]*/;
 /** Retryability is independent of session resumability. Inspect executor diagnostics, never
  * answer text or tool results: those can quote unrelated failures from completed work. Old
  * attempt diagnostics remain visible but cannot decide the fate of their continuation. */
@@ -24,6 +27,9 @@ function attemptDiagnostics({ run }: { run: DurableRun }, _optional = {}): strin
 
 function attemptFailure(run: DurableRun): "retryable" | "permanent" | "auth-failure" | "inactivity-watchdog" {
   const diagnostics = attemptDiagnostics({ run }, {});
+  // MCP_BRIDGE_UNAVAILABLE needs bridge repair; another attempt repeats the same failure.
+  // Classify it before interpreting the bridge's stderr as an agent auth/watchdog failure.
+  if (MCP_BRIDGE_FAILURE.test(diagnostics)) return "permanent";
   if (/inactivity[_ -]?(timeout|watchdog)|watchdog.*(kill|stop)/i.test(diagnostics)) return "inactivity-watchdog";
   const service = classifyAgentServiceFailure({ text: diagnostics });
   if (service === "AGENT_AUTH_REQUIRED") return "auth-failure";
@@ -106,7 +112,8 @@ export function createDurableRecovery(ports: RecoveryPorts, _optional = {}): Dur
     // as "Not logged in" (luvira, 2026-10-08).
     const failure = attemptFailure(run);
     if (failure === "auth-failure" || failure === "inactivity-watchdog") return finalize(run, failure === "auth-failure" ? "Not logged in. Saved work is above." : "Stopped. Saved work is above.", true);
-    if (failure === "permanent") return finalize(run, EXHAUSTED_NOTICE);
+    // A bridge failure shows its own reason (and stderr): the generic notice hides what needs repair.
+    if (failure === "permanent") return finalize(run, attemptDiagnostics({ run }, {}).match(MCP_BRIDGE_FAILURE)?.[0] ?? EXHAUSTED_NOTICE);
     return resolveMissing(run, probe, trigger);
   }
 
