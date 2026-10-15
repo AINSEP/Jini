@@ -38,8 +38,26 @@ function harness({ events, probe }: { events: AgentEvent[]; probe: RunProbe }) {
     verifyChildDead: async () => false, supportsNativeResume: () => true,
     async settle(value) { settlements.push(value); current = { ...current, message: { ...current.message, runStatus: value.status } }; return true; },
   };
-  return { recovery: createDurableRecovery(ports, {}), settlements, attached, canceled, launches };
+  const info: unknown[][] = [];
+  const logger = { info: (...args: unknown[]) => { info.push(args); } };
+  return { recovery: createDurableRecovery(ports, { logger }), settlements, attached, canceled, launches, info };
 }
+
+describe("durable recovery: one metadata-only info line per decision", () => {
+  it("logs the decision and failure class once, without answer text or diagnostics", async () => {
+    const h = harness({ events: [{ kind: "text", text: "private answer" }, { kind: "status", label: "context_length_exceeded", detail: "private detail" }], probe: "dead" });
+
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "boot" }, {})).toBe("finalized");
+    expect(h.info).toEqual([["[durable-recovery] " + JSON.stringify({ runId: "old", trigger: "boot", probe: "dead", decision: "finalized", failureClass: "permanent" })]]);
+  });
+
+  it("does not log the watcher's routine re-confirmation of its own live run", async () => {
+    const h = harness({ events: [], probe: "dead" });
+
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "timeout" }, { liveRunId: "old" })).toBe("reattached");
+    expect(h.info).toEqual([]);
+  });
+});
 
 describe("durable recovery: diagnostics never end a live attempt", () => {
   it("reattaches a live attempt whose raw output quotes auth words instead of canceling it as Not logged in", async () => {

@@ -1,7 +1,7 @@
 import { recoveredRunEvents, type AgentEvent } from "../../core/index.js";
 import { classifyAgentServiceFailure } from "@jini-ai/agent-runtime";
 import { continuationRequest } from "../../core/durable-runs/continuation.js";
-import type { DurableRecovery, DurableRun, RecoveryPorts, RecoveryResult, RecoveryTrigger } from "../../core/durable-runs/ports.js";
+import type { DurableRecovery, DurableRun, RecoveryPorts, RecoveryResult, RecoveryTrigger, RunProbe } from "../../core/durable-runs/ports.js";
 
 import { RECOVERY_LIMIT, RECOVERY_WINDOW_MS, RUN_STALENESS_MS, SAVED_WORK_NOTICE, EXHAUSTED_NOTICE } from "../../core/durable-runs/policies.js";
 export { RECOVERY_LIMIT, RECOVERY_WINDOW_MS, RUN_STALENESS_MS, SAVED_WORK_NOTICE, EXHAUSTED_NOTICE } from "../../core/durable-runs/policies.js";
@@ -64,8 +64,9 @@ function budgetNotice(run: DurableRun, now: number): string | null {
   return null;
 }
 
-/** Recovery coordinator behind explicit host ports. One CAS owns both the attempt and its conversation slot. */
-export function createDurableRecovery(ports: RecoveryPorts, _optional = {}): DurableRecovery {
+/** Recovery coordinator behind explicit host ports. One CAS owns both the attempt and its conversation slot.
+ * Each recovery decision logs one `logger.info` line (default console) of run metadata. */
+export function createDurableRecovery(ports: RecoveryPorts, { logger = console }: { logger?: Pick<Console, "info"> } = {}): DurableRecovery {
   async function finalize(run: DurableRun, notice: string, canceled = false): Promise<RecoveryResult> {
     await ports.cancelAttempt(run, {}).catch(() => undefined);
     // Persist the notice as an event: hook errors are live-only and would leave a reloaded
@@ -108,11 +109,11 @@ export function createDurableRecovery(ports: RecoveryPorts, _optional = {}): Dur
     return "continued";
   }
 
-  async function decide(run: DurableRun, trigger: RecoveryTrigger, liveRunId?: string): Promise<RecoveryResult> {
+  async function decide(run: DurableRun, trigger: RecoveryTrigger, liveRunId: string | undefined, seen: { probe?: RunProbe; failure?: string }): Promise<RecoveryResult> {
     if (exclusion(run)) return finalize(run, "Stopped. Saved work is above.", true);
     // A terminal executor end confirms this attempt is dead even when the daemon retains its
     // replayable record (HTTP 200). Other triggers must obtain fresh liveness evidence.
-    const probe = trigger === "attempt-failed" ? "dead" : liveRunId === run.runId ? "live" : await ports.probe(run, {});
+    const probe = seen.probe = trigger === "attempt-failed" ? "dead" : liveRunId === run.runId ? "live" : await ports.probe(run, {});
     if (probe === "live") {
       await ports.store.recoveryClock({ runId: run.runId, now: ports.now(), active: false }, {});
       ports.attach(run, {}); return "reattached";
@@ -120,7 +121,7 @@ export function createDurableRecovery(ports: RecoveryPorts, _optional = {}): Dur
     // Diagnostics decide only the fate of an attempt that is no longer running. Read before the
     // probe, raw stdout quoting a tool description ("OAuth-authenticated") canceled a live turn
     // as "Not logged in" (luvira, 2026-10-08).
-    const failure = attemptFailure(run);
+    const failure = seen.failure = attemptFailure(run);
     if (failure === "auth-failure" || failure === "inactivity-watchdog") return finalize(run, failure === "auth-failure" ? "Not logged in. Saved work is above." : "Stopped. Saved work is above.", true);
     // A bridge failure shows its own reason (and stderr): the generic notice hides what needs repair.
     if (failure === "permanent") return finalize(run, attemptDiagnostics({ run }, {}).match(MCP_BRIDGE_FAILURE)?.[0] ?? EXHAUSTED_NOTICE);
@@ -148,7 +149,12 @@ export function createDurableRecovery(ports: RecoveryPorts, _optional = {}): Dur
       if (!run) return "gone";
       if (run.message.runStatus !== "queued" && run.message.runStatus !== "running") return "terminal";
       if (expectedRunId && expectedRunId !== run.runId) return "superseded";
-      return decide(run, trigger, options.liveRunId);
+      const seen: { probe?: RunProbe; failure?: string } = {};
+      const decision = await decide(run, trigger, options.liveRunId, seen);
+      // The watcher re-confirms its own live run every resolution window; log only real recovery
+      // decisions. Metadata only: diagnostics, answers and cancel reasons can hold secrets.
+      if (options.liveRunId !== run.runId) logger.info("[durable-recovery] " + JSON.stringify({ runId: run.runId, trigger, probe: seen.probe, decision, failureClass: seen.failure }));
+      return decision;
     },
   };
 }
