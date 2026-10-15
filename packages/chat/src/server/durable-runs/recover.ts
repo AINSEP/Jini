@@ -21,8 +21,18 @@ function attemptDiagnostics({ run }: { run: DurableRun }, _optional = {}): strin
     const event = events[index]!;
     if (event.kind === "status" && event.code === "run_recovering") { marker = index; break; }
   }
-  return events.slice(marker >= 0 ? marker + 1 : run.attemptBase.length).flatMap((event) =>
-    event.kind === "status" ? [event.label, event.detail ?? ""] : event.kind === "raw" ? [event.line] : []).join("\n");
+  return events.slice(marker >= 0 ? marker + 1 : run.attemptBase.length).flatMap((event) => {
+    if (event.kind === "status") return [event.label, event.detail ?? ""];
+    if (event.kind !== "raw") return [];
+    try {
+      const result = JSON.parse(event.line) as { type?: unknown; is_error?: unknown } | null;
+      // Successful CLI summaries contain usage metadata and answer prose, not failure evidence.
+      if (result?.type === "result" && result.is_error === false) return [];
+    } catch {
+      // Non-JSON stdout can still contain the executor's failure reason.
+    }
+    return [event.line];
+  }).join("\n");
 }
 
 function attemptFailure(run: DurableRun): "retryable" | "permanent" | "auth-failure" | "inactivity-watchdog" {
@@ -37,7 +47,7 @@ function attemptFailure(run: DurableRun): "retryable" | "permanent" | "auth-fail
   // overload remain retryable; the provider's coarse RATE_LIMITED class also includes billing.
   const requestStatuses = diagnostics.matchAll(/\b(?:http(?:[ /]?\d(?:\.\d)?)?|(?:status|error|response)(?:[ _-]?code)?|code(?=\s*[:=#]))[\s:=#-]*(4\d\d)\b/gi);
   if ([...requestStatuses].some((match) => match[1] !== "408" && match[1] !== "429")) return "permanent";
-  if (/another answer in this chat is still running|invalid[_ -]?request|context[_ -]?(length|window)|maximum context|model.*(?:not[_ -]found|does not exist|not supported)|unsupported|does not support|permission denied|forbidden|insufficient[_ -]?(quota|balance|credit|funds)|credit balance is too low|exceeded your current quota|quota[_ -]?exceeded|usage limit|billing|payment required/i.test(diagnostics)) return "permanent";
+  if (/another answer in this chat is still running|invalid[_ -]?request|context[_ -](length|window)|maximum context|model.*(?:not[_ -]found|does not exist|not supported)|unsupported|does not support|permission denied|forbidden|insufficient[_ -]?(quota|balance|credit|funds)|credit balance is too low|exceeded your current quota|quota[_ -]?exceeded|usage limit|billing|payment required/i.test(diagnostics)) return "permanent";
   return "retryable";
 }
 

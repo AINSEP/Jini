@@ -64,6 +64,45 @@ describe("durable recovery: diagnostics never end a live attempt", () => {
   });
 });
 
+describe("durable recovery: successful CLI summaries are not failure diagnostics", () => {
+  it.each([
+    { type: "result", is_error: false, modelUsage: { x: { contextWindow: 1000000 } } },
+    { type: "result", is_error: false, result: "Reviewed forbidden responses" },
+    { type: "result", is_error: false, result: "Updated billing documentation" },
+    // This line remains diagnostic input, independently guarding the required separator.
+    { type: "result", is_error: true, modelUsage: { x: { contextWindow: 1000000 } } },
+  ])("continues after an interrupted attempt containing %j", async (summary) => {
+    const h = harness({ events: [
+      { kind: "raw", line: JSON.stringify(summary) },
+      { kind: "status", label: "Run failed", detail: "exit code 1, signal none, resumable no" },
+    ], probe: "dead" });
+
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "attempt-failed" }, {})).toBe("continued");
+    expect(h.launches).toHaveLength(1);
+    expect(h.launches[0]!.run.runId).toBe("next");
+    expect(h.attached).toEqual(["next"]);
+    expect(h.settlements).toEqual([]);
+  });
+
+  it.each([
+    { kind: "raw", line: "context_length_exceeded" },
+    { kind: "raw", line: "context window exceeded" },
+    { kind: "raw", line: JSON.stringify({ type: "result", is_error: true, error: "context_length_exceeded" }) },
+    { kind: "raw", line: JSON.stringify({ type: "result", is_error: true, error: "context window exceeded" }) },
+  ] as const)("preserves a real permanent failure after a successful CLI turn: %j", async (failure) => {
+    const h = harness({ events: [
+      { kind: "raw", line: JSON.stringify({ type: "result", is_error: false, result: "Completed earlier work" }) },
+      failure,
+    ], probe: "dead" });
+
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "attempt-failed" }, {})).toBe("finalized");
+    expect(h.launches).toEqual([]);
+    expect(h.settlements).toHaveLength(1);
+    expect(h.settlements[0]!.status).toBe("failed");
+    expect(h.settlements[0]!.events.at(-1)).toEqual({ kind: "status", label: "The assistant could not continue this answer. Saved work is above." });
+  });
+});
+
 describe("durable recovery: bridge failure is permanent", () => {
   it.each(["Error: bridge entry point missing", "Error: not logged in"])("finalizes MCP_BRIDGE_UNAVAILABLE once with its own message (%s)", async (reason) => {
     const message = `The assistant's tools did not load (MCP bridge "jini" status: failed). The run was stopped instead of continuing without them. Bridge exited with code 1: ${reason}`;
