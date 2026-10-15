@@ -1,5 +1,9 @@
 # @jini-ai/ui
 
+## 0.5.4 — 2026-10-15
+
+- `TabBar` re-scrolls the active tab into view once web fonts are ready (06931dfe): fonts that widen tabs after the first measurement no longer leave a deep-linked tab cut off at the strip edge.
+
 ## 0.5.3 — 2026-10-14
 
 - New `./preview-modal-shell` subpath exporting `PreviewModalShell` without the whole `./renderers` barrel (Markdown, artifact views, annotation canvas); it still includes its sandboxed HTML renderer and parser (ec060014).

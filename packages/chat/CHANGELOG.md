@@ -1,3 +1,9 @@
+## 0.6.4 — 2026-10-15
+
+- Image preview steps through a message's or the composer's images (2444ac4d): clicking a sent image or a staged chip opens the preview; with more than one image, previous/next buttons (bottom-right) and the arrow keys step through them; Esc or a backdrop click closes it and focus returns to the thumbnail. Staged chips show a thumbnail, labelled "Image" when the name is only a content hash.
+- The staged attachment tray shows two chips per row (eef66b2e): chips cap at half the tray (max 290px), so four show before the 88px tray scrolls. Chips in the pinned-context zone keep their full-width cap.
+- On phones and touch screens the staged chip's remove button gets a 44px tap area (660cb9fd); chip and button sizes are unchanged.
+
 ## 0.6.3 — 2026-10-14
 
 - A failed MCP bridge ends the run once with its own message (e350056c): durable recovery no longer retries `MCP_BRIDGE_UNAVAILABLE` runs until the budget runs out and then shows the generic "could not continue" notice; the run is finalized with the bridge failure's exact text.

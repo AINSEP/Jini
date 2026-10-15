@@ -1,5 +1,10 @@
 # @jini-ai/platform
 
+## 0.5.8 — 2026-10-15
+
+- SECURITY: the guarded HTTP client forwards only `accept`, `accept-language` and `user-agent` on a cross-origin redirect (4de69b67). It used to strip only Authorization/Cookie, so custom credential headers (`x-api-key`, `X-Shopify-Access-Token`, …) followed a redirect to another origin. Same-origin hops keep all headers.
+- `./web` page fetch applies `maxChars` to the readable text, not the raw HTML (0625844e): raw HTML uses the fixed 1,000,000-char parser ceiling, and the result says `truncated: true` when cut. A page with a large script/style head no longer returns almost no text.
+
 ## 0.5.7 — 2026-10-14
 
 - The asset cache's optional `undici` load moves behind `asset-cache.adapter.ts` (64eafe35); injected dispatchers, DNS validation and the MODULE_NOT_FOUND message are unchanged. No API change.
