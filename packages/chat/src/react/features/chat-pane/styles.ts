@@ -1790,4 +1790,22 @@ export const CHAT_PANE_STYLES = `
   outline: 2px solid var(--jini-chat-accent);
   outline-offset: 2px;
 }
+/* Phones: 44px targets. The 26px close "x" keeps its size inside an invisible 44px area (centred,
+   so it stays within the header's 12px/14px padding); the bordered previous/next buttons just grow. */
+@media (max-width: 640px), (pointer: coarse) {
+  .jini-attachment-preview-close { position: relative; }
+  .jini-attachment-preview-close::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+  .jini-attachment-preview-step {
+    width: 44px;
+    height: 44px;
+  }
+}
 `;

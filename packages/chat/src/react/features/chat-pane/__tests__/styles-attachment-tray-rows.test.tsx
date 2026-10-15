@@ -82,3 +82,34 @@ describe('composer attachment remove tap area', () => {
     expect(getComputedStyle(screen.getAllByTestId('attachment-chip')[0]!).height).toBe('36px');
   });
 });
+
+// Regression: on a phone the attachment preview modal's Close was 26x26 and previous/next 40x40
+// (admin rule: >=44px).
+describe('attachment preview modal tap areas', () => {
+  /** Declarations of `selector` inside the pane styles' phone/touch media block. */
+  function phoneRule(selector: string): CSSStyleDeclaration | undefined {
+    const { container } = render(<style>{CHAT_PANE_STYLES}</style>);
+    const sheet = container.querySelector('style')!.sheet!;
+    const phone = Array.from(sheet.cssRules).filter(
+      (rule): rule is CSSMediaRule => rule instanceof CSSMediaRule && rule.conditionText === '(max-width: 640px), (pointer: coarse)',
+    );
+    const rules = phone.flatMap((media) => Array.from(media.cssRules) as CSSStyleRule[]);
+    return rules.find((rule) => rule.selectorText === selector)?.style;
+  }
+
+  it('gives the 26px Close an invisible, centred 44px hit area on phones and touch screens', () => {
+    expect(phoneRule('.jini-attachment-preview-close')?.position).toBe('relative');
+    const hitArea = phoneRule('.jini-attachment-preview-close::before');
+    expect(hitArea).toBeDefined();
+    expect(hitArea!.position).toBe('absolute');
+    expect(hitArea!.width).toBe('44px');
+    expect(hitArea!.height).toBe('44px');
+    expect(hitArea!.transform).toBe('translate(-50%, -50%)');
+  });
+
+  it('grows previous/next to 44px on phones and touch screens', () => {
+    const step = phoneRule('.jini-attachment-preview-step');
+    expect(step?.width).toBe('44px');
+    expect(step?.height).toBe('44px');
+  });
+});
