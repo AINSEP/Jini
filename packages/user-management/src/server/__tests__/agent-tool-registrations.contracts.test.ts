@@ -76,10 +76,8 @@ function wired(deps: IdentityToolDeps, toolId: string): ToolRegistration {
   return found;
 }
 function asOwner(ownerPrincipalId: string, input: Record<string, unknown>): ToolExecutionContext {
-  const directInput = typeof input.username === "string" && !("password" in input)
-    ? { ...input, password: "pw-valid-1234" } : input;
   return { executionId: "exec-1", principal: { id: ownerPrincipalId }, run: { id: "run-1" },
-    input: directInput, signal: new AbortController().signal };
+    input, signal: new AbortController().signal };
 }
 test("requiresConfirmation is unset on every identity tool — setting it with no ExecutionDelegate would park the execution forever", async () => {
   const { deps } = await buildHarness();
@@ -121,7 +119,7 @@ test("no rejection message echoes the offending value — a username or email is
   const secret = "s3cret-operator-content";
 
   const error = await wired(deps, "identity_user_create")
-    .handler(asOwner(ownerPrincipalId, { username: secret, email: 7 }))
+    .handler(asOwner(ownerPrincipalId, { username: secret, password: "pw-valid-1234", email: 7 }))
     .then(() => null, (e: unknown) => e as Error);
 
   assert.ok(error);
@@ -148,7 +146,7 @@ async function userReturningResults(harness: Harness): Promise<Array<{ toolId: s
   const { deps, ownerPrincipalId } = harness;
 
   const created = (await wired(deps, "identity_user_create").handler(
-    asOwner(ownerPrincipalId, { username: "projection-subject", email: "a@b.test" }),
+    asOwner(ownerPrincipalId, { username: "projection-subject", password: "pw-valid-1234", email: "a@b.test" }),
   )) as { user: { principalId: string } };
   const principalId = created.user.principalId;
 
@@ -192,13 +190,13 @@ test("a user view drops workspaceId — the agent is already scoped to one works
 test("a user view carries exactly the keys the model needs, and email only when set", async () => {
   const { deps, ownerPrincipalId } = await buildHarness();
 
-  const withoutEmail = (await wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "no-email" }))) as {
+  const withoutEmail = (await wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "no-email", password: "pw-valid-1234" }))) as {
     user: Record<string, unknown>;
   };
   assert.deepEqual(Object.keys(withoutEmail.user).sort(), ["principalId", "roleIds", "status", "username"]);
   assert.equal("email" in withoutEmail.user, false, "a user without an email must carry no always-undefined key");
 
-  const withEmail = (await wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "with-email", email: "a@b.test" }))) as {
+  const withEmail = (await wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "with-email", password: "pw-valid-1234", email: "a@b.test" }))) as {
     user: Record<string, unknown>;
   };
   assert.equal(withEmail.user.email, "a@b.test");
@@ -298,7 +296,7 @@ test("END TO END: create a user, assign it a role, and see the assignment show u
   assert.equal(role.name, "Content Editor");
 
   // 2. The user. It comes back with no roles, which is what forces step 3 to exist.
-  const { user } = (await wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "Ada", email: "ada@example.test" }))) as {
+  const { user } = (await wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "Ada", password: "pw-valid-1234", email: "ada@example.test" }))) as {
     user: { principalId: string; username: string; roleIds: string[] };
   };
   assert.equal(user.username, "ada", "the username is normalized by the domain, and the tool reports what was actually stored");
@@ -342,7 +340,7 @@ test("END TO END: create a policy, see it in the list, attach it to a user, and 
   assert.ok(policies.some((candidate) => candidate.id === policy.id && candidate.name === "Reviewer Bundle"));
 
   // 3. The user.
-  const { user } = (await wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "Reviewer" }))) as {
+  const { user } = (await wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "Reviewer", password: "pw-valid-1234" }))) as {
     user: { principalId: string };
   };
 
@@ -374,7 +372,7 @@ test("END TO END: create a policy, see it in the list, attach it to a user, and 
 test("the email round-trips: set, changed, then cleared by omitting it", async () => {
   const { deps, repos, ownerPrincipalId } = await buildHarness();
 
-  const { user } = (await wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "mailer", email: "first@example.test" }))) as {
+  const { user } = (await wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "mailer", password: "pw-valid-1234", email: "first@example.test" }))) as {
     user: { principalId: string; email?: string };
   };
   assert.equal(user.email, "first@example.test");
@@ -397,7 +395,7 @@ test("the email round-trips: set, changed, then cleared by omitting it", async (
 test("disable then enable round-trips, and the status change is visible through the list tool", async () => {
   const { deps, ownerPrincipalId } = await buildHarness();
 
-  const { user } = (await wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "temp" }))) as {
+  const { user } = (await wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "temp", password: "pw-valid-1234" }))) as {
     user: { principalId: string };
   };
 
@@ -424,7 +422,7 @@ test("a custom role can be renamed and then deleted while unassigned, but not on
   assert.equal(renamed.role.name, "Temp Renamed");
   assert.equal(renamed.role.isBuiltin, false);
 
-  const { user } = (await wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "holder" }))) as {
+  const { user } = (await wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "holder", password: "pw-valid-1234" }))) as {
     user: { principalId: string };
   };
   await wired(deps, "identity_role_assign").handler(asOwner(ownerPrincipalId, { principalId: user.principalId, roleId: role.id }));
@@ -446,10 +444,10 @@ test("a custom role can be renamed and then deleted while unassigned, but not on
 test("a duplicate username is refused, so a model cannot quietly create a second account under an existing name", async () => {
   const { deps, ownerPrincipalId } = await buildHarness();
 
-  await wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "Dup" }));
+  await wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "Dup", password: "pw-valid-1234" }));
 
   await assert.rejects(
-    () => wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "dup" })),
+    () => wired(deps, "identity_user_create").handler(asOwner(ownerPrincipalId, { username: "dup", password: "pw-valid-1234" })),
     (error: unknown) => {
       assert.ok(error instanceof Error);
       assert.match(error.message, /already in use/);
@@ -498,7 +496,7 @@ const TOOL_INPUTS: Record<string, Record<string, unknown>> = {
   identity_user_list: {},
   identity_role_list: {},
   identity_policy_list: {},
-  identity_user_create: { username: "newcomer" },
+  identity_user_create: { username: "newcomer", password: "pw-valid-1234" },
   identity_user_update_email: { principalId: "target-principal", email: "a@b.test" },
   identity_user_change_username: { principalId: "target-principal", username: "renamed-target" },
   identity_user_disable: { principalId: "target-principal" },
@@ -559,7 +557,7 @@ for (const permission of ["member.manage", "user.manage"] as const) {
     );
     if (permission === "member.manage") {
       await assert.rejects(
-        () => wired(deps, "identity_user_create").handler(executionContext(caller, { username: "unauthorized-operator" })),
+        () => wired(deps, "identity_user_create").handler(executionContext(caller, { username: "unauthorized-operator", password: "pw-valid-1234" })),
         (error: unknown) => error instanceof IdentityForbiddenError && error.message === `principal '${caller}' is not authorized for any of [user.manage]`
       );
     }

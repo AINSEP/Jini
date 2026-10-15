@@ -483,8 +483,8 @@ describe('createLocalNodeDaemon', () => {
       const { status, json } = await callDelegatedTool(daemon.url, {
         runId, toolUseId: 'use-1', toolId: 'terminal.create', input: { cwd: '/tmp' },
       });
-      expect(status).toBe(500);
-      expect(json).toMatchObject({ error: { code: 'INTERNAL_ERROR' } });
+      expect(status).toBe(400);
+      expect(json).toEqual({ error: { code: 'BAD_REQUEST', message: 'ToolExecutor: unknown tool "terminal.create"' } });
     });
 
     it('and with the default (enabled) composition the very same call reaches the tool and is refused by POLICY, not by absence', async () => {
@@ -497,7 +497,7 @@ describe('createLocalNodeDaemon', () => {
         runId, toolUseId: 'use-1', toolId: 'terminal.create', input: { cwd: '/tmp' },
       });
       // 403 TOOL_OPERATION_DENIED is the deny-by-default ToolPolicy answering — a different, and
-      // correct, outcome from the disabled case above (500 INTERNAL_ERROR for an unregistered
+      // correct, outcome from the disabled case above (400 BAD_REQUEST for an unregistered
       // tool). The distinction is the whole design: capability *existence* is a composition
       // decision, capability *use* is a policy decision.
       expect(status).toBe(403);

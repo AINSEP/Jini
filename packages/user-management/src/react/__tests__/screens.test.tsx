@@ -37,7 +37,7 @@ test('users retain the new-password autofill protection and create through their
   const port = createFakeUsersPort({}, { users: [alice] });
   const create = vi.spyOn(port, 'createUser');
   render(<FetchQueryProvider><Users port={port} translate={translate} queryScope="one" /></FetchQueryProvider>);
-  await screen.findByText('alice');
+  await screen.findByRole('button', { name: 'alice', exact: true });
   await user.click(screen.getByRole('button', { name: 'New user' }));
   expect(screen.getByLabelText('Username')).toHaveAttribute('data-agent-element', 'users-new-username');
   const password = screen.getByLabelText('Password');
@@ -46,7 +46,7 @@ test('users retain the new-password autofill protection and create through their
   await user.type(password, 'secret');
   await user.click(screen.getByRole('button', { name: 'Create user' }));
   await waitFor(() => expect(create).toHaveBeenCalledWith({ username: 'bob', password: 'secret' }, { email: undefined }));
-  await screen.findByText('bob');
+  await screen.findByRole('button', { name: 'bob', exact: true });
   expect(fetch).not.toHaveBeenCalled();
 });
 
@@ -57,7 +57,7 @@ test('member text and confirmation cancel labels use injected translation', asyn
     createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', version: 1,
   }] });
   const translated = (key: string) => `translated:${key}`;
-  render(<Members port={port} translate={translated} />);
+  render(<FetchQueryProvider><Members port={port} translate={translated} /></FetchQueryProvider>);
   await screen.findByRole('heading', { name: 'translated:Members' });
   expect(screen.getByRole('button', { name: 'translated:Actions for member "member@example.com"' }).getAttribute('data-agent-element')).toBe('members-row-member-menu');
   await user.click(screen.getByRole('button', { name: 'translated:Actions for member "member@example.com"' }));

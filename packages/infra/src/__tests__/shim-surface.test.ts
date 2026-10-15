@@ -36,7 +36,7 @@ describe("infra 0.3.3 shim surface", () => {
     expect(manifest.dependencies).toEqual({ "@jini-ai/core": "workspace:^" });
     expect(manifest.scripts.build).toBe("tsc -p tsconfig.json");
     expect(JSON.stringify(manifest.exports)).not.toContain('"require"');
-    expect(manifest.peerDependencies).toEqual({ "@jini-ai/db": "workspace:^" });
+    expect(manifest.peerDependencies).toEqual({ "@jini-ai/db": "^0.3.4" });
     expect(manifest.peerDependenciesMeta).toEqual({ "@jini-ai/db": { optional: true } });
     expect(manifest.devDependencies["@jini-ai/db"]).toBe("workspace:^");
     expect(manifest.devDependencies["@jini-ai/core"]).toBe("workspace:*");

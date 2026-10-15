@@ -80,14 +80,16 @@ describe("useMembers — content refresh bus", () => {
 
     let resolveFirst!: (v: { members: AdminMember[] }) => void;
     let resolveSecond!: (v: { members: AdminMember[] }) => void;
-    vi.spyOn(port, "listMembers")
+    const list = vi.spyOn(port, "listMembers")
       .mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
       .mockImplementationOnce(() => new Promise((resolve) => (resolveSecond = resolve)));
 
-    act(() => {
-      publishContentRefresh();
-      publishContentRefresh();
-    });
+    // Queued reads can be superseded before the port runs. Start both transports so this
+    // still exercises out-of-order settlement, rather than only cache request coalescing.
+    act(() => publishContentRefresh());
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(1));
+    act(() => publishContentRefresh());
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
 
     const disabled: AdminMember = { ...MEMBER, status: "disabled" };
     await act(async () => {
@@ -112,7 +114,7 @@ describe("useMembers — a slow row's detail settle does not blank or error anot
     const port = createFakeMembersPort({}, { members: [MEMBER_A, MEMBER_B] });
 
     let rejectA!: (e: unknown) => void;
-    vi.spyOn(port, "getMember")
+    const getMember = vi.spyOn(port, "getMember")
       .mockImplementationOnce(() => new Promise((_resolve, reject) => (rejectA = reject)))
 
       .mockImplementationOnce(() => new Promise<{ member: AdminMember }>(() => {}));
@@ -124,8 +126,13 @@ describe("useMembers — a slow row's detail settle does not blank or error anot
     act(() => {
       pA = result.current.onToggleDetail(MEMBER_A);
     });
+    await waitFor(() => expect(getMember).toHaveBeenNthCalledWith(1, { id: MEMBER_A.id }));
     act(() => {
       void result.current.onToggleDetail(MEMBER_B);
+    });
+    await waitFor(() => {
+      expect(getMember).toHaveBeenNthCalledWith(2, { id: MEMBER_B.id });
+      expect(result.current.detailLoadingId).toBe(MEMBER_B.id);
     });
 
     rejectA(new Error("boom-A"));
@@ -164,7 +171,7 @@ describe("useMembers — a slow row's detail settle does not blank or error anot
 
     let rejectFirst!: (e: unknown) => void;
     let resolveSecond!: (v: { member: AdminMember }) => void;
-    vi.spyOn(port, "getMember")
+    const getMember = vi.spyOn(port, "getMember")
       .mockImplementationOnce(() => new Promise((_resolve, reject) => (rejectFirst = reject)))
       .mockImplementationOnce(() => new Promise<{ member: AdminMember }>((resolve) => (resolveSecond = resolve)));
 
@@ -175,6 +182,7 @@ describe("useMembers — a slow row's detail settle does not blank or error anot
     act(() => {
       first = result.current.onToggleDetail(MEMBER);
     });
+    await waitFor(() => expect(getMember).toHaveBeenNthCalledWith(1, { id: MEMBER.id }));
     act(() => {
       void result.current.onToggleDetail(MEMBER);
     });
@@ -182,6 +190,7 @@ describe("useMembers — a slow row's detail settle does not blank or error anot
     act(() => {
       second = result.current.onToggleDetail(MEMBER);
     });
+    await waitFor(() => expect(getMember).toHaveBeenNthCalledWith(2, { id: MEMBER.id }));
     expect(result.current.expandedId).toBe(MEMBER.id);
 
     rejectFirst(new Error("boom-first"));

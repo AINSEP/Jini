@@ -1352,17 +1352,21 @@ for (const [firstAmount, secondAmount, accepted] of [[700, 700, 1], [400, 300, 2
     const firstInFlight = new Promise<void>(resolve => { firstEntered = resolve; });
     let secondEntered!: () => void;
     const secondInFlight = new Promise<void>(resolve => { secondEntered = resolve; });
-    const send = t.mock.method(http, "send", async (request: HttpRequest) => {
+    const send = t.mock.method(http, "send", async ({ request }: { request: HttpRequest }) => {
       const key = request.headers["idempotency-key"];
       if (key === "in-flight-1") firstEntered();
       else secondEntered();
       await held;
       return refundOk(key === "in-flight-1" ? "re_1" : "re_2");
     });
+    const inFlight: Promise<unknown>[] = [];
     try {
       const first = api.refund({ workspaceId: WORKSPACE_ID, paymentId: payment.id, idempotencyKey: "in-flight-1", amount: USD(firstAmount) });
-      await firstInFlight;
+      inFlight.push(first);
+      // A transport failure before entry must fail this test rather than strand its handshake.
+      await Promise.race([firstInFlight, first.then(() => assert.fail("first refund completed before entering the provider"))]);
       const second = api.refund({ workspaceId: WORKSPACE_ID, paymentId: payment.id, idempotencyKey: "in-flight-2", amount: USD(secondAmount) });
+      inFlight.push(second);
       // The second attempt must either be rejected while the first is held or enter the provider;
       // both paths are observed without a timer or a scheduling guess.
       await Promise.race([second.then(() => undefined), secondInFlight]);
@@ -1380,6 +1384,7 @@ for (const [firstAmount, secondAmount, accepted] of [[700, 700, 1], [400, 300, 2
       assert.equal(refundRows(db).length, accepted);
     } finally {
       release();
+      await Promise.allSettled(inFlight);
       cleanup(db, dir);
     }
   });

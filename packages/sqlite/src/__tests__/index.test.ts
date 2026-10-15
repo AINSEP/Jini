@@ -13,6 +13,6 @@ describe('@jini-ai/sqlite barrel', () => {
 it('publishes the final @jini-ai/sqlite 0.5.0 compatibility release from the matching directory', () => {
   const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
   expect(manifest.name).toBe('@jini-ai/sqlite');
-  expect(manifest.version).toBe('0.5.0');
+  expect(manifest.version).toBe('0.5.2');
   expect(manifest.repository.directory).toBe('packages/sqlite');
 });

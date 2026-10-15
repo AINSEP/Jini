@@ -17,7 +17,7 @@ it('preserves every old declaration name, including migrate, DDL, helpers and CR
 });
 it('the shim has no driver dependencies or runtime references to the removed package',()=>{
  const manifest=JSON.parse(readFileSync(new URL('../../package.json',import.meta.url),'utf8'));
- expect(manifest.name).toBe('@jini-ai/sqlite');expect(manifest.version).toBe('0.5.0');
+ expect(manifest.name).toBe('@jini-ai/sqlite');expect(manifest.version).toBe('0.5.2');
  expect(Object.keys(manifest.dependencies).sort()).toEqual(['@jini-ai/chat','@jini-ai/daemon','@jini-ai/db','@jini-ai/registry']);
  expect(readFileSync(new URL('../index.ts',import.meta.url),'utf8')).not.toContain('sqlite-chat');
 });
