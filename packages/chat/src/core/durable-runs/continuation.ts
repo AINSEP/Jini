@@ -49,6 +49,7 @@ export function continuationRequest(
   const transcript = run.transcript.map((message) => `${message.role}: ${message.content}`).join("\n\n");
   const prompt = [
     "Continue the interrupted answer from the saved work below. Preserve completed work. Do not repeat completed mutations.",
+    "Omission markers in the saved work are system housekeeping, not user content; do not mention them to the user or infer a user disclosure from them.",
     "Calls without a result have an unknown outcome: inspect current state before any retry. Expired plans or approvals must be re-planned and re-approved; never reuse them.",
     "A pending question may be asked again when its process was lost. The interrupted segment remains visible; append the continuation.",
     `Accepted task:\n${String(original.prompt ?? "")}`,

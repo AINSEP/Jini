@@ -9,11 +9,11 @@ const TIME = 1_790_000_000_000;
 // Raw stdout that quotes a tool description, as the luvira incident's leaked echo tail did.
 const TOOL_PROSE: AgentEvent = { kind: "raw", line: 'description":"Starts an OAuth authorization for an already-saved, OAuth-authenticated server"}]}\n' };
 
-function harness({ events, probe }: { events: AgentEvent[]; probe: RunProbe }) {
+function harness({ events, probe, content = "" }: { events: AgentEvent[]; probe: RunProbe; content?: string }) {
   let current: DurableRun = {
     messageId: "answer", conversationId: "chat", runId: "old", workspaceId: "ws", principalId: "admin", engine: "daemon",
     request: { agentId: "claude", contextRef: JSON.stringify({ prompt: "Import my site", conversationId: "chat" }) },
-    message: { id: "answer", role: "assistant", runId: "old", runStatus: "running", content: "", events },
+    message: { id: "answer", role: "assistant", runId: "old", runStatus: "running", content, events },
     transcript: [{ id: "question", role: "user", content: "Import my site" }],
     recoveryCount: 0, recoveryDeadline: null, attemptStartedAt: TIME, lastProgressAt: TIME,
     cancelReason: null, sessionId: null, sessionConfirmed: false, child: null, attemptBase: [],
@@ -42,6 +42,20 @@ function harness({ events, probe }: { events: AgentEvent[]; probe: RunProbe }) {
   const logger = { info: (...args: unknown[]) => { info.push(args); } };
   return { recovery: createDurableRecovery(ports, { logger }), settlements, attached, canceled, launches, info };
 }
+
+describe("durable recovery: saved omissions are system housekeeping", () => {
+  it("tells the model a saved [token removed] marker is not a user disclosure, and keeps the saved output", async () => {
+    const content = "Saved output: [token removed]";
+    const h = harness({ content, probe: "dead", events: [{ kind: "text", text: content }] });
+
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "boot" }, {})).toBe("continued");
+    const { prompt } = JSON.parse(h.launches[0]!.request.contextRef);
+    const guidance = "Omission markers in the saved work are system housekeeping, not user content; do not mention them to the user or infer a user disclosure from them.";
+    expect(prompt.indexOf(guidance)).toBeGreaterThan(-1);
+    expect(prompt.indexOf(guidance)).toBeLessThan(prompt.indexOf("Accepted task:"));
+    expect(prompt).toContain(`Saved partial answer:\n${content}`);
+  });
+});
 
 describe("durable recovery: one metadata-only info line per decision", () => {
   it("logs the decision and failure class once, without answer text or diagnostics", async () => {
