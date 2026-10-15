@@ -1,3 +1,9 @@
+## 0.6.3 — 2026-10-14
+
+- A failed MCP bridge ends the run once with its own message (e350056c): durable recovery no longer retries `MCP_BRIDGE_UNAVAILABLE` runs until the budget runs out and then shows the generic "could not continue" notice; the run is finalized with the bridge failure's exact text.
+- The composer accepts file drops while a run streams (7c3d57a7), matching the attach button and paste; the drop gate (`isChatPaneFileDropEnabled` in `rules.ts`) blocks only on a missing uploader, a disabled/agent-less pane, or an upload in progress.
+- Rides along: a regression test for the lone composer send button (3516cc04).
+
 ## 0.6.2 — 2026-10-13
 
 - A lone composer send button stays at the footer's end (b1d7a7b7): a host with no attach or accessory controls (a public visitor chat) left the send group as the footer's only child, so `space-between` put it at the bottom-left; `margin-left: auto` on a first-child send group keeps it on the right, as in the admin composer.

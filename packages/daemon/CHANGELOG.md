@@ -1,3 +1,7 @@
+## 0.6.6 — 2026-10-14
+
+- A failed jini MCP bridge now says why (8bc0f07d): the run still stops at once, but a disposable credential-free copy of the bridge is spawned, sent MCP `initialize`, and its exit code + stderr tail (e.g. `ERR_MODULE_NOT_FOUND`) go into the `MCP_BRIDGE_UNAVAILABLE` message and `error.details`, emitted before the run's end event. `probeMcpBridge` is exported so hosts can run the same check at boot; `mcpJsonInjection.probeOnFailure: false` opts out. The baseline agent env moves to `agent-env.ts` so probe and launch share one allowlist.
+
 ## 0.6.5 — 2026-10-14
 
 - Express 5 accepted: the optional `express` peer is now `^4.21.0 || ^5.0.0` (1442d875), so an Express 5 host no longer hits ERESOLVE.
