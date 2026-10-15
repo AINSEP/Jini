@@ -19,7 +19,9 @@
       "./lifecycle/node": "node",
       "./lifecycle/yauzl": "node",
       "./manifest": "universal",
-      "./persistent-state": "node"
+      "./persistent-state": "node",
+      "./folder-zip": "universal",
+      "./folder-zip/node": "node"
     },
     "isolation": {
       "entries": {
@@ -65,6 +67,16 @@
       "types": "./persistent-state.d.ts",
       "import": "./persistent-state.js",
       "default": "./persistent-state.js"
+    },
+    "./folder-zip": {
+      "types": "./dist/folder-zip.d.ts",
+      "import": "./dist/folder-zip.js",
+      "default": "./dist/folder-zip.js"
+    },
+    "./folder-zip/node": {
+      "types": "./dist/folder-zip-node.d.ts",
+      "import": "./dist/folder-zip-node.js",
+      "default": "./dist/folder-zip-node.js"
     }
   },
   "files": [

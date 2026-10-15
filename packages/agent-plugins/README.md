@@ -106,6 +106,8 @@ Catalog format) that this package does not implement.
 | `./lifecycle` | node | Host-injected installation, activation, locks, digests, bundles, trusted files, reference resolution, ranking and MCP provisioning helpers. |
 | `./lifecycle/node` | node | `createNodeAgentPluginEffects({})` opt-in native effects. |
 | `./lifecycle/yauzl` | node | `createYauzlAgentPluginArchiveReader({ yauzl })`; the host supplies the optional peer library. |
+| `./folder-zip` | universal | `zipFolderFiles({ files, maxBytes })`: packs picked folder `File`s into one stored-mode, binary-safe `.zip` `File` (the admin "Upload a folder" encoder). |
+| `./folder-zip/node` | node | `zipLocalFolder({ path, maxBytes })`: the same encoder over a local folder; refuses symlinks/special files, bounds entries and bytes. |
 | `./ui-ux-design/*` | — | Raw files of the bundled `ui-ux-design` plugin — static JSON/Markdown, not run through the TS build. |
 
 The universal root handles structural validation. The separate Node lifecycle entry implements

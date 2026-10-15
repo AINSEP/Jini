@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — folder uploads share one ZIP encoder
+
+- New `./folder-zip` (universal): `zipFolderFiles()`, the binary-safe stored-mode folder encoder,
+  moved here from Tovu's admin so browser and server folder installs pack identically.
+- New `./folder-zip/node`: `zipLocalFolder()` reads a local folder into that same encoder. Refuses
+  symlinks and special files, bounds entries (4096) and bytes before reading, and sorts paths so the
+  same folder always packs to the same digest.
+
 ## 0.4.6 — 2026-10-13 — skills' supporting files are readable
 
 - New `createSkillFileReader()` and lifecycle `readInstalledSkillFile()`: read `SKILL.md` or a
