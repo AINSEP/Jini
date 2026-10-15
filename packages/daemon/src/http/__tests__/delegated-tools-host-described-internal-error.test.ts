@@ -17,14 +17,17 @@ vi.mock('@jini-ai/core', async (importOriginal) => ({
 const PRINCIPAL: Principal = { id: 'test-principal' };
 const GENERIC = 'an internal error occurred';
 
-/** A real executor over an EMPTY registry: any tool id makes `execute` throw `unknown tool`. */
-function emptyRegistryExecutor(): ToolExecutor {
-  return createToolExecutor({ registry: createToolRegistry({}) });
+/** Injects an infrastructure failure; unknown tool ids are caller input errors. */
+function throwingExecutor(): ToolExecutor {
+  return {
+    ...createToolExecutor({ registry: createToolRegistry({}) }),
+    execute: async () => { throw new Error('executor unavailable'); },
+  };
 }
 
 /** An executor that settles every call with `result`, without running anything. */
 function settlingExecutor(result: ToolExecutionResult): ToolExecutor {
-  return { ...emptyRegistryExecutor(), execute: async () => result };
+  return { ...throwingExecutor(), execute: async () => result };
 }
 
 async function callRoute(
@@ -54,15 +57,15 @@ function requestIdOf(result: Awaited<ReturnType<typeof callRoute>>['result']): s
 }
 
 describe('delegated tool route: describeInternalError (host-supplied model-safe text for the 500)', () => {
-  it('an unknown tool id (executor throws) answers with the host text instead of the generic message', async () => {
+  it('an executor infrastructure failure answers with the host text instead of the generic message', async () => {
     const describeInternalError = vi.fn((context: DelegatedToolsInternalErrorContext) =>
       `Error ERR-1: ${(context.error as Error).message}`,
     );
-    const { result, onInternalError, runId } = await callRoute(emptyRegistryExecutor(), { describeInternalError });
+    const { result, onInternalError, runId } = await callRoute(throwingExecutor(), { describeInternalError });
 
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'Error ERR-1: ToolExecutor: unknown tool "nope"', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: 'Error ERR-1: executor unavailable', requestId: expect.any(String) },
     });
     const requestId = requestIdOf(result);
     expect(describeInternalError).toHaveBeenCalledTimes(1);
@@ -95,7 +98,7 @@ describe('delegated tool route: describeInternalError (host-supplied model-safe 
 
   it('a throwing resolvePrincipal is described too, with source resolve-principal', async () => {
     const describeInternalError = vi.fn((context: DelegatedToolsInternalErrorContext) => (context.error as Error).message);
-    const { result } = await callRoute(emptyRegistryExecutor(), {
+    const { result } = await callRoute(throwingExecutor(), {
       describeInternalError,
       resolvePrincipal: () => {
         throw new Error('no principal is tracked for run "r"');
@@ -119,16 +122,16 @@ describe('delegated tool route: describeInternalError (host-supplied model-safe 
       },
     ],
   ])('falls back to the generic message when the host describer %s', async (_label, describeInternalError) => {
-    const { result, onInternalError } = await callRoute(emptyRegistryExecutor(), { describeInternalError });
+    const { result, onInternalError } = await callRoute(throwingExecutor(), { describeInternalError });
 
     expect(result).toEqual({ ok: false, error: { code: 'INTERNAL_ERROR', message: GENERIC, requestId: expect.any(String) } });
     expect(onInternalError).toHaveBeenCalledTimes(1);
   });
 
   it('secure by default: without describeInternalError the thrown text never reaches the response', async () => {
-    const { result } = await callRoute(emptyRegistryExecutor());
+    const { result } = await callRoute(throwingExecutor());
 
     expect(result).toEqual({ ok: false, error: { code: 'INTERNAL_ERROR', message: GENERIC, requestId: expect.any(String) } });
-    expect(JSON.stringify(result)).not.toContain('unknown tool');
+    expect(JSON.stringify(result)).not.toContain('executor unavailable');
   });
 });

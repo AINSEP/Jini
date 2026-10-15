@@ -309,26 +309,22 @@ describe('delegatedToolExecuteRoute.handle', () => {
     expect(onInternalError.mock.calls[0]![0].error).toBe('timed-out');
   });
 
-  it('SEC-005: redacts an unregistered toolId (a ToolExecutor routing error) to a generic INTERNAL_ERROR and reports it via onInternalError', async () => {
+  it('returns an unknown tool id as BAD_REQUEST without an internal-error report', async () => {
     const onInternalError = vi.fn();
     const deps = makeDeps({ onInternalError });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
     const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'nope' }, deps });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) });
-    }
-    expect(onInternalError).toHaveBeenCalledTimes(1);
-    const context = onInternalError.mock.calls[0]![0];
-    expect(context.source).toBe('delegated-tool-execute');
-    expect(context.runId).toBe(run.id);
-    expect(context.toolId).toBe('nope');
-    expect(context.error).toBeInstanceOf(Error);
+    expect(result).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'ToolExecutor: unknown tool "nope"' } });
+    expect(onInternalError).not.toHaveBeenCalled();
   });
 
   it('SEC-005: falls back to console.error when no onInternalError sink is supplied', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
-    const deps = makeDeps();
+    const toolExecutor: ToolExecutor = {
+      ...makeToolExecutor(),
+      execute: async () => { throw new Error('executor unavailable'); },
+    };
+    const deps = makeDeps({ toolExecutor });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
     const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'nope' }, deps });
     expect(result.ok).toBe(false);
@@ -419,6 +415,17 @@ describe('registerDelegatedToolRoutes', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     const [body] = res.json.mock.calls[0]!;
     expect(body.result).toMatchObject({ status: 'completed', output: { echoed: 'hi' } });
+  });
+
+  it('mounted POST answers an unknown tool id with HTTP 400', async () => {
+    const deps = makeDeps();
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
+    const app = makeApp();
+    registerDelegatedToolRoutes({ app: app as any, deps, adapter });
+    const res = makeJsonRes();
+    await app.handlers['POST /api/delegated-tool-calls']!({ body: { runId: run.id, toolUseId: 'tu-1', toolId: 'nope', input: {} }, query: {}, params: {} }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: { code: 'BAD_REQUEST', message: 'ToolExecutor: unknown tool "nope"' } });
   });
 
   it('a real HTTP request close (client disconnect) reaches ToolExecutor and cancels a pending confirmation, end to end through mountJsonRoute', async () => {

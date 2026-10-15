@@ -28,7 +28,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import type { Principal, ToolRegistry } from '@jini-ai/core';
+import { ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
 import { createDelegatedToolBridge, type RunLifecycle, type ToolExecutionResult, type ToolExecutor } from '../index.js';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
 import { validationError } from '@jini-ai/http-kit';
@@ -113,7 +113,7 @@ export interface DelegatedToolsHttpDeps {
   /**
    * Host opt-in: the model-safe text to send in place of `'an internal error occurred'` for every
    * failure this route would otherwise answer with the SEC-005-redacted `500 INTERNAL_ERROR` — a
-   * thrown executor (e.g. an unknown tool id), a throwing `resolvePrincipal`, `timed-out`,
+   * thrown executor infrastructure failure, a throwing `resolvePrincipal`, `timed-out`,
    * `cancelled`, and a `failed` result `isModelSafeToolFailure` did not vouch for. Without it, those
    * reach the model as a bare "INTERNAL_ERROR" it can neither act on nor report.
    *
@@ -273,8 +273,8 @@ function toolExecutionResultToApiResult(
  * `POST /api/delegated-tool-calls` — executes one delegated tool call against an already-started
  * run. Maps `ToolExecutionResult.status` to the HTTP response via `toolExecutionResultToApiResult`
  * above — mirroring `db-ops.ts`'s precedent for the identical status union rather than treating
- * every business outcome as a `200`. A genuinely unexpected throw (an unregistered `toolId` — a
- * routing/programming error per `ToolExecutor.execute`'s own contract — or a race where the run
+ * every business outcome as a `200`. An unregistered `toolId` throws `ToolInputError` and answers
+ * `400 BAD_REQUEST`. A genuinely unexpected throw (such as a race where the run
  * became terminal between this route's existence check and the bridge's first emitted event)
  * reaches the same SEC-005 redaction path.
  */
@@ -340,6 +340,9 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
       });
       return toolExecutionResultToApiResult(deps, input.runId, input.toolId, result);
     } catch (error) {
+      if (error instanceof ToolInputError) {
+        return err({ error: createApiError({ code: 'BAD_REQUEST', message: error.message }) });
+      }
       return err({ error: reportInternalError(deps, 'delegated-tool-execute', error, input.runId, input.toolId) });
     }
   }

@@ -41,6 +41,14 @@ describe('@jini-ai/daemon — ToolExecutor — authorization', () => {
     await expect(executor.execute({ principal: principal, run: run, toolId: 'missing', input: {} })).rejects.toThrow(/unknown tool "missing"/);
   });
 
+  it('an unknown id is a ToolInputError naming registered ids it prefixes', async () => {
+    const registry = registryWith(...['content_read.menu', 'content_read.page', 'echo'].map((id): ToolRegistration => ({
+      descriptor: { id }, policy: allowAll(), handler: async () => 'unused',
+    })));
+    await expect(createToolExecutor({ registry }).execute({ principal, run, toolId: 'content_read', input: {} }))
+      .rejects.toMatchObject({ name: 'ToolInputError', message: 'ToolExecutor: unknown tool "content_read"; did you mean content_read.menu, content_read.page?' });
+  });
+
   it('runs an allowed tool call end to end and records the audit trail', async () => {
     const registry = registryWith({
       descriptor: { id: 'echo' },

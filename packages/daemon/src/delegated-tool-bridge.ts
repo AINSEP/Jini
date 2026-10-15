@@ -39,8 +39,8 @@ export interface DelegatedToolInvocation {
 export interface DelegatedToolBridge {
   /**
    * Emits a canonical `tool_use`, executes through `ToolExecutor`, then emits
-   * exactly one matching `tool_result`. Unknown tool ids remain programmer or
-   * routing errors from `ToolExecutor` and are rethrown after their error
+   * exactly one matching `tool_result`. Unknown tool ids are input errors
+   * from `ToolExecutor` and are rethrown after their error
    * result is recorded.
    */
   execute(requiredArgs: Pick<DelegatedToolInvocation, "runId" | "toolUseId" | "toolId" | "principal" | "input">, optionalArgs?: Pick<DelegatedToolInvocation, "signal">): Promise<ToolExecutionResult>;

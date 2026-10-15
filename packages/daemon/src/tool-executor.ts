@@ -167,7 +167,7 @@ export interface ToolExecutor {
    * @param emitSurface - Transport-supplied seam letting the handler push a human-only surface into
    * the run's event stream *before* this call settles. Omit for a caller with no run event stream;
    * see `@jini-ai/core`'s `SurfaceEmitter` for why a handler that waits on a human needs it.
-   * @throws If `toolId` isn't registered — a routing/programming error, distinct from the denial/confirmation-denial states `ToolExecutionResult.status` covers.
+   * @throws {ToolInputError} If `toolId` isn't registered, with up to eight registered prefix matches.
    */
   execute(args: { readonly principal: Principal; readonly run: RunRef; readonly toolId: string; readonly input: unknown }, optionalArgs?: { readonly signal?: AbortSignal; readonly emitSurface?: SurfaceEmitter }
   ): Promise<ToolExecutionResult>;
@@ -217,7 +217,7 @@ function truncateOutput(output: unknown, maxOutputBytes: number | undefined): { 
  * — the one and only caller of that internal export.
  * @param options.delegate - Transport-supplied authorize/confirm UI seam;
  * omit for a headless caller whose tools never need interactive gating.
- * @complexity `execute` is O(1) plus the handler's own cost; `resumeConfirmation`/`cancel`/`getAuditRecord` are O(1) map lookups.
+ * @complexity Known-id `execute` is O(1) plus the handler's own cost; unknown ids scan O(n) descriptors for hints. `resumeConfirmation`/`cancel`/`getAuditRecord` are O(1) map lookups.
  * @overallScore 100/100
  */
 export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions, "registry">, optionalArgs: Pick<CreateToolExecutorOptions, "delegate" | "now"> = {}): ToolExecutor {
@@ -335,7 +335,9 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     // existence, never returns a handler, so this doesn't reopen the leak authorizeToolInvocation
     // closed — that gate still runs, still unconditionally, inside the call below.
     if (!registry.has({ toolId })) {
-      throw new Error(`ToolExecutor: unknown tool "${toolId}"`);
+      const candidates = registry.list({}).map((tool) => tool.id).filter((id) => id.startsWith(toolId)).slice(0, 8);
+      const hint = candidates.length > 0 ? `; did you mean ${candidates.join(', ')}?` : '';
+      throw new ToolInputError({ message: `ToolExecutor: unknown tool "${toolId}"${hint}` });
     }
 
     const executionId = openAudit(principal, run, toolId);
@@ -371,7 +373,7 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     // Recorded terminal and returned as `failed` with a fixed message. `failed` is the right state:
     // this execution ended, and it ended for an operational reason rather than a decision. The real
     // exception stays server-side. Deliberately narrower than the `unknown tool` throw above, which
-    // stays a throw because it is a routing/programming error, not an execution outcome.
+    // stays a typed input-error throw because no tool execution exists to settle.
     let resolved: Awaited<ReturnType<typeof authorize>>;
     try {
       resolved = await authorize(principal, run, toolId, input);
