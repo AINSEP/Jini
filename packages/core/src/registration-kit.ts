@@ -155,11 +155,25 @@ export function requireInputRecord(required: { input: unknown }, _optional: Reco
   return candidate.value;
 }
 
+/**
+ * Reads a required non-empty string, with received-key hints when the field is missing.
+ * @throws {ToolInputError} If the field is missing, empty, or not a string.
+ * @complexity O(k) for k input keys on a missing-field rejection; otherwise O(1).
+ */
 export function requireString(required: { input: Record<string, unknown>; key: string }, _optional: Record<string, never> = {}): string {
   const { input, key } = required;
   const value = input[key];
   if (typeof value !== "string" || value.length === 0) {
-    throw new ToolInputError({ message: `'${key}' (non-empty string) is required` });
+    let message = `'${key}' (non-empty string) is required`;
+    if (value === undefined) {
+      // Show names, never values, so a wrong-key or batch call can be corrected without exposing content.
+      const keys = Object.keys(input);
+      if (keys.length > 0) message += `; received: ${keys.join(", ")}`;
+      if (Array.isArray(input.items)) {
+        message += "; this tool takes one input per call — items[] batching is not supported here";
+      }
+    }
+    throw new ToolInputError({ message });
   }
   return value;
 }

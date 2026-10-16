@@ -39,6 +39,39 @@ describe('registration-kit input readers throw ToolInputError, not a plain Error
     expect(() => requireString({ input: { themeId: 42 }, key: 'themeId' })).toThrow(ToolInputError);
   });
 
+  it('requireString — missing key lists received keys without their values and keeps the prefix', () => {
+    expect(() => requireString({
+      input: { id: 'page-1', expectedVersion: 2, region: 'hero', html: '<p>private content</p>' },
+      key: 'handle',
+    })).toThrowError(new ToolInputError({
+      message: "'handle' (non-empty string) is required; received: id, expectedVersion, region, html",
+    }));
+  });
+
+  it.each([{ items: [] }, { items: [{ id: 'page-1' }] }])('requireString — missing key explains unsupported items[] batching (%j)', ({ items }) => {
+    expect(() => requireString({ input: { items }, key: 'id' })).toThrowError(new ToolInputError({
+      message: "'id' (non-empty string) is required; received: items; this tool takes one input per call — items[] batching is not supported here",
+    }));
+  });
+
+  it('requireString — non-array items lists the key without a batching hint', () => {
+    expect(() => requireString({ input: { items: 'wrong shape' }, key: 'id' })).toThrowError(new ToolInputError({
+      message: "'id' (non-empty string) is required; received: items",
+    }));
+  });
+
+  it('requireString — empty input keeps the exact existing message', () => {
+    expect(() => requireString({ input: {}, key: 'handle' })).toThrowError(new ToolInputError({
+      message: "'handle' (non-empty string) is required",
+    }));
+  });
+
+  it.each(['', 42, null])('requireString — present invalid value keeps the exact existing message (%j)', (handle) => {
+    expect(() => requireString({ input: { handle, items: [] }, key: 'handle' })).toThrowError(new ToolInputError({
+      message: "'handle' (non-empty string) is required",
+    }));
+  });
+
   it('requireNumber', () => {
     expect(() => requireNumber({ input: {}, key: 'count' })).toThrow(ToolInputError);
   });
