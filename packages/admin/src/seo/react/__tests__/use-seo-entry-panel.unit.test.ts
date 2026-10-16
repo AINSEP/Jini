@@ -185,7 +185,8 @@ describe("useSeoEntryPanel — clearing an override", () => {
       await result.current.save();
     });
 
-    expect(puts).toEqual([{ canonical: null, ogImage: null }]);
+    // The X image was following the preview image, so the clear carries over to it (rules.ts inheritedXFor).
+    expect(puts).toEqual([{ canonical: null, ogImage: null, twitterImage: null }]);
   });
 
   it("the null survives JSON serialization — an `undefined` clear would be dropped from the wire body entirely", async () => {
@@ -292,5 +293,16 @@ describe("useSeoEntryPanel — failures and entry changes", () => {
     expect(result.current.resolved?.title).toBe("Entry two");
     expect(result.current.analysis?.entryId).toBe("entry-2");
     expect(result.current.touched).toEqual({});
+  });
+
+  it("editing a preview field also clears the X field that follows it, but not a customized one", async () => {
+    const port = createFakeSeoPort({
+      entries: { "entry-1": { meta: metaFixture({ twitter: { card: "summary", title: "Original title", description: "Own X" } }), analysis: analysisFixture() } },
+    });
+    const { result } = renderHook(() => useSeoEntryPanel({ entryId: "entry-1" }, port, "en"));
+    await waitFor(() => expect(result.current.resolved).not.toBeNull());
+    act(() => result.current.setField("ogTitle", "New share title"));
+    act(() => result.current.setField("ogDescription", "New share desc"));
+    expect(result.current.touched).toEqual({ ogTitle: "New share title", twitterTitle: null, ogDescription: "New share desc" });
   });
 });

@@ -197,7 +197,7 @@ test('reloaded entry fields inspect the source reference even when the public re
   const meta = {
     title: 'Page', canonical: 'https://public-alias.test/page', robots: { noindex: false, nofollow: false }, jsonLd: [],
     openGraph: { title: 'Page', type: 'website' as const, url: 'https://public-alias.test/page', image: 'https://public-alias.test/m/cover/og.v1/image.jpg', imageRef: 'cover:public' },
-    twitter: { title: 'Page', card: 'summary_large_image' as const, image: 'https://public-alias.test/m/cover/og.v1/image.jpg', imageRef: 'cover:public' },
+    twitter: { title: 'Page', card: 'summary_large_image' as const, image: 'https://public-alias.test/m/tw/og.v1/image.jpg', imageRef: 'tw:public' },
   };
   const inspected: string[] = [];
   const port: AdminSeoPort = {
@@ -205,10 +205,10 @@ test('reloaded entry fields inspect the source reference even when the public re
     inspectShareImage: async ({ url }) => { inspected.push(url); return { status: 200, byteSize: 66 }; },
   };
   render(<FetchQueryProvider><SeoPortsContext.Provider value={{ seoApi: port }}><SeoOptionsContext.Provider value={{ siteUrl: () => 'https://admin.test', t: key => key }}><SeoEntrySection locale="en" useSeoEntrySectionHook={() => ({ entryId: 'page', setEntryId: () => {} })} /></SeoOptionsContext.Provider></SeoPortsContext.Provider></FetchQueryProvider>);
-  await waitFor(() => expect(inspected).toEqual(['/original/cover', '/original/cover']));
+  await waitFor(() => expect([...inspected].sort()).toEqual(['/original/cover', '/original/tw']));
   expect(screen.queryByRole('status')).toBeNull();
-  expect(screen.getByAltText('OG image preview').getAttribute('src')).toBe('/original/cover');
-  expect(screen.getByAltText('Twitter image preview').getAttribute('src')).toBe('/original/cover');
+  expect(screen.getByAltText('Preview image preview').getAttribute('src')).toBe('/original/cover');
+  expect(screen.getByAltText('X image preview').getAttribute('src')).toBe('/original/tw');
 });
 
 test.each([629, 630])('checks decoded height independently at the 630 px boundary (%i)', async height => {

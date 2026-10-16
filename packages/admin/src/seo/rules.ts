@@ -1,7 +1,7 @@
 import type { AdminSeoIssue as SeoIssue, AdminSeoSettingsPatch as SeoSettingsPatch } from "../core/ports/seo.js";
 import { interpolate } from '@jini-ai/ui/i18n';
 import type { SeoTranslator } from './models.js';
-import type { AdminSeoEntryChoice, AdminSeoMediaSummary } from '../core/ports/seo.js';
+import type { AdminSeoEntryChoice, AdminSeoMediaSummary, AdminSeoMeta } from '../core/ports/seo.js';
 
 /**
  * @file Pure logic for the `seo` feature — everything that computes a value rather than rendering
@@ -53,6 +53,50 @@ export function overrideOrClear<V>({ value }: { value: V }, _optional: Record<st
  *  (`defaultDescription`, `defaultOgImage`, `twitterSite`) all fall back to `""` the same way. */
 export function orEmpty({ value }: { value: string | undefined }, _optional: Record<string, never> = {}): string {
   return value ?? "";
+}
+
+/** The X (twitter) fields the "Customize for X" disclosure holds, each paired with the social
+ *  preview (Open Graph) value it falls back to. */
+export type SeoXFieldKey = 'twitterTitle' | 'twitterDescription' | 'twitterImage';
+
+/** One entry's effective X value next to its effective social preview value, per field. Images
+ *  compare by source ref (the resolved URL is resized), falling back to the URL for pasted ones. */
+function xAndSocial({ meta }: { meta: AdminSeoMeta }): Record<SeoXFieldKey, [string | undefined, string | undefined]> {
+  return {
+    twitterTitle: [meta.twitter.title, meta.openGraph.title],
+    twitterDescription: [meta.twitter.description, meta.openGraph.description],
+    twitterImage: [meta.twitter.imageRef ?? meta.twitter.image, meta.openGraph.imageRef ?? meta.openGraph.image],
+  };
+}
+
+/** Whether this entry's X card differs from its social preview in any field — i.e. an X override
+ *  is in effect, so the "Customize for X" disclosure opens on load. (2026-10-15, owner: one
+ *  generic social preview, X only as an optional customization.)
+ *  @complexity O(1). */
+export function xIsCustomized({ meta }: { meta: AdminSeoMeta }, _optional: Record<string, never> = {}): boolean {
+  return Object.values(xAndSocial({ meta })).some(([x, social]) => x !== social);
+}
+
+/** An X field's untouched box value, handed to `fieldValue` as its resolved value (so a pending
+ *  edit or clear still wins there). An X value equal to the social preview's is inherited, so the
+ *  box stays empty and its placeholder shows the live social value — typing there is what creates
+ *  an X override.
+ *  @complexity O(1). */
+export function xResolvedValue({ key, meta }: { key: SeoXFieldKey; meta: AdminSeoMeta }, _optional: Record<string, never> = {}): string {
+  const [x, social] = xAndSocial({ meta })[key];
+  return x === social ? '' : x ?? '';
+}
+
+/** The X field an edit to a social preview field should carry along: when X still shows the
+ *  preview's value and has no pending edit of its own, the edit also clears X's stored override so
+ *  X keeps following the preview after save. Without it, an X override saved equal to the preview
+ *  (indistinguishable here, the screen sees only effective values) would silently pin X to the old
+ *  text. Clearing an override that does not exist is a no-op on the server.
+ *  @complexity O(1). */
+export function inheritedXFor({ key, meta, touched }: { key: string; meta: AdminSeoMeta; touched: Readonly<Record<string, unknown>> }, _optional: Record<string, never> = {}): SeoXFieldKey | null {
+  const xKey = ({ ogTitle: 'twitterTitle', ogDescription: 'twitterDescription', ogImage: 'twitterImage' } as const)[key as 'ogTitle'];
+  if (!xKey || xKey in touched) return null;
+  return xResolvedValue({ key: xKey, meta }) === '' ? xKey : null;
 }
 
 /** A pending-action button's label — `react/pages/SeoPage.tsx` uses this for both the save-settings button

@@ -323,10 +323,10 @@ describe("Seo — defaults form", () => {
     renderSeo();
     expect(screen.getByLabelText(/Title template/)).toHaveValue("%s | Site");
     expect(screen.getByLabelText("Default meta description")).toHaveValue("A default description");
-    const image = screen.getByRole("group", { name: /Default Open Graph/ });
+    const image = screen.getByRole("group", { name: /Default preview image/ });
     expect(within(image).getByText("media")).toBeInTheDocument();
     expect(new FormData(image.closest('form')!).getAll('defaultOgImage')).toEqual(['media:og1']);
-    expect(screen.getByLabelText("Twitter @site handle")).toHaveValue("@site");
+    expect(screen.getByLabelText("X @handle")).toHaveValue("@site");
     expect(screen.getByRole("checkbox", { name: "Default noindex" })).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Default nofollow" })).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Sitemap enabled" })).toBeChecked();
@@ -337,8 +337,8 @@ describe("Seo — defaults form", () => {
       settings: { titleTemplate: "%s", defaultRobots: { noindex: false, nofollow: false }, sitemapEnabled: false, robotsRules: [] },
     });
     expect(screen.getByLabelText("Default meta description")).toHaveValue("");
-    expect(within(screen.getByRole("group", { name: /Default Open Graph/ })).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Twitter @site handle")).toHaveValue("");
+    expect(within(screen.getByRole("group", { name: /Default preview image/ })).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("X @handle")).toHaveValue("");
   });
 
   it("submitting the form calls save with FormData parsed into a SeoSettings patch", async () => {
@@ -347,8 +347,8 @@ describe("Seo — defaults form", () => {
     renderSeo({ save });
     await user.clear(screen.getByLabelText("Default meta description"));
     await user.type(screen.getByLabelText("Default meta description"), "An edited description");
-    await user.clear(screen.getByLabelText("Twitter @site handle"));
-    await user.type(screen.getByLabelText("Twitter @site handle"), "@updated");
+    await user.clear(screen.getByLabelText("X @handle"));
+    await user.type(screen.getByLabelText("X @handle"), "@updated");
     await user.click(screen.getByRole("button", { name: "Save settings" }));
 
     expect(save).toHaveBeenCalledWith({
@@ -435,8 +435,8 @@ describe("Seo — default OG image (MediaRefField)", () => {
   // The text box is gone (owner, 2026-10-15); an existing URL value is named by its file.
   it("names an existing URL value by its file name, with no text box", () => {
     renderSeo({ defaultOgImage: "https://images.example/cover.png" });
-    expect(within(screen.getByRole("group", { name: /Default Open Graph/ })).getByText("cover.png")).toBeInTheDocument();
-    expect(screen.queryByRole("textbox", { name: /Default Open Graph/ })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: /Default preview image/ })).getByText("cover.png")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /Default preview image/ })).not.toBeInTheDocument();
   });
 
   it("has no Remove control while empty, and shows one once a value is set", () => {
@@ -476,7 +476,7 @@ describe("Seo — default OG image (MediaRefField)", () => {
 
   it("renders a preview thumbnail resolved off the current defaultOgImage value", () => {
     renderSeo({ defaultOgImage: "asset-1:public" });
-    expect(screen.getByAltText(/Default Open Graph.*preview/)).toHaveAttribute(
+    expect(screen.getByAltText(/Default preview image.*preview/)).toHaveAttribute(
       "src",
       expect.stringContaining("/media/asset-1/original"),
     );
@@ -612,12 +612,28 @@ describe("SeoEntryPanel", () => {
     expect(screen.getByLabelText("Canonical URL")).toHaveValue("https://example.com/entry");
     expect(screen.getByRole("checkbox", { name: "Noindex" })).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Nofollow" })).not.toBeChecked();
-    expect(screen.getByLabelText("OG title")).toHaveValue("OG title");
-    expect(screen.getByLabelText("OG description")).toHaveValue("OG desc");
-    expect(within(screen.getByRole("group", { name: "OG image" })).getByText("og.png")).toBeInTheDocument();
-    expect(screen.getByLabelText("Twitter title")).toHaveValue("Twitter title");
-    expect(screen.getByLabelText("Twitter description")).toHaveValue("Twitter desc");
-    expect(within(screen.getByRole("group", { name: "Twitter image" })).getByText("tw.png")).toBeInTheDocument();
+    expect(screen.getByLabelText("Preview title")).toHaveValue("OG title");
+    expect(screen.getByLabelText("Preview description")).toHaveValue("OG desc");
+    expect(within(screen.getByRole("group", { name: "Preview image" })).getByText("og.png")).toBeInTheDocument();
+    expect(screen.getByLabelText("X title")).toHaveValue("Twitter title");
+    expect(screen.getByLabelText("X description")).toHaveValue("Twitter desc");
+    expect(within(screen.getByRole("group", { name: "X image" })).getByText("tw.png")).toBeInTheDocument();
+    expect(screen.queryByText("Same as the preview image")).not.toBeInTheDocument();
+  });
+
+  // 2026-10-15 (owner): one generic Social preview; X is an optional customization below it.
+  it("opens 'Customize for X' on load when an X override is in effect", () => {
+    renderPanel();
+    expect(screen.getByText("Customize for X (optional)").closest("details")).toHaveAttribute("open");
+  });
+
+  it("keeps 'Customize for X' closed and its boxes empty with the preview as placeholder when X inherits", () => {
+    renderPanel({ resolved: { ...RESOLVED, twitter: { ...RESOLVED.twitter, title: "OG title", description: "OG desc", image: "og.png" } } });
+    expect(screen.getByText("Customize for X (optional)").closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByLabelText("X title")).toHaveValue("");
+    expect(screen.getByLabelText("X title")).toHaveAttribute("placeholder", "OG title");
+    expect(screen.getByLabelText("X description")).toHaveAttribute("placeholder", "OG desc");
+    expect(within(screen.getByRole("group", { name: "X image" })).getByText("Same as the preview image")).toBeInTheDocument();
   });
 
   it("falls back to '' for optional resolved fields the entry omits", () => {
@@ -628,9 +644,9 @@ describe("SeoEntryPanel", () => {
       resolved: { ...resolved, openGraph, twitter },
     });
     expect(screen.getByLabelText("Description")).toHaveValue("");
-    expect(screen.getByLabelText("OG description")).toHaveValue("");
+    expect(screen.getByLabelText("Preview description")).toHaveValue("");
     // Empty image: just "Choose image", no name and no Remove.
-    expect(within(screen.getByRole("group", { name: "OG image" })).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Preview image" })).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
   });
 
   it("typing in the Title field calls setField('title', value)", async () => {
@@ -673,11 +689,11 @@ describe("SeoEntryPanel", () => {
     expect(setField).toHaveBeenCalledWith("canonical", "https://example.com/entryx");
   });
 
-  it("typing in OG title calls setField('ogTitle', value)", async () => {
+  it("typing in Preview title calls setField('ogTitle', value)", async () => {
     const user = userEvent.setup();
     const setField = vi.fn();
     renderPanel({ setField });
-    await user.type(screen.getByLabelText("OG title"), "x");
+    await user.type(screen.getByLabelText("Preview title"), "x");
     expect(setField).toHaveBeenCalledWith("ogTitle", "OG titlex");
   });
 
@@ -685,7 +701,7 @@ describe("SeoEntryPanel", () => {
     const user = userEvent.setup();
     const setField = vi.fn();
     renderPanel({ setField });
-    await user.type(screen.getByLabelText("OG description"), "x");
+    await user.type(screen.getByLabelText("Preview description"), "x");
     expect(setField).toHaveBeenCalledWith("ogDescription", "OG descx");
   });
 
@@ -693,7 +709,7 @@ describe("SeoEntryPanel", () => {
     const user = userEvent.setup();
     const setField = vi.fn();
     renderPanel({ setField });
-    await user.type(screen.getByLabelText("Twitter title"), "x");
+    await user.type(screen.getByLabelText("X title"), "x");
     expect(setField).toHaveBeenCalledWith("twitterTitle", "Twitter titlex");
   });
 
@@ -701,7 +717,7 @@ describe("SeoEntryPanel", () => {
     const user = userEvent.setup();
     const setField = vi.fn();
     renderPanel({ setField });
-    await user.type(screen.getByLabelText("Twitter description"), "x");
+    await user.type(screen.getByLabelText("X description"), "x");
     expect(setField).toHaveBeenCalledWith("twitterDescription", "Twitter descx");
   });
 
@@ -710,12 +726,12 @@ describe("SeoEntryPanel", () => {
     expect(screen.getByLabelText("Title")).toHaveValue("");
     expect(screen.getByLabelText("Description")).toHaveValue("");
     expect(screen.getByLabelText("Canonical URL")).toHaveValue("");
-    expect(screen.getByLabelText("OG title")).toHaveValue("");
-    expect(screen.getByLabelText("OG description")).toHaveValue("");
-    expect(within(screen.getByRole("group", { name: "OG image" })).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Twitter title")).toHaveValue("");
-    expect(screen.getByLabelText("Twitter description")).toHaveValue("");
-    expect(within(screen.getByRole("group", { name: "Twitter image" })).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Preview title")).toHaveValue("");
+    expect(screen.getByLabelText("Preview description")).toHaveValue("");
+    expect(within(screen.getByRole("group", { name: "Preview image" })).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("X title")).toHaveValue("");
+    expect(screen.getByLabelText("X description")).toHaveValue("");
+    expect(within(screen.getByRole("group", { name: "X image" })).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
   });
 
   it("the checkbox reflects fieldValue() falling back to false when neither touched nor resolved sets it", () => {
@@ -795,7 +811,7 @@ describe("SeoEntryPanel — OG/Twitter image pickers (MediaRefField)", () => {
     const setField = vi.fn();
     renderPanel({ setField });
 
-    await user.click(within(fieldContainer("OG image")).getByRole("button", { name: "Choose image" }));
+    await user.click(within(fieldContainer("Preview image")).getByRole("button", { name: "Choose image" }));
     await user.click(await screen.findByTitle("Sunset"));
 
     expect(setField).toHaveBeenCalledWith("ogImage", "asset-og-slug:public");
@@ -807,7 +823,7 @@ describe("SeoEntryPanel — OG/Twitter image pickers (MediaRefField)", () => {
     const setField = vi.fn();
     renderPanel({ setField });
 
-    await user.click(within(fieldContainer("Twitter image")).getByRole("button", { name: "Choose image" }));
+    await user.click(within(fieldContainer("X image")).getByRole("button", { name: "Choose image" }));
     await user.click(await screen.findByTitle("Sunset"));
 
     expect(setField).toHaveBeenCalledWith("twitterImage", "asset-tw-slug:public");
@@ -818,7 +834,7 @@ describe("SeoEntryPanel — OG/Twitter image pickers (MediaRefField)", () => {
     const setField = vi.fn();
     renderPanel({ setField, resolved: { ...RESOLVED, openGraph: { ...RESOLVED.openGraph, image: "asset-1:public" } } });
 
-    await user.click(within(fieldContainer("OG image")).getByRole("button", { name: "Remove" }));
+    await user.click(within(fieldContainer("Preview image")).getByRole("button", { name: "Remove" }));
 
     expect(setField).toHaveBeenCalledWith("ogImage", "");
   });

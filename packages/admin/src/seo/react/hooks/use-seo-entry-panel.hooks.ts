@@ -4,6 +4,7 @@ import { useSeoEntryQuery } from './SeoQuery.hooks.js';
 import { useController } from '../../../core/react/use-controller.js';
 import { createSeoEntryController } from '../../controllers/seo-entry.controller.js';
 import { initialSeoEntryState } from '../../models.js';
+import { inheritedXFor } from '../../rules.js';
 import type { SeoEntryPanelController, SeoTranslator, SeoErrorFormatter } from '../../models.js';
 import type { AdminSeoPort } from '../../ports.js';
 import { useSeoOptions, useSeoPorts } from './SeoPorts.hooks.js';
@@ -23,7 +24,12 @@ export function useSeoEntryPanel({ api, entryId }: { api: AdminSeoPort; entryId:
   return {
     ...state,
     fieldValue: (key, resolvedValue) => controller ? controller.fieldValue({ key, resolvedValue }) : resolvedValue,
-    setField: (key, value) => controller?.setField({ key, value }),
+    setField: (key, value) => {
+      // An edit to the social preview also clears an X field that was following it (rules.ts).
+      const xKey = state.resolved ? inheritedXFor({ key, meta: state.resolved, touched: state.touched }) : null;
+      controller?.setField({ key, value });
+      if (xKey) controller?.setField({ key: xKey, value: '' });
+    },
     save: async () => { await controller?.save({}); },
   };
 }

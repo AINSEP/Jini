@@ -51,9 +51,9 @@ describe('SEO copy polish through the injected ports', () => {
     expect(screen.queryByText('Title template (must contain %S)')).not.toBeInTheDocument();
     // No read-only "Selected image" box any more: the row names the file (an opaque id with no
     // media listing falls back to "Image") beside its thumbnail.
-    const image = screen.getByRole('group', { name: 'Default Open Graph / Twitter image' });
+    const image = screen.getByRole('group', { name: 'Default preview image' });
     expect(within(image).getByText('Image')).toBeInTheDocument();
-    expect(screen.queryByRole('textbox', { name: 'Default Open Graph / Twitter image' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Default preview image' })).not.toBeInTheDocument();
     expect(screen.getByRole('img')).toHaveAttribute('src', '/media/b4879dd4-1be6-4a51-b1a9-1446ec2dc144/original');
     await user.clear(title);
     await user.type(title, '%s — Updated');
@@ -68,10 +68,12 @@ describe('SEO copy polish through the injected ports', () => {
     const { api } = renderSeo('entries');
     await user.click(await screen.findByRole('combobox', { name: 'Entry' }));
     await user.click(await screen.findByRole('option', { name: 'Sample page' }));
-    const image = await screen.findByRole('group', { name: 'OG image' });
+    const image = await screen.findByRole('group', { name: 'Preview image' });
     expect(within(image).getByText('og.jpg')).toBeInTheDocument();
-    expect(within(screen.getByRole('group', { name: 'Twitter image' })).getByText('twitter.jpg')).toBeInTheDocument();
-    expect(screen.getByLabelText('Twitter title')).toHaveValue('Sample page');
+    expect(within(screen.getByRole('group', { name: 'X image' })).getByText('twitter.jpg')).toBeInTheDocument();
+    // X inherits the preview title here, so its box stays empty and the placeholder shows it.
+    expect(screen.getByLabelText('X title')).toHaveValue('');
+    expect(screen.getByLabelText('X title')).toHaveAttribute('placeholder', 'Sample page');
     expect(screen.queryByText('OG image (media ref or URL)')).not.toBeInTheDocument();
     const field = within(image);
     await user.click(field.getByRole('button', { name: 'Choose image' }));

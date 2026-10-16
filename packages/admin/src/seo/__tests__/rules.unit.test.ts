@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { actionLabel, buildMediaRef, orEmpty, overrideOrClear, resolveMediaRefPreviewUrl, sortIssuesBySeverity } from "../react/__tests__/harness/rules.js";
-import { describeMediaRef, entryPickerOptions, scoreTone } from "../rules.js";
+import { describeMediaRef, entryPickerOptions, scoreTone, inheritedXFor, xIsCustomized, xResolvedValue } from "../rules.js";
+import type { SeoEntryMeta } from "../models.js";
 import type { SeoIssue } from "../models.js";
 
 /**
@@ -214,5 +215,57 @@ describe('describeMediaRef', () => {
 describe('scoreTone', () => {
   it.each([[100, 'success'], [80, 'success'], [79, 'warning'], [50, 'warning'], [49, 'failure'], [0, 'failure']] as const)('%i → %s', (score, tone) => {
     expect(scoreTone({ score })).toBe(tone);
+  });
+});
+
+describe("X (twitter) fields vs the social preview", () => {
+  const meta: SeoEntryMeta = {
+    title: "T", canonical: "https://e.test/", robots: { noindex: false, nofollow: false }, jsonLd: [],
+    openGraph: { title: "Share", description: "Share desc", type: "website", url: "https://e.test/", image: "https://e.test/a.jpg", imageRef: "a:public" },
+    twitter: { card: "summary_large_image", title: "Share", description: "Share desc", image: "https://e.test/a.jpg", imageRef: "a:public" },
+  };
+
+  it("is not customized while every X value equals the social preview", () => {
+    expect(xIsCustomized({ meta })).toBe(false);
+  });
+
+  it.each([
+    ["title", { title: "X only" }],
+    ["description", { description: "X desc" }],
+    ["image ref", { imageRef: "b:public" }],
+  ])("is customized when the X %s differs", (_name, twitter) => {
+    expect(xIsCustomized({ meta: { ...meta, twitter: { ...meta.twitter, ...twitter } } })).toBe(true);
+  });
+
+  it("compares pasted image URLs when there is no source ref", () => {
+    const { imageRef: _ogRef, ...openGraph } = meta.openGraph;
+    const { imageRef: _xRef, ...twitter } = meta.twitter;
+    expect(xIsCustomized({ meta: { ...meta, openGraph, twitter } })).toBe(false);
+    const pasted = { ...meta, openGraph, twitter: { ...twitter, image: "https://cdn.test/x.png" } };
+    expect(xIsCustomized({ meta: pasted })).toBe(true);
+  });
+
+  it("leaves an inherited X box empty and shows a real X override", () => {
+    expect(xResolvedValue({ key: "twitterTitle", meta })).toBe("");
+    expect(xResolvedValue({ key: "twitterImage", meta })).toBe("");
+    const custom = { ...meta, twitter: { ...meta.twitter, description: "X desc", imageRef: "b:public" } };
+    expect(xResolvedValue({ key: "twitterDescription", meta: custom })).toBe("X desc");
+    expect(xResolvedValue({ key: "twitterImage", meta: custom })).toBe("b:public");
+  });
+
+  it("a description missing on both sides is inherited; missing only on X reads empty", () => {
+    const { description: _og, ...openGraph } = meta.openGraph;
+    const { description: _x, ...twitter } = meta.twitter;
+    expect(xResolvedValue({ key: "twitterDescription", meta: { ...meta, openGraph, twitter } })).toBe("");
+    expect(xResolvedValue({ key: "twitterDescription", meta: { ...meta, twitter } })).toBe("");
+  });
+
+  it("an edit to a preview field carries the X field that follows it, and only that one", () => {
+    expect(inheritedXFor({ key: "ogTitle", meta, touched: {} })).toBe("twitterTitle");
+    expect(inheritedXFor({ key: "ogDescription", meta, touched: {} })).toBe("twitterDescription");
+    expect(inheritedXFor({ key: "ogImage", meta, touched: {} })).toBe("twitterImage");
+    expect(inheritedXFor({ key: "title", meta, touched: {} })).toBeNull();
+    expect(inheritedXFor({ key: "ogTitle", meta, touched: { twitterTitle: "Typed" } })).toBeNull();
+    expect(inheritedXFor({ key: "ogTitle", meta: { ...meta, twitter: { ...meta.twitter, title: "X only" } }, touched: {} })).toBeNull();
   });
 });

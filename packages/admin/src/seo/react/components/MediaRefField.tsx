@@ -42,6 +42,9 @@ export interface MediaRefFieldProps {
   /** This field's own base handle — appended `-choose`/`-clear`/`-dialog` for its own controls, and
    *  forwarded as-is to the `<input>` itself. Omit to leave every element here untagged. */
   agentHandle?: string;
+  /** Shown in the file slot while no image is set — for a field that inherits another field's
+   *  image when empty (the X image falls back to the social preview image). */
+  emptyHint?: string;
   /** Injectable seam for the picker's own state — same convention as `MediaPickerDialog`'s own
    *  `useDialog` prop. Defaults to the real {@link useWiredMediaRefField}. */
   useField?: typeof useWiredMediaRefField;
@@ -55,6 +58,7 @@ export function MediaRefField({
   value,
   onChange,
   agentHandle: base,
+  emptyHint,
   useField = useWiredMediaRefField,
 }: MediaRefFieldProps, _optional: Record<string, never> = {}) {
   const t = useSeoCopy();
@@ -87,7 +91,9 @@ export function MediaRefField({
             <span className="jini-media-ref-field-name" title={file.name}>{file.name}</span>
             {file.size ? <span className="jini-media-ref-field-size">{file.size}</span> : null}
           </span>
-        ) : null}
+        ) : (
+          emptyHint && <span className="jini-media-ref-field-empty">{emptyHint}</span>
+        )}
         {name ? <input type="hidden" id={id} name={name} value={value} /> : null}
         <span className="jini-media-ref-field-actions">
           <button

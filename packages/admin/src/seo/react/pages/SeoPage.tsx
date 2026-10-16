@@ -7,7 +7,7 @@ import { agentHandle } from "@jini-ai/agentic";
 import { TabBar } from "@jini-ai/ui/tab-strip";
 import { InfoTip, Select } from "@jini-ai/ui/admin-widgets";
 import { useSeoCopy, useSeoOptions } from "../hooks/SeoPorts.hooks.js";
-import { actionLabel, orEmpty } from "../../rules.js";
+import { actionLabel, orEmpty, xIsCustomized, xResolvedValue } from "../../rules.js";
 import { useWiredEntryPicker } from "../hooks/use-entry-picker.hooks.js";
 import { useWiredSeoEntryPanel } from "../hooks/use-seo-entry-panel.hooks.js";
 import { useSeoEntrySection } from "../hooks/use-seo-entry-section.hooks.js";
@@ -83,6 +83,8 @@ import type { SeoEntryAnalysis, SeoSettings, SeoSettingsPatch } from "../../mode
 
 export interface SeoSectionProps {
   title: string;
+  /** Optional ⓘ explanation beside the title (explanations are tips, never loose paragraphs). */
+  tip?: string;
   children: ReactNode;
 }
 
@@ -104,11 +106,14 @@ export interface SeoSectionProps {
  * overrides", which sits INSIDE the "Per-entry SEO" section — keeps its own `<h3>` and is not
  * routed through here.
  */
-function SeoSection({ title, children }: SeoSectionProps) {
+function SeoSection({ title, tip, children }: SeoSectionProps) {
   return (
     <section className="jini-seo-section">
       <div className="jini-seo-section-head">
-        <h2 className="jini-seo-section-title">{title}</h2>
+        <h2 className="jini-seo-section-title">
+          {title}
+          {tip ? <InfoTip label={tip} /> : null}
+        </h2>
       </div>
       <div className="jini-seo-section-body">{children}</div>
     </section>
@@ -218,6 +223,8 @@ export interface SeoEntryPanelProps {
 // the ceiling on their own. There is nothing to extract: splitting the eleven fields into their own
 // components would still evaluate the same fallback chains, just spread across more functions, for
 // no complexity benefit and a real loss of "one form, one place to read its fields."
+// 2026-10-15: now 27 — the X fields' placeholders (the live social preview value) add two more
+// flat `??` fallbacks of exactly that kind.
 function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntryPanel }: SeoEntryPanelProps) {
   const t = useSeoCopy();
   const { resolved, analysis, loadError, saving, saveError, notice, fieldValue, setField, save, touched } = useSeoEntryPanelHook({ entryId });
@@ -322,10 +329,19 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
         </div>
       </fieldset>
 
+      {/* One generic "Social preview" (2026-10-15, owner: "is there a generic preview instead of
+          twitter title and description … other platforms, not just twitter?"). Open Graph is what
+          Facebook, LinkedIn, Slack, Discord, iMessage and WhatsApp read, and X falls back to it
+          (`@jini-ai/cms` seo.ts: twitter override > OG override > page default), so the OG fields
+          ARE the social preview and the twitter fields are an optional X-only customization. Same
+          eleven fields and saved values as before; only the grouping and labels changed. */}
       <fieldset className="jini-seo-entry-group">
-        <legend>{t({ locale: locale, key: "Social sharing" })}</legend>
+        <legend>
+          {t({ locale: locale, key: "Social preview" })}
+          <InfoTip label={t({ locale: locale, key: "Used by Facebook, LinkedIn, Slack, Discord, iMessage, WhatsApp and X" })} />
+        </legend>
         <label>
-          {t({ locale: locale, key: "OG title" })}
+          {t({ locale: locale, key: "Preview title" })}
           <input
             className="jini-input"
             value={fieldValue("ogTitle", resolved.openGraph.title) ?? ""}
@@ -334,7 +350,7 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
           />
         </label>
         <label>
-          {t({ locale: locale, key: "OG description" })}
+          {t({ locale: locale, key: "Preview description" })}
           <input
             className="jini-input"
             value={fieldValue("ogDescription", resolved.openGraph.description ?? "") ?? ""}
@@ -345,37 +361,48 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
         <MediaRefField
           locale={locale}
           id="seo-entry-og-image"
-          label={t({ locale: locale, key: "OG image" })}
+          label={t({ locale: locale, key: "Preview image" })}
           value={fieldValue("ogImage", resolved.openGraph.imageRef ?? resolved.openGraph.image ?? "") ?? ""}
           onChange={(value) => setField("ogImage", value)}
           agentHandle="seo-entry-og-image"
         />
-        <label>
-          {t({ locale: locale, key: "Twitter title" })}
-          <input
-            className="jini-input"
-            value={fieldValue("twitterTitle", resolved.twitter.title) ?? ""}
-            onChange={(e) => setField("twitterTitle", e.target.value)}
-            {...agentHandle({ handle: "seo-entry-twitter-title" }, { role: "field", label: "This entry's Twitter card title override" })}
-          />
-        </label>
-        <label>
-          {t({ locale: locale, key: "Twitter description" })}
-          <input
-            className="jini-input"
-            value={fieldValue("twitterDescription", resolved.twitter.description ?? "") ?? ""}
-            onChange={(e) => setField("twitterDescription", e.target.value)}
-            {...agentHandle({ handle: "seo-entry-twitter-description" }, { role: "field", label: "This entry's Twitter card description override" })}
-          />
-        </label>
-        <MediaRefField
-          locale={locale}
-          id="seo-entry-twitter-image"
-          label={t({ locale: locale, key: "Twitter image" })}
-          value={fieldValue("twitterImage", resolved.twitter.imageRef ?? resolved.twitter.image ?? "") ?? ""}
-          onChange={(value) => setField("twitterImage", value)}
-          agentHandle="seo-entry-twitter-image"
-        />
+        {/* Closed by default, open on load when an X override is in effect so it is never hidden.
+            An X box that matches the social preview stays empty with the live preview value as its
+            placeholder; typing there is what creates an X override. */}
+        <details className="jini-seo-x-disclosure" open={xIsCustomized({ meta: resolved })}>
+          <summary>{t({ locale: locale, key: "Customize for X (optional)" })}</summary>
+          <div className="jini-seo-x-fields">
+            <label>
+              {t({ locale: locale, key: "X title" })}
+              <input
+                className="jini-input"
+                value={fieldValue("twitterTitle", xResolvedValue({ key: "twitterTitle", meta: resolved })) ?? ""}
+                placeholder={fieldValue("ogTitle", resolved.openGraph.title) ?? ""}
+                onChange={(e) => setField("twitterTitle", e.target.value)}
+                {...agentHandle({ handle: "seo-entry-twitter-title" }, { role: "field", label: "This entry's Twitter card title override" })}
+              />
+            </label>
+            <label>
+              {t({ locale: locale, key: "X description" })}
+              <input
+                className="jini-input"
+                value={fieldValue("twitterDescription", xResolvedValue({ key: "twitterDescription", meta: resolved })) ?? ""}
+                placeholder={fieldValue("ogDescription", resolved.openGraph.description ?? "") ?? ""}
+                onChange={(e) => setField("twitterDescription", e.target.value)}
+                {...agentHandle({ handle: "seo-entry-twitter-description" }, { role: "field", label: "This entry's Twitter card description override" })}
+              />
+            </label>
+            <MediaRefField
+              locale={locale}
+              id="seo-entry-twitter-image"
+              label={t({ locale: locale, key: "X image" })}
+              value={fieldValue("twitterImage", xResolvedValue({ key: "twitterImage", meta: resolved })) ?? ""}
+              emptyHint={t({ locale: locale, key: "Same as the preview image" })}
+              onChange={(value) => setField("twitterImage", value)}
+              agentHandle="seo-entry-twitter-image"
+            />
+          </div>
+        </details>
       </fieldset>
 
       {analysis ? <AnalyzePanel locale={locale} analysis={analysis} /> : null}
@@ -491,19 +518,22 @@ export function SeoDefaultsTab({ controller }: { controller: SeoTabController },
           result looks like, and the split every SEO tool an operator has already used makes. The
           form previously ran all four together in one unlabelled `.field-group`, so the OG image
           read as a search-result setting. */}
-      <SeoSection title={t({ locale: locale, key: "Social sharing" })}>
+      <SeoSection
+        title={t({ locale: locale, key: "Social preview" })}
+        tip={t({ locale: locale, key: "Used by Facebook, LinkedIn, Slack, Discord, iMessage, WhatsApp and X" })}
+      >
         <MediaRefField
           locale={locale}
           id="seo-default-og-image"
           name="defaultOgImage"
-          label={t({ locale: locale, key: "Default Open Graph / Twitter image" })}
+          label={t({ locale: locale, key: "Default preview image" })}
           value={defaultOgImage}
           onChange={setDefaultOgImage}
           agentHandle="seo-default-og-image"
         />
         <div className="jini-field">
           <label className="jini-field-label" htmlFor="seo-twitter-site">
-            {t({ locale: locale, key: "Twitter @site handle" })}
+            {t({ locale: locale, key: "X @handle" })}
           </label>
           <input
             className="jini-input"
@@ -698,7 +728,7 @@ export function Seo({ tabId, onTabChange, useSeoHook = useWiredSeo }: SeoProps =
           <p className="jini-page-kicker">{t({ locale: locale, key: "Marketing" })}</p>
           <h1 className="jini-page-title">SEO</h1>
           <p className="jini-page-description">
-            {t({ locale: locale, key: "Site-wide defaults for meta titles, descriptions, Open Graph/Twitter cards, and robots directives." })}
+            {t({ locale: locale, key: "Site-wide defaults for meta titles, descriptions, social previews, and robots directives." })}
           </p>
         </div>
         <div className="jini-page-actions">
