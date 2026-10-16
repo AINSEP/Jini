@@ -100,6 +100,44 @@ function claudeAgent(overrides: Partial<DetectedAgent> = {}): DetectedAgent {
 }
 
 describe('useReasoningControl — flat reasoning options (flag-based)', () => {
+  it('dedupes live Claude picker rows and selects the concrete row for a persisted alias', () => {
+    const models = [
+      { id: 'claude-opus-5-5', label: 'claude-opus-5-5', identityKind: 'concrete' },
+      { id: 'opus', label: 'Opus 5.5', identityKind: 'alias', resolvedId: 'claude-opus-5-5' },
+      { id: 'claude-opus-5-5', label: 'Opus 5.5', identityKind: 'concrete' },
+      { id: 'fable', label: 'Fable 5.1', identityKind: 'alias', resolvedId: 'claude-fable-5-1' },
+      { id: 'claude-fable-5-1', label: 'Fable 5.1', identityKind: 'concrete' },
+      { id: 'sonnet', label: 'Sonnet 5.5', identityKind: 'alias', resolvedId: 'claude-sonnet-5-5' },
+      { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5', identityKind: 'concrete' },
+      { id: 'haiku', label: 'Haiku 5.5', identityKind: 'alias', resolvedId: 'claude-haiku-5-5' },
+      { id: 'claude-haiku-5-5', label: 'Haiku 5.5', identityKind: 'concrete' },
+    ] as const;
+    const agent = claudeAgent({ models, modelsSource: 'live' });
+    const config: LocalCliConfig = { agentId: 'claude', modelByAgentId: { claude: 'fable' } };
+    const { result, rerender } = renderHook(
+      ({ config }: { config: LocalCliConfig }) => useReasoningControl({ agent, config }),
+      { initialProps: { config } },
+    );
+
+    // This uses the existing public hook so the old verbatim catalog fails by assertion,
+    // independently of the new pure helper's export or implementation.
+    expect(result.current.modelChoices.map(({ id, label }) => ({ id, label }))).toEqual([
+      { id: 'claude-opus-5-5', label: 'Opus 5.5' },
+      { id: 'claude-fable-5-1', label: 'Fable 5.1' },
+      { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
+      { id: 'claude-haiku-5-5', label: 'Haiku 5.5' },
+    ]);
+    expect(result.current.selectValue).toBe('claude-fable-5-1');
+    expect(result.current.models).toBe(models);
+    expect(result.current.knownModelIds).toEqual(models.map(({ id }) => id));
+    expect(result.current.customActive).toBe(false);
+    expect(result.current.resolvedModel).toBe('fable');
+    expect(config.modelByAgentId?.claude).toBe('fable');
+
+    rerender({ config: { agentId: 'claude' } });
+    expect(result.current.selectValue).toBe('claude-opus-5-5');
+  });
+
   it('derives flat reasoning options and preserves models directly', () => {
     const agent = claudeAgent();
     const config: LocalCliConfig = { agentId: 'claude', reasoningByAgentId: { claude: 'high' } };

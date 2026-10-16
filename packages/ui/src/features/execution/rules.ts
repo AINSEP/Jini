@@ -589,6 +589,33 @@ export function agentExecutableRepairState(result: {
   return { detectedPath, canUseDetected: true };
 }
 
+/**
+ * Builds picker rows from catalog evidence without changing the source catalog. Resolved aliases
+ * share a concrete row; unresolved aliases and routing modes remain selectable as reported.
+ * Keeps the first position and prefers a human label over a raw ID, including the CLI default's
+ * raw-label row. No names or context variants are inferred from model IDs.
+ * @returns Distinct picker rows in catalog order. No side effects or errors.
+ * @complexity O(n) time and space in catalog rows, using insertion-ordered Map keys.
+ */
+export function pickerModelOptions(
+  { models }: { models: readonly AgentModelOption[] },
+  _optional: Record<string, never> = {},
+): AgentModelOption[] {
+  const choices = new Map<string, AgentModelOption>();
+  for (const model of models) {
+    const resolvedId = model.identityKind === 'alias' ? model.resolvedId : undefined;
+    const id = resolvedId || model.id;
+    const label = model.label === model.id ? id : model.label;
+    const existing = choices.get(id);
+    if (!existing) {
+      choices.set(id, resolvedId ? { ...model, id, label, identityKind: 'concrete' } : model);
+    } else if (existing.label === id && label !== id) {
+      choices.set(id, { ...existing, label });
+    }
+  }
+  return [...choices.values()];
+}
+
 /** Case-insensitive substring match against a model's id or label, mirroring
  *  the origin's search box. Matches on both fields (not just the visible
  *  label) so an operator can search by the raw model id too. */

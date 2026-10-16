@@ -147,6 +147,8 @@ export interface ExecutionConfig {
 export interface AgentModelOption {
   id: string;
   label: string;
+  identityKind?: 'concrete' | 'alias' | 'routing-mode';
+  resolvedId?: string;
   /**
    * The reasoning-effort levels THIS model supports, when the runtime's own catalog reports them
    * per model rather than uniformly across the agent. Mirrors `@jini-ai/agent-runtime`'s

@@ -2,6 +2,7 @@ import { useCallback, useEffect } from 'react';
 import { CUSTOM_MODEL_SENTINEL } from '../../constants.js';
 import {
   modelIdForReasoningLevel,
+  pickerModelOptions,
   reasoningModelGroupFor,
   reasoningModelGroups,
   selectedAgentModel,
@@ -72,7 +73,7 @@ export interface UseReasoningControlResult {
   knownModelIds: readonly string[];
   /** Whether the custom model input is currently active. */
   customActive: boolean;
-  /** Options for the model select: base models for suffix agents, or raw models list. */
+  /** Options for the model select: base models for suffix agents, or deduped catalog rows. */
   modelChoices: readonly AgentModelOption[];
   /** Selected value for the model select element. */
   selectValue: string;
@@ -206,12 +207,17 @@ export function useReasoningControl(
   // id. Everything else about the field — search, labels, provenance badge — is unchanged.
   const modelChoices: readonly AgentModelOption[] = modelGroups
     ? modelGroups.map((group) => ({ id: group.baseId, label: group.label }))
-    : models;
+    : pickerModelOptions({ models });
+  // Persisted aliases stay known in the full catalog above, but the picker selects their concrete
+  // row. This is display-only: the saved model and dispatch resolution keep the operator's pick.
+  const selectedModel = models.find((model) => model.id === resolvedModel);
   const selectValue = customActive
     ? CUSTOM_MODEL_SENTINEL
     : modelGroups
       ? (activeGroup?.baseId ?? '')
-      : resolvedModel;
+      : selectedModel?.identityKind === 'alias'
+        ? (selectedModel.resolvedId || resolvedModel)
+        : resolvedModel;
   // While the custom box is open, the text field must show the operator's raw
   // typed text (which may not resolve to anything yet) rather than the
   // resolved-with-fallback value — otherwise every keystroke would show a
