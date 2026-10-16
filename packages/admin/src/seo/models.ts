@@ -90,6 +90,9 @@ export interface SeoEntryPanelController {
    *  `null` for each one they emptied. An untouched field is ABSENT, never `null`: "unchanged" must
    *  never become "clear". */
   touched: SeoEntryOverridesPatch;
+  /** The social preview image is only the site default (`ogImageInherited`, rules.ts). Optional
+   *  for injected legacy views. */
+  ogImageInherited?: boolean;
 }
 
 

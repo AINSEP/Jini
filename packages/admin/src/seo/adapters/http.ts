@@ -41,7 +41,7 @@ export function createHttpSeoApi(
     // The admin media list route the picker already reads; projected so no media row type leaks in.
     async listSeoMedia() {
       const response = await transport.request<{ media: readonly AdminSeoMediaSummary[] }>({ path: `${base}/media`, method: 'GET' });
-      return response.media.map(({ id, slug, title, width, height }) => ({ id, title, ...(slug ? { slug } : {}), width: width ?? null, height: height ?? null }));
+      return response.media.map(({ id, slug, title, width, height, contentType }) => ({ id, title, ...(slug ? { slug } : {}), width: width ?? null, height: height ?? null, contentType: contentType ?? null }));
     },
     mediaOriginalUrl: ({ id }) => transport.url({ path: `${base}/media/${encodeURIComponent(id)}/original` }),
     mediaPreviewUrl: ({ value }) => resolveMediaRefPreviewUrl({ value, mediaOriginalUrl: id => transport.url({ path: `${base}/media/${encodeURIComponent(id)}/original` }) }, { siteOrigin }),

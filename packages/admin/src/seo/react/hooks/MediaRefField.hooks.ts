@@ -5,6 +5,7 @@ import { useController } from '../../../core/react/use-controller.js';
 import { createMediaRefController } from '../../controllers/media-ref.controller.js';
 import { describeMediaRef, isStoredMediaRef, resolveMediaRefPreviewUrl } from '../../rules.js';
 import { useFetchQuery } from '@jini-ai/ui/fetch-query';
+import { extensionForMimeType } from '@jini-ai/ui';
 import { SEO_KEYS } from './SeoQuery.hooks.js';
 import type { MediaRefFieldController, SeoTranslator } from '../../models.js';
 import type { AdminSeoPort } from '../../ports.js';
@@ -24,7 +25,7 @@ export function useMediaRefField(
   const media = useFetchQuery({ key: SEO_KEYS.media, fetch: () => list ? list.call(api, {}) : Promise.resolve([]) }, { enabled: Boolean(list) && isStoredMediaRef({ value }) });
   return {
     ...diagnostics,
-    file: describeMediaRef({ value, media: media.data }, { width: naturalWidth, height: naturalHeight, t }),
+    file: describeMediaRef({ value, media: media.data }, { width: naturalWidth, height: naturalHeight, t, extensionFor: extensionForMimeType }),
     pickerOpen: snapshot?.pickerOpen ?? false,
     openPicker: () => controller?.openPicker({}), closePicker: () => controller?.closePicker({}),
     handleSelect: item => controller?.handleSelect({ item }), clear: () => controller?.clear({}),

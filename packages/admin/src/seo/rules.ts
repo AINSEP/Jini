@@ -55,7 +55,7 @@ export function orEmpty({ value }: { value: string | undefined }, _optional: Rec
   return value ?? "";
 }
 
-/** The X (twitter) fields the "Customize for X" disclosure holds, each paired with the social
+/** The X (twitter) fields the "Customize for X/Twitter" disclosure holds, each paired with the social
  *  preview (Open Graph) value it falls back to. */
 export type SeoXFieldKey = 'twitterTitle' | 'twitterDescription' | 'twitterImage';
 
@@ -70,7 +70,7 @@ function xAndSocial({ meta }: { meta: AdminSeoMeta }): Record<SeoXFieldKey, [str
 }
 
 /** Whether this entry's X card differs from its social preview in any field — i.e. an X override
- *  is in effect, so the "Customize for X" disclosure opens on load. (2026-10-15, owner: one
+ *  is in effect, so the "Customize for X/Twitter" disclosure opens on load. (2026-10-15, owner: one
  *  generic social preview, X only as an optional customization.)
  *  @complexity O(1). */
 export function xIsCustomized({ meta }: { meta: AdminSeoMeta }, _optional: Record<string, never> = {}): boolean {
@@ -205,14 +205,35 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * @example describeMediaRef({ value: 'sunset:public', media: [{ id: 'a1', slug: 'sunset', title: 'Sunset', width: 1200, height: 630 }] }) // { name: 'Sunset', size: '1200 × 630' }
  * @complexity O(m) over the media rows; no I/O.
  */
-export function describeMediaRef({ value, media }: { value: string; media?: readonly AdminSeoMediaSummary[] | null | undefined }, { width, height, t = key => key }: {
+export function describeMediaRef({ value, media }: { value: string; media?: readonly AdminSeoMediaSummary[] | null | undefined }, { width, height, t = key => key, extensionFor }: {
   width?: number | undefined; height?: number | undefined; t?: SeoTranslator | undefined;
+  /** `image/png` → `.png`; injected (the host UI kit owns the table) so this file stays pure. */
+  extensionFor?: ((contentType: string) => string) | undefined;
 } = {}): { name: string; size: string | null } | null {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   if (!trimmed) return null;
   const key = parseMediaRefAssetId(trimmed);
   const row = key ? media?.find(item => item.id === key || item.slug === key) : undefined;
-  return { name: row?.title || fallbackMediaName({ key, value: trimmed, t }), size: pixelSize(row?.width ?? width, row?.height ?? height) };
+  const name = row?.title ? withExtension({ name: row.title, extension: row.contentType && extensionFor ? extensionFor(row.contentType) : '' }) : fallbackMediaName({ key, value: trimmed, t });
+  return { name, size: pixelSize(row?.width ?? width, row?.height ?? height) };
+}
+
+/** A library title reads as a file name (owner, 2026-10-15: "it should be testing-page.png or
+ * whatever the extension is"). No original upload name is stored, so the extension comes from the
+ * stored bytes' type; a title that already ends in it is left alone. */
+function withExtension({ name, extension }: { name: string; extension: string }): string {
+  return extension && !name.toLowerCase().endsWith(extension) ? `${name}${extension}` : name;
+}
+
+/** Whether an entry's social preview image is only the site default — no override of its own —
+ * so the field shows it muted as "Using site default" instead of as the entry's own pick (owner,
+ * 2026-10-15). A pending edit is the entry's own, and so is a stored override the host flags
+ * (`imageOverridden`) even when it equals the default. A host without that flag can't tell such an
+ * override apart, so it reads as inherited (same image either way).
+ * @complexity O(1). */
+export function ogImageInherited({ meta, defaultOgImage, touched }: { meta: AdminSeoMeta; defaultOgImage: string | undefined; touched: Readonly<Record<string, unknown>> }, _optional: Record<string, never> = {}): boolean {
+  if ('ogImage' in touched || !defaultOgImage || meta.openGraph.imageOverridden) return false;
+  return (meta.openGraph.imageRef ?? meta.openGraph.image) === defaultOgImage;
 }
 
 function fallbackMediaName({ key, value, t }: { key: string | null; value: string; t: SeoTranslator }): string {

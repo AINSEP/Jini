@@ -70,10 +70,10 @@ describe('SEO copy polish through the injected ports', () => {
     await user.click(await screen.findByRole('option', { name: 'Sample page' }));
     const image = await screen.findByRole('group', { name: 'Preview image' });
     expect(within(image).getByText('og.jpg')).toBeInTheDocument();
-    expect(within(screen.getByRole('group', { name: 'X image' })).getByText('twitter.jpg')).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'X/Twitter image' })).getByText('twitter.jpg')).toBeInTheDocument();
     // X inherits the preview title here, so its box stays empty and the placeholder shows it.
-    expect(screen.getByLabelText('X title')).toHaveValue('');
-    expect(screen.getByLabelText('X title')).toHaveAttribute('placeholder', 'Sample page');
+    expect(screen.getByLabelText('X/Twitter title')).toHaveValue('');
+    expect(screen.getByLabelText('X/Twitter title')).toHaveAttribute('placeholder', 'Sample page');
     expect(screen.queryByText('OG image (media ref or URL)')).not.toBeInTheDocument();
     const field = within(image);
     await user.click(field.getByRole('button', { name: 'Choose image' }));
@@ -87,6 +87,30 @@ describe('SEO copy polish through the injected ports', () => {
     expect(field.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Save overrides' }));
     await waitFor(async () => expect((await api.getSeoEntry({ entryId: 'page-1' })).openGraph.image).toBe('https://images.example/og.jpg'));
+  });
+
+  it('shows an image only inherited from the site default as muted "Using site default" until one is chosen', async () => {
+    const user = userEvent.setup();
+    const inherited: SeoEntryMeta = { ...meta, openGraph: { ...meta.openGraph, imageRef: reference } };
+    const api = createMemorySeoApi({ settings, posts: [{ id: 'page-2', title: 'Landing', status: 'published' }],
+      entries: { 'page-2': { meta: inherited, analysis: { entryId: 'page-2', score: 100, issues: [], resolved: inherited } } },
+      mediaOriginalUrl: ({ id }) => `/media/${id}/original`,
+    });
+    render(<SeoPortsContext.Provider value={{ seoApi: api }}>
+      <SeoOptionsContext.Provider value={{ siteUrl: () => 'https://example.com', slots: { MediaPickerDialog: Picker } }}>
+        <Seo tabId="entries" />
+      </SeoOptionsContext.Provider>
+    </SeoPortsContext.Provider>);
+    await user.click(await screen.findByRole('combobox', { name: 'Entry' }));
+    await user.click(await screen.findByRole('option', { name: 'Landing' }));
+    const field = within(await screen.findByRole('group', { name: 'Preview image' }));
+    expect(await field.findByText('Using site default: Image')).toBeInTheDocument();
+    expect(field.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
+    await user.click(field.getByRole('button', { name: 'Choose image' }));
+    await user.click(screen.getByRole('button', { name: 'Sunset' }));
+    expect(field.getByText('sunset')).toBeInTheDocument();
+    expect(field.queryByText(/Using site default/)).not.toBeInTheDocument();
+    expect(field.getByRole('button', { name: 'Remove' })).toBeInTheDocument();
   });
 
   it('explains the sitemap rebuild in terms of published content', async () => {

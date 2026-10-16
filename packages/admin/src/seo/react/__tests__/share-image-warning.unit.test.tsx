@@ -101,12 +101,12 @@ test('HTTP inspection keeps absent Content-Length unknown and passes the cancell
 test('HTTP media listing reads the admin media route and keeps only what the field names', async () => {
   const requests: unknown[] = [];
   const port = createHttpSeoApi({ transport: { request: async <T,>(input: unknown) => { requests.push(input); return { media: [
-    { id: 'a', slug: 'sunset', title: 'Sunset', width: 1200, height: 630, alt: 'x', sha256: 'h' },
+    { id: 'a', slug: 'sunset', title: 'Sunset', width: 1200, height: 630, alt: 'x', sha256: 'h', contentType: 'image/png' },
     { id: 'b', slug: '', title: 'Untitled', alt: '' },
   ] } as T; }, url: ({ path }) => path }, basePath: '/w' });
   expect(await port.listSeoMedia!({})).toEqual([
-    { id: 'a', slug: 'sunset', title: 'Sunset', width: 1200, height: 630 },
-    { id: 'b', title: 'Untitled', width: null, height: null },
+    { id: 'a', slug: 'sunset', title: 'Sunset', width: 1200, height: 630, contentType: 'image/png' },
+    { id: 'b', title: 'Untitled', width: null, height: null, contentType: null },
   ]);
   expect(requests).toEqual([{ path: '/w/media', method: 'GET' }]);
 });
@@ -208,7 +208,7 @@ test('reloaded entry fields inspect the source reference even when the public re
   await waitFor(() => expect([...inspected].sort()).toEqual(['/original/cover', '/original/tw']));
   expect(screen.queryByRole('status')).toBeNull();
   expect(screen.getByAltText('Preview image preview').getAttribute('src')).toBe('/original/cover');
-  expect(screen.getByAltText('X image preview').getAttribute('src')).toBe('/original/tw');
+  expect(screen.getByAltText('X/Twitter image preview').getAttribute('src')).toBe('/original/tw');
 });
 
 test.each([629, 630])('checks decoded height independently at the 630 px boundary (%i)', async height => {

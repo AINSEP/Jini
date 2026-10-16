@@ -81,6 +81,8 @@ export interface AdminSeoOpenGraph {
   readonly image?: string;
   /** Source reference before resizing, used to diagnose the selected share image. */
   readonly imageRef?: string;
+  /** Present (true) only when the entry stores its own image override; absent from older hosts. */
+  readonly imageOverridden?: true;
   readonly siteName?: string;
 }
 
@@ -172,6 +174,8 @@ export interface AdminSeoMediaSummary {
   readonly title: string;
   readonly width?: number | null;
   readonly height?: number | null;
+  /** The stored bytes' sniffed type (`image/png`); gives the displayed name its extension. */
+  readonly contentType?: string | null;
 }
 
 export interface AdminSeoPort {

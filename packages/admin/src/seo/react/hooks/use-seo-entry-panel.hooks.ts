@@ -1,10 +1,11 @@
 import { describeSeoError } from '../../models.js';
 import { useEffect, useRef } from 'react';
-import { useSeoEntryQuery } from './SeoQuery.hooks.js';
+import { useSeoEntryQuery, SEO_KEYS } from './SeoQuery.hooks.js';
+import { useFetchQuery } from '@jini-ai/ui/fetch-query';
 import { useController } from '../../../core/react/use-controller.js';
 import { createSeoEntryController } from '../../controllers/seo-entry.controller.js';
 import { initialSeoEntryState } from '../../models.js';
-import { inheritedXFor } from '../../rules.js';
+import { inheritedXFor, ogImageInherited } from '../../rules.js';
 import type { SeoEntryPanelController, SeoTranslator, SeoErrorFormatter } from '../../models.js';
 import type { AdminSeoPort } from '../../ports.js';
 import { useSeoOptions, useSeoPorts } from './SeoPorts.hooks.js';
@@ -20,9 +21,12 @@ export function useSeoEntryPanel({ api, entryId }: { api: AdminSeoPort; entryId:
     // Revalidation updates server truth without discarding touched override fields.
     if (controller && cached.query.data) controller.set({ patch: cached.query.data });
   }, [controller, cached.query.data]);
+  // The site defaults read the Site defaults tab already caches; only the default image is used here.
+  const settings = useFetchQuery({ key: SEO_KEYS.settings, fetch: () => api.getSeoSettings({}) });
   const state = snapshot ?? initialSeoEntryState;
   return {
     ...state,
+    ogImageInherited: state.resolved ? ogImageInherited({ meta: state.resolved, defaultOgImage: settings.data?.defaultOgImage, touched: state.touched }) : false,
     fieldValue: (key, resolvedValue) => controller ? controller.fieldValue({ key, resolvedValue }) : resolvedValue,
     setField: (key, value) => {
       // An edit to the social preview also clears an X field that was following it (rules.ts).

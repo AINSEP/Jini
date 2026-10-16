@@ -1,4 +1,5 @@
 import { agentHandle } from "@jini-ai/agentic";
+import { interpolate } from "@jini-ai/ui/i18n";
 import { MediaPickerBridge } from "./MediaPickerBridge.js";
 import { useSeoCopy } from "../hooks/SeoPorts.hooks.js";
 import { useWiredMediaRefField, useMediaRefPresentation, handleSpread } from "../hooks/MediaRefField.hooks.js";
@@ -45,6 +46,10 @@ export interface MediaRefFieldProps {
   /** Shown in the file slot while no image is set — for a field that inherits another field's
    *  image when empty (the X image falls back to the social preview image). */
   emptyHint?: string;
+  /** The value is only inherited (the site default image, no override of the entry's own): the file
+   *  shows muted as "Using site default: …" and Remove is hidden — there is nothing of the entry's
+   *  to remove; "Choose image" is how an override starts (owner, 2026-10-15). */
+  inherited?: boolean;
   /** Injectable seam for the picker's own state — same convention as `MediaPickerDialog`'s own
    *  `useDialog` prop. Defaults to the real {@link useWiredMediaRefField}. */
   useField?: typeof useWiredMediaRefField;
@@ -59,6 +64,7 @@ export function MediaRefField({
   onChange,
   agentHandle: base,
   emptyHint,
+  inherited = false,
   useField = useWiredMediaRefField,
 }: MediaRefFieldProps, _optional: Record<string, never> = {}) {
   const t = useSeoCopy();
@@ -86,10 +92,12 @@ export function MediaRefField({
         {...(base ? agentHandle({ handle: base }, { role: "region", label }) : {})}
       >
         {file ? (
-          <span className="jini-media-ref-field-file">
+          <span className={inherited ? "jini-media-ref-field-file jini-media-ref-field-file-inherited" : "jini-media-ref-field-file"}>
             {previewUrl ? <img key={previewUrl} className="jini-media-ref-field-preview" src={previewUrl} alt={`${label} preview`} onLoad={onPreviewLoad} onError={onPreviewError} /> : null}
-            <span className="jini-media-ref-field-name" title={file.name}>{file.name}</span>
-            {file.size ? <span className="jini-media-ref-field-size">{file.size}</span> : null}
+            <span className="jini-media-ref-field-name" title={file.name}>
+              {inherited ? interpolate({ template: t({ locale: locale, key: "Using site default: {name}", vars: { name: file.name } }), vars: { name: file.name } }) : file.name}
+            </span>
+            {file.size && !inherited ? <span className="jini-media-ref-field-size">{file.size}</span> : null}
           </span>
         ) : (
           emptyHint && <span className="jini-media-ref-field-empty">{emptyHint}</span>
@@ -104,7 +112,7 @@ export function MediaRefField({
           >
             {t({ locale: locale, key: "Choose image" })}
           </button>
-          {value ? (
+          {value && !inherited ? (
             <button
               type="button"
               className="jini-btn jini-btn-secondary"

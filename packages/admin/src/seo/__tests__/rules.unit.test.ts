@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { actionLabel, buildMediaRef, orEmpty, overrideOrClear, resolveMediaRefPreviewUrl, sortIssuesBySeverity } from "../react/__tests__/harness/rules.js";
-import { describeMediaRef, entryPickerOptions, scoreTone, inheritedXFor, xIsCustomized, xResolvedValue } from "../rules.js";
+import { describeMediaRef, entryPickerOptions, scoreTone, inheritedXFor, ogImageInherited, xIsCustomized, xResolvedValue } from "../rules.js";
 import type { SeoEntryMeta } from "../models.js";
 import type { SeoIssue } from "../models.js";
 
@@ -210,6 +210,20 @@ describe('describeMediaRef', () => {
   it('treats a non-string value as empty', () => {
     expect(describeMediaRef({ value: null as unknown as string })).toBeNull();
   });
+  it('names a library file with the extension of its stored type', () => {
+    const extensionFor = (type: string) => ({ 'image/png': '.png', 'image/jpeg': '.jpg' } as Record<string, string>)[type] ?? '';
+    const rows = [
+      { id: 'a', slug: 'testing-page', title: 'testing-page', contentType: 'image/png' },
+      { id: 'b', slug: 'shot', title: 'shot.JPG', contentType: 'image/jpeg' },
+      { id: 'c', slug: 'odd', title: 'odd', contentType: 'image/x-unknown' },
+      { id: 'd', slug: 'untyped', title: 'untyped', contentType: null },
+    ];
+    expect(describeMediaRef({ value: 'testing-page:public', media: rows }, { extensionFor })?.name).toBe('testing-page.png');
+    expect(describeMediaRef({ value: 'shot:public', media: rows }, { extensionFor })?.name).toBe('shot.JPG');
+    expect(describeMediaRef({ value: 'odd:public', media: rows }, { extensionFor })?.name).toBe('odd');
+    expect(describeMediaRef({ value: 'untyped:public', media: rows }, { extensionFor })?.name).toBe('untyped');
+    expect(describeMediaRef({ value: 'testing-page:public', media: rows })?.name).toBe('testing-page');
+  });
 });
 
 describe('scoreTone', () => {
@@ -267,5 +281,32 @@ describe("X (twitter) fields vs the social preview", () => {
     expect(inheritedXFor({ key: "title", meta, touched: {} })).toBeNull();
     expect(inheritedXFor({ key: "ogTitle", meta, touched: { twitterTitle: "Typed" } })).toBeNull();
     expect(inheritedXFor({ key: "ogTitle", meta: { ...meta, twitter: { ...meta.twitter, title: "X only" } }, touched: {} })).toBeNull();
+  });
+});
+
+describe("ogImageInherited", () => {
+  const meta: SeoEntryMeta = {
+    title: "T", canonical: "https://e.test/", robots: { noindex: false, nofollow: false }, jsonLd: [],
+    openGraph: { title: "S", type: "website", url: "https://e.test/", image: "https://e.test/a.jpg", imageRef: "card:public" },
+    twitter: { card: "summary_large_image", title: "S" },
+  };
+
+  it("is inherited when the entry's image is the site default and not being edited", () => {
+    expect(ogImageInherited({ meta, defaultOgImage: "card:public", touched: {} })).toBe(true);
+  });
+
+  it.each([
+    ["an own override", { meta: { ...meta, openGraph: { ...meta.openGraph, imageRef: "mine:public" } }, defaultOgImage: "card:public", touched: {} }],
+    ["a pending edit", { meta, defaultOgImage: "card:public", touched: { ogImage: "other:public" } }],
+    ["a flagged override equal to the default", { meta: { ...meta, openGraph: { ...meta.openGraph, imageOverridden: true as const } }, defaultOgImage: "card:public", touched: {} }],
+    ["no site default", { meta, defaultOgImage: undefined, touched: {} }],
+    ["an empty site default", { meta, defaultOgImage: "", touched: {} }],
+  ])("is not inherited with %s", (_name, args) => {
+    expect(ogImageInherited(args)).toBe(false);
+  });
+
+  it("compares a pasted default URL when there is no source ref", () => {
+    const { imageRef: _ref, ...openGraph } = meta.openGraph;
+    expect(ogImageInherited({ meta: { ...meta, openGraph }, defaultOgImage: "https://e.test/a.jpg", touched: {} })).toBe(true);
   });
 });

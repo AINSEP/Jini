@@ -227,7 +227,7 @@ export interface SeoEntryPanelProps {
 // flat `??` fallbacks of exactly that kind.
 function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntryPanel }: SeoEntryPanelProps) {
   const t = useSeoCopy();
-  const { resolved, analysis, loadError, saving, saveError, notice, fieldValue, setField, save, touched } = useSeoEntryPanelHook({ entryId });
+  const { resolved, analysis, loadError, saving, saveError, notice, fieldValue, setField, save, touched, ogImageInherited = false } = useSeoEntryPanelHook({ entryId });
 
   if (loadError) return <div className="jini-notice jini-notice-error">{loadError}</div>;
   if (!resolved) return <div className="jini-notice">{t({ locale: locale, key: "Loading entry SEO…" })}</div>;
@@ -338,7 +338,7 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
       <fieldset className="jini-seo-entry-group">
         <legend>
           {t({ locale: locale, key: "Social preview" })}
-          <InfoTip label={t({ locale: locale, key: "Used by Facebook, LinkedIn, Slack, Discord, iMessage, WhatsApp and X" })} />
+          <InfoTip label={t({ locale: locale, key: "Used by Facebook, LinkedIn, Slack, Discord, iMessage, WhatsApp and X/Twitter" })} />
         </legend>
         <label>
           {t({ locale: locale, key: "Preview title" })}
@@ -364,16 +364,17 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
           label={t({ locale: locale, key: "Preview image" })}
           value={fieldValue("ogImage", resolved.openGraph.imageRef ?? resolved.openGraph.image ?? "") ?? ""}
           onChange={(value) => setField("ogImage", value)}
+          inherited={ogImageInherited}
           agentHandle="seo-entry-og-image"
         />
         {/* Closed by default, open on load when an X override is in effect so it is never hidden.
             An X box that matches the social preview stays empty with the live preview value as its
             placeholder; typing there is what creates an X override. */}
         <details className="jini-seo-x-disclosure" open={xIsCustomized({ meta: resolved })}>
-          <summary>{t({ locale: locale, key: "Customize for X (optional)" })}</summary>
+          <summary>{t({ locale: locale, key: "Customize for X/Twitter (optional)" })}</summary>
           <div className="jini-seo-x-fields">
             <label>
-              {t({ locale: locale, key: "X title" })}
+              {t({ locale: locale, key: "X/Twitter title" })}
               <input
                 className="jini-input"
                 value={fieldValue("twitterTitle", xResolvedValue({ key: "twitterTitle", meta: resolved })) ?? ""}
@@ -383,7 +384,7 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
               />
             </label>
             <label>
-              {t({ locale: locale, key: "X description" })}
+              {t({ locale: locale, key: "X/Twitter description" })}
               <input
                 className="jini-input"
                 value={fieldValue("twitterDescription", xResolvedValue({ key: "twitterDescription", meta: resolved })) ?? ""}
@@ -395,7 +396,7 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
             <MediaRefField
               locale={locale}
               id="seo-entry-twitter-image"
-              label={t({ locale: locale, key: "X image" })}
+              label={t({ locale: locale, key: "X/Twitter image" })}
               value={fieldValue("twitterImage", xResolvedValue({ key: "twitterImage", meta: resolved })) ?? ""}
               emptyHint={t({ locale: locale, key: "Same as the preview image" })}
               onChange={(value) => setField("twitterImage", value)}
@@ -520,7 +521,7 @@ export function SeoDefaultsTab({ controller }: { controller: SeoTabController },
           read as a search-result setting. */}
       <SeoSection
         title={t({ locale: locale, key: "Social preview" })}
-        tip={t({ locale: locale, key: "Used by Facebook, LinkedIn, Slack, Discord, iMessage, WhatsApp and X" })}
+        tip={t({ locale: locale, key: "Used by Facebook, LinkedIn, Slack, Discord, iMessage, WhatsApp and X/Twitter" })}
       >
         <MediaRefField
           locale={locale}
@@ -533,7 +534,7 @@ export function SeoDefaultsTab({ controller }: { controller: SeoTabController },
         />
         <div className="jini-field">
           <label className="jini-field-label" htmlFor="seo-twitter-site">
-            {t({ locale: locale, key: "X @handle" })}
+            {t({ locale: locale, key: "X/Twitter @handle" })}
           </label>
           <input
             className="jini-input"
