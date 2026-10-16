@@ -7,6 +7,8 @@
     "pnpm": ">=10.33.2 <11"
   },
   "scripts": {
+    "test:scripts": "vitest run scripts/__tests__ && pnpm run test:scripts:node",
+    "test:scripts:node": "node --import tsx --test --test-concurrency=1 scripts/__tests__/check-hardwiring.test.ts scripts/__tests__/integration/infra-retirement.integration.test.ts",
     "guard": "node --import tsx ./scripts/guard.ts",
     "guard:drift": "tsx ./scripts/check-guard-drift.ts",
     "playground": "tsx ./scripts/start-playground.ts",
