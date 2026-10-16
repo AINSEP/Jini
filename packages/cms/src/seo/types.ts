@@ -198,6 +198,9 @@ export interface OpenGraph {
   image?: string | undefined;
   /** Original selected source for admin diagnostics, before any share-card resize. */
   imageRef?: string | undefined;
+  /** Set only when the entry stores its own image override, so the admin can tell an override that
+   *  happens to equal the site default from an image merely inherited from it. */
+  imageOverridden?: true | undefined;
   /** Known output metadata from the selected named transform, omitted for external URLs. */
   imageWidth?: number | undefined;
   imageHeight?: number | undefined;

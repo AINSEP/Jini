@@ -108,7 +108,7 @@ test("analyzeEntry: carries the fully-resolved SeoMeta in `resolved`", async () 
   assert.deepEqual(analysis.resolved, {
     title: "Search title", description: "Search description", canonical: "https://canonical.test/article",
     robots: { noindex: true, nofollow: true },
-    openGraph: { title: "Social title", description: "Social description", type: "website", url: "https://canonical.test/article", image: "https://cdn.test/social.png", siteName: undefined },
+    openGraph: { title: "Social title", description: "Social description", type: "website", url: "https://canonical.test/article", image: "https://cdn.test/social.png", imageOverridden: true, siteName: undefined },
     twitter: { title: "Twitter title", description: "Twitter description", card: "summary", image: "https://cdn.test/twitter.jpg", site: undefined },
     jsonLd: [{ "@context": "https://schema.org", "@type": "NewsArticle", headline: "Search title", description: "Search description" }],
   });

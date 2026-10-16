@@ -69,6 +69,14 @@ test("head tags pair the actual JPEG URL with its declared output dimensions and
   assert.deepEqual(elements.find(e => e.kind === "meta" && e.name === "twitter:image"), { kind: "meta", name: "twitter:image", content: "https://unchanged.example/m/cover/og.v2/image.jpg", priority: 153 });
 });
 
+test("flags an own image override even when it equals the site default, and only then", async () => {
+  const own = await getEntryMeta({ deps: deps({ overrides: { ogImage: "cover:public" }, featured: false }), input: { workspaceId: "w", entryId: "post" } });
+  const inherited = await getEntryMeta({ deps: deps({ featured: false }), input: { workspaceId: "w", entryId: "post" } });
+  assert.equal(own.openGraph.imageRef, inherited.openGraph.imageRef);
+  assert.equal(own.openGraph.imageOverridden, true);
+  assert.equal("imageOverridden" in inherited.openGraph, false);
+});
+
 test("external URLs retain their authority and never get invented dimensions or MIME types", async () => {
   const meta = await getEntryMeta({ deps: deps({ overrides: { ogImage: "https://cdn.example/picture.png" } }), input: { workspaceId: "w", entryId: "post" } });
   assert.equal(meta.openGraph.image, "https://cdn.example/picture.png");

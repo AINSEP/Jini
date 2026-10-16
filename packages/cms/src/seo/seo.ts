@@ -230,6 +230,7 @@ function buildOpenGraph(
     url: canonical,
     image: ogImage?.url,
     ...(ogImage?.ref === undefined ? {} : { imageRef: ogImage.ref }),
+    ...(overrides.ogImage ? { imageOverridden: true as const } : {}),
     ...(ogImage?.width === undefined ? {} : { imageWidth: ogImage.width }),
     ...(ogImage?.height === undefined ? {} : { imageHeight: ogImage.height }),
     ...(ogImage?.type === undefined ? {} : { imageType: ogImage.type }),
