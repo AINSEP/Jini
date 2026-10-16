@@ -9,8 +9,9 @@ import type { StorageKernel } from "./port.js";
  *
  * Same dialect on both sides, so nothing is translated: rows travel as each column's text form and
  * the target's own input functions read them back (jsonb, tsvector, bytea, arrays alike). Unlike the
- * SQLite transfer (`copy-engine.ts`) nothing is excluded: a move is the switch, so logins and sealed
- * credentials go too (still sealed with the same site key).
+ * SQLite transfer (`copy-engine.ts`) nothing is excluded by default: a move is the switch, so logins
+ * and sealed credentials go too (still sealed with the same site key). Hosts may exclude retained
+ * restore artifacts through the scope; those tables stay untouched on both sides.
  *
  * - Tables the migrations do not create (a plugin's `p_<id>__*` tables, `_plugin_*` bookkeeping) are
  * created on the target from the source's own catalog: columns, identity, constraints, indexes.
@@ -28,6 +29,8 @@ import type { StorageKernel } from "./port.js";
 export interface StoreCopyScope {
   readonly schemas: readonly string[];
   readonly ledgers: readonly { schema: string; name: string }[];
+  /** True leaves a table out of the catalog, emptiness checks, copy, constraints and indexes. */
+  readonly excludeTable?: (required: { schema: string; name: string }, optional?: {}) => boolean;
 }
 
 /** The migration ledgers: compared, never copied. */
@@ -85,7 +88,7 @@ const quotedName = (table: { schema: string; name: string }): string =>
   [table.schema, table.name].map((part) => `"${part.replace(/"/g, '""')}"`).join(".");
 const isLedger = (table: { schema: string; name: string }, scope: StoreCopyScope) => scope.ledgers.some((l) => l.schema === table.schema && l.name === table.name);
 
-/** Every base table in the moved schemas, with columns and primary key, in a stable order. */
+/** Every non-excluded base table in the moved schemas, with columns and primary key, in a stable order. */
 async function readCatalogInternal(kernel: StorageKernel<unknown>, scope: StoreCopyScope): Promise<CatalogTable[]> {
   const schemas = sql.join(scope.schemas.map((s) => sql.lit(s)));
   const columns = await kernel.query<{
@@ -134,30 +137,32 @@ async function readCatalogInternal(kernel: StorageKernel<unknown>, scope: StoreC
     });
   }
   for (const row of keys) tables.get(`${row.schema}.${row.table}`)?.primaryKey.push(row.column);
-  return [...tables.values()];
+  return [...tables.values()].filter((table) => !scope.excludeTable?.(table));
 }
 
 async function readConstraints(kernel: StorageKernel<unknown>, scope: StoreCopyScope): Promise<CatalogConstraint[]> {
-  return kernel.query<CatalogConstraint>(sql`
+  return (await kernel.query<CatalogConstraint>(sql`
     SELECT n.nspname AS schema, c.relname AS table, con.conname AS name, con.contype::text AS type,
            pg_get_constraintdef(con.oid) AS definition
     FROM pg_constraint con
     JOIN pg_class c ON c.oid = con.conrelid
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname IN (${sql.join(scope.schemas.map((s) => sql.lit(s)))}) AND con.contype IN ('p', 'u', 'c', 'f', 'x')
-    ORDER BY n.nspname, c.relname, con.conname`);
+    ORDER BY n.nspname, c.relname, con.conname`))
+    .filter((constraint) => !scope.excludeTable?.({ schema: constraint.schema, name: constraint.table }));
 }
 
 /** Indexes that are not a constraint's own (those come back with the constraint). */
 async function readIndexes(kernel: StorageKernel<unknown>, scope: StoreCopyScope): Promise<{ schema: string; table: string; definition: string }[]> {
-  return kernel.query(sql`
+  return (await kernel.query<{ schema: string; table: string; definition: string }>(sql`
     SELECT n.nspname AS schema, t.relname AS table, pg_get_indexdef(i.indexrelid) AS definition
     FROM pg_index i
     JOIN pg_class t ON t.oid = i.indrelid
     JOIN pg_namespace n ON n.oid = t.relnamespace
     WHERE n.nspname IN (${sql.join(scope.schemas.map((s) => sql.lit(s)))})
       AND NOT EXISTS (SELECT 1 FROM pg_constraint con WHERE con.conindid = i.indexrelid AND con.conrelid = i.indrelid AND con.contype IN ('p', 'u', 'x'))
-    ORDER BY n.nspname, t.relname, 1`);
+    ORDER BY n.nspname, t.relname, 1`))
+    .filter((index) => !scope.excludeTable?.({ schema: index.schema, name: index.table }));
 }
 
 /**

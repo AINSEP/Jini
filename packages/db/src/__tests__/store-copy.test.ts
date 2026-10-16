@@ -1,8 +1,9 @@
 /** Scope/transaction evidence over real kernels; no host schema or driver copy is selected by the copier. */
 import { PGlite } from "@electric-sql/pglite";
-import { sql } from "kysely";
+import { createQueryId, PostgresQueryCompiler, type RawBuilder, sql } from "kysely";
 import { expect, it } from "vitest";
 import { openPgliteKernel } from "../kernel/pglite/index.js";
+import type { StorageKernel } from "../kernel/port.js";
 import { assertLedgersAgree, copyPgStore, nonEmptyTables, StoreCopyError, type StoreCopyScope } from "../kernel/store-copy.js";
 const scope: StoreCopyScope = { schemas: ["catalog", "history"], ledgers: [{ schema: "catalog", name: "applied" }, { schema: "history", name: "applied" }] };
 async function fixtures() {
@@ -51,6 +52,58 @@ it("injected schemas/ledgers select only their tables, preserve ledgers, validat
     expect(await source.query(sql`SELECT id FROM history.child`)).toEqual([{ id: "child" }]);
   } finally { await source.close(); await target.close(); }
 }, 60_000);
+it("host-excluded vault backups alone allow copying, but real target rows still refuse", async () => {
+  const columns = ["_vault_backup_tovu_migrations", "posts"].map((table) => ({
+    schema: "public", table, column: "id", type: "text", not_null: true,
+    expression: null, identity: "", generated: "",
+  }));
+  const compile = (statement: RawBuilder<unknown>) =>
+    new PostgresQueryCompiler().compileQuery(statement.toOperationNode(), createQueryId()).sql.replace(/\s+/g, " ").trim();
+  let realRows = false;
+  const writes: string[] = [];
+  const fake: Pick<StorageKernel<unknown>, "query" | "execute" | "transaction"> = {
+    async query<Row>(statement: RawBuilder<Row>): Promise<Row[]> {
+      const text = compile(statement);
+      let rows: unknown[];
+      if (text.includes("format_type(a.atttypid, a.atttypmod)")) rows = columns;
+      else if (text.includes("unnest(con.conkey)")) rows = [];
+      else if (text.includes("pg_get_constraintdef(con.oid)")) rows = [{
+        schema: "public", table: "_vault_backup_tovu_migrations", name: "backup_fk", type: "f",
+        definition: "FOREIGN KEY (id) REFERENCES public.posts(id)",
+      }];
+      else if (text.includes("pg_get_indexdef(i.indexrelid)")) rows = [];
+      else if (text === 'SELECT EXISTS (SELECT 1 FROM "public"."_vault_backup_tovu_migrations") AS any') rows = [{ any: true }];
+      else if (text === 'SELECT EXISTS (SELECT 1 FROM "public"."posts") AS any') rows = [{ any: realRows }];
+      else if (text === 'SELECT ctid::text AS "__ctid", "id"::text AS "id" FROM "public"."posts" WHERE ctid > $1::tid ORDER BY ctid LIMIT $2') rows = [];
+      else if (text.startsWith("SELECT count(*)::int AS n, md5(") && text.endsWith('FROM "public"."posts") keyed')) rows = [{ n: 0, sum: "empty" }];
+      else throw new Error(`unexpected query: ${text}`);
+      return rows as Row[];
+    },
+    async execute(statement) {
+      const text = compile(statement);
+      writes.push(text);
+      expect(text).toBe('LOCK TABLE "public"."posts" IN ACCESS EXCLUSIVE MODE');
+    },
+    async transaction(fn) { return fn(); },
+  };
+  const kernel = fake as StorageKernel<unknown>;
+  const hostScope: StoreCopyScope = {
+    schemas: ["public"], ledgers: [],
+    excludeTable: ({ name }, _options = {}) => name.startsWith("_vault_backup_"),
+  };
+  // A populated backup counts by default; only the host's explicit policy excludes it.
+  expect(await nonEmptyTables({ kernel, scope: { schemas: ["public"], ledgers: [] } })).toEqual(["public._vault_backup_tovu_migrations"]);
+  expect(await nonEmptyTables({ kernel, scope: hostScope })).toEqual([]);
+  expect(await copyPgStore({ source: kernel, target: kernel, scope: hostScope })).toEqual([
+    { table: "public.posts", rows: 0, created: false },
+  ]);
+  expect(writes).toEqual(['LOCK TABLE "public"."posts" IN ACCESS EXCLUSIVE MODE']);
+  realRows = true;
+  expect(await nonEmptyTables({ kernel, scope: hostScope })).toEqual(["public.posts"]);
+  await expect(copyPgStore({ source: kernel, target: kernel, scope: hostScope })).rejects.toThrow(
+    new StoreCopyError("the target database already holds data (public.posts); nothing was copied"),
+  );
+});
 it("a late fault rolls back copied rows and recreated tables, and a ledger mismatch refuses before copying", async () => {
   const { source, target } = await fixtures();
   try {
