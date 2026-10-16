@@ -76,8 +76,74 @@ describe('registration-kit input readers throw ToolInputError, not a plain Error
     expect(() => requireNumber({ input: {}, key: 'count' })).toThrow(ToolInputError);
   });
 
+  it('requireNumber — missing key lists received keys without their values and keeps the prefix', () => {
+    expect(() => requireNumber({
+      input: { id: 'page-1', version: 2, html: '<p>private content</p>' },
+      key: 'expectedVersion',
+    })).toThrowError(new ToolInputError({
+      message: "'expectedVersion' (number) is required; received: id, version, html",
+    }));
+  });
+
+  it.each([{ items: [] }, { items: [{ id: 'page-1' }] }])('requireNumber — missing key explains unsupported items[] batching (%j)', ({ items }) => {
+    expect(() => requireNumber({ input: { items }, key: 'count' })).toThrowError(new ToolInputError({
+      message: "'count' (number) is required; received: items; this tool takes one input per call — items[] batching is not supported here",
+    }));
+  });
+
+  it('requireNumber — non-array items lists the key without a batching hint', () => {
+    expect(() => requireNumber({ input: { items: 'wrong shape' }, key: 'count' })).toThrowError(new ToolInputError({
+      message: "'count' (number) is required; received: items",
+    }));
+  });
+
+  it('requireNumber — empty input keeps the exact existing message', () => {
+    expect(() => requireNumber({ input: {}, key: 'count' })).toThrowError(new ToolInputError({
+      message: "'count' (number) is required",
+    }));
+  });
+
+  it.each(['2', null, NaN, Infinity, -Infinity])('requireNumber — present invalid value keeps the exact existing message (%s)', (count) => {
+    expect(() => requireNumber({ input: { count, items: [] }, key: 'count' })).toThrowError(new ToolInputError({
+      message: "'count' (number) is required",
+    }));
+  });
+
   it('requireObject', () => {
     expect(() => requireObject({ input: { filters: 'nope' }, key: 'filters' })).toThrow(ToolInputError);
+  });
+
+  it('requireObject — missing key lists received keys without their values and keeps the prefix', () => {
+    expect(() => requireObject({
+      input: { id: 'page-1', filter: { html: '<p>private content</p>' } },
+      key: 'filters',
+    })).toThrowError(new ToolInputError({
+      message: "'filters' (object) is required; received: id, filter",
+    }));
+  });
+
+  it.each([{ items: [] }, { items: [{ id: 'page-1' }] }])('requireObject — missing key explains unsupported items[] batching (%j)', ({ items }) => {
+    expect(() => requireObject({ input: { items }, key: 'filters' })).toThrowError(new ToolInputError({
+      message: "'filters' (object) is required; received: items; this tool takes one input per call — items[] batching is not supported here",
+    }));
+  });
+
+  it('requireObject — non-array items lists the key without a batching hint', () => {
+    expect(() => requireObject({ input: { items: 'wrong shape' }, key: 'filters' })).toThrowError(new ToolInputError({
+      message: "'filters' (object) is required; received: items",
+    }));
+  });
+
+  it('requireObject — empty input keeps the exact existing message', () => {
+    expect(() => requireObject({ input: {}, key: 'filters' })).toThrowError(new ToolInputError({
+      message: "'filters' (object) is required",
+    }));
+  });
+
+  it.each([{ filters: 'nope' }, { filters: null }, { filters: [] }, { filters: 42 }])('requireObject — present invalid value keeps the exact existing message (%j)', ({ filters }) => {
+    expect(() => requireObject({ input: { filters, items: [] }, key: 'filters' })).toThrowError(new ToolInputError({
+      message: "'filters' (object) is required",
+    }));
   });
 
   it('optionalString — wrong type', () => {

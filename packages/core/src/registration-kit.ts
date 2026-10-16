@@ -156,6 +156,21 @@ export function requireInputRecord(required: { input: unknown }, _optional: Reco
 }
 
 /**
+ * Builds received-key and unsupported-batching hints for a missing required field.
+ * @complexity O(k) for k input keys.
+ */
+function missingFieldHint(required: { input: Record<string, unknown> }, _optional: Record<string, never> = {}): string {
+  const { input } = required;
+  // Show names, never values, so a wrong-key or batch call can be corrected without exposing content.
+  const keys = Object.keys(input);
+  let hint = keys.length > 0 ? `; received: ${keys.join(", ")}` : "";
+  if (Array.isArray(input.items)) {
+    hint += "; this tool takes one input per call — items[] batching is not supported here";
+  }
+  return hint;
+}
+
+/**
  * Reads a required non-empty string, with received-key hints when the field is missing.
  * @throws {ToolInputError} If the field is missing, empty, or not a string.
  * @complexity O(k) for k input keys on a missing-field rejection; otherwise O(1).
@@ -165,14 +180,7 @@ export function requireString(required: { input: Record<string, unknown>; key: s
   const value = input[key];
   if (typeof value !== "string" || value.length === 0) {
     let message = `'${key}' (non-empty string) is required`;
-    if (value === undefined) {
-      // Show names, never values, so a wrong-key or batch call can be corrected without exposing content.
-      const keys = Object.keys(input);
-      if (keys.length > 0) message += `; received: ${keys.join(", ")}`;
-      if (Array.isArray(input.items)) {
-        message += "; this tool takes one input per call — items[] batching is not supported here";
-      }
-    }
+    if (value === undefined) message += missingFieldHint({ input });
     throw new ToolInputError({ message });
   }
   return value;
@@ -182,7 +190,9 @@ export function requireNumber(requiredArgs: { input: Record<string, unknown>; ke
   const { input, key } = requiredArgs;
   const value = input[key];
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new ToolInputError({ message: `'${key}' (number) is required` });
+    let message = `'${key}' (number) is required`;
+    if (value === undefined) message += missingFieldHint({ input });
+    throw new ToolInputError({ message });
   }
   return value;
 }
@@ -192,7 +202,9 @@ export function requireObject(requiredArgs: { input: Record<string, unknown>; ke
   const value = input[key];
   const candidate = { value };
   if (!isRecord(candidate) || Array.isArray(candidate.value)) {
-    throw new ToolInputError({ message: `'${key}' (object) is required` });
+    let message = `'${key}' (object) is required`;
+    if (value === undefined) message += missingFieldHint({ input });
+    throw new ToolInputError({ message });
   }
   return candidate.value;
 }
