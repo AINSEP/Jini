@@ -1,4 +1,5 @@
 import { stageVerifiedFileRelocation, type VerifiedFileGroup } from "./verified-file-relocation.js";
+import { syncDirectoryBestEffort } from "./atomic-write.js";
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -40,7 +41,7 @@ export function directoryFingerprint({ dir }: { dir: string }, { excluded = [], 
  */
 export function moveDirectoryVerified(
   { from, to, commit }: { from: string; to: string; commit: () => void },
-  { excluded = [], filesystem = fs, prepareDestination, relocateFiles, verifyFile, backupId = randomUUID }: { excluded?: readonly string[]; filesystem?: typeof fs; prepareDestination?: (required: { path: string }) => void; relocateFiles?: (required: { source: string; target: string }) => readonly VerifiedFileGroup[]; verifyFile?: (required: { path: string }) => string; backupId?: () => string } = {},
+  { excluded = [], filesystem = fs, prepareDestination, relocateFiles, verifyFile, backupId = randomUUID, platform = process.platform }: { excluded?: readonly string[]; filesystem?: typeof fs; prepareDestination?: (required: { path: string }) => void; relocateFiles?: (required: { source: string; target: string }) => readonly VerifiedFileGroup[]; verifyFile?: (required: { path: string }) => string; backupId?: () => string; platform?: NodeJS.Platform } = {},
 ): void {
   const source = filesystem.realpathSync(from);
   const target = path.resolve(to);
@@ -68,7 +69,7 @@ export function moveDirectoryVerified(
     if (directoryFingerprint({ dir: target }, { excluded, filesystem }) !== before) throw new Error("Moved directory verification failed.");
     if (relocateFiles) {
       if (!verifyFile) throw new Error("File relocation requires a verification port.");
-      staged = stageVerifiedFileRelocation({ groups: relocateFiles({ source, target }), verify: verifyFile }, { filesystem, backupId, backupCovered: ({ from }) => copied && path.resolve(from).startsWith(target + path.sep) });
+      staged = stageVerifiedFileRelocation({ groups: relocateFiles({ source, target }), verify: verifyFile }, { filesystem, backupId, platform, backupCovered: ({ from }) => copied && path.resolve(from).startsWith(target + path.sep) });
     }
     if (copied) {
       const backupRoot = path.join(path.dirname(source), `.relocation-${backupId()}-backup`);
@@ -78,13 +79,11 @@ export function moveDirectoryVerified(
       // site at the old path if cleanup fails. An interrupted apply leaves explicit backups.
       filesystem.mkdirSync(backupRoot);
       filesystem.renameSync(source, backup); retiredSource = backup;
-      const fd = filesystem.openSync(backupRoot, "r");
-      try { filesystem.fsyncSync(fd); } finally { filesystem.closeSync(fd); }
+      syncDirectoryBestEffort({ directory: backupRoot, open: filesystem.openSync, sync: filesystem.fsyncSync, close: filesystem.closeSync }, { platform });
     }
-    // Persist directory-name changes for same-filesystem renames as well as EXDEV retirement.
+    // Where supported, persist directory-name changes for same-filesystem renames as well as EXDEV retirement.
     for (const directory of new Set([path.dirname(source), path.dirname(target)])) {
-      const fd = filesystem.openSync(directory, "r");
-      try { filesystem.fsyncSync(fd); } finally { filesystem.closeSync(fd); }
+      syncDirectoryBestEffort({ directory, open: filesystem.openSync, sync: filesystem.fsyncSync, close: filesystem.closeSync }, { platform });
     }
     commit();
   } catch (error) {

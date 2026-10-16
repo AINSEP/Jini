@@ -74,17 +74,50 @@ function temporaryPath({ filePath }: { filePath: string }, options: AtomicWriteO
 function assertNotSymlink(info: { isSymbolicLink(): boolean }, options: AtomicWriteOptions): void {
   if (info.isSymbolicLink()) throw new Error((options.messages ?? defaultPlatformMessages).atomicSymlinkRefused());
 }
-function assertOwnerOnly(mode: number, options: AtomicWriteOptions): void {
+function assertOwnerOnly(mode: number, options: AtomicWriteOptions, platform: NodeJS.Platform): void {
   // Windows has no POSIX group/other bits; secret stores skip this verification there.
-  if (options.verifyOwnerOnly && (options.platform ?? process.platform) !== "win32" && (mode & 0o077) !== 0) throw new Error((options.messages ?? defaultPlatformMessages).atomicPermissionsRefused());
+  if (options.verifyOwnerOnly && platform !== "win32" && (mode & 0o077) !== 0) throw new Error((options.messages ?? defaultPlatformMessages).atomicPermissionsRefused());
+}
+function isDirectorySyncUnsupported(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" && ["EPERM", "EISDIR", "EINVAL", "EACCES", "ENOTSUP"].includes(error.code);
+}
+/** Flush directory metadata where supported; Windows cannot fsync directory handles.
+ * Unsupported open/sync errors are ignored because replacement has already landed.
+ * Other failures propagate, and an opened descriptor is always closed.
+ * @complexity O(1) filesystem calls and space.
+ */
+export function syncDirectoryBestEffort(
+  { directory, open, sync, close }: { directory: string; open: (path: string, flags: "r") => number; sync: (descriptor: number) => void; close: (descriptor: number) => void },
+  { platform }: { platform: NodeJS.Platform },
+): void {
+  if (platform === "win32") return;
+  let descriptor: number | undefined;
+  try { descriptor = open(directory, "r"); sync(descriptor); }
+  catch (error) { if (!isDirectorySyncUnsupported(error)) throw error; }
+  finally { if (descriptor !== undefined) close(descriptor); }
+}
+/** Async directory flush with the same unsupported-error and handle-ownership contract.
+ * @complexity O(1) filesystem calls and space.
+ */
+export async function syncDirectoryBestEffortAsync(
+  { directory, open }: { directory: string; open: (path: string, flags: "r") => Promise<Pick<fsPromises.FileHandle, "sync" | "close">> },
+  { platform }: { platform: NodeJS.Platform },
+): Promise<void> {
+  if (platform === "win32") return;
+  let handle: Pick<fsPromises.FileHandle, "sync" | "close"> | undefined;
+  try { handle = await open(directory, "r"); await handle.sync(); }
+  catch (error) { if (!isDirectorySyncUnsupported(error)) throw error; }
+  finally { if (handle !== undefined) await handle.close(); }
 }
 /** Same-directory rename; preserve existing mode exactly, default new files to 0600.
  * Only ENOENT means absent. Stat/write/chmod failures propagate before any rename.
- * Flush file bytes before rename so metadata cannot precede content; then flush the parent dir.
- * A directory-sync failure is reported after replacement, because rename cannot be rolled back safely.
+ * Flush file bytes before rename so metadata cannot precede content; directory flush is best-effort:
+ * skip Windows and ignore unsupported-code failures (EPERM/EISDIR/EINVAL/EACCES/ENOTSUP).
+ * Other directory-flush failures are reported after replacement, because rename cannot be rolled back safely.
  */
 export function writeFileAtomic(required: AtomicWriteRequired, options: AtomicWriteOptions = {}): void {
   const { filePath, content, fs: filesystem } = required;
+  const platform = options.platform ?? process.platform;
   let existingMode: number | undefined;
   try {
     if (options.refuseSymlink) {
@@ -99,7 +132,7 @@ export function writeFileAtomic(required: AtomicWriteRequired, options: AtomicWr
   try {
     filesystem.write({ descriptor, content });
     filesystem.chmod({ path: temporary, mode });
-    assertOwnerOnly(filesystem.stat({ path: temporary }).mode, options);
+    assertOwnerOnly(filesystem.stat({ path: temporary }).mode, options, platform);
     filesystem.sync({ descriptor });
     const fileDescriptor = descriptor; descriptor = undefined;
     filesystem.close({ descriptor: fileDescriptor });
@@ -107,8 +140,10 @@ export function writeFileAtomic(required: AtomicWriteRequired, options: AtomicWr
       try { assertNotSymlink(filesystem.lstat({ path: filePath }), options); } catch (error) { if (!isMissing(error)) throw error; }
     }
     filesystem.rename({ from: temporary, to: filePath }); renamed = true;
-    const directory = filesystem.open({ path: path.dirname(filePath), flags: "r" });
-    try { filesystem.sync({ descriptor: directory }); } finally { filesystem.close({ descriptor: directory }); }
+    syncDirectoryBestEffort({ directory: path.dirname(filePath),
+      open: (path, flags) => filesystem.open({ path, flags }),
+      sync: descriptor => filesystem.sync({ descriptor }), close: descriptor => filesystem.close({ descriptor }),
+    }, { platform });
   } catch (error) {
     if (descriptor !== undefined) { try { filesystem.close({ descriptor }); } catch { /* preserve the original failure */ } }
     if (!renamed) { try { filesystem.remove({ path: temporary }); } catch { /* preserve the original failure */ } }
@@ -129,6 +164,7 @@ export async function writeFileAtomicAsync(
   options: AtomicWriteOptions & { fs?: AtomicAsyncFilesystem; createParent?: boolean } = {},
 ): Promise<void> {
   const { filePath, content } = required;
+  const platform = options.platform ?? process.platform;
   const filesystem = options.fs ?? fsPromises;
   if (options.createParent) await filesystem.mkdir(path.dirname(filePath), { recursive: true });
   let existingMode: number | undefined;
@@ -145,15 +181,14 @@ export async function writeFileAtomicAsync(
   try {
     await handle.writeFile(content, "utf8");
     await handle.chmod(mode);
-    assertOwnerOnly((await handle.stat()).mode, options);
+    assertOwnerOnly((await handle.stat()).mode, options, platform);
     await handle.sync();
     await handle.close(); closed = true;
     if (options.refuseSymlink) {
       try { assertNotSymlink(await filesystem.lstat(filePath), options); } catch (error) { if (!isMissing(error)) throw error; }
     }
     await filesystem.rename(temporary, filePath); renamed = true;
-    const directory = await filesystem.open(path.dirname(filePath), "r");
-    try { await directory.sync(); } finally { await directory.close(); }
+    await syncDirectoryBestEffortAsync({ directory: path.dirname(filePath), open: (path, flags) => filesystem.open(path, flags) }, { platform });
   } catch (error) {
     if (!closed) { try { await handle.close(); } catch { /* preserve the original failure */ } }
     if (!renamed) { try { await filesystem.rm(temporary, { force: true }); } catch { /* preserve the original failure */ } }

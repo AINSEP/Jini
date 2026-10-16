@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { syncDirectoryBestEffort } from "./atomic-write.js";
 
 export interface VerifiedFileGroup { from: string; to: string; sidecars: readonly string[]; }
 
@@ -11,7 +12,7 @@ export interface VerifiedFileGroup { from: string; to: string; sidecars: readonl
  */
 export function stageVerifiedFileRelocation(
   { groups, verify }: { groups: readonly VerifiedFileGroup[]; verify: (required: { path: string }) => string },
-  { filesystem = fs, backupCovered = () => false, backupId = randomUUID }: { filesystem?: typeof fs; backupCovered?: (required: { from: string }) => boolean; backupId?: () => string } = {},
+  { filesystem = fs, backupCovered = () => false, backupId = randomUUID, platform = process.platform }: { filesystem?: typeof fs; backupCovered?: (required: { from: string }) => boolean; backupId?: () => string; platform?: NodeJS.Platform } = {},
 ): { rollback: () => void; finalize: () => void } {
   const created: string[] = [], retired: { from: string; backup: string }[] = [], markers: string[] = [], redundantBackups: string[] = [];
   const backupSuffix = `.relocation-${backupId()}-backup`;
@@ -26,9 +27,8 @@ export function stageVerifiedFileRelocation(
     syncParent(to);
   };
   const syncParent = (file: string) => {
-    // Directory fsync persists retirement/marker ordering before the host commits its catalog.
-    const fd = filesystem.openSync(path.dirname(file), "r");
-    try { filesystem.fsyncSync(fd); } finally { filesystem.closeSync(fd); }
+    // Where supported, directory fsync persists retirement/marker ordering before the host commits its catalog.
+    syncDirectoryBestEffort({ directory: path.dirname(file), open: filesystem.openSync, sync: filesystem.fsyncSync, close: filesystem.closeSync }, { platform });
   };
   const rollback = () => {
     for (const item of [...retired].reverse()) { filesystem.renameSync(item.backup, item.from); syncParent(item.from); }

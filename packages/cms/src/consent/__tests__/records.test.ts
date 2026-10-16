@@ -7,6 +7,23 @@ import { CONSENT_MAX_AGE_MS } from '../types.js';
 import { accepted } from './fixtures.js';
 
 describe('consent proof storage', () => {
+  // REGRESSION: fails if Windows receipt publication opens a directory after its hard link lands.
+  it('publishes Windows receipts without opening their directory', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'jini-consent-win32-'));
+    let directoryOpens = 0;
+    const filesystem = { ...fs, open: (async (filePath, flags, mode) => {
+      if (String(filePath) === directory && flags === 'r') { directoryOpens++; throw Object.assign(new Error('directory open denied'), { code: 'EPERM' }); }
+      return fs.open(filePath, flags, mode);
+    }) as typeof fs.open };
+    const files = createNodeConsentFiles({ atomicWrite: async input => { await fs.writeFile(input.filePath, JSON.stringify(input.data)); } }, { filesystem, platform: 'win32' });
+    try {
+      const filePath = path.join(directory, `${accepted.id}.json`);
+      await expect(files.writeJson({ filePath, record: accepted })).resolves.toBeUndefined();
+      expect(directoryOpens).toBe(0);
+      expect(JSON.parse(await fs.readFile(filePath, 'utf8'))).toEqual(accepted);
+      expect(await fs.readdir(directory)).toEqual([`${accepted.id}.json`]);
+    } finally { await fs.rm(directory, { recursive: true, force: true }); }
+  });
   it('uses the injected atomic writer, publishes only complete immutable receipts, and rejects collisions/traversal', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'jini-consent-'));
     const options: unknown[] = [];

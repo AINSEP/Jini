@@ -19,7 +19,7 @@ test("sync writer supplies a default temp token and still creates 0600", () => {
   if (process.platform !== "win32") expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
   expect(fs.readdirSync(path.dirname(filePath))).toEqual(["state"]);
 });
-// REGRESSION: fails if the async writer does not sync file before rename and directory after rename.
+// REGRESSION: fails if the async writer does not sync file before rename and supported directory after rename.
 test("async replacement syncs both descriptors in order and preserves existing mode", async () => {
   const filePath = target(); fs.writeFileSync(filePath, "old", { mode: 0o640 });
   const events: string[] = [];
@@ -34,7 +34,7 @@ test("async replacement syncs both descriptors in order and preserves existing m
     rename: async (from: Parameters<typeof asyncFs.rename>[0], to: Parameters<typeof asyncFs.rename>[1]) => { events.push("rename"); await realRename(from, to); },
   };
   await writeFileAtomicAsync({ filePath, content: "new" }, { fs: filesystem });
-  expect(events).toEqual(["file", "rename", "directory"]);
+  expect(events).toEqual(process.platform === "win32" ? ["file", "rename"] : ["file", "rename", "directory"]);
   expect(fs.readFileSync(filePath, "utf8")).toBe("new");
   if (process.platform !== "win32") expect(fs.statSync(filePath).mode & 0o777).toBe(0o640);
 });
@@ -75,4 +75,29 @@ test("sync secret verification refuses unexpectedly broad temp permissions", () 
   const filesystem = { ...native, chmod: () => {}, stat: ({ path }: { path: string }) => path.endsWith(".tmp") ? { mode: 0o644 } : native.stat({ path }) };
   expect(() => writeFileAtomic({ filePath, content: "secret", fs: filesystem }, { mode: 0o600, verifyOwnerOnly: true, platform: "linux" })).toThrow(/owner-only/);
   expect(fs.readdirSync(path.dirname(filePath))).toEqual([]);
+});
+// REGRESSION: fails if Windows async replacement opens its directory after rename.
+test("Windows async replacement skips directory open and still flushes file bytes", async () => {
+  const filePath = target(), fileSync = vi.fn<() => Promise<void>>();
+  const open = vi.fn<typeof asyncFs.open>(async (target, flags, mode) => {
+    if (flags === "r") throw Object.assign(new Error("directory open denied"), { code: "EPERM" });
+    const handle = await asyncFs.open(target, flags, mode), sync = handle.sync.bind(handle);
+    vi.spyOn(handle, "sync").mockImplementation(async () => { await fileSync(); await sync(); });
+    return handle;
+  });
+  await expect(writeFileAtomicAsync({ filePath, content: "new" }, { fs: { ...asyncFs, open }, platform: "win32" })).resolves.toBeUndefined();
+  expect(open).toHaveBeenCalledTimes(1); expect(open.mock.calls[0]![1]).toBe("wx");
+  expect(fileSync).toHaveBeenCalledTimes(1);
+  expect(fs.readFileSync(filePath, "utf8")).toBe("new");
+  expect(fs.readdirSync(path.dirname(filePath))).toEqual(["state"]);
+});
+// REGRESSION: fails if an unsupported async directory flush rejects an already-landed replacement.
+test("Linux async directory EPERM keeps the replacement and closes the handle", async () => {
+  const filePath = target(); fs.writeFileSync(filePath, "old");
+  const directory = { sync: vi.fn().mockRejectedValue(Object.assign(new Error("EPERM: operation not permitted, fsync"), { code: "EPERM" })), close: vi.fn().mockResolvedValue(undefined) };
+  const open: typeof asyncFs.open = async (target, flags, mode) => flags === "r" ? directory as unknown as asyncFs.FileHandle : asyncFs.open(target, flags, mode);
+  await expect(writeFileAtomicAsync({ filePath, content: "new" }, { fs: { ...asyncFs, open }, platform: "linux" })).resolves.toBeUndefined();
+  expect(directory.sync).toHaveBeenCalledTimes(1); expect(directory.close).toHaveBeenCalledTimes(1);
+  expect(fs.readFileSync(filePath, "utf8")).toBe("new");
+  expect(fs.readdirSync(path.dirname(filePath))).toEqual(["state"]);
 });

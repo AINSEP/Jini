@@ -127,12 +127,29 @@ test("durable JSON refuses an existing legacy temp and leaves both owners' bytes
     assert.throws(() => writeStoreValue(filePath, { replacement: true }), error => typeof error === "object" && error !== null && "code" in error && error.code === "EEXIST");
     assert.equal(fs.readFileSync(filePath, "utf8"), "old"); assert.equal(fs.readFileSync(temporary, "utf8"), "other writer");
 });
-// REGRESSION: fails if the canonical durable writer omits parent-directory fsync.
+// REGRESSION: fails if the canonical durable writer omits supported parent-directory fsync.
 test("durable JSON flushes bytes before replacement and directory metadata afterwards", () => {
     const filePath = tempFile(), realSync = fs.fsyncSync;
     const descriptors: number[] = [];
     const sync = vi.spyOn(fs, "fsyncSync").mockImplementation(descriptor => { descriptors.push(fs.fstatSync(descriptor).isDirectory() ? 1 : 0); realSync(descriptor); });
-    try { writeStoreValue(filePath, { retained: true }); assert.deepEqual(descriptors, [0, 1]); }
+    try { writeStoreValue(filePath, { retained: true }); assert.deepEqual(descriptors, process.platform === "win32" ? [0] : [0, 1]); }
     finally { sync.mockRestore(); }
     assert.equal(fs.readFileSync(filePath, "utf8"), JSON.stringify({ retained: true }, null, 2));
+});
+// REGRESSION: fails if unsupported directory fsync turns a completed JSON replacement into failure.
+test("durable JSON accepts directory EPERM after publishing the new JSON", () => {
+    const filePath = tempFile(); fs.writeFileSync(filePath, '{"old":true}');
+    const ports = createNodeDurableJsonPorts({});
+    let fileSyncs = 0;
+    const filesystem = { ...ports.filesystem, fsyncSync: (descriptor: number) => {
+        if (fs.fstatSync(descriptor).isDirectory()) throw Object.assign(new Error("EPERM: operation not permitted, fsync"), { code: "EPERM" });
+        fileSyncs++; fs.fsyncSync(descriptor);
+    } };
+    try {
+        const file = createDurableJsonFile({ ...ports, filesystem, filePath, notices: { prefix: "fixture", lockTimeout: () => "locked" } });
+        assert.doesNotThrow(() => file.write({ value: { replacement: true } }));
+        assert.equal(fileSyncs, 1);
+        assert.deepEqual(JSON.parse(fs.readFileSync(filePath, "utf8")), { replacement: true });
+        assert.deepEqual(fs.readdirSync(path.dirname(filePath)), ["store.json"]);
+    } finally { fs.rmSync(path.dirname(filePath), { recursive: true, force: true }); }
 });

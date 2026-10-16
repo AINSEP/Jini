@@ -52,7 +52,9 @@ export interface DurableJsonFile {
 }
 /** Atomic replacement, distinct corrupt reads, quarantine, and token-owned synchronous locks.
  * Lock stealing rechecks inode, bytes and mtime; conditional unlink is not available on all hosts.
- * File fsync precedes rename; directory fsync follows it. Persistence remains filesystem-dependent.
+ * File fsync precedes rename; directory flush afterwards is best-effort: skipped on Windows,
+ * unsupported-code failures ignored (EPERM/EISDIR/EINVAL/EACCES/ENOTSUP), other failures reported
+ * after replacement. Persistence remains filesystem-dependent.
  */
 export function createDurableJsonFile(
   { filePath, filesystem: fs, clock, sleep, process, random, report, notices }: DurableJsonPorts & { filePath: string; notices: DurableJsonNotices },
@@ -87,8 +89,9 @@ function tempPathFor(filePath: string, pid: number = process.pid): string {
 }
 
 // Same-directory rename gives readers complete old/new versions rather than a torn intermediate.
-// Flush bytes before rename so metadata cannot precede content. The canonical writer also syncs
-// the parent directory; platform/filesystem support determines persistence after that sync.
+// Flush bytes before rename so metadata cannot precede content. The canonical writer's parent
+// directory flush is best-effort: skipped on Windows, unsupported-code failures ignored
+// (EPERM/EISDIR/EINVAL/EACCES/ENOTSUP), other failures reported after replacement.
 // Keep the legacy temp path, pretty JSON bytes and new-file create mode for these shared stores.
 function writeJson(filePath: string, value: unknown): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });

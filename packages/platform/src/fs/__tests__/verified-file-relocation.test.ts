@@ -9,6 +9,29 @@ function fixture() {
   fs.mkdirSync(from); fs.writeFileSync(path.join(from, "content.db"), "database"); fs.writeFileSync(path.join(from, "content.db-wal"), "journal");
   return { root, from, to, cleanup: () => fs.rmSync(root, { recursive: true, force: true }) };
 }
+// REGRESSION: fails if Windows site moves or their staged file relocations flush directory handles.
+it.each([false, true])("commits a Windows site and database move while retaining mandatory file flushes (EXDEV: %s)", crossDevice => {
+  const f = fixture(); let commits = 0, fileSyncs = 0, directorySyncs = 0;
+  const filesystem: typeof fs = { ...fs, renameSync: (from, to) => {
+    if (crossDevice && String(from) === f.from && String(to) === f.to) throw Object.assign(new Error("cross-device"), { code: "EXDEV" });
+    fs.renameSync(from, to);
+  }, fsyncSync: descriptor => {
+    if (fs.fstatSync(descriptor).isDirectory()) { directorySyncs++; throw Object.assign(new Error("EPERM: operation not permitted, fsync"), { code: "EPERM" }); }
+    fileSyncs++; fs.fsyncSync(descriptor);
+  } };
+  try {
+    moveDirectoryVerified({ from: f.from, to: f.to, commit: () => { commits++; } }, {
+      filesystem, platform: "win32", backupId: () => "fixture",
+      relocateFiles: ({ target }) => [{ from: path.join(target, "content.db"), to: path.join(target, "data.nosync", "content.db"), sidecars: ["-wal"] }],
+      verifyFile: ({ path: file }) => fs.readFileSync(file, "utf8"),
+    });
+    expect(commits).toBe(1); expect(directorySyncs).toBe(0); expect(fileSyncs).toBe(3);
+    expect(fs.existsSync(f.from)).toBe(false);
+    expect(fs.readFileSync(path.join(f.to, "data.nosync", "content.db"), "utf8")).toBe("database");
+    expect(fs.readFileSync(path.join(f.to, "data.nosync", "content.db-wal"), "utf8")).toBe("journal");
+    expect(fs.existsSync(path.join(f.to, "content.db.home2-relocation.json"))).toBe(false);
+  } finally { f.cleanup(); }
+});
 it("stages main + sidecars, retains exactly one source backup per file and verifies before committing", () => {
   const f = fixture(); let verified = 0, commits = 0;
   try {

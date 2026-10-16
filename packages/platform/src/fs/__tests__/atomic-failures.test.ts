@@ -21,7 +21,7 @@ test("stat refusal propagates before requesting a temp name or creating a file",
 // REGRESSION: fails if file and directory fsync are removed from writeFileAtomic.
 test("pretty JSON preserves mode, syncs content before rename and syncs its directory afterwards", () => {
   const calls: unknown[] = [], fs = fake(calls);
-  writeJsonFileAtomic({ filePath: "/fixture/state.json", data: { version: 2 }, fs }, { tempName: () => "unit" });
+  writeJsonFileAtomic({ filePath: "/fixture/state.json", data: { version: 2 }, fs }, { tempName: () => "unit", platform: "linux" });
   assert.deepEqual(calls, [
     ["open", { path: "/fixture/.state.json.unit.tmp", flags: "wx", mode: 0o640 }],
     ["write", { descriptor: 1, content: '{\n  "version": 2\n}' }],
@@ -53,11 +53,49 @@ test("chmod refusal prevents rename and cleans the owned temp", () => {
   assert.equal(calls.some(call => Array.isArray(call) && call[0] === "rename"), false);
   assert.deepEqual(calls.slice(-2), [["close", { descriptor: 1 }], ["remove", { path: "/fixture/..env.unit.tmp" }]]);
 });
-// REGRESSION: fails if directory-sync errors are swallowed after rename.
+// REGRESSION: fails if real directory-sync errors are swallowed after rename.
 test("directory-sync error is reported after replacement without deleting the destination", () => {
   const calls: unknown[] = [], fs = fake(calls), error = new Error("directory sync failed");
   fs.sync = ({ descriptor }) => { if (descriptor === 2) throw error; };
-  assert.throws(() => writeFileAtomic({ filePath: "/fixture/state", content: "value", fs }), e => e === error);
+  assert.throws(() => writeFileAtomic({ filePath: "/fixture/state", content: "value", fs }, { platform: "linux" }), e => e === error);
+  assert.equal(calls.some(call => Array.isArray(call) && call[0] === "rename"), true);
+  assert.equal(calls.some(call => Array.isArray(call) && call[0] === "remove"), false);
+  assert.deepEqual(calls.at(-1), ["close", { descriptor: 2 }]);
+});
+// REGRESSION: fails if Windows writes open a directory after a successful replacement.
+test("Windows replacement flushes the file without opening its directory", () => {
+  const calls: unknown[] = [], fs = fake(calls);
+  writeFileAtomic({ filePath: "/fixture/state", content: "value", fs }, { platform: "win32" });
+  assert.equal(calls.some(call => Array.isArray(call) && call[0] === "rename"), true);
+  assert.equal(calls.some(call => Array.isArray(call) && call[0] === "open" && call[1].flags === "r"), false);
+  assert.equal(calls.some(call => Array.isArray(call) && call[0] === "remove"), false);
+  assert.equal(calls.some(call => Array.isArray(call) && call[0] === "sync" && call[1].descriptor === 1), true);
+});
+for (const code of ["EPERM", "EISDIR", "EINVAL", "EACCES", "ENOTSUP"]) {
+  // REGRESSION: fails if unsupported directory flushes reject a landed rename or leak the descriptor.
+  test(`directory sync ${code} leaves the replacement intact and closes the directory`, () => {
+    const calls: unknown[] = [], fs = fake(calls);
+    fs.sync = ({ descriptor }) => { if (descriptor === 2) throw Object.assign(new Error(`${code}: operation not permitted, fsync`), { code }); };
+    writeFileAtomic({ filePath: "/fixture/state", content: "value", fs }, { platform: "linux" });
+    assert.equal(calls.some(call => Array.isArray(call) && call[0] === "rename"), true);
+    assert.equal(calls.some(call => Array.isArray(call) && call[0] === "remove"), false);
+    assert.deepEqual(calls.at(-1), ["close", { descriptor: 2 }]);
+  });
+  // REGRESSION: fails if filesystems refusing directory open reject an already-landed replacement.
+  test(`directory open ${code} leaves the replacement intact`, () => {
+    const calls: unknown[] = [], fs = fake(calls), open = fs.open;
+    fs.open = args => { if (args.flags === "r") throw Object.assign(new Error("directory open unsupported"), { code }); return open(args); };
+    writeFileAtomic({ filePath: "/fixture/state", content: "value", fs }, { platform: "linux" });
+    assert.equal(calls.some(call => Array.isArray(call) && call[0] === "rename"), true);
+    assert.equal(calls.some(call => Array.isArray(call) && call[0] === "remove"), false);
+    assert.equal(calls.filter(call => Array.isArray(call) && call[0] === "close").length, 1);
+  });
+}
+// REGRESSION: fails if real I/O failures are mistaken for unsupported directory flushes.
+test("directory sync EIO is reported after replacement and closes the descriptor", () => {
+  const calls: unknown[] = [], fs = fake(calls), error = Object.assign(new Error("directory I/O failure"), { code: "EIO" });
+  fs.sync = ({ descriptor }) => { if (descriptor === 2) throw error; };
+  assert.throws(() => writeFileAtomic({ filePath: "/fixture/state", content: "value", fs }, { platform: "linux" }), e => e === error);
   assert.equal(calls.some(call => Array.isArray(call) && call[0] === "rename"), true);
   assert.equal(calls.some(call => Array.isArray(call) && call[0] === "remove"), false);
   assert.deepEqual(calls.at(-1), ["close", { descriptor: 2 }]);

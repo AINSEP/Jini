@@ -13,10 +13,10 @@ export interface ConsentFilePorts {
 /** Host injects the existing platform/fs writer rather than copying its durability lifecycle. */
 export type ConsentAtomicWriter = (required: { filePath: string; data: unknown }, optional: { createParent: boolean; mode: number; refuseSymlink: boolean }) => Promise<void>;
 
-/** Publish a flushed staging file with an exclusive hard link, then flush the directory.
+/** Publish a flushed staging file with an exclusive hard link, then flush the directory on non-Windows hosts.
  * Filesystem/link failures propagate. No reader ever sees a partially-written proof file.
  * @complexity Startup O(r log r) time/O(r) space; subsequent writes amortized O(1) plus bounded receipt I/O. */
-export function createNodeConsentFiles({ atomicWrite }: { atomicWrite: ConsentAtomicWriter }, { filesystem = fs, uniqueId = randomUUID, maximumRecords = 10000, retentionMs = CONSENT_MAX_AGE_MS, nowMs = Date.now }: { filesystem?: Pick<typeof fs, 'link' | 'unlink' | 'open' | 'readdir' | 'stat'>; uniqueId?: () => string; maximumRecords?: number; retentionMs?: number; nowMs?: () => number } = {}): ConsentFilePorts {
+export function createNodeConsentFiles({ atomicWrite }: { atomicWrite: ConsentAtomicWriter }, { filesystem = fs, uniqueId = randomUUID, maximumRecords = 10000, retentionMs = CONSENT_MAX_AGE_MS, nowMs = Date.now, platform = process.platform }: { filesystem?: Pick<typeof fs, 'link' | 'unlink' | 'open' | 'readdir' | 'stat'>; uniqueId?: () => string; maximumRecords?: number; retentionMs?: number; nowMs?: () => number; platform?: NodeJS.Platform } = {}): ConsentFilePorts {
   if (!Number.isSafeInteger(maximumRecords) || maximumRecords < 1) throw new Error('Consent receipt capacity must be a positive integer.');
   if (!Number.isFinite(retentionMs) || retentionMs < 0) throw new Error('Consent receipt retention must be nonnegative.');
   const writes = new Map<string, Promise<void>>();
@@ -80,8 +80,10 @@ export function createNodeConsentFiles({ atomicWrite }: { atomicWrite: ConsentAt
           await capacity({ directory: directoryPath, retained });
           await filesystem.link(staging, filePath);
           retained.set(path.basename(filePath), nowMs());
-          const directory = await filesystem.open(path.dirname(filePath), 'r');
-          try { await directory.sync(); } finally { await directory.close(); }
+          if (platform !== 'win32') {
+            const directory = await filesystem.open(path.dirname(filePath), 'r');
+            try { await directory.sync(); } finally { await directory.close(); }
+          }
         } finally { await filesystem.unlink(staging); }
       });
       writes.set(directoryPath, pending);
