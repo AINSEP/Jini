@@ -154,15 +154,14 @@ async function readConstraints(kernel: StorageKernel<unknown>, scope: StoreCopyS
 
 /** Indexes that are not a constraint's own (those come back with the constraint). */
 async function readIndexes(kernel: StorageKernel<unknown>, scope: StoreCopyScope): Promise<{ schema: string; table: string; definition: string }[]> {
-  return (await kernel.query<{ schema: string; table: string; definition: string }>(sql`
+  return kernel.query(sql`
     SELECT n.nspname AS schema, t.relname AS table, pg_get_indexdef(i.indexrelid) AS definition
     FROM pg_index i
     JOIN pg_class t ON t.oid = i.indrelid
     JOIN pg_namespace n ON n.oid = t.relnamespace
     WHERE n.nspname IN (${sql.join(scope.schemas.map((s) => sql.lit(s)))})
       AND NOT EXISTS (SELECT 1 FROM pg_constraint con WHERE con.conindid = i.indexrelid AND con.conrelid = i.indrelid AND con.contype IN ('p', 'u', 'x'))
-    ORDER BY n.nspname, t.relname, 1`))
-    .filter((index) => !scope.excludeTable?.({ schema: index.schema, name: index.table }));
+    ORDER BY n.nspname, t.relname, 1`);
 }
 
 /**

@@ -71,7 +71,11 @@ it("host-excluded vault backups alone allow copying, but real target rows still 
         schema: "public", table: "_vault_backup_tovu_migrations", name: "backup_fk", type: "f",
         definition: "FOREIGN KEY (id) REFERENCES public.posts(id)",
       }];
-      else if (text.includes("pg_get_indexdef(i.indexrelid)")) rows = [];
+      // Include a standalone backup index: the exact target-write assertion must exclude it too.
+      else if (text.includes("pg_get_indexdef(i.indexrelid)")) rows = [{
+        schema: "public", table: "_vault_backup_tovu_migrations",
+        definition: "CREATE INDEX backup_id_idx ON public._vault_backup_tovu_migrations USING btree (id)",
+      }];
       else if (text === 'SELECT EXISTS (SELECT 1 FROM "public"."_vault_backup_tovu_migrations") AS any') rows = [{ any: true }];
       else if (text === 'SELECT EXISTS (SELECT 1 FROM "public"."posts") AS any') rows = [{ any: realRows }];
       else if (text === 'SELECT ctid::text AS "__ctid", "id"::text AS "id" FROM "public"."posts" WHERE ctid > $1::tid ORDER BY ctid LIMIT $2') rows = [];
