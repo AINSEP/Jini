@@ -292,7 +292,7 @@ describe("ogImageInherited", () => {
   };
 
   it("is inherited when the entry's image is the site default and not being edited", () => {
-    expect(ogImageInherited({ meta, defaultOgImage: "card:public", touched: {} })).toBe(true);
+    expect(ogImageInherited({ meta, defaultOgImage: "card:public", touched: {} })).toBe('default');
   });
 
   it.each([
@@ -307,6 +307,17 @@ describe("ogImageInherited", () => {
 
   it("compares a pasted default URL when there is no source ref", () => {
     const { imageRef: _ref, ...openGraph } = meta.openGraph;
-    expect(ogImageInherited({ meta: { ...meta, openGraph }, defaultOgImage: "https://e.test/a.jpg", touched: {} })).toBe(true);
+    expect(ogImageInherited({ meta: { ...meta, openGraph }, defaultOgImage: "https://e.test/a.jpg", touched: {} })).toBe('default');
+  });
+
+  it("identifies content independently of a site default, even when the image equals that default", () => {
+    const content = { ...meta, openGraph: { ...meta.openGraph, imageSource: 'content' as const } };
+    for (const defaultOgImage of [undefined, "card:public", "other:public"]) {
+      expect(ogImageInherited({ meta: content, defaultOgImage, touched: {} })).toBe('content');
+    }
+    expect(ogImageInherited({ meta: content, defaultOgImage: undefined, touched: { ogImage: null } })).toBe(false);
+    expect(ogImageInherited({ meta: { ...content, openGraph: { ...content.openGraph, imageOverridden: true } }, defaultOgImage: undefined, touched: {} })).toBe(false);
+    const { image: _image, imageRef: _ref, ...openGraph } = content.openGraph;
+    expect(ogImageInherited({ meta: { ...content, openGraph }, defaultOgImage: undefined, touched: {} })).toBe(false);
   });
 });

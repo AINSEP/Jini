@@ -225,15 +225,18 @@ function withExtension({ name, extension }: { name: string; extension: string })
   return extension && !name.toLowerCase().endsWith(extension) ? `${name}${extension}` : name;
 }
 
-/** Whether an entry's social preview image is only the site default — no override of its own —
- * so the field shows it muted as "Using site default" instead of as the entry's own pick (owner,
+/** Whether an entry's social preview image comes from content or the site default, with no override
+ * of its own, so the field shows its source muted. "Using site default" is the original copy (owner,
  * 2026-10-15). A pending edit is the entry's own, and so is a stored override the host flags
  * (`imageOverridden`) even when it equals the default. A host without that flag can't tell such an
- * override apart, so it reads as inherited (same image either way).
+ * override apart, so it reads as inherited (same image either way). Returns 'content' for an image
+ * the host identifies as content, 'default' for the site default, and false for an own/absent image.
  * @complexity O(1). */
-export function ogImageInherited({ meta, defaultOgImage, touched }: { meta: AdminSeoMeta; defaultOgImage: string | undefined; touched: Readonly<Record<string, unknown>> }, _optional: Record<string, never> = {}): boolean {
-  if ('ogImage' in touched || !defaultOgImage || meta.openGraph.imageOverridden) return false;
-  return (meta.openGraph.imageRef ?? meta.openGraph.image) === defaultOgImage;
+export function ogImageInherited({ meta, defaultOgImage, touched }: { meta: AdminSeoMeta; defaultOgImage: string | undefined; touched: Readonly<Record<string, unknown>> }, _optional: Record<string, never> = {}): false | 'default' | 'content' {
+  if ('ogImage' in touched || meta.openGraph.imageOverridden) return false;
+  const image = meta.openGraph.imageRef ?? meta.openGraph.image;
+  if (meta.openGraph.imageSource === 'content' && image) return 'content';
+  return defaultOgImage && image === defaultOgImage ? 'default' : false;
 }
 
 function fallbackMediaName({ key, value, t }: { key: string | null; value: string; t: SeoTranslator }): string {

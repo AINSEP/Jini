@@ -198,6 +198,8 @@ export interface OpenGraph {
   image?: string | undefined;
   /** Original selected source for admin diagnostics, before any share-card resize. */
   imageRef?: string | undefined;
+  /** Effective image provenance: explicit SEO override, entry content (featured image), or site default. */
+  imageSource?: 'override' | 'content' | 'default' | undefined;
   /** Set only when the entry stores its own image override, so the admin can tell an override that
    *  happens to equal the site default from an image merely inherited from it. */
   imageOverridden?: true | undefined;

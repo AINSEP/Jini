@@ -155,11 +155,15 @@ async function resolveRobots(
   return { noindex, nofollow };
 }
 
+/** Internal selection ref also exists when an older host omits shareImageTransform/imageRef. */
+type ResolvedShareImage = SeoImageDetails & { sourceRef: string };
+
 /** The first of `refs` that resolves through media, or `undefined`. @complexity O(r) resolves. */
-async function firstResolvedImage(deps: GetEntryMetaDeps, workspaceId: string, refs: ReadonlyArray<string | undefined>): Promise<SeoImageDetails | undefined> {
+async function firstResolvedImage(deps: GetEntryMetaDeps, workspaceId: string, refs: ReadonlyArray<string | undefined>): Promise<ResolvedShareImage | undefined> {
   for (const ref of refs) {
-    const resolved = ref ? await resolveSeoImageDetails({ deps: deps.media, input: { workspaceId, ref } }, { transformName: deps.shareImageTransform }) : undefined;
-    if (resolved) return resolved;
+    if (!ref) continue;
+    const resolved = await resolveSeoImageDetails({ deps: deps.media, input: { workspaceId, ref } }, { transformName: deps.shareImageTransform });
+    if (resolved) return { ...resolved, sourceRef: ref.trim() };
   }
   return undefined;
 }
@@ -176,7 +180,7 @@ async function resolveShareImages(
   settings: ResolvedSeoSettings,
   workspaceId: string,
   origin: VerifiedOrigin | undefined
-): Promise<{ ogImage: SeoImageDetails | undefined; twitterImage: SeoImageDetails | undefined }> {
+): Promise<{ ogImage: ResolvedShareImage | undefined; twitterImage: ResolvedShareImage | undefined }> {
   // Precedence: twitter override > OG override > the entry's featured image > the site default;
   // OG uses the same chain without the twitter override. An
   // override is final (unresolved means no image, as before); a featured image that no longer
@@ -216,12 +220,13 @@ function resolveContentTypeFields(
 }
 
 function buildOpenGraph(
+  post: PostRecord,
   overrides: SeoExtFields,
   title: string,
   description: string | undefined,
   ogType: OpenGraphType,
   canonical: string,
-  ogImage: SeoImageDetails | undefined
+  ogImage: ResolvedShareImage | undefined
 ): SeoMeta["openGraph"] {
   return {
     title: overrides.ogTitle ?? title,
@@ -230,6 +235,7 @@ function buildOpenGraph(
     url: canonical,
     image: ogImage?.url,
     ...(ogImage?.ref === undefined ? {} : { imageRef: ogImage.ref }),
+    ...(ogImage ? { imageSource: overrides.ogImage ? 'override' as const : ogImage.sourceRef === featuredImageRef(post) ? 'content' as const : 'default' as const } : {}),
     ...(overrides.ogImage ? { imageOverridden: true as const } : {}),
     ...(ogImage?.width === undefined ? {} : { imageWidth: ogImage.width }),
     ...(ogImage?.height === undefined ? {} : { imageHeight: ogImage.height }),
@@ -297,7 +303,7 @@ export async function getEntryMeta(required: { deps: GetEntryMetaDeps; input: Ge
     description,
     canonical,
     robots: { noindex, nofollow },
-    openGraph: buildOpenGraph(overrides, title, description, ogType, canonical, ogImage),
+    openGraph: buildOpenGraph(post, overrides, title, description, ogType, canonical, ogImage),
     twitter: buildTwitter(overrides, title, description, twitterImage, settings),
     jsonLd: [buildJsonLdEntry(post, schemaType, title, description)],
   };

@@ -626,6 +626,7 @@ for (const kind of ["post", "page"] as const) {
       assert.deepEqual(meta.openGraph, {
         title: "Hello World", description: "An excerpt body.", type: kind === "page" ? "website" : "article",
         url: "/hello-world", image: withSiteImage ? "https://cdn.example/site-default.jpg" : undefined, siteName: undefined,
+        ...(withSiteImage ? { imageSource: "default" } : {}),
       });
       assert.deepEqual(meta.twitter, {
         card: "summary_large_image", title: "Hello World", description: "An excerpt body.",

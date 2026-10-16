@@ -46,10 +46,11 @@ export interface MediaRefFieldProps {
   /** Shown in the file slot while no image is set — for a field that inherits another field's
    *  image when empty (the X image falls back to the social preview image). */
   emptyHint?: string;
-  /** The value is only inherited (the site default image, no override of the entry's own): the file
-   *  shows muted as "Using site default: …" and Remove is hidden — there is nothing of the entry's
-   *  to remove; "Choose image" is how an override starts (owner, 2026-10-15). */
-  inherited?: boolean;
+  /** The value comes from the site default or page content, with no SEO override of its own: the file
+   *  shows muted as "Using site default: …" or "Using image from page content: …"; size and Remove
+   *  are hidden — there is no SEO override to remove. "Choose image" is how an override starts
+   *  (owner, 2026-10-15). */
+  inherited?: false | 'default' | 'content';
   /** Injectable seam for the picker's own state — same convention as `MediaPickerDialog`'s own
    *  `useDialog` prop. Defaults to the real {@link useWiredMediaRefField}. */
   useField?: typeof useWiredMediaRefField;
@@ -95,7 +96,7 @@ export function MediaRefField({
           <span className={inherited ? "jini-media-ref-field-file jini-media-ref-field-file-inherited" : "jini-media-ref-field-file"}>
             {previewUrl ? <img key={previewUrl} className="jini-media-ref-field-preview" src={previewUrl} alt={`${label} preview`} onLoad={onPreviewLoad} onError={onPreviewError} /> : null}
             <span className="jini-media-ref-field-name" title={file.name}>
-              {inherited ? interpolate({ template: t({ locale: locale, key: "Using site default: {name}", vars: { name: file.name } }), vars: { name: file.name } }) : file.name}
+              {inherited ? interpolate({ template: t({ locale: locale, key: inherited === 'content' ? "Using image from page content: {name}" : "Using site default: {name}", vars: { name: file.name } }), vars: { name: file.name } }) : file.name}
             </span>
             {file.size && !inherited ? <span className="jini-media-ref-field-size">{file.size}</span> : null}
           </span>

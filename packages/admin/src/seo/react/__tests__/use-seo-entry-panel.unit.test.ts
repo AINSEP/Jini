@@ -75,6 +75,24 @@ describe("useSeoEntryPanel — injected port", () => {
     expect(result.current.notice).toBe("Saved.");
   });
 
+  it("does not save the displayed content image as an override when only the title is touched", async () => {
+    const content = metaFixture({ openGraph: {
+      title: "Original title", type: "article", url: "https://example.com/post-1",
+      image: "https://example.com/body.jpg", imageRef: "body:public", imageSource: "content",
+    } });
+    const port = createFakeSeoPort({
+      entries: { "entry-1": { meta: content, analysis: analysisFixture({ resolved: content }) } },
+    });
+    const put = vi.spyOn(port, "putSeoEntry");
+    const { result } = renderHook(() => useSeoEntryPanel({ entryId: "entry-1" }, port, "en"));
+    await waitFor(() => expect(result.current.resolved?.openGraph.imageSource).toBe("content"));
+    expect(result.current.fieldValue("ogImage", content.openGraph.imageRef)).toBe("body:public");
+    act(() => result.current.setField("title", "New title"));
+    await act(async () => { await result.current.save(); });
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(put).toHaveBeenCalledWith({ entryId: "entry-1" }, { title: "New title" });
+  });
+
   it("does not let a slower, earlier save's trailing analyze refresh overwrite a newer save's fresher analysis (out-of-order response race)", async () => {
     const port = createFakeSeoPort({
       entries: { "entry-1": { meta: metaFixture(), analysis: analysisFixture({ score: 80 }) } },

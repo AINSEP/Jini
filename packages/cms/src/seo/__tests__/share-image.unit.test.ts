@@ -39,6 +39,7 @@ test.each(sourceCases)("share images use latest og JPEG for overrides, featured 
   assert.equal(meta.openGraph.image, "https://unchanged.example/m/cover/og.v2/image.jpg");
   assert.equal(meta.twitter.image, meta.openGraph.image);
   assert.equal(meta.openGraph.imageRef, input.overrides?.ogImage ?? (input.featured === false ? "cover:public" : "asset:public"));
+  assert.equal(meta.openGraph.imageSource, input.overrides?.ogImage ? "override" : input.featured === false ? "default" : "content");
   assert.equal(meta.openGraph.imageWidth, 1200);
   assert.equal(meta.openGraph.imageHeight, 630);
   assert.equal(meta.openGraph.imageType, "image/jpeg");
@@ -56,6 +57,22 @@ test.each(sourceCases)("missing og registration falls back to the reference's pu
   assert.equal(meta.openGraph.imageType, "image/webp");
   assert.equal(meta.openGraph.imageWidth, undefined);
   assert.equal(meta.openGraph.imageHeight, undefined);
+});
+
+test.each(sourceCases)("image provenance is retained without a host share transform: %j", async (input) => {
+  const ports = deps(input);
+  delete ports.shareImageTransform;
+  const meta = await getEntryMeta({ deps: ports, input: { workspaceId: "w", entryId: "post" } });
+  assert.equal(meta.openGraph.imageSource, input.overrides?.ogImage ? "override" : input.featured === false ? "default" : "content");
+  assert.equal("imageRef" in meta.openGraph, false, "older hosts retain their existing metadata shape");
+});
+
+test("a missing featured image reports the resolved site's default source", async () => {
+  const ports = deps();
+  ports.media.featuredImage.findMediaByIdOrSlug = async ({ idOrSlug }) => idOrSlug === "asset" ? null : asset;
+  const meta = await getEntryMeta({ deps: ports, input: { workspaceId: "w", entryId: "post" } });
+  assert.equal(meta.openGraph.imageSource, "default");
+  assert.equal(meta.openGraph.imageRef, "cover:public");
 });
 
 test("head tags pair the actual JPEG URL with its declared output dimensions and type", async () => {
@@ -96,6 +113,7 @@ test("available assets advertise output metadata; deleting the asset omits URL a
   visible = false;
   const meta = await getEntryMeta({ deps: ports, input: { workspaceId: "w", entryId: "post" } });
   assert.equal(meta.openGraph.image, undefined);
+  assert.equal("imageSource" in meta.openGraph, false);
   assert.equal(meta.openGraph.imageWidth, undefined);
   assert.equal(meta.openGraph.imageType, undefined);
 });

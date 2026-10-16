@@ -79,4 +79,5 @@ export const seoMessagesEn = {
   "Could not load the sitemap (HTTP {status}).": "Could not load the sitemap (HTTP {status}).",
   "Selected image": "Selected image",
   "Using site default: {name}": "Using site default: {name}",
+  "Using image from page content: {name}": "Using image from page content: {name}",
 } as const;

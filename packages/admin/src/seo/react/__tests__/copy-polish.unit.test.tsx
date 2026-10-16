@@ -89,9 +89,9 @@ describe('SEO copy polish through the injected ports', () => {
     await waitFor(async () => expect((await api.getSeoEntry({ entryId: 'page-1' })).openGraph.image).toBe('https://images.example/og.jpg'));
   });
 
-  it('shows an image only inherited from the site default as muted "Using site default" until one is chosen', async () => {
+  it.each(['default', 'content'] as const)('shows an image inherited from %s as muted with Remove hidden until one is chosen', async (imageSource) => {
     const user = userEvent.setup();
-    const inherited: SeoEntryMeta = { ...meta, openGraph: { ...meta.openGraph, imageRef: reference } };
+    const inherited: SeoEntryMeta = { ...meta, openGraph: { ...meta.openGraph, imageRef: reference, imageSource } };
     const api = createMemorySeoApi({ settings, posts: [{ id: 'page-2', title: 'Landing', status: 'published' }],
       entries: { 'page-2': { meta: inherited, analysis: { entryId: 'page-2', score: 100, issues: [], resolved: inherited } } },
       mediaOriginalUrl: ({ id }) => `/media/${id}/original`,
@@ -104,12 +104,13 @@ describe('SEO copy polish through the injected ports', () => {
     await user.click(await screen.findByRole('combobox', { name: 'Entry' }));
     await user.click(await screen.findByRole('option', { name: 'Landing' }));
     const field = within(await screen.findByRole('group', { name: 'Preview image' }));
-    expect(await field.findByText('Using site default: Image')).toBeInTheDocument();
+    const sourceLabel = imageSource === 'content' ? 'Using image from page content: Image' : 'Using site default: Image';
+    expect((await field.findByText(sourceLabel)).closest('.jini-media-ref-field-file')).toHaveClass('jini-media-ref-field-file-inherited');
     expect(field.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
     await user.click(field.getByRole('button', { name: 'Choose image' }));
     await user.click(screen.getByRole('button', { name: 'Sunset' }));
     expect(field.getByText('sunset')).toBeInTheDocument();
-    expect(field.queryByText(/Using site default/)).not.toBeInTheDocument();
+    expect(field.queryByText(sourceLabel)).not.toBeInTheDocument();
     expect(field.getByRole('button', { name: 'Remove' })).toBeInTheDocument();
   });
 

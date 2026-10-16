@@ -81,6 +81,8 @@ export interface AdminSeoOpenGraph {
   readonly image?: string;
   /** Source reference before resizing, used to diagnose the selected share image. */
   readonly imageRef?: string;
+  /** Effective image provenance; absent from older hosts. */
+  readonly imageSource?: 'override' | 'content' | 'default';
   /** Present (true) only when the entry stores its own image override; absent from older hosts. */
   readonly imageOverridden?: true;
   readonly siteName?: string;
