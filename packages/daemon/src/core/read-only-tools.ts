@@ -1,6 +1,7 @@
 import { isReadOnlyTool, type Principal, type ToolRegistry } from '@jini-ai/core';
 import type { ToolExecutor } from '../tool-executor.js';
 import type { IdGenerator } from '@jini-ai/core/primitives';
+import { toolCandidates } from './tool-candidates.js';
 
 /**
  * A `Principal` narrowed to tools that only read.
@@ -27,8 +28,8 @@ export interface ReadOnlyConstrainedPrincipal extends Principal {
 }
 
 /**
- * Default daemon refusal wording, replaceable by the host. Unknown registrations and writes share
- * one refusal: neither corroborates a safe read, and catalog discovery already reveals existence.
+ * Default daemon refusal wording, replaceable by the host. Unknown registrations and writes both
+ * refuse unsafe dispatch; unknown ids direct discovery because an unrestricted retry cannot run them.
  * Missing verification metadata always refuses, naming the missing wiring so the host can fix it.
  */
 export const defaultDaemonMessages = {
@@ -36,6 +37,8 @@ export const defaultDaemonMessages = {
     unverifiableMessage: 'this host cannot verify read-only tools — POST /api/delegated-tool-calls was mounted without DelegatedToolsHttpDeps.toolRegistry, so a requireReadOnly call cannot be checked and is refused',
     toolRefusalMessage: ({ toolId }: { toolId: string }) =>
       `tool "${toolId}" is not registered as read-only — this gateway executes only tools whose registration declares readOnly; call it through execute_delegated_tool instead`,
+    unknownToolMessage: ({ toolId, candidates }: { toolId: string; candidates: readonly string[] }) =>
+      `no tool "${toolId}" is registered; use search_tools${candidates.length > 0 ? ` — did you mean ${candidates.join(', ')}?` : ''}`,
   },
 };
 
@@ -43,6 +46,7 @@ export const defaultDaemonMessages = {
 export interface ReadOnlyToolMessages {
   readonly unverifiableMessage: string;
   toolRefusalMessage(required: { toolId: string }): string;
+  unknownToolMessage(required: { toolId: string; candidates: readonly string[] }): string;
 }
 
 export interface ReadOnlyToolCheckRequired {
@@ -78,7 +82,7 @@ export function principalIsReadOnlyConstrained(
   return 'toolAccess' in principal && principal.toolAccess === 'read-only';
 }
 
-/** @returns Required host wording for an unknown or non-read-only tool. */
+/** @returns Required host wording for a registered non-read-only tool. */
 export function readOnlyToolRefusalMessage(
   { toolId, messages }: { toolId: string; messages: ReadOnlyToolMessages },
   _optional: Record<string, never> = {},
@@ -98,7 +102,9 @@ export function checkReadOnlyTool(
   _optional: Record<string, never> = {},
 ): string | null {
   if (registry === undefined) return messages.unverifiableMessage;
-  const descriptor = registry.list({}).find((candidate) => candidate.id === toolId);
+  const tools = registry.list({});
+  const descriptor = tools.find((candidate) => candidate.id === toolId);
+  if (!descriptor) return messages.unknownToolMessage({ toolId, candidates: toolCandidates({ toolId, tools }) });
   if (isReadOnlyTool({ descriptor })) return null;
   return readOnlyToolRefusalMessage({ toolId, messages });
 }

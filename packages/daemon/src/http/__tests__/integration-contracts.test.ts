@@ -31,9 +31,10 @@ describe('merged package contracts', () => {
   it('checks current registry descriptors and fails closed for unknown tools', () => {
     const registry = createToolRegistry({});
     registry.register({ descriptor: { id: 'read', description: 'Read', readOnly: true }, handler: async () => 'value', policy: { authorize: () => 'allow' } });
-    const messages = { unverifiableMessage: 'missing registry', toolRefusalMessage: ({ toolId }: { toolId: string }) => `denied ${toolId}` };
+    const messages = { unverifiableMessage: 'missing registry', toolRefusalMessage: ({ toolId }: { toolId: string }) => `denied ${toolId}`,
+      unknownToolMessage: ({ toolId }: { toolId: string }) => `not registered ${toolId}` };
     expect(checkReadOnlyTool({ registry, toolId: 'read', messages })).toBeNull();
-    expect(checkReadOnlyTool({ registry, toolId: 'missing', messages })).toBe('denied missing');
+    expect(checkReadOnlyTool({ registry, toolId: 'missing', messages })).toBe('not registered missing');
     expect(checkReadOnlyTool({ registry: undefined, toolId: 'read', messages })).toBe('missing registry');
   });
 

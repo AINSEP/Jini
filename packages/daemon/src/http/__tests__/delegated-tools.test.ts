@@ -579,7 +579,8 @@ describe('delegatedToolExecuteRoute read-only constraint (requireReadOnly)', () 
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe('TOOL_OPERATION_DENIED');
-      expect(result.error.message).toContain('"nope" is not registered as read-only');
+      expect(result.error.message).toContain('no tool "nope" is registered');
+      expect(result.error.message).not.toContain('execute_delegated_tool');
     }
     expect(onInternalError).not.toHaveBeenCalled();
   });

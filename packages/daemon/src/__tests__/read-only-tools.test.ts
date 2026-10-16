@@ -9,6 +9,8 @@ import {
   readOnlyRemedyRefusalMessage,
   refuseNonReadOnlyDispatch,
   withReadOnlyToolConstraint,
+  checkReadOnlyTool,
+  defaultDaemonMessages,
   type ReadOnlyToolMessages,
 } from '../read-only-tools.js';
 import * as canonical from '../read-only-tools.js';
@@ -20,6 +22,7 @@ const PRINCIPAL: Principal = { id: 'principal-under-test', roles: ['operator'] }
 const messages: ReadOnlyToolMessages = {
   unverifiableMessage: 'No registry; execution refused.',
   toolRefusalMessage: ({ toolId }) => `Tool "${toolId}" cannot run in this read-only execution.`,
+  unknownToolMessage: ({ toolId }) => `No tool "${toolId}" is registered.`,
 };
 const READ_ONLY = constrainPrincipalToReadOnlyTools({ principal: PRINCIPAL });
 
@@ -139,10 +142,37 @@ test('FAIL CLOSED: absent registry refuses constrained dispatch and leaves ordin
 test('FAIL CLOSED: unknown and unclassified tools are each refused', async () => {
   const { gate, registry, calls } = harness();
   registry.register({ descriptor: { id: 'unclassified', inputSchema: {} }, policy: { authorize: () => 'allow' }, handler: async () => calls.push('unsafe') });
-  for (const toolId of ['unknown', 'unclassified']) {
-    assert.equal((await gate.execute({ principal: READ_ONLY, run: RUN, toolId, input: {} })).error, `Tool "${toolId}" cannot run in this read-only execution.`);
-  }
+  assert.equal((await gate.execute({ principal: READ_ONLY, run: RUN, toolId: 'unknown', input: {} })).error, 'No tool "unknown" is registered.');
+  assert.equal((await gate.execute({ principal: READ_ONLY, run: RUN, toolId: 'unclassified', input: {} })).error, 'Tool "unclassified" cannot run in this read-only execution.');
   assert.deepEqual(calls, []);
+});
+
+test('unknown read-only tool ids suggest registered prefix candidates instead of a mutation retry', () => {
+  const registry = createToolRegistry({});
+  for (const id of ['other', ...Array.from({ length: 10 }, (_, index) => `content_read.type${index}`)]) {
+    registry.register({ descriptor: { id, readOnly: true }, policy: { authorize: () => 'allow' }, handler: async () => null });
+  }
+  const refusal = checkReadOnlyTool({ toolId: 'content_read', registry, messages: defaultDaemonMessages.readOnly });
+  assert.equal(refusal, `no tool "content_read" is registered; use search_tools — did you mean ${Array.from({ length: 8 }, (_, index) => `content_read.type${index}`).join(', ')}?`);
+  assert.equal(refusal?.includes('execute_delegated_tool'), false);
+});
+
+test('unknown read-only tool suggestions exclude contains-only matches and keep the first eight prefixes in catalog order', () => {
+  const { registry } = harness();
+  for (const id of ['site_content_read', ...[9, 2, 7, 1, 8, 3, 6, 0, 5, 4].map((index) => `content_read_${index}`)]) {
+    registry.register({ descriptor: { id, readOnly: true }, policy: { authorize: () => 'allow' }, handler: async () => null });
+  }
+  const refusal = checkReadOnlyTool({ toolId: 'content_read', registry, messages: defaultDaemonMessages.readOnly });
+  assert.equal(refusal, 'no tool "content_read" is registered; use search_tools — did you mean content_read_9, content_read_2, content_read_7, content_read_1, content_read_8, content_read_3, content_read_6, content_read_0?');
+  assert.equal(refusal.includes('site_content_read'), false);
+});
+
+test('unknown read-only tool ids without candidates still direct discovery; registered writes keep their refusal', () => {
+  const { registry } = harness();
+  assert.equal(checkReadOnlyTool({ toolId: 'missing', registry, messages: defaultDaemonMessages.readOnly }), 'no tool "missing" is registered; use search_tools');
+  assert.equal(checkReadOnlyTool({ toolId: 'set', registry, messages: defaultDaemonMessages.readOnly }), defaultDaemonMessages.readOnly.toolRefusalMessage({ toolId: 'set' }));
+  assert.equal(checkReadOnlyTool({ toolId: 'verify', registry, messages: defaultDaemonMessages.readOnly }), null);
+  assert.equal(checkReadOnlyTool({ toolId: 'verify', registry: undefined, messages: defaultDaemonMessages.readOnly }), defaultDaemonMessages.readOnly.unverifiableMessage);
 });
 
 test('DEFECT CLASS: an unaware outer decorator cannot substitute a durable write', async () => {
@@ -210,7 +240,9 @@ test('PARITY: canonical read-only defaults retain exact gateway refusal text', a
 test('canonical dispatch preflight fails closed for every unverified registration', () => {
   const { registry } = harness();
   registry.register({ descriptor: { id: 'unclassified' }, policy: { authorize: () => 'allow' }, handler: async () => ({}) });
-  for (const toolId of ['set', 'unknown', 'unclassified']) {
+  assert.equal(canonical.refuseNonReadOnlyDispatch({ principal: READ_ONLY, toolId: 'unknown', registry, messages: canonical.defaultDaemonMessages.readOnly }),
+    'no tool "unknown" is registered; use search_tools');
+  for (const toolId of ['set', 'unclassified']) {
     assert.equal(canonical.refuseNonReadOnlyDispatch({ principal: READ_ONLY, toolId, registry , messages: canonical.defaultDaemonMessages.readOnly }), canonical.readOnlyToolRefusalMessage({ toolId , messages: canonical.defaultDaemonMessages.readOnly }));
   }
   assert.equal(canonical.refuseNonReadOnlyDispatch({ principal: READ_ONLY, toolId: 'verify', registry: undefined , messages: canonical.defaultDaemonMessages.readOnly }), canonical.defaultDaemonMessages.readOnly.unverifiableMessage);

@@ -27,6 +27,8 @@ export function hasUnknownToolCall(
   const canonical = canonicalToolInput({ value: input }, {});
   return events.some((event) => {
     if (event.kind !== "tool_use" || completed.has(event.id)) return false;
+    // The read-only gateway either reads or refuses before execution; neither can leave a mutation.
+    if (/execute_readonly_delegated_tool$/.test(event.name)) return false;
     const call = delegatedCall(event);
     return call.toolId === toolId && canonicalToolInput({ value: call.input }, {}) === canonical;
   });

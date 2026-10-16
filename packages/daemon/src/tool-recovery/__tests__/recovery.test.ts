@@ -9,7 +9,7 @@ import { createTimeoutScheduler } from '../../scheduler.js';
 import { issueToolFailureDiagnostic, issueCredentialSetup, withToolFailureRecovery, withRedactedToolFailures } from '../index.js';
 
 const required = { principal: { id: 'operator' }, run: { id: 'run' }, toolId: 'original', input: {} };
-const readOnlyMessages = { unverifiableMessage: 'cannot verify', toolRefusalMessage: () => 'write refused' };
+const readOnlyMessages = { unverifiableMessage: 'cannot verify', toolRefusalMessage: () => 'write refused', unknownToolMessage: () => 'unknown tool' };
 const descriptor: ToolDescriptor = { id: 'remedy', readOnly: true, inputSchema: { type: 'object', required: [], properties: {} } };
 function exchanges() {
   return createSurfaceExchangeStore({ scheduler: createTimeoutScheduler({}, {}), clock: createSystemClock(),

@@ -56,6 +56,7 @@ import {
   type ToolRegistry,
 } from '@jini-ai/core';
 import { authorizeToolInvocation } from '@jini-ai/core/composition';
+import { toolCandidates } from './core/tool-candidates.js';
 
 export type ConfirmationDecision = 'confirm' | 'deny';
 
@@ -335,7 +336,7 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     // existence, never returns a handler, so this doesn't reopen the leak authorizeToolInvocation
     // closed — that gate still runs, still unconditionally, inside the call below.
     if (!registry.has({ toolId })) {
-      const candidates = registry.list({}).map((tool) => tool.id).filter((id) => id.startsWith(toolId)).slice(0, 8);
+      const candidates = toolCandidates({ toolId, tools: registry.list({}) });
       const hint = candidates.length > 0 ? `; did you mean ${candidates.join(', ')}?` : '';
       throw new ToolInputError({ message: `ToolExecutor: unknown tool "${toolId}"${hint}` });
     }
