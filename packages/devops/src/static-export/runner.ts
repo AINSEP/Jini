@@ -1,6 +1,6 @@
 import { ExportPathError } from "./contracts.js";
-import type { ExportedAsset, ExportedRoute, ExportReport, ExportSiteArgs, ExportSiteOptions, FailedAsset, FailedRoute, ManifestRoute, ManifestSkip, RouteManifest } from './contracts.js';
-import { extractAssetUrls, extractCssUrls, normalizeBasePath, outputFileForUrl, redirectOutcomeFor, renderRedirectStub, rewriteRouteBodyForBasePath, safeRelativeOutputFile } from './transforms.js';
+import type { DroppedReference, ExportedAsset, ExportedRoute, ExportReport, ExportSiteArgs, ExportSiteOptions, FailedAsset, FailedRoute, ManifestRoute, ManifestSkip, RouteManifest } from './contracts.js';
+import { extractAssetUrls, extractHtmlReferences, extractCssUrls, normalizeBasePath, outputFileForUrl, redirectOutcomeFor, renderRedirectStub, rewriteRouteBodyForBasePath, safeRelativeOutputFile } from './transforms.js';
 
 const BASE_PATH_REWRITE_WARNING = "base-path rewriting is a best-effort TEXT rewrite over already-rendered responses — it cannot rewrite a path a theme's own JavaScript constructs at runtime from a string (same category of gap as the unreferenced-theme-file warning, just invisible to this rewrite instead of to the asset crawl).";
 interface RunContext { args: ExportSiteArgs; baseUrl: string; basePath: string; timeoutMs: number }
@@ -102,6 +102,43 @@ async function unreferenced(ctx: RunContext, manifest: RouteManifest, assets: re
   }
   return [...await ctx.args.assetSource.listThemeFiles({ theme })].filter(file => !accounted.has(file)).sort();
 }
+/** Compare written HTML with this run's outputs only; no requests or filesystem reads.
+ * At most 200 drops are retained. O(output count + scanned HTML bytes) time; output paths plus
+ * at most 200 dedupe keys are retained. Forms take precedence over links to the same URL.
+ */
+function droppedReferences(required: { routes: readonly ExportedRoute[]; assets: readonly ExportedAsset[]; basePath: string; baseUrl: string }): DroppedReference[] {
+  const origin = required.baseUrl;
+  const normalize = (url: string): string => new URL(url, origin).pathname.replace(/\/+$/, '') || '/';
+  const written = new Set<string>();
+  for (const item of [...required.routes, ...required.assets]) {
+    const file = '/' + item.outputFile;
+    written.add(normalize(file));
+    if (file.endsWith('/index.html')) written.add(normalize(file.slice(0, -10)));
+  }
+  for (const route of required.routes) if (route.kind !== 'not-found') written.add(normalize(route.path));
+  for (const asset of required.assets) written.add(normalize(asset.url));
+  const dropped = new Map<string, DroppedReference>();
+  for (const route of required.routes) {
+    if (!/^text\/html\b/i.test(route.contentType ?? '') && !route.outputFile.endsWith('.html')) continue;
+    for (const reference of extractHtmlReferences({ html: route.data })) {
+      const value = reference.url.trim();
+      if (((!value || value.startsWith('?')) && reference.attribute !== 'action') || value.startsWith('#')) continue;
+      let url: URL;
+      try { url = new URL(value, origin + required.basePath + route.path); } catch { continue; }
+      if (url.origin !== origin) continue;
+      let pathname = url.pathname;
+      if (required.basePath && (pathname === required.basePath || pathname.startsWith(required.basePath + '/'))) pathname = pathname.slice(required.basePath.length) || '/';
+      pathname = normalize(pathname);
+      const reason = reference.attribute === 'action' ? 'needs-server' : 'not-exported';
+      if (reason === 'not-exported' && written.has(pathname)) continue;
+      const key = route.path + '\n' + pathname;
+      if (dropped.has(key)) {
+        if (reason === 'needs-server') dropped.set(key, { page: route.path, url: pathname, attribute: reference.attribute, reason });
+      } else if (dropped.size < 200) dropped.set(key, { page: route.path, url: pathname, attribute: reference.attribute, reason });
+    }
+  }
+  return [...dropped.values()];
+}
 /** Drive the caller's actual app, retaining exact written bytes and reporting each failed item.
  * Startup/output/inventory errors throw; an opened app always closes. No singleton state is used.
  */
@@ -119,6 +156,7 @@ export async function exportSite(required: ExportSiteArgs, optional: ExportSiteO
     const routes = await writeRoutes(ctx, manifest.routes);
     const assets = await writeAssets(ctx, [...routes.assets]);
     return { outputDir: required.outputDir, routes: { succeeded: routes.succeeded, failed: routes.failed }, assets, skippedManifestEntries: [...manifest.skipped, ...routes.skipped],
+      droppedReferences: droppedReferences({ routes: routes.succeeded, assets: assets.succeeded, basePath, baseUrl: ctx.baseUrl }),
       unreferencedThemeFiles: await unreferenced(ctx, manifest, assets.succeeded), ...(basePath ? { basePath, basePathRewriteWarning: BASE_PATH_REWRITE_WARNING } : {}) };
   } finally { await session.close({}); }
 }

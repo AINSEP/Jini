@@ -9,7 +9,7 @@ function fixture() {
   const report: ExportReport = {
     outputDir: '/artifacts/run-1', routes: { succeeded: [{ path: '/', kind: 'home', outputFile: 'index.html', data: 'é' }], failed: [] },
     assets: { succeeded: [{ url: '/assets/a.bin', outputFile: 'assets/a.bin', data: Buffer.from([0, 128, 255]) }], failed: [] },
-    skippedManifestEntries: [], unreferencedThemeFiles: [],
+    skippedManifestEntries: [], unreferencedThemeFiles: [], droppedReferences: [],
   };
   const success: SourceControlCommitResult = { ok: true, branch: 'main', branchCreated: true, commitSha: 'sha', commitUrl: 'https://example.test/commit/sha', filesChanged: 2, filesDeleted: 1 };
   let captured: unknown;

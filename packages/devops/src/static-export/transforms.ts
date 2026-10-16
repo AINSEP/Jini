@@ -1,5 +1,10 @@
 import { ExportPathError } from './contracts.js';
 
+// Crawling and rewriting must recognize the same URL attributes.
+const HTML_URL_ATTRIBUTES = ['href', 'src', 'srcset', 'poster'] as const;
+const HTML_URL_REWRITE = new RegExp(`\\b(${HTML_URL_ATTRIBUTES.join('|')})=(["'])([^"']*)\\2`, 'g');
+const HTML_URL_SCAN = new RegExp(`\\b(${HTML_URL_ATTRIBUTES.join('|')})=(["'])([^"']+)\\2`, 'g');
+
 function escapeHtml(value: string): string { return value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!); }
 function safeHref(value: string): string {
   const href = value.trim();
@@ -50,7 +55,7 @@ function rewriteJson(body: string, basePath: string): string {
 }
 function rewriteHtml(html: string, basePath: string): string {
   if (!basePath) return html;
-  return html.replace(/\b(href|src|srcset)=(["'])([^"']*)\2/g, (_match, attr: string, quote: string, value: string) => {
+  return html.replace(HTML_URL_REWRITE, (_match, attr: string, quote: string, value: string) => {
     if (attr !== 'srcset') return `${attr}=${quote}${prefix(value, basePath)}${quote}`;
     for (const { start, end } of srcsetRanges(value).reverse()) value = value.slice(0, start) + prefix(value.slice(start, end), basePath) + value.slice(end);
     return `${attr}=${quote}${value}${quote}`;
@@ -79,10 +84,23 @@ export function renderRedirectStub(required: { location: string }, optional: { b
   const safeTarget = escapeHtml(safeHref(location));
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=${safeTarget}"><link rel="canonical" href="${safeTarget}"><title>Redirecting…</title></head><body>Redirecting to <a href="${safeTarget}">${escapeHtml(location)}</a>.</body></html>\n`;
 }
-/** Quoted href/src/srcset scan, preserving data-URL commas and ignoring external references. */
+/** HTML URL attributes; form actions are diagnostic references, never crawled as assets. */
+export function* extractHtmlReferences(required: { html: string }, _optional: Record<string, never> = {}): Generator<{ url: string; attribute: string }> {
+  const references = [...required.html.matchAll(HTML_URL_SCAN)]
+    .filter(match => required.html[match.index! - 1] !== '-')
+    .map(match => ({ index: match.index!, attribute: match[1]!, value: match[3]! }));
+  for (const match of required.html.matchAll(/<form\b[^>]*?\baction=(["'])([^"']*)\1/g)) {
+    references.push({ index: match.index!, attribute: 'action', value: match[2]! });
+  }
+  for (const { attribute, value } of references.sort((a, b) => a.index - b.index)) {
+    const values = attribute === 'srcset' ? srcsetRanges(value).map(({ start, end }) => value.slice(start, end)) : [value];
+    for (const url of values) yield { url, attribute };
+  }
+}
+/** Shared href/src/srcset/poster scan, preserving data-URL commas and ignoring external references. */
 export function extractAssetUrls(required: { html: string; prefixes: readonly string[] }): string[] {
   const found = new Set<string>();
-  for (const match of required.html.matchAll(/\b(href|src|srcset)=(["'])([^"']+)\2/g)) {
+  for (const match of required.html.matchAll(HTML_URL_SCAN)) {
     const value = match[3]!;
     const values = match[1] === 'srcset' ? srcsetRanges(value).map(({ start, end }) => value.slice(start, end)) : [value];
     for (const url of values) if (!url.startsWith('//') && required.prefixes.some(prefix => url.startsWith(prefix))) found.add(url.split('#')[0]!);

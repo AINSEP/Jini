@@ -18,12 +18,21 @@ export interface ExportedRoute { path: string; kind: ManifestRouteKind; outputFi
 export interface FailedRoute { path: string; kind: ManifestRouteKind; reason: string }
 export interface ExportedAsset { url: string; outputFile: string; data: Buffer; contentType?: string | null }
 export interface FailedAsset { url: string; reason: string }
+export interface DroppedReference {
+  page: string;
+  url: string;
+  attribute: string;
+  reason: 'not-exported' | 'needs-server';
+}
 export interface ExportReport {
   outputDir: string;
   routes: { succeeded: ExportedRoute[]; failed: FailedRoute[] };
   assets: { succeeded: ExportedAsset[]; failed: FailedAsset[] };
   skippedManifestEntries: ManifestSkip[];
   unreferencedThemeFiles: string[];
+  /** Site-relative references missing from written HTML's output, deduped per page + URL (ignoring
+   * queries/fragments and the export base path). At most 200 entries; a full list may be truncated at that cap. */
+  droppedReferences: DroppedReference[];
   basePath?: string;
   basePathRewriteWarning?: string;
 }

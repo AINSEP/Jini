@@ -136,6 +136,82 @@ test('base path normalization is inert when absent and rewrites output while cra
   assert.equal(rewriteRouteBodyForBasePath({ path: '/', body: '<a href="/repo/about"></a><img src="//cdn.test/x"><img srcset="data:image/png;base64,AAA 1x, /a 2x">', basePath: '/repo' }), '<a href="/repo/about"></a><img src="//cdn.test/x"><img srcset="data:image/png;base64,AAA 1x, /repo/a 2x">');
 });
 
+test('video posters are fetched from raw URLs and rewritten for the base path', async () => {
+  const f = fixture();
+  const original = f.args.fetch;
+  f.args.fetch = async (input, options) => new URL(input.url).pathname === '/'
+    ? new Response('<video poster="/assets/poster.bin"></video>', { headers: { 'content-type': 'text/html' } })
+    : original(input, options);
+  const report = await exportSite(f.args, { basePath: '/site' });
+  assert.ok(f.fetched.includes('/assets/poster.bin'));
+  assert.equal(f.fetched.some(url => url.startsWith('/site/')), false);
+  assert.deepEqual(f.writes.get('assets/poster.bin'), Buffer.from([0,128,255]));
+  assert.match(String(f.writes.get('index.html')), /poster="\/site\/assets\/poster.bin"/);
+  assert.ok(report.assets.succeeded.some(asset => asset.url === '/assets/poster.bin'));
+  assert.equal(report.droppedReferences.some(ref => ref.url === '/assets/poster.bin'), false);
+});
+
+test('quoted URL attributes scan and rewrite without requiring a tag wrapper', () => {
+  const body = `href="/assets/link" src='/assets/source' srcset="/assets/one 1x, /assets/two 2x" poster="/assets/poster"`;
+  assert.equal(rewriteRouteBodyForBasePath({ path: '/', body, basePath: '/site' }), `href="/site/assets/link" src='/site/assets/source' srcset="/site/assets/one 1x, /site/assets/two 2x" poster="/site/assets/poster"`);
+  assert.deepEqual(extractAssetUrls({ html: body, prefixes: ['/assets/'] }), ['/assets/link', '/assets/source', '/assets/one', '/assets/two', '/assets/poster']);
+});
+
+test('dropped references report missing links and server forms once per page, excluding written and external URLs', async () => {
+  for (const basePath of ['', '/site']) {
+    const f = fixture();
+    const original = f.args.fetch;
+    f.args.fetch = async (input, options) => new URL(input.url).pathname === '/'
+      ? new Response(`<a href="/missing?one=1">missing</a><a href="/missing?two=2#top">duplicate</a>
+          <form action="/submit" method="post"></form><form action="/old" method="post"></form>
+          <a href="/old?one=1">written route</a><a href="/old/">directory alias</a><a href="/old/index.html">file alias</a>
+          <img src="/assets/a.bin?size=1"><img srcset="/assets/a.bin?size=2 1x, /assets/b.bin 2x">
+          <video poster="/not-crawled.jpg"></video><img src="/assets/missing.jpg">
+          <a href="https://external.test/page">external</a><img src="//cdn.test/image">
+          <a href="#section">anchor</a><a href="?query=only">query</a><a href="mailto:a@example.test">mail</a>
+          <a href="tel:123">phone</a><img src="data:image/png;base64,AAA"><div data-href="/not-a-link"></div>
+          <div action="/not-a-form"></div><a href="http://127.0.0.1:43210/old?query=1">same-site route</a>`, { headers: { 'content-type': 'text/html' } })
+      : original(input, options);
+    const report = await exportSite(f.args, { basePath });
+    assert.deepEqual(report.droppedReferences.filter(ref => ref.page === '/'), [
+      { page: '/', url: '/missing', attribute: 'href', reason: 'not-exported' },
+      { page: '/', url: '/submit', attribute: 'action', reason: 'needs-server' },
+      { page: '/', url: '/old', attribute: 'action', reason: 'needs-server' },
+      { page: '/', url: '/not-crawled.jpg', attribute: 'poster', reason: 'not-exported' },
+      { page: '/', url: '/assets/missing.jpg', attribute: 'src', reason: 'not-exported' },
+    ]);
+    assert.equal(f.fetched.includes('/missing'), false, 'diagnostics never fetch missing page references');
+    assert.equal(f.fetched.includes('/submit'), false, 'form actions are never crawled');
+  }
+});
+
+test('dropped references scan written redirect stubs and error pages, excluding non-HTML routes', async () => {
+  const f = fixture();
+  const original = f.args.fetch;
+  f.args.fetch = async (input, options) => {
+    const pathname = new URL(input.url).pathname;
+    if (pathname === '/missing-probe') return new Response('<a href="/error-help">help</a>', { status: 404, headers: { 'content-type': 'text/html' } });
+    if (pathname === '/robots.txt') return new Response('href="/not-html"', { headers: { 'content-type': 'text/plain' } });
+    return original(input, options);
+  };
+  const report = await exportSite(f.args, { basePath: '/site' });
+  assert.deepEqual(report.droppedReferences.filter(ref => ref.page !== '/'), [
+    { page: '/old', url: '/live', attribute: 'href', reason: 'not-exported' },
+    { page: '/missing-probe', url: '/error-help', attribute: 'href', reason: 'not-exported' },
+  ]);
+});
+
+test('dropped reference diagnostics retain at most 200 entries', async () => {
+  const f = fixture();
+  const original = f.args.fetch;
+  f.args.fetch = async (input, options) => new URL(input.url).pathname === '/'
+    ? new Response(Array.from({ length: 205 }, (_, i) => `<a href="/missing-${i}">missing</a>`).join(''), { headers: { 'content-type': 'text/html' } })
+    : original(input, options);
+  const report = await exportSite(f.args);
+  assert.equal(report.droppedReferences.length, 200);
+  assert.deepEqual(report.droppedReferences.at(-1), { page: '/', url: '/missing-199', attribute: 'href', reason: 'not-exported' });
+});
+
 test('a .json content route is written as that file, and its link fields get the base path', () => {
   assert.equal(outputFileForUrl({ url: '/blog/_more/1/12.json' }, { contentRoute: true }), 'blog/_more/1/12.json');
   assert.equal(outputFileForUrl({ url: '/blog/_more/1/12' }, { contentRoute: true }), 'blog/_more/1/12/index.html');
@@ -235,7 +311,7 @@ test('redirect decision boundaries, live header precedence and unsafe targets ar
 
 test('first export failure checks routes before assets and counts each collection separately', () => {
   const f = fixture();
-  const report = { outputDir: '/artifact', routes: { succeeded: [], failed: [{ path: '/bad', kind: 'page', reason: 'bad' }] }, assets: { succeeded: [], failed: [{ url: '/asset', reason: 'missing' }, { url: '/two', reason: 'missing' }] }, skippedManifestEntries: f.manifest.skipped, unreferencedThemeFiles: [] };
+  const report = { outputDir: '/artifact', routes: { succeeded: [], failed: [{ path: '/bad', kind: 'page', reason: 'bad' }] }, assets: { succeeded: [], failed: [{ url: '/asset', reason: 'missing' }, { url: '/two', reason: 'missing' }] }, skippedManifestEntries: f.manifest.skipped, unreferencedThemeFiles: [], droppedReferences: [] };
   assert.deepEqual(firstExportFailure({ report }), { kind: 'route', identifier: '/bad', reason: 'bad', count: 1 });
   report.routes.failed = [];
   assert.deepEqual(firstExportFailure({ report }), { kind: 'asset', identifier: '/asset', reason: 'missing', count: 2 });
