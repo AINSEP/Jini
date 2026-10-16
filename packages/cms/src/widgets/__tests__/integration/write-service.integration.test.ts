@@ -10,12 +10,13 @@ import { InMemoryWidgetRegionBindingRepo } from "../../repo.memory.js";
 import type { WidgetTypeKey } from "../../types.js";
 import {
   createWidgetInstance,
+  importWidgetInstance,
   trashWidgetInstance,
   updateWidgetInstance,
   type WidgetTrashDeps,
 } from "../../write-service.js";
 import { createEntryLockState } from "../../concurrency.js";
-import { WidgetForbiddenError, WidgetVersionConflictError } from "../../errors.js";
+import { WidgetConfigValidationError, WidgetForbiddenError, WidgetVersionConflictError } from "../../errors.js";
 import { WIDGET_CONTENT_TYPE } from "../../types.js";
 import { memoryWidgetTrash } from "../support/memory-widget-trash.js";
 import { InMemoryOutbox } from "../support/host.fixture.js";
@@ -89,11 +90,66 @@ test("AC-02/REQ-02: creating a recent-entries widget with maxItems above the reg
           config: { maxItems: 500 }, // registry.ts clamps this type's maxItems to 20
         },
       }),
-    { name: "WidgetConfigValidationError", message: "config for widget type 'recent-entries' failed schema validation" }
+    {
+      name: "WidgetConfigValidationError",
+      message: "config for widget type 'recent-entries' failed schema validation: config.maxItems: above the maximum of 20. Expected config keys: maxItems (required), categoryTermId, collection, where, sort, fields, layout, columns, structuredData",
+    }
   );
   assert.deepEqual(await deps.entryRepo.listByWorkspace({ workspaceId: WORKSPACE_ID }, { type: WIDGET_CONTENT_TYPE }), []);
   assert.deepEqual(await deps.entryRepo.listByWorkspace({ workspaceId: WORKSPACE_ID }), [], "invalid config must leave no entries of any type");
 });
+
+// The tool schema describes the config bag, so a rejection must teach callers the type's real keys.
+for (const operation of ["create", "update", "import"] as const) {
+  test(`${operation}: contact-form validation names formDefinitionId and expected keys, preserves the prefix and fieldErrors, and writes nothing`, async () => {
+    const deps = makeDeps();
+    const { instance } = await createWidgetInstance({
+      deps,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        actor: ACTOR,
+        widgetType: "contact-form",
+        title: "Contact us",
+        config: { formDefinitionId: "form-1" },
+      },
+    });
+    const before = await deps.entryRepo.listByWorkspace({ workspaceId: WORKSPACE_ID });
+    const input = {
+      workspaceId: WORKSPACE_ID,
+      actor: ACTOR,
+      widgetType: "contact-form" as const,
+      title: "Invalid contact form",
+      config: { formId: "x" },
+    };
+    const write = {
+      create: () => createWidgetInstance({ deps, input }),
+      update: () => updateWidgetInstance({
+        deps,
+        input: { ...input, widgetInstanceId: instance.id, baseVersion: instance.version },
+      }),
+      import: () => importWidgetInstance({
+        deps,
+        input: { ...input, id: "imported-contact-form", slug: "imported-contact-form", expectedVersion: undefined },
+      }),
+    };
+
+    await assert.rejects(write[operation], (error: unknown) => {
+      assert.ok(error instanceof WidgetConfigValidationError);
+      const prefix = "config for widget type 'contact-form' failed schema validation";
+      assert.ok(error.message.startsWith(prefix));
+      assert.equal(
+        error.message,
+        `${prefix}: config.formDefinitionId: required field is missing; config.formId: unrecognized field: not present in the registered schema. Expected config keys: formDefinitionId (required), successMessage`
+      );
+      assert.deepEqual(error.fieldErrors, [
+        { field: "config.formDefinitionId", reason: "required field is missing" },
+        { field: "config.formId", reason: "unrecognized field: not present in the registered schema" },
+      ]);
+      return true;
+    });
+    assert.deepEqual(await deps.entryRepo.listByWorkspace({ workspaceId: WORKSPACE_ID }), before);
+  });
+}
 
 test("AC-03/REQ-03: creating a widget of an unregistered type is rejected, nothing persisted", async () => {
   const deps = makeDeps();

@@ -36,7 +36,7 @@ import {
   type WidgetsAuthorizeFn,
 } from "./authorize-helper.js";
 import { withEntryLock, type EntryLockState } from "./concurrency.js";
-import { validateWidgetConfig } from "./config-validation.js";
+import { validateWidgetConfig, type WidgetConfigFieldError } from "./config-validation.js";
 import {
   buildWidgetInstanceFieldsJson,
   ensureWidgetContentTypesRegistered,
@@ -52,7 +52,7 @@ import {
 import { findWidgetTypeRegistration } from "./registry.js";
 import { WIDGET_CONTENT_TYPE, WIDGET_FIELD_NAMESPACE } from "./types.js";
 import type { RemoveWidgetFn } from "./ports.js";
-import type { WidgetInstanceEntry, WidgetInstanceStatus, WidgetTypeKey } from "./types.js";
+import type { WidgetInstanceEntry, WidgetInstanceStatus, WidgetTypeKey, WidgetTypeRegistration } from "./types.js";
 import type { WidgetHostPorts } from "./host-ports.js";
 
 export interface WidgetWriteServiceDeps {
@@ -111,6 +111,25 @@ function entriesWriteDeps(deps: WidgetWriteServiceDeps, workspaceId: UUID) {
   };
 }
 
+/**
+ * Keep every write's rejection actionable when the tool only describes a generic config bag.
+ * The registration owns the expected keys; fieldErrors also stay structured for admin HTTP.
+ * @complexity O(f + k) time and space for field errors and declared config keys; no I/O.
+ */
+function widgetConfigValidationError(
+  required: { registration: WidgetTypeRegistration; fieldErrors: WidgetConfigFieldError[] },
+  _optional: Record<string, never> = {},
+): WidgetConfigValidationError {
+  const { registration, fieldErrors } = required;
+  const requiredKeys = new Set(registration.configSchema.required as readonly string[] | undefined);
+  const configKeys = new Set([...requiredKeys, ...Object.keys(registration.configSchema.properties ?? {})]);
+  const expectedKeys = [...configKeys].map((key) => requiredKeys.has(key) ? `${key} (required)` : key).join(", ");
+  return new WidgetConfigValidationError({
+    message: `config for widget type '${registration.typeKey}' failed schema validation: ${fieldErrors.map((e) => `${e.field}: ${e.reason}`).join("; ")}. Expected config keys: ${expectedKeys}`,
+    fieldErrors,
+  });
+}
+
 export interface CreateWidgetInstanceInput {
   readonly workspaceId: UUID;
   readonly actor: { readonly principalId: UUID };
@@ -147,8 +166,7 @@ export async function createWidgetInstance(required: CreateWidgetInstanceRequire
 
   const validation = validateWidgetConfig({ schema: registration.configSchema, config: input.config });
   if (!validation.valid) {
-    throw new WidgetConfigValidationError({ message: `config for widget type '${input.widgetType}' failed schema validation`, fieldErrors: validation.fieldErrors }
-    );
+    throw widgetConfigValidationError({ registration, fieldErrors: validation.fieldErrors });
   }
 
   await ensureWidgetContentTypesRegistered({ deps, workspaceId: input.workspaceId });
@@ -220,8 +238,7 @@ export async function updateWidgetInstance(required: UpdateWidgetInstanceRequire
 
     const validation = validateWidgetConfig({ schema: registration.configSchema, config: input.config });
     if (!validation.valid) {
-      throw new WidgetConfigValidationError({ message: `config for widget type '${currentPayload.widgetType}' failed schema validation`, fieldErrors: validation.fieldErrors }
-      );
+      throw widgetConfigValidationError({ registration, fieldErrors: validation.fieldErrors });
     }
 
     const result = await deps.host.entries.updateEntry({
@@ -291,7 +308,7 @@ export async function importWidgetInstance(required: ImportWidgetInstanceRequire
   }
   const validation = validateWidgetConfig({ schema: registration.configSchema, config: input.config });
   if (!validation.valid) {
-    throw new WidgetConfigValidationError({ message: `config for widget type '${input.widgetType}' failed schema validation`, fieldErrors: validation.fieldErrors });
+    throw widgetConfigValidationError({ registration, fieldErrors: validation.fieldErrors });
   }
 
   await ensureWidgetContentTypesRegistered({ deps, workspaceId: input.workspaceId });
