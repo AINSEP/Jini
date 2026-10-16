@@ -177,12 +177,13 @@ async function resolveShareImages(
   workspaceId: string,
   origin: VerifiedOrigin | undefined
 ): Promise<{ ogImage: SeoImageDetails | undefined; twitterImage: SeoImageDetails | undefined }> {
-  // Precedence: explicit per-entry override > the entry's featured image > the site default. An
+  // Precedence: twitter override > OG override > the entry's featured image > the site default;
+  // OG uses the same chain without the twitter override. An
   // override is final (unresolved means no image, as before); a featured image that no longer
   // resolves (trashed, deleted) falls through to the site default rather than leaving none.
   const fallbacks = [featuredImageRef(post), settings.defaultOgImage];
   const ogImageResolved = await firstResolvedImage(deps, workspaceId, overrides.ogImage ? [overrides.ogImage] : fallbacks);
-  const twitterImageResolved = await firstResolvedImage(deps, workspaceId, overrides.twitterImage ? [overrides.twitterImage] : fallbacks);
+  const twitterImageResolved = overrides.twitterImage ? await firstResolvedImage(deps, workspaceId, [overrides.twitterImage]) : ogImageResolved;
   return {
     ogImage: ogImageResolved ? { ...ogImageResolved, url: toAbsoluteUrl({ origin, path: ogImageResolved.url }) } : undefined,
     twitterImage: twitterImageResolved ? { ...twitterImageResolved, url: toAbsoluteUrl({ origin, path: twitterImageResolved.url }) } : undefined,
@@ -245,8 +246,8 @@ function buildTwitter(
 ): SeoMeta["twitter"] {
   return {
     card: overrides.twitterCard ?? "summary_large_image",
-    title: overrides.twitterTitle ?? title,
-    description: overrides.twitterDescription ?? description,
+    title: overrides.twitterTitle ?? overrides.ogTitle ?? title,
+    description: overrides.twitterDescription ?? overrides.ogDescription ?? description,
     image: twitterImage?.url,
     ...(twitterImage?.ref === undefined ? {} : { imageRef: twitterImage.ref }),
     site: settings.twitterSite,

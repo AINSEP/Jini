@@ -542,6 +542,38 @@ test("getEntryMeta: the production `renderPostDetailHeader` shape (nested `.post
   assert.equal(meta.description, "Tovu is a content platform.");
 });
 
+test("getEntryMeta: twitter inherits OG overrides unless a twitter override is present", async () => {
+  const deps = await makeDeps([
+    seedPost({
+      seoExtJson: JSON.stringify({
+        ogTitle: "Custom OG Title",
+        ogDescription: "Custom OG Desc",
+        ogImage: "https://cdn.example.com/og.png",
+      }),
+    }),
+  ]);
+  const meta = await getEntryMeta(deps, { workspaceId: WORKSPACE, entryId: "post-1" });
+  assert.equal(meta.twitter.title, "Custom OG Title");
+  assert.equal(meta.twitter.description, "Custom OG Desc");
+  assert.equal(meta.twitter.image, "https://cdn.example.com/og.png");
+
+  await setEntrySeoOverrides({
+    deps: { postRepo: deps.postRepo, authorize: alwaysAllow, invalidateSitemapCache: () => {}, clock },
+    input: {
+      workspaceId: WORKSPACE, entryId: "post-1", callerPrincipalId: "caller-1",
+      patch: {
+        twitterTitle: "Custom Twitter Title",
+        twitterDescription: "Custom Twitter Desc",
+        twitterImage: "https://cdn.example.com/tw.png",
+      },
+    },
+  });
+  const overridden = await getEntryMeta(deps, { workspaceId: WORKSPACE, entryId: "post-1" });
+  assert.equal(overridden.twitter.title, "Custom Twitter Title");
+  assert.equal(overridden.twitter.description, "Custom Twitter Desc");
+  assert.equal(overridden.twitter.image, "https://cdn.example.com/tw.png");
+});
+
 test("getEntryMeta: all openGraph and twitter field overrides are respected", async () => {
   const deps = await makeDeps([
     seedPost({
