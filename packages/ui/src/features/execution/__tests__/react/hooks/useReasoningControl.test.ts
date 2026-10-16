@@ -138,6 +138,17 @@ describe('useReasoningControl — flat reasoning options (flag-based)', () => {
     expect(result.current.selectValue).toBe('claude-opus-5-5');
   });
 
+  it('keeps a persisted alias selected when it has no resolved ID', () => {
+    const agent = claudeAgent({
+      models: [{ id: 'fable', label: 'Fable', identityKind: 'alias' }],
+      modelsSource: 'live',
+    });
+    const config: LocalCliConfig = { agentId: 'claude', modelByAgentId: { claude: 'fable' } };
+    const { result } = renderHook(() => useReasoningControl({ agent, config }));
+
+    expect(result.current.selectValue).toBe('fable');
+  });
+
   it('derives flat reasoning options and preserves models directly', () => {
     const agent = claudeAgent();
     const config: LocalCliConfig = { agentId: 'claude', reasoningByAgentId: { claude: 'high' } };

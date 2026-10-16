@@ -26,6 +26,10 @@ describe('pickerModelOptions', () => {
       { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
       { id: 'claude-haiku-5-5', label: 'Haiku 5.5' },
     ]);
+    expect(pickerModelOptions({ models })[1]).toEqual({
+      id: 'claude-fable-5-1', label: 'Fable 5.1', identityKind: 'concrete',
+      resolvedId: 'claude-fable-5-1',
+    });
   });
 
   it.each([false, true])('prefers the human label with humanFirst=%s', (humanFirst) => {
