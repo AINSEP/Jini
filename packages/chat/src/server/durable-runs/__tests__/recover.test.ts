@@ -3,13 +3,13 @@ import type { AgentEvent } from "../../../core/index.js";
 import type { DurableRun, DurableRunStore, RecoveryPorts, RunProbe } from "../../../core/durable-runs/ports.js";
 import { translateRunFrame } from "../../../core/run-events/entry.js";
 import { notices } from "../../../core/run-events/__tests__/fixture.js";
-import { createDurableRecovery } from "../recover.js";
+import { AWAITING_ANSWER_NOTICE, createDurableRecovery, EXHAUSTED_NOTICE, RECOVERY_LIMIT, RUN_STALENESS_MS, SAVED_WORK_NOTICE } from "../recover.js";
 
 const TIME = 1_790_000_000_000;
 // Raw stdout that quotes a tool description, as the luvira incident's leaked echo tail did.
 const TOOL_PROSE: AgentEvent = { kind: "raw", line: 'description":"Starts an OAuth authorization for an already-saved, OAuth-authenticated server"}]}\n' };
 
-function harness({ events, probe, content = "" }: { events: AgentEvent[]; probe: RunProbe; content?: string }) {
+function harness({ events, probe, content = "", run = {} }: { events: AgentEvent[]; probe: RunProbe; content?: string; run?: Partial<DurableRun> }) {
   let current: DurableRun = {
     messageId: "answer", conversationId: "chat", runId: "old", workspaceId: "ws", principalId: "admin", engine: "daemon",
     request: { agentId: "claude", contextRef: JSON.stringify({ prompt: "Import my site", conversationId: "chat" }) },
@@ -17,6 +17,7 @@ function harness({ events, probe, content = "" }: { events: AgentEvent[]; probe:
     transcript: [{ id: "question", role: "user", content: "Import my site" }],
     recoveryCount: 0, recoveryDeadline: null, attemptStartedAt: TIME, lastProgressAt: TIME,
     cancelReason: null, sessionId: null, sessionConfirmed: false, child: null, attemptBase: [],
+    ...run,
   };
   const settlements: Parameters<RecoveryPorts["settle"]>[0][] = [];
   const attached: string[] = [];
@@ -131,7 +132,92 @@ describe("durable recovery: successful CLI summaries are not failure diagnostics
     expect(h.launches).toEqual([]);
     expect(h.settlements).toHaveLength(1);
     expect(h.settlements[0]!.status).toBe("failed");
-    expect(h.settlements[0]!.events.at(-1)).toEqual({ kind: "status", label: "The assistant could not continue this answer. Saved work is above." });
+    expect(h.settlements[0]!.events.at(-1)).toEqual({ kind: "status", label: EXHAUSTED_NOTICE, detail: failure.line });
+  });
+});
+
+describe("durable recovery: terminal failure details", () => {
+  it("keeps the last non-empty diagnostic line, trimmed and capped, without answer or tool content", async () => {
+    const reason = `context_length_exceeded: ${"x".repeat(400)}`;
+    const h = harness({ probe: "dead", events: [
+      { kind: "status", label: "Run failed", detail: `Earlier diagnostic\n  ${reason}  \n \n` },
+      { kind: "text", text: "Private answer" },
+      { kind: "tool_result", toolUseId: "tool", content: "Private tool result", isError: true },
+      { kind: "raw", line: JSON.stringify({ type: "result", is_error: false, result: "Private summary" }) },
+    ] });
+
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "attempt-failed" }, {})).toBe("finalized");
+    expect(h.settlements[0]!.events.at(-1)).toEqual({ kind: "status", label: EXHAUSTED_NOTICE, detail: reason.slice(0, 300) });
+    expect(h.launches).toEqual([]);
+  });
+
+  it.each([
+    { recoveryCount: RECOVERY_LIMIT },
+    { recoveryDeadline: TIME },
+  ])("keeps the current attempt's diagnostic when the budget ends: %j", async (run) => {
+    const h = harness({ probe: "dead", run, events: [
+      { kind: "status", label: "Run failed", detail: "  HTTP 503: service unavailable\n\n" },
+      { kind: "text", text: "Private answer" },
+      { kind: "tool_result", toolUseId: "tool", content: "Private tool result", isError: false },
+    ] });
+
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "boot" }, {})).toBe("finalized");
+    expect(h.settlements[0]!.events.at(-1)).toEqual({ kind: "status", label: EXHAUSTED_NOTICE, detail: "HTTP 503: service unavailable" });
+    expect(h.launches).toEqual([]);
+  });
+
+  it.each([
+    { run: { recoveryCount: RECOVERY_LIMIT }, detail: `Tried ${RECOVERY_LIMIT} times` },
+    { run: { recoveryDeadline: TIME }, detail: "Recovery window ended" },
+  ])("uses a factual budget detail without diagnostics: $detail", async ({ run, detail }) => {
+    const h = harness({ probe: "dead", run, events: [
+      { kind: "text", text: "Private answer" },
+      { kind: "tool_result", toolUseId: "tool", content: "Private tool result", isError: true },
+    ] });
+
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "boot" }, {})).toBe("finalized");
+    expect(h.settlements[0]!.events.at(-1)).toEqual({ kind: "status", label: EXHAUSTED_NOTICE, detail });
+  });
+
+  it("does not reuse an earlier attempt's diagnostics as the exhausted detail", async () => {
+    const base: AgentEvent[] = [
+      { kind: "status", label: "HTTP 503: earlier attempt" },
+      { kind: "status", code: "run_recovering", label: "Continuing…" },
+    ];
+    const h = harness({ probe: "dead", run: { recoveryCount: RECOVERY_LIMIT, attemptBase: base }, events: [
+      ...base, { kind: "text", text: "Saved work" },
+    ] });
+
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "boot" }, {})).toBe("finalized");
+    expect(h.settlements[0]!.events.at(-1)).toEqual({ kind: "status", label: EXHAUSTED_NOTICE, detail: `Tried ${RECOVERY_LIMIT} times` });
+  });
+});
+
+describe("durable recovery: stale runs waiting on the owner", () => {
+  const card: AgentEvent[] = [
+    { kind: "tool_use", id: "copy", name: "credential_copy_from_project", input: {} },
+    { kind: "ext", name: "mcp-ui", data: { uri: "ui://tovu/credential-copy/pending" } },
+    { kind: "status", code: "tool_progress", label: "Waiting", data: { elapsedSeconds: 60 } },
+  ];
+
+  it("says a stale run was waiting for an answer while a card's tool call stayed open", async () => {
+    const h = harness({ probe: "dead", events: card, run: { lastProgressAt: TIME - RUN_STALENESS_MS } });
+
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "boot" }, {})).toBe("finalized");
+    expect(h.settlements[0]!.events.at(-1)).toEqual({ kind: "status", label: AWAITING_ANSWER_NOTICE });
+    expect(h.settlements[0]!.events.slice(0, -1)).toEqual(card);
+    expect(h.launches).toEqual([]);
+  });
+
+  it.each([
+    { events: [{ kind: "text", text: "Saved work" }] },
+    { events: [...card, { kind: "tool_result", toolUseId: "copy", content: "Copied", isError: false }] },
+  ] satisfies { events: AgentEvent[] }[])("keeps the no-progress notice for a stale run with no unanswered card: %j", async ({ events }) => {
+    const h = harness({ probe: "dead", events, run: { lastProgressAt: TIME - RUN_STALENESS_MS } });
+
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "boot" }, {})).toBe("finalized");
+    expect(h.settlements[0]!.events.at(-1)).toEqual({ kind: "status", label: SAVED_WORK_NOTICE });
+    expect(h.launches).toEqual([]);
   });
 });
 

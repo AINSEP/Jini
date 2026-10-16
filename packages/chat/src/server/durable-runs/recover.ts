@@ -1,10 +1,11 @@
 import { recoveredRunEvents, type AgentEvent } from "../../core/index.js";
 import { classifyAgentServiceFailure } from "@jini-ai/agent-runtime";
 import { continuationRequest } from "../../core/durable-runs/continuation.js";
+import { isAwaitingAnswer } from "../../core/run-activity.js";
 import type { DurableRecovery, DurableRun, RecoveryPorts, RecoveryResult, RecoveryTrigger, RunProbe } from "../../core/durable-runs/ports.js";
 
-import { RECOVERY_LIMIT, RECOVERY_WINDOW_MS, RUN_STALENESS_MS, SAVED_WORK_NOTICE, EXHAUSTED_NOTICE } from "../../core/durable-runs/policies.js";
-export { RECOVERY_LIMIT, RECOVERY_WINDOW_MS, RUN_STALENESS_MS, SAVED_WORK_NOTICE, EXHAUSTED_NOTICE } from "../../core/durable-runs/policies.js";
+import { RECOVERY_LIMIT, RECOVERY_WINDOW_MS, RUN_STALENESS_MS, SAVED_WORK_NOTICE, AWAITING_ANSWER_NOTICE, EXHAUSTED_NOTICE } from "../../core/durable-runs/policies.js";
+export { RECOVERY_LIMIT, RECOVERY_WINDOW_MS, RUN_STALENESS_MS, SAVED_WORK_NOTICE, AWAITING_ANSWER_NOTICE, EXHAUSTED_NOTICE } from "../../core/durable-runs/policies.js";
 // translateRunFrame saves a run error frame as a status label holding only its message: the
 // daemon's MCP_BRIDGE_UNAVAILABLE code is dropped, so the bridge failure is matched by its text.
 const MCP_BRIDGE_FAILURE = /The assistant's tools did not load \(MCP bridge "jini" status: [^\r\n]*/;
@@ -51,6 +52,11 @@ function attemptFailure(run: DurableRun): "retryable" | "permanent" | "auth-fail
   return "retryable";
 }
 
+/** Keep the notice bounded and scoped to the same executor diagnostics as failure classification. */
+function attemptFailureDetail({ run }: { run: DurableRun }, _optional = {}): string | undefined {
+  return attemptDiagnostics({ run }, {}).split(/\r?\n/).map((line) => line.trim()).filter(Boolean).at(-1)?.slice(0, 300);
+}
+
 function exclusion(run: DurableRun): string | null {
   if (run.cancelReason) return run.cancelReason;
   if (!run.principalId || run.engine !== "daemon") return "excluded";
@@ -58,7 +64,7 @@ function exclusion(run: DurableRun): string | null {
 }
 
 function budgetNotice(run: DurableRun, now: number): string | null {
-  if (now - run.lastProgressAt >= RUN_STALENESS_MS) return SAVED_WORK_NOTICE;
+  if (now - run.lastProgressAt >= RUN_STALENESS_MS) return isAwaitingAnswer({ events: run.message.events }) ? AWAITING_ANSWER_NOTICE : SAVED_WORK_NOTICE;
   if (run.recoveryCount >= RECOVERY_LIMIT) return EXHAUSTED_NOTICE;
   if (run.recoveryDeadline !== null && now >= run.recoveryDeadline) return EXHAUSTED_NOTICE;
   return null;
@@ -67,11 +73,11 @@ function budgetNotice(run: DurableRun, now: number): string | null {
 /** Recovery coordinator behind explicit host ports. One CAS owns both the attempt and its conversation slot.
  * Each recovery decision logs one `logger.info` line (default console) of run metadata. */
 export function createDurableRecovery(ports: RecoveryPorts, { logger = console }: { logger?: Pick<Console, "info"> } = {}): DurableRecovery {
-  async function finalize(run: DurableRun, notice: string, canceled = false): Promise<RecoveryResult> {
+  async function finalize(run: DurableRun, notice: string, { canceled = false, detail }: { canceled?: boolean; detail?: string | undefined } = {}): Promise<RecoveryResult> {
     await ports.cancelAttempt(run, {}).catch(() => undefined);
     // Persist the notice as an event: hook errors are live-only and would leave a reloaded
     // terminal message without its explanation. Only this coordinator decides exhaustion.
-    const events: AgentEvent[] = [...(run.message.events ?? []), { kind: "status", label: notice }];
+    const events: AgentEvent[] = [...(run.message.events ?? []), { kind: "status", label: notice, ...(detail ? { detail } : {}) }];
     await ports.settle({ ...run, content: run.message.content, events, status: canceled ? "canceled" : "failed", endedAt: ports.now() }, {});
     return "finalized";
   }
@@ -97,7 +103,7 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
     // Cancel/deletion can win while the old attempt is being fenced. Re-read after CAS and do
     // not launch against a removed binding or a newer generation.
     if (!next || next.runId !== nextRunId) return "superseded";
-    if (next.cancelReason) return finalize(next, "Stopped. Saved work is above.", true);
+    if (next.cancelReason) return finalize(next, "Stopped. Saved work is above.", { canceled: true });
     try {
       await ports.launch({ run: next, request: continuationRequest({ run: { ...run, message: next.message, transcript: next.transcript }, native }, {}) }, {});
       await ports.store.recoveryClock({ runId: next.runId, now: ports.now(), active: false }, {});
@@ -110,7 +116,7 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
   }
 
   async function decide(run: DurableRun, trigger: RecoveryTrigger, liveRunId: string | undefined, seen: { probe?: RunProbe; failure?: string }): Promise<RecoveryResult> {
-    if (exclusion(run)) return finalize(run, "Stopped. Saved work is above.", true);
+    if (exclusion(run)) return finalize(run, "Stopped. Saved work is above.", { canceled: true });
     // A terminal executor end confirms this attempt is dead even when the daemon retains its
     // replayable record (HTTP 200). Other triggers must obtain fresh liveness evidence.
     const probe = seen.probe = trigger === "attempt-failed" ? "dead" : liveRunId === run.runId ? "live" : await ports.probe(run, {});
@@ -122,9 +128,12 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
     // probe, raw stdout quoting a tool description ("OAuth-authenticated") canceled a live turn
     // as "Not logged in" (luvira, 2026-10-08).
     const failure = seen.failure = attemptFailure(run);
-    if (failure === "auth-failure" || failure === "inactivity-watchdog") return finalize(run, failure === "auth-failure" ? "Not logged in. Saved work is above." : "Stopped. Saved work is above.", true);
+    if (failure === "auth-failure" || failure === "inactivity-watchdog") return finalize(run, failure === "auth-failure" ? "Not logged in. Saved work is above." : "Stopped. Saved work is above.", { canceled: true });
     // A bridge failure shows its own reason (and stderr): the generic notice hides what needs repair.
-    if (failure === "permanent") return finalize(run, attemptDiagnostics({ run }, {}).match(MCP_BRIDGE_FAILURE)?.[0] ?? EXHAUSTED_NOTICE);
+    if (failure === "permanent") {
+      const bridgeNotice = attemptDiagnostics({ run }, {}).match(MCP_BRIDGE_FAILURE)?.[0];
+      return finalize(run, bridgeNotice ?? EXHAUSTED_NOTICE, { detail: bridgeNotice ? undefined : attemptFailureDetail({ run }, {}) });
+    }
     return resolveMissing(run, probe, trigger);
   }
 
@@ -135,7 +144,12 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
     // a newer attempt committed by another caller while this one was awaiting storage/HTTP.
     if (timed.runId !== run.runId) return "superseded";
     const notice = budgetNotice(timed, ports.now());
-    if (notice) return finalize(run, notice);
+    if (notice) {
+      const detail = notice === EXHAUSTED_NOTICE
+        ? attemptFailureDetail({ run: timed }, {}) ?? (timed.recoveryCount >= RECOVERY_LIMIT ? `Tried ${RECOVERY_LIMIT} times` : "Recovery window ended")
+        : undefined;
+      return finalize(run, notice, { detail });
+    }
     // A queued attempt may be between durable acceptance and the daemon's start transaction.
     // Give that idempotent launch time to appear before a 404 can advance its generation.
     if (probe === "dead" && (trigger === "attempt-failed" || ports.now() - run.attemptStartedAt >= 10_000)) return continueDead(timed);
