@@ -44,9 +44,12 @@ export const DEFAULT_PREVIEW_MODAL_ICONS: Record<PreviewModalIconName, () => Rea
       <path d="M3 9V3h6M3 3l6 6M21 15v6h-6M21 21l-6-6" />
     </Svg>
   ),
+  // The same two diagonals as `fullscreen`, arrowheads moved to the inner ends so they point in.
+  // The old path joined each corner's two ends ("M3 9l6-6"), drawing a tiny closed triangle that
+  // read as a speck once expanded (a host's screenshot, 2026-10-15).
   'fullscreen-exit': () => (
     <Svg width={15} height={15}>
-      <path d="M9 3v6H3M3 9l6-6M15 21v-6h6M21 15l-6 6" />
+      <path d="M9 3v6H3M3 3l6 6M15 21v-6h6M21 21l-6-6" />
     </Svg>
   ),
 };
