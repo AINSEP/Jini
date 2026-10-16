@@ -22,7 +22,7 @@ function fixture() {
 }
 
 test("render options accept booleans and selector/seconds waits; raw input defaults stay compatible", () => {
-  expect(readWebFetchInput({ url })).toEqual({ url, format: "markdown", maxChars: 60_000 });
+  expect(readWebFetchInput({ url })).toEqual({ url, format: "markdown", maxChars: 20_000 });
   expect(readWebFetchInput({ url, render: true, waitFor: " #items ", captureData: false, dismissCookieBanners: false, screenshot: true })).toMatchObject({ render: true, waitFor: "#items", captureData: false, dismissCookieBanners: false, screenshot: true });
   for (const waitFor of [0, 0.5, 10]) expect(readWebFetchInput({ url, render: true, waitFor }).waitFor).toBe(waitFor);
   for (const key of ["render", "captureData", "dismissCookieBanners", "screenshot"]) {
@@ -108,7 +108,7 @@ test("render filters and text modes validate at the shared reader boundary while
   for (const options of [{ captureDataMatch: "/rows" }, { textMode: "none" }]) {
     expect(() => readWebFetchInput({ url, ...options })).toThrow("require render: true");
   }
-  expect(readWebFetchInput({ url, render: true })).toEqual({ url, format: "markdown", maxChars: 60_000, render: true });
+  expect(readWebFetchInput({ url, render: true })).toEqual({ url, format: "markdown", maxChars: 20_000, render: true });
 });
 
 test.each(["markdown", "text", "html", "raw"])("textMode none suppresses %s content but preserves data, inventory and page facts", async format => {

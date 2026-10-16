@@ -14,7 +14,8 @@ import { htmlToText, readHtmlDocument, stripActiveHtml, MAX_LINKS, MAX_IMAGES, t
 
 export const WEB_FETCH_FORMATS = ["markdown", "text", "html", "raw"] as const;
 export type WebFetchFormat = (typeof WEB_FETCH_FORMATS)[number];
-export const DEFAULT_MAX_CHARS = 60_000;
+// Leave room for page facts inside an agent CLI's MCP result budget.
+export const DEFAULT_MAX_CHARS = 20_000;
 export const MAX_MAX_CHARS = 200_000;
 export const MAX_URL_LENGTH = 2048;
 export const DEFAULT_TIMEOUT_MS = 15_000;

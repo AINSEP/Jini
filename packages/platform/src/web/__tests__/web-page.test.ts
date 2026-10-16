@@ -123,7 +123,7 @@ test.each([
     finalUrl: 'https://a.example/', status: 200, title: '', html, text, truncated: false,
     images: [], imagesTruncated: false, data: [], dataTruncated: false,
   });
-  const options = { url: 'https://a.example/', format, render };
+  const options = { url: 'https://a.example/', format, render, maxChars };
   const result = await fetch(ports, options);
   assert.equal(result.content.length, maxChars);
   assert.equal(result.content, text.slice(0, maxChars));
@@ -140,4 +140,17 @@ test.each([
   const unchanged = await fetch(small.ports, options);
   assert.equal(unchanged.content, 'Small page.');
   assert.equal(unchanged.truncated, false);
+});
+
+
+test("default content window is 20000 characters and maxChars remains an explicit override", async () => {
+  const body = 'x'.repeat(30_000);
+  const { ports } = harness(response(body, 'text/plain'));
+  const result = await fetch(ports, { url: 'https://a.example/' });
+  assert.equal(readWebFetchInput({ url: 'https://a.example/' }).maxChars, 20_000);
+  assert.deepEqual([result.content, result.truncated], [body.slice(0, 20_000), true]);
+  const explicit = await fetch(ports, { url: 'https://a.example/', maxChars: 25_000 });
+  assert.deepEqual([explicit.content, explicit.truncated], [body.slice(0, 25_000), true]);
+  const complete = await fetch(ports, { url: 'https://a.example/', maxChars: 200_000 });
+  assert.deepEqual([complete.content, complete.truncated], [body, false]);
 });
