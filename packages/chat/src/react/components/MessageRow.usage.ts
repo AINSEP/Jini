@@ -32,15 +32,16 @@ export function usageLayout(
  * @example usageLineMeetsActions({ footer: { kind: 'usage', costUsd: 0.1 }, terminalNotice: null, pending: false, runInProgress: false }) // true */
 export function usageLineMeetsActions(
   { footer, terminalNotice, pending, runInProgress }: { footer: ChatUsageSummary | undefined; terminalNotice: string | null; pending: boolean; runInProgress: boolean },
-  _optional = {},
+  { showTotal = true }: { showTotal?: boolean } = {},
 ): boolean {
-  const hasText = footer !== undefined && (footer.durationMs !== undefined || footer.costUsd !== undefined);
+  const hasText = footer !== undefined && (footer.durationMs !== undefined || footer.costUsd !== undefined || (showTotal && footer.totalCostUsd !== undefined));
   return hasText && !terminalNotice && !pending && !runInProgress;
 }
 
 /** Build footer display values outside JSX; token counts remain available in the tooltip and accessible footer label.
  * Each line carries the chat's running total as of that reply, "Done · 16s · $0.39 · total $3.95" (owner,
- * 2026-10-10: keep the total, always shown, even on the first turn). `showTotal: false` turns it off. */
+ * 2026-10-10: keep the total, always shown, even on the first turn). Known totals remain visible when
+ * the current turn's cost is unknown. `showTotal: false` turns the total off. */
 export function useUsageSummary({ usage }: { usage: ChatUsageSummary }, { showTotal = true }: { showTotal?: boolean } = {}) {
   const t = useT();
   const parts: string[] = [];
@@ -50,6 +51,8 @@ export function useUsageSummary({ usage }: { usage: ChatUsageSummary }, { showTo
   }
   if (usage.costUsd !== undefined) {
     parts.push(formatUsageCost({ costUsd: usage.costUsd, ...(showTotal ? { totalCostUsd: usage.totalCostUsd ?? usage.costUsd } : {}) }));
+  } else if (showTotal && usage.totalCostUsd !== undefined) {
+    parts.push(`total ${formatUsageCost({ costUsd: usage.totalCostUsd })}`);
   }
   const text = parts.join(' · ');
   const title = usage.outputTokens === undefined ? undefined : t('{n} out', { n: usage.outputTokens });

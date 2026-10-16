@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import type { AgentEvent } from '../events.js';
+import type { ChatMessage } from '../messages.js';
 import { conversationUsage, replySegments, turnUsage } from '../turn-usage.js';
 
 it('sums every reported segment field independently without filling unknown fields with zero', () => {
@@ -52,4 +53,57 @@ it('gives a message with mid-run replies one usage entry per reply, each with it
   });
   // Reloaded history (events_json round trip) projects the same per-reply usage.
   expect(conversationUsage({ messages: JSON.parse(JSON.stringify(messages)) })).toEqual(usage);
+});
+
+it('derives a tokens-only turn duration from persisted timestamps without inferring cost', () => {
+  const message: ChatMessage = {
+    id: 'tokens-only', role: 'assistant', content: 'Finished', runStatus: 'succeeded',
+    startedAt: 1_000, endedAt: 32_525,
+    events: [{ kind: 'usage', inputTokens: 17_035, outputTokens: 93 }],
+  };
+  expect(conversationUsage({ messages: [message] }).get(message.id)).toEqual({
+    kind: 'usage', inputTokens: 17_035, outputTokens: 93, durationMs: 31_525,
+  });
+  expect(message.events).toEqual([{ kind: 'usage', inputTokens: 17_035, outputTokens: 93 }]);
+});
+
+it.each([
+  {}, { startedAt: 1_000 }, { endedAt: 32_525 },
+  { startedAt: 32_525, endedAt: 1_000 },
+  { startedAt: NaN, endedAt: 32_525 }, { startedAt: 0, endedAt: Infinity },
+])('keeps duration unknown for missing or invalid timestamps: %j', timestamps => {
+  const message: ChatMessage = { id: 'a', role: 'assistant', content: 'Finished', ...timestamps,
+    events: [{ kind: 'usage', inputTokens: 17_035, outputTokens: 93 }] };
+  expect(conversationUsage({ messages: [message] }).get('a')).toEqual({
+    kind: 'usage', inputTokens: 17_035, outputTokens: 93,
+  });
+});
+
+it('accepts a zero timestamp and a zero elapsed duration', () => {
+  expect(conversationUsage({ messages: [{ id: 'a', role: 'assistant', content: 'Finished',
+    startedAt: 0, endedAt: 0, events: [{ kind: 'usage', outputTokens: 93 }] }] }).get('a')).toEqual({
+    kind: 'usage', outputTokens: 93, durationMs: 0,
+  });
+});
+
+it.each([0, 7_000])('preserves a reported duration of %i ms over wall-clock time', durationMs => {
+  expect(conversationUsage({ messages: [{ id: 'a', role: 'assistant', content: 'Finished',
+    startedAt: 1_000, endedAt: 32_525, events: [{ kind: 'usage', durationMs }] }] }).get('a')).toEqual({
+    kind: 'usage', durationMs,
+  });
+});
+
+it('does not assign a whole-run duration to multiple replies', () => {
+  const usage = conversationUsage({ messages: [{ id: 'a', role: 'assistant', content: 'Finished',
+    startedAt: 1_000, endedAt: 32_525, events: [
+      { kind: 'usage', outputTokens: 3 }, boundary('m1'), { kind: 'text', text: 'second' },
+      { kind: 'usage', outputTokens: 5 },
+    ] }] }).get('a');
+  expect(usage).toEqual({ kind: 'usage', outputTokens: 8,
+    segments: [{ kind: 'usage', outputTokens: 3 }, { kind: 'usage', outputTokens: 5 }] });
+});
+
+it('does not create usage from timestamps alone', () => {
+  expect(conversationUsage({ messages: [{ id: 'a', role: 'assistant', content: 'Finished',
+    startedAt: 1_000, endedAt: 32_525 }] }).get('a')).toBeUndefined();
 });

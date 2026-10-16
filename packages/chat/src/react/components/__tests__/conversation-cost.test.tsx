@@ -72,3 +72,25 @@ it('leaves the running total off when the list switches it off', () => {
   const view = render(<MessageList messages={messages} showUsageTotal={false} />);
   expect(view.container.querySelector('.jini-message-usage')?.textContent).toBe('●Done · $0.25');
 });
+
+it('renders tokens-only turns with elapsed time and the known total, keeping the actions class in sync', () => {
+  const messages: ChatMessage[] = [
+    { id: 'paid', role: 'assistant', content: 'First', events: [{ kind: 'usage', costUsd: 0.93 }] },
+    { id: 'timed', role: 'assistant', content: 'Finished', runStatus: 'succeeded', startedAt: 1_000, endedAt: 32_525,
+      events: [{ kind: 'usage', inputTokens: 17_035, outputTokens: 93 }] },
+    { id: 'untimed', role: 'assistant', content: 'Finished', runStatus: 'succeeded',
+      events: [{ kind: 'usage', outputTokens: 93 }] },
+  ];
+  const view = render(<MessageList messages={messages} />);
+  const timed = view.container.querySelector('[data-message-id="timed"]')!;
+  const untimed = view.container.querySelector('[data-message-id="untimed"]')!;
+  expect(timed.querySelector('.jini-message-usage')?.textContent).toBe('●Done · 32s · total $0.93');
+  expect(untimed.querySelector('.jini-message-usage')?.textContent).toBe('●Done · total $0.93');
+  expect(untimed).toHaveClass('jini-message-assistant--usage-actions');
+
+  view.rerender(<MessageList messages={messages} showUsageTotal={false} />);
+  expect(timed.querySelector('.jini-message-usage')?.textContent).toBe('●Done · 32s');
+  expect(timed).toHaveClass('jini-message-assistant--usage-actions');
+  expect(untimed.querySelector('.jini-message-usage')).toBeNull();
+  expect(untimed).not.toHaveClass('jini-message-assistant--usage-actions');
+});

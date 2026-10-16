@@ -90,7 +90,8 @@ function addUsage({ total, usage }: { total: UsageEvent | undefined; usage: Usag
 }
 
 /** Derive per-turn charges and prefix totals from persisted events_json, for live and reloaded
- * chats alike. A message with mid-run replies also gets per-reply `segments`. O(e + m) for e events
+ * chats alike. Single replies without reported duration use the message's elapsed run time.
+ * A message with mid-run replies also gets per-reply `segments`. O(e + m) for e events
  * and m messages; no per-row transcript scans or I/O.
  * @example conversationUsage({ messages: savedMessages }).get('assistant-2') */
 export function conversationUsage({ messages }: { messages: readonly ChatMessage[] }, _optional = {}): Map<string, ChatUsageSummary> {
@@ -109,6 +110,11 @@ export function conversationUsage({ messages }: { messages: readonly ChatMessage
       segments.push(segment && { ...segment, ...(totalCostUsd === undefined ? {} : { totalCostUsd }) });
     }
     if (!usage) continue;
+    // Tokens-only runtimes still have run timestamps; those cannot time individual mid-run replies.
+    if (segments.length === 1 && usage.durationMs === undefined && message.startedAt !== undefined && message.endedAt !== undefined) {
+      const durationMs = message.endedAt - message.startedAt;
+      if (Number.isFinite(durationMs) && durationMs >= 0) usage.durationMs = durationMs;
+    }
     summaries.set(message.id, {
       ...usage,
       ...(totalCostUsd === undefined ? {} : { totalCostUsd }),

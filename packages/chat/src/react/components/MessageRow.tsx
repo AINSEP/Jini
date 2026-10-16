@@ -394,7 +394,7 @@ export const MessageRow = memo(function MessageRow({
 
   return (
     <div
-      className={usageLineMeetsActions({ footer: footerUsage, terminalNotice, pending, runInProgress })
+      className={usageLineMeetsActions({ footer: footerUsage, terminalNotice, pending, runInProgress }, { showTotal: showUsageTotal })
         ? 'jini-message jini-message-assistant jini-message-assistant--usage-actions'
         : 'jini-message jini-message-assistant'}
       data-message-id={message.id}
