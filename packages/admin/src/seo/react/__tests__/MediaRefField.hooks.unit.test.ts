@@ -1,4 +1,6 @@
-import { act, renderHook } from "./harness/render.js";
+import { act, renderHook, waitFor } from "./harness/render.js";
+import { useMediaRefField as useMediaRefFieldCore } from "../hooks/MediaRefField.hooks.js";
+import { createMemorySeoApi } from "../../adapters/memory.js";
 import { describe, expect, it, vi } from "vitest";
 
 import { useMediaRefField } from "./harness/hooks.js";
@@ -112,5 +114,24 @@ describe("useMediaRefField — previewUrl", () => {
       useMediaRefField("https://cdn.example/pic.png", vi.fn(), { port: createFakeMediaPickerPort() }),
     );
     expect(result.current.previewUrl).toBe("https://cdn.example/pic.png");
+  });
+});
+
+describe("useMediaRefField — file name", () => {
+  it("names a library reference from the host's media rows, listed once", async () => {
+    const listSeoMedia = vi.fn(async () => [{ id: "b4879dd4-1be6-4a51-b1a9-1446ec2dc144", slug: "testing-page", title: "Testing page", width: 1200, height: 630 }]);
+    const api = { ...createMemorySeoApi({}), listSeoMedia };
+    const { result } = renderHook(() => useMediaRefFieldCore({ value: "b4879dd4-1be6-4a51-b1a9-1446ec2dc144:public", onChange: vi.fn(), api }));
+    await waitFor(() => expect(result.current.file).toEqual({ name: "Testing page", size: "1200 × 630" }));
+    expect(listSeoMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not list media for a URL or an empty value", () => {
+    const listSeoMedia = vi.fn(async () => []);
+    const api = { ...createMemorySeoApi({}), listSeoMedia };
+    const { result } = renderHook(() => useMediaRefFieldCore({ value: "https://cdn.example/pic.png", onChange: vi.fn(), api }));
+    expect(result.current.file).toEqual({ name: "pic.png", size: null });
+    renderHook(() => useMediaRefFieldCore({ value: "", onChange: vi.fn(), api }));
+    expect(listSeoMedia).not.toHaveBeenCalled();
   });
 });

@@ -9,6 +9,7 @@ export const SEO_KEYS = {
   entry: ({ entryId }: { entryId: string }, _optional: Record<string, never> = {}) => ['seo', 'entry', entryId] as const,
   choices: ['seo', 'choices'] as const,
   sitemap: ['seo', 'sitemap'] as const,
+  media: ['seo', 'media'] as const,
 };
 
 /** Controllers keep their draft/error contracts; these injected ports share the provider cache.

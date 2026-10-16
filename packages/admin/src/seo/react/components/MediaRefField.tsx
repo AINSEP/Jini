@@ -5,8 +5,8 @@ import { useWiredMediaRefField, useMediaRefPresentation, handleSpread } from "..
 
 
 /**
- * @file `MediaRefField` — a text input for an `{assetId}:{transformName}` media reference (or a
- * pasted absolute URL), plus a "Choose image" affordance that opens the existing
+ * @file `MediaRefField` — an `{assetId}:{transformName}` media reference (or an absolute URL),
+ * shown as the chosen file's thumbnail and name, plus a "Choose image" affordance that opens the existing
  * `MediaPickerDialog`, a thumbnail preview of the current value, and a Remove control.
  *
  * Built for `react/pages/SeoPage.tsx`'s `defaultOgImage`/`ogImage`/`twitterImage` fields (SPEC intent: "make the OG
@@ -21,12 +21,16 @@ import { useWiredMediaRefField, useMediaRefPresentation, handleSpread } from "..
  * 2026-10-08 polish: the original editable-input rationale above still applies to pasted URLs
  * and empty fields. A selected library reference now shows plain copy with its preview; Remove
  * returns to manual entry. A hidden input preserves the exact FormData value on defaults saves.
+ * 2026-10-15: superseded — the input is removed entirely (owner: the read-only box "looks
+ * useless"). An existing pasted URL still displays (by its file name) and still saves unchanged;
+ * a new URL can no longer be typed here, only chosen from the library.
  */
 
 export interface MediaRefFieldProps {
   locale: string;
-  /** `<input id>`/`<label htmlFor>` pairing — same `getByLabelText`-friendly shape `react/pages/SeoPage.tsx`'s
-   *  other explicit-`htmlFor` fields already use. */
+  /** Base id: the caption is `{id}-label` and names the row's `role="group"`; the hidden input (when
+   *  `name` is set) carries the id itself. Was an `<input id>`/`<label htmlFor>` pair until the text
+   *  box was removed (2026-10-15). */
   id: string;
   /** Forwarded to the `<input name>` only when set — `defaultOgImage` needs this (its `<form>` reads
    *  `FormData` by name on submit); the per-entry `ogImage`/`twitterImage` fields do not (they save
@@ -54,31 +58,37 @@ export function MediaRefField({
   useField = useWiredMediaRefField,
 }: MediaRefFieldProps, _optional: Record<string, never> = {}) {
   const t = useSeoCopy();
-  const { Picker = MediaPickerBridge, storedReference } = useMediaRefPresentation({ value });
-  const { pickerOpen, openPicker, closePicker, handleSelect, clear, previewUrl, accept, onPreviewLoad, onPreviewError } = useField({ value, onChange });
+  const { Picker = MediaPickerBridge } = useMediaRefPresentation({ value });
+  const { pickerOpen, openPicker, closePicker, handleSelect, clear, previewUrl, file, accept, onPreviewLoad, onPreviewError } = useField({ value, onChange });
+  const labelId = `${id}-label`;
 
-  /* One compact row: thumbnail, reference, then Choose/Remove kept together in their own group so
-     a narrow column wraps the pair as one unit instead of stranding Remove on a line of its own
-     (owner, 2026-10-15). The thumbnail used to sit under the row at 4rem, repeated per field.
+  /* One compact row: thumbnail, the file's name and size, then Choose/Remove kept together in their
+     own group so a narrow column wraps the pair as one unit instead of stranding Remove on a line of
+     its own (owner, 2026-10-15). The thumbnail used to sit under the row at 4rem, repeated per field.
      `warning` (share-image size/byte/HTTP diagnostics) is still computed by the hook but no longer
-     painted: the owner called the yellow callout under every image "completely useless". */
+     painted: the owner called the yellow callout under every image "completely useless".
+     2026-10-15 (round 3): the text box is gone — for a library pick it only ever said a read-only
+     "Selected image" ("i can't change it and looks useless"), so the row names the file instead and
+     the picker is the one way in. The exact value still rides a hidden input for FormData saves. */
   return (
     <div className="jini-field jini-media-ref-field">
-      <label className="jini-field-label" htmlFor={id}>
+      <span className="jini-field-label" id={labelId}>
         {label}
-      </label>
-      <div className="jini-media-ref-field-row">
-        {previewUrl ? <img key={previewUrl} className="jini-media-ref-field-preview" src={previewUrl} alt={`${label} preview`} onLoad={onPreviewLoad} onError={onPreviewError} /> : null}
-        <input
-          className="jini-input"
-          id={id}
-          name={storedReference ? undefined : name}
-          value={storedReference ? t({ locale, key: "Selected image" }) : value}
-          readOnly={storedReference}
-          onChange={(e) => onChange(e.target.value)}
-          {...(base ? agentHandle({ handle: base }, { role: "field", label }) : {})}
-        />
-        {storedReference && name ? <input type="hidden" name={name} value={value} /> : null}
+      </span>
+      <div
+        className="jini-media-ref-field-row"
+        role="group"
+        aria-labelledby={labelId}
+        {...(base ? agentHandle({ handle: base }, { role: "region", label }) : {})}
+      >
+        {file ? (
+          <span className="jini-media-ref-field-file">
+            {previewUrl ? <img key={previewUrl} className="jini-media-ref-field-preview" src={previewUrl} alt={`${label} preview`} onLoad={onPreviewLoad} onError={onPreviewError} /> : null}
+            <span className="jini-media-ref-field-name" title={file.name}>{file.name}</span>
+            {file.size ? <span className="jini-media-ref-field-size">{file.size}</span> : null}
+          </span>
+        ) : null}
+        {name ? <input type="hidden" id={id} name={name} value={value} /> : null}
         <span className="jini-media-ref-field-actions">
           <button
             type="button"

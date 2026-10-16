@@ -161,6 +161,17 @@ export interface AdminSeoEntryChoice {
   readonly id: string;
   readonly title: string;
   readonly status: string;
+  /** Tells two same-titled entries apart in the picker; optional for hosts that omit it. */
+  readonly slug?: string;
+}
+
+/** What an image field shows for a chosen library file: its name and, when stored, its size. */
+export interface AdminSeoMediaSummary {
+  readonly id: string;
+  readonly slug?: string;
+  readonly title: string;
+  readonly width?: number | null;
+  readonly height?: number | null;
 }
 
 export interface AdminSeoPort {
@@ -181,6 +192,8 @@ export interface AdminSeoPort {
   inspectShareImage?(required: { url: string }, optional?: { signal?: AbortSignal }): Promise<{ status: number; byteSize: number | null }>;
   /** Resolve local rendered share URLs back to their original source for image diagnostics. */
   mediaPreviewUrl?(required: { value: string }, optional?: Record<string, never>): string | null;
+  /** Optional: library rows so an image field can name its file instead of showing a reference. */
+  listSeoMedia?(required: Record<string, never>, optional?: { signal?: AbortSignal }): Promise<readonly AdminSeoMediaSummary[]>;
   /** Original thumbnail URL; media-reference resolution stays on the server. */
   mediaOriginalUrl(requiredArgs: { id: string }, optionalArgs?: Record<string, never>): string;
 }

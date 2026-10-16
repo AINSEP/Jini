@@ -60,6 +60,16 @@ describe("Select", () => {
     await user.click(screen.getByRole("option", { name: "Hello" }));
   });
 
+  it("paints detail text after the label and matches it in search", async () => {
+    const user = userEvent.setup();
+    const options: SelectOption[] = Array.from({ length: 8 }, (_, i) => ({ value: `v${i}`, label: i < 2 ? "Landing Page" : `Row ${i}`, ...(i < 2 ? { detail: `landing-page-${i}` } : {}) }));
+    render(<Select value="" options={options} onChange={vi.fn()} aria-label="Entry" />);
+    await user.click(screen.getByRole("combobox", { name: "Entry" }));
+    expect(document.querySelectorAll(".select-option-detail")).toHaveLength(2);
+    await user.type(screen.getByRole("textbox", { name: "Search options" }), "page-1");
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Landing Pagelanding-page-1"]);
+  });
+
   it("opens the panel on trigger click and closes it again on a second click", async () => {
     const user = userEvent.setup();
     render(<ControlledSelect options={FEW_OPTIONS} />);

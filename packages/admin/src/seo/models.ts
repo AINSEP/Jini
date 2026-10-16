@@ -153,6 +153,9 @@ export interface MediaRefFieldController {
   /** The field's current value resolved to a thumbnail `<img src>`, or `null` when the value is
    *  empty or unparseable — see `resolveMediaRefPreviewUrl`'s own doc. */
   previewUrl: string | null;
+  /** The chosen file's display name and pixel size (`describeMediaRef`), or null when empty.
+   *  Optional for injected legacy views. */
+  file?: { name: string; size: string | null } | null;
   /** Shared diagnostics for defaults, OG and Twitter fields; optional for injected legacy views. */
   warning?: string | null;
   onPreviewLoad?: (event: { currentTarget: HTMLImageElement }) => void;

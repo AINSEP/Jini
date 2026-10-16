@@ -1,7 +1,7 @@
 import type { AdminSeoIssue as SeoIssue, AdminSeoSettingsPatch as SeoSettingsPatch } from "../core/ports/seo.js";
 import { interpolate } from '@jini-ai/ui/i18n';
 import type { SeoTranslator } from './models.js';
-import type { AdminSeoEntryChoice } from '../core/ports/seo.js';
+import type { AdminSeoEntryChoice, AdminSeoMediaSummary } from '../core/ports/seo.js';
 
 /**
  * @file Pure logic for the `seo` feature — everything that computes a value rather than rendering
@@ -151,6 +151,46 @@ export function isStoredMediaRef({ value }: { value: string }, _optional: Record
   return !trimmed.includes(":/") && parseMediaRefAssetId(trimmed) !== null;
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** What an image field shows for its value — the file's name and pixel size — in place of the raw
+ * `{slug}:public` reference or URL (owner, 2026-10-15: a read-only "Selected image" box "looks
+ * useless"). The library row wins when the host can list media; otherwise a readable slug or the
+ * URL's file name stands in, and an opaque id falls back to the translated "Image".
+ * Size prefers the stored dimensions, then the decoded preview's natural size.
+ * @example describeMediaRef({ value: 'sunset:public', media: [{ id: 'a1', slug: 'sunset', title: 'Sunset', width: 1200, height: 630 }] }) // { name: 'Sunset', size: '1200 × 630' }
+ * @complexity O(m) over the media rows; no I/O.
+ */
+export function describeMediaRef({ value, media }: { value: string; media?: readonly AdminSeoMediaSummary[] | null | undefined }, { width, height, t = key => key }: {
+  width?: number | undefined; height?: number | undefined; t?: SeoTranslator | undefined;
+} = {}): { name: string; size: string | null } | null {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (!trimmed) return null;
+  const key = parseMediaRefAssetId(trimmed);
+  const row = key ? media?.find(item => item.id === key || item.slug === key) : undefined;
+  return { name: row?.title || fallbackMediaName({ key, value: trimmed, t }), size: pixelSize(row?.width ?? width, row?.height ?? height) };
+}
+
+function fallbackMediaName({ key, value, t }: { key: string | null; value: string; t: SeoTranslator }): string {
+  if (!key) return urlFileName(value);
+  return UUID_PATTERN.test(key) ? t('Image') : key;
+}
+
+function pixelSize(width: number | null | undefined, height: number | null | undefined): string | null {
+  return width && height ? `${width} × ${height}` : null;
+}
+
+/** The last path segment of an image URL ("https://cdn.example/a/pic.png" → "pic.png"). */
+function urlFileName(value: string): string {
+  try {
+    const url = new URL(value, 'https://placeholder.invalid');
+    const last = url.pathname.split('/').filter(Boolean).pop();
+    return last ? decodeURIComponent(last) : url.hostname || value;
+  } catch {
+    return value;
+  }
+}
+
 /** Builds the `{slug}:public` reference `MediaRefField` writes into the field on selection —
  *  prefers the asset's readable slug over its id (readable-slugs S5b, 2026-09-23), matching
  *  `resolveSeoImageRef`'s own id-or-slug lookup server-side (`findMediaByIdOrSlug`,
@@ -287,8 +327,17 @@ export function resolveSeoTabId({ tabId }: { tabId?: string | null | undefined }
   return SEO_TAB_IDS.find(id => id === tabId) ?? 'defaults';
 }
 
+/** Colour band for the analysis score pill: the same success/warning/failure tones the issue pills
+ * use, so a 100 reads green and a failing page reads red at a glance.
+ * @example scoreTone({ score: 100 }) // 'success'
+ */
+export function scoreTone({ score }: { score: number }, _optional: Record<string, never> = {}): 'success' | 'warning' | 'failure' {
+  if (score >= 80) return 'success';
+  return score >= 50 ? 'warning' : 'failure';
+}
+
 /** One row of the searchable entry picker: grouped Pages then Posts, status only when not live. */
-export interface SeoEntryPickerOption { value: string; label: string; group: string; badge?: string }
+export interface SeoEntryPickerOption { value: string; label: string; group: string; badge?: string; detail?: string }
 
 /**
  * Picker rows for the Pages & posts tab. Pages lead because they are fewer and are the usual SEO
@@ -297,9 +346,17 @@ export interface SeoEntryPickerOption { value: string; label: string; group: str
  * @example entryPickerOptions({ posts, pages }, { t }) // [{ value: 'p1', label: 'About', group: 'Pages' }, …]
  */
 export function entryPickerOptions({ posts, pages }: { posts: readonly AdminSeoEntryChoice[]; pages: readonly AdminSeoEntryChoice[] }, { t = key => key }: { t?: SeoTranslator | undefined } = {}): SeoEntryPickerOption[] {
-  const rows = (entries: readonly AdminSeoEntryChoice[], group: string) => entries.map((entry): SeoEntryPickerOption => ({
-    value: entry.id, label: entry.title.trim() || entry.id, group,
-    ...(entry.status && entry.status !== 'published' ? { badge: t(entry.status) } : {}),
-  }));
+  // Two entries can share a title ("Landing Page" twice, owner 2026-10-15); both stay listed and
+  // each duplicate shows its slug as muted secondary text so the operator can tell them apart.
+  const rows = (entries: readonly AdminSeoEntryChoice[], group: string) => {
+    const labelOf = (entry: AdminSeoEntryChoice) => entry.title.trim() || entry.id;
+    const counts = new Map<string, number>();
+    for (const entry of entries) counts.set(labelOf(entry), (counts.get(labelOf(entry)) ?? 0) + 1);
+    return entries.map((entry): SeoEntryPickerOption => ({
+      value: entry.id, label: labelOf(entry), group,
+      ...(entry.status && entry.status !== 'published' ? { badge: t(entry.status) } : {}),
+      ...((counts.get(labelOf(entry)) ?? 0) > 1 ? { detail: entry.slug || entry.id } : {}),
+    }));
+  };
   return [...rows(pages, t('Pages')), ...rows(posts, t('Posts'))];
 }

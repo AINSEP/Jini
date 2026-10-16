@@ -1,4 +1,4 @@
-import { render, screen } from "./harness/render.js";
+import { fireEvent, render, screen, within } from "./harness/render.js";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -60,7 +60,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("MediaRefField — the text input keeps working", () => {
+describe("MediaRefField — the chosen file row", () => {
   it.each([
     ['asset-9:public', true], [' sunset:thumbnail ', true],
     ['', false], ['asset-9', false], [':public', false], ['asset-9:', false],
@@ -73,34 +73,32 @@ describe("MediaRefField — the text input keeps working", () => {
   it('leaves a malformed caller value unselected, matching the preview guard', () => {
     expect(isStoredMediaRef({ value: null as unknown as string })).toBe(false);
   });
-  it("shows a plain selected-image label instead of the stored reference", () => {
-    renderField({ value: "asset-9:public" });
-    expect(screen.getByLabelText("Default Open Graph / Twitter image")).toHaveValue("Selected image");
+  // 2026-10-15: the text box is gone (owner: a read-only "Selected image" box "looks useless").
+  it("names the chosen file instead of showing a text box", () => {
+    renderField({ value: "sunset:public" });
+    const row = screen.getByRole("group", { name: "Default Open Graph / Twitter image" });
+    expect(within(row).getByText("sunset")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("typing directly into the input still calls onChange — pasting a raw ref/URL keeps working", async () => {
-    const user = userEvent.setup();
-    const { onChange } = renderField();
-    await user.type(screen.getByLabelText("Default Open Graph / Twitter image"), "x");
-    expect(onChange).toHaveBeenCalledWith("x");
+  it("empty state is just Choose image", () => {
+    renderField({ value: "" });
+    const row = screen.getByRole("group", { name: "Default Open Graph / Twitter image" });
+    expect(within(row).getAllByRole("button").map((b) => b.textContent)).toEqual(["Choose image"]);
+    expect(within(row).queryByRole("img")).not.toBeInTheDocument();
   });
 
-  it("forwards the name prop onto the <input> so a real <form>'s FormData still finds it", () => {
-    renderField({ name: "defaultOgImage" });
-    expect(screen.getByLabelText("Default Open Graph / Twitter image")).toHaveAttribute("name", "defaultOgImage");
-  });
-
-  it("saves the exact stored selection without exposing its reference as visible input text", () => {
+  it("saves the exact stored selection through a hidden input without painting the reference", () => {
     const ref = "b4879dd4-1be6-4a51-b1a9-1446ec2dc144:public";
     const { container } = render(<form><MediaRefField locale="en" id="social-image" name="defaultOgImage"
       label="Social image" value={ref} onChange={vi.fn()} /></form>);
-    expect(screen.getByRole("textbox", { name: "Social image" })).toHaveValue("Selected image");
+    expect(within(screen.getByRole("group", { name: "Social image" })).getByText("Image")).toBeInTheDocument();
     expect(screen.queryByText(ref)).not.toBeInTheDocument();
     expect(screen.getByRole("img")).toHaveAttribute("src", "/media/b4879dd4-1be6-4a51-b1a9-1446ec2dc144/original");
     expect(new FormData(container.querySelector('form')!).getAll('defaultOgImage')).toEqual([ref]);
   });
 
-  it("Remove restores manual entry and saves the replacement URL exactly", async () => {
+  it("Remove empties the saved value and leaves only Choose image", async () => {
     const user = userEvent.setup();
     function ControlledField() {
       const [value, setValue] = useState("asset-9:public");
@@ -109,13 +107,19 @@ describe("MediaRefField — the text input keeps working", () => {
     }
     const { container } = render(<ControlledField />);
     await user.click(screen.getByRole("button", { name: "Remove" }));
-    const field = screen.getByRole("textbox", { name: "Social image" });
-    expect(field).toHaveValue("");
-    expect(field).not.toHaveAttribute('readonly');
+    expect(screen.queryByText("asset-9")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
     expect(new FormData(container.querySelector('form')!).getAll('defaultOgImage')).toEqual(['']);
-    await user.type(field, 'https://images.example/sunset.jpg');
-    expect(field).toHaveValue('https://images.example/sunset.jpg');
-    expect(new FormData(container.querySelector('form')!).getAll('defaultOgImage')).toEqual(['https://images.example/sunset.jpg']);
+  });
+
+  it("shows the decoded preview's pixel size beside the name", () => {
+    renderField({ value: "https://cdn.example/a/pic.png" });
+    const img = screen.getByRole("img") as HTMLImageElement;
+    Object.defineProperty(img, "naturalWidth", { value: 1200 });
+    Object.defineProperty(img, "naturalHeight", { value: 630 });
+    fireEvent.load(img);
+    expect(screen.getByText("pic.png")).toBeInTheDocument();
+    expect(screen.getByText("1200 × 630")).toBeInTheDocument();
   });
 });
 

@@ -24,6 +24,9 @@ export interface SelectOption {
   group?: string | undefined;
   /** Short state shown as a muted pill after the label (e.g. "draft"); omit for the normal state. */
   badge?: string | undefined;
+  /** Muted secondary text after the label, e.g. a slug telling two same-titled rows apart.
+   *  Search matches it too. */
+  detail?: string | undefined;
 }
 
 /** The group heading to paint before `options[index]`, or null when it continues the previous run. */
@@ -50,12 +53,30 @@ export function computePosition({ trigger }: { trigger: HTMLElement }): PanelPos
   const gap = 4;
   const viewportHeight = window.innerHeight;
   const spaceBelow = viewportHeight - rect.bottom;
-  const spaceAbove = rect.top;
+  // Space above ends at the trigger's scrolling pane, not the viewport: an app bar above that pane
+  // is not room for the panel (owner, 2026-10-15: on a short phone the list flipped up and covered
+  // the top bar). With nothing scrolling but the page this is 0 and placement is unchanged.
+  const spaceAbove = rect.top - scrollPaneTop({ trigger });
   const openUpward = spaceBelow < ESTIMATED_PANEL_HEIGHT && spaceAbove > spaceBelow;
   if (openUpward) {
     return { bottom: viewportHeight - rect.top + gap, left: rect.left, width: rect.width, maxHeight: Math.max(120, spaceAbove - gap * 2) };
   }
   return { top: rect.bottom + gap, left: rect.left, width: rect.width, maxHeight: Math.max(120, spaceBelow - gap * 2) };
+}
+
+/** Top edge (viewport px, never negative) of the nearest scrollable PANE around the trigger, or 0.
+ * A pane is an `overflow-y: auto|scroll` ancestor at least half the viewport tall — whether or not
+ * it currently overflows (a short form still sits under the app bar), while a small scrolling
+ * wrapper such as a table or chip strip does not count and leaves placement as it was.
+ * @complexity O(depth) computed-style reads per measurement. */
+export function scrollPaneTop({ trigger }: { trigger: HTMLElement }, _optional: Record<string, never> = {}): number {
+  for (let el = trigger.parentElement; el && el !== document.body && el !== document.documentElement; el = el.parentElement) {
+    const overflowY = getComputedStyle(el).overflowY;
+    if ((overflowY === "auto" || overflowY === "scroll") && el.clientHeight * 2 >= window.innerHeight) {
+      return Math.max(0, el.getBoundingClientRect().top);
+    }
+  }
+  return 0;
 }
 
 export function buildOptionId({ listboxId, index }: { listboxId: string; index: number }): string {
@@ -197,7 +218,7 @@ export function useSelectDropdown({
   const filtered = useMemo(() => {
     if (!showSearch || !query.trim()) return options;
     const q = query.trim().toLowerCase();
-    return options.filter((o) => o.label.toLowerCase().includes(q));
+    return options.filter((o) => o.label.toLowerCase().includes(q) || Boolean(o.detail?.toLowerCase().includes(q)));
   }, [options, query, showSearch]);
 
   const selectedOption = options.find((o) => o.value === value) ?? null;

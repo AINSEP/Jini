@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { actionLabel, buildMediaRef, orEmpty, overrideOrClear, resolveMediaRefPreviewUrl, sortIssuesBySeverity } from "../react/__tests__/harness/rules.js";
-import { entryPickerOptions } from "../rules.js";
+import { describeMediaRef, entryPickerOptions, scoreTone } from "../rules.js";
 import type { SeoIssue } from "../models.js";
 
 /**
@@ -170,5 +170,49 @@ describe('entryPickerOptions', () => {
       { value: 'p1', label: 'Hello', group: 'Posts' },
       { value: 'p2', label: 'p2', group: 'Posts', badge: 'Entwurf' },
     ]);
+  });
+});
+
+describe('entryPickerOptions — same-titled entries', () => {
+  it('keeps both rows and adds the slug as detail only to the duplicates', () => {
+    const pages = [
+      { id: 'a', title: 'Landing Page', status: 'published', slug: 'landing-page' },
+      { id: 'b', title: 'Landing Page', status: 'published', slug: 'landing-page-2' },
+      { id: 'c', title: 'About', status: 'published', slug: 'about' },
+      { id: 'd', title: 'About', status: 'published' },
+    ];
+    expect(entryPickerOptions({ posts: [], pages }).map(({ label, detail }) => [label, detail])).toEqual([
+      ['Landing Page', 'landing-page'], ['Landing Page', 'landing-page-2'], ['About', 'about'], ['About', 'd'],
+    ]);
+    expect(entryPickerOptions({ posts: [], pages: [pages[0]!] })[0]).not.toHaveProperty('detail');
+  });
+});
+
+describe('describeMediaRef', () => {
+  const media = [{ id: 'b4879dd4-1be6-4a51-b1a9-1446ec2dc144', slug: 'testing-page', title: 'Testing page', width: 1200, height: 630 }];
+  it.each([
+    ['', null],
+    ['b4879dd4-1be6-4a51-b1a9-1446ec2dc144:public', { name: 'Testing page', size: '1200 × 630' }],
+    ['testing-page:public', { name: 'Testing page', size: '1200 × 630' }],
+    ['other-slug:public', { name: 'other-slug', size: null }],
+    ['0b9e0d7c-1111-4222-8333-444455556666:public', { name: 'Image', size: null }],
+    ['https://cdn.example/a/my%20pic.png?v=2', { name: 'my pic.png', size: null }],
+    ['https://cdn.example/', { name: 'cdn.example', size: null }],
+    ['https://[bad', { name: 'https://[bad', size: null }],
+  ])('%s', (value, expected) => {
+    expect(describeMediaRef({ value, media })).toEqual(expected);
+  });
+  it('falls back to the decoded size when the row has none, and translates the opaque-id name', () => {
+    expect(describeMediaRef({ value: '0b9e0d7c-1111-4222-8333-444455556666:public' }, { width: 8, height: 8, t: key => `[${key}]` }))
+      .toEqual({ name: '[Image]', size: '8 × 8' });
+  });
+  it('treats a non-string value as empty', () => {
+    expect(describeMediaRef({ value: null as unknown as string })).toBeNull();
+  });
+});
+
+describe('scoreTone', () => {
+  it.each([[100, 'success'], [80, 'success'], [79, 'warning'], [50, 'warning'], [49, 'failure'], [0, 'failure']] as const)('%i → %s', (score, tone) => {
+    expect(scoreTone({ score })).toBe(tone);
   });
 });

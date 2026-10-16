@@ -162,30 +162,37 @@ function EntryPicker({ locale, entryId, onChange, useEntryPickerHook = useWiredE
 function AnalyzePanel(props: { locale: string; analysis: SeoEntryAnalysis }) {
   const t = useSeoCopy();
   const { locale } = props;
-  const { sortedIssues } = useAnalyzePanel({ analysis: props.analysis });
+  const { sortedIssues, tone } = useAnalyzePanel({ analysis: props.analysis });
 
+  /* Heading + score pill on one line, issues as a compact list (owner, 2026-10-15: the bare
+     "Score: 100 / No issues." read as unstyled text). The pill reuses the issue pills' status
+     tones, so the score and the issues under it speak one colour language. */
   return (
-    <div className="jini-seo-analyze-panel">
-      <h3>{t({ locale: locale, key: "Analysis" })}</h3>
-      <p>
-        {t({ locale: locale, key: "Score:" })} <strong>{props.analysis.score}</strong>
-      </p>
+    <section className="jini-seo-analyze-panel" aria-labelledby="seo-analysis-heading">
+      <div className="jini-seo-analyze-head">
+        <h3 id="seo-analysis-heading">{t({ locale: locale, key: "Analysis" })}</h3>
+        <span className={`jini-status jini-status-${tone} jini-seo-score`}>
+          {t({ locale: locale, key: "Score:" })} <strong>{props.analysis.score}</strong>
+        </span>
+      </div>
       {sortedIssues.length === 0 ? (
-        <p className="jini-muted-cell">{t({ locale: locale, key: "No issues." })}</p>
+        <p className="jini-seo-analyze-empty">{t({ locale: locale, key: "No issues." })}</p>
       ) : (
-        <ul>
+        <ul className="jini-seo-issues">
           {sortedIssues.map((issue, i) => (
-            <li key={`${issue.code}-${i}`}>
-              <span className={`jini-status jini-status-${issue.severity === "error" ? "failure" : issue.severity === "warning" ? "unavailable" : "success"}`}>
+            <li key={`${issue.code}-${i}`} className="jini-seo-issue">
+              <span className={`jini-status jini-status-${issue.severity === "error" ? "failure" : issue.severity === "warning" ? "warning" : "success"}`}>
                 {issue.severity}
-              </span>{" "}
-              <code>{issue.code}</code>
-              {issue.field ? <span className="jini-muted-cell"> ({issue.field})</span> : null} — {issue.message}
+              </span>
+              <span className="jini-seo-issue-text">
+                {issue.message}
+                {issue.field ? <span className="jini-muted-cell"> ({issue.field})</span> : null}
+              </span>
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -223,30 +230,35 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
       {/* Heading, explanation and Save share one sticky row (2026-10-15, owner: "the UI for
           ?tab=entries is horrible" — Save sat lost under eleven fields). The post editor keeps its
           own action row pinned the same way. */}
+      {/* The inner bar is what paints: `.jini-seo-entry-head` is the sticky scroll-state container,
+          and a container query can only style its descendants — so the bottom edge that appears
+          only while the row is pinned (owner, 2026-10-15) lives on this child. */}
       <div className="jini-seo-entry-head">
-        <h3>{t({ locale: locale, key: "Per-entry overrides" })}</h3>
-        {/* Two `t()` calls, not one longer string: the first sentence's English text IS its i18n key
-            and is translated in all 21 locales (`seo-i18n.ts`), so extending it would orphan every
-            one of those translations. The second sentence is a new English-only key that falls
-            through to itself — the disclosed, additive trade `react/hooks/SeoPage.hooks.ts`'s header
-            already makes for the tab labels. It exists because a field's two empty states used to
-            be indistinguishable AND unescapable: emptying a box stored `""` as a real override,
-            which `seo.ts` resolves ahead of the site default, so the operator had no way back.
-            Shown as an ⓘ tip rather than a loose paragraph above the form (owner, 2026-10-15). */}
-        <InfoTip
-          label={`${t({ locale: locale, key: "Fields show the currently-effective value (author override, or site default, or derived from the entry). Only fields you change here are saved as overrides." })} ${t({ locale: locale, key: "Empty a field and save to remove its override — the entry falls back to the site default." })}`}
-        />
-        <span className="jini-seo-entry-head-actions">
-          <button
-            type="button"
-            className="jini-btn"
-            onClick={save}
-            disabled={saving || Object.keys(touched).length === 0}
-            {...agentHandle({ handle: "seo-entry-save-overrides" }, { role: "button", label: "Save this entry's SEO overrides" })}
-          >
-            {saving ? t({ locale: locale, key: "Saving…" }) : t({ locale: locale, key: "Save overrides" })}
-          </button>
-        </span>
+        <div className="jini-seo-entry-head-bar">
+          <h3>{t({ locale: locale, key: "Per-entry overrides" })}</h3>
+          {/* Two `t()` calls, not one longer string: the first sentence's English text IS its i18n key
+              and is translated in all 21 locales (`seo-i18n.ts`), so extending it would orphan every
+              one of those translations. The second sentence is a new English-only key that falls
+              through to itself — the disclosed, additive trade `react/hooks/SeoPage.hooks.ts`'s header
+              already makes for the tab labels. It exists because a field's two empty states used to
+              be indistinguishable AND unescapable: emptying a box stored `""` as a real override,
+              which `seo.ts` resolves ahead of the site default, so the operator had no way back.
+              Shown as an ⓘ tip rather than a loose paragraph above the form (owner, 2026-10-15). */}
+          <InfoTip
+            label={`${t({ locale: locale, key: "Fields show the currently-effective value (author override, or site default, or derived from the entry). Only fields you change here are saved as overrides." })} ${t({ locale: locale, key: "Empty a field and save to remove its override — the entry falls back to the site default." })}`}
+          />
+          <span className="jini-seo-entry-head-actions">
+            <button
+              type="button"
+              className="jini-btn"
+              onClick={save}
+              disabled={saving || Object.keys(touched).length === 0}
+              {...agentHandle({ handle: "seo-entry-save-overrides" }, { role: "button", label: "Save this entry's SEO overrides" })}
+            >
+              {saving ? t({ locale: locale, key: "Saving…" }) : t({ locale: locale, key: "Save overrides" })}
+            </button>
+          </span>
+        </div>
       </div>
       {notice ? <div className="jini-notice">{notice}</div> : null}
       {saveError ? (

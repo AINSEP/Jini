@@ -10,6 +10,7 @@ import {
   focusableInDomOrder,
   highlightedOptionOrNull,
   repositionOrClose,
+  scrollPaneTop,
   resolveTabTarget,
   usePanelPosition,
   useSelectDropdown,
@@ -88,6 +89,43 @@ describe("computePosition", () => {
       const position = computePosition({ trigger: trigger });
       expect(position.top).toBeDefined();
       expect(position.maxHeight).toBe(120);
+    });
+  });
+});
+
+describe("scrollPaneTop", () => {
+  function inPane(paneTop: number, paneHeight: number, overflowY = "auto") {
+    const pane = document.createElement("div");
+    pane.style.overflowY = overflowY;
+    Object.defineProperty(pane, "clientHeight", { value: paneHeight });
+    vi.spyOn(pane, "getBoundingClientRect").mockReturnValue({ top: paneTop } as DOMRect);
+    const trigger = fakeTrigger({ top: 350, bottom: 380, left: 0, width: 100 });
+    pane.appendChild(trigger);
+    document.body.appendChild(pane);
+    return { trigger, pane };
+  }
+  afterEach(() => { document.body.innerHTML = ""; });
+
+  it("is the top of a tall scrolling pane, so an upward panel stops under the app bar", () => {
+    withInnerHeight(400, () => {
+      const { trigger } = inPane(52, 348);
+      expect(scrollPaneTop({ trigger })).toBe(52);
+      // spaceAbove = 350 - 52 = 298 -> the panel caps there instead of reaching y=4.
+      expect(computePosition({ trigger }).maxHeight).toBe(298 - 8);
+    });
+  });
+
+  it("ignores small scrolling wrappers and non-scrolling ancestors", () => {
+    withInnerHeight(400, () => {
+      expect(scrollPaneTop({ trigger: inPane(300, 60).trigger })).toBe(0);
+      expect(scrollPaneTop({ trigger: inPane(52, 348, "visible").trigger })).toBe(0);
+      expect(scrollPaneTop({ trigger: fakeTrigger({}) })).toBe(0);
+    });
+  });
+
+  it("never returns a negative top for a pane scrolled above the viewport", () => {
+    withInnerHeight(400, () => {
+      expect(scrollPaneTop({ trigger: inPane(-40, 900, "scroll").trigger })).toBe(0);
     });
   });
 });

@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import type { FormEvent, ComponentType } from 'react';
 import type { TabBarTab } from '@jini-ai/ui/tab-strip';
 import { SeoDefaultsIcon, SeoSitemapIcon, SeoEntriesIcon } from '../components/SeoIcons.js';
-import { buildSeoSettingsPatch, resolveSeoTabId, sortIssuesBySeverity } from '../../rules.js';
+import { buildSeoSettingsPatch, resolveSeoTabId, sortIssuesBySeverity, scoreTone } from '../../rules.js';
 import type { SeoTranslator, SeoSettingsPatch, SeoSettings, SeoEntryAnalysis } from '../../models.js';
 import { useSeoOptions } from './SeoPorts.hooks.js';
 export { buildSeoSettingsPatch, resolveSeoTabId } from '../../rules.js';
@@ -26,7 +26,7 @@ export function useSeoTabs({ tabId }: { tabId?: string | null | undefined }, _op
   return { activeTabId: resolveSeoTabId({ tabId }), tabs: resolveSeoTabs({}, { t }) };
 }
 export function useAnalyzePanel({ analysis }: { analysis: SeoEntryAnalysis }, _optional: Record<string, never> = {}) {
-  return { sortedIssues: sortIssuesBySeverity({ issues: analysis.issues }) };
+  return { sortedIssues: sortIssuesBySeverity({ issues: analysis.issues }), tone: scoreTone({ score: analysis.score }) };
 }
 /** All seven defaults remain in one FormData submission; tabs never split this form. */
 export function useSeoDefaults({ save }: { save: (patch: SeoSettingsPatch) => Promise<void> }, _optional: Record<string, never> = {}) {

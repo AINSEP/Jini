@@ -1,6 +1,6 @@
 import type { AdminSeoPort } from '../ports.js';
 import { resolveMediaRefPreviewUrl } from '../rules.js';
-import type { AdminSeoSettings, AdminSeoMeta, AdminSeoAnalysis, AdminSeoEntryChoice } from '../../core/ports/seo.js';
+import type { AdminSeoSettings, AdminSeoMeta, AdminSeoAnalysis, AdminSeoEntryChoice, AdminSeoMediaSummary } from '../../core/ports/seo.js';
 /** Host owns authentication, workspace addressing, retries, JSON and API error decoding. */
 export interface SeoTransportPort {
   request<T>(required: { path: string; method: 'GET' | 'PUT' | 'POST'; body?: unknown }, optional?: { signal?: AbortSignal }): Promise<T>;
@@ -38,6 +38,11 @@ export function createHttpSeoApi(
     analyzeSeoEntry: ({ entryId }) => data<AdminSeoAnalysis>(`${entryPath(entryId)}/analyze`, 'GET'),
     listSeoPosts: () => choices('posts'),
     listSeoPages: () => choices('pages'),
+    // The admin media list route the picker already reads; projected so no media row type leaks in.
+    async listSeoMedia() {
+      const response = await transport.request<{ media: readonly AdminSeoMediaSummary[] }>({ path: `${base}/media`, method: 'GET' });
+      return response.media.map(({ id, slug, title, width, height }) => ({ id, title, ...(slug ? { slug } : {}), width: width ?? null, height: height ?? null }));
+    },
     mediaOriginalUrl: ({ id }) => transport.url({ path: `${base}/media/${encodeURIComponent(id)}/original` }),
     mediaPreviewUrl: ({ value }) => resolveMediaRefPreviewUrl({ value, mediaOriginalUrl: id => transport.url({ path: `${base}/media/${encodeURIComponent(id)}/original` }) }, { siteOrigin }),
     ...(imageTransport ? { async inspectShareImage({ url }: { url: string }, options: { signal?: AbortSignal } = {}) {

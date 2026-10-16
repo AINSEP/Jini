@@ -323,8 +323,8 @@ describe("Seo — defaults form", () => {
     renderSeo();
     expect(screen.getByLabelText(/Title template/)).toHaveValue("%s | Site");
     expect(screen.getByLabelText("Default meta description")).toHaveValue("A default description");
-    const image = screen.getByLabelText(/Default Open Graph/);
-    expect(image).toHaveValue("Selected image");
+    const image = screen.getByRole("group", { name: /Default Open Graph/ });
+    expect(within(image).getByText("media")).toBeInTheDocument();
     expect(new FormData(image.closest('form')!).getAll('defaultOgImage')).toEqual(['media:og1']);
     expect(screen.getByLabelText("Twitter @site handle")).toHaveValue("@site");
     expect(screen.getByRole("checkbox", { name: "Default noindex" })).not.toBeChecked();
@@ -337,7 +337,7 @@ describe("Seo — defaults form", () => {
       settings: { titleTemplate: "%s", defaultRobots: { noindex: false, nofollow: false }, sitemapEnabled: false, robotsRules: [] },
     });
     expect(screen.getByLabelText("Default meta description")).toHaveValue("");
-    expect(screen.getByLabelText(/Default Open Graph/)).toHaveValue("");
+    expect(within(screen.getByRole("group", { name: /Default Open Graph/ })).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Twitter @site handle")).toHaveValue("");
   });
 
@@ -432,12 +432,11 @@ describe("Seo — default OG image (MediaRefField)", () => {
     vi.restoreAllMocks();
   });
 
-  it("typing directly into a URL field still calls setDefaultOgImage", async () => {
-    const user = userEvent.setup();
-    const setDefaultOgImage = vi.fn();
-    renderSeo({ defaultOgImage: "https://images.example/cover.png", setDefaultOgImage });
-    await user.type(screen.getByLabelText(/Default Open Graph/), "x");
-    expect(setDefaultOgImage).toHaveBeenCalledWith("https://images.example/cover.pngx");
+  // The text box is gone (owner, 2026-10-15); an existing URL value is named by its file.
+  it("names an existing URL value by its file name, with no text box", () => {
+    renderSeo({ defaultOgImage: "https://images.example/cover.png" });
+    expect(within(screen.getByRole("group", { name: /Default Open Graph/ })).getByText("cover.png")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /Default Open Graph/ })).not.toBeInTheDocument();
   });
 
   it("has no Remove control while empty, and shows one once a value is set", () => {
@@ -615,10 +614,10 @@ describe("SeoEntryPanel", () => {
     expect(screen.getByRole("checkbox", { name: "Nofollow" })).not.toBeChecked();
     expect(screen.getByLabelText("OG title")).toHaveValue("OG title");
     expect(screen.getByLabelText("OG description")).toHaveValue("OG desc");
-    expect(screen.getByLabelText(/OG image/)).toHaveValue("og.png");
+    expect(within(screen.getByRole("group", { name: "OG image" })).getByText("og.png")).toBeInTheDocument();
     expect(screen.getByLabelText("Twitter title")).toHaveValue("Twitter title");
     expect(screen.getByLabelText("Twitter description")).toHaveValue("Twitter desc");
-    expect(screen.getByLabelText("Twitter image")).toHaveValue("tw.png");
+    expect(within(screen.getByRole("group", { name: "Twitter image" })).getByText("tw.png")).toBeInTheDocument();
   });
 
   it("falls back to '' for optional resolved fields the entry omits", () => {
@@ -630,7 +629,8 @@ describe("SeoEntryPanel", () => {
     });
     expect(screen.getByLabelText("Description")).toHaveValue("");
     expect(screen.getByLabelText("OG description")).toHaveValue("");
-    expect(screen.getByLabelText(/OG image/)).toHaveValue("");
+    // Empty image: just "Choose image", no name and no Remove.
+    expect(within(screen.getByRole("group", { name: "OG image" })).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
   });
 
   it("typing in the Title field calls setField('title', value)", async () => {
@@ -689,14 +689,6 @@ describe("SeoEntryPanel", () => {
     expect(setField).toHaveBeenCalledWith("ogDescription", "OG descx");
   });
 
-  it("typing in OG image calls setField('ogImage', value)", async () => {
-    const user = userEvent.setup();
-    const setField = vi.fn();
-    renderPanel({ setField });
-    await user.type(screen.getByLabelText("OG image"), "x");
-    expect(setField).toHaveBeenCalledWith("ogImage", "og.pngx");
-  });
-
   it("typing in Twitter title calls setField('twitterTitle', value)", async () => {
     const user = userEvent.setup();
     const setField = vi.fn();
@@ -713,14 +705,6 @@ describe("SeoEntryPanel", () => {
     expect(setField).toHaveBeenCalledWith("twitterDescription", "Twitter descx");
   });
 
-  it("typing in Twitter image calls setField('twitterImage', value)", async () => {
-    const user = userEvent.setup();
-    const setField = vi.fn();
-    renderPanel({ setField });
-    await user.type(screen.getByLabelText("Twitter image"), "x");
-    expect(setField).toHaveBeenCalledWith("twitterImage", "tw.pngx");
-  });
-
   it("every text/textarea field falls back to '' when fieldValue() itself returns undefined (e.g. setField(key, undefined) was called)", () => {
     renderPanel({ fieldValue: (() => undefined) as SeoEntryPanelController["fieldValue"] });
     expect(screen.getByLabelText("Title")).toHaveValue("");
@@ -728,10 +712,10 @@ describe("SeoEntryPanel", () => {
     expect(screen.getByLabelText("Canonical URL")).toHaveValue("");
     expect(screen.getByLabelText("OG title")).toHaveValue("");
     expect(screen.getByLabelText("OG description")).toHaveValue("");
-    expect(screen.getByLabelText("OG image")).toHaveValue("");
+    expect(within(screen.getByRole("group", { name: "OG image" })).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Twitter title")).toHaveValue("");
     expect(screen.getByLabelText("Twitter description")).toHaveValue("");
-    expect(screen.getByLabelText("Twitter image")).toHaveValue("");
+    expect(within(screen.getByRole("group", { name: "Twitter image" })).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
   });
 
   it("the checkbox reflects fieldValue() falling back to false when neither touched nor resolved sets it", () => {
@@ -794,7 +778,7 @@ describe("SeoEntryPanel — OG/Twitter image pickers (MediaRefField)", () => {
   }
 
   function fieldContainer(labelText: string): HTMLElement {
-    const container = screen.getByLabelText(labelText).closest(".jini-media-ref-field");
+    const container = screen.getByRole("group", { name: labelText }).closest(".jini-media-ref-field");
     if (!(container instanceof HTMLElement)) throw new Error(`no .jini-media-ref-field ancestor for "${labelText}"`);
     return container;
   }
@@ -860,8 +844,8 @@ describe("AnalyzePanel (reached via SeoEntryPanel's analysis)", () => {
   it("renders issues sorted error-first (via sortIssuesBySeverity)", () => {
     renderWithAnalysis(ANALYSIS);
     const items = screen.getAllByRole("listitem");
-    expect(items[0]).toHaveTextContent("no-canonical");
-    expect(items[1]).toHaveTextContent("missing-alt");
+    expect(items[0]).toHaveTextContent("No canonical URL set");
+    expect(items[1]).toHaveTextContent("Image missing alt text");
   });
 
   it("shows the field name in parens when an issue has one, omits it when not", () => {
@@ -869,20 +853,25 @@ describe("AnalyzePanel (reached via SeoEntryPanel's analysis)", () => {
     expect(screen.getByText("(body)")).toBeInTheDocument();
     const items = screen.getAllByRole("listitem");
     // no-canonical has no `field` — its own list item text should not contain a parenthetical.
-    expect(items.find((li) => li.textContent?.includes("no-canonical"))?.textContent).not.toMatch(/\(.*\)/);
+    expect(items.find((li) => li.textContent?.includes("No canonical URL set"))?.textContent).not.toMatch(/\(.*\)/);
   });
 
-  it("maps severity to the matching status class: error->failure, warning->unavailable, info->success", () => {
+  it("maps severity to the matching status class: error->failure, warning->warning, info->success", () => {
     renderWithAnalysis({
       ...ANALYSIS,
       issues: [
-        { code: "e", severity: "error", message: "m" },
-        { code: "w", severity: "warning", message: "m" },
-        { code: "i", severity: "info", message: "m" },
+        { code: "e", severity: "error", message: "me" },
+        { code: "w", severity: "warning", message: "mw" },
+        { code: "i", severity: "info", message: "mi" },
       ],
     });
-    expect(screen.getByText("e").closest("li")?.querySelector(".jini-status")).toHaveClass("jini-status-failure");
-    expect(screen.getByText("w").closest("li")?.querySelector(".jini-status")).toHaveClass("jini-status-unavailable");
-    expect(screen.getByText("i").closest("li")?.querySelector(".jini-status")).toHaveClass("jini-status-success");
+    expect(screen.getByText("me").closest("li")?.querySelector(".jini-status")).toHaveClass("jini-status-failure");
+    expect(screen.getByText("mw").closest("li")?.querySelector(".jini-status")).toHaveClass("jini-status-warning");
+    expect(screen.getByText("mi").closest("li")?.querySelector(".jini-status")).toHaveClass("jini-status-success");
+  });
+
+  it("colours the score pill by band: 82 reads as success", () => {
+    renderWithAnalysis(ANALYSIS);
+    expect(screen.getByText("82").closest(".jini-seo-score")).toHaveClass("jini-status-success");
   });
 });

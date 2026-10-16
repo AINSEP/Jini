@@ -15,7 +15,7 @@ import type { MediaRefFieldController, SeoTranslator } from '../../models.js';
  */
 export function useShareImageWarning({ value, previewUrl, api }: {
   value: string; previewUrl: string | null; api: AdminSeoPort;
-}, { t = key => key }: { t?: SeoTranslator | undefined } = {}): Pick<MediaRefFieldController, 'warning' | 'onPreviewLoad' | 'onPreviewError'> {
+}, { t = key => key }: { t?: SeoTranslator | undefined } = {}): Pick<MediaRefFieldController, 'warning' | 'onPreviewLoad' | 'onPreviewError'> & { naturalWidth?: number | undefined; naturalHeight?: number | undefined } {
   const currentUrl = useRef(previewUrl);
   currentUrl.current = previewUrl;
   const [decoded, setDecoded] = useState<{ url: string; width?: number; height?: number; failed?: boolean } | null>(null);
@@ -59,6 +59,7 @@ export function useShareImageWarning({ value, previewUrl, api }: {
   const checked = inspection?.url === previewUrl ? inspection : null;
   const error = checked?.error;
   return {
+    naturalWidth: source?.width, naturalHeight: source?.height,
     warning: shareImageWarning({ value, previewUrl, width: source?.width, height: source?.height, previewFailed: source?.failed, byteSize: checked?.byteSize,
       error: error ? interpolate({ template: t(error.key, error.vars), vars: error.vars ?? {} }) : undefined }, { t }),
     onPreviewLoad: ({ currentTarget }) => {

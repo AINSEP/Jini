@@ -75,6 +75,7 @@ function SelectOptionRow({
       {...(optionHandle ? agentHandle({ handle: optionHandle }, { role: "button", label: option.label }) : {})}
     >
       <span className="select-option-label">{option.label}</span>
+      {option.detail ? <span className="select-option-detail">{option.detail}</span> : null}
       {option.badge ? <span className="select-option-badge">{option.badge}</span> : null}
       {isSelected ? (
         <svg className="select-option-check" viewBox="0 0 16 16" fill="none" aria-hidden="true">

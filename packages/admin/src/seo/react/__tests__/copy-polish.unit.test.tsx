@@ -49,9 +49,11 @@ describe('SEO copy polish through the injected ports', () => {
     const title = await screen.findByLabelText('Title template (must contain %s)');
     expect(title).toHaveValue('%s | Site');
     expect(screen.queryByText('Title template (must contain %S)')).not.toBeInTheDocument();
-    const image = screen.getByRole('textbox', { name: 'Default Open Graph / Twitter image' });
-    expect(image).toHaveValue('Selected image');
-    expect(image).toHaveAttribute('readonly');
+    // No read-only "Selected image" box any more: the row names the file (an opaque id with no
+    // media listing falls back to "Image") beside its thumbnail.
+    const image = screen.getByRole('group', { name: 'Default Open Graph / Twitter image' });
+    expect(within(image).getByText('Image')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Default Open Graph / Twitter image' })).not.toBeInTheDocument();
     expect(screen.getByRole('img')).toHaveAttribute('src', '/media/b4879dd4-1be6-4a51-b1a9-1446ec2dc144/original');
     await user.clear(title);
     await user.type(title, '%s — Updated');
@@ -66,21 +68,21 @@ describe('SEO copy polish through the injected ports', () => {
     const { api } = renderSeo('entries');
     await user.click(await screen.findByRole('combobox', { name: 'Entry' }));
     await user.click(await screen.findByRole('option', { name: 'Sample page' }));
-    const image = await screen.findByLabelText('OG image');
-    expect(image).toHaveValue('https://images.example/og.jpg');
-    expect(screen.getByLabelText('Twitter image')).toHaveValue('https://images.example/twitter.jpg');
+    const image = await screen.findByRole('group', { name: 'OG image' });
+    expect(within(image).getByText('og.jpg')).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Twitter image' })).getByText('twitter.jpg')).toBeInTheDocument();
     expect(screen.getByLabelText('Twitter title')).toHaveValue('Sample page');
     expect(screen.queryByText('OG image (media ref or URL)')).not.toBeInTheDocument();
-    const field = within(image.closest('.jini-media-ref-field') as HTMLElement);
+    const field = within(image);
     await user.click(field.getByRole('button', { name: 'Choose image' }));
     await user.click(screen.getByRole('button', { name: 'Sunset' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(image).toHaveValue('Selected image');
+    expect(field.getByText('sunset')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Save overrides' }));
     await waitFor(async () => expect((await api.getSeoEntry({ entryId: 'page-1' })).openGraph.image).toBe('sunset:public'));
     await user.click(field.getByRole('button', { name: 'Remove' }));
-    expect(image).toHaveValue('');
-    expect(image).not.toHaveAttribute('readonly');
+    expect(field.queryByText('sunset')).not.toBeInTheDocument();
+    expect(field.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Save overrides' }));
     await waitFor(async () => expect((await api.getSeoEntry({ entryId: 'page-1' })).openGraph.image).toBe('https://images.example/og.jpg'));
   });

@@ -1,5 +1,5 @@
 /** Owner brief: shared warning behavior for site defaults and per-entry social images. */
-import { act, renderHook, waitFor, render, screen, fireEvent } from '@testing-library/react';
+import { act, renderHook, waitFor, render, screen, fireEvent } from '../../../__tests__/fetch-query-support.js';
 import { expect, test, vi } from 'vitest';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';
 import { SeoEntrySection } from '../pages/SeoPage.js';
@@ -96,6 +96,19 @@ test('HTTP inspection keeps absent Content-Length unknown and passes the cancell
   const signal = new AbortController().signal;
   expect(await port.inspectShareImage!({ url: '/original/cover' }, { signal })).toEqual({ status: 200, byteSize: null });
   expect(reads).toEqual([[{ url: '/original/cover' }, { signal }]]);
+});
+
+test('HTTP media listing reads the admin media route and keeps only what the field names', async () => {
+  const requests: unknown[] = [];
+  const port = createHttpSeoApi({ transport: { request: async <T,>(input: unknown) => { requests.push(input); return { media: [
+    { id: 'a', slug: 'sunset', title: 'Sunset', width: 1200, height: 630, alt: 'x', sha256: 'h' },
+    { id: 'b', slug: '', title: 'Untitled', alt: '' },
+  ] } as T; }, url: ({ path }) => path }, basePath: '/w' });
+  expect(await port.listSeoMedia!({})).toEqual([
+    { id: 'a', slug: 'sunset', title: 'Sunset', width: 1200, height: 630 },
+    { id: 'b', title: 'Untitled', width: null, height: null },
+  ]);
+  expect(requests).toEqual([{ path: '/w/media', method: 'GET' }]);
 });
 
 // Owner, 2026-10-15: the yellow callout under every image was "completely useless". The hook keeps
