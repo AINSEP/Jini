@@ -98,15 +98,16 @@ test('HTTP inspection keeps absent Content-Length unknown and passes the cancell
   expect(reads).toEqual([[{ url: '/original/cover' }, { signal }]]);
 });
 
-test.each(['seo-default-og-image', 'seo-entry-og-image', 'seo-entry-twitter-image'])('renders the warning beside %s through the shared field', async id => {
-  const port = api(async () => ({ status: 200, byteSize: 66 }));
+// Owner, 2026-10-15: the yellow callout under every image was "completely useless". The hook keeps
+// computing it (covered above); the shared field no longer paints it.
+test.each(['seo-default-og-image', 'seo-entry-og-image', 'seo-entry-twitter-image'])('does not paint the warning beside %s', async id => {
+  const inspected: string[] = [];
+  const port = api(async ({ url }) => { inspected.push(url); return { status: 200, byteSize: 66 }; });
   render(<SeoPortsContext.Provider value={{ seoApi: port }}><SeoOptionsContext.Provider value={{ siteUrl: () => 'https://site.test', t: key => key }}><MediaRefField locale="en" id={id} label="Share image" value="cover:public" onChange={() => {}} /></SeoOptionsContext.Provider></SeoPortsContext.Provider>);
-  await waitFor(() => expect(screen.getByRole('status').textContent).toBe('The share image is only 66 bytes; use an image of at least 5 KB (5120 bytes).'));
-  expect(screen.getByLabelText('Share image').getAttribute('aria-describedby')).toBe(`${id}-warning`);
-  expect(screen.getByRole('status').classList.contains('jini-notice')).toBe(true);
-  expect(screen.getByRole('status').classList.contains('jini-notice-warning')).toBe(true);
-  fireEvent.error(screen.getByAltText('Share image preview'));
-  expect(screen.getByRole('status').textContent).toBe('The share image could not be loaded. Choose an available image.');
+  await waitFor(() => expect(inspected).toEqual(['/original/cover']));
+  expect(screen.queryByRole('status')).toBeNull();
+  expect(screen.getByLabelText('Share image').hasAttribute('aria-describedby')).toBe(false);
+  expect(screen.getByAltText('Share image preview')).toBeTruthy();
 });
 
 test.each(['https://external.test/cover.png', '//external.test/cover.png'])('external image %s skips the CORS-sensitive HEAD while retaining decoded-width diagnostics', async value => {
@@ -150,18 +151,10 @@ test('warning policy translates each explanation with stable keys and measured v
 test('wired fields translate HTTP failures and update copy when the host translator changes', async () => {
   const port = api(async () => ({ status: 404, byteSize: null }));
   const key = 'The share image is missing (HTTP {status}).';
-  const { rerender } = render(
-    <SeoPortsContext.Provider value={{ seoApi: port }}><SeoOptionsContext.Provider value={{ siteUrl: () => 'https://site.test', t: text => text === key ? 'Ausente (HTTP {status}).' : text }}>
-      <MediaRefField locale="es" id="translated-share" label="Share image" value="cover:public" onChange={() => {}} />
-    </SeoOptionsContext.Provider></SeoPortsContext.Provider>,
-  );
-  await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Ausente (HTTP 404).'));
-  rerender(
-    <SeoPortsContext.Provider value={{ seoApi: port }}><SeoOptionsContext.Provider value={{ siteUrl: () => 'https://site.test', t: text => text === key ? 'Fehlt (HTTP {status}).' : text }}>
-      <MediaRefField locale="de" id="translated-share" label="Share image" value="cover:public" onChange={() => {}} />
-    </SeoOptionsContext.Provider></SeoPortsContext.Provider>,
-  );
-  expect(screen.getByRole('status').textContent).toBe('Fehlt (HTTP 404).');
+  const { result, rerender } = renderHook(({ copy }) => useMediaRefField({ value: 'cover:public', onChange: () => {}, api: port }, { t: text => text === key ? copy : text }), { initialProps: { copy: 'Ausente (HTTP {status}).' } });
+  await waitFor(() => expect(result.current.warning).toBe('Ausente (HTTP 404).'));
+  rerender({ copy: 'Fehlt (HTTP {status}).' });
+  expect(result.current.warning).toBe('Fehlt (HTTP 404).');
 });
 
 test.each([
@@ -199,11 +192,8 @@ test('reloaded entry fields inspect the source reference even when the public re
     inspectShareImage: async ({ url }) => { inspected.push(url); return { status: 200, byteSize: 66 }; },
   };
   render(<FetchQueryProvider><SeoPortsContext.Provider value={{ seoApi: port }}><SeoOptionsContext.Provider value={{ siteUrl: () => 'https://admin.test', t: key => key }}><SeoEntrySection locale="en" useSeoEntrySectionHook={() => ({ entryId: 'page', setEntryId: () => {} })} /></SeoOptionsContext.Provider></SeoPortsContext.Provider></FetchQueryProvider>);
-  await waitFor(() => expect(screen.getAllByRole('status').map(node => node.textContent)).toEqual([
-    'The share image is only 66 bytes; use an image of at least 5 KB (5120 bytes).',
-    'The share image is only 66 bytes; use an image of at least 5 KB (5120 bytes).',
-  ]));
-  expect(inspected).toEqual(['/original/cover', '/original/cover']);
+  await waitFor(() => expect(inspected).toEqual(['/original/cover', '/original/cover']));
+  expect(screen.queryByRole('status')).toBeNull();
   expect(screen.getByAltText('OG image preview').getAttribute('src')).toBe('/original/cover');
   expect(screen.getByAltText('Twitter image preview').getAttribute('src')).toBe('/original/cover');
 });

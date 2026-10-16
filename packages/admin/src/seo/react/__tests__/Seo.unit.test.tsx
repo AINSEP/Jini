@@ -153,7 +153,7 @@ function mediaItem(overrides: Partial<AdminMedia> = {}): AdminMedia {
 }
 
 function entryPickerController(overrides: Partial<EntryPickerController> = {}): EntryPickerController {
-  return { entries: [POST], error: null, ...overrides };
+  return { entries: [POST], options: [{ value: "p1", label: "My Post", group: "Posts" }], error: null, ...overrides };
 }
 
 function seoEntryPanelController(overrides: Partial<SeoEntryPanelController> = {}): SeoEntryPanelController {
@@ -522,23 +522,18 @@ describe("Seo — View sitemap modal", () => {
 describe("SeoEntrySection / EntryPicker", () => {
   it("renders the EntryPicker with no entry selected initially", () => {
     renderSeo({}, ENTRIES_TAB);
-    expect(screen.getByRole("combobox", { name: "Entry" })).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "Entry" })).toHaveTextContent("Choose an entry…");
     expect(screen.queryByText("Per-entry overrides")).not.toBeInTheDocument();
   });
 
-  it("EntryPicker: keeps the 'Entry' caption as a real label but stops painting it", () => {
+  it("EntryPicker: is named 'Entry' without painting the word", () => {
     // Owner asked for the visible word gone ("you can actually just get rid of 'Entry'") — the
-    // placeholder option already says "Choose an entry…". The accessible name is NOT allowed to go
-    // with it: a select whose only text is a placeholder option has no name at all, which is the
-    // exact defect a previous accessibility pass found on `MenuEditor.tsx`'s target-kind select.
-    // Both halves are asserted together, because either one alone still passes on the old markup
-    // (name-only was already green before the caption was hidden) or on a broken one (hidden-only
-    // would pass on a `<span>` with no label around it).
+    // placeholder already says "Choose an entry…". The accessible name is NOT allowed to go with
+    // it: a control whose only text is a placeholder has no name at all, the exact defect a
+    // previous accessibility pass found on `MenuEditor.tsx`'s target-kind select.
     renderSeo({}, ENTRIES_TAB);
-    const select = screen.getByRole("combobox", { name: "Entry" });
-    const caption = screen.getByText("Entry");
-    expect(caption).toHaveClass("jini-visually-hidden");
-    expect(caption.closest("label")).toContainElement(select);
+    expect(screen.getByRole("combobox", { name: "Entry" })).toBeInTheDocument();
+    expect(screen.queryByText("Entry")).not.toBeInTheDocument();
   });
 
   it("EntryPicker: shows a loading notice while entries is null", () => {
@@ -554,17 +549,29 @@ describe("SeoEntrySection / EntryPicker", () => {
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
-  it("EntryPicker: lists each entry as '{title} ({status})'", () => {
+  it("EntryPicker: groups entries and pills only the non-published ones", async () => {
+    const user = userEvent.setup();
+    entryPickerRef.current = entryPickerController({ options: [
+      { value: "pg1", label: "About", group: "Pages" },
+      { value: "p1", label: "My Post", group: "Posts" },
+      { value: "p2", label: "Next Post", group: "Posts", badge: "draft" },
+    ] });
     renderSeo({}, ENTRIES_TAB);
-    expect(screen.getByRole("option", { name: "My Post (published)" })).toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "Entry" }));
+    expect(screen.getByText("Pages")).toHaveClass("select-group-label");
+    expect(screen.getByText("Posts")).toHaveClass("select-group-label");
+    expect(screen.getByRole("option", { name: "My Post" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Next Post draft" })).toBeInTheDocument();
+    expect(screen.getByText("draft")).toHaveClass("select-option-badge");
   });
 
-  it("changing the picker calls setEntryId", async () => {
+  it("choosing an entry calls setEntryId", async () => {
     const user = userEvent.setup();
     const setEntryId = vi.fn();
     seoEntrySectionRef.current = seoEntrySectionController({ setEntryId });
     renderSeo({}, ENTRIES_TAB);
-    await user.selectOptions(screen.getByRole("combobox", { name: "Entry" }), "p1");
+    await user.click(screen.getByRole("combobox", { name: "Entry" }));
+    await user.click(screen.getByRole("option", { name: "My Post" }));
     expect(setEntryId).toHaveBeenCalledWith("p1");
   });
 

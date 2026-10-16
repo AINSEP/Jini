@@ -5,6 +5,7 @@ import type { SeoTabController } from "../hooks/SeoPage.hooks.js";
 import { agentHandle } from "@jini-ai/agentic";
 
 import { TabBar } from "@jini-ai/ui/tab-strip";
+import { InfoTip, Select } from "@jini-ai/ui/admin-widgets";
 import { useSeoCopy, useSeoOptions } from "../hooks/SeoPorts.hooks.js";
 import { actionLabel, orEmpty } from "../../rules.js";
 import { useWiredEntryPicker } from "../hooks/use-entry-picker.hooks.js";
@@ -123,44 +124,35 @@ export interface EntryPickerProps {
   useEntryPickerHook?: typeof useWiredEntryPicker;
 }
 
-/** Dropdown over every post + page, sourced from the already-existing `listPosts`/`listPages`
- * routes — cheapest entry-selection UX available given what's already built (REQ-06). */
+/** Searchable picker over every page + post, sourced from the already-existing `listPosts`/`listPages`
+ * routes (REQ-06). It was a native `<select>`; with a few dozen entries that opened as one tall OS
+ * list with "(published)" after every row (owner, 2026-10-15: "we have a searchable dropdown
+ * right?"). The shared admin-widgets `Select` already types-to-filter and handles the keyboard, so
+ * rows are just grouped Pages/Posts with a pill only for the non-published exceptions
+ * (`entryPickerOptions` in `rules.ts`). */
 function EntryPicker({ locale, entryId, onChange, useEntryPickerHook = useWiredEntryPicker }: EntryPickerProps) {
   const t = useSeoCopy();
-  const { entries, error } = useEntryPickerHook();
+  const { entries, options, error } = useEntryPickerHook();
 
   if (error) return <div className="jini-notice jini-notice-error">{error}</div>;
   if (!entries) return <div className="jini-notice">{t({ locale: locale, key: "Loading entries…" })}</div>;
 
   /* The "Entry" caption is no longer painted (owner, 2026-09-06: "you can actually just get rid of
-     'Entry'") — the placeholder option already says "Choose an entry…", so the visible word was
-     saying it twice, and with no gap between the two it read as one smashed-together control.
-     It stays a REAL label rather than becoming a placeholder-only select: this is the exact
-     `<label class="a11y-label-wrap">` + `.visually-hidden` idiom `styles/editor.css` documents for
-     the four controls a previous accessibility pass found unnamed — including, by name, a
-     `<select>` with no accessible name at all. `display: contents` drops the wrapper's own box, so
-     the select keeps the section body's sizing exactly as if the label were not there.
-     The i18n key is unchanged and still passed through `t`, so nothing dangles. */
+     'Entry'") — the placeholder already says "Choose an entry…", so the visible word was saying it
+     twice. It stays the control's accessible name (now `aria-label` on the combobox trigger) rather
+     than leaving a placeholder-only control with no name at all. The i18n key is unchanged. */
   return (
-    <label className="jini-a11y-label-wrap">
-      <span className="jini-visually-hidden">{t({ locale: locale, key: "Entry" })}</span>
-      <select
-        className="jini-select"
+    <div className="jini-seo-entry-picker">
+      <Select
         value={entryId}
-        onChange={(e) => onChange(e.target.value)}
-        {...agentHandle({ handle: "seo-entry-picker" }, {
-          role: "field",
-          label: "Choose which page or post to edit or analyze SEO for",
-        })}
-      >
-        <option value="">{t({ locale: locale, key: "Choose an entry…" })}</option>
-        {entries.map((entry) => (
-          <option key={entry.id} value={entry.id}>
-            {entry.title} ({entry.status})
-          </option>
-        ))}
-      </select>
-    </label>
+        onChange={onChange}
+        options={options ?? []}
+        placeholder={t({ locale: locale, key: "Choose an entry…" })}
+        aria-label={t({ locale: locale, key: "Entry" })}
+        agentHandle="seo-entry-picker"
+        translate={(key) => t({ locale, key })}
+      />
+    </div>
   );
 }
 
@@ -228,18 +220,34 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
 
   return (
     <div className="jini-seo-entry-panel">
-      <h3>{t({ locale: locale, key: "Per-entry overrides" })}</h3>
-      {/* Two `t()` calls in one paragraph, not one longer string: the first sentence's English text
-          IS its i18n key and is translated in all 21 locales (`seo-i18n.ts`), so extending it would
-          orphan every one of those translations. The second sentence is a new English-only key that
-          falls through to itself — the disclosed, additive trade `react/hooks/SeoPage.hooks.ts`'s header already
-          makes for the tab labels. It exists because a field's two empty states used to be
-          indistinguishable AND unescapable: emptying a box stored `""` as a real override, which
-          `seo.ts` resolves ahead of the site default, so the operator had no way back. */}
-      <p className="jini-muted-cell">
-        {t({ locale: locale, key: "Fields show the currently-effective value (author override, or site default, or derived from the entry). Only fields you change here are saved as overrides." })}{" "}
-        {t({ locale: locale, key: "Empty a field and save to remove its override — the entry falls back to the site default." })}
-      </p>
+      {/* Heading, explanation and Save share one sticky row (2026-10-15, owner: "the UI for
+          ?tab=entries is horrible" — Save sat lost under eleven fields). The post editor keeps its
+          own action row pinned the same way. */}
+      <div className="jini-seo-entry-head">
+        <h3>{t({ locale: locale, key: "Per-entry overrides" })}</h3>
+        {/* Two `t()` calls, not one longer string: the first sentence's English text IS its i18n key
+            and is translated in all 21 locales (`seo-i18n.ts`), so extending it would orphan every
+            one of those translations. The second sentence is a new English-only key that falls
+            through to itself — the disclosed, additive trade `react/hooks/SeoPage.hooks.ts`'s header
+            already makes for the tab labels. It exists because a field's two empty states used to
+            be indistinguishable AND unescapable: emptying a box stored `""` as a real override,
+            which `seo.ts` resolves ahead of the site default, so the operator had no way back.
+            Shown as an ⓘ tip rather than a loose paragraph above the form (owner, 2026-10-15). */}
+        <InfoTip
+          label={`${t({ locale: locale, key: "Fields show the currently-effective value (author override, or site default, or derived from the entry). Only fields you change here are saved as overrides." })} ${t({ locale: locale, key: "Empty a field and save to remove its override — the entry falls back to the site default." })}`}
+        />
+        <span className="jini-seo-entry-head-actions">
+          <button
+            type="button"
+            className="jini-btn"
+            onClick={save}
+            disabled={saving || Object.keys(touched).length === 0}
+            {...agentHandle({ handle: "seo-entry-save-overrides" }, { role: "button", label: "Save this entry's SEO overrides" })}
+          >
+            {saving ? t({ locale: locale, key: "Saving…" }) : t({ locale: locale, key: "Save overrides" })}
+          </button>
+        </span>
+      </div>
       {notice ? <div className="jini-notice">{notice}</div> : null}
       {saveError ? (
         <div className="jini-notice jini-notice-error" role="alert">
@@ -247,117 +255,116 @@ function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntr
         </div>
       ) : null}
 
-      <label>
-        {t({ locale: locale, key: "Title" })}
-        <input
-          className="jini-input"
-          value={fieldValue("title", resolved.title) ?? ""}
-          onChange={(e) => setField("title", e.target.value)}
-          {...agentHandle({ handle: "seo-entry-title" }, { role: "field", label: "This entry's SEO title override" })}
-        />
-      </label>
-      <label>
-        {t({ locale: locale, key: "Description" })}
-        <textarea
-          className="jini-textarea"
-          value={fieldValue("description", resolved.description ?? "") ?? ""}
-          onChange={(e) => setField("description", e.target.value)}
-          {...agentHandle({ handle: "seo-entry-description" }, { role: "field", label: "This entry's SEO description override" })}
-        />
-      </label>
-      <label>
-        {t({ locale: locale, key: "Canonical URL" })}
-        <input
-          className="jini-input"
-          value={fieldValue("canonical", resolved.canonical) ?? ""}
-          onChange={(e) => setField("canonical", e.target.value)}
-          {...agentHandle({ handle: "seo-entry-canonical" }, { role: "field", label: "This entry's canonical URL override" })}
-        />
-      </label>
-      <label>
-        <input
-          className="jini-input"
-          type="checkbox"
-          checked={fieldValue("noindex", resolved.robots.noindex) ?? false}
-          onChange={(e) => setField("noindex", e.target.checked)}
-          {...agentHandle({ handle: "seo-entry-noindex" }, { role: "checkbox", label: "Override this entry's robots noindex directive" })}
-        />
-        {t({ locale: locale, key: "Noindex" })}
-      </label>
-      <label>
-        <input
-          className="jini-input"
-          type="checkbox"
-          checked={fieldValue("nofollow", resolved.robots.nofollow) ?? false}
-          onChange={(e) => setField("nofollow", e.target.checked)}
-          {...agentHandle({ handle: "seo-entry-nofollow" }, { role: "checkbox", label: "Override this entry's robots nofollow directive" })}
-        />
-        {t({ locale: locale, key: "Nofollow" })}
-      </label>
-      <label>
-        {t({ locale: locale, key: "OG title" })}
-        <input
-          className="jini-input"
-          value={fieldValue("ogTitle", resolved.openGraph.title) ?? ""}
-          onChange={(e) => setField("ogTitle", e.target.value)}
-          {...agentHandle({ handle: "seo-entry-og-title" }, { role: "field", label: "This entry's Open Graph title override" })}
-        />
-      </label>
-      <label>
-        {t({ locale: locale, key: "OG description" })}
-        <input
-          className="jini-input"
-          value={fieldValue("ogDescription", resolved.openGraph.description ?? "") ?? ""}
-          onChange={(e) => setField("ogDescription", e.target.value)}
-          {...agentHandle({ handle: "seo-entry-og-description" }, { role: "field", label: "This entry's Open Graph description override" })}
-        />
-      </label>
-      <MediaRefField
-        locale={locale}
-        id="seo-entry-og-image"
-        label={t({ locale: locale, key: "OG image" })}
-        value={fieldValue("ogImage", resolved.openGraph.imageRef ?? resolved.openGraph.image ?? "") ?? ""}
-        onChange={(value) => setField("ogImage", value)}
-        agentHandle="seo-entry-og-image"
-      />
-      <label>
-        {t({ locale: locale, key: "Twitter title" })}
-        <input
-          className="jini-input"
-          value={fieldValue("twitterTitle", resolved.twitter.title) ?? ""}
-          onChange={(e) => setField("twitterTitle", e.target.value)}
-          {...agentHandle({ handle: "seo-entry-twitter-title" }, { role: "field", label: "This entry's Twitter card title override" })}
-        />
-      </label>
-      <label>
-        {t({ locale: locale, key: "Twitter description" })}
-        <input
-          className="jini-input"
-          value={fieldValue("twitterDescription", resolved.twitter.description ?? "") ?? ""}
-          onChange={(e) => setField("twitterDescription", e.target.value)}
-          {...agentHandle({ handle: "seo-entry-twitter-description" }, { role: "field", label: "This entry's Twitter card description override" })}
-        />
-      </label>
-      <MediaRefField
-        locale={locale}
-        id="seo-entry-twitter-image"
-        label={t({ locale: locale, key: "Twitter image" })}
-        value={fieldValue("twitterImage", resolved.twitter.imageRef ?? resolved.twitter.image ?? "") ?? ""}
-        onChange={(value) => setField("twitterImage", value)}
-        agentHandle="seo-entry-twitter-image"
-      />
+      {/* Group names reuse the Site defaults tab's headings, so an operator finds a field under the
+          same name on both tabs. `fieldset` gives each group a name a screen reader announces. */}
+      <fieldset className="jini-seo-entry-group">
+        <legend>{t({ locale: locale, key: "Search appearance" })}</legend>
+        <label>
+          {t({ locale: locale, key: "Title" })}
+          <input
+            className="jini-input"
+            value={fieldValue("title", resolved.title) ?? ""}
+            onChange={(e) => setField("title", e.target.value)}
+            {...agentHandle({ handle: "seo-entry-title" }, { role: "field", label: "This entry's SEO title override" })}
+          />
+        </label>
+        <label>
+          {t({ locale: locale, key: "Description" })}
+          <textarea
+            className="jini-textarea"
+            value={fieldValue("description", resolved.description ?? "") ?? ""}
+            onChange={(e) => setField("description", e.target.value)}
+            {...agentHandle({ handle: "seo-entry-description" }, { role: "field", label: "This entry's SEO description override" })}
+          />
+        </label>
+        <label>
+          {t({ locale: locale, key: "Canonical URL" })}
+          <input
+            className="jini-input"
+            value={fieldValue("canonical", resolved.canonical) ?? ""}
+            onChange={(e) => setField("canonical", e.target.value)}
+            {...agentHandle({ handle: "seo-entry-canonical" }, { role: "field", label: "This entry's canonical URL override" })}
+          />
+        </label>
+        <div className="jini-seo-entry-checks">
+          <label>
+            <input
+              className="jini-input"
+              type="checkbox"
+              checked={fieldValue("noindex", resolved.robots.noindex) ?? false}
+              onChange={(e) => setField("noindex", e.target.checked)}
+              {...agentHandle({ handle: "seo-entry-noindex" }, { role: "checkbox", label: "Override this entry's robots noindex directive" })}
+            />
+            {t({ locale: locale, key: "Noindex" })}
+          </label>
+          <label>
+            <input
+              className="jini-input"
+              type="checkbox"
+              checked={fieldValue("nofollow", resolved.robots.nofollow) ?? false}
+              onChange={(e) => setField("nofollow", e.target.checked)}
+              {...agentHandle({ handle: "seo-entry-nofollow" }, { role: "checkbox", label: "Override this entry's robots nofollow directive" })}
+            />
+            {t({ locale: locale, key: "Nofollow" })}
+          </label>
+        </div>
+      </fieldset>
 
-      <span className="jini-editor-actions">
-        <button
-          type="button"
-          className="jini-btn jini-btn-secondary"
-          onClick={save}
-          disabled={saving || Object.keys(touched).length === 0}
-          {...agentHandle({ handle: "seo-entry-save-overrides" }, { role: "button", label: "Save this entry's SEO overrides" })}
-        >
-          {saving ? t({ locale: locale, key: "Saving…" }) : t({ locale: locale, key: "Save overrides" })}
-        </button>
-      </span>
+      <fieldset className="jini-seo-entry-group">
+        <legend>{t({ locale: locale, key: "Social sharing" })}</legend>
+        <label>
+          {t({ locale: locale, key: "OG title" })}
+          <input
+            className="jini-input"
+            value={fieldValue("ogTitle", resolved.openGraph.title) ?? ""}
+            onChange={(e) => setField("ogTitle", e.target.value)}
+            {...agentHandle({ handle: "seo-entry-og-title" }, { role: "field", label: "This entry's Open Graph title override" })}
+          />
+        </label>
+        <label>
+          {t({ locale: locale, key: "OG description" })}
+          <input
+            className="jini-input"
+            value={fieldValue("ogDescription", resolved.openGraph.description ?? "") ?? ""}
+            onChange={(e) => setField("ogDescription", e.target.value)}
+            {...agentHandle({ handle: "seo-entry-og-description" }, { role: "field", label: "This entry's Open Graph description override" })}
+          />
+        </label>
+        <MediaRefField
+          locale={locale}
+          id="seo-entry-og-image"
+          label={t({ locale: locale, key: "OG image" })}
+          value={fieldValue("ogImage", resolved.openGraph.imageRef ?? resolved.openGraph.image ?? "") ?? ""}
+          onChange={(value) => setField("ogImage", value)}
+          agentHandle="seo-entry-og-image"
+        />
+        <label>
+          {t({ locale: locale, key: "Twitter title" })}
+          <input
+            className="jini-input"
+            value={fieldValue("twitterTitle", resolved.twitter.title) ?? ""}
+            onChange={(e) => setField("twitterTitle", e.target.value)}
+            {...agentHandle({ handle: "seo-entry-twitter-title" }, { role: "field", label: "This entry's Twitter card title override" })}
+          />
+        </label>
+        <label>
+          {t({ locale: locale, key: "Twitter description" })}
+          <input
+            className="jini-input"
+            value={fieldValue("twitterDescription", resolved.twitter.description ?? "") ?? ""}
+            onChange={(e) => setField("twitterDescription", e.target.value)}
+            {...agentHandle({ handle: "seo-entry-twitter-description" }, { role: "field", label: "This entry's Twitter card description override" })}
+          />
+        </label>
+        <MediaRefField
+          locale={locale}
+          id="seo-entry-twitter-image"
+          label={t({ locale: locale, key: "Twitter image" })}
+          value={fieldValue("twitterImage", resolved.twitter.imageRef ?? resolved.twitter.image ?? "") ?? ""}
+          onChange={(value) => setField("twitterImage", value)}
+          agentHandle="seo-entry-twitter-image"
+        />
+      </fieldset>
 
       {analysis ? <AnalyzePanel locale={locale} analysis={analysis} /> : null}
     </div>

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { actionLabel, buildMediaRef, orEmpty, overrideOrClear, resolveMediaRefPreviewUrl, sortIssuesBySeverity } from "../react/__tests__/harness/rules.js";
+import { entryPickerOptions } from "../rules.js";
 import type { SeoIssue } from "../models.js";
 
 /**
@@ -157,5 +158,17 @@ describe("resolveMediaRefPreviewUrl", () => {
     // `false` unconditionally for the checkbox-fallback test.
     expect(resolveMediaRefPreviewUrl(false as any, freshMediaOriginalUrl)).toBeNull();
     expect(freshMediaOriginalUrl).not.toHaveBeenCalled();
+  });
+});
+
+describe('entryPickerOptions', () => {
+  it('lists Pages before Posts, pills only non-published entries, and keeps untitled ones pickable by id', () => {
+    const posts = [{ id: 'p1', title: 'Hello', status: 'published' }, { id: 'p2', title: '  ', status: 'draft' }];
+    const pages = [{ id: 'pg1', title: 'About', status: 'published' }];
+    expect(entryPickerOptions({ posts, pages }, { t: key => (key === 'draft' ? 'Entwurf' : key) })).toEqual([
+      { value: 'pg1', label: 'About', group: 'Pages' },
+      { value: 'p1', label: 'Hello', group: 'Posts' },
+      { value: 'p2', label: 'p2', group: 'Posts', badge: 'Entwurf' },
+    ]);
   });
 });

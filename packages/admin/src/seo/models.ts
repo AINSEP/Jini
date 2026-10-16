@@ -62,6 +62,8 @@ export interface SeoController {
 
 export interface EntryPickerController {
   entries: readonly AdminPost[] | null;
+  /** Searchable-picker rows (grouped Pages/Posts); null while entries load. */
+  options?: import('./rules.js').SeoEntryPickerOption[] | null;
   error: string | null;
 }
 

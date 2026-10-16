@@ -1,6 +1,7 @@
 import type { AdminSeoIssue as SeoIssue, AdminSeoSettingsPatch as SeoSettingsPatch } from "../core/ports/seo.js";
 import { interpolate } from '@jini-ai/ui/i18n';
 import type { SeoTranslator } from './models.js';
+import type { AdminSeoEntryChoice } from '../core/ports/seo.js';
 
 /**
  * @file Pure logic for the `seo` feature — everything that computes a value rather than rendering
@@ -284,4 +285,21 @@ export type SeoTabId = (typeof SEO_TAB_IDS)[number];
 /** Resolves an absent or stale bookmark to the defaults panel. */
 export function resolveSeoTabId({ tabId }: { tabId?: string | null | undefined }, _optional: Record<string, never> = {}): SeoTabId {
   return SEO_TAB_IDS.find(id => id === tabId) ?? 'defaults';
+}
+
+/** One row of the searchable entry picker: grouped Pages then Posts, status only when not live. */
+export interface SeoEntryPickerOption { value: string; label: string; group: string; badge?: string }
+
+/**
+ * Picker rows for the Pages & posts tab. Pages lead because they are fewer and are the usual SEO
+ * targets (home, about, pricing); a published entry carries no pill, so only the exceptions
+ * (draft, scheduled, …) draw the eye. An untitled entry stays pickable by its id.
+ * @example entryPickerOptions({ posts, pages }, { t }) // [{ value: 'p1', label: 'About', group: 'Pages' }, …]
+ */
+export function entryPickerOptions({ posts, pages }: { posts: readonly AdminSeoEntryChoice[]; pages: readonly AdminSeoEntryChoice[] }, { t = key => key }: { t?: SeoTranslator | undefined } = {}): SeoEntryPickerOption[] {
+  const rows = (entries: readonly AdminSeoEntryChoice[], group: string) => entries.map((entry): SeoEntryPickerOption => ({
+    value: entry.id, label: entry.title.trim() || entry.id, group,
+    ...(entry.status && entry.status !== 'published' ? { badge: t(entry.status) } : {}),
+  }));
+  return [...rows(pages, t('Pages')), ...rows(posts, t('Posts'))];
 }

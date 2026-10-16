@@ -42,6 +42,11 @@ describe("useEntryPicker — injected port", () => {
 
     await waitFor(() => expect(result.current.entries).not.toBeNull());
     expect(result.current.entries).toEqual([post, page]);
+    // Picker rows: Pages lead, Posts follow, each labelled by its group.
+    expect(result.current.options).toEqual([
+      { value: "page-1", label: "A page", group: "Pages" },
+      { value: "post-1", label: "A post", group: "Posts" },
+    ]);
     expect(result.current.error).toBeNull();
     expect(networkMock).not.toHaveBeenCalled();
   });

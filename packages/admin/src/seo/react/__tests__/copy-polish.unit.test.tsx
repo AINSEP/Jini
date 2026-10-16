@@ -64,8 +64,8 @@ describe('SEO copy polish through the injected ports', () => {
   it('uses plain image labels for entry overrides and preserves picker selection and removal', async () => {
     const user = userEvent.setup();
     const { api } = renderSeo('entries');
-    await screen.findByRole('option', { name: 'Sample page (published)' });
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Entry' }), 'page-1');
+    await user.click(await screen.findByRole('combobox', { name: 'Entry' }));
+    await user.click(await screen.findByRole('option', { name: 'Sample page' }));
     const image = await screen.findByLabelText('OG image');
     expect(image).toHaveValue('https://images.example/og.jpg');
     expect(screen.getByLabelText('Twitter image')).toHaveValue('https://images.example/twitter.jpg');

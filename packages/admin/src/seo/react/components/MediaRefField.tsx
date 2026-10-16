@@ -55,46 +55,51 @@ export function MediaRefField({
 }: MediaRefFieldProps, _optional: Record<string, never> = {}) {
   const t = useSeoCopy();
   const { Picker = MediaPickerBridge, storedReference } = useMediaRefPresentation({ value });
-  const { pickerOpen, openPicker, closePicker, handleSelect, clear, previewUrl, accept, warning, onPreviewLoad, onPreviewError } = useField({ value, onChange });
+  const { pickerOpen, openPicker, closePicker, handleSelect, clear, previewUrl, accept, onPreviewLoad, onPreviewError } = useField({ value, onChange });
 
+  /* One compact row: thumbnail, reference, then Choose/Remove kept together in their own group so
+     a narrow column wraps the pair as one unit instead of stranding Remove on a line of its own
+     (owner, 2026-10-15). The thumbnail used to sit under the row at 4rem, repeated per field.
+     `warning` (share-image size/byte/HTTP diagnostics) is still computed by the hook but no longer
+     painted: the owner called the yellow callout under every image "completely useless". */
   return (
     <div className="jini-field jini-media-ref-field">
       <label className="jini-field-label" htmlFor={id}>
         {label}
       </label>
       <div className="jini-media-ref-field-row">
+        {previewUrl ? <img key={previewUrl} className="jini-media-ref-field-preview" src={previewUrl} alt={`${label} preview`} onLoad={onPreviewLoad} onError={onPreviewError} /> : null}
         <input
           className="jini-input"
           id={id}
           name={storedReference ? undefined : name}
           value={storedReference ? t({ locale, key: "Selected image" }) : value}
           readOnly={storedReference}
-          aria-describedby={warning ? `${id}-warning` : undefined}
           onChange={(e) => onChange(e.target.value)}
           {...(base ? agentHandle({ handle: base }, { role: "field", label }) : {})}
         />
         {storedReference && name ? <input type="hidden" name={name} value={value} /> : null}
-        <button
-          type="button"
-          className="jini-btn jini-btn-secondary"
-          onClick={openPicker}
-          {...handleSpread({ ...(base === undefined ? {} : { base }), suffix: "choose", label: `Choose an image for: ${label}` })}
-        >
-          {t({ locale: locale, key: "Choose image" })}
-        </button>
-        {value ? (
+        <span className="jini-media-ref-field-actions">
           <button
             type="button"
             className="jini-btn jini-btn-secondary"
-            onClick={clear}
-            {...handleSpread({ ...(base === undefined ? {} : { base }), suffix: "clear", label: `Remove the selected image for: ${label}` })}
+            onClick={openPicker}
+            {...handleSpread({ ...(base === undefined ? {} : { base }), suffix: "choose", label: `Choose an image for: ${label}` })}
           >
-            {t({ locale: locale, key: "Remove" })}
+            {t({ locale: locale, key: "Choose image" })}
           </button>
-        ) : null}
+          {value ? (
+            <button
+              type="button"
+              className="jini-btn jini-btn-secondary"
+              onClick={clear}
+              {...handleSpread({ ...(base === undefined ? {} : { base }), suffix: "clear", label: `Remove the selected image for: ${label}` })}
+            >
+              {t({ locale: locale, key: "Remove" })}
+            </button>
+          ) : null}
+        </span>
       </div>
-      {previewUrl ? <img key={previewUrl} className="jini-media-ref-field-preview" src={previewUrl} alt={`${label} preview`} onLoad={onPreviewLoad} onError={onPreviewError} /> : null}
-      {warning ? <p id={`${id}-warning`} className="jini-notice jini-notice-warning" role="status">{warning}</p> : null}
       {pickerOpen ? (
         <Picker onSelect={handleSelect} onCancel={closePicker} accept={accept} agentHandle={base ? `${base}-dialog` : undefined} />
       ) : null}
