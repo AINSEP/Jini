@@ -19,6 +19,17 @@ const ESTIMATED_PANEL_HEIGHT = 280;
 export interface SelectOption {
   value: string;
   label: string;
+  /** Heading shown above the first option of each run with this value (e.g. "Pages", "Posts").
+   *  Callers pass options already ordered by group; search narrows rows, headings follow. */
+  group?: string | undefined;
+  /** Short state shown as a muted pill after the label (e.g. "draft"); omit for the normal state. */
+  badge?: string | undefined;
+}
+
+/** The group heading to paint before `options[index]`, or null when it continues the previous run. */
+export function groupHeadingAt({ options, index }: { options: readonly SelectOption[]; index: number }): string | null {
+  const group = options[index]?.group;
+  return group && group !== options[index - 1]?.group ? group : null;
 }
 
 export interface PanelPosition {

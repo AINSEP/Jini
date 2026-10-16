@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   applyHighlightKey,
+  groupHeadingAt,
   buildOptionId,
   computePosition,
   edgeHighlightIndex,
@@ -441,5 +442,12 @@ describe("useSelectDropdown", () => {
       expect(result.current.open).toBe(true);
       expect(result.current.position).toMatchObject({ top: 234, left: 80, width: 240 });
     });
+  });
+});
+
+describe("groupHeadingAt", () => {
+  it("returns the group only where a run starts, and null for ungrouped options", () => {
+    const options = [{ value: "a", label: "A", group: "Pages" }, { value: "b", label: "B", group: "Pages" }, { value: "c", label: "C", group: "Posts" }, { value: "d", label: "D" }];
+    expect(options.map((_, index) => groupHeadingAt({ options, index }))).toEqual(["Pages", null, "Posts", null]);
   });
 });

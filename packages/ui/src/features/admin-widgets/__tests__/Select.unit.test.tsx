@@ -43,6 +43,23 @@ function ControlledSelect(props: { options: SelectOption[]; initial?: string }) 
 }
 
 describe("Select", () => {
+  it("paints one heading per group run and a badge only on options that carry one", async () => {
+    const user = userEvent.setup();
+    const options: SelectOption[] = [
+      { value: "pg", label: "About", group: "Pages" },
+      { value: "p1", label: "Hello", group: "Posts" },
+      { value: "p2", label: "Draft one", group: "Posts", badge: "draft" },
+    ];
+    render(<Select value="" options={options} onChange={vi.fn()} aria-label="Entry" />);
+    await user.click(screen.getByRole("combobox", { name: "Entry" }));
+    expect(document.querySelectorAll(".select-group-label")).toHaveLength(2);
+    expect(screen.getByText("Posts")).toHaveAttribute("role", "presentation");
+    expect(document.querySelectorAll(".select-option-badge")).toHaveLength(1);
+    expect(screen.getByRole("option", { name: "Draft one draft" })).toBeInTheDocument();
+    // Headings sit outside the option index, so keyboard/selection still address the real rows.
+    await user.click(screen.getByRole("option", { name: "Hello" }));
+  });
+
   it("opens the panel on trigger click and closes it again on a second click", async () => {
     const user = userEvent.setup();
     render(<ControlledSelect options={FEW_OPTIONS} />);

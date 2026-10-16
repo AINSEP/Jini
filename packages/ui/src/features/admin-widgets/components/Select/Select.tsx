@@ -3,7 +3,8 @@ import { createPortal } from "react-dom";
 import { agentHandle } from "@jini-ai/agentic";
 import { buildAgentListHandles } from "@jini-ai/agentic";
 import type { Translate } from "../../../i18n/dictionary-translator.js";
-import { useSelectDropdown, type PanelPosition, type SelectOption } from "./Select.hooks.js";
+import { Fragment } from "react";
+import { useSelectDropdown, groupHeadingAt, type PanelPosition, type SelectOption } from "./Select.hooks.js";
 
 export type { SelectOption };
 /** Use this custom listbox when in-panel search is needed: a native OS option list cannot host it.
@@ -74,6 +75,7 @@ function SelectOptionRow({
       {...(optionHandle ? agentHandle({ handle: optionHandle }, { role: "button", label: option.label }) : {})}
     >
       <span className="select-option-label">{option.label}</span>
+      {option.badge ? <span className="select-option-badge">{option.badge}</span> : null}
       {isSelected ? (
         <svg className="select-option-check" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M3.5 8.5 6.5 11.5 12.5 4.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
@@ -149,18 +151,22 @@ function SelectPanel({
           </li>
         ) : (
           filtered.map((option, index) => (
-            <SelectOptionRow
-              key={option.value}
-              option={option}
-              index={index}
-              isSelected={option.value === value}
-              isHighlighted={index === highlightedIndex}
-              optionId={optionId(index)}
-              setOptionRef={setOptionRef}
-              onHighlight={onHighlight}
-              onSelect={onSelect}
-              agentHandle={optionHandles?.[index]}
-            />
+            <Fragment key={option.value}>
+              {groupHeadingAt({ options: filtered, index }) ? (
+                <li className="select-group-label" role="presentation">{option.group}</li>
+              ) : null}
+              <SelectOptionRow
+                option={option}
+                index={index}
+                isSelected={option.value === value}
+                isHighlighted={index === highlightedIndex}
+                optionId={optionId(index)}
+                setOptionRef={setOptionRef}
+                onHighlight={onHighlight}
+                onSelect={onSelect}
+                agentHandle={optionHandles?.[index]}
+              />
+            </Fragment>
           ))
         )}
       </ul>
