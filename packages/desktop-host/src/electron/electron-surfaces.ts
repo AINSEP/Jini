@@ -19,6 +19,7 @@ export interface ElectronNavigationEvent {
 
 export interface ElectronBeforeRequestDetails {
   url: string;
+  method?: string;
 }
 
 export type ElectronBeforeRequestCallback = (response: { cancel: boolean }) => void;
@@ -39,6 +40,14 @@ export interface ElectronWebContentsLike {
   on({ event, listener }: { event: 'will-navigate'; listener: (args: { event: ElectronNavigationEvent; url: string }) => void }): void;
   printToPDF(options: Record<string, unknown>): Promise<Buffer>;
   capturePage(requiredArgs: Record<string, never>, optionalArgs?: { rect?: { x: number; y: number; width: number; height: number } | undefined }): Promise<{ toPNG(): Buffer }>;
+  /** Optional URL-capture capabilities; HTML-only hosts need not supply these. */
+  getURL?(): string;
+  getTitle?(): string;
+  executeJavaScript?(expression: string): Promise<unknown>;
+  debugger?: {
+    attach(version: string): void;
+    sendCommand(method: string, params?: Record<string, unknown>): Promise<unknown>;
+  };
 }
 
 export interface ElectronBrowserWindowLike {
@@ -55,6 +64,7 @@ export interface ElectronBrowserWindowLike {
 
 export interface ElectronBrowserWindowOptions {
   show?: boolean;
+  useContentSize?: boolean;
   width?: number;
   height?: number;
   webPreferences?: { javascript?: boolean; offscreen?: boolean; [key: string]: unknown };

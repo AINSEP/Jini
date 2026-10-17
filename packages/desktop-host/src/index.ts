@@ -16,6 +16,7 @@ export * from './logging.js';
 export * from './windows-registry.js';
 export * from './bridge.js';
 export * from './render-service.js';
+export * from './url-capture.js';
 export * from './shell.js';
 export * from './ports.js';
 export * from './tokens.js';

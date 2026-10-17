@@ -115,8 +115,9 @@ export async function withRenderTimeout<T>({ promise }: { promise: Promise<T> },
     const timer =
       timeoutMs == null
         ? null
-        : setTimeout(() => {
+          : setTimeout(() => {
             settled = true;
+            signal?.removeEventListener('abort', onAbort);
             reject(new RenderServiceError({ message: `render timed out after ${timeoutMs}ms`, code: 'timeout' }));
           }, timeoutMs);
 
@@ -124,6 +125,7 @@ export async function withRenderTimeout<T>({ promise }: { promise: Promise<T> },
       if (settled) return;
       settled = true;
       if (timer != null) clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
       reject(new RenderServiceError({ message: 'render aborted', code: 'aborted' }));
     };
     signal?.addEventListener('abort', onAbort, { once: true });
