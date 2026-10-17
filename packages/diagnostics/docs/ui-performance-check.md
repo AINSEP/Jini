@@ -19,3 +19,21 @@ Report **inconclusive** when inputs are missing/untrusted/coalesced, timing or n
 This recipe adds no automatic capture, scheduler or CI timing gate. Tovu launch integration remains pending an existing launch hook.
 
 Sources: [pinned launch/privacy reference](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/chrome-devtools-mcp-v1.10.1/README.md), [pinned tool schemas](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/chrome-devtools-mcp-v1.10.1/docs/tool-reference.md).
+
+## Native page evidence sample
+
+The web-evidence port also accepts the explicit `collectPerformance: true` option. Tovu exposes it
+on `site_collect_page_evidence({ paths: ["/"], collectPerformance: true })`. Ordinary evidence calls
+do not evaluate the performance script. It uses the existing origin/egress checks, browser factory,
+15-second page budget and 60-second whole-call budget, and closes the same ephemeral contexts.
+
+The numeric report includes approximate Chromium heap counters (or null when unavailable), up to
+100,000 DOM nodes with an explicit truncation flag, mounted hidden/collapsed panels, hidden pre
+counts/text-character totals, iframe count, and up to 200 buffered long tasks plus a 100ms sample.
+Unsupported long-task APIs are explicit. Suspect descriptions report these facts without a score.
+No hidden text, heap objects, DOM attributes or iframe documents are returned by this sample.
+
+This sample describes a fresh anonymous page. It cannot diagnose the user's existing signed-in
+admin tab or restored chat; `/admin` may instead render a sign-in screen. That requires an explicit
+host connection to the selected browser tab and remains a separate integration decision. The
+DevTools recipe above retains its role for the actual open tab, traces and typing evidence.

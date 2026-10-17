@@ -38,3 +38,28 @@ test('fresh context, read-only requests, cookie-value omission and teardown work
  await availability.browser.close({});
  expect(calls).toEqual(['context', 'continue', 'abort', 'context-close', 'browser-close']);
 });
+
+
+test('performance evaluation only occurs on explicit request and uses the same context teardown', async () => {
+ const captures: string[] = [], evaluations: string[] = [];
+ const performance = { context: 'fresh-isolated-page', heap: null, domNodes: 10, domTruncated: false, mountedHiddenPanels: 0, hiddenPreElements: 0, hiddenPreTextChars: 0, iframes: 0, longTasks: { supported: false, count: 0, totalMs: 0, maxMs: 0, truncated: false }, suspects: [] };
+ const loader: PlaywrightLike = { chromium: { launch: async () => ({ close: async () => { captures.push('browser-close'); },
+  newContext: async () => ({ route: async () => {}, cookies: async () => [], close: async () => { captures.push('context-close'); },
+   newPage: async () => ({ goto: async () => ({ status: () => 200, url: () => request.url, headers: () => ({}) }),
+    evaluate: async (expression: string) => { evaluations.push(expression); return expression.includes('domTruncated') ? performance : { title: 'Fixture', lang: 'en', textExcerpt: '', textTruncated: false, accessibility: { landmarks: [], headings: [], images: [], formControls: [], contrastSamples: [], truncated: [] } }; },
+    waitForTimeout: async () => {}, title: async () => 'Fixture',
+   }),
+  }),
+ }) } };
+ const opened = await openPlaywrightSiteEvidenceBrowser({}, { moduleLoader: { load: async () => loader } });
+ if (!opened.available) throw new Error(opened.reason);
+ const ordinary = await opened.browser.observe(request);
+ expect(ordinary.ok && ordinary.observation.performance).toBeUndefined();
+ expect(evaluations).toHaveLength(1);
+ const requested = await opened.browser.observe(request, { collectPerformance: true });
+ expect(requested.ok && requested.observation.performance).toEqual(performance);
+ expect(evaluations).toHaveLength(3);
+ expect(captures).toEqual(['context-close', 'context-close']);
+ await opened.browser.close({});
+ expect(captures).toEqual(['context-close', 'context-close', 'browser-close']);
+});

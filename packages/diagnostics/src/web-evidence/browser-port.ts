@@ -1,4 +1,5 @@
 /** Evidence and browser ports. Cookie values, request bodies, and form values are never modelled. */
+import type { PagePerformanceEvidence } from "./page-performance-script.js";
 
 /** Which side of the consent interaction an observation belongs to. `before` is everything seen
  *  from navigation up to the consent click; `after` is everything seen following it. A run that was
@@ -121,6 +122,7 @@ export interface DocumentEvidence {
  *  a section that was not collected is missing, and a report must treat missing as
  *  "not observed", never as "observed to be empty". */
 export interface PageObservation {
+  readonly performance?: PagePerformanceEvidence;
   readonly document: DocumentEvidence;
   readonly cookies: readonly CookieEvidence[];
   readonly requests: readonly RequestEvidence[];
@@ -155,7 +157,7 @@ export type ObservePageResult =
 
 /** A supplied consent selector triggers one click and a second observation; absence means no
  * interaction. This belongs to call options rather than the required page/limit contract. */
-export interface ObservePageOptions { readonly consentAcceptSelector?: string; }
+export interface ObservePageOptions { readonly consentAcceptSelector?: string; readonly collectPerformance?: boolean; }
 
 export interface SiteEvidenceBrowserPort {
   /** Loads one page in a fresh, isolated, non-persistent context and returns what was observed.

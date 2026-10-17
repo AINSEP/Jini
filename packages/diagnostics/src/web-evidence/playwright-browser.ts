@@ -1,6 +1,7 @@
 /** Evidence adapter over the shared render function. Optional-import, sandbox and privacy
  * rationale moved with the browser opener to playwright-runtime.ts; context lifecycle is in
  * render-page.ts. Keeping one opener avoids a second vendor/browser stack for public reads. */
+import { buildPagePerformanceExpression, type PagePerformanceEvidence } from "./page-performance-script.js";
 import type {
   CookieEvidence,
   ObservationPhase,
@@ -82,10 +83,14 @@ class PlaywrightSiteEvidenceBrowser implements SiteEvidenceBrowserPort {
           }
           if (!context.cookies) throw new Error("Browser cannot observe cookies");
           const cookies = await budget.run({ work: () => context.cookies!() });
-          return { ok: true, observation: buildObservation({
+          let performance: PagePerformanceEvidence | undefined;
+          if (request.collectPerformance) {
+            performance = await budget.run({ work: async () => await page.evaluate(buildPagePerformanceExpression({})) as PagePerformanceEvidence });
+          }
+          return { ok: true, observation: { ...buildObservation({
             request, finalUrl, httpStatus: response.status(), headers: response.headers?.() ?? {},
             title: structure.title, structure, cookies, requests, notes, consentPhase: phase,
-          }) };
+          }), ...(performance ? { performance } : {}) } };
         },
       }, {
         ...(router ? { router } : {}), signal: abort.signal,

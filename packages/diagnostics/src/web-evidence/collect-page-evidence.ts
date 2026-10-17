@@ -145,6 +145,8 @@ export interface ObservationPolicy {
 }
 
 export interface CollectPageEvidenceOptions {
+  /** Explicit opt-in only; never collected by background evidence calls. */
+  readonly collectPerformance?: boolean;
   // Inject time so the whole-call deadline can be checked without waiting for real time to pass.
   readonly clock?: Clock;
   /** CSS selector for the site's own consent-accept control. Without it no interaction happens and
@@ -285,7 +287,10 @@ async function observeOnePage(
     maxRequests: SITE_EVIDENCE_LIMITS.maxRequests,
     maxAccessibilityNodesPerCategory: SITE_EVIDENCE_LIMITS.maxAccessibilityNodesPerCategory,
     maxContrastSamples: SITE_EVIDENCE_LIMITS.maxContrastSamples,
-  }, input.consentAcceptSelector === undefined ? {} : { consentAcceptSelector: input.consentAcceptSelector });
+  }, {
+    ...(input.consentAcceptSelector === undefined ? {} : { consentAcceptSelector: input.consentAcceptSelector }),
+    ...(input.collectPerformance === undefined ? {} : { collectPerformance: input.collectPerformance }),
+  });
 
   if (!result.ok) {
     if (result.offOriginUrl && !isSameOriginUrl({ baseUrl: originBaseUrl, candidateUrl: result.offOriginUrl })) {
