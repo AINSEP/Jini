@@ -23,6 +23,18 @@ describe('assistantContentFromEvents — a working note is never glued onto the 
     expect(assistantContentFromEvents({ events })).toBe('Hello');
   });
 
+  it('does not create another text step when a Claude tool ID is replayed between deltas', () => {
+    const call = { kind: 'tool_use', id: 't1', name: 'Read', input: {} } as const;
+    expect(assistantContentFromEvents({ events: [
+      call,
+      { kind: 'text', text: 'Hel' },
+      { ...call, input: { replay: true } },
+      { kind: 'text', text: 'lo' },
+      { ...call, id: 't2' },
+      { kind: 'text', text: 'Done.' },
+    ] })).toBe('Hello\n\nDone.');
+  });
+
   it('breaks at a card too, and never doubles an existing line break', () => {
     expect(
       assistantContentFromEvents({ events: [

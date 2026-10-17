@@ -105,3 +105,30 @@ test("runEventsForSave: streamed text deltas are saved as one text event, conten
   ]);
   assert.equal(runContentFromEvents(saved), runContentFromEvents(events));
 });
+
+test("runEventsForSave: repeated Claude tool IDs persist once without dropping results or distinct calls", () => {
+  const first = { kind: "tool_use", id: "claude-1", name: "search_tools", input: { query: "family" } } as const;
+  const result = { kind: "tool_result", toolUseId: "claude-1", content: "found", isError: false } as const;
+  const distinct = { ...first, id: "claude-2" };
+  const events: AgentEvent[] = [
+    first, result,
+    { ...first, input: { query: "replayed input" } },
+    distinct,
+    { kind: "text", text: "Done." },
+    { kind: "usage", outputTokens: 3 },
+  ];
+  const original = structuredClone(events);
+  const saved = runEventsForSave(events);
+  assert.deepEqual(saved, [first, result, distinct, events[4], events[5]]);
+  assert.deepEqual(runEventsForSave(saved), saved);
+  assert.deepEqual(events, original);
+});
+
+test("runEventsForSave: replay between text deltas keeps live and saved content equal and saving idempotent", () => {
+  const call = { kind: "tool_use", id: "claude-1", name: "Read", input: {} } as const;
+  const events: AgentEvent[] = [call, { kind: "text", text: "Hel" }, call, { kind: "text", text: "lo" }];
+  const saved = runEventsForSave(events);
+  assert.deepEqual(saved, [call, { kind: "text", text: "Hello" }]);
+  assert.equal(runContentFromEvents(saved), runContentFromEvents(events));
+  assert.deepEqual(runEventsForSave(saved), saved);
+});

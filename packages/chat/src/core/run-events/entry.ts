@@ -7,6 +7,7 @@
 import { decodeSseFrames, parseSseRecord, type DecodedSseFrame } from "@jini-ai/agent-runtime/providers/sse-decode";
 import { assistantContentFromEvents } from "../assistant-content.js";
 import { mergeAdjacentTextEvents } from "../compact-events.js";
+import { dedupeToolUsesById } from "../tool-events.js";
 import type { AgentEvent, ToolResultMediaBlock } from "../events.js";
 /**
  * @file The ONE translation from an agent-daemon run stream to chat events, shared by the browser
@@ -449,9 +450,12 @@ export function runContentFromEvents({ events }: { events: readonly AgentEvent[]
  */
 
 
-/** Compact adjacent text/thinking deltas for durable storage. */
+/** Compact adjacent text/thinking deltas and keep the first occurrence of each tool-call ID.
+ * Replayed tool calls must not become duplicate history rows. Other events retain their order.
+ * @complexity O(n + total text length) time and O(n) space for n events.
+ */
 export function runEventsForSave({ events }: { events: readonly AgentEvent[] }, _options: Record<string, never> = {}): AgentEvent[] {
-  return mergeAdjacentTextEvents({ events });
+  return mergeAdjacentTextEvents({ events: dedupeToolUsesById({ events: [...events] }) });
 }
 /** What one daemon stream frame means for the turn: events to append, a failure, and whether it ended. */
 /** Set when the frame reports a failure. Once any frame has, the turn is `failed` (the browser's

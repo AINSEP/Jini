@@ -15,6 +15,7 @@
  * glued one, so rows saved before this change still render in order.
  */
 import type { AgentEvent } from './events.js';
+import { dedupeToolUsesById } from './tool-events.js';
 
 /** What separates two text runs that a tool call or card sat between. */
 export const ASSISTANT_STEP_SEPARATOR = '\n\n';
@@ -26,14 +27,15 @@ function separatorBefore(out: string, text: string): string {
 
 /**
  * A turn's text, with a paragraph break between runs separated by a tool call or card.
+ * A replay of an already-seen tool ID is not a new step, matching the saved-event projection.
  *
  * @param events - The turn's events, in arrival order.
- * @complexity O(total text length).
+ * @complexity O(n + total text length) time and O(n) space for n events.
  */
 export function assistantContentFromEvents({ events }: { events: readonly AgentEvent[] | undefined }): string {
   let out = '';
   let stepBoundary = false;
-  for (const ev of events ?? []) {
+  for (const ev of dedupeToolUsesById({ events: events ? [...events] : undefined })) {
     if (ev.kind === 'text') {
       if (ev.text.length === 0) continue;
       if (stepBoundary) out += separatorBefore(out, ev.text);

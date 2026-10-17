@@ -1,4 +1,5 @@
 import type { AgentEvent, ChatMessage, ChatRunStatus } from "../../core/index.js";
+import { dedupeToolUsesById } from "../../core/tool-events.js";
 import type { ExpressionBuilder } from "kysely";
 
 import type { ChatDatabase, ChatKernel } from "./kernel.js";
@@ -71,16 +72,22 @@ function hasNewToolProgress(current: readonly AgentEvent[], next: readonly Agent
   return next.some((event) => { const id = key(event); return id !== "" && !saved.has(id); });
 }
 
+/** Retain a longer checkpoint's text and merge non-text replay events under the shared ID rule.
+ * @complexity O(b + n) time and space for b serialized bytes across n events. */
 function retainSavedEvents(saved: readonly AgentEvent[], incoming: readonly AgentEvent[]): AgentEvent[] {
   const keys = new Set(saved.map((event) => JSON.stringify(event)));
   const additions = incoming.filter((event) => event.kind !== "text" && !keys.has(JSON.stringify(event)));
-  return [...saved, ...additions];
+  return dedupeToolUsesById({ events: [...saved, ...additions] });
 }
 
+/** Preserve tool barriers absent from a replay, with one persisted use per tool ID.
+ * @complexity O(n) time and space in the combined saved and incoming event count. */
 function keepToolCheckpoints(saved: readonly AgentEvent[], incoming: readonly AgentEvent[]): AgentEvent[] {
   const key = (event: AgentEvent) => event.kind === "tool_use" ? `use:${event.id}` : event.kind === "tool_result" ? `result:${event.toolUseId}` : "";
   const seen = new Set(incoming.map(key));
-  return [...incoming, ...saved.filter((event) => { const id = key(event); return id !== "" && !seen.has(id); })];
+  // Deduplicate after merging: a legacy checkpoint or replay can repeat an ID with different
+  // serialized input. The shared ID rule owns identity; JSON equality does not.
+  return dedupeToolUsesById({ events: [...incoming, ...saved.filter((event) => { const id = key(event); return id !== "" && !seen.has(id); })] });
 }
 
 /**
