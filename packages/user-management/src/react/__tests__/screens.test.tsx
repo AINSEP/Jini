@@ -37,7 +37,7 @@ test('users retain the new-password autofill protection and create through their
   const port = createFakeUsersPort({}, { users: [alice] });
   const create = vi.spyOn(port, 'createUser');
   render(<FetchQueryProvider><Users port={port} translate={translate} queryScope="one" /></FetchQueryProvider>);
-  await screen.findByRole('button', { name: 'alice', exact: true });
+  await screen.findByRole('button', { name: 'alice' });
   await user.click(screen.getByRole('button', { name: 'New user' }));
   expect(screen.getByLabelText('Username')).toHaveAttribute('data-agent-element', 'users-new-username');
   const password = screen.getByLabelText('Password');
@@ -46,7 +46,7 @@ test('users retain the new-password autofill protection and create through their
   await user.type(password, 'secret');
   await user.click(screen.getByRole('button', { name: 'Create user' }));
   await waitFor(() => expect(create).toHaveBeenCalledWith({ username: 'bob', password: 'secret' }, { email: undefined }));
-  await screen.findByRole('button', { name: 'bob', exact: true });
+  await screen.findByRole('button', { name: 'bob' });
   expect(fetch).not.toHaveBeenCalled();
 });
 
