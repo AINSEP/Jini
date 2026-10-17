@@ -53,3 +53,5 @@ export {
   type RequireToolPermissionRequired,
   type RequireToolPermissionOptional,
 } from "./tool-permissions.js";
+
+export { evaluateFeatureFlag, type FeatureFlagDecision } from './feature-flags.js';
