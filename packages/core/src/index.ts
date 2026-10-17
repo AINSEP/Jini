@@ -40,6 +40,7 @@ export type { AgentToolSideEffect, AgentToolActorClassRule, AgentToolDefinition 
 
 export * from "./registration-kit.js";
 export * from "./approval.js";
+export * from './target-scope.js';
 
 export * from "./native-regexp.js";
 
