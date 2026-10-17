@@ -269,7 +269,7 @@ describe('waitForReachableDeploymentUrl', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(3);
   });
 
-  it('short-circuits to protected as soon as any candidate reports the auth wall', async () => {
+  it('returns protected after probing the sole candidate reporting the auth wall', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(401, {}, 'Authentication Required')));
     const result = await waitForReachableDeploymentUrl({ urls: ['site.example'], fetch: fetchPort, guard, now: () => Date.now(), sleep: async ({ ms }) => { await new Promise((resolve) => setTimeout(resolve, ms)); } }, {
       timeoutMs: 60_000,

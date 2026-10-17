@@ -241,8 +241,8 @@ export async function checkDeploymentUrl(
 }
 
 /**
- * Polls a set of deployment URL candidates until one becomes reachable, one
- * reports as provider-protected, or `timeoutMs` elapses. Used right after a
+ * Polls deployment candidates until one becomes reachable or `timeoutMs` elapses.
+ * A protected result is returned after its sweep if no candidate is ready. Used right after a
  * publish call returns, since providers frequently accept the deploy before
  * the URL is actually resolvable.
  *
@@ -272,6 +272,7 @@ export async function waitForReachableDeploymentUrl(
 
   const startedAt = now({});
   let lastMessage = '';
+  let protectedResult: ReachabilityWaitResult | undefined;
   while (now({}) - startedAt < timeoutMs) {
     for (const url of candidates) {
       const remainingMs = timeoutMs - (now({}) - startedAt);
@@ -281,11 +282,12 @@ export async function waitForReachableDeploymentUrl(
         return { status: 'ready', url, statusMessage: 'Public link is ready.', reachableAt: now({}) };
       }
       if (result.status === 'protected') {
-        return {
+        protectedResult ??= {
           status: 'protected',
           url,
           statusMessage: result.statusMessage || `${providerLabel} is gating this link behind its own auth wall.`,
         };
+        continue;
       }
       // Real refactor, not a padded test: `result.statusMessage` is
       // unconditionally truthy by this point. `result` comes from
@@ -294,7 +296,7 @@ export async function waitForReachableDeploymentUrl(
       // both `requestDeploymentUrl`-derived returns after the dead-branch
       // refactor just above) — always sets a non-empty `statusMessage`. The
       // `reachable: true` and `status === 'protected'` shapes are both
-      // handled by the two `return`s directly above this line, so neither
+      // handled by the `return` and `continue` above this line, so neither
       // can reach here. `|| lastMessage` (falling back to the *previous*
       // sweep's message) could therefore never actually be selected — see
       // the archived extraction source map's 2026-07-22 addition for the proof.
@@ -304,6 +306,8 @@ export async function waitForReachableDeploymentUrl(
       // exact call site's result is always defined per the proof above.
       lastMessage = result.statusMessage!;
     }
+    // A protected candidate is a fallback only after the other candidates had their turn.
+    if (protectedResult) return protectedResult;
     const remainingMs = timeoutMs - (now({}) - startedAt);
     if (remainingMs <= 0) break;
     if (!await sleepWithinBudget({ sleep, ms: Math.min(intervalMs, remainingMs), timeoutMs: remainingMs })) break;

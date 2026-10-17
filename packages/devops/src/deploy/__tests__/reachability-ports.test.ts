@@ -38,3 +38,22 @@ it('requires HTTPS even if the supplied public URL guard permits HTTP', async ()
   expect(result.statusMessage).toContain('deployment url must use https');
   expect(fetch).not.toHaveBeenCalled();
 });
+
+// A provider preview may be protected while its public alias is already ready.
+it.each([200, 503])('tries a public candidate after a protected one (public status %s)', async (status) => {
+  const visited: string[] = [];
+  const fetch = vi.fn(async ({ url }: { url: string }) => {
+    visited.push(url);
+    if (url.includes('preview')) return new Response('auth wall', { status: 401 });
+    return new Response(null, { status });
+  });
+  const result = await waitForReachableDeploymentUrl({
+    urls: ['preview.example', 'public.example'], fetch,
+    guard: { assertSafeUrl: ({ raw }) => new URL(raw) },
+    now: () => 100, sleep: vi.fn(async () => {}),
+  }, { detectProtected: ({ body }) => body.includes('auth wall'), protectedMessage: 'preview gated' });
+  expect(visited).toContain('https://public.example/');
+  expect(result).toEqual(status === 200
+    ? { status: 'ready', url: 'https://public.example', statusMessage: 'Public link is ready.', reachableAt: 100 }
+    : { status: 'protected', url: 'https://preview.example', statusMessage: 'preview gated' });
+});
