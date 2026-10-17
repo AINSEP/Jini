@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ToolExecutionContext } from '@jini-ai/core';
 import type { ChatHistoryStore, ChatHistoryReader } from '../../ports.js';
-import { buildAssistantHistoryRegistrations, HISTORY_TOTAL_CHAR_CAP, HISTORY_MESSAGE_CHAR_CAP, type AssistantHistoryToolPorts } from '../history-tools.js';
+import { buildAssistantHistoryRegistrations, HISTORY_TOTAL_CHAR_CAP, HISTORY_MESSAGE_CHAR_CAP } from '../history-tools.js';
 
-function harness({ history, exists = true, siteHistory }: { history?: ChatHistoryReader; exists?: boolean; siteHistory?: (store: ChatHistoryStore) => NonNullable<AssistantHistoryToolPorts['siteHistory']> }, options: Parameters<typeof buildAssistantHistoryRegistrations>[1] = {}) {
+function harness({ history, exists = true }: { history?: ChatHistoryReader; exists?: boolean }, options: Parameters<typeof buildAssistantHistoryRegistrations>[1] = {}) {
   const callers: string[] = [];
   const getCalls: string[] = [];
   const store: ChatHistoryStore = {
@@ -12,7 +12,7 @@ function harness({ history, exists = true, siteHistory }: { history?: ChatHistor
     list: async () => [], messages: async () => [], create: async () => { throw new Error('unexpected write'); },
     rename: async () => null, touch: async () => {}, delete: async () => {}, appendMessage: async () => null,
   };
-  const tools = buildAssistantHistoryRegistrations({ ports: { getStore: async ({ principalId }) => { callers.push(principalId); return store; }, ...(siteHistory ? { siteHistory: siteHistory(store) } : {}) } }, options);
+  const tools = buildAssistantHistoryRegistrations({ ports: { getStore: async ({ principalId }) => { callers.push(principalId); return store; } } }, options);
   return { tools, callers, getCalls, call: (id: string, input: unknown) => tools.find(tool => tool.descriptor.id === id)!.handler({
     input, principal: { id: 'authenticated-owner' }, executionId: 'exec', run: { id: 'run' }, signal: new AbortController().signal,
   } as ToolExecutionContext) };
@@ -157,91 +157,5 @@ describe('model-facing chat history tools', () => {
     const empty = await harness({ history: reader() }).call('assistant_chat_read', { chatId: 'chat', fromPosition: 0 }) as any;
     expect(empty).toMatchObject({ messages: [], hasMore: false, truncated: false });
     expect(empty).not.toHaveProperty('nextPosition');
-  });
-});
-
-
-describe('registered-site chat history', () => {
-  it('lists and reads with execution identity, identical projections, and one close per call', async () => {
-    const opens: unknown[] = [];
-    let closes = 0;
-    const history = reader([{ id: 'm', position: 0, role: 'user', content: 'continue' }]);
-    history.list = async () => [{ id: 'chat', title: 'Theme', titleSource: 'manual', createdAt: 0, updatedAt: 1, messageCount: 1, firstUserLine: 'continue' }];
-    const h = harness({ history, siteHistory: store => ({ listSiteNames: async () => ['tovu-dev'],
-      openStore: async required => { opens.push(required); return { store, close: async () => { closes++; } }; } }) });
-    for (const [id, input] of [['assistant_chats_list', {}], ['assistant_chat_read', { chatId: 'chat' }]] as const) {
-      const local = await h.call(id, input) as any;
-      expect(local).not.toHaveProperty('siteName');
-      h.callers.length = 0;
-      expect(await h.call(id, { ...input, siteName: 'tovu-dev' })).toEqual({ siteName: 'tovu-dev', ...local });
-      expect(h.callers).toEqual([]);
-      expect(closes).toBe(opens.length);
-    }
-    expect(opens).toEqual(Array(2).fill({ principalId: 'authenticated-owner', siteName: 'tovu-dev' }));
-    expect(closes).toBe(2);
-    await expect(h.call('assistant_chats_list', { siteName: 'x', userId: 'other' })).rejects.toThrow('Unexpected chat history input');
-    expect(opens).toHaveLength(2);
-  });
-
-  it('keeps site projections redacted and bounded, including escaped list text', async () => {
-    const secret = 'sk-' + 'a'.repeat(32);
-    const history = reader(Array.from({ length: 10 }, (_, position) => ({ id: `m${position}`, position, role: 'assistant' as const, content: `${secret} ` + 'x'.repeat(HISTORY_MESSAGE_CHAR_CAP + 1) })));
-    history.list = async () => [{ id: 'chat', title: secret, titleSource: 'manual', createdAt: 0, updatedAt: 1, messageCount: 10, firstUserLine: secret }];
-    const h = harness({ history, siteHistory: store => ({ listSiteNames: async () => [], openStore: async () => ({ store, close() {} }) }) });
-    const list = await h.call('assistant_chats_list', { siteName: 'other' }) as any;
-    expect(list.chats[0]).toMatchObject({ title: '[token removed]', firstUserLine: '[token removed]' });
-    const read = await h.call('assistant_chat_read', { siteName: 'other', chatId: 'chat', fromPosition: 0 }) as any;
-    expect(JSON.stringify({ list, read })).not.toContain(secret);
-    expect(JSON.stringify(read).length).toBeLessThanOrEqual(HISTORY_TOTAL_CHAR_CAP);
-    expect(read.messages.length).toBeLessThan(10);
-    expect(read.messages.every((row: any) => row.truncated && JSON.stringify(row).length <= HISTORY_MESSAGE_CHAR_CAP)).toBe(true);
-    history.list = async () => Array.from({ length: 50 }, (_, i) => ({ id: `${i}`, title: '\u0000'.repeat(600), titleSource: 'manual' as const, createdAt: 0, updatedAt: i, messageCount: 1, firstUserLine: '\u0000'.repeat(600) }));
-    expect(JSON.stringify(await h.call('assistant_chats_list', { siteName: '\u0000'.repeat(100), limit: 50 })).length).toBeLessThanOrEqual(HISTORY_TOTAL_CHAR_CAP);
-    expect(await h.call('assistant_chats_list', { siteName: secret })).toMatchObject({ siteName: '[token removed]' });
-  });
-
-  it('reports bounded redacted registered names for unknown sites and unsupported hosts', async () => {
-    const identities: unknown[] = [];
-    const secret = 'sk-' + 'a'.repeat(32);
-    for (const names of [['zoran', 'tovu-dev'], []]) {
-      const h = harness({ siteHistory: () => ({ openStore: async () => undefined,
-        listSiteNames: async required => { identities.push(required); return names; } }) });
-      await expect(h.call('assistant_chats_list', { siteName: 'missing' })).rejects.toThrow(names.length
-        ? 'Unknown site "missing". Registered sites: zoran, tovu-dev.' : 'No other sites are registered.');
-    }
-    expect(identities).toEqual(Array(2).fill({ principalId: 'authenticated-owner' }));
-    const h = harness({ siteHistory: () => ({ openStore: async () => undefined, listSiteNames: async () => Array(60).fill(secret + 'x'.repeat(150)) }) });
-    await expect(h.call('assistant_chats_list', { siteName: secret })).rejects.toThrow('Unknown site "[token removed]"');
-    const bounded = harness({ siteHistory: () => ({ openStore: async () => undefined, listSiteNames: async () => Array(60).fill('z'.repeat(150)) }) });
-    await expect(bounded.call('assistant_chats_list', { siteName: 'missing' })).rejects.toThrow(
-      `Unknown site "missing". Registered sites: ${Array(50).fill('z'.repeat(100)).join(', ')}.`);
-    for (const [id, input] of [['assistant_chats_list', {}], ['assistant_chat_read', { chatId: 'chat' }]] as const) {
-      await expect(harness({}).call(id, { ...input, siteName: 'other' })).rejects.toThrow('not supported on this host');
-    }
-  });
-
-  it('always closes a site store on refused or failed reads', async () => {
-    let closes = 0;
-    for (const [history, message] of [[undefined, 'unavailable'], [{ ...reader(), read: async () => { throw new Error('read failed'); } }, 'read failed']] as const) {
-      const h = harness({ ...(history ? { history } : {}), siteHistory: store => ({ listSiteNames: async () => [], openStore: async () => ({ store, close: async () => { closes++; } }) }) });
-      await expect(h.call('assistant_chat_read', { siteName: 'other', chatId: 'chat' })).rejects.toThrow(message);
-    }
-    const unavailable = harness({ siteHistory: store => ({ listSiteNames: async () => [], openStore: async () => ({ store, close: () => { closes++; } }) }) });
-    await expect(unavailable.call('assistant_chats_list', { siteName: 'other' })).rejects.toThrow('unavailable');
-    const missing = harness({ history: reader(), exists: false, siteHistory: store => ({ listSiteNames: async () => [], openStore: async () => ({ store, close: () => { closes++; } }) }) });
-    await expect(missing.call('assistant_chat_read', { siteName: 'other', chatId: 'missing' })).rejects.toThrow('Chat is unavailable');
-    expect(closes).toBe(4);
-  });
-
-  it('rejects invalid site names before any host port is called', async () => {
-    let touched = 0;
-    const h = harness({ siteHistory: () => ({ listSiteNames: async () => { touched++; return []; }, openStore: async () => { touched++; return undefined; } }) });
-    for (const siteName of [12, '', '   ', 'x'.repeat(101)]) {
-      for (const [id, input] of [['assistant_chats_list', {}], ['assistant_chat_read', { chatId: 'chat' }]] as const) {
-        await expect(h.call(id, { ...input, siteName })).rejects.toThrow('siteName must be a registered site name of at most 100 characters.');
-      }
-    }
-    expect(touched).toBe(0);
-    expect(h.callers).toEqual([]);
   });
 });
