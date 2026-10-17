@@ -1,3 +1,5 @@
+import { sanitizeSvg } from "./sanitize-svg.js";
+import { sniffContentType } from "./content-type-sniffer.js";
 import { isValidMediaSlugFormat } from "./slug.js";
 export { isValidMediaSlugFormat } from "./slug.js";
 import { createSystemClock } from "@jini-ai/core/primitives";
@@ -39,12 +41,12 @@ import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
  *     origin/process, and signed mint-URLs (a `media.download_original`
  *     permission would reserve that capability for a future route).
  *     `Content-Disposition` rules DO now exist, but only the one such a route
- *     needs (forcing `attachment` when the sniffed bytes are HTML/SVG-shaped).
+ *     needs (forcing `attachment` for HTML and sanitizing SVG before serving).
  *  4. **`MediaIngressPolicy`** — no SSRF guards, IP pinning, redirect
  *     handling, pixel-bomb caps, or magic-byte sniffing. Only a byte-size cap
  *     and an advisory `contentType` allowlist (see `DEFAULT_ALLOWED_MIME_TYPES`
- *     below) — an attacker-controlled `contentType` header is trusted, which
- *     the real ingress policy would never do.
+ *     below), plus mandatory SVG sanitization before hashing/storage. Hosts still
+ *     validate sniffed types independently of client declarations.
  *  5. **Where-used** — `purgeMedia` requires the host's current-reference checker. The host
  *     owns content formats and must include references not maintained in `entry_refs`.
  *  6. Virus scanning, remote-URL upload, video pipeline, S3 adapter — all
@@ -101,10 +103,8 @@ function formatMaxUploadBytesAsMb(bytes: number): string {
 }
 
 /**
- * Advisory MIME allowlist. SVG is deliberately EXCLUDED (not "TODO, forgot") —
- * SVG must be sanitized at ingest before it's safe to store;
- * that sanitizer is not built in this pass, so SVG upload is rejected rather
- * than accepted unsanitized.
+ * Advisory MIME allowlist. SVG is sanitized by sanitizeSvg before hashing and storage;
+ * hosts serve its original without requesting raster transforms.
  *
  * `image/avif` (owner-directed, 2026-09-06): a fifth still-image type, on the
  * same footing as the four above — `content-type-sniffer.ts` identifies it by
@@ -134,6 +134,7 @@ export const DEFAULT_ALLOWED_MIME_TYPES: ReadonlySet<string> = new Set([
   "image/webp",
   "image/gif",
   "image/avif",
+  "image/svg+xml",
   "video/mp4",
   "video/webm",
   "audio/wav",
@@ -328,7 +329,14 @@ export async function uploadMedia(
     );
   }
 
-  const sha256 = createHash("sha256").update(input.bytes).digest("hex");
+  // Inspect the bytes too: a mislabeled SVG must never bypass sanitization.
+  const bytes = input.contentType === "image/svg+xml" || sniffContentType({ bytes: input.bytes }) === "image/svg+xml"
+    ? await sanitizeSvg({ bytes: input.bytes })
+    : input.bytes;
+  if (bytes.byteLength > maxUploadBytes) {
+    throw new MediaValidationError({ message: `uploaded file exceeds the ${formatMaxUploadBytesAsMb(maxUploadBytes)} size cap` });
+  }
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
   const nowIso = kernelNowIso({ clock: deps.clock });
 
   const storageKey = await withSha256Lock({ key: sha256, criticalSection: async () => {
@@ -345,7 +353,7 @@ export async function uploadMedia(
     const written = await deps.blobStore.put({
       workspaceId: input.workspaceId,
       sha256,
-      bytes: input.bytes,
+      bytes,
     });
     await deps.blobRepo.save({
       id: deps.idGen.newId(),

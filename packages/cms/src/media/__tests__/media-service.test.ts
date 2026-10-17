@@ -53,6 +53,25 @@ function bytesFrom(content: string): Uint8Array {
   return new TextEncoder().encode(content);
 }
 
+test("SVG upload stores sanitized bytes under their own hash, deduplicates, and refuses SVG fonts", async () => {
+  const { deps } = makeDeps();
+  const { createHash } = await import("node:crypto");
+  const malicious = '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(1)</script><path d="M0 0h10v10z"/></svg>';
+  const input = { workspaceId: WORKSPACE_ID, filename: "logo.svg", contentType: "image/svg+xml", bytes: bytesFrom(malicious), createdByPrincipal: "owner" };
+  const { media } = await uploadMedia({ deps, input });
+  const blob = await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: media.source.sha256 });
+  assert.ok(blob);
+  const bytes = await deps.blobStore.get({ storageKey: blob.storageKey });
+  assert.doesNotMatch(new TextDecoder().decode(bytes), /script|onload|alert/);
+  assert.equal(media.source.sha256, createHash("sha256").update(bytes).digest("hex"));
+  assert.notEqual(media.source.sha256, createHash("sha256").update(input.bytes).digest("hex"));
+  const repeated = await uploadMedia({ deps, input: { ...input, bytes } });
+  assert.equal(repeated.media.source.sha256, media.source.sha256);
+  assert.equal((await deps.blobRepo.list({ workspaceId: WORKSPACE_ID })).length, 1);
+  await assert.rejects(() => uploadMedia({ deps, input: { ...input, bytes: bytesFrom('<svg xmlns="http://www.w3.org/2000/svg"><font/></svg>') } }), /SVG fonts are not allowed/);
+  assert.equal((await deps.mediaRepo.list({ workspaceId: WORKSPACE_ID })).length, 2);
+});
+
 test("uploadMedia stores bytes, a media row, and an 'original' rendition", async () => {
   const { deps } = makeDeps();
 
@@ -737,13 +756,11 @@ test("uploadMedia accepts image/avif", async () => {
 
 /**
  * The allowlist stays an allowlist: widening it for AVIF must not turn it into "any image/*".
- * `image/svg+xml` is the durable negative case (it needs an ingest sanitizer this build does not
- * have), and `image/heic` is the second — the installed libvips cannot decode HEIC, so accepting
- * it would store bytes no transform could ever render.
+ * HEIC remains unsupported by the installed decoder; PDF is not image media.
  */
 test("uploadMedia still rejects types outside the allowlist, with the exact operator-facing message", async () => {
   const { deps } = makeDeps();
-  for (const contentType of ["image/svg+xml", "image/heic", "application/pdf"]) {
+  for (const contentType of ["image/heic", "application/pdf"]) {
     await assert.rejects(
       () =>
         uploadMedia({

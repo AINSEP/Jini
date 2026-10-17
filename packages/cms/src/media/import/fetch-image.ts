@@ -16,6 +16,7 @@ const EXTENSION_BY_CONTENT_TYPE: Readonly<Record<string, string>> = {
   "image/gif": "gif",
   "image/webp": "webp",
   "image/avif": "avif",
+  "image/svg+xml": "svg",
   "video/mp4": "mp4",
   "video/webm": "webm",
 };

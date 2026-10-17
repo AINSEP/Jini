@@ -51,6 +51,20 @@ function bytesFrom(content: string): Uint8Array {
   return new TextEncoder().encode(content);
 }
 
+test("SVG transform URLs serve the vector original without invoking the raster transformer or saving renditions", async () => {
+  const { deps, transformCalls } = makeDeps();
+  const { media } = await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, filename: "logo.svg", contentType: "image/svg+xml",
+    bytes: bytesFrom('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0 0h10v10z"/></svg>'), createdByPrincipal: "owner" } });
+  await registerTransform({ deps, input: { workspaceId: WORKSPACE_ID, name: "public", params: { format: "webp" }, owner: "core" } });
+  const result = await resolveMediaRendition({ deps, input: { workspaceId: WORKSPACE_ID, assetId: media.id, transformName: "public", version: 1 } });
+  assert.equal(result.outcome, "ok");
+  if (result.outcome !== "ok") assert.fail("SVG rendition must resolve");
+  assert.equal(result.contentType, "image/svg+xml");
+  assert.match(new TextDecoder().decode(result.bytes), /viewBox="0 0 10 10"/);
+  assert.deepEqual(transformCalls, []);
+  assert.deepEqual((await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id })).map(row => row.transformName), ["original"]);
+});
+
 async function uploadOne(deps: ReturnType<typeof makeDeps>["deps"], content = "source-bytes") {
   return uploadMedia({
     deps,

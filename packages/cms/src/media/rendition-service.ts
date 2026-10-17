@@ -1,3 +1,5 @@
+import { sanitizeSvg } from "./sanitize-svg.js";
+import { sniffContentType } from "./content-type-sniffer.js";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 /**
  * @file Rendition resolution service — "serve-if-exists +
@@ -136,6 +138,9 @@ export async function resolveMediaRendition(
   });
   if (existing) {
     const bytes = await deps.blobStore.get({ storageKey: existing.storageKey });
+    if (sniffContentType({ bytes }) === "image/svg+xml") {
+      return { outcome: "ok", bytes: await sanitizeSvg({ bytes }), contentType: "image/svg+xml" };
+    }
     return { outcome: "ok", bytes, contentType: mimeForTransformFormat({ format: definition.params.format }) };
   }
 
@@ -156,6 +161,12 @@ export async function resolveMediaRendition(
     throw new Error(`media '${media.id}': source blob for sha256 '${media.source.sha256}' was not found`);
   }
 
+  const sourceBytes = await deps.blobStore.get({ storageKey: sourceBlob.storageKey });
+  // SVG remains vector media even when an embed requests a raster transform URL.
+  if (sniffContentType({ bytes: sourceBytes }) === "image/svg+xml") {
+    return { outcome: "ok", bytes: await sanitizeSvg({ bytes: sourceBytes }), contentType: "image/svg+xml" };
+  }
+
   const lockKey = `${media.source.sha256}:${input.transformName}:${input.version}`;
   const renditionRow = await withRenditionLock({ key: lockKey, criticalSection: async () => {
     // Double-checked: another caller may have finished generating this exact rendition while we
@@ -169,7 +180,6 @@ export async function resolveMediaRendition(
     });
     if (racedExisting) return racedExisting;
 
-    const sourceBytes = await deps.blobStore.get({ storageKey: sourceBlob.storageKey });
     const { bytes: outputBytes } = await deps.imageTransformer.transform({
       bytes: sourceBytes,
       params: definition.params,

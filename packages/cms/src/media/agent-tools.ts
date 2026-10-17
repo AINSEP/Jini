@@ -93,8 +93,7 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
     name: "media_upload_asset",
     description:
       `Uploads a new media asset from base64-encoded bytes. Rejects a content type outside the allowed set ` +
-      `(${[...DEFAULT_ALLOWED_MIME_TYPES].join(", ")} — SVG is never accepted, even here: it requires a sanitizer ` +
-      `this build does not have) or a file over this host's configured size cap (a rejected upload's error ` +
+      `(${[...DEFAULT_ALLOWED_MIME_TYPES].join(", ")} — SVG is sanitized before storage) or a file over this host's configured size cap (a rejected upload's error ` +
       `states the exact limit, in MB). Uploading the same bytes twice always creates two separate library ` +
       `entries (the underlying blob is deduplicated, but each upload is its own asset).`,
     sideEffects: "mutates-durable-state",
@@ -127,8 +126,8 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
       "Updates a media asset's metadata: title, alt, caption, credit, and its asset-wide presentation (cssClass, " +
       "htmlAttributes). Omit a field to leave it unchanged. htmlAttributes/cssClass apply EVERYWHERE this asset " +
       "renders; to change one placement on one page only, put the attribute on that page's data-embed-config " +
-      "marker element instead (pages_write_region). The bytes (sha256) are write-once and cannot be changed by " +
-      "this or any tool — to replace the file itself, upload a new asset.",
+      "marker element instead (pages_write_region). This metadata command cannot replace file bytes. " +
+      "Use the host's media file replacement command to preserve the existing id, slug and references.",
     sideEffects: "mutates-durable-state",
     authorization: { permission: "media.update" },
     inputSchema: {

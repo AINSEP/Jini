@@ -407,6 +407,9 @@ importers:
       '@jini-ai/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@jini-ai/ui-kit':
+        specifier: workspace:^
+        version: link:../ui-kit
       '@jini-ai/ui':
         specifier: workspace:^
         version: link:../ui
@@ -495,6 +498,12 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
+      dompurify:
+        specifier: ^3.4.12
+        version: 3.4.12
+      jsdom:
+        specifier: ^25.0.1
+        version: 25.0.1
     devDependencies:
       '@electric-sql/pglite':
         specifier: 0.5.8
@@ -511,6 +520,9 @@ importers:
       '@types/express':
         specifier: ^4.17.21
         version: 4.17.25
+      '@types/jsdom':
+        specifier: ^21.1.7
+        version: 21.1.7
       '@vitest/coverage-v8':
         specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(sass@1.51.0))
@@ -520,9 +532,6 @@ importers:
       express:
         specifier: ^4.21.0
         version: 4.22.2
-      jsdom:
-        specifier: ^25.0.1
-        version: 25.0.1
       kysely:
         specifier: ^0.29.6
         version: 0.29.6

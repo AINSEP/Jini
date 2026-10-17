@@ -1,4 +1,5 @@
-import { humanConfirmedHandler, type HumanConfirmer } from './registration-kit.js';
+import { humanConfirmedHandler, requireInputRecord, type HumanConfirmer } from './registration-kit.js';
+import { ToolInputError } from './tool-registry.js';
 import type { ToolExecutionContext, ToolExecutionOptions, ToolHandler, ToolRegistration } from './tool-registry.js';
 
 /** A host describes the action; core owns the decision lifecycle, never the card format. */
@@ -87,6 +88,62 @@ export function createApprovalHandler<TPrepared, TDescription>(
       if (ctx.signal.aborted) return Promise.resolve(steps.notConfirmed({ reason: 'abandoned', prepared: value }));
       return steps.run({ ctx, prepared: value as TPrepared, confirmer: { id: ctx.principal.id, kind: 'user' }, choice }, options);
     },
+  });
+}
+
+/** Prepare every item before asking once for the complete batch. Reuses the single-call approval
+ * lifecycle, including its detached inputs, authenticated confirmer and abort checks.
+ * Single inputs preserve their result shape. Batch effects run in order and stop on the first
+ * failure; earlier effects are not rolled back. No remembered approval is accepted for a batch.
+ * @throws ToolInputError for malformed, duplicate or over-cap batches, before preparation/effects.
+ * @complexity O(s + n p log p) local time and O(s) snapshot space for s input/description bytes,
+ * p top-level fields per item and n items (default cap 25), plus the injected preparation/effects. */
+export function createBatchApprovalHandler<TPrepared, TDescription>(
+  { steps, combineDescriptions }: {
+    steps: ApprovalSteps<TPrepared, TDescription>;
+    combineDescriptions(input: { descriptions: readonly TDescription[] }): TDescription;
+  },
+  { maxItems = 25 }: { maxItems?: number } = {},
+): ToolHandler {
+  type Entry = { ctx: ToolExecutionContext; prepared: TPrepared };
+  type Batch = { batch: boolean; entries: Entry[] };
+  return createApprovalHandler<Batch, TDescription>({
+    prepare: async ({ ctx }, options) => {
+      const input = requireInputRecord({ input: ctx.input });
+      if (!Object.hasOwn(input, 'items')) return { batch: false, entries: [{ ctx, prepared: await steps.prepare({ ctx }, options) }] };
+      const { items, ...defaults } = input;
+      if (!Array.isArray(items) || items.length < 1 || items.length > maxItems) {
+        throw new ToolInputError({ message: `items must contain between 1 and ${maxItems} inputs.` });
+      }
+      const contexts = items.map(item => {
+        const fields = requireInputRecord({ input: item });
+        if (Object.hasOwn(fields, 'items')) throw new ToolInputError({ message: 'Nested items batches are not supported.' });
+        return { ...ctx, input: { ...defaults, ...fields } };
+      });
+      // These boundary inputs are records; sorting their keys also catches reordered scalar ids.
+      const keys = contexts.map(({ input }) => JSON.stringify(Object.entries(input).sort(([a], [b]) => a.localeCompare(b))));
+      if (new Set(keys).size !== keys.length) throw new ToolInputError({ message: 'Duplicate batch inputs are not allowed.' });
+      const entries: Entry[] = [];
+      for (const itemCtx of contexts) entries.push({ ctx: itemCtx, prepared: await steps.prepare({ ctx: itemCtx }, options) });
+      return { batch: true, entries };
+    },
+    describe: async ({ prepared }, options) => {
+      const plans: ApprovalPlan<TDescription>[] = [];
+      for (const entry of prepared.entries) plans.push(await steps.describe(entry, options));
+      if (!prepared.batch) return plans[0]!;
+      return { ask: true, description: combineDescriptions({ descriptions: plans.map(plan => plan.description) }) };
+    },
+    askHuman: steps.askHuman,
+    run: async ({ prepared, confirmer, choice }, options) => {
+      if (!prepared.batch) return steps.run({ ...prepared.entries[0]!, confirmer, choice }, options);
+      const results: unknown[] = [];
+      for (const entry of prepared.entries) {
+        if (entry.ctx.signal.aborted) return steps.notConfirmed({ reason: 'abandoned' });
+        results.push(await steps.run({ ...entry, confirmer, choice }, options));
+      }
+      return { batch: true, total: results.length, results };
+    },
+    notConfirmed: ({ reason, prepared }) => steps.notConfirmed({ reason, prepared: prepared?.batch ? undefined : prepared?.entries[0]?.prepared }),
   });
 }
 

@@ -173,3 +173,7 @@ export {
 } from './video-frames.js';
 
 export type { MediaReferenceCheckPort } from "./ports.js";
+
+export { sanitizeSvg } from "./sanitize-svg.js";
+
+export { replaceMediaFile, type ReplaceMediaFileDeps, type MediaFileReplacementRepoPort } from './replace-media-file.js';
