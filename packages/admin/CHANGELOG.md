@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.12 — 2026-10-16
+
+- SEO: searchable entry picker and grouped per-entry form (6c128f9d); image fields name the file, styled analysis, slug for same-titled entries (bc1dbf0d); one Social preview section with an optional "Customize for X" (ff1a709f); X/Twitter labels, file names with extensions, muted inherited site-default image (4919371d); "Using image from page content" when the share image comes from the page (746457d9).
+- Peers: `@jini-ai/ui` `^0.5.5` (grouped Select) and `@jini-ai/cms` `^0.5.13` (share-image source).
+
 ## 0.4.11 — 2026-10-14
 
 - `FieldAttributesDialog` and `SitemapModal` use the neutral `jini-domain-dialog` class instead of a host-named one; hosts style `.jini-domain-dialog` (47b9fa4f).

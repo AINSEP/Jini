@@ -1,5 +1,10 @@
 # @jini-ai/platform
 
+## 0.5.9 — 2026-10-16
+
+- `fs`: best-effort directory fsync, so Windows site creation stops failing with EPERM (87720117).
+- `./web` fetch default window is 20,000 characters so one result fits an MCP budget (939300e3).
+
 ## 0.5.8 — 2026-10-15
 
 - SECURITY: the guarded HTTP client forwards only `accept`, `accept-language` and `user-agent` on a cross-origin redirect (4de69b67). It used to strip only Authorization/Cookie, so custom credential headers (`x-api-key`, `X-Shopify-Access-Token`, …) followed a redirect to another origin. Same-origin hops keep all headers.

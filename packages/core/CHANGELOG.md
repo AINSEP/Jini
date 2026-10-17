@@ -1,5 +1,9 @@
 # @jini-ai/core
 
+## 0.4.7 — 2026-10-16
+
+- `requireString`, `requireNumber` and `requireObject` errors list the keys the call actually received and flag unsupported `items[]` batching (a6ac9d7e, c7557838).
+
 ## 0.4.6 — 2026-10-14
 
 - Express 5 accepted: the optional `express` peer is now `^4.21.0 || ^5.0.0` (1442d875), so an Express 5 host no longer hits ERESOLVE.

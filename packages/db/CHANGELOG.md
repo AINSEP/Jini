@@ -1,3 +1,7 @@
+## 0.3.5 — 2026-10-16
+
+- Store copy lets the host exclude retained restore tables from the catalog, emptiness check and copy (b0b13de4); copy only builds indexes for tables it created (d748cf67).
+
 ## 0.3.4 — 2026-10-13
 
 - Vault SQL repo imports `@jini-ai/platform/secrets/credential-sets/contracts`; requires @jini-ai/platform >=0.5.6 (credential-sets/contracts); publish platform first.

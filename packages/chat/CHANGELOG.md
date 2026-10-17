@@ -1,3 +1,11 @@
+## 0.6.6 — 2026-10-16
+
+- Staged attachment rows sit 8px apart so the top row's remove target stays 44px (4884cf15).
+- The Done line for tokens-only runtimes uses run timestamps and the known total (9fd89d41).
+- An unknown tool on the read-only gateway points the model to discovery, never a mutation 409 (75d37c32).
+- A run that could not continue says why, and a wait for the owner is never reported as "no progress" (13e90536).
+- The model picker shows the default model by name, not its raw id (6b4b613d).
+
 ## 0.6.5 — 2026-10-15
 
 - Durable recovery no longer gives up on a finished CLI turn (8c6acfea): a saved successful Claude CLI `result` line carries `modelUsage.contextWindow`, which matched the context-limit pattern case-insensitively, so a dropped stream or restart ended the answer with "The assistant could not continue this answer" instead of continuing it. The pattern now requires a separator, and attempt diagnostics skip successful CLI result lines (`type: "result"`, `is_error: false`).

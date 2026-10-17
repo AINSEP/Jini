@@ -1,3 +1,9 @@
+## 0.5.13 — 2026-10-16
+
+- SEO: the X card falls back to the Open Graph override before the page default (391560e8); resolved meta flags an entry's own share-image override (c79abea8) and says where the resolved share image came from (746457d9).
+- Site directories: best-effort directory fsync so Windows site creation no longer fails with EPERM (87720117).
+- Widget config rejections name the failing fields and the expected config keys (eecbd5c8).
+
 ## 0.5.12 — 2026-10-14
 
 - Express 5 accepted: the optional `express` peer is now `^4.21.0 || ^5.0.0` (1442d875), so an Express 5 host no longer hits ERESOLVE.

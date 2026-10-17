@@ -1,3 +1,7 @@
+## 0.6.8 — 2026-10-16
+
+- An unknown tool on the read-only gateway points to discovery, never a mutation 409 (75d37c32).
+
 ## 0.6.7 — 2026-10-15
 
 - An unknown tool id is a `400 BAD_REQUEST`, not a redacted `500 INTERNAL_ERROR` (b4a3abad): `ToolExecutor` throws `ToolInputError` naming up to eight registered ids the unknown id prefixes (e.g. `content_read` → `content_read.menu`), and the delegated-tools route returns that message.

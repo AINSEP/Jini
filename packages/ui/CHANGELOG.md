@@ -1,5 +1,11 @@
 # @jini-ai/ui
 
+## 0.5.5 — 2026-10-16
+
+- `admin-widgets` Select paints group headings and per-option badges (dc770a41) and is pane-aware; image fields name the file (bc1dbf0d).
+- The preview modal's default exit-fullscreen icon draws inward arrows (ef161bf1).
+- `execution`: the Claude Code model picker lists each model once, by name (4b3b894b, 0ae46113).
+
 ## 0.5.4 — 2026-10-15
 
 - `TabBar` re-scrolls the active tab into view once web fonts are ready (06931dfe): fonts that widen tabs after the first measurement no longer leave a deep-linked tab cut off at the strip edge.
