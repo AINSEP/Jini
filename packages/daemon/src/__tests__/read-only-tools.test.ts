@@ -11,9 +11,37 @@ import {
   withReadOnlyToolConstraint,
   checkReadOnlyTool,
   defaultDaemonMessages,
+  filterReadOnlyToolCatalog,
   type ReadOnlyToolMessages,
 } from '../read-only-tools.js';
 import * as canonical from '../read-only-tools.js';
+import type { ToolCatalogQuery } from '../http/tool-catalog.js';
+
+test('a read-only principal cannot discover writes or unclassified tools AND cannot invoke them', async () => {
+  const { registry, gate, store } = harness();
+  let unclassifiedCalls = 0;
+  registry.register({ descriptor: { id: 'unclassified' }, policy: { authorize: () => 'allow' }, handler: async () => { unclassifiedCalls++; } });
+  const hits = ['set', 'unclassified', 'pick'].map(id => ({ id, description: 'probe', source: 'test', score: 1 }));
+  const catalog: ToolCatalogQuery = {
+    search: (_input, { limit = 10 } = {}) => hits.slice(0, limit),
+    describe: ({ id }) => hits.find(hit => hit.id === id) ?? null,
+  };
+  const visible = filterReadOnlyToolCatalog({ principal: READ_ONLY, registry, catalog });
+  assert.deepEqual(visible.search({ query: 'probe' }, { limit: 1 }).map(hit => hit.id), ['pick'], 'withheld writes must not displace reads at the cutoff');
+  for (const toolId of ['set', 'unclassified']) {
+    assert.equal(visible.describe({ id: toolId }), null);
+    assert.equal((await gate.execute({ principal: READ_ONLY, run: RUN, toolId, input: {} })).status, 'denied');
+  }
+  assert.equal(store.size, 0);
+  assert.equal(unclassifiedCalls, 0);
+  assert.equal(visible.describe({ id: 'pick' })?.id, 'pick');
+  assert.equal((await gate.execute({ principal: READ_ONLY, run: RUN, toolId: 'pick', input: {} })).status, 'completed');
+  const ordinary = filterReadOnlyToolCatalog({ principal: PRINCIPAL, registry, catalog });
+  assert.equal(ordinary, catalog);
+  assert.equal(ordinary.describe({ id: 'set' })?.id, 'set');
+  assert.equal((await gate.execute({ principal: PRINCIPAL, run: RUN, toolId: 'set', input: {} })).status, 'completed');
+  assert.equal(store.size, 1);
+});
 
 // Generalized from the copied composition regression. Host features are replaced
 // with real kernel registrations whose write is observable in a durable-store fixture.

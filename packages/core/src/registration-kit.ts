@@ -384,7 +384,7 @@ export function decorateWithSchema(params: {
 
 /**
  * Build-time gate on a single tool's risk metadata: refuses to wire a tool whose declared
- * `sideEffects` disagrees with the wiring layer's own {@link DerivedRiskByToolId} classification,
+ * authorization permission is missing, whose `sideEffects` disagrees with the wiring layer's own {@link DerivedRiskByToolId} classification,
  * whose id that layer has not classified at all, or whose `actorClassRule` needs a human confirmer
  * its handler does not ask for.
  *
@@ -410,6 +410,9 @@ export function assertToolIsWirable(params: {
   handler?: ToolHandler;
 } = {}): void {
   const { toolId, catalogEntry } = params;
+  if (typeof catalogEntry.authorization?.permission !== "string" || catalogEntry.authorization.permission.trim().length === 0) {
+    throw new Error(`tool-registrations: '${toolId}' must declare an authorization permission before wiring`);
+  }
   const derived = params.derivedRisk.get(toolId);
   if (!derived) {
     throw new Error(

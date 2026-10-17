@@ -206,7 +206,7 @@ export interface ToolRegistration {
 
 /** The public registration/enumeration surface. See the module doc for why `handler`/`policy` never appear here. */
 export interface ToolRegistry {
-  /** @throws If `registration.descriptor.id` is already registered — re-registration must be explicit (unregister is not exposed; this registry is append-only by design, matching the kernel's "tools are registered once at composition time" model). */
+  /** @throws If the policy has no callable `authorize` or `registration.descriptor.id` is already registered — re-registration must be explicit (unregister is not exposed; this registry is append-only by design, matching the kernel's "tools are registered once at composition time" model). */
   register(registration: ToolRegistration): void;
   has(required: { toolId: string }): boolean;
   /** Descriptors only, in registration order. Never the underlying handlers/policies. */
@@ -214,6 +214,12 @@ export interface ToolRegistry {
 }
 
 const registrationsByRegistry = new WeakMap<ToolRegistry, Map<string, ToolRegistration>>();
+/** Refuse malformed runtime contributions before either registration path changes the registry. */
+function assertAuthorizationPolicy({ registration }: { registration: ToolRegistration }, _optional: Record<string, never> = {}): void {
+  if (typeof registration.policy?.authorize !== 'function') {
+    throw new Error(`ToolRegistry: tool "${registration.descriptor.id}" must declare an authorization policy`);
+  }
+}
 // Static register() remains append-only; scoped host contributions below explicitly own removal.
 const registryRevisions = new WeakMap<object, number>();
 /** A host can invalidate its disposable discovery snapshot without exposing handlers. */
@@ -233,6 +239,7 @@ export function createToolRegistrationScope(required: { registry: ToolRegistry }
     replace({ registrations: next }: { registrations: readonly ToolRegistration[] }, _optional: Record<string, never> = {}) {
       const ids = new Set<string>();
       for (const registration of next) {
+        assertAuthorizationPolicy({ registration });
         const id = registration.descriptor.id;
         if (ids.has(id) || (registrations.has(id) && !owned.has(id))) throw new Error(`ToolRegistry: tool "${id}" is already registered`);
         ids.add(id);
@@ -268,6 +275,7 @@ export function createToolRegistry(_required: Record<string, never>): ToolRegist
 
   const registry: ToolRegistry = {
     register(registration: ToolRegistration): void {
+      assertAuthorizationPolicy({ registration });
       if (registrations.has(registration.descriptor.id)) {
         throw new Error(`ToolRegistry: tool "${registration.descriptor.id}" is already registered`);
       }

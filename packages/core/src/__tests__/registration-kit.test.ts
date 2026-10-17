@@ -16,7 +16,16 @@ import {
   requireString,
   withSchemaOnRejection,
   type AgentToolSideEffect,
+  type AgentToolDefinition,
 } from '../index.js';
+
+it.each([undefined, null, {}, { permission: '' }, { permission: '  ' }, { permission: 1 }])('refuses a catalog entry with no authorization permission at composition (%j)', (authorization) => {
+  const entry = { name: 'unsafe', description: 'Unsafe', sideEffects: 'none', inputSchema: { type: 'object' }, authorization } as unknown as AgentToolDefinition;
+  expect(() => buildDomainRegistrations({
+    domain: 'test', catalogModule: 'test/agent-tools.ts', catalog: new Map([['unsafe', entry]]),
+    handlers: { unsafe: async () => null }, derivedRisk: new Map([['unsafe', 'none']]),
+  })).toThrow(/unsafe.*authorization permission/);
+});
 
 /**
  * @file Every input reader in this kit throws `@jini-ai/core`'s `ToolInputError` — the marker

@@ -56,6 +56,16 @@ describe('@jini-ai/core — tool-registry', () => {
     expect(() => registry.register(makeRegistration('echo'))).toThrow(/already registered/);
   });
 
+  it.each([undefined, null, {}, { authorize: true }])('rejects a runtime registration without a callable policy before publishing it (%j)', (policy) => {
+    const registry = createToolRegistry({});
+    const malformed = { ...makeRegistration('unsafe'), policy } as unknown as ToolRegistration;
+    expect(() => registry.register(malformed)).toThrow(/unsafe.*authorization policy/);
+    expect(registry.has({ toolId: 'unsafe' })).toBe(false);
+    expect(registry.list({})).toEqual([]);
+    registry.register(makeRegistration('safe'));
+    expect(registry.has({ toolId: 'safe' })).toBe(true);
+  });
+
   it('authorizeToolInvocation resolves the descriptor and handler for an allowed call', async () => {
     const registry = createToolRegistry({});
     registry.register(makeRegistration('echo', 'allow'));

@@ -173,7 +173,7 @@ export async function createEntry(required: CreateEntryRequired): Promise<Result
   // The same rule holds in `updateEntry` and `importEntry` below.
   const validation = validateFieldsAgainstSchema({ schema: contentType.fields, fieldsJson: input.fieldsJson }, { owner: contentType.owner });
   if (!validation.valid) {
-    return { ok: false, error: new EntryFieldValidationError({ fieldErrors: validation.fieldErrors }) };
+    return { ok: false, error: new EntryFieldValidationError({ fieldErrors: validation.fieldErrors, entitySchema: { type: contentType.key, owner: contentType.owner ?? "site", fields: contentType.fields } }) };
   }
 
   const existing = await deps.entryRepo.findBySlug({ workspaceId: input.workspaceId, type: input.type, slug: input.slug });
@@ -333,7 +333,7 @@ export async function updateEntry(required: UpdateEntryRequired): Promise<Result
   if (input.fieldsJson !== undefined) {
     const validation = validateFieldsAgainstSchema({ schema: contentType?.fields ?? [], fieldsJson: input.fieldsJson }, { owner: contentType?.owner });
     if (!validation.valid) {
-      return { ok: false, error: new EntryFieldValidationError({ fieldErrors: validation.fieldErrors }) };
+      return { ok: false, error: new EntryFieldValidationError({ fieldErrors: validation.fieldErrors, entitySchema: { type: current.type, owner: contentType?.owner ?? "site", fields: contentType?.fields ?? [] } }) };
     }
     fieldsJson = input.fieldsJson;
   }
@@ -443,7 +443,7 @@ export async function importEntry(required: ImportEntryRequired): Promise<Result
 
   const validation = validateFieldsAgainstSchema({ schema: contentType.fields, fieldsJson: input.fieldsJson }, { owner: contentType.owner });
   if (!validation.valid) {
-    return { ok: false, error: new EntryFieldValidationError({ fieldErrors: validation.fieldErrors }) };
+    return { ok: false, error: new EntryFieldValidationError({ fieldErrors: validation.fieldErrors, entitySchema: { type: contentType.key, owner: contentType.owner ?? "site", fields: contentType.fields } }) };
   }
 
   const existing = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.id });

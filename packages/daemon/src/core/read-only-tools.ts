@@ -2,6 +2,7 @@ import { isReadOnlyTool, type Principal, type ToolRegistry } from '@jini-ai/core
 import type { ToolExecutor } from '../tool-executor.js';
 import type { IdGenerator } from '@jini-ai/core/primitives';
 import { toolCandidates } from './tool-candidates.js';
+import type { ToolCatalogQuery } from '../http/tool-catalog.js';
 
 /**
  * A `Principal` narrowed to tools that only read.
@@ -80,6 +81,34 @@ export function principalIsReadOnlyConstrained(
   _optional: Record<string, never> = {},
 ): boolean {
   return 'toolAccess' in principal && principal.toolAccess === 'read-only';
+}
+
+/**
+ * Hide writes and unclassified tools from a constrained caller's search and schema discovery.
+ * Uses the same classification as dispatch; discovery never grants execution authority.
+ * @param required - Per-call identity, live descriptors, and the existing catalog owner.
+ * @returns A filtered catalog, or the original catalog for an unconstrained caller.
+ * @example filterReadOnlyToolCatalog({ principal, registry, catalog });
+ * @complexity O(n + h) per search for n live registrations and h ranked hits. Overfetch is bounded
+ * by registered tool count so withheld writes cannot displace permitted reads at a small limit.
+ */
+export function filterReadOnlyToolCatalog(
+  required: { principal: Principal; registry: Pick<ToolRegistry, 'list'>; catalog: ToolCatalogQuery },
+  _optional: Record<string, never> = {},
+): ToolCatalogQuery {
+  if (!principalIsReadOnlyConstrained({ principal: required.principal })) return required.catalog;
+  const allowedIds = () => new Set(required.registry.list({})
+    .filter(descriptor => isReadOnlyTool({ descriptor })).map(descriptor => descriptor.id));
+  return {
+    search(input, { limit = 10 } = {}) {
+      const allowed = allowedIds();
+      return required.catalog.search(input, { limit: Math.max(limit, required.registry.list({}).length) })
+        .filter(hit => allowed.has(hit.id)).slice(0, limit);
+    },
+    describe(input) {
+      return allowedIds().has(input.id) ? required.catalog.describe(input) : null;
+    },
+  };
 }
 
 /** @returns Required host wording for a registered non-read-only tool. */

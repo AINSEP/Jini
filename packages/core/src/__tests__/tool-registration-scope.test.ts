@@ -1,6 +1,20 @@
 import { expect, it } from 'vitest';
 import { createToolRegistry, createToolRegistrationScope, toolRegistryRevision, type ToolRegistration } from '../tool-registry.js';
 const registration = (id: string): ToolRegistration => ({ descriptor: { id }, handler: async () => null, policy: { authorize: () => 'allow' } });
+it.each([undefined, null, {}, { authorize: true }])('refuses an invalid scoped policy atomically, retaining the authorized generation (%j)', async (policy) => {
+  const registry = createToolRegistry({});
+  const scope = createToolRegistrationScope({ registry });
+  scope.replace({ registrations: [registration('old')] });
+  const { authorizeToolInvocation } = await import('../tool-registry.js');
+  const retained = await authorizeToolInvocation({ registry, toolId: 'old', principal: { id: 'p' }, run: { id: 'r' }, input: {} });
+  const before = toolRegistryRevision({ registry });
+  const malformed = { ...registration('unsafe'), policy } as unknown as ToolRegistration;
+  expect(() => scope.replace({ registrations: [registration('new'), malformed] })).toThrow(/unsafe.*authorization policy/);
+  expect(registry.list({}).map(tool => tool.id)).toEqual(['old']);
+  expect(toolRegistryRevision({ registry })).toBe(before);
+  expect(retained?.decision).toBe('allow');
+  if (retained?.decision === 'allow') await expect(retained.handler({ executionId: 'e', principal: { id: 'p' }, run: { id: 'r' }, input: {}, signal: new AbortController().signal })).resolves.toBeNull();
+});
 it('atomically replaces only a scope, refuses native and other-scope collisions, revokes retained handlers', async () => {
   const registry = createToolRegistry({});
   registry.register(registration('native'));

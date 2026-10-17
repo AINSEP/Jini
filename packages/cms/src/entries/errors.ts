@@ -1,3 +1,5 @@
+import type { OwningContentType } from "./types.js";
+
 /**
  * @file Typed error surface for the `entries` package.
  *
@@ -69,11 +71,14 @@ export function entryVersionConflictError(required: { id: string; expectedVersio
 /** — `fieldsJson` failed `validateFieldsAgainstSchema` against the owning type's current schema. See docs/decisions/DR-002-content-lifecycle-and-cleanup.md. */
 export class EntryFieldValidationError extends Error {
   readonly fieldErrors: Array<{ field: string; reason: string }>;
+  /** Complete declared field schema and its owning namespace, for one-turn correction. */
+  readonly entitySchema: { type: string; owner: string; fields: OwningContentType["fields"] } | undefined;
 
-  constructor(requiredArgs: { fieldErrors: Array<{ field: string; reason: string }> }, optionalArgs: Record<string, never> = {}) {
-    const { fieldErrors } = requiredArgs;
-    super(`fieldsJson failed schema validation: ${fieldErrors.map((e) => `${e.field}: ${e.reason}`).join("; ")}`);
+  constructor(requiredArgs: { fieldErrors: Array<{ field: string; reason: string }>; entitySchema?: { type: string; owner: string; fields: OwningContentType["fields"] } }, optionalArgs: Record<string, never> = {}) {
+    const { fieldErrors, entitySchema } = requiredArgs;
+    super(`fieldsJson failed schema validation: ${fieldErrors.map((e) => `${e.field}: ${e.reason}`).join("; ")}${entitySchema ? `. Entity schema: ${JSON.stringify(entitySchema)}` : ""}`);
     this.name = "EntryFieldValidationError";
     this.fieldErrors = fieldErrors;
+    this.entitySchema = entitySchema;
   }
 }
