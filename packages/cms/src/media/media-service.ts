@@ -45,9 +45,8 @@ import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
  *     and an advisory `contentType` allowlist (see `DEFAULT_ALLOWED_MIME_TYPES`
  *     below) — an attacker-controlled `contentType` header is trusted, which
  *     the real ingress policy would never do.
- *  5. **Where-used / `entry_refs`** — no real index exists because posts don't
- *     reference media by id in `bodyJson` yet. `purgeMedia`'s 409 guard uses
- *     "not yet trashed" as a stand-in for "referenced" (see its doc comment).
+ *  5. **Where-used** — `purgeMedia` requires the host's current-reference checker. The host
+ *     owns content formats and must include references not maintained in `entry_refs`.
  *  6. Virus scanning, remote-URL upload, video pipeline, S3 adapter — all
  *     explicitly deferred by design.
  *
@@ -68,7 +67,7 @@ import {
   type MediaSource,
   type MediaStatus,
 } from "./types.js";
-import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRepoPort } from "./ports.js";
+import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRepoPort, MediaReferenceCheckPort } from "./ports.js";
 import { withSha256Lock } from "./blob-gc-lock.js";
 import { tombstoneBlobIfUnreferenced } from "./blob-gc.js";
 import { describeMediaHtmlAttributeError, parseMediaHtmlAttributes } from "./html-attributes.js";
@@ -695,6 +694,7 @@ export async function trashMedia(
 }
 
 export interface PurgeMediaDeps {
+  referenceCheck: MediaReferenceCheckPort;
   mediaRepo: MediaRepoPort;
   blobRepo: AssetBlobRepoPort;
   renditionRepo: AssetRenditionRepoPort;
@@ -719,14 +719,9 @@ export interface PurgeMediaRequired {
  * rejected with `MediaStillReferencedError` (409-style) unless the asset has
  * already been trashed first.
  *
- * SIMPLIFICATION (disclosed): the real design's guard checks the derived
- * `entry_refs` where-used index (any live reference from published content).
- * That index doesn't exist — posts don't reference media by id in `bodyJson`
- * yet — so this build uses "not yet trashed" as the stand-in referenced-check.
- * This is strictly weaker than the real invariant: a media asset that IS
- * trashed but still referenced by a post would purge here without complaint,
- * whereas the real system would keep blocking it. Do not read this function's
- * 409 as evidence the where-used index exists.
+ * The host must check current content through `referenceCheck`, including slug-based references.
+ * The trashed status is a separate prerequisite, never proof that no content references the asset.
+ * Lookup errors propagate before any removal. Hosts without a checker fail closed.
  *
  * Once past the guard: rendition rows are removed, then the media row is
  * removed. After that removal commits, the blob-GC tombstone-pass
@@ -756,10 +751,14 @@ export async function purgeMedia(
 
   if (existing.status !== "trashed") {
     throw new MediaStillReferencedError({ message: `media '${input.id}' must be trashed before it can be purged`, referencing: [
-        `media '${input.id}' is still active (stand-in for the real entry_refs ` +
-          `where-used index, which is not implemented — see purgeMedia's doc comment)`,
+        `media '${input.id}' is still active`,
       ] }
     );
+  }
+
+  const referencing = await deps.referenceCheck.findReferences({ workspaceId: input.workspaceId, media: existing });
+  if (referencing.length > 0) {
+    throw new MediaStillReferencedError({ message: `media '${input.id}' is still referenced`, referencing: [...referencing] });
   }
 
   await removeMediaRowsAndTombstoneBlob(deps, {

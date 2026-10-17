@@ -141,3 +141,8 @@ export interface BlobStorePort {
   /** Idempotent — removing an already-absent key is not an error. */
   remove(input: { storageKey: string }): Promise<void>;
 }
+
+/** Host-owned current content references. A failed lookup must reject the purge. */
+export interface MediaReferenceCheckPort {
+  findReferences(required: { workspaceId: UUID; media: MediaRecord }, optional?: Record<string, never>): Promise<readonly string[]>;
+}

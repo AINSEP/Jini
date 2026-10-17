@@ -267,7 +267,8 @@ export function createTrashService(deps: TrashServiceDeps, optional: TrashServic
             }, { actor: required.actor });
 
             // A changed version leaves the index in place: the safe outcome of a restore/edit race
-            // is that the item survives. Only completed or already-completed removals drop the index.
+            // is that the item survives. Live references likewise retain the entity and its index.
+            // Only completed or already-completed removals drop the index.
             if (result === "purged" || result === "already-gone") {
               await deps.repo.deleteById({ workspaceId: row.workspaceId, id: row.id });
             }

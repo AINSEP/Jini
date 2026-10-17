@@ -52,8 +52,8 @@ export type TrashMarkerResult =
   | { ok: false; reason: "not-found" | "version-changed"; }
   | { ok: false; reason: "blocked"; code: string; count: number; };
 
-/** Outcome of a physical row removal. */
-export type TrashPurgeOutcome = "purged" | "version-changed" | "already-gone";
+/** Outcome of a physical row removal. `still-referenced` retains the entity and its Trash index. */
+export type TrashPurgeOutcome = "purged" | "version-changed" | "already-gone" | "still-referenced";
 
 /**
  * One per domain. Built and registered into a plain `Map` at the composition root and resolved
@@ -130,6 +130,7 @@ export type PurgeItemOutcome =
   | "purged"
   | "already-gone"
   | "version-changed"
+  | "still-referenced"
   | "not-found"
   | "adapter-unavailable"
   | "forbidden";

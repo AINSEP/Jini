@@ -44,6 +44,7 @@ function makeDeps() {
     renditionRepo: new InMemoryAssetRenditionRepo({}),
     blobStore: new InMemoryBlobStore(),
     journalRepo: new InMemoryBlobGcJournalRepo({}),
+    referenceCheck: { findReferences: async (): Promise<readonly string[]> => [] },
   };
   return { deps, setNow: (iso: string) => (currentNow = iso) };
 }
@@ -861,3 +862,34 @@ for (const contentType of ["audio/wav", "audio/mpeg", "audio/flac", "audio/mp4"]
     assert.equal((await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id }))[0]?.transformName, "original");
   });
 }
+
+// Trash is a prerequisite, never evidence that current references are absent.
+test('purge refuses referenced trashed media and leaves rows, renditions and blob active', async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, bytes: bytesFrom('referenced'), filename: 'photo.png', contentType: 'image/png', createdByPrincipal: 'owner' } });
+  await trashMedia({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id } });
+  deps.referenceCheck.findReferences = async () => ['post-1:bodyHtml', 'widget-1:config.items'];
+  const input = { workspaceId: WORKSPACE_ID, id: media.id };
+  await assert.rejects(purgeMedia({ deps, input }), (error: unknown) => {
+    assert.ok(error instanceof MediaStillReferencedError);
+    assert.deepEqual(error.referencing, ['post-1:bodyHtml', 'widget-1:config.items']);
+    return true;
+  });
+  assert.equal((await deps.mediaRepo.findById(input))?.status, 'trashed');
+  assert.equal((await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id })).length, 1);
+  assert.equal((await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: media.source.sha256 }))?.status, 'active');
+});
+
+test('a failing or absent reference checker refuses purge before removal', async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, bytes: bytesFrom('lookup-fails'), filename: 'photo.png', contentType: 'image/png', createdByPrincipal: 'owner' } });
+  await trashMedia({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id } });
+  const input = { workspaceId: WORKSPACE_ID, id: media.id };
+  deps.referenceCheck.findReferences = async () => { throw new Error('reference store unavailable'); };
+  await assert.rejects(purgeMedia({ deps, input }), /reference store unavailable/);
+  assert.ok(await deps.mediaRepo.findById(input));
+  const { referenceCheck: _omitted, ...withoutChecker } = deps;
+  // @ts-expect-error untyped hosts must fail closed too.
+  await assert.rejects(purgeMedia({ deps: withoutChecker, input }));
+  assert.ok(await deps.mediaRepo.findById(input));
+});

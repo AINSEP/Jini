@@ -171,3 +171,5 @@ export {
   type VideoMetadata, type VideoFrame, type VideoFrameOptions, type VideoFrameResult, type VideoFrameExtractor,
   type VideoSheetTile, type VideoSheetLayout, type VideoContactSheet,
 } from './video-frames.js';
+
+export type { MediaReferenceCheckPort } from "./ports.js";

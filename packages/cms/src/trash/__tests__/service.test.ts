@@ -63,6 +63,28 @@ test("a stale version stands down and preserves the index; vanished rows remove 
   assert.equal((await h.trash.purgeSelected(input)).results[0]!.outcome, "already-gone");
   assert.equal(h.repo.all({}).length, 0);
 });
+test("a still-referenced row keeps its index and marker while later rows are purged", async () => {
+  const seen: TrashChangeEvent[] = [];
+  const h = harness({ onChanged: event => { seen.push(event); } });
+  h.records.records.set("record-2", { id: "record-2", workspaceId: WS, version: 1, updatedAt: AT });
+  await h.trash.trash(removal);
+  await h.trash.trash({ ...removal, entityId: "record-2" });
+  const retainedRecord = structuredClone(h.records.records.get("record-1"));
+  const retainedIndex = structuredClone(h.repo.all({}).find(row => row.id === "trash-1"));
+  const purge = h.adapter.purge;
+  h.adapters.set("record", { ...h.adapter, purge: async (required, optional) =>
+    required.entityId === "record-1" ? "still-referenced" : purge(required, optional) });
+  seen.length = 0;
+
+  assert.deepEqual(await h.trash.purgeSelected({ workspaceId: WS, ids: ["trash-1", "trash-2"], actor: ACTOR, authorizeItem: ALLOW_ALL }), {
+    purged: 1,
+    results: [{ id: "trash-1", outcome: "still-referenced" }, { id: "trash-2", outcome: "purged" }],
+  });
+  assert.deepEqual(h.repo.all({}), [retainedIndex]);
+  assert.deepEqual(h.records.records.get("record-1"), retainedRecord);
+  assert.equal(h.records.records.has("record-2"), false);
+  assert.deepEqual(seen, [{ workspaceId: WS, entityType: "record", entityId: "record-2", change: "purge" }]);
+});
 test("notifications are in arg 2 and cannot undo a mutation when reporting fails", async () => {
   const seen: string[] = [];
   const h = harness({ onChanged: async event => { seen.push(event.change); throw new Error("notifier failed"); }, onError: () => { throw new Error("reporter failed"); } });
