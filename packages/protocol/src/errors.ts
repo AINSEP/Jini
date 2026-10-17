@@ -76,3 +76,37 @@ export function createApiError(
 export function createApiErrorResponse({ error }: { error: ApiError }): ApiErrorResponse {
   return { error };
 }
+
+/** Client-side view of either generation of the JSON error envelope. */
+export interface DecodedApiError {
+  message: string;
+  code?: string;
+  details?: unknown;
+  retryable?: boolean;
+  requestId?: string;
+}
+
+/** Decode legacy string errors and canonical nested errors without stringifying arbitrary objects.
+ * @param requiredArgs - Untrusted parsed response body.
+ * @param optionalArgs - Caller-owned fallback copy (for example one containing the HTTP status).
+ * @returns Safe message and optional wire metadata; malformed bodies use the fallback.
+ * @complexity O(1) time and space; details are retained without copying.
+ */
+export function decodeApiError(
+  { body }: { body: unknown },
+  { fallbackMessage = 'request failed' }: { fallbackMessage?: string } = {},
+): DecodedApiError {
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) return { message: fallbackMessage };
+  const record = body as Record<string, unknown>;
+  const nested = record.error;
+  const error = nested !== null && typeof nested === 'object' && !Array.isArray(nested)
+    ? nested as Record<string, unknown> : record;
+  const message = error === record ? record.error : error.message;
+  return {
+    message: typeof message === 'string' ? message : fallbackMessage,
+    ...(typeof error.code === 'string' ? { code: error.code } : {}),
+    ...(error.details !== undefined ? { details: error.details } : {}),
+    ...(typeof error.retryable === 'boolean' ? { retryable: error.retryable } : {}),
+    ...(typeof error.requestId === 'string' ? { requestId: error.requestId } : {}),
+  };
+}
