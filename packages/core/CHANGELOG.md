@@ -1,5 +1,9 @@
 # @jini-ai/core
 
+## 0.4.8 — 2026-10-16
+
+- `applyTargetScope`: one optional `site` input on read-only tools; the host resolves the target and a peer handler/principal, writes refuse a foreign target (3786c8f0).
+
 ## 0.4.7 — 2026-10-16
 
 - `requireString`, `requireNumber` and `requireObject` errors list the keys the call actually received and flag unsupported `items[]` batching (a6ac9d7e, c7557838).
