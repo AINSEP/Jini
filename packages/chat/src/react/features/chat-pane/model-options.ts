@@ -9,22 +9,30 @@ export function isConcretePickerModel(id: string): boolean {
   return !/^(?:opus|sonnet|haiku|fable|best|latest|claude|gemini|gpt|codex|swe)(?:\[.*\])?$/i.test(token) && !/^(default|auto|adaptive|smart|deep|rush|ultimate|premium|balanced|fast|grok-build|vercel-ai-gateway)$/i.test(token) && !/(?:^|[-/])(gateway|latest)$/i.test(id);
 }
 /** Aliases are selectable only as their evidence-backed concrete ID. Never render a Default row.
- * @complexity O(n) time and space in catalog rows, with set-based deduplication.
+ * Keeps the first position per concrete ID, upgrading raw-ID labels from later human labels.
+ * Legacy Default labels are rewritten to the ID before deduplication, never used as human labels.
+ * @returns Distinct concrete picker rows without changing the source catalog. No side effects or errors.
+ * @complexity O(n) time and space in catalog rows, using insertion-ordered Map keys.
  */
 export function pickerModelOptions(agent: ChatPaneAgent): ChatPaneAgentOption[] {
   if (agent.supportsConcreteModelSelection === false) return [];
-  const seen = new Set<string>();
-  const options = (agent.models || []).flatMap((row) => {
+  const choices = new Map<string, ChatPaneAgentOption>();
+  for (const row of agent.models || []) {
     const id = row.resolvedId || (row.identityKind === 'routing-mode' || row.identityKind === 'alias' ? undefined : row.id);
-    if (!id || !isConcretePickerModel(id) || seen.has(id)) return [];
-    seen.add(id);
+    if (!id || !isConcretePickerModel(id)) continue;
     // Older cached inventories can attach a default-policy label to a resolved concrete ID.
     const label = row.id === 'default' || /^default\b/i.test(row.label) ? id : row.label;
-    return [{ ...row, id, label, identityKind: 'concrete' as const }];
-  });
+    const existing = choices.get(id);
+    if (!existing) {
+      choices.set(id, { ...row, id, label, identityKind: 'concrete' });
+    } else if (existing.label === id && label !== id) {
+      choices.set(id, { ...existing, label });
+    }
+  }
+  const options = [...choices.values()];
   const resolution = agent.defaultModelResolution;
   // A host may publish a resolved default outside its visible catalog. Preserve its concrete ID.
-  if (resolution?.status === 'resolved' && isConcretePickerModel(resolution.id) && !seen.has(resolution.id)) options.unshift({ id: resolution.id, label: resolution.id, identityKind: 'concrete' });
+  if (resolution?.status === 'resolved' && isConcretePickerModel(resolution.id) && !choices.has(resolution.id)) options.unshift({ id: resolution.id, label: resolution.id, identityKind: 'concrete' });
   return options;
 }
 export function configuredPickerModel(agent: ChatPaneAgent): string | undefined {
