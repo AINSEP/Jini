@@ -29,9 +29,8 @@ export function modelProbeTimeoutMs(agentId: string): number {
 }
 /** Shared CLI-subcommand adapter. Output parsers are pure def-owned functions, not vendor tools. */
 export async function probeCliSubcommand(context: ModelDiscoveryContext, config: AgentDiscoveryConfiguration, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
-  // Reserve two seconds of the outer budget for CLI-owned cache recovery. The inner
-  // abort signal stops only the listing; the parent remains usable for reading fallback files.
-  const { stdout } = await withModelProbeTimeout(active => deps.process.run({ context, args: config.args || [], signal: active, timeoutMs: 8_000 }), 8_000, signal);
+  const timeoutMs = config.timeoutMs ?? 8_000;
+  const { stdout } = await withModelProbeTimeout(active => deps.process.run({ context, args: config.args || [], signal: active, timeoutMs }), timeoutMs, signal);
   const models = config.parse?.({ stdout });
   if (!models) throw new ModelProbeError('malformed-response');
   const defaultSelectionId = stdout.match(/^\s*Default model:\s*(\S+)\s*$/mi)?.[1];
@@ -166,7 +165,11 @@ export async function probeAgentCatalog(agentId: string, context: ModelDiscovery
     catch { return probeCliCache(agentId, context, deps, signal); }
   }
   if (configuration.args) {
-    try { return await probeCliSubcommand(context, configuration, deps, signal); }
+    // Only disk-cache adapters reserve two seconds for recovery. Antigravity has no disk
+    // fallback, so its declared listing timeout can use the full outer discovery budget.
+    const budget = modelProbeTimeoutMs(agentId) - (agentId === 'codex' || agentId === 'opencode' ? 2_000 : 0);
+    const timeoutMs = Math.min(configuration.timeoutMs ?? 8_000, budget);
+    try { return await probeCliSubcommand(context, { ...configuration, timeoutMs }, deps, signal); }
     catch (error) {
       if (agentId === 'codex' || agentId === 'opencode') {
         try { return await probeCliCache(agentId, context, deps, signal); } catch { throw error; }

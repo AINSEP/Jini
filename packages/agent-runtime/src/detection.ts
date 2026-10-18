@@ -264,13 +264,13 @@ export type ProbedAgentModels = FetchedRuntimeModels;
  * `source: 'fallback'` (including when the binary is not found). Never rejects.
  * @complexity At most one model-listing spawn, bounded by the def's own timeout.
  */
-export async function probeAgentModels({ def }: { def: RuntimeAgentDef }, { configuredEnv = {}, amrProfileResolver = noopAmrProfileResolver, context, deps, force = false, state = defaultRuntimeState, env = process.env }: { state?: AgentRuntimeState; env?: NodeJS.ProcessEnv; configuredEnv?: Record<string, string>; amrProfileResolver?: AmrProfileResolver; context?: ModelDiscoveryContext; deps?: ModelDiscoveryDeps; force?: boolean } = {}
+export async function probeAgentModels({ def }: { def: RuntimeAgentDef }, { configuredEnv = {}, amrProfileResolver = noopAmrProfileResolver, context, version, deps, force = false, state = defaultRuntimeState, env = process.env }: { state?: AgentRuntimeState; env?: NodeJS.ProcessEnv; configuredEnv?: Record<string, string>; amrProfileResolver?: AmrProfileResolver; context?: ModelDiscoveryContext; version?: string | null; deps?: ModelDiscoveryDeps; force?: boolean } = {}
 ): Promise<ProbedAgentModels> {
   try {
     const launch = resolveAgentLaunch({ def: def }, { configuredEnv: configuredEnv, state, env });
     if (!launch.launchPath) return unavailableModels(def);
     const probeEnv = probeEnvForLaunch(def, configuredEnv, launch, { state, env });
-    const fetched = await fetchModels(def, launch.launchPath, probeEnv, { ...(context ? { context } : {}), deps: deps ?? getRuntimeModelDiscoveryDeps({ state }), force });
+    const fetched = await fetchModels(def, launch.launchPath, probeEnv, { ...(context ? { context } : {}), ...(version !== undefined ? { version } : {}), deps: deps ?? getRuntimeModelDiscoveryDeps({ state }), force });
     const result = withRememberedAmrModels(def, probeEnv, fetched, amrProfileResolver);
     rememberDetectedModelList(def, configuredEnv, result.models, amrProfileResolver, { state, env });
     return result;
@@ -382,7 +382,7 @@ function stripFns(def: RuntimeAgentDef): Omit<DetectedAgent, 'models' | 'modelsS
   return rest;
 }
 
-/** Cache complete detection per host and effective launch. No TTL re-spawns version/help/auth.
+/** Cache executable/version/help/auth per host and effective launch; only expired catalogs refresh.
  * Explicit force queues after the current scan, so a rescan cannot overlap its predecessor.
  * Hash credentials rather than retaining them in keys. @complexity O(e) launch-env hashing. */
 function safeProbe(def: RuntimeAgentDef, configuredEnv: Record<string, string>, amrProfileResolver: AmrProfileResolver, options: AgentDetectionModelOptions = {}): Promise<DetectedAgent> {
@@ -391,8 +391,16 @@ function safeProbe(def: RuntimeAgentDef, configuredEnv: Record<string, string>, 
   try { key = detectionCacheKey({ def, configuredEnv, options, state }); }
   catch { return Promise.resolve(unavailableAgent(def)); }
   const previous = state.detections.get(key);
-  if (previous && !options.force) return previous;
-  const pending = (previous ?? Promise.resolve()).then(() => executeSafeProbe(def, configuredEnv, amrProfileResolver, options));
+  const pending = previous && !options.force ? previous.then(async agent => {
+    const now = options.deps?.clock.now() ?? Date.now();
+    if (!agent.available || !agent.modelCatalog || Date.parse(agent.modelCatalog.expiresAt) > now) return agent;
+    // Reuse the model-only probe with the detected version so the launch fingerprint stays stable.
+    const result = await probeAgentModels({ def }, { ...options, configuredEnv, amrProfileResolver,
+      ...(agent.version !== undefined ? { version: agent.version } : {}) });
+    return { ...agent, ...derivedReasoningOverride(def, result.models), models: result.models, modelsSource: result.source,
+      ...(result.catalog ? { modelCatalog: result.catalog } : {}),
+      ...(result.defaultModelResolution ? { defaultModelResolution: result.defaultModelResolution } : {}) };
+  }) : (previous ?? Promise.resolve()).then(() => executeSafeProbe(def, configuredEnv, amrProfileResolver, options));
   state.detections.set(key, pending);
   return pending;
 }

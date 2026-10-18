@@ -129,7 +129,7 @@ export function parseAgyModels({ stdout }: { stdout: string }): RuntimeModelOpti
 }
 
 export const antigravityAgentDef = {
-  ...createAgentModelDiscovery('antigravity', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => antigravityAgentDef.fallbackModels, args: ['models'], parse: (input): import('../types.js').RuntimeModelOption[] | null => antigravityAgentDef.listModels.parse(input) }),
+  ...createAgentModelDiscovery('antigravity', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => antigravityAgentDef.fallbackModels, args: ['models'], parse: (input): import('../types.js').RuntimeModelOption[] | null => antigravityAgentDef.listModels.parse(input), get timeoutMs(): number { return antigravityAgentDef.listModels.timeoutMs; } }),
   id: 'antigravity',
   name: 'Antigravity',
   bin: 'agy',
@@ -139,13 +139,20 @@ export const antigravityAgentDef = {
   // local-cache read — 10s to absorb ordinary network latency without
   // making every detection pass wait needlessly long on a slow/offline run
   // (`detection.ts#fetchModels` falls back to `fallbackModels` on timeout).
+  // It runs within the outer 10s discovery budget: Antigravity has no disk
+  // fallback, so `probeAgentCatalog` reserves no recovery time for it.
   listModels: {
     args: ['models'],
     parse: parseAgyModels,
     timeoutMs: 10_000,
   },
+  // Checked against agy 1.4.2 and https://antigravity.google/docs/cli/headless/.
+  fallbackModelsAssertedAt: '2026-10-18',
   fallbackModels: [
     DEFAULT_MODEL_OPTION,
+    { id: 'gemini-4-argon-high', label: 'Gemini 4 Argon High' },
+    { id: 'gemini-4-argon-medium', label: 'Gemini 4 Argon Medium' },
+    { id: 'gemini-4-argon-low', label: 'Gemini 4 Argon Low' },
     { id: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash (High)' },
     { id: 'gemini-3.8-flash-medium', label: 'Gemini 3.8 Flash (Medium)' },
     { id: 'gemini-3.8-flash-low', label: 'Gemini 3.8 Flash (Low)' },

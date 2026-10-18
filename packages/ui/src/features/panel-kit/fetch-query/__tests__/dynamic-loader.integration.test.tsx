@@ -1,10 +1,38 @@
 import { type ReactNode } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { FetchQueryProvider as BuiltInProvider, useCachedLoader, useFetchQuery, useFetchMutation, useInvalidate } from '../index.js';
 import { FetchQueryProvider as TanStackProvider } from '../tanstack.js';
 
 describe.each([['built-in', BuiltInProvider], ['tanstack', TanStackProvider]] as const)('%s event-driven cache reads', (_name, Provider) => {
+  it('a due read overrides freshness, joins one refresh and retains the 15-minute cache', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+    const key = ['catalog'] as const;
+    let complete!: (value: string) => void;
+    const refreshed = new Promise<string>(resolve => { complete = resolve; });
+    const fetch = vi.fn().mockResolvedValueOnce('cached').mockReturnValue(refreshed);
+    const wrapper = ({ children }: { children: ReactNode }) => <Provider>{children}</Provider>;
+    const { result, unmount } = renderHook(() => useCachedLoader({ key, fetch }, { staleTime: 15 * 60_000 }), { wrapper });
+    try {
+      expect(await result.current.load()).toBe('cached');
+      await act(async () => vi.advanceTimersByTime(6 * 60_000));
+      expect(await result.current.load()).toBe('cached');
+      const first = result.current.load(undefined, { staleTime: 0 });
+      const second = result.current.load(undefined, { staleTime: 0 });
+      await act(async () => {});
+      expect(fetch).toHaveBeenCalledTimes(2);
+      complete('fresh');
+      expect(await first).toBe('fresh');
+      expect(await second).toBe('fresh');
+      expect(await result.current.load()).toBe('fresh');
+      expect(fetch).toHaveBeenCalledTimes(2);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
   it('deduplicates a selected key, isolates a different key and publishes to its observers', async () => {
     let calls = 0;
     let complete!: (value: string) => void;

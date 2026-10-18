@@ -3,7 +3,7 @@ import { AGENT_DEFS } from '../registry.js';
 import { createAgentModelDiscovery, MODEL_CATALOG_TTL_MS, MODEL_NEGATIVE_TTL_MS, modelDiscoveryForDef, resolveModelForLaunch, withModelProbeTimeout } from '../model-discovery-native.js';
 import { parseClaudeInitializeMetadata, parsePiRpcMetadata } from '../model-discovery-adapters.js';
 import { parseCodexDebugModels } from '../defs/codex.js';
-import { parseAgyModels } from '../defs/antigravity.js';
+import { antigravityAgentDef, parseAgyModels } from '../defs/antigravity.js';
 import { parseGrokBuildModels } from '../defs/grok-build.js';
 import { parseLineSeparatedModels } from '../defs/shared.js';
 import { parsePiModels } from '../pi-models.js';
@@ -59,6 +59,31 @@ describe('every registered definition has discovery and default-resolution capab
 });
 
 describe('shared adapter conformance', () => {
+  it('includes Gemini 4 Argon variants in the offline Antigravity catalog', async () => {
+    const fake = fakeDeps();
+    fake.fail(new Error('offline'));
+    const catalog = await antigravityAgentDef.discoverModels({ context }, { deps: fake.deps });
+    expect(catalog.freshness).toBe('offline-fallback');
+    expect(catalog.models.map(model => model.id)).toContain('gemini-4-argon-high');
+    expect(catalog.models).toEqual(expect.arrayContaining([
+      { id: 'gemini-4-argon-high', label: 'Gemini 4 Argon High', identityKind: 'concrete' },
+      { id: 'gemini-4-argon-medium', label: 'Gemini 4 Argon Medium', identityKind: 'concrete' },
+      { id: 'gemini-4-argon-low', label: 'Gemini 4 Argon Low', identityKind: 'concrete' },
+    ]));
+  });
+  it('lets Antigravity finish after eight seconds within its declared listing budget', async () => {
+    vi.useFakeTimers();
+    const fake = fakeDeps();
+    fake.deps.process.run = () => new Promise(resolve => {
+      setTimeout(() => resolve({ stdout: 'gemini-4-argon-high\tGemini 4 Argon High\n', stderr: '' }), 9_000);
+    });
+    try {
+      const result = antigravityAgentDef.discoverModels({ context }, { deps: fake.deps });
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect((await result).freshness).toBe('fresh');
+      expect((await result).models.map(model => model.id)).toEqual(['gemini-4-argon-high']);
+    } finally { await vi.runAllTimersAsync(); vi.useRealTimers(); }
+  });
   it('does not start an already cancelled effect', async () => {
     const controller = new AbortController(); controller.abort(); let calls = 0;
     await expect(withModelProbeTimeout(async () => { calls++; }, 1000, controller.signal)).rejects.toThrow('Probe cancelled');
@@ -102,10 +127,42 @@ describe('shared adapter conformance', () => {
     fake.fail(new Error('offline secret-test-key'));
     const stale = await port.discoverModels({ context }, { deps: fake.deps, force: true });
     expect(stale.freshness).toBe('stale'); expect(stale.fetchedAt).toBe(good.fetchedAt);
+    expect(Date.parse(stale.expiresAt)).toBe(MODEL_NEGATIVE_TTL_MS);
     expect(JSON.stringify(stale.diagnostics)).not.toContain('secret-test-key');
     await port.discoverModels({ context }, { deps: fake.deps }); expect(fake.calls).toBe(2);
     fake.advance(MODEL_NEGATIVE_TTL_MS);
     await port.discoverModels({ context }, { deps: fake.deps }); expect(fake.calls).toBe(3);
+  });
+  it.each([
+    ['codex', '/home/fake/.codex/models_cache.json', { models: [{ slug: 'cached-model' }] }, '{"models":[{"slug":"recovered-model"}]}'],
+    ['opencode', '/home/fake/.cache/opencode/models.json', { provider: { models: { 'cached-model': {} } } }, 'provider/recovered-model\n'],
+    ['claude', '/home/fake/.claude.json', { additionalModelOptionsCache: [{ value: 'cached-model' }] }, '{"type":"control_response","response":{"subtype":"success","response":{"models":[{"value":"recovered-model"}]}}}'],
+    ['codebuddy', '/home/fake/.codebuddy/settings.json', { additionalModelOptionsCache: [{ value: 'cached-model' }] }, '{"type":"control_response","response":{"subtype":"success","response":{"models":[{"value":"recovered-model"}]}}}'],
+  ] as const)('reuses %s disk fallback through 29,999 ms and shares live recovery at 30,000 ms', async (agentId, cachePath, disk, liveOutput) => {
+    const fake = fakeDeps();
+    const def = AGENT_DEFS.find(row => row.id === agentId)!;
+    fake.files.set(cachePath, JSON.stringify(disk));
+    fake.fail(new Error('Live discovery offline'));
+    fake.deps.http.list = async () => { throw new Error('Provider offline'); };
+    const first = await def.discoverModels!({ context }, { deps: fake.deps });
+    expect(first.source).toBe('cli-cache');
+    expect(first.freshness).toBe('stale');
+    expect(Date.parse(first.expiresAt)).toBe(MODEL_NEGATIVE_TTL_MS);
+    const initialCalls = fake.calls;
+    fake.advance(MODEL_NEGATIVE_TTL_MS - 1);
+    fake.fail(null); fake.setOutput(liveOutput);
+    expect(await def.discoverModels!({ context }, { deps: fake.deps })).toEqual(first);
+    expect(fake.calls).toBe(initialCalls);
+    fake.advance(1);
+    const [next, concurrent] = await Promise.all([def.discoverModels!({ context }, { deps: fake.deps }), def.discoverModels!({ context }, { deps: fake.deps })]);
+    expect(next.models.map(row => row.id)).toEqual([agentId === 'opencode' ? 'provider/recovered-model' : 'recovered-model']);
+    expect(next.freshness).toBe('fresh');
+    expect(Date.parse(next.expiresAt)).toBe(MODEL_NEGATIVE_TTL_MS + MODEL_CATALOG_TTL_MS);
+    expect(concurrent).toEqual(next);
+    expect(fake.calls).toBe(initialCalls + 1);
+    fake.advance(MODEL_CATALOG_TTL_MS - 1);
+    expect(await def.discoverModels!({ context }, { deps: fake.deps })).toEqual(next);
+    expect(fake.calls).toBe(initialCalls + 1);
   });
   it('labels packaged rows as offline fallback and never resolves a routing mode', async () => {
     const fake = fakeDeps(); fake.fail(new Error('secret-test-key'));

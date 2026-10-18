@@ -4,7 +4,7 @@ import type { RuntimeAgentDef, RuntimeCapabilityMap, RuntimeModelOption, Detecte
 import type { ModelCacheEntry, ModelDiscoveryDeps } from './model-discovery-types.js';
 
 export interface AgentRuntimeState {
-  /** One in-flight or settled complete detection per launch scope until explicit Rescan. */
+  /** One in-flight or settled detection per launch scope; catalog expiry refreshes only models. */
   readonly detections: Map<string, Promise<DetectedAgent>>;
   readonly capabilities: Map<string, RuntimeCapabilityMap>;
   /** One in-flight or settled `--help` probe per def id + launch path, so a run never re-spawns it. */

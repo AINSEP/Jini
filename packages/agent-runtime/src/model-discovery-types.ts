@@ -74,6 +74,8 @@ export interface AgentDiscoveryConfiguration {
   fallbackModels: () => readonly RuntimeModelOption[];
   parse?: (input: { stdout: string }) => RuntimeModelOption[] | null;
   args?: readonly string[];
+  /** Listing budget requested by the definition, bounded by the outer discovery timeout. */
+  timeoutMs?: number;
 }
 /** Host composition selects native probes or substitutes another discovery mechanism. */
 export interface ModelDiscoveryProbes {

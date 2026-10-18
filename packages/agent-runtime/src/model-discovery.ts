@@ -84,15 +84,18 @@ export function createAgentModelDiscovery(
           // Native default metadata outranks a config guess (Grok can route despite its TOML).
           const nativeWins = result.source === 'rpc' && !['claude', 'codebuddy'].includes(agentId) || agentId === 'grok-build';
           const selection = context.model || (nativeWins ? result.defaultSelectionId || config.selection : config.selection || result.defaultSelectionId);
+          // Disk fallbacks must let inventory readers retry live discovery after the failure cooldown.
+          const ttl = result.source === 'cli-cache' ? MODEL_NEGATIVE_TTL_MS : MODEL_CATALOG_TTL_MS;
           const snapshot: ModelCatalogSnapshot = { models, source: result.source, coverage: result.coverage,
-            fetchedAt: new Date(fetched).toISOString(), expiresAt: new Date(fetched + MODEL_CATALOG_TTL_MS).toISOString(),
+            fetchedAt: new Date(fetched).toISOString(), expiresAt: new Date(fetched + ttl).toISOString(),
             freshness: result.source === 'cli-cache' ? 'stale' : 'fresh', launchFingerprint: fingerprint, diagnostics: [],
             ...(selection ? { defaultSelectionId: selection } : {}) };
           cached.good = snapshot; delete cached.retryAt; delete cached.failed;
           return snapshot;
         } catch (error) {
           cached.retryAt = deps.clock.now() + MODEL_NEGATIVE_TTL_MS;
-          cached.failed = cached.good ? { ...cached.good, freshness: 'stale', diagnostics: [diagnostic(error)] } : offlineSnapshot(fingerprint, deps.clock.now(), configuration.fallbackModels(), diagnostic(error));
+          // Outer inventory caches must retry failed refreshes on the negative lifetime too.
+          cached.failed = cached.good ? { ...cached.good, freshness: 'stale', expiresAt: new Date(cached.retryAt).toISOString(), diagnostics: [diagnostic(error)] } : offlineSnapshot(fingerprint, deps.clock.now(), configuration.fallbackModels(), diagnostic(error));
           return cached.failed;
         } finally { delete cached.pending; }
       })();

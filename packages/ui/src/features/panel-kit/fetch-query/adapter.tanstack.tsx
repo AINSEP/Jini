@@ -192,8 +192,8 @@ function useCachedLoader<T>({ key, fetch }: Pick<CachedLoaderOptions<T>, 'key' |
       structuralSharing: (previous: unknown, incoming: unknown) => saveResult<T>({ scope, key, previous, incoming }), staleTime, gcTime: gcTimeFor({ staleTime }) };
     return {
       peek: () => scope.client.getQueryData<PublishedResult<T>>(key)?.value,
-      load: (required = { key, fetch }) => {
-        const selected = { ...options, queryKey: required.key, queryFn: () => read({ scope, key: required.key, fetch: required.fetch }),
+      load: (required = { key, fetch }, { staleTime: readStaleTime = staleTime }: { staleTime?: number } = {}) => {
+        const selected = { ...options, staleTime: readStaleTime, queryKey: required.key, queryFn: () => read({ scope, key: required.key, fetch: required.fetch }),
           structuralSharing: (previous: unknown, incoming: unknown) => saveResult<T>({ scope, key: required.key, previous, incoming }) };
         return scope.client.fetchQuery(selected).catch(error => {
           // A forced refresh can supersede a loader's request without aborting its transport.

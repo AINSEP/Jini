@@ -113,7 +113,8 @@ export interface CachedLoader<T> {
   
   // Event-driven selections (cursor pages, row detail lookups) may name another key of
   // the same resource type. They still share this provider's cache and error contract.
-  load: (required?: Pick<CachedLoaderOptions<T>, "key" | "fetch">) => Promise<T>;
+  // A per-read freshness override joins existing work and preserves the loader's idle retention.
+  load: (required?: Pick<CachedLoaderOptions<T>, "key" | "fetch">, optional?: Pick<CachedLoaderOptions<T>, "staleTime">) => Promise<T>;
   
   // A write response can replace the value immediately; an older load already in flight
   // must resolve to this replacement rather than overwrite it with a stale answer.

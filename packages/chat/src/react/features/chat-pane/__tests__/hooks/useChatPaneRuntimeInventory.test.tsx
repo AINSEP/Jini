@@ -384,3 +384,46 @@ it('shows cached models immediately and refreshes while the host probe is pendin
   expect(calls).toBe(2);
   unmount();
 });
+
+it('backs off through the finite host sweep window and then stops across focus and health ticks', async () => {
+  vi.useFakeTimers();
+  const pending: ChatPaneAgent[] = [{ id: 'codex', name: 'Codex', discoveryPending: true }];
+  const listAgents = vi.fn(async () => pending);
+  const access = runtimeAccess({ listAgents });
+  const { result, unmount } = renderHook(() => useChatPaneRuntimeInventory({ access }));
+  await act(async () => {});
+  expect(listAgents).toHaveBeenCalledTimes(1);
+  for (const [step, delay] of [1_000, 2_000, 4_000, 8_000, 15_000, 30_000, 60_000, 120_000, 240_000, 420_000].entries()) {
+    const calls = step + 2;
+    await act(async () => vi.advanceTimersByTime(delay - 1));
+    expect(listAgents).toHaveBeenCalledTimes(calls - 1);
+    await act(async () => vi.advanceTimersByTime(1));
+    expect(listAgents).toHaveBeenCalledTimes(calls);
+  }
+  await act(async () => vi.advanceTimersByTime(60_000));
+  await act(async () => { window.dispatchEvent(new Event('focus')); });
+  expect(listAgents).toHaveBeenCalledTimes(11);
+  expect(result.current.agents).toEqual(pending);
+  expect(result.current.scanningAgents).toBe(false);
+  unmount();
+});
+
+it('stops pending retries when a slow response outlives the discovery deadline', async () => {
+  vi.useFakeTimers();
+  const pending: ChatPaneAgent[] = [{ id: 'codex', name: 'Codex', discoveryPending: true }];
+  const slow = deferred<readonly ChatPaneAgent[]>();
+  const listAgents = vi.fn().mockResolvedValueOnce(pending).mockResolvedValueOnce(pending)
+    .mockResolvedValueOnce(pending).mockResolvedValueOnce(pending).mockReturnValueOnce(slow.promise).mockResolvedValue(pending);
+  const access = runtimeAccess({ listAgents });
+  const { unmount } = renderHook(() => useChatPaneRuntimeInventory({ access }));
+  await act(async () => {});
+  for (const delay of [1_000, 2_000, 4_000, 8_000]) {
+    await act(async () => vi.advanceTimersByTime(delay));
+  }
+  expect(listAgents).toHaveBeenCalledTimes(5);
+  await act(async () => vi.advanceTimersByTime(15 * 60_000));
+  await act(async () => slow.resolve(pending));
+  await act(async () => vi.advanceTimersByTime(60_000));
+  expect(listAgents).toHaveBeenCalledTimes(5);
+  unmount();
+});

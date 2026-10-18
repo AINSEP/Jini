@@ -9,11 +9,17 @@ const EMPTY_AGENTS: readonly ChatPaneAgent[] = [];
  *  restart takes seconds), then every 30s for as long as the pane stays mounted. */
 const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [1_000, 2_000, 4_000, 8_000, 15_000, 30_000];
 
+// The native host serializes metadata for 29 definitions: version/help/auth checks and up to
+// 15s per catalog can take minutes in a cold sweep. Include queue time and a final cache cooldown
+// margin, then stop; extending backoff beyond 30s keeps this to ten default retries, not polling.
+const PENDING_DISCOVERY_WINDOW_MS = 15 * 60_000;
+const PENDING_DISCOVERY_RETRY_LIMIT = 10;
+
 export interface UseChatPaneRuntimeInventoryOptions {
   access?: ChatPaneRuntimeAccess;
   initialAgents?: readonly ChatPaneAgent[];
   pollIntervalMs?: number;
-  /** Backoff between retries of a failed inventory load; the last entry repeats. */
+  /** Failure backoff; pending discovery doubles the final step until its finite window ends. */
   retryDelaysMs?: readonly number[];
 }
 
@@ -42,7 +48,8 @@ export interface UseChatPaneRuntimeInventoryResult {
  * daemon restarting under an open pane left it on "No usable CLI is selected" until a hard
  * reload). Until the first successful answer the hook retries on a backoff, and immediately when
  * the daemon goes from offline to online, the window regains focus, or the tab becomes visible.
- * A RESOLVED list — even an empty one — is a finished answer; hosts reject when theirs is not one.
+ * A RESOLVED list is an answer, including an empty one. Entries marked discoveryPending retry
+ * within a finite sweep window, honoring the host cache's next eligible refresh deadline.
  *
  * Health polling runs only while the tab is visible (hidden tabs made no-op status calls every
  * `pollIntervalMs` forever), and never overlaps a status call still in flight.
@@ -83,15 +90,17 @@ export function useChatPaneRuntimeInventory({
   const loadAgents = useCallback(async (rescan: boolean): Promise<void> => {
     if (!access) return;
     retry.cancel();
+    if (rescan) retry.restart();
     setScanningAgents(true);
     setRuntimeInventoryError(null);
     await inventory.run({ body: async (token) => {
       const nextAgents = await (rescan ? access.rescanAgents() : access.listAgents());
       token.ensureCurrent();
-      retry.answered();
-      // Successful cached data paints immediately. Poll only while the host says its single
-      // background scan is pending; reads never imply an explicit Rescan.
-      if (nextAgents.some(agent => agent.discoveryPending)) retry.schedule(() => void loadAgents(false));
+      const pending = nextAgents.some(agent => agent.discoveryPending);
+      retry.answered({ pending });
+      if (pending) retry.schedule(() => void loadAgents(false), {
+        pending: true, nextRefreshAt: access.getAgentsRefreshAt?.() ?? Date.now(),
+      });
       setAgents([...nextAgents]);
       setConnectingAgents(false);
       setScanningAgents(false);
@@ -212,10 +221,10 @@ export function useChatPaneRuntimeInventory({
 interface InventoryRetry {
   /** Whether any inventory load has succeeded since the last {@link InventoryRetry.reset}. */
   hasAnswer(): boolean;
-  /** Records a successful load: no more retries, backoff back to its first step. */
-  answered(): void;
-  /** Runs `attempt` after the current backoff step, then advances the step (the last repeats). */
-  schedule(attempt: () => void): void;
+  /** Records an answer, preserving the pending-discovery budget until discovery completes. */
+  answered(input: { pending: boolean }): void;
+  /** Advances backoff; unanswered failures repeat the last step, pending discovery stops at its budget. */
+  schedule(attempt: () => void, options?: { pending?: boolean; nextRefreshAt?: number }): void;
   /** Drops a pending retry without touching the backoff step. */
   cancel(): void;
   /** Drops a pending retry and restarts the backoff at its first step. */
@@ -228,13 +237,15 @@ interface InventoryRetry {
 
 /**
  * The retry bookkeeping `useChatPaneRuntimeInventory` needs, in refs so none of it re-renders:
- * whether an answer has arrived, the pending retry timer, the backoff step, and the last health
- * result (`null` until the first one, so the first "online" report is not a reconnect).
+ * whether an answer has arrived, the retry timer, separate failure/discovery steps, a finite
+ * discovery deadline, and the last health result (`null` until the first health response).
  */
 function useInventoryRetry(delaysMs: readonly number[]): InventoryRetry {
   const answeredRef = useRef(false);
   const timerRef = useRef<number | undefined>(undefined);
   const stepRef = useRef(0);
+  const pendingStepRef = useRef(0);
+  const pendingDeadlineRef = useRef<number | undefined>(undefined);
   const lastOnlineRef = useRef<boolean | null>(null);
   const delaysRef = useRef(delaysMs);
   delaysRef.current = delaysMs;
@@ -246,16 +257,31 @@ function useInventoryRetry(delaysMs: readonly number[]): InventoryRetry {
     const restart = (): void => {
       cancel();
       stepRef.current = 0;
+      pendingStepRef.current = 0;
+      pendingDeadlineRef.current = undefined;
     };
     return {
       hasAnswer: () => answeredRef.current,
-      answered: () => {
+      answered: ({ pending }) => {
         answeredRef.current = true;
-        restart();
+        if (!pending) restart();
       },
-      schedule: (attempt) => {
+      schedule: (attempt, { pending = false, nextRefreshAt = 0 } = {}) => {
         cancel();
         const delays = delaysRef.current;
+        if (pending) {
+          const now = Date.now();
+          pendingDeadlineRef.current ??= now + PENDING_DISCOVERY_WINDOW_MS;
+          const lastDelay = delays[delays.length - 1];
+          const step = pendingStepRef.current;
+          if (lastDelay === undefined || step >= PENDING_DISCOVERY_RETRY_LIMIT || now >= pendingDeadlineRef.current) return;
+          const delay = delays[step] ?? lastDelay * 2 ** (step - delays.length + 1);
+          const refreshAt = Math.max(nextRefreshAt, Math.min(now + delay, pendingDeadlineRef.current));
+          if (refreshAt > pendingDeadlineRef.current) return;
+          pendingStepRef.current += 1;
+          timerRef.current = window.setTimeout(attempt, refreshAt - now);
+          return;
+        }
         const delay = delays[Math.min(stepRef.current, delays.length - 1)] ?? 0;
         stepRef.current += 1;
         timerRef.current = window.setTimeout(attempt, delay);

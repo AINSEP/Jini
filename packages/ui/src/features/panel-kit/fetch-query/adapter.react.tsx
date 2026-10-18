@@ -110,7 +110,8 @@ export function useCachedLoader<T>({ key, fetch }: Pick<CachedLoaderOptions<T>, 
   const cache = useCache();
   return useMemo(() => ({
     peek: () => cache.entry({ key: key }, { staleTime: staleTime }).state.data as T | undefined,
-    load: (required = { key, fetch }) => cache.load({ entry: cache.entry({ key: required.key }, { staleTime }), fetch: required.fetch, staleTime }),
+    load: (required = { key, fetch }, { staleTime: readStaleTime = staleTime }: { staleTime?: number } = {}) =>
+      cache.load({ entry: cache.entry({ key: required.key }, { staleTime }), fetch: required.fetch, staleTime: readStaleTime }),
     replace: ({ value }: { value: T }) => cache.replace({ entry: cache.entry({ key: key }, { staleTime: staleTime }), data: value }),
   }), [cache, key, fetch, staleTime]);
 }

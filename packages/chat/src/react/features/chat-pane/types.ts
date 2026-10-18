@@ -62,6 +62,10 @@ export interface ChatPaneAgentSelection {
 /** Host I/O effects used by the package-owned runtime inventory controller. */
 export interface ChatPaneRuntimeAccess {
   listAgents: () => Promise<readonly ChatPaneAgent[]>;
+  /** Earliest time a cached inventory read can refresh (epoch ms); read after listAgents settles.
+   * Pending retries honor this deadline so a remounted pane does not spend its retry budget on
+   * cached answers. Omit for hosts without a cooldown. Example: () => cachedInventory.expiresAt. */
+  getAgentsRefreshAt?: () => number | undefined;
   rescanAgents: () => Promise<readonly ChatPaneAgent[]>;
   daemonOnline: () => Promise<boolean>;
 }

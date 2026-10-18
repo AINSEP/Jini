@@ -31,6 +31,7 @@
  *   - `codex` — `codex debug models`, the same probe the def itself uses, parsed by the def's own
  *     `parseCodexDebugModels` so the guard and the runtime can never disagree about what "visible"
  *     means.
+ *   - `antigravity` — `agy models`, parsed by the definition's own list-models parser.
  *   - `claude` — `~/.claude.json`'s `additionalModelOptionsCache`, the server-fetched list Claude
  *     Code's own `/model` picker renders. This is the source that already knew about Fable while
  *     the def did not, so it is precisely the signal that was missing.
@@ -107,7 +108,7 @@ interface GuardedDef {
   /** Which live source MF3 should consult for this def. `'none'` means MF3 does not apply — either
    *  no credential-free enumerable catalog exists, or (see module doc) the fallback list is a
    *  curated safety net rather than a claim of completeness — and only MF1/MF2 apply. */
-  readonly liveSource: 'codex-catalog' | 'claude-code-picker-cache' | 'none';
+  readonly liveSource: 'codex-catalog' | 'antigravity-catalog' | 'claude-code-picker-cache' | 'none';
 }
 
 const GUARDED_DEFS: readonly GuardedDef[] = [
@@ -124,6 +125,13 @@ const GUARDED_DEFS: readonly GuardedDef[] = [
     modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/codex.ts'),
     exportName: 'codexAgentDef',
     liveSource: 'codex-catalog',
+  },
+  {
+    agentId: 'antigravity',
+    file: 'packages/agent-runtime/src/defs/antigravity.ts',
+    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/antigravity.ts'),
+    exportName: 'antigravityAgentDef',
+    liveSource: 'antigravity-catalog',
   },
   {
     agentId: 'pi',
@@ -272,29 +280,32 @@ async function probeClaudeCodePickerCache(): Promise<LiveProbe> {
   return { kind: 'ids', ids: live.map((m) => m.id) };
 }
 
-/** The Codex catalog, parsed by the def's OWN parser so the guard and the runtime cannot disagree
- *  about which entries are visible. */
-async function probeCodexCatalog(): Promise<LiveProbe> {
+/** Native CLI catalogs share the definition's command, timeout and parser with runtime discovery. */
+async function probeCliCatalog({ target }: { target: GuardedDef }, _optional = {}): Promise<LiveProbe> {
+  const mod = (await import(pathToFileURL(target.modulePath).href)) as Record<string, {
+    bin: string;
+    listModels: { args: string[]; timeoutMs: number; parse: (input: { stdout: string }) => { id: string }[] | null };
+  }>;
+  const def = mod[target.exportName]!;
+  const command = [def.bin, ...def.listModels.args].join(' ');
   let stdout: string;
   try {
-    ({ stdout } = await execFileAsync('codex', ['debug', 'models'], { maxBuffer: 8 * 1024 * 1024 }));
+    ({ stdout } = await execFileAsync(def.bin, def.listModels.args, { timeout: def.listModels.timeoutMs, maxBuffer: 8 * 1024 * 1024 }));
   } catch (err) {
-    return { kind: 'skipped', reason: `\`codex debug models\` unavailable (${(err as Error).message.split('\n')[0]})` };
+    return { kind: 'skipped', reason: `\`${command}\` unavailable (${(err as Error).message.split('\n')[0]})` };
   }
-  const mod = (await import(pathToFileURL(join(REPO_ROOT, 'packages/agent-runtime/src/defs/codex.ts')).href)) as {
-    parseCodexDebugModels?: (out: string) => { id: string }[] | null;
-  };
-  const parsed = mod.parseCodexDebugModels?.(stdout);
-  if (!parsed) return { kind: 'skipped', reason: '`codex debug models` returned an unparseable catalog' };
+  const parsed = def.listModels.parse({ stdout });
+  if (!parsed) return { kind: 'skipped', reason: `\`${command}\` returned an unparseable catalog` };
   // `default` is a synthetic sentinel the parser prepends, not a vendor model id.
   const ids = parsed.map((m) => m.id).filter((id) => id !== 'default');
-  return ids.length > 0 ? { kind: 'ids', ids } : { kind: 'skipped', reason: 'the Codex catalog listed no visible models' };
+  return ids.length > 0 ? { kind: 'ids', ids } : { kind: 'skipped', reason: `the ${target.agentId} catalog listed no visible models` };
 }
 
 async function defaultProbeLive(target: GuardedDef): Promise<LiveProbe> {
   switch (target.liveSource) {
     case 'codex-catalog':
-      return probeCodexCatalog();
+    case 'antigravity-catalog':
+      return probeCliCatalog({ target });
     case 'claude-code-picker-cache':
       return probeClaudeCodePickerCache();
     case 'none':

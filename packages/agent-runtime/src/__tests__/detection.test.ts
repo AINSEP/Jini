@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockState = vi.hoisted(() => ({
+  calls: [] as { file: string; args: string[] }[],
   // Keyed by a JSON-stringified args array so a single mock can answer
   // differently for --version / --help / models / status probes against
   // the same resolved binary path.
@@ -17,6 +18,7 @@ vi.mock('node:child_process', () => ({
     _options: unknown,
     cb: (err: Error | null, result?: { stdout: string; stderr: string }) => void,
   ) => {
+    mockState.calls.push({ file: _file, args });
     const key = JSON.stringify(args);
     const response = mockState.responses.get(key);
     if (!response) {
@@ -33,6 +35,8 @@ vi.mock('node:child_process', () => ({
 
 import { detectAgents as nativeDetectAgents, detectAgentsStream as nativeDetectAgentsStream, probeAgentModels as nativeProbeAgentModels } from '../detection.js';
 import { normalizeDiscoveredModels } from '../model-discovery.js';
+import { MODEL_CATALOG_TTL_MS, MODEL_NEGATIVE_TTL_MS } from '../model-discovery.js';
+import { createAgentRuntimeState } from '../runtime-state.js';
 import type { ModelDiscoveryDeps } from '../model-discovery-types.js';
 import { agentCapabilities } from '../capabilities.js';
 import { getRememberedLiveModels, rememberLiveModels } from '../models.js';
@@ -521,6 +525,95 @@ describe('detectAgents — codex effort options come from the live catalog', () 
     expect((codex as unknown as { deriveReasoningOptions?: unknown }).deriveReasoningOptions).toBeUndefined();
     expect(JSON.parse(JSON.stringify(codex))).not.toHaveProperty('deriveReasoningOptions');
   });
+});
+
+describe('cached detection catalog lifetimes', () => {
+  it('recovers a Claude disk fallback after 30 seconds without repeating executable/version/help/auth probes', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-disk-fallback-'));
+    try {
+      const bin = path.join(dir, 'claude');
+      makeExecutable(bin);
+      mockState.calls.length = 0;
+      mockState.responses.clear();
+      mockState.responses.set(JSON.stringify(['--version']), { stdout: '1.2.3' });
+      mockState.responses.set(JSON.stringify(['-p', '--help']), { stdout: 'Usage: claude --add-dir' });
+      mockState.responses.set(JSON.stringify(['auth', 'status']), { stdout: '{"loggedIn":true}' });
+      let now = 0; let calls = 0;
+      const deps = modelDeps();
+      deps.clock.now = () => now;
+      deps.fs.read = async file => file === path.join(dir, '.claude.json')
+        ? '{"additionalModelOptionsCache":[{"value":"claude-cached"}]}' : null;
+      deps.process.run = async ({ context }) => {
+        if (context.executable !== bin) throw new Error('Unrelated CLI');
+        calls++;
+        if (calls === 1) throw new Error('Live listing offline');
+        return { stdout: '{"type":"control_response","response":{"subtype":"success","response":{"models":[{"value":"claude-recovered"}]}}}', stderr: '' };
+      };
+      const options = { state: createAgentRuntimeState({}), env: { PATH: dir, HOME: dir },
+        configuredEnvByAgent: { claude: { CLAUDE_BIN: bin } }, modelDiscoveryDeps: deps };
+      const claude = (agents: Awaited<ReturnType<typeof nativeDetectAgents>>) => agents.find(agent => agent.id === 'claude')!;
+      const first = claude(await nativeDetectAgents({}, options));
+      expect(first.modelCatalog?.source).toBe('cli-cache');
+      expect(first.modelCatalog?.freshness).toBe('stale');
+      expect(first.models.map(model => model.id)).toEqual(['claude-cached']);
+      now = MODEL_NEGATIVE_TTL_MS - 1;
+      expect(claude(await nativeDetectAgents({}, options))).toEqual(first);
+      expect(calls).toBe(1);
+      now++;
+      const [next, concurrent] = await Promise.all([nativeDetectAgents({}, options), nativeDetectAgents({}, options)]);
+      expect(claude(next).models.map(model => model.id)).toEqual(['claude-recovered']);
+      expect(claude(next).modelCatalog?.freshness).toBe('fresh');
+      expect(claude(concurrent)).toEqual(claude(next));
+      expect(calls).toBe(2);
+      const executableCalls = mockState.calls.filter(call => call.file === bin);
+      expect(executableCalls.filter(call => call.args[0] === '--version')).toHaveLength(1);
+      expect(executableCalls.filter(call => call.args.join(' ') === '-p --help')).toHaveLength(1);
+      expect(executableCalls.filter(call => call.args.join(' ') === 'auth status')).toHaveLength(1);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  for (const initiallyOffline of [true, false]) {
+    it(`refreshes ${initiallyOffline ? 'offline' : 'fresh'} catalogs at expiry without repeating executable probes`, async () => {
+      const dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-catalog-expiry-'));
+      try {
+        const bin = path.join(dir, 'cursor-agent');
+        makeExecutable(bin);
+        mockState.calls.length = 0;
+        mockState.responses.clear();
+        mockState.responses.set(JSON.stringify(['--version']), { stdout: '1.2.3' });
+        mockState.responses.set(JSON.stringify(['--help']), { stdout: 'Usage: cursor-agent --trust' });
+        mockState.responses.set(JSON.stringify(['status']), { stdout: 'authenticated' });
+        let now = 0; let calls = 0; let offline = initiallyOffline;
+        const deps = modelDeps();
+        deps.clock.now = () => now;
+        deps.process.run = async ({ context }) => {
+          if (context.executable !== bin) throw new Error('Unrelated CLI');
+          calls++;
+          if (offline) throw new Error('Offline');
+          return { stdout: `gpt-catalog-${calls} - Catalog ${calls}\n`, stderr: '' };
+        };
+        const options = { state: createAgentRuntimeState({}), env: { PATH: dir, HOME: dir },
+          configuredEnvByAgent: { 'cursor-agent': { CURSOR_AGENT_BIN: bin } }, modelDiscoveryDeps: deps };
+        const cursor = (agents: Awaited<ReturnType<typeof nativeDetectAgents>>) => agents.find(agent => agent.id === 'cursor-agent')!;
+        const first = cursor(await nativeDetectAgents({}, options));
+        expect(first.modelCatalog?.freshness).toBe(initiallyOffline ? 'offline-fallback' : 'fresh');
+        const ttl = initiallyOffline ? MODEL_NEGATIVE_TTL_MS : MODEL_CATALOG_TTL_MS;
+        now = ttl - 1;
+        expect(cursor(await nativeDetectAgents({}, options))).toEqual(first);
+        expect(calls).toBe(1);
+        offline = false;
+        now++;
+        const [next, concurrent] = await Promise.all([nativeDetectAgents({}, options), nativeDetectAgents({}, options)]);
+        expect(cursor(next).models.map(model => model.id)).toEqual(['gpt-catalog-2']);
+        expect(cursor(concurrent)).toEqual(cursor(next));
+        expect(cursor(next).modelCatalog?.freshness).toBe('fresh');
+        expect(calls).toBe(2);
+        const executableCalls = mockState.calls.filter(call => call.file === bin);
+        expect(executableCalls.filter(call => call.args[0] === '--version')).toHaveLength(1);
+        expect(executableCalls.filter(call => call.args[0] === '--help')).toHaveLength(1);
+        expect(executableCalls.filter(call => call.args[0] === 'status')).toHaveLength(1);
+      } finally { rmSync(dir, { recursive: true, force: true }); }
+    });
+  }
 });
 
 describe('probeAgentModels — the model half of detection, for hosts with their own availability check', () => {
