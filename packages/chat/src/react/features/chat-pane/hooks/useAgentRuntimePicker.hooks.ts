@@ -58,19 +58,26 @@ export function runtimeOptionLabel({ options, value, fallback }: { options: read
 }
 
 /**
- * Computes a viewport-bounded fixed position for the body-portaled picker.
+ * Computes a viewport-bounded fixed position for the body-portaled picker, centred on the trigger
+ * and clamped into the viewport and (when given) into `bounds`. `bounds` (the composer box) keeps a
+ * popover centred on an icon near a narrow dock's left edge from spilling onto the page beside it,
+ * the same clamp `runtimeDropUpPosition` applies to the model/effort drop-ups.
  *
  * @complexity Time/space: O(1).
  * @overallScore 100/100
  */
-export function runtimePopoverPosition({ trigger, placement }: { trigger: DOMRect; placement: RuntimePickerPlacement }
+export function runtimePopoverPosition(
+  { trigger, placement }: { trigger: DOMRect; placement: RuntimePickerPlacement },
+  { bounds }: { bounds?: Pick<DOMRect, 'left' | 'right'> } = {},
 ): CSSProperties {
   const margin = 12;
   const gap = 8;
-  const width = Math.min(320, window.innerWidth - margin * 2);
+  const minLeft = Math.max(margin, bounds?.left ?? -Infinity);
+  const maxRight = Math.min(window.innerWidth - margin, bounds?.right ?? Infinity);
+  const width = Math.max(0, Math.min(320, maxRight - minLeft));
   const left = Math.min(
-    Math.max(trigger.left + trigger.width / 2 - width / 2, margin),
-    window.innerWidth - width - margin,
+    Math.max(trigger.left + trigger.width / 2 - width / 2, minLeft),
+    maxRight - width,
   );
   if (placement === 'up') {
     const availableHeight = Math.max(0, trigger.top - margin - gap);
@@ -296,7 +303,8 @@ export function useAgentRuntimePicker({
     if (!open) return;
     const update = () => {
       const rect = triggerRef.current?.getBoundingClientRect();
-      if (rect) setPosition(runtimePopoverPosition({ trigger: rect, placement: placement }));
+      const bounds = triggerRef.current?.closest('.jini-composer')?.getBoundingClientRect();
+      if (rect) setPosition(runtimePopoverPosition({ trigger: rect, placement: placement }, bounds ? { bounds } : {}));
     };
     update();
     window.addEventListener('resize', update);

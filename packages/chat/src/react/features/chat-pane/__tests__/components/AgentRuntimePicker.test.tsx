@@ -181,6 +181,18 @@ describe('AgentRuntimePicker', () => {
       .toMatchObject({ left: 12, top: 708, maxHeight: 48 });
   });
 
+  it('keeps the agent-icon popover inside the composer box in a narrow dock', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 915 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 768 });
+    // Centred on an icon near the dock's left edge it would start at 490, past the composer's 553.
+    const icon = { left: 636, width: 28, top: 700, bottom: 728 } as DOMRect;
+    expect(runtimePopoverPosition({ trigger: icon, placement: 'up' }, { bounds: { left: 553, right: 898 } }))
+      .toMatchObject({ left: 553, width: 320 });
+    // A composer narrower than the popover narrows it to the composer's width.
+    expect(runtimePopoverPosition({ trigger: icon, placement: 'down' }, { bounds: { left: 553, right: 843 } }))
+      .toMatchObject({ left: 553, width: 290 });
+  });
+
   it('anchors drop-ups above their trigger, right-aligned and clamped into the viewport', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 844 });
