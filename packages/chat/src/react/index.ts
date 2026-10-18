@@ -307,6 +307,8 @@ export type { TodoCardProps } from './components/TodoCard.js';
  * `leadingAccessory` slot; it needs no changes to `ChatPane` itself.
  */
 export { ConversationList } from './components/ConversationList.js';
+export { ConversationTitle, ConversationTitleEditor } from './components/ConversationTitleEditor.js';
+export type { ConversationTitleProps, ConversationTitleEditorProps } from './components/ConversationTitleEditor.js';
 export type { ConversationListProps, ConversationListItem } from './components/ConversationList.js';
 /**
  * The conversation an operator last had open, per caller identity — so a host's switcher lands

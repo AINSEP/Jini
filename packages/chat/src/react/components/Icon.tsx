@@ -22,6 +22,7 @@ export type IconName =
   | 'comment'
   | 'search'
   | 'plus'
+  | 'pencil'
   | 'copy';
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {
@@ -125,6 +126,8 @@ export function Icon({ name, size = 14, strokeWidth = 1.6, ...rest }: IconProps)
           <path d="m21 15-5-5L5 21" />
         </svg>
       );
+    case 'pencil':
+      return <svg {...common}><path d="m16 3 5 5L8 21H3v-5L16 3Z" /><path d="m14 5 5 5" /></svg>;
     /** Per-message copy affordance (MessageRow.tsx). Two overlapping squares -- the conventional copy glyph. */
     case 'copy':
       return (

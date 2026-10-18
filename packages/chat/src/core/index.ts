@@ -5,6 +5,7 @@
  */
 export * from './events.js';
 export * from './messages.js';
+export * from './conversation-title.js';
 export * from './partial-json.js';
 export * from './tool-events.js';
 export * from './tool-output.js';
