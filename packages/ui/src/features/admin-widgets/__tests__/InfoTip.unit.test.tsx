@@ -231,4 +231,13 @@ describe("InfoTip tip-hook injection", () => {
     expect(bubble).toHaveClass("info-tip-bubble-below");
     expect(bubble).toHaveStyle({ top: "12px", left: "34px" });
   });
+
+  it("shows \"• \" lines as a hanging list, the bullet beside its text", async () => {
+    render(<InfoTip label={"• Show: every call.\n• Hidden: failed calls only."} />);
+    await userEvent.setup().hover(screen.getByRole("button"));
+    const bullets = [...document.querySelectorAll(".info-tip-bubble .info-tip-bullet")];
+    expect(bullets.map((line) => [...line.children].map((part) => part.textContent))).toEqual([
+      ["•", "Show: every call."], ["•", "Hidden: failed calls only."],
+    ]);
+  });
 });

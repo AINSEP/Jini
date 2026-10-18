@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { agentHandle } from "@jini-ai/agentic";
 
 import { useInfoTip } from "./InfoTip.hooks.js";
-import { infoTipBubbleStyle } from "./InfoTip.rules.js";
+import { infoTipBubbleStyle, infoTipLines } from "./InfoTip.rules.js";
 
 /**
  * Native title tooltips have an OS-dependent hover delay, inconsistent screen-reader exposure
@@ -19,7 +19,7 @@ import { infoTipBubbleStyle } from "./InfoTip.rules.js";
  * tap, blur or Escape; a hover-opened tip still closes when the pointer leaves.
  */
 export interface InfoTipProps {
-  /** The explanation the bubble shows; newlines separate lines. */
+  /** The explanation the bubble shows; newlines separate lines, and "• " lines show as a hanging list. */
   label: string;
   /**
    * Short accessible name for the icon ("About subagents"). Omitted, the icon is named by `label`
@@ -83,7 +83,9 @@ export function InfoTip({ label, triggerLabel, descriptionId, placement: preferr
               aria-hidden="true"
               style={{ ...infoTipBubbleStyle(coords), whiteSpace: "pre-line" }}
             >
-              {label}
+              {infoTipLines(label)?.map((line, index) => line.bullet
+                ? <span key={index} className="info-tip-bullet"><span aria-hidden="true">•</span><span>{line.text}</span></span>
+                : <span key={index} className="info-tip-line">{line.text}</span>) ?? label}
             </span>,
             // A modal <dialog> sits in the browser's top layer, above anything portaled to body.
             iconRef.current?.closest("dialog") ?? document.body

@@ -214,6 +214,12 @@
   border: 5px solid transparent; border-top-color: var(--jini-bg-panel);
 }
 
+/* "• " lines (`infoTipLines`): each bullet's wrapped text hangs past its dot. */
+.info-tip-line { display: block; }
+.info-tip-bullet { display: flex; gap: 0.4em; }
+.info-tip-bullet + .info-tip-bullet { margin-top: 0.3em; }
+.info-tip-bullet > span:first-child { flex: none; }
+
 .info-tip-bubble-below { transform: translate(-50%, 8px); }
 .info-tip-bubble-below::after {
   top: auto; bottom: 100%; border-top-color: transparent; border-bottom-color: var(--jini-bg-panel);

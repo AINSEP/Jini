@@ -4,9 +4,11 @@ import { useId, useState } from 'react';
 export interface ChatSettingsSection {
   /** One-line explanation for a whole radio group; falls back to its first item's hint. */
   key: string; label?: string; description?: string;
+  /** One help tip beside a radio group's legend, e.g. a bulleted line per option, in place of one per option. */
+  tooltip?: string;
   items: readonly {
     key: string; label: string; role?: string; checked?: boolean; hint?: string;
-    /** Per-option interactive help, independent of any legacy inline hint. */
+    /** Interactive help for a switch row. Radio options share their section's `tooltip` instead. */
     tooltip?: string;
     disabled?: boolean; onSelect?: () => void;
   }[];
@@ -43,7 +45,7 @@ export function useChatSettingsView(required: {
       name: `${id}-${section.key}`,
       // Radio rows share one line explaining the whole choice, so it sits under the group label.
       hint: section.items[0]?.role === 'menuitemradio' ? section.description ?? section.items[0]?.hint : undefined,
-      hintId: `${id}-${section.key}`,
+      hintId: `${id}-${section.key}`, labelId: `${id}-${section.key}-label`, tooltipId: `${id}-${section.key}-tooltip`,
       items: section.items.map(item => ({ ...item, hintId: `${id}-${section.key}-${item.key}`,
         change: () => { if (!item.disabled) item.onSelect?.(); } })),
     })),

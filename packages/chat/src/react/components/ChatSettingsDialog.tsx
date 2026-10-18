@@ -5,7 +5,8 @@ import { useChatSettingsView, type ChatPermissionsPort, type ChatSettingsSection
 
 /** One switch row, with optional inline description and help beside the control and label.
  * The help trigger stays outside the label so tapping it never toggles the switch.
- * Earlier (owner) ⓘ tips floated away from their icon, so this row showed visible text only; on 2026-10-18 the owner approved per-option ⓘ help, which InfoTip now anchors to the icon. */
+ * Earlier (owner) ⓘ tips floated away from their icon, so this row showed visible text only; on 2026-10-18 the owner approved per-option ⓘ help, which InfoTip now anchors to the icon.
+ * Later that day radio groups moved to one ⓘ beside their legend; a switch keeps its own. */
 function SettingSwitch(required: {
   label: string; checked: boolean; disabled?: boolean | undefined; onChange: (checked: boolean) => void;
   description?: string | undefined; descriptionId: string; className?: string | undefined;
@@ -77,18 +78,20 @@ export function ChatSettingsDialog(required: {
     <div className="jini-chat-settings-body" role="tabpanel"
       aria-label={vm.tab === 'display' ? vm.t('Display') : vm.t('Agent permissions')}>
       {vm.tab === 'display' ? vm.display.map(section => section.radio
-        ? <fieldset key={section.key} className="jini-chat-settings-group" aria-describedby={section.hint ? section.hintId : undefined}>
-          {section.label && <legend className="jini-chat-settings-legend">{section.label}</legend>}
+        // One ⓘ for the whole choice, beside the legend (owner, 2026-10-18), not one per option. The
+        // fieldset is named by the label span alone, so the tip's text never joins the group's name.
+        ? <fieldset key={section.key} className="jini-chat-settings-group" aria-labelledby={section.label ? section.labelId : undefined}
+          aria-describedby={[section.hint ? section.hintId : '', section.tooltip ? section.tooltipId : ''].filter(Boolean).join(' ') || undefined}>
+          {section.label && <legend className="jini-chat-settings-legend">
+            <span id={section.labelId}>{section.label}</span>
+            {section.tooltip && <InfoTip label={section.tooltip} descriptionId={section.tooltipId} />}
+          </legend>}
           {section.hint && <p id={section.hintId} className="jini-chat-settings-description jini-chat-settings-description--group">{section.hint}</p>}
           <div className="jini-chat-settings-segmented">
-            {section.items.map(item => <div key={item.key} className="jini-chat-settings-option">
-              <label className="jini-chat-settings-segment">
-                <input type="radio" name={section.name} checked={item.checked} disabled={item.disabled} onChange={item.change}
-                  aria-describedby={item.tooltip ? `${item.hintId}-tooltip` : undefined} />
-                <span>{item.label}</span>
-              </label>
-              {item.tooltip && <InfoTip label={item.tooltip} descriptionId={`${item.hintId}-tooltip`} />}
-            </div>)}
+            {section.items.map(item => <label key={item.key} className="jini-chat-settings-segment">
+              <input type="radio" name={section.name} checked={item.checked} disabled={item.disabled} onChange={item.change} />
+              <span>{item.label}</span>
+            </label>)}
           </div>
         </fieldset>
         : <fieldset key={section.key} className="jini-chat-settings-group">

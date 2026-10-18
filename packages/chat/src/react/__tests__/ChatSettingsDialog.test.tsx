@@ -70,20 +70,28 @@ describe('advanced chat settings', () => {
     expect(described(screen.getByRole('switch', { name: 'Full CLI access' }))?.textContent).toBe('Turn every capability below on or off at once.');
     expect(screen.queryByRole('button', { name: /More info/ })).toBeNull();
   });
-  it('describes radio and switch controls with help outside their labels without selecting them', async () => {
+  it('gives a radio group one help tip beside its legend and a switch its own, neither selecting anything', async () => {
     const user = userEvent.setup(), onSelect = vi.fn();
     render(<ChatSettingsDialog open onClose={vi.fn()} displaySections={[
-      { key: 'tools', items: [{ key: 'show', label: 'Show', role: 'menuitemradio', checked: false, tooltip: 'Radio help.', onSelect }] },
+      { key: 'tools', label: 'Tool calls', tooltip: '• Show: Every call.\n• Hidden: Failed calls only.', items: [
+        { key: 'show', label: 'Show', role: 'menuitemradio', checked: false, onSelect },
+        { key: 'hidden', label: 'Hidden', role: 'menuitemradio', checked: true, onSelect },
+      ] },
       { key: 'transcript', items: [{ key: 'done', label: 'Done line', role: 'menuitemcheckbox', checked: true, tooltip: 'Switch help.', onSelect }] },
     ]} permissions={{ enabled: false, canEdit: true, capabilities: [], onChange: vi.fn() }} />);
-    const radioHelp = screen.getByRole('button', { name: 'Radio help.' });
-    expect(radioHelp).toBeInTheDocument();
+    const group = screen.getByRole('group', { name: 'Tool calls' });
+    const radioHelp = within(group).getByRole('button', { name: /^• Show: Every call\.\s+• Hidden: Failed calls only\.$/ });
+    // One ⓘ for the group, none per option, and the group's name stays its legend text.
+    expect(group.querySelectorAll('.info-tip-icon')).toHaveLength(1);
+    expect(radioHelp.closest('legend')).not.toBeNull();
     // The dialog bounds its own tips, so a host dock's narrower bounds never pull them off their icon.
     expect(radioHelp.closest('[data-jini-tip-bounds]')?.tagName).toBe('DIALOG');
     expect(radioHelp.closest('label')).toBeNull();
-    expect(screen.getByRole('radio', { name: 'Show' })).toHaveAccessibleDescription('Radio help.');
+    expect(group).toHaveAccessibleDescription(/^• Show: Every call\.\s+• Hidden: Failed calls only\.$/);
+    expect(screen.getByRole('radio', { name: 'Show' })).not.toHaveAttribute('aria-describedby');
     await user.click(radioHelp);
     expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.getByRole('radio', { name: 'Hidden' })).toBeChecked();
     const switchHelp = screen.getByRole('button', { name: 'Switch help.' });
     expect(switchHelp).toBeInTheDocument();
     expect(switchHelp.closest('label')).toBeNull();

@@ -93,3 +93,19 @@ export function infoTipBubbleStyle(coords: { top: number; left: number; arrowLef
   if (coords.arrowLeft !== undefined) style["--info-tip-arrow-left"] = `${coords.arrowLeft}px`;
   return style;
 }
+
+/** One line of a bubble that holds a bulleted list. */
+export interface InfoTipLine { text: string; bullet: boolean }
+
+/**
+ * Splits a label into lines when any line is a "• " bullet (e.g. a settings group's one tip, a line
+ * per option), so each bullet's wrapped text can hang past its dot; `pre-line` alone wraps under it.
+ * @param label The tip text; newlines separate lines.
+ * @returns The lines with their "• " removed, or `null` when the label has no bullet line.
+ * @complexity O(n) in the label's length.
+ */
+export function infoTipLines(label: string): InfoTipLine[] | null {
+  const lines = label.split("\n");
+  if (!lines.some((line) => line.startsWith("• "))) return null;
+  return lines.map((line) => line.startsWith("• ") ? { text: line.slice(2), bullet: true } : { text: line, bullet: false });
+}

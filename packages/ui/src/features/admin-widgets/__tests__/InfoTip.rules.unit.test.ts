@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { infoTipBubbleStyle, placeInfoTipBubble } from "../components/InfoTip.rules";
+import { infoTipBubbleStyle, infoTipLines, placeInfoTipBubble } from "../components/InfoTip.rules";
 
 /** A 24px icon at a given left/top, as `getBoundingClientRect()` reports it. */
 const icon = (left: number, top = 400) => ({ left, top, width: 24, height: 24 });
@@ -80,5 +80,16 @@ describe("infoTipBubbleStyle", () => {
   it("passes position through and sets the arrow variable only once measured", () => {
     expect(infoTipBubbleStyle({ top: 1, left: 2 })).toEqual({ top: 1, left: 2 });
     expect(infoTipBubbleStyle({ top: 1, left: 2, arrowLeft: 30 })).toEqual({ top: 1, left: 2, "--info-tip-arrow-left": "30px" });
+  });
+});
+
+describe("infoTipLines", () => {
+  it("splits a label with a bullet line into lines, dropping each bullet's \"• \"", () => {
+    expect(infoTipLines("Pick one:\n• Show: all.\n• Hidden: none.")).toEqual([
+      { text: "Pick one:", bullet: false }, { text: "Show: all.", bullet: true }, { text: "Hidden: none.", bullet: true },
+    ]);
+  });
+  it("leaves a label without bullet lines to pre-line", () => {
+    expect(infoTipLines("One line.\nTwo • lines.")).toBeNull();
   });
 });
