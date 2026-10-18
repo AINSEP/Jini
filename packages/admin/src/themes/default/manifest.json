@@ -1,0 +1,13 @@
+{
+  "id": "default",
+  "name": "Jini Default",
+  "schemes": [
+    "light",
+    "dark"
+  ],
+  "stylesheets": {
+    "admin": "./admin.css",
+    "chat": "./chat.css"
+  },
+  "fonts": []
+}

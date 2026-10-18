@@ -145,3 +145,49 @@
   --jini-modal-padding: 24px;
   --jini-sidebar-width: 240px;
 }
+
+/* Material/role contract (ADR-069). Theme inputs are owned by admin's default theme or
+   a host theme. No component reads the new material roles until the next migration step.
+   Existing palette fallbacks above remain for hosts that have not imported a theme yet. */
+:root, [data-admin-theme], [data-color-scheme] {
+  --jini-app-bg: var(--jini-theme-app-bg, var(--jini-default-app-bg)); /* Application canvas background. */
+  --jini-panel-bg: var(--jini-theme-panel-bg, var(--jini-default-panel-bg)); /* Card/panel fill. */
+  --jini-panel-border: var(--jini-theme-panel-border, var(--jini-default-panel-border)); /* Card/panel border color. */
+  --jini-panel-shadow: var(--jini-theme-panel-shadow, var(--jini-default-panel-shadow)); /* Card/panel elevation. */
+  --jini-panel-backdrop: var(--jini-theme-panel-backdrop); /* Panel backdrop-filter. */
+  --jini-panel-texture: var(--jini-theme-panel-texture); /* Panel background-image layer. */
+  --jini-overlay-bg: var(--jini-theme-overlay-bg, var(--jini-default-overlay-bg)); /* Modal scrim background. */
+  --jini-overlay-backdrop: var(--jini-theme-overlay-backdrop); /* Modal scrim backdrop-filter. */
+  --jini-overlay-shadow: var(--jini-theme-overlay-shadow, var(--jini-default-overlay-shadow)); /* Floating dialog elevation. */
+  --jini-control-bg: var(--jini-theme-control-bg, var(--jini-default-control-bg)); /* Neutral input/control fill. */
+  --jini-control-border: var(--jini-theme-control-border, var(--jini-default-control-border)); /* Neutral input/control border color. */
+  --jini-control-shadow: var(--jini-theme-control-shadow); /* Resting control shadow. */
+  --jini-control-shadow-hover: var(--jini-theme-control-shadow-hover); /* Hovered control shadow. */
+  --jini-control-shadow-pressed: var(--jini-theme-control-shadow-pressed); /* Pressed control shadow. */
+  --jini-control-shadow-inset: var(--jini-theme-control-shadow-inset); /* Inset control shadow. */
+  --jini-border-width: var(--jini-theme-border-width); /* Standard primitive border width. */
+}
+
+/* Chat uses its own stylesheet so hosts can load it independently of the admin palette.
+   Aliases live on :root only so nested theme/scheme scopes inherit ChatPane's component-local
+   values. Moving that component wiring is a later step. Classic retains its existing scoped
+   host bridge in Tovu. */
+:root {
+  --jini-chat-bg: var(--jini-theme-chat-bg);
+  --jini-chat-panel: var(--jini-theme-chat-panel);
+  --jini-chat-text: var(--jini-theme-chat-text);
+  --jini-chat-text-strong: var(--jini-theme-chat-text-strong);
+  --jini-chat-muted: var(--jini-theme-chat-muted);
+  --jini-chat-faint: var(--jini-theme-chat-faint);
+  --jini-chat-border: var(--jini-theme-chat-border);
+  --jini-chat-border-strong: var(--jini-theme-chat-border-strong);
+  --jini-chat-border-soft: var(--jini-theme-chat-border-soft);
+  --jini-chat-subtle: var(--jini-theme-chat-subtle);
+  --jini-chat-accent: var(--jini-theme-chat-accent);
+  --jini-chat-accent-soft: var(--jini-theme-chat-accent-soft);
+  --jini-chat-danger: var(--jini-theme-chat-danger);
+  --jini-chat-radius: var(--jini-theme-chat-radius);
+  --jini-chat-radius-lg: var(--jini-theme-chat-radius-lg);
+  --jini-chat-user-bubble: var(--jini-theme-chat-user-bubble);
+  --jini-chat-user-bubble-ink: var(--jini-theme-chat-user-bubble-ink);
+}

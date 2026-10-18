@@ -13,6 +13,9 @@
     "kind": "state",
     "runtime": "universal",
     "entries": {
+      "./themes/default/admin.css": "browser",
+      "./themes/default/chat.css": "browser",
+      "./themes/default/manifest.json": "universal",
       ".": "universal",
       "./core": "universal",
       "./browser": "browser",
@@ -95,10 +98,13 @@
     }
   },
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": ["./src/themes/**/*.css"],
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./themes/default/admin.css": "./src/themes/default/admin.css",
+    "./themes/default/chat.css": "./src/themes/default/chat.css",
+    "./themes/default/manifest.json": "./src/themes/default/manifest.json",
     ".": {
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js",
@@ -421,6 +427,7 @@
     }
   },
   "files": [
+    "src/themes",
     "dist",
     "README.md",
     "CHANGELOG.md",

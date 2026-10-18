@@ -1,0 +1,21 @@
+/* Standalone default chat palette: exactly ChatPane's existing injected values, including
+   its scheme-independent sent bubbles. Component defaults are migrated in a later step. */
+:root {
+  --jini-theme-chat-bg: #faf9f7;
+  --jini-theme-chat-panel: #fdfcfa;
+  --jini-theme-chat-text: #1a1916;
+  --jini-theme-chat-text-strong: #0d0c0a;
+  --jini-theme-chat-muted: #74716b;
+  --jini-theme-chat-faint: #b3b0a8;
+  --jini-theme-chat-border: #e1e5eb;
+  --jini-theme-chat-border-strong: #c9d0da;
+  --jini-theme-chat-border-soft: #edf0f4;
+  --jini-theme-chat-subtle: #f4f5f7;
+  --jini-theme-chat-accent: #c96442;
+  --jini-theme-chat-accent-soft: #fbeee5;
+  --jini-theme-chat-danger: #e5484d;
+  --jini-theme-chat-radius: 8px;
+  --jini-theme-chat-radius-lg: 12px;
+  --jini-theme-chat-user-bubble: #1a1b1c;
+  --jini-theme-chat-user-bubble-ink: #fff;
+}
