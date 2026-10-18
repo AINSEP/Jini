@@ -55,6 +55,8 @@ export interface FormSurfaceSpec {
   /** Styles the submit button as destructive. */
   readonly danger?: boolean;
   readonly submitLabel: string;
+  /** Alternative submit buttons collect the same fields, with explicit action params. */
+  readonly additionalSubmitActions?: readonly { readonly id: string; readonly label: string; readonly params: Readonly<Record<string, unknown>> }[];
   /** The tool the collected values are sent to. */
   readonly toolName: string;
   /**
@@ -96,6 +98,7 @@ export function renderFormDocument(spec: FormSurfaceSpec): string {
   const actions: SurfaceAction[] = [
     { id: 'submit', label: spec.submitLabel, variant: spec.danger === true ? 'danger' : 'primary' },
   ];
+  for (const action of spec.additionalSubmitActions ?? []) actions.push({ id: `submit:${action.id}`, label: action.label, variant: 'neutral' });
   if (spec.cancel !== undefined) actions.push({ id: 'cancel', label: spec.cancel.label, variant: 'neutral' });
 
   const controls = spec.fields
@@ -125,6 +128,7 @@ ${SURFACE_SCRIPT_PRELUDE}
   var TOOL = ${escapeJsValue(spec.toolName)};
   var BASE_PARAMS = ${escapeJsValue(spec.baseParams ?? {})};
   var CANCEL = ${escapeJsValue(cancelPlan)};
+  var SUBMIT_ACTIONS = ${escapeJsValue(Object.fromEntries((spec.additionalSubmitActions ?? []).map(action => [`submit:${action.id}`, action.params])))};
   var TEXT = ${escapeJsValue(text)};
   var form = document.getElementById(${escapeJsValue(FORM_ELEMENT_ID)});
 
@@ -235,7 +239,7 @@ ${SURFACE_SCRIPT_PRELUDE}
   // says the dialog is no longer pending, where a retry cannot succeed (see reportCallFailure).
   var pending = false;
 
-  function runSubmit() {
+  function runSubmit(actionParams) {
     if (pending) return;
     var params = {};
     var key;
@@ -250,6 +254,7 @@ ${SURFACE_SCRIPT_PRELUDE}
       setStatus(TEXT.missingPrefix + missing.join(", "), "invalid");
       return;
     }
+    for (key in actionParams) if (Object.prototype.hasOwnProperty.call(actionParams, key)) params[key] = actionParams[key];
     pending = true;
     setBusy(true);
     setStatus(TEXT.working, "pending");
@@ -274,14 +279,14 @@ ${SURFACE_SCRIPT_PRELUDE}
     var type = (target.getAttribute("type") || "text").toLowerCase();
     if (type === "checkbox" || type === "radio") return;
     event.preventDefault();
-    runSubmit();
+    runSubmit({});
   });
 
   for (var b = 0; b < actionButtons.length; b++) {
     var action = actionButtons[b].getAttribute("data-mcpui-action");
-    if (action === "submit") {
+    if (action === "submit" || Object.prototype.hasOwnProperty.call(SUBMIT_ACTIONS, action)) {
       actionButtons[b].addEventListener("click", function (event) {
-        if (event.isTrusted === true) runSubmit();
+        if (event.isTrusted === true) runSubmit(SUBMIT_ACTIONS[event.currentTarget.getAttribute("data-mcpui-action")] || {});
       });
       continue;
     }

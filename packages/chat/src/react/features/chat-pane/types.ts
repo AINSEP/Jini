@@ -323,6 +323,8 @@ export interface ChatPaneProps extends UserTextRedactionOptions {
   toolCallDisplay?: ToolCallDisplay;
   showUsageLine?: boolean;
   showThinking?: boolean;
+  /** Hide prior automatic-usage chips immediately when the host selects Off. Loading policy stays server-owned. */
+  agentPluginsMode?: 'auto' | 'ask' | 'off';
   uploadAttachments?: (
     files: File[],
     options?: ChatPaneAttachmentUploadOptions,

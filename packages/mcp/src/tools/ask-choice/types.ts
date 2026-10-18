@@ -2,6 +2,8 @@
 export interface AskChoiceSelect {
   readonly label: string;
   readonly hint?: string;
+  /** Host-supplied checked defaults; answers are still validated against offered options. */
+  readonly value?: readonly string[];
   readonly options: ReadonlyArray<{ value: string; label: string }>;
 }
 
@@ -11,6 +13,8 @@ export interface AskChoiceQuestion {
   readonly submitLabel?: string;
   readonly singleSelect?: AskChoiceSelect;
   readonly multiSelect?: AskChoiceSelect;
+  /** Trusted host actions, carried by the form under __choiceAction. */
+  readonly actions?: readonly { id: string; label: string }[];
 }
 
 export interface AskChoiceMessages {

@@ -714,3 +714,42 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     expect(audit?.events.map((e) => e.at)).toEqual([1000, 1001, 1002, 1003]);
   });
 });
+
+describe('advisory guidance at the authorized tool boundary', () => {
+  it('attaches guidance to the first write result and still runs the writer once', async () => {
+    const handler = vi.fn(async () => ({ version: 2 }));
+    const registry = registryWith({ descriptor: { id: 'write', metadata: { guidanceCapabilities: ['theme-authoring'] } }, policy: allowAll(), handler });
+    const prepareGuidance = vi.fn(async (_input: Parameters<NonNullable<import('../tool-executor.js').CreateToolExecutorOptions['prepareGuidance']>>[0]) => 'Use the installed theme authoring guidance.');
+    const result = await createToolExecutor({ registry }, { prepareGuidance }).execute({ principal, run, toolId: 'write', input: {} });
+    expect(result).toMatchObject({ status: 'completed', output: { version: 2, agentPluginGuidance: 'Use the installed theme authoring guidance.' } });
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(prepareGuidance.mock.calls[0]?.[0].tool.metadata?.guidanceCapabilities).toEqual(['theme-authoring']);
+  });
+  it('does not prepare denied tools and guidance failure never fails an authorized write', async () => {
+    const registry = registryWith({ descriptor: { id: 'write', metadata: { guidanceCapabilities: ['ui-design'] } }, policy: allowAll(), handler: async () => ({ saved: true }) },
+      { descriptor: { id: 'denied', metadata: { guidanceCapabilities: ['ui-design'] } }, policy: { authorize: () => 'deny' }, handler: async () => 'unreachable' });
+    const prepareGuidance = vi.fn(async () => { throw new Error('unavailable'); });
+    const executor = createToolExecutor({ registry }, { prepareGuidance });
+    expect((await executor.execute({ principal, run, toolId: 'denied', input: {} })).status).toBe('denied');
+    expect(prepareGuidance).not.toHaveBeenCalled();
+    expect(await executor.execute({ principal, run, toolId: 'write', input: {} })).toMatchObject({ status: 'completed', output: { saved: true } });
+    expect(prepareGuidance).toHaveBeenCalledTimes(1);
+    expect(prepareGuidance).toHaveBeenCalledWith(expect.objectContaining({ principal, run, tool: expect.objectContaining({ id: 'write' }) }), {});
+  });
+});
+
+it('keeps guidance model-visible in an MCP content envelope', async () => {
+  const registry = registryWith({ descriptor: { id: 'mcp-write', metadata: { guidanceCapabilities: ['ui-design'] } }, policy: allowAll(),
+    handler: async () => ({ content: [{ type: 'text', text: 'Saved' }] }) });
+  const result = await createToolExecutor({ registry }, { prepareGuidance: async () => 'Design guidance' }).execute({ principal, run, toolId: 'mcp-write', input: {} });
+  expect(result.output).toEqual({ content: [{ type: 'text', text: 'Saved' }, { type: 'text', text: 'Design guidance' }] });
+});
+
+it('preserves a rejected write status and delivers its prepared guidance to the next model step', async () => {
+  const registry = registryWith({ descriptor: { id: 'invalid-write', metadata: { guidanceCapabilities: ['ui-design'] } }, policy: allowAll(),
+    handler: async () => { throw new ToolInputError({ message: 'Invalid markup' }); } });
+  const result = await createToolExecutor({ registry }, { prepareGuidance: async () => 'Design guidance' }).execute({ principal, run, toolId: 'invalid-write', input: {} });
+  expect(result).toMatchObject({ status: 'failed', errorKind: 'validation' });
+  expect(result.error).toContain('Invalid markup');
+  expect(result.error).toContain('Design guidance');
+});

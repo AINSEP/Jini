@@ -88,6 +88,17 @@ export interface AgentPluginSearchMatch extends AgentPluginSearchCandidate {
   readonly score: number;
 }
 
+/** Strong automatic matches require a complete authored keyword/identity term. Prose-only hits
+ * remain available to explicit search without silently loading unrelated guidance. */
+const INCIDENTAL_TERMS = new Set('a an and are as at be build can could create do for from get help i in is it make me my new of on or please the this to use want we with you your'.split(' '));
+function automaticTerms(query: string): string[] {
+  return [...new Set((query.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter(term => !INCIDENTAL_TERMS.has(term)))];
+}
+function automaticMatch(candidate: AgentPluginSearchCandidate, terms: readonly string[]): boolean {
+  const metadata = automaticTerms([candidate.pluginId, candidate.id ?? '', candidate.displayName ?? '', ...candidate.keywords, ...(candidate.provides ?? [])].join(' '));
+  return candidate.enabled && terms.some(term => metadata.includes(term));
+}
+
 function buildModule(ports: AgentPluginLifecyclePorts) {
 
   const ID_FIELD_WEIGHT = 5;
@@ -110,7 +121,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  *  plain, independently-readable list rather than interleaved with the scoring loop itself. */
   function fieldHaystacks(candidate: AgentPluginSearchCandidate): readonly { readonly text: string; readonly weight: number }[] {
     return [
-      { text: `${candidate.pluginId} ${candidate.id ?? ""}`.toLowerCase(), weight: ID_FIELD_WEIGHT },
+      { text: `${candidate.pluginId} ${candidate.id ?? ""} ${candidate.displayName ?? ""}`.toLowerCase(), weight: ID_FIELD_WEIGHT },
       { text: [...candidate.keywords, ...(candidate.provides ?? [])].join(" ").toLowerCase(), weight: KEYWORD_FIELD_WEIGHT },
       { text: (candidate.description ?? "").toLowerCase(), weight: DESCRIPTION_FIELD_WEIGHT },
       {
@@ -155,11 +166,13 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     query: string,
     candidates: readonly AgentPluginSearchCandidate[],
     limit: number,
+    automatic = false,
   ): readonly AgentPluginSearchMatch[] {
-    const terms = tokenize(query);
+    const terms = automatic ? automaticTerms(query) : tokenize(query);
     if (terms.length === 0) return [];
 
     return candidates
+      .filter(candidate => !automatic || automaticMatch(candidate, terms))
       .map((candidate) => ({ ...candidate, score: scoreCandidate(candidate, terms) }))
       .filter((match) => match.score > 0)
       .sort((a, b) => b.score - a.score)

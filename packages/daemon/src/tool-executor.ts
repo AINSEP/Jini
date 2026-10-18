@@ -183,7 +183,11 @@ export interface ToolExecutor {
   getAuditRecord(args: { readonly executionId: string }): ToolExecutionAuditRecord | null;
 }
 
+/** Advisory preparation after authorization/confirmation, before the handler. A failure is fail-open. */
+export type PrepareToolGuidance = (required: { principal: Principal; run: RunRef; tool: ToolDescriptor; signal: AbortSignal; emitSurface?: SurfaceEmitter }, optional?: Record<string, never>) => Promise<string>;
+
 export interface CreateToolExecutorOptions {
+  readonly prepareGuidance?: PrepareToolGuidance;
   readonly registry: ToolRegistry;
   readonly delegate?: ExecutionDelegate;
   /** Injectable clock for audit timestamps — defaults to `Date.now`. Test-only hook. */
@@ -225,7 +229,7 @@ function truncateOutput(output: unknown, maxOutputBytes: number | undefined): { 
  * @complexity Known-id `execute` adds schema-guided normalization to the handler's cost; unknown ids scan O(n) descriptors for hints. `resumeConfirmation`/`cancel`/`getAuditRecord` are O(1) map lookups.
  * @overallScore 100/100
  */
-export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions, "registry">, optionalArgs: Pick<CreateToolExecutorOptions, "delegate" | "now"> = {}): ToolExecutor {
+export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions, "registry">, optionalArgs: Pick<CreateToolExecutorOptions, "delegate" | "now" | "prepareGuidance"> = {}): ToolExecutor {
   const options: CreateToolExecutorOptions = { ...requiredArgs, ...optionalArgs };
   const { registry, delegate = {} } = options;
   const now = options.now ?? Date.now;
@@ -445,6 +449,21 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
 
     const controller = new AbortController();
     activeControllers.set(executionId, controller);
+    let guidance = '';
+    if (options.prepareGuidance && descriptor.metadata?.guidanceCapabilities?.length) {
+      try {
+        guidance = await options.prepareGuidance({ principal, run, tool: descriptor, signal: controller.signal,
+          ...(emitSurface ? { emitSurface } : {}) }, {});
+      } catch {
+        // Guidance availability must never convert an authorized write into a tool failure.
+      }
+    }
+    if (controller.signal.aborted) {
+      activeControllers.delete(executionId);
+      detachTransportAbort();
+      appendEvent(executionId, 'cancelled');
+      return { executionId, status: 'cancelled' };
+    }
     // `signal` doesn't need linking here — the listener registered above already reaches this
     // controller via `cancel()`'s `activeControllers` branch as soon as `activeControllers.set`
     // ran. A second direct link (this file used to have one, `linkAbortSignal`) was redundant for
@@ -502,7 +521,7 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
           controller.signal.aborted,
         );
       }
-      const { output, truncated } = truncateOutput(withNormalizationNotes({ output: rawOutput, notes: normalizationNotes }), descriptor.maxOutputBytes);
+      const { output, truncated } = truncateOutput(withNormalizationNotes({ output: attachToolGuidance({ output: rawOutput, guidance }), notes: normalizationNotes }), descriptor.maxOutputBytes);
       appendEvent(executionId, 'completed');
       cleanup();
       detachTransportAbort();
@@ -510,7 +529,11 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     } catch (err) {
       cleanup();
       detachTransportAbort();
-      return failureResult(executionId, err, timeout.timedOut(), controller.signal.aborted, normalizationNotes);
+      const failure = failureResult(executionId, err, timeout.timedOut(), controller.signal.aborted, normalizationNotes);
+      // A rejected write still returns a model-visible result; do not lose prepared guidance there.
+      return guidance && failure.status === 'failed'
+        ? { ...failure, error: `${failure.error ?? 'tool failed'}\n\n${guidance}` }
+        : failure;
     }
   }
 
@@ -542,4 +565,16 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
   }
 
   return { execute, resumeConfirmation, cancel, getAuditRecord };
+}
+
+/** Preserve ordinary object fields while adding model-facing guidance to this tool result. */
+function attachToolGuidance({ output, guidance }: { output: unknown; guidance: string }): unknown {
+  if (!guidance) return output;
+  if (typeof output === 'string') return `${output}\n\n${guidance}`;
+  if (output && typeof output === 'object' && !Array.isArray(output)) {
+    // MCP envelopes are projected by their content blocks; an extra JSON property may be ignored.
+    if ('content' in output && Array.isArray(output.content)) return { ...output, content: [...output.content, { type: 'text', text: guidance }] };
+    return { ...output, agentPluginGuidance: guidance };
+  }
+  return { result: output, agentPluginGuidance: guidance };
 }

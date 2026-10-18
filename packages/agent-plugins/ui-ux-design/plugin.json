@@ -8,13 +8,18 @@
       "id": "jini/ui-ux-design",
       "provides": [
         "ui-design"
-      ]
+      ],
+      "displayName": "UI/UX Design"
     }
   },
   "keywords": [
     "design",
     "ui",
     "ux",
-    "ui-design"
+    "ui-design",
+    "theme",
+    "page",
+    "website",
+    "layout"
   ]
 }

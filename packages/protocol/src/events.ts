@@ -82,6 +82,8 @@ export interface RunEndPayload {
 }
 
 export type RunAgentPayload =
+  /** Host-assembled installed guidance, displayed only after successful delivery. */
+  | { type: 'agent_plugins'; conversationId: string; state: { decision: { selected: readonly string[]; asked?: boolean } | null; excluded: readonly string[] }; plugins: readonly { id: string; name: string }[] }
   | {
       type: 'status'; label: string; model?: string; ttftMs?: number; detail?: string;
       /** Concrete prior model on a structured `model_switch` receipt. */

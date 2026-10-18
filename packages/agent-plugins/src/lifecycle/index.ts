@@ -1,3 +1,4 @@
+export * from './automatic-use.js';
 import { createPersistentStateModule } from "./persistent-state.js";
 import { fetchAgentPluginArchive, maxAgentPluginArchiveBytes } from './fetch-archive.js';
 import type { FetchAgentPluginArchiveOptional } from './fetch-archive.js';
@@ -120,7 +121,7 @@ export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequire
     }),
     listInstalledPlugins: (input: { readonly workspaceRoot: string }) => refs.listInstalledPlugins(input.workspaceRoot),
     isInstalledDigestPresent: (input: { readonly packagesDir: string; readonly archiveDigest: string }) => refs.isInstalledDigestPresent(input.packagesDir, input.archiveDigest),
-    rankInstalledAgentPlugins: (input: { readonly query: string; readonly candidates: Parameters<typeof search.rankInstalledAgentPlugins>[1]; readonly limit: number }) => search.rankInstalledAgentPlugins(input.query, input.candidates, input.limit),
+    rankInstalledAgentPlugins: (input: { readonly query: string; readonly candidates: Parameters<typeof search.rankInstalledAgentPlugins>[1]; readonly limit: number }, optional: { readonly automatic?: boolean } = {}) => search.rankInstalledAgentPlugins(input.query, input.candidates, input.limit, optional.automatic),
     readTrustedPluginFile: (input: { readonly plugin: Parameters<typeof trusted.readTrustedPluginFile>[0]; readonly filename: string }) => trusted.readTrustedPluginFile(input.plugin, input.filename),
     importContainedModule: (input: { readonly plugin: Parameters<typeof trusted.importContainedModule>[0]; readonly modulePath: string }) => trusted.importContainedModule(input.plugin, input.modulePath),
     maxAgentPluginInstallArchiveBytes: (_input: Record<string, never>) => install.maxAgentPluginInstallArchiveBytes(),

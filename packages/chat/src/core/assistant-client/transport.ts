@@ -1,3 +1,4 @@
+import { readAgentPluginChatState, captureAgentPluginUsage } from '../agent-plugin-chat-state.js';
 import { buildTranscript, latestUserPromptFromHistory } from "../transcript.js";
 import type { AgentEvent } from "../events.js";
 import type { ChatMessage } from "../messages.js";
@@ -352,7 +353,12 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
   /** The durable message owns recovery and terminal state; this subscription follows replacement
    * attempts without writing a browser-inferred failure into history. */
   function subscribeToRun(runId: string, handlers: RunHandlers, signal?: AbortSignal): void {
-    ports.followRun({ runId, handlers, ...(signal === undefined ? {} : { signal }) }, {});
+    ports.followRun({ runId, handlers: capturePluginUsage(handlers), ...(signal === undefined ? {} : { signal }) }, {});
+  }
+
+  /** Capture before notifying the UI so answers received after reload persist for the next turn. */
+  function capturePluginUsage(handlers: RunHandlers): RunHandlers {
+    return { ...handlers, onEvent: event => { captureAgentPluginUsage({ event }); handlers.onEvent(event); } };
   }
 
   /** Client-minted, not server-minted — see module doc's path-2 section: a BYOK run has no server-side
@@ -488,6 +494,10 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
         body: JSON.stringify({
           messages,
           ...attachmentIdsField(input),
+          ...conversationIdField(input),
+          agentPluginState: input.context?.["agentPluginState"],
+          userPrompt: input.context?.["userPrompt"],
+          ...pluginRefIdsField(input),
           // The admin screen, as on the Local CLI path (`buildLocalCliContextRef`): the server puts it
           // in front of the newest message so a BYOK turn knows the open page and where drawings go.
           ...pageContextField(input),
@@ -676,6 +686,8 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
       ...reasoningField(input),
       ...attachmentIdsField(input),
       ...pluginRefIdsField(input),
+      agentPluginState: input.context?.["agentPluginState"],
+      userPrompt: input.context?.["userPrompt"],
       ...conversationIdField(input, resolvedConversationId),
       ...pageContextField(input),
     };
@@ -807,6 +819,9 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
           throw new Error("no user message to send");
         }
 
+        // Adopt identity before either runtime branch so first-turn decisions survive a reload.
+        const conversationId = await resolveRunConversationId(input, options.ensureConversationId);
+        input = { ...input, context: { ...input.context, ...(conversationId ? { conversationId, agentPluginState: readAgentPluginChatState({ conversationId }) } : {}), userPrompt: latestUserPrompt } };
         const executionConfig = options.getExecutionConfig?.({}, {});
         // Dispatches on MODE alone, not on whether a key is typed in this browser right now
         // (2026-08-05). `executionConfig.byok.apiKey` is write-only server-side — it is empty on
@@ -819,7 +834,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
         // level down — the route's own 400 `"no usable BYOK credential..."` — which is a real,
         // actionable answer instead of the mode picker silently refusing to try.
         if (executionConfig?.mode === "byok") {
-          return startByokRun(ports.projectInput({ input }, {}), handlers, executionConfig.byok);
+          return startByokRun(ports.projectInput({ input }, {}), capturePluginUsage(handlers), executionConfig.byok);
         }
 
         // AG-UI canary path (ADR-059) — a host-supplied toggle, independent of `executionConfig.mode`
@@ -830,22 +845,17 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
         if (options.getAgUiEnabled?.({}, {})) {
           // `historyForTranscript` here rather than inside `startAgUiRun`: that module importing this
           // one would be a cycle, and this is its only caller. Same rule as the BYOK and Local CLI paths.
-          return ports.agUi.startAgUiRun({ input: ports.projectInput({ input: { ...input, history: historyForTranscript(input.history as ChatMessage[]) } }, {}), handlers }, {});
+          return ports.agUi.startAgUiRun({ input: ports.projectInput({ input: { ...input, history: historyForTranscript(input.history as ChatMessage[]) } }, {}), handlers: capturePluginUsage(handlers) }, {});
         }
 
         // Local CLI path below. `resolveLocalCliPrompt`'s own doc has the full contract for why an
         // unresolved/absent agentId fails open to the full transcript rather than the bare message.
         const prompt = resolveLocalCliPrompt(input, options.getResumeCapableAgentIds?.({}, {}));
-        // Awaited BEFORE the POST, and only on this branch: session resume is a daemon-run concept, so
-        // neither the BYOK nor the AG-UI path above has anything to file a session id under. See
-        // `resolveRunConversationId` and `AssistantTransportOptions.ensureConversationId`.
-        const conversationId = await resolveRunConversationId(input, options.ensureConversationId);
         // Also before the POST, and for the same reason it is awaited rather than fired off: the
         // user's turn must be durable before a run that can fail to deliver it exists at all
         // (Defect 2, 2026-09-11). Ordered after conversation adoption because it needs the id that
-        // adoption produces. Known gap, not an oversight: the BYOK and AG-UI branches above return
-        // before this point and resolve no conversation id of their own, so neither writes a durable
-        // user turn ahead of dispatch — closing that needs those paths to adopt a conversation first.
+        // adoption produces. BYOK and AG-UI share the identity above; neither writes a durable
+        // user turn ahead of dispatch; those transports retain their own persistence behavior.
         await persistUserTurnBeforeDispatch(input, conversationId, options.persistUserTurn);
         const userMessage = [...(input.history as ChatMessage[])].reverse().find((message) => message.role === "user");
         // Acceptance commits the question and stub together even if the separate browser PUT fails

@@ -1107,3 +1107,13 @@ describe('ChatPane', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 });
+
+it('hides prior automatic plugin usage immediately when the host chooses Off', () => {
+  const initialMessages: ChatMessage[] = [{ id: 'plugin-turn', role: 'assistant', content: '', createdAt: 1,
+    events: [{ kind: 'ext', name: 'agent_plugins', data: { conversationId: 'plugins-off-chat', plugins: [{ id: 'fixture', name: 'Fixture plugin' }] } }] }];
+  const transport = createFakeChatTransport();
+  const { rerender } = render(<ChatPane transport={transport} agents={agents} conversationId="plugins-off-chat" initialMessages={initialMessages} agentPluginsMode="auto" />);
+  expect(screen.getByText('Using:')).toBeInTheDocument();
+  rerender(<ChatPane transport={transport} agents={agents} conversationId="plugins-off-chat" initialMessages={initialMessages} agentPluginsMode="off" />);
+  expect(screen.queryByText('Using:')).not.toBeInTheDocument();
+});

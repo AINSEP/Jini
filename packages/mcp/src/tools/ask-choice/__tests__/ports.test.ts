@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import {
-  createAskChoiceTool, createAskChoiceAnswerTicketStore, ASK_CHOICE_ANSWER_TICKET_PARAM,
+  askChoice, createAskChoiceTool, createAskChoiceAnswerTicketStore, ASK_CHOICE_ANSWER_TICKET_PARAM,
   type AskChoiceCall, type AskChoicePolicy,
 } from '../index.js';
 import { createSurfaceExchangeStore, messages, presentation, SURFACE_TYPED_ANSWER_PARAM, SURFACE_DISMISSED_PARAM } from './fixtures.js';
@@ -183,4 +183,26 @@ test('subpath targets built code and declarations without replacing existing exp
   });
   expect(manifest.exports['.'].import).toBe('./dist/index.js');
   expect(manifest.exports['./bin'].default).toBe('./dist/bin/serve.js');
+});
+
+test.each([
+  { action: 'use', selections: ['offered'], submitted: true },
+  { action: 'auto', selections: ['offered'], submitted: true },
+  { action: 'unoffered', selections: ['offered'], submitted: false },
+  { action: 'auto', selections: ['unoffered'], submitted: false },
+])('trusted host choice validates action and selection: %j', async ({ action, selections, submitted }) => {
+  const exchanges = createSurfaceExchangeStore();
+  const hostQuestion = { title: 'Host choice', multiSelect: { label: 'Matches', value: ['offered'], options: [{ value: 'offered', label: 'Offered' }] },
+    actions: [{ id: 'use', label: 'Use' }, { id: 'auto', label: 'Always' }] };
+  const exchange = exchanges.open({ toolId: 'host', principalId: 'human', emit: async ({ emission }) => {
+    const form = JSON.parse((emission.payload.resource as { resource: { text: string } }).resource.text);
+    expect(form.question.multiSelect.value).toEqual(['offered']);
+    expect(form.question.actions).toEqual(hostQuestion.actions);
+    expect(exchanges.deliver({ exchangeId: form.baseParams.__exchangeId, toolId: 'host', principalId: 'human', params: { __choiceAction: action, selections } }).ok).toBe(true);
+  } });
+  const result = await askChoice({ exchange, question: hostQuestion, toolId: 'host', principalId: 'human', presentation, messages, signal: new AbortController().signal });
+  expect(result.submitted).toBe(submitted);
+  if (submitted) expect(result).toMatchObject({ action, selections });
+  else expect(result).toMatchObject({ reason: 'invalid-answer' });
+  expect(exchanges.size()).toBe(0);
 });

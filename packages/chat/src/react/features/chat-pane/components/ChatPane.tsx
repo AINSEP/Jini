@@ -1,3 +1,4 @@
+import { AgentPluginUsage } from './AgentPluginUsage.js';
 import { SECRET_REDACTED_NOTICE } from '../../../../core/user-text-redaction.js';
 import { useEffect, useId, useMemo, useRef, type ReactNode } from 'react';
 import { WorkingDirPicker } from '@jini-ai/ui';
@@ -547,6 +548,7 @@ export function ChatPane({
   toolCallDisplay = 'show',
   showUsageLine = true,
   showThinking = false,
+  agentPluginsMode = 'auto',
   uploadAttachments,
   attachmentAccept,
   disabled = false,
@@ -694,6 +696,7 @@ export function ChatPane({
     >
       <style data-jini-chat-pane-styles="true">{CHAT_PANE_STYLES}</style>
       {resolveChatPaneHeader(header, title, pane.reset, t)}
+      {agentPluginsMode !== 'off' && <AgentPluginUsage conversationId={pane.conversation.conversationId} messages={pane.conversation.messages} />}
       <div className="jini-chat-pane__body">
         {pane.conversation.messages.length === 0 && emptyState ? (
           <div className="jini-message-list jini-message-list--empty">

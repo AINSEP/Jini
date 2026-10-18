@@ -41,7 +41,7 @@
  * Architectural role: `src/assistant` composition-layer adapter. Takes its collaborators as
  * arguments and constructs no policy, sink, or registry of its own.
  */
-import { createToolExecutor, type ToolExecutor } from "../tool-executor.js";
+import { createToolExecutor, type ToolExecutor, type PrepareToolGuidance } from "../tool-executor.js";
 import type { ToolRegistry } from "@jini-ai/core";
 import type { ToolAttemptAuditSink } from "../core/tool-audit.js";
 import type { SurfaceExchangeStore } from "../surface-exchanges.js";
@@ -52,6 +52,7 @@ import { withRedactedToolFailures, readToolErrorId, type RedactedToolFailuresDep
 
 export interface AssistantToolExecutorDeps extends Omit<ToolFailureRecoveryDeps, "registry"> {
   readonly registry: ToolRegistry;
+  readonly prepareGuidance?: PrepareToolGuidance;
   readonly surfaceExchanges: SurfaceExchangeStore;
   readonly newExecutionId: () => string;
   /** Optional sink is a real supported configuration; never require a dummy observer. */
@@ -64,7 +65,7 @@ export interface AssistantToolExecutorDeps extends Omit<ToolFailureRecoveryDeps,
  * @complexity O(1) composition; each decorator owns its runtime cost.
  */
 export function createAssistantToolExecutor(deps: AssistantToolExecutorDeps, _optional = {}): ToolExecutor {
-  const guarded = withReadOnlyToolConstraint({ inner: createToolExecutor({ registry: deps.registry }),
+  const guarded = withReadOnlyToolConstraint({ inner: createToolExecutor({ registry: deps.registry }, { ...(deps.prepareGuidance ? { prepareGuidance: deps.prepareGuidance } : {}) }),
     registry: deps.registry, idGenerator: { newId: deps.newExecutionId }, messages: deps.readOnlyMessages }, {});
   const redacted = withRedactedToolFailures({ inner: guarded, ...deps.toolFailures }, {});
   const audited = deps.toolAttemptAudit

@@ -510,3 +510,17 @@ describe('buildFormSurface', () => {
     expect(resource.resource._meta).toEqual({ [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: ['500px', '600px'] });
   });
 });
+
+it('an alternative submit action collects checked fields and carries its own action without duplicating submission', () => {
+  const surface = mountSurface(renderFormDocument({ ...SPEC,
+    fields: [{ kind: 'multi-enum', name: 'selections', label: 'Plugins', value: ['theme'], options: [{ value: 'theme', label: 'Theme' }, { value: 'design', label: 'Design' }] }],
+    baseParams: { pluginAction: 'use' }, submitLabel: 'Use',
+    additionalSubmitActions: [{ id: 'auto', label: "Don't ask again", params: { pluginAction: 'auto' } }],
+  }));
+  const button = surface.doc.querySelector<HTMLButtonElement>('[data-mcpui-action="submit:auto"]')!;
+  expect(button.textContent).toBe("Don't ask again");
+  surface.asUser(() => button.dispatchEvent(new Event('click', { bubbles: true })));
+  expect(surface.calls[0]?.params).toEqual({ pluginAction: 'auto', selections: ['theme'] });
+  surface.asUser(() => button.dispatchEvent(new Event('click', { bubbles: true })));
+  expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+});

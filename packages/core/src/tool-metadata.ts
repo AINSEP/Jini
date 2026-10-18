@@ -8,6 +8,8 @@ export interface ToolApprovalMetadata {
 }
 
 export interface ToolMetadata<A extends ToolApprovalMetadata = ToolApprovalMetadata> {
+  /** Installed guidance capabilities needed by a writer; independent of permission and risk. */
+  readonly guidanceCapabilities?: readonly string[];
   readonly search?: { readonly keywords?: string; readonly queries?: readonly string[] };
   readonly approval?: A;
   readonly mcpUi?: { readonly redeemable?: boolean; readonly exchangeOnly?: boolean; readonly secretField?: { readonly secret: true } };
