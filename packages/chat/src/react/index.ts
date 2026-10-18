@@ -3,6 +3,9 @@
  * chat/core vocabulary. Every export is explicit: adding or renaming a name here is a public API
  * review, so internal module exports cannot silently become public. Do not use export *.
  */
+export { ChatSettingsDialog } from './components/ChatSettingsDialog.js';
+export { useChatSettingsDialog } from './components/ChatSettingsDialog.hooks.js';
+export type { ChatPermissionsPort, ChatSettingsSection } from './components/ChatSettingsDialog.hooks.js';
 // ChatTransport is a framework-free port owned by chat/core. This compatibility re-export
 // preserves existing imports; new hosts should import the port from chat/core directly.
 export type {
