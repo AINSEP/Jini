@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { AgentIcon, RemixIcon, SearchableModelSelect } from '@jini-ai/ui';
 
 import { useT } from '../../../hooks/context.js';
+import { RuntimeDropUp } from './RuntimeDropUp.js';
 import { defaultChatPaneSelection } from '../rules.js';
 import {
   runtimeOptionLabel,
@@ -140,100 +141,59 @@ function RuntimeAgentList({
   );
 }
 
-interface RuntimeModelSelectsProps {
+interface RuntimeBarMenusProps {
   selectedAgent: ChatPaneAgent | undefined;
   value: ChatPaneAgentSelection;
   onChange: (selection: ChatPaneAgentSelection) => void;
-  t: (key: string) => string;
-}
-
-function RuntimeModelSelects({ selectedAgent, value, onChange, t }: RuntimeModelSelectsProps): ReactNode {
-  if (!selectedAgent) return null;
-  const models = pickerModelOptions(selectedAgent);
-  const note = pickerCatalogNote(selectedAgent, t);
-  return (
-    <div className="jini-runtime-models">
-      {note ? <small>{note}</small> : null}
-      {models.length > 0 ? (
-        <label className="jini-runtime-select">
-          <span>{t('Model')}</span>
-          <select
-            aria-label={t('Model')}
-            value={pickerModelValue(selectedAgent, value.model)}
-            onChange={(event) => onChange({
-              agentId: value.agentId,
-              model: event.target.value,
-              ...(value.reasoning ? { reasoning: value.reasoning } : {}),
-            })}
-          >
-            <option value="" disabled>{t('Choose model')}</option>
-            {models.map((model) => (
-              <option value={model.id} key={model.id}>{model.label}</option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-      {(selectedAgent.reasoningOptions?.length ?? 0) > 0 ? (
-        <label className="jini-runtime-select">
-          <span>{t('Reasoning')}</span>
-          <select
-            aria-label={t('Reasoning')}
-            value={value.reasoning ?? ''}
-            onChange={(event) => onChange(reasoningSelection({ value, reasoning: event.target.value }))}
-          >
-            {selectedAgent.reasoningOptions?.map((option) => (
-              <option value={option.id} key={option.id}>{option.label}</option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-    </div>
-  );
-}
-
-/** The one way a reasoning pick becomes a selection, shared by the popover's Reasoning select and
- *  the composer-bar effort control so the two cannot write different shapes. */
-function reasoningSelection({ value, reasoning }: { value: ChatPaneAgentSelection; reasoning: string }): ChatPaneAgentSelection {
-  return {
-    agentId: value.agentId,
-    ...(value.model ? { model: value.model } : {}),
-    reasoning,
-  };
-}
-
-interface RuntimeEffortSelectProps {
-  selectedAgent: ChatPaneAgent | undefined;
-  value: ChatPaneAgentSelection;
-  onChange: (selection: ChatPaneAgentSelection) => void;
+  modelLabel: string;
   t: (key: string) => string;
 }
 
 /**
- * The reasoning effort, shown in the composer bar beside the model trigger ("GPT-6.1 Sol ⌄  High ⌄")
- * so it can be read and changed without opening the runtime popover.
- *
- * Deliberately a native `<select>` over the SAME value and options as the popover's Reasoning
- * select: no second piece of state, the OS menu needs no popover/portal/focus machinery, and the
- * two always agree. Renders nothing when the selected agent publishes no reasoning options; in a
- * narrow composer the CSS hides it and the popover's Reasoning select remains the way in.
+ * The composer bar's "Model ⌄" and "Effort ⌄" drop-ups for the selected CLI. These replace the
+ * Model / Reasoning selects that used to sit in the runtime popover under the agent list (owner
+ * 2026-10-18: pick them from the bar and keep the popover small); they read and write the same
+ * selection, so nothing else changed. Either one renders nothing when the agent publishes no
+ * choices for it, rather than an empty menu.
  */
-function RuntimeEffortSelect({ selectedAgent, value, onChange, t }: RuntimeEffortSelectProps): ReactNode {
-  const options = selectedAgent?.reasoningOptions ?? [];
-  if (options.length === 0) return null;
+function RuntimeBarMenus({ selectedAgent, value, onChange, modelLabel, t }: RuntimeBarMenusProps): ReactNode {
+  if (!selectedAgent) return null;
+  const models = pickerModelOptions(selectedAgent);
+  const efforts = selectedAgent.reasoningOptions ?? [];
   return (
-    <label className="jini-runtime-effort">
-      <select
-        // Not 'Reasoning': that is the popover select's name, and the two can be on screen at once.
-        aria-label={t('Reasoning effort')}
-        value={value.reasoning ?? ''}
-        onChange={(event) => onChange(reasoningSelection({ value, reasoning: event.target.value }))}
-      >
-        {options.map((option) => (
-          <option value={option.id} key={option.id}>{option.label}</option>
-        ))}
-      </select>
-      <RemixIcon name="arrow-down-s-line" size={15} className="jini-runtime-effort__chevron" />
-    </label>
+    <>
+      {models.length > 0 ? (
+        <RuntimeDropUp
+          label={t('Model')}
+          valueLabel={modelLabel}
+          value={pickerModelValue(selectedAgent, value.model)}
+          options={models}
+          note={pickerCatalogNote(selectedAgent, t)}
+          width={260}
+          onSelect={(model) => onChange({
+            agentId: value.agentId,
+            model,
+            ...(value.reasoning ? { reasoning: value.reasoning } : {}),
+          })}
+        />
+      ) : null}
+      {efforts.length > 0 ? (
+        <RuntimeDropUp
+          label={t('Reasoning')}
+          // An unset reasoning shows the first option, as the old native select did.
+          valueLabel={efforts.find((option) => option.id === value.reasoning)?.label ?? efforts[0]!.label}
+          value={value.reasoning ?? ''}
+          options={efforts}
+          width={180}
+          className="jini-runtime-dropup-trigger--effort"
+          onSelect={(reasoning) => onChange({
+            agentId: value.agentId,
+            ...(value.model ? { model: value.model } : {}),
+            reasoning,
+          })}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -413,20 +373,25 @@ export function AgentRuntimePicker({
             {...(agentIconBasePath === undefined ? {} : { basePath: agentIconBasePath })}
           />
         )}
-        {/* Only the model label shows in the bar (the icon already names the agent); the agent
-            name stays in the text so the trigger still reads "Choose agent" when none is picked,
-            and the full "agent · model" is the hover title above. */}
+        {/* The agent name stays in the text (visually hidden; the icon already names it) so the
+            trigger still reads "Choose agent" when none is picked; "agent · model" is the hover
+            title above. In local mode the model is its own drop-up beside this button, so only
+            API mode shows the model here — its picker still lives in the popover. */}
         <span className="jini-runtime-trigger__copy">
           <strong>{triggerTitle}</strong>
-          <small>{modelLabel}</small>
+          {isApi ? <small>{modelLabel}</small> : null}
         </span>
-        <RemixIcon
-          name="arrow-down-s-line"
-          size={15}
-          className="jini-runtime-trigger__chevron"
-        />
+        {isApi ? (
+          <RemixIcon
+            name="arrow-down-s-line"
+            size={15}
+            className="jini-runtime-trigger__chevron"
+          />
+        ) : null}
       </button>
-      {isApi ? null : <RuntimeEffortSelect selectedAgent={selectedAgent} value={value} onChange={onChange} t={t} />}
+      {isApi ? null : (
+        <RuntimeBarMenus selectedAgent={selectedAgent} value={value} onChange={onChange} modelLabel={modelLabel} t={t} />
+      )}
 
       {open && position ? createPortal(
         <div
@@ -468,8 +433,6 @@ export function AgentRuntimePicker({
                   t={t}
                 />
               </div>
-
-              <RuntimeModelSelects selectedAgent={selectedAgent} value={value} onChange={onChange} t={t} />
 
               <RuntimeRescanFooter onRescan={onRescan} scanning={scanning} t={t} />
             </>

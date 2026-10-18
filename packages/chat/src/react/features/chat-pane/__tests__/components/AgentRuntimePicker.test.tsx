@@ -8,6 +8,7 @@ import {
   runtimeOptionLabel,
   runtimePopoverPosition,
 } from '../../components/AgentRuntimePicker.js';
+import { runtimeDropUpPosition } from '../../hooks/useRuntimeDropUp.hooks.js';
 import { I18nContext } from '../../../../hooks/context.js';
 import type { ChatPaneAgent, ChatPaneAgentSelection } from '../../types.js';
 
@@ -72,15 +73,15 @@ describe('AgentRuntimePicker', () => {
       { id: 'claude-opus-5-5[1m]', label: 'Default (recommended)', identityKind: 'concrete' },
     ], defaultModelResolution: { status: 'resolved', id: 'claude-opus-5-5[1m]', source: 'rpc', resolvedAt: '2026-10-08T00:00:00.000Z', launchFingerprint: 'fixture' } };
     const { rerender } = render(<AgentRuntimePicker agents={[claude]} value={{ agentId: 'claude' }} onChange={onChange} />);
-    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveTextContent('claude-opus-5-5[1m]');
-    await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
-    expect(screen.getByRole('combobox', { name: 'Model' })).toHaveValue('claude-opus-5-5[1m]');
-    expect(screen.getByRole('option', { name: 'claude-opus-5-5[1m]' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Model:/ })).toHaveTextContent('claude-opus-5-5[1m]');
+    await userEvent.click(screen.getByRole('button', { name: /^Model:/ }));
+    expect(screen.getByRole('menuitemradio', { name: 'claude-opus-5-5[1m]' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.queryByText('Default (recommended)')).not.toBeInTheDocument();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Model' }), { target: { value: 'claude-sonnet-5' } });
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'Claude Sonnet 5' }));
     expect(onChange).toHaveBeenCalledWith({ agentId: 'claude', model: 'claude-sonnet-5' });
+    // No concrete model to offer: no model control at all rather than an empty menu.
     rerender(<AgentRuntimePicker agents={[{ ...claude, models: [], defaultModelResolution: { status: 'unresolved', reason: 'Discovery failed' } }]} value={{ agentId: 'claude' }} onChange={onChange} />);
-    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveTextContent('Choose model');
+    expect(screen.queryByRole('button', { name: /^Model:/ })).not.toBeInTheDocument();
   });
 
   it('uses the host translator for the trigger prompt and cached/offline catalog notes', async () => {
@@ -90,10 +91,10 @@ describe('AgentRuntimePicker', () => {
     const pickerAgent: ChatPaneAgent = { ...agents[0]!, modelCatalog: catalog };
     const view = (agent: ChatPaneAgent) => <I18nContext.Provider value={{ t, locale: 'es' }}><AgentRuntimePicker agents={[agent]} value={{ agentId: agent.id }} onChange={() => {}} /></I18nContext.Provider>;
     const { rerender } = render(view(pickerAgent));
-    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveTextContent('Elegir modelo');
-    await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
-    expect(screen.getByText('En caché · 2026-10-06T00:00:00.000Z')).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Elegir modelo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Model:/ })).toHaveTextContent('Elegir modelo');
+    // The catalog note heads the model drop-up now that the model choice lives there.
+    await userEvent.click(screen.getByRole('button', { name: /^Model:/ }));
+    expect(within(screen.getByRole('menu', { name: 'Model' })).getByText('En caché · 2026-10-06T00:00:00.000Z')).toBeInTheDocument();
     rerender(view({ ...pickerAgent, modelCatalog: { ...catalog, freshness: 'offline-fallback' } }));
     expect(screen.getByText('Alternativa sin conexión')).toBeInTheDocument();
   });
@@ -179,6 +180,20 @@ describe('AgentRuntimePicker', () => {
       .toMatchObject({ left: 12, top: 708, maxHeight: 48 });
   });
 
+  it('anchors drop-ups above their trigger, left-aligned and clamped into the viewport', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 844 });
+    const trigger = { left: 80, top: 800, width: 120, bottom: 832 } as DOMRect;
+    expect(runtimeDropUpPosition({ trigger, width: 260 })).toMatchObject({
+      position: 'fixed', left: 80, bottom: 50, width: 260, maxHeight: 320,
+    });
+    // Near the right edge it slides left; on a tiny viewport it narrows and its height follows the room above.
+    expect(runtimeDropUpPosition({ trigger: { ...trigger, left: 300 } as DOMRect, width: 260 })).toMatchObject({ left: 118 });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 200 });
+    expect(runtimeDropUpPosition({ trigger: { ...trigger, left: 0, top: 100 } as DOMRect, width: 260 }))
+      .toMatchObject({ left: 12, width: 176, maxHeight: 82 });
+  });
+
   it('renders the reference runtime menu structure with agents, model, and reasoning', async () => {
     render(<PickerHarness />);
     await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
@@ -201,8 +216,9 @@ describe('AgentRuntimePicker', () => {
     expect(
       screen.getByRole('radio', { name: /Claude Code/ }).querySelector('img[src^="data:image/svg+xml;base64,"]'),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('Model')).toHaveValue('gpt-5.6-terra');
-    expect(screen.getByLabelText('Reasoning')).toHaveValue('medium');
+    // Model and Reasoning moved to the composer-bar drop-ups (owner 2026-10-18).
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByText('Offline fallback')).not.toBeInTheDocument();
   });
 
   it('emits agent, model, and reasoning selections without closing the agent menu', async () => {
@@ -219,13 +235,15 @@ describe('AgentRuntimePicker', () => {
     expect(onChange).toHaveBeenCalledWith({ agentId: 'claude', model: 'claude-sonnet-5' });
     expect(screen.getByRole('dialog', { name: 'Choose AI runtime' })).toBeInTheDocument();
 
-    await userEvent.selectOptions(screen.getByLabelText('Model'), 'gpt-6.1-sol');
+    await userEvent.click(screen.getByRole('button', { name: /^Model:/ }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'GPT-6.1 Sol' }));
     expect(onChange).toHaveBeenCalledWith({
       agentId: 'codex',
       model: 'gpt-6.1-sol',
       reasoning: 'medium',
     });
-    await userEvent.selectOptions(screen.getByLabelText('Reasoning'), 'high');
+    await userEvent.click(screen.getByRole('button', { name: /^Reasoning:/ }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'High' }));
     expect(onChange).toHaveBeenCalledWith({
       agentId: 'codex',
       model: 'gpt-5.6-terra',
@@ -233,8 +251,11 @@ describe('AgentRuntimePicker', () => {
     });
   });
 
-  it('shows the model and reasoning effort in the bar, and the effort select writes the same selection', async () => {
+  it('picks model and reasoning effort from composer-bar drop-ups that open above the trigger', async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 768 });
     const { rerender } = render(
       <AgentRuntimePicker
         agents={agents}
@@ -242,26 +263,49 @@ describe('AgentRuntimePicker', () => {
         onChange={onChange}
       />,
     );
-    const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
-    expect(trigger).toHaveTextContent('GPT-5.6-Terra');
-    expect(trigger).toHaveAttribute('title', 'Codex CLI · GPT-5.6-Terra');
-    const effort = screen.getByRole('combobox', { name: 'Reasoning effort' });
-    expect(effort).toHaveDisplayValue('Medium');
-    expect(within(effort).getAllByRole('option').map((option) => option.textContent)).toEqual(['Medium', 'High']);
+    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveAttribute('title', 'Codex CLI · GPT-5.6-Terra');
+    const model = screen.getByRole('button', { name: 'Model: GPT-5.6-Terra' });
+    const effort = screen.getByRole('button', { name: 'Reasoning: Medium' });
+    expect(effort).toHaveTextContent('Medium');
 
-    await userEvent.selectOptions(effort, 'high');
-    expect(onChange).toHaveBeenCalledWith({ agentId: 'codex', model: 'gpt-5.6-terra', reasoning: 'high' });
-    // No popover was needed for that, and opening one shows the same value the bar does.
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    await userEvent.click(trigger);
-    expect(screen.getByRole('combobox', { name: 'Reasoning' })).toHaveValue('medium');
+    // Keyboard: ArrowUp opens with the current choice focused, arrows rove, Escape returns focus.
+    effort.focus();
+    await user.keyboard('{ArrowUp}');
+    const effortMenu = screen.getByRole('menu', { name: 'Reasoning' });
+    expect(effortMenu.style.bottom).not.toBe('');
+    expect(effortMenu.style.top).toBe('');
+    expect(screen.getByRole('menuitemradio', { name: 'Medium' })).toHaveFocus();
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitemradio', { name: 'High' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(effort).toHaveFocus();
+    expect(onChange).not.toHaveBeenCalled();
+
+    // Pointer: pick, the menu closes, and focus goes back to the trigger.
+    await user.click(effort);
+    await user.click(screen.getByRole('menuitemradio', { name: 'High' }));
+    expect(onChange).toHaveBeenLastCalledWith({ agentId: 'codex', model: 'gpt-5.6-terra', reasoning: 'high' });
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(effort).toHaveFocus();
+
+    await user.click(model);
+    expect(within(screen.getByRole('menu', { name: 'Model' })).getAllByRole('menuitemradio').map((item) => item.textContent))
+      .toEqual(['GPT-6.1 Sol', 'GPT-5.6-Terra']);
+    expect(screen.getByRole('menuitemradio', { name: 'GPT-5.6-Terra' })).toHaveAttribute('aria-checked', 'true');
+    // An outside click dismisses without choosing; Tab does too.
+    await user.click(document.body);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    await user.click(model);
+    await user.keyboard('{Tab}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
 
     // An agent with no reasoning options gets no effort control at all, rather than an empty one.
     rerender(<AgentRuntimePicker agents={agents} value={{ agentId: 'claude', model: 'claude-sonnet-5' }} onChange={onChange} />);
-    expect(screen.queryByRole('combobox', { name: 'Reasoning effort' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveTextContent('Claude Sonnet 5');
+    expect(screen.queryByRole('button', { name: /^Reasoning:/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Model:/ })).toHaveTextContent('Claude Sonnet 5');
 
-    // Reasoning is a CLI property; an API turn has none to show.
+    // API mode: neither CLI menu; the trigger names the provider's model and the popover keeps its picker.
     rerender(
       <AgentRuntimePicker
         agents={agents}
@@ -269,9 +313,12 @@ describe('AgentRuntimePicker', () => {
         onChange={onChange}
         executionMode="api"
         apiModeAvailable
+        byokRuntime={{ providerLabel: 'Google Gemini', model: 'gemini-2.5-flash-lite' }}
       />,
     );
-    expect(screen.queryByRole('combobox', { name: 'Reasoning effort' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Model:/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Reasoning:/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveTextContent('gemini-2.5-flash-lite');
   });
 
   it('supports upward/downward portal placement, Escape dismissal, and rescanning', async () => {
@@ -575,12 +622,14 @@ describe('AgentRuntimePicker', () => {
       .toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /Zed Agent · Installed/ })).toBeInTheDocument();
     expect(screen.getByText('Scanning PATH…')).toBeInTheDocument();
-    await userEvent.selectOptions(screen.getByLabelText('Model'), 'flash');
-    expect(onChange).toHaveBeenCalledWith({ agentId: 'antigravity', model: 'flash' });
-    await userEvent.selectOptions(screen.getByLabelText('Reasoning'), 'high');
-    expect(onChange).toHaveBeenCalledWith({ agentId: 'antigravity', reasoning: 'high' });
     await userEvent.click(screen.getByRole('radio', { name: /Zed Agent/ }));
     expect(onChange).toHaveBeenCalledWith({ agentId: 'zed' });
+    await userEvent.click(screen.getByRole('button', { name: /^Model:/ }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'Flash' }));
+    expect(onChange).toHaveBeenCalledWith({ agentId: 'antigravity', model: 'flash' });
+    await userEvent.click(screen.getByRole('button', { name: /^Reasoning:/ }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'High' }));
+    expect(onChange).toHaveBeenCalledWith({ agentId: 'antigravity', reasoning: 'high' });
     rerender(
       <AgentRuntimePicker
         agents={sparseAgents}
@@ -588,11 +637,11 @@ describe('AgentRuntimePicker', () => {
         onChange={onChange}
       />,
     );
-    expect(screen.queryByLabelText('Model')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Reasoning')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Model:/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Reasoning:/ })).not.toBeInTheDocument();
   });
 
-  it('wraps Tab focus inside the dialog without stealing native select arrows', async () => {
+  it('wraps Tab focus inside the dialog and roves between its buttons', async () => {
     const user = userEvent.setup();
     render(<PickerHarness onRescan={() => {}} />);
     await user.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
@@ -616,17 +665,6 @@ describe('AgentRuntimePicker', () => {
     expect(middleControl.dispatchEvent(nativeTab)).toBe(true);
     expect(nativeTab.defaultPrevented).toBe(false);
     expect(middleControl).toHaveFocus();
-
-    const modelSelect = screen.getByLabelText('Model');
-    modelSelect.focus();
-    const nativeArrow = new KeyboardEvent('keydown', {
-      bubbles: true,
-      cancelable: true,
-      key: 'ArrowDown',
-    });
-    expect(modelSelect.dispatchEvent(nativeArrow)).toBe(true);
-    expect(nativeArrow.defaultPrevented).toBe(false);
-    expect(modelSelect).toHaveFocus();
 
     firstControl.focus();
     await user.keyboard('{ArrowDown}');
