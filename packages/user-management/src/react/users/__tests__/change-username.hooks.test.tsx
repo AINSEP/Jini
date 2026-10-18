@@ -70,21 +70,47 @@ it("hides owner renames from delegated managers and self renames from member.man
   expect(member.result.current.canRenameUser!(alice)).toBe(false);
 });
 
-it("the Users row menu and own profile open the same shared rename dialog", async () => {
+it("marks the own row inline without a username role badge and keeps renames in the row menu", async () => {
   const port = portFor(owner, ["*"]);
   render(<Users port={port} translate={t} queryScope="w" />, { wrapper });
-  const profile = await screen.findByRole("region", { name: "My profile" });
-  fireEvent.click(within(profile).getByRole("button", { name: "Change username" }));
+  const marker = await screen.findByText("(you)");
+  const ownRow = screen.getByRole("button", { name: "owner" }).closest("tr")!;
+  const otherRow = screen.getByRole("button", { name: "alice" }).closest("tr")!;
+  expect(screen.queryByRole("region", { name: "My profile" })).toBeNull();
+  expect(screen.queryByText("My profile")).toBeNull();
+  const usernameCell = within(ownRow).getByRole("button", { name: "owner" }).closest("td")!;
+  expect(within(usernameCell).getByText("(you)")).toBe(marker);
+  expect(marker).not.toHaveClass("status");
+  expect(marker).toHaveStyle({ color: "var(--jini-text-secondary)", fontSize: "inherit", fontWeight: "400", marginInlineStart: "0.35em" });
+  expect(within(usernameCell).queryByText("Owner")).toBeNull();
+  expect(usernameCell.querySelector(".status")).toBeNull();
+  expect(ownRow).toHaveAttribute("aria-current", "true");
+  expect(within(otherRow).queryByText("(you)")).toBeNull();
+  expect(otherRow).not.toHaveAttribute("aria-current");
+  fireEvent.click(within(ownRow).getByRole("button", { name: 'Actions for user "owner"' }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Change username" }));
   expect(screen.getByLabelText("New username")).toHaveValue("owner");
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   fireEvent.click(screen.getByRole("button", { name: 'Actions for user "alice"' }));
   fireEvent.click(screen.getByRole("menuitem", { name: "Change username" }));
   fireEvent.change(screen.getByLabelText("New username"), { target: { value: "alice.new" } });
-  // The profile button and dialog confirm share copy, so choose the rendered modal's button.
   const field = screen.getByLabelText("New username");
   const dialog = field.closest('dialog')!;
   fireEvent.click(within(dialog as HTMLElement).getByRole("button", { name: "Change username" }));
   await waitFor(() => expect(port.users.find(user => user.principalId === "alice")?.username).toBe("alice.new"));
+});
+
+it("translates the inline marker and marks the signed-in non-owner rather than the owner", async () => {
+  const translate = (key: string) => key === "(you)" ? "(du)" : key;
+  render(<Users port={portFor(alice, ["user.manage"])} translate={translate} queryScope="w" />, { wrapper });
+  const marker = await screen.findByText("(du)");
+  const ownRow = screen.getByRole("button", { name: "alice" }).closest("tr")!;
+  const ownerRow = screen.getByRole("button", { name: "owner" }).closest("tr")!;
+  expect(within(ownRow).getByText("(du)")).toBe(marker);
+  expect(ownRow).toHaveAttribute("aria-current", "true");
+  expect(within(ownerRow).queryByText("(du)")).toBeNull();
+  expect(ownerRow).not.toHaveAttribute("aria-current");
+  expect(screen.queryByText("(you)")).toBeNull();
 });
 
 it("translates reserved Trash usernames through the Users error describer and retains the draft", async () => {
@@ -116,8 +142,8 @@ it("keeps a host-protected bootstrap owner out of profile and row rename actions
   expect(hook.result.current.changeUsername!.target).toEqual(alice);
   hook.unmount();
   render(<Users port={port} translate={t} queryScope="w" />, { wrapper });
-  const profile = await screen.findByRole("region", { name: "My profile" });
-  expect(within(profile).queryByRole("button", { name: "Change username" })).toBeNull();
+  await screen.findByText("(you)");
+  expect(screen.queryByRole("region", { name: "My profile" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: 'Actions for user "owner"' }));
   expect(screen.queryByRole("menuitem", { name: "Change username" })).toBeNull();
 });

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { FetchQueryProvider } from "@jini-ai/ui/panel-kit";
 import { Users, useUsers, userAccountCapabilities, isOwnerAccount, userRowMenuItems, formatGrantLabel } from "../../index.js";
@@ -55,7 +55,7 @@ describe("account row capabilities", () => {
         .toEqual({ canDelete: false, canDisable: false, canEnable: false, canResetPassword: false });
     }
   });
-  it("Owner badge uses server owner classification or builtin role; never username", () => {
+  it("owner classification uses server classification or builtin role; never username", () => {
     expect(isOwnerAccount({ user: { ...owner, roleIds: [] }, roles: new Map() })).toBe(true);
     expect(isOwnerAccount({ user: { ...ordinary, username: "admin" }, roles: new Map() })).toBe(false);
     expect(isOwnerAccount({ user: { ...owner, isOwner: undefined }, roles: new Map([[role.id, role]]) })).toBe(true);
@@ -64,15 +64,61 @@ describe("account row capabilities", () => {
   });
 });
 
-it("rendered owner row keeps admin login, shows Owner badge, and hides Delete/Disable", async () => {
+it("rendered owner row keeps the role in its column, marks self inline, and hides Delete/Disable", async () => {
   const port = createFakeUsersPort({}, { users: [owner], roles: [role], meId: "owner" });
   render(<FetchQueryProvider><Users port={port} translate={translate} queryScope="w" /></FetchQueryProvider>);
-  await waitFor(() => expect(screen.getAllByText("Owner").length).toBeGreaterThanOrEqual(2));
-  expect(screen.getByRole("button", { name: "admin" })).toBeTruthy();
+  const username = await screen.findByRole("button", { name: "admin" });
+  const usernameCell = username.closest("td")!;
+  const row = username.closest("tr")!;
+  expect(within(usernameCell).getByText("(you)")).not.toHaveClass("status");
+  expect(within(usernameCell).queryByText("Owner")).toBeNull();
+  expect(usernameCell.querySelector(".status")).toBeNull();
+  expect(within(row).getByRole("cell", { name: "Owner" })).toBeInTheDocument();
+  expect(row).toHaveAttribute("aria-current", "true");
   fireEvent.click(screen.getByRole("button", { name: 'Actions for user "admin"' }));
   await screen.findByRole("menuitem", { name: "Reset password" });
   expect(screen.queryByRole("menuitem", { name: "Delete" })).toBeNull();
   expect(screen.queryByRole("menuitem", { name: "Disable" })).toBeNull();
+});
+
+it("supplies only the Roles title for the responsive card label", async () => {
+  const port = createFakeUsersPort({}, { users: [owner], roles: [role], meId: "owner" });
+  render(<FetchQueryProvider><Users port={port} translate={translate} queryScope="w" /></FetchQueryProvider>);
+  const trigger = await screen.findByRole("button", { name: "About roles" });
+  const header = trigger.closest("th")!;
+  expect(header.getAttribute("data-label")).toBe("Roles");
+  fireEvent.focus(trigger);
+  expect(header.getAttribute("data-label")).toBe("Roles");
+  expect(document.querySelector(".info-tip-bubble")).toHaveTextContent("Owner — full control");
+});
+
+it.each(["hover", "focus"] as const)("Roles header explains all four built-in roles on %s", async interaction => {
+  const port = createFakeUsersPort({}, { users: [owner], roles: [role], meId: "owner" });
+  render(<FetchQueryProvider><Users port={port} translate={translate} queryScope="w" /></FetchQueryProvider>);
+  const trigger = await screen.findByRole("button", { name: "About roles" });
+  expect(trigger.closest("th")).toHaveTextContent("Roles");
+  expect(trigger).toHaveAttribute("tabindex", "0");
+  expect(trigger).toHaveAttribute("aria-expanded", "false");
+  if (interaction === "hover") fireEvent.mouseEnter(trigger);
+  else fireEvent.focus(trigger);
+  expect(trigger).toHaveAttribute("aria-expanded", "true");
+  const bubble = document.querySelector(".info-tip-bubble")!;
+  expect(bubble).toHaveStyle({ whiteSpace: "pre-line" });
+  expect(bubble.textContent?.split("\n")).toEqual([
+    "• Owner — full control, including users and site keys.",
+    "• Admin — manage content, settings, site keys, and roles within their permissions.",
+    "• Editor — edit, publish, and delete content; upload, edit, and trash media; switch themes.",
+    "• Viewer — read content, changes, and plugin information.",
+  ]);
+  const descriptionPattern = bubble.textContent!.trim().split(/\s+/)
+    .map(word => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("\\s+");
+  expect(trigger).toHaveAttribute("aria-describedby");
+  expect(trigger).toHaveAccessibleDescription(new RegExp(`^${descriptionPattern}$`));
+  if (interaction === "hover") fireEvent.mouseLeave(trigger);
+  else fireEvent.blur(trigger);
+  expect(trigger).toHaveAttribute("aria-expanded", "false");
+  expect(document.querySelector(".info-tip-bubble")).toBeNull();
 });
 it("rendered admin sees only Manage on an owner target", async () => {
   const port = createFakeUsersPort({}, { users: [owner], roles: [role], meId: "another-admin" });

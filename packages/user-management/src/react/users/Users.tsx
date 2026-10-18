@@ -4,7 +4,7 @@ import { RowMenu, ConfirmDialog } from "@jini-ai/admin/react";
 import { agentHandle } from "@jini-ai/agentic";
 import { buildAgentListHandles } from "@jini-ai/ui/panel-kit";
 
-import { formatGrantLabel, grantOptionLabel, userRowMenuItems, isOwnerAccount, type UserAccountCapabilities } from "./rules.js";
+import { formatGrantLabel, grantOptionLabel, userRowMenuItems, type UserAccountCapabilities } from "./rules.js";
 import { useUsers, type UsersController, type UsersDependencies, type UsersOptions } from "./hooks/use-users.hooks.js";
 import type { ReactNode } from "react";
 import type { Translate } from "@jini-ai/ui/panel-kit";
@@ -324,6 +324,7 @@ export interface UserRowActionsController {
 
 export interface UserRowProps {
   user: AdminIdentityUser;
+  isOwn?: boolean;
   roleById: ReadonlyMap<string, AdminRole>;
   policyById: ReadonlyMap<string, AdminPolicy>;
   /** Whether the Roles/Policies cells render — see {@link UsersTableProps.showGrants}. */
@@ -341,12 +342,12 @@ export interface UserRowProps {
 
 /** One user's row plus its optional expanded "Manage" row. `key` lives on the `<UserRow>` element at
  *  the call site, not inside here, since this is no longer the array-mapping callback itself. */
-function UserRow({ user, roleById, policyById, showGrants, actions, manage, agentBase, t, translate, renderServerLabel }: UserRowProps) {
+function UserRow({ user, isOwn, roleById, policyById, showGrants, actions, manage, agentBase, t, translate, renderServerLabel }: UserRowProps) {
   const roleLabel = formatGrantLabel({ ids: user.roleIds, byId: roleById, translate });
   const policyLabel = formatGrantLabel({ ids: user.policyIds, byId: policyById });
   return (
     <>
-      <tr>
+      <tr aria-current={isOwn ? "true" : undefined}>
         <td>
           {/* Two affordances, one behavior: this and the RowMenu's "Manage" item both
               call `toggleExpanded` directly rather than duplicating its logic. A real
@@ -369,7 +370,7 @@ function UserRow({ user, roleById, policyById, showGrants, actions, manage, agen
           >
             {user.username}
           </button>
-          {isOwnerAccount({ user, roles: roleById }) ? <span className="status">{t("Owner")}</span> : null}
+          {isOwn ? <span style={{ color: "var(--jini-text-secondary)", fontSize: "inherit", fontWeight: 400, marginInlineStart: "0.35em" }}>{t("(you)")}</span> : null}
         </td>
         <td>{user.email ?? <span className="muted-cell">—</span>}</td>
         <td>
@@ -413,6 +414,7 @@ function UserRow({ user, roleById, policyById, showGrants, actions, manage, agen
 
 export interface UsersTableProps {
   users: AdminIdentityUser[];
+  ownPrincipalId?: string | undefined;
   /** The full records, for the Roles/Policies label columns. The grant selects get their own
    *  `options` through `manage`, so neither consumer has to reach into the other's props. */
   roles: AdminRole[];
@@ -429,7 +431,7 @@ export interface UsersTableProps {
 
 /** The users table, or the empty state. Builds the role/policy lookup maps once per render rather
  *  than once per row. */
-function UsersTable({ users, roles, policies, showGrants, actions, manage, t, translate, renderServerLabel }: UsersTableProps) {
+function UsersTable({ users, ownPrincipalId, roles, policies, showGrants, actions, manage, t, translate, renderServerLabel }: UsersTableProps) {
   if (users.length === 0) {
     return (
       <div className="card">
@@ -462,7 +464,19 @@ function UsersTable({ users, roles, policies, showGrants, actions, manage, t, tr
             <th>{t("Status")}</th>
             {showGrants ? (
               <>
-                <th>{t("Roles")}</th>
+                <th data-label={t("Roles")}>
+                  {t("Roles")}
+                  {/* Built-in grants are defined in server/seed.ts. */}
+                  <InfoTip
+                    triggerLabel={t("About roles")}
+                    label={[
+                      t("• Owner — full control, including users and site keys."),
+                      t("• Admin — manage content, settings, site keys, and roles within their permissions."),
+                      t("• Editor — edit, publish, and delete content; upload, edit, and trash media; switch themes."),
+                      t("• Viewer — read content, changes, and plugin information."),
+                    ].join("\n")}
+                  />
+                </th>
                 <th>{t("Policies")}</th>
               </>
             ) : null}
@@ -474,6 +488,7 @@ function UsersTable({ users, roles, policies, showGrants, actions, manage, t, tr
             <Fragment key={user.principalId}>
               <UserRow
                 user={user}
+                isOwn={user.principalId === ownPrincipalId}
                 roleById={roleById}
                 policyById={policyById}
                 showGrants={showGrants}
@@ -901,8 +916,6 @@ export function Users({ useUsersHook = useUsers, port, translate: injectedTransl
     canManageUserTrash,
     rowCapabilities,
     ownProfile,
-    canRenameOwnProfile,
-    openOwnRename,
     renameUserHandler,
     changeUsername,
     confirmingDelete,
@@ -923,12 +936,6 @@ export function Users({ useUsersHook = useUsers, port, translate: injectedTransl
   return (
     <div className="page">
       <UsersPageHeader formOpen={formOpen} setFormOpen={setFormOpen} t={t} />
-      {ownProfile ? <section className="notice" aria-label={t("My profile")}>
-        <h2>{t("My profile")}</h2><p>{ownProfile.username}</p>
-        {canRenameOwnProfile ? <button type="button" onClick={openOwnRename}
-          {...agentHandle({ handle: "users-profile-change-username" }, { role: "button", label: "Change my login username" })}>
-          {t("Change username")}</button> : null}
-      </section> : null}
 
       {formOpen ? (
         <NewUserForm
@@ -949,6 +956,7 @@ export function Users({ useUsersHook = useUsers, port, translate: injectedTransl
 
       <UsersTable
         users={users}
+        ownPrincipalId={ownProfile?.principalId}
         roles={roles}
         policies={policies}
         showGrants={canGrant}
