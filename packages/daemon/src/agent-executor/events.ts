@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { probeMcpBridge, McpBridgeProbeResult } from './mcp-bridge-probe.js';
 import type { ModelCatalogSnapshot } from '@jini-ai/agent-runtime';
 import { createModelReceiptTracker } from './model-receipts.js';
+import { observeRunOutput } from './run-output.js';
 import { messageContentWithImages, type MessageAttachmentImage } from '../attachment-content.js';
 import type {
    ChildProcess,
@@ -401,6 +402,7 @@ interface WireChildLifecycleContext extends TerminateChildTreeDeps {
  */
 export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
   const { runId, def, streamFormat, child, lifecycle, journal, continuation, classifyFailure } = ctx;
+  const output = observeRunOutput({ lifecycle, runId, agentName: def.name }, { plainStdout: streamFormat === 'plain' });
   const modelReceipt = createModelReceiptTracker(ctx.startingModel, ctx.modelCatalog?.models);
   let stdinClosed = false;
   let cancelRequested = false;
@@ -824,7 +826,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
       // Both of the next two steps are guarded: neither a failed cleanup nor a rejecting host
       // classifier may prevent the terminal transition below — see each helper's own doc.
       await cleanupStagedFilesSafely(ctx);
-      const status = bridgeUnavailable ? 'failed' : classifyRunCloseStatus({ cancelRequested, code }, { signal });
+      const status = await output.settle({ status: bridgeUnavailable ? 'failed' : classifyRunCloseStatus({ cancelRequested, code }, { signal }) });
       // A bridge failure is not resumable: resuming would start the same CLI with the same bridge.
       const resumable =
         status === 'failed' && !bridgeUnavailable && classifyFailure !== undefined
@@ -995,6 +997,7 @@ interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
 function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
   const modelReceipt = createModelReceiptTracker(ctx.model, ctx.modelCatalog?.models);
   const { runId, agentId, child, lifecycle, journal, classifyFailure } = ctx;
+  const output = observeRunOutput({ lifecycle, runId, agentName: agentId });
   let cancelRequested = false;
   let emitQueue: Promise<void> = Promise.resolve();
   // Gap 5 (session resume) — see wireChildLifecycle's identical local for the full rationale.
@@ -1042,7 +1045,7 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
       unsubscribeCancel();
       // Guarded for the same reasons as the child-driven handler above.
       await cleanupStagedFilesSafely(ctx);
-      const status = cancelRequested ? 'cancelled' : controller?.completedSuccessfully() ? 'succeeded' : 'failed';
+      const status = await output.settle({ status: cancelRequested ? 'cancelled' : controller?.completedSuccessfully() ? 'succeeded' : 'failed' });
       const resumable =
         status === 'failed' && classifyFailure !== undefined
           ? await classifyFailureSafely(ctx, classifyFailure, {
@@ -1128,6 +1131,7 @@ interface WirePiRpcLifecycleContext extends TerminateChildTreeDeps {
 function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
   const modelReceipt = createModelReceiptTracker(ctx.model, ctx.modelCatalog?.models);
   const { runId, agentId, child, lifecycle, journal, classifyFailure } = ctx;
+  const output = observeRunOutput({ lifecycle, runId, agentName: agentId });
   let cancelRequested = false;
   let emitQueue: Promise<void> = Promise.resolve();
   // Gap 5 (session resume) — see wireChildLifecycle's identical local for the full rationale.
@@ -1175,7 +1179,7 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
       unsubscribeCancel();
       // Guarded for the same reasons as the child-driven handler above.
       await cleanupStagedFilesSafely(ctx);
-      const status = cancelRequested ? 'cancelled' : session?.hasFatalError() ? 'failed' : 'succeeded';
+      const status = await output.settle({ status: cancelRequested ? 'cancelled' : session?.hasFatalError() ? 'failed' : 'succeeded' });
       const resumable =
         status === 'failed' && classifyFailure !== undefined
           ? await classifyFailureSafely(ctx, classifyFailure, {

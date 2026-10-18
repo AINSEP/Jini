@@ -16,6 +16,25 @@ function def(): RuntimeAgentDef {
   };
 }
 const launch = { selectedPath: '/fake', pathResolvedPath: '/fake', configuredOverridePath: null, launchPath: '/fake', launchKind: 'selected' as const, childPathPrepend: [], diagnostic: null };
+
+it.each(['acp-json-rpc', 'pi-rpc'])('fails an empty %s result despite the transport reporting success', async streamFormat => {
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+  const agent = def(); agent.streamFormat = streamFormat;
+  const child = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), exitCode: null, signalCode: null });
+  const spawn = (() => { queueMicrotask(() => child.emit('spawn')); return child as unknown as ChildProcess; }) as typeof nodeSpawn;
+  const acp: typeof attachAcpSession = () => ({ hasFatalError: () => false, getDurableSessionId: () => null, completedSuccessfully: () => true, abort() {} });
+  const pi: typeof attachPiRpcSession = () => ({ hasFatalError: () => false, getLastSessionPath: () => null, abort() {} });
+  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => agent, resolveAgentLaunch: () => launch,
+    ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env, spawn, attachAcpSession: acp, attachPiRpcSession: pi });
+  const { run } = await lifecycle.start({ contextRef: 'empty-rpc' });
+  await executor.run({ runId: run.id, agentId: agent.id, cwd: '/workspace', prompt: 'hello' });
+  child.emit('close', 0, null);
+  expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('failed');
+  const messages: string[] = [];
+  await lifecycle.stream({ runId: run.id, onEvent: event => { if (event.kind === 'error') messages.push(event.payload.message); } });
+  expect(messages.join('\n')).toContain('no assistant text or tool activity');
+});
+
 describe('starting-model launch agreement', () => {
   it('passes the resolved default into the native model-selection flag', async () => {
     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });

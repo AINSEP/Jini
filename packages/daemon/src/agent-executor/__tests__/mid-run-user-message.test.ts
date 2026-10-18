@@ -110,13 +110,28 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
   });
 
   it('reports an unavailable tool observer without stranding the terminal transition', async () => {
-    const error = new Error('event replay unavailable');
-    const h = createHarness(createDef({}), { observerFailure: error });
-    const runId = await startRun(h);
-    h.child.emit('close', 0, null);
-    expect((await h.lifecycle.waitForTerminal({ runId })).state).toBe('succeeded');
-    expect(h.onCleanupFailure).toHaveBeenCalledTimes(1);
-    expect(h.onCleanupFailure).toHaveBeenCalledWith({ runId, phase: 'tool-cancellation', pid: 4242, error });
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const error = new Error('event replay unavailable');
+      const h = createHarness(createDef({}), { observerFailure: error });
+      const runId = await startRun(h);
+      await h.lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'text_delta', delta: 'done' } } }); // a successful run must produce output
+      h.child.emit('close', 0, null);
+      expect((await h.lifecycle.waitForTerminal({ runId })).state).toBe('succeeded');
+      expect(h.onCleanupFailure).toHaveBeenCalledTimes(1);
+      expect(h.onCleanupFailure).toHaveBeenCalledWith({ runId, phase: 'tool-cancellation', pid: 4242, error });
+      expect(warning).toHaveBeenCalledWith(
+        expect.stringContaining('output observer unavailable'), 'event replay unavailable',
+      );
+      const errors: RunProtocolEvent[] = [];
+      const subscription = await h.lifecycle.stream({ runId, onEvent: event => {
+        if (event.kind === 'error') errors.push(event);
+      } });
+      if (subscription.kind === 'ok') subscription.unsubscribe();
+      expect(errors).toEqual([]);
+    } finally {
+      warning.mockRestore();
+    }
   });
 
   it('records cancellation for every unresolved native and delegated call at the aborted boundary', async () => {

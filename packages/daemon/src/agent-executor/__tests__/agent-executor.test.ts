@@ -64,6 +64,57 @@ import {
 
 const TEST_PRINCIPAL: Principal = { id: 'test-principal' };
 
+describe('run output settlement', () => {
+  it.each([
+    'No output produced means the command had nothing to print.',
+    'Permission denied in headless mode is the error we fixed.',
+    'Note: no output produced — this is an explanation of the message.',
+  ])('keeps ordinary explanatory prose successful: %s', async prose => {
+    const { lifecycle, executor, child } = createHarness({ def: createFakeDef({ streamFormat: 'plain' }) });
+    const { run } = await lifecycle.start({ contextRef: 'explanation' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'explain', cwd: '/work' });
+    child.stdout.emit('data', prose);
+    child.emit('close', 0, null);
+    expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
+    expect((await collectEvents(lifecycle, run.id)).filter(event => event.kind === 'error')).toEqual([]);
+  });
+
+  it.each(['plain', 'json-event-stream'] as const)('fails an empty %s run instead of silently succeeding', async streamFormat => {
+    const { lifecycle, executor, child } = createHarness({ def: createFakeDef({ streamFormat }) });
+    const { run } = await lifecycle.start({ contextRef: 'empty' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hello', cwd: '/work' });
+    child.emit('close', 0, null);
+    expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('failed');
+    expect(await collectEvents(lifecycle, run.id)).toContainEqual(expect.objectContaining({ kind: 'error', payload: expect.objectContaining({ message: expect.stringContaining('no assistant text or tool activity') }) }));
+  });
+
+  it.each([false, true])('fails a permission-denied run with its diagnostic (assistant text: %s)', async textSeen => {
+    const { lifecycle, executor, child } = createHarness({ def: createFakeDef({ streamFormat: 'plain' }) });
+    const { run } = await lifecycle.start({ contextRef: 'denied' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hello', cwd: '/work' });
+    if (textSeen) child.stdout.emit('data', 'I will try.');
+    child.stderr.emit('data', 'jetski: no output pro');
+    child.stderr.emit('data', 'duced — a tool required the "mcp" permission that headless mode cannot prompt for, so it was auto-denied.\n');
+    child.emit('close', 0, null);
+    expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('failed');
+    expect(await collectEvents(lifecycle, run.id)).toContainEqual(expect.objectContaining({ kind: 'error', payload: expect.objectContaining({ message: expect.stringMatching(/permission denied in headless mode.*jetski: no output produced/s) }) }));
+  });
+
+  it('fails whitespace-only and thinking-only output but preserves delegated tool-only success and cancellation', async () => {
+    for (const kind of ['whitespace', 'thinking', 'tool', 'cancel'] as const) {
+      const { lifecycle, executor, child } = createHarness();
+      const { run } = await lifecycle.start({ contextRef: kind });
+      await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hello', cwd: '/work' });
+      if (kind === 'whitespace') await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: ' \n' } } });
+      if (kind === 'thinking') await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'thinking_delta', delta: 'Planning' } } });
+      if (kind === 'tool') await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'tool_use', id: 'call', name: 'jini.read', input: {} } } });
+      if (kind === 'cancel') await lifecycle.cancel({ runId: run.id });
+      child.emit('close', 0, null);
+      expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe(kind === 'tool' ? 'succeeded' : kind === 'cancel' ? 'cancelled' : 'failed');
+    }
+  });
+});
+
 /** A fake `ToolExecutor` whose `execute` is fully caller-controlled — no real tool registry needed for gap 3's injection tests. */
 function createFakeToolExecutor(
   executeImpl: (toolId: string, input: unknown) => Promise<ToolExecutionResult> | ToolExecutionResult,
@@ -593,6 +644,7 @@ describe('AgentExecutor — pre-spawn failure paths never bare-throw', () => {
     await flushAsync();
     await expect(runPromise).resolves.toBeUndefined();
 
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'done' } } }); // a successful run must produce output
     child.emit('close', 0, null);
     expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
   });
@@ -1691,6 +1743,7 @@ describe('AgentExecutor — ACP dispatch (fake attachAcpSession)', () => {
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
     await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' }, { permissionMode: 'bypass' });
     expect(attachCalls[0]?.permissionMode).toBe('bypass');
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'done' } } }); // a successful run must produce output
     child.emit('close', 0, null);
     expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
   });
@@ -2121,7 +2174,10 @@ describe('AgentExecutor — pi-rpc dispatch (fake attachPiRpcSession)', () => {
     await lifecycle.waitForTerminal({ runId: run.id });
 
     const events = await collectEvents(lifecycle, run.id);
-    expect(events.some((e) => e.kind === 'agent' || e.kind === 'error')).toBe(false);
+    expect(events.some((e) => e.kind === 'agent')).toBe(false);
+    // The only error is the empty-run guard's: thinking_end itself produced neither event kind.
+    expect(events.filter((e) => e.kind === 'error').map((e) => (e.payload as { message: string }).message))
+      .toEqual([expect.stringContaining('no assistant text or tool activity')]);
   });
 
   it('swallows an emit() race against an already-terminal run on the pi-rpc path without an unhandled rejection', async () => {
@@ -2339,6 +2395,7 @@ describe('AgentExecutor — plain-format prompt-file delivery (grok-build: promp
     const stat = await fs.stat(promptFilePath);
     expect(stat.mode & 0o777).toBe(0o600);
 
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'done' } } }); // a successful run must produce output
     child.emit('close', 0, null);
     const finished = await lifecycle.waitForTerminal({ runId: run.id });
     expect(finished.state).toBe('succeeded');
@@ -2859,6 +2916,7 @@ describe('AgentExecutor — needsAgentLogFile staging (antigravity)', () => {
 
     // Simulate the CLI writing its diagnostic log, then exiting.
     await fs.writeFile(logPath, 'Propagating selected model override to backend: label="M"\n', 'utf8');
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'done' } } }); // a successful run must produce output
     child.emit('close', 0, null);
     expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
 
@@ -3497,6 +3555,7 @@ describe('AgentExecutor — gap 1 byte-journal (CreateAgentExecutorOptions.journ
     const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
     await flushAsync();
     child.stdout.emit('data', '{"type":"turn_end"}\n');
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'done' } } }); // a successful run must produce output
     child.emit('close', 0, null);
     await runPromise;
     expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
@@ -3942,6 +4001,7 @@ describe('AgentExecutor — gap 4 failure classifier (CreateAgentExecutorOptions
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
     const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
     await flushAsync();
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'done' } } }); // a successful run must produce output
     child.emit('close', 0, null);
     await runPromise;
     expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
@@ -4158,6 +4218,7 @@ describe('AgentExecutor — a fallible post-close step must never prevent finish
     await flushAsync();
     await runPromise;
 
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'done' } } }); // a successful run must produce output
     child.emit('close', 0, null);
     expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
     expect(stager.cleanup).toHaveBeenCalledTimes(1);
@@ -4175,6 +4236,7 @@ describe('AgentExecutor — a fallible post-close step must never prevent finish
     await flushAsync();
     await runPromise;
 
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'done' } } }); // a successful run must produce output
     child.emit('close', 0, null);
     expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
     expect(stager.cleanup).toHaveBeenCalledTimes(1);
@@ -4192,6 +4254,7 @@ describe('AgentExecutor — a fallible post-close step must never prevent finish
     await flushAsync();
     await runPromise;
 
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'done' } } }); // a successful run must produce output
     child.emit('close', 0, null);
     expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
     expect(stager.cleanup).toHaveBeenCalledTimes(1);
@@ -4257,6 +4320,7 @@ describe('AgentExecutor — a fallible post-close step must never prevent finish
     await flushAsync();
     await runPromise;
 
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'done' } } }); // a successful run must produce output
     child.emit('close', 0, null);
     expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
   });
@@ -4724,6 +4788,7 @@ describe('AgentExecutor — gap 3 part 2 spawn-time .mcp.json injection (CreateA
       await flushAsync();
       await runPromise;
 
+      await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'done' } } }); // a successful run must produce output
       child.emit('close', 0, null);
       expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
       expect(onCleanupFailure.mock.calls[0]![0]).toMatchObject({ runId: run.id, phase: 'staged-file-cleanup' });
@@ -5904,6 +5969,7 @@ describe("AgentExecutor — 'codex-toml' MCP bridge delivery (Codex CODEX_HOME r
     await flushAsync();
     await runPromise;
 
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'done' } } }); // a successful run must produce output
     child.emit('close', 0, null);
     expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
     expect(onCleanupFailure.mock.calls[0]![0]).toMatchObject({ runId: run.id, phase: 'staged-file-cleanup' });
@@ -6927,6 +6993,7 @@ describe('AgentExecutor — a run whose jini MCP bridge did not connect fails lo
     child.stdout.emit('data', initFrame([{ name: 'jini', status: 'connected' }]));
     child.stdout.emit('data', initFrame([{ name: 'jini', status: 'failed' }]));
     await flushAsync();
+    await lifecycle.emit({ runId: runId, input: { event: 'agent', data: { type: 'text_delta', delta: 'done' } } }); // a successful run must produce output
     child.emit('close', 0, null);
 
     expect((await lifecycle.waitForTerminal({ runId: runId })).state).toBe('succeeded');
