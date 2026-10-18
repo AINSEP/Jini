@@ -1,8 +1,12 @@
 import type { SealedSecret } from "../types.js";
 
-export const VAULT_KINDS = ["site-assistant", "personal-execution", "media-provider", "custom", "publish-peer",
+export const VAULT_KINDS = ["site-assistant", "personal-execution", "media-provider", "publish-peer",
   "database-destination", "vendor", "source-control", "mcp-env", "mcp-auth"] as const;
-export type VaultKind = typeof VAULT_KINDS[number];
+/** `custom` remains readable/replaceable until each workspace activates its data migration. */
+export type VaultKind = typeof VAULT_KINDS[number] | "custom";
+export type CredentialType = "vendor" | "custom";
+/** Required metadata on every active vendor-kind credential. Subtype is immutable after create. */
+export type CredentialMeta = VaultMeta & { credentialType: CredentialType; worksFor: string[] };
 export type VaultJson = null | boolean | number | string | VaultJson[] | { [key: string]: VaultJson };
 export type VaultMeta = { [key: string]: VaultJson };
 export type VaultOptions = Record<string, never>;
@@ -35,7 +39,7 @@ export interface VaultQuery {
   kind: VaultKind;
   ownerKey: string;
   principalId: string | null;
-  provider?: string | null;
+  provider?: string | null | undefined;
 }
 /** A default belongs to one exact group; omitted provider never means all providers. */
 export interface VaultDefaultQuery extends VaultQuery { provider: string | null }
@@ -62,7 +66,7 @@ export interface VaultCopyResult {
   reasonCode?: VaultError["code"] | "source-needs-upgrade" | "source-missing" | "target-exists" |
     "kind-not-copyable" | "requires-mcp-configuration" | "copy-failed";
 }
-export type VaultMetaParser = (input: { meta: unknown }, options?: VaultOptions) => VaultMeta;
+export type VaultMetaParser = (input: { meta: unknown; provider?: string | null | undefined }, options?: VaultOptions) => VaultMeta;
 export type VaultMetaParsers = Readonly<Record<VaultKind, VaultMetaParser>>;
 
 /** Safe error codes never contain submitted values or encrypted material. */
@@ -117,4 +121,10 @@ export function assertVaultReplacement(
   if (existing && (record.workspaceId !== existing.workspaceId || record.kind !== existing.kind ||
     record.ownerKey !== existing.ownerKey || record.principalId !== existing.principalId ||
     record.id !== existing.id || record.binding !== existing.binding || record.createdAt !== existing.createdAt)) throw new VaultError({ code: "context" });
+  if (existing?.kind === "vendor") {
+    // Missing subtype identifies a pre-unification vendor; an explicit null is not a default.
+    const previousType = existing.meta.credentialType === undefined ? "vendor" : existing.meta.credentialType;
+    const nextType = record.meta.credentialType === undefined ? "vendor" : record.meta.credentialType;
+    if (nextType !== previousType) throw new VaultError({ code: "context" });
+  }
 }

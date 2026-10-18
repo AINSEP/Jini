@@ -98,6 +98,22 @@ for (const { name, kernel } of cases) describe(`secrets vault contract [${name}]
     }
   });
 
+  test("unified custom rows retain independent null-provider labels/defaults and immutable subtype", async () => {
+    for (const adapter of [repo, new InMemoryVaultRepo({})]) {
+      const customMeta = { credentialType: "custom", worksFor: ["vercel"] };
+      const vendor = await adapter.put({ record: row("vendor", { label: "Production",
+        meta: { credentialType: "vendor", worksFor: ["vercel"] } }), expectedRevision: null });
+      const custom = await adapter.put({ record: row("custom", { provider: null, label: "Production", meta: customMeta }), expectedRevision: null });
+      await adapter.put({ record: row("next", { provider: null, meta: customMeta }), expectedRevision: null });
+      await assert.rejects(adapter.put({ record: row("duplicate", { provider: null, label: "Production", meta: customMeta }), expectedRevision: null }), { code: "conflict" });
+      await assert.rejects(adapter.put({ record: { ...custom, revision: 2, meta: { credentialType: "vendor", worksFor: [] } }, expectedRevision: 1 }), { code: "context" });
+      await adapter.delete({ ...custom, expectedRevision: 1 });
+      assert.equal((await adapter.findDefault({ ...query, provider: null }))?.id, "next");
+      assert.equal((await adapter.findDefault(query))?.id, "vendor");
+      assert.deepEqual(await adapter.find(vendor), vendor);
+    }
+  });
+
   test("executed group queries stay narrow: existence checks, one default, and one promotion identity", async () => {
     const statements: string[] = [];
     const recordingKernel: StorageKernel<SecretsVaultDatabase> = { ...kernel,
@@ -330,7 +346,7 @@ for (const { name, kernel } of cases) describe(`secrets vault contract [${name}]
     const service = new SecretsVaultService({ repo, keyring, sealer: new AesGcmSecretSealer({ keyring }),
       metaParsers: createVaultMetaParsers({}), authorize: async () => {}, now: () => "2026-10-11T00:00:00Z", newId: () => "generated" });
     const scope = { workspaceId: "ws", kind: "vendor" as const, ownerKey: "deploy", principalId: null, binding: null };
-    const input = { ...scope, expectedRevision: null, provider: "host", label: "Prepared", meta: { accountLabel: null },
+    const input = { ...scope, expectedRevision: null, provider: "host", label: "Prepared", meta: { accountLabel: null, credentialType: "vendor", worksFor: ["host"] },
       payload: { token: "abcdefghijkl" }, hintToken: "abcdefghijkl" };
     const prepared = await service.prepare(input);
     assert.equal(await repo.find(prepared), null);

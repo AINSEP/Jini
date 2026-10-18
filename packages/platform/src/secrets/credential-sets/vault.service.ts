@@ -46,7 +46,7 @@ export interface VaultCopyInput {
 
 function assertContext(context: VaultContext | VaultQuery): void {
   if (typeof context.workspaceId !== "string" || !context.workspaceId || typeof context.ownerKey !== "string" || !context.ownerKey ||
-    !VAULT_KINDS.includes(context.kind) || (context.principalId !== null && typeof context.principalId !== "string") ||
+    (!VAULT_KINDS.some(kind => kind === context.kind) && context.kind !== "custom") || (context.principalId !== null && typeof context.principalId !== "string") ||
     ("binding" in context && context.binding !== null && typeof context.binding !== "string") ||
     (context.kind === "personal-execution" && !context.principalId)) throw new VaultError({ code: "context" });
 }
@@ -78,7 +78,7 @@ export class SecretsVaultService {
   }
   private parse(record: VaultRecord): VaultRecord {
     assertContext(record);
-    return { ...record, meta: this.deps.metaParsers[record.kind]({ meta: record.meta }) };
+    return { ...record, meta: this.deps.metaParsers[record.kind]({ meta: record.meta, provider: record.provider }) };
   }
   private async find(input: VaultIdentity): Promise<VaultRecord | null> {
     const record = await this.deps.repo.find({ workspaceId: input.workspaceId, id: input.id });
@@ -117,13 +117,20 @@ export class SecretsVaultService {
    */
   async prepare(input: VaultPutInput, _options: VaultOptions = {}): Promise<VaultRecord> {
     assertContext(input);
+    // Existing custom-kind identities keep their authenticated kind until a migration marks
+    // them for boot resealing. New credentials always use the unified vendor kind.
+    if (input.kind === "custom" && input.expectedRevision === null) throw new VaultError({ code: "context" });
     await this.authorize({ action: "put", context: input });
     if (input.expectedRevision !== null && !input.id) throw new VaultError({ code: "conflict" });
     const identity: VaultIdentity = { workspaceId: input.workspaceId, kind: input.kind, ownerKey: input.ownerKey,
       principalId: input.principalId, binding: input.binding, id: input.id ?? this.deps.newId({}) };
     const existing = await this.find(identity);
     if (input.expectedRevision === null ? existing !== null : existing?.revision !== input.expectedRevision) throw new VaultError({ code: "conflict" });
-    const meta = this.deps.metaParsers[input.kind]({ meta: input.meta });
+    // Read defaults keep older sites usable; new records still declare their subtype/compatibility.
+    if (!existing && input.kind === "vendor" && (input.meta === null || typeof input.meta !== "object" ||
+      !Object.hasOwn(input.meta, "credentialType") || !Object.hasOwn(input.meta, "worksFor"))) throw new VaultError({ code: "invalid-meta" });
+    const meta = this.deps.metaParsers[input.kind]({ meta: input.meta, provider: input.provider });
+    if (existing?.kind === "vendor" && existing.meta.credentialType !== meta.credentialType) throw new VaultError({ code: "context" });
     if (input.payload === undefined && !existing) throw new VaultError({ code: "invalid-record" });
     const sealed = input.payload === undefined ? existing!.sealed : await this.seal({ context: identity, payload: input.payload });
     // Never expose any suffix of a database address, environment map or OAuth session.
@@ -218,12 +225,16 @@ export class SecretsVaultService {
       if (!raw) return { ...result, status: "failed", reasonCode: "source-missing" };
       if (buildVaultAad(sourceIdentity) !== buildVaultAad(raw)) throw new VaultError({ code: "context" });
       // Check before parsing: normal parsers deliberately reject legacy-AAD metadata.
-      if (Object.hasOwn(raw.meta, "legacyAad")) return { ...result, status: "failed", reasonCode: "source-needs-upgrade" };
+      if (Object.hasOwn(raw.meta, "legacyAad") || (raw.kind === "vendor" &&
+        (!Object.hasOwn(raw.meta, "credentialType") || !Object.hasOwn(raw.meta, "worksFor")))) {
+        return { ...result, status: "failed", reasonCode: "source-needs-upgrade" };
+      }
       if (input.sourceRevisions && Object.hasOwn(input.sourceRevisions, id) && input.sourceRevisions[id] !== raw.revision) throw new VaultError({ code: "conflict" });
       const record = source.parse(raw);
       const existing = await this.find(targetIdentity);
       if (existing && !input.overwrite) return { ...result, status: "skipped", reasonCode: "target-exists" };
-      if (existing && existing.provider !== record.provider) throw new VaultError({ code: "context" });
+      if (existing && (existing.provider !== record.provider || (record.kind === "vendor" &&
+        existing.meta.credentialType !== record.meta.credentialType))) throw new VaultError({ code: "context" });
       const expectedRevision = existing?.revision ?? null;
       const now = this.deps.now({});
       const candidate = this.parse({ ...record, ...targetIdentity, isDefault: existing?.isDefault ?? false,
@@ -257,7 +268,8 @@ export class SecretsVaultService {
     await this.authorize({ action: "put", context: input });
     const existing = await this.find(input);
     if (existing?.revision !== input.expectedRevision) throw new VaultError({ code: "conflict" });
-    const meta = this.deps.metaParsers[existing.kind]({ meta: { ...existing.meta, ...input.patch } });
+    const meta = this.deps.metaParsers[existing.kind]({ meta: { ...existing.meta, ...input.patch }, provider: existing.provider });
+    if (existing.kind === "vendor" && existing.meta.credentialType !== meta.credentialType) throw new VaultError({ code: "context" });
     // jsonSet can add/replace a key but cannot remove one. Reject parser omissions instead of
     // silently persisting an unvalidated old field. Normalized values and defaults can be patched.
     if (Object.keys({ ...existing.meta, ...input.patch }).some(key => !Object.hasOwn(meta, key))) throw new VaultError({ code: "invalid-meta" });

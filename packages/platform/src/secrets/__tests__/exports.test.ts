@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 import * as contracts from "../credential-sets/contracts.js";
 import * as existingContracts from "../credential-sets/vault.types.js";
+import { suggestCredentialWorksFor } from "../credential-sets/provider-matches.js";
 import { VaultError } from "../credential-sets/index.js";
 test("retains published subpaths and declares adapter dependencies as optional peers", () => {
     const root = new URL("../../../", import.meta.url);
@@ -28,7 +29,8 @@ test("vault contracts leaf is universal and preserves the existing runtime bindi
         default: "./dist/secrets/credential-sets/contracts.js",
     });
     expect(manifest.jini.entries["./secrets/credential-sets/contracts"]).toBe("universal");
-    expect(Object.keys(contracts).sort()).toEqual(Object.keys(existingContracts).sort());
+    expect(Object.keys(contracts).sort()).toEqual([...Object.keys(existingContracts), "suggestCredentialWorksFor"].sort());
+    expect(contracts.suggestCredentialWorksFor).toBe(suggestCredentialWorksFor);
     expect(contracts.VAULT_KINDS).toBe(existingContracts.VAULT_KINDS);
     expect(contracts.vaultGroupKey).toBe(existingContracts.vaultGroupKey);
     expect(contracts.assertVaultReplacement).toBe(existingContracts.assertVaultReplacement);

@@ -14,6 +14,10 @@ export interface VendorCredentialSetRecord {
 
   /** Open string so plugin hosts can declare vendors beyond the built-in validators. */
   readonly vendorId: string;
+  /** Optional only for historical DTO producers; unified vault metadata requires this subtype. */
+  readonly credentialType?: "vendor";
+  /** Explicit compatibility IDs, independent of label; omitted by historical DTO producers. */
+  readonly worksFor?: readonly string[];
   readonly label: string;
   readonly sealed: SealedSecret;
 
@@ -34,6 +38,9 @@ export interface VendorCredentialSetRecord {
 export interface VendorCredentialSetSummary {
   readonly id: string;
   readonly vendorId: string;
+  /** Optional for compatibility with historical summaries. */
+  readonly credentialType?: "vendor";
+  readonly worksFor?: readonly string[];
   readonly label: string;
   readonly configured: true;
   readonly isDefault: boolean;

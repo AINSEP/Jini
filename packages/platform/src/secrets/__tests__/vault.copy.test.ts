@@ -17,7 +17,7 @@ function fixture(site: string) {
     now: () => "2026-10-11T00:00:00Z", newId: () => "generated" });
   const context: VaultContext = { workspaceId: site, kind: "vendor", ownerKey: "feature", principalId: null, binding: null };
   const input: VaultPutInput = { ...context, id: "same-id", provider: "host", label: "Main",
-    meta: {}, payload: { token }, hintToken: token, expectedRevision: null };
+    meta: { credentialType: "vendor", worksFor: ["host"] }, payload: { token }, hintToken: token, expectedRevision: null };
   return { service, repo, keyring, sealer, authorize, context, input };
 }
 function transfer(source: ReturnType<typeof fixture>, target: ReturnType<typeof fixture>, patch: Partial<VaultCopyInput> = {}): VaultCopyInput {
@@ -29,7 +29,7 @@ test("every eligible kind keeps IDs and payloads, changes key/AAD, and returns o
     const source = fixture("source"), target = fixture("target");
     source.context.kind = target.context.kind = kind;
     const payload: VaultMeta = kind === "database-destination" ? { connectionString: address } : { token };
-    await source.service.put({ ...source.input, ...source.context, payload });
+    await source.service.put({ ...source.input, ...source.context, meta: kind === "vendor" ? source.input.meta : {}, payload });
     const before = (await source.repo.find({ workspaceId: "source", id: "same-id" }))!;
     const copied = await target.service.copyToSite(transfer(source, target));
     assert.deepEqual(copied, [{ kind, id: "same-id", status: "copied", ...(kind === "database-destination" ? {} : { last4: "5678" }) }]);
@@ -146,4 +146,36 @@ test("metadata-only rows, short hints and corrupt envelopes keep outcomes free o
   assert.deepEqual(await target.service.copyToSite(transfer(source, target, { ids: ["short"], overwrite: true })),
     [{ kind: "vendor", id: "short", status: "failed", reasonCode: "copy-failed" }]);
   assert.deepEqual((await target.service.get({ ...target.context, id: "short" }))?.payload, { token: "short" });
+});
+
+test("custom subtype and explicit compatibility survive copy, while overwrite cannot change subtype", async () => {
+  const source = fixture("source"), target = fixture("target");
+  await source.service.put({ ...source.input, provider: null,
+    meta: { credentialType: "custom", worksFor: ["vercel", "github-pages"], category: "api" } });
+  assert.equal((await target.service.copyToSite(transfer(source, target)))[0]?.status, "copied");
+  const copied = (await target.repo.find({ workspaceId: "target", id: "same-id" }))!;
+  assert.deepEqual(copied.meta, { credentialType: "custom", worksFor: ["vercel", "github-pages"], category: "api" });
+  assert.deepEqual((await target.service.get({ ...target.context, id: "same-id" }))?.payload, { token });
+  assert.equal((await target.service.copyToSite(transfer(source, target, { overwrite: true })))[0]?.status, "copied");
+  const other = fixture("other");
+  // Keep the same provider group so this assertion specifically exercises subtype immutability.
+  await other.service.put({ ...other.input, provider: null });
+  const before = await other.repo.find({ workspaceId: "other", id: "same-id" });
+  const open = vi.spyOn(source.sealer, "open");
+  assert.equal((await other.service.copyToSite(transfer(source, other, { overwrite: true })))[0]?.reasonCode, "context");
+  assert.deepEqual(await other.repo.find({ workspaceId: "other", id: "same-id" }), before);
+  assert.equal(open.mock.calls.length, 0);
+});
+
+test("pre-unification vendor metadata needs a source upgrade before copy can open it", async () => {
+  const source = fixture("source"), target = fixture("target");
+  await source.service.put(source.input);
+  const row = (await source.repo.find({ workspaceId: "source", id: "same-id" }))!;
+  // Synthetic historical source bypasses active parsing exactly as an old database would.
+  await source.repo.put({ record: { ...row, id: "old", label: "Old", meta: {} }, expectedRevision: null });
+  const open = vi.spyOn(source.sealer, "open");
+  assert.deepEqual(await target.service.copyToSite(transfer(source, target, { ids: ["old"] })),
+    [{ kind: "vendor", id: "old", status: "failed", reasonCode: "source-needs-upgrade" }]);
+  assert.equal(open.mock.calls.length, 0);
+  assert.equal(await target.repo.find({ workspaceId: "target", id: "old" }), null);
 });

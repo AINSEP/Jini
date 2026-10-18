@@ -91,16 +91,18 @@ test("wrong expected context is rejected before opening; substituted ciphertext 
 
 test("minimal registry covers only requested kinds and rejects unknown/invalid plain metadata", () => {
   const parsers = createVaultMetaParsers({});
-  assert.deepEqual(Object.keys(parsers), [...VAULT_KINDS]);
+  assert.deepEqual(Object.keys(parsers), [...VAULT_KINDS, "custom"]);
+  assert.deepEqual(parsers.custom({ meta: {} }), { credentialType: "custom", worksFor: [] });
   for (const kind of VAULT_KINDS) {
-    assert.deepEqual(parsers[kind]({ meta: {} }), {});
+    const valid = kind === "vendor" ? { credentialType: "vendor", worksFor: [] } : {};
+    assert.deepEqual(parsers[kind]({ meta: valid }), valid);
     for (const meta of [null, [], "text", { token: secret }, { constructor: "value" }]) {
       assert.throws(() => parsers[kind]({ meta }), { code: "invalid-meta" });
     }
   }
-  assert.deepEqual(parsers.custom({ meta: { category: "any-host-catalog", baseUrl: "https://host", additionalHosts: [], username: null } }),
-    { category: "any-host-catalog", baseUrl: "https://host", additionalHosts: [], username: null });
-  assert.throws(() => parsers.custom({ meta: { additionalHosts: [123] } }), { code: "invalid-meta" });
+  assert.deepEqual(parsers.vendor({ meta: { credentialType: "custom", worksFor: [], category: "any-host-catalog", baseUrl: "https://host", additionalHosts: [], username: null } }),
+    { credentialType: "custom", worksFor: [], category: "any-host-catalog", baseUrl: "https://host", additionalHosts: [], username: null });
+  assert.throws(() => parsers.vendor({ meta: { credentialType: "custom", worksFor: [], additionalHosts: [123] } }), { code: "invalid-meta" });
   assert.throws(() => parsers["personal-execution"]({ meta: { maxTokens: Infinity } }), { code: "invalid-meta" });
   assert.throws(() => parsers["site-assistant"]({ meta: { model: 42 } }), { code: "invalid-meta" });
   assert.throws(() => parsers["database-destination"]({ meta: { lastRun: [] } }), { code: "invalid-meta" });
@@ -347,4 +349,107 @@ test("a prepared replacement cannot overwrite a replacement committed while prep
   await assert.rejects(repo.put({ record, expectedRevision: 1 }), { code: "conflict" });
   assert.deepEqual(await repo.find(context), winner);
   assert.deepEqual((await service.get(context))?.payload, { token: "concurrent-new" });
+});
+
+test("unified credentials require subtype and works-for even with injected parsers", async () => {
+  for (const parsers of [createVaultMetaParsers({}), createVaultMetaParsers({}, { parsers: { vendor: ({ meta }) => meta as VaultMeta } })]) {
+    const { service, input, repo, sealer } = fixture(parsers);
+    const seal = vi.spyOn(sealer, "seal");
+    for (const meta of [{}, { credentialType: "custom" }, { credentialType: "other", worksFor: [] },
+      { credentialType: "vendor", worksFor: "host" }]) {
+      await assert.rejects(service.put({ ...input, kind: "vendor", meta }), { code: "invalid-meta" });
+    }
+    assert.equal(await repo.find(context), null);
+    assert.equal(seal.mock.calls.length, 0);
+  }
+});
+
+test("credential subtype is immutable across replacement and metadata patch; works-for edits need no key", async () => {
+  const { service, input, repo, sealer, keyring } = fixture();
+  const scope = { ...context, kind: "vendor" as const };
+  const saved = await service.put({ ...input, ...scope, provider: null,
+    meta: { credentialType: "custom", worksFor: ["VeRcEl", "vercel"], category: "api" } });
+  assert.deepEqual(saved.meta.worksFor, ["vercel"]);
+  const before = await repo.find(scope);
+  await assert.rejects(service.put({ ...input, ...scope, provider: "vercel", expectedRevision: 1,
+    meta: { credentialType: "vendor", worksFor: ["vercel"] } }), { code: "context" });
+  await assert.rejects(service.patchMeta({ ...scope, expectedRevision: 1, patch: { credentialType: "vendor" } }), { code: "context" });
+  assert.deepEqual(await repo.find(scope), before);
+  const seal = vi.spyOn(sealer, "seal"), open = vi.spyOn(sealer, "open");
+  vi.spyOn(keyring, "activeKey").mockRejectedValue(new Error("no key"));
+  const updated = await service.patchMeta({ ...scope, expectedRevision: 1, patch: { worksFor: [] } });
+  assert.deepEqual(updated.meta.worksFor, []);
+  assert.equal(updated.meta.credentialType, "custom");
+  assert.deepEqual((await repo.find(scope))?.sealed, before?.sealed);
+  assert.equal(seal.mock.calls.length, 0);
+  assert.equal(open.mock.calls.length, 0);
+});
+
+test("new custom-kind creation rejects before authorization, persistence or opening", async () => {
+  const { service, input, repo, authorize, sealer } = fixture();
+  const retired = { ...context, kind: "custom" as const };
+  const open = vi.spyOn(sealer, "open");
+  await assert.rejects(service.put({ ...input, ...retired, meta: {} }), { code: "context" });
+  assert.equal(authorize.mock.calls.length, 0);
+  assert.equal(open.mock.calls.length, 0);
+  assert.equal(await repo.find(context), null);
+});
+
+test("unmigrated metadata defaults use kind/provider, preserve explicit empty lists and reject malformed fields", () => {
+  for (const parsers of [createVaultMetaParsers({}), createVaultMetaParsers({}, { parsers: { vendor: ({ meta }) => meta as VaultMeta } })]) {
+    const original = { accountLabel: "Existing vendor" };
+    assert.deepEqual(parsers.vendor({ meta: original, provider: "VeRcEl" }),
+      { accountLabel: "Existing vendor", credentialType: "vendor", worksFor: ["vercel"] });
+    assert.deepEqual(original, { accountLabel: "Existing vendor" });
+    assert.deepEqual(parsers.vendor({ meta: { worksFor: [] }, provider: "vercel" }), { credentialType: "vendor", worksFor: [] });
+    assert.deepEqual(parsers.custom({ meta: { category: "general" } }), { category: "general", credentialType: "custom", worksFor: [] });
+    assert.deepEqual(parsers.vendor({ meta: { credentialType: "custom" }, provider: null }), { credentialType: "custom", worksFor: [] });
+    for (const meta of [{ credentialType: null }, { credentialType: "unknown" }, { worksFor: null }, { worksFor: "vercel" }]) {
+      assert.throws(() => parsers.vendor({ meta, provider: "vercel" }), { code: "invalid-meta" });
+    }
+    assert.throws(() => parsers.custom({ meta: { credentialType: "vendor" } }), { code: "invalid-meta" });
+  }
+});
+
+test("existing custom-kind reads, patches and deletes retain authorization and authenticated identity", async () => {
+  const { service, repo, keyring, sealer, authorize } = fixture();
+  const identity = { ...context, kind: "custom" as const };
+  const sealed = await sealer.seal({ key: await keyring.activeKey({}), plaintext: JSON.stringify({ token: secret }), aad: buildVaultAad(identity) });
+  await repo.put({ expectedRevision: null, record: { ...identity, provider: null, label: "Legacy", isDefault: false,
+    revision: 1, sealed, last4: null, tokenLength: null, meta: { category: "general" }, createdAt: "old", updatedAt: "old" } });
+  const read = (await service.get(identity))!;
+  assert.deepEqual(read.payload, { token: secret });
+  assert.deepEqual(read.summary.meta, { category: "general", credentialType: "custom", worksFor: [] });
+  assert.deepEqual((await service.list(identity))[0]!.meta, read.summary.meta);
+  const patched = await service.patchMeta({ ...identity, expectedRevision: 1, patch: { worksFor: ["vercel"] } });
+  assert.deepEqual(patched.meta.worksFor, ["vercel"]);
+  assert.equal(patched.kind, "custom");
+  assert.deepEqual((await repo.find(identity))!.sealed, sealed);
+  const open = vi.spyOn(sealer, "open");
+  authorize.mockRejectedValueOnce(new Error("denied"));
+  await assert.rejects(service.get(identity), /denied/);
+  assert.equal(open.mock.calls.length, 0);
+  assert.equal(await service.delete({ ...identity, expectedRevision: 2 }), true);
+  assert.equal(await repo.find(identity), null);
+});
+
+test("unmigrated vendor replacement adopts defaults without changing subtype or requiring resealing", async () => {
+  const { service, repo, keyring, sealer } = fixture();
+  const identity = { ...context, kind: "vendor" as const };
+  const sealed = await sealer.seal({ key: await keyring.activeKey({}), plaintext: JSON.stringify({ token: secret }), aad: buildVaultAad(identity) });
+  await repo.put({ expectedRevision: null, record: { ...identity, provider: "vercel", label: "Legacy vendor", isDefault: false,
+    revision: 1, sealed, last4: null, tokenLength: null, meta: { accountLabel: null }, createdAt: "old", updatedAt: "old" } });
+  const seal = vi.spyOn(sealer, "seal");
+  const read = (await service.get(identity))!;
+  assert.deepEqual(read.summary.meta.worksFor, ["vercel"]);
+  const replaced = await service.put({ ...identity, provider: "vercel", label: "Renamed", expectedRevision: 1, meta: { accountLabel: null } });
+  assert.equal(replaced.meta.credentialType, "vendor");
+  assert.deepEqual(replaced.meta.worksFor, ["vercel"]);
+  assert.deepEqual((await repo.find(identity))!.sealed, sealed);
+  assert.equal(seal.mock.calls.length, 0);
+  await assert.rejects(service.put({ ...identity, provider: null, label: "Wrong subtype", expectedRevision: 2,
+    meta: { credentialType: "custom", worksFor: [] } }), { code: "context" });
+  const current = (await repo.find(identity))!;
+  await assert.rejects(repo.put({ expectedRevision: current.revision, record: { ...current, revision: current.revision + 1,
+    meta: { ...current.meta, credentialType: null } } }), { code: "context" });
 });

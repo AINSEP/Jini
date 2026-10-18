@@ -58,3 +58,18 @@ test("targeted metadata updates preserve sealed material and clones stop alias w
   assert.equal(after.updatedAt, "later");
   await assert.rejects(repo.patchMeta({ ...input, expectedRevision: 1, patch, updatedAt: "stale" }), { code: "conflict" });
 });
+
+test("converted custom null-provider group keeps independent labels/defaults and immutable subtype", async () => {
+  const repo = new InMemoryVaultRepo({});
+  const customMeta = { credentialType: "custom", worksFor: ["vercel"] };
+  const vendor = await repo.put({ record: row("vendor", { label: "Production",
+    meta: { credentialType: "vendor", worksFor: ["vercel"] } }), expectedRevision: null });
+  const custom = await repo.put({ record: row("custom", { provider: null, label: "Production", meta: customMeta }), expectedRevision: null });
+  await repo.put({ record: row("next", { provider: null, meta: customMeta }), expectedRevision: null });
+  await assert.rejects(repo.put({ record: row("collision", { provider: null, label: "Production", meta: customMeta }), expectedRevision: null }), { code: "conflict" });
+  await assert.rejects(repo.put({ record: { ...custom, revision: 2, meta: { credentialType: "vendor", worksFor: [] } }, expectedRevision: 1 }), { code: "context" });
+  await repo.delete({ ...custom, expectedRevision: 1 });
+  assert.equal((await repo.findDefault({ ...query, provider: null }))?.id, "next");
+  assert.equal((await repo.findDefault(query))?.id, "vendor");
+  assert.deepEqual(await repo.find(vendor), vendor);
+});
