@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createAutomaticAgentPluginUse, type AutomaticAgentPluginPorts, type ChatAgentPluginState } from '../../automatic-use.js';
 import type { AgentPluginSearchCandidate } from '../../search.js';
+import { rankInstalledAgentPlugins } from '../test-support.js';
 
 const plugin = (pluginId: string, enabled = true): AgentPluginSearchCandidate => ({ pluginId, enabled, keywords: ['synthetic'], provides: ['theme-authoring'], skills: [], mcpServerIds: [] });
 function fixture(mode: 'auto' | 'ask' | 'off' = 'auto', state?: ChatAgentPluginState) {
@@ -65,6 +66,59 @@ describe('automatic installed plugin use', () => {
     expect(await Promise.all([f.controller.prepare({ query: 'synthetic' }), f.controller.prepare({ capabilities: ['theme-authoring'] })])).toEqual(['', '']);
     expect(f.ask).toHaveBeenCalledTimes(1);
     expect(f.publish.mock.calls.at(-1)?.[0].plugins).toEqual([]);
+  });
+  it.each(['ask', 'auto'] as const)('%s remembers consent but loads only current prompt or capability matches', async mode => {
+    const state: ChatAgentPluginState = { decision: { selected: ['synthetic'], asked: true }, excluded: [] };
+    const next = fixture(mode, state);
+    next.ports.rank = input => rankInstalledAgentPlugins(input.query, input.candidates, input.limit, true);
+    expect(await next.controller.prepare({ query: 'What is the weather?' })).toBe('');
+    expect(next.resolve).not.toHaveBeenCalled();
+    expect(next.ask).not.toHaveBeenCalled();
+    const onTopic = fixture(mode, state);
+    onTopic.ports.rank = next.ports.rank;
+    expect(await onTopic.controller.prepare({ query: 'Use synthetic' })).toBe('Guidance for synthetic');
+    expect(onTopic.ask).not.toHaveBeenCalled();
+
+    const backstop = fixture(mode, state);
+    backstop.ports.rank = next.ports.rank;
+    expect(await backstop.controller.prepare({ query: 'What is the weather?' })).toBe('');
+    expect(await backstop.controller.prepare({ capabilities: ['theme-authoring'] })).toBe('Guidance for synthetic');
+    expect(backstop.ask).not.toHaveBeenCalled();
+
+    const excluded = fixture(mode, { ...state, excluded: ['synthetic'] });
+    expect(await excluded.controller.prepare({ query: 'Use synthetic' })).toBe('');
+    expect(await excluded.controller.prepare({ capabilities: ['theme-authoring'] })).toBe('');
+    expect(excluded.resolve).not.toHaveBeenCalled();
+  });
+  it('publishes once per loaded set, including across simultaneous guarded writes', async () => {
+    const f = fixture();
+    await f.controller.prepare({ query: 'synthetic' });
+    await Promise.all([
+      f.controller.prepare({ capabilities: ['theme-authoring'] }),
+      f.controller.prepare({ capabilities: ['theme-authoring'] }),
+    ]);
+    expect(f.publish).toHaveBeenCalledTimes(1);
+    f.ports.list = async () => [plugin('synthetic'), plugin('later')];
+    await f.controller.prepare({ capabilities: ['theme-authoring'] });
+    expect(f.publish).toHaveBeenCalledTimes(2);
+    expect(f.publish.mock.calls.at(-1)?.[0].plugins).toEqual([
+      { id: 'synthetic', name: 'synthetic' }, { id: 'later', name: 'later' },
+    ]);
+    await f.controller.prepare({ capabilities: ['theme-authoring'] });
+    expect(f.publish).toHaveBeenCalledTimes(2);
+  });
+  it('persists a late Skip once even when earlier discovery and later writes load nothing', async () => {
+    const f = fixture('ask');
+    await f.controller.prepare({ capabilities: ['unmatched'] });
+    f.ask.mockResolvedValue({ action: 'skip', selected: [] });
+    await f.controller.prepare({ capabilities: ['theme-authoring'] });
+    await f.controller.prepare({ capabilities: ['theme-authoring'] });
+    expect(f.publish).toHaveBeenCalledTimes(1);
+    const state = f.publish.mock.calls[0]?.[0].state;
+    expect(state.decision).toEqual({ selected: [], asked: true });
+    const next = fixture('ask', state);
+    await next.controller.prepare({ query: 'synthetic' });
+    expect(next.ask).not.toHaveBeenCalled();
   });
 });
 

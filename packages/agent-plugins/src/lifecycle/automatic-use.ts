@@ -47,13 +47,13 @@ export function createAutomaticAgentPluginUse(
   let state = readChatAgentPluginState({ value: initialState });
   const delivered = new Map<string, string>();
   const alreadyLoaded = new Set<string>();
+  let publishedSize: number | undefined;
   let queue: Promise<unknown> = Promise.resolve();
 
   async function prepare(input: { query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; signal?: AbortSignal }): Promise<string> {
     if (mode === 'off') return '';
     for (const id of input.loaded ?? []) alreadyLoaded.add(id);
     const candidates = (await ports.list({}, {})).filter(plugin => plugin.enabled && !state.excluded.includes(plugin.pluginId));
-    const byId = new Map(candidates.map(plugin => [plugin.pluginId, plugin]));
     const ranked = input.capabilities
       ? candidates.filter(plugin => plugin.provides?.some(capability => input.capabilities!.includes(capability))).map(plugin => ({ ...plugin, score: 4 }))
       : ports.rank({ query: input.query ?? '', candidates, limit: 12 }, {});
@@ -69,8 +69,9 @@ export function createAutomaticAgentPluginUse(
       if (answer.action === 'auto') { await ports.saveAuto({}, {}); mode = 'auto'; }
     }
     if (mode === 'ask') {
-      // Later matches do not inherit consent. Previously selected guidance is reloaded for cold runs.
-      matches = (state.decision?.selected ?? []).flatMap(id => { const plugin = byId.get(id); return plugin && !delivered.has(id) && !alreadyLoaded.has(id) ? [{ ...plugin, score: 4 }] : []; });
+      // Consent survives cold runs; relevance still comes from this request or write capability.
+      // Later matches do not inherit consent, and exclusions were applied before ranking.
+      matches = matches.filter(plugin => state.decision?.selected.includes(plugin.pluginId));
     }
     const guidance: string[] = [];
     for (const match of matches) {
@@ -80,10 +81,14 @@ export function createAutomaticAgentPluginUse(
         delivered.set(match.pluginId, match.displayName ?? match.pluginId);
         guidance.push(text);
       } catch {
-        // Automatic guidance is advisory. Explicitly pinned refs retain their own strict failure path.
+        // Automatic guidance is advisory; unavailable plugins must not block the run.
       }
     }
     if (mode === 'auto' && delivered.size) state = { ...state, decision: { selected: [...new Set([...(state.decision?.selected ?? []), ...delivered.keys()])], asked: state.decision?.asked ?? false } };
+    // Initialize usage after a decision (including Skip), then publish only loaded-set changes.
+    // Empty discovery must not consume that initial publication: a later Ask answer must persist.
+    if (publishedSize === delivered.size || (delivered.size === 0 && state.decision === null)) return guidance.join('\n\n');
+    publishedSize = delivered.size;
     try {
       await ports.publish({ state, plugins: [...delivered].map(([id, name]) => ({ id, name })) }, {});
     } catch {
