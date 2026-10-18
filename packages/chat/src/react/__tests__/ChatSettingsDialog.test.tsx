@@ -70,6 +70,27 @@ describe('advanced chat settings', () => {
     expect(described(screen.getByRole('switch', { name: 'Full CLI access' }))?.textContent).toBe('Turn every capability below on or off at once.');
     expect(screen.queryByRole('button', { name: /More info/ })).toBeNull();
   });
+  it('describes radio and switch controls with help outside their labels without selecting them', async () => {
+    const user = userEvent.setup(), onSelect = vi.fn();
+    render(<ChatSettingsDialog open onClose={vi.fn()} displaySections={[
+      { key: 'tools', items: [{ key: 'show', label: 'Show', role: 'menuitemradio', checked: false, tooltip: 'Radio help.', onSelect }] },
+      { key: 'transcript', items: [{ key: 'done', label: 'Done line', role: 'menuitemcheckbox', checked: true, tooltip: 'Switch help.', onSelect }] },
+    ]} permissions={{ enabled: false, canEdit: true, capabilities: [], onChange: vi.fn() }} />);
+    const radioHelp = screen.getByRole('button', { name: 'Radio help.' });
+    expect(radioHelp).toBeInTheDocument();
+    // The dialog bounds its own tips, so a host dock's narrower bounds never pull them off their icon.
+    expect(radioHelp.closest('[data-jini-tip-bounds]')?.tagName).toBe('DIALOG');
+    expect(radioHelp.closest('label')).toBeNull();
+    expect(screen.getByRole('radio', { name: 'Show' })).toHaveAccessibleDescription('Radio help.');
+    await user.click(radioHelp);
+    expect(onSelect).not.toHaveBeenCalled();
+    const switchHelp = screen.getByRole('button', { name: 'Switch help.' });
+    expect(switchHelp).toBeInTheDocument();
+    expect(switchHelp.closest('label')).toBeNull();
+    expect(screen.getByRole('switch', { name: 'Done line' })).toHaveAccessibleDescription('Switch help.');
+    await user.click(switchHelp);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
   it('closes from the header close button', async () => {
     const onClose = vi.fn();
     render(<ChatSettingsDialog open onClose={onClose} displaySections={[]} permissions={{ enabled: false, canEdit: true, capabilities: [], onChange: vi.fn() }} />);

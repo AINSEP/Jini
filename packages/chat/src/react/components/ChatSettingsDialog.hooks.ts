@@ -4,7 +4,12 @@ import { useId, useState } from 'react';
 export interface ChatSettingsSection {
   /** One-line explanation for a whole radio group; falls back to its first item's hint. */
   key: string; label?: string; description?: string;
-  items: readonly { key: string; label: string; role?: string; checked?: boolean; hint?: string; disabled?: boolean; onSelect?: () => void }[];
+  items: readonly {
+    key: string; label: string; role?: string; checked?: boolean; hint?: string;
+    /** Per-option interactive help, independent of any legacy inline hint. */
+    tooltip?: string;
+    disabled?: boolean; onSelect?: () => void;
+  }[];
 }
 export interface ChatPermissionsPort {
   enabled: boolean; canEdit: boolean; busy?: boolean; error?: string | null; unavailableReason?: string;

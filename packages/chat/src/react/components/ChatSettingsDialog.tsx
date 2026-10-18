@@ -1,24 +1,27 @@
 import { useEffect, useId, useLayoutEffect, useRef } from 'react';
 import { TabBar } from '@jini-ai/ui/tab-strip';
+import { InfoTip } from '@jini-ai/ui/admin-widgets';
 import { useChatSettingsView, type ChatPermissionsPort, type ChatSettingsSection } from './ChatSettingsDialog.hooks.js';
 
-/** One switch row: control, then the label with a one-line description under it. The owner found
- * ⓘ tooltips floating far from their icon, so the explanation is always visible text instead;
- * the switch's aria-describedby points at that line. */
+/** One switch row, with optional inline description and help beside the control and label.
+ * The help trigger stays outside the label so tapping it never toggles the switch.
+ * Earlier (owner) ⓘ tips floated away from their icon, so this row showed visible text only; on 2026-10-18 the owner approved per-option ⓘ help, which InfoTip now anchors to the icon. */
 function SettingSwitch(required: {
   label: string; checked: boolean; disabled?: boolean | undefined; onChange: (checked: boolean) => void;
   description?: string | undefined; descriptionId: string; className?: string | undefined;
+  tooltip?: string | undefined;
 }, _optional: Record<string, never> = {}) {
   const inputId = useId();
   return <div className={['jini-chat-settings-row', required.className].filter(Boolean).join(' ')}>
     <input id={inputId} type="checkbox" role="switch" className="jini-checkbox jini-chat-settings-switch"
       checked={required.checked} disabled={required.disabled}
-      aria-describedby={required.description ? required.descriptionId : undefined}
+      aria-describedby={[required.description ? required.descriptionId : '', required.tooltip ? `${required.descriptionId}-tooltip` : ''].filter(Boolean).join(' ') || undefined}
       onChange={event => required.onChange(event.currentTarget.checked)} />
     <div className="jini-chat-settings-text">
       <label htmlFor={inputId} className="jini-chat-settings-label">{required.label}</label>
       {required.description && <p id={required.descriptionId} className="jini-chat-settings-description">{required.description}</p>}
     </div>
+    {required.tooltip && <InfoTip label={required.tooltip} descriptionId={`${required.descriptionId}-tooltip`} />}
   </div>;
 }
 
@@ -55,7 +58,9 @@ export function ChatSettingsDialog(required: {
       if (opener instanceof HTMLElement && opener.isConnected) opener.focus({ preventScroll: true });
     };
   }, [required.open]);
-  return <dialog ref={dialogRef} aria-labelledby={titleId} aria-modal="true" tabIndex={-1}
+  // Its own tip bounds: hosts mount this inside a narrow dock marked `data-jini-tip-bounds`, which
+  // pushed the ⓘ bubbles of options outside the dock across the dialog, away from their icon.
+  return <dialog ref={dialogRef} aria-labelledby={titleId} aria-modal="true" tabIndex={-1} data-jini-tip-bounds=""
     className="jini-dialog jini-chat-settings-dialog"
     onCancel={event => { event.preventDefault(); required.onClose(); }}
     onClick={event => {
@@ -76,16 +81,20 @@ export function ChatSettingsDialog(required: {
           {section.label && <legend className="jini-chat-settings-legend">{section.label}</legend>}
           {section.hint && <p id={section.hintId} className="jini-chat-settings-description jini-chat-settings-description--group">{section.hint}</p>}
           <div className="jini-chat-settings-segmented">
-            {section.items.map(item => <label key={item.key} className="jini-chat-settings-segment">
-              <input type="radio" name={section.name} checked={item.checked} disabled={item.disabled} onChange={item.change} />
-              <span>{item.label}</span>
-            </label>)}
+            {section.items.map(item => <div key={item.key} className="jini-chat-settings-option">
+              <label className="jini-chat-settings-segment">
+                <input type="radio" name={section.name} checked={item.checked} disabled={item.disabled} onChange={item.change}
+                  aria-describedby={item.tooltip ? `${item.hintId}-tooltip` : undefined} />
+                <span>{item.label}</span>
+              </label>
+              {item.tooltip && <InfoTip label={item.tooltip} descriptionId={`${item.hintId}-tooltip`} />}
+            </div>)}
           </div>
         </fieldset>
         : <fieldset key={section.key} className="jini-chat-settings-group">
           {section.label && <legend className="jini-chat-settings-legend">{section.label}</legend>}
           {section.items.map(item => <SettingSwitch key={item.key} label={item.label} checked={!!item.checked}
-            disabled={item.disabled} onChange={item.change} description={item.hint} descriptionId={item.hintId} />)}
+            disabled={item.disabled} onChange={item.change} description={item.hint} descriptionId={item.hintId} tooltip={item.tooltip} />)}
         </fieldset>)
       : <>
         <p className="jini-chat-settings-note">{vm.t('Permission changes apply to the next run.')}</p>
