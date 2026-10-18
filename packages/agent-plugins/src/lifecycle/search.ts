@@ -88,8 +88,6 @@ export interface AgentPluginSearchMatch extends AgentPluginSearchCandidate {
   readonly score: number;
 }
 
-/** Automatic guidance is bounded separately from explicit catalog search. */
-export const AUTOMATIC_AGENT_PLUGIN_LIMIT = 3;
 /** These describe the conversation or target, not a plugin's topic. Prose-only hits remain
  * available to explicit search without silently loading unrelated guidance. */
 const INCIDENTAL_TERMS = new Set('a an and are as at be build can could create do for from get help i in is it make me my new of on or please the this to use want we with you your site sites page pages website websites plugin plugins tell which load just don t anything'.split(' '));
@@ -198,7 +196,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     // A weak shared keyword must not ride alongside a substantially stronger task owner.
     const threshold = automatic ? Math.max(4, (ranked[0]?.score ?? 0) * 0.6) : 0;
     return ranked.filter(match => match.score >= threshold)
-      .slice(0, Math.max(0, automatic ? Math.min(limit, AUTOMATIC_AGENT_PLUGIN_LIMIT) : limit));
+      .slice(0, Math.max(limit, 0));
   }
 
   return { rankInstalledAgentPlugins };

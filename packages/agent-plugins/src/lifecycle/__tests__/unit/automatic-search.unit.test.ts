@@ -23,7 +23,7 @@ it('scores a plugin matching only its human display name', () => {
   expect(rank('holography', [named], 12).map(match => match.pluginId)).toEqual(['opaque']);
 });
 
-it('keeps authoritative topical matches above verbose incidental prose and caps automatic results', () => {
+it('keeps authoritative topical matches above verbose incidental prose without a count limit', () => {
   const candidates = [candidate('theme-owner', ['theme']), candidate('design-owner', ['design']),
     { ...candidate('incidental', ['website']), description: 'theme design '.repeat(100) },
     ...Array.from({ length: 5 }, (_, index) => candidate(`theme-extra-${index}`, ['theme']))];
@@ -31,7 +31,7 @@ it('keeps authoritative topical matches above verbose incidental prose and caps 
   expect(matches.map(match => match.pluginId)).toContain('theme-owner');
   expect(matches.map(match => match.pluginId)).toContain('design-owner');
   expect(matches.map(match => match.pluginId)).not.toContain('incidental');
-  expect(matches).toHaveLength(3);
+  expect(matches).toHaveLength(7);
 });
 
 it('drops weak keyword overlap when a stronger owner matches the task', () => {
