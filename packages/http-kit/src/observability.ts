@@ -1,4 +1,26 @@
 import type { Express, RequestHandler } from 'express';
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
+
+/** Log request completions only when explicitly enabled, either all or above a threshold.
+ * Structured sinks retain correlation fields; the default console gets only the compact message.
+ * Missing or invalid thresholds disable slow logging; zero is supported. Duration must exceed it.
+ * Callers supply elapsed monotonic time and bounded route patterns, never raw request data.
+ * @complexity O(1) per completion, excluding the injected logger.
+ */
+export function logCompletedRequest(
+  required: { requestId: string; method: string; routePattern: string; statusCode: number; durationMs: number },
+  { logger, logRequests = false, slowRequestMs }: {
+    logger?: Pick<Logger, 'info'>; logRequests?: boolean; slowRequestMs?: number;
+  } = {},
+): void {
+  const logSlowRequest = slowRequestMs !== undefined && Number.isFinite(slowRequestMs)
+    && slowRequestMs >= 0 && required.durationMs > slowRequestMs;
+  if (!logRequests && !logSlowRequest) return;
+  const { statusCode, method, routePattern, durationMs, requestId } = required;
+  const message = `http ${statusCode} ${method} ${routePattern} ${Math.round(durationMs)}ms req=${requestId}`;
+  if (logger) logger.info({ message }, { meta: { ...required } });
+  else createConsoleLogger({ prefix: '' }).info({ message });
+}
 
 /** Structural port satisfied by diagnostics/observability, with host-owned logging and tracing. */
 export interface HttpRequestObservabilityPort {

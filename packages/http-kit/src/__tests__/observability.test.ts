@@ -1,7 +1,65 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import express from 'express';
-import { applyRequestTracking, createRequestTrackingMiddleware } from '../observability.js';
+import { applyRequestTracking, createRequestTrackingMiddleware, logCompletedRequest } from '../observability.js';
+
+describe('request completion logging', () => {
+  const completion = { requestId: 'req-1', method: 'GET', routePattern: '/admin/*', statusCode: 200, durationMs: 10 };
+
+  it.each([200, 304, 400, 404, 499, 500, 503, 599])('keeps %i responses quiet by default, including slow requests', statusCode => {
+    const info = vi.fn();
+    logCompletedRequest({ ...completion, statusCode, durationMs: 60_000 }, { logger: { info } });
+    expect(info).not.toHaveBeenCalled();
+  });
+
+  it('logs explicitly enabled slow requests and preserves exact duration in the sink', () => {
+    const info = vi.fn();
+    const fields = { ...completion, durationMs: 1000.25 };
+    logCompletedRequest(fields, { logger: { info }, slowRequestMs: 1000 });
+    expect(info.mock.calls).toEqual([[{ message: 'http 200 GET /admin/* 1000ms req=req-1' }, { meta: fields }]]);
+  });
+
+  it('uses the configured threshold, including zero', () => {
+    const info = vi.fn();
+    logCompletedRequest(completion, { logger: { info }, slowRequestMs: 10 });
+    expect(info).not.toHaveBeenCalled();
+    logCompletedRequest(completion, { logger: { info }, slowRequestMs: 9 });
+    logCompletedRequest(completion, { logger: { info }, slowRequestMs: 0 });
+    expect(info.mock.calls).toEqual(Array(2).fill([{ message: 'http 200 GET /admin/* 10ms req=req-1' }, { meta: completion }]));
+  });
+
+  it.each([NaN, Infinity, -1])('keeps slow logging disabled for invalid threshold %s', slowRequestMs => {
+    const info = vi.fn();
+    logCompletedRequest(completion, { logger: { info }, slowRequestMs });
+    expect(info).not.toHaveBeenCalled();
+    const fields = { ...completion, durationMs: 1001 };
+    logCompletedRequest(fields, { logger: { info }, slowRequestMs });
+    expect(info).not.toHaveBeenCalled();
+  });
+
+  it('allows full logging for a fast cached response', () => {
+    const info = vi.fn();
+    const fields = { ...completion, statusCode: 304 };
+    logCompletedRequest(fields, { logger: { info }, logRequests: true });
+    expect(info.mock.calls).toEqual([[{ message: 'http 304 GET /admin/* 10ms req=req-1' }, { meta: fields }]]);
+  });
+
+  it('keeps the default console adapter silent without options', () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    try {
+      logCompletedRequest({ ...completion, statusCode: 500, durationMs: 60_000 });
+      expect(info).not.toHaveBeenCalled();
+    } finally { info.mockRestore(); }
+  });
+
+  it('prints only one string through the default console adapter', () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    try {
+      logCompletedRequest({ ...completion, statusCode: 500, durationMs: 1234 }, { logRequests: true, slowRequestMs: 0 });
+      expect(info.mock.calls).toEqual([['http 500 GET /admin/* 1234ms req=req-1']]);
+    } finally { info.mockRestore(); }
+  });
+});
 
 describe('request tracking Express adapter', () => {
   it('reads the resolved router pattern on finish and keeps concurrent outcomes independent', () => {
