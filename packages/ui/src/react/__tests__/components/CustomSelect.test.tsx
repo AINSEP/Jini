@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { useState } from 'react';
-import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -15,6 +15,7 @@ import {
   nextCustomSelectActiveValue,
   reconcileCustomSelectActiveValue,
   resolveInitialCustomSelectActiveValue,
+  resolveCustomSelectOriginTheme,
   useCustomSelect,
   type CustomSelectFlatOption,
   type CustomSelectItem,
@@ -783,5 +784,82 @@ describe('CustomSelect shared popover lifecycle', () => {
       expect(screen.queryByRole('listbox')).toBeNull();
       expect(document.activeElement).toBe(trigger);
     } finally { modalState.mockRestore(); }
+  });
+});
+
+describe('CustomSelect portal origin theme and scheme', () => {
+  it('copies the nearest scheme and theme identity independently, preserving local light pins', async () => {
+    render(
+      <div data-admin-theme="glass" data-color-scheme="dark">
+        <div data-theme="light">
+          <CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" />
+        </div>
+      </div>,
+    );
+    await userEvent.click(screen.getByRole('combobox'));
+    const menu = screen.getByRole('listbox');
+    expect(menu.parentElement).toBe(document.body);
+    expect(menu).toHaveAttribute('data-admin-theme', 'glass');
+    expect(menu).toHaveAttribute('data-color-scheme', 'light');
+    expect(menu).toHaveAttribute('data-theme', 'light');
+  });
+
+  it('updates an open portal for canonical scheme changes, theme switches and attribute removal', async () => {
+    const view = render(
+      <div data-admin-theme="glass" data-color-scheme="dark" data-theme="light">
+        <CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" />
+      </div>,
+    );
+    const origin = view.container.firstElementChild!;
+    await userEvent.click(screen.getByRole('combobox'));
+    const menu = screen.getByRole('listbox');
+    // The canonical scheme wins over a conflicting legacy attribute on the same node.
+    expect(menu).toHaveAttribute('data-color-scheme', 'dark');
+    expect(menu).toHaveAttribute('data-theme', 'dark');
+    act(() => {
+      origin.setAttribute('data-admin-theme', 'classic');
+      origin.setAttribute('data-color-scheme', 'light');
+    });
+    await waitFor(() => expect(menu).toHaveAttribute('data-admin-theme', 'classic'));
+    expect(menu).toHaveAttribute('data-color-scheme', 'light');
+    expect(menu).toHaveAttribute('data-theme', 'light');
+    act(() => {
+      origin.removeAttribute('data-color-scheme');
+      origin.setAttribute('data-theme', 'dark');
+    });
+    await waitFor(() => expect(menu).toHaveAttribute('data-color-scheme', 'dark'));
+    act(() => {
+      origin.removeAttribute('data-admin-theme');
+      origin.removeAttribute('data-theme');
+    });
+    await waitFor(() => expect(menu).not.toHaveAttribute('data-admin-theme'));
+    expect(menu).not.toHaveAttribute('data-color-scheme');
+    expect(menu).not.toHaveAttribute('data-theme');
+    // Attribute propagation must not disturb the menu's existing keyboard/selection lifecycle.
+    await userEvent.click(screen.getByRole('option', { name: 'Beta' }));
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toHaveFocus();
+  });
+
+  it('leaves inline menus inside their original theme scope without copied attributes', async () => {
+    render(
+      <div data-admin-theme="glass" data-color-scheme="dark">
+        <CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" portal={false} />
+      </div>,
+    );
+    await userEvent.click(screen.getByRole('combobox'));
+    const menu = screen.getByRole('listbox');
+    expect(menu).not.toHaveAttribute('data-admin-theme');
+    expect(menu).not.toHaveAttribute('data-color-scheme');
+    expect(menu).not.toHaveAttribute('data-theme');
+    expect(menu.closest('[data-admin-theme]')).toHaveAttribute('data-admin-theme', 'glass');
+  });
+
+  it('has no attributes without an origin and preserves non-scheme legacy themes', () => {
+    expect(resolveCustomSelectOriginTheme({ trigger: null })).toEqual({});
+    const trigger = document.createElement('button');
+    expect(resolveCustomSelectOriginTheme({ trigger })).toEqual({});
+    trigger.setAttribute('data-theme', 'custom');
+    expect(resolveCustomSelectOriginTheme({ trigger })).toEqual({ 'data-theme': 'custom' });
   });
 });

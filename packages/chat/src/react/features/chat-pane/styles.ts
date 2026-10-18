@@ -37,7 +37,7 @@ export const CHAT_PANE_STYLES = `
   overflow: clip;
   color: var(--jini-chat-text);
   background: var(--jini-chat-bg);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Noto Sans", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--jini-chat-font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Noto Sans", Roboto, "Helvetica Neue", Arial, sans-serif);
   font-size: 13.5px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -61,7 +61,7 @@ export const CHAT_PANE_STYLES = `
   display: block;
   margin-bottom: 4px;
   color: var(--jini-chat-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--jini-chat-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 10px;
   letter-spacing: .1em;
   text-transform: uppercase;
@@ -1236,8 +1236,8 @@ export const CHAT_PANE_STYLES = `
   background: var(--jini-chat-panel);
   border: 1px solid var(--jini-chat-border);
   border-radius: 12px;
-  box-shadow: 0 18px 46px rgba(13, 12, 10, .15), 0 2px 8px rgba(13, 12, 10, .06);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Noto Sans", Roboto, "Helvetica Neue", Arial, sans-serif;
+  box-shadow: var(--jini-chat-popover-shadow, 0 18px 46px rgba(13, 12, 10, .15), 0 2px 8px rgba(13, 12, 10, .06));
+  font-family: var(--jini-chat-font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Noto Sans", Roboto, "Helvetica Neue", Arial, sans-serif);
   font-size: 13.5px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -1430,7 +1430,7 @@ export const CHAT_PANE_STYLES = `
 .jini-chat-pane .op-path,
 .jini-chat-pane .op-command,
 .jini-chat-pane .op-output {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--jini-chat-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 12px;
   background: var(--jini-chat-panel);
   border: 1px solid var(--jini-chat-border);
@@ -1515,7 +1515,7 @@ export const CHAT_PANE_STYLES = `
   background: var(--jini-chat-subtle);
   border: 1px solid var(--jini-chat-border);
   border-radius: 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--jini-chat-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 12.5px;
   line-height: 1.5;
 }
@@ -1531,7 +1531,7 @@ export const CHAT_PANE_STYLES = `
   background: var(--jini-chat-subtle);
   border: 1px solid var(--jini-chat-border);
   border-radius: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--jini-chat-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: .9em;
 }
 /*
@@ -1664,7 +1664,7 @@ export const CHAT_PANE_STYLES = `
   background: var(--jini-chat-panel);
   border: 1px solid var(--jini-chat-border);
   border-radius: 12px;
-  box-shadow: 0 18px 46px rgba(13, 12, 10, .15), 0 2px 8px rgba(13, 12, 10, .06);
+  box-shadow: var(--jini-chat-popover-shadow, 0 18px 46px rgba(13, 12, 10, .15), 0 2px 8px rgba(13, 12, 10, .06));
 }
 .jini-md-table-modal::backdrop {
   background: rgba(0, 0, 0, .4);
@@ -1709,7 +1709,7 @@ export const CHAT_PANE_STYLES = `
   background: var(--jini-chat-panel);
   border: 1px solid var(--jini-chat-border);
   border-radius: 12px;
-  box-shadow: 0 18px 46px rgba(13, 12, 10, .15), 0 2px 8px rgba(13, 12, 10, .06);
+  box-shadow: var(--jini-chat-popover-shadow, 0 18px 46px rgba(13, 12, 10, .15), 0 2px 8px rgba(13, 12, 10, .06));
 }
 .jini-attachment-preview-dialog::backdrop {
   background: rgba(0, 0, 0, .4);
@@ -1765,6 +1765,8 @@ export const CHAT_PANE_STYLES = `
   margin: auto;
 }
 .jini-attachment-preview-text {
+  /* Preserve this preview's wider fallback stack when the host does not supply a chat font. */
+  --jini-chat-font-mono: var(--jini-theme-chat-font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
   width: 100%;
   max-height: calc(80vh - 90px);
   margin: 0;
@@ -1774,7 +1776,7 @@ export const CHAT_PANE_STYLES = `
   background: var(--jini-chat-subtle);
   border: 1px solid var(--jini-chat-border-soft);
   border-radius: 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--jini-chat-font-mono);
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;

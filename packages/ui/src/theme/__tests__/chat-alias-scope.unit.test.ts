@@ -17,7 +17,8 @@ it('keeps chat aliases at root so nested scheme scopes inherit component-local t
     expect(selector.trim()).toMatch(/^(?::root|:where\(:root\))$/);
   }
 
-  expect(aliasCount).toBe(17);
+  // 17 palette aliases + chat font-body, font-mono and popover-shadow (G1 material wiring).
+  expect(aliasCount).toBe(20);
 });
 
 it('prefers inherited host material inputs over scoped admin defaults', () => {

@@ -8,7 +8,7 @@
 // `useCustomSelect` hook that owns all state/refs/effects/handlers, the
 // `CustomSelectOptionButton` leaf, and the dumb `CustomSelect` render.
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, MutableRefObject, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useSelectPopover, isSelectEventInside, openSelectOnKey, applySelectNavigationKey, resolveSelectPortalContainer } from './select-popover.js';
@@ -359,6 +359,72 @@ export function useCustomSelect({
   };
 }
 
+export interface CustomSelectOriginTheme {
+  'data-admin-theme'?: string;
+  'data-color-scheme'?: string;
+  'data-theme'?: string;
+}
+
+/** Resolve theme identity and the nearest scheme separately, so a local light pin beats a dark root.
+ * @complexity O(d) time, O(1) space for d DOM ancestors. No host-specific theme ids are needed. */
+export function resolveCustomSelectOriginTheme({ trigger }: { trigger: HTMLElement | null }, _optional: Record<string, never> = {}): CustomSelectOriginTheme {
+  const identity = trigger?.closest('[data-admin-theme]')?.getAttribute('data-admin-theme');
+  const boundary = trigger?.closest('[data-color-scheme], [data-theme]');
+  const canonical = boundary?.getAttribute('data-color-scheme');
+  const legacy = boundary?.getAttribute('data-theme');
+  const scheme = canonical ?? (legacy === 'light' || legacy === 'dark' ? legacy : undefined);
+  return {
+    ...(identity ? { 'data-admin-theme': identity } : {}),
+    ...(scheme ? { 'data-color-scheme': scheme } : {}),
+    ...(canonical || legacy ? { 'data-theme': canonical ?? legacy! } : {}),
+  };
+}
+
+/**
+ * The theme of the place this menu was opened FROM.
+ *
+ * A portalled menu is a child of `document.body`, so it escapes any `data-theme` set on an ancestor
+ * of the trigger — and this package's theming works precisely by declaring `--jini-*` tokens on
+ * `[data-theme='light']` / `[data-theme='dark']`. A host that pins a theme on a WRAPPER rather than
+ * on `document.documentElement` therefore gets a correctly-themed control and a menu themed by
+ * whatever the document happens to be.
+ *
+ * Measured in a host admin that is light-only and pins `data-theme="light"` on its panel wrapper:
+ * on a machine set to dark, the trigger rendered light and its own dropdown rendered dark — one
+ * control, two themes, four pixels apart. The host cannot fix that from CSS either, because the
+ * tokens resolve on the portal node's ancestors, which it has no way to select.
+ *
+ * So the menu carries its origin's theme with it. The nearest scheme boundary wins, with
+ * canonical `data-color-scheme` taking precedence over legacy `data-theme` on the same node.
+ * Theme identity is independent of scheme. Observe the trigger's ancestors while open so a
+ * host's live theme/scheme change updates an existing portal too. With neither attribute, leave
+ * document-level theming untouched. Only applied when portalling — an inline menu is still
+ * inside the subtree and inherits correctly on its own.
+ * @complexity O(d) time/observer storage for d ancestors; disposed on close or unmount.
+ */
+export function useCustomSelectOriginTheme({ buttonRef, open, portal }: {
+  buttonRef: MutableRefObject<HTMLButtonElement | null>; open: boolean; portal: boolean;
+}, _optional: Record<string, never> = {}): CustomSelectOriginTheme {
+  const [attributes, setAttributes] = useState<CustomSelectOriginTheme>({});
+  useLayoutEffect(() => {
+    if (!open || !portal) return;
+    const update = () => {
+      const next = resolveCustomSelectOriginTheme({ trigger: buttonRef.current });
+      setAttributes((current) => current['data-admin-theme'] === next['data-admin-theme']
+        && current['data-color-scheme'] === next['data-color-scheme']
+        && current['data-theme'] === next['data-theme'] ? current : next);
+    };
+    update();
+    const observer = new MutationObserver(update);
+    // Observe only the origin chain, not portal nodes: copying attributes must not retrigger itself.
+    for (let node: HTMLElement | null = buttonRef.current; node; node = node.parentElement) {
+      observer.observe(node, { attributes: true, attributeFilter: ['data-admin-theme', 'data-color-scheme', 'data-theme'] });
+    }
+    return () => observer.disconnect();
+  }, [buttonRef, open, portal]);
+  return portal ? attributes : {};
+}
+
 /**
  * Accessible custom `<select>` replacement with grouped options, full keyboard
  * navigation, and an optional portal-rendered menu. All behavior lives in
@@ -401,33 +467,14 @@ export function CustomSelect({
     onMenuKeyDown,
   } = useCustomSelectHook({ value, options, onChange, portal, placeholder, onOpenChange });
 
-  /**
-   * The theme of the place this menu was opened FROM.
-   *
-   * A portalled menu is a child of `document.body`, so it escapes any `data-theme` set on an ancestor
-   * of the trigger — and this package's theming works precisely by declaring `--jini-*` tokens on
-   * `[data-theme='light']` / `[data-theme='dark']`. A host that pins a theme on a WRAPPER rather than
-   * on `document.documentElement` therefore gets a correctly-themed control and a menu themed by
-   * whatever the document happens to be.
-   *
-   * Measured in a host admin that is light-only and pins `data-theme="light"` on its panel wrapper:
-   * on a machine set to dark, the trigger rendered light and its own dropdown rendered dark — one
-   * control, two themes, four pixels apart. The host cannot fix that from CSS either, because the
-   * tokens resolve on the portal node's ancestors, which it has no way to select.
-   *
-   * So the menu carries its origin's theme with it. Read from the trigger's nearest `[data-theme]`
-   * ancestor; `null` when there is none, which leaves document-level theming untouched and every
-   * existing caller byte-identical. Only applied when portalling — an inline menu is still inside the
-   * subtree and inherits correctly on its own.
-   */
-  const originTheme = buttonRef.current?.closest('[data-theme]')?.getAttribute('data-theme') ?? null;
+  const originTheme = useCustomSelectOriginTheme({ buttonRef, open, portal });
 
   const menu = (
     <div
       ref={menuRef}
       id={`${idBase}-menu`}
       onKeyDown={onMenuKeyDown}
-      {...(portal && originTheme ? { 'data-theme': originTheme } : {})}
+      {...originTheme}
       className={[
         'jini-select-menu',
         portal ? 'portal' : 'inline',
