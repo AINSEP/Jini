@@ -45,8 +45,7 @@
  * See docs/decisions/DR-002-protocol-resource-boundary.md.
  */
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
-import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/cfworker';
-import type { JsonSchemaType, JsonSchemaValidator } from '@modelcontextprotocol/sdk/validation';
+import { Validator, type OutputUnit, type Schema } from '@cfworker/json-schema';
 import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 
@@ -109,6 +108,11 @@ export interface McpToolDef<Args extends Record<string, unknown> = Record<string
   readonly description: string;
   readonly inputSchema: Tool['inputSchema'];
   readonly annotations?: Tool['annotations'];
+  /** Compatibility rules applied once before strict schema validation; never sent on the wire. */
+  readonly argumentNormalization?: {
+    readonly aliases?: Readonly<Record<string, string>>;
+    readonly foldIntoInput?: true;
+  };
   readonly handler: (requiredArgs: { args: Args; ctx: McpToolContext }) => Promise<unknown> | unknown;
 }
 
@@ -205,33 +209,91 @@ export function buildToolIndex({ tools }: { tools: readonly McpToolDef[] }): Map
   return index;
 }
 
-/**
- * The SDK's own edge-runtime-compatible (no `eval`/codegen) JSON Schema validator — the same
- * mechanism `McpServer.registerTool()`'s high-level helper uses internally, borrowed here because
- * `createMcpToolServer` is built on the SDK's low-level `Server.setRequestHandler` instead (see
- * `tool-server.ts`'s module doc), which does not validate a tool's declared `inputSchema` against
- * arguments before its handler runs. One provider instance is reused across every tool: it holds no
- * per-schema state itself (see {@link compiledValidators} for the actual compiled-validator cache).
- */
-const schemaValidatorProvider = new CfWorkerJsonSchemaValidator();
+/** Compiled schemas are reused for each stable tool definition, as in the SDK provider. */
+const compiledValidators = new WeakMap<McpToolDef, Validator>();
 
-/**
- * Compiling a validator from a schema is real work `CfWorkerJsonSchemaValidator` does not cache
- * internally (per its own doc), so it is cached here per `McpToolDef` instance — stable for a
- * server's whole lifetime, since tool defs are created once at module load and never rebuilt.
- */
-const compiledValidators = new WeakMap<McpToolDef, JsonSchemaValidator<Record<string, unknown>>>();
-
-function validatorForTool(tool: McpToolDef): JsonSchemaValidator<Record<string, unknown>> {
+/** Returns the cached validator, retaining structured field locations for recovery instructions. */
+function validatorForTool(tool: McpToolDef): Validator {
   const cached = compiledValidators.get(tool);
   if (cached) return cached;
-  const validator = schemaValidatorProvider.getValidator<Record<string, unknown>>(tool.inputSchema as JsonSchemaType);
+  const validator = new Validator(tool.inputSchema as Schema, '2020-12', true);
   compiledValidators.set(tool, validator);
   return validator;
 }
 
 /**
- * `tools/call` dispatch: looks up `name` in `tools`, validates `rawArgs` against the tool's
+ * Copies caller arguments into their canonical wrapper shape before schema validation.
+ * @param requiredArgs - Tool contract and untrusted arguments; neither is mutated.
+ * @param _options - Reserved normalization options.
+ * @returns Canonical arguments; nested tool input is copied only when fields are folded.
+ * @throws Error naming an ambiguous alias, duplicate input key, or invalid wrapper field.
+ * @complexity O(k + a + i) time and space for k argument keys, a aliases, and i input keys.
+ */
+function normalizeToolArguments(
+  { tool, rawArgs }: { tool: McpToolDef; rawArgs: unknown },
+  _options: Record<string, never> = {},
+): Record<string, unknown> {
+  if (!isRecord(rawArgs)) throw new Error('replace `arguments` with a JSON object');
+  const args = { ...rawArgs };
+  const properties = tool.inputSchema.properties ?? {};
+  for (const [alias, canonical] of Object.entries(tool.argumentNormalization?.aliases ?? {})) {
+    if (!Object.hasOwn(args, alias)) continue;
+    if (Object.hasOwn(args, canonical) && args[canonical] !== args[alias]) {
+      throw new Error(`rename \`${alias}\` to \`${canonical}\` and supply only one value for \`${canonical}\``);
+    }
+    args[canonical] = args[alias];
+    delete args[alias];
+  }
+  const extraKeys = Object.keys(args).filter((key) => !Object.hasOwn(properties, key));
+  if (tool.argumentNormalization?.foldIntoInput && extraKeys.length > 0) {
+    const input = Object.hasOwn(args, 'input') ? args.input : {};
+    if (!isRecord(input)) {
+      throw new Error("put the tool's own arguments inside `input`; replace `input` with a JSON object");
+    }
+    if (extraKeys.some((key) => Object.hasOwn(input, key))) {
+      throw new Error("put the tool's own arguments inside `input`");
+    }
+    args.input = { ...input, ...Object.fromEntries(extraKeys.map((key) => [key, args[key]])) };
+    for (const key of extraKeys) delete args[key];
+  } else if (tool.inputSchema.additionalProperties === false && !tool.inputSchema.patternProperties) {
+    if (isRecord(args.input) && !Object.hasOwn(properties, 'input')) {
+      const misplaced = Object.keys(args.input).find((key) => Object.hasOwn(properties, key));
+      if (misplaced !== undefined) throw new Error(`move \`input.${misplaced}\` to top-level \`${misplaced}\``);
+    }
+  }
+  const undefinedKey = Object.keys(args).find((key) => args[key] === undefined);
+  if (undefinedKey !== undefined) throw new Error(`remove \`${undefinedKey}\` or supply a JSON value instead of undefined`);
+  return args;
+}
+
+/**
+ * Formats structured validation errors as field-specific recovery instructions.
+ * @param requiredArgs - Validator errors, including JSON Pointer locations and keywords.
+ * @param _options - Reserved formatting options.
+ * @returns One actionable diagnostic; no schema-location trace.
+ * @complexity O(e + p) for e errors and p characters in the selected field path.
+ */
+function argumentShapeMessage(
+  { errors }: { errors: readonly OutputUnit[] },
+  _options: Record<string, never> = {},
+): string {
+  // Keep the additionalProperties diagnostic ahead of its generic false-schema child.
+  const error = errors.find((entry) => entry.keyword === 'required' || entry.keyword === 'additionalProperties' || entry.instanceLocation !== '#') ?? errors[0];
+  if (error === undefined) return 'supply arguments matching the declared input schema';
+  const path = error.instanceLocation.replace(/^#\/?/, '').split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~')).join('.');
+  if (error.keyword === 'required' || error.keyword === 'additionalProperties') {
+    const field = error.error.match(/"(.*)"/)?.[1];
+    if (field !== undefined) {
+      const key = path ? `${path}.${field}` : field;
+      return error.keyword === 'required' ? `supply required argument \`${key}\`` : `remove unknown argument \`${key}\``;
+    }
+  }
+  return `change \`${path || 'arguments'}\`: ${error.error}`;
+}
+
+/**
+ * `tools/call` dispatch: looks up `name` in `tools`, normalizes aliases/wrapper input, then
+ * validates the canonical arguments against the tool's
  * declared `inputSchema`, runs its handler, and converts the outcome to a `CallToolResult` — an
  * unknown tool name, a schema violation, or a thrown error all produce an `{isError:true}` result
  * rather than rejecting, matching MCP's convention that tool failures are protocol-level results,
@@ -239,8 +301,8 @@ function validatorForTool(tool: McpToolDef): JsonSchemaValidator<Record<string, 
  * agent, not this repo's own code) supplies `rawArgs`, so a handler must never be trusted to check
  * its own declared contract on the untrusted-input path. Both a validation failure's message and a
  * thrown error's message are passed through {@link sanitizeUntrustedText} before reaching the
- * result: either can end up echoing caller- or daemon-supplied text, and it is cheaper to sanitize
- * unconditionally than to prove which call site needs it.
+ * result: either can end up echoing caller- or daemon-supplied text. The validation prefix uses the
+ * registered tool name outside sanitization so long gateway names are not mistaken for secrets.
  */
 export async function handleToolCall(
   { name, tools, ctx }: { name: string; tools: ReadonlyMap<string, McpToolDef>; ctx: McpToolContext },
@@ -250,25 +312,19 @@ export async function handleToolCall(
   if (tool === undefined) {
     return errorResult({ message: `unknown tool: ${name}` });
   }
-  const args = rawArgs ?? {};
-  // Validation gets its own error boundary, separate from the handler's below. The
-  // validator does not only return `{valid:false}` for a bad argument — `@cfworker/json-schema`
-  // *throws* for JavaScript values JSON cannot encode (an explicitly-`undefined` optional
-  // property yields `Instances of "undefined" type are not supported.`). Compiling the
-  // validator can throw too, on a malformed `inputSchema`. Either escaping would break this
-  // function's whole contract, that a schema violation is an `{isError:true}` result and never
-  // a rejection — and `handleToolCall` is exported, typed `Record<string, unknown>`, and
-  // callable directly by a host, so this is reachable and not merely theoretical.
+  // Normalization and schema validation share an error boundary; handlers run only afterward.
+  // See docs/decisions/DR-005-proxy-argument-shapes.md.
   let validatedArgs: Record<string, unknown>;
   try {
-    const validation = validatorForTool(tool)(args);
+    const args = normalizeToolArguments({ tool, rawArgs: rawArgs ?? {} });
+    const validation = validatorForTool(tool).validate(args);
     if (!validation.valid) {
-      return errorResult({ message: sanitizeUntrustedText({ text: `invalid arguments for ${name}: ${validation.errorMessage}` }) });
+      return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: argumentShapeMessage({ errors: validation.errors }) })}` });
     }
-    validatedArgs = validation.data;
+    validatedArgs = args;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return errorResult({ message: sanitizeUntrustedText({ text: `invalid arguments for ${name}: ${message}` }) });
+    return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: message })}` });
   }
   try {
     const result = await tool.handler({ args: validatedArgs, ctx: ctx });

@@ -95,15 +95,18 @@ export const searchToolsTool: McpToolDef = {
 export const describeToolTool: McpToolDef = {
   name: 'describe_tool',
   description:
-    'Get the full descriptor for one tool id found via search_tools — description and input schema. Paid for only on the candidates that survive search, per the tool catalog\'s staged-discovery design.',
+    'Get the full descriptor for one tool id found via search_tools — description and input schema. Supply id (aliases: toolId or name). Paid for only on the candidates that survive search, per the tool catalog\'s staged-discovery design.',
   inputSchema: {
     type: 'object',
     properties: {
-      id: { type: 'string', description: 'Tool id returned by search_tools. Required.' },
+      id: { type: 'string', description: 'Tool id returned by search_tools. Supply id, toolId, or name.' },
+      toolId: { type: 'string', description: 'Alias of id, matching the delegated-execute wrappers.' },
+      name: { type: 'string', description: 'Alias of id.' },
     },
-    required: ['id'],
+    anyOf: [{ required: ['id'] }, { required: ['toolId'] }, { required: ['name'] }],
     additionalProperties: false,
   },
+  argumentNormalization: { aliases: { toolId: 'id', name: 'id' } },
   annotations: { ...READ_ANNOTATIONS, title: 'Describe a tool' },
   handler: async ({ args, ctx }) => {
     const id = requireString({ value: args.id, name: 'id' });

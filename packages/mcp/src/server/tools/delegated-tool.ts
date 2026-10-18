@@ -160,7 +160,8 @@ function createDelegatedGateway(
 
   return {
     name: variant.name,
-    description: variant.description,
+    description: `${variant.description} Put the tool's own arguments inside input; non-conflicting top-level tool arguments are moved there automatically.`,
+    argumentNormalization: { foldIntoInput: true },
     inputSchema: {
       type: 'object',
       properties: {
