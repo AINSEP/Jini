@@ -1,5 +1,6 @@
 /** Automatic-use policy for one execution context. Catalog, trust, consent and presentation are ports. */
 import type { AgentPluginSearchCandidate, AgentPluginSearchMatch } from './search.js';
+import { AUTOMATIC_AGENT_PLUGIN_LIMIT } from './search.js';
 
 export type ChatAgentPlugins = 'auto' | 'ask' | 'off';
 export const DEFAULT_CHAT_AGENT_PLUGINS: ChatAgentPlugins = 'auto';
@@ -37,7 +38,7 @@ export function readChatAgentPluginState({ value }: { value: unknown }, _options
 /** Create one run's preparation owner. Calls serialize so parallel tool writes share one question.
  * @param required Host effects and the person's mode; browser state is advisory selection only.
  * @returns prepare(): newly delivered guidance; unavailable guidance never blocks a tool.
- * @complexity O(p*t) ranking plus at most one resolve per admitted plugin, bounded to 12 per match.
+ * @complexity O(p*t) ranking plus at most three resolved plugins per run.
  * @example const use = createAutomaticAgentPluginUse({ mode: 'auto', ports });
  */
 export function createAutomaticAgentPluginUse(
@@ -56,8 +57,10 @@ export function createAutomaticAgentPluginUse(
     const candidates = (await ports.list({}, {})).filter(plugin => plugin.enabled && !state.excluded.includes(plugin.pluginId));
     const ranked = input.capabilities
       ? candidates.filter(plugin => plugin.provides?.some(capability => input.capabilities!.includes(capability))).map(plugin => ({ ...plugin, score: 4 }))
-      : ports.rank({ query: input.query ?? '', candidates, limit: 12 }, {});
-    let matches = ranked.filter(plugin => !delivered.has(plugin.pluginId) && !alreadyLoaded.has(plugin.pluginId)).slice(0, 12);
+      : ports.rank({ query: input.query ?? '', candidates, limit: AUTOMATIC_AGENT_PLUGIN_LIMIT }, {});
+    // Bound the whole run: repeated capability backstops must not drain the remaining catalog.
+    let matches = ranked.filter(plugin => !delivered.has(plugin.pluginId) && !alreadyLoaded.has(plugin.pluginId))
+      .slice(0, Math.max(0, AUTOMATIC_AGENT_PLUGIN_LIMIT - delivered.size));
     if (mode === 'ask' && (state.decision === null || state.decision.asked === false) && matches.length > 0) {
       const offered = matches.map(plugin => ({ id: plugin.pluginId, name: plugin.displayName ?? plugin.pluginId,
         why: (plugin.summary ?? plugin.description ?? `Provides ${(plugin.provides ?? plugin.keywords).join(', ')}`).split(/[\n.]/)[0]!.slice(0, 180) }));

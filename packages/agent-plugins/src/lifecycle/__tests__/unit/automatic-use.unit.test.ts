@@ -156,3 +156,13 @@ it('Use never implicitly approves later matching plugins in Ask mode', async () 
   expect(f.resolve).toHaveBeenCalledTimes(1);
   expect(f.ask).toHaveBeenCalledTimes(1);
 });
+
+it('bounds automatic guidance to three plugins across discovery and repeated capability backstops', async () => {
+  const f = fixture();
+  f.ports.list = async () => Array.from({ length: 8 }, (_, index) => plugin(`match-${index}`));
+  await f.controller.prepare({ query: 'synthetic' });
+  expect(f.resolve.mock.calls.map(([input]) => input.pluginId)).toEqual(['match-0', 'match-1', 'match-2']);
+  await f.controller.prepare({ capabilities: ['theme-authoring'] });
+  await f.controller.prepare({ capabilities: ['theme-authoring'] });
+  expect(f.resolve).toHaveBeenCalledTimes(3);
+});

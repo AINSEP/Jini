@@ -88,15 +88,35 @@ export interface AgentPluginSearchMatch extends AgentPluginSearchCandidate {
   readonly score: number;
 }
 
-/** Strong automatic matches require a complete authored keyword/identity term. Prose-only hits
- * remain available to explicit search without silently loading unrelated guidance. */
-const INCIDENTAL_TERMS = new Set('a an and are as at be build can could create do for from get help i in is it make me my new of on or please the this to use want we with you your'.split(' '));
+/** Automatic guidance is bounded separately from explicit catalog search. */
+export const AUTOMATIC_AGENT_PLUGIN_LIMIT = 3;
+/** These describe the conversation or target, not a plugin's topic. Prose-only hits remain
+ * available to explicit search without silently loading unrelated guidance. */
+const INCIDENTAL_TERMS = new Set('a an and are as at be build can could create do for from get help i in is it make me my new of on or please the this to use want we with you your site sites page pages website websites plugin plugins tell which load just don t anything'.split(' '));
+const DEPLOYMENT_TERMS = new Set('deploy deployment deploying deployed publish publishing published host hosting hosted'.split(' '));
 function automaticTerms(query: string): string[] {
   return [...new Set((query.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter(term => !INCIDENTAL_TERMS.has(term)))];
 }
-function automaticMatch(candidate: AgentPluginSearchCandidate, terms: readonly string[]): boolean {
-  const metadata = automaticTerms([candidate.pluginId, candidate.id ?? '', candidate.displayName ?? '', ...candidate.keywords, ...(candidate.provides ?? [])].join(' '));
-  return candidate.enabled && terms.some(term => metadata.includes(term));
+/** Score complete authored terms only: long descriptions must not manufacture relevance.
+ * Dedicated deployment providers additionally need both the action and their declared vendor.
+ * Mixed-purpose plugins can still match their other capabilities (for example source control).
+ */
+function automaticScore({ candidate, terms }: { candidate: AgentPluginSearchCandidate; terms: readonly string[] }, _options = {}): number {
+  if (!candidate.enabled) return 0;
+  const capabilities = candidate.provides ?? [];
+  const deployment = capabilities.filter(capability => capability.startsWith('deploy-'));
+  const dedicatedDeployment = deployment.length > 0 && capabilities.every(capability => capability.startsWith('deploy-') || capability.startsWith('credential-scheme:'));
+  if (dedicatedDeployment) {
+    const vendors = automaticTerms([candidate.pluginId, candidate.displayName ?? '', ...deployment.map(capability => capability.split(':')[1] ?? '')].join(' '))
+      .filter(term => !DEPLOYMENT_TERMS.has(term));
+    if (!terms.some(term => DEPLOYMENT_TERMS.has(term)) || !terms.some(term => vendors.includes(term))) return 0;
+  }
+  const fields = [
+    { terms: automaticTerms(capabilities.join(' ')), weight: 6 },
+    { terms: automaticTerms(`${candidate.pluginId} ${candidate.id ?? ''} ${candidate.displayName ?? ''}`), weight: 5 },
+    { terms: automaticTerms(candidate.keywords.join(' ')), weight: 4 },
+  ];
+  return terms.reduce((score, term) => score + fields.reduce((sum, field) => sum + (field.terms.includes(term) ? field.weight : 0), 0), 0);
 }
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
@@ -171,12 +191,14 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     const terms = automatic ? automaticTerms(query) : tokenize(query);
     if (terms.length === 0) return [];
 
-    return candidates
-      .filter(candidate => !automatic || automaticMatch(candidate, terms))
-      .map((candidate) => ({ ...candidate, score: scoreCandidate(candidate, terms) }))
+    const ranked = candidates
+      .map((candidate) => ({ ...candidate, score: automatic ? automaticScore({ candidate, terms }) : scoreCandidate(candidate, terms) }))
       .filter((match) => match.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, Math.max(limit, 0));
+      .sort((a, b) => b.score - a.score);
+    // A weak shared keyword must not ride alongside a substantially stronger task owner.
+    const threshold = automatic ? Math.max(4, (ranked[0]?.score ?? 0) * 0.6) : 0;
+    return ranked.filter(match => match.score >= threshold)
+      .slice(0, Math.max(0, automatic ? Math.min(limit, AUTOMATIC_AGENT_PLUGIN_LIMIT) : limit));
   }
 
   return { rankInstalledAgentPlugins };

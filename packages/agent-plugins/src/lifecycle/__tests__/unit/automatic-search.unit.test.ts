@@ -22,3 +22,27 @@ it('scores a plugin matching only its human display name', () => {
   expect(rank('holography', [named], 12, true).map(match => match.pluginId)).toEqual(['opaque']);
   expect(rank('holography', [named], 12).map(match => match.pluginId)).toEqual(['opaque']);
 });
+
+it('keeps authoritative topical matches above verbose incidental prose and caps automatic results', () => {
+  const candidates = [candidate('theme-owner', ['theme']), candidate('design-owner', ['design']),
+    { ...candidate('incidental', ['website']), description: 'theme design '.repeat(100) },
+    ...Array.from({ length: 5 }, (_, index) => candidate(`theme-extra-${index}`, ['theme']))];
+  const matches = rank('Design a theme for this site', candidates, 12, true);
+  expect(matches.map(match => match.pluginId)).toContain('theme-owner');
+  expect(matches.map(match => match.pluginId)).toContain('design-owner');
+  expect(matches.map(match => match.pluginId)).not.toContain('incidental');
+  expect(matches).toHaveLength(3);
+});
+
+it('drops weak keyword overlap when a stronger owner matches the task', () => {
+  const candidates = [candidate('site-import', ['import', 'wordpress']), candidate('theme-owner', ['import'])];
+  expect(rank('Import my WordPress site', candidates, 12, true).map(match => match.pluginId)).toEqual(['site-import']);
+});
+
+it('uses declared deployment capabilities and vendor identity rather than plugin ID rules', () => {
+  const deployment = { ...candidate('aurora-host', ['deploy', 'hosting', 'theme']), provides: ['deploy-target:aurora'] };
+  const alternative = { ...candidate('nebula-host', ['deploy', 'hosting']), provides: ['deploy-target:nebula'] };
+  expect(rank('Design an aurora theme', [deployment, alternative], 12, true)).toEqual([]);
+  expect(rank('Deploy to Aurora', [deployment, alternative], 12, true).map(match => match.pluginId)).toEqual(['aurora-host']);
+  expect(rank('Deploy my site', [deployment, alternative], 12, true)).toEqual([]);
+});
