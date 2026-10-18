@@ -10,7 +10,8 @@ import { infoTipBubbleStyle } from "./InfoTip.rules.js";
  * and no touch visibility. Hover/focus opens this affordance; Escape dismisses without moving
  * focus, which onBlur alone cannot do.
  * A body portal escapes overflow:hidden/scrolling ancestors: z-index cannot rescue an absolutely
- * positioned descendant from clipping. Measured viewport coordinates position it above by
+ * positioned descendant from clipping. Inside a modal <dialog> it portals into that dialog
+ * instead, because the dialog's top layer covers everything in body. Measured viewport coordinates position it above by
  * preference, with the hook's headroom guard choosing below near the viewport's top; near a side
  * edge (or a host panel marked `data-jini-tip-bounds`) it shifts by its real width, never squeezes.
  * Keep state and DOM measurement in the injectable hook so rendering can use fixed fake state.
@@ -18,7 +19,7 @@ import { infoTipBubbleStyle } from "./InfoTip.rules.js";
  * tap, blur or Escape; a hover-opened tip still closes when the pointer leaves.
  */
 export interface InfoTipProps {
-  /** The explanation the bubble shows. */
+  /** The explanation the bubble shows; newlines separate lines. */
   label: string;
   /**
    * Short accessible name for the icon ("About subagents"). Omitted, the icon is named by `label`
@@ -80,11 +81,12 @@ export function InfoTip({ label, triggerLabel, descriptionId, placement: preferr
               className={placement === "below" ? "info-tip-bubble info-tip-bubble-below" : "info-tip-bubble"}
               role="presentation"
               aria-hidden="true"
-              style={infoTipBubbleStyle(coords)}
+              style={{ ...infoTipBubbleStyle(coords), whiteSpace: "pre-line" }}
             >
               {label}
             </span>,
-            document.body
+            // A modal <dialog> sits in the browser's top layer, above anything portaled to body.
+            iconRef.current?.closest("dialog") ?? document.body
           )
         : null}
     </span>

@@ -104,6 +104,8 @@ export function useInfoTip(_input: Record<string, never> = {}, { placement: pref
 
   function handleIconKeyDown(e: KeyboardEvent<HTMLSpanElement>) {
     if (e.key === "Escape" && open) {
+      // preventDefault also stops an enclosing modal <dialog> from closing on the same keypress.
+      e.preventDefault();
       e.stopPropagation();
       hide();
       return;
