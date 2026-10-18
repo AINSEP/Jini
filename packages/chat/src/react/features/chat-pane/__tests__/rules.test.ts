@@ -17,7 +17,7 @@ import {
   resolveChatPaneSelection,
 } from '../rules.js';
 import type { ChatPaneSendability, ChatPaneSendBlocker } from '../rules.js';
-import type { ByokRuntimeSummary, ChatPaneAgent } from '../types.js';
+import type { ByokRuntimeSummary, ChatPaneAgent, ChatPaneAgentSelection } from '../types.js';
 
 const agents: ChatPaneAgent[] = [
   {
@@ -47,6 +47,36 @@ const agents: ChatPaneAgent[] = [
 ];
 
 describe('chat-pane selection rules', () => {
+  const claudeCatalog = {
+    models: [
+      { id: 'opus', label: 'Opus', identityKind: 'alias' as const },
+      { id: 'sonnet', label: 'Sonnet', identityKind: 'alias' as const },
+      { id: 'claude-opus-5-5', label: 'Opus 5.5' },
+      { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
+    ],
+    defaultSelectionId: 'opus[1m]',
+    source: 'rpc' as const, freshness: 'fresh' as const, coverage: 'account' as const,
+    fetchedAt: '2026-10-17T00:00:00.000Z', expiresAt: '2026-10-17T00:15:00.000Z', launchFingerprint: 'fixture',
+  };
+  const claude: ChatPaneAgent = {
+    id: 'claude', name: 'Claude Code', available: true,
+    models: claudeCatalog.models, modelCatalog: claudeCatalog,
+    defaultModelResolution: { status: 'unresolved', selectionId: 'opus[1m]', reason: 'The configured selection has no concrete model evidence.' },
+  };
+
+  it.each<ChatPaneAgentSelection>([
+    { agentId: 'claude' },
+    { agentId: 'claude', model: 'retired-model' },
+  ])('resolves an off-list native default to a sendable model for selection %j', (requested) => {
+    const selection = resolveChatPaneSelection({ agents: [claude], requested });
+    expect(defaultChatPaneSelection({ agent: claude })).toEqual({ agentId: 'claude', model: 'claude-opus-5-5' });
+    expect(selection).toEqual({ agentId: 'claude', model: 'claude-opus-5-5' });
+    expect(findChatPaneSendBlocker({
+      selectedAgent: claude, model: selection.model!, isStreaming: false, activeUploadCount: 0,
+      workingDirectoryPending: false, workingDirectoryInvalid: false, workingDirectoryError: null,
+    })).toBeNull();
+  });
+
   it('ignores synthetic defaults and chooses a concrete entry for legacy inventories', () => {
     expect(defaultChatPaneSelection({ agent: agents[0]! })).toEqual({
       agentId: 'codex',

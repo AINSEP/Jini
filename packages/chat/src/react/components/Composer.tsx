@@ -45,6 +45,10 @@ export interface ComposerProps {
   disabled?: boolean;
   /** Disables submission without disabling draft editing or attachment controls. */
   sendDisabled?: boolean;
+  /** Human-readable submission blocker, exposed on the Send button. */
+  sendDisabledReason?: string;
+  /** ID of the rendered blocker hint used as the Send button's description. */
+  sendDisabledReasonId?: string;
   placeholder?: string;
   slots?: ComposerSlots;
   attachmentPicker?: {
@@ -157,6 +161,8 @@ export function Composer({
   onSend,
   disabled = false,
   sendDisabled = false,
+  sendDisabledReason,
+  sendDisabledReasonId,
   placeholder,
   slots,
   attachmentPicker,
@@ -603,7 +609,7 @@ export function Composer({
             the footer's space-between keeps the two together at the trailing edge. */}
         <span className="jini-composer-send-group">
           {!running || (!disabled && !sendDisabled && composer.canSubmit) ? (
-            <button type="button" className="jini-composer-send" disabled={disabled || sendDisabled || !composer.canSubmit} onClick={onSend} title={t('Send')} aria-label={t('Send')}>
+            <button type="button" className="jini-composer-send" disabled={disabled || sendDisabled || !composer.canSubmit} onClick={onSend} title={sendDisabledReason ?? t('Send')} aria-label={t('Send')} aria-describedby={sendDisabledReasonId}>
               <RemixIcon name="send-plane-2-line" size={16} />
             </button>
           ) : null}

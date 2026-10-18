@@ -27,6 +27,44 @@ const welcome: ChatMessage = {
 };
 
 describe('ChatPane', () => {
+  it('enables Send with an off-list Claude default and sends the concrete picker model', async () => {
+    const transport = createFakeChatTransport();
+    const catalog = {
+      models: [
+        { id: 'opus', label: 'Opus', identityKind: 'alias' as const },
+        { id: 'sonnet', label: 'Sonnet', identityKind: 'alias' as const },
+        { id: 'claude-opus-5-5', label: 'Opus 5.5' },
+      ],
+      defaultSelectionId: 'opus[1m]',
+      source: 'rpc' as const, freshness: 'fresh' as const, coverage: 'account' as const,
+      fetchedAt: '2026-10-17T00:00:00.000Z', expiresAt: '2026-10-17T00:15:00.000Z', launchFingerprint: 'fixture',
+    };
+    const claude: ChatPaneAgent = {
+      id: 'claude', name: 'Claude Code', available: true, models: catalog.models, modelCatalog: catalog,
+      defaultModelResolution: { status: 'unresolved', selectionId: 'opus[1m]', reason: 'No concrete model evidence.' },
+    };
+    render(<ChatPane transport={transport} agents={[claude]} selection={{ agentId: 'claude' }}
+      runContext={({ selection }) => ({ model: selection.model })} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Hello Claude' } });
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+    expect(transport.calls[0]?.input).toMatchObject({ agentId: 'claude', context: { model: 'claude-opus-5-5' } });
+    act(() => transport.finish([]));
+  });
+
+  it('exposes the blocker in the Send title and footer when the agent becomes unavailable', () => {
+    const transport = createFakeChatTransport();
+    const { rerender } = render(<ChatPane transport={transport} agents={agents} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Keep my draft' } });
+    rerender(<ChatPane transport={transport} agents={[{ ...agents[0]!, available: false }]} />);
+    expect(screen.getByRole('textbox')).toHaveValue('Keep my draft');
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('title', 'no agent is selected');
+    expect(screen.getByText('no agent is selected').closest('.jini-composer-footer')).not.toBeNull();
+    expect(transport.calls).toHaveLength(0);
+  });
+
   it('excludes workspace controls on the embed surface while retaining draft and send behavior', async () => {
     const transport = createFakeChatTransport();
     const upload = vi.fn(async () => []);

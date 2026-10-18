@@ -50,10 +50,10 @@ describe('useChatPane', () => {
     expect(onSelectionChange).toHaveBeenCalledTimes(1);
   });
 
-  it('requires a concrete choice when discovery cannot resolve the native default', async () => {
+  it('requires a concrete choice when discovery supplies only unresolved aliases', async () => {
     const transport = createFakeChatTransport();
     const claude: ChatPaneAgent = { id: 'claude', name: 'Claude Code', available: true,
-      models: [{ id: 'claude-sonnet-5', label: 'Claude Sonnet 5' }],
+      models: [{ id: 'sonnet', label: 'Sonnet', identityKind: 'alias' }],
       defaultModelResolution: { status: 'unresolved', reason: 'Native metadata did not resolve a default.' },
       modelCatalog: { source: 'offline-fallback', freshness: 'offline-fallback', fetchedAt: '2026-10-08T00:00:00.000Z', expiresAt: '2026-10-08T00:15:00.000Z', coverage: 'configured', launchFingerprint: 'fixture' },
     };

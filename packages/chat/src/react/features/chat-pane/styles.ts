@@ -903,6 +903,12 @@ export const CHAT_PANE_STYLES = `
   margin-left: auto;
   min-width: 0;
 }
+.jini-chat-pane .jini-composer-send-blocker {
+  align-self: center;
+  margin-right: 8px;
+  color: var(--jini-chat-muted);
+  font-size: 12px;
+}
 .jini-chat-pane .jini-composer-send-group {
   display: flex;
   flex-shrink: 0;

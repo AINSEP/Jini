@@ -91,12 +91,12 @@ describe('concrete starting-model choices', () => {
     ]);
     expect(pickerModelLabel(legacy, 'default')).toBe('gpt-other');
   });
-  it('does not offer unresolved aliases or routing modes and requires a concrete selection', () => {
+  it('does not offer unresolved aliases or routing modes and falls back only to concrete options', () => {
     const routed: ChatPaneAgent = { ...agent, models: [{ id: 'auto', label: 'Auto', identityKind: 'routing-mode' }, { id: 'adaptive', label: 'Adaptive' }, { id: 'sonnet', label: 'Sonnet', identityKind: 'alias' }], defaultModelResolution: { status: 'unresolved', selectionId: 'auto', reason: 'No concrete evidence' } };
     expect(pickerModelOptions(routed)).toEqual([]);
     expect(defaultChatPaneSelection({ agent: routed })).toEqual({ agentId: 'codex' });
     expect(pickerModelLabel(routed)).toBe('Choose model');
-    expect(defaultChatPaneSelection({ agent: { ...routed, models: [{ id: 'gpt-new', label: 'GPT New' }] } })).toEqual({ agentId: 'codex' });
+    expect(defaultChatPaneSelection({ agent: { ...routed, models: [{ id: 'gpt-new', label: 'GPT New' }] } })).toEqual({ agentId: 'codex', model: 'gpt-new' });
     expect(pickerModelOptions({ ...routed, models: [{ id: 'opus[1m]', label: 'Unresolved variant' }] })).toEqual([]);
   });
   it('resolves alias options to the concrete ID that is passed in selection', () => {

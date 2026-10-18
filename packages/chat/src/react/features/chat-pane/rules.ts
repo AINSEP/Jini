@@ -20,9 +20,10 @@ function validatedOptionId(
 }
 
 export function defaultChatPaneSelection({ agent }: { agent: ChatPaneAgent }): ChatPaneAgentSelection {
-  // An unresolved native route requires an intentional concrete choice. Legacy hosts without
-  // structured resolution retain their first-concrete-entry behavior.
-  const model = configuredPickerModel(agent) || (agent.defaultModelResolution?.status === 'unresolved' ? undefined : pickerModelOptions(agent)[0]?.id);
+  // Legacy hosts without structured resolution retain their first-concrete-entry behavior.
+  // Use that fallback for unresolved native defaults too: an off-list alias must not strand
+  // a usable catalog. The picker still excludes aliases without concrete model evidence.
+  const model = configuredPickerModel(agent) || pickerModelOptions(agent)[0]?.id;
   const reasoning = preferredOptionId(agent.reasoningOptions);
   return {
     agentId: agent.id,

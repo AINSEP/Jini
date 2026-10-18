@@ -1,5 +1,5 @@
 import { SECRET_REDACTED_NOTICE } from '../../../../core/user-text-redaction.js';
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, type ReactNode } from 'react';
 import { WorkingDirPicker } from '@jini-ai/ui';
 
 import { Composer } from '../../../components/Composer.js';
@@ -16,7 +16,7 @@ import type {
   ChatPaneWorkingDirectoryAccess,
   TypedAnswerNotice,
 } from '../types.js';
-import { describeTypedAnswerNotice, isChatPaneApiModeConfigured, isChatPaneFileDropEnabled } from '../rules.js';
+import { describeChatPaneSendBlocker, describeTypedAnswerNotice, isChatPaneApiModeConfigured, isChatPaneFileDropEnabled } from '../rules.js';
 import { useChatPane, type UseChatPaneResult } from '../hooks/useChatPane.hooks.js';
 import { useChatPaneAgentControl } from '../hooks/useChatPaneAgentControl.hooks.js';
 import { useChatPaneComposerPlaceholder } from '../hooks/useChatPaneComposerPlaceholder.hooks.js';
@@ -447,6 +447,10 @@ function ChatPaneComposerArea({
   workingDirectoryControlPlacement,
   t,
 }: ChatPaneComposerAreaProps): ReactNode {
+  const sendDisabledReasonId = useId();
+  const sendDisabledReason = pane.sendBlocker && pane.sendBlocker !== 'streaming'
+    ? t(describeChatPaneSendBlocker(pane.sendBlocker))
+    : undefined;
   return (
     <div
       className={`jini-chat-pane__drop-target${fileDrop.draggingFiles ? ' is-dragging-files' : ''}`}
@@ -467,11 +471,15 @@ function ChatPaneComposerArea({
         disabled={disabled || unavailable}
         // The one blocker `send()` handles itself. Every other refusal still greys out the button.
         sendDisabled={!pane.canSend && pane.sendBlocker !== 'streaming'}
+        {...definedProps({ source: { sendDisabledReason, sendDisabledReasonId: sendDisabledReason ? sendDisabledReasonId : undefined } })}
         running={pane.conversation.isStreaming}
         onCancel={pane.conversation.cancel}
         onInterrupt={pane.interruptSend}
         {...definedProps({ source: { placeholder } })}
-        slots={slots}
+        slots={{ ...slots, footerAccessories: <>
+          {sendDisabledReason ? <small id={sendDisabledReasonId} className="jini-composer-send-blocker">{sendDisabledReason}</small> : null}
+          {slots.footerAccessories}
+        </> }}
         {...resolveComposerAttachmentPicker(uploadAttachments, pane, attachmentAccept)}
         {...resolveComposerWorkingDirectory(workingDirectoryAccess, workingDirectoryControlPlacement, pane)}
       />
