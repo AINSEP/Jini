@@ -25,8 +25,8 @@ it('carries the signal in daemon, BYOK and AG-UI payloads without adding model p
     fetch: async (_url, init) => { byokBodies.push(JSON.parse(String(init?.body))); return new Response('event: done\ndata: {}\n\n'); },
   };
   const client = createAssistantTransportClient({ ports }, {});
-  expect(client.buildLocalCliContextRef({ input: { history, signal }, prompt: history[0]!.content }, {})).toEqual({ prompt: 'Connect [token removed]', assistantMessageId: undefined, secretRedacted: true });
-  expect(client.buildLocalCliContextRef({ input: { history: [{ id: 'u', role: 'user', content: 'Explain [token removed]' }], signal }, prompt: 'Explain [token removed]' }, {})).toEqual({ prompt: 'Explain [token removed]', assistantMessageId: undefined });
+  expect(client.buildLocalCliContextRef({ input: { history, signal }, prompt: history[0]!.content }, {})).toEqual({ prompt: 'Connect [token removed]', coldStartContext: '## user\nConnect [token removed]', assistantMessageId: undefined, secretRedacted: true });
+  expect(client.buildLocalCliContextRef({ input: { history: [{ id: 'u', role: 'user', content: 'Explain [token removed]' }], signal }, prompt: 'Explain [token removed]' }, {})).toEqual({ prompt: 'Explain [token removed]', coldStartContext: '## user\nExplain [token removed]', assistantMessageId: undefined });
   await client.createAssistantTransport({ options: { getExecutionConfig: () => ({ mode: 'byok', byok: { providerId: 'p', protocol: 'anthropic', baseUrl: '/provider', apiKey: '', model: 'm' }, localCli: { agentId: 'a' } }) } }, {}).startRun({ history, signal }, handlers);
   expect(byokBodies[0]?.messages).toEqual([{ role: 'user', content: 'Connect [token removed]', secretRedacted: true }]);
   await client.createAssistantTransport({ options: { getAgUiEnabled: () => true } }, {}).startRun({ history, agentId: 'a', signal }, handlers);

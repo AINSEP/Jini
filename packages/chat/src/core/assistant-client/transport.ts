@@ -208,11 +208,17 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
    * Bounded deliberately: each run is billed, and an unbounded transcript grows the input cost of
    * every subsequent turn in a conversation that has no natural end. {@link MAX_TRANSCRIPT_TURNS}
    * keeps a long-running chat from silently becoming the most expensive thing in the product.
+   * Failed turns are labeled outcomes so another agent can explain and recover from them.
    */
   function runPrompt(history: StartRunInput["history"]): string {
-    // `historyForTranscript` first, THEN the cap: dropping failed rows before slicing means the 40
-    // turns that survive are 40 real ones, not 40 slots some of which are rows the agent never wrote.
-    const recent = historyForTranscript(history as ChatMessage[]).slice(-MAX_TRANSCRIPT_TURNS);
+    const recent = history.slice(-MAX_TRANSCRIPT_TURNS).map(message => {
+      if (message.role !== 'assistant' || isAnsweredAssistantTurn(message)) return message;
+      const detail = message.events?.filter(event => event.kind === 'status')
+        .map(event => [event.label, event.detail].filter(Boolean).join(': ')).join('\n').slice(-4000);
+      // Reserve space for the failure reason even when partial output fills the transcript cap.
+      const outcome = [message.content.slice(0, 6000), detail].filter(Boolean).join('\n\n');
+      return { ...message, content: `[${message.agentName ?? message.agentId ?? 'Assistant'} run ${message.runStatus}; not a completed answer]\n${outcome || 'No assistant reply was produced.'}` };
+    });
     return buildTranscript({ history: recent });
   }
 
@@ -650,6 +656,8 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
    *   adopt a conversation because `input.context` named none (the first turn of a chat). Omitted by
    *   every caller that already has an id on `input.context`, and by this function's own unit tests —
    *   in which case the `context` field is read exactly as before.
+   * The bounded `coldStartContext` is the complete prompt, including the current request. The
+   * daemon selects it instead of the resume tail when native resume is unavailable.
    */
   function buildLocalCliContextRef(
     input: StartRunInput,
@@ -658,6 +666,8 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
   ): Record<string, unknown> {
     return {
       prompt: ports.projectPrompt({ prompt, context: input.context }, {}),
+      // Select one complete transcript after binding; concatenating it with the tail repeats turns.
+      coldStartContext: ports.projectPrompt({ prompt: runPrompt(input.history), context: input.context }, {}),
       // The transcript is already sanitized; retain its signal across the daemon JSON boundary.
       ...(input.history.some(message => message.role === "user" && message.secretRedaction?.secretRedacted) ? { secretRedacted: true } : {}),
       assistantMessageId: (input as StartRunInput & { assistantMessageId?: string }).assistantMessageId,
@@ -697,30 +707,29 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
     return typeof adopted === "string" && adopted.length > 0 ? adopted : undefined;
   }
 
-  /**
-   * Resolves the prompt string `startRun`'s Local CLI branch sends: the full rendered transcript
-   * ({@link runPrompt}) by default, or only what the agent has not already been given
-   * ({@link undeliveredUserPrompt}) when `input.agentId` is present in `resumeCapableAgentIds` — see
-   * `getResumeCapableAgentIds`'s own doc on {@link AssistantTransportOptions} for the full
-   * contract this mirrors. Pulled out of `startRun` (2026-09-04, complexity pass) as its own pure
-   * step. `options.getResumeCapableAgentIds?.({}, {})` is still called at the same point in `startRun` as
-   * before — only the "which agentIds carries own memory" branch itself moves here, so the "read fresh
-   * on every call" convention that doc argues for is unchanged.
+  /** Send a resumed agent only its unseen conversation tail, retaining other agents' outcomes.
+   * Legacy rows without agent identity retain the existing unanswered-user delivery contract.
+   * @complexity O(n) to find the last answered turn; transcript rendering is capped at 40 turns.
    */
   function resolveLocalCliPrompt(
     input: StartRunInput,
     resumeCapableAgentIds: ReadonlySet<string> | undefined,
   ): string {
     const carriesOwnMemory = input.agentId !== undefined && resumeCapableAgentIds?.has(input.agentId) === true;
+    if (!carriesOwnMemory) return runPrompt(input.history);
+    let lastOwnAnswer = -1;
+    input.history.forEach((message, index) => {
+      if (message.role === 'assistant' && (!message.agentId || message.agentId === input.agentId) && isAnsweredAssistantTurn(message)) lastOwnAnswer = index;
+    });
+    const unseen = input.history.slice(lastOwnAnswer + 1);
+    const crossedAgents = unseen.some(message => message.role === 'assistant' && message.agentId && message.agentId !== input.agentId);
     // BEHAVIOR CHANGE (2026-09-11, Defect 2): the resume-capable branch was `latestUserPrompt` — the
     // single newest user turn, on the assumption that everything before it is already inside the
     // CLI's own session. That assumption holds only for turns the agent actually answered; a turn
     // whose run died before the CLI read its prompt is in neither place, and nothing ever sent it
     // again. `undeliveredUserPrompt` returns the identical single string in the ordinary case and
-    // differs only when there is genuinely something unanswered to catch up on. The
-    // `latestUserPrompt` parameter this used to take went with it: `startRun` still computes that
-    // string for its own send guard, but this branch has no use for it any more.
-    return carriesOwnMemory ? undeliveredUserPrompt(input.history as ChatMessage[]) : runPrompt(input.history);
+    // differs only when there is genuinely something unanswered to catch up on.
+    return crossedAgents ? runPrompt(unseen) : undeliveredUserPrompt(input.history);
   }
 
   /**

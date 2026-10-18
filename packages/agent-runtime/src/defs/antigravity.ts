@@ -216,6 +216,10 @@ export const antigravityAgentDef = {
     // So the prompt rides argv as `-p`'s value. That is also why this def is
     // argv-budgeted (`maxPromptArgBytes` below) rather than `promptViaStdin`.
     const args: string[] = [];
+    // Match the owner's existing Full CLI grant; never infer approval from headless mode.
+    if (options.cliParity === true && options.permissionMode === 'bypass' && options.nativeToolAccess !== false) {
+      args.push('--dangerously-skip-permissions');
+    }
     // `--model` is the same kind of Go flag as `--log-file`/`-p`: its value is
     // whatever argv token immediately follows it, so it too must be pushed
     // before `-p` (always last — see below). Verified live against agy

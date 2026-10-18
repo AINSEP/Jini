@@ -2,6 +2,7 @@ import {
   promises as fsPromises,
 } from 'node:fs';
 import type { McpBridgeProbeResult } from './mcp-bridge-probe.js';
+import { ensureAntigravityMcpPermission } from './antigravity-permissions.js';
 import {
   homedir,
   tmpdir,
@@ -844,30 +845,40 @@ async function prepareClaudeConfigDirForRun(
   };
 }
 
-/** Phase 5: resolves this run's MCP bridge delivery (credential resolution + {@link buildMcpBridgeDelivery}). */
+/** Phase 5: resolve credentials and delivery, then await agy's scoped MCP permission setup.
+ * Setup errors release staged files and fail before spawn. @complexity O(settings bytes) for agy. */
 export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef }; readonly deps: {
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
     readonly cleanupStagedFiles: () => Promise<void>;
     readonly failBeforeSpawn: FailBeforeSpawn;
+    readonly ensureAntigravityMcpPermission?: typeof ensureAntigravityMcpPermission;
   } }
 ): Promise<McpBridgeDelivery | null> {
   try {
     // Awaited here rather than inside `buildMcpBridgeDelivery` so that function stays pure and
     // synchronous. `undefined` when the host supplied no resolver, which omits the token entirely.
     const credential = deps.mcpJsonInjection !== undefined ? await deps.mcpJsonInjection.credential?.({ runId: input.runId }) : undefined;
-    return buildMcpBridgeDelivery({
+    const delivery = buildMcpBridgeDelivery({
       cwd: input.cwd,
       runId: input.runId,
       strategy: input.def.externalMcpInjection,
       options: deps.mcpJsonInjection,
       credential,
     });
+    if (input.def.id === 'antigravity' && delivery?.kind === 'env-passthrough') {
+      await (deps.ensureAntigravityMcpPermission ?? ensureAntigravityMcpPermission)({
+        settingsPath: join(homedir(), '.gemini', 'antigravity-cli', 'settings.json'),
+        serverName: JINI_MCP_SERVER_KEY,
+      });
+    }
+    return delivery;
   } catch (err) {
     // Spawning a child that cannot authenticate would produce a run whose every bridged tool call
-    // 401s, so a rejecting credential resolver fails the run before spawn instead.
+    // 401s, so a rejecting credential resolver fails the run before spawn instead. Permission setup
+    // failure is fatal for the same reason: the agent would start without its tools.
     await deps.cleanupStagedFiles();
     return deps.failBeforeSpawn(
-      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not resolve the MCP bridge credential for agent "${input.def.id}": ${errorMessage(err)}` },
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not resolve the MCP bridge credential or permissions for agent "${input.def.id}": ${errorMessage(err)}` },
     );
   }
 }

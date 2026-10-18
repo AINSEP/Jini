@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { antigravityAgentDef, parseAgyModels, redactAntigravityAuthUrls } from '../antigravity.js';
 
 describe('antigravityAgentDef shape', () => {
+  it('honors the explicit Full CLI access bypass without enabling it for restricted runs', () => {
+    const input = { prompt: 'hello', imagePaths: [] };
+    expect(antigravityAgentDef.buildArgs(input, { options: { permissionMode: 'bypass', cliParity: true, nativeToolAccess: true } }))
+      .toContain('--dangerously-skip-permissions');
+    for (const options of [{}, { permissionMode: 'restricted' as const, cliParity: true }, { permissionMode: 'bypass' as const, nativeToolAccess: false }]) {
+      expect(antigravityAgentDef.buildArgs(input, { options })).not.toContain('--dangerously-skip-permissions');
+    }
+  });
   it('declares the expected identity and transport fields', () => {
     expect(antigravityAgentDef.id).toBe('antigravity');
     expect(antigravityAgentDef.bin).toBe('agy');
