@@ -147,7 +147,8 @@
 }
 
 /* Material/role contract (ADR-069). Theme inputs are owned by admin's default theme or
-   a host theme. No component reads the new material roles until the next migration step.
+   a host theme. Step 2 activates the overlay background and shadow; other material roles
+   await their component migration.
    Existing palette fallbacks above remain for hosts that have not imported a theme yet. */
 :root, [data-admin-theme], [data-color-scheme] {
   --jini-app-bg: var(--jini-theme-app-bg, var(--jini-default-app-bg)); /* Application canvas background. */
@@ -166,6 +167,70 @@
   --jini-control-shadow-pressed: var(--jini-theme-control-shadow-pressed); /* Pressed control shadow. */
   --jini-control-shadow-inset: var(--jini-theme-control-shadow-inset); /* Inset control shadow. */
   --jini-border-width: var(--jini-theme-border-width); /* Standard primitive border width. */
+}
+
+/* Additive paint/elevation roles (ADR-069 step 2). New roles have exact compatibility
+   fallbacks here; existing material defaults remain admin-owned and unchanged. Theme inputs
+   win over fallbacks, including when inherited. Keep complete shadows and SVG images intact:
+   custom properties cannot interpolate into a data-URL SVG's stroke attribute. */
+:root, [data-admin-theme], [data-color-scheme] {
+  --jini-control-chevron-image: var(--jini-theme-control-chevron-image, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none'%3E%3Cpath d='M3.5 5.5 7 9l3.5-3.5' stroke='%23666C75' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"));
+  --jini-overlay-tooltip-bg: var(--jini-theme-overlay-tooltip-bg, #fff);
+  --jini-overlay-tooltip-text: var(--jini-theme-overlay-tooltip-text, #111);
+  --jini-overlay-tooltip-border: var(--jini-theme-overlay-tooltip-border, rgba(0, 0, 0, 0.1));
+  --jini-overlay-bg-preview: var(--jini-theme-overlay-bg-preview, oklch(0% 0 0 / 0.55));
+  --jini-overlay-bg-navigation: var(--jini-theme-overlay-bg-navigation, oklch(0% 0 0 / 0.4));
+  --jini-code-string: var(--jini-theme-code-string, #4caf7a);
+  --jini-code-number: var(--jini-theme-code-number, #d1975a);
+  --jini-control-thumb-bg: var(--jini-theme-control-thumb-bg, #fff);
+  --jini-control-solid-ink: var(--jini-theme-control-solid-ink, #fff);
+  --jini-overlay-bg-lightbox: var(--jini-theme-overlay-bg-lightbox, oklch(0% 0 0 / 0.6));
+  --jini-control-media-bg: var(--jini-theme-control-media-bg, oklch(0% 0 0 / 0.55));
+  --jini-control-media-ink: var(--jini-theme-control-media-ink, oklch(100% 0 0));
+  --jini-control-media-border: var(--jini-theme-control-media-border, oklch(100% 0 0 / 0.35));
+  --jini-control-media-bg-hover: var(--jini-theme-control-media-bg-hover, oklch(0% 0 0 / 0.72));
+  --jini-overlay-bg-source: var(--jini-theme-overlay-bg-source, oklch(0% 0 0 / 0.48));
+  --jini-file-icon-folder: var(--jini-theme-file-icon-folder, oklch(72% 0.12 75));
+  --jini-file-icon-json: var(--jini-theme-file-icon-json, oklch(72% 0.13 90));
+  --jini-file-icon-markdown: var(--jini-theme-file-icon-markdown, oklch(62% 0.12 245));
+  --jini-file-icon-javascript: var(--jini-theme-file-icon-javascript, oklch(76% 0.15 95));
+  --jini-file-icon-typescript: var(--jini-theme-file-icon-typescript, oklch(60% 0.13 250));
+  --jini-file-icon-config: var(--jini-theme-file-icon-config, oklch(62% 0.14 20));
+  --jini-file-icon-html: var(--jini-theme-file-icon-html, oklch(64% 0.17 40));
+  --jini-file-icon-css: var(--jini-theme-file-icon-css, oklch(62% 0.13 280));
+  --jini-file-icon-image: var(--jini-theme-file-icon-image, oklch(64% 0.12 160));
+  --jini-file-icon-shell: var(--jini-theme-file-icon-shell, oklch(64% 0.12 145));
+  --jini-status-complete-ink-fallback: var(--jini-theme-status-complete-ink-fallback, oklch(99% 0 none));
+  --jini-control-preview-ink: var(--jini-theme-control-preview-ink, #fff);
+  --jini-control-preview-bg: var(--jini-theme-control-preview-bg, rgba(17, 17, 17, 0.42));
+  --jini-control-preview-bg-hover: var(--jini-theme-control-preview-bg-hover, rgba(17, 17, 17, 0.72));
+  --jini-control-preview-tip-bg: var(--jini-theme-control-preview-tip-bg, rgba(17, 17, 17, 0.88));
+  --jini-panel-border-muted: var(--jini-theme-panel-border-muted, #d9d9d9);
+  --jini-control-composer-border-focus: var(--jini-theme-control-composer-border-focus, oklch(70% 0.012 255));
+  --jini-overlay-bg-chat: var(--jini-theme-overlay-bg-chat, rgb(0 0 0 / 45%));
+  --jini-control-hover-neutral-bg: var(--jini-theme-control-hover-neutral-bg, rgba(127, 127, 127, 0.15));
+  --jini-control-recording-bg: var(--jini-theme-control-recording-bg, #dc2626);
+  --jini-control-recording-ink: var(--jini-theme-control-recording-ink, #ffffff);
+  --jini-control-recording-bg-hover: var(--jini-theme-control-recording-bg-hover, #b91c1c);
+  --jini-control-shadow-focus: var(--jini-theme-control-shadow-focus, 0 0 0 3px var(--jini-accent-ring));
+  --jini-overlay-tooltip-shadow: var(--jini-theme-overlay-tooltip-shadow, 0 4px 16px rgba(0, 0, 0, 0.25));
+  --jini-control-shadow-focus-subtle: var(--jini-theme-control-shadow-focus-subtle, 0 0 0 2px var(--jini-neutral-accent-soft));
+  --jini-overlay-toast-shadow: var(--jini-theme-overlay-toast-shadow, 0 8px 24px rgb(0 0 0 / 22%));
+  --jini-status-danger-shadow: var(--jini-theme-status-danger-shadow, inset 3px 0 0 var(--jini-danger));
+  --jini-control-thumb-shadow-strong: var(--jini-theme-control-thumb-shadow-strong, 0 1px 2px rgba(28, 27, 26, 0.28));
+  --jini-panel-shadow-divider: var(--jini-theme-panel-shadow-divider, inset 0 -1px 0 var(--jini-border));
+  --jini-control-shadow-focus-accent: var(--jini-theme-control-shadow-focus-accent, 0 0 0 3px color-mix(in srgb, var(--jini-accent) 18%, transparent));
+  --jini-overlay-menu-shadow-above: var(--jini-theme-overlay-menu-shadow-above, 0 -4px 14px rgba(20,28,45,0.09), 0 -1px 4px rgba(20,28,45,0.06));
+  --jini-control-shadow-selected: var(--jini-theme-control-shadow-selected, 0 0 0 1px var(--jini-accent));
+  --jini-control-shadow-swatch-selected: var(--jini-theme-control-shadow-swatch-selected, 0 0 0 2px var(--jini-bg-panel), 0 0 0 4px var(--jini-accent));
+  --jini-control-shadow-segment: var(--jini-theme-control-shadow-segment, 0 1px 2px rgb(0 0 0 / 8%));
+  --jini-panel-shadow-sticky: var(--jini-theme-panel-shadow-sticky, 0 6px 8px -6px rgb(0 0 0 / 0.14));
+  --jini-overlay-menu-shadow: var(--jini-theme-overlay-menu-shadow, 0 12px 32px rgb(0 0 0 / 12%));
+  --jini-control-shadow-segment-raised: var(--jini-theme-control-shadow-segment-raised, 0 1px 2px rgb(0 0 0 / 12%));
+  --jini-control-thumb-shadow: var(--jini-theme-control-thumb-shadow, 0 1px 2px rgb(0 0 0 / 25%));
+  --jini-panel-shadow-banner: var(--jini-theme-panel-shadow-banner, 0 2px 8px rgb(0 0 0 / 0.12));
+  --jini-status-warning-shadow: var(--jini-theme-status-warning-shadow, inset 2px 0 0 var(--jini-warning));
+  --jini-panel-shadow-flat: var(--jini-theme-panel-shadow-flat, none);
 }
 
 /* Chat uses its own stylesheet so hosts can load it independently of the admin palette.
