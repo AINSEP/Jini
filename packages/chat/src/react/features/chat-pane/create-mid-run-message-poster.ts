@@ -1,8 +1,8 @@
 /**
  * @module create-mid-run-message-poster
  *
- * The client half of a mid-run message: a ready-made {@link DeliverMidRunMessage} that posts text the
- * human sent while a run streams to that run's live agent. Pass it as `ChatPane`'s
+ * The client half of a mid-run message: a ready-made {@link DeliverMidRunMessage} that posts the
+ * human's text and attachment refs to the live agent. Pass it as `ChatPane`'s
  * `deliverMidRunMessage`.
  *
  * ```tsx
@@ -10,13 +10,13 @@
  * ```
  *
  * Sibling of `create-typed-answer-poster.ts`. The route is `@jini-ai/daemon`'s
- * `POST /api/runs/:runId/messages`: `202` when the agent took the text into its running turn, `409`
+ * `POST /api/runs/:runId/messages`: `202` when the agent took the whole turn, `409`
  * with `details.delivery` when it did not.
  *
  * ## Why it resolves an outcome instead of throwing
  *
  * The pane acts differently on each outcome and must never drop the text: `'unsupported'` stops the
- * run and sends the text as the next turn; `'not-running'` and `'failed'` queue it behind the run,
+ * run for text-only turns, or queues an attachment turn intact; `'not-running'` and `'failed'` queue it behind the run,
  * which is already ending (or may be — never cut short a run the host could not reach). A 404 means
  * the daemon never saw this run (a host-side run such as a BYOK API turn), so it is `'unsupported'`
  * too: no live process to steer, but an interrupt still works.
@@ -48,7 +48,7 @@ async function deliveryFor(response: Response): Promise<MidRunMessageDelivery> {
 }
 
 /**
- * Builds a {@link DeliverMidRunMessage} that POSTs `{text}` to `${baseUrl}/api/runs/:runId/messages`.
+ * Posts text and optional opaque attachment refs to `${baseUrl}/api/runs/:runId/messages`.
  *
  * @param deps.baseUrl - Origin to call; `''` for same-origin.
  * @param deps.fetch - The fetch to use (the browser's, in production).
@@ -62,7 +62,7 @@ export function createMidRunMessagePoster(
   const origin = baseUrl.replace(/\/$/u, '');
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  return async ({ runId, text }) => {
+  return async ({ runId, text, attachments }) => {
     const result = (options.redactUserText ?? redactUserText)({ text });
     if (result.secretRedacted) options.onSecretRedacted?.({ secretRedacted: true, count: result.count });
     const controller = new AbortController();
@@ -72,7 +72,7 @@ export function createMidRunMessagePoster(
       // Same-origin cookie session: the human's own credentials authorize steering their run.
       credentials: 'same-origin',
       headers: { ...options.headers, 'content-type': 'application/json' },
-      body: JSON.stringify({ text: result.text }),
+      body: JSON.stringify({ text: result.text, ...(attachments?.length ? { attachmentIds: attachments.map(attachment => attachment.path) } : {}) }),
       signal: controller.signal,
     }).then(deliveryFor, (): MidRunMessageDelivery => 'failed');
     clearTimeout(timer);

@@ -191,10 +191,10 @@ async function deliverTypedAnswerSafely(
  * @complexity O(1) plus the host's own request.
  */
 async function deliverMidRunMessageSafely(
-  { deliver, runId, text }: { deliver: DeliverMidRunMessage; runId: string; text: string },
+  { deliver, ...input }: { deliver: DeliverMidRunMessage } & Parameters<DeliverMidRunMessage>[0],
 ): Promise<MidRunMessageDelivery> {
   try {
-    return await deliver({ runId, text });
+    return await deliver(input);
   } catch {
     return 'failed';
   }
@@ -254,9 +254,10 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const [attachmentError, setAttachmentError] = useState<Error | null>(null);
   // Keep the signal with sanitized queue text; re-redacting it later cannot detect the original paste.
   const [queuedTurn, setQueuedTurn] = useState<UserTextRedaction | null>(null);
+  // A send during upload resumes once pixels arrive; a rejected live delivery waits for run end.
+  const queuedForUploadRef = useRef(false);
   const [typedAnswerNotice, setTypedAnswerNotice] = useState<TypedAnswerNotice | null>(null);
-  // Set across the await of one typed-answer delivery so a second Enter cannot post the same text
-  // twice — the second post would find the question already answered and wrongly report it closed.
+  // Shared delivery lock: a second Enter cannot submit the same answer or screenshot twice.
   const deliveringTypedAnswerRef = useRef(false);
   // The question (tool-use id) the current draft was typed for, or null. Set while a non-empty draft
   // sits in the composer as a question waits, and kept after that question closes (answered
@@ -394,6 +395,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   // Read after `await` in `answerWaitingQuestion`, where the render-time `composer.draft` is stale.
   const latestDraftRef = useRef(composer.draft);
   latestDraftRef.current = composer.draft;
+  const latestAttachmentsRef = useRef(composer.attachments);
+  latestAttachmentsRef.current = composer.attachments;
   const awaitedQuestionId = options.deliverTypedAnswer === undefined
     ? null
     : findAwaitedTypedAnswerId({ messages: conversation.messages, toolName: options.deliverTypedAnswer.toolName });
@@ -543,24 +546,49 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     setQueuedTurn((queued) => appendQueuedTurn({ queued: sameConversation ? queued : null, next: turn }));
   }, [options.conversationId]);
 
-  // A text-only message sent while a run streams goes INTO that run when the host can deliver it.
+  // A complete message sent while a run streams goes INTO that run when the host can deliver it.
   // The draft clears before the await so the human sees it go out; whatever the outcome, the text
-  // ends up somewhere — in the run, or queued as the next turn (after stopping the run when the
-  // agent cannot take input mid-run). Never cancel on 'not-running'/'failed': the run is ending.
+  // ends up somewhere — in the run, or queued as the next turn. Unsupported attachment turns
+  // wait for the reply to finish; text-only turns retain their interrupt fallback.
   const sendIntoRunningTurn = useCallback(async (
     { deliver, runId, turn }: { deliver: DeliverMidRunMessage; runId: string; turn: UserTextRedaction },
   ) => {
-    composer.setDraft('');
-    const outcome = await deliverMidRunMessageSafely({ deliver, runId, text: turn.text });
-    if (outcome === 'delivered' || !mountedRef.current) return;
+    const attachments = composer.attachments;
+    const generation = typedAnswerGenerationRef.current;
+    deliveringTypedAnswerRef.current = true;
+    const outcome = await deliverMidRunMessageSafely({ deliver, runId, text: turn.text,
+      ...(attachments.length ? { attachments } : {}),
+    });
+    deliveringTypedAnswerRef.current = false;
+    if (!mountedRef.current || generation !== typedAnswerGenerationRef.current) return;
+    if (outcome === 'delivered') {
+      for (const attachment of attachments) composer.removeAttachment(attachment.path);
+      if (activeUploadsRef.current.size === 0 && attachments.length > 0
+        && latestAttachmentsRef.current.every(attachment => attachments.some(sent => sent.path === attachment.path))) {
+        attachmentBatchIdRef.current = createAttachmentBatchId();
+      }
+      return;
+    }
     enqueueTurn(turn);
-    if (outcome === 'unsupported') conversation.cancel();
+    if (outcome === 'unsupported' && attachments.length === 0) conversation.cancel();
   }, [composer, conversation, enqueueTurn]);
 
   // The ordinary next-turn path: into the running run, else queue behind it, else send now.
   const sendOrdinaryTurn = useCallback(async (prompt: string) => {
     if (isChatPaneQueueableBlocker({ blocker: sendBlocker })) {
       const turn = guard.redact({ text: prompt }, {});
+      if (activeUploadsRef.current.size > 0 || attachmentError !== null) {
+        queuedForUploadRef.current = queuedTurn === null || queuedForUploadRef.current;
+        enqueueTurn(turn);
+        composer.setDraft('');
+        return;
+      }
+      // The existing queue still owns the staged files; a later steer cannot consume them.
+      if (queuedTurn !== null) {
+        enqueueTurn(turn);
+        composer.setDraft('');
+        return;
+      }
       const deliver = options.deliverMidRunMessage;
       const runId = deliver === undefined ? null : findMidRunMessageRunId({
         blocker: sendBlocker,
@@ -568,6 +596,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
         messages: conversation.messages,
       });
       if (deliver !== undefined && runId !== null) {
+        composer.setDraft('');
         await sendIntoRunningTurn({ deliver, runId, turn });
         return;
       }
@@ -581,10 +610,12 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     await sendPrompt(prompt);
   }, [
     canSend,
+    attachmentError,
     composer,
     conversation.messages,
     enqueueTurn,
     options.deliverMidRunMessage,
+    queuedTurn,
     sendBlocker,
     sendIntoRunningTurn,
     sendPrompt,
@@ -592,9 +623,15 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   ]);
 
   const send = useCallback(async () => {
-    const prompt = composerPrompt(composer);
+    const prompt = composerPrompt(composer)
+      || (conversation.isStreaming && activeUploadsRef.current.size > 0 ? 'Review the attached file(s).' : '');
     if (!prompt || deliveringTypedAnswerRef.current) return;
     setTypedAnswerNotice(null);
+    // Until upload completes, an empty attachment list is not evidence of a text-only answer.
+    if (conversation.isStreaming && activeUploadsRef.current.size > 0) {
+      await sendOrdinaryTurn(prompt);
+      return;
+    }
     const deliver = options.deliverTypedAnswer;
     if (deliver !== undefined && isTypedAnswerTurn({
       blocker: sendBlocker,
@@ -616,6 +653,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   }, [
     answerWaitingQuestion,
     composer,
+    conversation.isStreaming,
     conversation.messages,
     options.deliverTypedAnswer,
     sendBlocker,
@@ -642,15 +680,15 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   }, [composer, conversation, enqueueTurn, guard.redact]);
 
   const cancelQueued = useCallback(() => {
+    queuedForUploadRef.current = false;
     queuedConversationIdRef.current = undefined;
     setQueuedTurn(null);
   }, []);
 
-  // Flush on a FULLY clear blocker, not merely on streaming ending — see
-  // `isChatPaneQueueableBlocker`'s note about `findChatPaneSendBlocker`'s ordering. Clearing the
-  // queue slot BEFORE awaiting keeps a re-render from double-sending the same prompt.
+  // Upload-waiting sends can steer once the image arrives. Other queued turns wait for a fully
+  // clear blocker. Clear the slot before awaiting so re-renders cannot send it twice.
   useEffect(() => {
-    if (queuedTurn === null || sendBlocker !== null) return;
+    if (queuedTurn === null) return;
     if (queuedConversationIdRef.current !== options.conversationId) {
       // The conversation changed while this prompt waited behind a streaming run — sending it now
       // would post it into a conversation the user never saw it queued against. Drop it instead
@@ -659,9 +697,21 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       setQueuedTurn(null);
       return;
     }
+    if (activeUploadCount > 0 || attachmentError !== null) return;
+    const deliver = options.deliverMidRunMessage;
+    const runId = queuedForUploadRef.current && deliver !== undefined ? findMidRunMessageRunId({
+      blocker: sendBlocker, attachmentCount: composer.attachments.length, messages: conversation.messages,
+    }) : null;
+    if (sendBlocker !== null && runId === null) return;
+    queuedForUploadRef.current = false;
     setQueuedTurn(null);
+    if (deliver !== undefined && runId !== null) {
+      void sendIntoRunningTurn({ deliver, runId, turn: queuedTurn });
+      return;
+    }
     void sendGuardedPrompt({ redaction: queuedTurn }, {});
-  }, [options.conversationId, queuedTurn, sendBlocker, sendGuardedPrompt]);
+  }, [activeUploadCount, attachmentError, composer.attachments.length, conversation.messages,
+    options.conversationId, options.deliverMidRunMessage, queuedTurn, sendBlocker, sendGuardedPrompt, sendIntoRunningTurn]);
 
   const reset = useCallback(() => {
     attachmentGenerationRef.current += 1;
@@ -680,6 +730,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     // `conversation.cancel()` above clears the streaming blocker — the flush effect fires it into
     // the just-reset conversation instead of discarding it like the rest of this turn's state.
     queuedConversationIdRef.current = undefined;
+    queuedForUploadRef.current = false;
     setQueuedTurn(null);
   }, [composer, conversation, options.initialMessages]);
 

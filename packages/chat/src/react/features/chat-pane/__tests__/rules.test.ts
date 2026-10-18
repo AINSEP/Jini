@@ -416,10 +416,10 @@ describe('findMidRunMessageRunId', () => {
     expect(findMidRunMessageRunId({ blocker: 'streaming', attachmentCount: 0, messages: running })).toBe('run-1');
   });
 
-  it('is null when nothing streams, a file is attached, or the newest message has no run', () => {
+  it('keeps attachments eligible for live delivery, and requires a streaming assistant run', () => {
     expect(findMidRunMessageRunId({ blocker: null, attachmentCount: 0, messages: running })).toBeNull();
     expect(findMidRunMessageRunId({ blocker: 'uploads-pending', attachmentCount: 0, messages: running })).toBeNull();
-    expect(findMidRunMessageRunId({ blocker: 'streaming', attachmentCount: 1, messages: running })).toBeNull();
+    expect(findMidRunMessageRunId({ blocker: 'streaming', attachmentCount: 1, messages: running })).toBe('run-1');
     expect(findMidRunMessageRunId({ blocker: 'streaming', attachmentCount: 0, messages: running.slice(0, 1) })).toBeNull();
     expect(findMidRunMessageRunId({
       blocker: 'streaming', attachmentCount: 0, messages: [{ id: 'a1', role: 'assistant', content: '' }],

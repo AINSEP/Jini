@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { probeMcpBridge, McpBridgeProbeResult } from './mcp-bridge-probe.js';
 import type { ModelCatalogSnapshot } from '@jini-ai/agent-runtime';
 import { createModelReceiptTracker } from './model-receipts.js';
-import { messageContentWithImages } from '../attachment-content.js';
+import { messageContentWithImages, type MessageAttachmentImage } from '../attachment-content.js';
 import type {
    ChildProcess,
 } from 'node:child_process';
@@ -851,14 +851,16 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
    * `turn_end` has closed stdin, or the process exits before the ack, there is no session left to
    * reach — `'not-running'`. Between turns, while stdin is held only for background tasks, there is
    * no generation to stop: the line is written at once and starts the next turn.
+   * Host-prepared images use the same content blocks as the initial stdin turn; no file tools
+   * or new directory grants are needed to see these pixels.
    */
-  async function sendUserMessage(text: string): Promise<UserMessageDelivery> {
+  async function sendUserMessage(text: string, images: readonly MessageAttachmentImage[] = []): Promise<UserMessageDelivery> {
     if (!acceptsMidRunUserMessages({ def: def })) return 'unsupported';
     const stdin = child.stdin;
     if (stdinClosed || !stdin) return 'not-running';
     if (heldForBackgroundTasks) {
       heldForBackgroundTasks = false;
-      writeUserMessage(stdin, text);
+      writeUserMessage(stdin, text, images);
       return 'delivered';
     }
     const requestId = `jini-interrupt-${randomUUID()}`;
@@ -880,13 +882,13 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
     clearTimeout(timer);
     pendingInterruptAcks.delete(requestId);
     if (!processAlive || stdinClosed) return 'not-running';
-    writeUserMessage(stdin, text);
+    writeUserMessage(stdin, text, images);
     return 'delivered';
   }
 
-  /** Writes a mid-run message as the next user line, journals it, and emits its `user_message` run event. */
-  function writeUserMessage(stdin: NonNullable<typeof child.stdin>, text: string): void {
-    stdin.write(`${JSON.stringify(streamJsonUserMessage({ content: [{ type: 'text', text: text }] }))}\n`, 'utf8');
+  /** Writes a complete mid-run turn using the idle image encoder; journals text without base64. */
+  function writeUserMessage(stdin: NonNullable<typeof child.stdin>, text: string, images: readonly MessageAttachmentImage[]): void {
+    stdin.write(`${JSON.stringify(streamJsonUserMessage({ content: messageContentWithImages({ prompt: text, images }, {}) }))}\n`, 'utf8');
     if (journal) enqueueEmit(() => journal.record({ runId: runId, entry: sentJournalEntry(text) }));
     enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: { type: 'user_message', id: randomUUID(), text: text } } }));
   }

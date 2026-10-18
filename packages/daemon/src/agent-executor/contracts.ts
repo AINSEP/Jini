@@ -255,8 +255,9 @@ export interface AgentExecutor {
    * (see {@link UserMessageDelivery} for each outcome). A stream-json agent is interrupted first and
    * gets the message once the CLI acknowledges the interrupt, so this settles in milliseconds (at
    * most `INTERRUPT_ACK_TIMEOUT_MS`); it never waits on the agent's reply.
+   * Optional `imageContents` contains host-authorized pixels, encoded exactly as in an idle send.
    */
-  sendUserMessage(requiredArgs: { readonly runId: string; readonly text: string }): Promise<UserMessageDelivery>;
+  sendUserMessage(requiredArgs: { readonly runId: string; readonly text: string }, optionalArgs?: { readonly imageContents?: readonly MessageAttachmentImage[] }): Promise<UserMessageDelivery>;
 }
 
 /**
@@ -264,7 +265,8 @@ export interface AgentExecutor {
  * - `'delivered'` — the running turn was interrupted and the message written into the live
  *   session; the agent answers it next, in the same process and session.
  * - `'unsupported'` — the run is live, but its agent has no way to take input mid-run (its prompt
- *   is plain text or an RPC request). The host should interrupt and send it as the next turn.
+ *   is plain text or an RPC request). Queue attachment turns intact after the reply; text-only
+ *   turns may retain the interrupt-and-resume fallback.
  * - `'not-running'` — no live process will accept it: an unknown run, a finished one, or one whose
  *   last turn already ended and closed stdin. The run is ending; the host should send it next.
  */
@@ -319,7 +321,7 @@ export interface StdinCloseHandle {
   /** Journals a sent-to-stdin byte chunk, queued through the same FIFO {@link wireChildLifecycle} already uses for emitted events. No-op when no journal was configured (see `CreateAgentExecutorOptions.journal`). */
   recordSentBytes(content: string): void;
   /** Interrupts this child's turn, then writes a mid-run user message into its open stdin — see {@link AgentExecutor.sendUserMessage}. */
-  sendUserMessage(text: string): Promise<UserMessageDelivery>;
+  sendUserMessage(text: string, imageContents?: readonly MessageAttachmentImage[]): Promise<UserMessageDelivery>;
 }
 
 /**

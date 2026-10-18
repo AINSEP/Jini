@@ -1,4 +1,5 @@
 import { buildAgentEnv } from './agent-env.js';
+import type { MessageAttachmentImage } from '../attachment-content.js';
 import { probeMcpBridge } from './mcp-bridge-probe.js';
 import {
   spawn as nodeSpawn,
@@ -72,6 +73,7 @@ import {
   type PreparedSystemPromptOverlayFile,
   type SpawnAgentChildProcessResult,
   type UserMessageDelivery,
+  type StdinCloseHandle,
 } from './contracts.js';
 import {
   errorMessage,
@@ -893,12 +895,15 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
    * ACP/pi run (whose RPC takes one prompt per turn). Removed on the child's `'close'`, so a
    * finished or unknown run reads as `'not-running'`. Bounded by the number of live children.
    */
-  const liveRunInputs = new Map<string, (text: string) => Promise<UserMessageDelivery>>();
+  const liveRunInputs = new Map<string, StdinCloseHandle['sendUserMessage']>();
 
   /** `AgentExecutor.sendUserMessage()` — see that interface method's own doc. @complexity O(1). */
-  async function sendUserMessage({ runId, text }: { readonly runId: string; readonly text: string }): Promise<UserMessageDelivery> {
+  async function sendUserMessage(
+    { runId, text }: { readonly runId: string; readonly text: string },
+    { imageContents }: { readonly imageContents?: readonly MessageAttachmentImage[] } = {},
+  ): Promise<UserMessageDelivery> {
     const deliver = liveRunInputs.get(runId);
-    return deliver ? deliver(text) : 'not-running';
+    return deliver ? deliver(text, imageContents) : 'not-running';
   }
 
   /**

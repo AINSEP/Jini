@@ -4,16 +4,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { __resetComposerDraftCacheForTests } from '../../../../hooks/composer-draft-cache.js';
 import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
 import type { ChatPaneAgent, DeliverMidRunMessage, MidRunMessageDelivery } from '../../types.js';
-import { useChatPane } from '../../hooks/useChatPane.hooks.js';
+import { useChatPane, type UseChatPaneOptions } from '../../hooks/useChatPane.hooks.js';
 
 const agents: ChatPaneAgent[] = [{ id: 'claude', name: 'Claude Code', available: true }];
 
 /** Starts one run and leaves it streaming, then types `next` into the composer. */
-async function startStreamingRun(deliverMidRunMessage: DeliverMidRunMessage | undefined) {
+async function startStreamingRun(deliverMidRunMessage: DeliverMidRunMessage | undefined, options: Partial<UseChatPaneOptions> = {}) {
   const transport = createFakeChatTransport();
   const hook = renderHook(() => useChatPane({
     transport, agents, selection: { agentId: 'claude' }, initialDraft: 'first turn',
     ...(deliverMidRunMessage ? { deliverMidRunMessage } : {}),
+    ...options,
   }));
   await act(() => hook.result.current.send());
   await waitFor(() => expect(transport.calls).toHaveLength(1));
@@ -95,14 +96,90 @@ describe('useChatPane — a message sent mid-run goes to the running agent', () 
     }
   });
 
-  it('queues a turn with attachments rather than delivering text-only into the run', async () => {
+  it('delivers the whole turn with its screenshot into the running agent', async () => {
     const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => 'delivered');
     const { result } = await startStreamingRun(deliver);
-    act(() => result.current.composer.addAttachment({ path: 'attachment:1', name: 'a.png', kind: 'image' }));
+    const image = { path: 'attachment:1', name: 'a.png', kind: 'image' as const };
+    act(() => result.current.composer.addAttachment(image));
 
     await act(() => result.current.send());
 
+    expect(deliver).toHaveBeenCalledWith({ runId: 'run-1', text: 'also fix the footer', attachments: [image] });
+    expect(result.current.queuedPrompt).toBeNull();
+    expect(result.current.composer.attachments).toEqual([]);
+  });
+
+  it.each([false, true])('waits for an uploading screenshot before sending mid-run (image only: %s)', async (imageOnly) => {
+    const image = { path: 'attachment:uploaded', name: 'paste.png', kind: 'image' as const };
+    let complete!: (attachments: typeof image[]) => void;
+    const uploadAttachments = vi.fn(() => new Promise<typeof image[]>(resolve => { complete = resolve; }));
+    const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => 'delivered');
+    const { result, transport } = await startStreamingRun(deliver, { uploadAttachments });
+    let upload!: Promise<void>;
+    act(() => {
+      if (imageOnly) result.current.composer.setDraft('');
+      upload = result.current.addAttachments([new File(['pixels'], 'paste.png', { type: 'image/png' })]);
+    });
+
+    await act(() => result.current.send());
     expect(deliver).not.toHaveBeenCalled();
+    expect(result.current.queuedPrompt).toBe(imageOnly ? 'Review the attached file(s).' : 'also fix the footer');
+    act(() => result.current.composer.setDraft('a later, unsent draft'));
+    await act(async () => { complete([image]); await upload; });
+
+    await waitFor(() => expect(deliver).toHaveBeenCalledWith({
+      runId: 'run-1', text: imageOnly ? 'Review the attached file(s).' : 'also fix the footer', attachments: [image],
+    }));
+    expect(deliver).toHaveBeenCalledTimes(1);
+    expect(transport.calls).toHaveLength(1);
+    expect(result.current.composer.attachments).toEqual([]);
+    expect(result.current.composer.draft).toBe('a later, unsent draft');
+  });
+
+  it('queues the whole attachment turn until the reply ends when live images are unsupported', async () => {
+    const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => 'unsupported');
+    const { result, transport } = await startStreamingRun(deliver);
+    const image = { path: 'attachment:1', name: 'a.png', kind: 'image' as const };
+    act(() => result.current.composer.addAttachment(image));
+    await act(() => result.current.send());
+
+    expect(deliver).toHaveBeenCalledWith({ runId: 'run-1', text: 'also fix the footer', attachments: [image] });
+    expect(transport.stoppedRunIds).toEqual([]);
     expect(result.current.queuedPrompt).toBe('also fix the footer');
+    await act(async () => { transport.finish(); });
+    await waitFor(() => expect(transport.calls).toHaveLength(2));
+    expect(transport.calls[1]?.input).toMatchObject({ attachments: [image] });
+    expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('also fix the footer');
+  });
+
+  it('keeps a queued screenshot with its original text when another message is submitted', async () => {
+    const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => 'unsupported');
+    const { result, transport } = await startStreamingRun(deliver);
+    const image = { path: 'attachment:1', name: 'a.png', kind: 'image' as const };
+    act(() => result.current.composer.addAttachment(image));
+    await act(() => result.current.send());
+    act(() => result.current.composer.setDraft('and check its header'));
+    await act(() => result.current.send());
+    expect(deliver).toHaveBeenCalledTimes(1);
+    await act(async () => { transport.finish(); });
+    await waitFor(() => expect(transport.calls).toHaveLength(2));
+    expect(transport.calls[1]?.input.attachments).toEqual([image]);
+    expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('also fix the footer\n\nand check its header');
+  });
+
+  it('holds the message when an upload fails rather than steering text without the image', async () => {
+    let reject!: (error: Error) => void;
+    const uploadAttachments = () => new Promise<never>((_resolve, fail) => { reject = fail; });
+    const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => 'delivered');
+    const { result, transport } = await startStreamingRun(deliver, { uploadAttachments });
+    let upload!: Promise<void>;
+    act(() => { upload = result.current.addAttachments([new File(['pixels'], 'paste.png')]); });
+    await act(() => result.current.send());
+    await act(async () => { reject(new Error('upload failed')); await upload; });
+    await act(async () => { transport.finish(); });
+    expect(deliver).not.toHaveBeenCalled();
+    expect(transport.calls).toHaveLength(1);
+    expect(result.current.queuedPrompt).toBe('also fix the footer');
+    expect(result.current.attachmentError?.message).toBe('upload failed');
   });
 });

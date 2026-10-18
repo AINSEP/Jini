@@ -107,6 +107,7 @@ export const MessageList = memo(function MessageList({
           data-agent-role="region"
           data-agent-label="A message queued to send once the current run finishes"
         >
+          <div>{t('Queued — sends when this reply finishes')}</div>
           <div className="jini-chat-pane__queued-text">{pendingPrompt.text}</div>
           <div className="jini-chat-pane__queued-actions">
             <button

@@ -279,6 +279,7 @@ describe('MessageList', () => {
       const el = container.querySelector('.jini-message-list') as HTMLDivElement;
       expect(el.lastElementChild).toHaveAttribute('data-testid', 'chat-pane-queued');
       expect(screen.getByText('third turn')).toBeInTheDocument();
+      expect(screen.getByText('Queued — sends when this reply finishes')).toBeVisible();
     });
 
     it('invokes onCancel from the transcript entry\'s own cancel affordance', async () => {

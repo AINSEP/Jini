@@ -186,8 +186,8 @@ export type DeliverTypedAnswer = ((input: { text: string }) => Promise<TypedAnsw
  */
 export type MidRunMessageDelivery = 'delivered' | 'unsupported' | 'not-running' | 'failed';
 
-/** Delivers text typed while a run streams to that run's live agent. `createMidRunMessagePoster` builds one. */
-export type DeliverMidRunMessage = (input: { runId: string; text: string }) => Promise<MidRunMessageDelivery>;
+/** Delivers a complete turn to the live agent; unsupported attachments must reject the whole turn. */
+export type DeliverMidRunMessage = (input: { runId: string; text: string; attachments?: readonly ChatAttachment[] }) => Promise<MidRunMessageDelivery>;
 
 export interface ChatPaneProps extends UserTextRedactionOptions {
   transport: ChatTransport;
@@ -257,10 +257,11 @@ export interface ChatPaneProps extends UserTextRedactionOptions {
    */
   deliverTypedAnswer?: DeliverTypedAnswer;
   /**
-   * Called instead of queueing when the human sends text (no attachments) while a run streams, so
+   * Called instead of queueing when the human sends a message while a run streams, so
    * the message reaches the running agent now rather than after it finishes. The draft clears at
-   * once. `'delivered'` leaves the run going; `'unsupported'` stops the run and sends the text as
-   * the next turn (a resuming agent keeps its session); `'not-running'`, `'failed'` or a throw
+   * once. `'delivered'` leaves the run going; `'unsupported'` queues attachment turns until the
+   * reply finishes, or stops the run for a text-only turn (a resuming agent keeps its session).
+   * `'not-running'`, `'failed'` or a throw
    * queue it behind the ending run. Never silently dropped. A held-open question still goes to
    * {@link deliverTypedAnswer} first.
    *

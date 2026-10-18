@@ -272,18 +272,18 @@ export function isTypedAnswerTurn({ blocker, attachmentCount, messages, toolName
 
 /**
  * The run a composer send can go INTO instead of queueing behind, or `null`: a run is streaming
- * ({@link isChatPaneQueueableBlocker}), the turn has no attachments (a mid-run message carries text
- * only — the live agent's stdin takes no files), and the newest message is that run's assistant
+ * ({@link isChatPaneQueueableBlocker}), and the newest message is that run's assistant
  * turn with a known `runId`.
+ * Attachment support is decided by the host's delivery, never by dropping them here.
  *
  * @complexity O(1).
  */
-export function findMidRunMessageRunId({ blocker, attachmentCount, messages }: {
+export function findMidRunMessageRunId({ blocker, messages }: {
   blocker: ChatPaneSendBlocker | null;
   attachmentCount: number;
   messages: readonly ChatMessage[];
 }): string | null {
-  if (!isChatPaneQueueableBlocker({ blocker }) || attachmentCount !== 0) return null;
+  if (!isChatPaneQueueableBlocker({ blocker })) return null;
   const last = messages.at(-1);
   return last?.role === 'assistant' && last.runId ? last.runId : null;
 }

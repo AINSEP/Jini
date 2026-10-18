@@ -91,6 +91,24 @@ function controlResponse(requestId: string): unknown {
 }
 
 describe('AgentExecutor.sendUserMessage — a message sent during a run reaches the live agent', () => {
+  it('writes screenshot pixels with the mid-run text in the same structured user message as an idle send', async () => {
+    const harness = createHarness(createDef({}));
+    const runId = await startRun(harness);
+    const delivery = harness.executor.sendUserMessage({ runId, text: 'see screenshot' }, {
+      imageContents: [{ mimeType: 'image/png', data: 'iVBORw==' }],
+    });
+    await flush();
+    const interrupt = JSON.parse(harness.child.stdin.writes[1]!);
+    harness.child.stdout.emit('data', `${JSON.stringify(controlResponse(interrupt.request_id))}\n`);
+    await expect(delivery).resolves.toBe('delivered');
+    expect(JSON.parse(harness.child.stdin.writes[2]!)).toEqual({ type: 'user', message: { role: 'user', content: [
+      { type: 'text', text: 'see screenshot' },
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'iVBORw==' } },
+    ] } });
+    harness.child.emit('close', 0, null);
+    await harness.lifecycle.waitForTerminal({ runId });
+  });
+
   it('reports an unavailable tool observer without stranding the terminal transition', async () => {
     const error = new Error('event replay unavailable');
     const h = createHarness(createDef({}), { observerFailure: error });

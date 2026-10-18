@@ -58,9 +58,12 @@ export interface RunHttpDeps {
   /**
    * Delivers a message the human sent mid-run into that run's live agent — a host passes its
    * `AgentExecutor.sendUserMessage`. Omitted, every such message reports `'unsupported'`, so the
-   * client falls back to interrupting the run and sending the text as the next turn.
+   * client falls back to interrupting the run and sending the text as the next turn. Attachment
+   * turns use the explicit hook below, or report unsupported without sending anything.
    */
-  readonly deliverUserMessage?: (input: { readonly runId: string; readonly text: string }) => UserMessageDelivery | Promise<UserMessageDelivery>;
+  readonly deliverUserMessage?: (input: RunMessageRequest) => UserMessageDelivery | Promise<UserMessageDelivery>;
+  /** Explicit opt-in: legacy text-only hosts must never acknowledge a turn while discarding its files. */
+  readonly deliverUserMessageWithAttachments?: (input: RunMessageRequest) => UserMessageDelivery | Promise<UserMessageDelivery>;
 }
 
 /**
@@ -128,6 +131,8 @@ function parseRunCreate(input: RouteInputContext): Result<RunCreateRequest> {
 export interface RunMessageRequest {
   readonly runId: string;
   readonly text: string;
+  /** Opaque upload capabilities; the host must authorize and prepare every ref before delivery. */
+  readonly attachmentIds?: readonly string[];
 }
 
 export interface RunMessageResponse {
@@ -148,7 +153,12 @@ function parseRunMessage(input: RouteInputContext): Result<RunMessageRequest> {
   if (text.length > RUN_MESSAGE_MAX_CHARS) {
     return err({ error: validationError({ message: `text must be at most ${RUN_MESSAGE_MAX_CHARS} characters` }, { issues: [{ path: 'text', message: 'too long' }] }) });
   }
-  return ok({ value: { runId: parsedRunId.value, text } });
+  const attachmentIds = input.body.attachmentIds;
+  if (attachmentIds !== undefined && (!Array.isArray(attachmentIds) || attachmentIds.length > 10
+    || attachmentIds.some(ref => typeof ref !== 'string' || !/^attachment:[\w-]{1,128}$/u.test(ref)))) {
+    return err({ error: validationError({ message: 'attachmentIds must contain at most 10 opaque attachment refs' }) });
+  }
+  return ok({ value: { runId: parsedRunId.value, text, ...(attachmentIds === undefined ? {} : { attachmentIds }) } });
 }
 
 export interface RunListResponse {
@@ -229,7 +239,8 @@ export const runMessageRoute = defineJsonRoute<RunMessageRequest, RunMessageResp
   method: 'post', path: '/api/runs/:runId/messages', parse: parseRunMessage, handle: async ({ input, deps }) => {
     const run = await deps.lifecycle.get({ runId: input.runId });
     if (run === undefined) return err({ error: createApiError({ code: 'NOT_FOUND', message: `run "${input.runId}" was not found` }) });
-    const delivery = deps.deliverUserMessage ? await deps.deliverUserMessage({ runId: input.runId, text: input.text }) : 'unsupported';
+    const deliver = input.attachmentIds?.length ? deps.deliverUserMessageWithAttachments : deps.deliverUserMessage;
+    const delivery = deliver ? await deliver(input) : 'unsupported';
     if (delivery === 'delivered') return ok({ value: { delivery } });
     return err({ error: createApiError({ code: 'CONFLICT', message: `run "${input.runId}" did not take the message` }, { details: { delivery } }) });
   }
