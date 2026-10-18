@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -73,7 +73,8 @@ describe('AgentRuntimePicker', () => {
       { id: 'claude-opus-5-5[1m]', label: 'Default (recommended)', identityKind: 'concrete' },
     ], defaultModelResolution: { status: 'resolved', id: 'claude-opus-5-5[1m]', source: 'rpc', resolvedAt: '2026-10-08T00:00:00.000Z', launchFingerprint: 'fixture' } };
     const { rerender } = render(<AgentRuntimePicker agents={[claude]} value={{ agentId: 'claude' }} onChange={onChange} />);
-    expect(screen.getByRole('button', { name: /^Model:/ })).toHaveTextContent('claude-opus-5-5[1m]');
+    // The catalog has no display name for it, so the bar prettifies the id and drops "Claude".
+    expect(screen.getByRole('button', { name: 'Model: claude-opus-5-5[1m]' })).toHaveTextContent(/^Opus 5\.5$/);
     await userEvent.click(screen.getByRole('button', { name: /^Model:/ }));
     expect(screen.getByRole('menuitemradio', { name: 'claude-opus-5-5[1m]' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.queryByText('Default (recommended)')).not.toBeInTheDocument();
@@ -251,6 +252,33 @@ describe('AgentRuntimePicker', () => {
     });
   });
 
+  it('shows the short model name in the bar and the full name in a tooltip on hover and focus', async () => {
+    const user = userEvent.setup();
+    render(<AgentRuntimePicker agents={agents} value={{ agentId: 'codex', model: 'gpt-5.6-terra' }} onChange={vi.fn()} />);
+    const model = screen.getByRole('button', { name: 'Model: GPT-5.6-Terra' });
+    expect(model).toHaveTextContent(/^5\.6 Terra$/);
+    // The styled bubble replaces the native title, which would stack a second tooltip on it.
+    expect(model).not.toHaveAttribute('title');
+    const bubble = () => document.body.querySelector('.info-tip-bubble');
+    await user.hover(model);
+    expect(bubble()).toHaveTextContent('GPT-5.6-Terra');
+    await user.unhover(model);
+    expect(bubble()).toBeNull();
+    act(() => model.focus());
+    expect(bubble()).toHaveTextContent('GPT-5.6-Terra');
+    await user.keyboard('{Escape}');
+    expect(bubble()).toBeNull();
+    // A label the bar shows unshortened (the effort) keeps its plain title and gets no bubble.
+    const effort = screen.getByRole('button', { name: 'Reasoning: Medium' });
+    expect(effort).toHaveAttribute('title', 'Medium');
+    await user.hover(effort);
+    expect(bubble()).toBeNull();
+    // Opening the menu hides it: the list already shows the full name.
+    await user.click(model);
+    expect(screen.getByRole('menu', { name: 'Model' })).toBeInTheDocument();
+    expect(bubble()).toBeNull();
+  });
+
   it('picks model and reasoning effort from composer-bar drop-ups that open above the trigger', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
@@ -303,7 +331,7 @@ describe('AgentRuntimePicker', () => {
     // An agent with no reasoning options gets no effort control at all, rather than an empty one.
     rerender(<AgentRuntimePicker agents={agents} value={{ agentId: 'claude', model: 'claude-sonnet-5' }} onChange={onChange} />);
     expect(screen.queryByRole('button', { name: /^Reasoning:/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Model:/ })).toHaveTextContent('Claude Sonnet 5');
+    expect(screen.getByRole('button', { name: 'Model: Claude Sonnet 5' })).toHaveTextContent(/^Sonnet 5$/);
 
     // API mode: neither CLI menu; the trigger names the provider's model and the popover keeps its picker.
     rerender(

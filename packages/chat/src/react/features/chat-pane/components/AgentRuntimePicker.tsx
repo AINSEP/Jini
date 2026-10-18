@@ -1,4 +1,4 @@
-import { pickerModelValue, pickerCatalogNote, pickerModelOptions } from '../model-options.js';
+import { pickerModelValue, pickerCatalogNote, pickerModelOptions, shortModelLabel } from '../model-options.js';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AgentIcon, RemixIcon, SearchableModelSelect } from '@jini-ai/ui';
@@ -166,6 +166,8 @@ function RuntimeBarMenus({ selectedAgent, value, onChange, modelLabel, t }: Runt
         <RuntimeDropUp
           label={t('Model')}
           valueLabel={modelLabel}
+          // The agent icon sits right beside it, so the bar drops the vendor word and caps the rest.
+          triggerLabel={shortModelLabel({ label: modelLabel, agentId: selectedAgent.id })}
           value={pickerModelValue(selectedAgent, value.model)}
           options={models}
           note={pickerCatalogNote(selectedAgent, t)}

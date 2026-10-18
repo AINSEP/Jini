@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { RemixIcon } from '@jini-ai/ui';
+import { createPortal } from 'react-dom';
+import { RemixIcon, infoTipBubbleStyle, useInfoTip } from '@jini-ai/ui';
 
 import { useRuntimeDropUp } from '../hooks/useRuntimeDropUp.hooks.js';
 
@@ -8,6 +9,9 @@ export interface RuntimeDropUpProps {
   label: string;
   /** What the trigger shows: the current choice's display label. */
   valueLabel: string;
+  /** A shorter form the trigger shows instead (e.g. "Opus 5.5"); the full `valueLabel` then
+   *  appears in a hover/focus tooltip and stays the trigger's accessible name. */
+  triggerLabel?: string | undefined;
   value: string;
   options: readonly { id: string; label: string }[];
   onSelect: (id: string) => void;
@@ -16,6 +20,7 @@ export interface RuntimeDropUpProps {
   /** Menu width cap in px; the menu is also clamped to the viewport. */
   width: number;
   className?: string;
+  useTip?: typeof useInfoTip | undefined;
 }
 
 /**
@@ -27,12 +32,14 @@ export interface RuntimeDropUpProps {
 export function RuntimeDropUp({
   label,
   valueLabel,
+  triggerLabel,
   value,
   options,
   onSelect,
   note,
   width,
   className,
+  useTip = useInfoTip,
 }: RuntimeDropUpProps): ReactNode {
   const {
     menuId,
@@ -45,6 +52,14 @@ export function RuntimeDropUp({
     handleMenuKeyDown,
     choose,
   } = useRuntimeDropUp({ width });
+  // The same white bubble as `InfoTip` (its hook places it), rather than the browser's own title
+  // tooltip; only when the trigger shows a shortened label, so there is something to reveal.
+  const tip = useTip({}, { placement: 'top' });
+  const shortened = triggerLabel !== undefined && triggerLabel !== valueLabel;
+  // No tip over the open menu, which already lists the full name.
+  const showTip = () => {
+    if (shortened && !open) tip.show();
+  };
 
   return (
     <>
@@ -56,13 +71,37 @@ export function RuntimeDropUp({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
-        title={valueLabel}
-        onClick={toggleOpen}
-        onKeyDown={handleTriggerKeyDown}
+        {...(shortened ? {} : { title: valueLabel })}
+        onClick={() => {
+          tip.hide();
+          toggleOpen();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') tip.hide();
+          handleTriggerKeyDown(event);
+        }}
+        onMouseEnter={showTip}
+        onMouseLeave={tip.leave}
+        onFocus={showTip}
+        onBlur={tip.hide}
       >
-        <span className="jini-runtime-dropup-trigger__label">{valueLabel}</span>
+        <span ref={tip.iconRef} className="jini-runtime-dropup-trigger__label">{triggerLabel ?? valueLabel}</span>
         <RemixIcon name="arrow-down-s-line" size={15} className="jini-runtime-trigger__chevron" />
       </button>
+      {tip.open && shortened && !open
+        ? createPortal(
+            <span
+              ref={tip.bubbleRef}
+              className={tip.placement === 'below' ? 'info-tip-bubble info-tip-bubble-below' : 'info-tip-bubble'}
+              role="presentation"
+              aria-hidden="true"
+              style={infoTipBubbleStyle(tip.coords)}
+            >
+              {valueLabel}
+            </span>,
+            document.body,
+          )
+        : null}
       {open && position ? (
         <div
           ref={menuRef}

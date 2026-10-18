@@ -56,3 +56,46 @@ export function pickerCatalogNote(agent: ChatPaneAgent, t: I18nAdapter['t'] = pa
   if (catalog?.freshness === 'offline-fallback' || !catalog && agent.models) return t('Offline fallback');
   return undefined;
 }
+
+// The vendor word each CLI's own icon already shows beside the bar label (owner 2026-10-18).
+// Agents not listed keep every word: a Cursor icon says nothing about whether a model is GPT.
+const BAR_VENDOR_WORDS: Readonly<Record<string, readonly string[]>> = {
+  claude: ['claude', 'anthropic'],
+  codex: ['gpt', 'openai'],
+  antigravity: ['gemini', 'google'],
+};
+// A bare catalog id ("claude-opus-5-5", "gpt-6-astra[1m]", "anthropic/claude-sonnet-5") rather than a display name.
+const RAW_MODEL_ID = /^(?:[a-z0-9._-]+\/)*[a-z0-9][a-z0-9._-]*(?:\[[^\]]*\])?$/;
+const BRAND_CASING: Readonly<Record<string, string>> = { gpt: 'GPT' };
+
+function prettifyRawModelId(id: string): string[] {
+  // A routing prefix ("anthropic/") is the full name's job; the bar names only the model.
+  const tokens = id.slice(id.lastIndexOf('/') + 1).replace(/\[[^\]]*\]$/, '').split(/[-_]+/).filter((token) => token && !/^\d{8}$/.test(token));
+  const words: string[] = [];
+  for (const token of tokens) {
+    const previous = words[words.length - 1];
+    // Dash-separated version digits read as one dotted version: "5-5" → "5.5".
+    if (/^\d+$/.test(token) && previous && /^\d+(?:\.\d+)*$/.test(previous)) words[words.length - 1] = `${previous}.${token}`;
+    else words.push(BRAND_CASING[token] ?? token.charAt(0).toUpperCase() + token.slice(1));
+  }
+  return words;
+}
+
+/**
+ * The composer bar's compact model name: the catalog label (or a prettified raw id when the catalog
+ * has no label), minus the leading vendor word the agent's icon already conveys, capped with "…".
+ * The full label stays in the drop-up list and the trigger's tooltip.
+ * @example shortModelLabel({ label: 'GPT-6.1-Sol', agentId: 'codex' }) // "6.1 Sol"
+ * @example shortModelLabel({ label: 'claude-opus-5-5', agentId: 'claude' }) // "Opus 5.5"
+ * @complexity O(n) in the label length. Pure.
+ */
+export function shortModelLabel({ label, agentId }: { label: string; agentId?: string | undefined }, { max = 16 }: { max?: number } = {}): string {
+  const trimmed = label.trim();
+  const raw = RAW_MODEL_ID.test(trimmed);
+  const words = raw ? prettifyRawModelId(trimmed) : trimmed.split(/[\s-]+/).filter(Boolean);
+  const vendors = (agentId && BAR_VENDOR_WORDS[agentId]) || [];
+  const dropVendor = words.length > 1 && vendors.includes(words[0]!.toLowerCase());
+  // A display name with no vendor word to drop is shown as the catalog wrote it.
+  const short = dropVendor ? words.slice(1).join(' ') : raw ? words.join(' ') : trimmed;
+  return short.length > max ? `${short.slice(0, max - 1).trimEnd()}…` : short;
+}

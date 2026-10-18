@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { configuredPickerModel, pickerCatalogNote, pickerModelLabel, pickerModelOptions, pickerModelValue } from '../model-options.js';
+import { configuredPickerModel, pickerCatalogNote, pickerModelLabel, pickerModelOptions, pickerModelValue, shortModelLabel } from '../model-options.js';
 import { defaultChatPaneSelection, resolveChatPaneSelection } from '../rules.js';
 import type { ChatPaneAgent } from '../types.js';
 const agent: ChatPaneAgent = { id: 'codex', name: 'Codex', available: true,
@@ -114,5 +114,31 @@ describe('concrete starting-model choices', () => {
   });
   it('hides public model IDs that cannot pin the built-in agent', () => {
     expect(pickerModelOptions({ ...agent, supportsConcreteModelSelection: false })).toEqual([]);
+  });
+});
+describe('shortModelLabel (composer bar)', () => {
+  it('drops the vendor word the agent icon already shows', () => {
+    expect(shortModelLabel({ label: 'GPT-6.1-Sol', agentId: 'codex' })).toBe('6.1 Sol');
+    expect(shortModelLabel({ label: 'Gemini 4 Argon High', agentId: 'antigravity' })).toBe('4 Argon High');
+    expect(shortModelLabel({ label: 'Claude Sonnet 5', agentId: 'claude' })).toBe('Sonnet 5');
+    expect(shortModelLabel({ label: 'Opus 5.5', agentId: 'claude' })).toBe('Opus 5.5');
+  });
+  it('prettifies a raw id with no catalog label, dotting dash-separated version digits', () => {
+    expect(shortModelLabel({ label: 'claude-opus-5-5', agentId: 'claude' })).toBe('Opus 5.5');
+    expect(shortModelLabel({ label: 'claude-opus-5-5[1m]', agentId: 'claude' })).toBe('Opus 5.5');
+    expect(shortModelLabel({ label: 'claude-haiku-4-5-20251001', agentId: 'claude' })).toBe('Haiku 4.5');
+    expect(shortModelLabel({ label: 'gpt-6-astra', agentId: 'codex' })).toBe('6 Astra');
+    expect(shortModelLabel({ label: 'anthropic/claude-sonnet-5', agentId: 'opencode' })).toBe('Claude Sonnet 5');
+  });
+  it('keeps the vendor word for an agent whose icon does not convey it', () => {
+    expect(shortModelLabel({ label: 'GPT-6.1-Sol', agentId: 'cursor-agent' })).toBe('GPT-6.1-Sol');
+    expect(shortModelLabel({ label: 'gpt-6-astra' })).toBe('GPT 6 Astra');
+    expect(shortModelLabel({ label: 'Gemini', agentId: 'antigravity' })).toBe('Gemini');
+  });
+  it('caps a long name at 16 characters with an ellipsis', () => {
+    const capped = shortModelLabel({ label: 'Gemini 4 Argon Ultra Thinking High', agentId: 'antigravity' });
+    expect(capped).toBe('4 Argon Ultra T…');
+    expect(capped).toHaveLength(16);
+    expect(shortModelLabel({ label: 'Choose model' })).toBe('Choose model');
   });
 });
