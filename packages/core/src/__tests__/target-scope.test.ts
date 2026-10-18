@@ -19,7 +19,7 @@ function ports() {
   };
 }
 
-it('adds an optional target only to classified reads, preserving schemas, metadata and order', () => {
+it('declares the guarded target on writes and unclassified tools as well as scoped reads', () => {
   const required = Object.freeze(['query']);
   const properties = Object.freeze({ query: { type: 'string' } });
   const schema = Object.freeze({ type: 'object', properties, required, additionalProperties: false });
@@ -39,8 +39,8 @@ it('adds an optional target only to classified reads, preserving schemas, metada
   expect(schema.properties).toEqual({ query: { type: 'string' } });
   expect(transformed[0]!.policy).toBe(read.policy);
   expect(transformed[0]!.descriptor.metadata).toBe(metadata);
-  expect(transformed[1]!.descriptor).toBe(write.descriptor);
-  expect(transformed[2]!.descriptor).toBe(unclassified.descriptor);
+  expect(transformed[1]!.descriptor.inputSchema).toEqual(transformed[0]!.descriptor.inputSchema);
+  expect(transformed[2]!.descriptor.inputSchema).toEqual(transformed[0]!.descriptor.inputSchema);
 });
 
 it('creates a minimal schema when absent and accepts object schemas without properties or type', () => {
@@ -65,7 +65,7 @@ it('a host allowlist can exclude reads but cannot widen scope to writes or uncla
     const original = registration({ readOnly, inputSchema: { type: 'object' } });
     const host = ports();
     const [tool] = applyTargetScope({ registrations: [original], ...host }, { scoped: () => readOnly !== true });
-    expect(tool!.descriptor).toBe(original.descriptor);
+    expect(tool!.descriptor.inputSchema).toEqual({ type: 'object', properties: { site: { type: 'string', description: expect.any(String) } } });
     const pending = tool!.handler(context({ site: 'b' }));
     await expect(pending).rejects.toThrow(ToolInputError);
     await expect(pending).rejects.toThrow('This tool runs only on the current target.');

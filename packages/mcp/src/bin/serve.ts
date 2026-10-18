@@ -206,6 +206,13 @@ export async function serve(_requiredArgs: Record<string, never>, deps: ServeDep
   };
 
   try {
+    // Only the spawning host supplies registration metadata. Never learn exceptions from an
+    // error body or model arguments: either would turn a secret into its own redaction exemption.
+    const diagnosticToolIds: unknown = JSON.parse(env.JINI_DIAGNOSTIC_TOOL_IDS ?? '[]');
+    if (!Array.isArray(diagnosticToolIds) || !diagnosticToolIds.every(id => typeof id === 'string')) {
+      throw new Error('JINI_DIAGNOSTIC_TOOL_IDS must be a JSON array of registered tool IDs');
+    }
+    if (diagnosticToolIds.length) Object.assign(serverOptions, { diagnosticToolIds });
     await createMcpToolServerFn(requiredArgs, serverOptions).run({});
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

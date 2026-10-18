@@ -1,4 +1,4 @@
-import { LABELED_SECRET_RE, OPAQUE_TOKEN_RE, NON_SECRET_TOKEN_RE } from "../redact.js";
+import { redactSecrets, LABELED_SECRET_RE, OPAQUE_TOKEN_RE, NON_SECRET_TOKEN_RE } from "../redact.js";
 /**
  * @module redact
  *
@@ -79,17 +79,28 @@ export function stripControlSequences({ text }: { text: string }): string {
   return out;
 }
 
-// A labeled credential (`Authorization: ...`, `api-key=...`) has everything after the label
-// redacted. A bare run of 20+ base64url/hex-alphabet characters is treated as a possible
-// opaque token/secret and redacted outright, even with no label.
-/** Redact labeled credentials and long opaque-token-looking substrings from `text`. */
-function redactSecretLike({ text }: { text: string }): string {
-  return text
-    .replace(LABELED_SECRET_RE, (match) => match.replace(/\S+$/, '[redacted]'))
-    .replace(OPAQUE_TOKEN_RE, (match) => (NON_SECRET_TOKEN_RE.test(match) ? match : '[redacted]'));
+/** Exact diagnostic vocabulary only: unknown spellings and glued suffixes remain opaque. */
+const DIAGNOSTIC_TOKENS = new Set([
+  'additionalProperties', 'additionalItems', 'unevaluatedProperties', 'unevaluatedItems',
+  'dependentRequired', 'dependentSchemas', 'exclusiveMinimum', 'exclusiveMaximum',
+  'minContains', 'maxContains', 'patternProperties', 'propertyNames', 'prefixItems',
+  'contentEncoding', 'contentMediaType', 'contentSchema',
+]);
+
+/** Mask credentials before preserving complete trusted IDs; redact opaque spans everywhere else. */
+function redactSecretLike({ text, diagnosticToolIds }: { text: string; diagnosticToolIds: ReadonlySet<string> }): string {
+  return redactSecrets({ input: text }, { redactPii: false })
+    .replace(LABELED_SECRET_RE, match => match.replace(/([:=]\s*)\S+$/, '$1[redacted]'))
+    .replace(/\[REDACTED:[^\]\r\n]+\]/g, '[redacted]')
+    // Trust whole dotted IDs so their components cannot become a general redaction bypass.
+    .replace(/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*/g, token => diagnosticToolIds.has(token) ? token
+      : token.replace(OPAQUE_TOKEN_RE, match => NON_SECRET_TOKEN_RE.test(match) || DIAGNOSTIC_TOKENS.has(match) ? match : '[redacted]'));
 }
 
 export interface SanitizeTextOptions {
+  /** Exact IDs from trusted registration metadata, never inferred from error text or arguments.
+   * Credential rules still run first; prefixes and glued suffixes are never exempted. */
+  diagnosticToolIds?: readonly string[];
   /** Maximum output length; longer input is truncated with a trailing marker. Defaults to 500. */
   maxLength?: number;
 }
@@ -98,15 +109,16 @@ export interface SanitizeTextOptions {
  * Strip terminal control sequences, redact anything that looks like a secret, and cap the
  * length of `text` — the one function every boundary that surfaces daemon/network-derived text
  * to stderr/stdout should route through first.
+ * Trusted diagnosticToolIds exempt complete IDs (including dots) only, after credential masking.
+ * @complexity O(n + t) local time/space for n text bytes and t trusted ID bytes.
  */
 export function sanitizeUntrustedText({ text }: { text: string }, options: SanitizeTextOptions = {}): string {
   const requestedLength = options.maxLength ?? DEFAULT_MAX_EXCERPT_LENGTH;
   const maxLength = Number.isFinite(requestedLength) ? Math.max(0, Math.floor(requestedLength)) : DEFAULT_MAX_EXCERPT_LENGTH;
-  const sanitized = redactSecretLike({ text: stripControlSequences({ text }) });
+  const sanitized = redactSecretLike({ text: stripControlSequences({ text }), diagnosticToolIds: new Set(options.diagnosticToolIds) });
   if (sanitized.length <= maxLength) return sanitized;
   // The marker is part of the output budget, including when the budget cannot fit the full marker.
   const marker = '… [truncated]';
   if (maxLength < marker.length) return marker.slice(0, maxLength);
   return `${sanitized.slice(0, maxLength - marker.length)}${marker}`;
 }
-

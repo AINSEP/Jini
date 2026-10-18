@@ -69,13 +69,12 @@ export function bridgeUnavailableMessage(status: string, probe?: McpBridgeProbeR
  * `writeMcpJsonForRun`'s job, which keeps the effect out of this function.
  *
  * @param runId - The run this entry scopes its child to.
- * @param options - `command`/`args`/`daemonUrl`/`env` from the host's injection options.
+ * @param options - Launch settings and an optional reader of trusted registered diagnostic IDs.
  * @param credential - The already-resolved bearer token, or `undefined` to omit `JINI_DAEMON_TOKEN`
  * entirely. Omitting produces byte-identical output to before this parameter existed.
- * @complexity O(1).
- * @overallScore 100/100
+ * @complexity O(t) output space/time for t registered diagnostic ID bytes, otherwise O(1).
  */
-export function buildMcpJsonServerEntry({ runId, options }: { readonly runId: string; readonly options: Pick<McpJsonInjectionOptions, 'command' | 'args' | 'daemonUrl' | 'env'> }, { credential }: { readonly credential?: string } = {}
+export function buildMcpJsonServerEntry({ runId, options }: { readonly runId: string; readonly options: Pick<McpJsonInjectionOptions, 'command' | 'args' | 'daemonUrl' | 'env' | 'diagnosticToolIds'> }, { credential }: { readonly credential?: string } = {}
 ): McpJsonServerEntry {
   const hostEnv = Object.entries(options.env ?? {}).filter(([key]) => !key.startsWith('JINI_'));
   return {
@@ -85,6 +84,7 @@ export function buildMcpJsonServerEntry({ runId, options }: { readonly runId: st
       ...Object.fromEntries(hostEnv),
       JINI_RUN_ID: runId,
       JINI_DAEMON_URL: options.daemonUrl,
+      ...(options.diagnosticToolIds ? { JINI_DIAGNOSTIC_TOOL_IDS: JSON.stringify(options.diagnosticToolIds()) } : {}),
       ...(credential !== undefined ? { JINI_DAEMON_TOKEN: credential } : {}),
     },
   };

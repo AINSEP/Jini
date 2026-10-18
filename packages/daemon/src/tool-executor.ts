@@ -48,6 +48,8 @@
 import { randomUUID } from 'node:crypto';
 import {
   ToolInputError,
+  withNormalizationNotes,
+  ToolInputNormalizationError,
   type AuthorizationDecision,
   type Principal,
   type RunRef,
@@ -154,6 +156,8 @@ export type ToolExecutionStatus =
 export type ToolExecutionErrorKind = 'validation' | 'internal';
 
 export interface ToolExecutionResult {
+  /** Value-free rewrites, retained even when output text is truncated. */
+  readonly normalizationNotes?: readonly string[];
   readonly executionId: string;
   readonly status: ToolExecutionStatus;
   readonly output?: unknown;
@@ -218,7 +222,7 @@ function truncateOutput(output: unknown, maxOutputBytes: number | undefined): { 
  * — the one and only caller of that internal export.
  * @param options.delegate - Transport-supplied authorize/confirm UI seam;
  * omit for a headless caller whose tools never need interactive gating.
- * @complexity Known-id `execute` is O(1) plus the handler's own cost; unknown ids scan O(n) descriptors for hints. `resumeConfirmation`/`cancel`/`getAuditRecord` are O(1) map lookups.
+ * @complexity Known-id `execute` adds schema-guided normalization to the handler's cost; unknown ids scan O(n) descriptors for hints. `resumeConfirmation`/`cancel`/`getAuditRecord` are O(1) map lookups.
  * @overallScore 100/100
  */
 export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions, "registry">, optionalArgs: Pick<CreateToolExecutorOptions, "delegate" | "now"> = {}): ToolExecutor {
@@ -274,7 +278,7 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     return executionId;
   }
 
-  function authorize(principal: Principal, run: RunRef, toolId: string, input: unknown) {
+  function authorize({ principal, run, toolId, input, registry }: { principal: Principal; run: RunRef; toolId: string; input: unknown; registry: ToolRegistry }) {
     // `.bind(delegate)` rather than passing the bare method reference: `ExecutionDelegate` is
     // declared with method syntax, so a host may legitimately implement it as a class instance
     // whose `onAuthorize` reads `this`. Handing the detached function to `@jini-ai/core` would
@@ -312,6 +316,7 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     err: unknown,
     timedOut: boolean,
     aborted: boolean,
+    normalizationNotes: readonly string[] = [],
   ): ToolExecutionResult {
     if (timedOut) {
       appendEvent(executionId, 'timed-out');
@@ -321,13 +326,13 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
       appendEvent(executionId, 'cancelled');
       return { executionId, status: 'cancelled' };
     }
-    const message = err instanceof Error ? err.message : String(err);
+    const message = withNormalizationNotes({ output: err instanceof Error ? err.message : String(err), notes: normalizationNotes }) as string;
     appendEvent(executionId, 'failed', message);
     const errorKind: ToolExecutionErrorKind = err instanceof ToolInputError ? 'validation' : 'internal';
-    return { executionId, status: 'failed', error: message, errorKind };
+    return { executionId, status: 'failed', error: message, errorKind, ...(normalizationNotes.length ? { normalizationNotes } : {}) };
   }
 
-  async function execute({ principal, run, toolId, input }: { readonly principal: Principal; readonly run: RunRef; readonly toolId: string; readonly input: unknown }, { signal, emitSurface }: { readonly signal?: AbortSignal; readonly emitSurface?: SurfaceEmitter } = {}
+  async function execute({ principal, run, toolId, input }: { readonly principal: Principal; readonly run: RunRef; readonly toolId: string; readonly input: unknown }, { signal, emitSurface, invocationRegistry = registry }: { readonly signal?: AbortSignal; readonly emitSurface?: SurfaceEmitter; readonly invocationRegistry?: ToolRegistry } = {}
   ): Promise<ToolExecutionResult> {
     // Existence is checked separately from — and before — authorization so the audit record can
     // be opened before the (possibly slow, possibly throwing) authorization gate runs, matching
@@ -335,8 +340,8 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     // policy that hangs or throws used to still leave a record behind. `has()` only confirms
     // existence, never returns a handler, so this doesn't reopen the leak authorizeToolInvocation
     // closed — that gate still runs, still unconditionally, inside the call below.
-    if (!registry.has({ toolId })) {
-      const candidates = toolCandidates({ toolId, tools: registry.list({}) });
+    if (!invocationRegistry.has({ toolId })) {
+      const candidates = toolCandidates({ toolId, tools: invocationRegistry.list({}) });
       const hint = candidates.length > 0 ? `; did you mean ${candidates.join(', ')}?` : '';
       throw new ToolInputError({ message: `ToolExecutor: unknown tool "${toolId}"${hint}` });
     }
@@ -377,9 +382,10 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     // stays a typed input-error throw because no tool execution exists to settle.
     let resolved: Awaited<ReturnType<typeof authorize>>;
     try {
-      resolved = await authorize(principal, run, toolId, input);
-    } catch {
+      resolved = await authorize({ principal, run, toolId, input, registry: invocationRegistry });
+    } catch (error) {
       detachTransportAbort();
+      if (error instanceof ToolInputNormalizationError) return failureResult(executionId, error, false, false);
       appendEvent(executionId, 'failed', 'authorization failed');
       return { executionId, status: 'failed', error: 'authorization failed' };
     }
@@ -392,7 +398,7 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
       appendEvent(executionId, 'cancelled');
       return { executionId, status: 'cancelled' };
     }
-    // `registry.has({ toolId })` above already confirmed the tool exists, and `ToolRegistry` is
+    // `invocationRegistry.has({ toolId })` above already confirmed the tool exists, and `ToolRegistry` is
     // append-only (no unregister — see `createToolRegistry`'s doc), so `authorizeToolInvocation`
     // resolving the same `toolId` against the same `registry` cannot come back `undefined` here.
     const { descriptor } = resolved!;
@@ -402,8 +408,9 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
       appendEvent(executionId, 'denied');
       return { executionId, status: 'denied' };
     }
-    appendEvent(executionId, 'authorized');
-    const { handler } = resolved!;
+    const { handler, normalizationNotes } = resolved!;
+    input = resolved!.input;
+    appendEvent(executionId, 'authorized', normalizationNotes.length ? `normalized: ${normalizationNotes.join('; ')}` : undefined);
 
     // Kept inline rather than extracted into a helper: hoisting this into an `async` function adds
     // microtask ticks to the *un*-confirmed path too, and callers observe that timing — a test
@@ -468,7 +475,16 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
         run,
         input,
         signal: controller.signal,
-      }, { ...(emitSurface !== undefined ? { emitSurface } : {}) });
+      }, {
+        ...(emitSurface !== undefined ? { emitSurface } : {}),
+        invokeTool: async ({ toolId: nestedToolId, input: nestedInput }, { registry: nestedRegistry = invocationRegistry } = {}) => {
+          const selectedRegistry = nestedToolId === toolId || invocationRegistry.has({ toolId: nestedToolId }) ? invocationRegistry : nestedRegistry;
+          const result = await execute({ principal, run, toolId: nestedToolId, input: nestedInput }, { signal: controller.signal, ...(emitSurface !== undefined ? { emitSurface } : {}), invocationRegistry: selectedRegistry });
+          if (result.status === 'completed') return result.output;
+          if (result.errorKind === 'validation') throw new ToolInputError({ message: result.error ?? result.status });
+          throw new Error(result.error ?? `${nestedToolId}: ${result.status}`);
+        },
+      });
       // A handler is not OBLIGED to honour `signal` — it is handed one, not policed by one. A
       // handler that ignores it and resolves normally after the timer fired (or after `cancel`)
       // used to land here and be recorded `completed`, because the timeout/abort state was only
@@ -486,15 +502,15 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
           controller.signal.aborted,
         );
       }
-      const { output, truncated } = truncateOutput(rawOutput, descriptor.maxOutputBytes);
+      const { output, truncated } = truncateOutput(withNormalizationNotes({ output: rawOutput, notes: normalizationNotes }), descriptor.maxOutputBytes);
       appendEvent(executionId, 'completed');
       cleanup();
       detachTransportAbort();
-      return { executionId, status: 'completed', output, truncated };
+      return { executionId, status: 'completed', output, truncated, ...(normalizationNotes.length ? { normalizationNotes } : {}) };
     } catch (err) {
       cleanup();
       detachTransportAbort();
-      return failureResult(executionId, err, timeout.timedOut(), controller.signal.aborted);
+      return failureResult(executionId, err, timeout.timedOut(), controller.signal.aborted, normalizationNotes);
     }
   }
 

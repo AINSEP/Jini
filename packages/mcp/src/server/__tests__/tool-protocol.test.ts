@@ -12,6 +12,34 @@ import {
 
 const ctx: McpToolContext = { baseUrl: 'http://d.example', fetchImpl: fetch };
 
+it('threads trusted registry IDs through daemon diagnostics and the final MCP error sanitizer', async () => {
+  const { postDaemonJson } = await import('../daemon-client.js');
+  const { daemonCallOptions } = await import('../tool-protocol.js');
+  const diagnosticToolIds = ['forms_create_definition', 'source_control_get_capabilities'];
+  const diagnostic = `Schema for 'forms_create_definition': {"additionalProperties":false}; Call source_control_get_capabilities`;
+  const tools = buildToolIndex({ tools: [{ name: 'gateway', description: 'test', inputSchema: { type: 'object' },
+    handler: ({ ctx }) => postDaemonJson({ baseUrl: ctx.baseUrl, route: '/api/x', body: {} }, daemonCallOptions({ ctx })),
+  }] });
+  const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({ error: { message: diagnostic } }), { status: 400 });
+  const result = await handleToolCall({ name: 'gateway', tools, ctx: { ...ctx, fetchImpl, diagnosticToolIds } });
+  expect(result).toEqual({ isError: true, content: [{ type: 'text', text: `daemon 400 on http://d.example/api/x: ${diagnostic}` }] });
+});
+
+it('preserves a trusted dotted recovery hint through both error sanitizers, masking glued and token secrets', async () => {
+  const { postDaemonJson } = await import('../daemon-client.js');
+  const { daemonCallOptions } = await import('../tool-protocol.js');
+  const id = 'content_read.backup_restore_point';
+  const opaque = 'x7Qm2Pz9Vb4Nc8Ld1Rf6Yt3Wk5';
+  const hint = `backup_restore_point 'missing' was not found — call ${id} without id to list valid ids`;
+  const message = `${hint}; ${id}_${opaque} api_key=${id} sk-proj-${opaque} ${opaque}`;
+  const tools = buildToolIndex({ tools: [{ name: 'gateway', description: 'test', inputSchema: { type: 'object' },
+    handler: ({ ctx }) => postDaemonJson({ baseUrl: ctx.baseUrl, route: '/api/x', body: {} }, daemonCallOptions({ ctx })),
+  }] });
+  const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({ error: { message } }), { status: 400 });
+  const result = await handleToolCall({ name: 'gateway', tools, ctx: { ...ctx, fetchImpl, diagnosticToolIds: [id] } });
+  expect(result).toEqual({ isError: true, content: [{ type: 'text', text: `daemon 400 on http://d.example/api/x: [redacted] 'missing' was not found — call ${id} without id to list valid ids; content_read.[redacted] api_key=[redacted] [redacted] [redacted]` }] });
+});
+
 function makeTool(overrides: Partial<McpToolDef> = {}): McpToolDef {
   return {
     name: 'noop',
@@ -184,7 +212,8 @@ describe('handleToolCall', () => {
     ] });
     await handleToolCall({ name: 't', tools, ctx }, { rawArgs: { runId: 'r1' } });
     expect(seenArgs).toEqual({ runId: 'r1' });
-    expect(seenCtx).toBe(ctx);
+    // handleToolCall adds the index's own tool names as trusted diagnostic IDs.
+    expect(seenCtx).toEqual({ ...ctx, diagnosticToolIds: ['t'] });
   });
 
   it('rejects arguments missing a required field before the handler ever runs, as an isError result', async () => {

@@ -148,6 +148,50 @@ describe('getDaemonJson / postDaemonJson', () => {
     await expect(getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl })).rejects.toThrow(/\[redacted\]/);
   });
 
+  it('keeps the real setting recovery hint and JSON schema keyword in daemon failures', async () => {
+    const message = 'Call settings_list_definitions to see valid keys. Schema for forms_create_definition: {"additionalProperties":false}';
+    const fetchImpl = vi.fn(async () => streamResponse(400, [
+      new TextEncoder().encode(JSON.stringify({ error: { message } })),
+    ]));
+    await expect(getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl, diagnosticToolIds: ['settings_list_definitions', 'forms_create_definition'] })).rejects.toThrow(message);
+  });
+
+  it('keeps a trusted dotted recovery hint while masking glued and token secrets', async () => {
+    const id = 'content_read.backup_restore_point';
+    const opaque = 'x7Qm2Pz9Vb4Nc8Ld1Rf6Yt3Wk5';
+    const hint = `backup_restore_point 'missing' was not found — call ${id} without id to list valid ids`;
+    const message = `${hint}; ${id}_${opaque} api_key=${id} sk-proj-${opaque} ${opaque}`;
+    const fetchImpl = vi.fn(async () => streamResponse(400, [new TextEncoder().encode(JSON.stringify({ error: { message } }))]));
+    const error = await getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl, diagnosticToolIds: [id] }).catch((error: Error) => error) as Error;
+    expect(error.message).toBe(`daemon 400 on http://d.example/api/x: [redacted] 'missing' was not found — call ${id} without id to list valid ids; content_read.[redacted] api_key=[redacted] [redacted] [redacted]`);
+  });
+
+  it.each([
+    'deadbeefcafebabefeedfaceabcdefab',
+    'settings_list_definitionsdeadbeefcafebabefeedfaceabcdefab',
+    'settings_list_definitions_deadbeefcafebabefeedfaceabcdefab',
+    'additionalPropertiesdeadbeefcafebabefeedfaceabcdefab',
+    'a_long_readable_identifier',
+  ])('masks the entire opaque diagnostic token %s through the daemon error path', async token => {
+    const fetchImpl = vi.fn(async () => streamResponse(400, [
+      new TextEncoder().encode(JSON.stringify({ error: { message: `failed ${token}; use settings_list_definitions; source_control_get_capabilities; additionalProperties` } })),
+    ]));
+    const error = await getDaemonJson({ baseUrl: 'http://d.example', route: '/api/delegated-tool-calls' }, { fetchImpl, diagnosticToolIds: ['settings_list_definitions', 'source_control_get_capabilities'] }).catch((error: Error) => error) as Error;
+    expect(error.message).toBe('daemon 400 on http://d.example/api/delegated-tool-calls: failed [redacted]; use settings_list_definitions; source_control_get_capabilities; additionalProperties');
+    expect(error.message).not.toContain(token);
+  });
+
+  it.each([
+    ['forms_create_definition', `forms_create_definition: title is required. Schema for 'forms_create_definition': {"additionalProperties":false}`],
+    ['source_control_get_capabilities', 'Call source_control_get_capabilities before retrying this operation.'],
+  ])('preserves the registered %s diagnostic without exposing glued or labelled secrets', async (id, diagnostic) => {
+    const opaque = 'deadbeefcafebabefeedfaceabcdefab';
+    const message = `${diagnostic} ${id}_${opaque} api_key=${id} ${opaque}`;
+    const fetchImpl = vi.fn(async () => streamResponse(400, [new TextEncoder().encode(JSON.stringify({ error: { message } }))]));
+    const error = await getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl, diagnosticToolIds: [id] }).catch((error: Error) => error) as Error;
+    expect(error.message).toBe(`daemon 400 on http://d.example/api/x: ${diagnostic} [redacted] api_key=[redacted] [redacted]`);
+  });
+
   it('rejects via a declared content-length over the byte cap without reading the body', async () => {
     const fetchImpl = vi.fn(async () => streamResponse(200, [], { 'content-length': '999999' }));
     await expect(getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl, maxResponseBytes: 10 })).rejects.toThrow(/exceeded the 10-byte limit/);

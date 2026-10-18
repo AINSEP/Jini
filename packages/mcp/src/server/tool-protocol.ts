@@ -51,6 +51,8 @@ import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 
 /** What every tool handler receives alongside its parsed arguments. */
 export interface McpToolContext {
+  /** Host registration metadata, supplied outside model-controlled arguments. */
+  readonly diagnosticToolIds?: readonly string[];
   /** The resolved daemon HTTP base URL (no trailing slash), fixed for the lifetime of one server run. */
   readonly baseUrl: string;
   /** Defaults to the global `fetch`; threaded through so a host can inject its own (e.g. for tests). */
@@ -87,9 +89,10 @@ export interface McpToolContext {
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function daemonCallOptions({ ctx }: { ctx: McpToolContext }): { fetchImpl: typeof fetch; headers?: Record<string, string>; signal?: AbortSignal } {
+export function daemonCallOptions({ ctx }: { ctx: McpToolContext }): { fetchImpl: typeof fetch; headers?: Record<string, string>; signal?: AbortSignal; diagnosticToolIds?: readonly string[] } {
   return {
     fetchImpl: ctx.fetchImpl,
+    ...(ctx.diagnosticToolIds !== undefined ? { diagnosticToolIds: ctx.diagnosticToolIds } : {}),
     ...(ctx.authHeaders !== undefined ? { headers: { ...ctx.authHeaders } } : {}),
     ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
   };
@@ -308,6 +311,8 @@ export async function handleToolCall(
   { name, tools, ctx }: { name: string; tools: ReadonlyMap<string, McpToolDef>; ctx: McpToolContext },
   { rawArgs }: { rawArgs?: Record<string, unknown> | undefined } = {},
 ): Promise<CallToolResult> {
+  const diagnosticToolIds = [...tools.keys(), ...(ctx.diagnosticToolIds ?? [])];
+  ctx = { ...ctx, diagnosticToolIds };
   const tool = tools.get(name);
   if (tool === undefined) {
     return errorResult({ message: `unknown tool: ${name}` });
@@ -319,18 +324,18 @@ export async function handleToolCall(
     const args = normalizeToolArguments({ tool, rawArgs: rawArgs ?? {} });
     const validation = validatorForTool(tool).validate(args);
     if (!validation.valid) {
-      return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: argumentShapeMessage({ errors: validation.errors }) })}` });
+      return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: argumentShapeMessage({ errors: validation.errors }) }, { diagnosticToolIds })}` });
     }
     validatedArgs = args;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: message })}` });
+    return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: message }, { diagnosticToolIds })}` });
   }
   try {
     const result = await tool.handler({ args: validatedArgs, ctx: ctx });
     return okResult({ payload: result });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return errorResult({ message: sanitizeUntrustedText({ text: message }) });
+    return errorResult({ message: sanitizeUntrustedText({ text: message }, { diagnosticToolIds }) });
   }
 }

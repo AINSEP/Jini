@@ -5,6 +5,45 @@ import { sanitizeUntrustedText, stripControlSequences } from '../index.js';
 const ESC = String.fromCharCode(0x1b);
 
 describe('sanitizeUntrustedText', () => {
+  it('retains exact recovery hints and schema keywords, masking unknown identifiers', () => {
+    const text = 'Call settings_list_definitions to see valid keys. additionalProperties assistant_ask_choice forms_create_definition source_control_get_capabilities pages_write_region someVeryLongReadableIdentifier a_long_readable_identifier';
+    expect(sanitizeUntrustedText({ text }, { diagnosticToolIds: ['settings_list_definitions', 'assistant_ask_choice', 'forms_create_definition', 'source_control_get_capabilities'] })).toBe('Call settings_list_definitions to see valid keys. additionalProperties assistant_ask_choice forms_create_definition source_control_get_capabilities pages_write_region [redacted] [redacted]');
+  });
+
+  it('still redacts opaque, vendor and labelled secrets even when their values look like identifiers', () => {
+    const token = 'x7Qm2Pz9Vb4Nc8Ld1Rf6Yt3Wk5';
+    const text = `failed ${token} sk-proj-${token} api_key=settings_list_definitions Authorization: Bearer ${token}`;
+    const result = sanitizeUntrustedText({ text });
+    expect(result).not.toContain(token);
+    expect(result).not.toContain('settings_list_definitions');
+    expect(result).not.toContain('Bearer');
+    expect(result).toContain('[redacted]');
+  });
+
+  it('exempts only exact registered IDs, after credential redaction', () => {
+    const id = 'forms_create_definition';
+    const suffix = 'deadbeefcafebabefeedfaceabcdefab';
+    const vendor = `sk-proj-${suffix}`;
+    const text = `${id} ${id}${suffix} ${id}_${suffix} api_key=${id} ${vendor}`;
+    expect(sanitizeUntrustedText({ text }, { diagnosticToolIds: [id, vendor] }))
+      .toBe(`${id} [redacted] [redacted] api_key=[redacted] [redacted]`);
+    expect(sanitizeUntrustedText({ text: id })).toBe('[redacted]');
+  });
+
+  it('preserves complete trusted dotted IDs without exempting components or glued secrets', () => {
+    const id = 'content_read.backup_restore_point';
+    const opaque = 'x7Qm2Pz9Vb4Nc8Ld1Rf6Yt3Wk5';
+    const vendor = `sk-proj-${opaque}`;
+    const text = `Call ${id}. ${id}_${opaque} x${id} ${id}.${opaque} other.${id} backup_restore_point api_key=${id} ${vendor} ${opaque}`;
+    expect(sanitizeUntrustedText({ text }, { diagnosticToolIds: [id, vendor] }))
+      .toBe(`Call ${id}. content_read.[redacted] xcontent_read.[redacted] content_read.[redacted].[redacted] other.content_read.[redacted] [redacted] api_key=[redacted] [redacted] [redacted]`);
+    expect(sanitizeUntrustedText({ text: id })).toBe('content_read.[redacted]');
+  });
+
+  it('keeps failure addresses, paths and emails visible', () => {
+    const text = 'connect ECONNREFUSED 127.0.0.1:3000 /tmp/settings.ts owner@example.com';
+    expect(sanitizeUntrustedText({ text })).toBe(text);
+  });
   it('strips control sequences and redacts secrets in one pass', () => {
     const secret = 'B'.repeat(25);
     const result = sanitizeUntrustedText({ text: `${ESC}[31m${secret}${ESC}[0m` });
@@ -101,4 +140,3 @@ describe('stripControlSequences', () => {
     expect(stripControlSequences({ text: withControls })).toBe('abc');
   });
 });
-

@@ -376,6 +376,8 @@ export interface ContinuationOptions {
  * interface that defaults to *nothing* rather than a real implementation).
  */
 export interface McpJsonInjectionOptions {
+  /** Read current host-registered tool IDs at launch, outside model-controlled input. */
+  readonly diagnosticToolIds?: () => readonly string[];
   /** Probe a reported bridge failure before emitting its error. @default true when injection is configured. */
   readonly probeOnFailure?: boolean;
   /** Absolute path (or PATH-resolvable name) to the `jini-mcp` bin entry (`packages/mcp/src/bin/serve.ts`) this driver tells the spawned CLI to launch as its own MCP server subprocess. */

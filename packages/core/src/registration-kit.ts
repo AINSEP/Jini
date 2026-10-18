@@ -473,6 +473,7 @@ export function buildDomainRegistrations(spec: {
   catalogModule: string;
   catalog: ReadonlyMap<string, AgentToolDefinition>;
   handlers: Record<string, ToolHandler>;
+  inputNormalizers?: Readonly<Record<string, import('./tool-input-normalization.js').ToolInputNormalizer>>;
   derivedRisk: DerivedRiskByToolId;
   /** Host vocabulary and reviewed action policy; risk remains independently checked above. */
   metadata?: import('./tool-metadata.js').ToolMetadataById;
@@ -491,6 +492,7 @@ export function buildDomainRegistrations(spec: {
       );
     }
     const metadata = catalogEntry.metadata ?? toolMetadataFor({ toolId: id, metadata: spec.metadata });
+    const normalizeInput = spec.inputNormalizers?.[id];
     registrations.push({
       descriptor: {
         id,
@@ -511,6 +513,7 @@ export function buildDomainRegistrations(spec: {
         readOnly: catalogEntry.sideEffects === "none",
       },
       handler,
+      ...(normalizeInput ? { normalizeInput } : {}),
       policy: { authorize: () => "allow" },
     });
   }

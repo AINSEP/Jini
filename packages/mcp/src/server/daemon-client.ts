@@ -39,6 +39,8 @@ export class DaemonResponseTooLargeError extends Error {
 }
 
 export interface DaemonRequestOptions {
+  /** Exact host-registered IDs that may appear in diagnostics; credentials are always redacted. */
+  diagnosticToolIds?: readonly string[];
   /** Defaults to the global `fetch`; inject for tests. */
   fetchImpl?: typeof fetch;
   headers?: Record<string, string>;
@@ -107,24 +109,24 @@ async function readJsonWithLimit(resp: Response, maxBytes: number): Promise<unkn
 }
 
 /** Formats a `fetch()` rejection (network-unreachable) into a message safe to surface as an MCP tool error. */
-function formatConnectionFailure(err: unknown, baseUrl: string): string {
+function formatConnectionFailure(err: unknown, baseUrl: string, options: DaemonRequestOptions): string {
   const cause = err !== null && typeof err === 'object' ? (err as { cause?: unknown }).cause : null;
   const code =
     cause !== null && typeof cause === 'object' && typeof (cause as { code?: unknown }).code === 'string'
       ? (cause as { code: string }).code
       : null;
   if (code === 'ECONNREFUSED' || code === 'ENOTFOUND') {
-    return safeDiagnostic({ text: `cannot reach the daemon at ${baseUrl}. Is it running?` });
+    return safeDiagnostic({ text: `cannot reach the daemon at ${baseUrl}. Is it running?` }, options);
   }
   const message = err instanceof Error ? err.message : String(err);
-  return safeDiagnostic({ text: message });
+  return safeDiagnostic({ text: message }, options);
 }
 
 /** Remove URL credentials, queries and fragments before ordinary secret/control redaction.
  * Even short query tokens are secrets; token-length heuristics cannot protect them.
  * @complexity O(n) in diagnostic text, plus URL parsing for each URL.
  */
-function safeDiagnostic({ text }: { text: string }): string {
+function safeDiagnostic({ text }: { text: string }, options: DaemonRequestOptions = {}): string {
   const redacted = text.replace(/https?:\/\/[^\s<>"']+/gi, url => {
     try {
       const parsed = new URL(url);
@@ -138,16 +140,16 @@ function safeDiagnostic({ text }: { text: string }): string {
       return '[redacted URL]';
     }
   });
-  return sanitizeUntrustedText({ text: redacted });
+  return sanitizeUntrustedText({ text: redacted }, options.diagnosticToolIds === undefined ? {} : { diagnosticToolIds: options.diagnosticToolIds });
 }
 
 /** Formats a non-2xx daemon response into a message safe to surface as an MCP tool error. */
-function formatDaemonHttpError(status: number, url: string, data: unknown): string {
+function formatDaemonHttpError(status: number, url: string, data: unknown, options: DaemonRequestOptions): string {
   const envelope = data as DaemonErrorEnvelope;
   const code = typeof envelope?.error?.code === 'string' ? envelope.error.code : undefined;
   const rawMessage = typeof envelope?.error?.message === 'string' ? envelope.error.message : undefined;
   const detail = rawMessage ?? `HTTP ${status}`;
-  return safeDiagnostic({ text: code !== undefined ? `daemon ${status} on ${url}: ${code}: ${detail}` : `daemon ${status} on ${url}: ${detail}` });
+  return safeDiagnostic({ text: code !== undefined ? `daemon ${status} on ${url}: ${code}: ${detail}` : `daemon ${status} on ${url}: ${detail}` }, options);
 }
 
 interface DaemonRequestInit {
@@ -190,7 +192,7 @@ async function requestDaemonJson(
         signal,
       });
     } catch (err) {
-      throw new Error(formatConnectionFailure(err, baseUrl));
+      throw new Error(formatConnectionFailure(err, baseUrl, options));
     }
 
     let data: unknown;
@@ -198,13 +200,13 @@ async function requestDaemonJson(
       data = await readJsonWithLimit(resp, maxResponseBytes);
     } catch (err) {
       if (err instanceof DaemonResponseTooLargeError) {
-        throw new Error(safeDiagnostic({ text: `response from ${url} exceeded the ${err.limitBytes}-byte limit` }));
+        throw new Error(safeDiagnostic({ text: `response from ${url} exceeded the ${err.limitBytes}-byte limit` }, options));
       }
       throw err;
     }
 
     if (!resp.ok) {
-      throw new DaemonHttpError({ message: formatDaemonHttpError(resp.status, url, data), status: resp.status });
+      throw new DaemonHttpError({ message: formatDaemonHttpError(resp.status, url, data, options), status: resp.status });
     }
     return data;
   } finally {

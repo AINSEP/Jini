@@ -35,6 +35,24 @@ function flushAsync(): Promise<void> {
 }
 
 describe('serve() — wiring, with a fully-injected fake createMcpToolServer', () => {
+  it('carries trusted launch IDs into the server and daemon-client sanitizer', async () => {
+    const { daemonCallOptions } = await import('../../server/tool-protocol.js');
+    const { getDaemonJson } = await import('../../server/daemon-client.js');
+    const diagnosticToolIds = ['forms_create_definition', 'source_control_get_capabilities'];
+    const message = diagnosticToolIds.join('; ');
+    let diagnostic = '';
+    await serve({}, makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run-1', JINI_DIAGNOSTIC_TOOL_IDS: JSON.stringify(diagnosticToolIds) },
+      createMcpToolServer: (_required, options) => ({ run: async () => {
+        const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({ error: { message } }), { status: 400 });
+        const error = await getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, daemonCallOptions({ ctx: {
+          baseUrl: 'http://d.example', fetchImpl, ...(options?.diagnosticToolIds ? { diagnosticToolIds: options.diagnosticToolIds } : {}),
+        } })).catch((error: Error) => error) as Error;
+        diagnostic = error.message;
+      } }),
+    }));
+    expect(diagnostic).toBe(`daemon 400 on http://d.example/api/x: ${message}`);
+  });
+
   it('exits 1 without ever calling createMcpToolServer when JINI_RUN_ID is missing', async () => {
     const createMcpToolServer = vi.fn();
     const deps = makeDeps({ env: {}, createMcpToolServer: castMcpToolServer(createMcpToolServer) });

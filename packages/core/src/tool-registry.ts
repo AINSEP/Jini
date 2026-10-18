@@ -27,6 +27,7 @@
  */
 import type { Principal } from './principal.js';
 import type { ToolMetadata } from './tool-metadata.js';
+import { normalizeToolInput, type ToolInputNormalizer } from './tool-input-normalization.js';
 
 /** A structural run reference — anything with a stable `id` satisfies this (e.g. `@jini-ai/protocol`'s `RunStatus`). No import needed to satisfy it; see the module doc. */
 export interface RunRef {
@@ -44,8 +45,8 @@ export interface ToolDescriptor {
   readonly description?: string;
   /**
    * JSON-Schema-shaped description of this tool's accepted input, carried as `unknown` because the
-   * kernel neither parses nor validates it — a schema dialect is a consumer concern, and taking a
-   * validator dependency here would put one in every package that touches a registry.
+   * gate reads common property/type fields for input normalization but leaves validation and
+   * schema dialects to the handler; no validator dependency belongs in every registry consumer.
    *
    * It exists because *every* discovery mechanism needs it and nothing else in the kernel can
    * supply it: a caller that can enumerate `ToolRegistry.list({})` still cannot tell an agent what
@@ -152,30 +153,18 @@ export interface ToolExecutionContext {
 /** Optional handler ports supplied by the invoking transport. */
 export interface ToolExecutionOptions {
   readonly emitSurface?: SurfaceEmitter;
+  /** Invoke through the same executor, retaining this call's principal, run, cancellation and
+   * transport gates. Rejects on denial, failed confirmation, validation or execution failure.
+   * A composition-owned registry may retain a source registration behind a derived catalog card.
+   * Batch wrappers use this port for each final merged input; every supplied registry is gated.
+   */
+  readonly invokeTool?: (required: { toolId: string; input: unknown }, optional?: { registry?: ToolRegistry }) => Promise<unknown>;
 }
 
 /** Runs the tool's actual side effect. Only ever invoked by `ToolExecutor`, never called directly by a route/agent holding the registry. */
 export type ToolHandler = (required: ToolExecutionContext, optional?: ToolExecutionOptions) => Promise<unknown>;
 
-/**
- * Thrown by a `ToolHandler` (or a validator it calls, e.g. the kernel's `registration-kit.ts`
- * `requireString`/`requireInputRecord`/etc.) to mean "the caller's input was malformed or missing a
- * required field" — a fact about the CALL, not the server. `@jini-ai/daemon`'s `ToolExecutor.execute`
- * tags a handler rejection's `ToolExecutionResult.errorKind` as `'validation'` when the thrown error
- * is `instanceof ToolInputError`, and every HTTP-facing mapping of a `'failed'` execution (today:
- * `@jini-ai/http-kit`'s `delegated-tools.ts`) uses that tag to answer with a 4xx instead of folding
- * it into the same redacted 500 an actual internal/infrastructure failure gets.
- *
- * Deliberately a plain marker with no extra fields: the message itself is already caller-actionable
- * (`withSchemaOnRejection` appends the tool's own input schema to it), so nothing beyond "this IS one
- * of these" needs to survive the `instanceof` check.
- */
-export class ToolInputError extends Error {
-  constructor({ message }: { message: string }, optional: ErrorOptions = {}) {
-    super(message, optional);
-    this.name = 'ToolInputError';
-  }
-}
+export { ToolInputError } from './tool-input-errors.js';
 
 export type AuthorizationDecision = 'allow' | 'deny';
 
@@ -199,6 +188,8 @@ export interface ToolPolicy {
 }
 
 export interface ToolRegistration {
+  /** Domain-owned aliases, read by the single execution gate before validation/authorization. */
+  readonly normalizeInput?: ToolInputNormalizer;
   readonly descriptor: ToolDescriptor;
   readonly handler: ToolHandler;
   readonly policy: ToolPolicy;
@@ -310,7 +301,7 @@ export interface ToolAuthorizationDelegate {
  * to use it after checking the decision.
  */
 export type ToolInvocationAuthorization =
-  | { readonly descriptor: ToolDescriptor; readonly decision: 'allow'; readonly handler: ToolHandler }
+  | { readonly descriptor: ToolDescriptor; readonly decision: 'allow'; readonly handler: ToolHandler; readonly input: unknown; readonly normalizationNotes: readonly string[] }
   | { readonly descriptor: ToolDescriptor; readonly decision: 'deny' };
 
 /**
@@ -345,9 +336,14 @@ export async function authorizeToolInvocation(
     return undefined;
   }
   const { descriptor, handler, policy } = registration;
+  // Schema-free tools have nothing to normalize; preserve their authorization/confirmation timing.
+  const normalized = descriptor.inputSchema === undefined && registration.normalizeInput === undefined
+    ? { input, notes: [] }
+    : await normalizeToolInput({ input, registration });
+  input = normalized.input;
   let decision = await policy.authorize({ principal, run, tool: descriptor, input });
   if (decision === 'allow' && delegate?.onAuthorize) {
     decision = await delegate.onAuthorize({ principal, run, tool: descriptor, input });
   }
-  return decision === 'allow' ? { descriptor, decision, handler } : { descriptor, decision: 'deny' };
+  return decision === 'allow' ? { descriptor, decision, handler, input, normalizationNotes: normalized.notes } : { descriptor, decision: 'deny' };
 }

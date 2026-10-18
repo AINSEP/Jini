@@ -8,7 +8,8 @@
  */
 import type { Principal } from './principal.js';
 import { isNonArrayRecord } from './records.js';
-import { isReadOnlyTool, ToolInputError, type ToolHandler, type ToolRegistration } from './tool-registry.js';
+import { isReadOnlyTool, type ToolHandler, type ToolRegistration } from './tool-registry.js';
+import { ToolInputError } from './tool-input-errors.js';
 
 /** A host either keeps the current handler and principal or supplies both for a peer. */
 export type TargetResolution =
@@ -38,6 +39,8 @@ function withTargetParam(schema: unknown, param: string, description: string): u
  * @param required.isCurrentTarget - Check whether an unscoped tool names the current target.
  * @param optional - Target input name, schema description, refusal text and a narrowing scope predicate.
  * @returns A new array in the same order, preserving tools that already own the target input.
+ * Unscoped targets are also checked by normalizeInput, before policy or approval planning;
+ * the handler retains its check for direct handler callers.
  * @throws ToolInputError from a wrapped handler for a non-string target or a refused foreign target.
  * Host port errors propagate unchanged from the wrapped handler.
  * @complexity O(n) over registrations, plus copying supported schemas' top-level properties.
@@ -67,10 +70,21 @@ export function applyTargetScope(
     if (isNonArrayRecord(properties) && Object.hasOwn(properties.value, param)) return registration;
 
     const scoped = isReadOnlyTool({ descriptor }) && (optional.scoped?.({ registration }) ?? true);
-    const inputSchema = scoped ? withTargetParam(descriptor.inputSchema, param, describeParam) : descriptor.inputSchema;
+    const inputSchema = withTargetParam(descriptor.inputSchema, param, describeParam);
     return {
       ...registration,
       descriptor: inputSchema === descriptor.inputSchema ? descriptor : { ...descriptor, inputSchema },
+      normalizeInput: async ({ input }, options) => {
+        const normalized = registration.normalizeInput ? await registration.normalizeInput({ input }, options) : { input, notes: [] };
+        // Target refusal precedes policy and confirmation, including each merged plan item.
+        // Keep the key intact: downstream gates must authorize exactly this target.
+        if (!scoped && isPlainObject(normalized.input) && Object.hasOwn(normalized.input, param)) {
+          const target = normalized.input[param];
+          if (typeof target !== 'string') throw new ToolInputError({ message: `${param} must be a string` });
+          if (!await required.isCurrentTarget({ target })) throw new ToolInputError({ message: refuseMessage });
+        }
+        return normalized;
+      },
       handler: async (ctx, options) => {
         if (!isPlainObject(ctx.input) || !Object.hasOwn(ctx.input, param)) return registration.handler(ctx, options);
         const target = ctx.input[param];

@@ -118,6 +118,26 @@ beforeEach(() => {
 });
 
 describe('createMcpToolServer', () => {
+  it('preserves host-registered recovery IDs through its real tool-call context and sanitizer', async () => {
+    const server = makeFakeServer();
+    const transport = new FakeTransport();
+    const message = 'Call source_control_get_capabilities; forms_create_definition';
+    const handle = createMcpToolServer(...splitServerFixture(baseOptions({
+      tools: [noopTool({ handler: () => { throw new Error(message); } })],
+      diagnosticToolIds: ['source_control_get_capabilities', 'forms_create_definition'],
+      createServer: () => server, createTransport: () => transport,
+    })));
+    const running = handle.run({});
+    await flushAsync();
+    try {
+      expect(await server.callTool({ params: { name: 'noop', arguments: {} } }))
+        .toEqual({ isError: true, content: [{ type: 'text', text: message }] });
+    } finally {
+      hoisted.onIdleRef.current?.({});
+      await running;
+    }
+  });
+
   it('throws synchronously on a duplicate tool name, before run() is ever called', () => {
     expect(() =>
       createMcpToolServer(...splitServerFixture(baseOptions({ tools: [noopTool(), noopTool()] }))),

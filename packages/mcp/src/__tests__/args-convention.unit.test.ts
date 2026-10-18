@@ -89,7 +89,7 @@ describe('object arguments and injected ports', () => {
   it('returns a validated string and dispatches a single required handler object', async () => {
     const ctx = { baseUrl: 'https://example.test', fetchImpl: fetch };
     const tools = buildToolIndex({ tools: [{ name: 'echo', description: 'echo', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }, handler: ({ args, ctx: received }) => {
-      expect(received).toBe(ctx);
+      expect(received).toEqual({ ...ctx, diagnosticToolIds: ['echo'] });
       return requireString({ value: args.text, name: 'text' });
     } }] });
     expect(await handleToolCall({ name: 'echo', tools, ctx }, { rawArgs: { text: 'hello' } })).toEqual({ content: [{ type: 'text', text: 'hello' }] });

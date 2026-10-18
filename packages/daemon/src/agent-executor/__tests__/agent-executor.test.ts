@@ -24,7 +24,7 @@ import {
   type RuntimeLockAcquireContext,
   type RuntimeLockHandoffContext,
 } from '@jini-ai/agent-runtime';
-import type { Principal, RunRef } from '@jini-ai/core';
+import { createToolRegistry, type Principal, type RunRef } from '@jini-ai/core';
 import type { JournalEntry } from '@jini-ai/protocol';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle, DEFAULT_SLOW_RUN_THRESHOLD_MS, type RunLifecycle } from '../../run-lifecycle.js';
@@ -4327,6 +4327,16 @@ describe('AgentExecutor — a fallible post-close step must never prevent finish
 });
 
 describe('buildMcpJsonServerEntry', () => {
+  it('reads current registered diagnostic IDs for each launch and rejects forged env metadata', () => {
+    const registry = createToolRegistry({});
+    registry.register({ descriptor: { id: 'forms_create_definition' }, policy: { authorize: () => 'allow' }, handler: async () => ({}) });
+    const options = { command: 'jini-mcp', daemonUrl: 'http://d.example', env: { JINI_DIAGNOSTIC_TOOL_IDS: '["forged"]' },
+      diagnosticToolIds: () => registry.list({}).map(tool => tool.id) };
+    expect(JSON.parse(buildMcpJsonServerEntry({ runId: 'run-1', options }).env.JINI_DIAGNOSTIC_TOOL_IDS!)).toEqual(['forms_create_definition']);
+    registry.register({ descriptor: { id: 'source_control_get_capabilities' }, policy: { authorize: () => 'allow' }, handler: async () => ({}) });
+    expect(JSON.parse(buildMcpJsonServerEntry({ runId: 'run-2', options }).env.JINI_DIAGNOSTIC_TOOL_IDS!)).toEqual(['forms_create_definition', 'source_control_get_capabilities']);
+  });
+
   it('defaults args to an empty array when omitted', () => {
     expect(buildMcpJsonServerEntry({ runId: 'run-1', options: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } })).toEqual({
       command: '/usr/bin/jini-mcp',

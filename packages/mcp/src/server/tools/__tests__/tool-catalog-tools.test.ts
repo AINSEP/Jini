@@ -76,7 +76,7 @@ describe('searchToolsTool.inputSchema limit bounds', () => {
     const result = await call(limit);
     expect(result.isError).toBeUndefined();
     expect(getDaemonJson).toHaveBeenCalledWith(
-      { baseUrl: 'http://d.example', route: `/api/tools/search?q=q&limit=${limit}` }, { fetchImpl: ctx.fetchImpl },
+      { baseUrl: 'http://d.example', route: `/api/tools/search?q=q&limit=${limit}` }, { fetchImpl: ctx.fetchImpl, diagnosticToolIds: ['search_tools'] },
     );
   });
 });

@@ -14,7 +14,7 @@ import { buildSettingsValueWriteHandler, type SettingsWriteConfirmation } from "
 import { AGENT_WRITE_CONFIRMATION_SETTINGS, AGENT_WRITE_DENIED_SETTINGS, findAgentWriteRule, type AgentSettingWriteRule } from "./agent-write-denylist.js";
 import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireNoInput, requireString, withSchemaOnRejection, type DerivedRiskByToolId } from "../registration-kit.js";
 import type { AgentToolSideEffect } from "../agent-tools.js";
-import type { ToolExecutionOptions, ToolHandler, ToolRegistration } from "../tool-registry.js";
+import { ToolInputError, type ToolExecutionOptions, type ToolHandler, type ToolRegistration } from "../tool-registry.js";
 import { requireToolPermission } from "../tool-permissions.js";
 import type { JsonValue } from "../primitives/index.js";
 import type { SettingsPrincipalLookupPort } from "./principal-lookup.js";
@@ -332,5 +332,24 @@ export function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolReg
     },
   };
 
-  return buildDomainRegistrations({ domain: "settings", catalogModule: "settings/agent-tools.ts", catalog: CATALOG_BY_ID, handlers, derivedRisk: settingsDerivedRisk }, { unwiredToolIds: UNWIRED_SETTINGS_TOOL_IDS });
+  return buildDomainRegistrations({ domain: "settings", catalogModule: "settings/agent-tools.ts", catalog: CATALOG_BY_ID, handlers, derivedRisk: settingsDerivedRisk,
+    inputNormalizers: { settings_set_value: async ({ input }) => {
+      if (input.namespace !== undefined || typeof input.key !== "string" || !input.key.includes(".")) return { input, notes: [] };
+      if (input.key.length > 512) throw new ToolInputError({ message: "settings_set_value: dotted key is too long. Send namespace and key separately." });
+      await routeDeps.settingsReady;
+      await routeDeps.settingsUiTabsReady;
+      const matches: { namespace: string; key: string }[] = [];
+      // Reuse the definition resolver, including workspace fencing and aliases; never split on a guess.
+      for (let index = 1; index < input.key.length - 1; index++) {
+        if (input.key[index] !== ".") continue;
+        const candidate = { namespace: input.key.slice(0, index), key: input.key.slice(index + 1) };
+        const definition = await resolveDefinitionRaw({ repo: routeDeps.settingsRepo }, { ...candidate, workspaceId: routeDeps.workspaceId });
+        if (definition && definition.status !== "tombstone") matches.push(candidate);
+      }
+      if (matches.length !== 1) throw new ToolInputError({ message: matches.length
+        ? `settings_set_value: dotted key is ambiguous (${matches.map(match => `namespace=${match.namespace}, key=${match.key}`).join("; ")}). Send namespace and key explicitly.`
+        : "settings_set_value: no registered namespace/key pair matches this dotted key. Call settings_list_definitions to see valid keys; send namespace and key explicitly." });
+      return { input: { ...input, ...matches[0] }, notes: ["dotted key→namespace + key"] };
+    } },
+  }, { unwiredToolIds: UNWIRED_SETTINGS_TOOL_IDS });
 }

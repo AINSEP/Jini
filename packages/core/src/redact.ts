@@ -176,6 +176,8 @@ function redactApiKeyHeaderValue(prefix: string, quote: string, name: string, se
 
 /** Optional caller-owned secrets and named lexical rules, without ambient credential lookup. */
 export interface SecretRedactionOptions {
+  /** Diagnostic text can retain addresses/numbers while using the same credential rules. Default true. */
+  redactPii?: boolean;
   /** Conservative by default; aggressive also masks bare 20+ character opaque runs. */
   policy?: 'conservative' | 'aggressive';
   exactSecrets?: ReadonlyArray<string | undefined | null>;
@@ -305,12 +307,14 @@ export function redactSecretsWithCounts({ input }: { input: string }, options: S
   if (options.policy === 'aggressive') {
     out = out.replace(OPAQUE_TOKEN_RE, (match) => NON_SECRET_TOKEN_RE.test(match) ? match : marker('opaque_token'));
   }
-  for (const pattern of PATTERNS) {
-    if (piiNames.has(pattern.name)) applyPattern(pattern);
+  if (options.redactPii !== false) {
+    for (const pattern of PATTERNS) {
+      if (piiNames.has(pattern.name)) applyPattern(pattern);
+    }
+    out = out.replace(CARD_CANDIDATE, (match) => {
+      const digits = match.replace(/\D/g, '');
+      return isLuhnValid(digits) ? marker('credit_card') : match;
+    });
   }
-  out = out.replace(CARD_CANDIDATE, (match) => {
-    const digits = match.replace(/\D/g, '');
-    return isLuhnValid(digits) ? marker('credit_card') : match;
-  });
   return { redacted: out, counts };
 }
