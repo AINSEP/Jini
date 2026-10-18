@@ -179,11 +179,7 @@ function RuntimeModelSelects({ selectedAgent, value, onChange, t }: RuntimeModel
           <select
             aria-label={t('Reasoning')}
             value={value.reasoning ?? ''}
-            onChange={(event) => onChange({
-              agentId: value.agentId,
-              ...(value.model ? { model: value.model } : {}),
-              reasoning: event.target.value,
-            })}
+            onChange={(event) => onChange(reasoningSelection({ value, reasoning: event.target.value }))}
           >
             {selectedAgent.reasoningOptions?.map((option) => (
               <option value={option.id} key={option.id}>{option.label}</option>
@@ -192,6 +188,52 @@ function RuntimeModelSelects({ selectedAgent, value, onChange, t }: RuntimeModel
         </label>
       ) : null}
     </div>
+  );
+}
+
+/** The one way a reasoning pick becomes a selection, shared by the popover's Reasoning select and
+ *  the composer-bar effort control so the two cannot write different shapes. */
+function reasoningSelection({ value, reasoning }: { value: ChatPaneAgentSelection; reasoning: string }): ChatPaneAgentSelection {
+  return {
+    agentId: value.agentId,
+    ...(value.model ? { model: value.model } : {}),
+    reasoning,
+  };
+}
+
+interface RuntimeEffortSelectProps {
+  selectedAgent: ChatPaneAgent | undefined;
+  value: ChatPaneAgentSelection;
+  onChange: (selection: ChatPaneAgentSelection) => void;
+  t: (key: string) => string;
+}
+
+/**
+ * The reasoning effort, shown in the composer bar beside the model trigger ("GPT-6.1 Sol ⌄  High ⌄")
+ * so it can be read and changed without opening the runtime popover.
+ *
+ * Deliberately a native `<select>` over the SAME value and options as the popover's Reasoning
+ * select: no second piece of state, the OS menu needs no popover/portal/focus machinery, and the
+ * two always agree. Renders nothing when the selected agent publishes no reasoning options; in a
+ * narrow composer the CSS hides it and the popover's Reasoning select remains the way in.
+ */
+function RuntimeEffortSelect({ selectedAgent, value, onChange, t }: RuntimeEffortSelectProps): ReactNode {
+  const options = selectedAgent?.reasoningOptions ?? [];
+  if (options.length === 0) return null;
+  return (
+    <label className="jini-runtime-effort">
+      <select
+        // Not 'Reasoning': that is the popover select's name, and the two can be on screen at once.
+        aria-label={t('Reasoning effort')}
+        value={value.reasoning ?? ''}
+        onChange={(event) => onChange(reasoningSelection({ value, reasoning: event.target.value }))}
+      >
+        {options.map((option) => (
+          <option value={option.id} key={option.id}>{option.label}</option>
+        ))}
+      </select>
+      <RemixIcon name="arrow-down-s-line" size={15} className="jini-runtime-effort__chevron" />
+    </label>
   );
 }
 
@@ -345,6 +387,7 @@ export function AgentRuntimePicker({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={dialogId}
+        title={`${triggerTitle} · ${modelLabel}`}
         onClick={toggleOpen}
       >
         {/* The provider's own mark in API mode — the selected CLI's logo would be an outright false
@@ -370,6 +413,9 @@ export function AgentRuntimePicker({
             {...(agentIconBasePath === undefined ? {} : { basePath: agentIconBasePath })}
           />
         )}
+        {/* Only the model label shows in the bar (the icon already names the agent); the agent
+            name stays in the text so the trigger still reads "Choose agent" when none is picked,
+            and the full "agent · model" is the hover title above. */}
         <span className="jini-runtime-trigger__copy">
           <strong>{triggerTitle}</strong>
           <small>{modelLabel}</small>
@@ -380,6 +426,7 @@ export function AgentRuntimePicker({
           className="jini-runtime-trigger__chevron"
         />
       </button>
+      {isApi ? null : <RuntimeEffortSelect selectedAgent={selectedAgent} value={value} onChange={onChange} t={t} />}
 
       {open && position ? createPortal(
         <div

@@ -898,9 +898,10 @@ export const CHAT_PANE_STYLES = `
 .jini-runtime-spinner,
 .jini-icon-spin { animation: jini-chat-spin .8s linear infinite; }
 @keyframes jini-chat-spin { to { transform: rotate(360deg); } }
+/* Sits right after the "+" (and any footerLeadingAccessory), like the model/effort row in other
+   agent composers; the send group below takes the trailing edge instead. */
 .jini-chat-pane .jini-composer-footer-accessories {
   display: flex;
-  margin-left: auto;
   min-width: 0;
 }
 .jini-chat-pane .jini-composer-send-blocker {
@@ -909,14 +910,15 @@ export const CHAT_PANE_STYLES = `
   color: var(--jini-chat-muted);
   font-size: 12px;
 }
+/* Always pushed to the trailing edge. This also covers a footer with no attach/accessory controls
+   before the send group (a public visitor chat), which would otherwise leave the lone send button
+   at the start under the footer's space-between. */
 .jini-chat-pane .jini-composer-send-group {
   display: flex;
   flex-shrink: 0;
   gap: 6px;
+  margin-left: auto;
 }
-/* A footer with no attach/accessory controls before the send group (a public visitor chat) would
-   leave the lone send button at the start under the footer's space-between; keep it at the end. */
-.jini-chat-pane .jini-composer-send-group:first-child { margin-left: auto; }
 .jini-chat-pane .jini-composer-send {
   display: grid;
   place-items: center;
@@ -1104,40 +1106,84 @@ export const CHAT_PANE_STYLES = `
   white-space: nowrap;
   opacity: .7;
 }
-.jini-runtime-picker { position: relative; }
-.jini-runtime-trigger {
-  display: inline-grid;
-  grid-template-columns: 24px 14px;
+/* Composer-bar runtime row: [agent icon + model ⌄] [effort ⌄] -- compact, borderless, muted text.
+   The footer is a size container so the effort control can drop out when the bar is too narrow
+   (it stays reachable as the popover's Reasoning select). */
+.jini-chat-pane .jini-composer-footer { container: jini-composer-footer / inline-size; }
+.jini-runtime-picker {
+  position: relative;
+  display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 2px;
+  min-width: 0;
+}
+.jini-runtime-trigger,
+.jini-runtime-effort {
+  display: inline-flex;
+  align-items: center;
   height: 32px;
   min-width: 0;
-  padding: 3px 7px 3px 5px;
-  color: var(--jini-chat-text);
+  color: var(--jini-chat-muted);
   background: transparent;
   border: 0;
   border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
   cursor: pointer;
 }
-.jini-runtime-trigger:hover { background: var(--jini-chat-subtle); }
-.jini-runtime-trigger__copy { display: none; }
+.jini-runtime-trigger {
+  gap: 6px;
+  padding: 3px 6px 3px 5px;
+}
+.jini-runtime-trigger:hover,
+.jini-runtime-effort:hover { color: var(--jini-chat-text); background: var(--jini-chat-subtle); }
+.jini-runtime-trigger__copy { display: flex; min-width: 0; }
+/* Kept in the text (see the component), not shown: the icon already names the agent. */
 .jini-runtime-trigger__copy strong {
+  position: absolute;
+  width: 1px;
+  height: 1px;
   overflow: hidden;
-  max-width: 122px;
-  font-size: 11px;
-  font-weight: 650;
-  text-overflow: ellipsis;
+  clip: rect(0 0 0 0);
   white-space: nowrap;
 }
 .jini-runtime-trigger__copy small {
   overflow: hidden;
-  max-width: 122px;
-  color: var(--jini-chat-muted);
-  font-size: 9px;
+  max-width: 180px;
+  font-size: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.jini-runtime-trigger__chevron { color: var(--jini-chat-muted); font-size: 12px; }
+.jini-runtime-trigger__chevron,
+.jini-runtime-effort__chevron { flex: none; }
+.jini-runtime-effort { position: relative; flex: none; }
+/* Doubled pane class: hosts commonly style every bare <select> (a bordered box with a chevron
+   background-image, e.g. under ':root[data-theme="dark"] select'), which out-specifies a single
+   class and painted a tiled chevron behind this borderless label. */
+.jini-chat-pane.jini-chat-pane .jini-runtime-effort select {
+  height: 100%;
+  padding: 0 24px 0 6px;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  border-radius: inherit;
+  font: inherit;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  field-sizing: content;
+}
+.jini-chat-pane.jini-chat-pane .jini-runtime-effort select:focus-visible,
+.jini-runtime-trigger:focus-visible { outline: 2px solid var(--jini-chat-accent); outline-offset: 1px; }
+.jini-runtime-effort__chevron {
+  position: absolute;
+  right: 5px;
+  pointer-events: none;
+}
+@container jini-composer-footer (max-width: 300px) {
+  .jini-runtime-effort { display: none; }
+}
 .jini-runtime-agent-icon.agent-icon { flex: 0 0 auto; object-fit: contain; }
 .jini-runtime-agent-icon.agent-icon-mono {
   display: inline-block;

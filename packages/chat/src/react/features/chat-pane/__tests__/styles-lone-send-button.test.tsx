@@ -23,4 +23,19 @@ describe('lone composer send button', () => {
     // jsdom resolves the declaration but cannot lay out flex, so the margin is the observable.
     expect(getComputedStyle(sendGroup).marginLeft).toBe('auto');
   });
+
+  it('keeps the runtime picker slot beside the leading controls and the send group at the end', () => {
+    const { result } = renderHook(() => useComposer());
+    render(
+      <div className="jini-chat-pane">
+        <style>{CHAT_PANE_STYLES}</style>
+        <Composer composer={result.current} onSend={() => {}} slots={{ footerAccessories: <span>picker</span> }} />
+      </div>,
+    );
+    const accessories = screen.getByText('picker').closest('.jini-composer-footer-accessories')!;
+    const sendGroup = screen.getByRole('button', { name: 'Send' }).closest('.jini-composer-send-group')!;
+
+    expect(getComputedStyle(accessories).marginLeft).not.toBe('auto');
+    expect(getComputedStyle(sendGroup).marginLeft).toBe('auto');
+  });
 });

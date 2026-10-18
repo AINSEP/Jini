@@ -233,6 +233,47 @@ describe('AgentRuntimePicker', () => {
     });
   });
 
+  it('shows the model and reasoning effort in the bar, and the effort select writes the same selection', async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <AgentRuntimePicker
+        agents={agents}
+        value={{ agentId: 'codex', model: 'gpt-5.6-terra', reasoning: 'medium' }}
+        onChange={onChange}
+      />,
+    );
+    const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
+    expect(trigger).toHaveTextContent('GPT-5.6-Terra');
+    expect(trigger).toHaveAttribute('title', 'Codex CLI · GPT-5.6-Terra');
+    const effort = screen.getByRole('combobox', { name: 'Reasoning effort' });
+    expect(effort).toHaveDisplayValue('Medium');
+    expect(within(effort).getAllByRole('option').map((option) => option.textContent)).toEqual(['Medium', 'High']);
+
+    await userEvent.selectOptions(effort, 'high');
+    expect(onChange).toHaveBeenCalledWith({ agentId: 'codex', model: 'gpt-5.6-terra', reasoning: 'high' });
+    // No popover was needed for that, and opening one shows the same value the bar does.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await userEvent.click(trigger);
+    expect(screen.getByRole('combobox', { name: 'Reasoning' })).toHaveValue('medium');
+
+    // An agent with no reasoning options gets no effort control at all, rather than an empty one.
+    rerender(<AgentRuntimePicker agents={agents} value={{ agentId: 'claude', model: 'claude-sonnet-5' }} onChange={onChange} />);
+    expect(screen.queryByRole('combobox', { name: 'Reasoning effort' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveTextContent('Claude Sonnet 5');
+
+    // Reasoning is a CLI property; an API turn has none to show.
+    rerender(
+      <AgentRuntimePicker
+        agents={agents}
+        value={{ agentId: 'codex', model: 'gpt-5.6-terra', reasoning: 'medium' }}
+        onChange={onChange}
+        executionMode="api"
+        apiModeAvailable
+      />,
+    );
+    expect(screen.queryByRole('combobox', { name: 'Reasoning effort' })).not.toBeInTheDocument();
+  });
+
   it('supports upward/downward portal placement, Escape dismissal, and rescanning', async () => {
     const onRescan = vi.fn();
     const { rerender } = render(<PickerHarness onRescan={onRescan} />);
