@@ -181,18 +181,25 @@ describe('AgentRuntimePicker', () => {
       .toMatchObject({ left: 12, top: 708, maxHeight: 48 });
   });
 
-  it('anchors drop-ups above their trigger, left-aligned and clamped into the viewport', () => {
+  it('anchors drop-ups above their trigger, right-aligned and clamped into the viewport', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 844 });
-    const trigger = { left: 80, top: 800, width: 120, bottom: 832 } as DOMRect;
+    // The cluster sits at the bar's trailing edge, so the menu's right edge meets the trigger's.
+    const trigger = { left: 230, right: 350, top: 800, width: 120, bottom: 832 } as DOMRect;
     expect(runtimeDropUpPosition({ trigger, width: 260 })).toMatchObject({
-      position: 'fixed', left: 80, bottom: 50, width: 260, maxHeight: 320,
+      position: 'fixed', left: 90, bottom: 50, width: 260, maxHeight: 320,
     });
-    // Near the right edge it slides left; on a tiny viewport it narrows and its height follows the room above.
-    expect(runtimeDropUpPosition({ trigger: { ...trigger, left: 300 } as DOMRect, width: 260 })).toMatchObject({ left: 118 });
+    // Near the left edge it slides right; on a tiny viewport it narrows and its height follows the room above.
+    expect(runtimeDropUpPosition({ trigger: { ...trigger, left: 0, right: 120 } as DOMRect, width: 260 })).toMatchObject({ left: 12 });
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 200 });
-    expect(runtimeDropUpPosition({ trigger: { ...trigger, left: 0, top: 100 } as DOMRect, width: 260 }))
+    expect(runtimeDropUpPosition({ trigger: { ...trigger, left: 60, right: 180, top: 100 } as DOMRect, width: 260 }))
       .toMatchObject({ left: 12, width: 176, maxHeight: 82 });
+    // Inside a narrow dock it stays within the composer box instead of spilling onto the page.
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 915 });
+    expect(runtimeDropUpPosition({ trigger: { ...trigger, left: 685, right: 773 } as DOMRect, width: 260 }, { bounds: { left: 553, right: 898 } }))
+      .toMatchObject({ left: 553, width: 260 });
+    expect(runtimeDropUpPosition({ trigger: { ...trigger, left: 685, right: 773 } as DOMRect, width: 260 }, { bounds: { left: 600, right: 798 } }))
+      .toMatchObject({ left: 600, width: 198 });
   });
 
   it('renders the reference runtime menu structure with agents, model, and reasoning', async () => {

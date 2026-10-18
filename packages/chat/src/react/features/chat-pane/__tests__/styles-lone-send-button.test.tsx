@@ -24,7 +24,8 @@ describe('lone composer send button', () => {
     expect(getComputedStyle(sendGroup).marginLeft).toBe('auto');
   });
 
-  it('keeps the runtime picker slot beside the leading controls and the send group at the end', () => {
+  // Owner, 2026-10-18: the model/effort cluster moved from beside the "+" to beside send.
+  it('pushes the runtime picker slot to the trailing edge, right next to the send group', () => {
     const { result } = renderHook(() => useComposer());
     render(
       <div className="jini-chat-pane">
@@ -35,7 +36,11 @@ describe('lone composer send button', () => {
     const accessories = screen.getByText('picker').closest('.jini-composer-footer-accessories')!;
     const sendGroup = screen.getByRole('button', { name: 'Send' }).closest('.jini-composer-send-group')!;
 
-    expect(getComputedStyle(accessories).marginLeft).not.toBe('auto');
-    expect(getComputedStyle(sendGroup).marginLeft).toBe('auto');
+    const footer = accessories.parentElement!;
+    // DOM order: the "+" side first, then the cluster, then send.
+    expect(footer.lastElementChild).toBe(sendGroup);
+    expect(accessories.nextElementSibling).toBe(sendGroup);
+    expect(getComputedStyle(accessories).marginLeft).toBe('auto');
+    expect(getComputedStyle(sendGroup).marginLeft).toBe('0px');
   });
 });

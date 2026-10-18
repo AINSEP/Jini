@@ -898,11 +898,13 @@ export const CHAT_PANE_STYLES = `
 .jini-runtime-spinner,
 .jini-icon-spin { animation: jini-chat-spin .8s linear infinite; }
 @keyframes jini-chat-spin { to { transform: rotate(360deg); } }
-/* Sits right after the "+" (and any footerLeadingAccessory), like the model/effort row in other
-   agent composers; the send group below takes the trailing edge instead. */
+/* The model/effort cluster sits at the trailing edge beside send (owner, 2026-10-18); the "+"
+   stays at the start. The auto margin takes the free space, and gives it back first when a narrow
+   bar needs the room for the model label. */
 .jini-chat-pane .jini-composer-footer-accessories {
   display: flex;
   min-width: 0;
+  margin-left: auto;
 }
 .jini-chat-pane .jini-composer-send-blocker {
   align-self: center;
@@ -919,6 +921,8 @@ export const CHAT_PANE_STYLES = `
   gap: 6px;
   margin-left: auto;
 }
+/* After the cluster, the send group sits right beside it instead of splitting the free space. */
+.jini-chat-pane .jini-composer-footer-accessories ~ .jini-composer-send-group { margin-left: 0; }
 .jini-chat-pane .jini-composer-send {
   display: grid;
   place-items: center;

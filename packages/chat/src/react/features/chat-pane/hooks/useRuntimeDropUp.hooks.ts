@@ -25,18 +25,27 @@ import { resolveRovingIndex } from './useAgentRuntimePicker.hooks.js';
 const MENU_ITEMS = '[role="menuitemradio"]';
 
 /**
- * Viewport-fixed geometry for a drop-up: left-aligned with the trigger (clamped into the
- * viewport), bottom edge just above it, and never taller than the space above.
+ * Viewport-fixed geometry for a drop-up: right-aligned with the trigger, clamped into the
+ * viewport and (when given) into `bounds`, bottom edge just above it, and never taller than the
+ * space above. Right-aligned because the model/effort cluster sits at the composer bar's trailing
+ * edge, so the menu grows back into the pane instead of past the dock's right edge; `bounds` (the
+ * composer box) keeps a menu wider than the room left of the trigger from spilling out of a narrow
+ * dock onto the page beside it.
  *
  * @complexity Time/space: O(1).
  */
-export function runtimeDropUpPosition({ trigger, width }: { trigger: DOMRect; width: number }): CSSProperties {
+export function runtimeDropUpPosition(
+  { trigger, width }: { trigger: DOMRect; width: number },
+  { bounds }: { bounds?: Pick<DOMRect, 'left' | 'right'> } = {},
+): CSSProperties {
   const margin = 12;
   const gap = 6;
-  const menuWidth = Math.min(width, window.innerWidth - margin * 2);
+  const minLeft = Math.max(margin, bounds?.left ?? -Infinity);
+  const maxRight = Math.min(window.innerWidth - margin, bounds?.right ?? Infinity);
+  const menuWidth = Math.max(0, Math.min(width, maxRight - minLeft));
   return {
     position: 'fixed',
-    left: Math.min(Math.max(trigger.left, margin), window.innerWidth - menuWidth - margin),
+    left: Math.min(Math.max(trigger.right - menuWidth, minLeft), maxRight - menuWidth),
     bottom: Math.max(margin, window.innerHeight - trigger.top + gap),
     width: menuWidth,
     maxHeight: Math.min(320, Math.max(0, trigger.top - gap - margin)),
@@ -102,7 +111,8 @@ export function useRuntimeDropUp({ width }: { width: number }): UseRuntimeDropUp
     if (!open) return;
     const update = () => {
       const rect = triggerRef.current?.getBoundingClientRect();
-      if (rect) setPosition(runtimeDropUpPosition({ trigger: rect, width }));
+      const bounds = triggerRef.current?.closest('.jini-composer')?.getBoundingClientRect();
+      if (rect) setPosition(runtimeDropUpPosition({ trigger: rect, width }, bounds ? { bounds } : {}));
     };
     update();
     window.addEventListener('resize', update);
