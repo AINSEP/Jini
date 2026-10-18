@@ -1522,3 +1522,39 @@ describe('attachAcpSession', () => {
     });
   });
 });
+
+describe('host-authorized CLI parity', () => {
+  it('selects allow_once only for bypass parity; a restricted run still fails closed', async () => {
+    for (const permissionMode of ['bypass', 'restricted'] as const) {
+      const child = new FakeAcpChild();
+      const { child: process, prompt, send, ...options } = baseOptions(child, { cliParity: true, permissionMode });
+      const controller = attachAcpSession({ child: process, prompt, send }, options);
+      handshakeToSessionNew(child);
+      emitPermissionRequest(child, 99, [{ optionId: 'deny', kind: 'reject_once' }, { optionId: 'allow', kind: 'allow_once' }]);
+      await Promise.resolve();
+      if (permissionMode === 'bypass') expect(lastWrite(child)).toMatchObject({ id: 99, result: { outcome: { outcome: 'selected', optionId: 'allow' } } });
+      else expect(lastWrite(child)).toMatchObject({ id: 99, result: { outcome: { outcome: 'selected', optionId: 'deny' } } });
+      expect(controller.hasFatalError()).toBe(false);
+      controller.abort();
+    }
+  });
+  it('does not kill a silent native stage when parity is enabled', () => {
+    vi.useFakeTimers();
+    const child = new FakeAcpChild();
+    const { child: process, prompt, send, ...options } = baseOptions(child, { cliParity: true, permissionMode: 'bypass', stageTimeoutMs: 1 });
+    const controller = attachAcpSession({ child: process, prompt, send }, options);
+    vi.advanceTimersByTime(30 * 60_000);
+    expect(controller.hasFatalError()).toBe(false);
+    controller.abort(); vi.useRealTimers();
+  });
+});
+it('trusted bypass parity can approve a native tool offering only allow_always', async () => {
+  const child = new FakeAcpChild();
+  const { child: process, prompt, send, ...options } = baseOptions(child, { cliParity: true, permissionMode: 'bypass' });
+  const controller = attachAcpSession({ child: process, prompt, send }, options);
+  handshakeToSessionNew(child);
+  emitPermissionRequest(child, 101, [{ optionId: 'native-allow', kind: 'allow_always' }]);
+  await Promise.resolve();
+  expect(lastWrite(child)).toMatchObject({ id: 101, result: { outcome: { outcome: 'selected', optionId: 'native-allow' } } });
+  controller.abort();
+});

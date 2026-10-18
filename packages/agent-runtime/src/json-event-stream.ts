@@ -603,7 +603,10 @@ function emitCodexMcpToolUse(item: JsonObject, onEvent: StreamEventHandler, stat
     onEvent({
       type: 'tool_use',
       id: item.id,
-      name: typeof item.tool === 'string' && item.tool ? item.tool : 'mcp_tool_call',
+      // Preserve the bridge's catalog names; external MCP must never masquerade as Bash/Edit.
+      name: item.server === 'jini'
+        ? typeof item.tool === 'string' && item.tool ? item.tool : 'mcp_tool_call'
+        : `mcp__${typeof item.server === 'string' ? item.server : 'external'}__${typeof item.tool === 'string' && item.tool ? item.tool : 'call'}`,
       input: item.arguments ?? {},
     });
   }
@@ -767,6 +770,21 @@ function handleCodexEvent(obj: unknown, onEvent: StreamEventHandler, state: Pars
     return true;
   }
 
+  if ((obj.type === 'item.started' || obj.type === 'item.updated' || obj.type === 'item.completed') && isRecord(obj.item) && obj.item.type === 'collab_tool_call' && typeof obj.item.id === 'string') {
+    const item = obj.item;
+    if (!state.codexToolUses.has(item.id as string)) {
+      state.codexToolUses.add(item.id as string);
+      onEvent({ type: 'tool_use', id: item.id as string,
+        name: typeof item.tool === 'string' ? item.tool : 'collab_tool_call', input: {} });
+    }
+    if (obj.type === 'item.completed' && !state.codexToolUses.has(`${item.id}:completed`)) {
+      state.codexToolUses.add(`${item.id}:completed`);
+      onEvent({ type: 'tool_result', toolUseId: item.id as string,
+        content: 'Native agent action completed.', isError: item.status === 'failed' });
+    }
+    return true;
+  }
+
   if (obj.type === 'item.started' && isRecord(obj.item)) {
     const item = obj.item;
     if (emitCodexTodoList(item, onEvent)) {
@@ -808,6 +826,18 @@ function handleCodexEvent(obj: unknown, onEvent: StreamEventHandler, state: Pars
 
   if (obj.type === 'item.completed' && isRecord(obj.item)) {
     const item = obj.item;
+    // Codex reports direct patches as file_change, rather than command_execution. Surface paths
+    // through the SAME native-tool event channel so audit sees edits without persisting patches.
+    if (item.type === 'file_change' && typeof item.id === 'string') {
+      if (!state.codexToolUses.has(item.id)) {
+        state.codexToolUses.add(item.id);
+        const changes = Array.isArray(item.changes) ? item.changes : [];
+        onEvent({ type: 'tool_use', id: item.id, name: 'apply_patch',
+          input: { paths: changes.filter(isRecord).map(change => change.path).filter(path => typeof path === 'string') } });
+        onEvent({ type: 'tool_result', toolUseId: item.id, content: 'File change reported by Codex.', isError: item.status === 'failed' });
+      }
+      return true;
+    }
     if (emitCodexTodoList(item, onEvent)) {
       state.codexPreviousEventWasAgentMessage = false;
       state.codexLastAgentMessageEndedWithNewline = false;

@@ -20,7 +20,9 @@ export interface ToolAttemptEvent {
   readonly principalId: string;
   readonly phase: ToolAttemptPhase;
   readonly at: string;
-  /** Value-free metadata; never raw input, query, output or error text. */
+  /** Value-free metadata; never raw input, query, output or error text.
+   * Reserved native_tool_gap rows instead carry redacted command/path metadata (ToolGapEntry).
+   * They never carry file bodies, tool output or full edit patches. */
   readonly detail?: string | null;
 }
 export interface ToolAttemptAuditSink { append(requiredArgs: Pick<ToolAttemptEvent, "attemptId" | "executionId" | "workspaceId" | "runId" | "toolId" | "principalId" | "phase" | "at">, optionalArgs?: Pick<ToolAttemptEvent, "detail">): Promise<void> }
@@ -144,4 +146,3 @@ export function withToolCatalogAudit<Hit extends { id: string }, Entry>(
     },
   };
 }
-

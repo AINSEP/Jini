@@ -21,8 +21,9 @@ afterEach(() => vi.useRealTimers());
 
 /** Run through real launch composition and native protocol attachment with only OS effects replaced. */
 async function startFixture(
-  { agentId, hostEnv }: { agentId: 'codex' | 'pi'; hostEnv: NodeJS.ProcessEnv },
+  { agentId, hostEnv }: { agentId: 'codex' | 'pi' | 'claude'; hostEnv: NodeJS.ProcessEnv },
   policies: { codexDisablePlugins?: boolean; piGracefulShutdownMs?: number } = {},
+  runPolicy: { nativeToolAccess?: boolean; nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>; cliParity?: boolean; permissionMode?: 'bypass' | 'restricted' } = {},
 ) {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const child = new FakeChild();
@@ -41,9 +42,40 @@ async function startFixture(
     }) as typeof nodeSpawn,
   });
   const { run } = await lifecycle.start({ contextRef: 'host-policy' });
-  await executor.run({ runId: run.id, agentId, prompt: 'question', cwd: '/missing-fixture-workspace' });
+  await executor.run({ runId: run.id, agentId, prompt: 'question', cwd: '/missing-fixture-workspace' }, runPolicy);
   return { child, calls };
 }
+
+it('carries the native-tool grant through real executor composition to Codex create argv', async () => {
+  const granted = await startFixture({ agentId: 'codex', hostEnv: { PATH: '/fake/bin' } }, {}, { nativeToolAccess: true });
+  const locked = await startFixture({ agentId: 'codex', hostEnv: { PATH: '/fake/bin' } }, {}, { nativeToolAccess: false });
+  try {
+    expect(granted.calls[0]!.args).not.toContain('features.shell_tool=false');
+    expect(locked.calls[0]!.args).toContain('features.shell_tool=false');
+    expect(locked.calls[0]!.args).toContain('sandbox_mode="read-only"');
+  } finally { granted.child.emit('close', 0, null); locked.child.emit('close', 0, null); }
+});
+
+it.each([true, false])('fails before spawn when an adapter cannot enforce/audit nativeToolAccess=%s', async nativeToolAccess => {
+  await expect(startFixture({ agentId: 'pi', hostEnv: {} }, {}, { nativeToolAccess })).rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED' });
+});
+
+it('threads individual permissions through the real executor to CLI argv', async () => {
+  const baseline = await startFixture({ agentId: 'claude', hostEnv: {} }, {}, { nativeToolAccess: true, cliParity: true, permissionMode: 'bypass' });
+  const restricted = await startFixture({ agentId: 'claude', hostEnv: {} }, {}, { nativeToolAccess: true, cliParity: true, permissionMode: 'bypass',
+    nativeCapabilities: { shell: false, subagents: false, userMcp: false } });
+  try {
+    for (const flag of ['Bash', 'Agent', '--strict-mcp-config']) {
+      expect(baseline.calls[0]!.args).not.toContain(flag);
+      expect(restricted.calls[0]!.args).toContain(flag);
+    }
+  } finally { baseline.child.emit('close', 0, null); restricted.child.emit('close', 0, null); }
+});
+
+it('refuses to ignore individual restrictions on an unsupported CLI even in parity mode', async () => {
+  await expect(startFixture({ agentId: 'pi', hostEnv: {} }, {}, { nativeToolAccess: true, cliParity: true, permissionMode: 'bypass',
+    nativeCapabilities: { shell: false } })).rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED' });
+});
 
 it('passes explicit plugin policy through the executor instead of consulting ambient env in buildArgs', async () => {
   const hostEnv = { PATH: '/fake/bin', CODEX_DISABLE_PLUGINS: '1' };
@@ -78,4 +110,14 @@ it('carries host shutdown timing into the native pi session and keeps two execut
   } finally {
     baseline.child.emit('close', 0, null); treatment.child.emit('close', 0, null);
   }
+});
+
+it('Claude parity removes only the eager MCP-loading default while keeping the background wait policy', async () => {
+  const granted = await startFixture({ agentId: 'claude', hostEnv: { PATH: '/fake/bin' } }, {}, { cliParity: true, nativeToolAccess: true, permissionMode: 'bypass' });
+  const locked = await startFixture({ agentId: 'claude', hostEnv: { PATH: '/fake/bin' } }, {}, { nativeToolAccess: false, permissionMode: 'restricted' });
+  try {
+    expect(granted.calls[0]!.env?.ENABLE_TOOL_SEARCH).toBeUndefined();
+    expect(granted.calls[0]!.env?.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS).toBe('0');
+    expect(locked.calls[0]!.env?.ENABLE_TOOL_SEARCH).toBe('false');
+  } finally { granted.child.emit('close', 0, null); locked.child.emit('close', 0, null); }
 });

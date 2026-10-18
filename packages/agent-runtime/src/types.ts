@@ -82,6 +82,13 @@ export type RuntimeReasoningInModelId = {
 };
 
 export type RuntimeBuildOptions = {
+  /** Host-verified per-run overrides; false dimensions must be enforced or launch refused. */
+  nativeCapabilities?: Partial<import('./native-tool-policy.js').NativeCapabilities>;
+  /** Explicit host grant for shell/direct edits. false must be enforced or launch refused.
+   * Does not lift environment, MCP, path, approval or sandbox security controls. */
+  nativeToolAccess?: boolean;
+  /** Explicit trusted-host grant for hand-run CLI configuration and capabilities. */
+  cliParity?: boolean;
   /** Explicit host/run policy; environment defaults belong to native composition. */
   codexDisablePlugins?: boolean;
   /** Host-scoped capability flags; absent retains the published compatibility cache. */
@@ -340,6 +347,9 @@ export type RuntimeLock = {
 
 // Static host definitions predate native model discovery; both ports remain opt-in.
 export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
+  /** This adapter enforces nativeToolAccess and emits normalized shell/edit tool_use events.
+   * A host requesting the policy must fail closed when this capability is absent. */
+  supportsNativeToolAccess?: boolean;
   id: string;
   name: string;
   bin: string;

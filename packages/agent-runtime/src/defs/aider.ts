@@ -44,7 +44,7 @@ export const aiderAgentDef = {
     //   --yes-always                       — skip per-action confirmation
     //   --no-pretty                        — strip ANSI so stdout parses as plain text
     //   --no-stream                        — left as default (streaming on)
-    //   --no-git / --no-auto-commits       — the host spawns aider inside a
+    //   --no-git / --no-auto-commits       — outside trusted CLI parity, the host uses a
     //                                        managed project workspace that
     //                                        is not the user's git repo, so
     //                                        the commit machinery has
@@ -62,9 +62,8 @@ export const aiderAgentDef = {
         // which is the conservative outcome restricted mode is asking for.
         ...(options.permissionMode !== 'restricted' ? ['--yes-always'] : []),
         '--no-pretty',
-        '--no-git',
-        '--no-auto-commits',
-        '--no-suggest-shell-commands',
+        // Managed scratch workspaces suppress git/shell; trusted parity uses Aider's own settings.
+        ...(options.cliParity && options.permissionMode === 'bypass' && options.nativeToolAccess !== false ? [] : ['--no-git', '--no-auto-commits', '--no-suggest-shell-commands']),
         '--no-show-model-warnings',
       ];
       if (options.model && options.model !== 'default') {

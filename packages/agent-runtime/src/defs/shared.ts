@@ -30,7 +30,7 @@ export { detectAcpModels, parsePiModels, execAgentFile, DEFAULT_MODEL_OPTION };
  * headless daemon child has no TTY to answer it, leaving the MCP connection pending indefinitely.
  * Passing the staged file via --mcp-config makes it available without that prompt.
  *
- * `--strict-mcp-config` is paired with it deliberately, not for symmetry: it makes the CLI load
+ * Unless a trusted host grants CLI parity, `--strict-mcp-config` makes the CLI load
  * ONLY this config, closing the separate "spawned CLI inherits the interactive developer's own
  * global/project MCP servers" leak. Both flags are documented for both current declarers
  * (Claude Code's own CLI reference; CodeBuddy's CLI reference documents `--mcp-config
@@ -40,14 +40,17 @@ export { detectAcpModels, parsePiModels, execAgentFile, DEFAULT_MODEL_OPTION };
  * @param runtimeContext - The def's own `buildArgs` `runtimeContext`. Only `mcpJsonPath` is read;
  * it is present only when the caller is actually staging that file for this run (see
  * `RuntimeContext.mcpJsonPath`'s own doc), so an unconfigured host gets `[]` and no argv change.
- * @returns `['--strict-mcp-config', '--mcp-config', <path>]`, or `[]` when no path was staged.
+ * Trusted bypass parity omits strict isolation so user MCP/Chrome settings remain available.
+ * Explicit --mcp-config still avoids a headless trust prompt. A locked run without a staged
+ * config gets --strict-mcp-config alone, exposing no auto-discovered MCP servers.
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function buildClaudeMcpConfigArgs(runtimeContext: RuntimeContext): string[] {
+export function buildClaudeMcpConfigArgs(runtimeContext: RuntimeContext, options: { cliParity?: boolean; permissionMode?: string; nativeToolAccess?: boolean; nativeCapabilities?: { userMcp?: boolean } } = {}): string[] {
   const mcpJsonPath = runtimeContext.mcpJsonPath;
-  if (typeof mcpJsonPath !== 'string' || mcpJsonPath.length === 0) return [];
-  return ['--strict-mcp-config', '--mcp-config', mcpJsonPath];
+  if (typeof mcpJsonPath !== 'string' || mcpJsonPath.length === 0) return options.nativeToolAccess === false || options.nativeCapabilities?.userMcp === false ? ['--strict-mcp-config'] : [];
+  // Explicit config still avoids headless trust prompts. Only a trusted bypass run inherits MCP.
+  return [...(options.cliParity && options.permissionMode === 'bypass' && options.nativeToolAccess !== false && options.nativeCapabilities?.userMcp !== false ? [] : ['--strict-mcp-config']), '--mcp-config', mcpJsonPath];
 }
 
 export function clampCodexReasoning(modelId: string | null | undefined, effort: string | null | undefined) {

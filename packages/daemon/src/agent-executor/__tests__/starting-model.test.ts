@@ -87,3 +87,20 @@ for (const [name, create] of [['split', createAgentExecutor], ['public', publicC
     }
   });
 }
+
+it.each(['default', 'native-routing-alias'])('trusted parity leaves default or explicit model selection to the native CLI (%s)', async model => {
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+  const agent = def(); let selections = 0; const args: string[][] = [];
+  agent.buildArgs = (_input, { options = {} } = {}) => options.model && options.model !== 'default' ? ['--model', options.model] : [];
+  const executor = createAgentExecutor({ lifecycle }, {
+    getAgentDef: () => agent, resolveAgentLaunch: () => launch,
+    resolveModelForLaunch: async () => { selections++; throw new Error('No concrete model evidence'); },
+    ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env,
+    createCommandInvocation: ({ command, args }) => ({ command, args: [...(args ?? [])], windowsVerbatimArguments: false }),
+    spawn: ((_command: string, argv: readonly string[]) => { args.push([...argv]); throw new Error('fixture stops before spawn'); }) as unknown as typeof nodeSpawn,
+  });
+  const { run } = await lifecycle.start({ contextRef: 'parity' });
+  await expect(executor.run({ runId: run.id, agentId: agent.id, cwd: '/workspace', prompt: 'hello' },
+    { cliParity: true, nativeToolAccess: true, permissionMode: 'bypass', model })).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+  expect(selections).toBe(0); expect(args).toEqual([model === 'default' ? [] : ['--model', model]]);
+});

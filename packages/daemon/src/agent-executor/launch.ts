@@ -509,7 +509,7 @@ function computeSystemPromptOverlay(
 
 /** Phase 9a: the def's `buildArgs` 4th argument. Historically omitted when every override was absent;
  * that let defs silently enable auto-approval. Always supply the validated restricted default now. Pure. */
-export function buildAgentBuildArgsOptions({ input, systemPromptOverlay }: { readonly input: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode' | 'disallowedTools' | 'allowedTools' | 'settingSources' | 'settings'>; readonly systemPromptOverlay: string | null | undefined }
+export function buildAgentBuildArgsOptions({ input, systemPromptOverlay }: { readonly input: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode' | 'nativeToolAccess' | 'nativeCapabilities' | 'cliParity' | 'disallowedTools' | 'allowedTools' | 'settingSources' | 'settings'>; readonly systemPromptOverlay: string | null | undefined }
 ): RuntimeBuildOptions | undefined {
   const permissionMode = input.permissionMode ?? 'restricted';
   if (permissionMode !== 'restricted' && permissionMode !== 'bypass') {
@@ -520,6 +520,9 @@ export function buildAgentBuildArgsOptions({ input, systemPromptOverlay }: { rea
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
     permissionMode,
+    ...(input.nativeToolAccess !== undefined ? { nativeToolAccess: input.nativeToolAccess } : {}),
+    ...(input.nativeCapabilities ? { nativeCapabilities: input.nativeCapabilities } : {}),
+    ...(input.cliParity === true && permissionMode === 'bypass' && input.nativeToolAccess !== false ? { cliParity: true } : {}),
     ...(input.disallowedTools !== undefined ? { disallowedTools: input.disallowedTools } : {}),
     ...(input.allowedTools !== undefined ? { allowedTools: input.allowedTools } : {}),
     ...(input.settingSources !== undefined ? { settingSources: input.settingSources } : {}),
@@ -909,7 +912,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
    * @complexity O(1) setup (registry lookup, launch resolution, one spawn call); steady-state cost thereafter belongs to {@link wireChildLifecycle}.
    * @overallScore 100/100
    */
-  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "model" | "reasoning" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings"> = {}): Promise<void> {
+  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings"> = {}): Promise<void> {
   const input: { -readonly [K in keyof AgentExecutorRunInput]: AgentExecutorRunInput[K] } = { ...requiredArgs, ...optionalArgs, permissionMode: optionalArgs.permissionMode ?? 'restricted' };
     if (input.permissionMode !== 'restricted' && input.permissionMode !== 'bypass') {
       return failBeforeSpawn({ runId: input.runId, code: 'AGENT_PERMISSION_MODE_INVALID', message: 'AgentExecutor: permissionMode must be restricted or bypass' });
@@ -927,6 +930,12 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // calls further down deliberately keep reading `input.prompt` verbatim, since those two
     // defs' own native protocol already delivers the image and must never also get this
     // treatment (the double-delivery hazard this mechanism exists to avoid).
+    // Never silently ignore a host's locked native-tool policy on another CLI.
+    // Parity cannot override an explicit lock or a restricted run.
+    input.cliParity = input.cliParity === true && input.permissionMode === 'bypass' && input.nativeToolAccess !== false;
+    if ((input.nativeToolAccess !== undefined && !input.cliParity || Object.values(input.nativeCapabilities ?? {}).some(value => value === false)) && def.supportsNativeToolAccess !== true) {
+      return failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message: 'This CLI has no native-tool policy and audit adapter. Choose a CLI with native-tool policy support.' });
+    }
     const imageDelivery = await resolveImageDeliveryAndArgvBudget({ input: { runId: input.runId, def, prompt: input.prompt, imagePaths: input.imagePaths, extraAllowedDirs: input.extraAllowedDirs }, deps: { failBeforeSpawn } }
     );
 
@@ -966,27 +975,33 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // The def's own declared env (e.g. claude's `ENABLE_TOOL_SEARCH=false`) is a default the run's
     // env can override. Detection already spawns with it (`detection.ts`); without this the run
     // spawn silently dropped it. Declared by the def itself, so it never widens SEC-001's allowlist.
-    const resolvedEnv = { ...(def.env ?? {}), ...resolveRunEnv({ input: input, hostEnv }) };
+    const defaults = { ...(def.env ?? {}) };
+    // Eager loading was cheap only for the isolated bridge. Let the user's CLI decide in parity.
+    if (input.cliParity) delete defaults.ENABLE_TOOL_SEARCH;
+    const resolvedEnv = { ...defaults, ...resolveRunEnv({ input: input, hostEnv }) };
     const launch = await resolveLaunch({ input: { runId: input.runId, def, resolvedEnv }, deps: { resolveAgentLaunch: resolveAgentLaunchFn, failBeforeSpawn } }
     );
 
     const spawnEnv = applyAgentLaunchEnvFn({ env: { ...resolvedEnv }, launch });
-    // Resolve from the launch environment before staging or sending any prompt. Pin the same
-    // concrete ID that the picker displays; an opaque native route cannot silently start a run.
-    let modelCatalog: ModelCatalogSnapshot;
-    try {
-      const selectModel = options.resolveModelForLaunch ?? ((input: Parameters<typeof resolveModelForLaunch>[0]) => resolveModelForLaunch(input, options.runtimeState ? { deps: getRuntimeModelDiscoveryDeps({ state: options.runtimeState }) } : {}));
-      const selection = await selectModel({ def, context: {
-        executable: launch.launchPath, cwd: input.cwd, env: spawnEnv,
-        ...(input.model && input.model !== 'default' ? { model: input.model } : {}),
-        ...(input.resumeSessionId ? { resumeSessionId: input.resumeSessionId } : {}),
-        ...(input.settingSources ? { settingSources: input.settingSources } : {}),
-        ...(input.settings ? { settings: input.settings } : {}),
-      } });
-      input.model = selection.model;
-      modelCatalog = selection.catalog;
-    } catch {
-      return failBeforeSpawn({ runId: input.runId, code: 'AGENT_MODEL_UNRESOLVED', message: 'AgentExecutor: pick a concrete model; the starting model could not be resolved for this launch.' });
+    // Locked runs pin the picker's concrete ID before any prompt is sent. Trusted parity keeps
+    // the CLI's own configured default and effort, without requiring discovery to succeed.
+    if (input.cliParity && input.model === 'default') delete input.model;
+    let modelCatalog: ModelCatalogSnapshot | undefined;
+    if (!input.cliParity) {
+      try {
+        const selectModel = options.resolveModelForLaunch ?? ((input: Parameters<typeof resolveModelForLaunch>[0]) => resolveModelForLaunch(input, options.runtimeState ? { deps: getRuntimeModelDiscoveryDeps({ state: options.runtimeState }) } : {}));
+        const selection = await selectModel({ def, context: {
+          executable: launch.launchPath, cwd: input.cwd, env: spawnEnv,
+          ...(input.model && input.model !== 'default' ? { model: input.model } : {}),
+          ...(input.resumeSessionId ? { resumeSessionId: input.resumeSessionId } : {}),
+          ...(input.settingSources ? { settingSources: input.settingSources } : {}),
+          ...(input.settings ? { settings: input.settings } : {}),
+        } });
+        input.model = selection.model;
+        modelCatalog = selection.catalog;
+      } catch {
+        return failBeforeSpawn({ runId: input.runId, code: 'AGENT_MODEL_UNRESOLVED', message: 'AgentExecutor: pick a concrete model; the starting model could not be resolved for this launch.' });
+      }
     }
     // Fill the def's `--help` capability gate before `buildArgs` reads it. Without this, only a
     // host that happened to call `detectAgents` in THIS process ever had the gate filled, so e.g.
@@ -1124,7 +1139,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // points at a real file. Skipped entirely for the other four mechanisms and whenever no bridge
     // was resolved at all. `writtenMcpJsonPath` is set only once the write actually happens, so
     // `cleanupStagedFiles` knows there is a live-token file to remove afterward.
-    writtenMcpJsonPath = await writeMcpJsonIfNeeded({ input: { runId: input.runId, cwd: input.cwd, def, mcpBridge }, deps: { mcpJsonInjection, releaseStagedResources, failBeforeSpawn } }
+    writtenMcpJsonPath = await writeMcpJsonIfNeeded({ input: { runId: input.runId, cwd: input.cwd, nativeToolAccess: input.nativeToolAccess, ...(input.nativeCapabilities !== undefined ? { nativeCapabilities: input.nativeCapabilities } : {}), def, mcpBridge }, deps: { mcpJsonInjection, releaseStagedResources, failBeforeSpawn } }
     );
 
     // Mechanism 5 of 5's one effect — stage this run's scratch `CODEX_HOME` directory. Skipped
@@ -1132,7 +1147,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `codex.ts`'s `buildArgs` needs no argv change for this (CODEX_HOME is an env var, not a flag),
     // so — unlike the `.mcp.json` staging above — this can run after `buildArgs` with no ordering
     // constraint of its own; it is placed here only to keep the two staging steps adjacent.
-    preparedCodexHome = await prepareCodexHomeIfNeeded({ input: { runId: input.runId, def, mcpBridge }, deps: { mcpJsonInjection, hostEnv, releaseStagedResources, failBeforeSpawn } }
+    preparedCodexHome = await prepareCodexHomeIfNeeded({ input: { runId: input.runId, nativeToolAccess: input.nativeToolAccess, ...(input.nativeCapabilities !== undefined ? { nativeCapabilities: input.nativeCapabilities } : {}), def, mcpBridge }, deps: { mcpJsonInjection, hostEnv: input.cliParity ? spawnEnv : hostEnv, releaseStagedResources, failBeforeSpawn } }
     );
     // Finding 1 of SEC-assistant-env-isolation-2026-09-07's one effect — stage this run's scratch
     // `CLAUDE_CONFIG_DIR` directory. Unconditional for a `claude`-id run (unlike CODEX_HOME above,
@@ -1203,8 +1218,8 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     const formatForStdin = { streamFormat };
     const stdinHandle = isStdinDrivenFormat(formatForStdin)
       ? wireChildLifecycle({
-          startingModel: input.model!,
-          modelCatalog,
+          ...(input.model ? { startingModel: input.model } : {}),
+          ...(modelCatalog ? { modelCatalog } : {}),
           runId: input.runId,
           def,
           streamFormat: formatForStdin.streamFormat,
@@ -1264,8 +1279,9 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
           prompt: `${overlayDelivery.promptPrefix}${input.prompt}`,
           cwd: input.cwd,
           permissionMode: input.permissionMode,
+          cliParity: input.cliParity,
           model: input.model,
-          modelCatalog,
+          ...(modelCatalog ? { modelCatalog } : {}),
           imagePaths: input.imagePaths ?? [],
           envFormat: def.acpMcpEnvFormat,
           mcpBridge,
@@ -1298,7 +1314,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
           prompt: `${overlayDelivery.promptPrefix}${input.prompt}`,
           cwd: input.cwd,
           model: input.model,
-          modelCatalog,
+          ...(modelCatalog ? { modelCatalog } : {}),
           imagePaths: input.imagePaths ?? [],
           uploadRoot: input.uploadRoot,
         }, deps: {

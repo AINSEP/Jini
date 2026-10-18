@@ -1,3 +1,4 @@
+import { resolveNativeCapabilityDenies, resolveNativeToolDenies } from '../native-tool-policy.js';
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
 /**
  * Claude Code has no dedicated image-attachment flag. imageDelivery: 'prompt-path' makes the
@@ -76,6 +77,7 @@ const CLAUDE_FALLBACK_MODELS = [
 export const claudeAgentDef = {
   ...createAgentModelDiscovery('claude', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => claudeAgentDef.fallbackModels }),
     id: 'claude',
+    supportsNativeToolAccess: true,
     name: 'Claude Code',
     bin: 'claude',
     // Drop-in forks that ship a CLI argv-compatible with `claude`. Tried in
@@ -220,7 +222,7 @@ export const claudeAgentDef = {
       // see `buildClaudeMcpConfigArgs`'s own doc for why explicit, why strict, and why this is one
       // implementation rather than a copy per def. A no-op (`[]`) whenever the caller staged no
       // file, so a host that never configured MCP injection sees no argv change.
-      args.push(...buildClaudeMcpConfigArgs(runtimeContext));
+      args.push(...buildClaudeMcpConfigArgs(runtimeContext, options));
       // Finding 2 (SEC-assistant-env-isolation-2026-09-07): `RuntimeBuildOptions.disallowedTools`/
       // `allowedTools` are a `@jini-ai/agent-runtime`-level *mechanism* only — no product policy is
       // baked in here (see `types.ts`'s own doc on those fields). Verified against installed Claude
@@ -228,15 +230,22 @@ export const claudeAgentDef = {
       // `--allowedTools, --allowed-tools <tools...>`. Placed last, after every other flag, so an
       // omitted (default) value is a true no-op — every existing call site that never passes these
       // options sees byte-identical argv to before this change.
-      if (options.disallowedTools && options.disallowedTools.length > 0) {
-        args.push('--disallowedTools', ...options.disallowedTools);
+      const deniedTools = resolveNativeCapabilityDenies({
+        ...(options.nativeCapabilities !== undefined ? { capabilities: options.nativeCapabilities } : {}),
+        denied: resolveNativeToolDenies({ enabled: options.nativeToolAccess,
+          ...(options.disallowedTools !== undefined ? { denied: options.disallowedTools } : {}) }, {}) }, {});
+      if (deniedTools.length > 0) {
+        args.push('--disallowedTools', ...deniedTools);
       }
       if (options.allowedTools && options.allowedTools.length > 0) {
         args.push('--allowedTools', ...options.allowedTools);
       }
       // See `RuntimeBuildOptions.settingSources`. Probe-gated like `--effort`: an older build
       // rejects an unknown option with exit 1, which would kill the chat rather than degrade it.
-      if (options.settingSources !== undefined && caps.settingSources) {
+      if (options.nativeCapabilities?.userSettings === false) {
+        // This is an explicit restriction, not an optional enhancement: do not probe it away.
+        args.push('--setting-sources', '', '--disable-slash-commands');
+      } else if (options.settingSources !== undefined && caps.settingSources) {
         args.push('--setting-sources', options.settingSources.join(','));
       }
       // See `RuntimeBuildOptions.settings`. Not probe-gated: `--settings` long predates `--setting-sources`.

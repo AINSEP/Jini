@@ -128,6 +128,7 @@ export type AgentRuntimeEventTranslation =
 
 /** Machine-readable failure reasons `run()` can reject with — every one is preceded by a `lifecycle.finish({status:'failed'})` call (see index.ts module doc's Invariant section). */
 export type AgentExecutorErrorCode =
+  | 'NATIVE_TOOL_POLICY_UNSUPPORTED'
   | 'AGENT_MODEL_UNRESOLVED'
   | 'AGENT_PERMISSION_MODE_INVALID'
   | 'AGENT_NOT_FOUND'
@@ -165,6 +166,12 @@ export interface AgentExecutorRunInput {
    * delegate auto-approval, and any unknown mode is rejected before launching a process.
    */
   readonly permissionMode?: 'bypass' | 'restricted';
+  /** Host-authorized native shell/edit grant; unsupported restricted providers fail before spawn. */
+  readonly nativeToolAccess?: boolean;
+  /** Independent host-verified permissions, snapshotted for this run. */
+  readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>;
+  /** Trusted-host CLI parity; never derived from prompt/context fields. */
+  readonly cliParity?: boolean;
   /**
    * Host-validated image files. How each one actually reaches the model
    * depends on `def.imageDelivery` (see `@jini-ai/agent-runtime`'s `types.ts`):
@@ -242,7 +249,7 @@ export interface AgentExecutor {
    * underlying run is always already transitioned to `'failed'` via
    * `lifecycle.finish()` before this rejects (see index.ts module doc's Invariant).
    */
-  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "model" | "reasoning" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings">): Promise<void>;
+  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings">): Promise<void>;
   /**
    * Delivers a message the human sent while `runId` is going straight into its live agent process
    * (see {@link UserMessageDelivery} for each outcome). A stream-json agent is interrupted first and
@@ -442,9 +449,9 @@ export interface McpJsonInjectionOptions {
    */
   readonly removeDir?: ({ path }: { readonly path: string }) => Promise<void>;
   /** `'codex-toml'` only. Links the run home's sessions/archived_sessions to the operator's
-   * persistent rollout store. Config and auth remain isolated and are removed after the run.
+   * persistent rollout store and authentication. Parity also links user home entries; config alone stays isolated.
    * @default Native mkdir (0700) and directory symlinks; errors fail staging before spawn. */
-  readonly linkSessionStore?: (required: { runHome: string; sourceHome: string }, optional?: {}) => Promise<void>;
+  readonly linkSessionStore?: (required: { runHome: string; sourceHome: string }, optional?: { inheritUserConfig?: boolean }) => Promise<void>;
 }
 
 /** One `.mcp.json` `mcpServers` entry — the shape Claude Code's own config schema expects. */

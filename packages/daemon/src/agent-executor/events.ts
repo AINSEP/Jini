@@ -952,6 +952,7 @@ interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
   readonly prompt: string;
   readonly cwd: string;
   readonly permissionMode: 'bypass' | 'restricted' | undefined;
+  readonly cliParity?: boolean | undefined;
   readonly model: string | undefined;
   readonly modelCatalog?: ModelCatalogSnapshot;
   readonly imagePaths: readonly string[];
@@ -1074,7 +1075,7 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
       if (event === 'error') {
         enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translateAcpError(payload) } }));
       }
-    } }, { cwd: ctx.cwd, ...(ctx.permissionMode !== undefined ? { permissionMode: ctx.permissionMode } : {}), ...(ctx.model !== undefined ? { model: ctx.model } : {}), ...(ctx.imagePaths.length > 0 ? { imagePaths: [...ctx.imagePaths] } : {}), ...(ctx.envFormat !== undefined ? { envFormat: ctx.envFormat } : {}),
+    } }, { cwd: ctx.cwd, ...(ctx.cliParity ? { cliParity: true, stageTimeoutMs: 0 } : {}), ...(ctx.permissionMode !== undefined ? { permissionMode: ctx.permissionMode } : {}), ...(ctx.model !== undefined ? { model: ctx.model } : {}), ...(ctx.imagePaths.length > 0 ? { imagePaths: [...ctx.imagePaths] } : {}), ...(ctx.envFormat !== undefined ? { envFormat: ctx.envFormat } : {}),
     // Spread-when-present rather than always: passing `mcpServers: []` is not the same as passing
     // nothing for every downstream ACP agent, and "no bridge configured" must stay byte-identical
     // to before this field existed.
@@ -1248,6 +1249,7 @@ interface RunAcpDispatchInput {
   readonly prompt: string;
   readonly cwd: string;
   readonly permissionMode: 'bypass' | 'restricted' | undefined;
+  readonly cliParity?: boolean | undefined;
   readonly model: string | undefined;
   readonly modelCatalog?: ModelCatalogSnapshot;
   readonly imagePaths: readonly string[];
@@ -1278,6 +1280,7 @@ export async function runAcpDispatch({ input, deps }: { readonly input: RunAcpDi
       prompt: input.prompt,
       cwd: input.cwd,
       permissionMode: input.permissionMode,
+      cliParity: input.cliParity,
       model: input.model,
       ...(input.modelCatalog ? { modelCatalog: input.modelCatalog } : {}),
       imagePaths: input.imagePaths,

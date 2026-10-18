@@ -18,6 +18,15 @@ function feed(kind: string, lines: unknown[]) {
 }
 
 describe('createJsonEventStreamHandler (codex)', () => {
+  it('surfaces direct file patches as one native tool event, with paths and no diff content', () => {
+    const patch = { type: 'item.completed', item: { id: 'patch-1', type: 'file_change', status: 'completed',
+      changes: [{ path: '/tmp/a', kind: 'update', diff: '+private file body' }] } };
+    const events = feed('codex', [patch, patch]);
+    expect(events.filter(event => event.type === 'tool_use')).toEqual([
+      { type: 'tool_use', id: 'patch-1', name: 'apply_patch', input: { paths: ['/tmp/a'] } },
+    ]);
+    expect(JSON.stringify(events)).not.toContain('private file body');
+  });
   it('replays a thread-start → command execution → agent message → usage trace', () => {
     const events = feed('codex', [
       { type: 'thread.started', thread_id: 'thread_abc' },
@@ -1416,4 +1425,15 @@ describe('remaining narrow branch closures across handlers', () => {
       { type: 'tool_result', toolUseId: 'cmd_bare', content: '', isError: false },
     ]);
   });
+});
+
+it('Codex native collaboration is reported once, and external MCP named Bash stays distinguishable from the shell', () => {
+  const item = { id: 'agent-1', type: 'collab_tool_call', tool: 'spawn_agent', prompt: 'private delegation' };
+  const events = feed('codex', [{ type: 'item.started', item }, { type: 'item.completed', item },
+    { type: 'item.completed', item: { id: 'mcp-1', type: 'mcp_tool_call', server: 'chrome', tool: 'Bash', arguments: {}, status: 'completed' } }]);
+  expect(events.filter(event => event.type === 'tool_use')).toEqual([
+    { type: 'tool_use', id: 'agent-1', name: 'spawn_agent', input: {} },
+    { type: 'tool_use', id: 'mcp-1', name: 'mcp__chrome__Bash', input: {} },
+  ]);
+  expect(JSON.stringify(events)).not.toContain('private delegation');
 });

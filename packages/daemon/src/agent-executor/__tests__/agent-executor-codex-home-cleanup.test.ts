@@ -108,3 +108,35 @@ describe('prepareCodexHomeIfNeeded — scratch CODEX_HOME credential cleanup', (
     expect(failed).toEqual(['AgentExecutor: could not stage a CODEX_HOME for agent "codex": session store unavailable']);
   });
 });
+
+it('parity links user skills/instructions and rotating auth; locked homes expose no user MCP config', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cli-parity-home-'));
+  const sourceHome = join(root, 'operator');
+  const def = getAgentDef({ id: 'codex' })!;
+  const entry = { command: 'bridge', args: [], env: { JINI_RUN_ID: 'run', JINI_DAEMON_URL: 'http://site' } };
+  try {
+    await mkdir(join(sourceHome, 'skills'), { recursive: true });
+    await writeFile(join(sourceHome, 'skills', 'user-skill.md'), 'operator skill');
+    await writeFile(join(sourceHome, 'AGENTS.md'), 'operator instructions');
+    const config = 'model = "operator-model"\n[mcp_servers.chrome]\ncommand = "chrome"\n';
+    await writeFile(join(sourceHome, 'config.toml'), config);
+    await writeFile(join(sourceHome, 'auth.json'), '{"refresh":"old"}');
+    const stage = (nativeToolAccess: boolean) => prepareCodexHomeIfNeeded({ input: {
+      runId: String(nativeToolAccess), def, nativeToolAccess, mcpBridge: { kind: 'codex-toml', serverEntry: entry },
+    }, deps: { mcpJsonInjection: { command: 'bridge', daemonUrl: 'http://site', mkdtemp: ({ prefix }) => mkdtemp(join(root, prefix)) },
+      hostEnv: { CODEX_HOME: sourceHome }, releaseStagedResources: async () => {}, failBeforeSpawn: async () => { throw new Error('staging failed'); } } });
+    const granted = (await stage(true))!;
+    const locked = (await stage(false))!;
+    expect(await readFile(join(granted.path, 'AGENTS.md'), 'utf8')).toBe('operator instructions');
+    expect(await readFile(join(granted.path, 'skills', 'user-skill.md'), 'utf8')).toBe('operator skill');
+    expect(await readFile(join(granted.path, 'config.toml'), 'utf8')).toContain('[mcp_servers.chrome]');
+    expect(await readFile(join(locked.path, 'config.toml'), 'utf8')).not.toContain('chrome');
+    await expect(stat(join(locked.path, 'AGENTS.md'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(stat(join(locked.path, 'skills'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await writeFile(join(granted.path, 'auth.json'), '{"refresh":"new"}');
+    await granted.cleanup(); await locked.cleanup();
+    expect(await readFile(join(sourceHome, 'auth.json'), 'utf8')).toBe('{"refresh":"new"}');
+    expect(await readFile(join(sourceHome, 'config.toml'), 'utf8')).toBe(config);
+    expect(await readFile(join(sourceHome, 'skills', 'user-skill.md'), 'utf8')).toBe('operator skill');
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

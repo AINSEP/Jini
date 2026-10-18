@@ -158,17 +158,18 @@ export function formatUsage(usage: unknown): FormattedUsage | null {
 /**
  * Selects the best permission-outcome `optionId` to reply with when an ACP
  * agent sends a `session/request_permission` request. Bypass permits only
- * this invocation; otherwise reject. Never broaden approval to future calls.
+ * this invocation; otherwise reject. Trusted CLI parity may accept allow_always if that is
+ * the only offered approval, matching an explicitly bypassed native CLI.
  *
  * @param options - The `params.options` array from the incoming permission request.
  * @param policy - The existing run permission mode; absence is conservative.
  * @returns An offered `optionId`, or `null` when no safe choice exists.
  * @complexity O(n) time and O(1) space for n offered options.
  */
-export function choosePermissionOutcome(options: unknown, policy: Pick<RuntimeBuildOptions, 'permissionMode'> = {}): string | null {
+export function choosePermissionOutcome(options: unknown, policy: Pick<RuntimeBuildOptions, 'permissionMode' | 'cliParity'> = {}): string | null {
   const list = Array.isArray(options) ? options : [];
   const kinds = policy.permissionMode === 'bypass'
-    ? ['allow_once', 'reject_once', 'reject_always']
+    ? policy.cliParity ? ['allow_once', 'allow_always', 'reject_once', 'reject_always'] : ['allow_once', 'reject_once', 'reject_always']
     : ['reject_once', 'reject_always'];
   for (const kind of kinds) {
     const option = list.find((value) => {

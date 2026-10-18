@@ -116,6 +116,8 @@ export interface AcpSessionController {
  * `send` are optional and carry sensible defaults.
  */
 export interface AttachAcpSessionOptions {
+  /** Host-authorized parity: bypass native permission requests; disable silence watchdog. */
+  cliParity?: boolean;
   child: AcpChildProcess;
   prompt: string;
   cwd?: string;
@@ -871,7 +873,7 @@ function resolveAcpSessionOptionDefaults(options: AttachAcpSessionOptions): Reso
     envFormat: options.envFormat ?? 'array',
     clientName: options.clientName ?? 'agent-runtime',
     clientVersion: options.clientVersion ?? 'runtime-adapter',
-    stageTimeoutMs: options.stageTimeoutMs ?? DEFAULT_STAGE_TIMEOUT_MS,
+    stageTimeoutMs: options.cliParity && options.permissionMode === 'bypass' ? 0 : options.stageTimeoutMs ?? DEFAULT_STAGE_TIMEOUT_MS,
     executionProfile: options.executionProfile ?? 'filesystem',
     accountFailureClassifier: options.accountFailureClassifier ?? noopAccountFailureClassifier,
   };
@@ -1336,7 +1338,7 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
     pendingPermissionRequests.set(requestId, () => logDecision());
     try {
       if (!onPermissionRequest) {
-        const optionId = choosePermissionOutcome(optionRecords, permissionMode ? { permissionMode } : {});
+        const optionId = choosePermissionOutcome(optionRecords, { ...(permissionMode ? { permissionMode } : {}), ...(options.cliParity ? { cliParity: true } : {}) });
         respond(optionId ? { outcome: 'selected', optionId } : { outcome: 'cancelled' });
         return;
       }

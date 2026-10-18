@@ -5763,15 +5763,15 @@ describe("AgentExecutor — 'codex-toml' MCP bridge delivery (Codex CODEX_HOME r
     expect(spawnCalls).toHaveLength(1);
   });
 
-  it('copies the real auth.json into the scratch CODEX_HOME so the spawned CLI stays logged in', async () => {
+  it('delegates persistent auth/session linking rather than copying a refreshable login', async () => {
     const { mcpJsonInjection, writeCalls } = createCodexHomeFsSpies({ existingAuthJson: '{"token":"real-login"}' });
+    const linkSessionStore = vi.fn(async () => {});
     const def = createFakeDef({ externalMcpInjection: 'codex-toml' });
-    const { lifecycle, executor } = createHarness({ def, mcpJsonInjection });
+    const { lifecycle, executor } = createHarness({ def, mcpJsonInjection: { ...mcpJsonInjection, linkSessionStore } });
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
     await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
-
-    const authWrite = writeCalls.find((c) => c.path.endsWith('auth.json'));
-    expect(authWrite?.content).toBe('{"token":"real-login"}');
+    expect(writeCalls.some(call => call.path.endsWith('auth.json'))).toBe(false);
+    expect(linkSessionStore).toHaveBeenCalledWith({ runHome: expect.any(String), sourceHome: expect.any(String) }, { inheritUserConfig: true });
   });
 
   // Best-effort by design: a real headless spawn against a CODEX_HOME with no auth.json at all was

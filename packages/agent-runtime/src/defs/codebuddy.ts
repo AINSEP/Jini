@@ -126,7 +126,7 @@ export const codebuddyAgentDef = {
       // fix was built to avoid. Both flags are documented on Codebuddy's own CLI reference
       // (`--mcp-config <fileOrString>`, `--strict-mcp-config`), so the strict-isolation guarantee
       // is not silently degraded here relative to claude.
-      args.push(...buildClaudeMcpConfigArgs(runtimeContext));
+      args.push(...buildClaudeMcpConfigArgs(runtimeContext, options));
       return args;
     },
     promptViaStdin: true,

@@ -411,15 +411,22 @@ function splitTomlDottedKey(rawKey: string): string[] {
  * @returns `existingRaw` with any jini table/subtable removed.
  * @complexity O(n) in the number of lines.
  */
-function stripExistingJiniMcpServerTable(existingRaw: string): string {
+function stripExistingJiniMcpServerTable(existingRaw: string, optional: { allServers?: boolean; mcpOnly?: boolean } = {}): string {
   const jiniTableKey = `mcp_servers.${JINI_MCP_SERVER_KEY}`;
   const kept: string[] = [];
-  let skipping = false;
+  let skipping = optional.mcpOnly === true;
   for (const line of existingRaw.split('\n')) {
+    // The existing table scanner cannot safely rewrite inline/dotted root server values. Refuse
+    // that uncommon shape when isolating servers rather than accidentally preserving a grant.
+    if (optional.allServers && /^\s*(?:mcp_servers|"mcp_servers"|'mcp_servers')\s*(?:\.|=)/.test(line)) {
+      throw new Error('Cannot isolate inline MCP server configuration');
+    }
     const header = /^\s*\[([^[\]]+)\]\s*(#.*)?$/.exec(line);
     if (header) {
       const key = splitTomlDottedKey(header[1] ?? '').join('.');
-      skipping = key === jiniTableKey || key.startsWith(`${jiniTableKey}.`);
+      const isMcp = key === 'mcp_servers' || key.startsWith('mcp_servers.');
+      skipping = key === jiniTableKey || key.startsWith(`${jiniTableKey}.`) ||
+        (optional.allServers === true && isMcp) || (optional.mcpOnly === true && !isMcp);
       if (skipping) continue;
     }
     if (!skipping) kept.push(line);
@@ -439,7 +446,9 @@ function stripExistingJiniMcpServerTable(existingRaw: string): string {
  * install carries — model choice, sandbox policy, the trusted-project list, the operator's own
  * other MCP servers — must survive a spawn byte-for-byte. Only the one table this driver itself
  * owns (`jini` is this integration's own reserved server name — see {@link JINI_MCP_SERVER_KEY}) is
- * ever removed, via the narrow line-oriented scan above, never a full TOML parse.
+ * removed by default, via the narrow line-oriented scan above, never a full TOML parse. Explicit
+ * per-run OFF choices additionally omit personal MCP tables or retain only those tables when
+ * user settings are off. Inline root MCP declarations fail closed when isolation is requested.
  * @param existingRaw - The real Codex home's `config.toml` content, or `undefined` when it does not
  * exist (a fresh Codex install — degrades to "start from just this run's block", matching
  * {@link mergeMcpJsonContent}'s own "missing file" handling).
@@ -447,8 +456,11 @@ function stripExistingJiniMcpServerTable(existingRaw: string): string {
  * @returns The full text to write to the scratch `CODEX_HOME`'s `config.toml`.
  * @complexity O(n) in the existing config's length.
  */
-export function buildCodexHomeConfigToml({ existingRaw, entry }: { readonly existingRaw: string | undefined; readonly entry: McpJsonServerEntry }): string {
-  const base = stripExistingJiniMcpServerTable(existingRaw ?? '');
+export function buildCodexHomeConfigToml({ existingRaw, entry, inheritUserMcp = true, inheritUserSettings = true }: {
+  readonly existingRaw: string | undefined; readonly entry: McpJsonServerEntry;
+  readonly inheritUserMcp?: boolean; readonly inheritUserSettings?: boolean;
+}, _optional: Record<string, never> = {}): string {
+  const base = stripExistingJiniMcpServerTable(existingRaw ?? '', { allServers: !inheritUserMcp, mcpOnly: !inheritUserSettings });
   const separator = base.length === 0 ? '' : base.endsWith('\n') ? '\n' : '\n\n';
   return `${base}${separator}${buildCodexMcpServerToml({ entry: entry })}`;
 }
@@ -585,12 +597,13 @@ async function writeMcpJsonForRun(
   cwd: string,
   delivery: Extract<McpBridgeDelivery, { kind: 'claude-mcp-json' }>,
   options: McpJsonInjectionOptions,
+  inheritUserConfig = true,
 ): Promise<void> {
   const readFileFn = options.readFile ?? defaultReadMcpJsonFile;
   const writeFileFn = options.writeFile ?? defaultWriteMcpJsonFile;
   let existingRaw: string | undefined;
   try {
-    existingRaw = await readFileFn({ path: join(cwd, '.mcp.json') });
+    existingRaw = inheritUserConfig ? await readFileFn({ path: join(cwd, '.mcp.json') }) : undefined;
   } catch {
     // No existing file (ENOENT — the common case) or unreadable for any other reason: both
     // degrade to "start fresh", matching mergeMcpJsonContent's own doc.
@@ -617,13 +630,22 @@ interface CodexHomeSeams {
 }
 
 /** Config credentials stay run-scoped, but rollouts must survive both completion and cancellation.
- * Native directory links keep Codex as the sole writer of its own persisted session format.
- * Cleanup removes the links themselves, never their targets. Two fixed directories, O(1) I/O. */
-async function defaultLinkCodexSessionStore({ runHome, sourceHome }: { runHome: string; sourceHome: string }, _optional = {}): Promise<void> {
+ * Native links keep Codex as the sole writer of sessions and refreshed authentication.
+ * Parity also links skills/rules/plugins and other home entries; config.toml alone stays staged
+ * so run-scoped bearer tokens never reach the real config. Cleanup removes links, not targets.
+ * O(h) I/O for h top-level home entries; locked runs link only sessions and authentication. */
+async function defaultLinkCodexSessionStore({ runHome, sourceHome }: { runHome: string; sourceHome: string }, optional: { inheritUserConfig?: boolean } = {}): Promise<void> {
   for (const name of ['sessions', 'archived_sessions']) {
     const target = resolve(sourceHome, name);
     await fsPromises.mkdir(target, { recursive: true, mode: 0o700 });
     await fsPromises.symlink(target, join(runHome, name), 'junction');
+  }
+  await fsPromises.symlink(join(sourceHome, 'auth.json'), join(runHome, 'auth.json'), 'file');
+  if (optional.inheritUserConfig !== false) {
+    for (const entry of await fsPromises.readdir(sourceHome, { withFileTypes: true })) {
+      if (['config.toml', 'auth.json', 'sessions', 'archived_sessions'].includes(entry.name)) continue;
+      await fsPromises.symlink(join(sourceHome, entry.name), join(runHome, entry.name), entry.isDirectory() ? 'junction' : 'file');
+    }
   }
 }
 
@@ -644,15 +666,15 @@ function resolveCodexHomeSeams(options: McpJsonInjectionOptions): CodexHomeSeams
  *   - `config.toml`: the real Codex home's own config (read best-effort — see
  *     {@link buildCodexHomeConfigToml}'s "missing file" handling) with this run's
  *     `[mcp_servers.jini]` table appended.
- *   - `auth.json`: a best-effort copy of the real Codex home's stored login, so the spawned CLI is
+ *   - `auth.json`: a link to the real Codex home's stored login, so the spawned CLI is
  *     still authenticated. Best-effort is safe here, not merely convenient: a real headless spawn
  *     against a `CODEX_HOME` with no `auth.json` at all was confirmed (against installed Codex CLI
  *     0.151.0) to fail fast with a structured `401 Unauthorized` stream event, never an interactive
  *     login prompt or a hang — see `defs/codex.ts`'s module doc for the full transcript summary.
  *
- * **Never changes the real config or credentials.** Those source files stay read-only. Only the
- * native rollout directories are shared: deleting a run's scratch home must not erase the thread
- * whose id the host already persisted. No copied login or run-bound MCP credential is retained.
+ * Never changes the real config. Authentication is linked so a CLI token refresh survives cleanup;
+ * copying rotating credentials lost refreshes and could log the operator out. Deleting scratch
+ * state must not erase linked native state. The run-bound MCP credential stays in scratch config.
  *
  * A failure after the directory is created (a rejecting `writeFile`, most plausibly) does not leak
  * it: the directory may already hold a partial `config.toml` or a copied credential, so the
@@ -664,7 +686,7 @@ function resolveCodexHomeSeams(options: McpJsonInjectionOptions): CodexHomeSeams
  * @param sourceCodexHomeDir - Where to read the real install's `config.toml`/`auth.json` from — see {@link resolveSourceCodexHomeDir}.
  * @param seams - Injectable mkdtemp/readFile/writeFile/removeDir/linkSessionStore, real filesystem by default.
  * @throws Whatever staging rejects with — the caller ({@link prepareCodexHomeIfNeeded}) turns that into a pre-spawn `AGENT_SPAWN_FAILED` failure, matching {@link writeMcpJsonForRun}'s own contract.
- * @complexity O(1): fixed directory links and up to two best-effort file read/write round trips.
+ * @complexity O(h) filesystem operations for h top-level user-home entries; one staged config write.
  * @overallScore 100/100
  */
 async function prepareCodexHomeForRun(
@@ -672,6 +694,8 @@ async function prepareCodexHomeForRun(
   entry: McpJsonServerEntry,
   sourceCodexHomeDir: string,
   seams: CodexHomeSeams,
+  inheritUserConfig = true,
+  inheritUserMcp = true,
 ): Promise<PreparedCodexHome> {
   // Stricter than `@jini-ai/agent-runtime`'s `prepareAgentLogFile`/`preparePromptFileForAgent`
   // labels (which keep dots): this prefix stages a directory that ends up holding a copied Codex
@@ -683,21 +707,14 @@ async function prepareCodexHomeForRun(
   try {
     let existingConfigRaw: string | undefined;
     try {
-      existingConfigRaw = await seams.readFile({ path: join(sourceCodexHomeDir, 'config.toml') });
+      existingConfigRaw = inheritUserConfig || inheritUserMcp ? await seams.readFile({ path: join(sourceCodexHomeDir, 'config.toml') }) : undefined;
     } catch {
       // No config yet (fresh Codex install) or unreadable — start from just this run's block,
       // matching writeMcpJsonForRun's identical "missing file" handling.
       existingConfigRaw = undefined;
     }
-    await seams.writeFile({ path: join(dir, 'config.toml'), content: buildCodexHomeConfigToml({ existingRaw: existingConfigRaw, entry: entry }) });
-    try {
-      const authRaw = await seams.readFile({ path: join(sourceCodexHomeDir, 'auth.json') });
-      await seams.writeFile({ path: join(dir, 'auth.json'), content: authRaw });
-    } catch {
-      // No stored login (or unreadable) — the spawned CLI runs unauthenticated. Confirmed above:
-      // this fails the run fast and observably, never as a hang.
-    }
-    await seams.linkSessionStore({ runHome: dir, sourceHome: sourceCodexHomeDir }, {});
+    await seams.writeFile({ path: join(dir, 'config.toml'), content: buildCodexHomeConfigToml({ existingRaw: existingConfigRaw, entry: entry, inheritUserMcp, inheritUserSettings: inheritUserConfig }) });
+    await seams.linkSessionStore({ runHome: dir, sourceHome: sourceCodexHomeDir }, { inheritUserConfig });
   } catch (err) {
     await seams.removeDir({ path: dir }).catch(() => {
       // Best-effort only — the original error below is what the caller must see either way.
@@ -856,7 +873,7 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
 }
 
 /** Phase 10: mechanism 1 of 5's one effect — stages this run's own `.mcp.json`, returning the path `cleanupStagedFiles` should later remove (`undefined` for every other mechanism / unconfigured host). */
-export async function writeMcpJsonIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null }; readonly deps: {
+export async function writeMcpJsonIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly cwd: string; readonly nativeToolAccess?: boolean | undefined; readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null }; readonly deps: {
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
     readonly releaseStagedResources: () => Promise<void>;
     readonly failBeforeSpawn: FailBeforeSpawn;
@@ -866,7 +883,7 @@ export async function writeMcpJsonIfNeeded({ input, deps }: { readonly input: { 
     return undefined;
   }
   try {
-    await writeMcpJsonForRun(input.cwd, input.mcpBridge, deps.mcpJsonInjection);
+    await writeMcpJsonForRun(input.cwd, input.mcpBridge, deps.mcpJsonInjection, input.nativeToolAccess !== false && input.nativeCapabilities?.userMcp !== false);
     return input.mcpBridge.mcpJsonPath;
   } catch (err) {
     await deps.releaseStagedResources();
@@ -886,7 +903,7 @@ export async function writeMcpJsonIfNeeded({ input, deps }: { readonly input: { 
  * @complexity O(1) plus {@link prepareCodexHomeForRun}'s own cost.
  * @overallScore 100/100
  */
-export async function prepareCodexHomeIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null }; readonly deps: {
+export async function prepareCodexHomeIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly nativeToolAccess?: boolean | undefined; readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null }; readonly deps: {
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
     readonly hostEnv: NodeJS.ProcessEnv;
     readonly releaseStagedResources: () => Promise<void>;
@@ -894,6 +911,11 @@ export async function prepareCodexHomeIfNeeded({ input, deps }: { readonly input
   } }
 ): Promise<PreparedCodexHome | null> {
   if (input.mcpBridge?.kind !== 'codex-toml' || deps.mcpJsonInjection === undefined) {
+    if (input.def.id === 'codex' && (input.nativeCapabilities?.userMcp === false || input.nativeCapabilities?.userSettings === false)) {
+      await deps.releaseStagedResources();
+      return deps.failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
+        message: 'AgentExecutor: disabling personal Codex configuration requires run-scoped home staging.' });
+    }
     return null;
   }
   try {
@@ -902,6 +924,8 @@ export async function prepareCodexHomeIfNeeded({ input, deps }: { readonly input
       input.mcpBridge.serverEntry,
       resolveSourceCodexHomeDir({ hostEnv: deps.hostEnv }),
       resolveCodexHomeSeams(deps.mcpJsonInjection),
+      input.nativeToolAccess !== false && input.nativeCapabilities?.userSettings !== false,
+      input.nativeToolAccess !== false && input.nativeCapabilities?.userMcp !== false,
     );
   } catch (err) {
     await deps.releaseStagedResources();

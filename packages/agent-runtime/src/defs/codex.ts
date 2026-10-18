@@ -189,6 +189,7 @@ export function codexNeedsDangerFullAccessSandbox({  }: {  }, { platform = proce
 export const codexAgentDef = {
   ...createAgentModelDiscovery('codex', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => codexAgentDef.fallbackModels, args: ['debug', 'models'], parse: (input): import('../types.js').RuntimeModelOption[] | null => codexAgentDef.listModels.parse(input) }),
     id: 'codex',
+    supportsNativeToolAccess: true,
     name: 'Codex CLI',
     bin: 'codex',
     versionArgs: ['--version'],
@@ -265,7 +266,7 @@ export const codexAgentDef = {
       // back to a coarse policy that rejects any shell. macOS (Seatbelt)
       // and Linux (Landlock+seccomp) keep workspace-write because their
       // sandbox enforcement permits shell while restricting writes.
-      const needsDangerFullAccess = codexNeedsDangerFullAccessSandbox({  });
+      const needsDangerFullAccess = (options.cliParity === true && options.permissionMode === 'bypass' && options.nativeToolAccess !== false) || codexNeedsDangerFullAccessSandbox({  });
       // Capture-style resume: when the caller has a stored Codex thread id
       // for this conversation it asks the CLI to continue that session
       // with `exec resume <thread_id>` instead of `exec` (a fresh
@@ -284,7 +285,11 @@ export const codexAgentDef = {
       // the create turn so Codex's per-turn `turn_context` block byte-matches
       // across turns and does not break the upstream prefix cache the resume
       // is meant to reuse.
-      const sandboxArgs = needsDangerFullAccess
+      const nativeToolsLocked = options.nativeToolAccess === false;
+      const native = options.nativeCapabilities;
+      const sandboxArgs = nativeToolsLocked || native?.fileWrite === false
+        ? ['-c', 'sandbox_mode="read-only"']
+        : needsDangerFullAccess
         ? resumeSessionId
           ? ['-c', 'sandbox_mode="danger-full-access"']
           : ['--sandbox', 'danger-full-access']
@@ -304,6 +309,24 @@ export const codexAgentDef = {
       const args = resumeSessionId
         ? ['exec', 'resume', '--json', '--skip-git-repo-check', ...sandboxArgs]
         : ['exec', '--json', '--skip-git-repo-check', ...sandboxArgs];
+      if (options.cliParity && options.permissionMode === 'bypass' && !nativeToolsLocked) {
+        args.push('-c', 'approval_policy="never"');
+      }
+      if (nativeToolsLocked) {
+        // Read-only prevents direct patches; disable every shell transport as well.
+        // CLI config overrides apply on BOTH create and resume, regardless of the saved session.
+        args.push('-c', 'features.shell_tool=false', '-c', 'features.unified_exec=false',
+          '-c', 'features.code_mode=false', '-c', 'features.apply_patch_freeform=false',
+          '-c', 'features.multi_agent=false', '-c', 'features.collab=false', '-c', 'features.plugins=false',
+          '-c', 'approval_policy="never"');
+      }
+      // Per-turn overrides also apply to resumed sessions, ahead of persisted CLI defaults.
+      if (native?.shell === false) args.push('-c', 'features.shell_tool=false', '-c', 'features.unified_exec=false', '-c', 'features.code_mode=false');
+      if (native?.fileWrite === false) args.push('-c', 'features.apply_patch_freeform=false');
+      if (native?.subagents === false) args.push('-c', 'features.multi_agent=false', '-c', 'features.collab=false');
+      if (native?.web === false) args.push('-c', 'web_search="disabled"');
+      if (native?.workflows === false) args.push('-c', 'features.worktrees=false', '-c', 'features.remote_control=false');
+      if (native?.userSettings === false) args.push('-c', 'features.skills=false', '-c', 'features.plugins=false');
       if (options.codexDisablePlugins === true) {
         args.push('--disable', 'plugins');
       }
