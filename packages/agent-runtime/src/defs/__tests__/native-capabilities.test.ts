@@ -28,7 +28,7 @@ describe('per-run native capability overrides', () => {
     const args = codexAgentDef.buildArgs({ prompt: '', imagePaths: [] }, { options: {
       nativeToolAccess: true, cliParity: true, permissionMode: 'bypass',
       nativeCapabilities: { shell: false, fileWrite: false, subagents: false, web: false },
-    }, runtimeContext: { resumeSessionId } });
+    }, runtimeContext: resumeSessionId === undefined ? {} : { resumeSessionId } });
     for (const override of ['features.shell_tool=false', 'features.unified_exec=false', 'sandbox_mode="read-only"',
       'features.multi_agent=false', 'web_search="disabled"']) expect(args).toContain(override);
   });
