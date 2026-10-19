@@ -193,6 +193,9 @@ const CODE_VENDOR_RULES: readonly RedactionRule[] = [
 /** Detect unlabeled pasted keys without treating a nearby identifier as secret context. */
 function isCredentialLiteral({ content }: { content: string }, _options = {}): boolean {
   if (content.length < 20 || /\s/.test(content) || !/[a-z]/i.test(content) || !/\d/.test(content)) return false;
+  // Keys and tokens are key-alphabet only; selectors, CSS, regex sources and minified code carry
+  // brackets, quotes, colons or commas, and theme vendor JS tripped this check on them.
+  if (!/^[A-Za-z0-9_\-+/=.]{20,}$/.test(content)) return false;
   // Shapes alone cannot distinguish hashes/UUIDs from hex keys. Prefer avoiding hash false
   // positives through SHA-1 length; authoritative vendor rules still run before this check.
   if (/^[a-f0-9]{20,40}$/i.test(content)) return false;

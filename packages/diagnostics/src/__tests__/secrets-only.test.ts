@@ -295,6 +295,25 @@ test("code-aware entropy boundaries require length, mixed letters/digits and 3.5
   }
 });
 
+// Theme vendor JS (kuinetic, lightbox) tripped high_entropy on selector/CSS strings; real keys
+// are key-alphabet only, so punctuation-bearing literals never reach the entropy check.
+test("code-aware entropy check ignores selector, CSS, regex and minified literals", () => {
+  for (const code of [
+    `el.matches("[data-kui-fx~='carousel-3d-inside']");`,
+    `style.textContent = "dialog.kui-lightbox[open].is-open{opacity:1;}";`,
+    `document.querySelectorAll("#kui-3d>.item2:nth-child(2n+1)");`,
+    `const source = "^(?:[a-z0-9]{2,8})x1y2z3w4$";`,
+    `const chunk = "a.b(c,1),d(e2,f3)g4h5i6j7";`,
+  ]) assert.deepEqual(redact({ text: code, policy: codePolicy }), { text: code, redactions: 0 }, code);
+});
+
+test("code-aware entropy check still flags key-alphabet literals", () => {
+  for (const content of ["Zq7xK2mP9vR4tL8wN3bY6cH1", "QWxhZGRpbjpvcGVuIHNlc2FtZQ=="]) {
+    const text = `const k = "${content}";`;
+    assert.deepEqual(redact({ text, policy: codePolicy }), { text: 'const k = "[REDACTED:high_entropy]";', redactions: 1 });
+  }
+});
+
 test("code-aware token spans preserve syntax and count independent literals", () => {
   const text = `const a = '${opaque}'; /* ok */ const b = \`${opaque}\`;`;
   assert.deepEqual(redact({ text, policy: codePolicy }), {
