@@ -55,12 +55,12 @@ const STRUCTURAL = new Map<string, Handler>([
 ]);
 
 function step(printer: CssPrinter): void {
-  const ch = printer.css[printer.i]!;
-  const handler = printer.quote ? copyQuoted : (NESTING.get(ch) ?? structuralHandler(printer, ch));
+  const handler = printer.quote ? copyQuoted : (NESTING.get(printer.css[printer.i]!) ?? structuralHandler(printer));
   handler(printer);
 }
 
-function structuralHandler(printer: CssPrinter, ch: string): Handler {
+function structuralHandler(printer: CssPrinter): Handler {
+  const ch = printer.css[printer.i]!;
   if (printer.parenDepth > 0) return copyChar;
   // Only the FIRST colon of a declaration (the property/value separator) gets a space after it —
   // a selector's own colon (`.gm-btn:hover`, matched at `depth === 0`, before any `{`) is left
