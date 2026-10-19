@@ -20,13 +20,15 @@ import {
   type ClipboardEvent,
   type CSSProperties,
   type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
 } from 'react';
 import { RemixIcon } from '@jini-ai/ui';
 import { useT } from '../hooks/context.js';
 import { useComposerHistoryKeys } from '../hooks/useComposerHistoryKeys.hooks.js';
 import { AttachmentTray } from './AttachmentTray.js';
 import type { UseComposerResult } from '../hooks/useComposer.js';
-import type { ComposerDiscoveryItem, ComposerDiscoveryOutcome, ComposerSlots } from '../slots.js';
+import type { ComposerDiscoveryGroup, ComposerDiscoveryItem, ComposerDiscoveryOutcome, ComposerPlusItem, ComposerSlots } from '../slots.js';
 import { ComposerDiscoveryMenu, ComposerSlashMenu } from './ComposerDiscovery.js';
 import {
   appendComposerDiscovery,
@@ -195,25 +197,15 @@ export function Composer({
   const [workdirOpen, setWorkdirOpen] = useState(false);
   const [workdirDraft, setWorkdirDraft] = useState('');
   const [workdirPosition, setWorkdirPosition] = useState<CSSProperties>();
-  const resolvedPlaceholder = placeholder ?? t('Send a message…');
-  const discoveryGroups = slots?.discoveryGroups ?? [];
+  const { discoveryGroups = [], leadingAccessories, footerLeadingAccessory, footerAccessories, plusMenuItems } = slots ?? {};
   const hasDiscoveryItems = discoveryGroups.some((group) => group.items.length > 0);
-  const slashQuery = parseComposerSlashQuery({ draft: composer.draft });
-  const slashMatches = slashQuery === null ? [] : filterComposerDiscovery({ groups: discoveryGroups, query: slashQuery });
-  const slashOpen = slashMatches.length > 0 && dismissedSlashDraft !== composer.draft;
-  /**
-   * A bare "/" intentionally matches every item (`matchesFuzzyCommand`'s own doc) so the palette
-   * doubles as a browse-everything view — but with nothing typed yet, nothing on screen tells a
-   * first-time user that continuing to type narrows it, and a fuzzy substring match against full
-   * descriptions stays broad for the first character or two regardless (owner-reported "it doesn't
-   * narrow" — narrowing DOES fire on every keystroke, this is the one state where there's no visual
-   * cue that it will). Shown only here, not once the user has started typing a real query — at that
-   * point the shrinking list is its own feedback.
-   */
-  const showSlashFilterHint = slashQuery !== null && slashQuery.command === '' && slashQuery.argument === null;
+  const slash = slashPalette({ draft: composer.draft, groups: discoveryGroups, dismissedSlashDraft });
+  const slashOpen = slash.open;
+  const slashActiveOption = Math.min(slashActiveIndex, slash.matches.length - 1);
+  const popovers: OpenPopovers = { discoveryMenuOpen, slashOpen, workdirOpen };
 
   const handleHistoryKey = useComposerHistoryKeys({ composer, textareaRef }, {
-    popupOpen: slashOpen || discoveryMenuOpen || workdirOpen || composer.mention.open,
+    popupOpen: anyPopoverOpen(popovers) || composer.mention.open,
   });
 
   function restoreComposerFocus() {
@@ -233,26 +225,17 @@ export function Composer({
    * component doesn't otherwise need direct handles to.
    */
   useEffect(() => {
-    if (!discoveryMenuOpen && !slashOpen && !workdirOpen) return;
-    const composerRoot = textareaRef.current?.closest('.jini-composer');
+    if (!anyPopoverOpen(popovers)) return;
+    const textarea = textareaRef.current;
+    const composerRoot = textarea?.closest('.jini-composer');
     if (!composerRoot) return;
 
     function handleOutsideMouseDown(event: MouseEvent) {
       const target = event.target as Node | null;
       if (!target) return;
-      if (discoveryMenuOpen) {
-        const trigger = composerRoot!.querySelector('.jini-composer-discovery');
-        if (!trigger?.contains(target)) setDiscoveryMenuOpen(false);
-      }
-      if (slashOpen) {
-        const menu = composerRoot!.querySelector('#jini-composer-slash-menu');
-        const insideTextarea = textareaRef.current?.contains(target) ?? false;
-        if (!insideTextarea && !menu?.contains(target)) setDismissedSlashDraft(composer.draft);
-      }
-      if (workdirOpen) {
-        const trigger = composerRoot!.querySelector('.jini-composer-workdir');
-        if (!trigger?.contains(target)) setWorkdirOpen(false);
-      }
+      if (discoveryMenuOpen && isOutside(composerRoot!, '.jini-composer-discovery', target)) setDiscoveryMenuOpen(false);
+      if (slashOpen && !textarea!.contains(target) && isOutside(composerRoot!, '#jini-composer-slash-menu', target)) setDismissedSlashDraft(composer.draft);
+      if (workdirOpen && isOutside(composerRoot!, '.jini-composer-workdir', target)) setWorkdirOpen(false);
     }
 
     document.addEventListener('mousedown', handleOutsideMouseDown);
@@ -270,7 +253,7 @@ export function Composer({
    * composer's on-screen position can change under an open popover without it ever unmounting.
    */
   useLayoutEffect(() => {
-    if (!discoveryMenuOpen && !slashOpen && !workdirOpen) return undefined;
+    if (!anyPopoverOpen(popovers)) return undefined;
     const composerRoot = textareaRef.current?.closest('.jini-composer');
     if (!composerRoot) return undefined;
 
@@ -334,10 +317,8 @@ export function Composer({
     );
   }
 
-  function selectSlashItem(index: number) {
-    const match = slashMatches[index];
-    if (!match) return;
-    const resolution = resolveComposerSlashInvocation({ draft: composer.draft, item: match.item });
+  function selectSlashItem(item: ComposerDiscoveryItem) {
+    const resolution = resolveComposerSlashInvocation({ draft: composer.draft, item });
     if (!resolution) return;
 
     if (resolution.type === 'complete') {
@@ -350,12 +331,12 @@ export function Composer({
     }
 
     let expectedDraft = composer.draft;
-    if (!match.item.command) {
-      expectedDraft = replaceComposerSlashTrigger({ draft: composer.draft, insertText: match.item.insertText ?? match.item.label });
+    if (!item.command) {
+      expectedDraft = replaceComposerSlashTrigger({ draft: composer.draft, insertText: item.insertText ?? item.label });
       composer.setDraft(expectedDraft);
     }
     setDismissedSlashDraft(null);
-    notifyDiscovery(match.item, 'slash', expectedDraft, resolution.argument);
+    notifyDiscovery(item, 'slash', expectedDraft, resolution.argument);
     restoreComposerFocus();
   }
 
@@ -384,25 +365,23 @@ export function Composer({
     setWorkdirOpen(false);
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.nativeEvent.isComposing) return;
-    if (slashOpen) {
-      const action = resolveComposerSlashKeyAction({ key: event.key, shiftKey: event.shiftKey });
-      if (action.type !== 'none') {
-        event.preventDefault();
-        if (action.type === 'move') {
-          setSlashActiveIndex((current) => (current + action.offset + slashMatches.length) % slashMatches.length);
-        } else if (action.type === 'select') {
-          selectSlashItem(Math.min(slashActiveIndex, slashMatches.length - 1));
-        } else {
-          setDismissedSlashDraft(composer.draft);
-        }
-        return;
-      }
-    }
-    if (handleHistoryKey(event)) return;
-    if (event.key !== 'Enter' || event.shiftKey) return;
+  /** Palette navigation wins over history and Enter while the slash palette is open; true when it consumed the key. */
+  function handleSlashKey(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
+    if (!slashOpen) return false;
+    const action = resolveComposerSlashKeyAction({ key: event.key, shiftKey: event.shiftKey });
+    if (action.type === 'none') return false;
     event.preventDefault();
+    if (action.type === 'move') {
+      setSlashActiveIndex((current) => (current + action.offset + slash.matches.length) % slash.matches.length);
+    } else if (action.type === 'select') {
+      selectSlashItem(slash.matches[slashActiveOption]!.item);
+    } else {
+      setDismissedSlashDraft(composer.draft);
+    }
+    return true;
+  }
+
+  function submitFromEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (disabled || !composer.canSubmit) return;
     // Cmd/Ctrl+Enter ends the current run and sends this next; plain Enter queues behind it.
     // `sendDisabled` is deliberately NOT consulted on the interrupt path — while a run streams it
@@ -412,6 +391,15 @@ export function Composer({
       return;
     }
     if (!sendDisabled) onSend();
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.nativeEvent.isComposing) return;
+    if (handleSlashKey(event)) return;
+    if (handleHistoryKey(event)) return;
+    if (event.key !== 'Enter' || event.shiftKey) return;
+    event.preventDefault();
+    submitFromEnter(event);
   }
 
   function handleAttachmentChange(event: ChangeEvent<HTMLInputElement>) {
@@ -443,13 +431,13 @@ export function Composer({
 
   return (
     <div className="jini-composer">
-      {slots?.leadingAccessories ? <div className="jini-composer-leading">{slots.leadingAccessories}</div> : null}
+      <AccessorySlot className="jini-composer-leading">{leadingAccessories}</AccessorySlot>
       <AttachmentTray attachments={composer.attachments} onRemove={composer.removeAttachment} />
       <textarea
         ref={textareaRef}
         className="jini-composer-input"
         value={composer.draft}
-        placeholder={resolvedPlaceholder}
+        placeholder={placeholder ?? t('Send a message…')}
         disabled={disabled}
         onChange={(e) => {
           composer.setDraft(e.target.value);
@@ -461,165 +449,277 @@ export function Composer({
         // natural point to make it durable now.
         onBlur={() => composer.flushDraft?.()}
         onPaste={handleAttachmentPaste}
-        aria-controls={slashOpen ? 'jini-composer-slash-menu' : undefined}
-        aria-expanded={slashOpen}
-        aria-activedescendant={
-          slashOpen
-            ? `jini-composer-slash-option-${Math.min(slashActiveIndex, slashMatches.length - 1)}`
-            : undefined
-        }
+        {...slashTextareaAria(slashOpen, slashActiveOption)}
         rows={3}
       />
       {slashOpen ? (
         <ComposerSlashMenu
-          matches={slashMatches}
-          activeIndex={Math.min(slashActiveIndex, slashMatches.length - 1)}
-          onSelect={(item) => selectSlashItem(slashMatches.findIndex((match) => match.item === item))}
-          showFilterHint={showSlashFilterHint}
+          matches={slash.matches}
+          activeIndex={slashActiveOption}
+          onSelect={selectSlashItem}
+          showFilterHint={slash.showFilterHint}
           style={slashMenuPosition}
           t={t}
         />
       ) : null}
       <div className="jini-composer-footer">
-        {attachmentPicker && !hasDiscoveryItems ? (
-          <div className="jini-composer-attachment-picker">
-            <input
-              ref={attachmentInputRef}
-              className="jini-composer-file-input"
-              data-testid="composer-attachment-input"
-              type="file"
-              multiple
-              aria-label={t('Attach files')}
-              accept={attachmentPicker.accept}
-              disabled={disabled || attachmentPicker.uploading}
-              onChange={handleAttachmentChange}
-            />
-            <button
-              type="button"
-              className="jini-composer-attach"
-              disabled={disabled || attachmentPicker.uploading}
-              onClick={() => attachmentInputRef.current?.click()}
-              title={t(attachmentPicker.uploading ? 'Attaching files…' : 'Attach files')}
-              aria-label={t(attachmentPicker.uploading ? 'Attaching files…' : 'Attach files')}
-            >
-              <RemixIcon
-                name={attachmentPicker.uploading ? 'refresh-line' : 'add-line'}
-                size={20}
-                {...(attachmentPicker.uploading ? { className: 'jini-composer-spinner' } : {})}
-              />
-            </button>
-          </div>
-        ) : null}
-        {hasDiscoveryItems ? (
-          <ComposerDiscoveryMenu
-            groups={discoveryGroups}
-            open={discoveryMenuOpen}
-            disabled={disabled}
-            {...(attachmentPicker ? { attachmentPicker } : {})}
-            attachmentInputRef={attachmentInputRef}
-            onToggle={() => setDiscoveryMenuOpen((open) => !open)}
-            onClose={() => setDiscoveryMenuOpen(false)}
-            onSelect={selectPlusItem}
-            onAttachmentChange={handleAttachmentChange}
-            style={discoveryMenuPosition}
-            t={t}
-          />
-        ) : null}
-        {slots?.footerLeadingAccessory ? (
-          <div className="jini-composer-footer-leading">{slots.footerLeadingAccessory}</div>
-        ) : null}
-        {onChangeWorkingDirectory || onPickWorkingDirectory ? (
-          <div className="jini-composer-workdir" data-testid="composer-workdir">
-            <button
-              type="button"
-              className="jini-composer-attach"
-              data-testid="composer-workdir-trigger"
-              disabled={disabled}
-              onClick={onPickWorkingDirectory ? () => onPickWorkingDirectory() : toggleWorkdir}
-              {...(onPickWorkingDirectory ? {} : { 'aria-haspopup': 'dialog' as const, 'aria-expanded': workdirOpen })}
-              title={workingDirectory ?? t('Set working directory')}
-              aria-label={
-                workingDirectory
-                  ? t('Working directory: {dir}', { dir: workingDirectory })
-                  : t('Set working directory')
-              }
-            >
-              <RemixIcon name="folder-line" size={20} />
-            </button>
-            {!onPickWorkingDirectory && workdirOpen ? (
-              <div
-                className="jini-composer-workdir-panel"
-                data-testid="composer-workdir-panel"
-                role="dialog"
-                aria-label={t('Working directory')}
-                style={workdirPosition}
-              >
-                <input
-                  type="text"
-                  className="jini-composer-workdir-input"
-                  data-testid="composer-workdir-input"
-                  value={workdirDraft}
-                  onChange={(e) => setWorkdirDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      confirmWorkdir();
-                    } else if (e.key === 'Escape') {
-                      e.preventDefault();
-                      setWorkdirOpen(false);
-                    }
-                  }}
-                  placeholder={t('Working directory path')}
-                  aria-label={t('Working directory path')}
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  className="jini-composer-workdir-confirm"
-                  data-testid="composer-workdir-confirm"
-                  onClick={confirmWorkdir}
-                >
-                  {t('Set')}
-                </button>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        {slots?.footerAccessories ? (
-          <div className="jini-composer-footer-accessories">{slots.footerAccessories}</div>
-        ) : null}
-        {slots?.plusMenuItems && slots.plusMenuItems.length > 0 ? (
-          <div className="jini-composer-plus-menu">
-            {slots.plusMenuItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className="jini-composer-plus-item"
-                onClick={() => runComposerHostEffect('plusMenuItems.onSelect', () => item.onSelect())}
-                title={t(item.label)}
-              >
-                {item.icon ?? null}
-                <span>{t(item.label)}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {/* While a run streams, Send sits beside Stop once there is something to send: a message
-            sent mid-run goes to the running agent (or next, if it cannot take it now). One group so
-            the footer's space-between keeps the two together at the trailing edge. */}
-        <span className="jini-composer-send-group">
-          {!running || (!disabled && !sendDisabled && composer.canSubmit) ? (
-            <button type="button" className="jini-composer-send" disabled={disabled || sendDisabled || !composer.canSubmit} onClick={onSend} title={sendDisabledReason ?? t('Send')} aria-label={t('Send')} aria-describedby={sendDisabledReasonId}>
-              <RemixIcon name="send-plane-2-line" size={16} />
-            </button>
-          ) : null}
-          {running ? (
-            <button type="button" className="jini-composer-send jini-composer-send--stop" onClick={onCancel} title={t('Stop run')} aria-label={t('Stop run')}>
-              <RemixIcon name="stop-fill" size={14} />
-            </button>
-          ) : null}
-        </span>
+        <ComposerAttachButton attachmentPicker={attachmentPicker} hidden={hasDiscoveryItems} disabled={disabled} inputRef={attachmentInputRef} onChange={handleAttachmentChange} t={t} />
+        <ComposerDiscoveryMenu
+          groups={discoveryGroups}
+          open={discoveryMenuOpen}
+          disabled={disabled}
+          {...(attachmentPicker ? { attachmentPicker } : {})}
+          attachmentInputRef={attachmentInputRef}
+          onToggle={() => setDiscoveryMenuOpen((open) => !open)}
+          onClose={() => setDiscoveryMenuOpen(false)}
+          onSelect={selectPlusItem}
+          onAttachmentChange={handleAttachmentChange}
+          style={discoveryMenuPosition}
+          t={t}
+        />
+        <AccessorySlot className="jini-composer-footer-leading">{footerLeadingAccessory}</AccessorySlot>
+        <ComposerWorkdirControl
+          workingDirectory={workingDirectory}
+          onChangeWorkingDirectory={onChangeWorkingDirectory}
+          onPickWorkingDirectory={onPickWorkingDirectory}
+          disabled={disabled}
+          open={workdirOpen}
+          draft={workdirDraft}
+          position={workdirPosition}
+          onToggle={toggleWorkdir}
+          onDraftChange={setWorkdirDraft}
+          onConfirm={confirmWorkdir}
+          onClose={() => setWorkdirOpen(false)}
+          t={t}
+        />
+        <AccessorySlot className="jini-composer-footer-accessories">{footerAccessories}</AccessorySlot>
+        <ComposerPlusMenu items={plusMenuItems} t={t} />
+        <ComposerSendGroup
+          running={running}
+          disabled={disabled}
+          sendDisabled={sendDisabled}
+          canSubmit={composer.canSubmit}
+          onSend={onSend}
+          onCancel={onCancel}
+          sendDisabledReason={sendDisabledReason}
+          sendDisabledReasonId={sendDisabledReasonId}
+          t={t}
+        />
       </div>
     </div>
+  );
+}
+
+type Translate = ReturnType<typeof useT>;
+
+interface OpenPopovers {
+  discoveryMenuOpen: boolean;
+  slashOpen: boolean;
+  workdirOpen: boolean;
+}
+
+function anyPopoverOpen({ discoveryMenuOpen, slashOpen, workdirOpen }: OpenPopovers): boolean {
+  return discoveryMenuOpen || slashOpen || workdirOpen;
+}
+
+/** A missing popover element counts as outside, so a stale open flag still closes. */
+function isOutside(composerRoot: Element, selector: string, target: Node): boolean {
+  return !composerRoot.querySelector(selector)?.contains(target);
+}
+
+/** Slash palette state derived from the live draft. */
+function slashPalette({ draft, groups, dismissedSlashDraft }: { draft: string; groups: readonly ComposerDiscoveryGroup[]; dismissedSlashDraft: string | null }) {
+  const query = parseComposerSlashQuery({ draft });
+  const matches = query === null ? [] : filterComposerDiscovery({ groups, query });
+  return {
+    matches,
+    open: matches.length > 0 && dismissedSlashDraft !== draft,
+    /**
+     * A bare "/" intentionally matches every item (`matchesFuzzyCommand`'s own doc) so the palette
+     * doubles as a browse-everything view — but with nothing typed yet, nothing on screen tells a
+     * first-time user that continuing to type narrows it, and a fuzzy substring match against full
+     * descriptions stays broad for the first character or two regardless (owner-reported "it doesn't
+     * narrow" — narrowing DOES fire on every keystroke, this is the one state where there's no visual
+     * cue that it will). Shown only here, not once the user has started typing a real query — at that
+     * point the shrinking list is its own feedback.
+     */
+    showFilterHint: query !== null && query.command === '' && query.argument === null,
+  };
+}
+
+function slashTextareaAria(slashOpen: boolean, activeOption: number) {
+  if (!slashOpen) return { 'aria-controls': undefined, 'aria-expanded': false, 'aria-activedescendant': undefined };
+  return { 'aria-controls': 'jini-composer-slash-menu', 'aria-expanded': true, 'aria-activedescendant': `jini-composer-slash-option-${activeOption}` };
+}
+
+function AccessorySlot({ className, children }: { className: string; children: ReactNode }) {
+  return children ? <div className={className}>{children}</div> : null;
+}
+
+/** The plain paperclip, shown only when there is no "+" discovery menu to carry attaching instead. */
+function ComposerAttachButton({ attachmentPicker, hidden, disabled, inputRef, onChange, t }: {
+  attachmentPicker: ComposerProps['attachmentPicker'];
+  hidden: boolean;
+  disabled: boolean;
+  inputRef: RefObject<HTMLInputElement | null>;
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  t: Translate;
+}) {
+  if (!attachmentPicker || hidden) return null;
+  const uploading = attachmentPicker.uploading;
+  const label = t(uploading ? 'Attaching files…' : 'Attach files');
+  return (
+    <div className="jini-composer-attachment-picker">
+      <input
+        ref={inputRef}
+        className="jini-composer-file-input"
+        data-testid="composer-attachment-input"
+        type="file"
+        multiple
+        aria-label={t('Attach files')}
+        accept={attachmentPicker.accept}
+        disabled={disabled || uploading}
+        onChange={onChange}
+      />
+      <button
+        type="button"
+        className="jini-composer-attach"
+        disabled={disabled || uploading}
+        onClick={() => inputRef.current?.click()}
+        title={label}
+        aria-label={label}
+      >
+        <RemixIcon
+          name={uploading ? 'refresh-line' : 'add-line'}
+          size={20}
+          {...(uploading ? { className: 'jini-composer-spinner' } : {})}
+        />
+      </button>
+    </div>
+  );
+}
+
+function ComposerWorkdirControl({ workingDirectory, onChangeWorkingDirectory, onPickWorkingDirectory, disabled, open, draft, position, onToggle, onDraftChange, onConfirm, onClose, t }: {
+  workingDirectory: string | null | undefined;
+  onChangeWorkingDirectory: ComposerProps['onChangeWorkingDirectory'];
+  onPickWorkingDirectory: ComposerProps['onPickWorkingDirectory'];
+  disabled: boolean;
+  open: boolean;
+  draft: string;
+  position: CSSProperties | undefined;
+  onToggle: () => void;
+  onDraftChange: (draft: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+  t: Translate;
+}) {
+  if (!onChangeWorkingDirectory && !onPickWorkingDirectory) return null;
+  return (
+    <div className="jini-composer-workdir" data-testid="composer-workdir">
+      <button
+        type="button"
+        className="jini-composer-attach"
+        data-testid="composer-workdir-trigger"
+        disabled={disabled}
+        onClick={onPickWorkingDirectory ? () => onPickWorkingDirectory() : onToggle}
+        {...(onPickWorkingDirectory ? {} : { 'aria-haspopup': 'dialog' as const, 'aria-expanded': open })}
+        title={workingDirectory ?? t('Set working directory')}
+        aria-label={
+          workingDirectory
+            ? t('Working directory: {dir}', { dir: workingDirectory })
+            : t('Set working directory')
+        }
+      >
+        <RemixIcon name="folder-line" size={20} />
+      </button>
+      {!onPickWorkingDirectory && open ? (
+        <div
+          className="jini-composer-workdir-panel"
+          data-testid="composer-workdir-panel"
+          role="dialog"
+          aria-label={t('Working directory')}
+          style={position}
+        >
+          <input
+            type="text"
+            className="jini-composer-workdir-input"
+            data-testid="composer-workdir-input"
+            value={draft}
+            onChange={(e) => onDraftChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                onConfirm();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                onClose();
+              }
+            }}
+            placeholder={t('Working directory path')}
+            aria-label={t('Working directory path')}
+            autoFocus
+          />
+          <button
+            type="button"
+            className="jini-composer-workdir-confirm"
+            data-testid="composer-workdir-confirm"
+            onClick={onConfirm}
+          >
+            {t('Set')}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ComposerPlusMenu({ items, t }: { items: readonly ComposerPlusItem[] | undefined; t: Translate }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div className="jini-composer-plus-menu">
+      {items.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          className="jini-composer-plus-item"
+          onClick={() => runComposerHostEffect('plusMenuItems.onSelect', () => item.onSelect())}
+          title={t(item.label)}
+        >
+          {item.icon ?? null}
+          <span>{t(item.label)}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ComposerSendGroup({ running, disabled, sendDisabled, canSubmit, onSend, onCancel, sendDisabledReason, sendDisabledReasonId, t }: {
+  running: boolean;
+  disabled: boolean;
+  sendDisabled: boolean;
+  canSubmit: boolean;
+  onSend: () => void;
+  onCancel: (() => void) | undefined;
+  sendDisabledReason: string | undefined;
+  sendDisabledReasonId: string | undefined;
+  t: Translate;
+}) {
+  const canSend = !disabled && !sendDisabled && canSubmit;
+  return (
+    // While a run streams, Send sits beside Stop once there is something to send: a message
+    // sent mid-run goes to the running agent (or next, if it cannot take it now). One group so
+    // the footer's space-between keeps the two together at the trailing edge.
+    <span className="jini-composer-send-group">
+      {!running || canSend ? (
+        <button type="button" className="jini-composer-send" disabled={!canSend} onClick={onSend} title={sendDisabledReason ?? t('Send')} aria-label={t('Send')} aria-describedby={sendDisabledReasonId}>
+          <RemixIcon name="send-plane-2-line" size={16} />
+        </button>
+      ) : null}
+      {running ? (
+        <button type="button" className="jini-composer-send jini-composer-send--stop" onClick={onCancel} title={t('Stop run')} aria-label={t('Stop run')}>
+          <RemixIcon name="stop-fill" size={14} />
+        </button>
+      ) : null}
+    </span>
   );
 }
