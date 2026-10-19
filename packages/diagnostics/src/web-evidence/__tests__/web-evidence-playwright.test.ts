@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest';
-import { openPlaywrightSiteEvidenceBrowser, type PlaywrightLike } from '../web-evidence/playwright-browser.js';
-import type { ObservePageRequest } from '../web-evidence/browser-port.js';
+import { openPlaywrightSiteEvidenceBrowser, type PlaywrightLike } from '../playwright-browser.js';
+import type { ObservePageRequest } from '../browser-port.js';
 const request: ObservePageRequest = { url: 'https://example.com/', originBaseUrl: 'https://example.com', collectAccessibility: true, timeoutMs: 100, maxTextExcerptChars: 100, maxCookies: 2, maxRequests: 2, maxAccessibilityNodesPerCategory: 2, maxContrastSamples: 2 };
 test('missing optional module and missing binary are explicit availability results', async () => {
  const missing = await openPlaywrightSiteEvidenceBrowser({}, { moduleLoader: { load: async () => { throw new Error('module absent'); } } });

@@ -1,7 +1,7 @@
 /** rendr: execute the serialized DOM projection against injected DOM/style fakes. */
 import { runInNewContext } from "node:vm";
 import { expect, test } from "vitest";
-import { publicPageExpression } from "../web-evidence/public-page.js";
+import { publicPageExpression } from "../public-page.js";
 
 function node(tagName: string, values: Record<string, string> = {}) {
   return { tagName, src: values.src, currentSrc: values.currentSrc, alt: values.alt,

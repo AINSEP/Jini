@@ -3,9 +3,9 @@ import { test } from "vitest";
 
 type UUID = string;
 
-import type { ObservePageRequest as BrowserRequest, ObservePageOptions, ObservePageResult, PageObservation, SiteEvidenceBrowserFactory } from "../web-evidence/browser-port.js";
-import { collectPageEvidence as collect, SITE_EVIDENCE_LIMITS, type CollectPageEvidenceOptions } from "../web-evidence/collect-page-evidence.js";
-import type { VerifiedOriginPort as OriginRegistryPort, VerifiedOrigin } from "../web-evidence/same-origin.js";
+import type { ObservePageRequest as BrowserRequest, ObservePageOptions, ObservePageResult, PageObservation, SiteEvidenceBrowserFactory } from "../browser-port.js";
+import { collectPageEvidence as collect, SITE_EVIDENCE_LIMITS, type CollectPageEvidenceOptions } from "../collect-page-evidence.js";
+import type { VerifiedOriginPort as OriginRegistryPort, VerifiedOrigin } from "../same-origin.js";
 class OriginNotVerifiedError extends Error {}
 type CollectPageEvidenceDeps = { workspaceId: string; originRegistry: OriginRegistryPort; openBrowser: SiteEvidenceBrowserFactory; now?: () => number };
 const collectPageEvidence = (deps: CollectPageEvidenceDeps, input: { paths: readonly string[]; consentAcceptSelector?: string; collectAccessibility?: boolean }) => collect({ workspaceId: deps.workspaceId, originRegistry: deps.originRegistry, openBrowser: deps.openBrowser, paths: input.paths, observationPolicy: { redactObservation: ({ observation }) => observation, redactMessage: ({ message }) => message } }, { ...input, ...(deps.now ? { clock: { nowMs: deps.now } } : {}) });

@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
-import type { SiteEvidenceBrowserFactory } from "../web-evidence/browser-port.js";
+import type { SiteEvidenceBrowserFactory } from "../browser-port.js";
 import type { AddressInfo } from "node:net";
 import { test } from "vitest";
 
 type UUID = string;
 
-import { collectPageEvidence as collect, SITE_EVIDENCE_LIMITS, type CollectPageEvidenceOptions } from "../web-evidence/collect-page-evidence.js";
-import type { VerifiedOriginPort as OriginRegistryPort, VerifiedOrigin } from "../web-evidence/same-origin.js";
+import { collectPageEvidence as collect, SITE_EVIDENCE_LIMITS, type CollectPageEvidenceOptions } from "../collect-page-evidence.js";
+import type { VerifiedOriginPort as OriginRegistryPort, VerifiedOrigin } from "../same-origin.js";
 class OriginNotVerifiedError extends Error {}
 type CollectPageEvidenceDeps = { workspaceId: string; originRegistry: OriginRegistryPort; openBrowser: SiteEvidenceBrowserFactory; now?: () => number };
 const collectPageEvidence = (deps: CollectPageEvidenceDeps, input: { paths: readonly string[]; consentAcceptSelector?: string; collectAccessibility?: boolean }) => collect({ workspaceId: deps.workspaceId, originRegistry: deps.originRegistry, openBrowser: deps.openBrowser, paths: input.paths, observationPolicy: { redactObservation: ({ observation }) => observation, redactMessage: ({ message }) => message } }, { ...input, ...(deps.now ? { clock: { nowMs: deps.now } } : {}) });
-import { openPlaywrightSiteEvidenceBrowser } from "../web-evidence/playwright-browser.js";
+import { openPlaywrightSiteEvidenceBrowser } from "../playwright-browser.js";
 
 /**
  * @file The Playwright adapter against a REAL browser and a REAL server.

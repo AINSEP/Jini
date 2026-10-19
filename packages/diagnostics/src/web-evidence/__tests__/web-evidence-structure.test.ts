@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { collectPageStructure, type PageStructureCapture, type PageStructureLimits } from "../web-evidence/page-structure-script.js";
+import { collectPageStructure, type PageStructureCapture, type PageStructureLimits } from "../page-structure-script.js";
 
 /**
  * @file `collectPageStructure()` exercised directly, through a hand-built DOM/CSSOM double.

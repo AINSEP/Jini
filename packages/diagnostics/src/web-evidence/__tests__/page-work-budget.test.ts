@@ -4,7 +4,7 @@
  * an exhausted budget or a non-timeout close failure. Timers are faked; Date.now follows them.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PageWorkBudget, PageWorkTimeout } from '../web-evidence/page-work-budget.js';
+import { PageWorkBudget, PageWorkTimeout } from '../page-work-budget.js';
 
 beforeEach(() => { vi.useFakeTimers({ now: new Date('2026-10-04T00:00:00Z') }); });
 afterEach(() => { vi.useRealTimers(); });

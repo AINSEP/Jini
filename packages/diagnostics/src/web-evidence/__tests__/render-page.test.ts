@@ -1,12 +1,12 @@
 /** rendr: shared browser lifecycle with injected browser/transport fakes; no module mocks. */
 import { test, expect } from "vitest";
-import type { HttpClientPort } from "@jini-ai/core/primitives";
-import { renderPage, COOKIE_DISMISS_SELECTORS, type RenderBrowser, type RenderPage } from "../web-evidence/render-page.js";
-import { createRequestRouter, fetchOwnSiteResource, type RouteLike } from "../web-evidence/request-guard.js";
-import { renderPublicPage, createJsonCapture, publicPageExpression } from "../web-evidence/public-page.js";
-import { openPlaywrightSiteEvidenceBrowser } from "../web-evidence/playwright-browser.js";
-import { collectPageEvidence } from "../web-evidence/collect-page-evidence.js";
-import { PageWorkBudget } from "../web-evidence/page-work-budget.js";
+import type { HttpClientPort, HttpRequest } from "@jini-ai/core/primitives";
+import { renderPage, COOKIE_DISMISS_SELECTORS, type RenderBrowser, type RenderPage } from "../render-page.js";
+import { createRequestRouter, fetchOwnSiteResource, type RouteLike } from "../request-guard.js";
+import { renderPublicPage, createJsonCapture, publicPageExpression } from "../public-page.js";
+import { openPlaywrightSiteEvidenceBrowser } from "../playwright-browser.js";
+import { collectPageEvidence } from "../collect-page-evidence.js";
+import { PageWorkBudget } from "../page-work-budget.js";
 
 function browserFixture({ targets = ["https://public.example/"], hangSelector = false, offsite = false, dataMethod = "GET", documentMethod = "GET", childFrame = false } = {}) {
   const events: string[] = [];
@@ -254,7 +254,7 @@ test("the public deadline includes launching and closes a browser that appears a
 
 test.each(["POST", "PUT", "PATCH"])("public render forwards a bounded %s data body through the guarded client and captures its answer", async dataMethod => {
   const fake = browserFixture({ targets: ["https://public.example/", "https://provider.example/data"], dataMethod });
-  const guard = guardedFixture(); const requests: Array<{ method: string; body?: string; headers: Readonly<Record<string, string>> }> = [];
+  const guard = guardedFixture(); const requests: HttpRequest[] = [];
   const result = await renderPublicPage({ input: { url: "https://public.example/", maxChars: 1000, waitFor: 0 }, httpClient: {
     send: async required => { requests.push(required.request); return guard.httpClient.send(required); },
   } }, { moduleLoader: { load: async () => ({ chromium: { launch: async () => fake.browser } }) } });
@@ -438,7 +438,7 @@ test("the evidence adapter stays GET-only even with a public-data-capable inject
 });
 
 test.each([303, 307])("data redirect %s is routed again with HTTP method/body semantics", async status => {
-  const sent: Array<{ method: string; body?: string; url: string }> = []; let fulfilled = false;
+  const sent: HttpRequest[] = []; let fulfilled = false;
   const router = createRequestRouter({ httpClient: { send: async ({ request }) => {
     sent.push(request);
     return sent.length === 1 ? { status, headers: { location: "https://other.example/data" }, bodyText: "" } : { status: 200, headers: {}, bodyText: "ok" };

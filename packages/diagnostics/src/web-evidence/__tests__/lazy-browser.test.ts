@@ -1,8 +1,8 @@
 /** Shared render leases against injected launch/timer ports; no browser process or module mocks. */
 import { expect, test } from "vitest";
-import { createRenderBrowserPool, type LazyBrowserTimers } from "../web-evidence/lazy-browser.js";
-import type { RenderBrowser } from "../web-evidence/render-page.js";
-import { renderPublicPage } from "../web-evidence/public-page.js";
+import { createRenderBrowserPool, type LazyBrowserTimers } from "../lazy-browser.js";
+import type { RenderBrowser } from "../render-page.js";
+import { renderPublicPage } from "../public-page.js";
 
 function fixture() {
   const events: string[] = [];

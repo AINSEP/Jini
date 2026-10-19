@@ -1,6 +1,6 @@
 /** rendr4: URL filtering over the real bounded collector; no transport/module mocks. */
 import { expect, test } from "vitest";
-import { createJsonCapture } from "../web-evidence/public-page.js";
+import { createJsonCapture } from "../public-page.js";
 
 test.each<[string | string[], string, boolean]>([
   ["/v1/datasource/", "https://cms.example/v1/datasource/rows?q=1", true],

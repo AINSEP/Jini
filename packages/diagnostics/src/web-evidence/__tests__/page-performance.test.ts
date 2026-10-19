@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { collectPagePerformance, buildPagePerformanceExpression } from '../web-evidence/page-performance-script.js';
+import { collectPagePerformance, buildPagePerformanceExpression } from '../page-performance-script.js';
 
 afterEach(() => vi.unstubAllGlobals());
 

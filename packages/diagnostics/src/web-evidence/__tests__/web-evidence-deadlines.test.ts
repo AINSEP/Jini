@@ -2,9 +2,9 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { collectPageEvidence, SITE_EVIDENCE_LIMITS } from '../web-evidence/collect-page-evidence.js';
-import { openPlaywrightSiteEvidenceBrowser, type PlaywrightLike } from '../web-evidence/playwright-browser.js';
-import type { ObservePageRequest, PageObservation } from '../web-evidence/browser-port.js';
+import { collectPageEvidence, SITE_EVIDENCE_LIMITS } from '../collect-page-evidence.js';
+import { openPlaywrightSiteEvidenceBrowser, type PlaywrightLike } from '../playwright-browser.js';
+import type { ObservePageRequest, PageObservation } from '../browser-port.js';
 
 beforeEach(() => { vi.useFakeTimers(); });
 afterEach(() => { vi.useRealTimers(); });

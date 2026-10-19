@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import * as origin from "../web-evidence/same-origin.js";
+import * as origin from "../same-origin.js";
 const normalizeSitePath = (raw: string) => origin.normalizeSitePath({ raw });
 const resolveSameOriginUrl = (baseUrl: string, path: string) => origin.resolveSameOriginUrl({ baseUrl, path });
 const isSameOriginUrl = (baseUrl: string, candidateUrl: string) => origin.isSameOriginUrl({ baseUrl, candidateUrl });
