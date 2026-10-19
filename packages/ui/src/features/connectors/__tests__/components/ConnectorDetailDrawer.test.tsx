@@ -518,4 +518,69 @@ describe('ConnectorDetailDrawer', () => {
     );
     expect(screen.getAllByRole('alert')[0]!.textContent).toContain('Something went wrong');
   });
+
+  it('tones the header status pill as pending while authorization is pending', () => {
+    const { container } = render(
+      <ConnectorDetailDrawer
+        connector={makeConnector()}
+        disabled={false}
+        pendingAction={null}
+        authorizationPending={{}}
+        authorizationCancelFailed={false}
+        authorizationError={null}
+        toolsPreviewLoading={false}
+        toolsLoaded
+        onClose={noop}
+        onConnect={noop}
+        onDisconnect={noop}
+        onCancelAuthorization={noop}
+        onLoadMoreTools={noop}
+      />,
+    );
+    expect(container.querySelector('.connector-drawer-status .connector-status-pill')?.className).toBe(
+      'connector-status-pill status-pending',
+    );
+  });
+
+  it('labels the footer connect action as pending while authorization is pending', () => {
+    const { container } = render(
+      <ConnectorDetailDrawer
+        connector={makeConnector()}
+        disabled={false}
+        pendingAction={null}
+        authorizationPending={{}}
+        authorizationCancelFailed={false}
+        authorizationError={null}
+        toolsPreviewLoading={false}
+        toolsLoaded
+        onClose={noop}
+        onConnect={noop}
+        onDisconnect={noop}
+        onCancelAuthorization={noop}
+        onLoadMoreTools={noop}
+      />,
+    );
+    expect(container.querySelector('.connector-drawer-foot .is-connect')?.textContent).toBe('Authorization pending');
+  });
+
+  it('shows the default cancel-failed message when the host supplies none', () => {
+    render(
+      <ConnectorDetailDrawer
+        connector={makeConnector()}
+        pendingAction={null}
+        authorizationCancelFailed
+        toolsLoaded
+        onConnect={noop}
+        onDisconnect={noop}
+        onCancelAuthorization={noop}
+        disabled={false}
+        authorizationError={null}
+        toolsPreviewLoading={false}
+        onClose={noop}
+        onLoadMoreTools={noop}
+      />,
+    );
+    expect(screen.getByRole('alert').textContent).toBe("Couldn't cancel authorization. Try again.");
+  });
 });
+
