@@ -133,19 +133,7 @@ export async function fetchAgentPluginArchive(
   assertAllowedUrl(required.url, "requested");
   const diagnosticUrl = redactArchiveUrl({ value: required.url });
 
-  let response: Response;
-  let finalRequestedUrl = required.url;
-  try {
-    const downloaded = await fetchWithGuard(required, optional);
-    response = downloaded.response;
-    finalRequestedUrl = downloaded.resolvedUrl;
-  } catch {
-    // Dependency messages and nested causes can contain signed redirect URLs or bare tokens.
-    // Keep neither: sanitizing only the requested URL still exposes secrets through error.cause.
-    throw new AgentPluginFetchError({ code: "REQUEST_FAILED", message: `could not fetch '${diagnosticUrl}': archive request failed` }, {
-      cause: new Error("archive request failed"),
-    });
-  }
+  const { response, resolvedUrl: finalRequestedUrl } = await requestArchive({ required, diagnosticUrl }, optional);
 
   // A server-controlled reason phrase can reflect secrets; use the standard status label.
   if (!response.ok) {
@@ -157,18 +145,7 @@ export async function fetchAgentPluginArchive(
 
   assertDeclaredSizeWithinCap(response, maxBytes, diagnosticUrl);
 
-  let archive: Uint8Array;
-  try {
-    archive = await readBodyWithinCap(response, maxBytes, diagnosticUrl);
-  } catch (error) {
-    // Preserve our bounded-download error; stream failures must not escape as raw transport text.
-    if (error instanceof AgentPluginFetchError && error.code === "ARCHIVE_TOO_LARGE") {
-      throw new AgentPluginFetchError({ code: "ARCHIVE_TOO_LARGE", message: `'${diagnosticUrl}' body exceeded the ${maxBytes}-byte cap` });
-    }
-    throw new AgentPluginFetchError({ code: "REQUEST_FAILED", message: `could not read '${diagnosticUrl}': archive response body failed` }, {
-      cause: new Error("archive response body failed"),
-    });
-  }
+  const archive = await readArchiveBody({ response, maxBytes, diagnosticUrl });
   if (archive.byteLength === 0) {
     throw new AgentPluginFetchError({ code: "EMPTY_BODY", message: `'${diagnosticUrl}' returned an empty body` });
   }
@@ -178,6 +155,39 @@ export async function fetchAgentPluginArchive(
     sha256: createHash("sha256").update(archive).digest("hex"),
     resolvedUrl,
   };
+}
+
+/** Runs the guarded request; any failure becomes one redacted `REQUEST_FAILED`. */
+async function requestArchive(
+  { required, diagnosticUrl }: { readonly required: FetchAgentPluginArchiveRequired; readonly diagnosticUrl: string },
+  optional: FetchAgentPluginArchiveOptional = {},
+): Promise<{ readonly response: Response; readonly resolvedUrl: string }> {
+  try {
+    return await fetchWithGuard(required, optional);
+  } catch {
+    // Dependency messages and nested causes can contain signed redirect URLs or bare tokens.
+    // Keep neither: sanitizing only the requested URL still exposes secrets through error.cause.
+    throw new AgentPluginFetchError({ code: "REQUEST_FAILED", message: `could not fetch '${diagnosticUrl}': archive request failed` }, {
+      cause: new Error("archive request failed"),
+    });
+  }
+}
+
+/** Reads the body within the cap; an over-cap body stays `ARCHIVE_TOO_LARGE`, anything else one redacted `REQUEST_FAILED`. */
+async function readArchiveBody(
+  { response, maxBytes, diagnosticUrl }: { readonly response: Response; readonly maxBytes: number; readonly diagnosticUrl: string },
+): Promise<Uint8Array> {
+  try {
+    return await readBodyWithinCap(response, maxBytes, diagnosticUrl);
+  } catch (error) {
+    // Preserve our bounded-download error; stream failures must not escape as raw transport text.
+    if (error instanceof AgentPluginFetchError && error.code === "ARCHIVE_TOO_LARGE") {
+      throw new AgentPluginFetchError({ code: "ARCHIVE_TOO_LARGE", message: `'${diagnosticUrl}' body exceeded the ${maxBytes}-byte cap` });
+    }
+    throw new AgentPluginFetchError({ code: "REQUEST_FAILED", message: `could not read '${diagnosticUrl}': archive response body failed` }, {
+      cause: new Error("archive response body failed"),
+    });
+  }
 }
 
 /**
@@ -232,8 +242,8 @@ async function readBodyWithinCap(response: Response, maxBytes: number, url: stri
   try {
     for (;;) {
       const { done, value } = await reader.read();
+      // A read that is not `done` always carries a chunk (`ReadableStreamReadValueResult`).
       if (done) break;
-      if (value === undefined) continue;
       total += value.byteLength;
       if (total > maxBytes) {
         throw new AgentPluginFetchError({ code: "ARCHIVE_TOO_LARGE", message: `'${url}' body exceeded the ${maxBytes}-byte cap` });
