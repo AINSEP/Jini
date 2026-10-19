@@ -105,44 +105,59 @@ export function imageSource({ img }: { img: Element }, _optional: Record<string,
 
 interface RawFacts { anchors: Element[]; images: Element[]; linkTags: Element[]; metas: Element[]; title?: Element; html?: Element; base?: string | undefined }
 
+/** A Map, not an object literal, so tag names such as `constructor` never hit Object.prototype. */
+const COLLECTED = new Map<string, "anchors" | "images" | "linkTags" | "metas">([["a", "anchors"], ["img", "images"], ["link", "linkTags"], ["meta", "metas"]]);
+
 function collect(document: Node): RawFacts {
   const raw: RawFacts = { anchors: [], images: [], linkTags: [], metas: [] };
   for (const node of walk(document)) {
     if (!isElement(node)) continue;
-    switch (node.tagName) {
-      case "a": raw.anchors.push(node); break;
-      case "img": raw.images.push(node); break;
-      case "link": raw.linkTags.push(node); break;
-      case "meta": raw.metas.push(node); break;
-      case "title": raw.title ??= node; break;
-      case "html": raw.html ??= node; break;
-      case "base": raw.base ??= attr({ element: node, name: "href" }); break;
-    }
+    const list = COLLECTED.get(node.tagName);
+    if (list) raw[list].push(node);
+    else if (node.tagName === "title" || node.tagName === "html") raw[node.tagName] ??= node;
+    // The first base WITH an href wins, as in browsers.
+    else if (node.tagName === "base") raw.base ??= attr({ element: node, name: "href" });
   }
   return raw;
 }
 
+/** Meta keys whose values are URLs and are returned absolute. */
+const URL_META = new Set(["og:image", "og:url", "twitter:image"]);
+/** `<link rel>` tokens copied into meta, in emission order, under their meta key. */
+const LINK_META: ReadonlyArray<readonly [rel: string, key: string]> = [["canonical", "canonical"], ["icon", "favicon"], ["apple-touch-icon", "apple-touch-icon"]];
+
 function readMeta(raw: RawFacts, base: string): Record<string, string> {
   const meta: Record<string, string> = {};
-  const put = (key: string, value: string | undefined) => {
-    if (value === undefined || key in meta || Object.keys(meta).length >= MAX_META) return;
-    meta[key] = collapse(value).slice(0, MAX_META_VALUE);
-  };
   for (const element of raw.metas) {
-    const property = attr({ element, name: "property" })?.toLowerCase();
-    const name = attr({ element, name: "name" })?.toLowerCase();
-    const content = attr({ element, name: "content" });
-    if (property?.startsWith("og:")) put(property, property === "og:image" || property === "og:url" ? absolute({ raw: content, base, protocols: ASSET_PROTOCOLS }) : content);
-    else if (name && META_NAMES.has(name)) put(name, name === "twitter:image" ? absolute({ raw: content, base, protocols: ASSET_PROTOCOLS }) : content);
+    const entry = metaTagEntry({ element, base });
+    if (entry) putMeta({ meta, key: entry[0], value: entry[1] });
   }
   for (const element of raw.linkTags) {
-    const rel = (attr({ element, name: "rel" }) ?? "").toLowerCase().split(/\s+/);
+    const rels = relTokens({ element });
     const href = absolute({ raw: attr({ element, name: "href" }), base, protocols: ASSET_PROTOCOLS });
-    if (rel.includes("canonical")) put("canonical", href);
-    if (rel.includes("icon")) put("favicon", href);
-    if (rel.includes("apple-touch-icon")) put("apple-touch-icon", href);
+    for (const [rel, key] of LINK_META) if (rels.includes(rel)) putMeta({ meta, key, value: href });
   }
   return meta;
+}
+
+/** First value per key wins; the entry count and each value are capped. */
+function putMeta({ meta, key, value }: { meta: Record<string, string>; key: string; value: string | undefined }, _optional: Record<string, never> = {}): void {
+  if (value === undefined || key in meta || Object.keys(meta).length >= MAX_META) return;
+  meta[key] = collapse(value).slice(0, MAX_META_VALUE);
+}
+
+/** Every `og:*` property, or an allowlisted `name`; URL-valued keys are resolved. */
+function metaTagEntry({ element, base }: { element: Element; base: string }, _optional: Record<string, never> = {}): [key: string, value: string | undefined] | undefined {
+  const property = attr({ element, name: "property" })?.toLowerCase();
+  const name = attr({ element, name: "name" })?.toLowerCase();
+  const key = property?.startsWith("og:") ? property : name && META_NAMES.has(name) ? name : undefined;
+  if (key === undefined) return undefined;
+  const content = attr({ element, name: "content" });
+  return [key, URL_META.has(key) ? absolute({ raw: content, base, protocols: ASSET_PROTOCOLS }) : content];
+}
+
+function relTokens({ element }: { element: Element }, _optional: Record<string, never> = {}): string[] {
+  return (attr({ element, name: "rel" }) ?? "").toLowerCase().split(/\s+/);
 }
 
 function readLinks(anchors: Element[], base: string, pageHost: string): { links: PageLink[]; truncated: boolean } {
@@ -176,9 +191,8 @@ function readImages(images: Element[], base: string): { images: PageImage[]; tru
 function readStylesheets(linkTags: Element[], base: string): string[] {
   const out = new Set<string>();
   for (const element of linkTags) {
-    const rel = (attr({ element, name: "rel" }) ?? "").toLowerCase().split(/\s+/);
     const href = absolute({ raw: attr({ element, name: "href" }), base, protocols: ASSET_PROTOCOLS });
-    if (rel.includes("stylesheet") && href && out.size < MAX_STYLESHEETS) out.add(href);
+    if (relTokens({ element }).includes("stylesheet") && href && out.size < MAX_STYLESHEETS) out.add(href);
   }
   return [...out];
 }
@@ -199,19 +213,25 @@ export function readHtmlDocument({ html, pageUrl }: { html: string; pageUrl: str
   const pageHost = siteHost(new URL(pageUrl).hostname);
   const links = readLinks(raw.anchors, base, pageHost);
   const images = readImages(raw.images, base);
-  const description = raw.metas.find(m => attr({ element: m, name: "name" })?.toLowerCase() === "description");
-  const title = raw.title ? textOf(raw.title) : "";
-  const lang = raw.html ? attr({ element: raw.html, name: "lang" })?.trim() : undefined;
-  const descriptionText = description ? collapse(attr({ element: description, name: "content" }) ?? "") : "";
   return {
-    ...(title ? { title } : {}),
-    ...(descriptionText ? { description: descriptionText } : {}),
-    ...(lang ? { lang } : {}),
+    ...headFacts({ raw }),
     links: links.links, linksTruncated: links.truncated,
     images: images.images, imagesTruncated: images.truncated,
     stylesheets: readStylesheets(raw.linkTags, base),
     meta: readMeta(raw, base),
   };
+}
+
+/** Title, description and lang; empty ones are absent keys. */
+function headFacts({ raw }: { raw: RawFacts }, _optional: Record<string, never> = {}): Pick<HtmlDocumentFacts, "title" | "description" | "lang"> {
+  const description = raw.metas.find(m => attr({ element: m, name: "name" })?.toLowerCase() === "description");
+  const facts = {
+    title: raw.title ? textOf(raw.title) : "",
+    description: description ? collapse(attr({ element: description, name: "content" }) ?? "") : "",
+    // parse5 always synthesizes the <html> element, so collect() always finds one.
+    lang: attr({ element: raw.html!, name: "lang" })?.trim(),
+  };
+  return Object.fromEntries(Object.entries(facts).filter(([, value]) => value));
 }
 
 /**
@@ -223,15 +243,19 @@ export function htmlToText({ html }: { html: string }, _optional: Record<string,
   const out: string[] = [];
   while (pending.length) {
     const node = pending.pop()!;
-    if (node === "\n") { out.push("\n"); continue; }
-    if (isElement(node) && INVISIBLE.has(node.tagName)) continue;
-    if (node.nodeName === "#text" && "value" in node) { out.push(node.value); continue; }
-    if (!("childNodes" in node)) continue;
-    const block = isElement(node) && BLOCKS.has(node.tagName);
-    if (block) { out.push("\n"); pending.push("\n"); }
-    for (let i = node.childNodes.length - 1; i >= 0; i--) pending.push(node.childNodes[i]!);
+    if (node === "\n") out.push("\n");
+    else visitText({ node, pending, out });
   }
   return out.join("").split("\n").map(line => line.replace(/[^\S\n]+/g, " ").trim()).filter(Boolean).join("\n");
+}
+
+/** Emits a text node, or schedules a visible node's children, bracketed by newlines for blocks. */
+function visitText({ node, pending, out }: { node: Node; pending: Array<Node | "\n">; out: string[] }, _optional: Record<string, never> = {}): void {
+  if (isElement(node) && INVISIBLE.has(node.tagName)) return;
+  if (node.nodeName === "#text" && "value" in node) { out.push(node.value); return; }
+  if (!("childNodes" in node)) return;
+  if (isElement(node) && BLOCKS.has(node.tagName)) { out.push("\n"); pending.push("\n"); }
+  for (let i = node.childNodes.length - 1; i >= 0; i--) pending.push(node.childNodes[i]!);
 }
 
 /**

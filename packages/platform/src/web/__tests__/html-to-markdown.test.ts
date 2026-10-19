@@ -117,3 +117,65 @@ test("a page with no head facts reports none, and srcset-only images use their f
     images: [{ src: "https://a.example/s.png", alt: "S" }], imagesTruncated: false, stylesheets: [], meta: {},
   });
 });
+
+test("strike is plain text like del and s", () => {
+  assert.equal(md("<p><strike>gone</strike> x</p>"), "gone x");
+});
+
+test("attention containing only an image keeps the image inside the markers", () => {
+  assert.equal(md('a<b><img src="/x.png" alt="X"></b>c'), "a**![X](https://a.example/x.png)**c");
+});
+
+test("attention finds an image nested below another element", () => {
+  assert.equal(md('a<b><span><img src="/x.png"></span></b>c'), "a**![](https://a.example/x.png)**c");
+});
+
+test("attention ending in an image keeps text and image together", () => {
+  assert.equal(md('a<b><span>t</span><img src="/x.png"></b>c'), "a**t![](https://a.example/x.png)**c");
+});
+
+test("nested attention moves trailing whitespace of the innermost text outside", () => {
+  assert.equal(md("<b>x <i>y </i></b>z"), "**x *y*** z");
+});
+
+test("the first row under thead/tbody/caption becomes the header", () => {
+  assert.equal(md("<table><thead><tr><td>H</td><td>I</td></tr></thead><tbody><tr><td>B</td><td>C</td></tr></tbody></table>"), "| H | I |\n| - | - |\n| B | C |");
+  assert.equal(md("<table><caption>cap</caption><tbody><tr><td>H</td></tr><tr><td>B</td></tr></tbody></table>"), "| H |\n| - |\n| B |");
+});
+
+test("a nested table does not supply the outer table's header row", () => {
+  assert.equal(md("<table><tr><td>Outer<table><tr><td>Inner</td></tr></table></td></tr><tr><td>B</td></tr></table>"), "| OuterInner |\n| - |\n| B |");
+});
+
+test("an empty table still serializes an empty header", () => {
+  assert.equal(md("<table></table><p>x</p>"), "| |\n| - |\n\nx");
+});
+
+test("image alt whitespace is collapsed and link/image titles are dropped", () => {
+  assert.equal(md('<img src="/a.png" alt="  multi\n  space  " title="t"><a href="/x" title="tt">L</a>'), "![multi space](https://a.example/a.png)[L](https://a.example/x)");
+});
+
+test("data-mdast overrides from the page are ignored on any element", () => {
+  assert.equal(md('<a href="/x" data-mdast="ignore">L</a><p data-mdast="ignore">P</p>'), "[L](https://a.example/x)\n\nP");
+});
+
+test("an anchor without href is its text", () => {
+  assert.equal(md("<a>no href</a>"), "no href");
+});
+
+test("comments are dropped", () => {
+  assert.equal(md("<!-- c --><p>x</p>"), "x");
+});
+
+test("inline code flattens nested markup but keeps its spaces", () => {
+  assert.equal(md("<p><code>a  <b>b</b></code></p>"), "`a  b`");
+});
+
+// Pinned current behaviour (reported, not fixed): an empty <code> serializes as a bare `` delimiter pair.
+test("an empty code element currently emits an empty delimiter pair", () => {
+  assert.equal(md("<code></code>x"), "``x");
+});
+
+test("a base element after other head elements still sets the link base", () => {
+  assert.equal(md('<head><title>T</title><base href="https://b.example/docs/"></head><body><a href="next">Next</a></body>'), "[Next](https://b.example/docs/next)");
+});
