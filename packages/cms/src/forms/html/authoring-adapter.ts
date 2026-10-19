@@ -6,6 +6,24 @@ import type { FormDefinitionRepoPort } from "../ports.js";
 import { deriveHtmlForm, type FormAuthoring, type HtmlFormDefinitionRecord } from "./html-authoring.js";
 import type { FormWriteServiceDeps } from "../write-service.js";
 
+type PreparedAuthoring = FormAuthoring & { fields?: HtmlFormDefinitionRecord["fields"] };
+
+/** A write that leaves authoring untouched re-derives a stored HTML form's fields; builder forms need nothing. */
+function storedAuthoring({ existing }: { existing: HtmlFormDefinitionRecord | undefined }): PreparedAuthoring | undefined {
+  return existing?.mode === "html" ? deriveHtmlForm({ html: existing.html ?? "" }) : undefined;
+}
+
+/** A builder write that neither sends markup nor replaces stored HTML touches no raw HTML. */
+function isPlainBuilderWrite({ input, existing }: { input: FormAuthoring; existing: HtmlFormDefinitionRecord | undefined }): boolean {
+  return input.mode === "builder" && input.html === undefined && existing?.mode !== "html";
+}
+
+function assertFormMode({ mode }: { mode: unknown }): void {
+  if (mode !== undefined && mode !== "html" && mode !== "builder") {
+    throw new FormFieldValidationError({ message: "Invalid form mode", fieldErrors: [{ field: "mode", reason: "must be builder or html" }] });
+  }
+}
+
 export async function prepareFormAuthoring(
   { deps, input, existing, permission }: {
     deps: Pick<FormWriteServiceDeps, "authorize">;
@@ -15,17 +33,14 @@ export async function prepareFormAuthoring(
     existing?: HtmlFormDefinitionRecord;
   },
   _optional = {},
-): Promise<(FormAuthoring & { fields?: HtmlFormDefinitionRecord["fields"] }) | undefined> {
-  const authored = input.mode !== undefined || input.html !== undefined;
-  if (!authored) return existing?.mode === "html" ? deriveHtmlForm({ html: existing.html ?? "" }) : undefined;
+): Promise<PreparedAuthoring | undefined> {
+  if (input.mode === undefined && input.html === undefined) return storedAuthoring({ existing });
   // Match HTML Pages' trust boundary, including writes that switch out of authored HTML.
   // Check before parsing so an editor cannot use validation as a way around raw-HTML authority.
-  if (input.mode === "builder" && input.html === undefined && existing?.mode !== "html") return { mode: "builder", html: undefined };
+  if (isPlainBuilderWrite({ input, existing })) return { mode: "builder", html: undefined };
   const result = await deps.authorize({ principalId: input.actor.id, permission, workspaceId: input.workspaceId });
   if (!result.allowed) throw new ForbiddenError({ message: "HTML form authoring is restricted to admins and owners", permission, reason: result.reason });
-  if (input.mode !== undefined && input.mode !== "html" && input.mode !== "builder") {
-    throw new FormFieldValidationError({ message: "Invalid form mode", fieldErrors: [{ field: "mode", reason: "must be builder or html" }] });
-  }
+  assertFormMode({ mode: input.mode });
   if (input.mode === "builder") return { mode: "builder", html: undefined };
   return deriveHtmlForm({ html: input.html ?? existing?.html ?? "" });
 }
@@ -33,7 +48,7 @@ export async function prepareFormAuthoring(
 /** A bounded decorator, with every repository method forwarded explicitly (class methods do not
  * survive object spread). HTML names may be removed: they are the current markup's allowlist. */
 export function withFormAuthoring(
-  { repo, authoring }: { repo: FormDefinitionRepoPort; authoring: FormAuthoring & { fields?: HtmlFormDefinitionRecord["fields"] } },
+  { repo, authoring }: { repo: FormDefinitionRepoPort; authoring: PreparedAuthoring },
   { replaceFields = false }: { replaceFields?: boolean } = {},
 ): FormDefinitionRepoPort {
   return {

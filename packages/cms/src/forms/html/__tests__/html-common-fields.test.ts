@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { deriveHtmlForm } from "../html/html-authoring.js";
-import { htmlSubmissionDefinition } from "../html/html-submission-adapter.js";
-import { validateFieldDescriptors, validateSubmissionPayload } from "../forms.js";
-import { FormSubmissionValidationError } from "../errors.js";
-import { createFormSubmitHandler } from "../express/handler.js";
-import type { FormDefinitionRecord } from "../types.js";
-import type { HtmlFormDefinitionRecord } from "../fields-json.js";
-import { renderHtmlForm } from "../html-render.js";
-import { toDefinitionRecord, toDefinitionRow, type FormDefinitionRow } from "../sql/repo.rows.js";
+import { deriveHtmlForm } from "../html-authoring.js";
+import { htmlSubmissionDefinition } from "../html-submission-adapter.js";
+import { validateFieldDescriptors, validateSubmissionPayload } from "../../forms.js";
+import { FormSubmissionValidationError } from "../../errors.js";
+import { createFormSubmitHandler } from "../../express/handler.js";
+import type { FormDefinitionRecord } from "../../types.js";
+import type { HtmlFormDefinitionRecord } from "../../fields-json.js";
+import { renderHtmlForm } from "../../html-render.js";
+import { toDefinitionRecord, toDefinitionRow, type FormDefinitionRow } from "../../sql/repo.rows.js";
 import type { Request, Response } from "express";
 
 const baseDefinition: FormDefinitionRecord = {

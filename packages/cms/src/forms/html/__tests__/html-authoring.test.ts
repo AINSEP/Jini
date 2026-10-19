@@ -1,15 +1,15 @@
-import { toDefinitionRecord, toDefinitionRow, type FormDefinitionRow } from "../sql/repo.rows.js";
-import type { RateLimiterPort } from "../index.js";
+import { toDefinitionRecord, toDefinitionRow, type FormDefinitionRow } from "../../sql/repo.rows.js";
+import type { RateLimiterPort } from "../../index.js";
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { ForbiddenError } from "../../core/index.js";
-import { FormSubmissionValidationError, FormRateLimitExceededError } from "../index.js";
-import { executeCommand, InMemoryChangeSetRepo } from "./support/host-ports.fixture.js";
-import { InMemoryEventBus, InMemoryOutbox } from "./eventing.fixture.js";
-import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "./support/repo-ports.fixture.js";
-import { createFormDefinition, updateFormDefinition } from "./support/host-ports.fixture.js";
-import { deriveHtmlForm, decodeFormFields, encodeFormFields, type HtmlFormDefinitionRecord } from "../html/html-authoring.js";
-import { submitForm } from "./support/host-ports.fixture.js";
+import { ForbiddenError } from "../../../core/index.js";
+import { FormSubmissionValidationError, FormRateLimitExceededError } from "../../index.js";
+import { executeCommand, InMemoryChangeSetRepo } from "../../__tests__/support/host-ports.fixture.js";
+import { InMemoryEventBus, InMemoryOutbox } from "../../__tests__/eventing.fixture.js";
+import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "../../__tests__/support/repo-ports.fixture.js";
+import { createFormDefinition, updateFormDefinition } from "../../__tests__/support/host-ports.fixture.js";
+import { deriveHtmlForm, decodeFormFields, encodeFormFields, type HtmlFormDefinitionRecord } from "../html-authoring.js";
+import { submitForm } from "../../__tests__/support/host-ports.fixture.js";
 
 /** Owner acceptance 2026-10-04: authored names are the durable submission allowlist. Not run by dispatch. */
 function harness() {

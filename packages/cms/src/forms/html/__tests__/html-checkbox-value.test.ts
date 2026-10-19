@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { deriveHtmlForm } from "../html/html-authoring.js";
-import { createFormDefinition } from "./support/host-ports.fixture.js";
-import { submitForm } from "./support/host-ports.fixture.js";
-import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "./support/repo-ports.fixture.js";
-import { executeCommand, InMemoryChangeSetRepo } from "./support/host-ports.fixture.js";
-import { InMemoryEventBus, InMemoryOutbox } from "./eventing.fixture.js";
-import { FormSubmissionValidationError } from "../index.js";
+import { deriveHtmlForm } from "../html-authoring.js";
+import { createFormDefinition } from "../../__tests__/support/host-ports.fixture.js";
+import { submitForm } from "../../__tests__/support/host-ports.fixture.js";
+import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "../../__tests__/support/repo-ports.fixture.js";
+import { executeCommand, InMemoryChangeSetRepo } from "../../__tests__/support/host-ports.fixture.js";
+import { InMemoryEventBus, InMemoryOutbox } from "../../__tests__/eventing.fixture.js";
+import { FormSubmissionValidationError } from "../../index.js";
 
 test("HTML save and submission preserve authored checkbox strings, including empty/on; default remains true", async () => {
   const repo = new InMemoryFormDefinitionRepo();

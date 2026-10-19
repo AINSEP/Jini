@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { ForbiddenError } from "../../core/index.js";
-import { FormFieldValidationError, type FormDefinitionRecord, type FormDefinitionRepoPort } from "../index.js";
-import { prepareFormAuthoring, withFormAuthoring } from "./support/host-ports.fixture.js";
-import { htmlSubmissionDefinition } from "../html/html-submission-adapter.js";
-import type { HtmlFormDefinitionRecord } from "../html/html-authoring.js";
-import type { FormWriteServiceDeps } from "../write-service.js";
+import { ForbiddenError } from "../../../core/index.js";
+import { FormFieldValidationError, type FormDefinitionRecord, type FormDefinitionRepoPort } from "../../index.js";
+import { prepareFormAuthoring, withFormAuthoring } from "../../__tests__/support/host-ports.fixture.js";
+import { htmlSubmissionDefinition } from "../html-submission-adapter.js";
+import type { HtmlFormDefinitionRecord } from "../html-authoring.js";
+import type { FormWriteServiceDeps } from "../../write-service.js";
 
 // Direct tests for the two form host adapters: the authoring trust boundary (raw-HTML authority is
 // checked before any parsing) and the HTML checkbox submission compatibility shim.
