@@ -19,124 +19,145 @@
  * @overallScore 100
  */
 export function prettifyCss(css: string): string {
-  const INDENT = '  ';
-  let out = '';
-  let depth = 0;
-  let parenDepth = 0;
-  let quote: '"' | "'" | null = null;
-  let atDeclStart = false;
-  let i = 0;
-  const n = css.length;
+  const printer: CssPrinter = { css, out: '', i: 0, depth: 0, parenDepth: 0, quote: null, atDeclStart: false };
+  while (printer.i < css.length) step(printer);
+  return printer.out.trim();
+}
 
-  const trimTrailingSpace = () => {
-    out = out.replace(/[ \t]+$/, '');
-  };
-  const peekNextNonSpace = (from: number): string | undefined => {
-    let j = from;
-    while (j < n && /\s/.test(css[j]!)) j++;
-    return css[j];
-  };
+const INDENT = '  ';
+const WHITESPACE = /\s/;
 
-  while (i < n) {
-    const ch = css[i]!;
+interface CssPrinter {
+  readonly css: string;
+  out: string;
+  i: number;
+  depth: number;
+  parenDepth: number;
+  quote: '"' | "'" | null;
+  atDeclStart: boolean;
+}
 
-    if (quote) {
-      out += ch;
-      if (ch === '\\' && i + 1 < n) {
-        out += css[i + 1];
-        i += 2;
-        continue;
-      }
-      if (ch === quote) quote = null;
-      i++;
-      continue;
-    }
+type Handler = (printer: CssPrinter) => void;
 
-    if (ch === '"' || ch === "'") {
-      quote = ch;
-      out += ch;
-      i++;
-      continue;
-    }
+/** Quote and paren state is tracked at any depth, outside a string. */
+const NESTING = new Map<string, Handler>([
+  ['"', openQuote],
+  ["'", openQuote],
+  ['(', openParen],
+  [')', closeParen],
+]);
 
-    if (ch === '(') {
-      parenDepth++;
-      out += ch;
-      i++;
-      continue;
-    }
-    if (ch === ')') {
-      parenDepth = Math.max(0, parenDepth - 1);
-      out += ch;
-      i++;
-      continue;
-    }
+/** Structure only counts outside parens — see the file header's `url(...;...)` case. */
+const STRUCTURAL = new Map<string, Handler>([
+  ['{', openBlock],
+  ['}', closeBlock],
+  [';', endDeclaration],
+]);
 
-    if (parenDepth === 0 && ch === '{') {
-      trimTrailingSpace();
-      out += ' {';
-      depth++;
-      atDeclStart = true;
-      i++;
-      while (i < n && /\s/.test(css[i]!)) i++;
-      if (peekNextNonSpace(i) !== '}') out += '\n' + INDENT.repeat(depth);
-      continue;
-    }
+function step(printer: CssPrinter): void {
+  const ch = printer.css[printer.i]!;
+  const handler = printer.quote ? copyQuoted : (NESTING.get(ch) ?? structuralHandler(printer, ch));
+  handler(printer);
+}
 
-    if (parenDepth === 0 && ch === '}') {
-      depth = Math.max(0, depth - 1);
-      trimTrailingSpace();
-      // A `}` immediately after `{` (an empty rule) needs no newline before it; otherwise close on
-      // its own indented line.
-      if (!out.endsWith('{')) out += '\n' + INDENT.repeat(depth);
-      out += '}';
-      atDeclStart = false;
-      i++;
-      while (i < n && /\s/.test(css[i]!)) i++;
-      const nextCh = css[i];
-      // A following `}` (closing a parent at-rule) manages its own leading newline via the same
-      // trimTrailingSpace() above — adding one here too would double up into a stray blank line.
-      if (nextCh !== undefined && nextCh !== '}') {
-        out += depth === 0 ? '\n\n' : '\n' + INDENT.repeat(depth);
-      }
-      continue;
-    }
+function structuralHandler(printer: CssPrinter, ch: string): Handler {
+  if (printer.parenDepth > 0) return copyChar;
+  // Only the FIRST colon of a declaration (the property/value separator) gets a space after it —
+  // a selector's own colon (`.gm-btn:hover`, matched at `depth === 0`, before any `{`) is left
+  // untouched, and only `atDeclStart` (cleared the moment this fires) keeps a later colon inside
+  // the same value (there are none in practice here, but the guard costs nothing) from being
+  // treated as another property separator.
+  if (ch === ':') return printer.depth > 0 && printer.atDeclStart ? separateProperty : copyChar;
+  return STRUCTURAL.get(ch) ?? (WHITESPACE.test(ch) ? collapseWhitespace : copyChar);
+}
 
-    if (parenDepth === 0 && ch === ';') {
-      out += ';';
-      i++;
-      const nextCh = peekNextNonSpace(i);
-      while (i < n && /\s/.test(css[i]!)) i++;
-      if (nextCh !== '}' && nextCh !== undefined) {
-        out += '\n' + INDENT.repeat(depth);
-        atDeclStart = true;
-      }
-      continue;
-    }
+function copyChar(printer: CssPrinter): void {
+  printer.out += printer.css[printer.i];
+  printer.i++;
+}
 
-    // Only the FIRST colon of a declaration (the property/value separator) gets a space after it —
-    // a selector's own colon (`.gm-btn:hover`, matched at `depth === 0`, before any `{`) is left
-    // untouched, and only `atDeclStart` (cleared the moment this fires) keeps a later colon inside
-    // the same value (there are none in practice here, but the guard costs nothing) from being
-    // treated as another property separator.
-    if (parenDepth === 0 && ch === ':' && depth > 0 && atDeclStart) {
-      out += ': ';
-      atDeclStart = false;
-      i++;
-      while (i < n && css[i] === ' ') i++;
-      continue;
-    }
+function copyQuoted(printer: CssPrinter): void {
+  const ch = printer.css[printer.i]!;
+  copyChar(printer);
+  if (ch === '\\' && printer.i < printer.css.length) copyChar(printer);
+  else if (ch === printer.quote) printer.quote = null;
+}
 
-    if (/\s/.test(ch)) {
-      out += ' ';
-      i++;
-      while (i < n && /\s/.test(css[i]!)) i++;
-      continue;
-    }
+function openQuote(printer: CssPrinter): void {
+  printer.quote = printer.css[printer.i] as '"' | "'";
+  copyChar(printer);
+}
 
-    out += ch;
-    i++;
+function openParen(printer: CssPrinter): void {
+  printer.parenDepth++;
+  copyChar(printer);
+}
+
+function closeParen(printer: CssPrinter): void {
+  printer.parenDepth = Math.max(0, printer.parenDepth - 1);
+  copyChar(printer);
+}
+
+function skipWhitespace(printer: CssPrinter): void {
+  while (printer.i < printer.css.length && WHITESPACE.test(printer.css[printer.i]!)) printer.i++;
+}
+
+function newline(printer: CssPrinter): string {
+  return '\n' + INDENT.repeat(printer.depth);
+}
+
+function trimTrailingSpace(printer: CssPrinter): void {
+  printer.out = printer.out.replace(/[ \t]+$/, '');
+}
+
+function openBlock(printer: CssPrinter): void {
+  trimTrailingSpace(printer);
+  printer.out += ' {';
+  printer.depth++;
+  printer.atDeclStart = true;
+  printer.i++;
+  skipWhitespace(printer);
+  if (printer.css[printer.i] !== '}') printer.out += newline(printer);
+}
+
+function closeBlock(printer: CssPrinter): void {
+  printer.depth = Math.max(0, printer.depth - 1);
+  trimTrailingSpace(printer);
+  // A `}` immediately after `{` (an empty rule) needs no newline before it; otherwise close on
+  // its own indented line.
+  if (!printer.out.endsWith('{')) printer.out += newline(printer);
+  printer.out += '}';
+  printer.atDeclStart = false;
+  printer.i++;
+  skipWhitespace(printer);
+  const nextCh = printer.css[printer.i];
+  // A following `}` (closing a parent at-rule) manages its own leading newline via the same
+  // trimTrailingSpace() above — adding one here too would double up into a stray blank line.
+  if (nextCh !== undefined && nextCh !== '}') {
+    printer.out += printer.depth === 0 ? '\n\n' : newline(printer);
   }
+}
 
-  return out.trim();
+function endDeclaration(printer: CssPrinter): void {
+  printer.out += ';';
+  printer.i++;
+  skipWhitespace(printer);
+  const nextCh = printer.css[printer.i];
+  if (nextCh !== '}' && nextCh !== undefined) {
+    printer.out += newline(printer);
+    printer.atDeclStart = true;
+  }
+}
+
+function separateProperty(printer: CssPrinter): void {
+  printer.out += ': ';
+  printer.atDeclStart = false;
+  printer.i++;
+  while (printer.css[printer.i] === ' ') printer.i++;
+}
+
+function collapseWhitespace(printer: CssPrinter): void {
+  printer.out += ' ';
+  printer.i++;
+  skipWhitespace(printer);
 }
