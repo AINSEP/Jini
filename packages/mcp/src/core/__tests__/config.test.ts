@@ -104,6 +104,32 @@ describe('sanitizeMcpServer', () => {
   });
 });
 
+describe('sanitizeMcpServer boundaries', () => {
+  it('rejects a supplied non-string transport instead of defaulting to stdio', () => {
+    expect(sanitizeMcpServer({ raw: { id: 'a', transport: 42, command: 'node' } })).toBeNull();
+  });
+  it('rejects an invalid authMode on a stdio server', () => {
+    expect(sanitizeMcpServer({ raw: { id: 'a', command: 'node', authMode: 'bogus' } })).toBeNull();
+  });
+  it('validates but does not persist a valid authMode on a stdio server', () => {
+    expect(sanitizeMcpServer({ raw: { id: 'a', command: 'node', authMode: 'none' } })).toEqual({ id: 'a', transport: 'stdio', enabled: true, command: 'node' });
+  });
+  it('trims the id and command', () => {
+    expect(sanitizeMcpServer({ raw: { id: '  a  ', command: '  node  ' } })).toEqual({ id: 'a', transport: 'stdio', enabled: true, command: 'node' });
+  });
+  it('normalizes a remote url and infers none for loopback', () => {
+    expect(sanitizeMcpServer({ raw: { id: 'r', transport: 'http', url: '  http://localhost:3000  ' } })).toEqual({ id: 'r', transport: 'http', enabled: true, url: 'http://localhost:3000/', authMode: 'none' });
+  });
+  it('drops stdio-only fields from a remote server and remote-only fields from a stdio server', () => {
+    expect(sanitizeMcpServer({ raw: { id: 'r', transport: 'sse', url: 'https://x.example.com', command: 'node', args: ['x'], env: { A: '1' } } })).toEqual({ id: 'r', transport: 'sse', enabled: true, url: 'https://x.example.com/', authMode: 'oauth' });
+    expect(sanitizeMcpServer({ raw: { id: 's', command: 'node', url: 'https://x.example.com', headers: { A: '1' } } })).toEqual({ id: 's', transport: 'stdio', enabled: true, command: 'node' });
+  });
+  it('treats a non-object env or headers as absent', () => {
+    expect(sanitizeMcpServer({ raw: { id: 's', command: 'node', env: ['A'] } })).not.toHaveProperty('env');
+    expect(sanitizeMcpServer({ raw: { id: 'r', transport: 'http', url: 'https://x.example.com', headers: 'A=1' } })).not.toHaveProperty('headers');
+  });
+});
+
 describe('sanitizeMcpConfig', () => {
   it('returns empty for non-objects and non-array servers', () => {
     expect(sanitizeMcpConfig({ raw: 42 })).toEqual({ servers: [] });
@@ -135,7 +161,7 @@ describe('readMcpConfig / writeMcpConfig', () => {
   it('rethrows non-ENOENT / non-syntax read errors (EISDIR)', async () => {
     const dir = tmp();
     fs.mkdirSync(path.join(dir, 'mcp-config.json')); // reading a directory throws EISDIR
-    await expect(readMcpConfig({ dataDir: dir })).rejects.toThrow();
+    await expect(readMcpConfig({ dataDir: dir })).rejects.toMatchObject({ code: 'EISDIR' });
   });
   it('sanitizes, persists, and round-trips through the mutex', async () => {
     const dir = tmp();
@@ -268,7 +294,42 @@ describe('buildClaudeMcpJson', () => {
   });
 });
 
+describe('buildClaudeMcpJson boundaries', () => {
+  it('omits empty args/env on stdio and empty headers on remote', () => {
+    const servers: McpServerConfig[] = [
+      { id: 's', transport: 'stdio', enabled: true, command: 'node', args: [], env: {} },
+      { id: 'r', transport: 'http', enabled: true, url: 'https://x.example.com', authMode: 'oauth', headers: {} },
+    ];
+    expect(buildClaudeMcpJson({ servers })).toEqual({ mcpServers: { s: { command: 'node' }, r: { type: 'http', url: 'https://x.example.com' } } });
+  });
+  it('keeps disabled servers out of a non-empty result', () => {
+    const servers: McpServerConfig[] = [
+      { id: 'on', transport: 'stdio', enabled: true, command: 'node' },
+      { id: 'off', transport: 'stdio', enabled: false, command: 'deno' },
+    ];
+    expect(buildClaudeMcpJson({ servers })).toEqual({ mcpServers: { on: { command: 'node' } } });
+  });
+  it('treats a lower-case pinned authorization header as user-pinned', () => {
+    const servers: McpServerConfig[] = [{ id: 'r', transport: 'http', enabled: true, url: 'https://x.example.com', authMode: 'oauth', headers: { authorization: 'Bearer mine' } }];
+    expect(buildClaudeMcpJson({ servers }, { tokens: { r: 'TOK' } })).toEqual({ mcpServers: { r: { type: 'http', url: 'https://x.example.com', headers: { authorization: 'Bearer mine' } } } });
+  });
+  it('replaces a blank authorization header with the oauth bearer', () => {
+    const servers: McpServerConfig[] = [{ id: 'r', transport: 'http', enabled: true, url: 'https://x.example.com', authMode: 'oauth', headers: { Authorization: '  ', X: 'v' } }];
+    expect(buildClaudeMcpJson({ servers }, { tokens: { r: 'TOK' } })).toEqual({ mcpServers: { r: { type: 'http', url: 'https://x.example.com', headers: { X: 'v', Authorization: 'Bearer TOK' } } } });
+  });
+});
+
 describe('buildAcpMcpServers', () => {
+  it('returns an empty array when no enabled stdio servers exist', () => {
+    expect(buildAcpMcpServers({ servers: [{ id: 'r', transport: 'sse', enabled: true, url: 'https://x.example.com' }] })).toEqual([]);
+  });
+  it('copies args rather than sharing the config array', () => {
+    const args = ['x'];
+    const [entry] = buildAcpMcpServers({ servers: [{ id: 'a', transport: 'stdio', enabled: true, command: 'node', args }] });
+    expect(entry?.args).toEqual(['x']);
+    expect(entry?.args).not.toBe(args);
+  });
+
   it('keeps only enabled stdio servers and flattens env, skipping non-string values', () => {
     const servers: McpServerConfig[] = [
       { id: 'a', transport: 'stdio', enabled: true, command: 'node', args: ['x'], env: { good: 'v', bad: 1 as unknown as string } },
@@ -305,6 +366,47 @@ describe('buildOpenCodeMcpConfigContent', () => {
     expect(cfg.mcp.loc).toEqual({ type: 'local', command: ['node', 'x'], environment: { A: '1' }, enabled: true });
     expect(cfg.mcp.rem).toEqual({ type: 'remote', url: 'https://r.example.com', headers: { Authorization: 'Bearer TOK' }, enabled: true });
     expect(cfg.mcp.rembare).toEqual({ type: 'remote', url: 'https://n.example.com', enabled: true });
+  });
+  it('trims the stdio command but emits the remote url verbatim', () => {
+    const cfg = JSON.parse(buildOpenCodeMcpConfigContent({ servers: [
+      { id: 'loc', transport: 'stdio', enabled: true, command: '  node  ' },
+      { id: 'rem', transport: 'http', enabled: true, url: ' https://r.example.com ', authMode: 'none' },
+    ] }) as string);
+    expect(cfg.mcp.loc.command).toEqual(['node']);
+    expect(cfg.mcp.rem.url).toBe(' https://r.example.com ');
+  });
+  it('skips disabled servers and a whitespace-only command or url', () => {
+    expect(buildOpenCodeMcpConfigContent({ servers: [
+      { id: 'off', transport: 'stdio', enabled: false, command: 'node' },
+      { id: 'blankcmd', transport: 'stdio', enabled: true, command: '   ' },
+      { id: 'blankurl', transport: 'sse', enabled: true, url: '   ' },
+    ] })).toBeNull();
+  });
+  it('drops the oauth bearer for a none-auth remote and an empty env object', () => {
+    const cfg = JSON.parse(buildOpenCodeMcpConfigContent({ servers: [
+      { id: 'loc', transport: 'stdio', enabled: true, command: 'node', env: {} },
+      { id: 'rem', transport: 'http', enabled: true, url: 'http://localhost:1', headers: {} },
+    ] }, { tokens: { rem: 'TOK' } }) as string);
+    expect(cfg).toEqual({ mcp: {
+      loc: { type: 'local', command: ['node'], enabled: true },
+      rem: { type: 'remote', url: 'http://localhost:1', enabled: true },
+    } });
+  });
+  it('replaces an array prior permission and keeps mcp alongside extraConfig', () => {
+    const cfg = JSON.parse(buildOpenCodeMcpConfigContent({ servers: [{ id: 'loc', transport: 'stdio', enabled: true, command: 'node' }] }, {
+      allowedDirectories: ['/'], extraConfig: { permission: ['x'], provider: 'p' }, resolvePath: ({ filePath }) => filePath,
+    }) as string);
+    expect(cfg).toEqual({
+      provider: 'p',
+      mcp: { loc: { type: 'local', command: ['node'], enabled: true } },
+      permission: { external_directory: { '/': 'allow', '/*': 'allow', '/**': 'allow' } },
+    });
+  });
+  it('normalizes a trailing separator and de-duplicates directory variants', () => {
+    const cfg = JSON.parse(buildOpenCodeMcpConfigContent({ servers: [] }, {
+      allowedDirectories: ['/a/b/', '/a/b'], resolvePath: ({ filePath }) => filePath,
+    }) as string);
+    expect(cfg).toEqual({ permission: { external_directory: { '/a/b': 'allow', '/a/b/*': 'allow', '/a/b/**': 'allow' } } });
   });
   it('emits a stdio entry without environment when env is empty', () => {
     const cfg = JSON.parse(

@@ -132,65 +132,40 @@ export function sanitizeTokensFile({ raw }: { raw: unknown }, { clock = createSy
   return { servers: out };
 }
 
+function trimmedString(raw: unknown): string | undefined {
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : undefined;
+}
+
+function finiteNumber(raw: unknown): number | undefined {
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined;
+}
+
+/** Optional fields copied when they deserialize cleanly, in persisted key order. */
+const OPTIONAL_TOKEN_FIELDS: ReadonlyArray<readonly [keyof StoredMcpToken, (raw: unknown) => string | number | undefined]> = [
+  ['refreshToken', trimmedString],
+  ['scope', trimmedString],
+  ['expiresAt', finiteNumber],
+  ['tokenEndpoint', trimmedString],
+  ['clientId', trimmedString],
+  ['clientSecret', trimmedString],
+  ['authServerIssuer', trimmedString],
+  ['redirectUri', trimmedString],
+  ['resourceUrl', trimmedString],
+];
+
 function sanitizeToken(raw: unknown, clock: Clock): StoredMcpToken | null {
   if (!isPlainObject(raw)) return null;
-  const accessToken =
-    typeof raw.accessToken === 'string' ? raw.accessToken.trim() : '';
+  const accessToken = trimmedString(raw.accessToken);
   if (!accessToken) return null;
-  const tokenType =
-    typeof raw.tokenType === 'string' && raw.tokenType.trim()
-      ? raw.tokenType.trim()
-      : 'Bearer';
-  const refreshToken =
-    typeof raw.refreshToken === 'string' && raw.refreshToken.trim()
-      ? raw.refreshToken.trim()
-      : undefined;
-  const scope =
-    typeof raw.scope === 'string' && raw.scope.trim()
-      ? raw.scope.trim()
-      : undefined;
-  const expiresAt =
-    typeof raw.expiresAt === 'number' && Number.isFinite(raw.expiresAt)
-      ? raw.expiresAt
-      : undefined;
-  const savedAt =
-    typeof raw.savedAt === 'number' && Number.isFinite(raw.savedAt)
-      ? raw.savedAt
-      : clock.nowMs();
-  const tokenEndpoint =
-    typeof raw.tokenEndpoint === 'string' && raw.tokenEndpoint.trim()
-      ? raw.tokenEndpoint.trim()
-      : undefined;
-  const clientId =
-    typeof raw.clientId === 'string' && raw.clientId.trim()
-      ? raw.clientId.trim()
-      : undefined;
-  const clientSecret =
-    typeof raw.clientSecret === 'string' && raw.clientSecret.trim()
-      ? raw.clientSecret.trim()
-      : undefined;
-  const authServerIssuer =
-    typeof raw.authServerIssuer === 'string' && raw.authServerIssuer.trim()
-      ? raw.authServerIssuer.trim()
-      : undefined;
-  const redirectUri =
-    typeof raw.redirectUri === 'string' && raw.redirectUri.trim()
-      ? raw.redirectUri.trim()
-      : undefined;
-  const resourceUrl =
-    typeof raw.resourceUrl === 'string' && raw.resourceUrl.trim()
-      ? raw.resourceUrl.trim()
-      : undefined;
-  const out: StoredMcpToken = { accessToken, tokenType, savedAt };
-  if (refreshToken) out.refreshToken = refreshToken;
-  if (scope) out.scope = scope;
-  if (expiresAt !== undefined) out.expiresAt = expiresAt;
-  if (tokenEndpoint) out.tokenEndpoint = tokenEndpoint;
-  if (clientId) out.clientId = clientId;
-  if (clientSecret) out.clientSecret = clientSecret;
-  if (authServerIssuer) out.authServerIssuer = authServerIssuer;
-  if (redirectUri) out.redirectUri = redirectUri;
-  if (resourceUrl) out.resourceUrl = resourceUrl;
+  const out: StoredMcpToken = {
+    accessToken,
+    tokenType: trimmedString(raw.tokenType) ?? 'Bearer',
+    savedAt: finiteNumber(raw.savedAt) ?? clock.nowMs(),
+  };
+  for (const [key, read] of OPTIONAL_TOKEN_FIELDS) {
+    const value = read(raw[key]);
+    if (value !== undefined) Object.assign(out, { [key]: value });
+  }
   return out;
 }
 
