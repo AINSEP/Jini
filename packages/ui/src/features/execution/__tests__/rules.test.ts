@@ -8,6 +8,7 @@ import {
   binPathEnvField,
   cleanAgentVersionLabel,
   cliEnvFieldsForAgent,
+  customPreset,
   credentialsForPreset,
   filterAgentModelOptions,
   groupPresets,
@@ -31,7 +32,7 @@ import {
   shouldShowCustomModelInput,
   showsBaseUrlField,
   sortDetectedAgents,
-} from '../../../features/execution/rules.js';
+} from '../rules.js';
 import type {
   AgentCliEnvFieldSpec,
   AgentDiagnostic,
@@ -40,7 +41,8 @@ import type {
   ExecutionConfig,
   LocalCliConfig,
   ProviderPreset,
-} from '../../../features/execution/types.js';
+} from '../types.js';
+import { CUSTOM_PRESET_ID } from '../constants.js';
 
 function byok(overrides: Partial<ByokConfig> = {}): ByokConfig {
   return {
@@ -63,6 +65,23 @@ function preset(overrides: Partial<ProviderPreset> = {}): ProviderPreset {
     ...overrides,
   };
 }
+
+describe('customPreset', () => {
+  it('builds the manual-entry preset for the given protocol with no URL or models', () => {
+    expect(customPreset('openai')).toEqual({
+      id: CUSTOM_PRESET_ID,
+      title: 'Custom',
+      protocol: 'openai',
+      baseUrl: '',
+      preferredModels: [],
+      custom: true,
+    });
+  });
+
+  it('uses the host-supplied title when one is given', () => {
+    expect(customPreset('anthropic', 'Benutzerdefiniert').title).toBe('Benutzerdefiniert');
+  });
+});
 
 describe('isValidApiBaseUrl', () => {
   it('accepts absolute http and https URLs', () => {

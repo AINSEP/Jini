@@ -221,3 +221,36 @@ describe('modelIdForReasoningLevel', () => {
     expect(modelIdForReasoningLevel(groupFor('gemini-3.8-flash'), null)).toBe('gemini-3.8-flash-high');
   });
 });
+
+describe('reasoningModelGroups — base label', () => {
+  it('keeps a label that does not end in a parenthetical', () => {
+    const [group] = reasoningModelGroups([{ id: 'gemini-9-high', label: 'Gemini 9 High' }], LEVELS);
+    expect(group?.label).toBe('Gemini 9 High');
+  });
+
+  it('keeps a trailing parenthetical that is not this entry\'s own level', () => {
+    const [group] = reasoningModelGroups([{ id: 'gemini-9-high', label: 'Gemini 9 (Preview)' }], LEVELS);
+    expect(group?.label).toBe('Gemini 9 (Preview)');
+  });
+
+  it('keeps a label that is nothing but the level qualifier, rather than blanking it', () => {
+    const [group] = reasoningModelGroups([{ id: 'gemini-9-high', label: '(High)' }], LEVELS);
+    expect(group?.label).toBe('(High)');
+  });
+
+  it('strips a qualifier that matches the level id rather than its label', () => {
+    const [group] = reasoningModelGroups([{ id: 'gemini-9-high', label: 'Gemini 9 (high)' }], [{ id: 'high', label: 'Hi' }]);
+    expect(group?.label).toBe('Gemini 9');
+  });
+});
+
+describe('modelIdForReasoningLevel — hand-built groups', () => {
+  it('returns the base id for a group built from nothing', () => {
+    expect(modelIdForReasoningLevel({ baseId: 'gemini-9', label: 'Gemini 9', levels: [], modelIdByLevel: {} }, null)).toBe('gemini-9');
+  });
+
+  it('returns the base id when the first listed level has no catalog id', () => {
+    const group = { baseId: 'gemini-9', label: 'Gemini 9', levels: [{ id: 'high', label: 'High' }], modelIdByLevel: {} };
+    expect(modelIdForReasoningLevel(group, null)).toBe('gemini-9');
+  });
+});

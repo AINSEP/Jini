@@ -609,17 +609,24 @@ export function pickerModelOptions(
 ): AgentModelOption[] {
   const choices = new Map<string, AgentModelOption>();
   for (const model of models) {
-    const resolvedId = model.identityKind === 'alias' ? model.resolvedId : undefined;
-    const id = resolvedId || model.id;
-    const label = model.label === model.id ? id : model.label;
-    const existing = choices.get(id);
+    const row = pickerRow({ model });
+    const existing = choices.get(row.id);
     if (!existing) {
-      choices.set(id, resolvedId ? { ...model, id, label, identityKind: 'concrete' } : model);
-    } else if (existing.label === id && label !== id) {
-      choices.set(id, { ...existing, label });
+      choices.set(row.id, row);
+    } else if (existing.label === row.id && row.label !== row.id) {
+      choices.set(row.id, { ...existing, label: row.label });
     }
   }
   return [...choices.values()];
+}
+
+/** One catalog row as the picker shows it: a resolved alias becomes its concrete id (a raw-id
+ *  label follows that id); anything else is returned unchanged. */
+function pickerRow({ model }: { model: AgentModelOption }): AgentModelOption {
+  const resolvedId = model.identityKind === 'alias' ? model.resolvedId : undefined;
+  if (!resolvedId) return model;
+  const label = model.label === model.id ? resolvedId : model.label;
+  return { ...model, id: resolvedId, label, identityKind: 'concrete' };
 }
 
 /** Case-insensitive substring match against a model's id or label, mirroring
@@ -702,9 +709,10 @@ function baseLabelForLevel(label: string, level: AgentModelOption | undefined): 
   if (!level) return label;
   const match = /^(.*?)\s*\(([^()]*)\)\s*$/.exec(label);
   if (!match) return label;
-  const inner = (match[2] ?? '').trim().toLowerCase();
+  // Both capture groups are non-optional, so a successful match always fills them.
+  const inner = match[2]!.trim().toLowerCase();
   if (inner !== level.id.toLowerCase() && inner !== level.label.toLowerCase()) return label;
-  const stripped = (match[1] ?? '').trim();
+  const stripped = match[1]!.trim();
   return stripped || label;
 }
 
