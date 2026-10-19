@@ -135,6 +135,18 @@ function cloneVoiceOptions(voices: ElevenLabsVoiceOption[]): ElevenLabsVoiceOpti
   }));
 }
 
+/** Unwraps a `/v2/voices` response; a non-2xx, truncated or non-JSON body throws, unusable rows are dropped. */
+function parseVoicesResponse(resp: Awaited<ReturnType<HttpClientPort['send']>>): ElevenLabsVoiceOption[] {
+  if (resp.status < 200 || resp.status >= 300) {
+    throw new Error(`elevenlabs voices ${resp.status}: ${resp.bodyText.slice(0, 240)}`);
+  }
+  if (resp.bodyTruncated) throw new Error('elevenlabs voices response was truncated');
+  const payload: unknown = JSON.parse(resp.bodyText);
+  const rawVoices = isRecord(payload) && Array.isArray(payload.voices) ? payload.voices : [];
+  return rawVoices.map((voice) => normalizeVoice(voice))
+    .filter((voice): voice is ElevenLabsVoiceOption => voice !== null);
+}
+
 /** Owns transport, time and a bounded voice cache for one host lifecycle.
  * Supply the existing policy-enforcing HTTP client; this factory never constructs a raw transport.
  * @throws RangeError for an invalid cache bound; credential/transport/JSON errors propagate from listing.
@@ -178,14 +190,7 @@ export function createElevenLabsVoiceClient(
       totalDeadlineMs: FETCH_TIMEOUT_MS.QUICK,
       maxResponseBytes: 1024 * 1024,
     } });
-    if (resp.status < 200 || resp.status >= 300) {
-      throw new Error(`elevenlabs voices ${resp.status}: ${resp.bodyText.slice(0, 240)}`);
-    }
-    if (resp.bodyTruncated) throw new Error('elevenlabs voices response was truncated');
-    const payload: unknown = JSON.parse(resp.bodyText);
-    const rawVoices = isRecord(payload) && Array.isArray(payload.voices) ? payload.voices : [];
-    const voices = rawVoices.map((voice) => normalizeVoice(voice))
-      .filter((voice): voice is ElevenLabsVoiceOption => voice !== null);
+    const voices = parseVoicesResponse(resp);
     const now = clock.nowMs();
     sweepExpired(now);
     // Replacing a key refreshes insertion order; concurrent misses cannot grow past the bound.
@@ -224,7 +229,8 @@ export async function listElevenLabsVoiceOptions(required: ElevenLabsVoiceListRe
 } = {}): Promise<ElevenLabsVoiceOption[]> {
   let client = compatibilityClient;
   const dispatcher = options.requestInit?.dispatcher;
-  if (dispatcher && typeof dispatcher === 'object') {
+  // A Dispatcher is always an object instance, so it can key the WeakMap as-is.
+  if (dispatcher) {
     let owned = dispatcherClients.get(dispatcher);
     if (!owned) {
       owned = createCompatibilityClient(options.requestInit);

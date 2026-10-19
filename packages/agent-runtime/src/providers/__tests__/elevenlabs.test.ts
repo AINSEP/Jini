@@ -124,4 +124,22 @@ describe('listElevenLabsVoiceOptions', () => {
     await listElevenLabsVoiceOptions({ workspaceKey: 'ws-fp', resolveCredentials: resolver({ apiKey: 'key-b' }) });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('sends the caller dispatcher on the request', async () => {
+    const dispatcher = {} as NonNullable<RequestInit['dispatcher']>;
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ voices: [{ voice_id: 'v9', name: 'Nine' }] })));
+    vi.stubGlobal('fetch', fetchMock);
+    await listElevenLabsVoiceOptions({ workspaceKey: 'ws-d1', resolveCredentials: resolver({ apiKey: 'k1' }) }, { requestInit: { dispatcher } });
+    expect(fetchMock.mock.calls[0]![1]).toMatchObject({ dispatcher });
+  });
+
+  it('reuses one cached client per dispatcher', async () => {
+    const dispatcher = {} as NonNullable<RequestInit['dispatcher']>;
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ voices: [{ voice_id: 'v9', name: 'Nine' }] })));
+    vi.stubGlobal('fetch', fetchMock);
+    const args = { workspaceKey: 'ws-d2', resolveCredentials: resolver({ apiKey: 'k1' }) };
+    await listElevenLabsVoiceOptions(args, { requestInit: { dispatcher } });
+    expect(await listElevenLabsVoiceOptions(args, { requestInit: { dispatcher } })).toEqual([{ voiceId: 'v9', name: 'Nine' }]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
