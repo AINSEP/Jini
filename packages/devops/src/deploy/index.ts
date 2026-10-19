@@ -1,4 +1,5 @@
 export * from '../core/deploy-types.js';
+export type { ArtifactStorePort, ArtifactUpload } from '../core/artifact-store.js';
 export * from './naming.js';
 export * from './reachability.js';
 export * from '../core/redirect-guard.js';

@@ -15,6 +15,7 @@ import type { assertNotRedirected, redirectGuardInit } from '../core/redirect-gu
 import type { safeDnsLabel, safeProjectLabel } from './naming.js';
 import type { checkDeploymentUrl, normalizeDeploymentUrl, waitForReachableDeploymentUrl } from './reachability.js';
 import type { DeployError, DeployTarget, UnknownRecord } from '../core/deploy-types.js';
+import type { ArtifactStorePort } from '../core/artifact-store.js';
 
 /**
  * The resolved saved credential a module builds its target from: always a
@@ -103,6 +104,8 @@ export interface DeployCredentialCheckContext {
  * credential check).
  */
 export interface DeployTargetModule {
+  /** Optional single-object capability, independent of whole-tree publish/reconciliation. */
+  createArtifactStore?(required: DeployTargetCreateContext, optional?: Record<string, never>): ArtifactStorePort;
   create(context: DeployTargetCreateContext): DeployTarget;
   /** A human-readable config error, or `null` when `config` is usable. */
   validateConfig?(requiredArgs: { config: UnknownRecord }): string | null;

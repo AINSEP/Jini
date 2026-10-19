@@ -9,8 +9,8 @@ export type HttpRequest = {
   url: string;
   headers: Readonly<Record<string, string>>;
 
-  /** Preserve the signed bytes: re-serialization between signing and sending changes the signature. */
-  body?: string;
+  /** Preserve signed text and raw binary uploads without base64 expansion or UTF-8 corruption. */
+  body?: string | Uint8Array;
 
   /** Whole-operation deadline, including DNS, redirects and body reads. Off by default.
    * Retry/backoff belongs to the caller; its deadline can cover the whole retry operation. */

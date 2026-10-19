@@ -21,15 +21,15 @@ test("production transport response, request-body and failure contracts", async 
     const calls: Array<{
         secure: boolean;
         options: RequestOptions;
-        writes: string[];
+        writes: (string | Uint8Array)[];
         ended: boolean;
         destroyed?: Error | undefined;
     }> = [];
     const request = (secure: boolean) => (options: RequestOptions, callback: (res: IncomingMessage) => void) => {
-        const call = { secure, options, writes: [] as string[], ended: false, destroyed: undefined as Error | undefined };
+        const call = { secure, options, writes: [] as (string | Uint8Array)[], ended: false, destroyed: undefined as Error | undefined };
         calls.push(call);
         const req = new EventEmitter() as ClientRequest;
-        req.write = ((body: string) => { call.writes.push(body); return true; }) as ClientRequest["write"];
+        req.write = ((body: string | Uint8Array) => { call.writes.push(body); return true; }) as ClientRequest["write"];
         req.destroy = (error) => {
             call.destroyed = error;
             if (error)
@@ -81,6 +81,14 @@ test("production transport response, request-body and failure contracts", async 
                 method: "POST", host: "8.8.4.4", port: 8443, path: "/send?mode=raw",
                 headers: { "X-Kept": "yes", host: "provider.example:8443" }, timeout: 321, servername: "provider.example",
             }, writes: ["exact signed body"], ended: true, destroyed: undefined });
+    });
+    // RED at the old contract: HttpRequest.body accepted text only, although Node can write bytes.
+    await subcase("binary PUT sends exact bytes, including invalid UTF-8, through the pinned transport", async () => {
+        scenario = { chunks: [], status: 201, headers: {} };
+        const binary = new Uint8Array([0x50, 0x4b, 0, 0xff, 0xc3, 0x28]);
+        await transport.requestPinned({ request: { ...req, method: "PUT", body: binary }, peer });
+        assert.equal(calls.at(-1)!.writes[0], binary);
+        assert.deepEqual([...calls.at(-1)!.writes[0]!], [...binary]);
     });
     const { body: _body, ...withoutBody } = req;
     for (const [encoding, compress] of [["gzip", gzipSync], ["deflate", deflateSync], ["br", brotliCompressSync]] as const) {
