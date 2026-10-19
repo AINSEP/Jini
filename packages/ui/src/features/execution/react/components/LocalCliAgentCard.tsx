@@ -75,15 +75,6 @@ export function LocalCliAgentCard({
   const t = useT();
   const card = useLocalCliAgentCard({ agent, config, agentTest, cliEnvFields, onModelChange, onReasoningChange, onRescan, onTest, t });
 
-  const description = agent.description ?? DEFAULT_AGENT_DESCRIPTIONS[agent.id];
-  const meta = agentMetaLabel(agent, {
-    authRequired: t('Authentication required'),
-    authUnknown: t('Auth status unknown'),
-    installed: t('Installed'),
-    notInstalled: t('Not installed'),
-  });
-  const summary = agentModelSummary(config, agent);
-
   return (
     <div
       className={
@@ -103,65 +94,10 @@ export function LocalCliAgentCard({
           onClick={() => onSelect(agent.id)}
           {...agentHandleProps({}, { base: agentHandle, ...({ action: 'select', role: 'button', label: agent.label }) })}
         >
-          <span className="jini-agent-card-icon" aria-hidden="true">
-            {renderIcon ? renderIcon(agent) : agent.label.slice(0, 1).toUpperCase()}
-          </span>
-          <span className="jini-agent-card-body">
-            <span className="jini-agent-card-name">
-              <span className="jini-agent-card-title">{agent.label}</span>
-              {description ? (
-                <span className="jini-agent-card-tagline">
-                  {description}
-                </span>
-              ) : null}
-            </span>
-            {agent.badges?.length ? (
-              <span className="jini-agent-card-badges">
-                {agent.badges.map((badge) => (
-                  <span key={badge} className="jini-agent-card-badge">
-                    {badge}
-                  </span>
-                ))}
-              </span>
-            ) : null}
-            {/* Pre-existing (not part of this pass's six gaps): `agentMetaLabel`
-                (this feature's own `rules.ts`) always returns a non-empty
-                `text` for every branch of its own contract, so this ternary's
-                `false` side is
-                provably unreachable through the rule as written today — kept
-                defensive rather than asserted-non-null in case that contract
-                ever changes. */}
-            {meta.text ? (
-              <span className="jini-agent-card-meta">
-                <span title={meta.title || undefined}>{meta.text}</span>
-              </span>
-            ) : null}
-            {/* The selected card has the full model picker below; keep the
-                compact summary on the other cards so their model stays visible. */}
-            {!selected && summary ? (
-              <span className="jini-agent-card-model-summary">
-                <span>{t('Model')}</span>
-                <strong>{summary}</strong>
-              </span>
-            ) : null}
-          </span>
-          {selected ? (
-            <span className="jini-agent-card-check" aria-hidden="true">
-              ✓
-            </span>
-          ) : null}
+          <AgentCardIdentity agent={agent} config={config} selected={selected} renderIcon={renderIcon} />
         </button>
         {selected && onTest ? (
-          <button
-            type="button"
-            className={'jini-btn jini-agent-card-test' + (card.testing ? ' is-loading' : '')}
-            data-testid={`jini-agent-test-${agent.id}`}
-            disabled={card.testing}
-            onClick={() => onTest(agent)}
-            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'test', role: 'button', label: t('Test') }) })}
-          >
-            {card.testing ? t('Testing…') : t('Test')}
-          </button>
+          <AgentCardTestButton agent={agent} testing={card.testing} onTest={onTest} agentHandle={agentHandle} />
         ) : null}
       </div>
 
@@ -183,5 +119,107 @@ export function LocalCliAgentCard({
         />
       ) : null}
     </div>
+  );
+}
+
+/** The selection button's contents: icon, name + tagline, badges, meta line, model summary, check. */
+function AgentCardIdentity({
+  agent,
+  config,
+  selected,
+  renderIcon,
+}: Pick<LocalCliAgentCardProps, 'agent' | 'config' | 'selected' | 'renderIcon'>) {
+  const t = useT();
+  const description = agent.description ?? DEFAULT_AGENT_DESCRIPTIONS[agent.id];
+  const meta = agentMetaLabel(agent, {
+    authRequired: t('Authentication required'),
+    authUnknown: t('Auth status unknown'),
+    installed: t('Installed'),
+    notInstalled: t('Not installed'),
+  });
+  const summary = agentModelSummary(config, agent);
+
+  return (
+    <>
+      <span className="jini-agent-card-icon" aria-hidden="true">
+        {renderIcon ? renderIcon(agent) : agent.label.slice(0, 1).toUpperCase()}
+      </span>
+      <span className="jini-agent-card-body">
+        <span className="jini-agent-card-name">
+          <span className="jini-agent-card-title">{agent.label}</span>
+          {description ? (
+            <span className="jini-agent-card-tagline">
+              {description}
+            </span>
+          ) : null}
+        </span>
+        <AgentCardBadges badges={agent.badges} />
+        {/* Pre-existing (not part of this pass's six gaps): `agentMetaLabel`
+            (this feature's own `rules.ts`) always returns a non-empty
+            `text` for every branch of its own contract, so this ternary's
+            `false` side is
+            provably unreachable through the rule as written today — kept
+            defensive rather than asserted-non-null in case that contract
+            ever changes. (A host dictionary that localizes a status label
+            to '' does reach it; the card test pins that.) */}
+        {meta.text ? (
+          <span className="jini-agent-card-meta">
+            <span title={meta.title || undefined}>{meta.text}</span>
+          </span>
+        ) : null}
+        {/* The selected card has the full model picker below; keep the
+            compact summary on the other cards so their model stays visible. */}
+        {!selected && summary ? (
+          <span className="jini-agent-card-model-summary">
+            <span>{t('Model')}</span>
+            <strong>{summary}</strong>
+          </span>
+        ) : null}
+      </span>
+      {selected ? (
+        <span className="jini-agent-card-check" aria-hidden="true">
+          ✓
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+function AgentCardBadges({ badges }: Pick<DetectedAgent, 'badges'>) {
+  if (!badges?.length) return null;
+  return (
+    <span className="jini-agent-card-badges">
+      {badges.map((badge) => (
+        <span key={badge} className="jini-agent-card-badge">
+          {badge}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function AgentCardTestButton({
+  agent,
+  testing,
+  onTest,
+  agentHandle,
+}: {
+  agent: DetectedAgent;
+  testing: boolean;
+  onTest: (agent: DetectedAgent) => void;
+  agentHandle: string | undefined;
+}) {
+  const t = useT();
+  return (
+    <button
+      type="button"
+      className={'jini-btn jini-agent-card-test' + (testing ? ' is-loading' : '')}
+      data-testid={`jini-agent-test-${agent.id}`}
+      disabled={testing}
+      onClick={() => onTest(agent)}
+      {...agentHandleProps({}, { base: agentHandle, ...({ action: 'test', role: 'button', label: t('Test') }) })}
+    >
+      {testing ? t('Testing…') : t('Test')}
+    </button>
   );
 }

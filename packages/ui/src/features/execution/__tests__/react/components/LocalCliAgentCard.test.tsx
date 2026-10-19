@@ -10,6 +10,7 @@ import type {
   DetectedAgent,
   LocalCliConfig,
 } from '../../../types.js';
+import { I18nProvider } from '../../../../i18n/index.js';
 import { LocalCliAgentCard } from '../../../react/components/LocalCliAgentCard.js';
 import { LocalCliAgentList } from '../../../react/components/LocalCliAgentList.js';
 
@@ -127,6 +128,63 @@ describe('LocalCliAgentCard — settings inside its own column', () => {
     const test = screen.getByTestId('jini-agent-test-claude');
     expect(test).toHaveTextContent(label);
     expect((test as HTMLButtonElement).disabled).toBe(disabled);
+  });
+});
+
+describe('LocalCliAgentCard — icon and meta line', () => {
+  it('renders the host-supplied icon for this agent in the icon slot', () => {
+    const renderIcon = vi.fn((detected: DetectedAgent) => <svg data-testid={`icon-${detected.id}`} />);
+    const props = renderCard({ renderIcon });
+    expect(renderIcon).toHaveBeenCalledWith(props.agent);
+    expect(screen.getByTestId('jini-agent-select-claude').querySelector('.jini-agent-card-icon')).toContainElement(
+      screen.getByTestId('icon-claude'),
+    );
+  });
+
+  it('falls back to an uppercase monogram when the host supplies no icon', () => {
+    renderCard({ agent: agent({ label: 'codex' }) });
+    expect(screen.getByTestId('jini-agent-select-claude').querySelector('.jini-agent-card-icon')).toHaveTextContent(/^C$/);
+  });
+
+  it('renders each host badge in order', () => {
+    renderCard({ agent: agent({ badges: ['beta', 'local'] }) });
+    const badges = screen.getByTestId('jini-agent-select-claude').querySelectorAll('.jini-agent-card-badge');
+    expect(Array.from(badges, (badge) => badge.textContent)).toEqual(['beta', 'local']);
+  });
+
+  it('renders no badge row when the badge list is empty', () => {
+    renderCard({ agent: agent({ badges: [] }) });
+    expect(screen.getByTestId('jini-agent-select-claude').querySelector('.jini-agent-card-badges')).toBeNull();
+  });
+
+  it('shows the model summary on an unselected card', () => {
+    renderCard({ selected: false, agent: agent({ models: [{ id: 'm1', label: 'Model One' }] }) });
+    const summary = screen.getByTestId('jini-agent-select-claude').querySelector('.jini-agent-card-model-summary');
+    expect(summary).toHaveTextContent('ModelModel One');
+  });
+
+  it('hides the model summary on the selected card, which has the full picker', () => {
+    renderCard({ selected: true, agent: agent({ models: [{ id: 'm1', label: 'Model One' }] }) });
+    expect(screen.getByTestId('jini-agent-select-claude').querySelector('.jini-agent-card-model-summary')).toBeNull();
+  });
+
+  it('omits the meta line when the localized status label is empty', () => {
+    render(
+      <I18nProvider dictionaries={{ xx: { Installed: '' } }} initialLocale="xx">
+        <LocalCliAgentCard
+          agent={agent()}
+          config={{ agentId: 'claude' }}
+          selected={false}
+          onSelect={vi.fn()}
+          onModelChange={vi.fn()}
+          onReasoningChange={vi.fn()}
+          onEnvChange={vi.fn()}
+          cliEnvFields={[]}
+          agentTest={IDLE_TEST}
+        />
+      </I18nProvider>,
+    );
+    expect(screen.getByTestId('jini-agent-card-claude').querySelector('.jini-agent-card-meta')).toBeNull();
   });
 });
 
