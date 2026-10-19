@@ -153,4 +153,34 @@ describe('artifacts/manifest', () => {
     const result = inferLegacyManifest({ entry: 'notes.md', metadata: { source: 'test' } });
     expect(result).toMatchObject({ title: 'notes.md', metadata: { source: 'test' } });
   });
+
+  it('parseArtifactManifest rejects a JSON null body rather than throwing', () => {
+    expect(parseArtifactManifest({ raw: 'null' })).toBeNull();
+  });
+
+  it('parseArtifactManifest keeps a valid explicit status', () => {
+    const raw = JSON.stringify({ version: 1, kind: 'svg', title: 't', entry: 'e.svg', renderer: 'svg', status: 'streaming', exports: ['svg'] });
+    expect(parseArtifactManifest({ raw })?.status).toBe('streaming');
+  });
+
+  it('inferLegacyManifest derives kind, renderer, exports and primary for each recognized extension (case-insensitive)', () => {
+    const pick = (entry: string) => {
+      const m = inferLegacyManifest({ entry });
+      return m && { kind: m.kind, renderer: m.renderer, exports: m.exports, primary: m.primary };
+    };
+    expect(pick('Page.HTM')).toEqual({ kind: 'html', renderer: 'html', exports: ['html', 'pdf', 'zip'], primary: true });
+    expect(pick('MyDeck.html')).toEqual({ kind: 'deck', renderer: 'deck-html', exports: ['html', 'pdf', 'zip'], primary: true });
+    expect(pick('notes.md')).toEqual({ kind: 'markdown-document', renderer: 'markdown', exports: ['md', 'html', 'pdf', 'zip'], primary: undefined });
+    expect(pick('logo.svg')).toEqual({ kind: 'svg', renderer: 'svg', exports: ['svg', 'zip'], primary: undefined });
+    expect(pick('App.tsx')).toEqual({ kind: 'react-component', renderer: 'react-component', exports: ['jsx', 'html', 'zip'], primary: undefined });
+    expect(pick('style.css')).toEqual({ kind: 'code-snippet', renderer: 'code', exports: ['txt', 'zip'], primary: undefined });
+  });
+
+  it('inferLegacyManifest does not apply the deck-name heuristic to a non-html kind', () => {
+    expect(inferLegacyManifest({ entry: 'deck-notes.md' })?.kind).toBe('markdown-document');
+  });
+
+  it('inferLegacyManifest returns null for an unrecognized extension', () => {
+    expect(inferLegacyManifest({ entry: 'archive.zip' })).toBeNull();
+  });
 });
