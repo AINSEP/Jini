@@ -132,6 +132,9 @@ export interface AssetBlobRecord {
   status: AssetBlobStatus;
   /** Set only while `status === "tombstoned"`; cleared (undefined) on resurrect. */
   tombstonedAt?: ISODateTime | undefined;
+  /** Sticky ownership until blob GC: purge deletes editorial rows before deleting bytes.
+   * Absent/false means no recorded document owner; saves must never clear a true value. */
+  documentOwned?: boolean | undefined;
 }
 
 /**

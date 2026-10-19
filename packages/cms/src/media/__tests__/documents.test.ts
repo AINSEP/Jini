@@ -126,3 +126,38 @@ test('Library: 10 MiB is inclusive and host media overrides never relax document
   await assert.rejects(uploadMedia({ deps, input: { ...input, filename: 'fake.pdf', bytes: Buffer.from('plain text') } }, { allowedMimeTypes: new Set(['application/octet-stream']) }));
   assert.equal((await deps.mediaRepo.list({ workspaceId: 'site-a' })).length, 1);
 });
+
+// RED: the old guard classified every retained blob row as a private document.
+test('ordinary blob metadata remains publishable with no owner, after Trash and after purge', async () => {
+  const deps = fixture();
+  const { media } = await uploadMedia({ deps, input: { ...input, kind: 'media', filename: 'image.svg',
+    contentType: 'image/svg+xml', bytes: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>') } });
+  const probe = { deps, input: { workspaceId: input.workspaceId, sha256: media.source.sha256 } };
+  await trashMedia({ deps, input: { workspaceId: input.workspaceId, id: media.id } });
+  assert.equal(await isDocumentOnlyBlob(probe), false);
+  await purgeMedia({ deps, input: { workspaceId: input.workspaceId, id: media.id } });
+  assert.equal(await deps.mediaRepo.findById({ workspaceId: input.workspaceId, id: media.id }), null);
+  assert.ok(await deps.blobRepo.findByHash(probe.input));
+  assert.equal(await isDocumentOnlyBlob(probe), false);
+});
+
+// RED: dedup against an active ordinary blob never recorded later document ownership.
+test('document ownership survives dedup, purge and stale blob saves', async () => {
+  const deps = fixture();
+  const bytes = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>');
+  const ordinary = (await uploadMedia({ deps, input: { ...input, kind: 'media', filename: 'image.svg', contentType: 'image/svg+xml', bytes } })).media;
+  const probe = { deps, input: { workspaceId: input.workspaceId, sha256: ordinary.source.sha256 } };
+  const stale = (await deps.blobRepo.findByHash(probe.input))!;
+  const storedBytes = await deps.blobStore.get({ storageKey: stale.storageKey });
+  const doc = (await uploadMedia({ deps, input: { ...input, bytes: storedBytes } })).media;
+  assert.equal(doc.source.sha256, ordinary.source.sha256);
+  assert.equal((await deps.blobRepo.findByHash(probe.input))?.documentOwned, true);
+  await deps.blobRepo.save({ ...stale, documentOwned: false });
+  assert.equal((await deps.blobRepo.findByHash(probe.input))?.documentOwned, true);
+  assert.equal(await isDocumentOnlyBlob(probe), false, 'live ordinary owner still permits shared bytes');
+  for (const row of [doc, ordinary]) {
+    await trashMedia({ deps, input: { workspaceId: input.workspaceId, id: row.id } });
+    await purgeMedia({ deps, input: { workspaceId: input.workspaceId, id: row.id } });
+  }
+  assert.equal(await isDocumentOnlyBlob(probe), true);
+});

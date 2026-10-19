@@ -93,7 +93,8 @@ export class InMemoryAssetBlobRepo implements AssetBlobRepoPort {
       this.rows.push(record);
       return;
     }
-    this.rows[index] = record;
+    // A stale lifecycle write must not erase document ownership after purge.
+    this.rows[index] = this.rows[index]!.documentOwned ? { ...record, documentOwned: true } : record;
   }
 
   async remove(required: { workspaceId: UUID; sha256: string }): Promise<void> {

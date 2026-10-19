@@ -350,10 +350,12 @@ export async function uploadMedia(
   const storageKey = await withSha256Lock({ key: sha256, criticalSection: async () => {
     const existingBlob = await deps.blobRepo.findByHash({ workspaceId: input.workspaceId, sha256 });
     if (existingBlob) {
-      if (existingBlob.status === "tombstoned") {
+      if (existingBlob.status === "tombstoned" || (kind === "document" && !existingBlob.documentOwned)) {
+        // Record ownership before saving the editorial row: purge must never declassify bytes.
         // Resurrect: cancel the pending GC in the same locked section rather
         // than writing a duplicate blob ( dedup rule). See docs/decisions/DR-004-journaled-blob-gc.md.
-        await deps.blobRepo.save({ ...existingBlob, status: "active", tombstonedAt: undefined });
+        await deps.blobRepo.save({ ...existingBlob, status: "active", tombstonedAt: undefined,
+          ...(kind === "document" ? { documentOwned: true } : {}) });
       }
       return existingBlob.storageKey;
     }
@@ -368,6 +370,7 @@ export async function uploadMedia(
       workspaceId: input.workspaceId,
       sha256,
       storageKey: written.storageKey,
+      ...(kind === "document" ? { documentOwned: true } : {}),
       status: "active",
       createdByPrincipal: input.createdByPrincipal,
       createdAt: nowIso,

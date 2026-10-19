@@ -45,6 +45,7 @@ export interface AssetBlobRepoPort {
   findByHash(required: { workspaceId: UUID; sha256: string }): Promise<AssetBlobRecord | null>;
   /** All blob rows in a workspace — used by `blob-gc.ts`'s batch cycle to find tombstoned candidates. */
   list(required: { workspaceId: UUID }): Promise<AssetBlobRecord[]>;
+  /** Preserve documentOwned once true, including saves from stale lifecycle snapshots. */
   save(record: AssetBlobRecord): Promise<void>;
   remove(required: { workspaceId: UUID; sha256: string }): Promise<void>;
 }

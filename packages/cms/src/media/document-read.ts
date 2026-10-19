@@ -6,8 +6,8 @@ export const DOCUMENT_TEXT_PAGE_BYTES = 64 * 1024;
 
 /** A hash may have several editorial owners. Private-only bytes cannot be exposed by a caller
  * inventing a new media id; a live ordinary-media owner makes those same bytes publishable.
- * Purge removes editorial rows before GC removes bytes. Retained asset metadata therefore also
- * denies orphaned/tombstoned assets; peer-staged bytes have no asset row and remain usable.
+ * Purge removes editorial rows before GC removes bytes. Only recorded document ownership
+ * denies retained bytes; ordinary orphan/tombstone metadata and peer-staged bytes remain usable.
  * O(n) media scan plus one indexed blob lookup; never loads blob bytes. */
 export async function isDocumentOnlyBlob(required: {
   deps: { mediaRepo: MediaRepoPort; blobRepo: AssetBlobRepoPort }; input: { workspaceId: string; sha256: string };
@@ -19,7 +19,7 @@ export async function isDocumentOnlyBlob(required: {
     if (row.kind !== 'document' && row.status === 'active') return false;
     if (row.kind === 'document') document = true;
   }
-  return document || (await required.deps.blobRepo.findByHash(required.input)) !== null;
+  return document || (await required.deps.blobRepo.findByHash(required.input))?.documentOwned === true;
 }
 
 /** Read source as untrusted data, never instructions. Authorize at the host boundary before calling.
