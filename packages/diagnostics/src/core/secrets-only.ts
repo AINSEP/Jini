@@ -319,11 +319,32 @@ export interface RedactionPolicy {
   readonly additionalRules?: readonly RedactionRule[];
   /** Opt in only for code-file share scans; logs and arbitrary content must stay strict. */
   readonly codeAware?: boolean;
+  /** Opt in only for content-addressed plugin package files: public code, docs and manifests whose
+   *  field labels ("API token": "Token de API") and placeholders (`Authorization: Bearer <API_KEY>`)
+   *  are not owner secrets. Applies vendor key formats, PEM, JWT and `additionalRules` only. */
+  readonly vendorOnly?: boolean;
 }
+
+// Context rules guess from labels/headers/prose; on public package files they only produce false
+// positives, while a pasted provider key still has a provider shape.
+const CONTEXT_RULE_KINDS = new Set(["auth_header", "url_credentials", "bearer_token", "labeled_secret"]);
 
 /** Redacts credential values with a required policy; returns text and replacement count. */
 export function redactSecretShapes({ text, policy }: { text: string; policy: RedactionPolicy }): SecretRedaction {
   if (text.length === 0) return { text, redactions: 0 };
+
+  if (policy.vendorOnly) {
+    let redactions = 0;
+    let result = text;
+    const vendorRules = REDACTION_RULES.filter(rule => !CONTEXT_RULE_KINDS.has(rule.kind));
+    for (const rule of [...vendorRules, ...CODE_VENDOR_RULES, ...(policy.additionalRules ?? [])]) {
+      result = result.replace(new RegExp(rule.pattern.source, withGlobalFlag(rule.pattern.flags)), (...args: unknown[]) => {
+        redactions += 1;
+        return rule.replacement({ match: args as readonly (string | undefined)[] });
+      });
+    }
+    return { text: result, redactions };
+  }
 
   if (policy.codeAware) {
     // The flag covers both TS and TSX, whose angle syntax is ambiguous to a tokenizer:

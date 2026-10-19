@@ -352,3 +352,36 @@ test("code-aware adjacency counts separate values without leaking context betwee
     redactions: 2,
   });
 });
+
+// Content-addressed plugin package files are public code/docs/manifests: only vendor key formats count.
+const vendorPolicy = { ...policy, vendorOnly: true };
+
+test("vendor-only scan ignores labels, header placeholders, prose assignments and opaque ids", () => {
+  for (const text of [
+    '{"i18n":{"es":{"API token": "Token de API", "token": "Zq7xK2mP9vR4tL8wN3bY6cH1"}}}',
+    "Authorization: Bearer <API_KEY>", " * @param {{ authorization: string }} headers",
+    'curl -H "x-api-key: YOUR_KEY_HERE_0123456789"', "password=hunter2hunter2", "api_key: abc123def456ghi789",
+    "Cookie: session=abc123def456", "postgres://user:password@localhost:5432/db", "Bearer abcdef0123456789abcdef",
+    '["us-west2", "europe-west4-drams3a", "asia-southeast1-eqsg3a"]', '{"id": "s3-compatible-q7R2m9Z4p6T8v3X5n1K0"}',
+  ]) assert.deepEqual(redact({ text, policy: vendorPolicy }), { text, redactions: 0 }, text);
+});
+
+test("vendor-only scan still blanks every vendor key shape, PEM block, JWT and host format", () => {
+  const cases: [string, string][] = [
+    [["sk", "proj", ""].join("-") + "Ab3".repeat(8), "openai_key"],
+    ["gh" + "p_" + "a1".repeat(18), "credential"],
+    ["AK" + "IA" + "ABCDEFGHIJKLMNOP", "credential"],
+    ["ya" + "29." + "a0AfH6SMBxyzQWERTYuiop1234", "google_oauth"],
+    ["S" + "G." + "abcdefghijklmnop" + "." + "qrstuvwxyzABCDEF", "sendgrid_key"],
+    ["sk" + "_live_" + "a1B2".repeat(6), "stripe_key"],
+    ["eyJ" + "hbGciOiJIUzI1NiJ9" + ".eyJ" + "zdWIiOiIxMjM0NTY3ODkwIn0" + ".abcdefghijk", "jwt"],
+    ["-----BEGIN " + "PRIVATE KEY-----\nabc\n-----END " + "PRIVATE KEY-----", "private_key"],
+    ["examplehost_ak_0123456789ab." + "x".repeat(24), "examplehost_api_key"],
+  ];
+  for (const [secret, kind] of cases) {
+    const first = redact({ text: `{"apiKey": "${secret}"}`, policy: vendorPolicy });
+    assert.ok(first.redactions >= 1 && first.text.includes(`[REDACTED:${kind}]`), `${kind}: ${first.text}`);
+    assert.equal(first.text.includes(secret), false, kind);
+    assert.deepEqual(redact({ text: first.text, policy: vendorPolicy }), { text: first.text, redactions: 0 });
+  }
+});
