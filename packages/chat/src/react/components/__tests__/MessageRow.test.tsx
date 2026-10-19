@@ -698,4 +698,68 @@ describe('MessageRow', () => {
       expect(screen.getByRole('button', { name: 'Copy message' })).toBeInTheDocument();
     });
   });
+
+  describe('interleaved edge cases', () => {
+    afterEach(() => clearExtEventRenderers());
+
+    it('renders a question form that sits inside an interleaved text block', () => {
+      const form = '<question-form id="q1" title="Pick one">\n{"questions":[{"id":"x","label":"X","type":"text"}]}\n</question-form>';
+      const events: AgentEvent[] = [
+        { kind: 'text', text: `Before.\n${form}\n   ` },
+        { kind: 'tool_use', id: 't1', name: 'alpha', input: {} },
+        { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false },
+      ];
+      render(<MessageRow message={{ id: 'qi', role: 'assistant', content: assistantContentFromEvents({ events }), runStatus: 'succeeded', events }} />);
+      expect(screen.getByText('Pick one')).toBeInTheDocument();
+      expect(document.querySelectorAll('.jini-message-content')).toHaveLength(1);
+      expect(screen.getByText('Before.')).toBeInTheDocument();
+    });
+
+    const interleavedForm = (): ChatMessage => {
+      const form = '<question-form id="q1" title="Pick one">\n{"questions":[{"id":"x","label":"X","type":"text"}]}\n</question-form>';
+      const events: AgentEvent[] = [
+        { kind: 'text', text: form },
+        { kind: 'tool_use', id: 't1', name: 'alpha', input: {} },
+        { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false },
+      ];
+      return { id: 'qs', role: 'assistant', content: assistantContentFromEvents({ events }), runStatus: 'succeeded', events };
+    };
+
+    it('shows submitted answers on a question form in an interleaved text block', () => {
+      render(<MessageRow message={interleavedForm()} questionFormSubmittedAnswers={{ x: 'locked answer' }} />);
+      expect(screen.getByDisplayValue('locked answer')).toBeInTheDocument();
+    });
+
+    it('forwards the submit handler to a question form in an interleaved text block', async () => {
+      const onSubmit = vi.fn();
+      render(<MessageRow message={interleavedForm()} questionFormInteractive onQuestionFormSubmit={onSubmit} />);
+      await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
+    it('renders no thinking fold for whitespace-only reasoning', () => {
+      const events: AgentEvent[] = [
+        { kind: 'thinking', text: '   ' },
+        { kind: 'tool_use', id: 't1', name: 'alpha', input: {} },
+        { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false },
+        { kind: 'text', text: 'Answer.' },
+      ];
+      render(<MessageRow message={{ id: 'th', role: 'assistant', content: 'Answer.', runStatus: 'succeeded', events }} showThinking />);
+      expect(document.querySelector('details.jini-message-thinking')).toBeNull();
+    });
+
+    it('drops an ext block whose slot no longer matches any event group (unstable host slot key)', () => {
+      let calls = 0;
+      registerExtEventRenderer({ name: 'flaky', renderer: () => <div data-testid="flaky">x</div> }, { slotKey: () => `slot-${calls++}` });
+      const events: AgentEvent[] = [{ kind: 'text', text: 'Hi.' }, { kind: 'ext', name: 'flaky', data: {} }];
+      render(<MessageRow message={{ id: 'fl', role: 'assistant', content: 'Hi.', runStatus: 'succeeded', events }} />);
+      expect(screen.queryByTestId('flaky')).toBeNull();
+      expect(document.querySelector('.jini-message-ext-events')).toBeNull();
+    });
+
+    it('shows no activity line for a running reply that is not streaming and already has content', () => {
+      render(<MessageRow message={{ id: 'ra', role: 'assistant', content: 'Partial.', runStatus: 'running', events: [{ kind: 'text', text: 'Partial.' }] }} />);
+      expect(document.querySelector('.jini-run-activity')).toBeNull();
+    });
+  });
 });
