@@ -853,6 +853,38 @@ export async function retypeDefinition(
   return result;
 }
 
+/** Add source-declared scopes to a core definition without moving or rewriting existing values.
+ * Boot uses this when a workspace preference gains a personal override. Scope removal is a
+ * separate migration decision: this operation only adds bits and preserves definition identity.
+ * @throws DefinitionInvalidError for operator-owned definitions or invalid scope bits.
+ * @complexity O(1), one definition transaction and cache invalidation.
+ * @example await extendDefinitionScopes({ deps, input: { namespace, key, workspaceId: null,
+ *   scopes: SCOPE_BIT.user, callerPrincipalId, authWorkspaceId } });
+ */
+export async function extendDefinitionScopes({ deps, input }: {
+  deps: SettingsWriteServiceDeps;
+  input: { namespace: string; key: string; workspaceId: UUID | null; scopes: number; callerPrincipalId: UUID; authWorkspaceId: UUID };
+}, _options = {}): Promise<void> {
+  await authorizeDefinitionsManage(deps, input.callerPrincipalId, input.authWorkspaceId);
+  const current = await resolveActiveDefinitionOrThrow(deps, input, "extend the scopes of");
+  const validBits = SCOPE_BIT.global | SCOPE_BIT.workspace | SCOPE_BIT.user;
+  if (current.ownerKind !== "core" || !Number.isInteger(input.scopes) || input.scopes <= 0 || input.scopes > validBits) {
+    throw new DefinitionInvalidError("Only core definitions can gain valid source-declared scope bits");
+  }
+  const scopes = current.scopes | input.scopes;
+  if (scopes === current.scopes) return;
+  await deps.repo.transaction(async () => {
+    const now = kernelNowIso({ clock: deps.clock });
+    await deps.repo.saveDefinition({ ...current, scopes, updatedAt: now });
+    // Re-registration of metadata, not a value/schema change; retain the existing revision vocabulary.
+    await deps.repo.appendRevision({ entityKind: "definition", settingId: current.settingId,
+      scope: null, workspaceId: current.workspaceId, principalId: null, op: "register",
+      beforeJson: { scopes: current.scopes }, afterJson: { scopes }, defVersion: current.version,
+      actor: input.callerPrincipalId, originPluginId: null, changeSetId: null, createdAt: now });
+  });
+  invalidateDefinitionNamespaceCache(deps.repo, input.namespace);
+}
+
 export interface ReconcileDefinitionDefaultRequired {
   deps: SettingsWriteServiceDeps;
   input: {

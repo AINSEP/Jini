@@ -4,7 +4,7 @@ import { ensureSettingDefinitions, type SettingDefinitionSpec } from "../ensure-
 import { InMemorySettingsRepo } from "../repo.memory.js";
 import { getEffective } from "../settings.js";
 import { SCOPE_BIT } from "../types.js";
-import { set } from "../write-service.js";
+import { extendDefinitionScopes, set } from "../write-service.js";
 import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 
 /** Real ledger seam: boot must preserve site-owned rows and core reconciliation,
@@ -108,4 +108,38 @@ test("a registration failure rejects readiness before any later definition is wr
   }), (error: unknown) => error === failure);
   assert.deepEqual(await settingsRepo.listActiveDefinitions({ workspaceId: "workspace-1" }), []);
   assert.equal(await settingsRepo.maxRevisionSeq(), 0);
+});
+
+test("an existing core preference gains a personal layer without moving workspace values or changing identity", async () => {
+  const deps = fixture();
+  const input = { namespace: "core.execution", definitions: [{ key: "agent", schema: { type: "string" as const }, defaultValue: "runtime-a" }], systemPrincipalId: "boot" };
+  await ensureSettingDefinitions(deps, input);
+  const before = await deps.settingsRepo.findActiveDefinition({ namespace: input.namespace, key: "agent", workspaceId: null });
+  assert.ok(before);
+  const writeDeps = { repo: deps.settingsRepo, clock: deps.clock, ids: deps.ids, principals: deps.principals, authorize: async () => ({ allowed: true, reason: "matched" }) };
+  await set({ deps: writeDeps, input: { namespace: input.namespace, key: "agent", value: "workspace-agent", scope: "workspace", workspaceId: "ws", callerPrincipalId: "caller", authWorkspaceId: "ws" } });
+  const upgraded = { ...input, definitions: input.definitions.map(def => ({ ...def, scopes: SCOPE_BIT.user })) };
+  await ensureSettingDefinitions(deps, upgraded);
+  const seq = await deps.settingsRepo.maxRevisionSeq();
+  await ensureSettingDefinitions(deps, upgraded);
+  assert.equal(await deps.settingsRepo.maxRevisionSeq(), seq);
+  const after = await deps.settingsRepo.findActiveDefinition({ namespace: input.namespace, key: "agent", workspaceId: null });
+  assert.equal(after?.settingId, before.settingId);
+  assert.equal(after?.version, before.version);
+  assert.equal(after?.scopes, SCOPE_BIT.user | SCOPE_BIT.workspace);
+  await set({ deps: writeDeps, input: { namespace: input.namespace, key: "agent", value: "my-agent", scope: "user", workspaceId: "ws", callerPrincipalId: "caller", authWorkspaceId: "ws" } });
+  for (const [principalId, value] of [["caller", "my-agent"], ["other", "workspace-agent"]]) {
+    assert.equal((await getEffective({ repo: deps.settingsRepo }, { namespace: input.namespace, key: "agent", scopeContext: { workspaceId: "ws", principalId } }))?.value, value);
+  }
+});
+
+test("scope extension refuses operator-owned definitions and invalid masks", async () => {
+  const deps = fixture();
+  await ensureSettingDefinitions(deps, { namespace: "site.preferences", definitions, systemPrincipalId: "boot", ownerKind: "site", workspaceId: "ws" });
+  const writeDeps = { repo: deps.settingsRepo, clock: deps.clock, ids: deps.ids, principals: deps.principals, authorize: async () => ({ allowed: true, reason: "matched" }) };
+  await assert.rejects(extendDefinitionScopes({ deps: writeDeps, input: { namespace: "site.preferences", key: "enabled", workspaceId: "ws", scopes: SCOPE_BIT.user, callerPrincipalId: "boot", authWorkspaceId: "ws" } }), /Only core definitions/);
+  await ensureSettingDefinitions(deps, { namespace: "core.preferences", definitions, systemPrincipalId: "boot" });
+  const beforeSeq = await deps.settingsRepo.maxRevisionSeq();
+  for (const scopes of [0, -1, 8, 2 ** 32 + 4, 1.5]) await assert.rejects(extendDefinitionScopes({ deps: writeDeps, input: { namespace: "core.preferences", key: "enabled", workspaceId: null, scopes, callerPrincipalId: "boot", authWorkspaceId: "ws" } }), /valid source-declared scope bits/);
+  assert.equal(await deps.settingsRepo.maxRevisionSeq(), beforeSeq);
 });

@@ -3,7 +3,7 @@ import type { SettingsPrincipalLookupPort } from "./principal-lookup.js";
 import type { SettingsRepoPort } from "./ports.js";
 import { resolveDefinitionRaw } from "./settings.js";
 import { SCOPE_BIT, type SettingValueSchema } from "./types.js";
-import { reconcileDefinitionDefault, registerDefinitions, type AuthorizeFn } from "./write-service.js";
+import { extendDefinitionScopes, reconcileDefinitionDefault, registerDefinitions, type AuthorizeFn } from "./write-service.js";
 
 /**
  * @file The one boot-time "register these definitions if they aren't already,
@@ -48,7 +48,8 @@ export interface SettingDefinitionSpec<Key extends string = string> {
    * Bitmask over `SCOPE_BIT`. Defaults to `workspace`, which is what most
    * settings-dialog tabs want: one operator's choice shouldn't silently
    * become every workspace's. Pass `SCOPE_BIT.user` (or a mask including it)
-   * for a genuinely per-operator preference.
+   * for a genuinely per-operator preference. On existing core definitions, explicitly
+   * declared bits are added at boot; existing scopes and value rows are preserved.
    */
   scopes?: number;
 }
@@ -82,7 +83,8 @@ const alwaysAllowBoot: AuthorizeFn = async () => ({ allowed: true, reason: "syst
 /**
  * Idempotently registers every definition in `input.definitions` under
  * `input.namespace`, and reconciles the stored default of any that already
- * exist to the default source declares. Safe to call on every boot.
+ * exist to the default source declares. Explicit core scope bits are added without removing
+ * existing scopes or moving stored values. Safe to call on every boot.
  *
  * The reconcile half matters as much as the register half: registration is
  * once-only, so without it a `defaultValue` edited in source never reaches an
@@ -141,6 +143,11 @@ export async function ensureSettingDefinitions(
       // this skips them quietly because boot must not fail on them.
       const isSameSlot = existing.namespace === input.namespace && existing.key === def.key;
       if (ownerKind === "core" && existing.status === "active" && existing.ownerKind === "core" && isSameSlot) {
+        // Existing installations need newly declared personal layers too, not just fresh boots.
+        if (def.scopes !== undefined) await extendDefinitionScopes({ deps: writeDeps, input: {
+          namespace: input.namespace, key: def.key, workspaceId: null, scopes: def.scopes,
+          callerPrincipalId: input.systemPrincipalId, authWorkspaceId,
+        } });
         await reconcileDefinitionDefault({
           deps: writeDeps,
           input: {
