@@ -73,6 +73,22 @@ export class TransformValidationError extends Error {
  * absurd target canvas). */
 export const MAX_TRANSFORM_DIMENSION_PX = 8000;
 
+const isIntegerInRange = (value: number, min: number, max: number) => Number.isInteger(value) && value >= min && value <= max;
+
+function assertTransformFormat(format: TransformParams["format"]): void {
+  if (!format || !(format in MIME_BY_TRANSFORM_FORMAT)) {
+    throw new TransformValidationError({ message: `transform params.format must be one of ${Object.keys(MIME_BY_TRANSFORM_FORMAT).join(", ")}` }
+    );
+  }
+}
+
+function assertTransformDimension(key: "width" | "height", value: number | undefined): void {
+  if (value !== undefined && !isIntegerInRange(value, 1, MAX_TRANSFORM_DIMENSION_PX)) {
+    throw new TransformValidationError({ message: `transform params.${key} must be an integer between 1 and ${MAX_TRANSFORM_DIMENSION_PX}` }
+    );
+  }
+}
+
 /**
  * Validates a {@link TransformParams} value at registration time. Throws
  * {@link TransformValidationError} on the first violation found.
@@ -82,21 +98,10 @@ export const MAX_TRANSFORM_DIMENSION_PX = 8000;
  */
 export function assertValidTransformParams(required: Pick<TransformParams, "format">, optional: Omit<TransformParams, "format"> = {}): void {
   const params: TransformParams = { format: required.format, ...optional };
-  if (!params.format || !(params.format in MIME_BY_TRANSFORM_FORMAT)) {
-    throw new TransformValidationError({ message: `transform params.format must be one of ${Object.keys(MIME_BY_TRANSFORM_FORMAT).join(", ")}` }
-    );
-  }
-  for (const [key, value] of [
-    ["width", params.width],
-    ["height", params.height],
-  ] as const) {
-    if (value === undefined) continue;
-    if (!Number.isInteger(value) || value < 1 || value > MAX_TRANSFORM_DIMENSION_PX) {
-      throw new TransformValidationError({ message: `transform params.${key} must be an integer between 1 and ${MAX_TRANSFORM_DIMENSION_PX}` }
-      );
-    }
-  }
-  if (params.quality !== undefined && (!Number.isInteger(params.quality) || params.quality < 1 || params.quality > 100)) {
+  assertTransformFormat(params.format);
+  assertTransformDimension("width", params.width);
+  assertTransformDimension("height", params.height);
+  if (params.quality !== undefined && !isIntegerInRange(params.quality, 1, 100)) {
     throw new TransformValidationError({ message: "transform params.quality must be an integer between 1 and 100" });
   }
   if (params.fit !== undefined && !(params.width && params.height)) {

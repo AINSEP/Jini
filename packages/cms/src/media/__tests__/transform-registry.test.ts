@@ -174,3 +174,8 @@ test.each([0, 101, 82.5, NaN])('registerTransform refuses invalid quality %s wit
   await assert.rejects(() => registerTransform({ deps, input: { workspaceId: WORKSPACE_ID, name: 'og', owner: 'core', params: { format: 'jpeg', quality } } }), { name: 'Error', message: 'transform params.quality must be an integer between 1 and 100' });
   assert.equal((await deps.transformRepo.listByName({ workspaceId: WORKSPACE_ID, name: 'og' })).length, 0);
 });
+
+test.each([['width', 0], ['height', 8001], ['height', 1.5]] as const)('registerTransform refuses invalid %s %s', async (key, value) => {
+  const deps = makeDeps();
+  await assert.rejects(() => registerTransform({ deps, input: { workspaceId: WORKSPACE_ID, name: 'og', owner: 'core', params: { format: 'jpeg', [key]: value } } }), { message: `transform params.${key} must be an integer between 1 and 8000` });
+});
