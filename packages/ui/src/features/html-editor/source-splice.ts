@@ -27,7 +27,6 @@ import type { DefaultTreeAdapterMap } from 'parse5';
  */
 
 type Parse5Node = DefaultTreeAdapterMap['node'];
-type Parse5ParentNode = DefaultTreeAdapterMap['parentNode'];
 type Parse5Element = DefaultTreeAdapterMap['element'];
 
 /** Tags GrapesJS never represents as ordinary tree components — never indexed, never a path slot. */
@@ -59,8 +58,18 @@ function isElement(node: Parse5Node): node is Parse5Element {
   return 'tagName' in node;
 }
 
-function hasChildNodes(node: Parse5Node): node is Parse5ParentNode {
-  return 'childNodes' in node;
+/**
+ * parse5 attaches a location only to elements created from an authored start tag — implicit
+ * elements and adoption-agency clones get none — so a located element always carries `startTag`.
+ */
+function innerRange(node: Parse5Element): ElementSourceRange | undefined {
+  const startTag = node.sourceCodeLocation?.startTag;
+  if (!startTag) return undefined;
+  // Void elements (`<br>`, `<img>`) have no `endTag` and no inner content: their range is
+  // empty (`start === end`), anchored at the end of the start tag.
+  const start = startTag.endOffset;
+  const end = node.sourceCodeLocation!.endTag?.startOffset ?? start;
+  return { start, end, tagName: node.tagName };
 }
 
 /**
@@ -69,25 +78,16 @@ function hasChildNodes(node: Parse5Node): node is Parse5ParentNode {
  *
  * @complexity O(n) over the fragment's total node count — each node is visited exactly once.
  */
-function indexChildren(children: readonly Parse5Node[], parentPath: ElementPath, out: Map<string, ElementSourceRange>): void {
-  let elementIndex = 0;
-  for (const node of children) {
-    if (!isElement(node)) continue;
-    if (UNINDEXED_TAGS.has(node.tagName)) continue;
-
+function indexChildren(
+  { children, parentPath, out }: { children: readonly Parse5Node[]; parentPath: ElementPath; out: Map<string, ElementSourceRange> },
+): void {
+  const indexed = children.filter(isElement).filter(node => !UNINDEXED_TAGS.has(node.tagName));
+  indexed.forEach((node, elementIndex) => {
     const currentPath = [...parentPath, elementIndex];
-    const location = node.sourceCodeLocation;
-    if (location) {
-      // Void elements (`<br>`, `<img>`) have no `endTag` and no inner content: their range is
-      // empty (`start === end`), anchored at the end of the start tag.
-      const start = location.startTag ? location.startTag.endOffset : location.endOffset;
-      const end = location.endTag ? location.endTag.startOffset : start;
-      out.set(pathKey(currentPath), { start, end, tagName: node.tagName });
-    }
-
-    if (hasChildNodes(node)) indexChildren(node.childNodes, currentPath, out);
-    elementIndex++;
-  }
+    const range = innerRange(node);
+    if (range) out.set(pathKey(currentPath), range);
+    indexChildren({ children: node.childNodes, parentPath: currentPath, out });
+  });
 }
 
 /**
@@ -107,7 +107,7 @@ function indexChildren(children: readonly Parse5Node[], parentPath: ElementPath,
 export function indexElementSourceRanges(html: string): Map<string, ElementSourceRange> {
   const fragment = parseFragment(html, { sourceCodeLocationInfo: true });
   const index = new Map<string, ElementSourceRange>();
-  indexChildren(fragment.childNodes, [], index);
+  indexChildren({ children: fragment.childNodes, parentPath: [], out: index });
   return index;
 }
 
@@ -165,40 +165,71 @@ export interface SourceElement {
  */
 export function indexSourceElements({ html }: { html: string }, _options: object = {}): SourceElement[] {
   const fragment = parseFragment(html, { sourceCodeLocationInfo: true });
-  const walk = (nodes: readonly Parse5Node[], parentPath: ElementPath, parentStart: number, parentEnd: number): SourceElement[] => {
-    let slot = 0;
-    const elements = nodes.filter(isElement).map(node => {
-      const atom = UNINDEXED_TAGS.has(node.tagName);
-      const path = atom ? null : [...parentPath, slot++];
-      const loc = node.sourceCodeLocation;
-      const start = loc?.startTag;
-      const end = loc?.endTag;
-      const voidTag = VOID_TAGS.has(node.tagName) || (node.namespaceURI !== 'http://www.w3.org/1999/xhtml'
-        && !!start && html.slice(start.startOffset, start.endOffset).endsWith('/>'));
-      const outerEnd = voidTag ? start?.endOffset : end?.endOffset;
-      const boundsValid = !!start && outerEnd !== undefined && start.startOffset >= parentStart && outerEnd <= parentEnd;
-      const children = walk(node.childNodes, path ?? parentPath, start?.endOffset ?? parentStart, end?.startOffset ?? parentEnd);
-      // Template content is a separate fragment; it has no ordinary component path/shell here.
-      const valid = boundsValid && node.tagName !== 'template';
-      return {
-        tagName: node.tagName,
-        attributes: Object.fromEntries(node.attrs.map(attr => [attr.name, attr.value])),
-        path,
-        outerRange: valid ? { outerStart: start!.startOffset, outerEnd: outerEnd!, openingEnd: start!.endOffset } : null,
-        sourceSupported: valid && children.every(child => child.sourceSupported),
-        children,
-      };
-    });
-    // Foster parenting can move a valid-looking node ahead of a source-earlier table. Neither
-    // sibling can be trusted as a model-addressable source owner in that recovered ordering.
-    for (let i = 1; i < elements.length; i++) {
-      const previous = elements[i - 1]!;
-      const current = elements[i]!;
-      if (previous.outerRange && current.outerRange && previous.outerRange.outerEnd > current.outerRange.outerStart) {
-        previous.sourceSupported = current.sourceSupported = false;
-      }
-    }
-    return elements;
+  return walkSourceElements({ nodes: fragment.childNodes, scope: { html, parentPath: [], parentStart: 0, parentEnd: html.length } });
+}
+
+/** Where a level of the walk sits: its parent's path and the parent's inner source offsets. */
+interface SourceScope {
+  readonly html: string;
+  readonly parentPath: ElementPath;
+  readonly parentStart: number;
+  readonly parentEnd: number;
+}
+
+type WalkedElement = Omit<SourceElement, 'sourceSupported'> & { sourceSupported: boolean };
+
+function walkSourceElements({ nodes, scope }: { nodes: readonly Parse5Node[]; scope: SourceScope }): WalkedElement[] {
+  let slot = 0;
+  const elements = nodes.filter(isElement).map(node =>
+    toSourceElement({ node, path: UNINDEXED_TAGS.has(node.tagName) ? null : [...scope.parentPath, slot++], scope }));
+  markReorderedSiblings({ elements });
+  return elements;
+}
+
+function toSourceElement({ node, path, scope }: { node: Parse5Element; path: ElementPath | null; scope: SourceScope }): WalkedElement {
+  const location = node.sourceCodeLocation;
+  const outerRange = verifiedOuterRange({ node, scope });
+  const children = walkSourceElements({ nodes: node.childNodes, scope: {
+    html: scope.html,
+    parentPath: path ?? scope.parentPath,
+    parentStart: location?.startTag?.endOffset ?? scope.parentStart,
+    parentEnd: location?.endTag?.startOffset ?? scope.parentEnd,
+  } });
+  return {
+    tagName: node.tagName,
+    attributes: Object.fromEntries(node.attrs.map(attr => [attr.name, attr.value])),
+    path,
+    outerRange,
+    sourceSupported: !!outerRange && children.every(child => child.sourceSupported),
+    children,
   };
-  return walk(fragment.childNodes, [], 0, html.length);
+}
+
+/** A void tag, or a self-closing foreign (SVG/MathML) one, ends with its start tag. */
+function outerEndOffset({ node, html }: { node: Parse5Element; html: string }): number | undefined {
+  const start = node.sourceCodeLocation?.startTag;
+  const voidTag = VOID_TAGS.has(node.tagName) || (node.namespaceURI !== 'http://www.w3.org/1999/xhtml'
+    && !!start && html.slice(start.startOffset, start.endOffset).endsWith('/>'));
+  return voidTag ? start?.endOffset : node.sourceCodeLocation?.endTag?.endOffset;
+}
+
+function verifiedOuterRange({ node, scope }: { node: Parse5Element; scope: SourceScope }): ElementOuterRange | null {
+  const start = node.sourceCodeLocation?.startTag;
+  const outerEnd = outerEndOffset({ node, html: scope.html });
+  // Template content is a separate fragment; it has no ordinary component path/shell here.
+  if (!start || outerEnd === undefined || node.tagName === 'template') return null;
+  const inParent = start.startOffset >= scope.parentStart && outerEnd <= scope.parentEnd;
+  return inParent ? { outerStart: start.startOffset, outerEnd, openingEnd: start.endOffset } : null;
+}
+
+// Foster parenting can move a valid-looking node ahead of a source-earlier table. Neither
+// sibling can be trusted as a model-addressable source owner in that recovered ordering.
+function markReorderedSiblings({ elements }: { elements: readonly WalkedElement[] }): void {
+  for (let i = 1; i < elements.length; i++) {
+    const previous = elements[i - 1]!;
+    const current = elements[i]!;
+    if (previous.outerRange && current.outerRange && previous.outerRange.outerEnd > current.outerRange.outerStart) {
+      previous.sourceSupported = current.sourceSupported = false;
+    }
+  }
 }

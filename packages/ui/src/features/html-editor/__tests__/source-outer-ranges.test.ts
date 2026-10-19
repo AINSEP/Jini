@@ -19,3 +19,33 @@ describe('verified outer source ranges', () => {
     expect(indexSourceElements({ html }, {})[0]!.sourceSupported).toBe(false);
   });
 });
+
+describe('source element validation', () => {
+  it('ranges a self-closing foreign element like a void element', () => {
+    const [svg] = indexSourceElements({ html: '<svg><circle/><g></g></svg>' }, {});
+    expect(svg!.children.map(child => child.outerRange)).toEqual([
+      { outerStart: 5, outerEnd: 14, openingEnd: 14 },
+      { outerStart: 14, outerEnd: 21, openingEnd: 17 },
+    ]);
+  });
+  it('keeps ranges but marks both siblings unsupported when foster parenting reorders them', () => {
+    const elements = indexSourceElements({ html: '<table><div>x</div></table>' }, {});
+    expect(elements.map(el => [el.tagName, el.outerRange, el.sourceSupported])).toEqual([
+      ['div', { outerStart: 7, outerEnd: 19, openingEnd: 12 }, false],
+      ['table', { outerStart: 0, outerEnd: 27, openingEnd: 7 }, false],
+    ]);
+  });
+  it('gives a template no range', () => {
+    expect(indexSourceElements({ html: '<template><p>x</p></template>' }, {})[0]!.outerRange).toBeNull();
+  });
+  it('gives no range to an element located outside its parent content', () => {
+    const second = indexSourceElements({ html: '<p><b>1<p>2</b>3' }, {})[1]!;
+    expect(second.children.map(child => [child.tagName, child.outerRange])).toEqual([['b', null]]);
+  });
+  it('gives no range to an element whose end tag is omitted', () => {
+    expect(indexSourceElements({ html: '<li>a<li>b' }, {}).map(el => el.outerRange)).toEqual([null, null]);
+  });
+  it('supports an element whose descendants are all supported', () => {
+    expect(indexSourceElements({ html: '<div><p>x</p><br></div>' }, {})[0]!.sourceSupported).toBe(true);
+  });
+});

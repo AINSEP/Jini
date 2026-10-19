@@ -180,3 +180,18 @@ describe('spliceElementInner', () => {
     expect(result).not.toContain('<p>');
   });
 });
+
+describe('omitted end tags (pinned current behaviour)', () => {
+  // Known bug, pinned rather than fixed: an element without an end tag gets an EMPTY inner range at
+  // the end of its start tag, so an edit is inserted in front of the old text instead of replacing it.
+  it('indexes an element without an end tag as an empty range', () => {
+    expect([...indexElementSourceRanges('<p>old')]).toEqual([['0', { start: 3, end: 3, tagName: 'p' }]]);
+  });
+  it('splices into an element without an end tag in front of its old content', () => {
+    expect(spliceElementInner('<p>old', [0], 'p', 'new')).toBe('<p>newold');
+  });
+});
+
+it('gives a parser-inserted element a path slot but no range', () => {
+  expect([...indexElementSourceRanges('<table><tr><td>x</td></tr></table>').keys()]).toEqual(['0', '0.0.0', '0.0.0.0']);
+});
