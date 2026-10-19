@@ -101,7 +101,8 @@ export function decodeApiError(
   const nested = record.error;
   const error = nested !== null && typeof nested === 'object' && !Array.isArray(nested)
     ? nested as Record<string, unknown> : record;
-  const message = error === record ? record.error : error.message;
+  // Share/import routes use a flat code/message envelope; keep legacy string-error precedence.
+  const message = error === record ? (typeof record.error === 'string' ? record.error : record.message) : error.message;
   return {
     message: typeof message === 'string' ? message : fallbackMessage,
     ...(typeof error.code === 'string' ? { code: error.code } : {}),
