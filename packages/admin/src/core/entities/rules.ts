@@ -90,33 +90,63 @@ export interface AdminEntityErasureOptions {
  *   {@link MAX_JSON_DEPTH}.
  * @overallScore 100
  */
-function describeNonJsonValue(value: unknown, depth = 0, budget = { nodes: 0 }): string | null {
+function describeNonJsonValue(
+  { value, depth, budget }: { value: unknown; depth: number; budget: { nodes: number } },
+  _optional: Record<string, never> = {},
+): string | null {
   if (depth > MAX_JSON_DEPTH) return `nests deeper than ${MAX_JSON_DEPTH} levels`;
   if (++budget.nodes > MAX_JSON_NODES) return `holds more than ${MAX_JSON_NODES} values`;
+  if (value === null || typeof value !== 'object') return describeNonJsonScalar(value);
+  // Rejects class instances, `Map`, `Date`, and anything else that survives `typeof === 'object'`
+  // but does not round-trip through JSON as itself.
+  if (!Array.isArray(value) && !isPlainObject(value)) return 'is a non-plain object';
+  for (const item of Object.values(value)) {
+    const reason = describeNonJsonValue({ value: item, depth: depth + 1, budget });
+    if (reason !== null) return reason;
+  }
+  return null;
+}
 
+/** The leaf half of {@link describeNonJsonValue}: `null` or a non-object `value`. */
+function describeNonJsonScalar(value: unknown): string | null {
   if (value === null) return null;
   const type = typeof value;
   if (type === 'string' || type === 'boolean') return null;
   if (type === 'number') return Number.isFinite(value) ? null : 'is a non-finite number';
-  if (type !== 'object') return `is a ${type}`;
+  return `is a ${type}`;
+}
 
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const reason = describeNonJsonValue(item, depth + 1, budget);
-      if (reason !== null) return reason;
-    }
-    return null;
-  }
-
-  // Rejects class instances, `Map`, `Date`, and anything else that survives `typeof === 'object'`
-  // but does not round-trip through JSON as itself.
+function isPlainObject(value: object): boolean {
   const proto: unknown = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) return 'is a non-plain object';
-  for (const item of Object.values(value as Record<string, unknown>)) {
-    const reason = describeNonJsonValue(item, depth + 1, budget);
-    if (reason !== null) return reason;
-  }
-  return null;
+  return proto === Object.prototype || proto === null;
+}
+
+/** `null` when `typeof value` is `type`, otherwise "expected <label>, got <typeof value>". */
+function describeWrongType(
+  { value, type, label }: { value: unknown; type: 'string' | 'number' | 'boolean'; label: string },
+  _optional: Record<string, never> = {},
+): string | null {
+  return typeof value === type ? null : `expected ${label}, got ${typeof value}`;
+}
+
+function describeNonDatetime(value: unknown): string | null {
+  if (typeof value !== 'string') return `expected an ISO-8601 string, got ${typeof value}`;
+  // A `datetime` that is not parseable renders fine and orders wrongly — the exact class of
+  // fault this whole check exists for, so it is a mismatch rather than a pass.
+  return Number.isNaN(Date.parse(value)) ? 'is not a parseable ISO-8601 timestamp' : null;
+}
+
+function describeNonNumber(
+  { value, accepts, reason }: { value: unknown; accepts: (n: number) => boolean; reason: string },
+  _optional: Record<string, never> = {},
+): string | null {
+  if (typeof value !== 'number') return `expected a number, got ${typeof value}`;
+  return accepts(value) ? null : reason;
+}
+
+function describeNonJson(value: unknown): string | null {
+  const reason = describeNonJsonValue({ value, depth: 0, budget: { nodes: 0 } });
+  return reason === null ? null : `is not a JSON value: it ${reason}`;
 }
 
 /**
@@ -144,24 +174,21 @@ export function describeAdminEntityFieldMismatch(
   switch (field.kind) {
     case 'text':
     case 'relation':
-      return typeof value === 'string' ? null : `expected a string, got ${typeof value}`;
+      return describeWrongType({ value, type: 'string', label: 'a string' });
     case 'datetime':
-      if (typeof value !== 'string') return `expected an ISO-8601 string, got ${typeof value}`;
-      // A `datetime` that is not parseable renders fine and orders wrongly — the exact class of
-      // fault this whole check exists for, so it is a mismatch rather than a pass.
-      return Number.isNaN(Date.parse(value)) ? 'is not a parseable ISO-8601 timestamp' : null;
+      return describeNonDatetime(value);
     case 'integer':
-      if (typeof value !== 'number') return `expected a number, got ${typeof value}`;
-      return Number.isInteger(value) ? null : 'is not an integer';
+      return describeNonNumber({ value, accepts: Number.isInteger, reason: 'is not an integer' });
     case 'real':
-      if (typeof value !== 'number') return `expected a number, got ${typeof value}`;
-      return Number.isFinite(value) ? null : 'is not a finite number';
+      return describeNonNumber({
+        value,
+        accepts: Number.isFinite,
+        reason: 'is not a finite number',
+      });
     case 'boolean':
-      return typeof value === 'boolean' ? null : `expected a boolean, got ${typeof value}`;
-    case 'json': {
-      const reason = describeNonJsonValue(value);
-      return reason === null ? null : `is not a JSON value: it ${reason}`;
-    }
+      return describeWrongType({ value, type: 'boolean', label: 'a boolean' });
+    case 'json':
+      return describeNonJson(value);
   }
 }
 
@@ -177,43 +204,60 @@ export function describeAdminEntityFieldMismatch(
  * @overallScore 100
  */
 function findRowViolations(
-  descriptor: AdminEntityDescriptor,
-  operation: AdminEntityRowViolation['operation'],
-  row: AdminEntityRowData,
+  {
+    descriptor,
+    operation,
+    row,
+  }: {
+    descriptor: AdminEntityDescriptor;
+    operation: AdminEntityRowViolation['operation'];
+    row: AdminEntityRowData;
+  },
+  _optional: Record<string, never> = {},
 ): readonly AdminEntityRowViolation[] {
+  const hasId = typeof row.id === 'string' && row.id !== '';
+  const rowId = hasId ? row.id : '<no id>';
+  const at = { entity: descriptor.name, operation, rowId };
   const found: AdminEntityRowViolation[] = [];
-  const rowId = typeof row.id === 'string' && row.id !== '' ? row.id : '<no id>';
-  const push = (
-    field: string,
-    problem: AdminEntityRowViolation['problem'],
-    detail: string,
-  ): void => {
-    found.push({ entity: descriptor.name, operation, rowId, field, problem, detail });
-  };
-
-  if (typeof row.id !== 'string' || row.id === '') {
-    push(IMPLICIT_ROW_KEY, 'wrong-type', 'every row must carry a non-empty string `id`');
+  if (!hasId) {
+    found.push({
+      ...at,
+      field: IMPLICIT_ROW_KEY,
+      problem: 'wrong-type',
+      detail: 'every row must carry a non-empty string `id`',
+    });
   }
-
-  const declared = new Set<string>([IMPLICIT_ROW_KEY]);
   for (const field of descriptor.fields) {
-    declared.add(field.name);
-    const value = row[field.name];
-    if (value === undefined) {
-      if (field.required === true) {
-        push(field.name, 'missing-required', 'declared `required: true` but absent from the row');
-      }
-      continue;
-    }
-    const mismatch = describeAdminEntityFieldMismatch(field, value);
-    if (mismatch !== null) push(field.name, 'wrong-type', `declared \`${field.kind}\`; ${mismatch}`);
+    const problem = describeFieldProblem({ field, value: row[field.name] });
+    if (problem !== null) found.push({ ...at, field: field.name, ...problem });
   }
-
+  const declared = new Set([IMPLICIT_ROW_KEY, ...descriptor.fields.map((field) => field.name)]);
   for (const key of Object.keys(row)) {
     if (declared.has(key)) continue;
-    push(key, 'undeclared-field', 'present on the row but not declared on the descriptor');
+    found.push({
+      ...at,
+      field: key,
+      problem: 'undeclared-field',
+      detail: 'present on the row but not declared on the descriptor',
+    });
   }
   return found;
+}
+
+/** What is wrong with one declared field's cell, or `null` when it conforms or is legally absent. */
+function describeFieldProblem(
+  { field, value }: { field: AdminEntityField; value: unknown },
+  _optional: Record<string, never> = {},
+): Pick<AdminEntityRowViolation, 'problem' | 'detail'> | null {
+  if (value === undefined) {
+    return field.required === true
+      ? { problem: 'missing-required', detail: 'declared `required: true` but absent from the row' }
+      : null;
+  }
+  const mismatch = describeAdminEntityFieldMismatch(field, value);
+  return mismatch === null
+    ? null
+    : { problem: 'wrong-type', detail: `declared \`${field.kind}\`; ${mismatch}` };
 }
 
 /**
@@ -222,17 +266,27 @@ function findRowViolations(
  * Deliberately identity-returning: this is an observation point, never a repair point. Coercing a
  * bad value here would hide the adapter bug it exists to expose.
  *
- * @complexity Time O(rows × fields); no-op and O(1) when `onViolation` is absent.
+ * Only {@link eraseEntityPort}'s checking wrapper calls this, and that wrapper exists only when
+ * `onViolation` is set — so the sink is required here rather than re-checked.
+ *
+ * @complexity Time O(rows × fields).
  * @overallScore 100
  */
 function checkRow<TRow extends AdminEntityRowData>(
-  descriptor: AdminEntityDescriptor,
-  operation: AdminEntityRowViolation['operation'],
-  row: TRow,
-  onViolation: ((violation: AdminEntityRowViolation) => void) | undefined,
+  {
+    descriptor,
+    operation,
+    row,
+    onViolation,
+  }: {
+    descriptor: AdminEntityDescriptor;
+    operation: AdminEntityRowViolation['operation'];
+    row: TRow;
+    onViolation: (violation: AdminEntityRowViolation) => void;
+  },
+  _optional: Record<string, never> = {},
 ): TRow {
-  if (onViolation === undefined) return row;
-  for (const violation of findRowViolations(descriptor, operation, row)) onViolation(violation);
+  for (const violation of findRowViolations({ descriptor, operation, row })) onViolation(violation);
   return row;
 }
 
@@ -268,18 +322,20 @@ export function eraseEntityPort<D extends AdminEntityDescriptor>(
     descriptor,
     async list(query?: AdminEntityListQuery): Promise<AdminEntityPage<AdminEntityRowData>> {
       const page = await erased.list(query);
-      for (const row of page.items) checkRow(descriptor, 'list', row, onViolation);
+      for (const row of page.items) checkRow({ descriptor, operation: 'list', row, onViolation });
       return page;
     },
     async get(id: string): Promise<AdminEntityRowData | null> {
       const row = await erased.get(id);
-      return row === null ? null : checkRow(descriptor, 'get', row, onViolation);
+      return row === null ? null : checkRow({ descriptor, operation: 'get', row, onViolation });
     },
     async create(input: Record<string, unknown>): Promise<AdminEntityRowData> {
-      return checkRow(descriptor, 'create', await erased.create(input), onViolation);
+      const row = await erased.create(input);
+      return checkRow({ descriptor, operation: 'create', row, onViolation });
     },
     async update(id: string, patch: Record<string, unknown>): Promise<AdminEntityRowData> {
-      return checkRow(descriptor, 'update', await erased.update(id, patch), onViolation);
+      const row = await erased.update(id, patch);
+      return checkRow({ descriptor, operation: 'update', row, onViolation });
     },
   };
   // Preserved by presence, not by a forwarding stub: a screen decides whether to render a delete
@@ -302,52 +358,90 @@ export function eraseEntityPort<D extends AdminEntityDescriptor>(
  * @overallScore 100
  */
 function findDescriptorProblems(
-  descriptor: AdminEntityDescriptor,
-  registryKey: string,
-  registeredNames: ReadonlySet<string>,
+  {
+    descriptor,
+    registryKey,
+    registeredNames,
+  }: {
+    descriptor: AdminEntityDescriptor;
+    registryKey: string;
+    registeredNames: ReadonlySet<string>;
+  },
+  _optional: Record<string, never> = {},
 ): readonly string[] {
-  const problems: string[] = [];
   const at = `'${registryKey}'`;
+  return [
+    ...findHeaderProblems({ descriptor, registryKey }),
+    ...findFieldProblems({ descriptor, registeredNames }),
+    ...findTitleFieldProblems({ descriptor }),
+  ].map((problem) => `${at}: ${problem}`);
+}
 
+function findHeaderProblems(
+  { descriptor, registryKey }: { descriptor: AdminEntityDescriptor; registryKey: string },
+  _optional: Record<string, never> = {},
+): string[] {
+  const problems: string[] = [];
   if (descriptor.name !== registryKey) {
     // One entity, one name. Allowing these to differ would leave the URL segment, the relation
     // target, and the registry key as three identifiers with no stated relationship between them.
-    problems.push(`${at}: registered under '${registryKey}' but its descriptor is named '${descriptor.name}'`);
+    problems.push(
+      `registered under '${registryKey}' but its descriptor is named '${descriptor.name}'`,
+    );
   }
   if (descriptor.labelSingular === '' || descriptor.labelPlural === '') {
-    problems.push(`${at}: labelSingular and labelPlural must both be non-empty`);
+    problems.push('labelSingular and labelPlural must both be non-empty');
   }
   if (descriptor.fields.length === 0) {
-    problems.push(`${at}: declares no fields, so nothing but its id could ever be shown or edited`);
+    problems.push('declares no fields, so nothing but its id could ever be shown or edited');
   }
+  return problems;
+}
 
+function findFieldProblems(
+  {
+    descriptor,
+    registeredNames,
+  }: { descriptor: AdminEntityDescriptor; registeredNames: ReadonlySet<string> },
+  _optional: Record<string, never> = {},
+): string[] {
+  const problems: string[] = [];
   const seen = new Set<string>();
   for (const field of descriptor.fields) {
     if (field.name === '') {
-      problems.push(`${at}: a field has an empty name`);
+      problems.push('a field has an empty name');
       continue;
     }
     if (field.name === IMPLICIT_ROW_KEY) {
-      problems.push(`${at}: '${IMPLICIT_ROW_KEY}' is implicit on every row and must not be declared as a field`);
+      problems.push(
+        `'${IMPLICIT_ROW_KEY}' is implicit on every row and must not be declared as a field`,
+      );
     }
-    if (seen.has(field.name)) problems.push(`${at}: field '${field.name}' is declared more than once`);
+    if (seen.has(field.name)) problems.push(`field '${field.name}' is declared more than once`);
     seen.add(field.name);
     if (field.kind === 'relation' && !registeredNames.has(field.target)) {
       problems.push(
-        `${at}: field '${field.name}' targets '${field.target}', which is not a registered entity`,
+        `field '${field.name}' targets '${field.target}', which is not a registered entity`,
       );
     }
   }
+  return problems;
+}
 
+function findTitleFieldProblems(
+  { descriptor }: { descriptor: AdminEntityDescriptor },
+  _optional: Record<string, never> = {},
+): string[] {
   const titleField = descriptor.fields.find((field) => field.name === descriptor.titleField);
   if (titleField === undefined) {
-    problems.push(`${at}: titleField '${descriptor.titleField}' does not name a declared field`);
-  } else if (titleField.kind !== 'text') {
-    problems.push(
-      `${at}: titleField '${descriptor.titleField}' is kind '${titleField.kind}'; a title must be 'text'`,
-    );
+    return [`titleField '${descriptor.titleField}' does not name a declared field`];
   }
-  return problems;
+  if (titleField.kind !== 'text') {
+    return [
+      `titleField '${descriptor.titleField}' is kind '${titleField.kind}'; a title must be 'text'`,
+    ];
+  }
+  return [];
 }
 
 /**
@@ -380,7 +474,7 @@ export function createAdminEntityRegistry<
   const registeredNames = new Set(entries.map(([, port]) => port.descriptor.name));
 
   const problems = entries.flatMap(([key, port]) =>
-    findDescriptorProblems(port.descriptor, key, registeredNames),
+    findDescriptorProblems({ descriptor: port.descriptor, registryKey: key, registeredNames }),
   );
   if (problems.length > 0) {
     throw new Error(`createAdminEntityRegistry: invalid descriptors\n- ${problems.join('\n- ')}`);
