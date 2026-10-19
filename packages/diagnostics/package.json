@@ -91,7 +91,8 @@
     "jszip": "^3.10.1"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "js-tokens": "^9.0.1"
   },
   "peerDependencies": {
     "jszip": "^3.10.1"

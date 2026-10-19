@@ -187,50 +187,6 @@ test('vendor rules retain precedence over an injected application-key format', (
  assert.deepEqual(redactSecretShapes(prefix + secret), { text: prefix + '[REDACTED:openai_key]', redactions: 1 });
 });
 
-// Exported plugin code contains references to credentials, not the credential bytes.
-test("code-aware policy preserves credential references without changing the strict default", () => {
-  const codeRedact = (text: string) => redact({ text, policy: { ...policy, codeAware: true } });
-  const code = [
-    'Authorization: `Bearer ${config.token}`',
-    'Authorization: `Bearer ${credential.token}`',
-    'Authorization: `Bearer ${process.env.CLOUDFLARE_TOKEN}`',
-    '{ token: credential.token }',
-    '{ token: config.apiKey }',
-    '{ token: process.env.X }',
-    'const token = accessToken;',
-    'api_key=${process.env.API_KEY}',
-    'Authorization: `${config.token}`',
-  ];
-  for (const text of code) assert.deepEqual(codeRedact(text), { text, redactions: 0 }, text);
-
-  // These exact HEAD outcomes are the reason share scanning needs an explicit policy.
-  assert.deepEqual(redact({ text: code[0]!, policy: {} }), {
-    text: 'Authorization: [REDACTED:auth_header] ${config.token}`', redactions: 1,
-  });
-  assert.deepEqual(redact({ text: '{ token: credential.token }', policy: {} }), {
-    text: '{ token: [REDACTED:labeled_secret] }', redactions: 1,
-  });
-  const value = "abcdef0123456789".repeat(2);
-  for (const text of [
-    `Authorization: "Bearer ${value}"`,
-    "Authorization: `Bearer " + value + "`",
-    `token: "${value}"`,
-    `api_key="${value}"`,
-    `api_key='${value}'`,
-    "api_key=`" + value + "`",
-    'Authorization: `Bearer ' + value + '${config.token}`',
-  ]) {
-    const first = codeRedact(text);
-    assert.ok(first.redactions > 0, text);
-    assert.equal(first.text.includes(value), false, text);
-    assert.deepEqual(codeRedact(first.text), { text: first.text, redactions: 0 });
-  }
-  // Skipping the broad label/header rule cannot skip the independent vendor catalog.
-  const vendorKey = ["sk", "proj", ""].join("-") + "a1".repeat(15);
-  const mixed = code.join(";\n") + `; token: "${vendorKey}"`;
-  assert.equal(codeRedact(mixed).text.includes(vendorKey), false);
-});
-
 // Opaque credentials can resemble references; punctuation or letter-only values are no exemption.
 test("literal credentials require redaction outside unambiguous code references", () => {
   const literals = [
@@ -255,27 +211,144 @@ test("literal credentials require redaction outside unambiguous code references"
     assert.ok(first.redactions > 0, text);
     assert.deepEqual(redactSecretShapes(first.text), { text: first.text, redactions: 0 });
   }
-  const literalExpression = redact({ text: "Authorization: `Bearer ${'abcdef0123456789abcdef'}`", policy: { codeAware: true } });
-  assert.equal(literalExpression.text, 'Authorization: `Bearer [REDACTED:auth_header]`');
-  assert.equal(literalExpression.redactions, 1);
 });
 
-// Reviewer regressions: dotted tokens and declaration-shaped secrets must never be names.
-test("code-aware mode refuses opaque, vendor and short password values", () => {
-  const google = "ya29." + "a0AfH6SMBxyzQWERTYuiop1234";
-  const sendgrid = "SG." + "a".repeat(22) + "." + "b".repeat(30);
-  const inputs = [
-    `{ token: ${google} }`, `{ token: ${sendgrid} }`,
-    "{ api_key: abc123.def456ghi789 }", "{ password: hunter.two }",
-    "const token = AbCdEfGhIjKlMnOpQrStUv", "const password = hunter2",
-    `let secret = ${google}`, "{ 'x-api-key': abc.defghijklmnop }",
-    "Authorization: `Bearer ${x}abcdef0123456789`",
-    "Authorization: `Bearer abcdef0123456789${x}`",
-    'token = "${abcdef0123456789}"',
-  ];
-  for (const text of inputs) assert.ok(redact({ text, policy: { codeAware: true } }).redactions > 0, text);
-  // Vendors run before exemptions even without a label, and host rules remain authoritative.
-  for (const text of [google, sendgrid, 'examplehost_ak_0123456789ab.' + 'a'.repeat(25)]) {
-    assert.ok(redact({ text, policy: { ...policy, codeAware: true } }).redactions > 0, text);
+// Round 6 tokenizes literals; Round 6b also catches short values directly after secret names.
+// Split/computed credentials remain outside the owner-approved threat model.
+const codePolicy = { ...policy, codeAware: true };
+const opaque = "q7R2" + "m9Z4p6T8v3X5n1K0";
+const vendor = ["sk", "proj", ""].join("-") + "Ab3".repeat(8);
+
+for (const [label, code] of [
+  ["unrelated literal", `const message = '${opaque}';`],
+  ["regex containing quote", `const re = /'/; const value = '${opaque}';`],
+  ["blank lines", `const value =\n\n ref + '${opaque}';`],
+  ["call argument", `headers.set('x-api-key', '${opaque}');`],
+  ["parameter default", `function f(token = '${opaque}') {}`],
+  ["destructuring default", `const { token = '${opaque}' } = opts;`],
+  ["sibling property", `{ token: ref, message: '${opaque}' }`],
+  ["reference after verification", `verifyCredential(ref); const value = '${opaque}';`],
+  ["TS angle assertion", `const value = <string>'${opaque}';`],
+  ["TS generic arrow", `const value = <T>(x: T) => '${opaque}';`],
+  ["TS declaration", `const value: string = '${opaque}';`],
+  ["TSX following literal", `const view = <Widget />; const value = '${opaque}';`],
+  ["TSX attribute", `<Widget value="${opaque}" />`],
+  ["nested interpolation literal", "const value = `prefix ${'" + opaque + "'}`;"],
+  ["template head", "const value = `" + opaque + "${ref}`;"],
+  ["template middle", "const value = `${a}" + opaque + "${b}`;"],
+  ["template tail", "const value = `${ref}" + opaque + "`;"],
+  ["template without interpolation", "const value = `" + opaque + "`;"],
+  ["unclosed literal", `const value = '${opaque}`],
+] as const) {
+  test(`code-aware tokenizer catches ${label}`, () => {
+    const first = redact({ text: code, policy: codePolicy });
+    assert.equal(first.text.includes(opaque), false);
+    assert.equal(first.redactions, 1);
+    assert.deepEqual(redact({ text: first.text, policy: codePolicy }), { text: first.text, redactions: 0 });
+  });
+}
+
+for (const [label, code, payload] of [
+  ["Google OAuth literal", `const value = '${"ya29." + "a0AfH6SMBxyzQWERTYuiop1234"}';`, "a0AfH6SMBxyzQWERTYuiop1234"],
+  ["SendGrid literal", `const value = '${"SG." + "a".repeat(22) + "." + "b".repeat(30)}';`, "b".repeat(30)],
+  ["vendor literal", `const message = '${vendor}';`, vendor],
+  ["line comment", `// pasted ${vendor}\nconst value = ref;`, vendor],
+  ["hashbang comment", `#!/bin/tool ${vendor}\n`, vendor],
+  ["block comment", `/* pasted ${vendor} */`, vendor],
+  ["strict comment", "// password=hunter2", "hunter2"],
+  ["static bearer", "const header = `Bearer " + "abc123def456ghi789" + "${ref}`;", "abc123def456ghi789"],
+  ["caller rule", `const value = 'examplehost_ak_0123456789ab.${"a".repeat(25)}';`, "a".repeat(25)],
+] as const) {
+  test(`code-aware tokenizer retains ${label} rules`, () => {
+    const result = redact({ text: code, policy: codePolicy });
+    assert.ok(result.redactions > 0);
+    assert.equal(result.text.includes(payload), false);
+  });
+}
+
+test("code-aware tokenizer preserves references, i18n, paths, hashes and low-entropy values", () => {
+  for (const code of [
+    'Authorization: `Bearer ${config.token}`', '{ token: credential.token }',
+    'const token = await getToken()', 'const apiKey = process.env.API_KEY;',
+    "t('settings.auth.passwordLabel')", "t('auth.password.placeholder2')",
+    "const keyName = 'primaryKeyColumn';", "const cookieName = 'session_id_v2';",
+    "verifyCredential(ref); const error = 'invalid_credential_v2';",
+    "const tokenUrl = 'https://example.com/oauth/token';", "const path = './data/tokens.json';",
+    "const path = 'data/tokens/file123456789.json';",
+    "const hash = 'f47ac10b58cc4372a5670e02b2c3d479';",
+    `const hash = '${"abcdef0123456789".repeat(2)}';`,
+    `const value = '${"a1".repeat(16)}';`,
+    "const value = 'abc123def456ghi789';",
+    `// opaque ${opaque}`, `const re = /${opaque}/;`,
+    "const token = `Bearer ${config.token}`;",
+  ]) assert.deepEqual(redact({ text: code, policy: codePolicy }), { text: code, redactions: 0 }, code);
+});
+
+test("code-aware entropy boundaries require length, mixed letters/digits and 3.5 bits", () => {
+  for (const content of [opaque.slice(0, 19), "AbCdEfGhIjKlMnOpQrStUv", "123456789012345678901", "a1".repeat(20)]) {
+    const text = `const value = '${content}';`;
+    assert.deepEqual(redact({ text, policy: codePolicy }), { text, redactions: 0 });
   }
+  for (const content of [opaque, "abcg01234567".repeat(2), "abcdef0123456789".repeat(3)]) {
+    const text = `const value = '${content}';`;
+    assert.equal(redact({ text, policy: codePolicy }).redactions, 1);
+  }
+});
+
+test("code-aware token spans preserve syntax and count independent literals", () => {
+  const text = `const a = '${opaque}'; /* ok */ const b = \`${opaque}\`;`;
+  assert.deepEqual(redact({ text, policy: codePolicy }), {
+    text: "const a = '[REDACTED:high_entropy]'; /* ok */ const b = `[REDACTED:high_entropy]`;",
+    redactions: 2,
+  });
+});
+
+for (const [label, code, payload] of [
+  ["password property", '{ password: "hunter2hunter2xx" }', "hunter2hunter2xx"],
+  ["api_key assignment", 'api_key = "abc123def456ghi"', "abc123def456ghi"],
+  ["token declaration", "const token = 'abc123def456ghi789'", "abc123def456ghi789"],
+  ["first named call argument", "headers.set('x-api-key', 'abc123def456ghi789')", "abc123def456ghi789"],
+  ["quoted authorization property", "{ 'Authorization': 'Bearer abc123def456ghi789' }", "abc123def456ghi789"],
+  ["member assignment", "config.githubToken = 'abcdefgh'", "abcdefgh"],
+  ["camel-case API key", "const apiKey = 'abcdefgh'", "abcdefgh"],
+  ["plural suffix", "const client_secrets = 'abcdefgh'", "abcdefgh"],
+  ["comments and line breaks", "headers.set(/* key */ 'x-api-key' /* gap */,\n/* value */ 'abcdefgh')", "abcdefgh"],
+  ["static template", "const private_key = `abcdefgh`", "abcdefgh"],
+  ["Basic scheme", "const auth = 'Basic abcdefgh'", "abcdefgh"],
+  ["Token scheme", "const auth = 'Token abcdefgh'", "abcdefgh"],
+  ["template static prefix", "const password = `abcdefgh${reference}`", "abcdefgh"],
+  ["identifier comments", "const token /* name */ = /* value */ 'abcdefgh'", "abcdefgh"],
+] as const) {
+  test(`code-aware adjacency catches ${label} once`, () => {
+    const first = redact({ text: code, policy: codePolicy });
+    assert.equal(first.redactions, 1);
+    assert.equal(first.text.includes(payload), false);
+    assert.deepEqual(redact({ text: first.text, policy: codePolicy }), { text: first.text, redactions: 0 });
+  });
+}
+
+test("code-aware adjacency requires an immediate static value and a secret suffix", () => {
+  for (const code of [
+    "t('settings.auth.passwordLabel')", "{ password: t('auth.password.placeholder2') }",
+    "keyName = 'primaryKeyColumn'", "cookieName = 'session_id_v2'",
+    "token = await getToken()", "password = config.password",
+    "password('abcdefgh')", "obj.token('abcdefgh')", "getToken('abcdefgh')",
+    "const token = `Bearer ${config.token}`", "const token = `${config.token}`",
+    "const token = '1234567'", "const token = 'two words'", "const token = 'Bearer two words'",
+    "set(other, 'x-api-key', 'abcdefgh')", "set('x-api-key' + suffix, 'abcdefgh')",
+    "const pair = ('x-api-key', 'abcdefgh')", "if ('x-api-key', 'abcdefgh') {}",
+    "const value = { cookieName: 'session_id_v2' }",
+    "getToken() + 'abcdefgh'", "const token = String('abcdefgh')",
+    "set('x-api-key', ref, 'abcdefgh')",
+    "{ token: 'upload-token' }", "const token = 'access_token_name'", "{ password: 'auth.password.label' }",
+    "const auth = 'Bearer upload-token'",
+  ]) assert.deepEqual(redact({ text: code, policy: codePolicy }), { text: code, redactions: 0 }, code);
+});
+
+test("code-aware adjacency counts separate values without leaking context between them", () => {
+  const code = "{ password: 'abcdefgh', cookieName: 'session_id_v2', token: 'ijklmnop' }";
+  assert.deepEqual(redact({ text: code, policy: codePolicy }), {
+    text: "{ password: '[REDACTED:labeled_secret]', cookieName: 'session_id_v2', token: '[REDACTED:labeled_secret]' }",
+    redactions: 2,
+  });
 });

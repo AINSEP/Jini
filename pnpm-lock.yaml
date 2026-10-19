@@ -757,6 +757,9 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
+      js-tokens:
+        specifier: ^9.0.1
+        version: 9.0.1
     devDependencies:
       '@vitest/coverage-v8':
         specifier: ^2.1.9
