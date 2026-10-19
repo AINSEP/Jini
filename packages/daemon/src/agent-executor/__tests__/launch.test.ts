@@ -81,7 +81,7 @@ describe('AgentExecutor.run refusals', () => {
     const { lifecycle, executor } = createNodeExecutor(nodeDef(''), { getAgentDef });
     const { run } = await lifecycle.start({ contextRef: 'bad-mode' });
     // A wire value that escaped type checking — the runtime guard is what stands behind the type.
-    const permissionMode: AgentExecutorRunInput['permissionMode'] = JSON.parse('"auto"');
+    const permissionMode: NonNullable<AgentExecutorRunInput['permissionMode']> = JSON.parse('"auto"');
     await expect(executor.run({ runId: run.id, agentId: 'node-agent', prompt: 'hi', cwd: '/' }, { permissionMode }))
       .rejects.toThrow(new AgentExecutorError({ code: 'AGENT_PERMISSION_MODE_INVALID', message: 'AgentExecutor: permissionMode must be restricted or bypass' }));
     expect(getAgentDef).not.toHaveBeenCalled();
@@ -128,7 +128,7 @@ describe('AgentExecutor.run system-prompt overlay', () => {
 
 describe('buildAgentBuildArgsOptions', () => {
   it('refuses an unknown permission mode', () => {
-    const permissionMode: AgentExecutorRunInput['permissionMode'] = JSON.parse('"auto"');
+    const permissionMode: NonNullable<AgentExecutorRunInput['permissionMode']> = JSON.parse('"auto"');
     expect(() => buildAgentBuildArgsOptions({ input: { permissionMode }, systemPromptOverlay: undefined }))
       .toThrow(new AgentExecutorError({ code: 'AGENT_PERMISSION_MODE_INVALID', message: 'AgentExecutor: permissionMode must be restricted or bypass' }));
   });
