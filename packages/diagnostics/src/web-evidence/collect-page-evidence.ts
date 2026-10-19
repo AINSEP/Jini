@@ -185,24 +185,26 @@ export async function collectPageEvidence(
   const originBaseUrl = verifiedOriginToBaseUrl({ origin });
 
   const { accepted, skipped } = partitionRequestedPaths(deps.paths);
+  const report = (rest: Pick<SiteEvidenceResult, "browser" | "pages" | "skipped">): SiteEvidenceResult => ({
+    schemaVersion: "1",
+    collectedAt: new Date(startedAt).toISOString(),
+    origin: originBaseUrl,
+    browser: rest.browser,
+    consentTransition: consentTransitionReport(input.consentAcceptSelector),
+    limits: SITE_EVIDENCE_LIMITS,
+    pages: rest.pages,
+    skipped: rest.skipped,
+    disclaimer: SITE_EVIDENCE_DISCLAIMER,
+  });
 
   const availability = await deps.openBrowser({});
   if (!availability.available) {
     const reason = deps.observationPolicy.redactMessage({ message: availability.reason });
-    return {
-      schemaVersion: "1",
-      collectedAt: new Date(startedAt).toISOString(),
-      origin: originBaseUrl,
+    return report({
       browser: { status: "unavailable", reason },
-      consentTransition: consentTransitionReport(input.consentAcceptSelector),
-      limits: SITE_EVIDENCE_LIMITS,
       pages: [],
-      skipped: [
-        ...skipped,
-        ...accepted.map((path) => skip(path, "browser-unavailable", reason)),
-      ],
-      disclaimer: SITE_EVIDENCE_DISCLAIMER,
-    };
+      skipped: [...skipped, ...accepted.map((path) => skip(path, "browser-unavailable", reason))],
+    });
   }
 
   const pages: PageEvidence[] = [];
@@ -211,32 +213,9 @@ export async function collectPageEvidence(
   try {
     for (const path of accepted) {
       const remainingMs = SITE_EVIDENCE_LIMITS.maxTotalMs - (now() - startedAt);
-      if (remainingMs <= 0) {
-        runtimeSkipped.push(
-          skip(path, "deadline", `the ${SITE_EVIDENCE_LIMITS.maxTotalMs}ms whole-call budget was exhausted before this page was loaded`),
-        );
-        continue;
-      }
-
-      // A THROWING `observe()` (a port implementation that does not honor the `{ ok: false, reason }`
-      // contract for every failure — e.g. the page navigating away between the load and the read
-      // that follows it) must not end the whole run any more than an ordinary `ok: false` does. One
-      // bad page is recorded as skipped; every OTHER requested page still gets its own attempt.
-      try {
-        // The port's timeout is advisory for custom adapters; bound our own await as well.
-        const timeoutMs = Math.min(SITE_EVIDENCE_LIMITS.maxPageLoadMs, remainingMs);
-        const outcome = await new PageWorkBudget({ timeoutMs }).run({
-          work: () => observeOnePage(availability.browser, originBaseUrl, path, input, timeoutMs),
-        });
-        if (outcome.kind === "skipped") {
-          runtimeSkipped.push({ ...outcome.skipped, message: deps.observationPolicy.redactMessage({ message: outcome.skipped.message }) });
-        } else {
-          pages.push({ ...outcome.page, observation: deps.observationPolicy.redactObservation({ observation: outcome.page.observation }) });
-        }
-      } catch (error) {
-        const reason = error instanceof PageWorkTimeout && remainingMs <= SITE_EVIDENCE_LIMITS.maxPageLoadMs ? "deadline" : "navigation-failed";
-        runtimeSkipped.push(skip(path, reason, deps.observationPolicy.redactMessage({ message: messageOf(error) })));
-      }
+      const outcome = await attemptPage({ browser: availability.browser, originBaseUrl, path, remainingMs, policy: deps.observationPolicy }, input);
+      if (outcome.kind === "skipped") runtimeSkipped.push(outcome.skipped);
+      else pages.push(outcome.page);
     }
   } finally {
     // Release is still attempted after expiry; cleanup cannot add an unbounded wait to the call.
@@ -244,17 +223,41 @@ export async function collectPageEvidence(
       .release({ close: () => availability.browser.close({}) });
   }
 
-  return {
-    schemaVersion: "1",
-    collectedAt: new Date(startedAt).toISOString(),
-    origin: originBaseUrl,
-    browser: { status: "available" },
-    consentTransition: consentTransitionReport(input.consentAcceptSelector),
-    limits: SITE_EVIDENCE_LIMITS,
-    pages,
-    skipped: [...skipped, ...runtimeSkipped],
-    disclaimer: SITE_EVIDENCE_DISCLAIMER,
-  };
+  return report({ browser: { status: "available" }, pages, skipped: [...skipped, ...runtimeSkipped] });
+}
+
+/**
+ * One accepted page inside the whole-call budget: its redacted evidence, or why it was skipped.
+ * @complexity O(1) plus one bounded browser page load.
+ */
+async function attemptPage(
+  { browser, originBaseUrl, path, remainingMs, policy }: {
+    browser: SiteEvidenceBrowserPort; originBaseUrl: string; path: string; remainingMs: number;
+    policy: ObservationPolicy;
+  },
+  input: CollectPageEvidenceOptions,
+): Promise<ObserveOnePageOutcome> {
+  if (remainingMs <= 0) {
+    return { kind: "skipped", skipped: skip(path, "deadline", `the ${SITE_EVIDENCE_LIMITS.maxTotalMs}ms whole-call budget was exhausted before this page was loaded`) };
+  }
+  // A THROWING `observe()` (a port implementation that does not honor the `{ ok: false, reason }`
+  // contract for every failure — e.g. the page navigating away between the load and the read
+  // that follows it) must not end the whole run any more than an ordinary `ok: false` does. One
+  // bad page is recorded as skipped; every OTHER requested page still gets its own attempt.
+  try {
+    // The port's timeout is advisory for custom adapters; bound our own await as well.
+    const timeoutMs = Math.min(SITE_EVIDENCE_LIMITS.maxPageLoadMs, remainingMs);
+    const outcome = await new PageWorkBudget({ timeoutMs }).run({
+      work: () => observeOnePage(browser, originBaseUrl, path, input, timeoutMs),
+    });
+    if (outcome.kind === "skipped") {
+      return { kind: "skipped", skipped: { ...outcome.skipped, message: policy.redactMessage({ message: outcome.skipped.message }) } };
+    }
+    return { kind: "observed", page: { ...outcome.page, observation: policy.redactObservation({ observation: outcome.page.observation }) } };
+  } catch (error) {
+    const reason = error instanceof PageWorkTimeout && remainingMs <= SITE_EVIDENCE_LIMITS.maxPageLoadMs ? "deadline" : "navigation-failed";
+    return { kind: "skipped", skipped: skip(path, reason, policy.redactMessage({ message: messageOf(error) })) };
+  }
 }
 
 type ObserveOnePageOutcome =
@@ -294,8 +297,7 @@ async function observeOnePage(
 
   if (!result.ok) {
     if (result.offOriginUrl && !isSameOriginUrl({ baseUrl: originBaseUrl, candidateUrl: result.offOriginUrl })) {
-      return { kind: "skipped", skipped: skip(path, "off-origin-redirect",
-        `redirected off the inspected origin to '${redactToOrigin(result.offOriginUrl)}' — not inspected; this tool only observes ${originBaseUrl}`) };
+      return offOriginSkip({ path, url: result.offOriginUrl, originBaseUrl });
     }
     return { kind: "skipped", skipped: skip(path, "navigation-failed", result.reason) };
   }
@@ -305,18 +307,14 @@ async function observeOnePage(
   // as evidence of the redirect and its content is discarded — this tool does not inspect
   // anybody else's site, including one the inspected origin chose to point at.
   const finalUrl = result.observation.document.finalUrl;
-  if (!isSameOriginUrl({ baseUrl: originBaseUrl, candidateUrl: finalUrl })) {
-    return {
-      kind: "skipped",
-      skipped: skip(
-        path,
-        "off-origin-redirect",
-        `redirected off the inspected origin to '${redactToOrigin(finalUrl)}' — not inspected; this tool only observes ${originBaseUrl}`,
-      ),
-    };
-  }
+  if (!isSameOriginUrl({ baseUrl: originBaseUrl, candidateUrl: finalUrl })) return offOriginSkip({ path, url: finalUrl, originBaseUrl });
 
   return { kind: "observed", page: { path, url, observation: result.observation } };
+}
+
+function offOriginSkip({ path, url, originBaseUrl }: { path: string; url: string; originBaseUrl: string }): ObserveOnePageOutcome {
+  return { kind: "skipped", skipped: skip(path, "off-origin-redirect",
+    `redirected off the inspected origin to '${redactToOrigin(url)}' — not inspected; this tool only observes ${originBaseUrl}`) };
 }
 
 /**
