@@ -265,28 +265,27 @@ export interface ParseAIHubMixCatalogOptions {
  *  `model_id` (the wire name sent as `model`) and `model_name` (display). */
 export function parseAIHubMixCatalog({ data }: { data: unknown }, options: ParseAIHubMixCatalogOptions = {}
 ): AIHubMixCatalogModel[] {
-  const rows = (data as { data?: unknown })?.data;
-  if (!Array.isArray(rows)) return [];
   const seen = new Set<string>();
   const out: AIHubMixCatalogModel[] = [];
-  for (const row of rows) {
-    const id = typeof (row as { model_id?: unknown })?.model_id === 'string'
-      ? (row as { model_id: string }).model_id
-      : '';
+  for (const row of catalogRows(data)) {
+    const id = stringField(row?.model_id);
     if (!id || seen.has(id)) continue;
-    if (
-      options?.chatOnly &&
-      aihubmixRowTypes(row).some((t) => AIHUBMIX_MEDIA_GENERATION_TYPES.has(t))
-    ) {
-      continue;
-    }
+    if (options.chatOnly && aihubmixRowTypes(row).some((t) => AIHUBMIX_MEDIA_GENERATION_TYPES.has(t))) continue;
     seen.add(id);
-    const name = typeof (row as { model_name?: unknown })?.model_name === 'string'
-      ? (row as { model_name: string }).model_name
-      : '';
-    out.push({ id, label: name || id });
+    out.push({ id, label: stringField(row?.model_name) || id });
   }
   return out;
+}
+
+type AIHubMixCatalogRow = { model_id?: unknown; model_name?: unknown; types?: unknown } | null | undefined;
+
+function catalogRows(data: unknown): AIHubMixCatalogRow[] {
+  const rows = (data as { data?: unknown } | null | undefined)?.data;
+  return Array.isArray(rows) ? rows : [];
+}
+
+function stringField(value: unknown): string {
+  return typeof value === 'string' ? value : '';
 }
 
 // Aspect -> pixel size for a chat `generate_image` tool. Tuned for the
