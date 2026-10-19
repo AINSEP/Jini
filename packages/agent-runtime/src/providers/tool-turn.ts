@@ -33,31 +33,27 @@ function foldToolError(content: string | OpenAiContentPart[], isError: boolean |
     return content;
   return typeof content === "string" ? `${TOOL_ERROR_PREFIX}${content}` : [{ type: "text", text: TOOL_ERROR_PREFIX.trimEnd() }, ...content];
 }
-function imagePartMimeType(part: Record<string, unknown>): string | null {
-  const source = part.source as {
-    media_type?: unknown;
-  } | undefined;
-  if (part.type === "image" && typeof source?.media_type === "string")
-    return source.media_type;
-  const imageUrl = part.image_url as {
-    url?: unknown;
-  } | undefined;
-  if (part.type === "image_url" && typeof imageUrl?.url === "string")
-    return /^data:([^;,]+)/.exec(imageUrl.url)?.[1] ?? "url";
-  const inlineData = part.inlineData as {
-    mimeType?: unknown;
-  } | undefined;
-  if (typeof inlineData?.mimeType === "string")
-    return inlineData.mimeType;
-  return null;
+function stringAt(value: unknown, key: string): string | undefined {
+  const field = (value as Record<string, unknown> | null | undefined)?.[key];
+  return typeof field === "string" ? field : undefined;
 }
-function describeToolResultContent(content: unknown): string {
+function imagePartMimeType(part: Record<string, unknown>): string | null {
+  const mediaType = part.type === "image" ? stringAt(part.source, "media_type") : undefined;
+  if (mediaType !== undefined)
+    return mediaType;
+  const url = part.type === "image_url" ? stringAt(part.image_url, "url") : undefined;
+  if (url !== undefined)
+    return /^data:([^;,]+)/.exec(url)?.[1] ?? "url";
+  return stringAt(part.inlineData, "mimeType") ?? null;
+}
+// Every adapter's `tool_result` event types its content as a string or a part
+// array, so there is no third shape to stringify wholesale.
+function describeToolResultContent(content: string | readonly object[]): string {
   if (typeof content === "string")
     return content;
-  if (!Array.isArray(content))
-    return JSON.stringify(content);
   return content
-    .map((part: Record<string, unknown>) => {
+    .map((block) => {
+      const part = block as Record<string, unknown>;
       if (typeof part.text === "string")
         return part.text;
       const mimeType = imagePartMimeType(part);
