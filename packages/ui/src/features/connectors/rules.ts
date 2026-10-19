@@ -1,6 +1,7 @@
 /** Connector callback-origin validation and search/display sorting; no React, transport or DOM. */
 import type {
   Connector,
+  ConnectorAuthorizationPending,
   ConnectorAuthorizationPendingState,
   ConnectorActionResult,
   ConnectorStatusMap,
@@ -61,28 +62,37 @@ export function pruneConnectorAuthorizationPending(
   return next;
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isNonBlankString(value: unknown): value is string {
+  return typeof value === 'string' && !!value.trim();
+}
+
+function parsePendingEntry(state: unknown): ConnectorAuthorizationPending {
+  if (!isPlainRecord(state)) return {};
+  const { expiresAt, redirectUrl } = state;
+  return {
+    ...(isNonBlankString(expiresAt) ? { expiresAt } : {}),
+    ...(isNonBlankString(redirectUrl) ? { redirectUrl } : {}),
+  };
+}
+
 export function parseConnectorAuthorizationPendingState(raw: string): ConnectorAuthorizationPendingState {
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    const pending: ConnectorAuthorizationPendingState = {};
-    for (const [connectorId, state] of Object.entries(parsed as Record<string, unknown>)) {
-      if (!connectorId) continue;
-      if (state && typeof state === 'object' && !Array.isArray(state)) {
-        const expiresAt = (state as Record<string, unknown>).expiresAt;
-        const redirectUrl = (state as Record<string, unknown>).redirectUrl;
-        pending[connectorId] = {
-          ...(typeof expiresAt === 'string' && expiresAt.trim() ? { expiresAt } : {}),
-          ...(typeof redirectUrl === 'string' && redirectUrl.trim() ? { redirectUrl } : {}),
-        };
-      } else {
-        pending[connectorId] = {};
-      }
-    }
-    return pending;
+    parsed = JSON.parse(raw);
   } catch {
     return {};
   }
+  if (!isPlainRecord(parsed)) return {};
+  const pending: ConnectorAuthorizationPendingState = {};
+  for (const [connectorId, state] of Object.entries(parsed)) {
+    if (!connectorId) continue;
+    pending[connectorId] = parsePendingEntry(state);
+  }
+  return pending;
 }
 
 export function updateConnectorAuthorizationPendingFromConnectResponse(
