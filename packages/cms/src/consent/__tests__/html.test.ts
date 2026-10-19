@@ -148,6 +148,7 @@ describe('consent security regressions', () => {
   it('static HTML retains denied templates without a broken endpoint, banner or runtime', () => {
     const html = stripConsentRuntime({ html: transform(page) });
     expect(html).not.toContain('action="/api/site-consent"'); expect(html).not.toContain('id="jini-consent"'); expect(html).not.toContain(CONSENT_CLIENT);
+    expect(html).not.toContain('data-jini-consent-style'); expect(html).not.toContain('id="jini-consent-config"'); expect(html).not.toContain('data-jini-consent-runtime');
     expect(html).toContain('<p>Site</p>'); expect(html).toContain('<template data-jini-consent-script');
   });
   it('keeps inert data and template scripts as data rather than turning them executable', () => {
