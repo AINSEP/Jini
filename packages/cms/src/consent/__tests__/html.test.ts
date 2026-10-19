@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-import { gateConsentHtml, renderConsentUi, consentPolicyHref } from '../html/index.js';
+import { gateConsentHtml, renderConsentUi, renderConsentHead, consentPolicyHref } from '../html/index.js';
 import { CONSENT_CLIENT } from '../html/client.js';
 import { stripConsentRuntime } from '../html/static.js';
 import { accepted, config } from './fixtures.js';
@@ -256,4 +256,38 @@ it('keeps legacy frames inert before a visitor choice', () => {
   const dom = new JSDOM(html);
   try { expect(dom.window.document.querySelector('frame')).toBeNull(); }
   finally { dom.window.close(); }
+});
+
+describe('gate boundaries', () => {
+  const transform = (html: string, options = {}) => gateConsentHtml({ html, config, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }, options);
+  it('keeps only the exact host runtime for this response; a matching token on other code is gated and unmarked', () => {
+    const runtime = `<script data-jini-consent-runtime="host-token">${CONSENT_CLIENT}</script>`;
+    const html = transform(`<html><head></head><body>${runtime}<script data-jini-consent-runtime="host-token">window.other=true</script></body></html>`, { runtimeToken: 'host-token' });
+    expect(html).toContain(`</section>${runtime}<template data-jini-consent-script data-category="functional"><script>window.other=true</script></template></body>`);
+  });
+  it('removes base and meta refresh but keeps other meta elements and rel-less links', () => {
+    const html = transform('<html><head><base href="https://tags.example/"><meta charset="utf-8"><meta http-equiv="Refresh" content="0;url=https://tags.example/"><meta http-equiv="content-type" content="text/html"><link href="/local.css"></head><body></body></html>');
+    expect(html).not.toContain('<base'); expect(html).toContain('<link href="/local.css">');
+    expect(html).toContain('<meta charset="utf-8">'); expect(html).toContain('<meta http-equiv="content-type" content="text/html">');
+    expect(html).not.toContain('Refresh');
+  });
+  it('gates local tracking-pixel images by size or declared category, keeping ordinary local images', () => {
+    const html = transform('<html><body><img src="/a.png" width="1"><img src="/b.png" height="1"><input type="image" src="/c.png" data-consent-category="analytics"><img src="/photo.png"></body></html>');
+    expect(html).toContain('</section><template data-jini-consent-resource data-category="marketing"><img src="/a.png" width="1"></template><template data-jini-consent-resource data-category="marketing"><img src="/b.png" height="1"></template><template data-jini-consent-resource data-category="analytics"><input type="image" src="/c.png" data-consent-category="analytics"></template><img src="/photo.png"></body>');
+  });
+  it('matches host manifest scripts by exact src', () => {
+    const html = transform('<html><body><script src="/essential.js"></script><script src="/other.js"></script></body></html>', { necessaryScripts: [{ src: '/essential.js' }] });
+    expect(html).toContain('<body><section'); expect(html).toContain('</section><script src="/essential.js"></script><template data-jini-consent-script data-category="functional"><script src="/other.js"></script></template>');
+  });
+  it('bootstraps after the doctype, or at offset 0, when the page has no html or head tags; the UI lands first at the shared offset', () => {
+    const head = renderConsentHead({ record: null, gpc: false, regionMode: 'opt-in' });
+    const doctype = transform('<!doctype html><p>Page</p>');
+    expect(doctype.startsWith('<!doctype html><section id="jini-consent"')).toBe(true); expect(doctype.endsWith(`</section>${head}<p>Page</p>`)).toBe(true);
+    const bare = transform('<p>Page</p>');
+    expect(bare.startsWith('<section id="jini-consent"')).toBe(true); expect(bare.endsWith(`</section>${head}<p>Page</p>`)).toBe(true);
+  });
+  it('current behaviour (reported, not fixed): attributes merged from a second body start tag are neither deferred nor stripped', () => {
+    const html = transform('<html><body><p>x</p><body onload="window.leaked=true" data-jini-consent-runtime="x"></body></html>');
+    expect(html).toContain('<body onload="window.leaked=true" data-jini-consent-runtime="x">');
+  });
 });

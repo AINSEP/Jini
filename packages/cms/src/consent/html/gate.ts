@@ -5,7 +5,11 @@ import { renderConsentHead, renderConsentUi } from './render.js';
 import { CONSENT_CLIENT } from './client.js';
 
 type Node = DefaultTreeAdapterMap['childNode'];
+type Element = DefaultTreeAdapterMap['element'];
+type Attribute = Element['attrs'][number];
+type ElementLocation = NonNullable<Element['sourceCodeLocation']>;
 type Edit = { start: number; end: number; text: string };
+type Attrs = Map<string, string>;
 /** Exact host manifest entries, never declarations taken from page HTML. */
 export interface ConsentGateOptions {
   nonce?: string;
@@ -15,12 +19,168 @@ export interface ConsentGateOptions {
   necessaryScripts?: readonly ({ src: string; content?: never } | { content: string; src?: never })[];
 }
 
+const RESERVED_IDS = ['jini-consent', 'jini-consent-config', 'jini-consent-preferences'];
+const RESOURCE_HINTS = ['preload', 'modulepreload', 'prefetch', 'prerender', 'preconnect', 'dns-prefetch'];
+const DATA_SCRIPT_TYPES = ['application/json', 'application/ld+json', 'text/plain', 'text/template', 'text/x-template'];
+const URL_ATTRIBUTES = ['src', 'href', 'poster', 'data', 'srcset', 'background'];
+const RESOURCE_TAGS = ['iframe', 'frame', 'object', 'embed', 'video', 'audio', 'source', 'track', 'noscript'];
+const IMAGE_TAGS = ['img', 'image', 'input'];
+const NAVIGATION_TAGS = ['a', 'area', 'form', 'html', 'head', 'body', 'script'];
+const STRUCTURAL_TAGS = ['html', 'head', 'body', 'script'];
+const OPTIONAL_CATEGORIES = ['functional', 'analytics', 'marketing'];
+const CSS_REQUEST = /url\s*\(|(?:-webkit-)?image-set\s*\(|@import|\\/i;
+const HTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
+
 /** Relative resources belong to the host. A base element is removed before delivery.
  * @complexity O(URL length). Unknown schemes and protocol-relative URLs are external. */
 function external({ url }: { url: string }, _options = {}): boolean {
   // Browsers normalize backslashes and embedded ASCII URL whitespace before fetching.
   const normalized = url.trim().replace(/[\t\r\n]/g, '').replace(/\\/g, '/');
   return !/^(?:[?#]|\/(?!\/)|\.?\.?\/|[a-zA-Z0-9_-]+(?:[./?#]|$))/.test(normalized) || /^[a-z][a-z0-9+.-]*:|^\/\//i.test(normalized);
+}
+
+/** Direct text children only, matching what a browser executes for an inline script. @complexity O(children). */
+function directText({ element }: { element: Element }): string {
+  return element.childNodes.filter((child): child is DefaultTreeAdapterMap['textNode'] => child.nodeName === '#text').map(child => child.value).join('');
+}
+
+/** A marker exempts only our exact runtime in this response, never the surrounding page. @complexity O(script length). */
+function isRuntimeScript({ element, attrs, text }: { element: Element; attrs: Attrs; text: string }, { runtimeToken }: ConsentGateOptions): boolean {
+  return element.tagName === 'script' && runtimeToken !== undefined && attrs.get('data-jini-consent-runtime') === runtimeToken && text === CONSENT_CLIENT;
+}
+
+/** Authored markers cannot become another release owner or shadow our UI/state IDs. @complexity O(attributes). */
+function reservedAttributes({ element }: { element: Element }): Attribute[] {
+  return element.attrs.filter(attr => attr.name.startsWith('data-jini-consent-') || (attr.name === 'id' && RESERVED_IDS.includes(attr.value)));
+}
+
+/** Elements that can fetch or navigate before consent with no content worth keeping. @complexity O(rel tokens). */
+function isRemovedElement({ tagName, attrs }: { tagName: string; attrs: Attrs }): boolean {
+  if (tagName === 'base') return true;
+  if (tagName === 'meta') return attrs.get('http-equiv')?.toLowerCase() === 'refresh';
+  return tagName === 'link' && (attrs.get('rel') ?? '').toLowerCase().split(/\s+/).some(value => RESOURCE_HINTS.includes(value));
+}
+
+/** @complexity O(attribute length). */
+function hasRemoteUrl({ attrs }: { attrs: Attrs }): boolean {
+  const srcset = attrs.get('srcset');
+  if (srcset !== undefined && /(?:^|[,\s])(?:https?:|\/\/)/i.test(srcset)) return true;
+  return URL_ATTRIBUTES.some(key => attrs.has(key) && external({ url: attrs.get(key)! }));
+}
+
+/** Labelled or 1px images are tracking pixels even when local. @complexity O(1). */
+function isTrackingImage({ attrs }: { attrs: Attrs }): boolean {
+  return attrs.has('data-consent-category') || attrs.get('width') === '1' || attrs.get('height') === '1';
+}
+
+/** @complexity O(text length). */
+function isResource({ tagName, attrs, text, remote }: { tagName: string; attrs: Attrs; text: string; remote: boolean }): boolean {
+  if (RESOURCE_TAGS.includes(tagName)) return true;
+  if (IMAGE_TAGS.includes(tagName) && (remote || isTrackingImage({ attrs }))) return true;
+  if (remote && !NAVIGATION_TAGS.includes(tagName)) return true;
+  if (tagName === 'style' && CSS_REQUEST.test(text)) return true;
+  return attrs.has('data-consent-category') && !STRUCTURAL_TAGS.includes(tagName);
+}
+
+/** Page labels may select optional categories; they can never grant necessity. @complexity O(1). */
+function categoryFor({ declared, fetches }: { declared: string | undefined; fetches: boolean }): string {
+  if (declared === undefined || declared === 'necessary') return fetches ? 'marketing' : 'functional';
+  return OPTIONAL_CATEGORIES.includes(declared) ? declared : 'blocked';
+}
+
+/** Only host allowlisted scripts are necessary. @complexity O(k) for k manifest entries. */
+function isNecessaryScript({ attrs, text }: { attrs: Attrs; text: string }, { necessaryScripts = [] }: ConsentGateOptions): boolean {
+  return necessaryScripts.some(entry => entry.src !== undefined ? attrs.get('src') === entry.src : !attrs.has('src') && text === entry.content);
+}
+
+/** Default deny includes legacy JavaScript MIME types, import maps and speculation rules. @complexity O(k). */
+function isOptionalScript({ element, attrs, text, runtime }: { element: Element; attrs: Attrs; text: string; runtime: boolean }, options: ConsentGateOptions): boolean {
+  if (element.tagName !== 'script' || runtime) return false;
+  const type = (attrs.get('type') ?? '').trim().toLowerCase();
+  return !DATA_SCRIPT_TYPES.includes(type) && !isNecessaryScript({ attrs, text }, options);
+}
+
+/** @complexity O(subtree size). */
+function wrapEdit({ element, location, category }: { element: Element; location: ElementLocation; category: string }): Edit {
+  // Normalize ignored/misnested end tags so they cannot escape the new template boundary.
+  const source = serializeOuter(element, { scriptingEnabled: false });
+  // A template in SVG/MathML is not an inert HTML template. Remove foreign scripts/resources.
+  const marker = element.tagName === 'script' ? 'data-jini-consent-script' : 'data-jini-consent-resource';
+  return { start: location.startOffset, end: location.endOffset, text: element.namespaceURI === HTML_NAMESPACE ? `<template ${marker} data-category="${category}">${source}</template>` : '' };
+}
+
+/** @complexity O(attribute length). */
+function isDeferredAttribute({ name, value }: Attribute): boolean {
+  if (name === 'background' && external({ url: value })) return true;
+  if (/^on/i.test(name)) return true;
+  if (['href', 'action', 'formaction'].includes(name)) return /^[\s\x00-\x20]*javascript:/i.test(value);
+  return name === 'style' && CSS_REQUEST.test(value);
+}
+
+/** @complexity O(attributes). */
+function removeAttributes({ attrs, location }: { attrs: Attribute[]; location: ElementLocation }): Edit[] {
+  return attrs.flatMap(attr => {
+    const attrLocation = location.attrs?.[attr.name];
+    return attrLocation ? [{ start: attrLocation.startOffset, end: attrLocation.endOffset, text: '' }] : [];
+  });
+}
+
+/** Strip reserved markers and move fetching/executing attributes into a release payload.
+ * @complexity O(attributes). */
+function attributeEdits({ element, location, reserved, category }: { element: Element; location: Element['sourceCodeLocation']; reserved: Attribute[]; category: string }): Edit[] {
+  const startTag = location?.startTag;
+  if (!location || !startTag) return [];
+  const deferred = element.attrs.filter(attr => location.attrs?.[attr.name] !== undefined && isDeferredAttribute(attr));
+  const edits = removeAttributes({ attrs: [...reserved, ...deferred], location });
+  if (!deferred.length) return edits;
+  const payload = escapeHtml({ text: JSON.stringify(Object.fromEntries(deferred.map(attr => [attr.name, attr.value]))) });
+  return [...edits, { start: startTag.endOffset - 1, end: startTag.endOffset - 1, text: ` data-jini-consent-attributes="${payload}" data-jini-consent-category="${category}"` }];
+}
+
+/** Edits for one element, and whether its children still need gating.
+ * @complexity O(attributes + text + k), plus O(subtree) when the element is wrapped. */
+function gateElement({ element }: { element: Element }, options: ConsentGateOptions): { edits: Edit[]; descend: boolean } {
+  const location = element.sourceCodeLocation;
+  const attrs: Attrs = new Map(element.attrs.map(attr => [attr.name, attr.value]));
+  const text = directText({ element });
+  const runtime = isRuntimeScript({ element, attrs, text }, options);
+  const reserved = runtime ? [] : reservedAttributes({ element });
+  element.attrs = element.attrs.filter(attr => !reserved.includes(attr));
+  if (location && isRemovedElement({ tagName: element.tagName, attrs })) {
+    // An as=fetch preload can fetch the same optional script URL, so remove all resource hints.
+    return { edits: [{ start: location.startOffset, end: location.endOffset, text: '' }], descend: false };
+  }
+  const remote = hasRemoteUrl({ attrs });
+  const resource = isResource({ tagName: element.tagName, attrs, text, remote });
+  const category = categoryFor({ declared: attrs.get('data-consent-category'), fetches: remote || resource });
+  if (location && (resource || isOptionalScript({ element, attrs, text, runtime }, options))) return { edits: [wrapEdit({ element, location, category })], descend: false };
+  // Authored template contents are already inert; traversing them would release never-mounted code.
+  return { edits: attributeEdits({ element, location, reserved, category }), descend: element.tagName !== 'template' };
+}
+
+/** Walk the document once, recording html/head/body start-tag ends for the bootstrap insertions.
+ * @complexity O(n) nodes. */
+function gateDocument({ document }: { document: DefaultTreeAdapterMap['document'] }, options: ConsentGateOptions): { edits: Edit[]; startTagEnds: Record<string, number> } {
+  const stack: Node[] = [...document.childNodes];
+  const edits: Edit[] = [];
+  const startTagEnds: Record<string, number> = {};
+  while (stack.length) {
+    const node = stack.pop()!;
+    if (!('tagName' in node)) continue;
+    const startTag = node.sourceCodeLocation?.startTag;
+    if (startTag && ['html', 'head', 'body'].includes(node.tagName)) startTagEnds[node.tagName] = startTag.endOffset;
+    const gated = gateElement({ element: node }, options);
+    edits.push(...gated.edits);
+    if (gated.descend) stack.push(...node.childNodes);
+  }
+  return { edits, startTagEnds };
+}
+
+/** Bootstrap goes first in head (else html, else after the doctype); the UI opens body. @complexity O(top-level nodes). */
+function insertionOffsets({ document, startTagEnds }: { document: DefaultTreeAdapterMap['document']; startTagEnds: Record<string, number> }): { head: number; ui: number } {
+  const doctypeEnd = document.childNodes.find(node => node.nodeName === '#documentType')?.sourceCodeLocation?.endOffset ?? 0;
+  const head = startTagEnds.head ?? startTagEnds.html ?? doctypeEnd;
+  return { head, ui: startTagEnds.body ?? head };
 }
 
 /** Gate delivered HTML using the existing parser, including no-JS and non-script requests.
@@ -31,74 +191,10 @@ function external({ url }: { url: string }, _options = {}): boolean {
 export function gateConsentHtml({ html, config, record, regionMode, gpc, endpoint }: { html: string; config: ConsentConfig; record: ConsentRecord | null; regionMode: ConsentRegionMode; gpc: boolean; endpoint: string }, options: ConsentGateOptions = {}): string {
   if (!config.enabled) return html;
   const document = parse(html, { sourceCodeLocationInfo: true, scriptingEnabled: false });
-  const stack: Node[] = [...document.childNodes];
-  const edits: Edit[] = [];
-  let headStart: number | undefined, htmlStart: number | undefined, bodyStart: number | undefined;
-  let doctypeEnd = 0;
-  while (stack.length) {
-    const node = stack.pop()!;
-    if (node.nodeName === '#documentType') doctypeEnd = node.sourceCodeLocation?.endOffset ?? 0;
-    if (!('tagName' in node)) continue;
-    const location = node.sourceCodeLocation;
-    const attrs = new Map(node.attrs.map(attr => [attr.name, attr.value]));
-    if (node.tagName === 'html' && location?.startTag) htmlStart = location.startTag.endOffset;
-    if (node.tagName === 'head' && location?.startTag) headStart = location.startTag.endOffset;
-    if (node.tagName === 'body' && location?.startTag) bodyStart = location.startTag.endOffset;
-    const text = node.childNodes.filter(child => child.nodeName === '#text').map(child => 'value' in child ? child.value : '').join('');
-    // A marker exempts only our exact runtime in this response, never the surrounding page.
-    const runtime = node.tagName === 'script' && options.runtimeToken !== undefined && attrs.get('data-jini-consent-runtime') === options.runtimeToken && text === CONSENT_CLIENT;
-    const necessary = node.tagName === 'script' && (runtime || options.necessaryScripts?.some(entry => entry.src !== undefined ? attrs.get('src') === entry.src : !attrs.has('src') && text === entry.content));
-    const reserved = runtime ? [] : node.attrs.filter(attr => attr.name.startsWith('data-jini-consent-') || (attr.name === 'id' && ['jini-consent', 'jini-consent-config', 'jini-consent-preferences'].includes(attr.value)));
-    // Authored markers cannot become another release owner or shadow our UI/state IDs.
-    node.attrs = node.attrs.filter(attr => !reserved.includes(attr));
-    const rel = (attrs.get('rel') ?? '').toLowerCase().split(/\s+/);
-    if (location && (node.tagName === 'base' || (node.tagName === 'meta' && attrs.get('http-equiv')?.toLowerCase() === 'refresh') || (node.tagName === 'link' && rel.some(value => ['preload', 'modulepreload', 'prefetch', 'prerender', 'preconnect', 'dns-prefetch'].includes(value))))) {
-      // An as=fetch preload can fetch the same optional script URL, so remove all resource hints.
-      edits.push({ start: location.startOffset, end: location.endOffset, text: '' });
-      continue;
-    }
-    const type = (attrs.get('type') ?? '').trim().toLowerCase();
-    // Default deny includes legacy JavaScript MIME types, import maps and speculation rules.
-    const dataScript = node.tagName === 'script' && ['application/json', 'application/ld+json', 'text/plain', 'text/template', 'text/x-template'].includes(type);
-    const remote = (attrs.has('srcset') && /(?:^|[,\s])(?:https?:|\/\/)/i.test(attrs.get('srcset')!)) || ['src', 'href', 'poster', 'data', 'srcset', 'background'].some(key => attrs.has(key) && external({ url: attrs.get(key)! }));
-    const cssRequests = (node.tagName === 'style' && /url\s*\(|(?:-webkit-)?image-set\s*\(|@import|\\/i.test(text));
-    const resource = ['iframe', 'frame', 'object', 'embed', 'video', 'audio', 'source', 'track', 'noscript'].includes(node.tagName)
-      || (['img', 'image', 'input'].includes(node.tagName) && (remote || attrs.has('data-consent-category') || attrs.get('width') === '1' || attrs.get('height') === '1'))
-      || (remote && !['a', 'area', 'form', 'html', 'head', 'body', 'script'].includes(node.tagName)) || cssRequests
-      || (attrs.has('data-consent-category') && !['html', 'head', 'body', 'script'].includes(node.tagName));
-    const declared = attrs.get('data-consent-category');
-    // Page labels may select optional categories; they can never grant necessity.
-    const category = declared === undefined || declared === 'necessary' ? (remote || resource ? 'marketing' : 'functional') : ['functional', 'analytics', 'marketing'].includes(declared) ? declared : 'blocked';
-    if (location && ((node.tagName === 'script' && !dataScript && !necessary) || resource)) {
-      // Normalize ignored/misnested end tags so they cannot escape the new template boundary.
-      const source = serializeOuter(node, { scriptingEnabled: false });
-      // A template in SVG/MathML is not an inert HTML template. Remove foreign scripts/resources.
-      const marker = node.tagName === 'script' ? 'data-jini-consent-script' : 'data-jini-consent-resource';
-      edits.push({ start: location.startOffset, end: location.endOffset, text: node.namespaceURI === 'http://www.w3.org/1999/xhtml' ? `<template ${marker} data-category="${category}">${source}</template>` : '' });
-      continue;
-    }
-    if (location?.startTag) {
-      for (const attr of reserved) {
-        const attrLocation = location.attrs?.[attr.name];
-        if (attrLocation) edits.push({ start: attrLocation.startOffset, end: attrLocation.endOffset, text: '' });
-      }
-      const deferred: Record<string, string> = {};
-      for (const attr of node.attrs) {
-        const attrLocation = location.attrs?.[attr.name];
-        if (!attrLocation) continue;
-        if ((attr.name === 'background' && external({ url: attr.value })) || /^on/i.test(attr.name) || (['href', 'action', 'formaction'].includes(attr.name) && /^[\s\x00-\x20]*javascript:/i.test(attr.value)) || (attr.name === 'style' && /url\s*\(|(?:-webkit-)?image-set\s*\(|@import|\\/i.test(attr.value))) {
-          deferred[attr.name] = attr.value;
-          edits.push({ start: attrLocation.startOffset, end: attrLocation.endOffset, text: '' });
-        }
-      }
-      if (Object.keys(deferred).length) edits.push({ start: location.startTag.endOffset - 1, end: location.startTag.endOffset - 1, text: ` data-jini-consent-attributes="${escapeHtml({ text: JSON.stringify(deferred) })}" data-jini-consent-category="${category}"` });
-    }
-    // Authored template contents are already inert; traversing them would release never-mounted code.
-    if (node.tagName !== 'template') stack.push(...node.childNodes);
-  }
-  const bootstrapOffset = headStart ?? htmlStart ?? doctypeEnd;
-  edits.push({ start: bootstrapOffset, end: bootstrapOffset, text: renderConsentHead({ record, gpc, regionMode }, options) });
-  edits.push({ start: bodyStart ?? bootstrapOffset, end: bodyStart ?? bootstrapOffset, text: renderConsentUi({ config, record, regionMode, gpc, endpoint }) });
+  const { edits, startTagEnds } = gateDocument({ document }, options);
+  const offsets = insertionOffsets({ document, startTagEnds });
+  edits.push({ start: offsets.head, end: offsets.head, text: renderConsentHead({ record, gpc, regionMode }, options) });
+  edits.push({ start: offsets.ui, end: offsets.ui, text: renderConsentUi({ config, record, regionMode, gpc, endpoint }) });
   edits.sort((a, b) => b.start - a.start);
   for (const edit of edits) html = html.slice(0, edit.start) + edit.text + html.slice(edit.end);
   return html;
