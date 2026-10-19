@@ -674,6 +674,18 @@ export async function executeGoogleToolCalls({ executeTool, calls, onEvent }: { 
   return { functionResponseParts, followUpParts };
 }
 
+/** The redacted error for a first response with neither text nor tool calls, else `undefined`. */
+function emptyFirstTurnError(
+  { outcome, toolTurns, apiKey }: { outcome: Awaited<ReturnType<typeof runSingleGoogleRequest>>; toolTurns: number; apiKey: string },
+): string | undefined {
+  if (toolTurns !== 0 || outcome.toolCalls.length > 0 || outcome.text.trim()) return undefined;
+  // Thinking can consume the entire output budget without producing any answer. Preserve
+  // the reason for operator diagnostics rather than turning a content-free response into stop.
+  return redactSecrets({
+    input: `Google returned no text or tool calls (${outcome.finishReason ?? 'missing finish reason'})`,
+  }, { exactSecrets: [apiKey] });
+}
+
 /**
  * Runs a full Gemini `streamGenerateContent` turn, including the
  * tool-execution loop when `options.executeTool` is supplied and the model
@@ -700,12 +712,9 @@ export async function runGoogleToolTurn(requiredArgs: Pick<GoogleTurnOptions, "a
 
     if (endGuard.hasEnded()) break;
 
-    if (toolTurns === 0 && outcome.toolCalls.length === 0 && !outcome.text.trim()) {
-      // Thinking can consume the entire output budget without producing any answer. Preserve
-      // the reason for operator diagnostics rather than turning a content-free response into stop.
-      options.onEvent({ type: 'error', message: redactSecrets({
-        input: `Google returned no text or tool calls (${outcome.finishReason ?? 'missing finish reason'})`,
-      }, { exactSecrets: [options.apiKey] }) });
+    const emptyTurnError = emptyFirstTurnError({ outcome, toolTurns, apiKey: options.apiKey });
+    if (emptyTurnError) {
+      options.onEvent({ type: 'error', message: emptyTurnError });
       emitEnd('error');
       break;
     }
