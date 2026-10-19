@@ -18,6 +18,9 @@ See [API integration](API-INTEGRATION.md) for current signatures and migration e
 | `./settings` | universal | One-release compatibility re-export of `@jini-ai/core/settings`. |
 | `./settings/express` | node | One-release compatibility re-export of `@jini-ai/core/settings/express`. |
 
+Hosts that sanitize SVG uploads or ingest documents through `./media` must install the optional peers
+`dompurify` and `jsdom`. They load lazily: without them, other media still works, but SVG and Office uploads fail.
+
 Node-bound domain adapters depend on `/core`. The reverse is a boundary violation — if a core module wants
 something from a Node adapter, the dependency is backwards and the fix is a port (interface) in core,
 not a widened export.
