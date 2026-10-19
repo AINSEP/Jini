@@ -244,76 +244,65 @@ interface MediaGenerateRequest {
   readonly request: MediaGenerationRequest;
 }
 
+function parseOptionalMember(body: Record<string, unknown>, key: string, allowed: ReadonlySet<string>): Result<string | undefined> {
+  const value = body[key];
+  if (value === undefined) return ok({ value: undefined });
+  if (typeof value !== 'string' || !allowed.has(value)) {
+    return err({ error: validationError({ message: `${key} must be one of: ${[...allowed].join(', ')} when provided` }) });
+  }
+  return ok({ value });
+}
+
+type MediaGenerationOptions = Omit<MediaGenerationRequest, 'surface' | 'model'>;
+
+/** Table order is the validation order: the first failing field is the one a caller sees. */
+const OPTIONAL_FIELD_PARSERS: ReadonlyArray<readonly [keyof MediaGenerationOptions, (body: Record<string, unknown>) => Result<unknown>]> = [
+  ['audioKind', (body) => parseOptionalMember(body, 'audioKind', AUDIO_KINDS)],
+  ['speechFormat', (body) => parseOptionalMember(body, 'speechFormat', SPEECH_FORMATS)],
+  ['prompt', (body) => parseOptionalString(body, 'prompt')],
+  ['aspect', (body) => parseOptionalString(body, 'aspect')],
+  ['voice', (body) => parseOptionalString(body, 'voice')],
+  ['language', (body) => parseOptionalString(body, 'language')],
+  ['wireModel', (body) => parseOptionalString(body, 'wireModel')],
+  ['length', (body) => parseOptionalNumber(body, 'length')],
+  ['duration', (body) => parseOptionalNumber(body, 'duration')],
+  ['promptInfluence', (body) => parseOptionalNumber(body, 'promptInfluence')],
+  ['loop', (body) => parseOptionalBoolean(body, 'loop')],
+  ['imageRef', parseOptionalImageRef],
+  ['imageRefs', parseOptionalImageRefs],
+];
+
+/** Collects every provided optional field; an absent field is omitted, never written as `undefined`. */
+function parseOptionalFields(body: Record<string, unknown>): Result<MediaGenerationOptions> {
+  const fields: Record<string, unknown> = {};
+  for (const [key, parse] of OPTIONAL_FIELD_PARSERS) {
+    const parsed = parse(body);
+    if (!parsed.ok) return parsed;
+    if (parsed.value !== undefined) fields[key] = parsed.value;
+  }
+  return ok({ value: fields as MediaGenerationOptions });
+}
+
+function requiredStringError(key: string): Result<never> {
+  return err({ error: validationError({ message: `${key} must be a non-empty string` }, { issues: [{ path: key, message: 'required non-empty string' }] }) });
+}
+
 function parseMediaGenerate(input: RouteInputContext): Result<MediaGenerateRequest> {
   if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
   const body = input.body;
 
   const ownerRef = requireNonEmptyString(body, 'ownerRef');
-  if (ownerRef === undefined) {
-    return err({ error: validationError({ message: 'ownerRef must be a non-empty string' }, { issues: [{ path: 'ownerRef', message: 'required non-empty string' }] }) });
-  }
+  if (ownerRef === undefined) return requiredStringError('ownerRef');
   const surface = body.surface;
   if (typeof surface !== 'string' || !SURFACES.has(surface as MediaSurface)) {
     return err({ error: validationError({ message: 'surface must be one of: image, video, audio' }) });
   }
   const model = requireNonEmptyString(body, 'model');
-  if (model === undefined) {
-    return err({ error: validationError({ message: 'model must be a non-empty string' }, { issues: [{ path: 'model', message: 'required non-empty string' }] }) });
-  }
-  const audioKind = body.audioKind;
-  if (audioKind !== undefined && (typeof audioKind !== 'string' || !AUDIO_KINDS.has(audioKind as AudioKind))) {
-    return err({ error: validationError({ message: 'audioKind must be one of: music, speech, sfx when provided' }) });
-  }
-  const speechFormat = body.speechFormat;
-  if (speechFormat !== undefined && (typeof speechFormat !== 'string' || !SPEECH_FORMATS.has(speechFormat as MediaSpeechFormat))) {
-    return err({ error: validationError({ message: 'speechFormat must be one of: mp3, wav, flac, aac, opus when provided' }) });
-  }
+  if (model === undefined) return requiredStringError('model');
 
-  const prompt = parseOptionalString(body, 'prompt');
-  if (!prompt.ok) return prompt;
-  const aspect = parseOptionalString(body, 'aspect');
-  if (!aspect.ok) return aspect;
-  const voice = parseOptionalString(body, 'voice');
-  if (!voice.ok) return voice;
-  const language = parseOptionalString(body, 'language');
-  if (!language.ok) return language;
-  const wireModel = parseOptionalString(body, 'wireModel');
-  if (!wireModel.ok) return wireModel;
-  const length = parseOptionalNumber(body, 'length');
-  if (!length.ok) return length;
-  const duration = parseOptionalNumber(body, 'duration');
-  if (!duration.ok) return duration;
-  const promptInfluence = parseOptionalNumber(body, 'promptInfluence');
-  if (!promptInfluence.ok) return promptInfluence;
-  const loop = parseOptionalBoolean(body, 'loop');
-  if (!loop.ok) return loop;
-  const imageRef = parseOptionalImageRef(body);
-  if (!imageRef.ok) return imageRef;
-  const imageRefs = parseOptionalImageRefs(body);
-  if (!imageRefs.ok) return imageRefs;
-
-  return ok({
-    value: {
-      ownerRef,
-      request: {
-        surface: surface as MediaSurface,
-        model,
-        ...(prompt.value !== undefined ? { prompt: prompt.value } : {}),
-        ...(aspect.value !== undefined ? { aspect: aspect.value } : {}),
-        ...(length.value !== undefined ? { length: length.value } : {}),
-        ...(duration.value !== undefined ? { duration: duration.value } : {}),
-        ...(voice.value !== undefined ? { voice: voice.value } : {}),
-        ...(audioKind !== undefined ? { audioKind: audioKind as AudioKind } : {}),
-        ...(language.value !== undefined ? { language: language.value } : {}),
-        ...(loop.value !== undefined ? { loop: loop.value } : {}),
-        ...(promptInfluence.value !== undefined ? { promptInfluence: promptInfluence.value } : {}),
-        ...(imageRef.value !== undefined ? { imageRef: imageRef.value } : {}),
-        ...(imageRefs.value !== undefined ? { imageRefs: imageRefs.value } : {}),
-        ...(wireModel.value !== undefined ? { wireModel: wireModel.value } : {}),
-        ...(speechFormat !== undefined ? { speechFormat: speechFormat as MediaSpeechFormat } : {}),
-      },
-    }
-  });
+  const options = parseOptionalFields(body);
+  if (!options.ok) return options;
+  return ok({ value: { ownerRef, request: { surface: surface as MediaSurface, model, ...options.value } } });
 }
 
 function parseTaskId(input: RouteInputContext): Result<string> {

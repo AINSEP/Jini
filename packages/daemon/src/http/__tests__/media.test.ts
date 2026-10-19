@@ -268,6 +268,11 @@ describe('mediaGenerateRoute.parse', () => {
     expect(result).toEqual({ ok: true, value: { ownerRef: 'r1', request: { surface: 'image', model: 'dall-e-3' } } });
   });
 
+  it('omits absent optional fields instead of writing them as undefined keys', () => {
+    const result = mediaGenerateRoute.parse({ body: { ownerRef: 'r1', surface: 'audio', model: 'm', voice: 'v' }, query: {}, params: {} });
+    expect(result.ok && Object.keys(result.value.request)).toEqual(['surface', 'model', 'voice']);
+  });
+
   it('accepts a fully-populated body, threading every optional field through', () => {
     const result = mediaGenerateRoute.parse({
       body: {
