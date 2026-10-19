@@ -80,6 +80,21 @@ export type RequestDecision = { action: "fetch"; via: "guarded" | "own-site"; me
 /** Streaming and media types that add nothing to a still picture and could hold a fetch open. */
 const SKIPPED_RESOURCE_TYPES: ReadonlySet<string> = new Set(["media", "eventsource", "websocket", "texttrack"]);
 
+/** The only requests a public reader may opt into writing: script-issued XHR/fetch data calls. */
+function isDataWrite({ method, resourceType }: { method: string; resourceType: string }): boolean {
+  return ["xhr", "fetch"].includes(resourceType) && ["POST", "PUT", "PATCH"].includes(method.toUpperCase());
+}
+
+/** An anonymous http(s) URL, or `undefined` for anything unparsable, credentialed or another scheme. */
+function parseFetchableUrl(url: string): URL | undefined {
+  try {
+    const parsed = new URL(url);
+    return ["http:", "https:"].includes(parsed.protocol) && !parsed.username && !parsed.password ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Pure routing decision for one request. Budget is not considered here (see the router).
  * @complexity O(url length + allowedOrigins).
@@ -88,15 +103,13 @@ export function decideRequest(
   { url, method, resourceType, allowedOrigins }: { url: string; method: string; resourceType: string; allowedOrigins: readonly string[] },
   { allowDataRequests = false }: { allowDataRequests?: boolean } = {},
 ): RequestDecision {
-  let parsed: URL;
-  try { parsed = new URL(url); } catch { return { action: "abort", reason: "scheme" }; }
-  if (parsed.username || parsed.password) return { action: "abort", reason: "scheme" };
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return { action: "abort", reason: "scheme" };
-  const upper = method.toUpperCase();
-  const dataWrite = allowDataRequests && ["xhr", "fetch"].includes(resourceType) && ["POST", "PUT", "PATCH"].includes(upper);
-  if (upper !== "GET" && upper !== "HEAD" && !dataWrite) return { action: "abort", reason: "method" };
+  const parsed = parseFetchableUrl(url);
+  if (!parsed) return { action: "abort", reason: "scheme" };
+  const upper = method.toUpperCase() as RoutedMethod;
+  const dataWrite = allowDataRequests && isDataWrite({ method: upper, resourceType });
+  if (!["GET", "HEAD"].includes(upper) && !dataWrite) return { action: "abort", reason: "method" };
   if (SKIPPED_RESOURCE_TYPES.has(resourceType)) return { action: "abort", reason: "resource-type" };
-  return { action: "fetch", via: !dataWrite && allowedOrigins.includes(parsed.origin) ? "own-site" : "guarded", method: upper as RoutedMethod };
+  return { action: "fetch", via: !dataWrite && allowedOrigins.includes(parsed.origin) ? "own-site" : "guarded", method: upper };
 }
 
 /** Request headers that must never leave this process, plus hop-by-hop ones the transport owns. */
@@ -169,6 +182,15 @@ function redirectTarget(resource: FetchedResource, base: string): string | undef
   try { return new URL(location, base).href; } catch { return location; }
 }
 
+/** Match fetch redirect semantics without letting Chromium follow an unvetted hop. */
+function redirectedRequest(
+  { status, method, body, headers }: { status: number; method: string; body: string | undefined; headers: Record<string, string> },
+): { method: string; body: string | undefined; headers: Record<string, string> } {
+  if (status !== 303 && !([301, 302].includes(status) && method.toUpperCase() === "POST")) return { method, body, headers };
+  const { "content-type": _dropped, ...kept } = headers;
+  return { method: "GET", body: undefined, headers: kept };
+}
+
 /** A counting semaphore: at most `limit` holders, FIFO waiters. */
 function createSemaphore(limit: number): { acquire(): Promise<() => void> } {
   let active = 0;
@@ -186,6 +208,46 @@ function createSemaphore(limit: number): { acquire(): Promise<() => void> } {
   };
 }
 
+type FetchDecision = Extract<RequestDecision, { action: "fetch" }>;
+type HopFetch = (required: { decision: FetchDecision; url: string; headers: Record<string, string>; body: string | undefined }) => Promise<FetchedResource | AbortReason>;
+
+/** One capture's transport side: request/byte budgets, the concurrency slots and both fetch paths. */
+function createHopFetcher(
+  { httpClient, ownSiteFetch, signal, report }: { httpClient: HttpClientPort; ownSiteFetch: OwnSiteFetch; signal: AbortSignal; report: RequestRouterReport },
+  { maxRequests = 300, maxTotalBytes = 60 * 1024 * 1024, maxResourceBytes = 15 * 1024 * 1024, maxConcurrent = 6, perRequestTimeoutMs = 15_000, isEgressRefused = error => error instanceof Error && error.name === "EgressRefusedError" }: RequestRouterOptions,
+): HopFetch {
+  const slots = createSemaphore(maxConcurrent);
+  let started = 0;
+
+  async function fetchResource({ decision, url, headers, body: requestBody }: Parameters<HopFetch>[0]): Promise<FetchedResource> {
+    if (decision.via === "own-site") {
+      return ownSiteFetch({ url, method: decision.method as "GET" | "HEAD", headers }, { signal, maxBytes: maxResourceBytes });
+    }
+    const response = await httpClient.send({ request: { method: decision.method, url, headers, ...(requestBody === undefined ? {} : { body: requestBody }), signal, timeoutMs: perRequestTimeoutMs, maxResponseBytes: maxResourceBytes } });
+    const body = response.bodyBytes ? Buffer.from(response.bodyBytes) : Buffer.from(response.bodyText, "utf8");
+    return { status: response.status, headers: { ...response.headers, ...(response.setCookies?.length ? { "set-cookie": response.setCookies.join("\n") } : {}) }, body, truncated: response.bodyBytes ? response.bodyBytesTruncated === true : response.bodyTruncated === true };
+  }
+
+  /** One hop: budget, a concurrency slot, the fetch, and the byte accounting — or why it was refused. */
+  return async (hop) => {
+    if (started >= maxRequests || report.bytes >= maxTotalBytes || signal.aborted) return "budget";
+    started += 1;
+    const release = await slots.acquire();
+    if (signal.aborted) { release(); return "budget"; }
+    let resource: FetchedResource;
+    try {
+      resource = await fetchResource(hop);
+    } catch (error) {
+      return isEgressRefused(error) ? "refused" : "failed";
+    } finally {
+      release();
+    }
+    if (resource.truncated) return "budget";
+    report.bytes += resource.body.length;
+    return report.bytes > maxTotalBytes ? "budget" : resource;
+  };
+}
+
 /**
  * Builds the router for ONE capture (budgets and counters are per capture).
  * @param required.httpClient - Guarded client built from `platform/http`'s `WEB_SCREENSHOT_EGRESS_POLICY`; never a raw transport.
@@ -196,11 +258,11 @@ function createSemaphore(limit: number): { acquire(): Promise<() => void> } {
  */
 export function createRequestRouter(
   { httpClient, ownSiteFetch, allowedOrigins, signal }: { httpClient: HttpClientPort; ownSiteFetch: OwnSiteFetch; allowedOrigins: readonly string[]; signal: AbortSignal },
-  { maxRequests = 300, maxTotalBytes = 60 * 1024 * 1024, maxResourceBytes = 15 * 1024 * 1024, maxConcurrent = 6, perRequestTimeoutMs = 15_000, preserveOwnSiteCookies = false, allowDataRequests = false, maxRequestBodyBytes = 64 * 1024, isEgressRefused = error => error instanceof Error && error.name === "EgressRefusedError", onResponse, onBlocked }: RequestRouterOptions = {},
+  options: RequestRouterOptions = {},
 ): RequestRouter {
+  const { preserveOwnSiteCookies = false, allowDataRequests = false, maxRequestBodyBytes = 64 * 1024, onResponse, onBlocked } = options;
   const report: RequestRouterReport = { fulfilled: 0, blocked: 0, navigationRefused: false, bytes: 0 };
-  const slots = createSemaphore(maxConcurrent);
-  let started = 0;
+  const fetchHop = createHopFetcher({ httpClient, ownSiteFetch, signal, report }, options);
   let navigationRedirect: string | undefined;
 
   async function abort(route: RouteLike, reason: AbortReason, isNavigation: boolean): Promise<void> {
@@ -211,77 +273,46 @@ export function createRequestRouter(
     await route.abort(reason === "failed" ? "failed" : "blockedbyclient").catch(() => {});
   }
 
-  async function fetchResource(decision: Extract<RequestDecision, { action: "fetch" }>, url: string, headers: Record<string, string>, requestBody?: string): Promise<FetchedResource> {
-    if (decision.via === "own-site") {
-      return ownSiteFetch({ url, method: decision.method as "GET" | "HEAD", headers }, { signal, maxBytes: maxResourceBytes });
-    }
-    const response = await httpClient.send({ request: { method: decision.method, url, headers, ...(requestBody === undefined ? {} : { body: requestBody }), signal, timeoutMs: perRequestTimeoutMs, maxResponseBytes: maxResourceBytes } });
-    const body = response.bodyBytes ? Buffer.from(response.bodyBytes) : Buffer.from(response.bodyText, "utf8");
-    return { status: response.status, headers: { ...response.headers, ...(response.setCookies?.length ? { "set-cookie": response.setCookies.join("\n") } : {}) }, body, truncated: response.bodyBytes ? response.bodyBytesTruncated === true : response.bodyTruncated === true };
+  async function fulfill(route: RouteLike, { url, resource }: { url: string; resource: FetchedResource }): Promise<void> {
+    report.fulfilled += 1;
+    onResponse?.({ url, resourceType: route.request().resourceType(), resource });
+    await route.fulfill({ status: resource.status, headers: filterHeaders(resource.headers, preserveOwnSiteCookies
+      ? OWN_SITE_RESPONSE_HEADERS
+      : DROPPED_RESPONSE_HEADERS), body: resource.body }).catch(() => {});
   }
 
-  /** One hop: budget, a concurrency slot, the fetch, and the byte accounting — or why it was refused. */
-  async function fetchHop(decision: Extract<RequestDecision, { action: "fetch" }>, url: string, headers: Record<string, string>, body?: string): Promise<FetchedResource | AbortReason> {
-    if (started >= maxRequests || report.bytes >= maxTotalBytes || signal.aborted) return "budget";
-    started += 1;
-    const release = await slots.acquire();
-    if (signal.aborted) { release(); return "budget"; }
-    let resource: FetchedResource;
-    try {
-      resource = await fetchResource(decision, url, headers, body);
-    } catch (error) {
-      return isEgressRefused(error) ? "refused" : "failed";
-    } finally {
-      release();
+  /** One hop of one request: decide, fetch, then fulfil, hand a page redirect back, or route the next hop. */
+  async function routeHop(
+    { route, isNavigation }: { route: RouteLike; isNavigation: boolean },
+    { hop, url, method, body, headers }: { hop: number; url: string; method: string; body: string | undefined; headers: Record<string, string> },
+  ): Promise<void> {
+    const request = route.request();
+    const decision = decideRequest({ url, method, resourceType: request.resourceType(), allowedOrigins }, { allowDataRequests });
+    if (decision.action === "abort") return abort(route, decision.reason, isNavigation);
+    const ownCookie = preserveOwnSiteCookies && decision.via === "own-site" ? request.headers().cookie : undefined;
+    const resource = await fetchHop({ decision, url, headers: ownCookie ? { ...headers, cookie: ownCookie } : headers, body });
+    if (typeof resource === "string") return abort(route, resource, isNavigation);
+    const next = redirectTarget(resource, url);
+    if (next === undefined) return fulfill(route, { url, resource });
+    if (isNavigation) {
+      // Not a block: the capture navigates to `next` itself, so that hop is routed like this one.
+      // `aborted` (net::ERR_ABORTED) commits no error page; `blockedbyclient` would commit
+      // chrome-error://, which interrupts that next navigation (real Chromium, 2026-10-08).
+      navigationRedirect = next;
+      return route.abort("aborted").catch(() => {});
     }
-    if (resource.truncated) return "budget";
-    report.bytes += resource.body.length;
-    return report.bytes > maxTotalBytes ? "budget" : resource;
+    if (hop >= MAX_REDIRECT_HOPS) return abort(route, "failed", isNavigation);
+    return routeHop({ route, isNavigation }, { hop: hop + 1, url: next, ...redirectedRequest({ status: resource.status, method, body, headers }) });
   }
 
   return {
     async handle(route) {
       const request = route.request();
       const isNavigation = isMainFrameNavigation({ request });
-      const headers = filterHeaders(request.headers(), DROPPED_REQUEST_HEADERS);
-      let url = request.url();
-      let method = request.method();
-      let body: string | undefined;
+      const body = allowDataRequests && isDataWrite({ method: request.method(), resourceType: request.resourceType() }) ? request.postData?.() ?? undefined : undefined;
       // Reject oversized writes whole; a clipped GraphQL payload would be a different request.
-      if (allowDataRequests && ["xhr", "fetch"].includes(request.resourceType()) && ["POST", "PUT", "PATCH"].includes(method.toUpperCase())) {
-        body = request.postData?.() ?? undefined;
-        if (body !== undefined && Buffer.byteLength(body, "utf8") > maxRequestBodyBytes) return abort(route, "budget", isNavigation);
-      }
-      for (let hop = 0; ; hop += 1) {
-        const decision = decideRequest({ url, method, resourceType: request.resourceType(), allowedOrigins }, { allowDataRequests });
-        if (decision.action === "abort") return abort(route, decision.reason, isNavigation);
-        const ownCookie = preserveOwnSiteCookies && decision.via === "own-site" ? request.headers().cookie : undefined;
-        const resource = await fetchHop(decision, url, ownCookie ? { ...headers, cookie: ownCookie } : headers, body);
-        if (typeof resource === "string") return abort(route, resource, isNavigation);
-        const next = redirectTarget(resource, url);
-        if (next === undefined) {
-          report.fulfilled += 1;
-          onResponse?.({ url, resourceType: request.resourceType(), resource });
-          await route.fulfill({ status: resource.status, headers: filterHeaders(resource.headers, preserveOwnSiteCookies
-            ? OWN_SITE_RESPONSE_HEADERS
-            : DROPPED_RESPONSE_HEADERS), body: resource.body }).catch(() => {});
-          return;
-        }
-        if (isNavigation) {
-          // Not a block: the capture navigates to `next` itself, so that hop is routed like this one.
-          // `aborted` (net::ERR_ABORTED) commits no error page; `blockedbyclient` would commit
-          // chrome-error://, which interrupts that next navigation (real Chromium, 2026-10-08).
-          navigationRedirect = next;
-          await route.abort("aborted").catch(() => {});
-          return;
-        }
-        if (hop >= MAX_REDIRECT_HOPS) return abort(route, "failed", isNavigation);
-        // Match fetch redirect semantics without letting Chromium follow an unvetted hop.
-        if (resource.status === 303 || ([301, 302].includes(resource.status) && method.toUpperCase() === "POST")) {
-          method = "GET"; body = undefined; delete headers["content-type"];
-        }
-        url = next;
-      }
+      if (body !== undefined && Buffer.byteLength(body, "utf8") > maxRequestBodyBytes) return abort(route, "budget", isNavigation);
+      return routeHop({ route, isNavigation }, { hop: 0, url: request.url(), method: request.method(), body, headers: filterHeaders(request.headers(), DROPPED_REQUEST_HEADERS) });
     },
     report: () => ({ ...report }),
     takeNavigationRedirect() {
