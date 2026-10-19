@@ -1,6 +1,6 @@
 import type { HttpClientPort } from "@jini-ai/core/primitives";
 import { createRequestRouter, fetchOwnSiteResource, type FetchedResource, type AbortReason } from "./request-guard.js";
-import { renderPage, type RenderSession } from "./render-page.js";
+import { renderPage, type RenderBrowser, type RenderSession } from "./render-page.js";
 import { openPlaywrightRenderBrowser, PUBLIC_RENDER_LAUNCH_OPTIONS, type PlaywrightAdapterOptions } from "./playwright-runtime.js";
 import type { RenderBrowserPool, RenderBrowserLease } from "./lazy-browser.js";
 import { PageWorkBudget, PageWorkTimeout } from "./page-work-budget.js";
@@ -43,6 +43,16 @@ function matchesCaptureUrl({ url, pattern }: { url: string; pattern: string }, _
   return offset <= end;
 }
 
+/** Only script-issued data answers are captured or counted; documents, images and scripts are not. */
+function isDataResource(resourceType: string): boolean {
+  return resourceType === "xhr" || resourceType === "fetch";
+}
+
+function isJsonResponse(headers: Readonly<Record<string, string>>): boolean {
+  const contentType = Object.entries(headers).find(([key]) => key.toLowerCase() === "content-type")?.[1]?.split(";")[0]?.trim() ?? "";
+  return /^(?:application|text)\/(?:json|[\w.+-]+\+json)$/i.test(contentType);
+}
+
 /** Bounded synchronous collector over responses already read by the pinned request router.
  * No response.body() listener: it would read whole untrusted bodies before applying the cap.
  * Filters affect output only: unmatched data still reaches the page so hydration can complete.
@@ -55,33 +65,36 @@ export function createJsonCapture(_required: Record<string, never>, { maxRespons
   const patterns = typeof captureDataMatch === "string" ? [captureDataMatch] : captureDataMatch;
   let used = 0;
   let truncated = false;
+
+  function recordUnmatched({ url, capturedUrl, resource }: { url: string; capturedUrl: string; resource: FetchedResource }): void {
+    if (dataUnmatched.length >= maxResponses || used + capturedUrl.length > totalChars) { truncated = true; return; }
+    // Do not decode or charge omitted bodies: noisy providers must not consume the useful body window.
+    dataUnmatched.push({ url: capturedUrl, status: resource.status, size: resource.body.length });
+    used += capturedUrl.length;
+    truncated ||= resource.truncated || url.length > 2048;
+  }
+
+  function recordMatched({ url, capturedUrl, resource }: { url: string; capturedUrl: string; resource: FetchedResource }): void {
+    if (data.length >= maxResponses || used + capturedUrl.length >= totalChars) { truncated = true; return; }
+    const limit = Math.min(perBodyChars, totalChars - used - capturedUrl.length);
+    // At most four UTF-8 bytes per output character; never decode a multi-megabyte body here.
+    const decoded = resource.body.subarray(0, limit * 4).toString("utf8");
+    const body = decoded.slice(0, limit);
+    const cut = resource.truncated || resource.body.length > limit * 4 || decoded.length > limit || url.length > 2048;
+    used += capturedUrl.length + body.length;
+    data.push({ url: capturedUrl, status: resource.status, body, truncated: cut });
+    truncated ||= cut;
+  }
+
   return {
     record({ url, resourceType, resource }: { url: string; resourceType: string; resource: FetchedResource }, _options = {}) {
-      if (resourceType !== "xhr" && resourceType !== "fetch") return;
-      const contentType = Object.entries(resource.headers).find(([key]) => key.toLowerCase() === "content-type")?.[1]?.split(";")[0]?.trim() ?? "";
-      if (!/^(?:application|text)\/(?:json|[\w.+-]+\+json)$/i.test(contentType)) return;
+      if (!isDataResource(resourceType) || !isJsonResponse(resource.headers)) return;
       const capturedUrl = url.slice(0, 2048);
-      if (patterns && !patterns.some(pattern => matchesCaptureUrl({ url, pattern }))) {
-        if (dataUnmatched.length >= maxResponses || used + capturedUrl.length > totalChars) { truncated = true; return; }
-        // Do not decode or charge omitted bodies: noisy providers must not consume the useful body window.
-        dataUnmatched.push({ url: capturedUrl, status: resource.status, size: resource.body.length });
-        used += capturedUrl.length;
-        truncated ||= resource.truncated || url.length > 2048;
-        return;
-      }
-      if (data.length >= maxResponses || used >= totalChars) { truncated = true; return; }
-      if (used + capturedUrl.length >= totalChars) { truncated = true; return; }
-      const limit = Math.min(perBodyChars, totalChars - used - capturedUrl.length);
-      // At most four UTF-8 bytes per output character; never decode a multi-megabyte body here.
-      const decoded = resource.body.subarray(0, limit * 4).toString("utf8");
-      const body = decoded.slice(0, limit);
-      const cut = resource.truncated || resource.body.length > limit * 4 || decoded.length > limit || url.length > 2048;
-      used += capturedUrl.length + body.length;
-      data.push({ url: capturedUrl, status: resource.status, body, truncated: cut });
-      truncated ||= cut;
+      if (patterns && !patterns.some(pattern => matchesCaptureUrl({ url, pattern }))) recordUnmatched({ url, capturedUrl, resource });
+      else recordMatched({ url, capturedUrl, resource });
     },
     markTruncated({ resourceType }: { resourceType: string }, _options = {}) {
-      if (resourceType === "xhr" || resourceType === "fetch") truncated = true;
+      if (isDataResource(resourceType)) truncated = true;
     },
     result: (_required = {}, _options = {}) => ({ data: [...data], dataTruncated: truncated, ...(patterns ? { dataUnmatched: [...dataUnmatched] } : {}) }),
   };
@@ -132,6 +145,57 @@ export function publicPageExpression({ maxChars, textMode = "full" }: { maxChars
   })()`;
 }
 
+type OpenedBrowser = { browser: RenderBrowser; lease?: RenderBrowserLease };
+
+function browserUnavailable(options: ErrorOptions = {}): Error {
+  return Object.assign(new Error("Headless browser is unavailable in this deployment", options), { code: "WEB_RENDER_UNAVAILABLE" });
+}
+
+/** A lease that arrives after cancellation or the deadline is handed straight back. */
+async function leaseFromPool(
+  { browserPool, signal, budget, timeoutMs }: { browserPool: RenderBrowserPool; signal: AbortSignal; budget: PageWorkBudget; timeoutMs: number },
+): Promise<OpenedBrowser> {
+  let acquired: RenderBrowserLease;
+  try { acquired = await browserPool.acquire({}, { signal }); }
+  catch (error) {
+    if (signal.aborted || (error as { code?: string })?.code === "WEB_RENDER_BUSY") throw error;
+    throw browserUnavailable({ cause: error });
+  }
+  if (signal.aborted || budget.remainingMs() <= 0) { acquired.release(); signal.throwIfAborted(); throw new PageWorkTimeout({ timeoutMs }); }
+  return { browser: acquired.browser, lease: acquired };
+}
+
+/** An owned launch that completes after cancellation or the deadline is closed, never leaked. */
+async function launchOwnBrowser(
+  { signal, budget, timeoutMs }: { signal: AbortSignal; budget: PageWorkBudget; timeoutMs: number },
+  launch: Pick<PlaywrightAdapterOptions, "moduleLoader">,
+): Promise<OpenedBrowser> {
+  const result = await openPlaywrightRenderBrowser({}, { ...launch, launchOptions: PUBLIC_RENDER_LAUNCH_OPTIONS });
+  if (!result.available) throw browserUnavailable();
+  if (budget.remainingMs() <= 0 || signal.aborted) {
+    void result.browser.close().catch(() => {});
+    signal.throwIfAborted();
+    throw new PageWorkTimeout({ timeoutMs });
+  }
+  return { browser: result.browser };
+}
+
+/** Evaluates the page script and takes the optional bounded screenshot inside the page budget. */
+async function capturePage(
+  { session: { page, finalUrl, response, budget }, input }: { session: RenderSession; input: PublicPageInput },
+): Promise<Omit<PublicPageCapture, "data" | "dataTruncated" | "dataUnmatched" | "blockedDataRequests">> {
+  const snapshot = await budget.run({ work: async () => await page.evaluate(publicPageExpression({ maxChars: input.maxChars, ...(input.textMode ? { textMode: input.textMode } : {}) })) as Pick<PublicPageCapture, "html" | "text" | "title" | "truncated" | "images" | "imagesTruncated"> });
+  const jpeg = input.screenshot ? await takeScreenshot({ page, budget }) : undefined;
+  const screenshot = jpeg && jpeg.length <= 2 * 1024 * 1024 ? { mimeType: "image/jpeg" as const, data: jpeg.toString("base64") } : undefined;
+  const truncated = snapshot.truncated || (jpeg !== undefined && !screenshot) || finalUrl.length > 2048;
+  return { ...snapshot, truncated, finalUrl: finalUrl.slice(0, 2048), status: response?.status() ?? 0, ...(screenshot ? { screenshot } : {}) };
+}
+
+async function takeScreenshot({ page, budget }: Pick<RenderSession, "page" | "budget">): Promise<Buffer> {
+  if (!page.screenshot) throw new Error("Public render cannot take the requested screenshot: this browser port has no screenshot()");
+  return budget.run({ work: () => page.screenshot!({ type: "jpeg", quality: 72, fullPage: false, timeout: budget.remainingMs(), animations: "disabled" }) });
+}
+
 /** Anonymous public render using the shared lifecycle and the existing pinned HTTP transport.
  * Import/launch, navigation, selector, extraction and screenshot all share one hard deadline.
  * Owned processes close, shared leases release; late launches are handled without owner storage.
@@ -139,35 +203,16 @@ export function publicPageExpression({ maxChars, textMode = "full" }: { maxChars
  * @complexity Bounded requests/bytes plus at most 5000 DOM nodes and one viewport screenshot. */
 export async function renderPublicPage(
   { input, httpClient }: { input: PublicPageInput; httpClient: HttpClientPort },
-  { signal, timeoutMs = 30_000, moduleLoader, browserPool }: { signal?: AbortSignal; timeoutMs?: number; moduleLoader?: PlaywrightAdapterOptions["moduleLoader"]; browserPool?: RenderBrowserPool } = {},
+  { signal, timeoutMs: requestedMs = 30_000, browserPool, ...launch }: { signal?: AbortSignal; timeoutMs?: number; browserPool?: RenderBrowserPool } & Pick<PlaywrightAdapterOptions, "moduleLoader"> = {},
 ): Promise<PublicPageCapture> {
-  timeoutMs = Math.min(timeoutMs, 30_000);
+  const timeoutMs = Math.min(requestedMs, 30_000);
   const abort = new AbortController();
   const deadline = AbortSignal.timeout(timeoutMs);
   const combined = AbortSignal.any([abort.signal, deadline, ...(signal ? [signal] : [])]);
   const budget = new PageWorkBudget({ timeoutMs }, { signal: combined });
-  let lease: RenderBrowserLease | undefined;
-  const opened = await budget.run({ work: async () => {
-    if (browserPool) {
-      let acquired: RenderBrowserLease;
-      try { acquired = await browserPool.acquire({}, { signal: combined }); }
-      catch (error) {
-        if (combined.aborted || (error as { code?: string })?.code === "WEB_RENDER_BUSY") throw error;
-        throw Object.assign(new Error("Headless browser is unavailable in this deployment"), { code: "WEB_RENDER_UNAVAILABLE" });
-      }
-      if (combined.aborted || budget.remainingMs() <= 0) { acquired.release(); combined.throwIfAborted(); throw new PageWorkTimeout({ timeoutMs }); }
-      lease = acquired;
-      return { available: true as const, browser: acquired.browser };
-    }
-    const result = await openPlaywrightRenderBrowser({}, { ...(moduleLoader ? { moduleLoader } : {}), launchOptions: PUBLIC_RENDER_LAUNCH_OPTIONS });
-    if (result.available && (budget.remainingMs() <= 0 || combined.aborted)) {
-      void result.browser.close().catch(() => {});
-      combined.throwIfAborted();
-      throw new PageWorkTimeout({ timeoutMs });
-    }
-    return result;
-  } });
-  if (!opened.available) throw Object.assign(new Error("Headless browser is unavailable in this deployment"), { code: "WEB_RENDER_UNAVAILABLE" });
+  const opened = await budget.run({ work: () => browserPool
+    ? leaseFromPool({ browserPool, signal: combined, budget, timeoutMs })
+    : launchOwnBrowser({ signal: combined, budget, timeoutMs }, launch) });
   // Small/batched reads keep their JSON window small too; a batch must not multiply 60k by default.
   const json = createJsonCapture({}, { perBodyChars: Math.min(8000, input.maxChars), totalChars: Math.min(60_000, input.maxChars),
     ...(input.captureDataMatch === undefined ? {} : { captureDataMatch: input.captureDataMatch }),
@@ -178,22 +223,15 @@ export async function renderPublicPage(
     allowDataRequests: true,
     ...(input.captureData === false ? {} : { onResponse: json.record }),
     onBlocked: ({ resourceType, reason }) => {
-      if (resourceType !== "xhr" && resourceType !== "fetch") return;
+      if (!isDataResource(resourceType)) return;
       blockedDataRequests[reason] = (blockedDataRequests[reason] ?? 0) + 1;
       json.markTruncated({ resourceType });
     },
   });
   try {
-    return await renderPage({ browser: opened.browser, url: input.url, consume: async ({ page, finalUrl, response, budget: pageBudget }: RenderSession) => {
-      const snapshot = await pageBudget.run({ work: async () => await page.evaluate(publicPageExpression({ maxChars: input.maxChars, ...(input.textMode ? { textMode: input.textMode } : {}) })) as Pick<PublicPageCapture, "html" | "text" | "title" | "truncated" | "images" | "imagesTruncated"> });
-      let screenshot: PublicPageCapture["screenshot"];
-      if (input.screenshot) {
-        if (!page.screenshot) throw new Error("Browser cannot take screenshots");
-        const jpeg = await pageBudget.run({ work: () => page.screenshot!({ type: "jpeg", quality: 72, fullPage: false, timeout: pageBudget.remainingMs(), animations: "disabled" }) });
-        if (jpeg.length <= 2 * 1024 * 1024) screenshot = { mimeType: "image/jpeg", data: jpeg.toString("base64") };
-        else snapshot.truncated = true;
-      }
-      return { ...snapshot, truncated: snapshot.truncated || finalUrl.length > 2048, finalUrl: finalUrl.slice(0, 2048), status: response?.status() ?? 0, ...json.result(), blockedDataRequests: { ...blockedDataRequests }, ...(screenshot ? { screenshot } : {}) };
+    return await renderPage({ browser: opened.browser, url: input.url, consume: async session => {
+      const { screenshot, ...captured } = await capturePage({ session, input });
+      return { ...captured, ...json.result(), blockedDataRequests: { ...blockedDataRequests }, ...(screenshot ? { screenshot } : {}) };
     } }, {
       originPolicy: "public", router, timeoutMs: budget.remainingMs(), signal: combined,
       ...(input.waitFor === undefined ? {} : { waitFor: input.waitFor }), dismissCookieBanners: input.dismissCookieBanners !== false,
@@ -201,7 +239,7 @@ export async function renderPublicPage(
     });
   } finally {
     abort.abort();
-    if (lease) lease.release();
+    if (opened.lease) opened.lease.release();
     else await budget.release({ close: () => opened.browser.close().catch(() => {}) });
   }
 }
