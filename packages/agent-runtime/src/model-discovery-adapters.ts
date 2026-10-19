@@ -6,13 +6,14 @@ import { join, dirname } from 'node:path';
 import { createCommandInvocation } from '@jini-ai/platform/command';
 import { nativeAcpModelProbe, type AcpModelProbe } from './acp-model-probe.js';
 import { CLAUDE_CODE_INITIALIZE_ARGS, CLAUDE_CODE_INITIALIZE_REQUEST } from './claude-code-models.js';
-import { listProviderModels } from './providers/model-catalog.js';
+import { listProviderModels, type ProviderModelsInput } from './providers/model-catalog.js';
 import { execAgentFile } from './invocation.js';
 import { scheduleProbeProcess } from './probe-scheduler.js';
 import { probeCopilotSdk, probeDroidSdk } from './model-discovery-sdk.js';
 import { parseSettingsJson, readModelConfiguration } from './model-discovery-config.js';
 import { ModelProbeError, modelIdentityKind, withModelProbeTimeout } from './model-discovery-shared.js';
 import type { AgentDiscoveryConfiguration, DiscoveredModel, ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from './model-discovery-types.js';
+import type { ProviderModelsKind } from './providers/types.js';
 
 const ACP_ARGS: Record<string, readonly string[]> = {
   amr: ['agent', 'run', '--runtime', 'opencode'],
@@ -40,34 +41,49 @@ export async function probeCliSubcommand(context: ModelDiscoveryContext, config:
 export async function probeAcpMetadata(context: ModelDiscoveryContext, args: readonly string[], deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
   return deps.acp.probe({ context, args, signal });
 }
+/** Spread a native default selection only when the source reported one. */
+function withDefaultSelection(defaultSelectionId: string | undefined): { defaultSelectionId?: string } {
+  return defaultSelectionId ? { defaultSelectionId } : {};
+}
+type ClaudeModelRow = { value?: unknown; resolvedModel?: unknown; displayName?: unknown } | null;
+/** The model rows of one successful initialize control response, or null for any other line. */
+function claudeInitializeRows(line: string): ClaudeModelRow[] | null {
+  let obj: Record<string, unknown> | null;
+  try { obj = JSON.parse(line) as Record<string, unknown>; } catch { return null; }
+  if (obj?.type !== 'control_response') return null;
+  const response = obj.response as { subtype?: string; response?: { models?: unknown } } | undefined;
+  const rows = response?.subtype === 'success' ? response.response?.models : undefined;
+  return Array.isArray(rows) ? rows : null;
+}
+/** One selection row, plus its concrete resolved row when the selection is an alias. */
+function claudeSelectionModels(id: string, resolvedId: string | undefined, displayName: unknown): DiscoveredModel[] {
+  const label = typeof displayName === 'string' && displayName.trim() ? displayName.trim() : resolvedId || id;
+  const identityKind = id === resolvedId ? 'concrete' : resolvedId ? 'alias' : modelIdentityKind(id);
+  const selection: DiscoveredModel = { id, label, identityKind, ...(resolvedId ? { resolvedId } : {}) };
+  if (!resolvedId || id === resolvedId) return [selection];
+  return [selection, { id: resolvedId, label, identityKind: modelIdentityKind(resolvedId) }];
+}
+function claudeInitializeResult(rows: readonly ClaudeModelRow[]): ModelProbeResult {
+  const models: DiscoveredModel[] = [];
+  let defaultSelectionId: string | undefined;
+  for (const row of rows) {
+    if (!row || typeof row.value !== 'string') continue;
+    const id = row.value.trim();
+    const resolvedId = typeof row.resolvedModel === 'string' ? row.resolvedModel.trim() : undefined;
+    if (id !== 'default') { models.push(...claudeSelectionModels(id, resolvedId, row.displayName)); continue; }
+    // This displayName describes the CLI's default policy, not the model it resolves to.
+    if (resolvedId && modelIdentityKind(resolvedId) === 'concrete') { defaultSelectionId = resolvedId; models.push({ id: resolvedId, label: resolvedId, identityKind: 'concrete' }); }
+  }
+  return { models, source: 'rpc', coverage: 'account', ...withDefaultSelection(defaultSelectionId) };
+}
 /** Keep selection IDs, resolved concrete IDs and display names, including capability variants.
  * Default-policy display names become the exact resolved ID; malformed responses return null.
  * @complexity O(s + n) time and space in stdout length s and listed models n.
  */
 export function parseClaudeInitializeMetadata(stdout: string): ModelProbeResult | null {
   for (const line of stdout.split('\n')) {
-    let obj: Record<string, unknown> | null;
-    try { obj = JSON.parse(line) as Record<string, unknown>; } catch { continue; }
-    if (obj?.type !== 'control_response') continue;
-    const response = obj.response as { subtype?: string; response?: { models?: unknown } } | undefined;
-    const rows = response?.subtype === 'success' ? response.response?.models : undefined;
-    if (!Array.isArray(rows)) continue;
-    const models: DiscoveredModel[] = [];
-    let defaultSelectionId: string | undefined;
-    for (const row of rows) {
-      if (!row || typeof row.value !== 'string') continue;
-      const id = row.value.trim();
-      const resolvedId = typeof row.resolvedModel === 'string' ? row.resolvedModel.trim() : undefined;
-      const label = typeof row.displayName === 'string' && row.displayName.trim() ? row.displayName.trim() : resolvedId || id;
-      if (id === 'default') {
-        // This displayName describes the CLI's default policy, not the model it resolves to.
-        if (resolvedId && modelIdentityKind(resolvedId) === 'concrete') { defaultSelectionId = resolvedId; models.push({ id: resolvedId, label: resolvedId, identityKind: 'concrete' }); }
-        continue;
-      }
-      models.push({ id, label, identityKind: id === resolvedId ? 'concrete' : resolvedId ? 'alias' : modelIdentityKind(id), ...(resolvedId ? { resolvedId } : {}) });
-      if (resolvedId && id !== resolvedId) models.push({ id: resolvedId, label, identityKind: modelIdentityKind(resolvedId) });
-    }
-    return { models, source: 'rpc', coverage: 'account', ...(defaultSelectionId ? { defaultSelectionId } : {}) };
+    const rows = claudeInitializeRows(line);
+    if (rows) return claudeInitializeResult(rows);
   }
   return null;
 }
@@ -84,6 +100,11 @@ export async function probeClaudeInitialize(context: ModelDiscoveryContext, deps
   if (!metadata?.models.length) throw new ModelProbeError('malformed-response');
   return metadata;
 }
+const PROVIDER_LIST_FAILURES: Partial<Record<ProviderModelsKind, ModelProbeError['code']>> = { auth_failed: 'auth-missing', timeout: 'timeout' };
+/** Aider qualifies listed rows with the provider of a qualified selection ("openai/" for "openai/gpt-x"). */
+function aiderProviderPrefix(agentId: string, selection: string | undefined): string {
+  return agentId === 'aider' && selection?.includes('/') ? selection.slice(0, selection.indexOf('/') + 1) : '';
+}
 export async function probeProviderApi(agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
   const config = await readModelConfiguration(agentId, context, deps, signal);
   const effectiveContext = config.selection ? { ...context, model: config.selection } : context;
@@ -91,33 +112,33 @@ export async function probeProviderApi(agentId: string, context: ModelDiscoveryC
   if (!input) throw new ModelProbeError('auth-missing');
   if (input.protocol === 'bedrock' || input.protocol === 'azure') throw new ModelProbeError('unsupported-version');
   const result = await deps.http.list({ ...input, signal });
-  if (!result.ok || !result.models) throw new ModelProbeError(result.kind === 'auth_failed' ? 'auth-missing' : result.kind === 'timeout' ? 'timeout' : 'offline');
-  const prefix = agentId === 'aider' && config.selection?.includes('/') ? config.selection.slice(0, config.selection.indexOf('/') + 1) : '';
+  if (!result.ok || !result.models) throw new ModelProbeError(PROVIDER_LIST_FAILURES[result.kind] ?? 'offline');
+  const prefix = aiderProviderPrefix(agentId, config.selection);
   return { models: result.models.map((row) => ({ ...row, id: prefix && !row.id.startsWith(prefix) ? `${prefix}${row.id}` : row.id })), source: 'provider-api', coverage: 'provider' };
 }
+type CliCache = { path(env: ModelDiscoveryContext['env'], home: string): string; models(data: Record<string, unknown>): DiscoveredModel[] };
+const optionCacheModels = (data: Record<string, unknown>) => configurationCacheModels(data.additionalModelOptionsCache);
+const CLI_CACHES = new Map<string, CliCache>([
+  ['codex', { path: (env, home) => join(env.CODEX_HOME || join(home, '.codex'), 'models_cache.json'), models: (data) => configurationCacheModels(data.models) }],
+  ['opencode', { path: (env, home) => join(env.XDG_CACHE_HOME || join(home, '.cache'), 'opencode/models.json'), models: opencodeCacheModels }],
+  ['claude', { path: (env, home) => join(env.CLAUDE_CONFIG_DIR || home, '.claude.json'), models: optionCacheModels }],
+  // UNVERIFIED CodeBuddy cache schema. Configured model is weaker than an account catalog.
+  ['codebuddy', { path: (_env, home) => join(home, '.codebuddy/settings.json'), models: optionCacheModels }],
+]);
 /** Caches are partial observed catalogs, always stale, never silently promoted to live. */
 export async function probeCliCache(agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
-  const home = context.env.HOME || homedir();
-  const path = agentId === 'codex' ? join(context.env.CODEX_HOME || join(home, '.codex'), 'models_cache.json')
-    : agentId === 'opencode' ? join(context.env.XDG_CACHE_HOME || join(home, '.cache'), 'opencode/models.json')
-    : agentId === 'claude' ? join(context.env.CLAUDE_CONFIG_DIR || home, '.claude.json')
-    : agentId === 'codebuddy' ? join(home, '.codebuddy/settings.json') : '';
-  if (!path) throw new ModelProbeError('unsupported-version');
-  const raw = await deps.fs.read(path, { signal });
+  const cache = CLI_CACHES.get(agentId);
+  if (!cache) throw new ModelProbeError('unsupported-version');
+  const raw = await deps.fs.read(cache.path(context.env, context.env.HOME || homedir()), { signal });
   const data = raw ? parseSettingsJson(raw) : null;
   if (!data) throw new ModelProbeError('offline');
-  if (agentId === 'codex' && raw) return { models: configurationCacheModels(data.models), source: 'cli-cache', coverage: 'observed' };
-  if (agentId === 'opencode') {
-    const models: DiscoveredModel[] = [];
-    for (const [provider, value] of Object.entries(data)) {
-      const entries = value && typeof value === 'object' ? (value as { models?: Record<string, { name?: string }> }).models : undefined;
-      for (const [id, row] of Object.entries(entries || {})) models.push({ id: `${provider}/${id}`, label: row.name || `${provider}/${id}`, provider, identityKind: modelIdentityKind(id) });
-    }
-    return { models, source: 'cli-cache', coverage: 'observed' };
-  }
-  // UNVERIFIED CodeBuddy cache schema. Configured model is weaker than an account catalog.
-  const entries = data.additionalModelOptionsCache;
-  return { models: configurationCacheModels(entries), source: 'cli-cache', coverage: 'observed' };
+  return { models: cache.models(data), source: 'cli-cache', coverage: 'observed' };
+}
+function opencodeCacheModels(data: Record<string, unknown>): DiscoveredModel[] {
+  return Object.entries(data).flatMap(([provider, value]) => {
+    const entries = value && typeof value === 'object' ? (value as { models?: Record<string, { name?: string }> }).models : undefined;
+    return Object.entries(entries || {}).map(([id, row]) => ({ id: `${provider}/${id}`, label: row.name || `${provider}/${id}`, provider, identityKind: modelIdentityKind(id) }));
+  });
 }
 function configurationCacheModels(entries: unknown): DiscoveredModel[] {
   if (!Array.isArray(entries)) return [];
@@ -143,55 +164,71 @@ function parseGenericCliModels(stdout: string): DiscoveredModel[] {
     return [{ id: match[1]!, label: match[2] || match[1]!, identityKind: modelIdentityKind(match[1]!) }];
   });
 }
+type AgentProbe = (agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal) => Promise<ModelProbeResult>;
+const probeRpc: AgentProbe = (agentId, context, deps, signal) => deps.rpc.probe({ agentId, context, signal });
+async function probeClaudeCatalog(agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
+  try {
+    return await probeClaudeInitialize(context, deps, signal);
+  } catch {
+    try { return await probeProviderApi(agentId, context, deps, signal); }
+    catch { return probeCliCache(agentId, context, deps, signal); }
+  }
+}
+async function probeCodeBuddyCatalog(agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
+  // UNVERIFIED: survey identifies initialize compatibility as a candidate, not a guarantee.
+  // Try the same prompt-free metadata category; failed compatibility stays explicitly offline.
+  try { return await probeClaudeInitialize(context, deps, signal); }
+  catch { return probeCliCache(agentId, context, deps, signal); }
+}
+/** Agents with a dedicated discovery category, checked before any declared listing command. */
+const AGENT_PROBES = new Map<string, AgentProbe>([
+  ['claude', probeClaudeCatalog],
+  ['pi', probeRpc], ['copilot', probeRpc], ['droid', probeRpc],
+  // UNVERIFIED CLI-owned effective credential adapters; OAuth/unknown endpoints require host ports.
+  ['aider', probeProviderApi], ['qwen', probeProviderApi], ['mimo', probeProviderApi],
+  ['codebuddy', probeCodeBuddyCatalog],
+]);
+const DISK_CACHE_LISTINGS = new Set(['codex', 'opencode']);
+async function probeDeclaredListing(agentId: string, context: ModelDiscoveryContext, configuration: AgentDiscoveryConfiguration, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
+  // Only disk-cache adapters reserve two seconds for recovery. Antigravity has no disk
+  // fallback, so its declared listing timeout can use the full outer discovery budget.
+  const diskCache = DISK_CACHE_LISTINGS.has(agentId);
+  const budget = modelProbeTimeoutMs(agentId) - (diskCache ? 2_000 : 0);
+  const timeoutMs = Math.min(configuration.timeoutMs ?? 8_000, budget);
+  try { return await probeCliSubcommand(context, { ...configuration, timeoutMs }, deps, signal); }
+  catch (error) {
+    if (!diskCache) throw error;
+    try { return await probeCliCache(agentId, context, deps, signal); } catch { throw error; }
+  }
+}
+async function probeAmrAcp(context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
+  const metadata = await probeAcpMetadata(context, ACP_ARGS.amr!, deps, signal);
+  const first = metadata.models.find((row) => row.id !== 'default' && modelIdentityKind(row.id) === 'concrete');
+  if (!first) throw new ModelProbeError('malformed-response');
+  return { ...metadata, defaultSelectionId: context.env.VELA_DEFAULT_MODEL || metadata.defaultSelectionId || first.id };
+}
+async function probeAmrList(context: ModelDiscoveryContext, configuration: AgentDiscoveryConfiguration, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
+  const result = await deps.process.run({ context, args: ['model', 'list', '--format', 'json'], signal, timeoutMs: 10_000 });
+  const models = configuration.parse?.({ stdout: result.stdout }) || [];
+  // Vela requires an explicit concrete set_model before prompting; retain the first native row.
+  const first = models.find((row) => row.id !== 'default');
+  return { models, source: 'cli', coverage: 'account', ...(first ? { defaultSelectionId: context.env.VELA_DEFAULT_MODEL || first.id } : {}) };
+}
+async function probeAmrCatalog(context: ModelDiscoveryContext, configuration: AgentDiscoveryConfiguration, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
+  // Every ACP def uses this category. Vela's documented list command remains a fallback
+  // when its ACP version omits the model catalog; launch still confirms explicit selection.
+  try { return await probeAmrAcp(context, deps, signal); }
+  catch (error) { if (signal.aborted) throw error; }
+  return probeAmrList(context, configuration, deps, signal);
+}
 export async function probeAgentCatalog(agentId: string, context: ModelDiscoveryContext, configuration: AgentDiscoveryConfiguration, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
   const acpArgs = ACP_ARGS[agentId];
   // UNVERIFIED installed ACP agents: existing declared commands; metadata preserves native defaults.
   if (acpArgs && agentId !== 'amr') return probeAcpMetadata(context, acpArgs, deps, signal);
-  if (agentId === 'claude') {
-    try {
-      return await probeClaudeInitialize(context, deps, signal);
-    } catch {
-      try { return await probeProviderApi(agentId, context, deps, signal); }
-      catch { return probeCliCache(agentId, context, deps, signal); }
-    }
-  }
-  if (agentId === 'pi' || agentId === 'copilot' || agentId === 'droid') return deps.rpc.probe({ agentId, context, signal });
-  // UNVERIFIED CLI-owned effective credential adapters; OAuth/unknown endpoints require host ports.
-  if (agentId === 'aider' || agentId === 'qwen' || agentId === 'mimo') return probeProviderApi(agentId, context, deps, signal);
-  if (agentId === 'codebuddy') {
-    // UNVERIFIED: survey identifies initialize compatibility as a candidate, not a guarantee.
-    // Try the same prompt-free metadata category; failed compatibility stays explicitly offline.
-    try { return await probeClaudeInitialize(context, deps, signal); }
-    catch { return probeCliCache(agentId, context, deps, signal); }
-  }
-  if (configuration.args) {
-    // Only disk-cache adapters reserve two seconds for recovery. Antigravity has no disk
-    // fallback, so its declared listing timeout can use the full outer discovery budget.
-    const budget = modelProbeTimeoutMs(agentId) - (agentId === 'codex' || agentId === 'opencode' ? 2_000 : 0);
-    const timeoutMs = Math.min(configuration.timeoutMs ?? 8_000, budget);
-    try { return await probeCliSubcommand(context, { ...configuration, timeoutMs }, deps, signal); }
-    catch (error) {
-      if (agentId === 'codex' || agentId === 'opencode') {
-        try { return await probeCliCache(agentId, context, deps, signal); } catch { throw error; }
-      }
-      throw error;
-    }
-  }
-  if (agentId === 'amr') {
-    // Every ACP def uses this category. Vela's documented list command remains a fallback
-    // when its ACP version omits the model catalog; launch still confirms explicit selection.
-    try {
-      const metadata = await probeAcpMetadata(context, ACP_ARGS.amr!, deps, signal);
-      const first = metadata.models.find((row) => row.id !== 'default' && modelIdentityKind(row.id) === 'concrete');
-      if (!first) throw new ModelProbeError('malformed-response');
-      return { ...metadata, defaultSelectionId: context.env.VELA_DEFAULT_MODEL || metadata.defaultSelectionId || first.id };
-    } catch (error) { if (signal.aborted) throw error; }
-    const result = await deps.process.run({ context, args: ['model', 'list', '--format', 'json'], signal, timeoutMs: 10_000 });
-    const models = configuration.parse?.({ stdout: result.stdout }) || [];
-    // Vela requires an explicit concrete set_model before prompting; retain the first native row.
-    const first = models.find((row) => row.id !== 'default');
-    return { models, source: 'cli', coverage: 'account', ...(first ? { defaultSelectionId: context.env.VELA_DEFAULT_MODEL || first.id } : {}) };
-  }
+  const probe = AGENT_PROBES.get(agentId);
+  if (probe) return probe(agentId, context, deps, signal);
+  if (configuration.args) return probeDeclaredListing(agentId, context, configuration, deps, signal);
+  if (agentId === 'amr') return probeAmrCatalog(context, configuration, deps, signal);
   const args = CLI_ARGS[agentId];
   if (!args) throw new ModelProbeError('unsupported-version');
   return probeCliSubcommand(context, { ...configuration, args, parse: ({ stdout }) => parseGenericCliModels(stdout) }, deps, signal);
@@ -255,6 +292,38 @@ async function defaultProviderBaseUrl(
   }
 }
 
+type ProviderName = keyof typeof import('@jini-ai/integrations/media-providers/catalog').VENDOR_API_BASE_URLS;
+type EnvConnection = {
+  protocol: ProviderModelsInput['protocol']; provider: ProviderName; key: string;
+  matches(selected: string, agentId: string, env: ModelDiscoveryContext['env']): boolean;
+  baseUrl(env: ModelDiscoveryContext['env']): string | undefined;
+};
+/** First matching rule with its key present wins; a match without a key falls through to the next rule. */
+const ENV_CONNECTIONS: readonly EnvConnection[] = [
+  { protocol: 'anthropic', provider: 'anthropic', key: 'ANTHROPIC_API_KEY', matches: (selected) => /^(anthropic\/|claude-)/.test(selected), baseUrl: (env) => env.ANTHROPIC_BASE_URL },
+  { protocol: 'google', provider: 'google', key: 'GEMINI_API_KEY', matches: (selected) => /^(gemini\/|google\/|gemini-)/.test(selected), baseUrl: () => undefined },
+  { protocol: 'openai', provider: 'openrouter', key: 'OPENROUTER_API_KEY', matches: (selected) => /^openrouter\//.test(selected), baseUrl: (env) => env.OPENROUTER_API_BASE },
+  { protocol: 'openai', provider: 'openai', key: 'OPENAI_API_KEY',
+    matches: (selected, agentId, env) => /^(openai\/|gpt-|o\d)/.test(selected) || agentId === 'qwen' && Boolean(env.OPENAI_MODEL || env.OPENAI_BASE_URL),
+    baseUrl: (env) => env.OPENAI_BASE_URL || env.OPENAI_API_BASE },
+];
+async function envConnection(rule: EnvConnection, env: ModelDiscoveryContext['env']): Promise<ProviderModelsInput> {
+  return { protocol: rule.protocol, baseUrl: rule.baseUrl(env) || await defaultProviderBaseUrl({ provider: rule.provider }), apiKey: env[rule.key]! };
+}
+function selectedModelFromEnv(agentId: string, env: ModelDiscoveryContext['env']): string | undefined {
+  if (agentId === 'aider') return env.AIDER_MODEL;
+  return agentId === 'qwen' ? env.QWEN_MODEL || env.OPENAI_MODEL : undefined;
+}
+async function connectionFromEnv({ agentId, context }: { agentId: string; context: ModelDiscoveryContext }): Promise<ProviderModelsInput | null> {
+  // Deliberately do not steal tokens from another CLI's store. Hosts can inject keychain/OAuth
+  // handles. BYOK env is usable only when it identifies this CLI's effective provider.
+  const env = context.env;
+  if (agentId === 'claude' && env.ANTHROPIC_API_KEY) return envConnection(ENV_CONNECTIONS[0]!, env);
+  const selected = context.model || selectedModelFromEnv(agentId, env);
+  if (!selected) return null;
+  const rule = ENV_CONNECTIONS.find((candidate) => candidate.matches(selected, agentId, env) && env[candidate.key]);
+  return rule ? envConnection(rule, env) : null;
+}
 export const defaultModelDiscoveryDeps: ModelDiscoveryDeps = {
   process: { run: runProcess },
   fs: {
@@ -269,19 +338,7 @@ export const defaultModelDiscoveryDeps: ModelDiscoveryDeps = {
     },
   },
   http: { list: (input) => { const { protocol, baseUrl, apiKey, ...optional } = input; return listProviderModels({ protocol, baseUrl, apiKey }, optional); } },
-  credential: { async connection({ agentId, context }) {
-    // Deliberately do not steal tokens from another CLI's store. Hosts can inject keychain/OAuth
-    // handles. BYOK env is usable only when it identifies this CLI's effective provider.
-    const env = context.env;
-    if (agentId === 'claude' && env.ANTHROPIC_API_KEY) return { protocol: 'anthropic', baseUrl: env.ANTHROPIC_BASE_URL || await defaultProviderBaseUrl({ provider: 'anthropic' }), apiKey: env.ANTHROPIC_API_KEY };
-    const selected = context.model || (agentId === 'aider' ? env.AIDER_MODEL : agentId === 'qwen' ? env.QWEN_MODEL || env.OPENAI_MODEL : undefined);
-    if (!selected) return null;
-    if (/^(anthropic\/|claude-)/.test(selected) && env.ANTHROPIC_API_KEY) return { protocol: 'anthropic', baseUrl: env.ANTHROPIC_BASE_URL || await defaultProviderBaseUrl({ provider: 'anthropic' }), apiKey: env.ANTHROPIC_API_KEY };
-    if (/^(gemini\/|google\/|gemini-)/.test(selected) && env.GEMINI_API_KEY) return { protocol: 'google', baseUrl: await defaultProviderBaseUrl({ provider: 'google' }), apiKey: env.GEMINI_API_KEY };
-    if (/^openrouter\//.test(selected) && env.OPENROUTER_API_KEY) return { protocol: 'openai', baseUrl: env.OPENROUTER_API_BASE || await defaultProviderBaseUrl({ provider: 'openrouter' }), apiKey: env.OPENROUTER_API_KEY };
-    if ((/^(openai\/|gpt-|o\d)/.test(selected) || agentId === 'qwen' && (env.OPENAI_MODEL || env.OPENAI_BASE_URL)) && env.OPENAI_API_KEY) return { protocol: 'openai', baseUrl: env.OPENAI_BASE_URL || env.OPENAI_API_BASE || await defaultProviderBaseUrl({ provider: 'openai' }), apiKey: env.OPENAI_API_KEY };
-    return null;
-  } },
+  credential: { connection: connectionFromEnv },
   acp: createAcpDiscoveryAdapter({ probe: nativeAcpModelProbe }),
   rpc: { async probe({ agentId, context, signal }) {
     // UNVERIFIED locally: use official prompt-free SDK interfaces, not invented CLI flags.
@@ -296,23 +353,34 @@ export const defaultModelDiscoveryDeps: ModelDiscoveryDeps = {
   } },
   clock: { now: Date.now }, cache: defaultRuntimeState.modelCatalog,
 };
+type PiRpcResponse = { type?: string; command?: string; success?: boolean; data?: { models?: unknown[]; model?: { provider?: string; id?: string } } };
+/** A successful Pi RPC response, or null for events, failures and non-JSON lines. */
+function piRpcResponse(line: string): PiRpcResponse | null {
+  let response: PiRpcResponse;
+  try { response = JSON.parse(line); } catch { return null; }
+  return response.type === 'response' && response.success ? response : null;
+}
+function piCatalogModels(response: PiRpcResponse): DiscoveredModel[] {
+  if (response.command !== 'get_available_models' || !Array.isArray(response.data?.models)) return [];
+  return response.data.models.flatMap((raw) => {
+    const row = raw as { provider?: string; id?: string; name?: string };
+    return row.provider && row.id ? [{ id: `${row.provider}/${row.id}`, label: row.name || row.id, provider: row.provider, identityKind: modelIdentityKind(row.id) }] : [];
+  });
+}
+function piCurrentSelection(response: PiRpcResponse): string | undefined {
+  const model = response.command === 'get_state' ? response.data?.model : undefined;
+  return model?.provider && model.id ? `${model.provider}/${model.id}` : undefined;
+}
 /** Pi's native RPC supplies catalog AND current provider/id without making an inference call. */
 export function parsePiRpcMetadata(stdout: string): ModelProbeResult {
   const models: DiscoveredModel[] = []; let defaultSelectionId: string | undefined;
-  for (const line of stdout.split('\n')) {
-    let response: { type?: string; command?: string; success?: boolean; data?: { models?: unknown[]; model?: { provider?: string; id?: string } } };
-    try { response = JSON.parse(line); } catch { continue; }
-    if (response.type !== 'response' || !response.success) continue;
-    if (response.command === 'get_available_models' && Array.isArray(response.data?.models)) {
-      for (const raw of response.data.models) {
-        const row = raw as { provider?: string; id?: string; name?: string };
-        if (row.provider && row.id) models.push({ id: `${row.provider}/${row.id}`, label: row.name || row.id, provider: row.provider, identityKind: modelIdentityKind(row.id) });
-      }
-    }
-    if (response.command === 'get_state' && response.data?.model?.provider && response.data.model.id) defaultSelectionId = `${response.data.model.provider}/${response.data.model.id}`;
+  for (const response of stdout.split('\n').map(piRpcResponse)) {
+    if (!response) continue;
+    models.push(...piCatalogModels(response));
+    defaultSelectionId = piCurrentSelection(response) ?? defaultSelectionId;
   }
   if (!models.length) throw new ModelProbeError('malformed-response');
-  return { models, source: 'rpc', coverage: 'account', ...(defaultSelectionId ? { defaultSelectionId } : {}) };
+  return { models, source: 'rpc', coverage: 'account', ...withDefaultSelection(defaultSelectionId) };
 }
 
 /** Stable dependency identity preserves the existing per-host single-probe budget as well as its cache. */
