@@ -313,70 +313,93 @@ export interface UploadMediaOptional {
  * @overallScore 100
  * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
+/** Upload-time text fields are trimmed; omitted ones start empty. */
+const uploadText = ({ alt, caption, credit }: UploadMediaRequired["input"]) => ({ alt: alt?.trim() ?? "", caption: caption?.trim() ?? "", credit: credit?.trim() ?? "" });
+
+type UploadKind = "media" | "document";
+
+function resolveUploadKind(input: UploadMediaRequired["input"]): UploadKind {
+  const kind = input.kind ?? "media";
+  if (kind !== "media" && kind !== "document") throw new MediaValidationError({ message: "invalid media kind" });
+  return kind;
+}
+
+function assertWithinUploadCap(byteLength: number, maxUploadBytes: number): void {
+  if (byteLength > maxUploadBytes) {
+    throw new MediaValidationError({ message: `uploaded file exceeds the ${formatMaxUploadBytesAsMb(maxUploadBytes)} size cap` });
+  }
+}
+
+/** Applies the MIME, empty-file and size policy for this kind; returns the cap that applied. */
+function assertUploadAdmissible({ input, kind }: { input: UploadMediaRequired["input"]; kind: UploadKind }, optional: UploadMediaOptional): number {
+  const maxUploadBytes = kind === "document" ? MAX_DOCUMENT_BYTES : optional.maxUploadBytes ?? DEFAULT_MAX_UPLOAD_BYTES;
+  const allowedMimeTypes = optional.allowedMimeTypes ?? DEFAULT_ALLOWED_MIME_TYPES;
+  if (kind === "media" && !allowedMimeTypes.has(input.contentType)) {
+    throw new MediaValidationError({ message: `content type '${input.contentType}' is not allowed for upload` });
+  }
+  if (input.bytes.byteLength === 0) {
+    throw new MediaValidationError({ message: "uploaded file is empty" });
+  }
+  assertWithinUploadCap(input.bytes.byteLength, maxUploadBytes);
+  return maxUploadBytes;
+}
+
+async function storedUploadBytes({ input, kind }: { input: UploadMediaRequired["input"]; kind: UploadKind }): Promise<Uint8Array> {
+  // Inspect the bytes too: a mislabeled SVG must never bypass sanitization.
+  const isSvg = kind === "media" && (input.contentType === "image/svg+xml" || sniffContentType({ bytes: input.bytes }) === "image/svg+xml");
+  return isSvg ? await sanitizeSvg({ bytes: input.bytes }) : input.bytes;
+}
+
+/** Dedup check-then-act; must run inside the sha256 lock. Returns the blob's storage key. */
+async function claimUploadBlob(
+  { deps, input, kind, sha256, bytes, nowIso }: { deps: UploadMediaRequired["deps"]; input: UploadMediaRequired["input"]; kind: UploadKind; sha256: string; bytes: Uint8Array; nowIso: string },
+): Promise<string> {
+  const documentOwnership = kind === "document" ? { documentOwned: true } : {};
+  const existingBlob = await deps.blobRepo.findByHash({ workspaceId: input.workspaceId, sha256 });
+  if (existingBlob) {
+    if (existingBlob.status === "tombstoned" || (kind === "document" && !existingBlob.documentOwned)) {
+      // Record ownership before saving the editorial row: purge must never declassify bytes.
+      // Resurrect: cancel the pending GC in the same locked section rather
+      // than writing a duplicate blob ( dedup rule). See docs/decisions/DR-004-journaled-blob-gc.md.
+      await deps.blobRepo.save({ ...existingBlob, status: "active", tombstonedAt: undefined, ...documentOwnership });
+    }
+    return existingBlob.storageKey;
+  }
+
+  const written = await deps.blobStore.put({
+    workspaceId: input.workspaceId,
+    sha256,
+    bytes,
+  });
+  await deps.blobRepo.save({
+    id: deps.idGen.newId(),
+    workspaceId: input.workspaceId,
+    sha256,
+    storageKey: written.storageKey,
+    ...documentOwnership,
+    status: "active",
+    createdByPrincipal: input.createdByPrincipal,
+    createdAt: nowIso,
+  });
+  return written.storageKey;
+}
+
 export async function uploadMedia(
   required: UploadMediaRequired,
   optional: UploadMediaOptional = {}
 ): Promise<{ media: MediaRecord }> {
   const { deps, input } = required;
-  const kind = input.kind ?? "media";
-  if (kind !== "media" && kind !== "document") throw new MediaValidationError({ message: "invalid media kind" });
+  const kind = resolveUploadKind(input);
   // Document policy is mandatory even if a host overrides the ordinary media MIME/size policy.
   if (kind === "document") await validateDocumentIngress({ filename: input.filename, bytes: input.bytes }, { archiveReader: deps.documentArchiveReader });
-  const maxUploadBytes = kind === "document" ? MAX_DOCUMENT_BYTES : optional.maxUploadBytes ?? DEFAULT_MAX_UPLOAD_BYTES;
-  const allowedMimeTypes = optional.allowedMimeTypes ?? DEFAULT_ALLOWED_MIME_TYPES;
+  const maxUploadBytes = assertUploadAdmissible({ input, kind }, optional);
 
-  if (kind === "media" && !allowedMimeTypes.has(input.contentType)) {
-    throw new MediaValidationError({ message: `content type '${input.contentType}' is not allowed for upload` }
-    );
-  }
-  if (input.bytes.byteLength === 0) {
-    throw new MediaValidationError({ message: "uploaded file is empty" });
-  }
-  if (input.bytes.byteLength > maxUploadBytes) {
-    throw new MediaValidationError({ message: `uploaded file exceeds the ${formatMaxUploadBytesAsMb(maxUploadBytes)} size cap` }
-    );
-  }
-
-  // Inspect the bytes too: a mislabeled SVG must never bypass sanitization.
-  const bytes = kind === "media" && (input.contentType === "image/svg+xml" || sniffContentType({ bytes: input.bytes }) === "image/svg+xml")
-    ? await sanitizeSvg({ bytes: input.bytes })
-    : input.bytes;
-  if (bytes.byteLength > maxUploadBytes) {
-    throw new MediaValidationError({ message: `uploaded file exceeds the ${formatMaxUploadBytesAsMb(maxUploadBytes)} size cap` });
-  }
+  const bytes = await storedUploadBytes({ input, kind });
+  assertWithinUploadCap(bytes.byteLength, maxUploadBytes);
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   const nowIso = kernelNowIso({ clock: deps.clock });
 
-  const storageKey = await withSha256Lock({ key: sha256, criticalSection: async () => {
-    const existingBlob = await deps.blobRepo.findByHash({ workspaceId: input.workspaceId, sha256 });
-    if (existingBlob) {
-      if (existingBlob.status === "tombstoned" || (kind === "document" && !existingBlob.documentOwned)) {
-        // Record ownership before saving the editorial row: purge must never declassify bytes.
-        // Resurrect: cancel the pending GC in the same locked section rather
-        // than writing a duplicate blob ( dedup rule). See docs/decisions/DR-004-journaled-blob-gc.md.
-        await deps.blobRepo.save({ ...existingBlob, status: "active", tombstonedAt: undefined,
-          ...(kind === "document" ? { documentOwned: true } : {}) });
-      }
-      return existingBlob.storageKey;
-    }
-
-    const written = await deps.blobStore.put({
-      workspaceId: input.workspaceId,
-      sha256,
-      bytes,
-    });
-    await deps.blobRepo.save({
-      id: deps.idGen.newId(),
-      workspaceId: input.workspaceId,
-      sha256,
-      storageKey: written.storageKey,
-      ...(kind === "document" ? { documentOwned: true } : {}),
-      status: "active",
-      createdByPrincipal: input.createdByPrincipal,
-      createdAt: nowIso,
-    });
-    return written.storageKey;
-  } });
+  const storageKey = await withSha256Lock({ key: sha256, criticalSection: () => claimUploadBlob({ deps, input, kind, sha256, bytes, nowIso }) });
 
   const title = deriveTitleFromFilename(input.filename);
   const slug = await deriveUniqueMediaSlug(deps.mediaRepo, input.workspaceId, title);
@@ -389,9 +412,7 @@ export async function uploadMedia(
     createdBy: input.createdByPrincipal,
     title,
     slug,
-    alt: input.alt?.trim() ?? "",
-    caption: input.caption?.trim() ?? "",
-    credit: input.credit?.trim() ?? "",
+    ...uploadText(input),
     source: resolveWriteOnceSource({ existing: undefined, requestedSha256: sha256 }),
     status: "active",
     createdAt: nowIso,
@@ -630,6 +651,49 @@ function resolveHtmlAttributesForUpdate(rawValue: string): string | null {
   return trimmed;
 }
 
+function assertDocumentTitle(existing: MediaRecord, title: string | undefined): void {
+  if (existing.kind !== "document" || title === undefined) return;
+  if (!title.trim() || title.trim().length > 240 || /[\\/\u0000-\u001f\u007f]/u.test(title)) {
+    throw new MediaValidationError({ message: "document title must be a non-empty display stem of at most 240 characters" });
+  }
+}
+
+const trimmedEdit = (value: string | undefined, current: string): string => (value !== undefined ? value.trim() : current);
+/** `undefined` keeps the stored value; `null` is a real edit that clears it. */
+const editedOr = <T>(value: T | undefined, current: T): T => (value !== undefined ? value : current);
+
+function resolveHtmlAttributesEdit(value: string | null | undefined, current: string | null): string | null {
+  if (value === undefined) return current;
+  return value === null ? null : resolveHtmlAttributesForUpdate(value);
+}
+
+function resolveCssClassEdit(value: string | null | undefined, current: string | null): string | null {
+  if (value === undefined) return current;
+  return value === null ? null : value.trim() || null;
+}
+
+/** Builds the edited record from already-validated edits. */
+function applyMetadataEdits(
+  { existing, input, slug, htmlAttributes, updatedAt }: { existing: MediaRecord; input: UpdateMediaMetadataRequired["input"]; slug: string; htmlAttributes: string | null; updatedAt: string },
+): MediaRecord {
+  return {
+    ...existing,
+    // `title` and `slug` are deliberately independent (see `MediaRecord.slug`'s doc): renaming the
+    // title never recomputes `slug`, and editing `slug` never touches `title`.
+    title: trimmedEdit(input.title, existing.title) || existing.title,
+    slug,
+    alt: trimmedEdit(input.alt, existing.alt),
+    caption: trimmedEdit(input.caption, existing.caption),
+    credit: trimmedEdit(input.credit, existing.credit),
+    width: editedOr(input.width, existing.width),
+    height: editedOr(input.height, existing.height),
+    cssClass: resolveCssClassEdit(input.cssClass, existing.cssClass),
+    htmlAttributes,
+    updatedAt,
+    version: existing.version + 1,
+  };
+}
+
 export async function updateMediaMetadata(
   required: UpdateMediaMetadataRequired,
   _optional: Record<string, never> = {}
@@ -638,10 +702,7 @@ export async function updateMediaMetadata(
   const existing = await deps.mediaRepo.findById({ workspaceId: input.workspaceId, id: input.id });
   if (!existing) throw new MediaNotFoundError({ message: `media '${input.id}' was not found` });
   assertEntityLive({ entityType: "media", entityId: input.id, state: existing.status === "trashed" ? "trashed" : "live" });
-  if (existing.kind === "document" && input.title !== undefined &&
-      (!input.title.trim() || input.title.trim().length > 240 || /[\\/\u0000-\u001f\u007f]/u.test(input.title))) {
-    throw new MediaValidationError({ message: "document title must be a non-empty display stem of at most 240 characters" });
-  }
+  assertDocumentTitle(existing, input.title);
 
   if (input.width !== undefined && input.width !== null) assertPositiveIntegerOrThrow(input.width, "width");
   if (input.height !== undefined && input.height !== null) assertPositiveIntegerOrThrow(input.height, "height");
@@ -651,29 +712,9 @@ export async function updateMediaMetadata(
       : existing.slug;
   // Validated BEFORE the record is built (same "fail before any write" discipline `assertPositive
   // IntegerOrThrow` above already follows) — an invalid value must never reach `save()`.
-  const htmlAttributes =
-    input.htmlAttributes !== undefined
-      ? input.htmlAttributes === null
-        ? null
-        : resolveHtmlAttributesForUpdate(input.htmlAttributes)
-      : existing.htmlAttributes;
+  const htmlAttributes = resolveHtmlAttributesEdit(input.htmlAttributes, existing.htmlAttributes);
 
-  const media: MediaRecord = {
-    ...existing,
-    // `title` and `slug` are deliberately independent (see `MediaRecord.slug`'s doc): renaming the
-    // title never recomputes `slug`, and editing `slug` never touches `title`.
-    title: input.title !== undefined ? input.title.trim() || existing.title : existing.title,
-    slug,
-    alt: input.alt !== undefined ? input.alt.trim() : existing.alt,
-    caption: input.caption !== undefined ? input.caption.trim() : existing.caption,
-    credit: input.credit !== undefined ? input.credit.trim() : existing.credit,
-    width: input.width !== undefined ? input.width : existing.width,
-    height: input.height !== undefined ? input.height : existing.height,
-    cssClass: input.cssClass !== undefined ? (input.cssClass === null ? null : input.cssClass.trim() || null) : existing.cssClass,
-    htmlAttributes,
-    updatedAt: kernelNowIso({ clock: deps.clock }),
-    version: existing.version + 1,
-  };
+  const media = applyMetadataEdits({ existing, input, slug, htmlAttributes, updatedAt: kernelNowIso({ clock: deps.clock }) });
   await deps.mediaRepo.save(media);
   return { media };
 }

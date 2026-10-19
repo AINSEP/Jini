@@ -910,3 +910,36 @@ test('a failing or absent reference checker refuses purge before removal', async
   await assert.rejects(purgeMedia({ deps: withoutChecker, input }));
   assert.ok(await deps.mediaRepo.findById(input));
 });
+
+test("uploadMedia refuses an unknown kind and trims upload-time alt, caption and credit", async () => {
+  const { deps } = makeDeps();
+  const base = { workspaceId: WORKSPACE_ID, filename: "a.png", contentType: "image/png", bytes: bytesFrom("png"), createdByPrincipal: "owner" };
+  await assert.rejects(uploadMedia({ deps, input: { ...base, kind: "video" as "media" } }), /invalid media kind/);
+  const { media } = await uploadMedia({ deps, input: { ...base, alt: " Alt ", caption: " Cap ", credit: " Cred " } });
+  assert.deepEqual([media.alt, media.caption, media.credit], ["Alt", "Cap", "Cred"]);
+});
+
+test("uploadMedia re-checks the size cap after SVG sanitizing changes the bytes", async () => {
+  const { deps } = makeDeps();
+  // The serializer escapes each raw ">" in text as "&gt;", so clean bytes can outgrow the upload.
+  const svg = bytesFrom(`<svg xmlns="http://www.w3.org/2000/svg"><text>${">".repeat(50)}</text></svg>`);
+  await assert.rejects(uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, filename: "a.svg", contentType: "image/svg+xml", bytes: svg, createdByPrincipal: "owner" } }, { maxUploadBytes: svg.byteLength }), /size cap/);
+});
+
+test("updateMediaMetadata validates document titles and applies dimension, class and blank-title edits", async () => {
+  const { deps } = makeDeps();
+  const doc = (await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, filename: "notes.md", kind: "document", contentType: "text/markdown", bytes: bytesFrom("# Notes\n"), createdByPrincipal: "owner" } })).media;
+  for (const title of ["   ", "x".repeat(241), "a/b", "a\u0001"]) {
+    await assert.rejects(updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: doc.id, title } }), /document title must be/);
+  }
+  assert.equal((await updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: doc.id, title: " Plan " } })).media.title, "Plan");
+  const image = (await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, filename: "pic.png", contentType: "image/png", bytes: bytesFrom("png"), createdByPrincipal: "owner" } })).media;
+  const sized = (await updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: image.id, title: "   ", width: 10, height: 20, cssClass: " wide " } })).media;
+  assert.deepEqual([sized.title, sized.width, sized.height, sized.cssClass], [image.title, 10, 20, "wide"]);
+  const kept = (await updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: image.id, alt: "x" } })).media;
+  assert.deepEqual([kept.width, kept.height, kept.cssClass], [10, 20, "wide"]);
+  const cleared = (await updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: image.id, width: null, height: null, cssClass: null } })).media;
+  assert.deepEqual([cleared.width, cleared.height, cleared.cssClass], [null, null, null]);
+  assert.equal((await updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: image.id, cssClass: "  " } })).media.cssClass, null);
+  await assert.rejects(updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: image.id, width: 0 } }), MediaValidationError);
+});
