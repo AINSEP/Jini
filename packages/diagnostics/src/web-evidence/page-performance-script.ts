@@ -25,29 +25,29 @@ export interface PagePerformanceEvidence {
 export async function collectPagePerformance(
   _required: Record<string, never>, _options: Record<string, never> = {},
 ): Promise<PagePerformanceEvidence> {
+  // Helpers stay nested: only this function's source is serialized into the page.
   const maxNodes = 100_000, maxTasks = 200;
-  let domNodes = 0, mountedHiddenPanels = 0, hiddenPreElements = 0, hiddenPreTextChars = 0, iframes = 0;
-  const walker = document.createTreeWalker(document, NodeFilter.SHOW_ALL);
-  let node = walker.nextNode();
-  while (node && domNodes < maxNodes) {
-    domNodes++;
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const element = node as Element;
-      const hidden = element.getClientRects().length === 0;
-      if (element.tagName === 'IFRAME') iframes++;
-      if (element.matches('details:not([open]),[hidden],[aria-hidden="true"]') ||
-          (element.getAttribute('role') === 'tabpanel' && hidden)) mountedHiddenPanels++;
-      if (element.tagName === 'PRE' && hidden) hiddenPreElements++;
-    } else if (node.nodeType === Node.TEXT_NODE && node.parentElement?.closest('pre')?.getClientRects().length === 0) {
-      // Count text once, without copying hidden output into model context.
-      hiddenPreTextChars += node.textContent?.length ?? 0;
-    }
-    node = walker.nextNode();
+  const counts = { domNodes: 0, mountedHiddenPanels: 0, hiddenPreElements: 0, hiddenPreTextChars: 0, iframes: 0 };
+
+  function countElement(element: Element): void {
+    const hidden = element.getClientRects().length === 0;
+    if (element.tagName === 'IFRAME') counts.iframes++;
+    if (element.matches('details:not([open]),[hidden],[aria-hidden="true"]') ||
+        (element.getAttribute('role') === 'tabpanel' && hidden)) counts.mountedHiddenPanels++;
+    if (element.tagName === 'PRE' && hidden) counts.hiddenPreElements++;
   }
-  const memory = (performance as Performance & { memory?: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
-  const heap = memory ? { usedBytes: memory.usedJSHeapSize, allocatedBytes: memory.totalJSHeapSize, limitBytes: memory.jsHeapSizeLimit } : null;
-  const longTasks = { supported: false, count: 0, totalMs: 0, maxMs: 0, truncated: false };
-  if (typeof PerformanceObserver !== 'undefined' && PerformanceObserver.supportedEntryTypes.includes('longtask')) {
+
+  function countNode(node: Node): void {
+    if (node.nodeType === Node.ELEMENT_NODE) countElement(node as Element);
+    else if (node.nodeType === Node.TEXT_NODE && node.parentElement?.closest('pre')?.getClientRects().length === 0) {
+      // Count text once, without copying hidden output into model context.
+      counts.hiddenPreTextChars += node.textContent?.length ?? 0;
+    }
+  }
+
+  async function sampleLongTasks(): Promise<PagePerformanceEvidence['longTasks']> {
+    const longTasks = { supported: false, count: 0, totalMs: 0, maxMs: 0, truncated: false };
+    if (typeof PerformanceObserver === 'undefined' || !PerformanceObserver.supportedEntryTypes.includes('longtask')) return longTasks;
     const observer = new PerformanceObserver(list => {
       for (const entry of list.getEntries()) {
         if (longTasks.count >= maxTasks) { longTasks.truncated = true; break; }
@@ -59,12 +59,26 @@ export async function collectPagePerformance(
       longTasks.supported = true;
       await new Promise<void>(resolve => setTimeout(resolve, 100));
     } finally { observer.disconnect(); }
+    return longTasks;
   }
-  const suspects: string[] = [];
-  if (hiddenPreElements) suspects.push(`${hiddenPreElements} hidden pre elements remain mounted with ${hiddenPreTextChars} text characters.`);
-  if (mountedHiddenPanels) suspects.push(`${mountedHiddenPanels} hidden or collapsed panels remain mounted.`);
-  if (iframes) suspects.push(`${iframes} iframes have separate documents; their DOM and heaps are outside this sample.`);
-  if (longTasks.count) suspects.push(`${longTasks.count} long tasks were observed; the longest took ${Math.round(longTasks.maxMs)} ms.`);
+
+  const walker = document.createTreeWalker(document, NodeFilter.SHOW_ALL);
+  let node = walker.nextNode();
+  while (node && counts.domNodes < maxNodes) {
+    counts.domNodes++;
+    countNode(node);
+    node = walker.nextNode();
+  }
+  const memory = (performance as Performance & { memory?: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
+  const heap = memory ? { usedBytes: memory.usedJSHeapSize, allocatedBytes: memory.totalJSHeapSize, limitBytes: memory.jsHeapSizeLimit } : null;
+  const longTasks = await sampleLongTasks();
+  const { domNodes, mountedHiddenPanels, hiddenPreElements, hiddenPreTextChars, iframes } = counts;
+  const suspects = [
+    hiddenPreElements ? `${hiddenPreElements} hidden pre elements remain mounted with ${hiddenPreTextChars} text characters.` : '',
+    mountedHiddenPanels ? `${mountedHiddenPanels} hidden or collapsed panels remain mounted.` : '',
+    iframes ? `${iframes} iframes have separate documents; their DOM and heaps are outside this sample.` : '',
+    longTasks.count ? `${longTasks.count} long tasks were observed; the longest took ${Math.round(longTasks.maxMs)} ms.` : '',
+  ].filter(Boolean);
   return { context: 'fresh-isolated-page', heap, domNodes, domTruncated: node !== null, mountedHiddenPanels, hiddenPreElements, hiddenPreTextChars, iframes, longTasks, suspects };
 }
 

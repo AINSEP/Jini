@@ -1,5 +1,5 @@
 /** renderPage boundaries: explicit hops, refusals, waits and release, through typed browser/router fakes. */
-import { test, expect } from "vitest";
+import { test, expect, vi } from "vitest";
 import { renderPage, OffOriginNavigationError, RenderRequestRefused, COOKIE_DISMISS_SELECTORS, type RenderBrowser, type RenderContext, type RenderLocator, type RenderPage } from "../render-page.js";
 import { MAX_REDIRECT_HOPS, type RequestRouter, type RouteLike, type RoutedRequest } from "../request-guard.js";
 import { PageWorkTimeout } from "../page-work-budget.js";
@@ -121,11 +121,17 @@ test("a browser that cannot open a context surfaces its error and has nothing to
 });
 
 test("a caller that cancels while the deadline closes the page keeps the raw abort reason", async () => {
-  const caller = new AbortController();
-  const fake = fakeBrowser({ goto: () => new Promise(() => {}) }, { onClose: () => caller.abort(new Error("caller stop")) });
-  const failure = await renderPage({ browser: fake.browser, url: "https://site.example/", consume: async () => "never" }, { timeoutMs: 20, signal: caller.signal }).catch(error => error);
-  expect(failure).not.toBeInstanceOf(PageWorkTimeout);
-  expect(failure.name).toBe("TimeoutError");
+  // Only the budget's own per-step timer is frozen, so the native deadline (AbortSignal.timeout) always fires first.
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    const caller = new AbortController();
+    const fake = fakeBrowser({ goto: () => new Promise(() => {}) }, { onClose: () => caller.abort(new Error("caller stop")) });
+    const failure = await renderPage({ browser: fake.browser, url: "https://site.example/", consume: async () => "never" }, { timeoutMs: 20, signal: caller.signal }).catch(error => error);
+    expect(failure).not.toBeInstanceOf(PageWorkTimeout);
+    expect(failure.name).toBe("TimeoutError");
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("an own-origin route without continue support is refused with the reason", async () => {
