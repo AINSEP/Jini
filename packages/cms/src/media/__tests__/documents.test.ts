@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { uploadMedia, listMedia, updateMediaMetadata, trashMedia, purgeMedia } from '../media-service.js';
 import { readDocumentText, DOCUMENT_TEXT_PAGE_BYTES, isDocumentOnlyBlob } from '../document-read.js';
+import { MediaValidationError } from '../types.js';
 import { validateDocumentIngress, MAX_DOCUMENT_BYTES } from '../document-ingress.js';
 import { InMemoryMediaRepo, InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryBlobGcJournalRepo } from '../repo.memory.js';
 import { InMemoryBlobStore } from '../blob-store.memory.js';
@@ -174,6 +175,28 @@ test('Library download-only legacy formats: validate bytes, ignore client MIME, 
     assert.equal((await validateDocumentIngress({ filename, bytes })).contentType, expectedType);
     deps.blobStore.get = async () => { throw new Error('download-only bytes must not be read'); };
     await assert.rejects(readDocumentText({ deps, input: { workspaceId: input.workspaceId, id: media.id } }), /download only; text extraction is unavailable/);
-    await assert.rejects(validateDocumentIngress({ filename, bytes: Buffer.from('plain text') }), /signature/);
+    await assert.rejects(validateDocumentIngress({ filename, bytes: Buffer.from('plain text') }), /This file isn't a valid (Word|Excel|RTF) file/);
+  }
+});
+
+// The owner sees these messages in Library; format details and ZIP jargon are not actionable.
+test('Library: malformed document errors name the application and preserve the validation error type', async () => {
+  const applications = { xlsx: 'Excel', pptx: 'PowerPoint', docx: 'Word', pages: 'Pages', key: 'Keynote' };
+  for (const [extension, application] of Object.entries(applications)) {
+    await assert.rejects(validateDocumentIngress({ filename: `bad.${extension}`, bytes: Buffer.from('bad') }, {
+      archiveReader: { entries: async function* () { throw new Error('invalid ZIP'); } },
+    }), (error: unknown) => {
+      assert.ok(error instanceof MediaValidationError);
+      assert.equal(error.message, `This file isn't a valid ${application} file (or it's password-protected).`);
+      return true;
+    });
+  }
+  for (const [extension, application] of Object.entries({ doc: 'Word', xls: 'Excel', rtf: 'RTF' })) {
+    await assert.rejects(validateDocumentIngress({ filename: `bad.${extension}`, bytes: Buffer.from('bad') }),
+      (error: unknown) => {
+        assert.ok(error instanceof MediaValidationError);
+        assert.equal(error.message, `This file isn't a valid ${application} file.`);
+        return true;
+      });
   }
 });

@@ -97,7 +97,8 @@ async function validateDocumentArchive(required: { bytes: Uint8Array; extension:
     }
   } catch (error) {
     if (error instanceof MediaValidationError) throw error;
-    invalid(`${label} is not a readable, unencrypted ZIP package`);
+    const application = office?.label ?? (required.extension === 'pages' ? 'Pages' : 'Keynote');
+    invalid(`This file isn't a valid ${application} file (or it's password-protected).`);
   }
   if (office) await validateOfficePackage({ members: requiredMembers, extension: required.extension as OfficeExtension });
   else if (!iworkMarker) invalid(`${label} is missing its required iWork package members`);
@@ -149,9 +150,9 @@ export async function validateDocumentIngress(required: { filename: string; byte
     await validateDocumentArchive({ bytes: required.bytes, extension: extension as ArchiveExtension, ...optional });
   } else if (extension === 'doc' || extension === 'xls') {
     const signature = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
-    if (!Buffer.from(required.bytes.subarray(0, 8)).equals(signature)) invalid('document bytes do not have an OLE compound file signature');
+    if (!Buffer.from(required.bytes.subarray(0, 8)).equals(signature)) invalid(`This file isn't a valid ${extension === 'doc' ? 'Word' : 'Excel'} file.`);
   } else if (extension === 'rtf') {
-    if (Buffer.from(required.bytes.subarray(0, 5)).toString('latin1') !== '{\\rtf') invalid('document bytes do not have an RTF signature');
+    if (Buffer.from(required.bytes.subarray(0, 5)).toString('latin1') !== '{\\rtf') invalid("This file isn't a valid RTF file.");
   } else if (contentType === DOCUMENT_CONTENT_TYPES.pdf) {
     // latin1 preserves high bits: ASCII decoding would turn counterfeit bytes into a valid header.
     const header = Buffer.from(required.bytes.subarray(0, 8)).toString('latin1');
