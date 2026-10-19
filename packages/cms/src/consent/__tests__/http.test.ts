@@ -14,7 +14,7 @@ import { googleConsentSignals } from '../policy.js';
 const closers: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const close of closers.splice(0)) await close(); });
 
-async function site({ saveFails = false, readFails = false, enabled = true, allowed = true, delivery = 'live' }: { delivery?: 'live' | 'static'; saveFails?: boolean; readFails?: boolean; enabled?: boolean; allowed?: boolean } = {}) {
+async function site({ saveFails = false, readFails = false, enabled = true, allowed = true, delivery = 'live', register = {}, bodyless = false }: { delivery?: 'live' | 'static'; saveFails?: boolean; readFails?: boolean; enabled?: boolean; allowed?: boolean; register?: Parameters<typeof registerConsentHttp>[1]; bodyless?: boolean } = {}) {
   const records = new Map<string, ConsentRecord>();
   const failures: Array<{ operation: string; error: unknown }> = [];
   const ports: ConsentHttpPorts = {
@@ -28,7 +28,9 @@ async function site({ saveFails = false, readFails = false, enabled = true, allo
   };
   if (readFails) ports.config.get = async () => { throw new Error('Ledger unavailable'); };
   const app = express();
-  registerConsentHttp({ app, ports }, { delivery });
+  // Express 5 leaves an unparsed body undefined; Express 4 always assigns {}, so pin that shape explicitly.
+  if (bodyless) app.use((request, _response, next) => { Object.defineProperty(request, 'body', { get: () => undefined, set: () => undefined }); next(); });
+  registerConsentHttp({ app, ports }, { delivery, ...register });
   const html = '<html><head></head><body><script data-consent-category="analytics" src="https://tags.example/a.js"></script></body></html>';
   app.get('/', (_req, res) => res.type('html').send(html));
   app.get('/buffer', (_req, res) => res.type('html').send(Buffer.from(html)));
@@ -36,6 +38,8 @@ async function site({ saveFails = false, readFails = false, enabled = true, allo
   app.get('/stream', (_req, res) => { res.writeHead(200, { 'Content-Type': 'text/html' }); res.flushHeaders(); Readable.from([html.slice(0, 30), html.slice(30)]).pipe(res); });
   app.get('/headerless', (_req, res) => { res.write(Buffer.from('<h')); res.end(new Uint8Array(Buffer.from(html.slice(2)))); });
   app.get('/late-json', (_req, res) => { res.write('{'); res.type('json'); res.end('\"ok\":true}'); });
+  app.get('/gzip', (_req, res) => res.type('html').set('Content-Encoding', 'x-legacy').send(html));
+  app.get('/identity', (_req, res) => res.type('html').set('Content-Encoding', 'identity').send(html));
   app.get('/binary', (_req, res) => res.type('application/octet-stream').end(Buffer.from('binary')));
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'jini-consent-http-'));
   await fs.writeFile(path.join(directory, 'preview.html'), html);
@@ -183,5 +187,54 @@ describe('availability and delivery regressions', () => {
     const response = await fetch(base);
     expect(response.status).toBe(200); expect(await response.text()).toContain('id="jini-consent"');
     expect((await fetch(base + '/api/site-consent/status')).status).toBe(200);
+  });
+});
+
+
+describe('choice and delivery boundaries', () => {
+  it('accepts a Referer-only same-origin save; refuses no source and malformed origins', async () => {
+    const { base, records } = await site();
+    const referer = await fetch(`${base}/api/site-consent`, { method: 'POST', redirect: 'manual', headers: { referer: 'https://site.example/page', 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ action: 'reject', policyVersion: '1' }) });
+    expect(referer.status).toBe(303); expect(referer.headers.get('location')).toBe('/page'); expect(records.size).toBe(1);
+    const none = await fetch(`${base}/api/site-consent`, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ action: 'reject', policyVersion: '1' }) });
+    expect(none.status).toBe(403);
+    expect((await choose(base, 'reject', { origin: 'not a url' })).status).toBe(403);
+  });
+  it('redirects home without a Referer, for a cross-origin Referer, and for a // path', async () => {
+    const { base } = await site();
+    expect((await choose(base, 'reject')).headers.get('location')).toBe('/');
+    expect((await choose(base, 'reject', { referer: 'https://evil.example/page' })).headers.get('location')).toBe('/');
+    expect((await choose(base, 'reject', { referer: 'https://site.example//evil.example/page' })).headers.get('location')).toBe('/');
+  });
+  it('a throwing record port is a 400 with its message, or a generic message for non-Error throws', async () => {
+    const { base, ports } = await site();
+    ports.ids.newId = () => { throw new Error('No id available.'); };
+    const named = await choose(base, 'accept');
+    expect(named.status).toBe(400); expect(await named.json()).toEqual({ error: 'No id available.' });
+    ports.ids.newId = () => { throw 'opaque'; };
+    const opaque = await choose(base, 'accept');
+    expect(opaque.status).toBe(400); expect(await opaque.json()).toEqual({ error: 'Invalid cookie preferences.' });
+  });
+  it('an absent request body is treated as no fields and refused', async () => {
+    const { base, records } = await site({ bodyless: true });
+    const response = await choose(base, 'accept');
+    expect(response.status).toBe(400); expect(records.size).toBe(0);
+  });
+  it('compressed HTML is delivered unchanged under the blocking policy; identity encoding is gated', async () => {
+    const { base, html, failures } = await site();
+    const gzip = await fetch(`${base}/gzip`);
+    expect(gzip.headers.get('content-security-policy')).toContain("script-src 'none'");
+    expect(Buffer.from(await gzip.arrayBuffer()).toString('utf8')).toBe(html);
+    expect(failures.map(entry => (entry.error as Error).message)).toEqual(['Consent requires uncompressed HTML.']);
+    expect(await (await fetch(`${base}/identity`)).text()).toContain('<template data-jini-consent-script');
+  });
+  it('passes request nonces, manifest scripts and theme origins to the gate', async () => {
+    const seen: string[] = [];
+    const dynamic = await site({ register: { nonce: ({ request }) => { seen.push(request.path); return 'n-1'; }, necessaryScripts: [{ src: 'https://tags.example/a.js' }], resourceOrigins: ['https://theme.example'] } });
+    const html = await (await fetch(dynamic.base)).text();
+    expect(seen).toEqual(['/']); expect(html).toContain('nonce="n-1"'); expect(html).toContain('https://theme.example');
+    expect(html).not.toContain('<template data-jini-consent-script');
+    const fixed = await site({ register: { nonce: 'n-2' } });
+    expect(await (await fetch(fixed.base)).text()).toContain('nonce="n-2"');
   });
 });
