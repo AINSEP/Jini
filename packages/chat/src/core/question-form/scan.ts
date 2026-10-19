@@ -10,7 +10,7 @@
  */
 import { parsePartialJson } from '../partial-json.js';
 import { parseQuotedAttrs } from '../util/markup-attributes.js';
-import { asRecord, mapRawQuestion, stringOrUndefined } from './normalize.js';
+import { asRecord, mapRawQuestion, nonEmptyString, omitUndefined, stringOrUndefined } from './normalize.js';
 import type { FormQuestion, FormSegment, QuestionForm } from './types.js';
 
 // `question-form` is the canonical tag; `ask-question` is an alias the model
@@ -167,15 +167,13 @@ function assembleForm({ attrs, top, bodyId, bodyTitle, questions }: {
   bodyTitle: string | undefined;
   questions: FormQuestion[];
 }): QuestionForm {
-  const description = stringOrUndefined(top.description);
-  const submitLabel = stringOrUndefined(top.submitLabel);
-  return {
+  return omitUndefined({
     id: attrs.id ?? bodyId ?? 'discovery',
     title: attrs.title ?? bodyTitle ?? 'A few quick questions',
     questions,
-    ...(description ? { description } : {}),
-    ...(submitLabel ? { submitLabel } : {}),
-  };
+    description: nonEmptyString(top.description),
+    submitLabel: nonEmptyString(top.submitLabel),
+  });
 }
 
 /**
