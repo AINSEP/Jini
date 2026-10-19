@@ -5,7 +5,8 @@ import { readPluginIdentity, assertPluginIdentityAvailable } from "@jini-ai/core
  * Installation inspects JSON and bytes only: importing code belongs exclusively to enable.
  * Staging is a sibling of discovery's root, on the same filesystem, so partial copies never list.
  */
-import { constants } from "node:fs";
+import { constants, type Stats } from "node:fs";
+import type { FileHandle } from "node:fs/promises";
 import { lstat, realpath, readdir, readFile, open, mkdir, mkdtemp, writeFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -70,6 +71,9 @@ const MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 const hash = (bytes: Buffer) => `sha256-${createHash("sha256").update(bytes).digest("hex")}`;
 function fail(code: string, message: string): never { throw new PluginInstallError(code, message); }
 const inside = (parent: string, child: string) => child === parent || child.startsWith(parent + path.sep);
+function assertRealDirectory(info: Stats, message: string): void {
+  if (!info.isDirectory() || info.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", message);
+}
 async function exists(target: string): Promise<boolean> {
   try { await lstat(target); return true; } catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") return false; throw e; }
 }
@@ -78,43 +82,66 @@ export async function assertPluginInstallIdle(required: { installDir: string }, 
   if (await exists(path.resolve(required.installDir) + "-install-lock")) fail("PLUGIN_INSTALL_BUSY", "Another install is in progress.");
 }
 
-/** Retain the inspected bytes, rather than copying a mutable source after consent verification. */
-async function snapshot(sourceDir: string, limits: PluginSnapshotLimits = {}): Promise<PluginPackageSnapshot> {
+/** Snapshot limits capped at the installer ceilings; a caller may only tighten them. */
+function snapshotLimits(limits: PluginSnapshotLimits): Required<PluginSnapshotLimits> {
   for (const limit of Object.values(limits)) {
     if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1)) fail('PLUGIN_SNAPSHOT_LIMIT_INVALID', 'Snapshot limits must be positive safe integers.');
   }
-  const maxEntries = Math.min(limits.maxEntries ?? MAX_ENTRIES, MAX_ENTRIES);
-  const maxFileBytes = Math.min(limits.maxFileBytes ?? MAX_FILE_BYTES, MAX_FILE_BYTES);
-  const maxTotalBytes = Math.min(limits.maxTotalBytes ?? MAX_TOTAL_BYTES, MAX_TOTAL_BYTES);
+  return {
+    maxEntries: Math.min(limits.maxEntries ?? MAX_ENTRIES, MAX_ENTRIES),
+    maxFileBytes: Math.min(limits.maxFileBytes ?? MAX_FILE_BYTES, MAX_FILE_BYTES),
+    maxTotalBytes: Math.min(limits.maxTotalBytes ?? MAX_TOTAL_BYTES, MAX_TOTAL_BYTES),
+  };
+}
+
+/** Reads up to `size` bytes; the caller sizes the buffer one past the stat()'d length. */
+async function readUpTo(handle: FileHandle, size: number): Promise<Buffer> {
+  const buffer = Buffer.alloc(size);
+  let length = 0;
+  while (length < buffer.length) {
+    const read = await handle.read(buffer, length, buffer.length - length, null);
+    if (read.bytesRead === 0) break;
+    length += read.bytesRead;
+  }
+  return buffer.subarray(0, length);
+}
+
+function assertRetainableFile(info: Stats, maxFileBytes: number, remainingBytes: number): void {
+  if (!info.isFile() || info.nlink !== 1) fail("PLUGIN_PACKAGE_UNSAFE", "Only regular files without hard links are allowed.");
+  if (info.size > maxFileBytes || info.size > remainingBytes) fail("PLUGIN_PACKAGE_TOO_LARGE", "Package exceeds the file or total size limit.");
+}
+
+/** One regular, unlinked file's bytes within the limits, refused if it is swapped, grows or shrinks while being read. */
+async function readStableFile(required: { target: string; info: Stats; maxFileBytes: number; remainingBytes: number }): Promise<Buffer> {
+  const { info, maxFileBytes, remainingBytes } = required;
+  assertRetainableFile(info, maxFileBytes, remainingBytes);
+  const handle = await open(required.target, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const current = await handle.stat();
+    if (!current.isFile() || current.nlink !== 1 || current.ino !== info.ino || current.dev !== info.dev) fail("PLUGIN_PACKAGE_UNSAFE", "Package changed while reading.");
+    // A bounded read also protects against a file growing after stat().
+    const bytes = await readUpTo(handle, info.size + 1);
+    if (bytes.length > maxFileBytes || bytes.length > remainingBytes) fail("PLUGIN_PACKAGE_TOO_LARGE", "Package grew past its size limit.");
+    if (bytes.length > info.size || (await handle.stat()).size !== bytes.length) fail("PLUGIN_PACKAGE_UNSAFE", "Package changed while reading.");
+    return Buffer.from(bytes);
+  } finally { await handle.close(); }
+}
+
+/** Retain the inspected bytes, rather than copying a mutable source after consent verification. */
+async function snapshot(sourceDir: string, limits: PluginSnapshotLimits = {}): Promise<PluginPackageSnapshot> {
+  const { maxEntries, maxFileBytes, maxTotalBytes } = snapshotLimits(limits);
   const files = new Map<string, Buffer>();
   let entries = 0; let total = 0;
   async function walk(dir: string, prefix: string): Promise<void> {
-    const stat = await lstat(dir);
-    if (!stat.isDirectory() || stat.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Package directories must not be symbolic links.");
+    assertRealDirectory(await lstat(dir), "Package directories must not be symbolic links.");
     for (const name of (await readdir(dir)).sort()) {
       if (++entries > maxEntries) fail("PLUGIN_PACKAGE_TOO_LARGE", "Package has too many entries.");
       const target = path.join(dir, name); const relative = prefix + name;
       const info = await lstat(target);
       if (info.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Symbolic links are not allowed.");
       if (info.isDirectory()) { await walk(target, relative + "/"); continue; }
-      if (!info.isFile() || info.nlink !== 1) fail("PLUGIN_PACKAGE_UNSAFE", "Only regular files without hard links are allowed.");
-      if (info.size > maxFileBytes || total + info.size > maxTotalBytes) fail("PLUGIN_PACKAGE_TOO_LARGE", "Package exceeds the file or total size limit.");
-      const handle = await open(target, constants.O_RDONLY | constants.O_NOFOLLOW);
-      try {
-        const current = await handle.stat();
-        if (!current.isFile() || current.nlink !== 1 || current.ino !== info.ino || current.dev !== info.dev) fail("PLUGIN_PACKAGE_UNSAFE", "Package changed while reading.");
-        // A bounded read also protects against a file growing after stat().
-        const buffer = Buffer.alloc(info.size + 1);
-        let length = 0;
-        while (length < buffer.length) {
-          const read = await handle.read(buffer, length, buffer.length - length, null);
-          if (read.bytesRead === 0) break;
-          length += read.bytesRead;
-        }
-        if (length > maxFileBytes || total + length > maxTotalBytes) fail("PLUGIN_PACKAGE_TOO_LARGE", "Package grew past its size limit.");
-        if (length > info.size || (await handle.stat()).size !== length) fail("PLUGIN_PACKAGE_UNSAFE", "Package changed while reading.");
-        total += length; files.set(relative, Buffer.from(buffer.subarray(0, length)));
-      } finally { await handle.close(); }
+      const bytes = await readStableFile({ target, info, maxFileBytes, remainingBytes: maxTotalBytes - total });
+      total += bytes.length; files.set(relative, bytes);
     }
   }
   await walk(sourceDir, ""); return Object.assign(files, { entryCount: entries });
@@ -143,101 +170,157 @@ function checkTierAndCode(candidate: PluginManifest, files: Map<string, Buffer>,
   tierPolicy.checkInstall({ manifest: candidate, files });
 }
 
+/** The parsed manifest JSON (current name first, then the legacy alias), or a refusal. */
+function parseManifestFile(files: Map<string, Buffer>): unknown {
+  const filename = PLUGIN_MANIFEST_FILENAMES.find(name => files.has(name)); // legacy alias
+  try { return JSON.parse(filename === undefined ? "" : files.get(filename)!.toString("utf8")); }
+  catch { return fail("PLUGIN_MANIFEST_INVALID", `A valid ${MANIFEST} is required.`); }
+}
+
+/** Integrity must list exactly every packaged file except plugin manifests, each hash matching. */
+function assertIntegrity(candidate: PluginManifest, files: Map<string, Buffer>): void {
+  if (!candidate.integrity || typeof candidate.integrity !== "object" || Array.isArray(candidate.integrity)) fail("PLUGIN_INTEGRITY_INVALID", "An integrity map is required.");
+  const packaged = [...files.keys()].filter((key) => !PLUGIN_MANIFEST_FILENAMES.includes(key)).sort(); // legacy alias
+  if (JSON.stringify(Object.keys(candidate.integrity).sort()) !== JSON.stringify(packaged)) fail("PLUGIN_INTEGRITY_INVALID", "Integrity must list exactly every file except plugin manifests.");
+  for (const key of packaged) if (candidate.integrity[key] !== hash(files.get(key)!)) fail("PLUGIN_INTEGRITY_INVALID", `Integrity mismatch: ${key}`);
+}
+
+// validateManifest owns the id grammar; only the version needs extra path-safety checks.
+function assertPathSafeVersion(candidate: PluginManifest | null): asserts candidate is PluginManifest {
+  if (!candidate || typeof candidate.version !== "string" || !semver.valid(candidate.version) || !/^[0-9A-Za-z][0-9A-Za-z.+-]*$/.test(candidate.version)) fail("PLUGIN_MANIFEST_INVALID", "Package manifest, id or version is invalid.");
+}
+
 function validatePackage(files: Map<string, Buffer>, deps: PluginInstallDeps): PluginManifest {
   const { builtInIds } = deps;
-  let raw: unknown;
-  const filename = PLUGIN_MANIFEST_FILENAMES.find(name => files.has(name)); // legacy alias
-  try { raw = JSON.parse(filename === undefined ? "" : files.get(filename)!.toString("utf8")); }
-  catch { return fail("PLUGIN_MANIFEST_INVALID", `A valid ${MANIFEST} is required.`); }
+  const raw = parseManifestFile(files);
   const candidate = raw as PluginManifest | null;
   const id = typeof candidate?.id === "string" ? candidate.id : "";
   if (builtInIds.some((builtin) => builtin.toLowerCase() === id.toLowerCase())) fail("PLUGIN_SHADOWS_BUILT_IN", "Package id belongs to a built-in plugin.");
   const result = validateManifest({ ...deps, manifest: raw, folderName: id, builtInIds });
   // The manifest's own messages, so a refused declaration says what is wrong with it.
   if (result.errors.length) fail("PLUGIN_MANIFEST_INVALID", result.errors.map((error) => error.message).join("; "));
-  // validateManifest owns the id grammar; only the version needs extra path-safety checks.
-  if (!candidate || typeof candidate.version !== "string" || !semver.valid(candidate.version) || !/^[0-9A-Za-z][0-9A-Za-z.+-]*$/.test(candidate.version)) fail("PLUGIN_MANIFEST_INVALID", "Package manifest, id or version is invalid.");
+  assertPathSafeVersion(candidate);
   checkTierAndCode(candidate, files, deps.tierPolicy);
   if (typeof candidate.name !== "string" || !candidate.name.trim() || typeof candidate.sdkRange !== "string" || !semver.validRange(candidate.sdkRange)) fail("PLUGIN_MANIFEST_INVALID", "A name and valid SDK range are required.");
-  if (!candidate.integrity || typeof candidate.integrity !== "object" || Array.isArray(candidate.integrity)) fail("PLUGIN_INTEGRITY_INVALID", "An integrity map is required.");
-  const packaged = [...files.keys()].filter((key) => !PLUGIN_MANIFEST_FILENAMES.includes(key)).sort(); // legacy alias
-  if (JSON.stringify(Object.keys(candidate.integrity).sort()) !== JSON.stringify(packaged)) fail("PLUGIN_INTEGRITY_INVALID", "Integrity must list exactly every file except plugin manifests.");
-  for (const key of packaged) if (candidate.integrity[key] !== hash(files.get(key)!)) fail("PLUGIN_INTEGRITY_INVALID", `Integrity mismatch: ${key}`);
+  assertIntegrity(candidate, files);
   return candidate;
+}
+
+type IdentityScan = Pick<typeof import('node:fs/promises'), 'lstat' | 'readdir' | 'readFile'>;
+type InstalledIdentity = ReturnType<typeof readPluginIdentity>;
+
+function identityOf(manifest: PluginManifest, deps: PluginInstallDeps, name = manifest.id): InstalledIdentity {
+  return readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name, namespace: deps.identityNamespace });
+}
+
+function assertIdentityFree(candidate: InstalledIdentity & { family: string; localId: string }, installed: Parameters<typeof assertPluginIdentityAvailable>[0]['installed']): void {
+  try { assertPluginIdentityAvailable({ candidate, installed }); }
+  catch { fail("PLUGIN_ID_CONFLICT", "The publisher-qualified plugin id conflicts with an installed package."); }
+}
+
+function warnUnavailableSlot(deps: PluginInstallDeps, localId: string, error: unknown): void {
+  if (!['ENOENT', 'EACCES'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
+  // A disappearing/unreadable neighbour is isolated; link refusals and other I/O faults remain fatal.
+  (deps.warn ?? console.warn)(`Plugin '${localId}': installed slot is unavailable; omitted from identity admission.`);
+}
+
+/** Version names in one installed slot, or none when the slot is not a folder or is unavailable. */
+async function scanSlotVersions(required: { scan: IdentityScan; slot: string; localId: string; deps: PluginInstallDeps }): Promise<string[]> {
+  const { scan, slot } = required;
+  try {
+    const info = await scan.lstat(slot);
+    if (info.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Installed plugin directory must not be a link.");
+    return info.isDirectory() ? await scan.readdir(slot) : [];
+  } catch (error) { warnUnavailableSlot(required.deps, required.localId, error); return []; }
+}
+
+async function isScannableVersion(required: { scan: IdentityScan; versionDir: string; localId: string; deps: PluginInstallDeps }): Promise<boolean> {
+  try {
+    const versionInfo = await required.scan.lstat(required.versionDir);
+    if (versionInfo.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Installed plugin version must not be a link.");
+    return versionInfo.isDirectory();
+  } catch (error) { warnUnavailableSlot(required.deps, required.localId, error); return false; }
+}
+
+async function findInstalledManifest(scan: IdentityScan, versionDir: string): Promise<string> {
+  for (const filename of PLUGIN_MANIFEST_FILENAMES) { // legacy alias
+    const candidatePath = path.join(versionDir, filename);
+    try { await scan.lstat(candidatePath); return candidatePath; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  }
+  return path.join(versionDir, MANIFEST);
+}
+
+/** The installed version's identity, or undefined (with a warning) when its manifest is unreadable. */
+async function readInstalledIdentity(required: { scan: IdentityScan; versionDir: string; localId: string; deps: PluginInstallDeps }): Promise<InstalledIdentity | undefined> {
+  const { scan, localId, deps } = required;
+  try {
+    const manifestPath = await findInstalledManifest(scan, required.versionDir);
+    const manifestInfo = await scan.lstat(manifestPath);
+    if (!manifestInfo.isFile() || manifestInfo.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Installed plugin manifests must not be links.");
+    const installedManifest = JSON.parse(await scan.readFile(manifestPath, "utf8"));
+    return readPluginIdentity({ manifest: installedManifest, name: localId, namespace: deps.identityNamespace });
+  } catch (error) {
+    if (error instanceof PluginInstallError) throw error;
+    // Preserve link refusals while isolating one broken unrelated manifest.
+    (deps.warn ?? console.warn)(`Plugin '${localId}': installed identity manifest is unreadable or invalid; omitted from identity admission.`);
+    return undefined;
+  }
+}
+
+/** Every installed version of one neighbour slot must not already hold the candidate's identity. */
+async function assertSlotIdentityFree(required: { scan: IdentityScan; root: string; localId: string; candidate: InstalledIdentity & { family: string; localId: string }; deps: PluginInstallDeps }): Promise<void> {
+  const { scan, localId, deps } = required;
+  const slot = path.join(required.root, localId);
+  for (const version of await scanSlotVersions({ scan, slot, localId, deps })) {
+    if (!semver.valid(version)) continue;
+    const versionDir = path.join(slot, version);
+    if (!(await isScannableVersion({ scan, versionDir, localId, deps }))) continue;
+    const installed = await readInstalledIdentity({ scan, versionDir, localId, deps });
+    if (installed) assertIdentityFree(required.candidate, [{ ...installed, family: "site-runtime", localId, version, enabled: false }]);
+  }
+}
+
+/** Version folder names in an installed slot, dotfiles excluded; any non-semver name is refused. */
+async function readInstalledVersions(slot: string): Promise<string[]> {
+  const versions = (await readdir(slot)).filter(name => !name.startsWith('.'));
+  if (versions.some(version => !semver.valid(version))) fail('PLUGIN_ID_CONFLICT', 'Existing plugin has an unrecognized version folder.');
+  return versions;
+}
+
+/** Case aliases, Trash entries and enabled plugins block the slot before its versions are compared. */
+async function assertSlotAvailable(required: { manifest: PluginManifest; entries: readonly string[]; root: string; deps: PluginInstallDeps }): Promise<void> {
+  const { manifest, root, deps } = required;
+  const id = manifest.id.toLowerCase();
+  if (required.entries.some((name) => name.toLowerCase() === id && name !== manifest.id)) fail("PLUGIN_ID_CONFLICT", "A plugin id differs only by letter case.");
+  if (await exists(path.join(path.dirname(root), path.basename(root) + "-trash", manifest.id))) fail("PLUGIN_IN_TRASH", "Restore or delete this plugin in Trash first.");
+  const versionExists = await exists(path.join(root, manifest.id, manifest.version));
+  if ((!deps.versionAppend || versionExists) && (await deps.repo.listAll()).some((row) => row.pluginId.toLowerCase() === id && row.enabled)) fail("PLUGIN_ENABLED", "Turn the plugin off in every workspace first.");
+}
+
+/** The latest installed version this package upgrades from; downgrades and silent re-installs are refused. */
+async function latestInstalledVersion(required: { manifest: PluginManifest; input: PluginInstallInput; slot: string; deps: PluginInstallDeps }): Promise<string | undefined> {
+  const { manifest, slot, deps } = required;
+  if (!(await exists(slot))) return undefined;
+  assertRealDirectory(await lstat(slot), "Installed plugin directory must not be a link.");
+  const versions = await readInstalledVersions(slot);
+  const latest = versions.sort(semver.rcompare)[0];
+  if (latest && semver.lt(manifest.version, latest)) fail("PLUGIN_DOWNGRADE", "Installing an older version is not allowed.");
+  if (versions.some((version) => semver.eq(version, manifest.version)) && (deps.versionAppend || !required.input.replace)) fail("PLUGIN_VERSION_EXISTS", deps.versionAppend ? "Version append requires a new version; installed bytes are immutable." : "This version exists. Choose replace explicitly.");
+  return latest;
 }
 
 async function checkDestination(manifest: PluginManifest, input: PluginInstallInput, deps: PluginInstallDeps): Promise<string | undefined> {
   const root = path.resolve(deps.installDir);
   const scan = deps.identityFilesystem ?? { lstat, readdir, readFile };
   const entries = await scan.readdir(root).catch((e: NodeJS.ErrnoException) => { if (e.code === "ENOENT") return []; throw e; });
-  const identity = readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name: manifest.id, namespace: deps.identityNamespace });
-  const candidate = { ...identity, family: "site-runtime", localId: manifest.id };
-  const builtIns = (deps.builtInManifests ?? []).map(builtIn => ({
-    ...readPluginIdentity({ manifest: builtIn as unknown as Readonly<Record<string, unknown>>, name: builtIn.id, namespace: deps.identityNamespace }),
-    family: "site-runtime", localId: builtIn.id, version: builtIn.version, enabled: false,
-  }));
-  try { assertPluginIdentityAvailable({ candidate, installed: builtIns }); }
-  catch { fail("PLUGIN_ID_CONFLICT", "The publisher-qualified plugin id conflicts with an installed package."); }
-  const warnUnavailableSlot = (localId: string, error: unknown) => {
-    if (!['ENOENT', 'EACCES'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
-    // A disappearing/unreadable neighbour is isolated; link refusals and other I/O faults remain fatal.
-    (deps.warn ?? console.warn)(`Plugin '${localId}': installed slot is unavailable; omitted from identity admission.`);
-  };
-  for (const localId of entries) {
-    const slot = path.join(root, localId);
-    let versions: string[];
-    try {
-      const info = await scan.lstat(slot);
-      if (info.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Installed plugin directory must not be a link.");
-      if (!info.isDirectory()) continue;
-      versions = await scan.readdir(slot);
-    } catch (error) { warnUnavailableSlot(localId, error); continue; }
-    for (const version of versions) {
-      if (!semver.valid(version)) continue;
-      const versionDir = path.join(slot, version);
-      try {
-        const versionInfo = await scan.lstat(versionDir);
-        if (versionInfo.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Installed plugin version must not be a link.");
-        if (!versionInfo.isDirectory()) continue;
-      } catch (error) { warnUnavailableSlot(localId, error); continue; }
-      let installed: ReturnType<typeof readPluginIdentity>;
-      try {
-        let manifestPath = path.join(versionDir, MANIFEST);
-        for (const filename of PLUGIN_MANIFEST_FILENAMES) { // legacy alias
-          const candidatePath = path.join(versionDir, filename);
-          try { await scan.lstat(candidatePath); manifestPath = candidatePath; break; }
-          catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
-        }
-        const manifestInfo = await scan.lstat(manifestPath);
-        if (!manifestInfo.isFile() || manifestInfo.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Installed plugin manifests must not be links.");
-        const installedManifest = JSON.parse(await scan.readFile(manifestPath, "utf8"));
-        installed = readPluginIdentity({ manifest: installedManifest, name: localId, namespace: deps.identityNamespace });
-      } catch (error) {
-        if (error instanceof PluginInstallError) throw error;
-        // Preserve link refusals while isolating one broken unrelated manifest.
-        (deps.warn ?? console.warn)(`Plugin '${localId}': installed identity manifest is unreadable or invalid; omitted from identity admission.`);
-        continue;
-      }
-      try {
-        assertPluginIdentityAvailable({ candidate,
-          installed: [{ ...installed, family: "site-runtime", localId, version, enabled: false }] });
-      } catch { fail("PLUGIN_ID_CONFLICT", "The publisher-qualified plugin id conflicts with an installed package."); }
-    }
-  }
-  if (entries.some((name) => name.toLowerCase() === manifest.id.toLowerCase() && name !== manifest.id)) fail("PLUGIN_ID_CONFLICT", "A plugin id differs only by letter case.");
-  if (await exists(path.join(path.dirname(root), path.basename(root) + "-trash", manifest.id))) fail("PLUGIN_IN_TRASH", "Restore or delete this plugin in Trash first.");
-  const slot = path.join(root, manifest.id);
-  const versionExists = await exists(path.join(slot, manifest.version));
-  if ((!deps.versionAppend || versionExists) && (await deps.repo.listAll()).some((row) => row.pluginId.toLowerCase() === manifest.id.toLowerCase() && row.enabled)) fail("PLUGIN_ENABLED", "Turn the plugin off in every workspace first.");
-  if (!(await exists(slot))) return undefined;
-  const stat = await lstat(slot);
-  if (!stat.isDirectory() || stat.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Installed plugin directory must not be a link.");
-  const versions = (await readdir(slot)).filter(name => !name.startsWith('.'));
-  if (versions.some((version) => !semver.valid(version))) fail("PLUGIN_ID_CONFLICT", "Existing plugin has an unrecognized version folder.");
-  const latest = versions.sort(semver.rcompare)[0];
-  if (latest && semver.lt(manifest.version, latest)) fail("PLUGIN_DOWNGRADE", "Installing an older version is not allowed.");
-  if (versions.some((version) => semver.eq(version, manifest.version)) && (deps.versionAppend || !input.replace)) fail("PLUGIN_VERSION_EXISTS", deps.versionAppend ? "Version append requires a new version; installed bytes are immutable." : "This version exists. Choose replace explicitly.");
-  return latest;
+  const candidate = { ...identityOf(manifest, deps), family: "site-runtime", localId: manifest.id };
+  assertIdentityFree(candidate, (deps.builtInManifests ?? []).map(builtIn => ({
+    ...identityOf(builtIn, deps), family: "site-runtime", localId: builtIn.id, version: builtIn.version, enabled: false,
+  })));
+  for (const localId of entries) await assertSlotIdentityFree({ scan, root, localId, candidate, deps });
+  await assertSlotAvailable({ manifest, entries, root, deps });
+  return latestInstalledVersion({ manifest, input, slot: path.join(root, manifest.id), deps });
 }
 
 /** Retire obsolete immutable source releases after a successful controlled reload.
@@ -253,13 +336,9 @@ export async function pruneSitePluginVersions(required: {
   if (validatePluginIdFormat({ id: required.id }).length) fail('PLUGIN_PACKAGE_UNSAFE', 'Invalid plugin id.');
   const root = path.resolve(required.installDir);
   const slot = path.join(root, required.id);
-  for (const target of [root, slot]) {
-    const info = await lstat(target);
-    if (!info.isDirectory() || info.isSymbolicLink()) fail('PLUGIN_PACKAGE_UNSAFE', 'Installed plugin directory must not be a link.');
-  }
+  for (const target of [root, slot]) assertRealDirectory(await lstat(target), 'Installed plugin directory must not be a link.');
   return withPluginInstallLock({ root, run: async () => {
-    const versions = (await readdir(slot)).filter(name => !name.startsWith('.'));
-    if (versions.some(version => !semver.valid(version))) fail('PLUGIN_ID_CONFLICT', 'Existing plugin has an unrecognized version folder.');
+    const versions = await readInstalledVersions(slot);
     const retained = new Set(versions.sort(semver.rcompare).slice(0, 3));
     for (const row of await required.repo.listAll()) if (row.pluginId === required.id && row.enabled) retained.add(row.version);
     const retired = versions.filter(version => !retained.has(version));
@@ -274,7 +353,7 @@ async function inspect(input: PluginInstallInput, deps: PluginInstallDeps) {
   const upgradeFrom = await checkDestination(manifest, input, deps);
   // Include manifest bytes: changed capabilities/name/version must invalidate human consent too.
   const digest = digestSitePluginSnapshot({ files });
-  const identity = readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name: manifest.id, namespace: deps.identityNamespace });
+  const identity = identityOf(manifest, deps);
   const preview: PluginInstallPreview = { warnings: identity.warnings, publisherId: identity.id, provides: identity.provides, keywords: identity.keywords, id: manifest.id, name: manifest.name, version: manifest.version, tier: manifest.tier, capabilities: manifest.capabilities, hooks: manifest.hooks, hasCode: manifest.tier !== "tier-1", contentTypes: deps.declarativeContentTypes.parse({ value: manifest.contentTypes }).decls.map((decl) => decl.key), conflicts: await deps.conflicts({ manifest }), digest, ...(upgradeFrom ? { upgradeFrom } : {}) };
   return { files, manifest, preview };
 }
@@ -305,7 +384,7 @@ export async function snapshotSitePluginPackage(required: { sourceDir: string },
  * @returns A SHA-256 digest covering the manifest and every retained file.
  */
 export function digestSitePluginSnapshot(required: { files: ReadonlyMap<string, Buffer> }, _optional = {}): string {
-  return hash(Buffer.from(JSON.stringify([...required.files].map(([key, bytes]) => [key, hash(bytes)]).sort(([a], [b]) => a! < b! ? -1 : a! > b! ? 1 : 0))));
+  return hash(Buffer.from(JSON.stringify([...required.files].map(([key, bytes]) => [key, hash(bytes)]).sort(([a], [b]) => a! < b! ? -1 : 1))));
 }
 
 export async function computePluginIntegrity(required: { sourceDir: string }, _optional: Record<string, never> = {}): Promise<Record<string, string>> {
@@ -325,6 +404,39 @@ async function withPluginInstallLock<T>(required: { root: string; run: () => Pro
   finally { await rm(lock, { recursive: true, force: true }); }
 }
 
+/** Writes the retained bytes (manifest canonicalized) into a fresh staged version folder. */
+async function writeStagedVersion(required: { versionDir: string; files: Map<string, Buffer> }): Promise<void> {
+  for (const [key, bytes] of canonicalizePluginManifest({ files: required.files })) { // legacy alias
+    const target = path.join(required.versionDir, key);
+    await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, bytes, { flag: "wx" });
+  }
+}
+
+/** Swaps the staged version in; on failure the replaced copy is put back before rethrowing. */
+async function swapVersion(required: { versionDir: string; liveVersion: string; backup: string }): Promise<void> {
+  const { versionDir, liveVersion, backup } = required;
+  const replaced = await exists(liveVersion);
+  if (replaced) await rename(liveVersion, backup);
+  try { await rename(versionDir, liveVersion); }
+  catch (error) {
+    if (replaced) await rename(backup, liveVersion).catch(() => fail("PLUGIN_INSTALL_RECOVERY_REQUIRED", `Restore the previous version from ${backup} before retrying.`));
+    throw error;
+  }
+}
+
+/** Publishes the staged slot: a first install renames the whole slot, an upgrade swaps one version. */
+async function publishStaged(required: { live: string; staging: string; manifest: PluginManifest; versionAppend?: boolean | undefined }): Promise<void> {
+  const { live, staging, manifest } = required;
+  const stagedSlot = path.join(staging, "new");
+  if (!(await exists(live))) { await rename(stagedSlot, live); return; }
+  await swapVersion({ versionDir: path.join(stagedSlot, manifest.version), liveVersion: path.join(live, manifest.version), backup: path.join(staging, "old") });
+  // Publish first, retire old versions second: discovery always sees a complete upgrade.
+  if (required.versionAppend) return;
+  for (const version of await readdir(live)) {
+    if (version !== manifest.version) await rm(path.join(live, version), { recursive: true, force: true });
+  }
+}
+
 /** Publication and retention use the same installer-owned cross-process lock. */
 export async function installSitePlugin(required: PluginInstallInput & { expectedDigest: string; deps: PluginInstallDeps }, _optional: Record<string, never> = {}): Promise<PluginInstallPreview> {
   const optional = required.deps;
@@ -332,51 +444,21 @@ export async function installSitePlugin(required: PluginInstallInput & { expecte
   const { files, manifest, preview } = await inspect(required, optional);
   if (preview.digest !== required.expectedDigest) fail("PLUGIN_CHANGED_SINCE_PREVIEW", "Package changed since preview. Review it again.");
   for (const target of [root, root + "-staging", root + "-trash"]) {
-    if (await exists(target)) {
-      const info = await lstat(target);
-      if (!info.isDirectory() || info.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Install, staging and Trash roots must be real directories.");
-    }
+    if (await exists(target)) assertRealDirectory(await lstat(target), "Install, staging and Trash roots must be real directories.");
   }
   return withPluginInstallLock({ root, run: async () => {
     let staging: string | undefined;
     try {
       await mkdir(root + "-staging", { recursive: true });
       staging = await mkdtemp(path.join(root + "-staging", "install-"));
-      const stagedSlot = path.join(staging, "new");
-      const versionDir = path.join(stagedSlot, manifest.version);
-      for (const [key, bytes] of canonicalizePluginManifest({ files })) { // legacy alias
-        const target = path.join(versionDir, key);
-        await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, bytes, { flag: "wx" });
-      }
+      await writeStagedVersion({ versionDir: path.join(staging, "new", manifest.version), files });
       await checkDestination(manifest, required, optional);
       await mkdir(root, { recursive: true });
-      const live = path.join(root, manifest.id);
-      if (!(await exists(live))) {
-        await rename(stagedSlot, live);
-      } else {
-        const liveVersion = path.join(live, manifest.version);
-        const backup = path.join(staging, "old");
-        const replaced = await exists(liveVersion);
-        if (replaced) await rename(liveVersion, backup);
-        try { await rename(versionDir, liveVersion); }
-        catch (error) {
-          if (replaced) {
-            try { await rename(backup, liveVersion); }
-            catch {
-              // Never let cleanup erase the sole remaining copy when rollback itself fails.
-              staging = undefined;
-              fail("PLUGIN_INSTALL_RECOVERY_REQUIRED", `Restore the previous version from ${backup} before retrying.`);
-            }
-          }
-          throw error;
-        }
-        // Publish first, retire old versions second: discovery always sees a complete upgrade.
-        if (!optional.versionAppend) {
-          for (const version of await readdir(live)) {
-            if (version !== manifest.version) await rm(path.join(live, version), { recursive: true, force: true });
-          }
-        }
-      }
+      await publishStaged({ live: path.join(root, manifest.id), staging, manifest, versionAppend: optional.versionAppend }).catch((error: unknown) => {
+        // Never let cleanup erase the sole remaining copy when rollback itself fails.
+        if (error instanceof PluginInstallError && error.code === "PLUGIN_INSTALL_RECOVERY_REQUIRED") staging = undefined;
+        throw error;
+      });
       return preview;
     } finally {
       if (staging) await rm(staging, { recursive: true, force: true });
