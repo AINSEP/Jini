@@ -5,6 +5,7 @@ import {
   clearConnectorAuthorizationCancelFailuresForConnected,
   clearConnectorAuthorizationErrorsForConnected,
   clearConnectorAuthorizationPending,
+  connectorActionFlags,
   connectorAuthSnapshotChanged,
   connectorPanelAlerts,
   defaultCategoryLabel,
@@ -674,3 +675,66 @@ describe('rules branch boundaries', () => {
     expect(merged.toolCount).toBe(7);
   });
 });
+
+describe('connectorActionFlags', () => {
+  const none = { pendingAction: null, authorizationPending: undefined, disabled: false } as const;
+
+  it('allows connecting an idle available connector', () => {
+    expect(connectorActionFlags({ connector: makeConnector(), ...none })).toEqual({
+      isConnecting: false,
+      isDisconnecting: false,
+      isConnected: false,
+      isAuthorizationPending: false,
+      canConnect: true,
+      canDisconnect: false,
+      redirectUrl: undefined,
+    });
+  });
+
+  it('allows disconnecting an idle connected connector', () => {
+    const flags = connectorActionFlags({ connector: makeConnector({ status: 'connected' }), ...none });
+    expect([flags.canConnect, flags.canDisconnect, flags.isConnected]).toEqual([false, true, true]);
+  });
+
+  it('blocks both actions while disabled', () => {
+    const flags = connectorActionFlags({ connector: makeConnector(), ...none, disabled: true });
+    expect([flags.canConnect, flags.canDisconnect]).toEqual([false, false]);
+  });
+
+  it('blocks connecting a connector whose status is not available', () => {
+    expect(connectorActionFlags({ connector: makeConnector({ status: 'error' }), ...none }).canConnect).toBe(false);
+  });
+
+  it('marks connecting and blocks actions while a connect is in flight', () => {
+    const flags = connectorActionFlags({ connector: makeConnector(), ...none, pendingAction: 'connect' });
+    expect([flags.isConnecting, flags.isDisconnecting, flags.canConnect]).toEqual([true, false, false]);
+  });
+
+  it('marks disconnecting and blocks disconnect while a disconnect is in flight', () => {
+    const flags = connectorActionFlags({ connector: makeConnector({ status: 'connected' }), ...none, pendingAction: 'disconnect' });
+    expect([flags.isDisconnecting, flags.canDisconnect]).toEqual([true, false]);
+  });
+
+  it('reports pending authorization with its redirect URL and blocks connect', () => {
+    const flags = connectorActionFlags({
+      connector: makeConnector(),
+      ...none,
+      authorizationPending: { redirectUrl: 'https://example.test/authorize' },
+    });
+    expect([flags.isAuthorizationPending, flags.canConnect, flags.redirectUrl]).toEqual([
+      true,
+      false,
+      'https://example.test/authorize',
+    ]);
+  });
+
+  it('ignores a pending authorization once the connector is connected', () => {
+    const flags = connectorActionFlags({
+      connector: makeConnector({ status: 'connected' }),
+      ...none,
+      authorizationPending: { redirectUrl: 'https://example.test/authorize' },
+    });
+    expect([flags.isAuthorizationPending, flags.redirectUrl, flags.canDisconnect]).toEqual([false, undefined, true]);
+  });
+});
+

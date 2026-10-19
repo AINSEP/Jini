@@ -1,8 +1,8 @@
 import type { KeyboardEvent as ReactKeyboardEvent, SyntheticEvent } from 'react';
 import { agentHandleProps } from '@jini-ai/agentic';
 import { useT } from '../../i18n/index.js';
-import { getConnectorDisplayToolCount, statusLabel, toolsBadgeTranslation } from '../rules.js';
-import type { Connector, ConnectorAction, ConnectorAuthorizationPending } from '../types.js';
+import { connectorActionFlags, getConnectorDisplayToolCount, statusLabel, toolsBadgeTranslation } from '../rules.js';
+import type { Connector, ConnectorAction, ConnectorActionFlags, ConnectorAuthorizationPending } from '../types.js';
 import { Icon } from '../../../react/components/Icon.js';
 import { ConnectorLogo } from './ConnectorLogo.js';
 
@@ -37,43 +37,6 @@ function stopThen(onActivate: () => void) {
   return (event: SyntheticEvent) => {
     stopPropagation(event);
     onActivate();
-  };
-}
-
-interface ConnectorCardFlags {
-  isConnecting: boolean;
-  isDisconnecting: boolean;
-  isConnected: boolean;
-  isAuthorizationPending: boolean;
-  canConnect: boolean;
-  canDisconnect: boolean;
-  /** The pending authorization's redirect URL — only set while authorization is pending. */
-  redirectUrl: string | undefined;
-}
-
-function connectorCardFlags({
-  connector,
-  pendingAction,
-  authorizationPending,
-  disabled,
-}: {
-  connector: Connector;
-  pendingAction: ConnectorAction | null;
-  authorizationPending: ConnectorAuthorizationPending | undefined;
-  disabled: boolean;
-}): ConnectorCardFlags {
-  const isConnected = connector.status === 'connected';
-  const isAuthorizationPending = !isConnected && authorizationPending !== undefined;
-  const isPending = pendingAction !== null || isAuthorizationPending;
-  const canAct = !disabled && !isPending;
-  return {
-    isConnecting: pendingAction === 'connect',
-    isDisconnecting: pendingAction === 'disconnect',
-    isConnected,
-    isAuthorizationPending,
-    canConnect: canAct && connector.status === 'available',
-    canDisconnect: canAct && isConnected,
-    redirectUrl: isAuthorizationPending ? authorizationPending.redirectUrl : undefined,
   };
 }
 
@@ -117,7 +80,7 @@ function ConnectorCardToolsBadge({ connector, toolsLoaded }: { connector: Connec
 }
 
 interface ConnectorCardActionButtonProps {
-  flags: ConnectorCardFlags;
+  flags: ConnectorActionFlags;
   disabled: boolean;
   agentHandle: string | undefined;
   onActivate: () => void;
@@ -255,7 +218,7 @@ export function ConnectorCard({
   agentHandle,
 }: ConnectorCardProps) {
   const t = useT();
-  const flags = connectorCardFlags({ connector, pendingAction, authorizationPending, disabled });
+  const flags = connectorActionFlags({ connector, pendingAction, authorizationPending, disabled });
   const categoryLabel = getCategoryLabel(connector.category);
   const actionProps = { flags, disabled, agentHandle };
 

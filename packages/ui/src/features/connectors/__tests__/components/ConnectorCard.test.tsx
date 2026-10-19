@@ -432,5 +432,21 @@ describe('ConnectorCard', () => {
     );
     expect(screen.getByRole('button', { name: 'Disconnect' }).getAttribute('data-agent-element')).toBe('card-disconnect');
   });
+
+  it('shows the default cancel-failed message when the host supplies none', () => {
+    render(
+      <ConnectorCard
+        connector={makeConnector()}
+        pendingAction={null}
+        authorizationCancelFailed
+        toolsLoaded
+        onConnect={noop}
+        onDisconnect={noop}
+        onCancelAuthorization={noop}
+        onOpenDetails={noop}
+      />,
+    );
+    expect(screen.getByRole('alert').textContent).toBe("Couldn't cancel authorization. Try again.");
+  });
 });
 

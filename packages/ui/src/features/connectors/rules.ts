@@ -1,6 +1,8 @@
 /** Connector callback-origin validation and search/display sorting; no React, transport or DOM. */
 import type {
   Connector,
+  ConnectorAction,
+  ConnectorActionFlags,
   ConnectorAuthorizationPending,
   ConnectorAuthorizationPendingState,
   ConnectorActionResult,
@@ -93,6 +95,33 @@ export function parseConnectorAuthorizationPendingState(raw: string): ConnectorA
     pending[connectorId] = parsePendingEntry(state);
   }
   return pending;
+}
+
+/** Derives the connect/disconnect/authorization-pending flags a card or drawer renders its actions from. */
+export function connectorActionFlags({
+  connector,
+  pendingAction,
+  authorizationPending,
+  disabled,
+}: {
+  connector: Connector;
+  pendingAction: ConnectorAction | null;
+  authorizationPending: ConnectorAuthorizationPending | undefined;
+  disabled: boolean;
+}): ConnectorActionFlags {
+  const isConnected = connector.status === 'connected';
+  const isAuthorizationPending = !isConnected && authorizationPending !== undefined;
+  const isPending = pendingAction !== null || isAuthorizationPending;
+  const canAct = !disabled && !isPending;
+  return {
+    isConnecting: pendingAction === 'connect',
+    isDisconnecting: pendingAction === 'disconnect',
+    isConnected,
+    isAuthorizationPending,
+    canConnect: canAct && connector.status === 'available',
+    canDisconnect: canAct && isConnected,
+    redirectUrl: isAuthorizationPending ? authorizationPending.redirectUrl : undefined,
+  };
 }
 
 export function updateConnectorAuthorizationPendingFromConnectResponse(
