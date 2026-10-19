@@ -77,6 +77,23 @@ describe('useRunStream', () => {
     expect(result.current.status).toBe('canceled');
   });
 
+  it('cancel() reaches an accepted run before its id has committed to the Stop handler', async () => {
+    const transport = createFakeChatTransport();
+    const { result } = renderHook(() => useRunStream({ transport }));
+
+    await act(async () => {
+      const cancel = result.current.cancel;
+      await result.current.start({ history: [] });
+      // Start has accepted the id, but this callback came from the render with no run id.
+      cancel();
+    });
+
+    expect(transport.stoppedRunIds).toEqual(['run-1']);
+    expect(result.current.status).toBe('canceled');
+    act(() => transport.emit({ kind: 'text', text: 'too-late' }));
+    expect(result.current.events).toEqual([]);
+  });
+
   it('reattach() resumes an existing run, seeded with prior persisted events, then keeps streaming', async () => {
     const transport = createFakeChatTransport();
     const { result } = renderHook(() => useRunStream({ transport }));
