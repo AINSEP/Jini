@@ -175,6 +175,26 @@ describe('Markdown', () => {
     expect(screen.getByText('a paragraph line')).toBeInTheDocument();
   });
 
+  it('strips the quote marker from every blockquote line', () => {
+    const { container } = render(<Markdown>{'> q1\n>q2'}</Markdown>);
+    expect(container.innerHTML).toBe('<blockquote>q1\nq2</blockquote>');
+  });
+
+  it('renders - and * bullets as one unordered list with the markers stripped', () => {
+    const { container } = render(<Markdown>{'- a\n* b'}</Markdown>);
+    expect(container.innerHTML).toBe('<ul><li>a</li><li>b</li></ul>');
+  });
+
+  it('starts a paragraph on the line right after a heading', () => {
+    const { container } = render(<Markdown>{'# Title\nbody'}</Markdown>);
+    expect(container.innerHTML).toBe('<h1>Title</h1><p>body</p>');
+  });
+
+  it('keeps a paragraph line\'s leading indentation', () => {
+    const { container } = render(<Markdown>{'  indented'}</Markdown>);
+    expect(container.querySelector('p')?.textContent).toBe('  indented');
+  });
+
   it('renders inline code spans inside a paragraph', () => {
     render(<Markdown>{'run `npm test` to check'}</Markdown>);
     expect(screen.getByText('npm test', { selector: 'code' })).toBeInTheDocument();
@@ -247,6 +267,89 @@ describe('Markdown', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Close' }));
       expect(dialog.hasAttribute('open')).toBe(false);
       expect(container.querySelectorAll('table')).toHaveLength(1);
+    });
+
+    it('reads an indented row, an escaped pipe, and a pipe inside a code span as cell content', () => {
+      const { container } = render(<Markdown>{'  | a \\| b | `x|y` |\n| --- | --- |'}</Markdown>);
+      expect([...container.querySelectorAll('th')].map((th) => th.innerHTML)).toEqual(['a | b', '<code>x|y</code>']);
+    });
+
+    it('keeps a trailing cell that has no closing pipe', () => {
+      const { container } = render(<Markdown>{'| a | b\n| --- | --- |'}</Markdown>);
+      expect([...container.querySelectorAll('th')].map((th) => th.textContent)).toEqual(['a', 'b']);
+    });
+
+    it('treats a lone pipe header as one empty column', () => {
+      const { container } = render(<Markdown>{'|\n| --- |'}</Markdown>);
+      expect(container.innerHTML).toContain('<thead><tr><th></th></tr></thead>');
+    });
+
+    it('does not start a table when the second line is not an alignment row', () => {
+      const { container } = render(<Markdown>{'a | b\n| x | y |'}</Markdown>);
+      expect(container.querySelector('table')).toBeNull();
+      expect(container.querySelector('p')?.textContent).toBe('a | b\n| x | y |');
+    });
+
+    it('does not start a table when the alignment line has no pipe', () => {
+      const { container } = render(<Markdown>{'a | b\n---'}</Markdown>);
+      expect(container.querySelector('table')).toBeNull();
+      expect(container.querySelector('hr')).toBeInTheDocument();
+    });
+
+    it('ends the table body at a blank line and at a line with no pipe', () => {
+      const { container } = render(<Markdown>{'| a |\n| - |\n| 1 |\n\n| b |\n| - |\n| 2 |\nafter'}</Markdown>);
+      expect(container.querySelectorAll('table')).toHaveLength(2);
+      expect(container.querySelector('p')?.textContent).toBe('after');
+    });
+
+    it('fills a body row that has fewer cells than the header with empty cells', () => {
+      const { container } = render(<Markdown>{'| a | b |\n| --- | --- |\n| 1 |'}</Markdown>);
+      expect([...container.querySelectorAll('td')].map((td) => td.textContent)).toEqual(['1', '']);
+    });
+
+    it('never shows "Expand table" when ResizeObserver is unavailable', () => {
+      vi.stubGlobal('ResizeObserver', undefined);
+      render(<Markdown>{'| A |\n| --- |'}</Markdown>);
+      expect(screen.queryByRole('button', { name: 'Expand table' })).not.toBeInTheDocument();
+    });
+
+    function renderOverflowingTable() {
+      const { trigger } = installFakeResizeObserver();
+      const view = render(<Markdown>{'| A |\n| --- |'}</Markdown>);
+      stubBoxWidth(view.container.querySelector('.jini-md-table-wrap')!, { scrollWidth: 900, clientWidth: 100 });
+      act(() => trigger());
+      fireEvent.click(screen.getByRole('button', { name: 'Expand table' }));
+      return view.container.querySelector('dialog')!;
+    }
+
+    it('opens and closes the table dialog through showModal and close when the browser has them', () => {
+      const showModal = vi.fn(function (this: HTMLDialogElement) { this.setAttribute('open', ''); });
+      const close = vi.fn(function (this: HTMLDialogElement) { this.removeAttribute('open'); });
+      Object.assign(HTMLDialogElement.prototype, { showModal, close });
+      try {
+        const dialog = renderOverflowingTable();
+        expect(showModal).toHaveBeenCalledTimes(1);
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+        expect(close).toHaveBeenCalledTimes(1);
+        expect(dialog.hasAttribute('open')).toBe(false);
+      } finally {
+        Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal');
+        Reflect.deleteProperty(HTMLDialogElement.prototype, 'close');
+      }
+    });
+
+    it('closes the table dialog on Escape (cancel)', () => {
+      const dialog = renderOverflowingTable();
+      fireEvent(dialog, new Event('cancel', { cancelable: true }));
+      expect(dialog.hasAttribute('open')).toBe(false);
+    });
+
+    it('closes the table dialog on a backdrop click but not on a click inside it', () => {
+      const dialog = renderOverflowingTable();
+      fireEvent.click(dialog.querySelector('.jini-md-table-modal-body')!);
+      expect(dialog.hasAttribute('open')).toBe(true);
+      fireEvent.click(dialog);
+      expect(dialog.hasAttribute('open')).toBe(false);
     });
 
     it('gives every table cell a floor width so content overflows its wrap instead of being crushed into vertical wrapping', () => {
