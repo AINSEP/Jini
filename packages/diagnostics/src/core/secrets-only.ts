@@ -183,6 +183,71 @@ const REDACTION_RULES: readonly RedactionRule[] = [
   },
 ];
 
+// Dotted vendor tokens resemble member expressions; detect them before any code exemption.
+const CODE_VENDOR_RULES: readonly RedactionRule[] = [
+  { kind: "google_oauth", pattern: /ya29\.[\w-]{20,}/g, replacement: () => "[REDACTED:google_oauth]" },
+  { kind: "sendgrid_key", pattern: /SG\.[\w-]{16,}\.[\w-]{16,}/g, replacement: () => "[REDACTED:sendgrid_key]" },
+];
+
+// HEAD's patterns must remain byte-for-byte stable for default callers. Code-file scans
+// additionally consume whole template/quoted values so literal suffixes cannot be left behind.
+const CODE_VALUE_RULES: readonly RedactionRule[] = [
+  {
+    kind: "auth_header",
+    pattern: /(?<![A-Za-z0-9-])((?:proxy-)?authorization|x-api-key|api-key|x-goog-api-key|x-auth-token)(\s*["']?\s*[:=]\s*["'`]?)(?:((?:Bearer|Basic|Token|Digest|ApiKey)\s+)(?!\[REDACTED)(?:\$\{[^{}\r\n]*\}|[^\s"'`),;])+|(?!\[REDACTED)(?!(?:Bearer|Basic|Token|Digest|ApiKey)\s)(?:\$\{[^{}\r\n]*\}|[^\s"'`),;])+)/gi,
+    replacement: ({ match: m }) => `${m[1]}${m[2]}${m[3] ?? ""}[REDACTED:auth_header]`,
+  },
+  {
+    kind: "labeled_secret",
+    pattern: new RegExp(`(?<![A-Za-z0-9])(${LABELED_SECRET_LABELS})(\\s*=\\s*)(?:(["'\x60])(?!\\[REDACTED)[^"'\x60\\r\\n]+\\3|(?!\\[REDACTED)[^\\s"'\x60&,;})]+)`, "gi"),
+    replacement: ({ match: m }) => `${m[1]}${m[2]}${m[3] ?? ""}[REDACTED:labeled_secret]${m[3] ?? ""}`,
+  },
+  {
+    kind: "short_password",
+    // Short password values are still credentials; do not apply the name exemption here.
+    pattern: /(?<![A-Za-z0-9])(password|passwd|pwd)(\s*:\s*)(?!\[REDACTED)[\w$.]+(?=\s*[,;}])/gi,
+    replacement: ({ match: m }) => `${m[1]}${m[2]}[REDACTED:labeled_secret]`,
+  },
+];
+
+/** Opaque credential segments cannot become safe merely by appearing in an expression. */
+function isCodeReferenceName({ candidate }: { candidate: string }, _options = {}): boolean {
+  // Name-shaped credentials still occur in code: never exempt opaque/vendor segments.
+  const segments = candidate.split(".");
+  return !segments.some(segment =>
+    (/\d/.test(segment) && segment.length >= 8) ||
+    (segment.length >= 20 && /[a-z]/.test(segment) && /[A-Z]/.test(segment)) ||
+    /^(?:ya29|SG|AIza|AQ|sk[-_]|rk_|whsec_|gh[pousr]_|github_pat_|xox[baprs]-|AKIA|ASIA|eyJ)/.test(segment)
+  );
+}
+
+/** Code references carry no credential bytes. Inspect the original value because a broad rule
+ * can match only a prefix of a template; vendor/PEM and caller-owned rules still scan normally. */
+function isCodeValue({ match, source, offset }: { match: string; source: string; offset: number }, _options = {}): boolean {
+  const prefix = /^[^:=]*[:=]\s*/.exec(match) ?? /^(?:Bearer|Basic|Token)\s+/i.exec(match);
+  if (!prefix) return false;
+  let value = source.slice(offset + prefix[0].length);
+  const quote = /^["'`]/.exec(value)?.[0];
+  if (quote) value = value.slice(1);
+  value = value.replace(/^(?:Bearer|Basic|Token|Digest|ApiKey)\s+/i, "");
+  const end = quote ? value.indexOf(quote) : value.search(/[\s,;)}]/);
+  const candidate = end < 0 ? value : value.slice(0, end);
+  // Only reference interpolations carry no literal bytes; ordinary quotes do not interpolate.
+  // Literal expressions and literal prefixes/suffixes must still be scanned.
+  const interpolation = quote !== '"' && quote !== "'"
+    ? /^\$\{\s*[$A-Z_a-z][\w$]*(?:\.[$A-Z_a-z][\w$]*)*\s*\}/.exec(value)?.[0]
+    : undefined;
+  if (interpolation && (quote ? value[interpolation.length] === quote : /^(?:$|[\s,;)}])/.test(value.slice(interpolation.length)))) return isCodeReferenceName({ candidate: interpolation.slice(2, -1).trim() });
+  if (quote || !/^[$A-Z_a-z][\w$]*(?:\.[$A-Z_a-z][\w$]*)*$/.test(candidate)) return false;
+  if (!isCodeReferenceName({ candidate })) return false;
+  // Bound context work per match; missing a distant declaration keeps the match strict.
+  const beforeValue = source.slice(Math.max(0, offset - 128), offset + prefix[0].length);
+  // Quoted header names and stand-alone assignments are also common data formats.
+  // Short digit-bearing bare values (e.g. hunter2) stay strict even in declarations.
+  return (candidate.includes(".") && /[,{]\s*[\w$]+\s*:\s*$/.test(beforeValue)) ||
+    (!/\d/.test(candidate) && /\b(?:const|let|var)\s+[\w$]+\s*=\s*$/.test(beforeValue));
+}
+
 /**
  * Blanks every secret-shaped VALUE in `text`, leaving everything else — including IPs, absolute
  * paths, emails, tool ids, and ordinary prose — untouched.
@@ -202,6 +267,8 @@ const REDACTION_RULES: readonly RedactionRule[] = [
 export interface RedactionPolicy {
   /** Rules for caller-owned formats, applied after vendor/JWT rules and before bearer/labeled rules. Must be idempotent. */
   readonly additionalRules?: readonly RedactionRule[];
+  /** Opt in only for code-file share scans; logs and arbitrary content must stay strict. */
+  readonly codeAware?: boolean;
 }
 
 /** Redacts credential values with a required policy; returns text and replacement count. */
@@ -211,14 +278,26 @@ export function redactSecretShapes({ text, policy }: { text: string; policy: Red
   let redactions = 0;
   let result = text;
   // Preserve the original policy slot: vendor/JWT matches take precedence over host formats.
-  const applicationRuleSlot = REDACTION_RULES.findIndex(rule => rule.kind === "bearer_token");
+  const headerRule = REDACTION_RULES.find(rule => rule.kind === "auth_header");
+  const assignmentRule = REDACTION_RULES.find(rule => rule.kind === "labeled_secret");
+  const builtInRules = policy.codeAware ? REDACTION_RULES.map(rule =>
+    rule === headerRule ? CODE_VALUE_RULES[0]! : rule === assignmentRule ? CODE_VALUE_RULES[1]! : rule
+  ) : REDACTION_RULES;
+  const applicationRuleSlot = builtInRules.findIndex(rule => rule.kind === "bearer_token");
   const rules = [
-    ...REDACTION_RULES.slice(0, applicationRuleSlot),
+    ...(policy.codeAware ? [...CODE_VENDOR_RULES, CODE_VALUE_RULES[2]!] : []),
+    ...builtInRules.slice(0, applicationRuleSlot),
     ...(policy.additionalRules ?? []),
-    ...REDACTION_RULES.slice(applicationRuleSlot),
+    ...builtInRules.slice(applicationRuleSlot),
   ];
   for (const rule of rules) {
     result = result.replace(new RegExp(rule.pattern.source, withGlobalFlag(rule.pattern.flags)), (...args: unknown[]) => {
+      const match = String(args[0]);
+      // Opt in at the share boundary only; vendor/cookie/query/application rules never skip.
+      const broadCodeRule = policy.codeAware && (REDACTION_RULES.includes(rule) || CODE_VALUE_RULES.includes(rule)) &&
+        (rule.kind === "auth_header" || rule.kind === "bearer_token" || rule.kind === "labeled_secret") &&
+        !/^(?:cookie|set-cookie|[?&])/i.test(match);
+      if (broadCodeRule && isCodeValue({ match, source: result, offset: args[args.length - 2] as number })) return match;
       redactions += 1;
       return rule.replacement({ match: args as readonly (string | undefined)[] });
     });

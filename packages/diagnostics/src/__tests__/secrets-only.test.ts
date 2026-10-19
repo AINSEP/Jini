@@ -186,3 +186,96 @@ test('vendor rules retain precedence over an injected application-key format', (
  const secret = ['sk', 'proj', ''].join('-') + 'x'.repeat(24);
  assert.deepEqual(redactSecretShapes(prefix + secret), { text: prefix + '[REDACTED:openai_key]', redactions: 1 });
 });
+
+// Exported plugin code contains references to credentials, not the credential bytes.
+test("code-aware policy preserves credential references without changing the strict default", () => {
+  const codeRedact = (text: string) => redact({ text, policy: { ...policy, codeAware: true } });
+  const code = [
+    'Authorization: `Bearer ${config.token}`',
+    'Authorization: `Bearer ${credential.token}`',
+    'Authorization: `Bearer ${process.env.CLOUDFLARE_TOKEN}`',
+    '{ token: credential.token }',
+    '{ token: config.apiKey }',
+    '{ token: process.env.X }',
+    'const token = accessToken;',
+    'api_key=${process.env.API_KEY}',
+    'Authorization: `${config.token}`',
+  ];
+  for (const text of code) assert.deepEqual(codeRedact(text), { text, redactions: 0 }, text);
+
+  // These exact HEAD outcomes are the reason share scanning needs an explicit policy.
+  assert.deepEqual(redact({ text: code[0]!, policy: {} }), {
+    text: 'Authorization: [REDACTED:auth_header] ${config.token}`', redactions: 1,
+  });
+  assert.deepEqual(redact({ text: '{ token: credential.token }', policy: {} }), {
+    text: '{ token: [REDACTED:labeled_secret] }', redactions: 1,
+  });
+  const value = "abcdef0123456789".repeat(2);
+  for (const text of [
+    `Authorization: "Bearer ${value}"`,
+    "Authorization: `Bearer " + value + "`",
+    `token: "${value}"`,
+    `api_key="${value}"`,
+    `api_key='${value}'`,
+    "api_key=`" + value + "`",
+    'Authorization: `Bearer ' + value + '${config.token}`',
+  ]) {
+    const first = codeRedact(text);
+    assert.ok(first.redactions > 0, text);
+    assert.equal(first.text.includes(value), false, text);
+    assert.deepEqual(codeRedact(first.text), { text: first.text, redactions: 0 });
+  }
+  // Skipping the broad label/header rule cannot skip the independent vendor catalog.
+  const vendorKey = ["sk", "proj", ""].join("-") + "a1".repeat(15);
+  const mixed = code.join(";\n") + `; token: "${vendorKey}"`;
+  assert.equal(codeRedact(mixed).text.includes(vendorKey), false);
+});
+
+// Opaque credentials can resemble references; punctuation or letter-only values are no exemption.
+test("literal credentials require redaction outside unambiguous code references", () => {
+  const literals = [
+    'Authorization: Bearer ya29.a0AfH6SMBxyzQWERTYuiop1234',
+    'Bearer ya29.a0AfH6SMBxyzQWERTYuiop1234',
+    'Authorization: Token abcdefghij.klmnopqrst1',
+    'token=ya29.a0AfH6SMBxyzQWERTYuiop1234',
+    'client_secret=Abc.Def.Ghi',
+    'password=hunter.two',
+    'token: AbCdEfGhIjKlMnOpQrStUv',
+    '{ apiKey: x, token: AbCdEfGhIjKlMnOpQrStUv }',
+    'Authorization: Bearer config.longTokenReference2',
+    'Bearer config.longTokenReference2',
+    'token: credential.token',
+    'token: config.apiKey',
+    'token: process.env.X',
+    'token: accessTokenReference',
+    '{ token: tokenReference2 }',
+  ];
+  for (const text of literals) {
+    const first = redactSecretShapes(text);
+    assert.ok(first.redactions > 0, text);
+    assert.deepEqual(redactSecretShapes(first.text), { text: first.text, redactions: 0 });
+  }
+  const literalExpression = redact({ text: "Authorization: `Bearer ${'abcdef0123456789abcdef'}`", policy: { codeAware: true } });
+  assert.equal(literalExpression.text, 'Authorization: `Bearer [REDACTED:auth_header]`');
+  assert.equal(literalExpression.redactions, 1);
+});
+
+// Reviewer regressions: dotted tokens and declaration-shaped secrets must never be names.
+test("code-aware mode refuses opaque, vendor and short password values", () => {
+  const google = "ya29." + "a0AfH6SMBxyzQWERTYuiop1234";
+  const sendgrid = "SG." + "a".repeat(22) + "." + "b".repeat(30);
+  const inputs = [
+    `{ token: ${google} }`, `{ token: ${sendgrid} }`,
+    "{ api_key: abc123.def456ghi789 }", "{ password: hunter.two }",
+    "const token = AbCdEfGhIjKlMnOpQrStUv", "const password = hunter2",
+    `let secret = ${google}`, "{ 'x-api-key': abc.defghijklmnop }",
+    "Authorization: `Bearer ${x}abcdef0123456789`",
+    "Authorization: `Bearer abcdef0123456789${x}`",
+    'token = "${abcdef0123456789}"',
+  ];
+  for (const text of inputs) assert.ok(redact({ text, policy: { codeAware: true } }).redactions > 0, text);
+  // Vendors run before exemptions even without a label, and host rules remain authoritative.
+  for (const text of [google, sendgrid, 'examplehost_ak_0123456789ab.' + 'a'.repeat(25)]) {
+    assert.ok(redact({ text, policy: { ...policy, codeAware: true } }).redactions > 0, text);
+  }
+});
