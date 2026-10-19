@@ -6,7 +6,7 @@ import {
   stripArtifact,
   stripRecoveredHtmlFallbackForDisplay,
   summarizeArtifactsForTranscript,
-} from '../../util/index.js';
+} from '../index.js';
 
 const HTML_DOC = '<!doctype html><html><head></head><body><h1>Hello there, world</h1></body></html>';
 

@@ -6,7 +6,7 @@ import {
   matchPersistedArtifactFile,
   parseArtifactManifest,
   serializeArtifactManifest,
-} from '../../util/index.js';
+} from '../index.js';
 
 // Primarily manifest.ts, but 2 its below also exercise matchPersistedArtifactFile (a
 // strip.ts export) in a manifest-matching context — kept together since the block as

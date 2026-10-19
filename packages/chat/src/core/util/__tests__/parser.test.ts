@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createArtifactParser, parseArtifacts, type ArtifactEvent } from '../../util/index.js';
+import { createArtifactParser, parseArtifacts, type ArtifactEvent } from '../index.js';
 
 const HTML_DOC = '<!doctype html><html><head></head><body><h1>Hello there, world</h1></body></html>';
 

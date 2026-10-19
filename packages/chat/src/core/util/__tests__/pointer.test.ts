@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveHtmlPointerArtifactTarget } from '../../util/index.js';
+import { resolveHtmlPointerArtifactTarget } from '../index.js';
 
 describe('artifacts/pointer', () => {
   it('resolves a bare "see foo.html" reply to the unambiguous matching project file', () => {

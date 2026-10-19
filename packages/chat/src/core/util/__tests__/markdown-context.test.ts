@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeSkipRanges, isRealArtifactOpenAt, rangeContains } from '../../util/markdown-context.js';
+import { computeSkipRanges, isRealArtifactOpenAt, rangeContains } from '../markdown-context.js';
 
 // Not part of the artifacts barrel (see artifacts/markdown-context.ts's own module doc: it's an
 // internal detail shared by parser.ts/strip.ts), so this describe block imports the module
