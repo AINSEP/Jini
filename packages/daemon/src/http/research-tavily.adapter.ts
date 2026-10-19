@@ -29,6 +29,88 @@ interface TavilySearchOutput {
 }
 
 /**
+ * Marks an error already redacted and formatted by `fetchTavilySearch`'s `!response.ok` branch, so
+ * `toTavilyFailure` can rethrow it verbatim instead of wrapping it a second time (which would
+ * otherwise produce a "Tavily request failed: Tavily 429: ..." double-prefixed message).
+ */
+class TavilyHttpError extends Error { }
+
+function resolveTavilyBase(credentials: ResearchProviderCredentials): string {
+  const baseUrl = credentials.baseUrl ?? DEFAULT_TAVILY_BASE_URL;
+  const baseUrlCheck = validateBaseUrl({ baseUrl });
+  if (baseUrlCheck.error) {
+    throw new Error(baseUrlCheck.error);
+  }
+  return baseUrl.replace(/\/+$/, '');
+}
+
+function trimmedOrUndefined(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+/** One raw Tavily result as a source, or `null` when it carries no usable URL. */
+function toResearchSource(raw: TavilyRawResult): ResearchSource | null {
+  const url = typeof raw.url === 'string' ? raw.url : '';
+  if (!url) return null;
+  const publishedAt = trimmedOrUndefined(raw.published_date);
+  return {
+    title: trimmedOrUndefined(raw.title) ?? url,
+    url,
+    snippet: typeof raw.content === 'string' ? raw.content.trim().slice(0, 800) : '',
+    provider: 'tavily',
+    ...(publishedAt ? { publishedAt } : {}),
+  };
+}
+
+function parseTavilyResponse(json: TavilyRawResponse): TavilySearchOutput {
+  const answer = typeof json.answer === 'string' ? json.answer : '';
+  const rawResults = Array.isArray(json.results) ? json.results : [];
+  const sources: ResearchSource[] = [];
+  for (const raw of rawResults as TavilyRawResult[]) {
+    const source = toResearchSource(raw);
+    if (source) sources.push(source);
+  }
+  return { answer, sources };
+}
+
+async function fetchTavilySearch({ fetchImpl, url, apiKey, body, signal }: {
+  fetchImpl: typeof globalThis.fetch;
+  url: string;
+  apiKey: string;
+  body: Record<string, unknown>;
+  signal: AbortSignal;
+}): Promise<TavilySearchOutput> {
+  const response = await fetchImpl(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify(body),
+    signal,
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new TavilyHttpError(redactSecrets({ input: `Tavily ${response.status}: ${text.slice(0, 200) || 'no body'}` }, { exactSecrets: [apiKey] }));
+  }
+
+  return parseTavilyResponse((await response.json()) as TavilyRawResponse);
+}
+
+/** The redacted error `tavilySearch` throws for any failure: a timeout, an already-formatted HTTP error, or anything else. */
+function toTavilyFailure(error: unknown, { apiKey, timedOut }: { apiKey: string; timedOut: boolean }): Error {
+  if (!timedOut && error instanceof TavilyHttpError) {
+    return error;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(
+    redactSecrets({
+      input: timedOut
+        ? `Tavily request timed out after ${DEFAULT_TAVILY_TIMEOUT_MS}ms`
+        : `Tavily request failed: ${message}`,
+    }, { exactSecrets: [apiKey] }),
+  );
+}
+
+/**
  * Calls Tavily's real `POST /search` endpoint directly — see research.ts's module doc for the port's exact
  * scope/provenance. Throws (never a `Result`) on any failure; the route handler in research.ts is the one
  * place that converts a thrown error into the package's SEC-005 response shape.
@@ -44,12 +126,7 @@ async function tavilySearch(
   { apiKey, credentials, request }: { apiKey: string; credentials: ResearchProviderCredentials; request: ResearchSearchRequest },
   { fetch: fetchImpl = globalThis.fetch }: { fetch?: typeof globalThis.fetch } = {},
 ): Promise<TavilySearchOutput> {
-  const baseUrl = credentials.baseUrl ?? DEFAULT_TAVILY_BASE_URL;
-  const baseUrlCheck = validateBaseUrl({ baseUrl });
-  if (baseUrlCheck.error) {
-    throw new Error(baseUrlCheck.error);
-  }
-  const base = baseUrl.replace(/\/+$/, '');
+  const base = resolveTavilyBase(credentials);
   // Floor before clamping, matching OD's real `clampMaxSources` — see research.ts's module doc. Without the
   // floor, a fractional `maxSources` (e.g. `2.7`, or `0.5` before the `Math.max(1, ...)` floor
   // below) would forward a non-integer `max_results` straight to Tavily's real API.
@@ -67,12 +144,7 @@ async function tavilySearch(
   // external audit caught (and locally reproduced) an earlier version of this fix that cleared
   // the timer right after `fetch` resolved, leaving `response.text()`/`response.json()` below
   // completely unbounded against a server that sends headers promptly and then stalls the body.
-  //
-  // `TavilyHttpError` marks an error already redacted and formatted by the `!response.ok` branch
-  // below, so the outer catch can rethrow it verbatim instead of wrapping it a second time (which
-  // would otherwise produce a "Tavily request failed: Tavily 429: ..." double-prefixed message).
-  class TavilyHttpError extends Error { }
-
+  // `fetchTavilySearch` therefore reads the body inside the same armed window.
   const timeoutController = new AbortController();
   const timeoutHandle = setTimeout(() => timeoutController.abort(), DEFAULT_TAVILY_TIMEOUT_MS);
   // Assigned in the `try` and returned *after* the `finally`, rather than returned from inside the
@@ -82,47 +154,9 @@ async function tavilySearch(
   // keeps the cleanup path honestly measurable instead of permanently one-third uncovered.
   let output: TavilySearchOutput;
   try {
-    const response = await fetchImpl(`${base}/search`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify(body),
-      signal: timeoutController.signal,
-    });
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      throw new TavilyHttpError(redactSecrets({ input: `Tavily ${response.status}: ${text.slice(0, 200) || 'no body'}` }, { exactSecrets: [apiKey] }));
-    }
-
-    const json = (await response.json()) as TavilyRawResponse;
-    const answer = typeof json.answer === 'string' ? json.answer : '';
-    const rawResults = Array.isArray(json.results) ? json.results : [];
-    const sources: ResearchSource[] = [];
-    for (const raw of rawResults as TavilyRawResult[]) {
-      const url = typeof raw.url === 'string' ? raw.url : '';
-      if (!url) continue;
-      const publishedAt = typeof raw.published_date === 'string' && raw.published_date.trim() ? raw.published_date.trim() : undefined;
-      sources.push({
-        title: typeof raw.title === 'string' && raw.title.trim() ? raw.title.trim() : url,
-        url,
-        snippet: typeof raw.content === 'string' ? raw.content.trim().slice(0, 800) : '',
-        provider: 'tavily',
-        ...(publishedAt ? { publishedAt } : {}),
-      });
-    }
-    output = { answer, sources };
+    output = await fetchTavilySearch({ fetchImpl, url: `${base}/search`, apiKey, body, signal: timeoutController.signal });
   } catch (error) {
-    if (!timeoutController.signal.aborted && error instanceof TavilyHttpError) {
-      throw error;
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      redactSecrets({
-        input: timeoutController.signal.aborted
-          ? `Tavily request timed out after ${DEFAULT_TAVILY_TIMEOUT_MS}ms`
-          : `Tavily request failed: ${message}`,
-      }, { exactSecrets: [apiKey] }),
-    );
+    throw toTavilyFailure(error, { apiKey, timedOut: timeoutController.signal.aborted });
   } finally {
     clearTimeout(timeoutHandle);
   }
