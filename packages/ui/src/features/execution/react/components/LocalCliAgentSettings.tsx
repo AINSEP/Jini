@@ -134,7 +134,9 @@ function TestResultLine({ result }: { result: NonNullable<UseLocalCliAgentCardRe
   const t = useT();
   if (result.status === 'error') {
     // `AgentTestState`'s 'error' variant types `message` as a required string, so a failed test
-    // always carries its own words; only a passing test can arrive without one.
+    // always carries its own words; only a passing test can arrive without one. (`useExecutionTab`
+    // fills a message-less failure with an untranslated English string — a known bug pinned in
+    // its own test.)
     return (
       <p className="jini-agent-card-test-result is-error" role="alert">
         {result.message}

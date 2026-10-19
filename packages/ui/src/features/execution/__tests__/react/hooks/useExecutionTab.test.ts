@@ -133,6 +133,24 @@ describe('useExecutionTab — stale responses', () => {
   });
 });
 
+describe('useExecutionTab — agent test without a message', () => {
+  // KNOWN BUG (pinned, not fixed): a failed probe with no message gets the raw English
+  // 'Agent check failed' here, before any `t()` runs, so a localized settings strip still
+  // shows English. The settings strip's own translated fallback can never fire because this
+  // state always carries a message.
+  it('fills a message-less failure with the untranslated English fallback', async () => {
+    const port: ExecutionPort = {
+      detectLocalAgents: () => Promise.resolve([]),
+      testConnection: () => Promise.resolve({ ok: true }),
+      testAgent: () => Promise.resolve({ ok: false }),
+    };
+    const { result } = renderHook(() => useExecutionTab({ port, autoDetect: false }));
+    result.current.testAgent('agent-a');
+    await waitFor(() => expect(result.current.agentTest.status).toBe('error'));
+    expect(result.current.agentTest).toEqual({ status: 'error', agentId: 'agent-a', message: 'Agent check failed' });
+  });
+});
+
 describe('useExecutionTab — resetModelDiscovery', () => {
   it('returns to idle and discards a response still in flight', async () => {
     const pending: Array<(models: readonly string[]) => void> = [];
