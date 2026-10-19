@@ -247,50 +247,75 @@ interface UninstallTargets {
       run: () => uninstallAgentPluginUnlocked(required, optional) });
   }
 
-  // Reversible work first — see this file's header, "Why removal stages first". Nothing on this
-// side of the try is destructive: every step up to and including the activation-record delete can
-// be undone by renaming the staged trees back where they came from.
-// Past this point the live state is already settled: the packages are no longer reachable under
-// any installed-digest name and the activation record is gone. These removes are the only
-// irreversible step, and nothing observable depends on them finishing.
-// Remove only empty package ancestors: a concurrently-installed digest must never be deleted.
-// No package may have appeared since this uninstall's preview. Preserve it on a race.
   async function uninstallAgentPluginUnlocked(
     required: UninstallAgentPluginRequired,
     optional: UninstallAgentPluginOptional = {},
   ): Promise<UninstallAgentPluginResult> {
     const { workspaceRoot, packagesDir, matches } = await resolveUninstallTargets(required, optional.retiredBundled === true);
     assertUnchangedSincePreview(required.pluginId, optional.confirmedPreview, matches);
-    if (optional.deleteMemory && (!optional.confirmedPreview || optional.confirmedPreview.pluginId !== required.pluginId)) {
-      throw new Error('Deleting plugin memory requires a confirmed preview for this plugin');
-    }
+    assertMemoryDeletionConfirmed(required, optional);
 
-    const staged: StagedTree[] = [];
-    try {
-      for (const plugin of matches) {
-        staged.push(await stageForRemoval(packagesDir, plugin.packageRoot));
-      }
-      await deleteAgentPluginActivation({ workspaceRoot, pluginId: required.pluginId });
-    } catch (error) {
-      throw await restoreStagedTrees(staged, error);
-    }
+    const staged = await stageAndDeleteActivation({ workspaceRoot, packagesDir, pluginId: required.pluginId, matches });
 
+    // Past this point the live state is already settled: the packages are no longer reachable under
+    // any installed-digest name and the activation record is gone. These removes are the only
+    // irreversible step, and nothing observable depends on them finishing.
     for (const tree of staged) {
       await removeFrozenPackageTree(tree.quarantined);
     }
 
-    for (const directory of [packagesDir, path.dirname(packagesDir)]) {
+    await removeEmptyPackageAncestors({ packagesDir });
+    if (optional.deleteMemory) await deletePersistentMemory({ ...required, workspaceRoot });
+    return { pluginId: required.pluginId, removedDigests: matches.map((plugin) => plugin.archiveDigest) };
+  }
+
+  function assertMemoryDeletionConfirmed(required: UninstallAgentPluginRequired, optional: UninstallAgentPluginOptional): void {
+    if (optional.deleteMemory && optional.confirmedPreview?.pluginId !== required.pluginId) {
+      throw new Error('Deleting plugin memory requires a confirmed preview for this plugin');
+    }
+  }
+
+  /** Reversible work first — see this file's header, "Why removal stages first". Nothing in here is
+   *  destructive: every step up to and including the activation-record delete can be undone by
+   *  renaming the staged trees back where they came from. */
+  async function stageAndDeleteActivation(required: {
+    readonly workspaceRoot: string;
+    readonly packagesDir: string;
+    readonly pluginId: string;
+    readonly matches: readonly InstalledAgentPlugin[];
+  }): Promise<readonly StagedTree[]> {
+    const staged: StagedTree[] = [];
+    try {
+      for (const plugin of required.matches) {
+        staged.push(await stageForRemoval(required.packagesDir, plugin.packageRoot));
+      }
+      await deleteAgentPluginActivation({ workspaceRoot: required.workspaceRoot, pluginId: required.pluginId });
+    } catch (error) {
+      throw await restoreStagedTrees(staged, error);
+    }
+    return staged;
+  }
+
+  /** Remove only empty package ancestors: a concurrently-installed digest must never be deleted. */
+  async function removeEmptyPackageAncestors(required: { readonly packagesDir: string }): Promise<void> {
+    for (const directory of [required.packagesDir, path.dirname(required.packagesDir)]) {
       try { await rmdir(directory); } catch (error) {
-        if (!error || typeof error !== 'object' || !('code' in error) || !['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(String(error.code))) throw error;
+        if (!isAncestorStillInUse(error)) throw error;
       }
     }
-    if (optional.deleteMemory) {
-      const pluginRoot = required.layout.forWorkspace({ workspaceId: required.workspaceId }).pluginRootDir({ pluginId: required.pluginId });
-      await assertContainedOnDisk(workspaceRoot, path.relative(workspaceRoot, pluginRoot));
-      if ((await listInstalledPlugins(workspaceRoot)).some(plugin => plugin.pluginId === required.pluginId)) throw new Error('Plugin was reinstalled during uninstall; persistent memory was kept');
-      await rm(pluginRoot, { recursive: true, force: true });
-    }
-    return { pluginId: required.pluginId, removedDigests: matches.map((plugin) => plugin.archiveDigest) };
+  }
+
+  function isAncestorStillInUse(error: unknown): boolean {
+    return typeof error === 'object' && error !== null && 'code' in error && ['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(String(error.code));
+  }
+
+  /** No package may have appeared since this uninstall's preview. Preserve it on a race. */
+  async function deletePersistentMemory(required: UninstallAgentPluginRequired & { readonly workspaceRoot: string }): Promise<void> {
+    const { workspaceRoot, pluginId } = required;
+    const pluginRoot = required.layout.forWorkspace({ workspaceId: required.workspaceId }).pluginRootDir({ pluginId });
+    await assertContainedOnDisk(workspaceRoot, path.relative(workspaceRoot, pluginRoot));
+    if ((await listInstalledPlugins(workspaceRoot)).some(plugin => plugin.pluginId === pluginId)) throw new Error('Plugin was reinstalled during uninstall; persistent memory was kept');
+    await rm(pluginRoot, { recursive: true, force: true });
   }
 
   /**
