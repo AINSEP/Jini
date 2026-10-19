@@ -141,6 +141,13 @@ describe('ToolCard', () => {
     expect(Array.from(atob(rawBase64), (ch) => ch.charCodeAt(0)).slice(0, 8)).toEqual(PNG_SIGNATURE);
   });
 
+  it('renders no media element for a result whose media holds only text blocks', () => {
+    const { container } = render(
+      <ToolCard use={{ kind: 'tool_use', id: 't2f', name: 'CustomTool', input: {} }} result={{ kind: 'tool_result', toolUseId: 't2f', content: 'ok', isError: false, media: [{ type: 'text', text: 'note' }] }} runSucceeded />,
+    );
+    expect(container.querySelector('.op-media')).not.toBeInTheDocument();
+  });
+
   it('renders no media element at all for a result with none — every existing card stays visually unchanged', () => {
     const { container } = render(
       <ToolCard use={{ kind: 'tool_use', id: 't2d', name: 'CustomTool', input: {} }} result={{ kind: 'tool_result', toolUseId: 't2d', content: 'ok', isError: false }} runSucceeded />,
