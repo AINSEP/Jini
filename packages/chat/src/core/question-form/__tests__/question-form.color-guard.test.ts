@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isRenderableColor } from '../question-form.js';
+import { isRenderableColor } from '../../question-form.js';
 
 /**
  * `isRenderableColor` is the CSS-injection guard on direction-card palettes. The sibling

@@ -10,7 +10,7 @@
  */
 import { parsePartialJson } from '../partial-json.js';
 import { parseQuotedAttrs } from '../util/markup-attributes.js';
-import { mapRawQuestion } from './normalize.js';
+import { asRecord, mapRawQuestion, stringOrUndefined } from './normalize.js';
 import type { FormQuestion, FormSegment, QuestionForm } from './types.js';
 
 // `question-form` is the canonical tag; `ask-question` is an alias the model
@@ -19,13 +19,38 @@ import type { FormQuestion, FormSegment, QuestionForm } from './types.js';
 // case-insensitive so `<Question-Form>` / `<ASK-QUESTION>` still parse.
 const OPEN_RE = /<(question-form|ask-question)\b([^>]*)>/i;
 
-// Group 1 is a mandatory (non-optional) alternation and group 2 is an
-// unconditional `*`-quantified capture, so both always participate whenever
-// `m` itself is non-null — `noUncheckedIndexedAccess` just can't see that
-// from the regex alone. Centralized here so the six call sites below don't
-// each repeat the same assertion and reasoning.
-function matchedTagAndAttrs(m: RegExpExecArray): { tagName: string; rawAttrs: string } {
-  return { tagName: m[1]!.toLowerCase(), rawAttrs: m[2]! };
+interface Block {
+  start: number;
+  bodyStart: number;
+  /** Where the close tag starts, or `input.length` while it hasn't streamed in. */
+  bodyEnd: number;
+  /** Past the close tag, or `input.length` while it hasn't streamed in. */
+  end: number;
+  closed: boolean;
+  rawAttrs: string;
+}
+
+/** The first question-form block opening at or after `from`, or `null` when there is none. */
+function locateBlock({ input, from }: { input: string; from: number }): Block | null {
+  const m = OPEN_RE.exec(input.slice(from));
+  if (!m) return null;
+  // Group 1 is a mandatory (non-optional) alternation and group 2 is an
+  // unconditional `*`-quantified capture, so both always participate whenever
+  // `m` itself is non-null — `noUncheckedIndexedAccess` just can't see that
+  // from the regex alone.
+  const closeTag = `</${m[1]!.toLowerCase()}>`;
+  const start = from + m.index;
+  const bodyStart = start + m[0].length;
+  const closeIdx = findCloseTag(input, bodyStart, closeTag);
+  const closed = closeIdx !== -1;
+  return {
+    start,
+    bodyStart,
+    bodyEnd: closed ? closeIdx : input.length,
+    end: closed ? closeIdx + closeTag.length : input.length,
+    closed,
+    rawAttrs: m[2]!,
+  };
 }
 
 /**
@@ -41,36 +66,20 @@ export function splitOnQuestionForms({ input }: { input: string }): FormSegment[
   const out: FormSegment[] = [];
   let cursor = 0;
   while (cursor < input.length) {
-    const slice = input.slice(cursor);
-    const m = OPEN_RE.exec(slice);
-    if (!m) {
-      out.push({ kind: 'text', text: slice });
+    const block = locateBlock({ input, from: cursor });
+    if (!block?.closed) {
+      // No block, or an unterminated one — leave the rest as prose so we don't swallow it.
+      out.push({ kind: 'text', text: input.slice(cursor) });
       break;
     }
-    const { tagName, rawAttrs } = matchedTagAndAttrs(m);
-    const closeTag = `</${tagName}>`;
-    const openStart = cursor + m.index;
-    const openEnd = openStart + m[0].length;
-    const closeIdx = findCloseTag(input, openEnd, closeTag);
-    if (closeIdx === -1) {
-      // Unterminated — leave the rest as prose so we don't swallow it.
-      out.push({ kind: 'text', text: slice });
-      break;
+    if (block.start > cursor) {
+      out.push({ kind: 'text', text: input.slice(cursor, block.start) });
     }
-    if (openStart > cursor) {
-      out.push({ kind: 'text', text: input.slice(cursor, openStart) });
-    }
-    const body = input.slice(openEnd, closeIdx);
-    const attrs = parseQuotedAttrs({ raw: rawAttrs });
-    const form = tryParseForm(body, attrs);
-    const blockEnd = closeIdx + closeTag.length;
-    if (form) {
-      out.push({ kind: 'form', form, raw: input.slice(openStart, blockEnd) });
-    } else {
-      // Malformed — keep raw text so the user can still see it.
-      out.push({ kind: 'text', text: input.slice(openStart, blockEnd) });
-    }
-    cursor = blockEnd;
+    const raw = input.slice(block.start, block.end);
+    const form = tryParseForm(input.slice(block.bodyStart, block.bodyEnd), parseQuotedAttrs({ raw: block.rawAttrs }));
+    // Malformed — keep raw text so the user can still see it.
+    out.push(form ? { kind: 'form', form, raw } : { kind: 'text', text: raw });
+    cursor = block.end;
   }
   return out;
 }
@@ -103,18 +112,10 @@ export function parseQuestionForm({ input }: { input: string }): QuestionForm | 
 export function stripTrailingOpenQuestionForm({ input }: { input: string }): { text: string; hadOpenForm: boolean } {
   let cursor = 0;
   while (cursor < input.length) {
-    const slice = input.slice(cursor);
-    const m = OPEN_RE.exec(slice);
-    if (!m) break;
-    const { tagName } = matchedTagAndAttrs(m);
-    const closeTag = `</${tagName}>`;
-    const openStart = cursor + m.index;
-    const openEnd = openStart + m[0].length;
-    const closeIdx = findCloseTag(input, openEnd, closeTag);
-    if (closeIdx === -1) {
-      return { text: input.slice(0, openStart), hadOpenForm: true };
-    }
-    cursor = closeIdx + closeTag.length;
+    const block = locateBlock({ input, from: cursor });
+    if (!block) break;
+    if (!block.closed) return { text: input.slice(0, block.start), hadOpenForm: true };
+    cursor = block.end;
   }
   return { text: input, hadOpenForm: false };
 }
@@ -137,11 +138,10 @@ function findCloseTag(input: string, from: number, closeTag: string): number {
 }
 
 function tryParseForm(body: string, attrs: Record<string, string>): QuestionForm | null {
-  const trimmed = body.trim();
-  if (!trimmed) return null;
   // Allow the JSON to be wrapped in a fenced ```json block — common when the
   // model echoes its own indented body.
-  const stripped = trimmed
+  const stripped = body
+    .trim()
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/```\s*$/i, '')
     .trim();
@@ -151,23 +151,27 @@ function tryParseForm(body: string, attrs: Record<string, string>): QuestionForm
   } catch {
     return null;
   }
-  if (!data || typeof data !== 'object') return null;
-  const obj = data as Record<string, unknown>;
-  const rawQuestions = Array.isArray(obj.questions) ? obj.questions : null;
-  if (!rawQuestions) return null;
-  const questions: FormQuestion[] = [];
-  rawQuestions.forEach((q, i) => {
-    const mapped = mapRawQuestion({ q: q, index: i });
-    if (mapped) questions.push(mapped);
-  });
+  const obj = asRecord(data);
+  if (!obj || !Array.isArray(obj.questions)) return null;
+  const questions = obj.questions.flatMap((q: unknown, index) => mapRawQuestion({ q, index }) ?? []);
   if (questions.length === 0) return null;
-  const id = attrs.id ?? (typeof obj.id === 'string' ? obj.id : 'discovery');
-  const title = attrs.title ?? (typeof obj.title === 'string' ? obj.title : 'A few quick questions');
-  const description = typeof obj.description === 'string' ? obj.description : undefined;
-  const submitLabel = typeof obj.submitLabel === 'string' ? obj.submitLabel : undefined;
+  return assembleForm({ attrs, top: obj, bodyId: stringOrUndefined(obj.id), bodyTitle: stringOrUndefined(obj.title), questions });
+}
+
+// Form-level fields shared by the complete and streaming parsers: the open
+// tag's attrs win over the body's own id/title, which win over the defaults.
+function assembleForm({ attrs, top, bodyId, bodyTitle, questions }: {
+  attrs: Record<string, string>;
+  top: Record<string, unknown>;
+  bodyId: string | undefined;
+  bodyTitle: string | undefined;
+  questions: FormQuestion[];
+}): QuestionForm {
+  const description = stringOrUndefined(top.description);
+  const submitLabel = stringOrUndefined(top.submitLabel);
   return {
-    id,
-    title,
+    id: attrs.id ?? bodyId ?? 'discovery',
+    title: attrs.title ?? bodyTitle ?? 'A few quick questions',
     questions,
     ...(description ? { description } : {}),
     ...(submitLabel ? { submitLabel } : {}),
@@ -187,14 +191,9 @@ function tryParseForm(body: string, attrs: Record<string, string>): QuestionForm
  *   string-aware brace walk via {@link parsePartialJson}).
  */
 export function parsePartialQuestionForm({ input }: { input: string }): QuestionForm | null {
-  const m = OPEN_RE.exec(input);
-  if (!m) return null;
-  const { tagName, rawAttrs } = matchedTagAndAttrs(m);
-  const closeTag = `</${tagName}>`;
-  const openEnd = m.index + m[0].length;
-  const attrs = parseQuotedAttrs({ raw: rawAttrs });
-  const closeIdx = findCloseTag(input, openEnd, closeTag);
-  const rawBody = closeIdx === -1 ? input.slice(openEnd) : input.slice(openEnd, closeIdx);
+  const block = locateBlock({ input, from: 0 });
+  if (!block) return null;
+  const rawBody = input.slice(block.bodyStart, block.bodyEnd);
   // Strip the fenced ```json wrapper some models emit. The opening fence is
   // removed always; the trailing fence is removed too once it streams in
   // (possibly only a partial ``` so far) — otherwise leftover backticks make
@@ -204,24 +203,18 @@ export function parsePartialQuestionForm({ input }: { input: string }): Question
   // Derive form-level metadata from the *parsed top-level object*, not a
   // whole-body regex scan: a nested question/option `id`/`title`/`description`
   // must not masquerade as the form's own.
-  const parsed = parsePartialJson({ buf: body });
-  const top = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
-  const topTitle = typeof top.title === 'string' && top.title.trim().length > 0 ? top.title : undefined;
+  const top = asRecord(parsePartialJson({ buf: body })) ?? {};
+  const title = stringOrUndefined(top.title);
   // `id` keys a still-editable panel, so it must be stable for the whole
   // stream — don't adopt it until its string literal is fully terminated,
   // otherwise it would churn character-by-character and remount the panel.
-  const id = attrs.id ?? completeTopLevelString(body, 'id') ?? 'discovery';
-  const title = attrs.title ?? topTitle ?? 'A few quick questions';
-  const description = typeof top.description === 'string' ? top.description : undefined;
-  const submitLabel = typeof top.submitLabel === 'string' ? top.submitLabel : undefined;
-  const questions = shapeStreamingQuestions(top.questions, countClosedQuestionObjects(body));
-  return {
-    id,
-    title,
-    questions,
-    ...(description ? { description } : {}),
-    ...(submitLabel ? { submitLabel } : {}),
-  };
+  return assembleForm({
+    attrs: parseQuotedAttrs({ raw: block.rawAttrs }),
+    top,
+    bodyId: completeTopLevelString(body, 'id'),
+    bodyTitle: title?.trim() ? title : undefined,
+    questions: shapeStreamingQuestions(top.questions, countClosedQuestionObjects(body)),
+  });
 }
 
 // Strip a trailing ``` fence (possibly only partially streamed) from a form
@@ -236,20 +229,24 @@ function stripTrailingFence(body: string): string {
 }
 
 function endsInsideJsonString(s: string): boolean {
-  let inStr = false;
-  let esc = false;
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i];
-    if (inStr) {
-      if (esc) esc = false;
-      else if (c === '\\') esc = true;
-      else if (c === '"') inStr = false;
-    } else if (c === '"') {
-      inStr = true;
-    }
+  for (let i = s.indexOf('"'); i !== -1; i = s.indexOf('"', i)) {
+    i = jsonStringEnd({ s, start: i });
+    if (i === -1) return true;
   }
-  return inStr;
+  return false;
 }
+
+// Index just past the closing quote of the JSON string literal whose opening
+// quote is at `start`, or -1 when that literal hasn't finished streaming.
+function jsonStringEnd({ s, start }: { s: string; start: number }): number {
+  for (let i = start + 1; i < s.length; i++) {
+    if (s[i] === '\\') i++;
+    else if (s[i] === '"') return i + 1;
+  }
+  return -1;
+}
+
+const DEPTH_DELTA: Record<string, number> = { '{': 1, '[': 1, '}': -1, ']': -1 };
 
 // Return a top-level (depth-1) string field's value ONLY if its string
 // literal is fully terminated in the (possibly partial) body. Depth-aware so
@@ -257,69 +254,53 @@ function endsInsideJsonString(s: string): boolean {
 function completeTopLevelString(body: string, field: string): string | undefined {
   const marker = `"${field}"`;
   let depth = 0;
-  let inStr = false;
-  let esc = false;
   for (let i = 0; i < body.length; i++) {
-    const c = body[i];
-    if (inStr) {
-      if (esc) esc = false;
-      else if (c === '\\') esc = true;
-      else if (c === '"') inStr = false;
+    const c = body[i] as string;
+    if (c !== '"') {
+      depth += DEPTH_DELTA[c] ?? 0;
       continue;
     }
-    if (c === '{' || c === '[') {
-      depth++;
-      continue;
-    }
-    if (c === '}' || c === ']') {
-      depth--;
-      continue;
-    }
-    if (c === '"') {
-      if (depth === 1 && body.startsWith(marker, i)) {
-        let j = i + marker.length;
-        while (j < body.length && /\s/.test(body[j] as string)) j++;
-        if (body[j] !== ':') {
-          inStr = true; // it's a value string, not our key — skip it
-          continue;
-        }
-        j++;
-        while (j < body.length && /\s/.test(body[j] as string)) j++;
-        if (body[j] !== '"') return undefined; // value not a (started) string
-        let value = '';
-        let vesc = false;
-        for (let k = j + 1; k < body.length; k++) {
-          const vc = body[k] as string;
-          if (vesc) {
-            value += vc;
-            vesc = false;
-          } else if (vc === '\\') {
-            value += vc;
-            vesc = true;
-          } else if (vc === '"') {
-            try {
-              return JSON.parse(`"${value}"`) as string;
-            } catch {
-              return value;
-            }
-          } else {
-            value += vc;
-          }
-        }
-        return undefined; // closing quote hasn't streamed yet
-      }
-      inStr = true;
-    }
+    const valueStart = depth === 1 ? keyValueStart({ body, at: i, marker }) : -1;
+    if (valueStart !== -1) return readStringLiteral({ body, start: valueStart });
+    // A string that isn't our key (any other key, or a value) — skip it.
+    const end = jsonStringEnd({ s: body, start: i });
+    if (end === -1) return undefined;
+    i = end - 1;
   }
   return undefined;
+}
+
+const KEY_COLON_RE = /\s*:\s*/y;
+
+// Where the value starts when the string literal at `at` is the `marker` key,
+// or -1 when it isn't — including a value string that merely spells the key,
+// which no `:` follows.
+function keyValueStart({ body, at, marker }: { body: string; at: number; marker: string }): number {
+  if (!body.startsWith(marker, at)) return -1;
+  KEY_COLON_RE.lastIndex = at + marker.length;
+  return KEY_COLON_RE.test(body) ? KEY_COLON_RE.lastIndex : -1;
+}
+
+// The decoded string literal at `start`, or `undefined` when the value isn't
+// a (started) string or its closing quote hasn't streamed yet.
+function readStringLiteral({ body, start }: { body: string; start: number }): string | undefined {
+  if (body[start] !== '"') return undefined; // value not a (started) string
+  const end = jsonStringEnd({ s: body, start });
+  if (end === -1) return undefined; // closing quote hasn't streamed yet
+  const value = body.slice(start + 1, end - 1);
+  try {
+    return JSON.parse(`"${value}"`) as string;
+  } catch {
+    return value;
+  }
 }
 
 function shapeStreamingQuestions(rawQuestions: unknown, closedCount: number): FormQuestion[] {
   if (!Array.isArray(rawQuestions)) return [];
   const out: FormQuestion[] = [];
   rawQuestions.forEach((raw, index) => {
-    if (!raw || typeof raw !== 'object') return;
-    const q = raw as Record<string, unknown>;
+    const q = asRecord(raw);
+    if (!q) return;
     const label = q.label;
     if (typeof label !== 'string' || label.trim().length === 0) return;
     // Surface a question only once its canonical id is determinable, so the
@@ -341,38 +322,31 @@ function countClosedQuestionObjects(body: string): number {
   if (!keyMatch) return 0;
   let i = keyMatch.index + keyMatch[0].length;
   let count = 0;
-  while (i < body.length) {
+  for (;;) {
     while (i < body.length && /[\s,]/.test(body[i] as string)) i++;
-    if (i >= body.length || body[i] === ']') break;
-    if (body[i] !== '{') break;
-    const obj = extractBalancedObject(body, i);
-    if (!obj) break; // trailing object hasn't closed yet
+    // Past the end, at `]`, or at a non-object element: nothing more to count.
+    if (body[i] !== '{') return count;
+    i = balancedObjectEnd({ s: body, start: i });
+    if (i === -1) return count; // trailing object hasn't closed yet
     count++;
-    i += obj.length;
   }
-  return count;
 }
 
-// Return the substring for the balanced `{...}` object starting at `start`,
-// or null if it never closes (string-aware so braces inside strings don't count).
-function extractBalancedObject(s: string, start: number): string | null {
+// Index just past the balanced `{...}` object starting at `start`, or -1 if
+// it never closes (string-aware so braces inside strings don't count).
+function balancedObjectEnd({ s, start }: { s: string; start: number }): number {
   let depth = 0;
-  let inStr = false;
-  let esc = false;
   for (let i = start; i < s.length; i++) {
-    const c = s[i] as string;
-    if (inStr) {
-      if (esc) esc = false;
-      else if (c === '\\') esc = true;
-      else if (c === '"') inStr = false;
-      continue;
-    }
-    if (c === '"') inStr = true;
-    else if (c === '{') depth++;
-    else if (c === '}') {
-      depth--;
-      if (depth === 0) return s.slice(start, i + 1);
+    const c = s[i];
+    if (c === '"') {
+      const end = jsonStringEnd({ s, start: i });
+      if (end === -1) return -1;
+      i = end - 1;
+    } else if (c === '{') {
+      depth++;
+    } else if (c === '}' && --depth === 0) {
+      return i + 1;
     }
   }
-  return null;
+  return -1;
 }

@@ -9,7 +9,7 @@ import {
   splitOnQuestionForms,
   stripTrailingOpenQuestionForm,
   type QuestionType,
-} from '../question-form.js';
+} from '../../question-form.js';
 
 const FORM_BODY = JSON.stringify({
   id: 'discovery',
