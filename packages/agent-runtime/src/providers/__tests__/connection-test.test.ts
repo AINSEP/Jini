@@ -2,6 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { testProviderConnection, type ProviderConnectionTestInput } from '../connection-test.js';
 import type { DnsLookupAddress } from '../connection-guard.js';
 
+// Exercise defaultDnsLookup without relying on the machine's network.
+vi.mock('node:dns', () => ({
+  promises: { lookup: async () => [{ address: '8.8.8.8', family: 4 }] },
+}));
+
 const noDns = async (): Promise<DnsLookupAddress[]> => [{ address: '8.8.8.8', family: 4 }];
 
 const baseInput = (overrides: Partial<ProviderConnectionTestInput>): ProviderConnectionTestInput => ({
@@ -279,5 +284,229 @@ describe('testProviderConnection', () => {
     expect(url).toContain('/openai/deployments/gpt-4o-deployment/chat/completions');
     expect(url).toContain('api-version=2024-10-21');
     expect(init.headers).toMatchObject({ 'api-key': 'sk-ant-test' });
+  });
+});
+
+describe('testProviderConnection boundaries', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const run = (overrides: Partial<ProviderConnectionTestInput>) => {
+    const { protocol, baseUrl, apiKey, model, ...optionalArgs } = baseInput(overrides);
+    return testProviderConnection({ protocol, baseUrl, apiKey, model }, optionalArgs);
+  };
+  const respond = (status: number, body: string) => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(body, { status }));
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  };
+  const respondJson = (status: number, body: unknown) => respond(status, JSON.stringify(body));
+  const reject = (err: unknown) => vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => { throw err; }));
+
+  it('classifies a 400 naming the api key as auth_failed', async () => {
+    respondJson(400, { error: { message: 'API key not valid' } });
+    expect(await run({})).toMatchObject({ kind: 'auth_failed', status: 400, detail: 'API key not valid' });
+  });
+
+  it('classifies a 400 without auth wording as unknown', async () => {
+    respondJson(400, { error: 'bad request' });
+    expect(await run({})).toMatchObject({ kind: 'unknown', status: 400, detail: 'bad request' });
+  });
+
+  it('classifies a 403 naming permission denied as auth_failed', async () => {
+    respondJson(403, { message: 'permission denied' });
+    expect(await run({})).toMatchObject({ kind: 'auth_failed', status: 403, detail: 'permission denied' });
+  });
+
+  it('classifies a plain 403 as forbidden', async () => {
+    respondJson(403, { message: 'region blocked' });
+    expect(await run({})).toMatchObject({ kind: 'forbidden', detail: 'region blocked' });
+  });
+
+  it('classifies a 404 naming the model as not_found_model', async () => {
+    respondJson(404, { error: { message: 'model does not exist' } });
+    expect(await run({})).toMatchObject({ kind: 'not_found_model', detail: 'model does not exist' });
+  });
+
+  it('explains an empty 404 as a base url path problem', async () => {
+    respond(404, '');
+    expect(await run({})).toMatchObject({ kind: 'invalid_base_url', detail: 'HTTP 404 from provider; check the Base URL path.' });
+  });
+
+  it('leaves an empty non-404 error detail empty', async () => {
+    respond(500, '');
+    expect(await run({})).toMatchObject({ kind: 'upstream_unavailable', detail: '' });
+  });
+
+  it('falls back to the top-level message when error.message is blank', async () => {
+    respondJson(418, { error: { message: '  ' }, message: 'teapot' });
+    expect(await run({})).toMatchObject({ kind: 'unknown', detail: 'teapot' });
+  });
+
+  it('uses the raw body when the error response is not JSON', async () => {
+    respond(502, '  upstream exploded  ');
+    expect(await run({})).toMatchObject({ kind: 'upstream_unavailable', detail: 'upstream exploded' });
+  });
+
+  it('uses the raw body when a JSON error carries no message', async () => {
+    respondJson(418, { error: { code: 1 } });
+    expect(await run({})).toMatchObject({ detail: '{"error":{"code":1}}' });
+  });
+
+  it('uses the raw body when the error response is JSON null', async () => {
+    respond(500, 'null');
+    expect(await run({})).toMatchObject({ detail: 'null' });
+  });
+
+  it('treats an unreadable body as empty', async () => {
+    const response = new Response('ok', { status: 200 });
+    vi.spyOn(response, 'text').mockRejectedValue(new Error('stream broke'));
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => response));
+    expect(await run({})).toMatchObject({ ok: false, detail: 'Provider returned a 2xx response without assistant text' });
+  });
+
+  it('classifies an AbortError as timeout', async () => {
+    reject(new DOMException('aborted', 'AbortError'));
+    expect(await run({})).toMatchObject({ kind: 'timeout', detail: 'aborted' });
+  });
+
+  it('classifies an Error without a cause code as unknown', async () => {
+    reject(new Error('boom'));
+    expect(await run({})).toMatchObject({ kind: 'unknown', detail: 'boom' });
+  });
+
+  it('classifies an Error with an unrecognised cause code as unknown', async () => {
+    reject(Object.assign(new Error('odd'), { cause: { code: 'EWHATEVER' } }));
+    expect(await run({})).toMatchObject({ kind: 'unknown', detail: 'odd' });
+  });
+
+  it('stringifies a non-Error rejection', async () => {
+    reject('plain string');
+    expect(await run({})).toMatchObject({ kind: 'unknown', detail: 'plain string' });
+  });
+
+  it('aborts the request when the caller signal is already aborted', async () => {
+    const fetchMock = respondJson(200, { content: [{ type: 'text', text: 'ok' }] });
+    const parent = new AbortController();
+    parent.abort();
+    await run({ signal: parent.signal });
+    expect(fetchMock.mock.calls[0]![1]!.signal!.aborted).toBe(true);
+  });
+
+  it('forwards a later caller abort and detaches afterwards', async () => {
+    const parent = new AbortController();
+    let seen: AbortSignal | undefined;
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async (_url, init) => {
+      seen = init!.signal!;
+      parent.abort();
+      return new Response(JSON.stringify({ content: [{ type: 'text', text: 'ok' }] }));
+    }));
+    const removeSpy = vi.spyOn(parent.signal, 'removeEventListener');
+    await run({ signal: parent.signal });
+    expect(seen!.aborted).toBe(true);
+    expect(removeSpy).toHaveBeenCalledWith('abort', expect.any(Function));
+  });
+
+  it('resolves the base url with the default DNS lookup when none is injected', async () => {
+    respondJson(200, { content: [{ type: 'text', text: 'ok' }] });
+    expect(await run({ dnsLookup: undefined })).toMatchObject({ ok: true, kind: 'success' });
+  });
+
+  // BUG (pinned, not fixed): validateBaseUrl trims NBSP before parsing, but the
+  // request builder re-parses the raw string, which `new URL` rejects.
+  it('reports an NBSP-padded base url that passes the guard as unknown Invalid URL', async () => {
+    const fetchMock = respond(200, '{}');
+    expect(await run({ baseUrl: '\u00a0https://api.anthropic.com' })).toMatchObject({ kind: 'unknown', detail: 'Invalid URL' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('skips non-text Anthropic blocks and reads the first text block', async () => {
+    respondJson(200, { content: [null, { type: 'tool_use' }, { type: 'text', text: 7 }, { type: 'text', text: 'ok' }] });
+    expect(await run({})).toMatchObject({ ok: true });
+  });
+
+  it('reports no text when the Anthropic content has no text block', async () => {
+    respondJson(200, { content: [{ type: 'tool_use' }], stop_reason: 'tool_use' });
+    expect(await run({})).toMatchObject({ detail: 'Provider returned a 2xx response without assistant text (finish reason: tool_use)' });
+  });
+
+  it('reports no text when the Anthropic content is not an array', async () => {
+    respondJson(200, {});
+    expect(await run({})).toMatchObject({ detail: 'Provider returned a 2xx response without assistant text' });
+  });
+
+  it('ignores a blank finish reason', async () => {
+    respondJson(200, { stop_reason: '  ' });
+    expect(await run({})).toMatchObject({ detail: 'Provider returned a 2xx response without assistant text' });
+  });
+
+  it('reads an OpenAI legacy completion text field', async () => {
+    respondJson(200, { choices: [{ text: 'ok' }] });
+    expect(await run({ protocol: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o' })).toMatchObject({ ok: true });
+  });
+
+  it('names the OpenAI finish_reason when a choice carries no text', async () => {
+    respondJson(200, { choices: [{ finish_reason: 'content_filter' }] });
+    expect(await run({ protocol: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o' })).toMatchObject({
+      detail: 'Provider returned a 2xx response without assistant text (finish reason: content_filter)',
+    });
+  });
+
+  it('reports no text for an empty OpenAI choices array', async () => {
+    respondJson(200, { choices: [] });
+    expect(await run({ protocol: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o' })).toMatchObject({
+      detail: 'Provider returned a 2xx response without assistant text',
+    });
+  });
+
+  it('sends an Azure v1 path with the model in the body and no default api-version', async () => {
+    const fetchMock = respondJson(200, { choices: [{ message: { content: 'ok' } }] });
+    await run({ protocol: 'azure', baseUrl: 'https://r.openai.azure.com/openai/v1/', model: 'gpt-4o' });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe('https://r.openai.azure.com/openai/v1/chat/completions');
+    expect(JSON.parse(String(init!.body))).toMatchObject({ model: 'gpt-4o', max_tokens: 512 });
+  });
+
+  it('uses an explicit Azure api-version', async () => {
+    const fetchMock = respondJson(200, { choices: [{ message: { content: 'ok' } }] });
+    await run({ protocol: 'azure', baseUrl: 'https://r.openai.azure.com/openai/v1', model: 'gpt-4o', apiVersion: ' preview ' });
+    expect(new URL(String(fetchMock.mock.calls[0]![0])).searchParams.get('api-version')).toBe('preview');
+  });
+
+  it('reports no text when Google returns no candidates', async () => {
+    respondJson(200, { candidates: [] });
+    expect(await run({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini' })).toMatchObject({
+      detail: 'Provider returned a 2xx response without assistant text',
+    });
+  });
+
+  it('treats non-string Google parts as empty text', async () => {
+    respondJson(200, { candidates: [{ content: { parts: [null, { text: 5 }, { text: 'ok' }] } }] });
+    expect(await run({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini' })).toMatchObject({ ok: true });
+  });
+
+  it('trims surrounding whitespace and case from the smoke reply', async () => {
+    respondJson(200, { content: [{ type: 'text', text: ' OK\n' }] });
+    expect(await run({})).toMatchObject({ ok: true, detail: 'valid completion', model: 'claude-sonnet-4-5' });
+  });
+
+  it('truncates a long wrong reply to 120 characters with an ellipsis', async () => {
+    respondJson(200, { content: [{ type: 'text', text: 'y'.repeat(200) }] });
+    expect((await run({})).detail).toBe(`Expected smoke test reply "ok"; got "${'y'.repeat(119)}…"`);
+  });
+
+  it('trims the model before probing', async () => {
+    const fetchMock = respondJson(200, { content: [{ type: 'text', text: 'ok' }] });
+    expect(await run({ model: ' claude-x ' })).toMatchObject({ model: 'claude-x' });
+    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({ model: 'claude-x' });
+  });
+
+  it('names the unsupported protocol', async () => {
+    expect(await run({ protocol: 'bedrock' })).toMatchObject({ detail: 'Connection test is not supported for protocol "bedrock".' });
+  });
+
+  it('names the base-url guard error', async () => {
+    expect(await run({ baseUrl: 'ftp://x.example' })).toMatchObject({ kind: 'invalid_base_url', detail: 'Only http/https allowed' });
   });
 });

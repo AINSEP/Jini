@@ -31,4 +31,53 @@ describe('provider catalog pagination through injected HTTP', () => {
     expect(result.ok).toBe(false); expect(result.detail).toBe('Provider repeated a pagination cursor.');
     expect(JSON.stringify(result)).not.toContain('private-cursor');
   });
+  it('follows an OpenAI-style next_cursor with the cursor query param', async () => {
+    const urls: string[] = [];
+    const fetchFn: typeof fetch = async (url) => {
+      urls.push(String(url));
+      return new Response(JSON.stringify({ data: [{ id: `gpt-${urls.length}` }], ...(urls.length === 1 ? { next_cursor: 'c2' } : {}) }));
+    };
+    const result = await listProviderModels({ protocol: 'openai', baseUrl: 'https://api.openai.com', apiKey: 'test-secret' }, { dnsLookup: noDns, fetchFn });
+    expect(result.models?.map((row) => row.id)).toEqual(['gpt-1', 'gpt-2']);
+    expect(new URL(urls[1]!).searchParams.get('cursor')).toBe('c2');
+  });
+  it('ignores a Google-style nextPageToken from a non-Google provider', async () => {
+    let calls = 0;
+    const fetchFn: typeof fetch = async () => { calls += 1; return new Response(JSON.stringify({ data: [{ id: 'gpt-a' }], nextPageToken: 'next' })); };
+    const result = await listProviderModels({ protocol: 'openai', baseUrl: 'https://api.openai.com', apiKey: 'test-secret' }, { dnsLookup: noDns, fetchFn });
+    expect(result.ok).toBe(true);
+    expect(calls).toBe(1);
+  });
+  it('refuses has_more without a cursor', async () => {
+    const fetchFn: typeof fetch = async () => new Response(JSON.stringify({ data: [{ id: 'claude-a' }], has_more: true }));
+    const result = await listProviderModels({ protocol: 'anthropic', baseUrl: 'https://api.anthropic.com', apiKey: 'test-secret' }, { dnsLookup: noDns, fetchFn });
+    expect(result).toMatchObject({ ok: false, kind: 'unknown', detail: 'Provider omitted its pagination cursor.' });
+  });
+  it('treats a non-object JSON body as an empty catalog', async () => {
+    const fetchFn: typeof fetch = async () => new Response('5');
+    const result = await listProviderModels({ protocol: 'openai', baseUrl: 'https://api.openai.com', apiKey: 'test-secret' }, { dnsLookup: noDns, fetchFn });
+    expect(result).toMatchObject({ ok: false, kind: 'no_models', detail: 'Provider returned no usable text-generation models.' });
+  });
+  // BUG (pinned, not fixed): a JSON `null` body reaches the extractor, which
+  // dereferences it; the TypeError surfaces as an `unknown` network-style failure.
+  it('reports a JSON null body as the extractor TypeError', async () => {
+    const fetchFn: typeof fetch = async () => new Response('null');
+    const result = await listProviderModels({ protocol: 'openai', baseUrl: 'https://api.openai.com', apiKey: 'test-secret' }, { dnsLookup: noDns, fetchFn });
+    expect(result).toMatchObject({ ok: false, kind: 'unknown', detail: "Cannot read properties of null (reading 'data')" });
+  });
+  it('stops after 100 pages of distinct cursors', async () => {
+    let calls = 0;
+    const fetchFn: typeof fetch = async () => { calls += 1; return new Response(JSON.stringify({ data: [{ id: 'gpt-a' }], next_cursor: `c${calls}` })); };
+    const result = await listProviderModels({ protocol: 'openai', baseUrl: 'https://api.openai.com', apiKey: 'test-secret' }, { dnsLookup: noDns, fetchFn });
+    expect(result).toMatchObject({ ok: false, kind: 'unknown', detail: 'Provider pagination exceeded its safety limit.' });
+    expect(calls).toBe(100);
+  });
+  // BUG (pinned, not fixed): validateBaseUrl trims NBSP before parsing, but the
+  // endpoint builder re-parses the raw string, which `new URL` rejects. The
+  // failure surfaces as `unsupported_protocol` instead of a base-URL problem.
+  it('reports an NBSP-padded base url that passes the guard as unsupported_protocol', async () => {
+    const fetchFn: typeof fetch = async () => new Response('{}');
+    const result = await listProviderModels({ protocol: 'openai', baseUrl: '\u00a0https://api.openai.com', apiKey: 'test-secret' }, { dnsLookup: noDns, fetchFn });
+    expect(result).toMatchObject({ ok: false, kind: 'unsupported_protocol', detail: 'Invalid URL' });
+  });
 });
