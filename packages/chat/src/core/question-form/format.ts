@@ -23,36 +23,41 @@ export function formatFormAnswers({ form, answers }: { form: QuestionForm; answe
   const lines: string[] = [];
   lines.push(`[form answers — ${form.id}]`);
   for (const q of form.questions) {
-    const v = safe.answers[q.id];
-    let display: string;
-    if (Array.isArray(v)) {
-      display = v.length > 0 ? v.map((value) => formOptionDisplayForValue(q, value)).join(', ') : '(skipped)';
-    } else if (typeof v === 'string') {
-      display = v.trim().length > 0 ? formOptionDisplayForValue(q, v.trim()) : '(skipped)';
-    } else {
-      display = '(skipped)';
-    }
-    lines.push(`- ${q.label}: ${display}`);
+    lines.push(`- ${q.label}: ${answerDisplay(q, safe.answers[q.id])}`);
   }
   if (safe.secretRedacted || form.questions.some(question => isSecretQuestion({ question }))) lines.push(CREDENTIAL_CARD_GUIDANCE);
   return redactUserText({ text: lines.join('\n') }).text;
 }
 
-function formOptionDisplayForValue(question: { options?: FormOption[] | undefined }, value: string): string {
-  const match = question.options?.find((option) => option.value === value || option.label === value);
+type OptionHolder = { options?: FormOption[] | undefined };
+
+// Array entries are shown as given; a string answer is trimmed first. An
+// empty answer of either shape reads as skipped.
+function answerDisplay(question: OptionHolder, answer: string | string[] | undefined): string {
+  if (Array.isArray(answer)) {
+    return answer.length > 0 ? answer.map((value) => formOptionDisplayForValue(question, value)).join(', ') : '(skipped)';
+  }
+  const value = typeof answer === 'string' ? answer.trim() : '';
+  return value ? formOptionDisplayForValue(question, value) : '(skipped)';
+}
+
+function findOption(question: OptionHolder, labelOrValue: string): FormOption | undefined {
+  return question.options?.find((option) => option.value === labelOrValue || option.label === labelOrValue);
+}
+
+function formOptionDisplayForValue(question: OptionHolder, value: string): string {
+  const match = findOption(question, value);
   if (!match) return value;
   if (match.value === match.label) return match.label;
   return `${match.label} [value: ${match.value}]`;
 }
 
 /** Resolve a submitted answer value back to its display label, or the value itself when unmatched. */
-export function formOptionLabelForValue({ question, value }: { question: { options?: FormOption[] | undefined }; value: string }): string {
-  const match = question.options?.find((option) => option.value === value || option.label === value);
-  return match?.label ?? value;
+export function formOptionLabelForValue({ question, value }: { question: OptionHolder; value: string }): string {
+  return findOption(question, value)?.label ?? value;
 }
 
 /** Resolve a label or value to the canonical option `value`, or the input itself when unmatched. */
-export function formOptionValueForLabel({ question, labelOrValue }: { question: { options?: FormOption[] | undefined }; labelOrValue: string }): string {
-  const match = question.options?.find((option) => option.value === labelOrValue || option.label === labelOrValue);
-  return match?.value ?? labelOrValue;
+export function formOptionValueForLabel({ question, labelOrValue }: { question: OptionHolder; labelOrValue: string }): string {
+  return findOption(question, labelOrValue)?.value ?? labelOrValue;
 }
