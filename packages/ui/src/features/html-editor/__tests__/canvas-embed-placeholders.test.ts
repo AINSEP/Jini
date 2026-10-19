@@ -311,3 +311,94 @@ it('re-measures a runtime card after its authored height changes', () => {
     body.remove();
   }
 });
+
+describe('placeholder edge cases', () => {
+  const runtime = (identityLabel: string, extra: Partial<CanvasEmbedPlaceholderDescriptor> = {}): CanvasEmbedPlaceholderDescriptor =>
+    ({ kindLabel: 'Canvas', identityLabel, presentation: 'runtime', ...extra });
+
+  it('copies only the literal style in a document without a window', () => {
+    const doc = document.implementation.createHTMLDocument('');
+    doc.body.innerHTML = '<div data-marker="Media" style="max-width:600px"></div>';
+    applyCanvasEmbedPlaceholders(doc.body, describeMarked);
+    const card = doc.body.querySelector('[data-marker]')!.parentElement!;
+    expect(card.getAttribute('style')!.startsWith('max-width:600px;position:relative')).toBe(true);
+  });
+
+  it('sizes a runtime card in a document without a window from its declared height', () => {
+    const doc = document.implementation.createHTMLDocument('');
+    doc.body.innerHTML = '<div id="r"></div>';
+    applyCanvasEmbedPlaceholders(doc.body, el => el.id === 'r' ? runtime('#r', { declaredHeight: 300 }) : undefined);
+    expect(doc.body.querySelector('#r')!.parentElement!.style.height).toBe('300px');
+  });
+
+  it('skips an element its describe call detached', () => {
+    const body = bodyWith('<div data-marker="Media"></div><p>x</p>');
+    applyCanvasEmbedPlaceholders(body, el => { el.remove(); return describeMarked(el); });
+    expect(body.innerHTML).toBe('');
+  });
+
+  it('uses a runtime marker\'s native height attribute', () => {
+    const body = bodyWith('<canvas id="c" height="150"></canvas>');
+    applyCanvasEmbedPlaceholders(body, el => el.id === 'c' ? runtime('#c') : undefined);
+    expect(body.querySelector('#c')!.parentElement!.style.height).toBe('150px');
+  });
+
+  it('does not carry the authored inline style onto a runtime card', () => {
+    const body = bodyWith('<div id="r" style="letter-spacing:3px"></div>');
+    applyCanvasEmbedPlaceholders(body, el => el.id === 'r' ? runtime('#r') : undefined);
+    expect(body.querySelector('#r')!.parentElement!.style.letterSpacing).toBe('');
+  });
+
+  it('bounds a runtime card and locks its marker as the hit surface', () => {
+    const body = bodyWith('<div id="r"></div>');
+    applyCanvasEmbedPlaceholders(body, el => el.id === 'r' ? runtime('#r') : undefined);
+    const marker = body.querySelector<HTMLElement>('#r')!;
+    const card = marker.parentElement!;
+    expect([card.style.height, card.style.minHeight, card.style.maxHeight, card.style.overflow, card.style.display]).toEqual(['280px', '0', '960px', 'hidden', 'flex']);
+    expect([marker.style.getPropertyValue('transform'), marker.style.getPropertyPriority('transform')]).toEqual(['none', 'important']);
+    expect([marker.style.getPropertyValue('overflow'), marker.style.getPropertyPriority('overflow')]).toEqual(['hidden', 'important']);
+  });
+
+  it('aligns an inline runtime card to the text and caps it short', () => {
+    const body = bodyWith('<p>a <span id="w"></span></p>');
+    applyCanvasEmbedPlaceholders(body, el => el.id === 'w' ? runtime('#w', { inline: true }) : undefined);
+    const card = body.querySelector('#w')!.parentElement!;
+    expect([card.style.maxHeight, card.style.verticalAlign]).toEqual(['160px', 'middle']);
+  });
+
+  it('leaves a runtime card unchanged when its marker is no longer described as runtime', () => {
+    const body = bodyWith('<div id="r"></div>');
+    applyCanvasEmbedPlaceholders(body, el => el.id === 'r' ? runtime('#r', { declaredHeight: 300 }) : undefined);
+    applyCanvasEmbedPlaceholders(body, el => el.id === 'r' ? { kindLabel: 'Media', identityLabel: '#r', declaredHeight: 500 } : undefined);
+    expect(body.querySelector('#r')!.parentElement!.style.height).toBe('300px');
+    expect(body.querySelectorAll('[data-jini-embed-placeholder-root]')).toHaveLength(1);
+  });
+
+  it('never re-describes a runtime card\'s chrome or a descendant of its marker', () => {
+    const body = bodyWith('<div id="r"><i id="inner"></i></div>');
+    const seen: string[] = [];
+    const describe = (el: Element) => { seen.push(el.id || el.tagName); return el.id === 'r' ? runtime('#r') : undefined; };
+    applyCanvasEmbedPlaceholders(body, describe);
+    seen.length = 0;
+    applyCanvasEmbedPlaceholders(body, describe);
+    expect(seen).toEqual(['r']);
+  });
+
+  it('restores the overlay sheet to disabled after measuring if it was disabled', () => {
+    const host = document.createElement('div');
+    host.innerHTML = '<div id="r"></div>';
+    document.body.appendChild(host);
+    try {
+      applyCanvasEmbedPlaceholders(host, el => el.id === 'r' ? runtime('#r') : undefined);
+      const sheet = document.head.querySelector<HTMLStyleElement>('style[data-jini-embed-placeholder-style]')!.sheet!;
+      sheet.disabled = true;
+      applyCanvasEmbedPlaceholders(host, el => el.id === 'r' ? runtime('#r') : undefined);
+      expect(sheet.disabled).toBe(true);
+      sheet.disabled = false;
+      applyCanvasEmbedPlaceholders(host, el => el.id === 'r' ? runtime('#r') : undefined);
+      expect(sheet.disabled).toBe(false);
+    } finally {
+      host.remove();
+    }
+  });
+});
