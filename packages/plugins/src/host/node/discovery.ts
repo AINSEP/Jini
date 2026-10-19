@@ -159,7 +159,26 @@ async function pickLatestVersionFolder(idFolderPath: string): Promise<string | n
     if (bValid) return 1;
     return b.localeCompare(a);
   });
-  return sorted[0] ?? null;
+  return sorted[0]!;
+}
+
+/** Activation pins must be exact, path-safe semver; a malformed pin is the caller's fault, not a plugin's. */
+function assertSafeRequestedVersion(requestedVersion: string | undefined): void {
+  if (requestedVersion !== undefined && (!semver.valid(requestedVersion) || !/^[0-9A-Za-z][0-9A-Za-z.+-]*$/.test(requestedVersion))) {
+    throw new PluginDiscoveryVersionError('The requested plugin activation version is not a safe semantic version.');
+  }
+}
+
+/** The first manifest present (current name, then the legacy alias); `missing` when neither exists. */
+async function readSiteManifest(versionDir: string): Promise<{ missing: boolean; manifestValue: unknown }> {
+  for (const filename of PLUGIN_MANIFEST_FILENAMES) { // legacy alias
+    try {
+      return { missing: false, manifestValue: parseManifestJson(await readFile(path.join(versionDir, filename), "utf8")) };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
+    }
+  }
+  return { missing: true, manifestValue: null };
 }
 
 /**
@@ -180,23 +199,11 @@ async function discoverOneSiteCandidate(
 ): Promise<PluginDiscoveryRecord | null> {
   const idFolderPath = path.join(installDir, idFolderName);
   const requestedVersion = options.versions?.get(idFolderName);
-  if (requestedVersion !== undefined && (!semver.valid(requestedVersion) || !/^[0-9A-Za-z][0-9A-Za-z.+-]*$/.test(requestedVersion))) {
-    throw new PluginDiscoveryVersionError('The requested plugin activation version is not a safe semantic version.');
-  }
+  assertSafeRequestedVersion(requestedVersion);
   const versionFolderName = requestedVersion ?? await pickLatestVersionFolder(idFolderPath);
   if (versionFolderName === null) return null;
 
-  let manifestValue: unknown = null;
-  let missing = true;
-  for (const filename of PLUGIN_MANIFEST_FILENAMES) { // legacy alias
-    try {
-      manifestValue = parseManifestJson(await readFile(path.join(idFolderPath, versionFolderName, filename), "utf8"));
-      missing = false;
-      break;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
-    }
-  }
+  const { missing, manifestValue } = await readSiteManifest(path.join(idFolderPath, versionFolderName));
 
   const errors: PluginValidationError[] = missing
     ? [{ code: "MANIFEST_MISSING", file: PLUGIN_MANIFEST_FILENAME, message: `${PLUGIN_MANIFEST_FILENAME} was not found` }]
@@ -220,7 +227,7 @@ function markCaseInsensitiveDuplicates(records: readonly PluginDiscoveryRecord[]
   }
 
   return records.map((record) => {
-    const isDuplicate = (countByLowerId.get(record.id.toLowerCase()) ?? 0) > 1;
+    const isDuplicate = countByLowerId.get(record.id.toLowerCase())! > 1;
     if (!isDuplicate) return record;
 
     const errors = [
