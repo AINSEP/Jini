@@ -83,9 +83,10 @@ export function InfoTip({ label, triggerLabel, descriptionId, placement: preferr
               aria-hidden="true"
               style={{ ...infoTipBubbleStyle(coords), whiteSpace: "pre-line" }}
             >
-              {infoTipLines(label)?.map((line, index) => line.bullet
-                ? <span key={index} className="info-tip-bullet"><span aria-hidden="true">•</span><span>{line.text}</span></span>
-                : <span key={index} className="info-tip-line">{line.text}</span>) ?? label}
+              {/* Keep the label's text separators; flex layout alone loses them from textContent. */}
+              {infoTipLines(label)?.map((line, index, lines) => line.bullet
+                ? <span key={index} className="info-tip-bullet"><span aria-hidden="true">•</span>{" "}<span>{line.text}</span>{index < lines.length - 1 ? "\n" : null}</span>
+                : <span key={index} className="info-tip-line">{line.text}{index < lines.length - 1 ? "\n" : null}</span>) ?? label}
             </span>,
             // A modal <dialog> sits in the browser's top layer, above anything portaled to body.
             iconRef.current?.closest("dialog") ?? document.body

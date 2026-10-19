@@ -9,11 +9,11 @@ describe('canonical redaction migration', () => {
     expect(redactSecrets({ input: 'password=short alice@example.com 192.0.2.1 ' + 'A'.repeat(32) }, { policy: 'aggressive' }))
       .toBe('password=[REDACTED:labeled_secret] [REDACTED:email] [REDACTED:ipv4] [REDACTED:opaque_token]');
   });
-  // PARITY: terminal transport boundaries keep the frozen lowercase sanitizer contract.
-  // The frozen CLI rule replaces the whole whitespace-free `password=short` match.
-  it('keeps bounded text and recursive JSON output byte-identical', () => {
+  // PARITY: terminal transport boundaries keep the lowercase marker contract.
+  // 9ba8a52e intentionally retains credential labels, including whitespace-free `password=short`.
+  it('keeps credential labels while masking bounded text and recursive JSON values', () => {
     expect(sanitizeUntrustedText({ text: 'password=short alice@example.com 192.0.2.1' }))
-      .toBe('[redacted] alice@example.com 192.0.2.1');
+      .toBe('password=[redacted] alice@example.com 192.0.2.1');
     expect(sanitizeUnknownDeep({ value: { secret: 'A'.repeat(32) } })).toEqual({ secret: '[redacted]' });
   });
   // PARITY: diagnostics retain conservative defaults; identifiers are not bare secrets.

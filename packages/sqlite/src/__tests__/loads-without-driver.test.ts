@@ -4,11 +4,13 @@ import { createRequire } from 'node:module';
 import { readFileSync,rmSync,writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect,it } from 'vitest';
-import { copyPackage,fixture,pack,packages,run } from './packed-fixture.js';
+import { copyPackage,copyRuntimeTree,fixture,pack,packages,run } from './packed-fixture.js';
 import { remainingSurface as old } from './remaining-surface.js';
 it('packed old root loads without any driver and requires explicit injection for acquisition',()=>{
  const dir=fixture('c2-shim-packed-');try{
   for(const name of ['core','protocol','db','chat','daemon','registry','diagnostics','sqlite'])pack(dir,name);
+  // 24d45ab9 added this required diagnostics dependency; keep optional database drivers absent.
+  copyRuntimeTree(dir,'js-tokens',join(packages,'diagnostics/node_modules/js-tokens'));
   copyPackage(dir,'kysely',join(packages,'db/node_modules/kysely'));
   const result=run(dir,`const a=await import('@jini-ai/sqlite');const errors=[];for(const action of [()=>a.createSqliteEventLog({ db: undefined })]){try{action();}catch(error){errors.push(error.message);}}console.log(JSON.stringify([Object.keys(a).sort(),errors,a.parseJsonOrUndef('{"x":1}')]));`);
   expect(result.status, result.stderr).toBe(0);expect(result.stderr).toBe('');

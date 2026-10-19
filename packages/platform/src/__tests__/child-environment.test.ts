@@ -25,12 +25,12 @@ import { readLoginShellEnvironment } from '../child-environment.js';
 
 it('login-shell parity exposes operator credentials while withholding daemon secrets before AND after profiles', async () => {
   const result = await readLoginShellEnvironment({
-    baseEnv: { HOME: '/operator', PATH: '/bin', TOVU_INTEGRATIONS_ROOT_KEY: 'root-secret', JINI_DAEMON_TOKEN: 'bridge-secret', DATABASE_URL: 'database-secret' },
-    excludedPrefixes: ['TOVU_', 'JINI_'], excludedKeys: ['DATABASE_URL'], excludedSuffixes: ['_ROOT_KEY'],
+    baseEnv: { HOME: '/operator', PATH: '/bin', HOST_INTEGRATIONS_ROOT_KEY: 'root-secret', JINI_DAEMON_TOKEN: 'bridge-secret', DATABASE_URL: 'database-secret' },
+    excludedPrefixes: ['HOST_', 'JINI_'], excludedKeys: ['DATABASE_URL'], excludedSuffixes: ['_ROOT_KEY'],
   }, { read: async ({ env }) => {
     expect(env).toEqual({ HOME: '/operator', PATH: '/bin' });
     return { ...env, ANTHROPIC_API_KEY: 'operator-key', SSH_AUTH_SOCK: '/operator/ssh', HTTPS_PROXY: 'proxy',
-      CODEX_HOME: '/operator/codex', TOVU_INTEGRATIONS_ROOT_KEY: 'profile-secret', JINI_DAEMON_TOKEN: 'profile-token', DATABASE_URL: 'profile-db', OTHER_ROOT_KEY: 'private' };
+      CODEX_HOME: '/operator/codex', HOST_INTEGRATIONS_ROOT_KEY: 'profile-secret', JINI_DAEMON_TOKEN: 'profile-token', DATABASE_URL: 'profile-db', OTHER_ROOT_KEY: 'private' };
   } });
   expect(result).toEqual({ HOME: '/operator', PATH: '/bin', ANTHROPIC_API_KEY: 'operator-key', SSH_AUTH_SOCK: '/operator/ssh', HTTPS_PROXY: 'proxy', CODEX_HOME: '/operator/codex' });
 });

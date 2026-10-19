@@ -37,7 +37,8 @@ beforeAll(()=>{
   // Optional peers are installed per entry: store is peer-free, while core and SQL redact via diagnostics.
   if(name!=='store'){
    copyPackage('@jini-ai/core',join(packageRoot,'../core'),dir);
-   copyPackage('@jini-ai/diagnostics',join(packageRoot,'../diagnostics'),dir);
+   // 24d45ab9 added a declared tokenizer dependency; isolated installs need its runtime closure.
+   copyRuntimeTree('@jini-ai/diagnostics',join(packageRoot,'../diagnostics'),dir);
   }
   if(name==='neutral'){
    // Core's A2UI activity projection owns this peer closure; SQL stores must not need it.
