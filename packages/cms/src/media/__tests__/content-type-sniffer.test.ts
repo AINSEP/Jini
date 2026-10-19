@@ -183,3 +183,16 @@ test("mediawidget audio: identifies positive audio signatures and rejects invali
   const m4a = new Uint8Array(16); m4a.set(textBytes("ftypM4A "), 4);
   assert.equal(sniffContentType({ bytes: m4a }), "audio/mp4");
 });
+
+test("sniffContentType: scans at most sixteen compatible brands, so a late avif brand stays video/mp4", () => {
+  const brands = [...Array(16).fill("mp42"), "avif"].join("");
+  const size = 16 + brands.length;
+  const ftyp = Buffer.concat([Buffer.from([0, 0, 0, size]), Buffer.from("ftypisom"), Buffer.alloc(4), Buffer.from(brands)]);
+  assert.equal(sniffContentType({ bytes: ftyp }), "video/mp4");
+  assert.equal(sniffContentType({ bytes: Buffer.concat([ftyp.subarray(0, 16), Buffer.from("avif"), ftyp.subarray(20)]) }), "image/avif");
+});
+
+test("sniffContentType: untagged MPEG audio with a reserved sample-rate index is not audio", () => {
+  assert.equal(sniffContentType({ bytes: Buffer.from([0xff, 0xfb, 0x90, 0x00]) }), "audio/mpeg");
+  assert.equal(sniffContentType({ bytes: Buffer.from([0xff, 0xfb, 0x9c, 0x00]) }), "application/octet-stream");
+});
