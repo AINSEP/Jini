@@ -106,7 +106,7 @@ function omittedFile(relativePath: string, sizeBytes: number, omitted: PluginPac
 
 /** Code-unit order, so the listing is identical whatever the server's locale. */
 function byName(a: Dirent, b: Dirent): number {
-  if (a.name === b.name) return 0;
+  // One directory never lists a name twice, so equal names need no case.
   return a.name < b.name ? -1 : 1;
 }
 
@@ -132,9 +132,9 @@ async function resolvePackageRoot(rootDir: string, containerDir: string): Promis
   return rootReal;
 }
 
-/** Counts one entry against the caps. `false` (and `truncated` set) once a cap is already full. */
+/** Counts one entry against the caps. `false` (and `truncated` set) once a cap is already full.
+ *  Never called once truncated: the level loop and the breadth-first walk both stop first. */
 function admitEntry(state: WalkState): boolean {
-  if (state.truncated) return false;
   if (state.files.length >= state.limits.maxFiles || state.entries >= state.limits.maxEntries) {
     state.truncated = true;
     return false;
@@ -222,12 +222,18 @@ async function readDirectoryLevel(rootReal: string, relativeDir: string, state: 
   for (const entry of entries.sort(byName)) {
     if (!admitEntry(state)) break;
     const relativePath = relativeDir === "" ? entry.name : `${relativeDir}/${entry.name}`;
-    if (entry.isDirectory()) subdirectories.push(relativePath);
-    else if (entry.isSymbolicLink()) state.files.push(omittedFile(relativePath, 0, "symlink"));
-    else if (entry.isFile()) await readFileEntry(path.join(rootReal, relativePath), relativePath, state);
+    if (await visitEntry(rootReal, relativePath, entry, state)) subdirectories.push(relativePath);
     if (state.truncated) break;
   }
   return subdirectories;
+}
+
+/** Records a symlink or file now; `true` when the entry is a subdirectory for the next level. */
+async function visitEntry(rootReal: string, relativePath: string, entry: Dirent, state: WalkState): Promise<boolean> {
+  if (entry.isDirectory()) return true;
+  if (entry.isSymbolicLink()) state.files.push(omittedFile(relativePath, 0, "symlink"));
+  else if (entry.isFile()) await readFileEntry(path.join(rootReal, relativePath), relativePath, state);
+  return false;
 }
 
 /**

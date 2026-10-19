@@ -214,3 +214,70 @@ test("a regular file replaced by a symlink after listing never exposes the targe
     syncBuiltinESMExports();
   }
 });
+
+/** Runs `run` with `fsPromises[key]` replaced, restoring the real export afterwards. */
+async function withFsPatch<K extends "open" | "readdir">(t: TestContext, key: K, implementation: unknown, run: () => Promise<void>): Promise<void> {
+  const spy = t.mock.method(fsPromises, key, implementation);
+  syncBuiltinESMExports();
+  try { await run(); } finally { spy.mock.restore(); syncBuiltinESMExports(); }
+}
+
+test("open faults: EMLINK reads as a symlink, anything else as unreadable", async (t) => {
+  const root = await tempRoot(t);
+  await writeTree(root, { "pkg/a.txt": "a", "pkg/b.txt": "b" });
+  const originalOpen = fsPromises.open;
+  await withFsPatch(t, "open", async (...args: Parameters<typeof fsPromises.open>) => {
+    const name = path.basename(String(args[0]));
+    if (name === "a.txt") throw Object.assign(new Error("links"), { code: "EMLINK" });
+    if (name === "b.txt") throw Object.assign(new Error("denied"), { code: "EACCES" });
+    return originalOpen(...args);
+  }, async () => {
+    const result = await readPluginPackageFiles({ input: { rootDir: path.join(root, "pkg"), containerDir: root } });
+    assert.deepEqual(result.files.map((file) => [file.relativePath, file.omitted]), [["a.txt", "symlink"], ["b.txt", "unreadable"]]);
+  });
+});
+
+test("a file swapped for a non-file after listing is skipped, and one that grew past the cap is too large", async (t) => {
+  const root = await tempRoot(t);
+  await writeTree(root, { "pkg/a.txt": "a", "pkg/b.txt": "bb" });
+  const originalOpen = fsPromises.open;
+  await withFsPatch(t, "open", async (...args: Parameters<typeof fsPromises.open>) => {
+    const handle = await originalOpen(...args);
+    const name = path.basename(String(args[0]));
+    const overrides: Record<string, unknown> = name === "a.txt"
+      ? { stat: async () => Object.assign(await handle.stat(), { isFile: () => false }) }
+      : { stat: async () => Object.assign(await handle.stat(), { size: 1 }) };
+    return new Proxy(handle, { get: (target, key) => {
+      if (typeof key === "string" && key in overrides) return overrides[key];
+      const value = Reflect.get(target, key) as unknown;
+      return typeof value === "function" ? value.bind(target) : value;
+    } });
+  }, async () => {
+    const result = await readPluginPackageFiles({ input: { rootDir: path.join(root, "pkg"), containerDir: root } }, { limits: limits({ maxFileBytes: 1 }) });
+    assert.deepEqual(result.files, [{ relativePath: "b.txt", sizeBytes: 2, content: null, omitted: "too-large" }]);
+  });
+});
+
+test("an unreadable subdirectory lists as empty, and a root lstat fault other than ENOENT propagates", async (t) => {
+  const root = await tempRoot(t);
+  await writeTree(root, { "pkg/top.txt": "t", "pkg/sub/inner.txt": "i" });
+  const originalReaddir = fsPromises.readdir;
+  await withFsPatch(t, "readdir", async (...args: Parameters<typeof fsPromises.readdir>) => {
+    if (path.basename(String(args[0])) === "sub") throw Object.assign(new Error("denied"), { code: "EACCES" });
+    return originalReaddir(...args);
+  }, async () => {
+    const result = await readPluginPackageFiles({ input: { rootDir: path.join(root, "pkg"), containerDir: root } });
+    assert.deepEqual(result.files.map((file) => file.relativePath), ["top.txt"]);
+  });
+  await assert.rejects(readPluginPackageFiles({ input: { rootDir: path.join(root, "pkg", "top.txt", "x"), containerDir: root } }), { code: "ENOTDIR" });
+});
+
+test("listing order is code-unit order whatever order readdir returns", async (t) => {
+  const root = await tempRoot(t);
+  await writeTree(root, { "pkg/a.txt": "a", "pkg/B.txt": "b", "pkg/c.txt": "c" });
+  const originalReaddir = fsPromises.readdir;
+  await withFsPatch(t, "readdir", async (...args: Parameters<typeof fsPromises.readdir>) => [...(await originalReaddir(...args) as unknown[])].reverse(), async () => {
+    const result = await readPluginPackageFiles({ input: { rootDir: path.join(root, "pkg"), containerDir: root } });
+    assert.deepEqual(result.files.map((file) => file.relativePath), ["B.txt", "a.txt", "c.txt"]);
+  });
+});
