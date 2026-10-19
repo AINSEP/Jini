@@ -79,6 +79,41 @@ export function planVideoContactSheets(
   return groups.map(group => ({ ...group, tileEdgePx }));
 }
 
+const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+
+function assertDurationAndCount({ duration, frames }: { duration: number; frames: number | undefined }): void {
+  if (!Number.isFinite(duration) || duration <= 0) throw new Error('Video duration must be positive and finite.');
+  if (frames !== undefined && !isFiniteNumber(frames)) throw new Error('Frame count must be finite.');
+  if (frames !== undefined && frames < 0) throw new Error('Frame count must be nonnegative.');
+}
+
+function assertTimestamps({ at }: { at: readonly number[] | undefined }): void {
+  if (at !== undefined && (!Array.isArray(at) || !at.length || at.some(time => !isFiniteNumber(time)))) {
+    throw new Error('at must contain finite timestamps in seconds.');
+  }
+  if (at?.some(time => time < 0)) throw new Error('at timestamps must be nonnegative.');
+}
+
+function assertSpacing({ at, every, start }: { at: readonly number[] | undefined; every: number | undefined; start: number }): void {
+  if (every !== undefined && (!isFiniteNumber(every) || every <= 0)) throw new Error('every must be a positive finite number of seconds.');
+  if (!isFiniteNumber(start) || start < 0) throw new Error('start must be a nonnegative finite number of seconds.');
+  if (at !== undefined && every !== undefined) throw new Error('every cannot be combined with at.');
+}
+
+/** Fixed-interval sampling from start; see planVideoFrames for the count/EOF rules. */
+function planEveryFrames({ count, start, every, end, countGiven }: { count: number; start: number; every: number; end: number; countGiven: boolean }): number[] {
+  const times: number[] = [];
+  for (let index = 0; index < count; index++) {
+    const time = start + index * every;
+    // Multiplication can round a fitting boundary just above end. Only tolerate arithmetic
+    // roundoff; a materially later timestamp must not add an EOF sample when count is omitted.
+    const tolerance = Number.EPSILON * Math.max(end, Math.abs(time)) * 4;
+    if (!countGiven && index > 0 && (!Number.isFinite(time) || time - end > tolerance)) break;
+    times.push(Math.min(end, time));
+  }
+  return times;
+}
+
 /** Avoid seeking to exact EOF, which commonly has no decodable frame. Preserve explicit order,
  * including repeated timestamps, so image positions continue to match the requested positions.
  * With every and no count, stop when the next timestamp cannot fit (always emit the first clamped
@@ -88,36 +123,32 @@ export function planVideoFrames(
   { duration }: { duration: number },
   { frames, at, every, start = 0 }: Pick<VideoFrameOptions, 'frames' | 'at' | 'every' | 'start'> = {},
 ): number[] {
-  if (!Number.isFinite(duration) || duration <= 0) throw new Error('Video duration must be positive and finite.');
-  if (frames !== undefined && (typeof frames !== 'number' || !Number.isFinite(frames))) throw new Error('Frame count must be finite.');
-  if (frames !== undefined && frames < 0) throw new Error('Frame count must be nonnegative.');
-  if (at !== undefined && (!Array.isArray(at) || !at.length || at.some(time => typeof time !== 'number' || !Number.isFinite(time)))) {
-    throw new Error('at must contain finite timestamps in seconds.');
-  }
-  if (at?.some(time => time < 0)) throw new Error('at timestamps must be nonnegative.');
-  if (every !== undefined && (typeof every !== 'number' || !Number.isFinite(every) || every <= 0)) throw new Error('every must be a positive finite number of seconds.');
-  if (typeof start !== 'number' || !Number.isFinite(start) || start < 0) throw new Error('start must be a nonnegative finite number of seconds.');
-  if (at !== undefined && every !== undefined) throw new Error('every cannot be combined with at.');
+  assertDurationAndCount({ duration, frames });
+  assertTimestamps({ at });
+  assertSpacing({ at, every, start });
   const inset = Math.min(0.1, duration / 10);
   const end = duration - inset;
   if (at !== undefined) {
     return at.slice(0, VIDEO_MAX_FRAMES).map(time => Math.max(0, Math.min(end, time)));
   }
   const count = Math.max(1, Math.min(VIDEO_MAX_FRAMES, Math.floor(frames ?? (every !== undefined ? VIDEO_MAX_FRAMES : VIDEO_DEFAULT_FRAMES))));
-  if (every !== undefined) {
-    const times: number[] = [];
-    for (let index = 0; index < count; index++) {
-      const time = start + index * every;
-      // Multiplication can round a fitting boundary just above end. Only tolerate arithmetic
-      // roundoff; a materially later timestamp must not add an EOF sample when count is omitted.
-      const tolerance = Number.EPSILON * Math.max(end, Math.abs(time)) * 4;
-      if (frames === undefined && index > 0 && (!Number.isFinite(time) || time - end > tolerance)) break;
-      times.push(Math.min(end, time));
-    }
-    return times;
-  }
+  if (every !== undefined) return planEveryFrames({ count, start, every, end, countGiven: frames !== undefined });
   if (count === 1) return [duration / 2];
   return Array.from({ length: count }, (_, index) => inset + (end - inset) * index / (count - 1));
+}
+
+type ProbeStream = { codec_type?: string; codec_name?: string; width?: number; height?: number; duration?: string; disposition?: { attached_pic?: number } };
+type ProbeOutput = { streams?: ProbeStream[]; format?: { duration?: string; format_name?: string } };
+type ProbedVideo = ProbeStream & { width: number; height: number };
+
+/** The container duration wins when usable; otherwise fall back to the video stream's own. */
+function probeDuration(raw: ProbeOutput, video: ProbeStream | undefined): number {
+  const formatDuration = Number(raw?.format?.duration);
+  return Number.isFinite(formatDuration) && formatDuration > 0 ? formatDuration : Number(video?.duration);
+}
+
+function isUsableVideo(video: ProbeStream | undefined, duration: number): video is ProbedVideo {
+  return !!video && Number.isFinite(duration) && duration > 0 && Number.isInteger(video.width) && Number.isInteger(video.height) && video.width! > 0 && video.height! > 0;
 }
 
 /** Parse only the ffprobe fields requested by the adapter. File size is measured from authorized
@@ -125,13 +156,10 @@ export function planVideoFrames(
 export function parseVideoProbe(
   { output, sizeBytes }: { output: string; sizeBytes: number }, _optional: Record<string, never> = {},
 ): VideoMetadata {
-  const raw = JSON.parse(output) as { streams?: Array<{ codec_type?: string; codec_name?: string; width?: number; height?: number; duration?: string; disposition?: { attached_pic?: number } }>; format?: { duration?: string; format_name?: string } };
+  const raw = JSON.parse(output) as ProbeOutput;
   const streams = Array.isArray(raw?.streams) ? raw.streams : [];
   const video = streams.find(stream => stream.codec_type === 'video' && stream.disposition?.attached_pic !== 1);
-  const formatDuration = Number(raw?.format?.duration);
-  const duration = Number.isFinite(formatDuration) && formatDuration > 0 ? formatDuration : Number(video?.duration);
-  if (!video || !Number.isFinite(duration) || duration <= 0 || !Number.isInteger(video.width) || !Number.isInteger(video.height) || video.width! <= 0 || video.height! <= 0) {
-    throw new Error('Video metadata is missing or invalid.');
-  }
-  return { duration, width: video.width!, height: video.height!, codec: video.codec_name ?? 'unknown', container: raw.format?.format_name ?? 'unknown', sizeBytes, hasAudio: streams.some(stream => stream.codec_type === 'audio') };
+  const duration = probeDuration(raw, video);
+  if (!isUsableVideo(video, duration)) throw new Error('Video metadata is missing or invalid.');
+  return { duration, width: video.width, height: video.height, codec: video.codec_name ?? 'unknown', container: raw.format?.format_name ?? 'unknown', sizeBytes, hasAudio: streams.some(stream => stream.codec_type === 'audio') };
 }

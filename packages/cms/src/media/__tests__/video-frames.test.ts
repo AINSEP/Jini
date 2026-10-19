@@ -88,6 +88,10 @@ describe('ffprobe metadata', () => {
       { codec_type: 'video', duration: '1', width: 64, height: 32, codec_name: 'vp9' },
     ], format: { format_name: 'matroska,webm', duration: 'N/A' } }), sizeBytes: 42 }, {})).toMatchObject({ duration: 1, width: 64, height: 32, hasAudio: false });
   });
+  it('reports an unnamed codec and container as unknown', () => {
+    expect(parseVideoProbe({ output: JSON.stringify({ streams: [{ codec_type: 'video', duration: '3', width: 8, height: 6 }, { codec_type: 'audio' }] }), sizeBytes: 7 }, {}))
+      .toEqual({ duration: 3, width: 8, height: 6, codec: 'unknown', container: 'unknown', sizeBytes: 7, hasAudio: true });
+  });
   it('rejects invalid/missing duration, dimensions, or video stream', () => {
     for (const output of ['{}', 'invalid JSON', JSON.stringify({ format: { duration: 'NaN' }, streams: [{ codec_type: 'video', width: 10, height: 10 }] }), JSON.stringify({ format: { duration: '1' }, streams: [{ codec_type: 'video', width: 0, height: 10 }] })]) {
       expect(() => parseVideoProbe({ output, sizeBytes: 42 }, {})).toThrow();
