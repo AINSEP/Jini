@@ -1437,3 +1437,191 @@ it('Codex native collaboration is reported once, and external MCP named Bash sta
   ]);
   expect(JSON.stringify(events)).not.toContain('private delegation');
 });
+describe('pinned behaviour before the complexity refactor', () => {
+  it('emits model receipts from message.updated assistant info, with and without a provider prefix', () => {
+    const events = feed('opencode', [
+      { type: 'message.updated', properties: { info: { role: 'assistant', modelID: 'm1', providerID: 'p1' } } },
+      { type: 'message.updated', properties: { info: { role: 'assistant', modelID: 'm2' } } },
+      { type: 'message.updated', properties: { info: { role: 'user', modelID: 'm3' } } },
+      { type: 'message.updated', properties: { info: { role: 'assistant', modelID: 4 } } },
+      { type: 'other', properties: { info: { role: 'assistant', modelID: 'm5' } } },
+      { type: 'message.updated' },
+    ]);
+    expect(events.filter(event => event.label === 'model')).toEqual([
+      { type: 'status', label: 'model', model: 'p1/m1' },
+      { type: 'status', label: 'model', model: 'm2' },
+    ]);
+  });
+
+  it('emits a frame.model receipt only for the session/thread/turn/model-change frame types', () => {
+    const events = feed('codex', [
+      { type: 'thread.started', thread_id: 't1', model: 'gpt-x' },
+      { type: 'model.changed', model: 'gpt-y' },
+      { type: 'session.created', model: 'gpt-z' },
+      { type: 'item.started', model: 'not-a-receipt' },
+      { type: 'model.changed', model: 7 },
+    ]);
+    expect(events.filter(event => event.label === 'model').map(event => event.model)).toEqual(['gpt-x', 'gpt-y', 'gpt-z']);
+    expect(events[1]).toEqual({ type: 'status', label: 'initializing', sessionId: 't1' });
+  });
+
+  it('falls back to String(value) when stringifying a tool payload throws', async () => {
+    const { vi } = await import('vitest');
+    const events: Record<string, unknown>[] = [];
+    const handler = createJsonEventStreamHandler({ kind: 'opencode', onEvent: event => events.push(event) });
+    const spy = vi.spyOn(JSON, 'stringify').mockImplementationOnce(() => { throw new Error('boom'); });
+    handler.feed({ chunk: '{"type":"error","message":"bad"}\n' });
+    spy.mockRestore();
+    expect(events).toEqual([{ type: 'error', message: 'bad', raw: '[object Object]' }]);
+  });
+
+  it('names codex MCP tool uses for jini, external and nameless servers', () => {
+    const events = feed('codex', [
+      { type: 'item.started', item: { id: 'a', type: 'mcp_tool_call', server: 'jini', tool: '' } },
+      { type: 'item.started', item: { id: 'b', type: 'mcp_tool_call', server: 'jini', tool: 'search_tools', arguments: { q: 1 } } },
+      { type: 'item.started', item: { id: 'c', type: 'mcp_tool_call', tool: 'x' } },
+      { type: 'item.started', item: { id: 'd', type: 'mcp_tool_call', server: 'chrome' } },
+      { type: 'item.started', item: { id: 'd', type: 'mcp_tool_call', server: 'chrome' } },
+    ]);
+    expect(events).toEqual([
+      { type: 'tool_use', id: 'a', name: 'mcp_tool_call', input: {} },
+      { type: 'tool_use', id: 'b', name: 'search_tools', input: { q: 1 } },
+      { type: 'tool_use', id: 'c', name: 'mcp__external__x', input: {} },
+      { type: 'tool_use', id: 'd', name: 'mcp__chrome__call', input: {} },
+    ]);
+  });
+
+  it('treats an id-less codex mcp_tool_call as raw but still resets the agent-message boundary on item.started', () => {
+    const message = (text: string) => ({ type: 'item.completed', item: { type: 'agent_message', text } });
+    const noId = { type: 'item.started', item: { type: 'mcp_tool_call', server: 'jini' } };
+    const events = feed('codex', [message('one'), noId, message('two'),
+      { type: 'item.completed', item: { type: 'mcp_tool_call', status: 'completed' } }, message('three')]);
+    expect(events).toEqual([
+      { type: 'text_delta', delta: 'one' },
+      { type: 'raw', line: JSON.stringify(noId) },
+      { type: 'text_delta', delta: 'two' },
+      { type: 'raw', line: JSON.stringify({ type: 'item.completed', item: { type: 'mcp_tool_call', status: 'completed' } }) },
+      { type: 'text_delta', delta: '\nthree' },
+    ]);
+  });
+
+  it('falls back to raw for codex item frames it does not recognise', () => {
+    const frames = [
+      { type: 'item.started', item: { id: 'r', type: 'reasoning' } },
+      { type: 'item.started', item: 'not-a-record' },
+      { type: 'item.updated', item: { id: 'r', type: 'reasoning' } },
+      { type: 'item.updated', item: { type: 'todo_list', items: [{ text: 'x' }] } },
+      { type: 'item.completed', item: { type: 'file_change' } },
+      { type: 'item.completed', item: { id: 't', type: 'todo_list', items: [] } },
+      { type: 'item.completed', item: { type: 'agent_message', text: '' } },
+      { type: 'item.completed', item: { type: 'collab_tool_call' } },
+      { type: 'turn.completed' },
+      { type: 'something.else' },
+      { type: 7 },
+    ];
+    expect(feed('codex', frames)).toEqual(frames.map(frame => ({ type: 'raw', line: JSON.stringify(frame) })));
+  });
+
+  it('defaults a nameless collab tool, reports its failure once, and lists no paths for change-less patches', () => {
+    const collab = { id: 'c1', type: 'collab_tool_call', status: 'failed' };
+    const events = feed('codex', [
+      { type: 'item.updated', item: collab },
+      { type: 'item.completed', item: collab },
+      { type: 'item.completed', item: collab },
+      { type: 'item.completed', item: { id: 'p1', type: 'file_change', changes: 'nope', status: 'failed' } },
+      { type: 'item.completed', item: { id: 'p2', type: 'file_change', changes: [{ path: 1 }, 'x', { path: 'ok' }] } },
+    ]);
+    expect(events).toEqual([
+      { type: 'tool_use', id: 'c1', name: 'collab_tool_call', input: {} },
+      { type: 'tool_result', toolUseId: 'c1', content: 'Native agent action completed.', isError: true },
+      { type: 'tool_use', id: 'p1', name: 'apply_patch', input: { paths: [] } },
+      { type: 'tool_result', toolUseId: 'p1', content: 'File change reported by Codex.', isError: true },
+      { type: 'tool_use', id: 'p2', name: 'apply_patch', input: { paths: ['ok'] } },
+      { type: 'tool_result', toolUseId: 'p2', content: 'File change reported by Codex.', isError: false },
+    ]);
+  });
+
+  it('suppresses a connector-tool error after an earlier codex error, and the reverse', () => {
+    const connectorOutput = JSON.stringify({ error: { code: 'CONNECTOR_TOOL_NOT_FOUND', details: { toolName: 't' } } });
+    const command = { type: 'item.completed', item: { id: 'k', type: 'command_execution', aggregated_output: connectorOutput, exit_code: 1 } };
+    const first = feed('codex', [{ type: 'error', message: 'first' }, command]);
+    expect(first.filter(event => event.type === 'error')).toEqual([{ type: 'error', message: 'first' }]);
+    const second = feed('codex', [command, { type: 'turn.failed', error: { message: 'later' } }]);
+    expect(second.filter(event => event.type === 'error')).toHaveLength(1);
+    expect(second.at(-1)).toEqual({ type: 'error',
+      message: 'Connector tool t is not allowed. Re-list the connector catalog and choose one of the currently allowed read-only tools.' });
+  });
+
+  it('maps todo statuses through every alias and prefix, and picks the first string-typed content field', () => {
+    const statuses = ['Completed', 'complete', 'done', 'completed-yesterday', 'In Progress', 'doing', 'active', 'in-progress-now',
+      'stopped', 'failed', 'blocked', 'canceled', 'cancelled', 'failed_hard', 'blocked by x', 'completely', 'todo', 7];
+    const items = statuses.map((status, index) => ({ text: `t${index}`, status }));
+    const events = feed('codex', [
+      { type: 'item.started', item: { id: 'todo', type: 'todo_list', items } },
+      { type: 'item.started', item: { id: 'todo2', type: 'todo_list', items: [
+        { content: '', label: 'skipped because content is a string' }, { label: 7, description: 'd' }, { completed: true, text: 'x', status: 'failed' }] } },
+    ]);
+    expect((events[0]?.input as { todos: { status: string }[] }).todos.map(todo => todo.status)).toEqual([
+      'completed', 'completed', 'completed', 'completed', 'in_progress', 'in_progress', 'in_progress', 'in_progress',
+      'stopped', 'stopped', 'stopped', 'stopped', 'stopped', 'stopped', 'stopped', 'pending', 'pending', 'pending']);
+    expect(events[1]?.input).toEqual({ todos: [{ content: 'd', status: 'pending' }, { content: 'x', status: 'completed' }] });
+  });
+
+  it('extracts error messages through detail, nested message, error, data and name, in that order', () => {
+    const message = (error: unknown) => feed('opencode', [{ type: 'error', error }])[0]?.message;
+    expect(message({ detail: 'd', message: 'm' })).toBe('d');
+    expect(message({ detail: '', message: '{"detail":"inner"}' })).toBe('inner');
+    expect(message({ message: '', error: 'e' })).toBe('e');
+    expect(message({ error: ['array'] , name: 'n' })).toBe('OpenCode error');
+    expect(message({ error: { name: 'nested-name' } })).toBe('nested-name');
+    expect(message({ data: { message: 'from-data' }, name: 'n' })).toBe('from-data');
+    expect(message({ data: ['x'], name: 'n' })).toBe('n');
+    expect(message({ data: {}, name: '' })).toBe('OpenCode error');
+    expect(message('[1,2]')).toBe('[1,2]');
+    expect(message(42)).toBe('OpenCode error');
+  });
+
+  it('handles kimi tool calls with blank ids or names, trimmed values and string arguments', () => {
+    const events = feed('kimi', [
+      { role: 'assistant', tool_calls: [
+        { id: ' a ', function: { name: ' read ', arguments: '{"p":1}' } },
+        { id: '  ', function: { name: 'x' } },
+        { id: 'b', function: { name: '' } },
+        { id: 'c' },
+        'junk',
+        { id: 'd', function: { name: 'w', arguments: 'not json' } },
+      ] },
+      { role: 'assistant', tool_calls: 'nope', content: 'hello' },
+      { role: 'assistant', content: '' },
+      { role: 'tool', tool_call_id: '   ', content: 'x' },
+      { role: 'tool', tool_call_id: ' t1 ', content: { ok: true } },
+      { role: 'meta', type: 'session.resume_hint' },
+      { role: 'meta', type: 'other' },
+    ]);
+    expect(events).toEqual([
+      { type: 'tool_use', id: 'a', name: 'read', input: { p: 1 } },
+      { type: 'tool_use', id: 'd', name: 'w', input: 'not json' },
+      { type: 'text_delta', delta: 'hello' },
+      { type: 'raw', line: JSON.stringify({ role: 'assistant', content: '' }) },
+      { type: 'raw', line: JSON.stringify({ role: 'tool', tool_call_id: '   ', content: 'x' }) },
+      { type: 'tool_result', toolUseId: 't1', content: '{"ok":true}', isError: false },
+      { type: 'raw', line: JSON.stringify({ role: 'meta', type: 'other' }) },
+    ]);
+  });
+
+  it('falls back to raw for opencode and gemini frames whose required fields are missing', () => {
+    const openCodeFrames = [
+      { type: 'text', part: { text: '' } },
+      { type: 'tool_use', part: { tool: 'x' } },
+      { type: 'unknown' },
+    ];
+    expect(feed('opencode', openCodeFrames)).toEqual(openCodeFrames.map(frame => ({ type: 'raw', line: JSON.stringify(frame) })));
+    const geminiFrames = [
+      { type: 'message', role: 'assistant', content: '' },
+      { type: 'tool_use', tool_id: 'x' },
+      { type: 'tool_result' },
+      { type: 'unknown' },
+    ];
+    expect(feed('legacy-google-stream-json', geminiFrames)).toEqual(geminiFrames.map(frame => ({ type: 'raw', line: JSON.stringify(frame) })));
+  });
+});
