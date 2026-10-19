@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { defaultModelDiscoveryDeps, parseClaudeInitializeMetadata, parsePiRpcMetadata, probeAgentCatalog, probeCliCache, probeProviderApi } from '../model-discovery-adapters.js';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { defaultModelDiscoveryDeps, modelProbeTimeoutMs, parseClaudeInitializeMetadata, parsePiRpcMetadata, probeAgentCatalog, probeClaudeInitialize, probeCliCache, probeCliSubcommand, probeProviderApi } from '../model-discovery-adapters.js';
 import { ModelProbeError } from '../model-discovery-shared.js';
 import type { AgentDiscoveryConfiguration, ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from '../model-discovery-types.js';
 
@@ -295,5 +298,79 @@ describe('default credential connection', () => {
   });
   it('returns null when the selected provider has no key', async () => {
     for (const model of ['anthropic/x', 'google/x', 'openrouter/x', 'openai/x', 'o3', 'mystery']) expect(await connect('mimo', {}, model)).toBeNull();
+  });
+});
+
+describe('shared CLI adapters', () => {
+  it('gives ACP and RPC-style agents a longer probe budget', () => {
+    expect([modelProbeTimeoutMs('kilo'), modelProbeTimeoutMs('claude'), modelProbeTimeoutMs('droid'), modelProbeTimeoutMs('crush')]).toEqual([15_000, 15_000, 15_000, 10_000]);
+  });
+  it('reports the CLI default model line and refuses unparseable output', async () => {
+    const fake = fakeDeps({ stdout: 'Default model: model-a\nmodel-a\n' });
+    const parse = ({ stdout }: { stdout: string }) => stdout.includes('model-a') ? [{ id: 'model-a', label: 'A', identityKind: 'concrete' as const }] : null;
+    expect((await probeCliSubcommand(context, config({ parse }), fake.deps, signal)).defaultSelectionId).toBe('model-a');
+    expect(fake.runs[0]).toEqual({ args: [], timeoutMs: 8_000 });
+    expect(await probeError(probeCliSubcommand(context, config({ args: ['x'] }), fake.deps, signal))).toBe('malformed-response');
+  });
+  it('reads generic JSON listings as arrays or a models field', async () => {
+    const fake = fakeDeps({ stdout: JSON.stringify(['model-a', { id: 'model-b', name: 'B' }, { model: 'model-c' }, { other: 1 }, null]) });
+    expect((await probeAgentCatalog('qoder', context, config(), fake.deps, signal)).models).toEqual([
+      { id: 'model-a', label: 'model-a', identityKind: 'concrete' }, { id: 'model-b', label: 'B', identityKind: 'concrete' }, { id: 'model-c', label: 'model-c', identityKind: 'concrete' },
+    ]);
+    const wrapped = fakeDeps({ stdout: JSON.stringify({ models: ['model-d'] }) });
+    expect((await probeAgentCatalog('amp', context, config(), wrapped.deps, signal)).models.map(row => row.id)).toEqual(['model-d']);
+  });
+  it('falls back to line parsing for JSON without a model list', async () => {
+    const fake = fakeDeps({ stdout: '0' });
+    expect((await probeAgentCatalog('deepseek', context, config(), fake.deps, signal)).models).toEqual([{ id: '0', label: '0', identityKind: 'concrete' }]);
+    const object = fakeDeps({ stdout: '{"model":"x"}' });
+    expect((await probeAgentCatalog('deepseek', context, config(), object.deps, signal)).models).toEqual([]);
+  });
+});
+
+describe('probeClaudeInitialize', () => {
+  const init = claudeInit([{ value: 'default', resolvedModel: 'model-a' }]);
+  it('passes setting sources and hook-disabled inline settings, claiming the concrete default', async () => {
+    const fake = fakeDeps({ stdout: init });
+    const result = await probeClaudeInitialize({ ...context, settingSources: ['user', 'project'], settings: ' {"model":"m"}' }, fake.deps, signal);
+    expect(result.defaultSelectionId).toBe('model-a');
+    expect(fake.runs[0]!.args.slice(-4)).toEqual(['--setting-sources', 'user,project', '--settings', '{"model":"m","disableAllHooks":true}']);
+    expect(fake.runs[0]!.timeoutMs).toBe(15_000);
+  });
+  it('reads a settings file and skips the flag when it is missing or unparseable', async () => {
+    const fake = fakeDeps({ stdout: init, files: { '/s.json': '{"a":1}', '/bad.json': 'nope' } });
+    await probeClaudeInitialize({ ...context, settings: '/s.json' }, fake.deps, signal);
+    await probeClaudeInitialize({ ...context, settings: '/bad.json' }, fake.deps, signal);
+    await probeClaudeInitialize({ ...context, settings: '/missing.json' }, fake.deps, signal);
+    const settingsFlags = fake.runs.map(run => run.args.filter(arg => arg === '--settings').length);
+    expect(settingsFlags).toEqual([settingsFlags[2]! + 1, settingsFlags[2], settingsFlags[2]]);
+  });
+  it('refuses an initialize reply without models as malformed', async () => {
+    expect(await probeError(probeClaudeInitialize(context, fakeDeps({ stdout: claudeInit([]) }).deps, signal))).toBe('malformed-response');
+  });
+});
+
+describe('default filesystem and RPC ports', () => {
+  let dir: string;
+  beforeAll(() => { dir = mkdtempSync(join(tmpdir(), 'jini-model-discovery-')); });
+  afterAll(() => { rmSync(dir, { recursive: true, force: true }); });
+  it('walks up to the nearest directory containing .git', async () => {
+    mkdirSync(join(dir, 'repo/.git'), { recursive: true }); mkdirSync(join(dir, 'repo/a/b'), { recursive: true });
+    expect(await defaultModelDiscoveryDeps.fs.projectRoot!({ cwd: join(dir, 'repo/a/b'), signal })).toBe(join(dir, 'repo'));
+  });
+  it('stops at the filesystem root or on cancellation without a project root', async () => {
+    expect(await defaultModelDiscoveryDeps.fs.projectRoot!({ cwd: '/', signal })).toBeNull();
+    const controller = new AbortController(); controller.abort();
+    expect(await defaultModelDiscoveryDeps.fs.projectRoot!({ cwd: join(dir, 'repo/a/b'), signal: controller.signal })).toBeNull();
+  });
+  it('reads a missing file as null', async () => {
+    expect(await defaultModelDiscoveryDeps.fs.read(join(dir, 'missing.json'), { signal })).toBeNull();
+  });
+  it('reports an unreachable provider endpoint as a failed listing', async () => {
+    const result = await defaultModelDiscoveryDeps.http.list({ protocol: 'openai', baseUrl: 'http://127.0.0.1:9', apiKey: 'k', signal });
+    expect(result.ok).toBe(false);
+  });
+  it('refuses RPC discovery for agents other than Pi, Copilot and Droid', async () => {
+    expect(await probeError(defaultModelDiscoveryDeps.rpc.probe({ agentId: 'kimi', context, signal }))).toBe('unsupported-version');
   });
 });
