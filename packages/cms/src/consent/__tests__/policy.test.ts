@@ -21,7 +21,7 @@ describe('consent decisions', () => {
     const input = { value: accepted, policyVersion: '1', nowMs: Date.parse(now) };
     expect(readConsentRecord(input)).toEqual(accepted);
     expect(readConsentRecord(input, { maxAgeMs: 0 })).toEqual(accepted);
-    for (const value of [null, {}, { ...accepted, id: '../outside' }, { ...accepted, timestamp: 'invalid' }, { ...accepted, timestamp: '2026-10-10T12:00:00.000Z' }, { ...accepted, gpc: 'false' }, { ...accepted, action: 'unknown' }, { ...accepted, regionMode: 'auto' }, { ...accepted, choices: { ...accepted.choices, necessary: false } }, { ...accepted, choices: { ...accepted.choices, analytics: 'true' } }]) expect(readConsentRecord({ ...input, value })).toBeNull();
+    for (const value of [null, {}, { ...accepted, id: '../outside' }, { ...accepted, timestamp: 'invalid' }, { ...accepted, timestamp: '2026-10-10T12:00:00.000Z' }, { ...accepted, gpc: 'false' }, { ...accepted, action: 'unknown' }, { ...accepted, regionMode: 'auto' }, { ...accepted, choices: { ...accepted.choices, necessary: false } }, { ...accepted, choices: { ...accepted.choices, analytics: 'true' } }, 'receipt', { ...accepted, id: 1234567890123456 }, { ...accepted, timestamp: 0 }, { ...accepted, action: undefined }, { ...accepted, choices: undefined }]) expect(readConsentRecord({ ...input, value })).toBeNull();
     expect(readConsentRecord({ ...input, policyVersion: '2' })).toBeNull();
     expect(readConsentRecord({ ...input, nowMs: Date.parse(now) + CONSENT_MAX_AGE_MS + 1 })).toBeNull();
     expect(readConsentRecord({ ...input, value: { ...accepted, gpc: true } })?.choices).toEqual({ necessary: true, functional: true, analytics: false, marketing: false });

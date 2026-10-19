@@ -15,20 +15,37 @@ export function resolveConsentChoices({ choices, gpc, regionMode = 'opt-in' }: {
   return effective;
 }
 
+const CONSENT_ACTIONS = ['accept', 'reject', 'save', 'do-not-sell'];
+type Evidence = Pick<ConsentRecord, 'regionMode' | 'gpc' | 'action' | 'choices'>;
+
+/** @complexity O(1). */
+function isReceiptId(id: unknown): id is string {
+  return typeof id === 'string' && /^[a-zA-Z0-9_-]{16,128}$/.test(id);
+}
+
+/** Unparseable, future and expired timestamps are all stale. @complexity O(1). */
+function isFresh({ timestamp, nowMs, maxAgeMs }: { timestamp: string; nowMs: number; maxAgeMs: number }): boolean {
+  const time = Date.parse(timestamp);
+  return Number.isFinite(time) && time <= nowMs && nowMs - time <= maxAgeMs;
+}
+
+/** @complexity O(1). */
+function isEvidence(record: Partial<ConsentRecord>): record is Partial<ConsentRecord> & Evidence {
+  if (record.regionMode !== 'opt-in' && record.regionMode !== 'opt-out') return false;
+  if (typeof record.gpc !== 'boolean' || !CONSENT_ACTIONS.includes(record.action ?? '')) return false;
+  const choices = record.choices;
+  return !!choices && choices.necessary === true && (['functional', 'analytics', 'marketing'] as const).every(key => typeof choices[key] === 'boolean');
+}
+
 /** Validate stored evidence at the trust boundary; invalid, stale, or future evidence is absent.
  * @complexity O(1); receipt size is bounded by storage/HTTP adapters. */
 export function readConsentRecord({ value, policyVersion, nowMs }: { value: unknown; policyVersion: string; nowMs: number }, { maxAgeMs = CONSENT_MAX_AGE_MS }: { maxAgeMs?: number } = {}): ConsentRecord | null {
   if (!value || typeof value !== 'object') return null;
   const record = value as Partial<ConsentRecord>;
-  if (typeof record.id !== 'string' || !/^[a-zA-Z0-9_-]{16,128}$/.test(record.id)) return null;
+  if (!isReceiptId(record.id)) return null;
   if (record.policyVersion !== policyVersion || typeof record.timestamp !== 'string') return null;
-  const time = Date.parse(record.timestamp);
-  if (!Number.isFinite(time) || time > nowMs || nowMs - time > maxAgeMs) return null;
-  if (record.regionMode !== 'opt-in' && record.regionMode !== 'opt-out') return null;
-  if (typeof record.gpc !== 'boolean' || !['accept', 'reject', 'save', 'do-not-sell'].includes(record.action ?? '')) return null;
-  const choices = record.choices;
-  if (!choices || choices.necessary !== true || ['functional', 'analytics', 'marketing'].some(key => typeof choices[key as keyof ConsentChoices] !== 'boolean')) return null;
-  return { id: record.id, timestamp: record.timestamp, policyVersion, regionMode: record.regionMode, gpc: record.gpc, action: record.action as ConsentAction, choices: resolveConsentChoices({ choices, gpc: record.gpc }) };
+  if (!isFresh({ timestamp: record.timestamp, nowMs, maxAgeMs }) || !isEvidence(record)) return null;
+  return { id: record.id, timestamp: record.timestamp, policyVersion, regionMode: record.regionMode, gpc: record.gpc, action: record.action as ConsentAction, choices: resolveConsentChoices({ choices: record.choices, gpc: record.gpc }) };
 }
 
 /** Parse form fields without truthy coercion; reject invalid actions and policy races.
@@ -36,7 +53,7 @@ export function readConsentRecord({ value, policyVersion, nowMs }: { value: unkn
 export function createConsentRecord({ fields, config, id, timestamp, regionMode, gpc }: { fields: Record<string, unknown>; config: ConsentConfig; id: string; timestamp: string; regionMode: ConsentRegionMode; gpc: boolean }, _options = {}): ConsentRecord {
   if (fields.policyVersion !== config.policyVersion) throw new Error('The privacy policy changed. Reload this page and choose again.');
   const action = fields.action;
-  if (typeof action !== 'string' || !['accept', 'reject', 'save', 'do-not-sell'].includes(action)) throw new Error('Choose accept, reject, save, or do-not-sell.');
+  if (typeof action !== 'string' || !CONSENT_ACTIONS.includes(action)) throw new Error('Choose accept, reject, save, or do-not-sell.');
   let choices: ConsentChoices = { ...DENIED_CHOICES };
   if (action === 'accept') choices = { necessary: true, functional: true, analytics: true, marketing: true };
   if (action === 'do-not-sell') choices = { necessary: true, functional: fields.functional === 'on', analytics: false, marketing: false };
