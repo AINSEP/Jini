@@ -26,6 +26,7 @@ import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
 
 /** Deletion ladder status (mirrored from `navigation`'s menu ladder). */
 export type MediaStatus = "active" | "trashed";
+export type MediaKind = "media" | "document";
 
 /**
  * Write-once source binding — the edge from a media record to its bytes.
@@ -42,6 +43,10 @@ export interface MediaSource {
 }
 
 export interface MediaRecord {
+  /** Absent only in legacy callers/serialized records; persistent adapters default to media. */
+  kind?: MediaKind | undefined;
+  /** Immutable upload name; editable title is the display stem. Never a storage path. */
+  originalFilename?: string | null | undefined;
   id: UUID;
   workspaceId: UUID;
   /** Acting principal at asset creation, independent of the producer/model and editable credit.

@@ -42,6 +42,8 @@ export interface ReplaceMediaFileDeps {
 export async function replaceMediaFile({ deps, media, bytes, contentType, principalId }: {
   deps: ReplaceMediaFileDeps; media: MediaRecord; bytes: Uint8Array; contentType: string; principalId: string;
 }, { maxUploadBytes = DEFAULT_MAX_UPLOAD_BYTES }: { maxUploadBytes?: number } = {}): Promise<MediaRecord | null> {
+  // Library v1 supports metadata rename, never byte replacement under an immutable document name.
+  if (media.kind === 'document') throw new MediaValidationError({ message: 'document file replacement is unavailable' });
   if (bytes.byteLength === 0 || bytes.byteLength > maxUploadBytes) {
     throw new MediaValidationError({ message: 'replacement file is empty or exceeds the upload size cap' });
   }

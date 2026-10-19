@@ -1,3 +1,5 @@
+import { readDocumentText } from "./document-read.js";
+import { documentContentType, documentDisplayFilename } from "./document-ingress.js";
 import type { IdGenerator } from "@jini-ai/core/primitives";
 import type { Clock } from "@jini-ai/core/primitives";
 /**
@@ -36,7 +38,7 @@ import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index
 import { mediaAgentToolCatalog } from "./agent-tools.js";
 import { listMedia, MediaValidationError, rollbackUploadedMedia, trashMedia, updateMediaMetadata, uploadMedia } from "./media-service.js";
 import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRepoPort } from "./ports.js";
-import type { MediaRecord } from "./types.js";
+import { MediaNotFoundError, type MediaRecord } from "./types.js";
 
 const CATALOG_BY_ID = indexCatalogById({ catalog: mediaAgentToolCatalog });
 
@@ -116,6 +118,8 @@ export interface MediaToolDeps {
 export const mediaDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
   // -> listMedia (media-service.ts): mediaRepo.list only, no write.
   ["media_list_assets", "none"],
+  ["library_list", "none"],
+  ["library_read", "none"],
   // -> uploadMedia (media-service.ts): blobRepo.save (maybe) + mediaRepo.save + renditionRepo.save.
   ["media_upload_asset", "mutates-durable-state"],
   // -> updateMediaMetadata (media-service.ts): mediaRepo.save, editorial fields only.
@@ -216,6 +220,32 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
   });
 
   const handlers: Record<string, ToolHandler> = {
+    library_list: async (ctx) => {
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.read" }, { entityType: "media" });
+      const { media } = await listMedia({ deps: { mediaRepo: routeDeps.mediaRepo }, input: { workspaceId: routeDeps.workspaceId, kind: "document" } });
+      const documents = [];
+      for (const row of media.filter(row => row.status === "active")) {
+        const blob = await routeDeps.assetBlobRepo.findByHash({ workspaceId: routeDeps.workspaceId, sha256: row.source.sha256 });
+        documents.push({ id: row.id, title: row.title, filename: documentDisplayFilename(row), originalFilename: row.originalFilename ?? null,
+          contentType: documentContentType({ filename: row.originalFilename ?? "" }),
+          byteSize: blob ? await routeDeps.blobStore.sizeOf?.({ storageKey: blob.storageKey }) ?? null : null,
+          createdAt: row.createdAt, createdBy: row.createdBy ?? null, publicUrl: null });
+      }
+      return { documents };
+    },
+    library_read: async (ctx) => {
+      const input = requireInputRecord({ input: ctx.input });
+      const id = requireString({ input, key: "documentId" });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.read" }, { entityType: "media", entityId: id });
+      return withSchemaOnRejection({ toolId: "library_read", catalog: CATALOG_BY_ID,
+        isShapeRejection: ({ error }) => error instanceof MediaValidationError || error instanceof MediaNotFoundError,
+        fn: async () => {
+          if (input.offset !== undefined && typeof input.offset !== "number") throw new MediaValidationError({ message: "offset must be a non-negative byte offset" });
+          return readDocumentText({ deps: { mediaRepo: routeDeps.mediaRepo, blobRepo: routeDeps.assetBlobRepo, blobStore: routeDeps.blobStore },
+            input: { workspaceId: routeDeps.workspaceId, id, offset: input.offset as number | undefined } });
+        },
+      });
+    },
     media_list_assets: async (ctx) => {
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.read" }, { entityType: "media" });
       const { media } = await listMedia({ deps: { mediaRepo: routeDeps.mediaRepo }, input: { workspaceId: routeDeps.workspaceId } });

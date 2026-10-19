@@ -116,6 +116,7 @@ export async function resolveMediaRendition(
 
   const media = await findMediaByIdOrSlug({ deps: { mediaRepo: deps.mediaRepo }, input: { workspaceId: input.workspaceId, idOrSlug: input.assetId } });
   if (!media) return { outcome: "not-found" };
+  if (media.kind === "document") return { outcome: "not-found" };
   if (media.status === "trashed") return { outcome: "gone" };
   // From here on, every `asset_renditions`/blob operation keys on the RESOLVED record's own `id` —
   // never the raw `input.assetId`, which may have been a slug. `asset_renditions.assetId` is a FK to

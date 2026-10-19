@@ -1,3 +1,4 @@
+import { validateDocumentIngress, MAX_DOCUMENT_BYTES, type DocumentArchiveReaderPort } from "./document-ingress.js";
 import { sanitizeSvg } from "./sanitize-svg.js";
 import { sniffContentType } from "./content-type-sniffer.js";
 import { isValidMediaSlugFormat } from "./slug.js";
@@ -66,6 +67,7 @@ import {
   MediaStillReferencedError,
   MediaValidationError,
   type MediaRecord,
+  type MediaKind,
   type MediaSource,
   type MediaStatus,
 } from "./types.js";
@@ -256,6 +258,7 @@ async function deriveUniqueMediaSlug(mediaRepo: MediaRepoPort, workspaceId: UUID
 // ---------------------------------------------------------------------------
 
 export interface UploadMediaInput {
+  kind?: MediaKind | undefined;
   workspaceId: UUID;
   bytes: Uint8Array;
   filename: string;
@@ -274,6 +277,7 @@ export interface UploadMediaDeps {
   blobRepo: AssetBlobRepoPort;
   renditionRepo: AssetRenditionRepoPort;
   blobStore: BlobStorePort;
+  documentArchiveReader?: DocumentArchiveReaderPort | undefined;
 }
 
 export interface UploadMediaRequired {
@@ -314,10 +318,14 @@ export async function uploadMedia(
   optional: UploadMediaOptional = {}
 ): Promise<{ media: MediaRecord }> {
   const { deps, input } = required;
-  const maxUploadBytes = optional.maxUploadBytes ?? DEFAULT_MAX_UPLOAD_BYTES;
+  const kind = input.kind ?? "media";
+  if (kind !== "media" && kind !== "document") throw new MediaValidationError({ message: "invalid media kind" });
+  // Document policy is mandatory even if a host overrides the ordinary media MIME/size policy.
+  if (kind === "document") await validateDocumentIngress({ filename: input.filename, bytes: input.bytes }, { archiveReader: deps.documentArchiveReader });
+  const maxUploadBytes = kind === "document" ? MAX_DOCUMENT_BYTES : optional.maxUploadBytes ?? DEFAULT_MAX_UPLOAD_BYTES;
   const allowedMimeTypes = optional.allowedMimeTypes ?? DEFAULT_ALLOWED_MIME_TYPES;
 
-  if (!allowedMimeTypes.has(input.contentType)) {
+  if (kind === "media" && !allowedMimeTypes.has(input.contentType)) {
     throw new MediaValidationError({ message: `content type '${input.contentType}' is not allowed for upload` }
     );
   }
@@ -330,7 +338,7 @@ export async function uploadMedia(
   }
 
   // Inspect the bytes too: a mislabeled SVG must never bypass sanitization.
-  const bytes = input.contentType === "image/svg+xml" || sniffContentType({ bytes: input.bytes }) === "image/svg+xml"
+  const bytes = kind === "media" && (input.contentType === "image/svg+xml" || sniffContentType({ bytes: input.bytes }) === "image/svg+xml")
     ? await sanitizeSvg({ bytes: input.bytes })
     : input.bytes;
   if (bytes.byteLength > maxUploadBytes) {
@@ -371,6 +379,8 @@ export async function uploadMedia(
   const slug = await deriveUniqueMediaSlug(deps.mediaRepo, input.workspaceId, title);
 
   const media: MediaRecord = {
+    kind,
+    originalFilename: kind === "document" ? input.filename : null,
     id: deps.idGen.newId(),
     workspaceId: input.workspaceId,
     createdBy: input.createdByPrincipal,
@@ -412,11 +422,11 @@ export async function uploadMedia(
 
 export interface ListMediaRequired {
   deps: { mediaRepo: MediaRepoPort };
-  input: { workspaceId: UUID };
+  input: { workspaceId: UUID; kind?: MediaKind | undefined };
 }
 
 /**
- * Lists all media in a workspace (all statuses — active + trashed; admin sees
+ * Lists one kind in a workspace (media by default; all statuses — active + trashed; admin sees
  * everything, mirrors an admin post listing). Purged assets are absent by
  * construction (`purgeMedia` removes the row), not filtered here.
  *
@@ -430,7 +440,7 @@ export async function listMedia(
   _optional: Record<string, never> = {}
 ): Promise<{ media: MediaRecord[] }> {
   const media = await required.deps.mediaRepo.list({ workspaceId: required.input.workspaceId });
-  return { media };
+  return { media: media.filter(row => (row.kind ?? "media") === (required.input.kind ?? "media")) };
 }
 
 export interface GetMediaByIdRequired {
@@ -625,6 +635,10 @@ export async function updateMediaMetadata(
   const existing = await deps.mediaRepo.findById({ workspaceId: input.workspaceId, id: input.id });
   if (!existing) throw new MediaNotFoundError({ message: `media '${input.id}' was not found` });
   assertEntityLive({ entityType: "media", entityId: input.id, state: existing.status === "trashed" ? "trashed" : "live" });
+  if (existing.kind === "document" && input.title !== undefined &&
+      (!input.title.trim() || input.title.trim().length > 240 || /[\\/\u0000-\u001f\u007f]/u.test(input.title))) {
+    throw new MediaValidationError({ message: "document title must be a non-empty display stem of at most 240 characters" });
+  }
 
   if (input.width !== undefined && input.width !== null) assertPositiveIntegerOrThrow(input.width, "width");
   if (input.height !== undefined && input.height !== null) assertPositiveIntegerOrThrow(input.height, "height");

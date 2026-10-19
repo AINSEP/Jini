@@ -15,11 +15,13 @@ export function mediaRepoWithCreator(required: { mediaRepo: MediaRepoPort; princ
   };
 }
 
-/** An update retains creation attribution, even when the original creator is unknown.
+/** An update retains creation attribution, privacy kind and the immutable original filename.
+ * Kind cannot be downgraded through metadata writes; legacy unknown attribution remains unknown.
  * Omitting an unknown field preserves compatibility with legacy serialized records. */
 export function preserveMediaCreator(required: { record: MediaRecord; original: MediaRecord },
   _optional: Record<string, never> = {}): MediaRecord {
-  const { createdBy: _ignored, ...metadata } = required.record;
-  return { ...metadata, ...(required.original.createdBy !== undefined
+  const { createdBy: _ignored, kind: _kind, originalFilename: _filename, ...metadata } = required.record;
+  return { ...metadata, ...(required.original.kind !== undefined ? { kind: required.original.kind } : {}),
+    ...(required.original.originalFilename !== undefined ? { originalFilename: required.original.originalFilename } : {}), ...(required.original.createdBy !== undefined
     ? { createdBy: required.original.createdBy } : {}) };
 }
