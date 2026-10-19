@@ -96,14 +96,14 @@ export interface WebFetchPorts {
  */
 export function readWebFetchInput(input: Record<string, unknown>, _optional: Record<string, never> = {}): WebFetchInput {
   const { url, format = "markdown", maxChars = DEFAULT_MAX_CHARS } = input;
-  if (!isBoundedString(url, MAX_URL_LENGTH)) throw new ToolInputError({ message: `web_fetch_page: url must be an absolute http(s) URL of at most ${MAX_URL_LENGTH} characters.` });
+  if (!isBoundedString({ value: url, maxLength: MAX_URL_LENGTH })) throw new ToolInputError({ message: `web_fetch_page: url must be an absolute http(s) URL of at most ${MAX_URL_LENGTH} characters.` });
   if (!(WEB_FETCH_FORMATS as readonly unknown[]).includes(format)) throw new ToolInputError({ message: `web_fetch_page: format must be one of ${WEB_FETCH_FORMATS.join(", ")}.` });
-  if (!isIntegerInRange(maxChars, 1, MAX_MAX_CHARS)) throw new ToolInputError({ message: `web_fetch_page: maxChars must be an integer from 1 to ${MAX_MAX_CHARS}.` });
-  const renderOptions = readRenderOptions(input);
+  if (!isIntegerInRange({ value: maxChars, min: 1, max: MAX_MAX_CHARS })) throw new ToolInputError({ message: `web_fetch_page: maxChars must be an integer from 1 to ${MAX_MAX_CHARS}.` });
+  const renderOptions = readRenderOptions({ input });
   if (!renderOptions.render && BROWSER_OPTIONS.some(key => input[key] !== undefined)) {
     throw new ToolInputError({ message: "web_fetch_page: browser options require render: true." });
   }
-  return { url, format: format as WebFetchFormat, maxChars, ...renderOptions };
+  return { url: url as string, format: format as WebFetchFormat, maxChars: maxChars as number, ...renderOptions };
 }
 
 type RenderOptions = Pick<WebFetchInput, "render" | "waitFor" | "dismissCookieBanners" | "captureData" | "screenshot" | "captureDataMatch" | "textMode">;
@@ -111,23 +111,23 @@ const BOOLEAN_OPTIONS = ["render", "dismissCookieBanners", "captureData", "scree
 const BROWSER_OPTIONS = ["waitFor", "dismissCookieBanners", "captureData", "screenshot", "captureDataMatch", "textMode"] as const;
 const TEXT_MODES: readonly unknown[] = ["full", "none", "summary"];
 
-function isBoundedString(value: unknown, maxLength: number): value is string {
+function isBoundedString({ value, maxLength }: { value: unknown; maxLength: number }, _optional: Record<string, never> = {}): boolean {
   return typeof value === "string" && value.length > 0 && value.length <= maxLength;
 }
 
-function isIntegerInRange(value: unknown, min: number, max: number): value is number {
+function isIntegerInRange({ value, min, max }: { value: unknown; min: number; max: number }, _optional: Record<string, never> = {}): boolean {
   return Number.isInteger(value) && (value as number) >= min && (value as number) <= max;
 }
 
 /** Copies only the browser options that are present, each validated. */
-function readRenderOptions(input: Record<string, unknown>): RenderOptions {
+function readRenderOptions({ input }: { input: Record<string, unknown> }, _optional: Record<string, never> = {}): RenderOptions {
   const renderOptions: RenderOptions = {};
   for (const key of BOOLEAN_OPTIONS) {
     if (input[key] === undefined) continue;
     if (typeof input[key] !== "boolean") throw new ToolInputError({ message: `web_fetch_page: ${key} must be a boolean.` });
     renderOptions[key] = input[key];
   }
-  if (input.waitFor !== undefined) renderOptions.waitFor = readWaitFor(input.waitFor);
+  if (input.waitFor !== undefined) renderOptions.waitFor = readWaitFor({ wait: input.waitFor });
   if (input.captureDataMatch !== undefined) renderOptions.captureDataMatch = readCaptureDataMatch({ value: input.captureDataMatch });
   if (input.textMode !== undefined) {
     if (!TEXT_MODES.includes(input.textMode)) throw new ToolInputError({ message: "web_fetch_page: textMode must be full, none or summary." });
@@ -136,7 +136,7 @@ function readRenderOptions(input: Record<string, unknown>): RenderOptions {
   return renderOptions;
 }
 
-function readWaitFor(wait: unknown): string | number {
+function readWaitFor({ wait }: { wait: unknown }, _optional: Record<string, never> = {}): string | number {
   if (typeof wait === "string" && wait.trim().length > 0 && wait.length <= 500) return wait.trim();
   if (typeof wait === "number" && wait >= 0 && wait <= 10) return wait;
   throw new ToolInputError({ message: "web_fetch_page: waitFor must be a CSS selector (1–500 characters) or seconds from 0 to 10." });
@@ -231,30 +231,30 @@ const RENDER_ERROR_MESSAGES: Readonly<Record<string, string>> = {
 
 type CodedError = { code?: unknown; cause?: { code?: unknown } } | null;
 
-function errorCode(error: unknown): unknown {
+function errorCode({ error }: { error: unknown }, _optional: Record<string, never> = {}): unknown {
   return (error as CodedError)?.code;
 }
 
 /** Builds the caller-safe failure; IPs and raw transport messages never reach the model. */
 function toToolError(error: unknown, origin: string, timedOut: boolean, timeoutMs: number): unknown {
   if (error instanceof ToolInputError) return error;
-  const renderMessage = RENDER_ERROR_MESSAGES[errorCode(error) as string];
+  const renderMessage = RENDER_ERROR_MESSAGES[errorCode({ error }) as string];
   if (renderMessage) return new ToolInputError({ message: renderMessage });
   if (error instanceof EgressRefusedError) return new ToolInputError({ message: `web_fetch_page: ${error.callerSafeMessage}. Only public internet pages can be fetched.` });
   if (timedOut) return new ToolInputError({ message: `web_fetch_page: ${origin} did not finish responding within ${timeoutMs / 1000} seconds.` });
-  return new ToolInputError({ message: `web_fetch_page: could not fetch ${origin} (${transportReason(error)}). Check the address and that the site is up.` });
+  return new ToolInputError({ message: `web_fetch_page: could not fetch ${origin} (${transportReason({ error })}). Check the address and that the site is up.` });
 }
 
 /** Only a constant-shaped code (ECONNREFUSED) is echoed; free text could carry private addresses. */
-function transportReason(error: unknown): string {
-  const code = errorCode(error) ?? (error as CodedError)?.cause?.code;
+function transportReason({ error }: { error: unknown }, _optional: Record<string, never> = {}): string {
+  const code = errorCode({ error }) ?? (error as CodedError)?.cause?.code;
   if (typeof code === "string" && /^[A-Z][A-Z0-9_]*$/.test(code)) return code;
   return error instanceof Error && /timed out/i.test(error.message) ? "connection went idle" : "network error";
 }
 
-function failureOutcome(error: unknown, deadline: AbortSignal): { outcome: WebFetchEvent["outcome"]; timedOut: boolean } {
+function failureOutcome({ error, deadline }: { error: unknown; deadline: AbortSignal }, _optional: Record<string, never> = {}): { outcome: WebFetchEvent["outcome"]; timedOut: boolean } {
   const timedOut = deadline.aborted || error instanceof Error && ["PageWorkTimeout", "TimeoutError"].includes(error.name);
-  const refused = error instanceof EgressRefusedError || errorCode(error) === "WEB_RENDER_REFUSED";
+  const refused = error instanceof EgressRefusedError || errorCode({ error }) === "WEB_RENDER_REFUSED";
   if (refused) return { outcome: "refused", timedOut };
   return { outcome: timedOut ? "timeout" : "failed", timedOut };
 }
@@ -301,7 +301,7 @@ export async function fetchWebPage(
     }
     response = await send(ports, url, combined, timeoutMs);
   } catch (error) {
-    const { outcome, timedOut } = failureOutcome(error, deadline);
+    const { outcome, timedOut } = failureOutcome({ error, deadline });
     observe(outcome);
     if (signal?.aborted) throw error;
     throw toToolError(error, url.origin, timedOut, timeoutMs);
@@ -331,7 +331,7 @@ function project({ input, ports, url, response }: { input: WebFetchInput; ports:
   const mediaType = contentType.split(";")[0]!.trim().toLowerCase();
   if (!isAllowedContentType({ mediaType })) throw new ToolInputError({ message: `web_fetch_page: '${mediaType}' is not a text page. Only HTML, text, XML, JSON and CSS can be read; use media_import_from_url for images.` });
   const finalUrl = response.finalUrl ?? url.href;
-  const isHtml = isHtmlPage(mediaType, response.bodyText);
+  const isHtml = isHtmlPage({ mediaType, bodyText: response.bodyText });
   const body = decodeBody(response, contentType, isHtml);
   if (body.includes("\u0000")) throw new ToolInputError({ message: "web_fetch_page: the response is binary, not a text page." });
   // A fixed ceiling limits synchronous parsing without letting a large head consume the output budget.
@@ -341,7 +341,7 @@ function project({ input, ports, url, response }: { input: WebFetchInput; ports:
   const content = clip(rendered, input.maxChars);
   return {
     requestedUrl: input.url, finalUrl, status: response.status, contentType,
-    ...presentStrings({ title: facts.title, description: facts.description, lang: facts.lang }),
+    ...presentStrings({ fields: { title: facts.title, description: facts.description, lang: facts.lang } }),
     format: input.format, content, truncated: bounded.truncated || content.length < rendered.length || response.bodyTruncated === true,
     links: facts.links, linksTruncated: facts.linksTruncated, images: facts.images, imagesTruncated: facts.imagesTruncated,
     stylesheets: facts.stylesheets, meta: facts.meta,
@@ -350,7 +350,7 @@ function project({ input, ports, url, response }: { input: WebFetchInput; ports:
 }
 
 /** A missing content type is judged by the body's leading tag. */
-function isHtmlPage(mediaType: string, bodyText: string): boolean {
+function isHtmlPage({ mediaType, bodyText }: { mediaType: string; bodyText: string }, _optional: Record<string, never> = {}): boolean {
   if (mediaType === "text/html" || mediaType === "application/xhtml+xml") return true;
   return mediaType === "" && /^\s*<(?:!doctype html|html)/i.test(bodyText);
 }
@@ -361,7 +361,7 @@ function pageFacts({ isHtml, mediaType, body, boundedHtml, finalUrl }: { isHtml:
 }
 
 /** Keeps only the non-empty optional string fields, so absent facts stay absent keys. */
-function presentStrings<K extends string>(fields: Record<K, string | undefined>): Partial<Record<K, string>> {
+function presentStrings<K extends string>({ fields }: { fields: Record<K, string | undefined> }, _optional: Record<string, never> = {}): Partial<Record<K, string>> {
   return Object.fromEntries(Object.entries(fields).filter(([, value]) => value)) as Partial<Record<K, string>>;
 }
 
@@ -381,15 +381,15 @@ function projectRendered({ input, ports, url, page }: { input: WebFetchInput; po
     status: page.status, headers: { "content-type": "text/html" }, bodyText: page.html,
     finalUrl: page.finalUrl, bodyTruncated: page.truncated,
   } });
-  const images = mergeImages([...page.images, ...result.images]);
-  const facts = boundRenderedFacts(result);
+  const images = mergeImages({ candidates: [...page.images, ...result.images] });
+  const facts = boundRenderedFacts({ result });
   const { content, textTruncated } = renderedContent({ input, textMode, page, projected: result.content });
   const flags = renderedFlags({ page, result, images, factsTruncated: facts.truncated, textTruncated });
   return {
     ...result, format: input.format, title: page.title.slice(0, MAX_RENDERED_TITLE), content, rendered: true,
     links: facts.links, stylesheets: facts.stylesheets, meta: facts.meta,
     linksTruncated: result.linksTruncated || facts.linksDropped,
-    ...presentStrings({ description: result.description?.slice(0, MAX_RENDERED_DESCRIPTION), lang: result.lang?.slice(0, MAX_RENDERED_LANG) }),
+    ...presentStrings({ fields: { description: result.description?.slice(0, MAX_RENDERED_DESCRIPTION), lang: result.lang?.slice(0, MAX_RENDERED_LANG) } }),
     images: [...images.byUrl.values()].slice(0, MAX_IMAGES),
     imagesTruncated: flags.imagesTruncated,
     data: page.data, dataTruncated: page.dataTruncated,
@@ -409,7 +409,7 @@ function renderedFlags({ page, result, images, factsTruncated, textTruncated }: 
 }
 
 /** Browser image facts come first, so their alt text wins over the parsed DOM's for the same src. */
-function mergeImages(candidates: PageImage[]): { byUrl: Map<string, PageImage>; truncated: boolean } {
+function mergeImages({ candidates }: { candidates: PageImage[] }, _optional: Record<string, never> = {}): { byUrl: Map<string, PageImage>; truncated: boolean } {
   const byUrl = new Map<string, PageImage>();
   let truncated = false;
   for (const image of candidates) {
@@ -421,7 +421,7 @@ function mergeImages(candidates: PageImage[]): { byUrl: Map<string, PageImage>; 
 }
 
 /** Drops overlong URLs/keys that live DOMs can generate; `truncated` covers every dropped or clipped fact. */
-function boundRenderedFacts(result: WebFetchResult): { links: PageLink[]; stylesheets: string[]; meta: Record<string, string>; linksDropped: boolean; truncated: boolean } {
+function boundRenderedFacts({ result }: { result: WebFetchResult }, _optional: Record<string, never> = {}): { links: PageLink[]; stylesheets: string[]; meta: Record<string, string>; linksDropped: boolean; truncated: boolean } {
   const links = result.links.filter(link => link.href.length <= MAX_URL_LENGTH);
   const stylesheets = result.stylesheets.filter(href => href.length <= MAX_URL_LENGTH);
   const meta = Object.fromEntries(Object.entries(result.meta).filter(([key]) => key.length <= MAX_RENDERED_META_KEY));
