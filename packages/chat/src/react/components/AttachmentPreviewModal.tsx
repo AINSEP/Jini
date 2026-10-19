@@ -11,7 +11,7 @@
 import { useT } from '../hooks/context.js';
 import { Icon } from './Icon.js';
 import type { ChatAttachment } from '../../core/index.js';
-import { looksLikeImageAttachment, useAttachmentPreviewModal } from './AttachmentPreviewModal.hooks.js';
+import { looksLikeImageAttachment, useAttachmentPreviewModal, type AttachmentPreviewController } from './AttachmentPreviewModal.hooks.js';
 import type { AttachmentPreviewNavigation } from './AttachmentGallery.hooks.js';
 
 export interface AttachmentPreviewModalProps {
@@ -51,71 +51,98 @@ export function AttachmentPreviewModal({ attachment, onClose, navigation }: Atta
         </button>
       </div>
       <div className="jini-attachment-preview-body">
-        {c.status === 'image' && c.imageUrl ? (
-          <img
-            src={c.imageUrl}
-            alt={attachment.name}
-            className="jini-attachment-preview-image"
-            onError={c.onImageError}
-          />
-        ) : c.status === 'text' ? (
-          c.textLoading ? (
-            <div className="jini-attachment-preview-loading">{t('Loading…')}</div>
-          ) : (
-            <>
-              <pre className="jini-attachment-preview-text">{c.text?.content ?? ''}</pre>
-              {c.text?.truncated ? (
-                <div className="jini-attachment-preview-truncated">
-                  {t('Preview truncated — this file is larger than the preview limit.')}
-                </div>
-              ) : null}
-            </>
-          )
-        ) : (
-          <div className="jini-attachment-preview-meta">
-            <div className="jini-attachment-preview-meta-row">
-              <span className="jini-attachment-preview-meta-label">{t('Name')}</span>
-              <span>{attachment.name}</span>
-            </div>
-            <div className="jini-attachment-preview-meta-row">
-              <span className="jini-attachment-preview-meta-label">{t('Type')}</span>
-              <span>{looksLikeImageAttachment({ attachment: attachment }) ? t('Image') : t('File')}</span>
-            </div>
-            {c.sizeLabel ? (
-              <div className="jini-attachment-preview-meta-row">
-                <span className="jini-attachment-preview-meta-label">{t('Size')}</span>
-                <span>{c.sizeLabel}</span>
-              </div>
-            ) : null}
-            <div className="jini-attachment-preview-meta-note">{t('A preview is not available for this file.')}</div>
-          </div>
-        )}
+        <AttachmentPreviewBody attachment={attachment} preview={c} />
       </div>
-      {navigation ? (
-        <div className="jini-attachment-preview-nav">
-          <span className="jini-attachment-preview-count" aria-live="polite">
-            {t('{index} / {count}', { index: navigation.index + 1, count: navigation.count })}
-          </span>
-          <button
-            type="button"
-            className="jini-attachment-preview-step"
-            onClick={navigation.onPrevious}
-            title={t('Previous image')}
-            aria-label={t('Previous image')}
-          >
-            <Icon name="chevron-left" size={18} />
-          </button>
-          <button
-            type="button"
-            className="jini-attachment-preview-step"
-            onClick={navigation.onNext}
-            title={t('Next image')}
-            aria-label={t('Next image')}
-          >
-            <Icon name="chevron-right" size={18} />
-          </button>
+      {navigation ? <AttachmentPreviewNav navigation={navigation} /> : null}
+    </dialog>
+  );
+}
+
+interface AttachmentPreviewBodyProps {
+  attachment: ChatAttachment;
+  preview: AttachmentPreviewController;
+}
+
+/** The image, the text pane, or - for anything else - the filename/type/size card. */
+function AttachmentPreviewBody({ attachment, preview }: AttachmentPreviewBodyProps) {
+  if (preview.status === 'image' && preview.imageUrl) {
+    return (
+      <img
+        src={preview.imageUrl}
+        alt={attachment.name}
+        className="jini-attachment-preview-image"
+        onError={preview.onImageError}
+      />
+    );
+  }
+  if (preview.status === 'text') return <AttachmentTextPane preview={preview} />;
+  return <AttachmentMetaCard attachment={attachment} sizeLabel={preview.sizeLabel} />;
+}
+
+function AttachmentTextPane({ preview }: { preview: AttachmentPreviewController }) {
+  const t = useT();
+  if (preview.textLoading) return <div className="jini-attachment-preview-loading">{t('Loading…')}</div>;
+  return (
+    <>
+      <pre className="jini-attachment-preview-text">{preview.text?.content ?? ''}</pre>
+      {preview.text?.truncated ? (
+        <div className="jini-attachment-preview-truncated">
+          {t('Preview truncated — this file is larger than the preview limit.')}
         </div>
       ) : null}
-    </dialog>
+    </>
+  );
+}
+
+function AttachmentMetaCard({ attachment, sizeLabel }: { attachment: ChatAttachment; sizeLabel: AttachmentPreviewController['sizeLabel'] }) {
+  const t = useT();
+  return (
+    <div className="jini-attachment-preview-meta">
+      <div className="jini-attachment-preview-meta-row">
+        <span className="jini-attachment-preview-meta-label">{t('Name')}</span>
+        <span>{attachment.name}</span>
+      </div>
+      <div className="jini-attachment-preview-meta-row">
+        <span className="jini-attachment-preview-meta-label">{t('Type')}</span>
+        <span>{looksLikeImageAttachment({ attachment: attachment }) ? t('Image') : t('File')}</span>
+      </div>
+      {sizeLabel ? (
+        <div className="jini-attachment-preview-meta-row">
+          <span className="jini-attachment-preview-meta-label">{t('Size')}</span>
+          <span>{sizeLabel}</span>
+        </div>
+      ) : null}
+      <div className="jini-attachment-preview-meta-note">{t('A preview is not available for this file.')}</div>
+    </div>
+  );
+}
+
+/** Previous/next side by side in the bottom-right corner, with the "2 / 5" position before them. */
+function AttachmentPreviewNav({ navigation }: { navigation: AttachmentPreviewNavigation }) {
+  const t = useT();
+  return (
+    <div className="jini-attachment-preview-nav">
+      <span className="jini-attachment-preview-count" aria-live="polite">
+        {t('{index} / {count}', { index: navigation.index + 1, count: navigation.count })}
+      </span>
+      <button
+        type="button"
+        className="jini-attachment-preview-step"
+        onClick={navigation.onPrevious}
+        title={t('Previous image')}
+        aria-label={t('Previous image')}
+      >
+        <Icon name="chevron-left" size={18} />
+      </button>
+      <button
+        type="button"
+        className="jini-attachment-preview-step"
+        onClick={navigation.onNext}
+        title={t('Next image')}
+        aria-label={t('Next image')}
+      >
+        <Icon name="chevron-right" size={18} />
+      </button>
+    </div>
   );
 }
