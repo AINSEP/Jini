@@ -169,6 +169,11 @@ describe('validateBaseUrlResolved', () => {
     expect(result.error).toBeUndefined();
   });
 
+  it('fails closed when the lookup resolves to no addresses', async () => {
+    const result = await validateBaseUrlResolved({ baseUrl: 'https://api.example.com', lookup: async () => [] });
+    expect(result).toEqual({ error: 'DNS lookup returned no addresses', forbidden: true });
+  });
+
   it('fails closed on a DNS lookup failure instead of allowing an unpinned request', async () => {
     const lookup = vi.fn(async () => {
       throw new Error('ENOTFOUND');
@@ -430,6 +435,71 @@ describe('pinnedFetch', () => {
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+  });
+});
+
+describe('pinnedFetch boundaries', () => {
+  async function listen(handler: http.RequestListener): Promise<{ server: http.Server; port: number }> {
+    const server = http.createServer(handler);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('expected an AddressInfo');
+    return { server, port: address.port };
+  }
+  const close = (server: http.Server) => new Promise<void>((resolve) => server.close(() => resolve()));
+
+  it('names no target when a redirect carries no location header', async () => {
+    const { server, port } = await listen((_req, res) => { res.statusCode = 302; res.end(); });
+    try {
+      await expect(pinnedFetch({ url: `http://127.0.0.1:${port}/v1`, init: { method: 'POST', headers: {}, body: '{}' }, pinnedAddress: undefined }))
+        .rejects.toThrow(/^pinnedFetch: refused to follow a 302 redirect\. Matches/);
+    } finally {
+      await close(server);
+    }
+  });
+
+  it('names the redirect target from the location header', async () => {
+    const { server, port } = await listen((_req, res) => { res.statusCode = 307; res.setHeader('location', 'http://10.0.0.1/x'); res.end(); });
+    try {
+      await expect(pinnedFetch({ url: `http://127.0.0.1:${port}/v1`, init: { method: 'POST', headers: {}, body: '{}' }, pinnedAddress: undefined }))
+        .rejects.toThrow('pinnedFetch: refused to follow a 307 redirect to "http://10.0.0.1/x". Matches');
+    } finally {
+      await close(server);
+    }
+  });
+
+  it('destroys an in-flight request when the signal aborts after it was sent', async () => {
+    const controller = new AbortController();
+    const { server, port } = await listen(() => { controller.abort(); });
+    try {
+      await expect(pinnedFetch({ url: `http://svc.invalid:${port}/v1`, init: { method: 'POST', headers: {}, body: '{}', signal: controller.signal }, pinnedAddress: { address: '127.0.0.1', family: 4 } }))
+        .rejects.toThrow('The operation was aborted');
+    } finally {
+      await close(server);
+    }
+  });
+
+  it('destroys a request that goes idle past the inactivity window', async () => {
+    // Fire the socket-inactivity callback immediately instead of waiting 300s of real time.
+    const spy = vi.spyOn(http.ClientRequest.prototype, 'setTimeout').mockImplementation(function (this: http.ClientRequest, _ms: number, callback?: () => void) {
+      if (callback) setImmediate(callback);
+      return this;
+    });
+    const { server, port } = await listen(() => { /* never responds */ });
+    try {
+      await expect(pinnedFetch({ url: `http://127.0.0.1:${port}/v1`, init: { method: 'POST', headers: {}, body: '{}' }, pinnedAddress: undefined }))
+        .rejects.toThrow('pinnedFetch: no activity for 300000ms');
+    } finally {
+      spy.mockRestore();
+      server.closeAllConnections();
+      await close(server);
+    }
+  });
+
+  it('dials the https default port when the url names none', async () => {
+    // Nothing listens on 127.0.0.1:443 here, so the refused connection proves the dial target.
+    await expect(pinnedFetch({ url: 'https://svc.invalid/v1', init: { method: 'POST', headers: {}, body: '{}' }, pinnedAddress: { address: '127.0.0.1', family: 4 } }))
+      .rejects.toMatchObject({ code: 'ECONNREFUSED', port: 443 });
   });
 });
 

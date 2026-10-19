@@ -44,6 +44,7 @@
  * that actually matters, the UI accepts one this guard would have refused.
  */
 
+import type { IncomingHttpHeaders } from 'node:http';
 import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/platform/net';
 
 export interface BaseUrlValidationResult {
@@ -225,6 +226,41 @@ export type PinnedFetch = (
  */
 const PINNED_FETCH_IDLE_TIMEOUT_MS = 300_000;
 
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+/** Why a {@link pinnedFetch} response must be refused instead of handed back, or `undefined` to accept it. */
+function pinnedResponseRefusal({ headers, status }: { headers: IncomingHttpHeaders; status: number }): Error | undefined {
+  // A server may compress despite `accept-encoding: identity`. Nothing downstream
+  // decompresses, so failing loudly here is strictly better than handing back bytes the
+  // caller will misparse: a hard error names the cause, silent garbage does not.
+  const encoding = headers['content-encoding']?.trim();
+  if (encoding && encoding.toLowerCase() !== 'identity') {
+    return new Error(
+      `pinnedFetch: response used unsupported content-encoding "${headers['content-encoding']}". `
+      + 'This transport does not decompress; the request asked for identity.',
+    );
+  }
+  // `http(s).request` never auto-follows a redirect the way `fetch`'s default does, but
+  // that alone is a WEAKER posture than the `redirect: 'error'` callers ask for: real
+  // `fetch` THROWS on a 3xx, whereas simply not following one would resolve normally with
+  // `status: 302` and a likely-empty body — turning the guard's hard failure into a quiet
+  // `ok: false` a caller could half-handle as a generic upstream error. That undersells the
+  // reviewer's original finding: a guard-passing endpoint could 302 into blocked address
+  // space with auth headers still attached. So this rejects explicitly, matching `fetch`'s
+  // throw rather than merely approximating it by omission. Only the five redirect codes
+  // `fetch` itself treats as redirects (a `Location` header is what actually enables the
+  // rebinding hop) — NOT every 3xx: `304 Not Modified` carries no `Location` and no provider
+  // in this package sends conditional-request headers that could ever produce one.
+  if (REDIRECT_STATUSES.has(status)) {
+    return new Error(
+      `pinnedFetch: refused to follow a ${status} redirect`
+      + (typeof headers.location === 'string' ? ` to "${headers.location}"` : '')
+      + '. Matches fetch\'s redirect: \'error\' behavior — a guard-passing endpoint redirecting into blocked address space is the other half of the SSRF finding this transport closes.',
+    );
+  }
+  return undefined;
+}
+
 /**
  * `fetch()`-shaped POST that dials `pinnedAddress` directly instead of letting the transport
  * re-resolve DNS when it connects — see {@link validateBaseUrlResolved}'s doc for the TOCTOU this
@@ -260,7 +296,6 @@ export async function pinnedFetch({ url, init, pinnedAddress }: { url: string; i
   const { request: httpsRequest } = await import('node:https');
   const { request: httpRequest } = await import('node:http');
   const transportRequest = isHttps ? httpsRequest : httpRequest;
-  const family = pinnedAddress?.family === 6 ? 6 : 4;
 
   return new Promise<PinnedFetchResponse>((resolve, reject) => {
     const req = transportRequest(
@@ -296,47 +331,20 @@ export async function pinnedFetch({ url, init, pinnedAddress }: { url: string; i
                 _options: unknown,
                 callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
               ): void => {
-                callback(null, pinnedAddress.address, family);
+                // The resolver's own family (node:dns `lookup` only ever reports 4 or 6).
+                callback(null, pinnedAddress.address, pinnedAddress.family);
               },
             }
           : {}),
       },
       (res) => {
-        const status = res.statusCode ?? 0;
-        // A server may compress despite `accept-encoding: identity`. Nothing downstream
-        // decompresses, so failing loudly here is strictly better than handing back bytes the
-        // caller will misparse: a hard error names the cause, silent garbage does not.
-        const encoding = res.headers['content-encoding'];
-        if (typeof encoding === 'string' && encoding.trim() !== '' && encoding.trim().toLowerCase() !== 'identity') {
+        // Non-null: `statusCode` is optional on IncomingMessage only because server-side
+        // requests share the type; a client response always carries one.
+        const status = res.statusCode!;
+        const refusal = pinnedResponseRefusal({ headers: res.headers, status });
+        if (refusal) {
           res.resume(); // drain, so the socket is not left half-read
-          reject(
-            new Error(
-              `pinnedFetch: response used unsupported content-encoding "${encoding}". `
-              + 'This transport does not decompress; the request asked for identity.',
-            ),
-          );
-          return;
-        }
-        // `http(s).request` never auto-follows a redirect the way `fetch`'s default does, but
-        // that alone is a WEAKER posture than the `redirect: 'error'` callers ask for: real
-        // `fetch` THROWS on a 3xx, whereas simply not following one would resolve normally with
-        // `status: 302` and a likely-empty body — turning the guard's hard failure into a quiet
-        // `ok: false` a caller could half-handle as a generic upstream error. That undersells the
-        // reviewer's original finding: a guard-passing endpoint could 302 into blocked address
-        // space with auth headers still attached. So this rejects explicitly, matching `fetch`'s
-        // throw rather than merely approximating it by omission. Only the five redirect codes
-        // `fetch` itself treats as redirects (a `Location` header is what actually enables the
-        // rebinding hop) — NOT every 3xx: `304 Not Modified` carries no `Location` and no provider
-        // in this package sends conditional-request headers that could ever produce one.
-        if (status === 301 || status === 302 || status === 303 || status === 307 || status === 308) {
-          res.resume();
-          reject(
-            new Error(
-              `pinnedFetch: refused to follow a ${status} redirect`
-              + (typeof res.headers.location === 'string' ? ` to "${res.headers.location}"` : '')
-              + '. Matches fetch\'s redirect: \'error\' behavior — a guard-passing endpoint redirecting into blocked address space is the other half of the SSRF finding this transport closes.',
-            ),
-          );
+          reject(refusal);
           return;
         }
         resolve({
