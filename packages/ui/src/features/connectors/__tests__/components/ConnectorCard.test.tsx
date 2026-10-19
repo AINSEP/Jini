@@ -348,4 +348,89 @@ describe('ConnectorCard', () => {
     );
     expect(screen.getByText('CRM')).toBeTruthy();
   });
+
+  it('does not open details when the connect action is clicked', async () => {
+    const onOpenDetails = vi.fn();
+    render(
+      <ConnectorCard
+        connector={makeConnector()}
+        pendingAction={null}
+        authorizationCancelFailed={false}
+        toolsLoaded={false}
+        onConnect={noop}
+        onDisconnect={noop}
+        onCancelAuthorization={noop}
+        onOpenDetails={onOpenDetails}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    expect(onOpenDetails).not.toHaveBeenCalled();
+  });
+
+  it('shows the "No tools" badge once tools are loaded even with no tool count or tools', () => {
+    render(
+      <ConnectorCard
+        connector={makeConnector()}
+        pendingAction={null}
+        authorizationCancelFailed={false}
+        toolsLoaded
+        onConnect={noop}
+        onDisconnect={noop}
+        onCancelAuthorization={noop}
+        onOpenDetails={noop}
+      />,
+    );
+    expect(screen.getByText('No tools')).toBeTruthy();
+  });
+
+  it('shows a Disabled status pill for a disabled connector', () => {
+    render(
+      <ConnectorCard
+        connector={makeConnector({ status: 'disabled' })}
+        pendingAction={null}
+        authorizationCancelFailed={false}
+        toolsLoaded={false}
+        onConnect={noop}
+        onDisconnect={noop}
+        onCancelAuthorization={noop}
+        onOpenDetails={noop}
+      />,
+    );
+    expect(screen.getByText('Disabled')).toBeTruthy();
+  });
+
+  it('gives the connect action a sub-handle of the card handle', () => {
+    render(
+      <ConnectorCard
+        connector={makeConnector()}
+        pendingAction={null}
+        authorizationCancelFailed={false}
+        toolsLoaded={false}
+        onConnect={noop}
+        onDisconnect={noop}
+        onCancelAuthorization={noop}
+        onOpenDetails={noop}
+        agentHandle="card"
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Connect' }).getAttribute('data-agent-element')).toBe('card-connect');
+  });
+
+  it('gives the disconnect action a sub-handle of the card handle', () => {
+    render(
+      <ConnectorCard
+        connector={makeConnector({ status: 'connected' })}
+        pendingAction={null}
+        authorizationCancelFailed={false}
+        toolsLoaded={false}
+        onConnect={noop}
+        onDisconnect={noop}
+        onCancelAuthorization={noop}
+        onOpenDetails={noop}
+        agentHandle="card"
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Disconnect' }).getAttribute('data-agent-element')).toBe('card-disconnect');
+  });
 });
+
