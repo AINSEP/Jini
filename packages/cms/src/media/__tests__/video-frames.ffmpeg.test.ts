@@ -1,9 +1,12 @@
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { ChildProcess, spawn } from 'node:child_process';
-import { access, readdir, writeFile } from 'node:fs/promises';
+import { chmodSync, writeFileSync } from 'node:fs';
+import { access, chmod, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
-import { createFfmpegVideoFrameExtractor, runLowPriorityVideoProcess } from '../video-frames.ffmpeg.js';
+import { createFfmpegVideoFrameExtractor, findVideoBinaries, runLowPriorityVideoProcess } from '../video-frames.ffmpeg.js';
 import { VIDEO_EXTRACTION_TIMEOUT_MS, VIDEO_MAX_FRAME_BYTES, VIDEO_MAX_INPUT_BYTES, VIDEO_MAX_OUTPUT_BYTES, VIDEO_MAX_SHEET_BYTES } from '../video-frames.js';
 
 // Contract: 2026-10-06-release-0111-video64b/spec.md.
@@ -574,4 +577,149 @@ it('observes cancellation after a runner returns, before starting any later batc
   expect(await extractor.extract({ bytes: mp4 }, { frames: 64, signal: controller.signal })).toEqual({ ok: false, reason: 'canceled', message: 'Video preview canceled.' });
   expect(calls).toBe(2);
   await expect(access(inputPath)).rejects.toThrow();
+});
+
+function jpegOf(size: number) {
+  const image = Buffer.alloc(size);
+  image.set([255, 216], 0);
+  image.set([255, 217], size - 2);
+  return image;
+}
+function spawnOf(childProcess: ReturnType<typeof child>) { return (() => childProcess as unknown as ChildProcess) as typeof spawn; }
+
+it('discovers nice, ffmpeg and ffprobe only as absolute executable files and never on win32', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'video-bin-'));
+  try {
+    const bin = join(root, 'bin');
+    await mkdir(bin);
+    await mkdir(join(bin, 'ffprobe')); // A directory is not an executable file.
+    for (const name of ['nice', 'ffmpeg']) await writeFile(join(bin, name), '#!/bin/sh\n', { mode: 0o755 });
+    await writeFile(join(root, 'ffprobe'), '#!/bin/sh\n', { mode: 0o755 });
+    const env = { PATH: ['relative/bin', bin].join(':'), FFPROBE_PATH: join(root, 'ffprobe') };
+    expect(await findVideoBinaries({}, { env, platform: 'linux' })).toEqual({ nice: join(bin, 'nice'), ffmpeg: join(bin, 'ffmpeg'), ffprobe: join(root, 'ffprobe') });
+    // A relative configured path is host misconfiguration, never resolved against the cwd.
+    expect(await findVideoBinaries({}, { env: { ...env, FFMPEG_PATH: 'ffmpeg' }, platform: 'linux' })).toBeUndefined();
+    expect(await findVideoBinaries({}, { env, platform: 'win32' })).toBeUndefined();
+    expect(await findVideoBinaries({}, { env: { FFMPEG_PATH: '/missing/ffmpeg' }, platform: 'linux' })).toBeUndefined(); // No PATH at all.
+    const fromHost = await (findVideoBinaries as (required: Record<string, never>) => Promise<unknown>)({});
+    expect(fromHost === undefined || typeof fromHost === 'object').toBe(true);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it('refuses an already-canceled or zero-budget process before spawning', async () => {
+  const spawnProcess = vi.fn();
+  const controller = new AbortController();
+  controller.abort();
+  await expect(runLowPriorityVideoProcess({ command: '/usr/bin/nice', args: [], spawnProcess: spawnProcess as unknown as typeof spawn }, { timeoutMs: 10, maxOutputBytes: 1, signal: controller.signal })).rejects.toThrow(/canceled/);
+  await expect(runLowPriorityVideoProcess({ command: '/usr/bin/nice', args: [], spawnProcess: spawnProcess as unknown as typeof spawn }, { timeoutMs: 0, maxOutputBytes: 1 })).rejects.toThrow(/timed out/);
+  expect(spawnProcess).not.toHaveBeenCalled();
+});
+
+it('resolves bounded stdout on a clean exit and settles only once', async () => {
+  const childProcess = child();
+  const pending = runLowPriorityVideoProcess({ command: '/usr/bin/nice', args: ['-n'], spawnProcess: spawnOf(childProcess) }, { timeoutMs: 100, maxOutputBytes: 4 });
+  childProcess.stdout.emit('data', Buffer.from('ab'));
+  childProcess.stdout.emit('data', Buffer.from('cd'));
+  childProcess.emit('close', 0);
+  childProcess.emit('error', Object.assign(new Error('late'), { code: 'EACCES' }));
+  expect(Buffer.from(await pending).toString()).toBe('abcd');
+});
+
+it.each([['EACCES', /could not start/], ['EIO', /could not start/]] as const)('maps a %s spawn error and a nonzero exit to typed failures', async (code, message) => {
+  const failed = child();
+  const pending = runLowPriorityVideoProcess({ command: '/usr/bin/nice', args: [], spawnProcess: spawnOf(failed) }, { timeoutMs: 100, maxOutputBytes: 4 });
+  failed.emit('error', Object.assign(new Error('spawn'), { code }));
+  await expect(pending).rejects.toThrow(message);
+  const exited = child();
+  const decoding = runLowPriorityVideoProcess({ command: '/usr/bin/nice', args: [], spawnProcess: spawnOf(exited) }, { timeoutMs: 100, maxOutputBytes: 4 });
+  exited.emit('close', 1);
+  await expect(decoding).rejects.toThrow(/could not decode/);
+});
+
+it('stops once, ignores output after stopping and falls back to killing the child', async () => {
+  const childProcess = child();
+  Object.assign(childProcess, { pid: undefined });
+  const controller = new AbortController();
+  const killGroup = vi.fn();
+  const pending = runLowPriorityVideoProcess({ command: '/usr/bin/nice', args: [], spawnProcess: spawnOf(childProcess), killGroup }, { timeoutMs: 100, maxOutputBytes: 1, signal: controller.signal });
+  childProcess.stdout.emit('data', Buffer.alloc(2));
+  childProcess.stdout.emit('data', Buffer.alloc(1)); // Ignored once stopped.
+  controller.abort(); // A second stop reason never replaces the first.
+  childProcess.emit('close', null);
+  await expect(pending).rejects.toThrow(/output limit/);
+  expect(killGroup).not.toHaveBeenCalled();
+  expect(childProcess.kill).toHaveBeenCalledTimes(1);
+  const grouped = child();
+  const throwing = vi.fn(() => { throw new Error('ESRCH'); });
+  const timed = runLowPriorityVideoProcess({ command: '/usr/bin/nice', args: [], spawnProcess: spawnOf(grouped), killGroup: throwing }, { timeoutMs: 100, maxOutputBytes: 1 });
+  grouped.stdout.emit('data', Buffer.alloc(2));
+  grouped.emit('close', null);
+  await expect(timed).rejects.toThrow(/output limit/);
+  expect(grouped.kill).toHaveBeenCalledWith('SIGKILL');
+});
+
+it('observes a cancellation that lands while the process is spawning', async () => {
+  const childProcess = child();
+  const controller = new AbortController();
+  const killGroup = vi.fn(() => childProcess.emit('close', null));
+  const spawnProcess = (() => { controller.abort(); return childProcess as unknown as ChildProcess; }) as unknown as typeof spawn;
+  await expect(runLowPriorityVideoProcess({ command: '/usr/bin/nice', args: [], spawnProcess, killGroup }, { timeoutMs: 100, maxOutputBytes: 1, signal: controller.signal })).rejects.toThrow(/canceled/);
+  expect(killGroup).toHaveBeenCalledTimes(1);
+});
+
+it('passes host env and platform to discovery and reports an unavailable spawn as unavailable', async () => {
+  const findBinaries = vi.fn(binaries);
+  const extractor = createFfmpegVideoFrameExtractor({ findBinaries, env: { PATH: '/x' }, platform: 'linux', runProcess: (required, optional) => {
+    const failed = child();
+    const pending = runLowPriorityVideoProcess({ ...required, spawnProcess: spawnOf(failed) }, optional);
+    failed.emit('error', Object.assign(new Error('missing'), { code: 'ENOENT' }));
+    return pending;
+  } }, {});
+  expect(await extractor.extract({ bytes: mp4 }, {})).toEqual({ ok: false, reason: 'unavailable', message: 'video preview unavailable on this host (nice, ffmpeg and ffprobe are required).' });
+  expect(findBinaries).toHaveBeenCalledWith({}, { env: { PATH: '/x' }, platform: 'linux' });
+});
+
+it('refuses a pre-canceled request and a deadline that expires between the check and the launch', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const run = vi.fn();
+  const canceled = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: run }, {});
+  expect(await canceled.extract({ bytes: mp4 }, { signal: controller.signal })).toEqual({ ok: false, reason: 'canceled', message: 'Video preview canceled.' });
+  const clock = [0, 0, VIDEO_EXTRACTION_TIMEOUT_MS];
+  const racing = createFfmpegVideoFrameExtractor({ findBinaries: binaries, nowMs: () => clock.shift() ?? VIDEO_EXTRACTION_TIMEOUT_MS, runProcess: run }, {});
+  expect(await racing.extract({ bytes: mp4 }, {})).toEqual({ ok: false, reason: 'timeout', message: 'Video preview timed out.' });
+  expect(run).not.toHaveBeenCalled();
+});
+
+// The size gate reads stat; the total gate catches a file that grew before it was read.
+it.each(['frames', 'sheet'] as const)('refuses a %s output that grows past the total budget after its size check', async layout => {
+  let pending = 0;
+  let target = '';
+  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, nowMs: () => {
+    if (pending > 0 && --pending === 0) writeFileSync(target, jpegOf(VIDEO_MAX_OUTPUT_BYTES + 1));
+    return 0;
+  }, runProcess: async required => {
+    if (required.args[2] === '/host/ffprobe') return Buffer.from(probe);
+    await emitImages(required.args, [jpeg]);
+    const isSheet = required.args.includes('[sheet]');
+    if (isSheet === (layout === 'sheet')) { target = outputs(required.args)[0]!; pending = isSheet ? 2 : 3; }
+    return new Uint8Array();
+  } }, {});
+  expect(await extractor.extract({ bytes: mp4 }, { frames: 1, layout })).toEqual({ ok: false, reason: 'invalid', message: 'Video preview exceeded its total output limit (8 MiB).' });
+});
+
+it('reports temporary files that cannot be removed and still releases the lock', async () => {
+  let directory = '';
+  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async required => {
+    directory = dirname(required.args[required.args.indexOf('-i') + 1]!);
+    chmodSync(directory, 0o500);
+    throw new Error('probe failed');
+  } }, {});
+  try {
+    expect(await extractor.extract({ bytes: mp4 }, {})).toEqual({ ok: false, reason: 'invalid', message: 'Video preview temporary files could not be removed.' });
+  } finally {
+    await chmod(directory, 0o700);
+    await rm(directory, { recursive: true, force: true });
+  }
+  expect(await createFfmpegVideoFrameExtractor({ findBinaries: async () => undefined }, {}).extract({ bytes: mp4 }, {})).toMatchObject({ reason: 'unavailable' });
 });
