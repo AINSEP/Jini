@@ -288,16 +288,22 @@ export function nextConfigForPresetSelect(config: ByokConfig, preset: ProviderPr
   if (preset.custom) {
     return { ...config, providerId: null, savedByProviderId };
   }
-  const saved = savedByProviderId[preset.id];
   return {
     ...config,
     providerId: preset.id,
     protocol: preset.protocol,
+    ...presetCredentials(savedByProviderId[preset.id], preset),
+    savedByProviderId,
+  };
+}
+
+/** A preset's saved draft, or blank credentials seeded with its base URL and top preferred model. */
+function presetCredentials(saved: ByokProviderCredentials | undefined, preset: ProviderPreset): ByokProviderCredentials {
+  return {
     apiKey: saved?.apiKey ?? '',
     baseUrl: saved?.baseUrl ?? (preset.baseUrl || DEFAULT_BASE_URL_BY_PROTOCOL[preset.protocol]),
     model: saved?.model ?? preset.preferredModels[0] ?? '',
     maxTokens: saved?.maxTokens,
-    savedByProviderId,
   };
 }
 
