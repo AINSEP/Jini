@@ -1,21 +1,28 @@
-import grapesjs, { type Editor } from 'grapesjs';
-import { afterEach, describe, expect, it } from 'vitest';
+import grapesjs, { type AddComponentTypeOptions, type Component, type ComponentView, type Editor } from 'grapesjs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { prepareEditorSource, type RequestEditHtml } from '../editor-blocks.js';
-import { assertPreparedSourceModel, EditorSourceError, protectTextAncestors, registerProtectedElementType } from '../protected-elements.js';
+import {
+  assertPreparedSourceModel, assertProtectedSourceMetadata, EditorSourceError, isEditorSourceError, PROTECTED_ELEMENT_TYPE,
+  protectedCanvasDescriber, protectTextAncestors, registerProtectedElementType,
+} from '../protected-elements.js';
 import { serializeEditorSource } from '../editor-serialization.js';
 
 // Headless model/parser tests exercise real GrapesJS serialization without waiting on iframe load.
 // Selection, drag/drop, RTE chrome and canvas stylesheet sizing still require the browser check.
 const editors: Editor[] = [];
-function mount(html: string, onRequestEditHtml?: RequestEditHtml) {
+type RegisterOptions = Parameters<typeof registerProtectedElementType>[1];
+function mountWith({ html }: { html: string }, options: RegisterOptions = {}) {
   const plan = prepareEditorSource({ html }, {});
   if (!plan.ok) throw new Error(plan.problem);
   const editor = grapesjs.init({ headless: true, autorender: false, components: plan.html, avoidInlineStyle: false, forceClass: false,
     parser: { optionsHtml: { allowScripts: false, keepEmptyTextNodes: true } },
-    storageManager: false, plugins: [editor => registerProtectedElementType({ editor, sourcePlan: plan }, { onRequestEditHtml })] });
+    storageManager: false, plugins: [editor => registerProtectedElementType({ editor, sourcePlan: plan }, options)] });
   editors.push(editor);
   assertPreparedSourceModel({ editor, sourcePlan: plan }, {});
   return { editor, plan, wrapper: editor.getWrapper()! };
+}
+function mount(html: string, onRequestEditHtml?: RequestEditHtml) {
+  return mountWith({ html }, { onRequestEditHtml });
 }
 afterEach(async () => { await Promise.all(editors.splice(0).map(editor => editor.destroy())); });
 // data-editor="block": a phrasing-only span with data-kui alone is an editable text effect.
@@ -124,3 +131,218 @@ describe('same protected type — exact raw model contract', () => {
    wrapper.findType('protected-element')[0]!.remove();
    expect(() => assertPreparedSourceModel({ editor, sourcePlan: plan }, {})).toThrow(EditorSourceError);
  });
+
+describe('EditorSourceError', () => {
+  it('defaults to the visual-edit refusal message', () => {
+    const error = new EditorSourceError();
+    expect([error.message, error.name, error.code]).toEqual(["Can't edit this source visually. Use HTML.", 'EditorSourceError', 'EDITOR_SOURCE_INTEGRITY']);
+  });
+  it('accepts a specific message', () => {
+    expect(new EditorSourceError({ message: 'shell lost' }).message).toBe('shell lost');
+  });
+});
+
+describe('isEditorSourceError', () => {
+  it('recognizes an EditorSourceError', () => {
+    expect(isEditorSourceError({ error: new EditorSourceError() })).toBe(true);
+  });
+  it('recognizes any object carrying the integrity code', () => {
+    expect(isEditorSourceError({ error: { code: 'EDITOR_SOURCE_INTEGRITY' } }, {})).toBe(true);
+  });
+  it.each([null, 'EDITOR_SOURCE_INTEGRITY', new Error('x'), { code: 'OTHER' }])('rejects %o', error => {
+    expect(isEditorSourceError({ error })).toBe(false);
+  });
+});
+
+describe('editor without a wrapper', () => {
+  const wrapperless = () => {
+    const { editor } = mount('<p>x</p>');
+    vi.spyOn(editor, 'getWrapper').mockReturnValue(undefined);
+    return editor;
+  };
+  it('refuses the prepared-model check', () => {
+    const { plan } = mount('<p>x</p>');
+    expect(() => assertPreparedSourceModel({ editor: wrapperless(), sourcePlan: plan })).toThrow(new EditorSourceError());
+  });
+  it('skips the metadata check', () => {
+    expect(() => assertProtectedSourceMetadata({ editor: wrapperless() })).not.toThrow();
+  });
+  it('skips protecting text ancestors', () => {
+    expect(() => protectTextAncestors({ editor: wrapperless() })).not.toThrow();
+  });
+  it('describes nothing', () => {
+    expect(protectedCanvasDescriber({ editor: wrapperless() })(document.createElement('canvas'))).toBeUndefined();
+  });
+});
+
+it('rejects an initial model whose retained source differs from the plan', () => {
+  const { editor, plan, wrapper } = mount('<canvas></canvas>');
+  wrapper.findType(PROTECTED_ELEMENT_TYPE)[0]!.set('originalHtml', '<canvas id="x"></canvas>');
+  expect(() => assertPreparedSourceModel({ editor, sourcePlan: plan })).toThrow(new EditorSourceError());
+});
+
+it('leaves non-text ancestors of a protected element editable', () => {
+  const { editor, wrapper } = mount('<section><canvas></canvas></section>');
+  const section = wrapper.components().at(0);
+  section.set('editable', true);
+  protectTextAncestors({ editor });
+  expect([section.is('text'), section.get('editable')]).toEqual([false, true]);
+});
+
+describe('protectedCanvasDescriber', () => {
+  it('maps a rendered visual block element to its descriptor, never a nonvisual atom or an unrendered block', () => {
+    const { editor, wrapper } = mount('<canvas id="c"></canvas><script>x()</script><canvas></canvas>');
+    const [canvas, script, unrendered] = wrapper.findType(PROTECTED_ELEMENT_TYPE) as [Component, Component, Component];
+    const canvasEl = document.createElement('canvas');
+    const scriptEl = document.createElement('span');
+    vi.spyOn(canvas, 'getEl').mockReturnValue(canvasEl);
+    vi.spyOn(script, 'getEl').mockReturnValue(scriptEl);
+    vi.spyOn(unrendered, 'getEl').mockReturnValue(undefined);
+    const describe = protectedCanvasDescriber({ editor });
+    expect(describe(canvasEl)).toEqual({ kindLabel: 'Canvas', identityLabel: '#c', presentation: 'runtime', guidanceLabel: 'Locked · Edit in HTML · Preview plays it', inline: false });
+    expect(describe(scriptEl)).toBeUndefined();
+  });
+  it('skips a block without a descriptor', () => {
+    const { editor, wrapper } = mount('<canvas></canvas>');
+    const block = wrapper.findType(PROTECTED_ELEMENT_TYPE)[0]!;
+    const el = document.createElement('canvas');
+    block.unset('placeholderDescriptor');
+    vi.spyOn(block, 'getEl').mockReturnValue(el);
+    expect(protectedCanvasDescriber({ editor })(el)).toBeUndefined();
+  });
+});
+
+describe('protected type registration', () => {
+  const typeOf = (editor: Editor) => editor.Components.getType(PROTECTED_ELEMENT_TYPE)!;
+  it('resolves a token read from a plain attributes object', () => {
+    const { editor, plan } = mount('<canvas></canvas>');
+    const isComponent: NonNullable<AddComponentTypeOptions['isComponent']> = typeOf(editor).model.isComponent;
+    const node = document.createElement('div');
+    Object.defineProperty(node, 'getAttribute', { value: undefined });
+    Object.defineProperty(node, 'attributes', { value: { [plan.markerAttribute]: '0' } });
+    expect(isComponent(node)).toMatchObject({ type: PROTECTED_ELEMENT_TYPE, originalHtml: '<canvas></canvas>', sourceTagName: 'canvas' });
+  });
+  it('ignores an element without a token', () => {
+    const { editor } = mount('<canvas></canvas>');
+    const isComponent: NonNullable<AddComponentTypeOptions['isComponent']> = typeOf(editor).model.isComponent;
+    expect(isComponent(document.createElement('div'))).toBeUndefined();
+  });
+  it.each(['9', '00', '0.0'])('refuses token %s that does not name a planned instance exactly', token => {
+    const { editor, plan } = mount('<canvas></canvas>');
+    const isComponent: NonNullable<AddComponentTypeOptions['isComponent']> = typeOf(editor).model.isComponent;
+    const node = document.createElement('div');
+    node.setAttribute(plan.markerAttribute, token);
+    expect(() => isComponent(node)).toThrow(new EditorSourceError());
+  });
+  it('renders a visual block as non-editable', () => {
+    const { editor, wrapper } = mount('<canvas></canvas>');
+    const View: new (options: { model: Component; config: unknown }) => ComponentView = typeOf(editor).view;
+    const view = new View({ model: wrapper.findType(PROTECTED_ELEMENT_TYPE)[0]!, config: editor.Components.config }).render();
+    expect([view.el.getAttribute('contenteditable'), view.el.style.getPropertyValue('display')]).toEqual(['false', '']);
+  });
+  it('renders a nonvisual atom hidden', () => {
+    const { editor, wrapper } = mount('<script>x()</script>');
+    const View: new (options: { model: Component; config: unknown }) => ComponentView = typeOf(editor).view;
+    const view = new View({ model: wrapper.findType(PROTECTED_ELEMENT_TYPE)[0]!, config: editor.Components.config }).render();
+    expect([view.el.style.getPropertyValue('display'), view.el.style.getPropertyPriority('display')]).toEqual(['none', 'important']);
+  });
+  it('makes a nonvisual atom inert and gives it no Edit HTML action', () => {
+    const { wrapper } = mount('<script>x()</script>', () => {});
+    const atom = wrapper.findType(PROTECTED_ELEMENT_TYPE)[0]!;
+    expect(['selectable', 'draggable', 'hoverable', 'copyable'].map(flag => atom.get(flag))).toEqual([false, false, false, false]);
+    expect((atom.get('toolbar') as { command: string }[]).map(item => item.command)).not.toContain('jini:protected-edit-html');
+  });
+  it('labels the Edit HTML action with the host label', () => {
+    const { wrapper } = mountWith({ html: '<canvas></canvas>' }, { onRequestEditHtml: () => {}, editHtmlLabel: 'Bearbeiten' });
+    const toolbar = wrapper.findType(PROTECTED_ELEMENT_TYPE)[0]!.get('toolbar') as { command: string; label?: string; attributes?: Record<string, string> }[];
+    expect(toolbar.find(item => item.command === 'jini:protected-edit-html')).toEqual({
+      label: 'Bearbeiten', command: 'jini:protected-edit-html',
+      attributes: { title: 'Bearbeiten', 'aria-label': 'Bearbeiten', style: 'width:auto;white-space:nowrap;padding:5px 8px' },
+    });
+  });
+  it('registers no Edit HTML command without a host handler', () => {
+    const { editor } = mount('<canvas></canvas>');
+    expect(editor.Commands.has('jini:protected-edit-html')).toBe(false);
+  });
+});
+
+describe('Edit HTML command', () => {
+  const run = async (editor: Editor) => { await editor.Commands.run('jini:protected-edit-html'); };
+  it('waits for the host flush before reading the selection', async () => {
+    const calls: string[] = [];
+    const { editor, wrapper } = mountWith({ html: '<canvas></canvas>' }, {
+      beforeRequestEditHtml: async () => { calls.push('flush'); },
+      onRequestEditHtml: target => { calls.push(JSON.stringify(target)); },
+    });
+    editor.select(wrapper.findType(PROTECTED_ELEMENT_TYPE)[0]!);
+    await run(editor);
+    expect(calls).toEqual(['flush', '{"occurrenceIndex":0,"tagName":"canvas"}']);
+  });
+  it.each([
+    ['nothing selected', () => undefined],
+    ['an ordinary component', (wrapper: Component) => wrapper.components().at(0)],
+    ['a nonvisual atom', (wrapper: Component) => wrapper.findType(PROTECTED_ELEMENT_TYPE)[0]],
+  ])('requests nothing for %s', async (_label, pick) => {
+    const onRequestEditHtml = vi.fn<RequestEditHtml>();
+    const { editor, wrapper } = mount('<p>x</p><script>x()</script>', onRequestEditHtml);
+    const selected = pick(wrapper);
+    if (selected) editor.select(selected);
+    await run(editor);
+    expect(onRequestEditHtml).not.toHaveBeenCalled();
+  });
+  it('requests nothing when the editor has no wrapper', async () => {
+    const onRequestEditHtml = vi.fn<RequestEditHtml>();
+    const { editor, wrapper } = mount('<canvas></canvas>', onRequestEditHtml);
+    editor.select(wrapper.findType(PROTECTED_ELEMENT_TYPE)[0]!);
+    vi.spyOn(editor, 'getWrapper').mockReturnValue(undefined);
+    await run(editor);
+    expect(onRequestEditHtml).not.toHaveBeenCalled();
+  });
+  it.each([
+    ['the exported HTML lacks the block source', ''],
+    ['the source appears only inside a comment', '<!--<canvas></canvas>-->'],
+    ['the first copy is in a comment before the element', '<!--<canvas></canvas>--><canvas></canvas>'],
+  ])('reports an integrity error when %s', async (_label, exported) => {
+    const errors: EditorSourceError[] = [];
+    const onRequestEditHtml = vi.fn<RequestEditHtml>();
+    const { editor, wrapper } = mountWith({ html: '<canvas></canvas>' }, { onRequestEditHtml, onSerializationError: error => { errors.push(error); } });
+    editor.select(wrapper.findType(PROTECTED_ELEMENT_TYPE)[0]!);
+    vi.spyOn(wrapper, 'getInnerHTML').mockReturnValue(exported);
+    await run(editor);
+    expect(errors).toEqual([new EditorSourceError()]);
+    expect(onRequestEditHtml).not.toHaveBeenCalled();
+  });
+  it('reports a host failure as a generic integrity error', async () => {
+    const errors: EditorSourceError[] = [];
+    const { editor, wrapper } = mountWith({ html: '<canvas></canvas>' }, {
+      onRequestEditHtml: () => { throw new Error('navigation failed'); }, onSerializationError: error => { errors.push(error); },
+    });
+    editor.select(wrapper.findType(PROTECTED_ELEMENT_TYPE)[0]!);
+    await run(editor);
+    expect(errors.map(error => [error.message, error.cause])).toEqual([["Can't edit this source visually. Use HTML.", undefined]]);
+  });
+  it('reports an asynchronous host failure', async () => {
+    const errors: EditorSourceError[] = [];
+    const { editor, wrapper } = mountWith({ html: '<canvas></canvas>' }, {
+      onRequestEditHtml: async () => { throw new Error('navigation failed'); }, onSerializationError: error => { errors.push(error); },
+    });
+    editor.select(wrapper.findType(PROTECTED_ELEMENT_TYPE)[0]!);
+    await run(editor);
+    expect(errors).toEqual([new EditorSourceError()]);
+  });
+  it('passes an integrity error through unchanged', async () => {
+    const errors: EditorSourceError[] = [];
+    const lost = new EditorSourceError({ message: 'lost' });
+    const { editor, wrapper } = mountWith({ html: '<canvas></canvas>' }, {
+      beforeRequestEditHtml: async () => { throw lost; }, onRequestEditHtml: () => {}, onSerializationError: error => { errors.push(error); },
+    });
+    editor.select(wrapper.findType(PROTECTED_ELEMENT_TYPE)[0]!);
+    await run(editor);
+    expect(errors[0]).toBe(lost);
+  });
+  it('swallows a failure when the host gave no error handler', async () => {
+    const { editor, wrapper } = mount('<canvas></canvas>', () => { throw new Error('navigation failed'); });
+    editor.select(wrapper.findType(PROTECTED_ELEMENT_TYPE)[0]!);
+    await expect(run(editor)).resolves.toBeUndefined();
+  });
+});

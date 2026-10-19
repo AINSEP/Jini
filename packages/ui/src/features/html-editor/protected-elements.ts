@@ -1,6 +1,6 @@
 import type { Component, Editor } from 'grapesjs';
 import type { CanvasEmbedPlaceholderDescriptor } from './canvas-embed-placeholders.js';
-import { findEditorBlockOpening, type PreparedEditorSource, type RequestEditHtml } from './editor-blocks.js';
+import { findEditorBlockOpening, type EditorHtmlTarget, type PreparedEditorSource, type RequestEditHtml } from './editor-blocks.js';
 
 export const PROTECTED_ELEMENT_TYPE = 'protected-element';
 
@@ -75,6 +75,41 @@ export function protectedCanvasDescriber({ editor }: { editor: Editor }, _option
 }
 
 /**
+ * Start offset of the selected block's authored slice in the exported HTML. Search only exact
+ * authored slices. Copies share bytes, so count preceding equal instances in model order; no mapping
+ * export mode or persistent source tokens are needed.
+ */
+function authoredStart({ wrapper, selected, original, html }: { wrapper: Component; selected: Component; original: string; html: string }): number {
+  let copiesBefore = 0;
+  let reached = false;
+  visit(wrapper, component => {
+    if (component === selected) reached = true;
+    else if (!reached && component.is(PROTECTED_ELEMENT_TYPE) && protectedElementHtml({ component }, {}) === original) copiesBefore++;
+  });
+  let start = -1;
+  for (let i = 0; i <= copiesBefore; i++) start = html.indexOf(original, start + 1);
+  if (start < 0) throw new EditorSourceError();
+  return start;
+}
+
+/** The selected block as an occurrence among same-tag (and same-id) elements of the exported HTML. */
+function editHtmlTarget({ wrapper, selected }: { wrapper: Component; selected: Component }): EditorHtmlTarget {
+  const original = protectedElementHtml({ component: selected }, {});
+  const html = wrapper.getInnerHTML();
+  const start = authoredStart({ wrapper, selected, original, html });
+  const tagName = selected.get('sourceTagName') as string;
+  const id = selected.get('sourceId') as string | undefined;
+  const target = (occurrenceIndex: number): EditorHtmlTarget => ({ occurrenceIndex, tagName, ...(id ? { id } : {}) });
+  let occurrenceIndex = 0;
+  for (;;) {
+    const range = findEditorBlockOpening({ html, target: target(occurrenceIndex) }, {});
+    if (!range || range.start > start) throw new EditorSourceError();
+    if (range.start === start) return target(occurrenceIndex);
+    occurrenceIndex++;
+  }
+}
+
+/**
  * Registers the `protected-element` component type so any parsed element `isProtectedElement`
  * recognizes becomes one atomic block: its content can never be edited (excluded from RTE
  * content-editing, including as a nested island inside a `text` component), dropped into, or styled,
@@ -106,29 +141,7 @@ export function registerProtectedElementType(
         const selected = editor.getSelected();
         const wrapper = editor.getWrapper();
         if (!selected?.is(PROTECTED_ELEMENT_TYPE) || !wrapper || selected.get('sourceNonvisual')) return;
-        const original = protectedElementHtml({ component: selected }, {});
-        const html = wrapper.getInnerHTML();
-        // Search only exact authored slices. Copies share bytes, so count preceding equal instances
-        // in model order; no mapping export mode or persistent source tokens are needed.
-        let copiesBefore = 0;
-        let reached = false;
-        visit(wrapper, component => {
-          if (component === selected) reached = true;
-          else if (!reached && component.is(PROTECTED_ELEMENT_TYPE) && protectedElementHtml({ component }, {}) === original) copiesBefore++;
-        });
-        let start = -1;
-        for (let i = 0; i <= copiesBefore; i++) start = html.indexOf(original, start + 1);
-        if (start < 0) throw new EditorSourceError();
-        const tagName = selected.get('sourceTagName') as string;
-        const id = selected.get('sourceId') as string | undefined;
-        let occurrenceIndex = 0;
-        for (;;) {
-          const range = findEditorBlockOpening({ html, target: { occurrenceIndex, tagName, ...(id ? { id } : {}) } }, {});
-          if (!range || range.start > start) throw new EditorSourceError();
-          if (range.start === start) break;
-          occurrenceIndex++;
-        }
-        await requestEditHtml({ occurrenceIndex, tagName, ...(id ? { id } : {}) }, {});
+        await requestEditHtml(editHtmlTarget({ wrapper, selected }), {});
       } catch (error) {
         options.onSerializationError?.(error instanceof EditorSourceError ? error : new EditorSourceError());
       }
@@ -156,15 +169,15 @@ export function registerProtectedElementType(
       init(this: Component) {
         // Keep default move/copy/delete toolbar commands, then append the host navigation action.
         if (!this.get('sourceNonvisual') && options.onRequestEditHtml) {
-          const toolbar = (this.get('toolbar') ?? []) as { command: string }[];
+          // Component.initToolbar fills the default toolbar before init() runs, and a component
+          // cannot be constructed without an editor, so the toolbar is always an array here.
+          const toolbar = this.get('toolbar') as { command: string }[];
+          const label = options.editHtmlLabel ?? 'Edit HTML';
           this.set('toolbar', [...toolbar.filter(item => item.command !== command), {
-            label: options.editHtmlLabel ?? 'Edit HTML', command,
+            label, command,
             // GrapesJS sizes every toolbar item as a 26px icon square; a text label overflowed past the
             // toolbar (and the canvas edge on full-width blocks), so this item sizes to its label.
-            attributes: {
-              title: options.editHtmlLabel ?? 'Edit HTML', 'aria-label': options.editHtmlLabel ?? 'Edit HTML',
-              style: 'width:auto;white-space:nowrap;padding:5px 8px',
-            },
+            attributes: { title: label, 'aria-label': label, style: 'width:auto;white-space:nowrap;padding:5px 8px' },
           }], { silent: true });
         }
         if (this.get('sourceNonvisual')) this.set({ selectable: false, draggable: false, hoverable: false, copyable: false }, { silent: true });
