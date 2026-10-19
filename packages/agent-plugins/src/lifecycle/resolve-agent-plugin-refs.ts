@@ -22,7 +22,8 @@ import { listInstalledPackageRoots, INSTALLED_PLUGIN_DIGEST_PATTERN } from "./in
  * `packages/sha256/*` and matches on the installed `plugin.json`'s own `name` field, after dropping
  * any digest of a bundled plugin the ledger records as superseded:
  *
- * - Exactly one match: resolves normally.
+ * - Exactly one match: resolves normally, unless the bundled ledger records that id at a different
+ *   digest (a copy the build did not ship never guides under a bundled id).
  * - Zero matches: fails with a "not installed" reason — the operator pinned a chip for a plugin
  *   that is not (or no longer) actually on disk for this workspace.
  * - More than one match: fails with an explicit ambiguity reason naming every matching digest.
@@ -263,6 +264,14 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     }
 
     const plugin = matches[0] as InstalledAgentPlugin;
+    // Activation is checked by the caller. A lone copy under an id the bundled ledger records must be
+    // the digest this build shipped; an operator install (no ledger entry) was digest-verified when
+    // installed and its skills may guide once enabled (install-upload's trust warning). Inline, not
+    // trusted-plugin-files' verdict: that module lists installs through this one (import cycle).
+    const shippedDigest = bundledDigests.get(pluginRefId);
+    if (shippedDigest !== undefined && shippedDigest !== plugin.archiveDigest) {
+      return { ok: false, reason: `Agent Plugin '${pluginRefId}' was not loaded: only plugins shipped with ${ports.productName} may add agent guidance under a bundled id (installed digest ${plugin.archiveDigest.slice(0, 12)} is not the one this build shipped)` };
+    }
     const skillPath = `skills/${pluginRefId}/SKILL.md`;
 
     if (deliveryMode === "pointer") return buildPointerSection(pluginRefId, plugin);

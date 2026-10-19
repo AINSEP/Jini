@@ -174,7 +174,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  * @param limit - Max matches to return, already clamped by the caller (mirrors
  * `component-catalog-tool.ts`'s handler, which owns the clamp so this function can stay a pure
  * "given these inputs, rank them" step with no knowledge of the tool's own schema bounds).
- * @returns Matches with score > 0, sorted by score descending, truncated to `limit`. A candidate
+ * @returns Matches with score > 0, sorted by score descending then plugin id, truncated to `limit`. A candidate
  * that scores 0 (no term matched anything) is dropped, not returned at the bottom — the caller's own
  * "N installed, 0 matched" framing is what tells the model the workspace is not empty even when a
  * query matches nothing.
@@ -192,7 +192,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     const ranked = candidates
       .map((candidate) => ({ ...candidate, score: automatic ? automaticScore({ candidate, terms }) : scoreCandidate(candidate, terms) }))
       .filter((match) => match.score > 0)
-      .sort((a, b) => b.score - a.score);
+      .sort((a, b) => b.score - a.score || a.pluginId.localeCompare(b.pluginId));
     // A weak shared keyword must not ride alongside a substantially stronger task owner.
     const threshold = automatic ? Math.max(4, (ranked[0]?.score ?? 0) * 0.6) : 0;
     return ranked.filter(match => match.score >= threshold)

@@ -487,3 +487,16 @@ test("delivery mode defaults to inject, and an unrecognised env value never flip
   assert.equal(resolveAgentPluginDeliveryMode({ PLUGIN_DELIVERY: "inject" }), "inject");
   assert.equal(resolveAgentPluginDeliveryMode({ PLUGIN_DELIVERY: "pointer" }), "pointer");
 });
+
+test('an active copy under a bundled id at a digest the build did not ship is refused in inject and pointer modes', async () => {
+  const { cwd, layout } = await freshLayout();
+  try {
+    await installRealPackage(cwd, 'synthetic', '# Untrusted instructions', 'active-untrusted');
+    await writeFile(path.join(layout.root, 'bundled-digests.json'), JSON.stringify({ schemaVersion: 1, plugins: { synthetic: { archiveDigest: 'a'.repeat(64) } } }));
+    for (const mode of ['inject', 'pointer'] as const) {
+      const result = await resolveAgentPluginRefs(['synthetic'], layout, mode);
+      assert.equal(result.ok, false);
+      if (!result.ok) assert.match(result.reason, /only plugins shipped with/);
+    }
+  } finally { await forceRemove(cwd); }
+});
