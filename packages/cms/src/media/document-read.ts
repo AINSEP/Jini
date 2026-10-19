@@ -37,7 +37,7 @@ export async function readDocumentText(required: {
   const media = await deps.mediaRepo.findById({ workspaceId: input.workspaceId, id: input.id });
   if (!media || media.kind !== 'document' || media.status !== 'active') throw new MediaNotFoundError({ message: 'document was not found' });
   const type = documentContentType({ filename: media.originalFilename ?? '' });
-  if (!['text/markdown', 'text/plain', 'text/csv', 'application/json'].includes(type)) throw new MediaValidationError({ message: 'PDF and DOCX support download only; text extraction is unavailable' });
+  if (!['text/markdown', 'text/plain', 'text/csv', 'application/json'].includes(type)) throw new MediaValidationError({ message: 'This document supports download only; text extraction is unavailable' });
   const blob = await deps.blobRepo.findByHash({ workspaceId: input.workspaceId, sha256: media.source.sha256 });
   if (!blob) throw new Error('document source blob is missing');
   const size = await deps.blobStore.sizeOf?.({ storageKey: blob.storageKey });

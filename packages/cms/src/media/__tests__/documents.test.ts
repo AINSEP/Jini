@@ -161,3 +161,19 @@ test('document ownership survives dedup, purge and stale blob saves', async () =
   }
   assert.equal(await isDocumentOnlyBlob(probe), true);
 });
+
+// Source RED before the extension: new format names were refused by documentContentType.
+test('Library download-only legacy formats: validate bytes, ignore client MIME, never read as text', async () => {
+  for (const [filename, bytes, expectedType] of [
+    ['old.doc', Buffer.from('d0cf11e0a1b11ae1', 'hex'), 'application/msword'],
+    ['old.xls', Buffer.from('d0cf11e0a1b11ae1', 'hex'), 'application/vnd.ms-excel'],
+    ['old.rtf', Buffer.from('{\\rtf1 document}'), 'application/rtf'],
+  ] as const) {
+    const deps = fixture();
+    const { media } = await uploadMedia({ deps, input: { ...input, filename, bytes, contentType: 'image/png' } });
+    assert.equal((await validateDocumentIngress({ filename, bytes })).contentType, expectedType);
+    deps.blobStore.get = async () => { throw new Error('download-only bytes must not be read'); };
+    await assert.rejects(readDocumentText({ deps, input: { workspaceId: input.workspaceId, id: media.id } }), /download only; text extraction is unavailable/);
+    await assert.rejects(validateDocumentIngress({ filename, bytes: Buffer.from('plain text') }), /signature/);
+  }
+});
