@@ -75,56 +75,12 @@ export function useLocalCliAgentCard({
     onReasoningChange: (next) => onReasoningChange(agent.id, next),
   });
 
-  // `modelsSource` is optional in the contract, so an absent value means the
-  // host did not say where the list came from — NOT that it came from a
-  // built-in fallback. Defaulting to 'fallback' rendered "Built-in list" over
-  // a list that may well be live, and told the operator to Rescan to fix a
-  // problem they do not have. Unknown provenance shows no badge and no claim.
   const source = agent.modelsSource;
-  const sourceLabel = source === 'live' ? t('Live from CLI') : source === 'fallback' ? t('Built-in list') : '';
-  const sourceHint =
-    source === 'live'
-      ? t("Model list comes from this CLI. Default uses the CLI's own config.")
-      : source === 'fallback'
-        ? t('Showing built-in defaults. Click Rescan to pull live models from the CLI.')
-        : '';
-
-  // The test result belongs to whichever agent was probed, so a stale verdict
-  // from a previously-tested CLI never renders under this one.
-  const testing = agentTest.status === 'testing' && agentTest.agentId === agent.id;
-  const result =
-    (agentTest.status === 'ok' || agentTest.status === 'error') && agentTest.agentId === agent.id
-      ? agentTest
-      : null;
-
-  // The "use the binary that actually ran" / "clear the override" repair
-  // affordance — only meaningful when a successful test silently fell back
-  // off a configured override, AND this agent's catalog names which field
-  // that override lives in. See `agentExecutableRepairState`'s doc.
-  //
-  // `AgentTestState`'s 'ok' variant spells success as `status: 'ok'`, not an
-  // `ok: true` field — `agentExecutableRepairState` takes the latter (it
-  // mirrors `ExecutionPort.testAgent`'s raw resolved shape, one layer below
-  // this state union), so the two must be translated explicitly here rather
-  // than passing `result` straight through.
-  const repair =
-    result?.status === 'ok'
-      ? agentExecutableRepairState({
-          ok: true,
-          usedExecutableSource: result.usedExecutableSource,
-          detectedExecutablePath: result.detectedExecutablePath,
-        })
-      : null;
-  const repairField = repair ? binPathEnvField(cliEnvFields, agent.id) : null;
-
-  const openUrl = (url: string | undefined) => {
-    if (!url) return;
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
+  const { testing, result } = agentTestView({ agentTest, agentId: agent.id });
   const diagnosticHandlers = {
     onRescan,
-    onOpenInstall: agent.installUrl ? () => openUrl(agent.installUrl) : undefined,
-    onOpenDocs: agent.docsUrl ? () => openUrl(agent.docsUrl) : undefined,
+    onOpenInstall: urlOpener({ url: agent.installUrl }),
+    onOpenDocs: urlOpener({ url: agent.docsUrl }),
   };
 
   const selectModel = (nextValue: string) => {
@@ -159,14 +115,80 @@ export function useLocalCliAgentCard({
     reasoning,
     hasSettings,
     source,
-    sourceLabel,
-    sourceHint,
+    ...modelsSourceCopy({ source, t }),
     testing,
     result,
-    repair,
-    repairField,
+    ...executableRepair({ result, cliEnvFields, agentId: agent.id }),
     diagnosticHandlers,
     selectModel,
     selectReasoning,
+  };
+}
+
+// `modelsSource` is optional in the contract, so an absent value means the
+// host did not say where the list came from — NOT that it came from a
+// built-in fallback. Defaulting to 'fallback' rendered "Built-in list" over
+// a list that may well be live, and told the operator to Rescan to fix a
+// problem they do not have. Unknown provenance shows no badge and no claim.
+function modelsSourceCopy({ source, t }: { source: DetectedAgent['modelsSource']; t: Translate }) {
+  if (source === 'live') {
+    return { sourceLabel: t('Live from CLI'), sourceHint: t("Model list comes from this CLI. Default uses the CLI's own config.") };
+  }
+  if (source === 'fallback') {
+    return {
+      sourceLabel: t('Built-in list'),
+      sourceHint: t('Showing built-in defaults. Click Rescan to pull live models from the CLI.'),
+    };
+  }
+  return { sourceLabel: '', sourceHint: '' };
+}
+
+// The test result belongs to whichever agent was probed, so a stale verdict
+// from a previously-tested CLI never renders under this one.
+function agentTestView({
+  agentTest,
+  agentId,
+}: {
+  agentTest: AgentTestState;
+  agentId: string;
+}): Pick<UseLocalCliAgentCardResult, 'testing' | 'result'> {
+  if (agentTest.status === 'idle' || agentTest.agentId !== agentId) return { testing: false, result: null };
+  if (agentTest.status === 'testing') return { testing: true, result: null };
+  return { testing: false, result: agentTest };
+}
+
+// The "use the binary that actually ran" / "clear the override" repair
+// affordance — only meaningful when a successful test silently fell back
+// off a configured override, AND this agent's catalog names which field
+// that override lives in. See `agentExecutableRepairState`'s doc.
+//
+// `AgentTestState`'s 'ok' variant spells success as `status: 'ok'`, not an
+// `ok: true` field — `agentExecutableRepairState` takes the latter (it
+// mirrors `ExecutionPort.testAgent`'s raw resolved shape, one layer below
+// this state union), so the two must be translated explicitly here rather
+// than passing `result` straight through.
+function executableRepair({
+  result,
+  cliEnvFields,
+  agentId,
+}: {
+  result: UseLocalCliAgentCardResult['result'];
+  cliEnvFields: readonly AgentCliEnvFieldSpec[];
+  agentId: string;
+}): Pick<UseLocalCliAgentCardResult, 'repair' | 'repairField'> {
+  if (result?.status !== 'ok') return { repair: null, repairField: null };
+  const repair = agentExecutableRepairState({
+    ok: true,
+    usedExecutableSource: result.usedExecutableSource,
+    detectedExecutablePath: result.detectedExecutablePath,
+  });
+  return { repair, repairField: repair ? binPathEnvField(cliEnvFields, agentId) : null };
+}
+
+/** A diagnostic fix action that opens `url` in a new tab; `undefined` (no button) without a URL. */
+function urlOpener({ url }: { url: string | undefined }): (() => void) | undefined {
+  if (!url) return undefined;
+  return () => {
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 }
