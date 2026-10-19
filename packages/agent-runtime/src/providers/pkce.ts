@@ -43,7 +43,8 @@ export interface AuthorizationServerMetadata {
 /** RFC 6749 §5.1 token endpoint response (subset). */
 export interface OAuthTokenResponse {
   access_token: string;
-  token_type?: string;
+  /** Always present: `@jini-ai/oauth`'s token-endpoint parser defaults a missing/empty one to `Bearer`. */
+  token_type: string;
   expires_in?: number;
   refresh_token?: string;
   scope?: string;

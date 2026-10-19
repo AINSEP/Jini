@@ -79,6 +79,33 @@ describe('resolveOAuthBearer', () => {
     expect(secondCall).toEqual({ accessToken: 'fresh', source: 'stored' });
   });
 
+  it('stores a rotated refresh_token from the refresh response', async () => {
+    await setStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME, token: {
+      accessToken: 'stale',
+      tokenType: 'Bearer',
+      savedAt: Date.now(),
+      expiresAt: Date.now() - 1,
+      refreshToken: 'rt-old',
+    } });
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ access_token: 'fresh', refresh_token: 'rt-new' })));
+    await resolveOAuthBearer({ config: config, tokenFileName: FILE_NAME, dataDir: dataDir }, { fetchImpl: fetchMock });
+    const persisted = await getStoredOAuthToken({ dataDir, fileName: FILE_NAME });
+    expect(persisted).toMatchObject({ accessToken: 'fresh', refreshToken: 'rt-new', tokenType: 'Bearer' });
+  });
+
+  it('persists the scope granted by the refresh response', async () => {
+    await setStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME, token: {
+      accessToken: 'stale',
+      tokenType: 'Bearer',
+      savedAt: Date.now(),
+      expiresAt: Date.now() - 1,
+      refreshToken: 'rt-old',
+    } });
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ access_token: 'fresh', scope: 'openid email' })));
+    await resolveOAuthBearer({ config: config, tokenFileName: FILE_NAME, dataDir: dataDir }, { fetchImpl: fetchMock });
+    expect((await getStoredOAuthToken({ dataDir, fileName: FILE_NAME }))?.scope).toBe('openid email');
+  });
+
   it('carries the old refresh_token forward when the refresh response omits one', async () => {
     await setStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME, token: {
       accessToken: 'stale',

@@ -57,34 +57,28 @@ export function sanitizeOAuthTokenFile({ raw }: { raw: unknown }): OAuthTokenFil
   return tok ? { token: tok } : {};
 }
 
+function trimmedString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
 function sanitizeToken(raw: unknown): StoredOAuthToken | null {
   if (!isPlainObject(raw)) return null;
-  const accessToken =
-    typeof raw.accessToken === 'string' ? raw.accessToken.trim() : '';
+  const accessToken = trimmedString(raw.accessToken);
   if (!accessToken) return null;
-  const tokenType =
-    typeof raw.tokenType === 'string' && raw.tokenType.trim()
-      ? raw.tokenType.trim()
-      : 'Bearer';
-  const refreshToken =
-    typeof raw.refreshToken === 'string' && raw.refreshToken.trim()
-      ? raw.refreshToken.trim()
-      : undefined;
-  const scope =
-    typeof raw.scope === 'string' && raw.scope.trim()
-      ? raw.scope.trim()
-      : undefined;
-  const expiresAt =
-    typeof raw.expiresAt === 'number' && Number.isFinite(raw.expiresAt)
-      ? raw.expiresAt
-      : undefined;
-  const savedAt =
-    typeof raw.savedAt === 'number' && Number.isFinite(raw.savedAt)
-      ? raw.savedAt
-      : Date.now();
-  const out: StoredOAuthToken = { accessToken, tokenType, savedAt };
+  const out: StoredOAuthToken = {
+    accessToken,
+    tokenType: trimmedString(raw.tokenType) ?? 'Bearer',
+    savedAt: finiteNumber(raw.savedAt) ?? Date.now(),
+  };
+  const refreshToken = trimmedString(raw.refreshToken);
   if (refreshToken) out.refreshToken = refreshToken;
+  const scope = trimmedString(raw.scope);
   if (scope) out.scope = scope;
+  const expiresAt = finiteNumber(raw.expiresAt);
   if (expiresAt !== undefined) out.expiresAt = expiresAt;
   return out;
 }

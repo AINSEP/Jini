@@ -13,6 +13,7 @@
  * often enough that a separate background refresher isn't needed.
  */
 import { refreshOAuthPkceToken, type OAuthPkceProviderConfig } from './oauth-provider.js';
+import type { OAuthTokenResponse } from './pkce.js';
 import {
   getStoredOAuthToken,
   isOAuthTokenExpired,
@@ -47,27 +48,8 @@ export async function resolveOAuthBearer({ config, tokenFileName, dataDir }: { c
   if (!stored.refreshToken) return null;
 
   try {
-    const fresh = await (({ config, refreshToken, ...optionalArgs }: Parameters<typeof refreshOAuthPkceToken>[0] & NonNullable<Parameters<typeof refreshOAuthPkceToken>[1]>) => refreshOAuthPkceToken({ config, refreshToken }, optionalArgs))({
-      config,
-      refreshToken: stored.refreshToken,
-      ...(fetchImpl ? { fetchImpl } : {}),
-    });
-    const next: StoredOAuthToken = {
-      accessToken: fresh.access_token,
-      tokenType: fresh.token_type ?? 'Bearer',
-      savedAt: Date.now(),
-    };
-    // Preserves the existing refresh_token when the token endpoint omits
-    // one in its response. RFC 6749 §6 lets a server skip refresh_token
-    // rotation and keep the old one valid; dropping it here would leave the
-    // next expiry with nothing to refresh against, forcing the user back
-    // through a full sign-in even though their grant is still good.
-    const carriedRefresh = fresh.refresh_token ?? stored.refreshToken;
-    if (carriedRefresh) next.refreshToken = carriedRefresh;
-    if (typeof fresh.expires_in === 'number') {
-      next.expiresAt = Date.now() + fresh.expires_in * 1000;
-    }
-    if (fresh.scope) next.scope = fresh.scope;
+    const fresh = await refreshOAuthPkceToken({ config, refreshToken: stored.refreshToken }, fetchImpl ? { fetchImpl } : {});
+    const next = refreshedToken({ fresh });
     await setStoredOAuthToken({ dataDir: dataDir, fileName: tokenFileName, token: next });
     return { accessToken: next.accessToken, source: 'refreshed' };
   } catch {
@@ -76,4 +58,28 @@ export async function resolveOAuthBearer({ config, tokenFileName, dataDir }: { c
     // surfaces a re-login prompt if everything is empty.
     return null;
   }
+}
+
+function refreshedToken({ fresh }: { fresh: OAuthTokenResponse }): StoredOAuthToken {
+  const next: StoredOAuthToken = {
+    accessToken: fresh.access_token,
+    tokenType: fresh.token_type,
+    savedAt: Date.now(),
+    // Preserves the existing refresh_token when the token endpoint omits
+    // one in its response. RFC 6749 §6 lets a server skip refresh_token
+    // rotation and keep the old one valid; dropping it here would leave the
+    // next expiry with nothing to refresh against, forcing the user back
+    // through a full sign-in even though their grant is still good.
+    // That carry-forward now lives in `@jini-ai/oauth`'s `refreshAccessToken`
+    // (`refreshToken: tokens.refreshToken ?? input.refreshToken`), so a
+    // refresh response always carries one — a non-null assertion rather than
+    // a second, unreachable `?? stored.refreshToken` fallback here. The
+    // "carries the old refresh_token forward" test pins it end to end.
+    refreshToken: fresh.refresh_token!,
+  };
+  if (typeof fresh.expires_in === 'number') {
+    next.expiresAt = Date.now() + fresh.expires_in * 1000;
+  }
+  if (fresh.scope) next.scope = fresh.scope;
+  return next;
 }
