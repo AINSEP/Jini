@@ -184,38 +184,50 @@ function parseContextSelection(value: unknown): Result<RoutineContextSelection> 
   return ok({ value: context });
 }
 
+function parseOptionalBoolean(body: Record<string, unknown>, field: string): Result<boolean | undefined> {
+  const value = body[field];
+  if (value !== undefined && typeof value !== 'boolean') {
+    return err({ error: validationError({ message: `${field} must be a boolean when provided` }) });
+  }
+  return ok({ value });
+}
+
+/** Table order is the validation order shared by create and update: the first failing field is the one a caller sees. */
+const ROUTINE_FIELD_PARSERS: ReadonlyArray<readonly [keyof RoutineCreateInput, (body: Record<string, unknown>) => Result<unknown>]> = [
+  ['name', (body) => parseNonEmptyString(body.name, 'name')],
+  ['prompt', (body) => parseNonEmptyString(body.prompt, 'prompt')],
+  ['schedule', (body) => parseSchedule(body.schedule)],
+  ['target', (body) => parseTarget(body.target)],
+  ['skillId', (body) => parseOptionalNullableString(body, 'skillId')],
+  ['agentId', (body) => parseOptionalNullableString(body, 'agentId')],
+  ['context', (body) => parseContextSelection(body.context)],
+  ['enabled', (body) => parseOptionalBoolean(body, 'enabled')],
+];
+
+/**
+ * Parses every routine field in table order, omitting any that parse to `undefined`. With
+ * `onlyProvided` (update), a field absent from the body is skipped before parsing, so required
+ * fields are not demanded and an absent `context` is not defaulted to `{}`.
+ */
+function parseRoutineFields({ body }: { body: Record<string, unknown> }, { onlyProvided = false }: { onlyProvided?: boolean } = {}): Result<Record<string, unknown>> {
+  // `RoutineCreateInput`/`RoutineUpdateInput`'s fields are `readonly` (an immutable port-input
+  // contract) — built here as a mutable local shape field-by-field, then handed back as that
+  // readonly type, which is a safe widening (mutable -> readonly), not the reverse.
+  const fields: Record<string, unknown> = {};
+  for (const [key, parse] of ROUTINE_FIELD_PARSERS) {
+    if (onlyProvided && body[key] === undefined) continue;
+    const parsed = parse(body);
+    if (!parsed.ok) return parsed;
+    if (parsed.value !== undefined) fields[key] = parsed.value;
+  }
+  return ok({ value: fields });
+}
+
 function parseRoutineCreate(input: RouteInputContext): Result<RoutineCreateInput> {
   if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
-  const name = parseNonEmptyString(input.body.name, 'name');
-  if (!name.ok) return name;
-  const prompt = parseNonEmptyString(input.body.prompt, 'prompt');
-  if (!prompt.ok) return prompt;
-  const schedule = parseSchedule(input.body.schedule);
-  if (!schedule.ok) return schedule;
-  const target = parseTarget(input.body.target);
-  if (!target.ok) return target;
-  const skillId = parseOptionalNullableString(input.body, 'skillId');
-  if (!skillId.ok) return skillId;
-  const agentId = parseOptionalNullableString(input.body, 'agentId');
-  if (!agentId.ok) return agentId;
-  const context = parseContextSelection(input.body.context);
-  if (!context.ok) return context;
-  const enabled = input.body.enabled;
-  if (enabled !== undefined && typeof enabled !== 'boolean') {
-    return err({ error: validationError({ message: 'enabled must be a boolean when provided' }) });
-  }
-  return ok({
-    value: {
-      name: name.value,
-      prompt: prompt.value,
-      schedule: schedule.value,
-      target: target.value,
-      ...(skillId.value !== undefined ? { skillId: skillId.value } : {}),
-      ...(agentId.value !== undefined ? { agentId: agentId.value } : {}),
-      context: context.value,
-      ...(enabled !== undefined ? { enabled } : {}),
-    }
-  });
+  const fields = parseRoutineFields({ body: input.body });
+  if (!fields.ok) return fields;
+  return ok({ value: fields.value as unknown as RoutineCreateInput });
 }
 
 interface RoutineUpdateRequest {
@@ -227,53 +239,11 @@ function parseRoutineUpdate(input: RouteInputContext): Result<RoutineUpdateReque
   const idResult = parseRoutineId(input);
   if (!idResult.ok) return idResult;
   if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
-  const body = input.body;
-  // `RoutineUpdateInput`'s fields are `readonly` (an immutable port-input contract) — built here
-  // as a mutable local shape field-by-field, then handed back as that readonly type, which is a
-  // safe widening (mutable -> readonly), not the reverse.
-  const patch: { -readonly [K in keyof RoutineUpdateInput]: RoutineUpdateInput[K] } = {};
-
-  if (body.name !== undefined) {
-    const name = parseNonEmptyString(body.name, 'name');
-    if (!name.ok) return name;
-    patch.name = name.value;
-  }
-  if (body.prompt !== undefined) {
-    const prompt = parseNonEmptyString(body.prompt, 'prompt');
-    if (!prompt.ok) return prompt;
-    patch.prompt = prompt.value;
-  }
-  if (body.schedule !== undefined) {
-    const schedule = parseSchedule(body.schedule);
-    if (!schedule.ok) return schedule;
-    patch.schedule = schedule.value;
-  }
-  if (body.target !== undefined) {
-    const target = parseTarget(body.target);
-    if (!target.ok) return target;
-    patch.target = target.value;
-  }
-  if (body.skillId !== undefined) {
-    const skillId = parseOptionalNullableString(body, 'skillId');
-    if (!skillId.ok) return skillId;
-    patch.skillId = skillId.value ?? null;
-  }
-  if (body.agentId !== undefined) {
-    const agentId = parseOptionalNullableString(body, 'agentId');
-    if (!agentId.ok) return agentId;
-    patch.agentId = agentId.value ?? null;
-  }
-  if (body.context !== undefined) {
-    const context = parseContextSelection(body.context);
-    if (!context.ok) return context;
-    patch.context = context.value;
-  }
-  if (body.enabled !== undefined) {
-    if (typeof body.enabled !== 'boolean') return err({ error: validationError({ message: 'enabled must be a boolean when provided' }) });
-    patch.enabled = body.enabled;
-  }
-
-  return ok({ value: { id: idResult.value, patch } });
+  // A provided `skillId`/`agentId` parses to a string or `null` (never `undefined`), so an explicit
+  // `null` reaches the patch and clears the field.
+  const patch = parseRoutineFields({ body: input.body }, { onlyProvided: true });
+  if (!patch.ok) return patch;
+  return ok({ value: { id: idResult.value, patch: patch.value as RoutineUpdateInput } });
 }
 
 interface RoutineRunsQuery {
