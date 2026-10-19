@@ -410,7 +410,7 @@ describe('testProviderConnection boundaries', () => {
 
   it('resolves the base url with the default DNS lookup when none is injected', async () => {
     respondJson(200, { content: [{ type: 'text', text: 'ok' }] });
-    expect(await run({ dnsLookup: undefined })).toMatchObject({ ok: true, kind: 'success' });
+    expect(await testProviderConnection({ protocol: 'anthropic', baseUrl: 'https://api.anthropic.com', apiKey: 'sk-ant-test', model: 'claude-sonnet-4-5' })).toMatchObject({ ok: true, kind: 'success' });
   });
 
   // BUG (pinned, not fixed): validateBaseUrl trims NBSP before parsing, but the

@@ -31,6 +31,12 @@ describe('provider catalog pagination through injected HTTP', () => {
     expect(result.ok).toBe(false); expect(result.detail).toBe('Provider repeated a pagination cursor.');
     expect(JSON.stringify(result)).not.toContain('private-cursor');
   });
+  it('refuses to follow redirects on the catalog request', async () => {
+    const inits: RequestInit[] = [];
+    const fetchFn: typeof fetch = async (_url, init) => { inits.push(init!); return new Response(JSON.stringify({ data: [{ id: 'gpt-a' }] })); };
+    await listProviderModels({ protocol: 'openai', baseUrl: 'https://api.openai.com', apiKey: 'test-secret' }, { dnsLookup: noDns, fetchFn });
+    expect(inits[0]).toMatchObject({ method: 'GET', redirect: 'error', headers: { authorization: 'Bearer test-secret' } });
+  });
   it('follows an OpenAI-style next_cursor with the cursor query param', async () => {
     const urls: string[] = [];
     const fetchFn: typeof fetch = async (url) => {
@@ -52,6 +58,11 @@ describe('provider catalog pagination through injected HTTP', () => {
     const fetchFn: typeof fetch = async () => new Response(JSON.stringify({ data: [{ id: 'claude-a' }], has_more: true }));
     const result = await listProviderModels({ protocol: 'anthropic', baseUrl: 'https://api.anthropic.com', apiKey: 'test-secret' }, { dnsLookup: noDns, fetchFn });
     expect(result).toMatchObject({ ok: false, kind: 'unknown', detail: 'Provider omitted its pagination cursor.' });
+  });
+  it('leaves the detail empty for an error status with an empty body', async () => {
+    const fetchFn: typeof fetch = async () => new Response('', { status: 503 });
+    const result = await listProviderModels({ protocol: 'openai', baseUrl: 'https://api.openai.com', apiKey: 'test-secret' }, { dnsLookup: noDns, fetchFn });
+    expect(result).toMatchObject({ ok: false, kind: 'upstream_unavailable', status: 503, detail: '' });
   });
   it('treats a non-object JSON body as an empty catalog', async () => {
     const fetchFn: typeof fetch = async () => new Response('5');

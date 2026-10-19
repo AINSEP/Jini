@@ -1,4 +1,3 @@
-import { redactSecrets } from '@jini-ai/core';
 /**
  * @module providers/connection-test
  *
@@ -22,7 +21,18 @@ import { redactSecrets } from '@jini-ai/core';
 import type { DnsLookupFn } from './connection-guard.js';
 import { defaultDnsLookup, validateBaseUrlResolved } from './connection-guard.js';
 import { googleGenerateContentUrl } from './google.js';
-import { buildOpenAIChatTokenParam, buildLegacyMaxTokensParam, buildMaxCompletionTokensParam } from './token-params.js';
+import {
+  appendVersionedApiPath,
+  baseUrlRefusal,
+  errorMessage,
+  extractProviderErrorDetail,
+  networkErrorToKind,
+  parseJsonBody,
+  redactApiKey,
+  statusToKind,
+  withRequestDeadline,
+} from './provider-http.js';
+import { buildOpenAIChatTokenParam, buildLegacyMaxTokensParam } from './token-params.js';
 import type { ConnectionTestKind, ConnectionTestProtocol } from './types.js';
 
 /** The four wire protocols this smoke test knows how to speak. A narrower
@@ -76,26 +86,14 @@ const CONNECTION_TEST_MAX_TOKENS = 512;
 const CONNECTION_TEST_TIMEOUT_MS = 12_000;
 const SAMPLE_MAX_CHARS = 120;
 
-function isSupportedProtocol(protocol: ConnectionTestProtocol): protocol is SupportedConnectionTestProtocol {
-  return protocol === 'anthropic' || protocol === 'openai' || protocol === 'azure' || protocol === 'google';
-}
-
-function appendVersionedApiPath(baseUrl: string, suffix: string): string {
-  const url = new URL(baseUrl);
-  const pathname = url.pathname.replace(/\/+$/, '');
-  url.pathname = /\/v\d+(\/|$)/.test(pathname) ? `${pathname}${suffix}` : `${pathname}/v1${suffix}`;
-  return url.toString();
-}
-
-function truncateSample(text: unknown): string {
-  if (typeof text !== 'string') return '';
+function truncateSample(text: string): string {
   const trimmed = text.replace(/\s+/g, ' ').trim();
   if (trimmed.length <= SAMPLE_MAX_CHARS) return trimmed;
   return `${trimmed.slice(0, SAMPLE_MAX_CHARS - 1)}…`;
 }
 
-function isSmokeOkReply(text: unknown): boolean {
-  return typeof text === 'string' && text.trim().toLowerCase() === 'ok';
+function isSmokeOkReply(text: string): boolean {
+  return text.trim().toLowerCase() === 'ok';
 }
 
 /**
@@ -109,72 +107,14 @@ function isSmokeOkReply(text: unknown): boolean {
  * Read defensively: any of these may be absent, and a missing reason must degrade to the old
  * message rather than to `"undefined"`.
  */
+function firstField(list: unknown, key: string): unknown {
+  return (list as Array<Record<string, unknown> | undefined> | undefined)?.[0]?.[key];
+}
+
 function extractFinishReason(data: unknown): string {
-  const root = data as {
-    candidates?: Array<{ finishReason?: unknown }>;
-    choices?: Array<{ finish_reason?: unknown }>;
-    stop_reason?: unknown;
-  };
-  const raw =
-    root?.candidates?.[0]?.finishReason ?? root?.choices?.[0]?.finish_reason ?? root?.stop_reason;
+  const root = data as { candidates?: unknown; choices?: unknown; stop_reason?: unknown };
+  const raw = firstField(root.candidates, 'finishReason') ?? firstField(root.choices, 'finish_reason') ?? root.stop_reason;
   return typeof raw === 'string' && raw.trim() ? raw.trim() : '';
-}
-
-function isLikelyAuthErrorText(text: string): boolean {
-  return /(?:api[_ -]?key|x-goog-api-key|unauthorized|unauthenticated|permission denied|invalid credentials|authentication credentials|access denied|invalid key)/i.test(
-    text,
-  );
-}
-
-function isLikelyModelErrorText(text: string): boolean {
-  return (
-    /model/i.test(text) &&
-    /(not found|not exist|does not exist|unknown|invalid|unsupported|not supported|not have access|no access)/i.test(text)
-  );
-}
-
-function statusToKind(status: number, detailText = ''): ConnectionTestKind {
-  if (status === 401 || (status === 400 && isLikelyAuthErrorText(detailText))) return 'auth_failed';
-  if (status === 403) return isLikelyAuthErrorText(detailText) ? 'auth_failed' : 'forbidden';
-  if (status === 404) return isLikelyModelErrorText(detailText) ? 'not_found_model' : 'invalid_base_url';
-  if (status === 429) return 'rate_limited';
-  if (status >= 500) return 'upstream_unavailable';
-  return 'unknown';
-}
-
-function networkErrorToKind(err: unknown): ConnectionTestKind {
-  if (err instanceof Error) {
-    if (err.name === 'AbortError') return 'timeout';
-    const cause = (err as { cause?: { code?: string } }).cause;
-    const code = cause?.code;
-    if (
-      code === 'ENOTFOUND' ||
-      code === 'EAI_AGAIN' ||
-      code === 'ECONNREFUSED' ||
-      code === 'ECONNRESET' ||
-      code === 'ETIMEDOUT' ||
-      code === 'EHOSTUNREACH' ||
-      code === 'ENETUNREACH' ||
-      code === 'CERT_HAS_EXPIRED' ||
-      code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
-    ) {
-      return 'invalid_base_url';
-    }
-  }
-  return 'unknown';
-}
-
-function extractProviderErrorDetail(data: unknown, rawText: string): string {
-  const obj = data && typeof data === 'object' ? data : null;
-  const error = obj ? (obj as { error?: unknown }).error : null;
-  if (typeof error === 'string') return error;
-  if (error && typeof error === 'object') {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim()) return message;
-  }
-  const message = obj ? (obj as { message?: unknown }).message : null;
-  if (typeof message === 'string' && message.trim()) return message;
-  return rawText.trim().slice(0, 240);
 }
 
 interface ProviderCallShape {
@@ -193,103 +133,69 @@ function extractOpenAIMessageText(data: unknown): string {
   return '';
 }
 
-function buildProviderCall(input: ProviderConnectionTestRequest & { protocol: SupportedConnectionTestProtocol }): ProviderCallShape {
-  const baseUrl = input.baseUrl;
-  const apiKey = input.apiKey;
-  const model = input.model;
-  switch (input.protocol) {
-    case 'anthropic':
-      return {
-        url: appendVersionedApiPath(baseUrl, '/messages'),
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: {
-          model,
-          max_tokens: CONNECTION_TEST_MAX_TOKENS,
-          messages: [{ role: 'user', content: SMOKE_PROMPT }],
-          stream: false,
-        },
-        extractText: (data) => {
-          const blocks = (data as { content?: unknown }).content;
-          if (!Array.isArray(blocks)) return '';
-          for (const block of blocks) {
-            if (
-              block &&
-              typeof block === 'object' &&
-              (block as { type?: string }).type === 'text' &&
-              typeof (block as { text?: unknown }).text === 'string'
-            ) {
-              return (block as { text: string }).text;
-            }
-          }
-          return '';
-        },
-      };
-    case 'openai':
-      return {
-        url: appendVersionedApiPath(baseUrl, '/chat/completions'),
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${apiKey}`,
-        },
-        body: {
-          model,
-          ...buildOpenAIChatTokenParam({ model: model, maxTokens: CONNECTION_TEST_MAX_TOKENS }),
-          messages: [{ role: 'user', content: SMOKE_PROMPT }],
-          stream: false,
-        },
-        extractText: extractOpenAIMessageText,
-      };
-    case 'azure': {
-      const url = new URL(baseUrl);
-      const basePath = url.pathname.replace(/\/+$/, '');
-      const usesVersionedOpenAIPath = /\/openai\/v\d+(?:$|\/)/.test(basePath);
-      const apiVersion = input.apiVersion?.trim() || (usesVersionedOpenAIPath ? '' : '2024-10-21');
-      url.pathname = usesVersionedOpenAIPath
-        ? `${basePath}/chat/completions`
-        : `${basePath}/openai/deployments/${encodeURIComponent(model)}/chat/completions`;
-      if (apiVersion) url.searchParams.set('api-version', apiVersion);
-      return {
-        url: url.toString(),
-        headers: { 'content-type': 'application/json', 'api-key': apiKey },
-        body: {
-          ...(usesVersionedOpenAIPath ? { model } : {}),
-          ...buildLegacyMaxTokensParam({ maxTokens: CONNECTION_TEST_MAX_TOKENS }),
-          messages: [{ role: 'user', content: SMOKE_PROMPT }],
-          stream: false,
-        },
-        extractText: extractOpenAIMessageText,
-      };
-    }
-    case 'google': {
-      const effectiveBaseUrl = baseUrl.trim() || 'https://generativelanguage.googleapis.com';
-      return {
-        url: googleGenerateContentUrl({ baseUrl: effectiveBaseUrl, model: model }),
-        headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
-        body: {
-          contents: [{ role: 'user', parts: [{ text: SMOKE_PROMPT }] }],
-          generationConfig: { maxOutputTokens: CONNECTION_TEST_MAX_TOKENS },
-        },
-        extractText: (data) => {
-          const candidates = (data as { candidates?: unknown }).candidates;
-          if (!Array.isArray(candidates) || candidates.length === 0) return '';
-          const parts = (candidates[0] as { content?: { parts?: unknown } }).content?.parts;
-          if (!Array.isArray(parts)) return '';
-          return parts
-            // Gemini 2.5 returns its hidden reasoning as ordinary parts flagged `thought: true`,
-            // interleaved with the real answer. Joining them all turns a correct "ok" into
-            // "<paragraph of reasoning>ok", which `isSmokeOkReply`'s exact match then rejects — a
-            // model that answered correctly reported as a failed connection. Only the answer counts.
-            .filter((p: { thought?: unknown }) => p?.thought !== true)
-            .map((p: { text?: unknown }) => (typeof p?.text === 'string' ? p.text : ''))
-            .join('');
-        },
-      };
-    }
-  }
+type SmokeCallInput = ProviderConnectionTestRequest;
+
+function extractAnthropicText(data: unknown): string {
+  const blocks = (data as { content?: unknown }).content;
+  if (!Array.isArray(blocks)) return '';
+  const textBlock = blocks.find(
+    (block): block is { text: string } =>
+      block &&
+      typeof block === 'object' &&
+      (block as { type?: string }).type === 'text' &&
+      typeof (block as { text?: unknown }).text === 'string',
+  );
+  return textBlock?.text ?? '';
+}
+
+function extractGoogleText(data: unknown): string {
+  const candidates = (data as { candidates?: unknown }).candidates;
+  if (!Array.isArray(candidates) || candidates.length === 0) return '';
+  const parts = (candidates[0] as { content?: { parts?: unknown } }).content?.parts;
+  if (!Array.isArray(parts)) return '';
+  return parts
+    // Gemini 2.5 returns its hidden reasoning as ordinary parts flagged `thought: true`,
+    // interleaved with the real answer. Joining them all turns a correct "ok" into
+    // "<paragraph of reasoning>ok", which `isSmokeOkReply`'s exact match then rejects — a
+    // model that answered correctly reported as a failed connection. Only the answer counts.
+    .filter((p: { thought?: unknown }) => p?.thought !== true)
+    .map((p: { text?: unknown }) => (typeof p?.text === 'string' ? p.text : ''))
+    .join('');
+}
+
+function anthropicCall({ baseUrl, apiKey, model }: SmokeCallInput): ProviderCallShape {
+  return {
+    url: appendVersionedApiPath({ baseUrl, suffix: '/messages' }),
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: {
+      model,
+      max_tokens: CONNECTION_TEST_MAX_TOKENS,
+      messages: [{ role: 'user', content: SMOKE_PROMPT }],
+      stream: false,
+    },
+    extractText: extractAnthropicText,
+  };
+}
+
+function openAICall({ baseUrl, apiKey, model }: SmokeCallInput): ProviderCallShape {
+  return {
+    url: appendVersionedApiPath({ baseUrl, suffix: '/chat/completions' }),
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${apiKey}`,
+    },
+    body: {
+      model,
+      ...buildOpenAIChatTokenParam({ model: model, maxTokens: CONNECTION_TEST_MAX_TOKENS }),
+      messages: [{ role: 'user', content: SMOKE_PROMPT }],
+      stream: false,
+    },
+    extractText: extractOpenAIMessageText,
+  };
 }
 
 // `buildLegacyMaxTokensParam`/`buildMaxCompletionTokensParam` cover the Azure
@@ -298,7 +204,129 @@ function buildProviderCall(input: ProviderConnectionTestRequest & { protocol: Su
 // legacy param (a connection test failing on a param-name mismatch on a
 // reasoning-tier Azure deployment is a known, narrow gap — see this
 // package's `archived provenance ledger`) rather than porting OD's full retry-on-400 loop.
-void buildMaxCompletionTokensParam;
+function azureCall({ baseUrl, apiKey, model, apiVersion: requestedApiVersion }: SmokeCallInput): ProviderCallShape {
+  const url = new URL(baseUrl);
+  const basePath = url.pathname.replace(/\/+$/, '');
+  const usesVersionedOpenAIPath = /\/openai\/v\d+(?:$|\/)/.test(basePath);
+  const apiVersion = requestedApiVersion?.trim() || (usesVersionedOpenAIPath ? '' : '2024-10-21');
+  url.pathname = usesVersionedOpenAIPath
+    ? `${basePath}/chat/completions`
+    : `${basePath}/openai/deployments/${encodeURIComponent(model)}/chat/completions`;
+  if (apiVersion) url.searchParams.set('api-version', apiVersion);
+  return {
+    url: url.toString(),
+    headers: { 'content-type': 'application/json', 'api-key': apiKey },
+    body: {
+      ...(usesVersionedOpenAIPath ? { model } : {}),
+      ...buildLegacyMaxTokensParam({ maxTokens: CONNECTION_TEST_MAX_TOKENS }),
+      messages: [{ role: 'user', content: SMOKE_PROMPT }],
+      stream: false,
+    },
+    extractText: extractOpenAIMessageText,
+  };
+}
+
+// No blank-`baseUrl` fallback: the SSRF guard has already refused any base URL
+// that does not parse, so a blank one never reaches a request builder.
+function googleCall({ baseUrl, apiKey, model }: SmokeCallInput): ProviderCallShape {
+  return {
+    url: googleGenerateContentUrl({ baseUrl, model }),
+    headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+    body: {
+      contents: [{ role: 'user', parts: [{ text: SMOKE_PROMPT }] }],
+      generationConfig: { maxOutputTokens: CONNECTION_TEST_MAX_TOKENS },
+    },
+    extractText: extractGoogleText,
+  };
+}
+
+/** One request builder per protocol this smoke test speaks; its keys ARE the supported set. */
+const PROVIDER_CALL_BUILDERS: Record<SupportedConnectionTestProtocol, (input: SmokeCallInput) => ProviderCallShape> = {
+  anthropic: anthropicCall,
+  openai: openAICall,
+  azure: azureCall,
+  google: googleCall,
+};
+
+function isSupportedProtocol(protocol: ConnectionTestProtocol): protocol is SupportedConnectionTestProtocol {
+  return Object.hasOwn(PROVIDER_CALL_BUILDERS, protocol);
+}
+
+/** Every refusal `testProviderConnection` can give before any network request, or `undefined` to proceed. */
+async function connectionPreflight(input: ProviderConnectionTestInput): Promise<{ kind: ConnectionTestKind; detail: string } | undefined> {
+  if (!isSupportedProtocol(input.protocol)) {
+    return { kind: 'unknown', detail: `Connection test is not supported for protocol "${input.protocol}".` };
+  }
+  // Every supported protocol here (anthropic/openai/azure/google) puts the
+  // key straight into the outbound request (`PROVIDER_CALL_BUILDERS` above), so
+  // an empty key is never a legitimate probe — the provider would reject it
+  // with a generic "no credential" error indistinguishable from a broken
+  // integration. Same fail-fast rationale as `listProviderModels`'s
+  // `PROTOCOLS_REQUIRING_API_KEY` guard, checked first so a missing key
+  // short-circuits before any DNS/network access.
+  if (!input.apiKey.trim()) {
+    return { kind: 'auth_failed', detail: 'No API key saved. Save one to test the connection.' };
+  }
+  return baseUrlRefusal(await validateBaseUrlResolved({ baseUrl: input.baseUrl, lookup: input.dnsLookup ?? defaultDnsLookup }));
+}
+
+type ProbeContext = { apiKey: string; model: string; latencyMs: number; status: number };
+
+function httpFailure({ data, rawText }: { data: unknown; rawText: string }, ctx: ProbeContext): ConnectionTestResponse {
+  const redactedDetail = redactApiKey({ text: extractProviderErrorDetail({ data, rawText }).slice(0, 240), apiKey: ctx.apiKey });
+  return {
+    ok: false,
+    kind: statusToKind({ status: ctx.status }, { detailText: redactedDetail }),
+    latencyMs: ctx.latencyMs,
+    model: ctx.model,
+    status: ctx.status,
+    detail: redactedDetail || (ctx.status === 404 ? 'HTTP 404 from provider; check the Base URL path.' : ''),
+  };
+}
+
+function smokeReplyResult({ data, text }: { data: unknown; text: string }, ctx: ProbeContext): ConnectionTestResponse {
+  const { latencyMs, model, status } = ctx;
+  if (isSmokeOkReply(text)) {
+    return { ok: true, kind: 'success', latencyMs, model, status, detail: 'valid completion' };
+  }
+  // Redacted for exactly the reason the `!response.ok` branch (`httpFailure`)
+  // redacts. The transport succeeded here (HTTP 2xx) but the smoke reply
+  // did not match, so this is still a failure path echoing arbitrary
+  // provider text straight back into the admin UI — and a misbehaving or
+  // hostile endpoint that reflects the request's own `Authorization`
+  // header puts the operator's key in `detail` verbatim. Two independent
+  // audits reproduced that, each from a different call boundary; the
+  // redaction was simply missing on this one branch.
+  const sample = truncateSample(redactApiKey({ text, apiKey: ctx.apiKey }));
+  if (sample) return { ok: false, kind: 'unknown', latencyMs, model, status, detail: `Expected smoke test reply "ok"; got "${sample}"` };
+  // Naming the stop reason turns an unactionable "it returned nothing" into a diagnosis:
+  // `MAX_TOKENS` means the smoke budget was too small (usually a thinking model), a safety or
+  // content-filter reason means the probe was blocked, not that the endpoint is broken.
+  const finishReason = extractFinishReason(data);
+  const detail = finishReason
+    ? `Provider returned a 2xx response without assistant text (finish reason: ${finishReason})`
+    : 'Provider returned a 2xx response without assistant text';
+  return { ok: false, kind: 'unknown', latencyMs, model, status, detail };
+}
+
+async function probe(
+  { input, call, model, start, signal }: { input: ProviderConnectionTestInput; call: ProviderCallShape; model: string; start: number; signal: AbortSignal },
+): Promise<ConnectionTestResponse> {
+  const response = await fetch(call.url, {
+    ...input.requestInit,
+    method: 'POST',
+    headers: call.headers,
+    body: JSON.stringify(call.body),
+    signal,
+  });
+  const ctx: ProbeContext = { apiKey: input.apiKey, model, latencyMs: Date.now() - start, status: response.status };
+  const rawText = await response.text().catch(() => '');
+  // A non-JSON body leaves `data` as `{}` — both paths below treat that as
+  // "no usable text" (the error path falls back to the raw body).
+  const { data } = parseJsonBody(rawText);
+  if (!response.ok) return httpFailure({ data, rawText }, ctx);
+  return smokeReplyResult({ data, text: call.extractText(data) }, ctx);
+}
 
 /**
  * Probes a BYOK provider endpoint with the supplied credentials by sending a
@@ -317,139 +345,26 @@ export async function testProviderConnection(requiredArgs: Pick<ProviderConnecti
   const input: ProviderConnectionTestInput = { ...optionalArgs, ...requiredArgs };
   const start = Date.now();
   const model = input.model.trim();
+  const failure = (kind: ConnectionTestKind, detail: string): ConnectionTestResponse =>
+    ({ ok: false, kind, latencyMs: Date.now() - start, model, detail });
 
-  if (!isSupportedProtocol(input.protocol)) {
-    return {
-      ok: false,
-      kind: 'unknown',
-      latencyMs: Date.now() - start,
-      model,
-      detail: `Connection test is not supported for protocol "${input.protocol}".`,
-    };
-  }
-
-  // Every supported protocol here (anthropic/openai/azure/google) puts the
-  // key straight into the outbound request (`buildProviderCall` below), so
-  // an empty key is never a legitimate probe — the provider would reject it
-  // with a generic "no credential" error indistinguishable from a broken
-  // integration. Same fail-fast rationale as `listProviderModels`'s
-  // `PROTOCOLS_REQUIRING_API_KEY` guard, checked first so a missing key
-  // short-circuits before any DNS/network access.
-  if (!input.apiKey.trim()) {
-    return {
-      ok: false,
-      kind: 'auth_failed',
-      latencyMs: Date.now() - start,
-      model,
-      detail: 'No API key saved. Save one to test the connection.',
-    };
-  }
-
-  const validated = await validateBaseUrlResolved({ baseUrl: input.baseUrl, lookup: input.dnsLookup ?? defaultDnsLookup });
-  if (validated.error || !validated.parsed) {
-    return {
-      ok: false,
-      kind: validated.forbidden ? 'forbidden' : 'invalid_base_url',
-      latencyMs: Date.now() - start,
-      model,
-      detail: validated.error ?? '',
-    };
-  }
+  const refusal = await connectionPreflight(input);
+  if (refusal) return failure(refusal.kind, refusal.detail);
 
   let call: ProviderCallShape;
   try {
-    call = buildProviderCall({ ...input, protocol: input.protocol, model });
+    // Safe: `connectionPreflight` refused every protocol outside PROVIDER_CALL_BUILDERS.
+    call = PROVIDER_CALL_BUILDERS[input.protocol as SupportedConnectionTestProtocol]({ ...input, model });
   } catch (err) {
-    return {
-      ok: false,
-      kind: 'unknown',
-      latencyMs: Date.now() - start,
-      model,
-      detail: redactSecrets({ input: err instanceof Error ? err.message : String(err) }, { exactSecrets: [input.apiKey] }),
-    };
+    return failure('unknown', redactApiKey({ text: errorMessage(err), apiKey: input.apiKey }));
   }
 
-  const controller = new AbortController();
-  const abortFromParent = () => controller.abort();
-  if (input.signal?.aborted) {
-    controller.abort();
-  } else {
-    input.signal?.addEventListener('abort', abortFromParent, { once: true });
-  }
-  const timer = setTimeout(() => controller.abort(), CONNECTION_TEST_TIMEOUT_MS);
-
-  let result: ConnectionTestResponse;
   try {
-    const response = await fetch(call.url, {
-      ...input.requestInit,
-      method: 'POST',
-      headers: call.headers,
-      body: JSON.stringify(call.body),
-      signal: controller.signal,
-    });
-    const latencyMs = Date.now() - start;
-    const rawText = await response.text().catch(() => '');
-    let data: unknown = {};
-    try {
-      data = rawText ? JSON.parse(rawText) : {};
-    } catch {
-      // Non-JSON body — fall through to the not-`response.ok` / smoke-reply
-      // paths below, both of which treat an empty `data` as "no usable text".
-    }
-
-    if (!response.ok) {
-      const redactedDetail = redactSecrets({ input: extractProviderErrorDetail(data, rawText).slice(0, 240) }, { exactSecrets: [input.apiKey] });
-      result = {
-        ok: false,
-        kind: statusToKind(response.status, redactedDetail),
-        latencyMs,
-        model,
-        status: response.status,
-        detail: redactedDetail || (response.status === 404 ? 'HTTP 404 from provider; check the Base URL path.' : ''),
-      };
-    } else {
-      const text = call.extractText(data);
-      if (isSmokeOkReply(text)) {
-        result = { ok: true, kind: 'success', latencyMs, model, status: response.status, detail: 'valid completion' };
-      } else {
-        // Redacted for exactly the reason the `!response.ok` branch above
-        // redacts. The transport succeeded here (HTTP 2xx) but the smoke reply
-        // did not match, so this is still a failure path echoing arbitrary
-        // provider text straight back into the admin UI — and a misbehaving or
-        // hostile endpoint that reflects the request's own `Authorization`
-        // header puts the operator's key in `detail` verbatim. Two independent
-        // audits reproduced that, each from a different call boundary; the
-        // redaction was simply missing on this one branch.
-        const sample = truncateSample(redactSecrets({ input: text }, { exactSecrets: [input.apiKey] }));
-        // Naming the stop reason turns an unactionable "it returned nothing" into a diagnosis:
-        // `MAX_TOKENS` means the smoke budget was too small (usually a thinking model), a safety or
-        // content-filter reason means the probe was blocked, not that the endpoint is broken.
-        const finishReason = extractFinishReason(data);
-        result = {
-          ok: false,
-          kind: 'unknown',
-          latencyMs,
-          model,
-          status: response.status,
-          detail: sample
-            ? `Expected smoke test reply "ok"; got "${sample}"`
-            : finishReason
-              ? `Provider returned a 2xx response without assistant text (finish reason: ${finishReason})`
-              : 'Provider returned a 2xx response without assistant text',
-        };
-      }
-    }
+    return await withRequestDeadline(
+      { timeoutMs: CONNECTION_TEST_TIMEOUT_MS, run: (signal) => probe({ input, call, model, start, signal }) },
+      { signal: input.signal },
+    );
   } catch (err) {
-    result = {
-      ok: false,
-      kind: networkErrorToKind(err),
-      latencyMs: Date.now() - start,
-      model,
-      detail: redactSecrets({ input: err instanceof Error ? err.message : String(err) }, { exactSecrets: [input.apiKey] }),
-    };
-  } finally {
-    clearTimeout(timer);
-    input.signal?.removeEventListener('abort', abortFromParent);
+    return failure(networkErrorToKind(err), redactApiKey({ text: errorMessage(err), apiKey: input.apiKey }));
   }
-  return result;
 }
