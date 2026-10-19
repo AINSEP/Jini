@@ -116,6 +116,78 @@ export type LoadPluginResult =
       readonly reason: PluginLoadFailureReason;
     };
 
+const failed = (reason: PluginLoadFailureReason): LoadPluginResult => ({ loaded: false, reason });
+
+/** Step (1): every listed file is plugin-relative and hashes to its declared value; a site entry
+ * file must be listed at all. Returns false on the first failure. */
+async function verifyIntegrity(required: {
+  record: PluginDiscoveryRecord; manifest: PluginManifest; pluginRoot: string; entryPath: string;
+  computeFileHash: (absoluteFilePath: string) => Promise<string>;
+}): Promise<boolean> {
+  const { manifest, pluginRoot, entryPath, computeFileHash } = required;
+  if (required.record.source === "site" && (await isUncoveredExistingEntry(manifest, pluginRoot, entryPath, computeFileHash))) return false;
+  for (const [relativeFilePath, expectedHash] of Object.entries(manifest.integrity)) {
+    if (!isPluginRelativePath({ path: relativeFilePath })) return false;
+    // An unreadable file is an integrity failure, never a raw I/O error.
+    const actualHash = await computeFileHash(path.join(pluginRoot, relativeFilePath)).catch(() => undefined);
+    if (actualHash !== expectedHash) return false;
+  }
+  return true;
+}
+
+/** Declared browser providers go through bundled-approval admission; none declared admits trivially. */
+async function admitDeclaredBrowserProviders(required: {
+  record: PluginDiscoveryRecord; manifest: PluginManifest; pluginRoot: string; approvals?: readonly BundledBrowserProviderApproval[] | undefined;
+}): Promise<{ admitted: true; providers?: readonly AdmittedBrowserProvider[] } | { admitted: false; reason: PluginLoadFailureReason }> {
+  const { record, manifest, pluginRoot } = required;
+  if (!manifest.browserProviders?.length) return { admitted: true };
+  return admitBrowserProviderAssets({ record, manifest, pluginRoot, approvals: required.approvals ?? [] });
+}
+
+function isExecutionAdmitted(required: { tierPolicy: PluginTierPolicy; record: PluginDiscoveryRecord; manifest: PluginManifest }): boolean {
+  const { tierPolicy, record, manifest } = required;
+  return !(manifest.tier === "tier-2" && tierPolicy.execution !== "worker") && tierPolicy.allowLoad({ record, manifest });
+}
+
+/** Step (3): the only place plugin code is ever evaluated. */
+async function importPluginModule(required: {
+  importModule: PluginModuleImportPort; record: PluginDiscoveryRecord; pluginRoot: string; entryPath: string;
+}): Promise<{ moduleValue: unknown } | { reason: PluginLoadFailureReason }> {
+  try {
+    // Same-version replacement must evaluate the reviewed package again. Build this URL only at
+    // step (3), after integrity and SDK compatibility have passed (CIC U-001 order unchanged).
+    // Injected import seams keep their original path contract. A fresh filesystem graph refreshes
+    // ALL packaged helpers (including nested/dynamic imports and CommonJS require caches).
+    const imported = await required.importModule({ plugin: { pluginId: required.record.id, packageRoot: required.pluginRoot }, modulePath: required.entryPath });
+    if (typeof imported === "string") return { reason: "CODE_ENTRY_MISSING" };
+    return { moduleValue: { default: imported.exported } };
+  } catch (error) {
+    if (error instanceof PluginSnapshotIntegrityError) return { reason: "INTEGRITY_FAILED" };
+    return { reason: "CODE_ENTRY_MISSING" };
+  }
+}
+
+/** Step (4): validate the `definePlugin()` export, build the per-load gated SDK, run setup. */
+async function runPluginSetup<H extends HookPoints>(required: {
+  pluginSdkBinding: PluginSdkBinding<H>; moduleValue: unknown; record: PluginDiscoveryRecord; manifest: PluginManifest; coreDeps: CapabilityScopedSdkCoreDeps;
+}): Promise<PluginLoadFailureReason | undefined> {
+  const { pluginSdkBinding, coreDeps } = required;
+  const plugin = pluginSdkBinding.readDefinedPlugin({ moduleValue: required.moduleValue });
+  if (!plugin) return "PLUGIN_EXPORT_INVALID";
+  const sdk = buildCapabilityScopedSdk({
+    pluginId: required.record.id,
+    capabilities: required.manifest.capabilities as readonly import("../manifest.js").PluginCapability[],
+    coreDeps,
+    pluginSdkBinding,
+  });
+  try {
+    await plugin.definition.setup(sdk);
+    return undefined;
+  } catch {
+    return "PLUGIN_SETUP_FAILED";
+  }
+}
+
 /**
  * Executes BR-01's 5-step ordered pipeline for one plugin. See CIC U-001 above for the binding
  * ordering constraint this function's statement order must never invert.
@@ -134,81 +206,32 @@ export async function loadPlugin<H extends HookPoints>(
   const { record, manifest, entryPath, coreDeps } = required;
   const { importModule, tierPolicy, pluginSdkBinding } = required;
   const computeFileHash = (absoluteFilePath: string) => required.verifyDigest({ absoluteFilePath });
-  const runtimeSdkVersion = pluginSdkBinding.runtimeSdkVersion;
   // --- CIC U-001-ORD1: step (1), integrity, MUST complete successfully before step (2)/(3). ---
   const pluginRoot = derivePluginRoot(entryPath);
-  if (record.source === "site" && (await isUncoveredExistingEntry(manifest, pluginRoot, entryPath, computeFileHash))) {
-    return { loaded: false, reason: "INTEGRITY_FAILED" };
-  }
-  for (const [relativeFilePath, expectedHash] of Object.entries(manifest.integrity)) {
-    if (!isPluginRelativePath({ path: relativeFilePath })) return { loaded: false, reason: "INTEGRITY_FAILED" };
-    let actualHash: string;
-    try {
-      actualHash = await computeFileHash(path.join(pluginRoot, relativeFilePath));
-    } catch {
-      return { loaded: false, reason: "INTEGRITY_FAILED" };
-    }
-    if (actualHash !== expectedHash) {
-      return { loaded: false, reason: "INTEGRITY_FAILED" };
-    }
-  }
+  if (!(await verifyIntegrity({ record, manifest, pluginRoot, entryPath, computeFileHash }))) return failed("INTEGRITY_FAILED");
 
   // --- CIC U-001-ORD1: step (2), sdkRange, MUST complete successfully before step (3). ---
-  if (!semver.satisfies(runtimeSdkVersion, manifest.sdkRange)) {
-    return { loaded: false, reason: "SDK_RANGE_UNSATISFIED" };
-  }
+  if (!semver.satisfies(pluginSdkBinding.runtimeSdkVersion, manifest.sdkRange)) return failed("SDK_RANGE_UNSATISFIED");
 
-  let browserProviders: readonly AdmittedBrowserProvider[] | undefined;
-  if (manifest.browserProviders?.length) {
-    const admission = await admitBrowserProviderAssets({ record, manifest, pluginRoot, approvals: required.browserProviderApprovals ?? [] });
-    if (!admission.admitted) return { loaded: false, reason: admission.reason };
-    browserProviders = admission.providers;
-  }
+  const admission = await admitDeclaredBrowserProviders({ record, manifest, pluginRoot, approvals: required.browserProviderApprovals });
+  if (!admission.admitted) return failed(admission.reason);
+  const loaded: LoadPluginResult = { loaded: true, ...(admission.providers ? { browserProviders: admission.providers } : {}) };
 
   // Declarative plugins never reach an executable importer. A worker port is mandatory for tier-2,
   // and tier-3 must be admitted explicitly by the host (CMS-JINI-MODULAR-DESIGN Rev 3 §5).
-  if (manifest.tier === "tier-1") return { loaded: true, ...(browserProviders ? { browserProviders } : {}) };
-  if ((manifest.tier === "tier-2" && tierPolicy.execution !== "worker") || !tierPolicy.allowLoad({ record, manifest })) {
-    return { loaded: false, reason: "CODE_ENTRY_MISSING" };
-  }
+  if (manifest.tier === "tier-1") return loaded;
+  if (!isExecutionAdmitted({ tierPolicy, record, manifest })) return failed("CODE_ENTRY_MISSING");
 
   // --- Step (3): only now, after both prior checks pass, is the plugin's code ever evaluated. ---
-  let importedModule: unknown;
-  try {
-    // Same-version replacement must evaluate the reviewed package again. Build this URL only at
-    // step (3), after integrity and SDK compatibility have passed (CIC U-001 order unchanged).
-    // Injected import seams keep their original path contract. A fresh filesystem graph refreshes
-    // ALL packaged helpers (including nested/dynamic imports and CommonJS require caches).
-    const imported = await importModule({ plugin: { pluginId: record.id, packageRoot: pluginRoot }, modulePath: entryPath });
-    if (typeof imported === "string") return { loaded: false, reason: "CODE_ENTRY_MISSING" };
-    importedModule = { default: imported.exported };
-  } catch (error) {
-    if (error instanceof PluginSnapshotIntegrityError) return { loaded: false, reason: "INTEGRITY_FAILED" };
-    return { loaded: false, reason: "CODE_ENTRY_MISSING" };
-  }
+  const imported = await importPluginModule({ importModule, record, pluginRoot, entryPath });
+  if ("reason" in imported) return failed(imported.reason);
 
-  // --- Step (4): validate the `definePlugin()` export, build the per-load gated SDK, run setup. ---
-  const plugin = pluginSdkBinding.readDefinedPlugin({ moduleValue: importedModule });
-  if (!plugin) {
-    return { loaded: false, reason: "PLUGIN_EXPORT_INVALID" };
-  }
-
-  const sdk = buildCapabilityScopedSdk({
-    pluginId: record.id,
-    capabilities: manifest.capabilities as readonly import("../manifest.js").PluginCapability[],
-    coreDeps,
-    pluginSdkBinding,
-  });
-  try {
-    await plugin.definition.setup(sdk);
-  } catch {
-    return { loaded: false, reason: "PLUGIN_SETUP_FAILED" };
-  }
+  const setupFailure = await runPluginSetup({ pluginSdkBinding, moduleValue: imported.moduleValue, record, manifest, coreDeps });
+  if (setupFailure) return failed(setupFailure);
 
   // Step (5) remains composition-owned: setup's gated `addFilter()` handle captures the filter in
   // the caller's `coreDeps`; only after this successful return does the root call the shared
   // `attachLoadedPlugin()` path below. That split prevents a late setup failure from leaving a
   // partially-attached filter behind.
-  return { loaded: true, ...(browserProviders ? { browserProviders } : {}) };
+  return loaded;
 }
-
