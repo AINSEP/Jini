@@ -69,54 +69,90 @@ const isEditableEffect = (el: SourceElement): boolean => {
   return (TEXT_EFFECT_TAGS.has(el.tagName) || PHRASING_TAGS.has(el.tagName)) && isPhrasingOnly(el);
 };
 
+const REFUSAL = "Can't edit this source visually. Use HTML.";
+/** Any captured source next to a recovered/unsupported element would splice against untrusted offsets. */
+const refuses = ({ unsupported, captured, elements }: { unsupported: boolean; captured: number; elements: readonly SourceElement[] }) =>
+  unsupported || (captured > 0 && elements.some(el => !el.sourceSupported));
+
+interface BlockScan {
+  readonly options: EditorBlockOptions;
+  /** Whether some descendant (not the element itself) opts into live editing. */
+  readonly liveIslands: Map<SourceElement, boolean>;
+  readonly blocks: EditorBlock[];
+  unsupported: boolean;
+}
+
+function markLiveIslands({ el, liveIslands }: { el: SourceElement; liveIslands: Map<SourceElement, boolean> }): boolean {
+  const descendants = el.children.map(child => markLiveIslands({ el: child, liveIslands })).some(Boolean);
+  liveIslands.set(el, descendants);
+  return el.attributes['data-editor'] === 'live' || descendants;
+}
+
+function automaticReason({ el, mode }: { el: SourceElement; mode: string | undefined }): EditorBlockReason | undefined {
+  if (Object.keys(el.attributes).some(name => name.startsWith('data-kui')) && !isEditableEffect(el)) return 'kuinetic';
+  if (el.tagName === 'canvas') return 'canvas';
+  if (el.tagName === 'video' && 'autoplay' in el.attributes) return 'autoplay-video';
+  return mode === 'block' ? 'scripted' : undefined;
+}
+
+function hostProtection({ el }: { el: SourceElement }, options: EditorBlockOptions) {
+  const view = sourceElementAttributeView(el, {});
+  const host = options.describeHostElement?.(view);
+  return { host, embed: !!host || !!options.isProtectedElement?.(view) };
+}
+
+function identityLabel({ el }: { el: SourceElement }): string {
+  const { id, class: className } = el.attributes;
+  if (id) return `#${id}`;
+  return className ? `.${className.trim().split(/\s+/).slice(0, 2).join('.')}` : el.tagName;
+}
+
+function toBlock(
+  { el, reason, host }: { el: SourceElement; reason: EditorBlockReason; host: CanvasEmbedPlaceholderDescriptor | undefined },
+  { translate: t = (key: string) => key }: EditorBlockOptions,
+): EditorBlock {
+  const id = el.attributes.id;
+  return {
+    ...el.outerRange!, tagName: el.tagName, ...(id ? { id } : {}), reason, element: el,
+    descriptor: reason === 'embed' && host ? host : {
+      kindLabel: t(LABELS[reason]), identityLabel: identityLabel({ el }).slice(0, 64), presentation: reason === 'embed' ? 'embed' : 'runtime',
+      guidanceLabel: t('Locked · Edit in HTML · Preview plays it'), inline: INLINE_TAGS.has(el.tagName),
+    },
+  };
+}
+
+function lockReason({ el, mode, isLive, scan }: { el: SourceElement; mode: string | undefined; isLive: boolean; scan: BlockScan }) {
+  const { host, embed } = hostProtection({ el }, scan.options);
+  // A live descendant vetoes its ancestors' automatic lock, never host embed safety.
+  const automatic = isLive || scan.liveIslands.get(el) ? undefined : automaticReason({ el, mode });
+  return { host, reason: automatic ?? (embed ? 'embed' as const : undefined) };
+}
+
+function collectBlocks({ el, live, invalidAncestor, scan }: { el: SourceElement; live: boolean; invalidAncestor: boolean; scan: BlockScan }): void {
+  const mode = el.attributes['data-editor'];
+  const isLive = mode === 'live' || (mode !== 'block' && live);
+  const { host, reason } = lockReason({ el, mode, isLive, scan });
+  const invalid = invalidAncestor || !el.outerRange || UNSUPPORTED_CONTEXTS.has(el.tagName);
+  if (!reason) {
+    el.children.forEach(child => collectBlocks({ el: child, live: isLive, invalidAncestor: invalid, scan }));
+  } else if (invalid) {
+    // An unsupported-but-ranged block needs no check here: `sourceSupported: false` propagates to
+    // every ancestor (`indexSourceElements`), so `refuses` rejects the whole source once it is pushed.
+    scan.unsupported = true;
+  } else {
+    scan.blocks.push(toBlock({ el, reason, host }, scan.options));
+  }
+}
+
 /** Outermost disjoint roots; explicit live islands veto aggregation but never host embed safety. */
 export function detectEditorBlocks({ html }: { html: string }, options: EditorBlockOptions = {}):
   { ok: true; blocks: EditorBlock[]; elements: SourceElement[] } | { ok: false; problem: string } {
   const elements = indexSourceElements({ html }, {});
-  const blocks: EditorBlock[] = [];
-  const liveIslands = new Map<SourceElement, boolean>();
-  const annotate = (el: SourceElement): boolean => {
-    const descendants = el.children.map(annotate).some(Boolean);
-    liveIslands.set(el, descendants);
-    return el.attributes['data-editor'] === 'live' || descendants;
-  };
-  elements.forEach(annotate);
-  let unsupported = false;
-  const walk = (el: SourceElement, live: boolean, invalidAncestor: boolean) => {
-    const mode = el.attributes['data-editor'];
-    const isLive = mode === 'live' || (mode !== 'block' && live);
-    const view = sourceElementAttributeView(el, {});
-    const host = options.describeHostElement?.(view);
-    const embed = !!host || !!options.isProtectedElement?.(view);
-    let reason: EditorBlockReason | undefined;
-    if (!isLive) {
-      if (Object.keys(el.attributes).some(name => name.startsWith('data-kui')) && !isEditableEffect(el)) reason = 'kuinetic';
-      else if (el.tagName === 'canvas') reason = 'canvas';
-      else if (el.tagName === 'video' && 'autoplay' in el.attributes) reason = 'autoplay-video';
-      else if (mode === 'block') reason = 'scripted';
-    }
-    if (reason && liveIslands.get(el)) reason = undefined;
-    if (!reason && embed) reason = 'embed';
-    const invalid = invalidAncestor || !el.outerRange || UNSUPPORTED_CONTEXTS.has(el.tagName);
-    if (reason) {
-      if (invalid || !el.sourceSupported) { unsupported = true; return; }
-      const t = options.translate ?? ((key: string) => key);
-      const id = el.attributes.id;
-      const identity = id ? `#${id}` : el.attributes.class ? `.${el.attributes.class.trim().split(/\s+/).slice(0, 2).join('.')}` : el.tagName;
-      blocks.push({
-        ...el.outerRange!, tagName: el.tagName, ...(id ? { id } : {}), reason, element: el,
-        descriptor: reason === 'embed' && host ? host : {
-          kindLabel: t(LABELS[reason]), identityLabel: identity.slice(0, 64), presentation: reason === 'embed' ? 'embed' : 'runtime',
-          guidanceLabel: t('Locked · Edit in HTML · Preview plays it'), inline: INLINE_TAGS.has(el.tagName),
-        },
-      });
-      return;
-    }
-    el.children.forEach(child => walk(child, isLive, invalid));
-  };
-  elements.forEach(el => walk(el, false, false));
-  return unsupported || (blocks.length > 0 && elements.some(el => !el.sourceSupported))
-    ? { ok: false, problem: "Can't edit this source visually. Use HTML." } : { ok: true, blocks, elements };
+  const scan: BlockScan = { options, liveIslands: new Map(), blocks: [], unsupported: false };
+  elements.forEach(el => markLiveIslands({ el, liveIslands: scan.liveIslands }));
+  elements.forEach(el => collectBlocks({ el, live: false, invalidAncestor: false, scan }));
+  const { blocks, unsupported } = scan;
+  return refuses({ unsupported, captured: blocks.length, elements }) ? { ok: false, problem: REFUSAL } : { ok: true, blocks, elements };
 }
 
 export interface RawSourceInstance extends ElementOuterRange {
@@ -138,6 +174,59 @@ export type EditorSourcePlan = PreparedEditorSource | { readonly ok: false; read
 
 const escapeAttribute = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
+const sourceInstance = ({ html, range }: { html: string; range: ElementOuterRange }) => ({
+  originalHtml: html.slice(range.outerStart, range.outerEnd), openingTag: html.slice(range.outerStart, range.openingEnd),
+});
+
+interface AtomScan {
+  readonly html: string;
+  readonly blocked: ReadonlySet<SourceElement>;
+  readonly css: string[];
+  readonly instances: RawSourceInstance[];
+  unsupported: boolean;
+}
+
+function captureStyleCss({ el, scan }: { el: SourceElement; scan: AtomScan }): void {
+  if (el.tagName !== 'style' || !el.outerRange) return;
+  const { html } = scan;
+  const original = html.slice(el.outerRange.outerStart, el.outerRange.outerEnd);
+  const closingLength = original.length - (original.toLowerCase().lastIndexOf('</style'));
+  scan.css.push(html.slice(el.outerRange.openingEnd, el.outerRange.outerEnd - closingLength));
+}
+
+function collectAtoms({ el, enclosed, invalidAncestor, scan }: { el: SourceElement; enclosed: boolean; invalidAncestor: boolean; scan: AtomScan }): void {
+  const inside = enclosed || scan.blocked.has(el);
+  const invalid = invalidAncestor || !el.outerRange;
+  captureStyleCss({ el, scan });
+  if (!inside && (el.tagName === 'style' || el.tagName === 'script')) {
+    if (invalid) scan.unsupported = true;
+    else scan.instances.push({ ...el.outerRange!, ...sourceInstance({ html: scan.html, range: el.outerRange! }), tagName: el.tagName, nonvisual: true });
+  }
+  el.children.forEach(child => collectAtoms({ el: child, enclosed: inside, invalidAncestor: invalid, scan }));
+}
+
+function uniqueMarkerAttribute({ html }: { html: string }): string {
+  let markerAttribute = 'data-jini-raw-source-0';
+  let namespace = 0;
+  while (html.toLowerCase().includes(markerAttribute)) markerAttribute = `data-jini-raw-source-${++namespace}`;
+  return markerAttribute;
+}
+
+// Data selectors may declare the root's geometry. They are inert without page scripts; keep
+// them alongside box attributes, while resource URLs, event handlers, autoplay and GrapesJS
+// parser directives stay absent. Authored data-gjs flags must not override the protected type.
+const isLayoutAttribute = (name: string) => ['id', 'class', 'style', 'height', 'width'].includes(name)
+  || (name.startsWith('data-') && !name.startsWith('data-gjs-'));
+
+function shellHtml(
+  { instance, index, markerAttribute, attrs }: { instance: RawSourceInstance; index: number; markerAttribute: string; attrs: Readonly<Record<string, string>> },
+): string {
+  const layout = Object.keys(attrs).filter(isLayoutAttribute).map(name => ` ${name}="${escapeAttribute(attrs[name]!)}"`).join('');
+  const tag = instance.nonvisual ? 'span' : instance.tagName;
+  const voidTag = instance.openingEnd === instance.outerEnd;
+  return `<${tag} ${markerAttribute}="${index}"${layout}>${voidTag && !instance.nonvisual ? '' : `</${tag}>`}`;
+}
+
 /**
  * Capture before GrapesJS parses. Only a mount-private lookup token reaches the parser; authored
  * source stays in model metadata. Style/script atoms use inert spans, never executable source tags.
@@ -146,53 +235,23 @@ export function prepareEditorSource({ html }: { html: string }, options: EditorB
   const detected = detectEditorBlocks({ html }, options);
   if (!detected.ok) return { ...detected, html };
   const instances: RawSourceInstance[] = detected.blocks.map(block => ({
-    ...block, originalHtml: html.slice(block.outerStart, block.outerEnd),
-    openingTag: html.slice(block.outerStart, block.openingEnd), nonvisual: false,
+    ...block, ...sourceInstance({ html, range: block }), nonvisual: false,
   }));
-  const blocked = new Set(detected.blocks.map(block => block.element));
-  const css: string[] = [];
-  let unsupported = false;
-  const walk = (el: SourceElement, enclosed: boolean, invalidAncestor: boolean) => {
-    const inside = enclosed || blocked.has(el);
-    const invalid = invalidAncestor || !el.outerRange;
-    if (el.tagName === 'style' && el.outerRange) {
-      const original = html.slice(el.outerRange.outerStart, el.outerRange.outerEnd);
-      const closingLength = original.length - (original.toLowerCase().lastIndexOf('</style'));
-      css.push(html.slice(el.outerRange.openingEnd, el.outerRange.outerEnd - closingLength));
-    }
-    if (!inside && (el.tagName === 'style' || el.tagName === 'script')) {
-      if (invalid) unsupported = true;
-      else instances.push({ ...el.outerRange!, originalHtml: html.slice(el.outerRange!.outerStart, el.outerRange!.outerEnd),
-        openingTag: html.slice(el.outerRange!.outerStart, el.outerRange!.openingEnd), tagName: el.tagName, nonvisual: true });
-    }
-    el.children.forEach(child => walk(child, inside, invalid));
-  };
-  detected.elements.forEach(el => walk(el, false, false));
-  if (unsupported || (instances.length > 0 && detected.elements.some(el => !el.sourceSupported))) {
-    return { ok: false, html, problem: "Can't edit this source visually. Use HTML." };
+  const scan: AtomScan = { html, blocked: new Set(detected.blocks.map(block => block.element)), css: [], instances, unsupported: false };
+  detected.elements.forEach(el => collectAtoms({ el, enclosed: false, invalidAncestor: false, scan }));
+  if (refuses({ unsupported: scan.unsupported, captured: instances.length, elements: detected.elements })) {
+    return { ok: false, html, problem: REFUSAL };
   }
   instances.sort((a, b) => a.outerStart - b.outerStart);
-  let markerAttribute = 'data-jini-raw-source-0';
-  let namespace = 0;
-  while (html.toLowerCase().includes(markerAttribute)) markerAttribute = `data-jini-raw-source-${++namespace}`;
-  let prepared = html;
+  const markerAttribute = uniqueMarkerAttribute({ html });
   const roots = new Map(detected.blocks.map(block => [block.outerStart, block]));
+  let prepared = html;
   for (let i = instances.length - 1; i >= 0; i--) {
     const instance = instances[i]!;
-    const block = roots.get(instance.outerStart);
-    const attrs = block?.element.attributes ?? {};
-    // Data selectors may declare the root's geometry. They are inert without page scripts; keep
-    // them alongside box attributes, while resource URLs, event handlers, autoplay and GrapesJS
-    // parser directives stay absent. Authored data-gjs flags must not override the protected type.
-    const layout = Object.keys(attrs).filter(name => ['id', 'class', 'style', 'height', 'width'].includes(name)
-      || (name.startsWith('data-') && !name.startsWith('data-gjs-')))
-      .map(name => ` ${name}="${escapeAttribute(attrs[name]!)}"`).join('');
-    const tag = instance.nonvisual ? 'span' : instance.tagName;
-    const voidTag = instance.openingEnd === instance.outerEnd;
-    const shell = `<${tag} ${markerAttribute}="${i}"${layout}>${voidTag && !instance.nonvisual ? '' : `</${tag}>`}`;
-    prepared = prepared.slice(0, instance.outerStart) + shell + prepared.slice(instance.outerEnd);
+    const attrs = roots.get(instance.outerStart)?.element.attributes ?? {};
+    prepared = prepared.slice(0, instance.outerStart) + shellHtml({ instance, index: i, markerAttribute, attrs }) + prepared.slice(instance.outerEnd);
   }
-  return { ok: true, html: prepared, markerAttribute, instances, canvasCss: css.join('\n') };
+  return { ok: true, html: prepared, markerAttribute, instances, canvasCss: scan.css.join('\n') };
 }
 
 /** Exact authored opening tag and its source offsets; no regex-based HTML parsing or id guessing. */

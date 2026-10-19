@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { detectEditorBlocks, prepareEditorSource } from '../editor-blocks.js';
+import { detectEditorBlocks, findEditorBlockOpening, prepareEditorSource } from '../editor-blocks.js';
 
 const tags = (html: string) => {
   const result = detectEditorBlocks({ html }, {});
@@ -124,4 +124,89 @@ it('authored GrapesJS type/flag directives cannot override a protected shell', (
   if (!plan.ok) throw new Error(plan.problem);
   expect(plan.html).toBe('<div data-jini-raw-source-0="0" data-kui=""></div>');
   expect(plan.instances[0]!.originalHtml).toBe(html);
+});
+
+it('checks phrasing grandchildren when deciding whether unnamed-effect text stays editable', () => {
+  expect(tags('<p data-kui>a <em><span><img></span></em></p><p data-kui>a <em><button>x</button></em></p>')).toEqual(['p']);
+});
+
+it('labels a locked block by id, else by its first two classes, else by tag, through the translator', () => {
+  const result = detectEditorBlocks({ html: `<canvas class="  a b c "></canvas><canvas id="i"></canvas><canvas></canvas><canvas class="${'x'.repeat(80)}"></canvas>` }, { translate: key => `T:${key}` });
+  if (!result.ok) throw new Error(result.problem);
+  expect(result.blocks.map(block => block.descriptor)).toEqual([
+    { kindLabel: 'T:Canvas', identityLabel: '.a.b', presentation: 'runtime', guidanceLabel: 'T:Locked · Edit in HTML · Preview plays it', inline: false },
+    { kindLabel: 'T:Canvas', identityLabel: '#i', presentation: 'runtime', guidanceLabel: 'T:Locked · Edit in HTML · Preview plays it', inline: false },
+    { kindLabel: 'T:Canvas', identityLabel: 'canvas', presentation: 'runtime', guidanceLabel: 'T:Locked · Edit in HTML · Preview plays it', inline: false },
+    { kindLabel: 'T:Canvas', identityLabel: `.${'x'.repeat(63)}`, presentation: 'runtime', guidanceLabel: 'T:Locked · Edit in HTML · Preview plays it', inline: false },
+  ]);
+  expect(result.blocks.map(block => block.id)).toEqual([undefined, 'i', undefined, undefined]);
+});
+
+it('gives a protected element without a host description an untranslated embed descriptor', () => {
+  const result = detectEditorBlocks({ html: '<b data-embed>x</b>' }, { isProtectedElement: el => el.hasAttribute('data-embed') });
+  if (!result.ok) throw new Error(result.problem);
+  expect(result.blocks[0]!.descriptor).toEqual({ kindLabel: 'Content', identityLabel: 'b', presentation: 'embed', guidanceLabel: 'Locked · Edit in HTML · Preview plays it', inline: true });
+});
+
+it('uses the host description verbatim for a host embed', () => {
+  const descriptor = { kindLabel: 'Widget', identityLabel: 'slug x' };
+  const result = detectEditorBlocks({ html: '<div data-embed></div>' }, { describeHostElement: el => el.hasAttribute('data-embed') ? descriptor : undefined });
+  if (!result.ok) throw new Error(result.problem);
+  expect(result.blocks[0]!.descriptor).toBe(descriptor);
+});
+
+it('refuses a block when another top-level element is not source-supported', () => {
+  expect(detectEditorBlocks({ html: '<canvas></canvas><div>x' }, {})).toEqual({ ok: false, problem: "Can't edit this source visually. Use HTML." });
+});
+
+it('refuses to prepare an unclosed outside style', () => {
+  expect(prepareEditorSource({ html: '<p>x</p><style>x' }, {})).toEqual({ ok: false, html: '<p>x</p><style>x', problem: "Can't edit this source visually. Use HTML." });
+});
+
+it('refuses to prepare a script beside an unsupported element', () => {
+  expect(prepareEditorSource({ html: '<script></script><div>x' }, {})).toEqual({ ok: false, html: '<script></script><div>x', problem: "Can't edit this source visually. Use HTML." });
+});
+
+it('prepares a source without blocks or atoms unchanged', () => {
+  expect(prepareEditorSource({ html: '<p>x</p>' })).toEqual({ ok: true, html: '<p>x</p>', markerAttribute: 'data-jini-raw-source-0', instances: [], canvasCss: '' });
+});
+
+it('gives a void block a shell without a closing tag', () => {
+  const plan = prepareEditorSource({ html: '<p>a</p><img data-kui="pin" src="/a.png" class="c" width="2" onload="x()">' }, {});
+  if (!plan.ok) throw new Error(plan.problem);
+  expect(plan.html).toBe('<p>a</p><img data-jini-raw-source-0="0" data-kui="pin" class="c" width="2">');
+});
+
+it('escapes quotes, ampersands and angle brackets in shell attributes', () => {
+  const plan = prepareEditorSource({ html: '<canvas title="t" data-x=\'a"&<b\'></canvas>' }, {});
+  if (!plan.ok) throw new Error(plan.problem);
+  expect(plan.html).toBe('<canvas data-jini-raw-source-0="0" data-x="a&quot;&amp;&lt;b"></canvas>');
+});
+
+it('replaces a style atom with an empty inert span and keeps its CSS for the canvas', () => {
+  const plan = prepareEditorSource({ html: '<STYLE>a{}</Style>' }, {});
+  if (!plan.ok) throw new Error(plan.problem);
+  expect(plan.html).toBe('<span data-jini-raw-source-0="0"></span>');
+  expect(plan.instances).toEqual([{ outerStart: 0, outerEnd: 18, openingEnd: 7, originalHtml: '<STYLE>a{}</Style>', openingTag: '<STYLE>', tagName: 'style', nonvisual: true }]);
+  expect(plan.canvasCss).toBe('a{}');
+});
+
+describe('findEditorBlockOpening', () => {
+  const html = '<div id="a"></div><DIV id="b"><div id="a" x></div></DIV><p>';
+  it('finds the nth occurrence of a tag and id, matching the tag case-insensitively', () => {
+    expect(findEditorBlockOpening({ html, target: { occurrenceIndex: 1, tagName: 'DIV', id: 'a' } })).toEqual({ start: 30, end: 44, openingTag: '<div id="a" x>' });
+  });
+  it('counts every element of the tag when no id is given', () => {
+    expect(findEditorBlockOpening({ html, target: { occurrenceIndex: 1, tagName: 'div' } }, {})).toEqual({ start: 18, end: 30, openingTag: '<DIV id="b">' });
+  });
+  it('returns undefined past the last occurrence', () => {
+    expect(findEditorBlockOpening({ html, target: { occurrenceIndex: 3, tagName: 'div' } })).toBeUndefined();
+  });
+  it('returns undefined for an occurrence without a trustworthy source range', () => {
+    expect(findEditorBlockOpening({ html, target: { occurrenceIndex: 0, tagName: 'p' } })).toBeUndefined();
+  });
+});
+
+it.each(['<table data-kui="pin"><tbody><tr><td>x</td></tr></tbody></table>', '<svg><canvas></canvas></svg>'])('refuses a well-formed lock in an unsupported context: %s', html => {
+  expect(detectEditorBlocks({ html }, {})).toEqual({ ok: false, problem: "Can't edit this source visually. Use HTML." });
 });
