@@ -110,23 +110,27 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return Boolean(v) && typeof v === 'object' && !Array.isArray(v);
 }
 
+function isKeepableMapEntry(entry: [string, unknown]): entry is [string, string] {
+  const [k, v] = entry;
+  if (k === '__proto__' || k === 'constructor' || !k.trim()) return false;
+  // Drop empty / whitespace-only values. Persisting them is worse than
+  // omitting them: the spawn-time merge treats a present header as
+  // "user pinned this", which would block our daemon-issued OAuth
+  // Bearer from being injected. The UI also has placeholder fields
+  // (e.g. an "Authorization=" template row) the user can leave blank
+  // — those should never make it into the saved config.
+  return typeof v === 'string' && v.trim() !== '';
+}
+
 function sanitizeStringMap(raw: unknown): Record<string, string> | undefined {
   if (!isPlainObject(raw)) return undefined;
   const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(raw)) {
-    if (k === '__proto__' || k === 'constructor') continue;
-    if (!k.trim()) continue;
-    if (typeof v !== 'string') continue;
-    // Drop empty / whitespace-only values. Persisting them is worse than
-    // omitting them: the spawn-time merge treats a present header as
-    // "user pinned this", which would block our daemon-issued OAuth
-    // Bearer from being injected. The UI also has placeholder fields
-    // (e.g. an "Authorization=" template row) the user can leave blank
-    // — those should never make it into the saved config.
-    if (v.trim() === '') continue;
-    out[k] = v;
-  }
+  for (const [k, v] of Object.entries(raw).filter(isKeepableMapEntry)) out[k] = v;
   return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function nonBlankTrimmed(raw: unknown): string | undefined {
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : undefined;
 }
 
 function sanitizeStringArray(raw: unknown): string[] | undefined {
@@ -175,11 +179,8 @@ export function sanitizeMcpServer({ raw }: { raw: unknown }): McpServerConfig | 
   if (!isPlainObject(raw)) return null;
   const id = typeof raw.id === 'string' ? raw.id.trim() : '';
   if (!SERVER_ID_PATTERN.test(id)) return null;
-  // Absence preserves the legacy stdio default; a supplied invalid discriminator must not
-  // silently select a different transport or authentication policy.
-  if (raw.transport !== undefined && typeof raw.transport !== 'string') return null;
-  const transport = raw.transport === undefined ? 'stdio' : (raw.transport as McpTransport);
-  if (!VALID_TRANSPORTS.has(transport)) return null;
+  const transport = sanitizeTransport(raw.transport);
+  if (!transport) return null;
   if (raw.authMode !== undefined && sanitizeMcpAuthMode(raw.authMode) === undefined) return null;
 
   const next: McpServerConfig = {
@@ -187,34 +188,44 @@ export function sanitizeMcpServer({ raw }: { raw: unknown }): McpServerConfig | 
     transport,
     enabled: raw.enabled !== false,
   };
-  if (typeof raw.label === 'string' && raw.label.trim()) {
-    next.label = raw.label.trim();
-  }
+  const label = nonBlankTrimmed(raw.label);
+  if (label) next.label = label;
+  const fields = transport === 'stdio' ? sanitizeStdioFields(raw) : sanitizeRemoteFields(raw);
+  return fields ? { ...next, ...fields } : null;
+}
 
-  if (transport === 'stdio') {
-    if (typeof raw.command !== 'string' || !raw.command.trim()) return null;
-    next.command = raw.command.trim();
-    const args = sanitizeStringArray(raw.args);
-    if (args) next.args = args;
-    const env = sanitizeStringMap(raw.env);
-    if (env) next.env = env;
-  } else {
-    if (typeof raw.url !== 'string' || !raw.url.trim()) return null;
-    // Reject anything that isn't an http(s) URL — protects against accidental
-    // `file://` / `javascript:` slipping into a config file.
-    let parsed: URL;
-    try {
-      parsed = new URL(raw.url.trim());
-    } catch {
-      return null;
-    }
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
-    next.url = parsed.toString();
-    next.authMode = sanitizeMcpAuthMode(raw.authMode) ?? inferMcpAuthModeForUrl({ rawUrl: next.url });
-    const headers = sanitizeStringMap(raw.headers);
-    if (headers) next.headers = headers;
-  }
-  return next;
+// Absence preserves the legacy stdio default; a supplied invalid discriminator must not
+// silently select a different transport or authentication policy.
+function sanitizeTransport(raw: unknown): McpTransport | null {
+  if (raw === undefined) return 'stdio';
+  return typeof raw === 'string' && VALID_TRANSPORTS.has(raw as McpTransport) ? (raw as McpTransport) : null;
+}
+
+type TransportFields = Pick<McpServerConfig, 'command' | 'args' | 'env' | 'url' | 'authMode' | 'headers'>;
+
+function sanitizeStdioFields(raw: Record<string, unknown>): TransportFields | null {
+  const command = nonBlankTrimmed(raw.command);
+  if (!command) return null;
+  const out: TransportFields = { command };
+  const args = sanitizeStringArray(raw.args);
+  if (args) out.args = args;
+  const env = sanitizeStringMap(raw.env);
+  if (env) out.env = env;
+  return out;
+}
+
+function sanitizeRemoteFields(raw: Record<string, unknown>): TransportFields | null {
+  const rawUrl = nonBlankTrimmed(raw.url);
+  if (!rawUrl) return null;
+  // Reject anything that isn't an http(s) URL — protects against accidental
+  // `file://` / `javascript:` slipping into a config file.
+  const parsed = URL.canParse(rawUrl) ? new URL(rawUrl) : null;
+  if (parsed?.protocol !== 'http:' && parsed?.protocol !== 'https:') return null;
+  const url = parsed.toString();
+  const out: TransportFields = { url, authMode: sanitizeMcpAuthMode(raw.authMode) ?? inferMcpAuthModeForUrl({ rawUrl: url }) };
+  const headers = sanitizeStringMap(raw.headers);
+  if (headers) out.headers = headers;
+  return out;
 }
 
 /**
@@ -336,7 +347,7 @@ export function isManagedProjectCwd(
   const resolvedProjectsDir = resolvePath({ filePath: projectsDir });
   const resolvedCwd = resolvePath({ filePath: cwd });
   if (resolvedCwd === resolvedProjectsDir) return false; // projects root, not a project
-  return pathContains({ root: resolvedProjectsDir, target: resolvedCwd }, { caseSensitive: path.sep !== '\\', separator: path.sep === '\\' ? '\\' : '/' });
+  return pathContains({ root: resolvedProjectsDir, target: resolvedCwd }, { caseSensitive: path.sep !== '\\', separator: path.sep });
 }
 
 /**
@@ -361,25 +372,23 @@ export function buildClaudeMcpJson(
   if (enabled.length === 0) return null;
   const out: Record<string, Record<string, unknown>> = {};
   for (const s of enabled) {
-    if (s.transport === 'stdio') {
-      const entry: Record<string, unknown> = { command: s.command };
-      if (s.args && s.args.length > 0) entry.args = s.args;
-      if (s.env && Object.keys(s.env).length > 0) entry.env = s.env;
-      out[s.id] = entry;
-    } else {
-      const entry: Record<string, unknown> = {
-        type: s.transport, // 'sse' | 'http'
-        url: s.url,
-      };
-      const headers = mergeAuthHeader(
-        s.headers,
-        effectiveMcpAuthMode(s) === 'oauth' ? tokens[s.id] : undefined,
-      );
-      if (headers && Object.keys(headers).length > 0) entry.headers = headers;
-      out[s.id] = entry;
-    }
+    out[s.id] = s.transport === 'stdio'
+      ? { command: s.command, ...nonEmptyField({ key: 'args', value: s.args }), ...nonEmptyField({ key: 'env', value: s.env }) }
+      // type: 'sse' | 'http'
+      : { type: s.transport, url: s.url, ...remoteHeadersField({ server: s, tokens }) };
   }
   return { mcpServers: out };
+}
+
+/** `{ [key]: value }` when `value` has at least one element/key, else `{}` — for spreading optional fields. */
+function nonEmptyField({ key, value }: { key: string; value: object | undefined }): Record<string, unknown> {
+  return value && Object.keys(value).length > 0 ? { [key]: value } : {};
+}
+
+/** `{ headers }` for a remote server (user headers + daemon OAuth bearer when in oauth mode), or `{}` when empty. */
+function remoteHeadersField({ server, tokens }: { server: McpServerConfig; tokens: Record<string, string> }): Record<string, unknown> {
+  const bearer = effectiveMcpAuthMode(server) === 'oauth' ? tokens[server.id] : undefined;
+  return nonEmptyField({ key: 'headers', value: mergeAuthHeader(server.headers, bearer) });
 }
 
 /** Build a headers object that includes the daemon-issued bearer token when
@@ -395,22 +404,18 @@ function mergeAuthHeader(
   bearer: string | undefined,
 ): Record<string, string> | undefined {
   const merged: Record<string, string> = {};
-  let userAuth: string | null = null;
+  let userAuth = false;
   for (const [k, v] of Object.entries(existing ?? {})) {
-    if (k.toLowerCase() === 'authorization') {
-      if (typeof v === 'string' && v.trim() !== '') {
-        userAuth = v;
-        merged[k] = v;
-      }
-      // empty / whitespace authorization is ignored, NOT carried through
-      continue;
-    }
+    const isAuth = k.toLowerCase() === 'authorization';
+    // empty / whitespace authorization is ignored, NOT carried through
+    if (isAuth && (typeof v !== 'string' || v.trim() === '')) continue;
+    userAuth ||= isAuth;
     merged[k] = v;
   }
   if (bearer && !userAuth) {
     merged['Authorization'] = `Bearer ${bearer}`;
   }
-  return Object.keys(merged).length > 0 ? merged : undefined;
+  return merged;
 }
 
 /**
@@ -434,25 +439,17 @@ export interface AcpMcpServer {
  * @returns ACP-shaped server entries for all enabled stdio servers.
  */
 export function buildAcpMcpServers({ servers }: { servers: McpServerConfig[] }): AcpMcpServer[] {
-  const enabled = servers.filter((s) => s.enabled && s.transport === 'stdio');
-  const out: AcpMcpServer[] = [];
-  for (const s of enabled) {
-    const envEntries: Array<{ name: string; value: string }> = [];
-    if (s.env) {
-      for (const [name, value] of Object.entries(s.env)) {
-        if (typeof value !== 'string') continue;
-        envEntries.push({ name, value });
-      }
-    }
-    out.push({
+  return servers
+    .filter((s) => s.enabled && s.transport === 'stdio')
+    .map((s) => ({
       type: 'stdio',
       name: s.id,
       command: s.command ?? '',
       args: Array.isArray(s.args) ? [...s.args] : [],
-      env: envEntries,
-    });
-  }
-  return out;
+      env: Object.entries(s.env ?? {})
+        .filter(([, value]) => typeof value === 'string')
+        .map(([name, value]) => ({ name, value })),
+    }));
 }
 
 /**
@@ -494,69 +491,41 @@ export function buildOpenCodeMcpConfigContent(
 ): string | null {
   const tokens = options.tokens ?? {};
   const resolvePath = options.resolvePath ?? (({ filePath }: { filePath: string }) => realpathSync.native(filePath));
-  return buildOpenCodeContent(servers, tokens, options, resolvePath);
-}
-
-function buildOpenCodeContent(
-  servers: McpServerConfig[],
-  tokens: Record<string, string>,
-  options: OpenCodeConfigBuildOptions,
-  resolvePath: (args: { filePath: string }) => string,
-): string | null {
-  const enabled = servers.filter((s) => s.enabled);
   const mcp: Record<string, Record<string, unknown>> = {};
-  for (const s of enabled) {
-    if (s.transport === 'stdio') {
-      const cmd = typeof s.command === 'string' ? s.command.trim() : '';
-      if (!cmd) continue;
-      const entry: Record<string, unknown> = {
-        type: 'local',
-        command: [cmd, ...(Array.isArray(s.args) ? s.args : [])],
-      };
-      if (s.env && Object.keys(s.env).length > 0) {
-        entry.environment = { ...s.env };
-      }
-      entry.enabled = true;
-      mcp[s.id] = entry;
-    } else {
-      const url = typeof s.url === 'string' ? s.url.trim() : '';
-      if (!url) continue;
-      const entry: Record<string, unknown> = {
-        type: 'remote',
-        url: s.url,
-      };
-      const headers = mergeAuthHeader(
-        s.headers,
-        effectiveMcpAuthMode(s) === 'oauth' ? tokens[s.id] : undefined,
-      );
-      if (headers && Object.keys(headers).length > 0) entry.headers = headers;
-      entry.enabled = true;
-      mcp[s.id] = entry;
-    }
+  for (const s of servers.filter((server) => server.enabled)) {
+    const entry = buildOpenCodeServerEntry({ server: s, tokens });
+    if (entry) mcp[s.id] = entry;
   }
   const externalDirectory = buildOpenCodeExternalDirectoryAllowlist(
     options.allowedDirectories, resolvePath,
   );
-  const extraConfig = options.extraConfig ?? {};
-  if (
-    Object.keys(mcp).length === 0 &&
-    !externalDirectory &&
-    Object.keys(extraConfig).length === 0
-  ) return null;
-
-  const config: Record<string, unknown> = { ...extraConfig };
-  if (Object.keys(mcp).length > 0) config.mcp = mcp;
+  const config: Record<string, unknown> = { ...options.extraConfig, ...nonEmptyField({ key: 'mcp', value: mcp }) };
   if (externalDirectory) {
-    const priorPermission =
-      config.permission && typeof config.permission === 'object' && !Array.isArray(config.permission)
-        ? config.permission as Record<string, unknown>
-        : {};
+    const priorPermission = isPlainObject(config.permission) ? config.permission : {};
     config.permission = {
       ...priorPermission,
       external_directory: externalDirectory,
     };
   }
-  return JSON.stringify(config);
+  return Object.keys(config).length === 0 ? null : JSON.stringify(config);
+}
+
+/** One OpenCode `mcp` entry, or null when the server lacks its transport-required command/url. */
+function buildOpenCodeServerEntry(
+  { server: s, tokens }: { server: McpServerConfig; tokens: Record<string, string> },
+): Record<string, unknown> | null {
+  if (s.transport === 'stdio') {
+    const cmd = typeof s.command === 'string' ? s.command.trim() : '';
+    if (!cmd) return null;
+    return {
+      type: 'local',
+      command: [cmd, ...(Array.isArray(s.args) ? s.args : [])],
+      ...nonEmptyField({ key: 'environment', value: { ...s.env } }),
+      enabled: true,
+    };
+  }
+  if (typeof s.url !== 'string' || !s.url.trim()) return null;
+  return { type: 'remote', url: s.url, ...remoteHeadersField({ server: s, tokens }), enabled: true };
 }
 
 function buildOpenCodeExternalDirectoryAllowlist(
