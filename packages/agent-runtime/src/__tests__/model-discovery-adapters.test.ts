@@ -374,3 +374,31 @@ describe('default filesystem and RPC ports', () => {
     expect(await probeError(defaultModelDiscoveryDeps.rpc.probe({ agentId: 'kimi', context, signal }))).toBe('unsupported-version');
   });
 });
+
+describe('default process port (real node child processes)', () => {
+  const node: ModelDiscoveryContext = { executable: process.execPath, cwd: process.cwd(), env: { PATH: process.env.PATH ?? '' } };
+  const run = defaultModelDiscoveryDeps.process.run;
+  it('runs a listing without stdin and returns its output', async () => {
+    expect(await run({ context: node, args: ['-e', 'process.stdout.write("model-a")'], signal, timeoutMs: 10_000 })).toEqual({ stdout: 'model-a', stderr: '' });
+  });
+  it('feeds stdin and returns the output after the process closes', async () => {
+    expect(await run({ context: node, args: ['-e', 'process.stdin.pipe(process.stdout)'], stdin: 'hello', signal, timeoutMs: 10_000 })).toEqual({ stdout: 'hello', stderr: '' });
+  });
+  it('rejects with the exit code when the CLI fails', async () => {
+    const error = await run({ context: node, args: ['-e', 'process.exit(3)'], stdin: '', signal, timeoutMs: 10_000 }).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ code: 3 });
+  });
+  it('kills the CLI and resolves once the completion check is satisfied', async () => {
+    const result = await run({ context: node, args: ['-e', 'process.stdout.write("ready"); setTimeout(() => {}, 10_000)'], stdin: '', signal, timeoutMs: 10_000, complete: (stdout) => stdout.includes('ready') });
+    expect(result.stdout).toBe('ready');
+  });
+  it('kills the whole process group when the timeout expires', async () => {
+    const error = await run({ context: node, args: ['-e', 'setTimeout(() => {}, 10_000)'], stdin: '', signal, timeoutMs: 300, terminateProcessTree: true }).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ killed: true, signal: 'SIGKILL' });
+  });
+  it('kills the process group when the probe is cancelled mid-run', async () => {
+    const controller = new AbortController(); setTimeout(() => controller.abort(), 300);
+    const error = await run({ context: node, args: ['-e', 'setTimeout(() => {}, 10_000)'], stdin: '', signal: controller.signal, timeoutMs: 10_000, terminateProcessTree: true }).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ name: 'AbortError' });
+  });
+});
