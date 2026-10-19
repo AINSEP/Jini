@@ -27,33 +27,28 @@ const HTML_TAG_RE = /<[^>]+>/g;
  * @complexity O(n + m) in `content.length` plus `projectFiles.length`.
  */
 export function resolveHtmlPointerArtifactTarget(input: HtmlPointerArtifactTargetInput): string | null {
-  const pointerText = visiblePointerText(input.content);
-  if (!pointerText || utf8ByteLength(pointerText) > MAX_POINTER_TEXT_BYTES) {
-    return null;
-  }
+  const target = extractPointerTarget(input.content);
+  if (target === null || target === input.candidateFileName || !isSafeHtmlTarget(target)) return null;
+  return resolveAgainstProjectFiles({ target, candidateFileName: input.candidateFileName, projectFiles: input.projectFiles });
+}
 
+/** The normalized file name a bare short pointer reply names, or `null` when `content` isn't one. */
+function extractPointerTarget(content: string): string | null {
+  const pointerText = visiblePointerText(content);
+  if (!pointerText || utf8ByteLength(pointerText) > MAX_POINTER_TEXT_BYTES) return null;
   const match = POINTER_TARGET_RE.exec(pointerText);
-  if (!match) return null;
-
   // The target group is a mandatory (non-optional) part of the pattern, not
   // inside an alternation, so it's always defined when `match` is non-null;
   // the assertion just satisfies `noUncheckedIndexedAccess`.
-  const target = normalizeTarget(match[1]!);
-  if (!target || target === input.candidateFileName || !isSafeHtmlTarget(target)) {
-    return null;
-  }
+  return match ? normalizeTarget(match[1]!) : null;
+}
 
-  const projectFileNames = input.projectFiles.map((file) => file.path || file.name).filter((name) => name.toLowerCase().endsWith('.html') || name.toLowerCase().endsWith('.htm'));
-
+/** A full-path match wins; otherwise exactly one basename match that isn't the candidate itself. */
+function resolveAgainstProjectFiles({ target, candidateFileName, projectFiles }: Omit<HtmlPointerArtifactTargetInput, 'content'> & { target: string }): string | null {
+  const projectFileNames = projectFiles.map((file) => file.path || file.name).filter((name) => /\.html?$/i.test(name));
   if (projectFileNames.includes(target)) return target;
-
-  const basenameMatches = projectFileNames.filter((name) => basename(name) === target);
-  const [basenameMatch] = basenameMatches;
-  if (basenameMatches.length === 1 && basenameMatch && basenameMatch !== input.candidateFileName) {
-    return basenameMatch;
-  }
-
-  return null;
+  const [only, ...others] = projectFileNames.filter((name) => basename(name) === target);
+  return only !== undefined && others.length === 0 && only !== candidateFileName ? only : null;
 }
 
 function visiblePointerText(content: string): string {
