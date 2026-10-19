@@ -404,3 +404,69 @@ test('approvals persist beside provenance, survive pruning, ignore damage and ca
   assert.equal(await f.service.readApproval({ id }), undefined);
   await assert.rejects(f.service.readApproval({ id: '../x' }), { code: 'PLUGIN_SOURCE_PATH_INVALID' });
 });
+
+test('input guards refuse bad scaffold metadata, edits, content and versions before any write', async () => {
+  const f = await fixture();
+  await assert.rejects(f.service.create({ id, name: ' ', description: 'x' }), { code: 'PLUGIN_SOURCE_INPUT_INVALID' });
+  await assert.rejects(f.service.create({ id, name: 'n', description: 'x'.repeat(64 * 1024) }), { code: 'PLUGIN_SOURCE_TOO_LARGE' });
+  await f.create();
+  await assert.rejects(f.service.edit({ id, path: 'README.md', oldString: '', newString: 'x' }), { code: 'PLUGIN_SOURCE_INPUT_INVALID' });
+  await assert.rejects(f.service.edit({ id, path: 'README.md', oldString: 'Site', newString: 'x', replaceAll: 'yes' as unknown as boolean }), { code: 'PLUGIN_SOURCE_INPUT_INVALID' });
+  await assert.rejects(f.service.write({ id, path: 'README.md', content: 42 as unknown as string }), { code: 'PLUGIN_SOURCE_INPUT_INVALID' });
+  assert.equal(await f.service.isSealedHere({ id, version: 'not-semver' }), false);
+  assert.equal(await f.service.isSealedHere({ id, version: '=1.0.0' }), false);
+});
+
+test('missing drafts, installs and manifests are typed refusals', async () => {
+  const f = await fixture(); await f.create();
+  await assert.rejects(f.service.list({ id: 'other' }), { code: 'PLUGIN_SOURCE_DRAFT_MISSING' });
+  await assert.rejects(f.service.open({ id: 'other' }), { code: 'PLUGIN_SOURCE_NOT_INSTALLED' });
+  await f.service.delete({ id, path: PLUGIN_MANIFEST_FILENAME });
+  await assert.rejects(f.service.read({ id, path: PLUGIN_MANIFEST_FILENAME }), { code: 'PLUGIN_SOURCE_FILE_MISSING' });
+  await assert.rejects(f.service.seal({ id }), { code: 'PLUGIN_MANIFEST_INVALID', message: `A valid ${PLUGIN_MANIFEST_FILENAME} is required.` });
+});
+
+test('seal refuses a manifest id that differs from the draft id and an unrecognized installed version', async () => {
+  const f = await fixture(); await f.create();
+  const manifest = JSON.parse((await f.service.read({ id, path: PLUGIN_MANIFEST_FILENAME })).content);
+  const otherId = 'other-rules';
+  await f.service.write({ id, path: PLUGIN_MANIFEST_FILENAME, content: JSON.stringify({ ...manifest, id: otherId }) });
+  await assert.rejects(f.service.seal({ id }), { code: 'PLUGIN_MANIFEST_INVALID' });
+  await f.service.write({ id, path: PLUGIN_MANIFEST_FILENAME, content: JSON.stringify(manifest) });
+  await mkdir(path.join(f.installDir, id, 'abc'), { recursive: true });
+  await assert.rejects(f.service.seal({ id }), { code: 'PLUGIN_SOURCE_VERSION_INVALID' });
+});
+
+test('a non-Error reload failure is stringified and a failed rollback reload names its source version', async () => {
+  let fail = false;
+  const f = await fixture({ reload: async () => { if (fail) throw 'plain failure'; return true; } }); await f.create();
+  await f.service.seal({ id }); await f.service.seal({ id });
+  fail = true;
+  const result = await f.service.rollback({ id });
+  assert.equal(result.reloadError, 'plain failure');
+  assert.equal(result.rollbackFrom, '0.1.0');
+});
+
+test('sealing stages in the OS temp directory by default', async () => {
+  const f = await fixture(); await f.create();
+  const defaultTemp = createPluginSourceService(f.sourceDeps);
+  assert.equal((await defaultTemp.seal({ id })).installed, true);
+});
+
+test('approvals read as absent without a site root or with a malformed record', async () => {
+  const f = await fixture();
+  assert.equal(await f.service.readApproval({ id }), undefined);
+  await f.service.recordApproval({ id, capabilities: ['tier:tier-3'] });
+  const record = path.join(f.installDir, '.drafts/.sealed', id, 'approved.json');
+  await writeFile(record, JSON.stringify({ capabilities: 'tier:tier-3' }));
+  assert.equal(await f.service.readApproval({ id }), undefined);
+  await writeFile(record, JSON.stringify({ capabilities: ['ok', 1] }));
+  assert.equal(await f.service.readApproval({ id }), undefined);
+});
+
+test('a filesystem fault other than ENOENT while probing a path propagates', async () => {
+  const f = await fixture();
+  await writeFile(path.join(f.root, 'file'), 'x');
+  const blocked = createPluginSourceService({ ...f.sourceDeps, installDir: path.join(f.root, 'file', 'plugins') }, { temporaryDir: f.root });
+  await assert.rejects(blocked.readApproval({ id }), { code: 'ENOTDIR' });
+});

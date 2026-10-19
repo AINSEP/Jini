@@ -77,11 +77,15 @@ async function confined(root: string, target: string): Promise<void> {
   let current = root;
   for (const segment of ['', ...relative.split(path.sep).filter(Boolean)]) {
     if (segment) current = path.join(current, segment);
-    if (!await exists(current)) continue;
-    const info = await lstat(current);
-    if (info.isSymbolicLink() || (info.isFile() && info.nlink !== 1)) fail('PLUGIN_SOURCE_PATH_INVALID', 'Draft and installed paths must not contain symbolic or hard links.');
-    if (current !== target && !info.isDirectory()) fail('PLUGIN_SOURCE_PATH_INVALID', 'A parent path is not a directory.');
+    await assertUnlinkedSegment(current, target);
   }
+}
+/** One existing path segment: never a link or hardlink, and a directory unless it is the target. */
+async function assertUnlinkedSegment(current: string, target: string): Promise<void> {
+  if (!await exists(current)) return;
+  const info = await lstat(current);
+  if (info.isSymbolicLink() || (info.isFile() && info.nlink !== 1)) fail('PLUGIN_SOURCE_PATH_INVALID', 'Draft and installed paths must not contain symbolic or hard links.');
+  if (current !== target && !info.isDirectory()) fail('PLUGIN_SOURCE_PATH_INVALID', 'A parent path is not a directory.');
 }
 /** Whole-file writes publish by rename, so readers cannot observe a half-written file. */
 async function writeAtomic(root: string, target: string, bytes: Buffer): Promise<void> {
@@ -96,6 +100,36 @@ async function writeAtomic(root: string, target: string, bytes: Buffer): Promise
   } finally { await rm(temporary, { recursive: true, force: true }); }
 }
 function jsonBytes(value: unknown): Buffer { return Buffer.from(JSON.stringify(value, null, 2) + '\n'); }
+/** Path segments and bytes of one draft write, bounded before any filesystem probe. */
+function draftWriteInput(file: string, content: string): { segments: string[]; bytes: Buffer } {
+  // Bound path depth before filesystem probes can fail with an OS-specific path-length error.
+  const segments = file.split('/');
+  if (segments.length > PLUGIN_SOURCE_LIMITS.maxEntries) fail('PLUGIN_SOURCE_TOO_LARGE', 'Draft exceeds 512 entries.');
+  if (typeof content !== 'string') fail('PLUGIN_SOURCE_INPUT_INVALID', 'File content must be a string.');
+  const bytes = Buffer.from(content);
+  if (bytes.length > PLUGIN_SOURCE_LIMITS.maxFileBytes) fail('PLUGIN_SOURCE_TOO_LARGE', 'A draft file may contain at most 1 MiB.');
+  return { segments, bytes };
+}
+/** How many of the write's path segments do not exist yet under `base`. */
+async function missingSegmentCount(base: string, segments: readonly string[]): Promise<number> {
+  let missing = 0;
+  for (let index = 1; index <= segments.length; index++) {
+    if (!await exists(path.join(base, ...segments.slice(0, index)))) missing++;
+  }
+  return missing;
+}
+/** The draft's manifest JSON (current name first, then the legacy alias), or a refusal. */
+function parseDraftManifest(files: ReadonlyMap<string, Buffer>): unknown {
+  const filename = PLUGIN_MANIFEST_FILENAMES.find(name => files.has(name)); // legacy alias
+  try { return JSON.parse(filename === undefined ? '' : files.get(filename)!.toString('utf8')); }
+  catch { return fail('PLUGIN_MANIFEST_INVALID', `A valid ${MANIFEST} is required.`); }
+}
+/** A declared version above the latest install is kept; otherwise the latest gets a patch bump. */
+function nextSealVersion(latest: string | undefined, declaredVersion: string): string {
+  const version = latest && !semver.gt(declaredVersion, latest) ? semver.inc(latest, 'patch') : declaredVersion;
+  if (!version) fail('PLUGIN_SOURCE_VERSION_INVALID', 'A valid semantic version is required.');
+  return version;
+}
 
 /** Build the bounded Node draft adapter.
  * @param required Site path and injected manifest, installer, policy and reload owners.
@@ -165,22 +199,14 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
   async function write(id: string, file: string, content: string): Promise<{ bytesWritten: number }> {
     safeFile(file);
     if (file === LEGACY_PLUGIN_MANIFEST_FILENAME) file = MANIFEST; // legacy alias
-    // Bound path depth before filesystem probes can fail with an OS-specific path-length error.
-    const segments = file.split('/');
-    if (segments.length > PLUGIN_SOURCE_LIMITS.maxEntries) fail('PLUGIN_SOURCE_TOO_LARGE', 'Draft exceeds 512 entries.');
-    if (typeof content !== 'string') fail('PLUGIN_SOURCE_INPUT_INVALID', 'File content must be a string.');
-    const bytes = Buffer.from(content);
-    if (bytes.length > PLUGIN_SOURCE_LIMITS.maxFileBytes) fail('PLUGIN_SOURCE_TOO_LARGE', 'A draft file may contain at most 1 MiB.');
+    const { segments, bytes } = draftWriteInput(file, content);
     const files = await snapshot(draft(id));
     await confined(root, path.join(draft(id), file));
     if (await exists(path.join(draft(id), file)) && (await lstat(path.join(draft(id), file))).isDirectory()) fail('PLUGIN_SOURCE_PATH_INVALID', 'The requested file path is a directory.');
     files.set(file, bytes);
     const total = [...files.values()].reduce((sum, value) => sum + value.length, 0);
     // The snapshot count includes empty directories, which a files-only map would miss.
-    let addedEntries = 0;
-    for (let index = 1; index <= segments.length; index++) {
-      if (!await exists(path.join(draft(id), ...segments.slice(0, index)))) addedEntries++;
-    }
+    const addedEntries = await missingSegmentCount(draft(id), segments);
     if (total > PLUGIN_SOURCE_LIMITS.maxTotalBytes || files.entryCount + addedEntries > PLUGIN_SOURCE_LIMITS.maxEntries) fail('PLUGIN_SOURCE_TOO_LARGE', 'Draft exceeds 8 MiB or 512 entries.');
     await writeAtomic(root, path.join(draft(id), file), bytes);
     if (file === MANIFEST) await rm(path.join(draft(id), LEGACY_PLUGIN_MANIFEST_FILENAME), { force: true }); // legacy alias
@@ -202,22 +228,14 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
    * encoder is needed; the folder installer refuses sources inside its own destination. */
   async function publish(id: string, files: ReadonlyMap<string, Buffer>, rollbackFrom?: string): Promise<PluginSourceSealResult> {
     if (!required.policy.localInstallEnabled({}, {})) fail('PLUGIN_LOCAL_INSTALL_DISABLED', required.localInstallDisabledMessage ?? 'Local plugin install is disabled by the host.');
-    let raw: unknown;
-    const filename = PLUGIN_MANIFEST_FILENAMES.find(name => files.has(name)); // legacy alias
-    try { raw = JSON.parse(filename === undefined ? '' : files.get(filename)!.toString('utf8')); }
-    catch { return fail('PLUGIN_MANIFEST_INVALID', `A valid ${MANIFEST} is required.`); }
+    const raw = parseDraftManifest(files);
     validate(id, raw);
     const manifest = raw as Record<string, unknown>;
     if (manifest.id !== id) fail('PLUGIN_MANIFEST_INVALID', 'The manifest id must match the draft id.');
-    const latest = (await versions(id))[0];
-    const declaredVersion = String(manifest.version);
-    const version = latest && !semver.gt(declaredVersion, latest) ? semver.inc(latest, 'patch') : declaredVersion;
-    if (!version) fail('PLUGIN_SOURCE_VERSION_INVALID', 'A valid semantic version is required.');
+    const version = nextSealVersion((await versions(id))[0], String(manifest.version));
     const staging = await mkdtemp(path.join(optional.temporaryDir ?? tmpdir(), 'plugin-source-'));
     try {
-      for (const [file, bytes] of canonicalizePluginManifest({ files })) { safeFile(file); await writeAtomic(staging, path.join(staging, file), bytes); } // legacy alias
-      const integrity = await computePluginIntegrity({ sourceDir: staging });
-      await writeAtomic(staging, path.join(staging, MANIFEST), jsonBytes({ ...manifest, version, integrity }));
+      await stageSealedPackage(staging, files, { ...manifest, version });
       const input = { sourceDir: staging };
       const preview = await required.installer.preview(input, { versionAppend: true });
       const plugin = await required.installer.install({ ...input, expectedDigest: preview.digest }, { versionAppend: true });
@@ -225,17 +243,26 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
       // a draft path. Tier-3 has full server access by owner decision (2026-10-09), so this is an
       // assistant-tool boundary, not isolation from executing code. TODO: sandbox tier-3 later.
       await writeAtomic(root, marker(id, version), jsonBytes({ digest: plugin.digest }));
-      let reloaded = false;
-      try { reloaded = await required.reload({ id }, {}); }
-      catch (error) { return { installed: true, plugin, reloaded: false, reloadError: error instanceof Error ? error.message : String(error), ...(rollbackFrom ? { rollbackFrom } : {}) }; }
-      // Failed reloads retain all recovery bytes. The installer owns which versions are safe to
-      // retire, including old active pointers belonging to other workspaces.
-      for (const retired of await required.pruneVersions({ id }, {})) {
-        await confined(root, marker(id, retired));
-        await rm(path.dirname(marker(id, retired)), { recursive: true, force: true });
-      }
-      return { installed: true, plugin, reloaded, ...(rollbackFrom ? { rollbackFrom } : {}) };
+      return await reloadAndPrune(id, plugin, rollbackFrom ? { rollbackFrom } : {});
     } finally { await rm(staging, { recursive: true, force: true }); }
+  }
+  /** Writes the draft files, then the manifest with the sealed version and fresh integrity. */
+  async function stageSealedPackage(staging: string, files: ReadonlyMap<string, Buffer>, manifest: Record<string, unknown>): Promise<void> {
+    for (const [file, bytes] of canonicalizePluginManifest({ files })) { safeFile(file); await writeAtomic(staging, path.join(staging, file), bytes); } // legacy alias
+    const integrity = await computePluginIntegrity({ sourceDir: staging });
+    await writeAtomic(staging, path.join(staging, MANIFEST), jsonBytes({ ...manifest, integrity }));
+  }
+  async function reloadAndPrune(id: string, plugin: PluginInstallPreview, rollback: { rollbackFrom?: string }): Promise<PluginSourceSealResult> {
+    let reloaded = false;
+    try { reloaded = await required.reload({ id }, {}); }
+    catch (error) { return { installed: true, plugin, reloaded: false, reloadError: error instanceof Error ? error.message : String(error), ...rollback }; }
+    // Failed reloads retain all recovery bytes. The installer owns which versions are safe to
+    // retire, including old active pointers belonging to other workspaces.
+    for (const retired of await required.pruneVersions({ id }, {})) {
+      await confined(root, marker(id, retired));
+      await rm(path.dirname(marker(id, retired)), { recursive: true, force: true });
+    }
+    return { installed: true, plugin, reloaded, ...rollback };
   }
 
   return {
