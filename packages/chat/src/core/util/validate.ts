@@ -175,35 +175,38 @@ function pathnameOnly(path: string): string {
 function srcsetCandidateUrls(srcset: string): string[] {
   const candidates: string[] = [];
   let start = 0;
-  let sawCandidate = false;
-  let dataUrlCandidate = false;
-  let sawWhitespaceAfterUrl = false;
+  let candidate: SrcsetCandidateState | null = null;
 
   for (let index = 0; index < srcset.length; index += 1) {
     const char = srcset[index]!;
-    if (!sawCandidate) {
-      if (char === ',' || /\s/.test(char)) {
-        start = index + 1;
-        continue;
-      }
-      sawCandidate = true;
-      dataUrlCandidate = /^data:/i.test(srcset.slice(index));
-    }
-    if (/\s/.test(char)) {
-      sawWhitespaceAfterUrl = true;
+    const isSpace = /\s/.test(char);
+    if (candidate === null && (char === ',' || isSpace)) {
+      start = index + 1;
       continue;
     }
-    if (char === ',' && (!dataUrlCandidate || sawWhitespaceAfterUrl)) {
+    candidate ??= { isDataUrl: /^data:/i.test(srcset.slice(index)), sawWhitespaceAfterUrl: false };
+    if (isSpace) {
+      candidate.sawWhitespaceAfterUrl = true;
+    } else if (endsSrcsetCandidate(candidate, char)) {
       candidates.push(srcset.slice(start, index));
       start = index + 1;
-      sawCandidate = false;
-      dataUrlCandidate = false;
-      sawWhitespaceAfterUrl = false;
+      candidate = null;
     }
   }
 
   candidates.push(srcset.slice(start));
   return candidates.map(firstUrlToken).filter(Boolean);
+}
+
+interface SrcsetCandidateState {
+  isDataUrl: boolean;
+  sawWhitespaceAfterUrl: boolean;
+}
+
+// A data: URL may itself contain commas, so for one a comma only ends the
+// candidate once whitespace has separated the URL from its descriptor.
+function endsSrcsetCandidate(candidate: SrcsetCandidateState, char: string): boolean {
+  return char === ',' && (!candidate.isDataUrl || candidate.sawWhitespaceAfterUrl);
 }
 
 function firstUrlToken(value: string): string {

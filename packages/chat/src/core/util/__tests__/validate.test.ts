@@ -88,4 +88,34 @@ describe('artifacts/validate', () => {
     const doc = `<!doctype html><html><body><img srcset="data:image/png;base64,ABCD== 1x, .workspace/leak.png 2x" src="a.png" alt="padding to clear the minimum length threshold"></body></html>`;
     expect(validateHtmlArtifact({ content: doc }).ok).toBe(false);
   });
+
+  describe('srcset candidate splitting', () => {
+    const RESERVED = { ok: false, reason: 'content references a reserved internal workspace-storage path' };
+    const withSrcset = (srcset: string) =>
+      validateHtmlArtifact({ content: `<!doctype html><html><body><img srcset="${srcset}" alt="padding to clear the minimum length threshold"></body></html>` });
+
+    it('keeps a data: URI candidate whole across its embedded comma (no false reserved candidate after it)', () => {
+      expect(withSrcset('data:image/png;base64,.workspace/x 1x')).toEqual({ ok: true });
+    });
+
+    it('splits plain candidates on a comma even with no whitespace between them', () => {
+      expect(withSrcset('a.png,.workspace/b.png')).toEqual(RESERVED);
+    });
+
+    it('skips leading commas and whitespace before the first candidate', () => {
+      expect(withSrcset(' , ,  .tmp/a.png 1x')).toEqual(RESERVED);
+    });
+
+    it('ends a data: URI candidate at a comma that follows whitespace', () => {
+      expect(withSrcset('data:image/png;base64,AA 1x,.live-artifacts/c.png 2x')).toEqual(RESERVED);
+    });
+
+    it('re-detects a data: URI for each new candidate after a split (no false split inside a later data: URI)', () => {
+      expect(withSrcset('a.png 1x, data:image/png;base64,.workspace/x 2x')).toEqual({ ok: true });
+    });
+
+    it('accepts a srcset of ordinary candidates with a trailing comma', () => {
+      expect(withSrcset('a.png 1x, b.png 2x,')).toEqual({ ok: true });
+    });
+  });
 });
