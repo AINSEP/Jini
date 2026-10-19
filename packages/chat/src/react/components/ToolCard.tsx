@@ -46,15 +46,11 @@ export interface ToolCardProps {
 /** A Jini registry tool id: dotted, lowercase, snake_case segments — `page.fill`, `daemon.db.vacuum`, `chat.send_message`. Never matches an agent-vendor tool name (`Bash`, `Write`, `mcp__jini__execute_delegated_tool`), which is the point — this is how a canonical delegated-tool event is told apart from everything else. */
 const JINI_TOOL_ID_PATTERN = /^[a-z][a-z_]*(\.[a-z][a-z_]*)+$/;
 
-const SEARCH_TOOLS_NAMES = new Set(['search_tools', 'mcp__jini__search_tools']);
-const DESCRIBE_TOOL_NAMES = new Set(['describe_tool', 'mcp__jini__describe_tool']);
-
 export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileNames, onRequestOpenFile }: ToolCardProps) {
   const registry = useToolRendererRegistry();
   const name = use.name;
-  const isStreaming = runStreaming ?? false;
-  const isSucceeded = runSucceeded ?? false;
-  const content = renderToolCardBody(name, use, result, isStreaming, isSucceeded, { projectFileNames, onRequestOpenFile }, registry);
+  const card: CardProps = { input: use.input, result: result, runStreaming: runStreaming ?? false, runSucceeded: runSucceeded ?? false };
+  const content = renderToolCardBody({ use, card, fileCtx: { projectFileNames, onRequestOpenFile }, registry });
   if (content === null) return null;
   // Tagged once here, at the single dispatch point every branch below funnels through, rather than
   // in each of the dozen card variants — one place to keep correct, and every variant (including a
@@ -68,25 +64,52 @@ export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileN
   );
 }
 
-function renderToolCardBody(
-  name: string,
-  use: ToolUseEvent,
-  result: ToolResultEvent | undefined,
-  isStreaming: boolean,
-  isSucceeded: boolean,
-  fileCtx: FileToolCtx,
-  registry: ToolRendererRegistry,
-): ReactNode {
-  const custom = registry.get({ name });
-  if (custom) {
-    try {
-      const node = custom(toRenderProps({ use: use, result: result, runStreaming: isStreaming }, { runSucceeded: isSucceeded }));
-      if (node !== undefined && node !== null && node !== false) return node;
-    } catch (err) {
-      console.error(`[ToolCard] custom renderer for "${name}" threw; falling back`, err);
-    }
-  }
+interface ToolCardBodyArgs {
+  use: ToolUseEvent;
+  card: CardProps;
+  fileCtx: FileToolCtx;
+  registry: ToolRendererRegistry;
+}
 
+type FamilyCardRender = (card: CardProps, fileCtx: FileToolCtx) => ReactNode;
+
+// Hardcoded family cards for tools shipped with this package, keyed by every name each tool goes
+// by. A `Map`, not an object literal, so a tool named `constructor`/`toString` can never resolve
+// to an inherited `Object.prototype` member.
+const FAMILY_CARDS: ReadonlyMap<string, FamilyCardRender> = new Map(
+  ([
+    [['Write', 'write', 'create_file'], (card, fileCtx) => <FileWriteCard {...card} ctx={fileCtx} />],
+    [['Edit', 'str_replace_edit'], (card, fileCtx) => <FileEditCard {...card} ctx={fileCtx} />],
+    [['Read', 'read_file'], (card, fileCtx) => <FileReadCard {...card} ctx={fileCtx} />],
+    [['Bash'], (card) => <BashCard {...card} />],
+    [['Glob', 'list_files'], (card) => <GlobCard {...card} />],
+    [['Grep'], (card) => <GrepCard {...card} />],
+    [['WebFetch', 'web_fetch'], (card) => <WebFetchCard {...card} />],
+    [['WebSearch', 'web_search'], (card) => <WebSearchCard {...card} />],
+    [['search_tools', 'mcp__jini__search_tools'], (card) => <SearchToolsCard {...card} />],
+    [['describe_tool', 'mcp__jini__describe_tool'], (card) => <DescribeToolCard {...card} />],
+  ] satisfies [string[], FamilyCardRender][]).flatMap(([names, render]) => names.map((name) => [name, render] as const)),
+);
+
+/** A host-registered renderer's output, or `undefined` when none is registered, it renders nothing, or it throws (logged) — every one of those falls back to the built-in cards. */
+function renderRegistered({ use, card, registry }: ToolCardBodyArgs): ReactNode {
+  const custom = registry.get({ name: use.name });
+  if (!custom) return undefined;
+  try {
+    const node = custom(toRenderProps({ use: use, result: card.result, runStreaming: card.runStreaming }, { runSucceeded: card.runSucceeded }));
+    if (node !== undefined && node !== null && node !== false) return node;
+  } catch (err) {
+    console.error(`[ToolCard] custom renderer for "${use.name}" threw; falling back`, err);
+  }
+  return undefined;
+}
+
+function renderToolCardBody(args: ToolCardBodyArgs): ReactNode {
+  const custom = renderRegistered(args);
+  if (custom !== undefined) return custom;
+
+  const { use, card, fileCtx } = args;
+  const name = use.name;
   // `execute_delegated_tool` is a transport wrapper: `@jini-ai/daemon`'s `delegated-tool-bridge.ts`
   // always emits a second, canonical `tool_use` named after the real Jini tool id (`page.fill`,
   // not `execute_delegated_tool`) alongside it — before calling `ToolExecutor`, so it exists even
@@ -99,26 +122,21 @@ function renderToolCardBody(
   // `useToolTimeline`: `foldDelegatedWrapperCalls` drops it in favour of that canonical row. This
   // check still covers a host that renders `<ToolCard>` straight from raw events.)
   // Covers the read-only gateway (`execute_readonly_delegated_tool`) too.
-  if (isDelegatedWrapperToolName({ name: name }) && result && !result.isError) return null;
+  if (isDelegatedWrapperToolName({ name: name }) && card.result && !card.result.isError) return null;
 
-  if (isTodoWriteToolName({ name: name })) return <TodoCard todos={parseTodoWriteInput({ input: use.input })} runStreaming={isStreaming} />;
-  if (name === 'Write' || name === 'write' || name === 'create_file') return <FileWriteCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={fileCtx} />;
-  if (name === 'Edit' || name === 'str_replace_edit') return <FileEditCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={fileCtx} />;
-  if (name === 'Read' || name === 'read_file') return <FileReadCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={fileCtx} />;
-  if (name === 'Bash') return <BashCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
-  if (name === 'Glob' || name === 'list_files') return <GlobCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
-  if (name === 'Grep') return <GrepCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
-  if (name === 'WebFetch' || name === 'web_fetch') return <WebFetchCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
-  if (name === 'WebSearch' || name === 'web_search') return <WebSearchCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
+  if (isTodoWriteToolName({ name: name })) return <TodoCard todos={parseTodoWriteInput({ input: use.input })} runStreaming={card.runStreaming} />;
+  // Jini tool ids are dotted and wrapper names are `execute_*delegated_tool`, so neither ever
+  // collides with a family name — the search/describe cards can sit in the same table as the rest
+  // even though they are looked up ahead of the Jini-id check below.
+  const family = FAMILY_CARDS.get(name);
+  if (family) return family(card, fileCtx);
   if (JINI_TOOL_ID_PATTERN.test(name) || isDelegatedWrapperToolName({ name: name })) {
     // The unsuppressed (failed-wrapper) case falls through here too: `name` is still
     // `execute_delegated_tool`, so `jiniToolIdFromInput` recovers the real id from
     // `{toolId, input}` instead of `DelegatedToolCard` receiving its own wrapper name as the title.
-    return <DelegatedToolCard name={name} input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
+    return <DelegatedToolCard name={name} {...card} />;
   }
-  if (SEARCH_TOOLS_NAMES.has(name)) return <SearchToolsCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
-  if (DESCRIBE_TOOL_NAMES.has(name)) return <DescribeToolCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
-  return <GenericCard name={name} input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
+  return <GenericCard name={name} {...card} />;
 }
 
 /** `"page.fill"` -> `"Page Fill"`, `"daemon.db.vacuum"` -> `"Daemon Db Vacuum"`. Cosmetic only — never used to make a routing decision. */
