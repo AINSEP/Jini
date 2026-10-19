@@ -12,6 +12,16 @@
 import type { DirectionCard, FormOption, FormQuestion, QuestionType } from './types.js';
 import { formOptionValueForLabel } from './format.js';
 
+/** `raw` viewed as a record of fields, or `null` when it isn't an object at all. */
+export function asRecord(raw: unknown): Record<string, unknown> | null {
+  return raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null;
+}
+
+/** `raw` when it is a string, else `undefined`. */
+export function stringOrUndefined(raw: unknown): string | undefined {
+  return typeof raw === 'string' ? raw : undefined;
+}
+
 export function mapRawQuestion({ q, index }: { q: unknown; index: number }): FormQuestion | null {
   if (!q || typeof q !== 'object') return null;
   const qo = q as Record<string, unknown>;
