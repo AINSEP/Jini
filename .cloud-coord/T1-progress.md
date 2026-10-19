@@ -24,3 +24,4 @@ Branch: `cloud/coord-T1` (from `origin/general-work`). Started 2026-10-19 21:42 
 ## Lots
 | lot | status | branch commits | verify |
 |---|---|---|---|
+| L030 admin/core | MERGED 22:01 | f5d43c16, ac89eab7, fb4a8732 | eslint 0; tsc 0; 20 files/266 tests (was 191); 100/100/100 on all 3; comments moved not deleted; create-admin 42/55→8/8, entities/rules 18/19→10/10, http 13→9/4. Note: 2 commit messages state pre-measurement numbers |
