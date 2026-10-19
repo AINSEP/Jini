@@ -96,64 +96,14 @@ export async function startOAuthCallbackListener(requiredArgs: Pick<StartOAuthCa
   };
 
   const handle = async (req: http.IncomingMessage, res: http.ServerResponse) => {
-    if (consumed || !req.url) {
-      res.statusCode = 410;
+    const routed = routeCallbackRequest({ url: req.url, consumed, base: `http://${host}:${port}`, callbackPath });
+    if ('status' in routed) {
+      res.statusCode = routed.status;
       res.setHeader('content-type', 'text/plain; charset=utf-8');
-      res.end('Listener already consumed.');
+      res.end(routed.message);
       return;
     }
-    let parsed: URL;
-    try {
-      parsed = new URL(req.url, `http://${host}:${port}`);
-    } catch {
-      res.statusCode = 400;
-      res.setHeader('content-type', 'text/plain; charset=utf-8');
-      res.end('Bad request.');
-      return;
-    }
-    // Ignore favicon.ico and any other path so the browser's incidental
-    // requests don't consume the slot meant for the callback path.
-    if (parsed.pathname !== callbackPath) {
-      res.statusCode = 404;
-      res.setHeader('content-type', 'text/plain; charset=utf-8');
-      res.end('Not found.');
-      return;
-    }
-
-    const code = parsed.searchParams.get('code') ?? '';
-    const state = parsed.searchParams.get('state') ?? '';
-    const errorParam = parsed.searchParams.get('error') ?? '';
-
-    let outcome: OAuthCallbackOutcome;
-    if (errorParam) {
-      outcome = state
-        ? { kind: 'error', error: errorParam, state }
-        : { kind: 'error', error: errorParam };
-    } else if (!code || !state) {
-      outcome = { kind: 'error', error: 'missing code or state' };
-    } else if (state !== input.expectedState) {
-      outcome = { kind: 'error', error: 'state mismatch', state };
-    } else {
-      outcome = { kind: 'ok', code, state };
-    }
-
-    // Decide whether this hit *consumes* the listener. A stray browser tab
-    // replaying an old `?state=...` (or `?error=...&state=...`) would
-    // otherwise close a shared fixed-port listener before the real redirect
-    // can arrive. Keep the listener open on stale/malformed requests; the
-    // real callback will still find it. Consume on:
-    //   - ok callback (matched state, code present)
-    //   - explicit ?error= without a state (the server rejected before
-    //     issuing state, so there's nothing to match against — safe to
-    //     consume)
-    //   - explicit ?error= with state matching expectedState (the server
-    //     told the user the dance failed; propagate now instead of waiting
-    //     for the timeout)
-    // An ?error= with a *mismatched* state is treated like the stale
-    // success replay above: 400 the browser, leave the listener live.
-    const errorConsumes =
-      Boolean(errorParam) && (!state || state === input.expectedState);
-    const consumesListener = outcome.kind === 'ok' || errorConsumes;
+    const { outcome, consumesListener } = evaluateCallback({ params: routed.parsed.searchParams, expectedState: input.expectedState });
     if (consumesListener) {
       consumed = true;
     }
@@ -221,6 +171,59 @@ export async function startOAuthCallbackListener(requiredArgs: Pick<StartOAuthCa
     address: { host: addr.address, port: addr.port },
     stop,
   };
+}
+
+/** The parsed callback URL, or the plain-text refusal for a request that is not the callback. */
+function routeCallbackRequest(
+  { url, consumed, base, callbackPath }: { url: string | undefined; consumed: boolean; base: string; callbackPath: string },
+): { parsed: URL } | { status: number; message: string } {
+  if (consumed || !url) return { status: 410, message: 'Listener already consumed.' };
+  let parsed: URL;
+  try {
+    parsed = new URL(url, base);
+  } catch {
+    return { status: 400, message: 'Bad request.' };
+  }
+  // Ignore favicon.ico and any other path so the browser's incidental
+  // requests don't consume the slot meant for the callback path.
+  if (parsed.pathname !== callbackPath) return { status: 404, message: 'Not found.' };
+  return { parsed };
+}
+
+function callbackOutcome(
+  { code, state, errorParam, expectedState }: { code: string; state: string; errorParam: string; expectedState: string },
+): OAuthCallbackOutcome {
+  if (errorParam) {
+    return state ? { kind: 'error', error: errorParam, state } : { kind: 'error', error: errorParam };
+  }
+  if (!code || !state) return { kind: 'error', error: 'missing code or state' };
+  if (state !== expectedState) return { kind: 'error', error: 'state mismatch', state };
+  return { kind: 'ok', code, state };
+}
+
+function evaluateCallback(
+  { params, expectedState }: { params: URLSearchParams; expectedState: string },
+): { outcome: OAuthCallbackOutcome; consumesListener: boolean } {
+  const code = params.get('code') ?? '';
+  const state = params.get('state') ?? '';
+  const errorParam = params.get('error') ?? '';
+  const outcome = callbackOutcome({ code, state, errorParam, expectedState });
+  // Decide whether this hit *consumes* the listener. A stray browser tab
+  // replaying an old `?state=...` (or `?error=...&state=...`) would
+  // otherwise close a shared fixed-port listener before the real redirect
+  // can arrive. Keep the listener open on stale/malformed requests; the
+  // real callback will still find it. Consume on:
+  //   - ok callback (matched state, code present)
+  //   - explicit ?error= without a state (the server rejected before
+  //     issuing state, so there's nothing to match against — safe to
+  //     consume)
+  //   - explicit ?error= with state matching expectedState (the server
+  //     told the user the dance failed; propagate now instead of waiting
+  //     for the timeout)
+  // An ?error= with a *mismatched* state is treated like the stale
+  // success replay above: 400 the browser, leave the listener live.
+  const errorConsumes = Boolean(errorParam) && (!state || state === expectedState);
+  return { outcome, consumesListener: outcome.kind === 'ok' || errorConsumes };
 }
 
 function renderResultPage(outcome: OAuthCallbackOutcome): string {
