@@ -1,9 +1,40 @@
+import { concreteModelOptions } from './model-discovery-shared.js';
 import { defaultRuntimeState, type AgentRuntimeState } from './runtime-state.js';
 /**
  * @module models
  * Model-option defaults, a per-agent last-surfaced live-model cache and model-id sanitization.
  */
-import type { RuntimeAgentDef, RuntimeModelOption } from './types.js';
+import type { DetectedAgent, RuntimeAgentDef, RuntimeModelOption } from './types.js';
+
+/** Validate an explicit selection against the same discovered inventory the picker displays.
+ * Empty model/effort means the runtime default. Refusals include the current choices rather
+ * than silently substituting a different model. Pure; O(agents + models + effort options).
+ * @example validateRuntimeSelection({ agents, agentId: 'runtime', modelId: 'catalog-model' });
+ */
+export function validateRuntimeSelection({ agents, agentId, modelId, effort }: {
+  agents: readonly Pick<DetectedAgent, 'id' | 'available' | 'models' | 'modelsSource' | 'reasoningOptions' | 'reasoningInModelId' | 'authStatus' | 'supportsConcreteModelSelection' | 'defaultModelResolution'>[];
+  agentId: string;
+  modelId?: string;
+  effort?: string;
+}, _options = {}): string | null {
+  const agent = agents.find(candidate => candidate.id === agentId && candidate.available);
+  if (!agent) return `Unknown or unavailable agent '${agentId}'. Available agents: ${agents.filter(candidate => candidate.available).map(candidate => candidate.id).join(', ')}.`;
+  // Executable presence is not credential readiness; unknown/unprobed auth fails closed.
+  if (agent.authStatus !== 'ok') return `Credentials for '${agentId}' are not ready (${agent.authStatus ?? 'unverified'}). Sign in and rescan the chat picker.`;
+  if (agent.supportsConcreteModelSelection === false) return `Agent '${agentId}' cannot pin a concrete starting model.`;
+  // A detector's static fallback is useful for display, but is not live evidence of a valid pick.
+  if ((modelId || effort) && agent.modelsSource !== 'live') return `Live model catalog for '${agentId}' is unavailable. Rescan the chat picker before choosing a model or effort.`;
+  const choices = concreteModelOptions(agent);
+  const resolvedId = modelId && modelId !== 'default' ? modelId : agent.defaultModelResolution?.status === 'resolved' ? agent.defaultModelResolution.id : undefined;
+  const model = choices.find(candidate => candidate.id === resolvedId);
+  if (modelId && modelId !== 'default' && !model) return `Unknown model '${modelId}' for '${agentId}'. Available models: ${choices.map(candidate => candidate.id).join(', ')}.`;
+  // Default must resolve before checking model-specific effort; agent-wide levels can differ.
+  if (effort && !model) return `Default model for '${agentId}' is unresolved. Pick a concrete model before choosing effort.`;
+  // Suffix-based runtimes own effort in the model id; a second effort setting would disagree.
+  const levels = agent.reasoningInModelId ? [] : model?.reasoning ?? agent.reasoningOptions ?? [];
+  if (effort && !levels.some(candidate => candidate.id === effort)) return `Unknown effort '${effort}' for '${agentId}'. Available effort levels: ${levels.map(candidate => candidate.id).join(', ')} (empty means Default).`;
+  return null;
+}
 
 export const DEFAULT_MODEL_OPTION: RuntimeModelOption = {
   id: 'default',

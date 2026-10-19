@@ -7,8 +7,55 @@ import {
   rememberLiveModels,
   resolveModelForAgent,
   sanitizeCustomModel,
+  validateRuntimeSelection,
 } from '../models.js';
 import type { RuntimeAgentDef } from '../types.js';
+
+describe('validateRuntimeSelection', () => {
+  const agents = [{ id: 'runtime', available: true, authStatus: 'ok' as const, modelsSource: 'live' as const, models: [
+    { id: 'new-from-catalog', label: 'New', reasoning: [{ id: 'high', label: 'High' }] },
+    { id: 'small', label: 'Small', reasoning: [] },
+  ], reasoningOptions: [{ id: 'ultra', label: 'Ultra' }] }];
+  it('accepts newly discovered ids and default sentinels without an allowlist', () => {
+    expect(validateRuntimeSelection({ agents, agentId: 'runtime', modelId: 'new-from-catalog', effort: 'high' })).toBeNull();
+    expect(validateRuntimeSelection({ agents, agentId: 'runtime', modelId: '', effort: '' })).toBeNull();
+  });
+  it('refuses unknown models with the actual available list', () => {
+    expect(validateRuntimeSelection({ agents, agentId: 'runtime', modelId: 'missing' })).toContain('Available models: new-from-catalog, small');
+  });
+  it('honors each model\'s effort vocabulary, including an explicitly empty one', () => {
+    expect(validateRuntimeSelection({ agents, agentId: 'runtime', modelId: 'new-from-catalog', effort: 'ultra' })).toContain('Available effort levels: high');
+    expect(validateRuntimeSelection({ agents, agentId: 'runtime', modelId: 'small', effort: 'high' })).toContain('Unknown effort');
+  });
+  it('refuses unavailable agents and lists available agents', () => {
+    expect(validateRuntimeSelection({ agents: [...agents, { id: 'offline', available: false, modelsSource: 'fallback', models: [] }], agentId: 'offline' })).toContain('Available agents: runtime');
+  });
+  it.each(['missing', 'unknown', undefined] as const)('refuses unready credentials (%s)', authStatus => {
+    const { authStatus: _ready, ...unprobed } = agents[0]!;
+    const agent = authStatus ? { ...unprobed, authStatus } : unprobed;
+    expect(validateRuntimeSelection({ agents: [agent], agentId: 'runtime', modelId: 'small' })).toContain('Credentials');
+  });
+  it('uses resolved concrete IDs, refusing aliases and routing modes', () => {
+    const catalog = [{ ...agents[0]!, models: [
+      { id: 'opus', label: 'Opus', identityKind: 'alias' as const, resolvedId: 'claude-future', reasoning: [{ id: 'high', label: 'High' }] },
+      { id: 'auto', label: 'Automatic', identityKind: 'routing-mode' as const },
+      { id: 'latest', label: 'Latest' },
+    ] }];
+    expect(validateRuntimeSelection({ agents: catalog, agentId: 'runtime', modelId: 'claude-future', effort: 'high' })).toBeNull();
+    for (const modelId of ['opus', 'auto', 'latest']) expect(validateRuntimeSelection({ agents: catalog, agentId: 'runtime', modelId })).toContain('Available models: claude-future');
+    expect(validateRuntimeSelection({ agents: [{ ...catalog[0]!, supportsConcreteModelSelection: false }], agentId: 'runtime', modelId: 'claude-future' })).toContain('cannot pin');
+  });
+  it('resolves Default before validating model-specific effort', () => {
+    const catalog = [{ ...agents[0]!, defaultModelResolution: { status: 'resolved' as const, id: 'small', source: 'cli' as const, resolvedAt: 'now', launchFingerprint: 'test' } }];
+    for (const modelId of ['', 'default']) {
+      expect(validateRuntimeSelection({ agents: catalog, agentId: 'runtime', modelId, effort: 'ultra' })).toContain('Unknown effort');
+    }
+    expect(validateRuntimeSelection({ agents, agentId: 'runtime', effort: 'ultra' })).toContain('Default model');
+  });
+  it('refuses static fallback catalogs even when they contain the requested id', () => {
+    expect(validateRuntimeSelection({ agents: [{ ...agents[0]!, modelsSource: 'fallback' }], agentId: 'runtime', modelId: 'small' })).toContain('Live model catalog');
+  });
+});
 
 function makeDef(overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {
   return {

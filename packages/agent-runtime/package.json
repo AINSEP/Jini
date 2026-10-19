@@ -17,7 +17,8 @@
       "./providers/tool-turn": "node",
       "./model-catalog/cache": "universal",
       "./providers/sse-decode": "universal",
-      "./model-discovery": "node"
+      "./model-discovery": "node",
+      "./model-selection": "universal"
     },
     "isolation": {
       "forbidden": {
@@ -58,6 +59,11 @@
       "import": "./dist/providers/sse-decode.js",
       "default": "./dist/providers/sse-decode.js"
     },
+    "./model-selection": {
+      "types": "./dist/model-discovery-shared.d.ts",
+      "import": "./dist/model-discovery-shared.js",
+      "default": "./dist/model-discovery-shared.js"
+    },
     "./model-discovery": {
       "types": "./dist/model-discovery.d.ts",
       "import": "./dist/model-discovery.js",
@@ -74,6 +80,9 @@
       ],
       "providers/sse-decode": [
         "./dist/providers/sse-decode.d.ts"
+      ],
+      "model-selection": [
+        "./dist/model-discovery-shared.d.ts"
       ],
       "model-discovery": [
         "./dist/model-discovery.d.ts"
