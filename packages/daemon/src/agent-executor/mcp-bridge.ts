@@ -348,28 +348,42 @@ export function buildCodexMcpServerToml({ entry }: { readonly entry: McpJsonServ
  * @complexity O(n) in the length of `rawKey`.
  */
 function splitTomlDottedKey(rawKey: string): string[] {
-  const segments: string[] = [];
-  let current = '';
-  let quote: '"' | "'" | null = null;
+  const scan: TomlKeyScan = { segments: [], current: '', quote: null };
   for (const ch of rawKey) {
-    if (quote) {
-      if (ch === quote) quote = null;
-      else current += ch;
-      continue;
-    }
-    if (ch === '"' || ch === "'") {
-      quote = ch;
-      continue;
-    }
-    if (ch === '.') {
-      segments.push(current.trim());
-      current = '';
-      continue;
-    }
-    current += ch;
+    if (scan.quote === null) scanBareTomlKeyChar(scan, ch);
+    else if (ch === scan.quote) scan.quote = null;
+    else scan.current += ch;
   }
-  segments.push(current.trim());
-  return segments;
+  scan.segments.push(scan.current.trim());
+  return scan.segments;
+}
+
+/** {@link splitTomlDottedKey}'s running state: finished segments, the open segment, and the open quote. */
+interface TomlKeyScan { segments: string[]; current: string; quote: '"' | "'" | null }
+
+/** One key character outside quotes: opens a quote, ends the open segment at a `.`, or extends it. */
+function scanBareTomlKeyChar(scan: TomlKeyScan, ch: string): void {
+  if (ch === '"' || ch === "'") scan.quote = ch;
+  else if (ch === '.') {
+    scan.segments.push(scan.current.trim());
+    scan.current = '';
+  } else scan.current += ch;
+}
+
+// An inline or dotted root `mcp_servers` declaration, which the table scanner below cannot rewrite.
+const INLINE_MCP_SERVERS = /^\s*(?:mcp_servers|"mcp_servers"|'mcp_servers')\s*(?:\.|=)/;
+// `[<key>]` optionally followed only by a `# comment`; `[[...]]` never matches (see below).
+const TOML_TABLE_HEADER = /^\s*\[([^[\]]+)\]\s*(#.*)?$/;
+
+/**
+ * Whether {@link stripExistingJiniMcpServerTable} drops the table named `key`: always the jini
+ * table and its subtables; with `allServers` every MCP table; with `mcpOnly` every non-MCP table.
+ */
+function dropsTomlTable(key: string, optional: { allServers?: boolean; mcpOnly?: boolean }): boolean {
+  const jiniTableKey = `mcp_servers.${JINI_MCP_SERVER_KEY}`;
+  if (key === jiniTableKey || key.startsWith(`${jiniTableKey}.`)) return true;
+  const isMcp = key === 'mcp_servers' || key.startsWith('mcp_servers.');
+  return (optional.allServers === true && isMcp) || (optional.mcpOnly === true && !isMcp);
 }
 
 /**
@@ -413,23 +427,17 @@ function splitTomlDottedKey(rawKey: string): string[] {
  * @complexity O(n) in the number of lines.
  */
 function stripExistingJiniMcpServerTable(existingRaw: string, optional: { allServers?: boolean; mcpOnly?: boolean } = {}): string {
-  const jiniTableKey = `mcp_servers.${JINI_MCP_SERVER_KEY}`;
   const kept: string[] = [];
   let skipping = optional.mcpOnly === true;
   for (const line of existingRaw.split('\n')) {
     // The existing table scanner cannot safely rewrite inline/dotted root server values. Refuse
     // that uncommon shape when isolating servers rather than accidentally preserving a grant.
-    if (optional.allServers && /^\s*(?:mcp_servers|"mcp_servers"|'mcp_servers')\s*(?:\.|=)/.test(line)) {
-      throw new Error('Cannot isolate inline MCP server configuration');
+    if (optional.allServers && INLINE_MCP_SERVERS.test(line)) {
+      throw new Error('Cannot turn off personal MCP servers: the Codex config.toml declares mcp_servers inline (a dotted key or `mcp_servers = {...}`), which cannot be removed safely; move each server into its own [mcp_servers.<name>] table.');
     }
-    const header = /^\s*\[([^[\]]+)\]\s*(#.*)?$/.exec(line);
-    if (header) {
-      const key = splitTomlDottedKey(header[1] ?? '').join('.');
-      const isMcp = key === 'mcp_servers' || key.startsWith('mcp_servers.');
-      skipping = key === jiniTableKey || key.startsWith(`${jiniTableKey}.`) ||
-        (optional.allServers === true && isMcp) || (optional.mcpOnly === true && !isMcp);
-      if (skipping) continue;
-    }
+    const header = TOML_TABLE_HEADER.exec(line);
+    // The header's key capture group is not optional, so `header[1]` is always set on a match.
+    if (header) skipping = dropsTomlTable(splitTomlDottedKey(header[1]!).join('.'), optional);
     if (!skipping) kept.push(line);
   }
   return kept.join('\n');
@@ -904,6 +912,12 @@ export async function writeMcpJsonIfNeeded({ input, deps }: { readonly input: { 
   }
 }
 
+/** True when a Codex run turns off the operator's personal MCP servers or settings, which only a staged home can do. */
+function codexTurnsOffPersonalConfig(input: { readonly def: RuntimeAgentDef; readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities> }): boolean {
+  const capabilities = input.nativeCapabilities;
+  return input.def.id === 'codex' && (capabilities?.userMcp === false || capabilities?.userSettings === false);
+}
+
 /**
  * Phase 10b: mechanism 5 of 5's one effect — stages this run's scratch `CODEX_HOME` directory,
  * returning the prepared handle `cleanupStagedFiles` should later release (`null` for every other
@@ -922,21 +936,22 @@ export async function prepareCodexHomeIfNeeded({ input, deps }: { readonly input
   } }
 ): Promise<PreparedCodexHome | null> {
   if (input.mcpBridge?.kind !== 'codex-toml' || deps.mcpJsonInjection === undefined) {
-    if (input.def.id === 'codex' && (input.nativeCapabilities?.userMcp === false || input.nativeCapabilities?.userSettings === false)) {
+    if (codexTurnsOffPersonalConfig(input)) {
       await deps.releaseStagedResources();
       return deps.failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
         message: 'AgentExecutor: disabling personal Codex configuration requires run-scoped home staging.' });
     }
     return null;
   }
+  const nativeAllowed = input.nativeToolAccess !== false;
   try {
     return await prepareCodexHomeForRun(
       input.runId,
       input.mcpBridge.serverEntry,
       resolveSourceCodexHomeDir({ hostEnv: deps.hostEnv }),
       resolveCodexHomeSeams(deps.mcpJsonInjection),
-      input.nativeToolAccess !== false && input.nativeCapabilities?.userSettings !== false,
-      input.nativeToolAccess !== false && input.nativeCapabilities?.userMcp !== false,
+      nativeAllowed && input.nativeCapabilities?.userSettings !== false,
+      nativeAllowed && input.nativeCapabilities?.userMcp !== false,
     );
   } catch (err) {
     await deps.releaseStagedResources();
