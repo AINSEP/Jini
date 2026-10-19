@@ -86,6 +86,27 @@ export type ResolveMediaRenditionResult =
   | { outcome: "gone" }
   | { outcome: "not-found" };
 
+/** Stored renditions are served as-is, except SVG bytes, which are re-sanitized on every read. */
+async function serveStoredRendition(
+  { deps, storageKey, format }: { deps: ResolveMediaRenditionRequired["deps"]; storageKey: string; format: Parameters<typeof mimeForTransformFormat>[0]["format"] },
+): Promise<ResolveMediaRenditionResult> {
+  const bytes = await deps.blobStore.get({ storageKey });
+  if (sniffContentType({ bytes }) === "image/svg+xml") {
+    return { outcome: "ok", bytes: await sanitizeSvg({ bytes }), contentType: "image/svg+xml" };
+  }
+  return { outcome: "ok", bytes, contentType: mimeForTransformFormat({ format }) };
+}
+
+async function isGenerationAllowed(
+  { deps, input }: Pick<ResolveMediaRenditionRequired, "deps" | "input">,
+): Promise<boolean> {
+  return isReferencedByPublishedContent({ workspaceId: input.workspaceId, name: input.transformName, version: input.version }) ||
+    (await isLatestTransformVersion({
+      deps: { transformRepo: deps.transformRepo },
+      input: { workspaceId: input.workspaceId, name: input.transformName, version: input.version },
+    }));
+}
+
 /**
  * DISCLOSED SIMPLIFICATION: the original design says a *purged* asset should 410. This
  * build's `purgeMedia` (`media-service.ts`) hard-deletes the `MediaRecord`
@@ -137,21 +158,9 @@ export async function resolveMediaRendition(
     transformName: input.transformName,
     version: input.version,
   });
-  if (existing) {
-    const bytes = await deps.blobStore.get({ storageKey: existing.storageKey });
-    if (sniffContentType({ bytes }) === "image/svg+xml") {
-      return { outcome: "ok", bytes: await sanitizeSvg({ bytes }), contentType: "image/svg+xml" };
-    }
-    return { outcome: "ok", bytes, contentType: mimeForTransformFormat({ format: definition.params.format }) };
-  }
+  if (existing) return serveStoredRendition({ deps, storageKey: existing.storageKey, format: definition.params.format });
 
-  const generationAllowed =
-    isReferencedByPublishedContent({ workspaceId: input.workspaceId, name: input.transformName, version: input.version }) ||
-    (await isLatestTransformVersion({
-      deps: { transformRepo: deps.transformRepo },
-      input: { workspaceId: input.workspaceId, name: input.transformName, version: input.version },
-    }));
-  if (!generationAllowed) return { outcome: "not-found" };
+  if (!(await isGenerationAllowed({ deps, input }))) return { outcome: "not-found" };
 
   const sourceBlob = await deps.blobRepo.findByHash({ workspaceId: input.workspaceId, sha256: media.source.sha256 });
   if (!sourceBlob) {
