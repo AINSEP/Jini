@@ -125,4 +125,76 @@ describe('artifacts/parser', () => {
     const parser = createArtifactParser({});
     expect([...parser.flush({})]).toEqual([]);
   });
+
+  it('treats a ">" inside a quoted attribute value as part of the value, not the end of the open tag', () => {
+    const events = parseArtifacts({ content: '<artifact identifier="a>b" type=\'x>y\' title="t">body</artifact>' });
+    expect(events[0]).toEqual({ type: 'artifact:start', identifier: 'a>b', artifactType: 'x>y', title: 't' });
+  });
+
+  it('holds back an open tag whose closing ">" has not arrived yet, flushing only the text before it', () => {
+    const parser = createArtifactParser({});
+    expect([...parser.feed({ delta: 'pre <artifact identifier="a" ti' })]).toEqual([{ type: 'text', delta: 'pre ' }]);
+  });
+
+  it('holds back a bare "<artifact" at the very end of the buffer', () => {
+    const parser = createArtifactParser({});
+    expect([...parser.feed({ delta: 'pre <artifact' })]).toEqual([{ type: 'text', delta: 'pre ' }]);
+  });
+
+  it('emits the whole tail line as text once its inline-code backticks are balanced', () => {
+    const parser = createArtifactParser({});
+    expect([...parser.feed({ delta: 'a `b` c' })]).toEqual([{ type: 'text', delta: 'a `b` c' }]);
+  });
+
+  it('holds back from the earliest of several hold-back candidates (unmatched backtick before a "<art" tail)', () => {
+    const parser = createArtifactParser({});
+    expect([...parser.feed({ delta: 'x `y <art' })]).toEqual([{ type: 'text', delta: 'x ' }]);
+  });
+
+  it('does not hold back a "<" that sits inside an inline code span', () => {
+    const parser = createArtifactParser({});
+    expect([...parser.feed({ delta: 'see `<art`' })]).toEqual([{ type: 'text', delta: 'see `<art`' }]);
+  });
+
+  it('flushes a complete text buffer ending in a newline without holding anything back', () => {
+    const parser = createArtifactParser({});
+    expect([...parser.feed({ delta: 'line one\n' })]).toEqual([{ type: 'text', delta: 'line one\n' }]);
+  });
+
+  it('withholds the last CLOSE_TAG.length-1 body bytes while inside an artifact so a split close tag is still detected', () => {
+    const parser = createArtifactParser({});
+    const events = [...parser.feed({ delta: '<artifact identifier="a">0123456789abc' })];
+    expect(events.at(-1)).toEqual({ type: 'artifact:chunk', identifier: 'a', delta: '012' });
+  });
+
+  it('emits no chunk while inside an artifact when the body is shorter than a close tag', () => {
+    const parser = createArtifactParser({});
+    const events = [...parser.feed({ delta: '<artifact identifier="a">short' })];
+    expect(events).toEqual([{ type: 'artifact:start', identifier: 'a', artifactType: '', title: '' }]);
+  });
+
+  it('parses two consecutive artifacts in one feed and resets per-artifact state between them', () => {
+    const events = parseArtifacts({ content: '<artifact identifier="a" type="t1" title="A">x</artifact><artifact identifier="b">y</artifact>' });
+    expect(events).toEqual([
+      { type: 'artifact:start', identifier: 'a', artifactType: 't1', title: 'A' },
+      { type: 'artifact:chunk', identifier: 'a', delta: 'x' },
+      { type: 'artifact:end', identifier: 'a', fullContent: 'x' },
+      { type: 'artifact:start', identifier: 'b', artifactType: '', title: '' },
+      { type: 'artifact:chunk', identifier: 'b', delta: 'y' },
+      { type: 'artifact:end', identifier: 'b', fullContent: 'y' },
+    ]);
+  });
+
+  it('emits artifact:end with no chunk when the close tag immediately follows the open tag', () => {
+    const events = parseArtifacts({ content: '<artifact identifier="a"></artifact>' });
+    expect(events).toEqual([
+      { type: 'artifact:start', identifier: 'a', artifactType: '', title: '' },
+      { type: 'artifact:end', identifier: 'a', fullContent: '' },
+    ]);
+  });
+
+  it('treats an adjacent backtick pair outside any code span as balanced and holds nothing back', () => {
+    const parser = createArtifactParser({});
+    expect([...parser.feed({ delta: 'x ``y' })]).toEqual([{ type: 'text', delta: 'x ``y' }]);
+  });
 });
