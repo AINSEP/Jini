@@ -200,3 +200,21 @@ test('Library: malformed document errors name the application and preserve the v
       });
   }
 });
+
+test('readDocumentText refuses unnamed rows, missing blobs and oversized stored bytes; other hashes do not decide ownership', async () => {
+  const deps = fixture();
+  const { media } = await uploadMedia({ deps, input });
+  const read = () => readDocumentText({ deps, input: { workspaceId: input.workspaceId, id: media.id } });
+  const blob = (await deps.blobRepo.findByHash({ workspaceId: input.workspaceId, sha256: media.source.sha256 }))!;
+  (deps.blobStore as { sizeOf?: unknown }).sizeOf = async () => MAX_DOCUMENT_BYTES + 1;
+  await assert.rejects(read(), /exceeds the 10 MiB limit/);
+  (deps.blobStore as { sizeOf?: unknown }).sizeOf = undefined;
+  const findById = deps.mediaRepo.findById.bind(deps.mediaRepo);
+  deps.mediaRepo.findById = async () => ({ ...media, originalFilename: null });
+  await assert.rejects(read(), MediaValidationError);
+  deps.mediaRepo.findById = findById;
+  await deps.blobRepo.remove({ workspaceId: input.workspaceId, sha256: blob.sha256 });
+  await assert.rejects(read(), /source blob is missing/);
+  const other = { deps, input: { workspaceId: input.workspaceId, sha256: 'f'.repeat(64) } };
+  assert.equal(await isDocumentOnlyBlob(other), false);
+});

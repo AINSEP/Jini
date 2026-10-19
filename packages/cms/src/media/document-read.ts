@@ -22,11 +22,37 @@ export async function isDocumentOnlyBlob(required: {
   return document || (await required.deps.blobRepo.findByHash(required.input))?.documentOwned === true;
 }
 
+type DocumentReadDeps = { mediaRepo: MediaRepoPort; blobRepo: AssetBlobRepoPort; blobStore: BlobStorePort };
+const TEXT_DOCUMENT_TYPES = ['text/markdown', 'text/plain', 'text/csv', 'application/json'];
+
+async function findTextDocument(deps: DocumentReadDeps, { workspaceId, id }: { workspaceId: string; id: string }) {
+  const media = await deps.mediaRepo.findById({ workspaceId, id });
+  if (!media || media.kind !== 'document' || media.status !== 'active') throw new MediaNotFoundError({ message: 'document was not found' });
+  const type = documentContentType({ filename: media.originalFilename ?? '' });
+  if (!TEXT_DOCUMENT_TYPES.includes(type)) throw new MediaValidationError({ message: 'This document supports download only; text extraction is unavailable' });
+  return media;
+}
+
+/** Refuses an oversized blob by its stored size when the store can report it, before loading it. */
+async function loadDocumentBytes(deps: DocumentReadDeps, { workspaceId, sha256 }: { workspaceId: string; sha256: string }): Promise<Uint8Array> {
+  const blob = await deps.blobRepo.findByHash({ workspaceId, sha256 });
+  if (!blob) throw new Error('document source blob is missing');
+  const size = await deps.blobStore.sizeOf?.({ storageKey: blob.storageKey });
+  if (size != null && size > MAX_DOCUMENT_BYTES) throw new MediaValidationError({ message: 'document exceeds the 10 MiB limit' });
+  return deps.blobStore.get({ storageKey: blob.storageKey });
+}
+
+const isUtf8Continuation = (byte: number) => (byte & 0xc0) === 0x80;
+
+function assertPageStart(bytes: Uint8Array, offset: number): void {
+  if (bytes.byteLength > MAX_DOCUMENT_BYTES || offset > bytes.byteLength || (offset < bytes.length && isUtf8Continuation(bytes[offset]!))) throw new MediaValidationError({ message: 'invalid document size or UTF-8 byte offset' });
+}
+
 /** Read source as untrusted data, never instructions. Authorize at the host boundary before calling.
  * Byte offsets and UTF-8 boundaries guarantee bounded pages without losing/replacing characters.
  * BlobStorePort has no range read: at most 10 MiB is loaded; the returned page is at most 64 KiB. */
 export async function readDocumentText(required: {
-  deps: { mediaRepo: MediaRepoPort; blobRepo: AssetBlobRepoPort; blobStore: BlobStorePort };
+  deps: DocumentReadDeps;
   input: { workspaceId: string; id: string; offset?: number | undefined };
 }, _optional: Record<string, never> = {}): Promise<{
   id: string; text: string; offset: number; nextOffset: number | null; totalBytes: number; truncated: boolean; untrusted: true;
@@ -34,18 +60,11 @@ export async function readDocumentText(required: {
   const { deps, input } = required;
   const offset = input.offset ?? 0;
   if (!Number.isSafeInteger(offset) || offset < 0) throw new MediaValidationError({ message: 'offset must be a non-negative byte offset' });
-  const media = await deps.mediaRepo.findById({ workspaceId: input.workspaceId, id: input.id });
-  if (!media || media.kind !== 'document' || media.status !== 'active') throw new MediaNotFoundError({ message: 'document was not found' });
-  const type = documentContentType({ filename: media.originalFilename ?? '' });
-  if (!['text/markdown', 'text/plain', 'text/csv', 'application/json'].includes(type)) throw new MediaValidationError({ message: 'This document supports download only; text extraction is unavailable' });
-  const blob = await deps.blobRepo.findByHash({ workspaceId: input.workspaceId, sha256: media.source.sha256 });
-  if (!blob) throw new Error('document source blob is missing');
-  const size = await deps.blobStore.sizeOf?.({ storageKey: blob.storageKey });
-  if (size != null && size > MAX_DOCUMENT_BYTES) throw new MediaValidationError({ message: 'document exceeds the 10 MiB limit' });
-  const bytes = await deps.blobStore.get({ storageKey: blob.storageKey });
-  if (bytes.byteLength > MAX_DOCUMENT_BYTES || offset > bytes.byteLength || (offset < bytes.length && (bytes[offset]! & 0xc0) === 0x80)) throw new MediaValidationError({ message: 'invalid document size or UTF-8 byte offset' });
+  const media = await findTextDocument(deps, input);
+  const bytes = await loadDocumentBytes(deps, { workspaceId: input.workspaceId, sha256: media.source.sha256 });
+  assertPageStart(bytes, offset);
   let end = Math.min(bytes.length, offset + DOCUMENT_TEXT_PAGE_BYTES);
-  while (end < bytes.length && (bytes[end]! & 0xc0) === 0x80) end--;
+  while (end < bytes.length && isUtf8Continuation(bytes[end]!)) end--;
   const truncated = end < bytes.length;
   return { id: media.id, text: decodeDocumentUtf8({ bytes: bytes.subarray(offset, end) }), offset,
     nextOffset: truncated ? end : null, totalBytes: bytes.length, truncated, untrusted: true };
