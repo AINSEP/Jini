@@ -63,8 +63,27 @@ function exclusion(run: DurableRun): string | null {
   return null;
 }
 
+/** Preflight cards precede model tools, so the normal open-tool activity scan cannot see them.
+ * Chat saves the bare resource without its wire toolUseId. Saved consent or subsequent model
+ * execution closes this preflight wait, including cards saved before this fix.
+ * @complexity O(e) time, O(1) space, no effects.
+ */
+function awaitingAnswer({ run }: { run: DurableRun }, _options = {}): boolean {
+  if (isAwaitingAnswer({ events: run.message.events })) return true;
+  let modelToolSeen = false;
+  let preflightPending = false;
+  for (const event of run.message.events ?? []) {
+    if (event.kind === 'tool_use') { modelToolSeen = true; preflightPending = false; }
+    if (event.kind !== 'ext') continue;
+    const data = event.data as { conversationId?: unknown } | null;
+    if (event.name === 'agent_plugins' && data?.conversationId === run.conversationId) preflightPending = false;
+    if (event.name === 'mcp-ui' && !modelToolSeen) preflightPending = true;
+  }
+  return preflightPending;
+}
+
 function budgetNotice(run: DurableRun, now: number): string | null {
-  if (now - run.lastProgressAt >= RUN_STALENESS_MS) return isAwaitingAnswer({ events: run.message.events }) ? AWAITING_ANSWER_NOTICE : SAVED_WORK_NOTICE;
+  if (now - run.lastProgressAt >= RUN_STALENESS_MS) return awaitingAnswer({ run }) ? AWAITING_ANSWER_NOTICE : SAVED_WORK_NOTICE;
   if (run.recoveryCount >= RECOVERY_LIMIT) return EXHAUSTED_NOTICE;
   if (run.recoveryDeadline !== null && now >= run.recoveryDeadline) return EXHAUSTED_NOTICE;
   return null;
@@ -124,6 +143,8 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
       await ports.store.recoveryClock({ runId: run.runId, now: ports.now(), active: false }, {});
       ports.attach(run, {}); return "reattached";
     }
+    // A pending human answer takes precedence over executor exit diagnostics.
+    if (probe === "dead" && awaitingAnswer({ run })) return resolveMissing(run, probe, trigger);
     // Diagnostics decide only the fate of an attempt that is no longer running. Read before the
     // probe, raw stdout quoting a tool description ("OAuth-authenticated") canceled a live turn
     // as "Not logged in" (luvira, 2026-10-08).
@@ -143,6 +164,9 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
     // A probe only speaks about the generation it inspected. Never apply its dead result to
     // a newer attempt committed by another caller while this one was awaiting storage/HTTP.
     if (timed.runId !== run.runId) return "superseded";
+    // A dead process cannot resume its question. End this turn with the existing card intact,
+    // rather than minting an attempt that runs preflight and asks the same question again.
+    if (probe === "dead" && awaitingAnswer({ run: timed })) return finalize(timed, AWAITING_ANSWER_NOTICE);
     const notice = budgetNotice(timed, ports.now());
     if (notice) {
       const detail = notice === EXHAUSTED_NOTICE

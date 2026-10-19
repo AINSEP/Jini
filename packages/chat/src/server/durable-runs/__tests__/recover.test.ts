@@ -44,6 +44,62 @@ function harness({ events, probe, content = "", run = {} }: { events: AgentEvent
   return { recovery: createDurableRecovery(ports, { logger }), settlements, attached, canceled, launches, info };
 }
 
+describe("durable recovery: plugin Ask state belongs to the logical turn", () => {
+  it.each(['boot', 'attempt-failed'] as const)('ends a dead preflight with its pending card on %s instead of asking again', async trigger => {
+    const card: AgentEvent = { kind: 'ext', name: 'mcp-ui', data: { type: 'resource', resource: { uri: 'ui://pending' } } };
+    const h = harness({ probe: 'dead', events: [card, { kind: 'status', label: 'Stopped by inactivity watchdog' }] });
+    expect(await h.recovery.recover({ messageId: 'answer', trigger }, {})).toBe('finalized');
+    expect(h.launches).toEqual([]);
+    expect(h.settlements).toHaveLength(1);
+    expect(h.settlements[0]!.events).toEqual([card, { kind: 'status', label: 'Stopped by inactivity watchdog' }, { kind: 'status', label: AWAITING_ANSWER_NOTICE }]);
+    expect(await h.recovery.recover({ messageId: 'answer', trigger: 'browser' }, {})).toBe('terminal');
+    expect(h.settlements).toHaveLength(1);
+  });
+
+  it('continues after an answered preflight instead of treating its old card as pending', async () => {
+    const h = harness({ probe: 'dead', events: [
+      { kind: 'ext', name: 'mcp-ui', data: { type: 'resource' } },
+      { kind: 'ext', name: 'agent_plugins', data: { conversationId: 'chat', state: { decision: { selected: [], asked: true }, excluded: ['theme'] }, plugins: [] } },
+    ] });
+    expect(await h.recovery.recover({ messageId: 'answer', trigger: 'boot' }, {})).toBe('continued');
+    expect(h.launches).toHaveLength(1);
+    expect(h.settlements).toEqual([]);
+  });
+
+  it('does not retain a preflight wait after the model has executed and completed a tool', async () => {
+    const h = harness({ probe: 'dead', events: [
+      { kind: 'ext', name: 'mcp-ui', data: { type: 'resource' } },
+      { kind: 'tool_use', id: 'read', name: 'read', input: {} },
+      { kind: 'tool_result', toolUseId: 'read', content: 'Done', isError: false },
+    ] });
+    expect(await h.recovery.recover({ messageId: 'answer', trigger: 'boot' }, {})).toBe('continued');
+    expect(h.launches).toHaveLength(1);
+    expect(h.settlements).toEqual([]);
+  });
+
+  it.each([{ selected: ['theme'] }, { selected: [] }])("carries the saved selection $selected into a replacement attempt", async ({ selected }) => {
+    const state = { decision: { selected, asked: true }, excluded: selected.length ? ['design'] : ['theme', 'design'] };
+    const usage = (conversationId: string, value: typeof state): AgentEvent => ({ kind: 'ext', name: 'agent_plugins', data: { conversationId, state: value, plugins: [] } });
+    const h = harness({ probe: 'dead', events: [
+      usage('chat', { decision: { selected: ['obsolete'], asked: true }, excluded: [] }),
+      usage('chat', state),
+      usage('another-chat', { decision: { selected: ['foreign'], asked: true }, excluded: [] }),
+      { kind: 'status', label: 'starting_model' },
+    ], run: { request: { agentId: 'claude', contextRef: JSON.stringify({ prompt: 'Design', agentPluginState: { decision: null, excluded: [] } }) } } });
+    expect(await h.recovery.recover({ messageId: 'answer', trigger: 'boot' }, {})).toBe('continued');
+    expect(h.launches[0]!.run.runId).toBe('next');
+    expect(JSON.parse(h.launches[0]!.request.contextRef).agentPluginState).toEqual(state);
+  });
+
+  it('keeps a live attempt with a pending card instead of starting another preflight', async () => {
+    const h = harness({ probe: 'live', events: [{ kind: 'ext', name: 'mcp-ui', data: { type: 'resource' } }] });
+    expect(await h.recovery.recover({ messageId: 'answer', trigger: 'timeout' }, {})).toBe('reattached');
+    expect(h.launches).toEqual([]);
+    expect(h.canceled).toEqual([]);
+    expect(h.attached).toEqual(['old']);
+  });
+});
+
 describe("durable recovery: saved omissions are system housekeeping", () => {
   it("tells the model a saved [token removed] marker is not a user disclosure, and keeps the saved output", async () => {
     const content = "Saved output: [token removed]";

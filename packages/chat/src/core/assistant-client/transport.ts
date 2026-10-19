@@ -1,4 +1,4 @@
-import { readAgentPluginChatState, captureAgentPluginUsage } from '../agent-plugin-chat-state.js';
+import { readAgentPluginChatState, captureAgentPluginUsage, type AgentPluginUsage } from '../agent-plugin-chat-state.js';
 import { buildTranscript, latestUserPromptFromHistory } from "../transcript.js";
 import type { AgentEvent } from "../events.js";
 import type { ChatMessage } from "../messages.js";
@@ -356,9 +356,37 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
     ports.followRun({ runId, handlers: capturePluginUsage(handlers), ...(signal === undefined ? {} : { signal }) }, {});
   }
 
-  /** Capture before notifying the UI so answers received after reload persist for the next turn. */
+  /** Capture before notifying the UI so answers received after reload persist for the next turn.
+   * Checkpoint panes skip live deltas to avoid duplicate text, so capture their saved events here
+   * too. Keep this wrapper as the single capture owner for both delivery contracts.
+   * @complexity O(e + s) per checkpoint; O(s) per live event, in saved events and plugin-state size.
+   */
   function capturePluginUsage(handlers: RunHandlers): RunHandlers {
-    return { ...handlers, onEvent: event => { captureAgentPluginUsage({ event }); handlers.onEvent(event); } };
+    const captured = new Map<string, string>();
+    const capture = (event: AgentEvent) => {
+      if (event.kind !== 'ext' || event.name !== 'agent_plugins') return;
+      const usage = event.data as AgentPluginUsage | undefined;
+      if (typeof usage?.conversationId !== 'string' || !usage.state || !Array.isArray(usage.state.excluded)) return;
+      const state = JSON.stringify(usage.state);
+      if (captured.get(usage.conversationId) === state) return;
+      captured.set(usage.conversationId, state);
+      captureAgentPluginUsage({ event });
+    };
+    return {
+      ...handlers,
+      onEvent: event => { capture(event); handlers.onEvent(event); },
+      ...(handlers.onCheckpoint ? { onCheckpoint: (message: ChatMessage) => {
+        // Historical answers must not roll the current state backwards on every poll.
+        const latest = new Map<string, AgentEvent>();
+        for (const event of message.events ?? []) {
+          if (event.kind !== 'ext' || event.name !== 'agent_plugins') continue;
+          const usage = event.data as AgentPluginUsage | undefined;
+          if (typeof usage?.conversationId === 'string' && usage.state && Array.isArray(usage.state.excluded)) latest.set(usage.conversationId, event);
+        }
+        for (const event of latest.values()) capture(event);
+        handlers.onCheckpoint!(message);
+      } } : {}),
+    };
   }
 
   /** Client-minted, not server-minted — see module doc's path-2 section: a BYOK run has no server-side

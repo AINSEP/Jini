@@ -1,5 +1,6 @@
 import type { AgentEvent } from "../index.js";
 import type { AcceptedRunRequest, DurableRun } from "./ports.js";
+import type { AgentPluginUsage } from "../agent-plugin-chat-state.js";
 
 export const CONTINUATION_DIVIDER = "\n\n---\n\nContinued\n\n";
 export const UNKNOWN_MUTATION_ERROR = "This operation may already be done. Its earlier outcome is unknown; verify the current state before repeating it.";
@@ -42,10 +43,27 @@ function toolHistory(events: readonly AgentEvent[]): string {
   }).join("\n");
 }
 
+/** Reconstruct one attempt from the accepted task and its saved work, including plugin consent.
+ * Returns a new request without changing the accepted input or transcript; invalid context JSON throws.
+ * @complexity O(e + t) time/space in saved events and transcript text; no external effects.
+ */
 export function continuationRequest(
   { run, native }: { run: DurableRun; native: boolean }, _optional = {},
 ): AcceptedRunRequest {
   const original = JSON.parse(run.request.contextRef) as Record<string, unknown>;
+  // The accepted browser state predates this turn's Ask answer. A replacement attempt must
+  // carry the latest saved decision, including Skip, instead of asking from that frozen state.
+  // Scan backwards so recovery markers and unrelated extensions cannot hide the last answer.
+  let agentPluginState = original.agentPluginState;
+  const events = run.message.events ?? [];
+  for (let index = events.length - 1; index >= 0; index--) {
+    const event = events[index]!;
+    if (event.kind !== "ext" || event.name !== "agent_plugins") continue;
+    const usage = event.data as AgentPluginUsage | undefined;
+    if (usage?.conversationId !== run.conversationId || !usage.state) continue;
+    agentPluginState = usage.state;
+    break;
+  }
   // Native sessions may have disappeared on deploy. Reconstruction includes the saved answer
   // and tool results for every runtime; completed side effects must never be silently repeated.
   const transcript = run.transcript.map((message) => `${message.role}: ${message.content}`).join("\n\n");
@@ -53,7 +71,7 @@ export function continuationRequest(
     "Continue the interrupted answer from the saved work below. Preserve completed work. Do not repeat completed mutations.",
     "Omission markers in the saved work are system housekeeping, not user content; do not mention them to the user or infer a user disclosure from them.",
     "Calls without a result have an unknown outcome: inspect current state before any retry. Expired plans or approvals must be re-planned and re-approved; never reuse them.",
-    "A pending question may be asked again when its process was lost. The interrupted segment remains visible; append the continuation.",
+    "Never re-ask a pending question in this turn. The interrupted segment remains visible; append the continuation.",
     `Accepted task:\n${String(original.prompt ?? "")}`,
     native ? "Native session is confirmed; continue its saved task." : `Saved conversation:\n${transcript}`,
     `Saved partial answer:\n${run.message.content}`,
@@ -62,6 +80,7 @@ export function continuationRequest(
   return {
     ...run.request,
     contextRef: JSON.stringify({ ...original, prompt, conversationId: run.conversationId,
+      ...(agentPluginState === undefined ? {} : { agentPluginState }),
       assistantMessageId: run.messageId, principalId: run.principalId,
       recoveryMode: native ? "native" : "reconstruction", recoverySessionId: native ? run.sessionId : undefined,
       // Old attachment claims have been consumed. Saved transcript/tool results carry their
