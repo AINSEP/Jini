@@ -33,19 +33,9 @@ export function LocalCliAgentSettings({
   agentHandle,
 }: LocalCliAgentSettingsProps) {
   const t = useT();
-  const { reasoning, source, sourceLabel, sourceHint, result, repair, repairField } = card;
-  const {
-    hasModels,
-    hasReasoning,
-    reasoningOptions,
-    reasoningValue,
-    reasoningDisabled,
-    allowCustomModel,
-    customActive,
-    modelChoices,
-    selectValue,
-    customModelInputValue,
-  } = reasoning;
+  const { reasoning, result, repair, repairField } = card;
+  const { hasModels, hasReasoning, reasoningOptions, reasoningValue, reasoningDisabled, customActive, customModelInputValue } =
+    reasoning;
 
   return (
     <div
@@ -55,29 +45,7 @@ export function LocalCliAgentSettings({
       data-testid={`jini-agent-settings-${agent.id}`}
     >
       <div className="jini-agent-settings-row">
-        {hasModels ? (
-          <div className="jini-agent-settings-field jini-agent-settings-model">
-            <div className="jini-agent-settings-label">
-              <span className="jini-field-label">{t('Model')}</span>
-              {sourceLabel ? (
-                <span className={`jini-agent-model-source ${source}`}>{sourceLabel}</span>
-              ) : null}
-            </div>
-            <SearchableModelSelect
-              className="jini-input jini-agent-model-select"
-              ariaLabel={t('Model')}
-              searchPlaceholder={t('Search models')}
-              testId={`jini-agent-model-${agent.id}`}
-              searchInputTestId={`jini-agent-model-search-${agent.id}`}
-              {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'model' }) } : {})}
-              value={selectValue}
-              models={modelChoices}
-              additionalOptions={allowCustomModel ? [{ value: CUSTOM_MODEL_SENTINEL, label: t('Custom…') }] : undefined}
-              onChange={card.selectModel}
-            />
-            {sourceHint ? <p className="jini-field-hint">{sourceHint}</p> : null}
-          </div>
-        ) : null}
+        {hasModels ? <ModelField agent={agent} card={card} agentHandle={agentHandle} /> : null}
 
         {customActive ? (
           <label className="jini-agent-settings-field">
@@ -118,52 +86,113 @@ export function LocalCliAgentSettings({
         ) : null}
       </div>
 
-      {result ? (
-        <p
-          className={'jini-agent-card-test-result is-' + result.status}
-          role={result.status === 'error' ? 'alert' : 'status'}
-        >
-          {result.message ?? (result.status === 'ok' ? t('Agent is ready.') : t('Agent check failed'))}
-        </p>
-      ) : null}
+      {result ? <TestResultLine result={result} /> : null}
 
       {repair && repairField ? (
-        <div className="jini-agent-card-path-repair">
-          <span className="jini-field-hint">
-            {t('A custom path override did not work, so this used the automatically detected binary instead.')}
-          </span>
-          <div className="jini-agent-card-path-repair-actions">
-            {/* `agentExecutableRepairState` (this feature's own `rules.ts`)
-                always sets `canUseDetected: true` on every non-null result it produces
-                today — the field exists for a FUTURE detection outcome that
-                finds a fallback path but cannot vouch for it (see that
-                field's doc). The `false` branch is therefore provably
-                unreachable through this card's real data flow right now;
-                kept rather than dropped so the card stays correct the day
-                that future outcome exists, without another shape change. */}
-            {repair.canUseDetected ? (
-              <button
-                type="button"
-                className="jini-btn"
-                data-testid={`jini-agent-path-repair-use-${agent.id}`}
-                onClick={() => onEnvChange(agent.id, repairField.envKey, repair.detectedPath)}
-              >
-                {t('Use detected path')}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="jini-btn jini-btn-ghost"
-              data-testid={`jini-agent-path-repair-clear-${agent.id}`}
-              onClick={() => onEnvChange(agent.id, repairField.envKey, '')}
-            >
-              {t('Clear custom path')}
-            </button>
-          </div>
-        </div>
+        <PathRepair agentId={agent.id} repair={repair} envKey={repairField.envKey} onEnvChange={onEnvChange} />
       ) : null}
 
       <AgentCliEnvFields agentId={agent.id} fields={cliEnvFields} config={config} onChange={onEnvChange} />
+    </div>
+  );
+}
+
+/** The model label with its provenance badge, the searchable picker, and the provenance sentence. */
+function ModelField({
+  agent,
+  card,
+  agentHandle,
+}: Pick<LocalCliAgentSettingsProps, 'agent' | 'card' | 'agentHandle'>) {
+  const t = useT();
+  const { source, sourceLabel, sourceHint, reasoning } = card;
+  return (
+    <div className="jini-agent-settings-field jini-agent-settings-model">
+      <div className="jini-agent-settings-label">
+        <span className="jini-field-label">{t('Model')}</span>
+        {sourceLabel ? (
+          <span className={`jini-agent-model-source ${source}`}>{sourceLabel}</span>
+        ) : null}
+      </div>
+      <SearchableModelSelect
+        className="jini-input jini-agent-model-select"
+        ariaLabel={t('Model')}
+        searchPlaceholder={t('Search models')}
+        testId={`jini-agent-model-${agent.id}`}
+        searchInputTestId={`jini-agent-model-search-${agent.id}`}
+        {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'model' }) } : {})}
+        value={reasoning.selectValue}
+        models={reasoning.modelChoices}
+        additionalOptions={reasoning.allowCustomModel ? [{ value: CUSTOM_MODEL_SENTINEL, label: t('Custom…') }] : undefined}
+        onChange={card.selectModel}
+      />
+      {sourceHint ? <p className="jini-field-hint">{sourceHint}</p> : null}
+    </div>
+  );
+}
+
+function TestResultLine({ result }: { result: NonNullable<UseLocalCliAgentCardResult['result']> }) {
+  const t = useT();
+  if (result.status === 'error') {
+    // `AgentTestState`'s 'error' variant types `message` as a required string, so a failed test
+    // always carries its own words; only a passing test can arrive without one.
+    return (
+      <p className="jini-agent-card-test-result is-error" role="alert">
+        {result.message}
+      </p>
+    );
+  }
+  return (
+    <p className="jini-agent-card-test-result is-ok" role="status">
+      {result.message ?? t('Agent is ready.')}
+    </p>
+  );
+}
+
+function PathRepair({
+  agentId,
+  repair,
+  envKey,
+  onEnvChange,
+}: {
+  agentId: string;
+  repair: NonNullable<UseLocalCliAgentCardResult['repair']>;
+  envKey: string;
+  onEnvChange: LocalCliAgentSettingsProps['onEnvChange'];
+}) {
+  const t = useT();
+  return (
+    <div className="jini-agent-card-path-repair">
+      <span className="jini-field-hint">
+        {t('A custom path override did not work, so this used the automatically detected binary instead.')}
+      </span>
+      <div className="jini-agent-card-path-repair-actions">
+        {/* `agentExecutableRepairState` (this feature's own `rules.ts`)
+            always sets `canUseDetected: true` on every non-null result it produces
+            today — the field exists for a FUTURE detection outcome that
+            finds a fallback path but cannot vouch for it (see that
+            field's doc). The `false` branch is therefore provably
+            unreachable through this card's real data flow right now;
+            kept rather than dropped so the card stays correct the day
+            that future outcome exists, without another shape change. */}
+        {repair.canUseDetected ? (
+          <button
+            type="button"
+            className="jini-btn"
+            data-testid={`jini-agent-path-repair-use-${agentId}`}
+            onClick={() => onEnvChange(agentId, envKey, repair.detectedPath)}
+          >
+            {t('Use detected path')}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="jini-btn jini-btn-ghost"
+          data-testid={`jini-agent-path-repair-clear-${agentId}`}
+          onClick={() => onEnvChange(agentId, envKey, '')}
+        >
+          {t('Clear custom path')}
+        </button>
+      </div>
     </div>
   );
 }
