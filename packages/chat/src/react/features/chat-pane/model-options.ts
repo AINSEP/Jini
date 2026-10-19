@@ -1,3 +1,4 @@
+import { concreteModelOptions, modelIdentityKind } from '@jini-ai/agent-runtime/model-selection';
 import type { I18nAdapter } from '../../slots.js';
 import type { ChatPaneAgent, ChatPaneAgentOption } from './types.js';
 
@@ -5,8 +6,7 @@ import type { ChatPaneAgent, ChatPaneAgentOption } from './types.js';
 const passthrough: I18nAdapter['t'] = key => key;
 
 export function isConcretePickerModel(id: string): boolean {
-  const token = id.slice(id.lastIndexOf('/') + 1);
-  return !/^(?:opus|sonnet|haiku|fable|best|latest|claude|gemini|gpt|codex|swe)(?:\[.*\])?$/i.test(token) && !/^(default|auto|adaptive|smart|deep|rush|ultimate|premium|balanced|fast|grok-build|vercel-ai-gateway)$/i.test(token) && !/(?:^|[-/])(gateway|latest)$/i.test(id);
+  return modelIdentityKind(id) === 'concrete';
 }
 /** Aliases are selectable only as their evidence-backed concrete ID. Never render a Default row.
  * Keeps the first position per concrete ID, upgrading raw-ID labels from later human labels.
@@ -15,25 +15,7 @@ export function isConcretePickerModel(id: string): boolean {
  * @complexity O(n) time and space in catalog rows, using insertion-ordered Map keys.
  */
 export function pickerModelOptions(agent: ChatPaneAgent): ChatPaneAgentOption[] {
-  if (agent.supportsConcreteModelSelection === false) return [];
-  const choices = new Map<string, ChatPaneAgentOption>();
-  for (const row of agent.models || []) {
-    const id = row.resolvedId || (row.identityKind === 'routing-mode' || row.identityKind === 'alias' ? undefined : row.id);
-    if (!id || !isConcretePickerModel(id)) continue;
-    // Older cached inventories can attach a default-policy label to a resolved concrete ID.
-    const label = row.id === 'default' || /^default\b/i.test(row.label) ? id : row.label;
-    const existing = choices.get(id);
-    if (!existing) {
-      choices.set(id, { ...row, id, label, identityKind: 'concrete' });
-    } else if (existing.label === id && label !== id) {
-      choices.set(id, { ...existing, label });
-    }
-  }
-  const options = [...choices.values()];
-  const resolution = agent.defaultModelResolution;
-  // A host may publish a resolved default outside its visible catalog. Preserve its concrete ID.
-  if (resolution?.status === 'resolved' && isConcretePickerModel(resolution.id) && !choices.has(resolution.id)) options.unshift({ id: resolution.id, label: resolution.id, identityKind: 'concrete' });
-  return options;
+  return concreteModelOptions(agent);
 }
 export function configuredPickerModel(agent: ChatPaneAgent): string | undefined {
   if (agent.supportsConcreteModelSelection === false) return undefined;
