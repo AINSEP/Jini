@@ -131,3 +131,42 @@ describe('receipt resource bounds', () => {
     expect(consentRateLimitKey({ address: '::ffff:c000:201' })).toBe('192.0.2.1');
   });
 });
+
+describe('node receipt adapter boundaries', () => {
+  const atomicWrite = async (input: { filePath: string; data: unknown }) => { await fs.writeFile(input.filePath, JSON.stringify(input.data)); };
+  const failing = (code: string) => async () => { throw Object.assign(new Error(code), { code }); };
+  it('refuses invalid capacity and retention', () => {
+    for (const maximumRecords of [0, 1.5, Number.NaN]) expect(() => createNodeConsentFiles({ atomicWrite }, { maximumRecords })).toThrow('Consent receipt capacity must be a positive integer.');
+    for (const retentionMs of [-1, Number.POSITIVE_INFINITY]) expect(() => createNodeConsentFiles({ atomicWrite }, { retentionMs })).toThrow('Consent receipt retention must be nonnegative.');
+  });
+  it('refuses oversized receipts before scanning the directory', async () => {
+    const files = createNodeConsentFiles({ atomicWrite }, { filesystem: { ...fs, readdir: failing('EACCES') } as never });
+    await expect(files.writeJson({ filePath: '/proof/oversized_receipt_0123456789.json', record: { ...accepted, policyVersion: 'x'.repeat(5000) } })).rejects.toThrow('Consent receipt exceeds 4096 bytes.');
+  });
+  it('a missing directory is an empty inventory; other scan failures propagate', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'jini-consent-scan-'));
+    try {
+      const missing = createNodeConsentFiles({ atomicWrite }, { filesystem: { ...fs, readdir: failing('ENOENT') } as never });
+      await missing.writeJson({ filePath: path.join(directory, `${accepted.id}.json`), record: accepted });
+      expect(await fs.readdir(directory)).toEqual([`${accepted.id}.json`]);
+      for (const error of [Object.assign(new Error('denied'), { code: 'EACCES' }), 'opaque']) {
+        const denied = createNodeConsentFiles({ atomicWrite }, { filesystem: { ...fs, readdir: async () => { throw error; } } as never });
+        await expect(denied.writeJson({ filePath: path.join(directory, 'another_receipt_0123456789.json'), record: accepted })).rejects.toBe(error);
+      }
+    } finally { await fs.rm(directory, { recursive: true, force: true }); }
+  });
+  it('eviction ignores an already-removed receipt but propagates other unlink failures', async () => {
+    for (const code of ['ENOENT', 'EPERM']) {
+      const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'jini-consent-evict-'));
+      const old = path.join(directory, 'expired_receipt_0123456789.json');
+      try {
+        await fs.writeFile(old, '{}');
+        const unlink = (async (filePath: string) => { if (filePath === old) throw Object.assign(new Error(code), { code }); return fs.unlink(filePath); }) as typeof fs.unlink;
+        const files = createNodeConsentFiles({ atomicWrite }, { maximumRecords: 1, filesystem: { ...fs, unlink } as never });
+        const write = files.writeJson({ filePath: path.join(directory, `${accepted.id}.json`), record: accepted });
+        if (code === 'ENOENT') { await write; expect((await fs.readdir(directory)).sort()).toEqual(['expired_receipt_0123456789.json', `${accepted.id}.json`]); }
+        else { await expect(write).rejects.toThrow('EPERM'); expect(await fs.readdir(directory)).toEqual(['expired_receipt_0123456789.json']); }
+      } finally { await fs.rm(directory, { recursive: true, force: true }); }
+    }
+  });
+});

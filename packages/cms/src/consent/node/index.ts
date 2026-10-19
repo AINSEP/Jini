@@ -13,12 +13,17 @@ export interface ConsentFilePorts {
 /** Host injects the existing platform/fs writer rather than copying its durability lifecycle. */
 export type ConsentAtomicWriter = (required: { filePath: string; data: unknown }, optional: { createParent: boolean; mode: number; refuseSymlink: boolean }) => Promise<void>;
 
+/** @complexity O(1). */
+function assertLimits({ maximumRecords, retentionMs }: { maximumRecords: number; retentionMs: number }): void {
+  if (!Number.isSafeInteger(maximumRecords) || maximumRecords < 1) throw new Error('Consent receipt capacity must be a positive integer.');
+  if (!Number.isFinite(retentionMs) || retentionMs < 0) throw new Error('Consent receipt retention must be nonnegative.');
+}
+
 /** Publish a flushed staging file with an exclusive hard link, then flush the directory on non-Windows hosts.
  * Filesystem/link failures propagate. No reader ever sees a partially-written proof file.
  * @complexity Startup O(r log r) time/O(r) space; subsequent writes amortized O(1) plus bounded receipt I/O. */
 export function createNodeConsentFiles({ atomicWrite }: { atomicWrite: ConsentAtomicWriter }, { filesystem = fs, uniqueId = randomUUID, maximumRecords = 10000, retentionMs = CONSENT_MAX_AGE_MS, nowMs = Date.now, platform = process.platform }: { filesystem?: Pick<typeof fs, 'link' | 'unlink' | 'open' | 'readdir' | 'stat'>; uniqueId?: () => string; maximumRecords?: number; retentionMs?: number; nowMs?: () => number; platform?: NodeJS.Platform } = {}): ConsentFilePorts {
-  if (!Number.isSafeInteger(maximumRecords) || maximumRecords < 1) throw new Error('Consent receipt capacity must be a positive integer.');
-  if (!Number.isFinite(retentionMs) || retentionMs < 0) throw new Error('Consent receipt retention must be nonnegative.');
+  assertLimits({ maximumRecords, retentionMs });
   const writes = new Map<string, Promise<void>>();
   const inventories = new Map<string, Map<string, number>>();
   /** Serialize capacity checks/publication in this adapter. The host selects proof retention;
@@ -117,21 +122,28 @@ export function createConsentFileRecords({ directory, files }: { directory: stri
   };
 }
 
+/** A dotted IPv4 tail becomes two hex groups so every spelling parses the same way. @complexity O(1). */
+function hexIpv4Tail(address: string): string {
+  if (!address.includes('.')) return address;
+  const at = address.lastIndexOf(':');
+  const octets = address.slice(at + 1).split('.').map(Number);
+  return address.slice(0, at + 1) + ((octets[0]! << 8) + octets[1]!).toString(16) + ':' + ((octets[2]! << 8) + octets[3]!).toString(16);
+}
+
+/** Expand :: into explicit zero groups. @complexity O(1). */
+function ipv6Groups(address: string): number[] {
+  const [left = '', right = ''] = address.toLowerCase().split('::');
+  const before = left ? left.split(':') : [];
+  const after = right ? right.split(':') : [];
+  const groups = address.includes('::') ? [...before, ...Array(8 - before.length - after.length).fill('0'), ...after] : before;
+  return groups.map(group => parseInt(group, 16));
+}
+
 /** Group temporary IPv6 addresses by /64 using native address validation; mapped IPv4 keeps
  * its IPv4 budget. The host still owns trusted-proxy address selection. @complexity O(1). */
 export function consentRateLimitKey({ address }: { address: string }, _options = {}): string {
   if (isIP(address) !== 6) return address;
-  let normalized = address.split('%')[0]!;
-  if (normalized.includes('.')) {
-    const at = normalized.lastIndexOf(':');
-    const octets = normalized.slice(at + 1).split('.').map(Number);
-    normalized = normalized.slice(0, at + 1) + ((octets[0]! << 8) + octets[1]!).toString(16) + ':' + ((octets[2]! << 8) + octets[3]!).toString(16);
-  }
-  const [left = '', right = ''] = normalized.toLowerCase().split('::');
-  const before = left ? left.split(':') : [];
-  const after = right ? right.split(':') : [];
-  const groups = normalized.includes('::') ? [...before, ...Array(8 - before.length - after.length).fill('0'), ...after] : before;
-  const values = groups.map(group => parseInt(group, 16));
+  const values = ipv6Groups(hexIpv4Tail(address.split('%')[0]!));
   if (values.slice(0, 5).every(value => value === 0) && values[5] === 65535) return `${values[6]! >> 8}.${values[6]! & 255}.${values[7]! >> 8}.${values[7]! & 255}`;
   return values.slice(0, 4).map(value => value.toString(16)).join(':') + '::/64';
 }
