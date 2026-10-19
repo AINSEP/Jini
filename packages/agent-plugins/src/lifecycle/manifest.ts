@@ -146,6 +146,19 @@ function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>
 }
 
 /**
+ * `undefined` for an absent optional field, otherwise whatever `parse` makes of it — `null` meaning
+ * present but malformed, which every caller folds into rejecting the whole entry.
+ */
+function parseOptional<T>({ value, parse }: { readonly value: unknown; readonly parse: (value: unknown) => T | null }): T | undefined | null {
+  return value === undefined ? undefined : parse(value);
+}
+
+/** Drops `undefined` members, so an absent optional field stays absent rather than present-as-undefined. */
+function definedFields<T extends Record<string, unknown>>(fields: T): { [K in keyof T]?: Exclude<T[K], undefined> } {
+  return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined)) as { [K in keyof T]?: Exclude<T[K], undefined> };
+}
+
+/**
  * `value` narrowed to a `string`, or `undefined` — every optional string field below coerces
  * through this one check instead of repeating its own `typeof ... === "string" ? ... : undefined`
  * ternary.
@@ -157,11 +170,7 @@ function coerceOptionalString(value: unknown): string | undefined {
 function parseManifestAuthor(value: unknown): string | PluginManifestAuthor | undefined {
   if (typeof value === 'string') return value; // Existing installed manifests may carry a string.
   if (!isJsonObject(value)) return undefined;
-  return {
-    ...(typeof value.name === 'string' ? { name: value.name } : {}),
-    ...(typeof value.email === 'string' ? { email: value.email } : {}),
-    ...(typeof value.url === 'string' ? { url: value.url } : {}),
-  };
+  return definedFields({ name: coerceOptionalString(value.name), email: coerceOptionalString(value.email), url: coerceOptionalString(value.url) });
 }
 
 /**
@@ -181,6 +190,29 @@ function resolveManifestName(raw: Readonly<Record<string, unknown>>): { name: st
   return { name };
 }
 
+/** Every `plugin.json` error and warning, in report order: spec version, extensions, name, unknown keys, identity. */
+function collectManifestProblems(
+  { raw, identityNamespace }: { readonly raw: Readonly<Record<string, unknown>>; readonly identityNamespace: string },
+  { nameError }: { readonly nameError?: string | undefined } = {},
+): { errors: string[]; warnings: string[] } {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  const specVersion = readSpecVersion(raw.$schema, "plugin");
+  if (specVersion.error) errors.push(specVersion.error);
+  else if (specVersion.warning) warnings.push(specVersion.warning);
+
+  if (raw.extensions !== undefined && !isJsonObject(raw.extensions)) errors.push("plugin.json extensions must be an object");
+  if (nameError) errors.push(nameError);
+
+  for (const key of Object.keys(raw)) {
+    if (!KNOWN_MANIFEST_KEYS.has(key)) warnings.push(`unrecognized plugin.json field '${key}' (ignored per spec)`);
+  }
+
+  errors.push(...validatePluginIdentity({ manifest: raw, namespace: identityNamespace }).errors);
+  return { errors, warnings };
+}
+
 /**
  * Validates an already-`JSON.parse`d `plugin.json` value against the 1.0.0/1.1.0 grammar.
  * Hosts inject identityNamespace; the default retains the existing plugin extension format.
@@ -194,23 +226,8 @@ export function parseAgentPluginManifest({ value }: { readonly value: unknown },
   if (!isJsonObject(value)) return { ok: false, errors: ["plugin.json must be a JSON object"] };
 
   const raw = value;
-  const errors: string[] = [];
-  const warnings: string[] = [];
-
-  const specVersion = readSpecVersion(raw.$schema, "plugin");
-  if (specVersion.error) errors.push(specVersion.error);
-  else if (specVersion.warning) warnings.push(specVersion.warning);
-
-  if (raw.extensions !== undefined && !isJsonObject(raw.extensions)) errors.push("plugin.json extensions must be an object");
-
   const nameResult = resolveManifestName(raw);
-  if (nameResult.error) errors.push(nameResult.error);
-
-  for (const key of Object.keys(raw)) {
-    if (!KNOWN_MANIFEST_KEYS.has(key)) warnings.push(`unrecognized plugin.json field '${key}' (ignored per spec)`);
-  }
-
-  errors.push(...validatePluginIdentity({ manifest: raw, namespace: identityNamespace }).errors);
+  const { errors, warnings } = collectManifestProblems({ raw, identityNamespace }, { nameError: nameResult.error });
   if (errors.length > 0) return { ok: false, errors };
   const identity = readPluginIdentity({ manifest: raw, namespace: identityNamespace });
   warnings.push(...identity.warnings);
@@ -355,18 +372,12 @@ function isStringRecord(value: unknown): value is Readonly<Record<string, string
 function parseStdioServerConfig(raw: Readonly<Record<string, unknown>>): StdioMcpServerConfig | null {
   if (typeof raw.command !== "string" || raw.command.length === 0) return null;
 
-  const { args, env, cwd } = raw;
-  if (args !== undefined && !(Array.isArray(args) && args.every((entry): entry is string => typeof entry === "string"))) return null;
-  if (env !== undefined && (!isStringRecord(env) || RESERVED_STDIO_ENV_KEYS.some((key) => Object.hasOwn(env, key)))) return null;
-  if (cwd !== undefined && typeof cwd !== "string") return null;
+  const args = parseOptional({ value: raw.args, parse: (value) => Array.isArray(value) && value.every((entry): entry is string => typeof entry === "string") ? value : null });
+  const env = parseOptional({ value: raw.env, parse: (value) => isStringRecord(value) && !RESERVED_STDIO_ENV_KEYS.some((key) => Object.hasOwn(value, key)) ? value : null });
+  const cwd = parseOptional({ value: raw.cwd, parse: (value) => typeof value === "string" ? value : null });
+  if (args === null || env === null || cwd === null) return null;
 
-  return {
-    type: "stdio",
-    command: raw.command,
-    ...(args !== undefined ? { args: args as readonly string[] } : {}),
-    ...(env !== undefined ? { env } : {}),
-    ...(cwd !== undefined ? { cwd } : {}),
-  };
+  return { type: "stdio", command: raw.command, ...definedFields({ args, env, cwd }) };
 }
 
 /**
@@ -384,6 +395,11 @@ function parseDefaultToolNames(value: unknown): readonly string[] | null {
   return value.every((name): name is string => typeof name === "string" && DEFAULT_TOOL_NAME_PATTERN.test(name)) ? value : null;
 }
 
+/** `read` and `write` default to `[]` when absent. */
+function parseGrantList(value: unknown): readonly string[] | null {
+  return value === undefined ? [] : parseDefaultToolNames(value);
+}
+
 /**
  * Validates bounded sign-in and read lists. `read` and `write` default to `[]`.
  * A provided `allow` bounds both lists; without it only a read declaration is meaningful,
@@ -394,13 +410,13 @@ function parseDefaultToolNames(value: unknown): readonly string[] | null {
  */
 function parseDefaultTools(value: unknown): AgentPluginDefaultTools | null {
   if (!isJsonObject(value)) return null;
-  const allow = value.allow === undefined ? undefined : parseDefaultToolNames(value.allow);
-  const write = value.write === undefined ? [] : parseDefaultToolNames(value.write);
-  const read = value.read === undefined ? [] : parseDefaultToolNames(value.read);
+  const allow = parseOptional({ value: value.allow, parse: parseDefaultToolNames });
+  const write = parseGrantList(value.write);
+  const read = parseGrantList(value.read);
   if (allow === null || write === null || read === null) return null;
   if (allow === undefined) return value.read !== undefined && write.length === 0 ? { write, read } : null;
   const allowed = new Set(allow);
-  return write.every((name) => allowed.has(name)) && read.every((name) => allowed.has(name)) ? { allow, write, read } : null;
+  return [...write, ...read].every((name) => allowed.has(name)) ? { allow, write, read } : null;
 }
 
 const MAX_TOKEN_AUTH_URL_LENGTH = 2048;
@@ -452,16 +468,10 @@ function parseRenamedTools(value: unknown): Readonly<Record<string, string>> | n
  */
 function parseTokenAuth(value: unknown): AgentPluginTokenAuth | null {
   if (!isJsonObject(value) || !isHttpsUrl(value.helpUrl) || !isHttpsUrl(value.probeUrl)) return null;
-  const { importFromEnv } = value;
-  if (importFromEnv !== undefined && !isEnvVarName(importFromEnv)) return null;
-  const retiredEnv = value.retiredEnv === undefined ? undefined : parseRetiredEnv(value.retiredEnv);
-  if (retiredEnv === null) return null;
-  return {
-    helpUrl: value.helpUrl,
-    probeUrl: value.probeUrl,
-    ...(importFromEnv !== undefined ? { importFromEnv } : {}),
-    ...(retiredEnv !== undefined ? { retiredEnv } : {}),
-  };
+  const importFromEnv = parseOptional({ value: value.importFromEnv, parse: (name) => isEnvVarName(name) ? name : null });
+  const retiredEnv = parseOptional({ value: value.retiredEnv, parse: parseRetiredEnv });
+  if (importFromEnv === null || retiredEnv === null) return null;
+  return { helpUrl: value.helpUrl, probeUrl: value.probeUrl, ...definedFields({ importFromEnv, retiredEnv }) };
 }
 
 /**
@@ -477,39 +487,66 @@ function parseTokenAuth(value: unknown): AgentPluginTokenAuth | null {
 function parseRemoteServerConfig(type: "streamable-http" | "sse", raw: Readonly<Record<string, unknown>>, extension?: Readonly<Record<string, unknown>>): RemoteMcpServerConfig | null {
   if (typeof raw.url !== "string" || raw.url.length === 0) return null;
 
-  const { headers } = raw;
-  const authMode = extension?.authMode;
-  if (headers !== undefined && !isStringRecord(headers)) return null;
-  if (authMode !== undefined && authMode !== "oauth" && authMode !== "none") return null;
+  const headers = parseOptional({ value: raw.headers, parse: (value) => isStringRecord(value) ? value : null });
+  const metadata = parseServerMetadata(extension ?? {});
+  if (headers === null || metadata === null) return null;
 
-  const defaults = extension?.defaultTools;
-  const defaultTools = defaults === undefined ? undefined : parseDefaultTools(defaults);
-  if (defaultTools === null) return null;
-  const tokenAuth = extension?.tokenAuth === undefined ? undefined : parseTokenAuth(extension?.tokenAuth);
-  if (tokenAuth === null) return null;
-  const renamedTools = extension?.renamedTools === undefined ? undefined : parseRenamedTools(extension?.renamedTools);
-  if (renamedTools === null) return null;
+  return { type, url: raw.url, ...definedFields({ headers }), ...metadata };
+}
 
-  return {
-    type,
-    url: raw.url,
-    ...(headers !== undefined ? { headers } : {}),
-    ...(authMode !== undefined ? { authMode } : {}),
-    ...(defaultTools !== undefined ? { defaultTools } : {}),
-    ...(tokenAuth !== undefined ? { tokenAuth } : {}),
-    ...(renamedTools !== undefined ? { renamedTools } : {}),
-  };
+/** A remote entry's extension metadata, or `null` when any declared member is malformed. */
+function parseServerMetadata(extension: Readonly<Record<string, unknown>>): AgentPluginServerMetadata | null {
+  const authMode = parseOptional<"oauth" | "none">({ value: extension.authMode, parse: (mode) => mode === "oauth" || mode === "none" ? mode : null });
+  const defaultTools = parseOptional({ value: extension.defaultTools, parse: parseDefaultTools });
+  const tokenAuth = parseOptional({ value: extension.tokenAuth, parse: parseTokenAuth });
+  const renamedTools = parseOptional({ value: extension.renamedTools, parse: parseRenamedTools });
+  if (authMode === null || defaultTools === null || tokenAuth === null || renamedTools === null) return null;
+  return definedFields({ authMode, defaultTools, tokenAuth, renamedTools });
 }
 
 /**
- * Dispatches one raw `mcpServers` entry to its transport's validator by `type`, or `null` for a
- *  non-object entry or a `type` outside {@link MCP_SERVER_TRANSPORTS}.
+ * Dispatches one `mcpServers` object entry to its transport's validator by `type`, or `null` for a
+ *  `type` outside {@link MCP_SERVER_TRANSPORTS}.
  */
-function parseMcpServerConfig(value: unknown, extension?: Readonly<Record<string, unknown>>): McpServerConfig | null {
-  if (!isJsonObject(value)) return null;
+function parseMcpServerConfig(value: Readonly<Record<string, unknown>>, extension?: Readonly<Record<string, unknown>>): McpServerConfig | null {
   if (value.type === "stdio") return parseStdioServerConfig(value);
   if (value.type === "streamable-http" || value.type === "sse") return parseRemoteServerConfig(value.type, value, extension);
   return null;
+}
+
+/** One declared server, or `null` for a non-object entry, a malformed extension, or an invalid transport shape. */
+function parseDeclaredServer(
+  { serverId, rawServer, extension }: { readonly serverId: string; readonly rawServer: unknown; readonly extension: unknown },
+  { readServerMetadata }: { readonly readServerMetadata?: AgentPluginServerMetadataReader | undefined } = {},
+): McpServerConfig | null {
+  // A malformed declared extension excludes the server before the translator can hide it.
+  if (!isJsonObject(rawServer) || (extension !== undefined && !isJsonObject(extension))) return null;
+  const metadata = readServerMetadata?.({ serverId, value: extension ?? {}, server: rawServer }) ?? extension;
+  return parseMcpServerConfig(rawServer, metadata);
+}
+
+/** `mcp.json`'s top-level errors: its own `$schema`, a version mismatch with `plugin.json` (§10), and `mcpServers`' shape. */
+function collectMcpConfigErrors({ raw }: { readonly raw: Readonly<Record<string, unknown>> }, { pluginManifest }: { readonly pluginManifest?: unknown } = {}): string[] {
+  const errors: string[] = [];
+
+  // plugin.json already reports an unknown-1.x warning; mcp.json adds none of its own.
+  const mcpSpec = readSpecVersion(raw.$schema, "mcp");
+  const mcpVersion = mcpSpec.version;
+  const pluginVersion = isJsonObject(pluginManifest) ? readSpecVersion(pluginManifest.$schema, "plugin").version : undefined;
+  if (mcpSpec.error) errors.push(mcpSpec.error);
+  else if (pluginVersion !== undefined && pluginVersion !== mcpVersion) {
+    errors.push(`mcp.json targets Agent Plugins ${mcpVersion} but plugin.json targets ${pluginVersion}; the versions must match`);
+  }
+
+  if (!isJsonObject(raw.mcpServers)) errors.push("mcp.json 'mcpServers' is required and must be an object");
+  return errors;
+}
+
+/** The per-server metadata `plugin.json` declares under `extensionNamespace`, or `{}` when it declares none. */
+function readExtensionServers({ pluginManifest, extensionNamespace }: { readonly pluginManifest: unknown; readonly extensionNamespace: string }): Readonly<Record<string, unknown>> {
+  const manifest = parseAgentPluginManifest({ value: pluginManifest });
+  if (!manifest.ok) return {};
+  return readAgentPluginExtension({ manifest: manifest.manifest, namespace: extensionNamespace, read: ({ value }) => isJsonObject(value.mcpServers) ? value.mcpServers : {} }) ?? {};
 }
 
 /**
@@ -525,37 +562,15 @@ export function parseAgentPluginMcpConfig({ value, extensionNamespace }: { reado
   if (!extensionNamespace.trim()) throw new Error("An extension namespace is required");
   if (!isJsonObject(value)) return { ok: false, errors: ["mcp.json must be a JSON object"] };
 
-  const raw = value;
-  const errors: string[] = [];
-
-  // plugin.json already reports an unknown-1.x warning; mcp.json adds none of its own.
-  const mcpSpec = readSpecVersion(raw.$schema, "mcp");
-  const mcpVersion = mcpSpec.version;
-  const pluginVersion = isJsonObject(optional.pluginManifest) ? readSpecVersion(optional.pluginManifest.$schema, "plugin").version : undefined;
-  if (mcpSpec.error) errors.push(mcpSpec.error);
-  else if (pluginVersion !== undefined && pluginVersion !== mcpVersion) {
-    errors.push(`mcp.json targets Agent Plugins ${mcpVersion} but plugin.json targets ${pluginVersion}; the versions must match`);
-  }
-
-  const mcpServers = raw.mcpServers;
-  if (typeof mcpServers !== "object" || mcpServers === null || Array.isArray(mcpServers)) {
-    errors.push("mcp.json 'mcpServers' is required and must be an object");
-  }
-
+  const errors = collectMcpConfigErrors({ raw: value }, { pluginManifest: optional.pluginManifest });
   if (errors.length > 0) return { ok: false, errors };
 
-  const manifest = parseAgentPluginManifest({ value: optional.pluginManifest });
-  const extension = manifest.ok ? readAgentPluginExtension({ manifest: manifest.manifest, namespace: extensionNamespace, read: ({ value }) => isJsonObject(value.mcpServers) ? value.mcpServers : {} }) : undefined;
-  const extensionServers = extension ?? {};
-  const entries = Object.entries(mcpServers as Record<string, unknown>);
+  const extensionServers = readExtensionServers({ pluginManifest: optional.pluginManifest, extensionNamespace });
+  const entries = Object.entries(value.mcpServers as Record<string, unknown>);
   const servers: Record<string, McpServerConfig> = Object.create(null);
   for (const [serverId, rawServer] of entries) {
     const extension = Object.hasOwn(extensionServers, serverId) ? extensionServers[serverId] : undefined;
-    // A malformed declared extension excludes the server before the translator can hide it.
-    const metadata = isJsonObject(rawServer) && (extension === undefined || isJsonObject(extension))
-      ? optional.readServerMetadata?.({ serverId, value: extension ?? {}, server: rawServer }) ?? extension
-      : undefined;
-    const parsed = extension !== undefined && !isJsonObject(extension) ? null : parseMcpServerConfig(rawServer, metadata);
+    const parsed = parseDeclaredServer({ serverId, rawServer, extension }, { readServerMetadata: optional.readServerMetadata });
     if (parsed) servers[serverId] = parsed;
   }
 
