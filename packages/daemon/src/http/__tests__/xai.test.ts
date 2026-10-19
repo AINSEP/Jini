@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -424,6 +424,29 @@ describe('xaiOauthCompleteRoute', () => {
   });
 });
 
+describe('xaiOauthCompleteRoute — non-Error failures and token defaults', () => {
+  it('SEC-005: a non-Error thrown before the exchange is stringified, redacted and reported as INTERNAL_ERROR', async () => {
+    const onInternalError = vi.fn();
+    const pending = { consume: () => { throw 'pending store gone with Bearer atk-leaked-9'; } };
+    const deps = makeDeps({ pending, onInternalError });
+    const result = await xaiOauthCompleteRoute.handle({ input: { state: 's', code: 'c' }, deps });
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
+    const reported = onInternalError.mock.calls[0]![0].error as Error;
+    expect(reported).toBeInstanceOf(Error);
+    expect(reported.message).toContain('pending store gone');
+    expect(reported.message).not.toContain('atk-leaked-9');
+  });
+
+  it('persists a token response with no token_type as a Bearer token', async () => {
+    const pending = new PendingAuthCache({}, { ttlMs: 30 * 60 * 1000 });
+    const state = seedPendingState(pending);
+    const deps = makeDeps({ pending, fetchImpl: vi.fn(async () => Response.json({ access_token: 'atk-no-type' })) });
+    await expect(xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps })).resolves.toEqual({ ok: true, value: { ok: true } });
+    const stored = JSON.parse(await readFile(path.join(dataDir, 'xai-oauth-token.json'), 'utf8'));
+    expect(stored.token).toMatchObject({ accessToken: 'atk-no-type', tokenType: 'Bearer' });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // POST /api/xai/oauth/cancel
 // ---------------------------------------------------------------------------
@@ -663,6 +686,17 @@ describe('xaiSearchRoute.parse', () => {
   });
 });
 
+describe('xaiSearchRoute.parse — empty values', () => {
+  it('drops empty strings and empty handle lists as not provided, but keeps an explicit false', () => {
+    const result = xaiSearchRoute.parse({
+      body: { query: 'q', allowedXHandles: [], fromDate: '', model: '', enableImageUnderstanding: false },
+      query: {},
+      params: {},
+    });
+    expect(result.ok && Object.keys(result.value)).toEqual(['query', 'enableImageUnderstanding']);
+  });
+});
+
 describe('xaiSearchRoute.handle', () => {
   it('NOT_CONFIGURED (no fetch call) when no xAI account is connected', async () => {
     const fetchImpl = vi.fn();
@@ -722,12 +756,14 @@ describe('xaiSearchRoute.handle', () => {
             }),
         };
       });
-    const deps = makeDeps({ pending, fetchImpl, searchTimeoutMs: 25, onInternalError: vi.fn() });
+    const onInternalError = vi.fn();
+    const deps = makeDeps({ pending, fetchImpl, searchTimeoutMs: 25, onInternalError });
     await xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps });
 
     const result = await xaiSearchRoute.handle({ input: { query: 'what is xAI' }, deps });
 
     expect(result.ok).toBe(false);
+    expect((onInternalError.mock.calls[0]![0].error as Error).message).toBe('xAI request timed out after 25ms');
     // The deadline must still have been armed when the body read began, not cleared at `fetch`'s
     // resolution — that is the whole distinction this test exists to draw.
     expect(bodySignal?.aborted).toBe(true);
@@ -940,6 +976,24 @@ describe('xaiSearchRoute.handle', () => {
     const reported = onInternalError.mock.calls[0]![0].error as Error;
     expect(reported.message).toContain('xAI request failed: socket hang up');
     expect(reported.message).not.toContain('atk-123');
+  });
+
+  it.each([
+    ['an Error', new SyntaxError('Unexpected token < in JSON'), 'xAI response could not be read: Unexpected token < in JSON'],
+    ['a non-Error', 'body stream broke', 'xAI response could not be read: body stream broke'],
+  ])('reports %s from an unreadable (not timed-out) Responses API body as an unreadable response', async (_label, failure, expected) => {
+    const pending = new PendingAuthCache({}, { ttlMs: 30 * 60 * 1000 });
+    const state = seedPendingState(pending);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(okTokenResponse())
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => { throw failure; }, text: async () => '' });
+    const onInternalError = vi.fn();
+    const deps = makeDeps({ pending, fetchImpl, onInternalError });
+    await xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps });
+    const result = await xaiSearchRoute.handle({ input: { query: 'q' }, deps });
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
+    expect((onInternalError.mock.calls[0]![0].error as Error).message).toBe(expected);
   });
 
   it('SEC-005: a non-ok Responses API response is reported to onInternalError and never leaks the bearer token', async () => {

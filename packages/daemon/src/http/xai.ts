@@ -216,9 +216,12 @@ function defaultInternalErrorSink(context: XaiInternalErrorContext): void {
 
 /** Resolves every optional `XaiHttpDeps` field to a concrete value. Idempotent — calling this again on an already-resolved object (e.g. `registerXaiRoutes`'s own single resolution, passed through to each route's `handle`) is a harmless pass-through. See module doc on why stateful fields (`pending`/`listenerRef`) must be resolved once per registration, not once per request. */
 function resolveXaiHttpDeps(deps: XaiHttpDeps): ResolvedXaiHttpDeps {
+  return { ...resolveOAuthFlowDeps(deps), ...resolveStorageAndSearchDeps(deps) };
+}
+
+/** The OAuth dance's provider, loopback-callback and in-flight state defaults. */
+function resolveOAuthFlowDeps(deps: XaiHttpDeps): Pick<ResolvedXaiHttpDeps, 'providerConfig' | 'callbackHost' | 'callbackPort' | 'callbackPath' | 'pending' | 'listenerRef' | 'startCallbackListener'> {
   return {
-    dataDir: deps.dataDir ?? process.cwd(),
-    tokenFileName: deps.tokenFileName ?? DEFAULT_TOKEN_FILE_NAME,
     providerConfig: deps.providerConfig ?? XAI_OAUTH_PROVIDER_CONFIG,
     callbackHost: deps.callbackHost ?? XAI_OAUTH_REDIRECT_HOST,
     callbackPort: deps.callbackPort ?? XAI_OAUTH_REDIRECT_PORT,
@@ -226,6 +229,14 @@ function resolveXaiHttpDeps(deps: XaiHttpDeps): ResolvedXaiHttpDeps {
     pending: deps.pending ?? new PendingAuthCache({}, { ttlMs: DEFAULT_PENDING_AUTH_TTL_MS }),
     listenerRef: deps.listenerRef ?? { current: null },
     startCallbackListener: deps.startCallbackListener ?? startOAuthCallbackListener,
+  };
+}
+
+/** Token storage, search transport and error-sink defaults. */
+function resolveStorageAndSearchDeps(deps: XaiHttpDeps): Pick<ResolvedXaiHttpDeps, 'dataDir' | 'tokenFileName' | 'searchBaseUrl' | 'searchDefaultModel' | 'fetchImpl' | 'searchTimeoutMs' | 'onInternalError'> {
+  return {
+    dataDir: deps.dataDir ?? process.cwd(),
+    tokenFileName: deps.tokenFileName ?? DEFAULT_TOKEN_FILE_NAME,
     searchBaseUrl: deps.searchBaseUrl ?? DEFAULT_SEARCH_BASE_URL,
     searchDefaultModel: deps.searchDefaultModel ?? DEFAULT_SEARCH_MODEL,
     fetchImpl: deps.fetchImpl ?? fetch,
@@ -577,33 +588,30 @@ function parseXaiSearch(input: RouteInputContext): Result<XaiSearchRequest> {
   const query = nonEmptyString(body.query);
   if (!query) return err({ error: validationError({ message: 'query must be a non-empty string' }, { issues: [{ path: 'query', message: 'required non-empty string' }] }) });
 
-  const allowedXHandles = parseOptionalStringArray(body, 'allowedXHandles');
-  if (!allowedXHandles.ok) return allowedXHandles;
-  const excludedXHandles = parseOptionalStringArray(body, 'excludedXHandles');
-  if (!excludedXHandles.ok) return excludedXHandles;
-  const fromDate = parseOptionalString(body, 'fromDate');
-  if (!fromDate.ok) return fromDate;
-  const toDate = parseOptionalString(body, 'toDate');
-  if (!toDate.ok) return toDate;
-  const enableImageUnderstanding = parseOptionalBoolean(body, 'enableImageUnderstanding');
-  if (!enableImageUnderstanding.ok) return enableImageUnderstanding;
-  const enableVideoUnderstanding = parseOptionalBoolean(body, 'enableVideoUnderstanding');
-  if (!enableVideoUnderstanding.ok) return enableVideoUnderstanding;
-  const model = parseOptionalString(body, 'model');
-  if (!model.ok) return model;
+  const fields: Record<string, unknown> = {};
+  for (const [key, parse] of XAI_SEARCH_OPTIONAL_FIELDS) {
+    const parsed = parse(body, key);
+    if (!parsed.ok) return parsed;
+    if (isProvidedSearchValue(parsed.value)) fields[key] = parsed.value;
+  }
+  return ok({ value: { query, ...fields } });
+}
 
-  return ok({
-    value: {
-      query,
-      ...(allowedXHandles.value?.length ? { allowedXHandles: allowedXHandles.value } : {}),
-      ...(excludedXHandles.value?.length ? { excludedXHandles: excludedXHandles.value } : {}),
-      ...(fromDate.value ? { fromDate: fromDate.value } : {}),
-      ...(toDate.value ? { toDate: toDate.value } : {}),
-      ...(enableImageUnderstanding.value !== undefined ? { enableImageUnderstanding: enableImageUnderstanding.value } : {}),
-      ...(enableVideoUnderstanding.value !== undefined ? { enableVideoUnderstanding: enableVideoUnderstanding.value } : {}),
-      ...(model.value ? { model: model.value } : {}),
-    }
-  });
+/** Table order is the validation order: the first failing field is the one a caller sees. */
+const XAI_SEARCH_OPTIONAL_FIELDS: ReadonlyArray<readonly [Exclude<keyof XaiSearchRequest, 'query'>, (body: Record<string, unknown>, key: string) => Result<unknown>]> = [
+  ['allowedXHandles', parseOptionalStringArray],
+  ['excludedXHandles', parseOptionalStringArray],
+  ['fromDate', parseOptionalString],
+  ['toDate', parseOptionalString],
+  ['enableImageUnderstanding', parseOptionalBoolean],
+  ['enableVideoUnderstanding', parseOptionalBoolean],
+  ['model', parseOptionalString],
+];
+
+/** An empty string or empty handle list counts as not provided (dropped from the request); `false` is kept. */
+function isProvidedSearchValue(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length > 0;
+  return value !== undefined && value !== '';
 }
 
 export interface XaiSearchResponse {
@@ -612,50 +620,96 @@ export interface XaiSearchResponse {
   readonly model: string;
 }
 
-/** Pulls the assistant's main text out of an xAI Responses-API payload — the convenience `output_text` field, or the structured `output[].content[].text` form. Ported verbatim from OD's `extractAnswerText`. */
+/** Every well-formed `output[].content[]` block of a Responses-API payload, skipping malformed items and blocks. */
+function outputContentBlocks(data: Record<string, unknown>): Record<string, unknown>[] {
+  const output = data.output;
+  if (!Array.isArray(output)) return [];
+  return output.filter(isRecord).flatMap((item) => (Array.isArray(item.content) ? item.content.filter(isRecord) : []));
+}
+
+/** Pulls the assistant's main text out of an xAI Responses-API payload — the convenience `output_text` field, or the structured `output[].content[].text` form. Ported from OD's `extractAnswerText` (same behaviour; the walk is shared with `extractUrlCitations` via `outputContentBlocks`). */
 function extractAnswerText(data: unknown): string {
   if (!isRecord(data)) return '';
   const direct = data.output_text;
   if (typeof direct === 'string' && direct.trim()) return direct;
-  const output = data.output;
-  if (!Array.isArray(output)) return '';
-  const chunks: string[] = [];
-  for (const item of output) {
-    if (!isRecord(item)) continue;
-    const content = item.content;
-    if (!Array.isArray(content)) continue;
-    for (const block of content) {
-      if (!isRecord(block)) continue;
-      const t = block.text;
-      if (typeof t === 'string' && t) chunks.push(t);
-    }
-  }
+  const chunks = outputContentBlocks(data)
+    .map((block) => block.text)
+    .filter((text): text is string => typeof text === 'string' && text.length > 0);
   return chunks.join('\n').trim();
 }
 
-/** Walks every annotation in the Responses-API output and returns the unique URL citations (`type: 'url_citation'`). Ported verbatim from OD's `extractUrlCitations`. */
+/** The trimmed URL of one `url_citation` annotation, or `''` for anything else. */
+function urlCitationOf(annotation: unknown): string {
+  if (!isRecord(annotation) || annotation.type !== 'url_citation') return '';
+  return typeof annotation.url === 'string' ? annotation.url.trim() : '';
+}
+
+/** Walks every annotation in the Responses-API output and returns the unique URL citations (`type: 'url_citation'`). Ported from OD's `extractUrlCitations` (same behaviour, first-seen order). */
 function extractUrlCitations(data: unknown): string[] {
   if (!isRecord(data)) return [];
-  const output = data.output;
-  if (!Array.isArray(output)) return [];
-  const urls = new Set<string>();
-  for (const item of output) {
-    if (!isRecord(item)) continue;
-    const content = item.content;
-    if (!Array.isArray(content)) continue;
-    for (const block of content) {
-      if (!isRecord(block)) continue;
-      const annotations = block.annotations;
-      if (!Array.isArray(annotations)) continue;
-      for (const ann of annotations) {
-        if (!isRecord(ann)) continue;
-        if (ann.type !== 'url_citation') continue;
-        const url = typeof ann.url === 'string' ? ann.url.trim() : '';
-        if (url) urls.add(url);
-      }
-    }
+  const urls = outputContentBlocks(data)
+    .flatMap((block) => (Array.isArray(block.annotations) ? block.annotations : []))
+    .map(urlCitationOf)
+    .filter((url) => url.length > 0);
+  return [...new Set(urls)];
+}
+
+/** Builds the `x_search` native tool payload, translating only the provided fields to xAI's snake_case names. */
+function buildXSearchTool(request: XaiSearchRequest): Record<string, unknown> {
+  const xSearchTool: Record<string, unknown> = { type: 'x_search' };
+  if (request.allowedXHandles?.length) xSearchTool.allowed_x_handles = request.allowedXHandles;
+  if (request.excludedXHandles?.length) xSearchTool.excluded_x_handles = request.excludedXHandles;
+  if (request.fromDate) xSearchTool.from_date = request.fromDate;
+  if (request.toDate) xSearchTool.to_date = request.toDate;
+  if (request.enableImageUnderstanding === true) xSearchTool.enable_image_understanding = true;
+  if (request.enableVideoUnderstanding === true) xSearchTool.enable_video_understanding = true;
+  return xSearchTool;
+}
+
+/** One search call's deadline signal plus the secret every thrown message must be redacted of. */
+interface XaiCallGuard {
+  readonly signal: AbortSignal;
+  readonly timedOutMessage: string;
+  readonly accessToken: string;
+}
+
+/** A thrown fetch/body-read failure as the timeout message when the deadline fired, else as a `prefix: message` with `accessToken` redacted. */
+function xaiCallFailure(guard: XaiCallGuard, prefix: string, error: unknown): Error {
+  if (guard.signal.aborted) return new Error(guard.timedOutMessage);
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(redactSecrets({ input: `${prefix}: ${message}` }, { exactSecrets: [guard.accessToken] }));
+}
+
+async function postXaiResponses({ fetchImpl, url, requestBody, guard }: {
+  fetchImpl: typeof fetch;
+  url: string;
+  requestBody: Record<string, unknown>;
+  guard: XaiCallGuard;
+}): Promise<Response> {
+  let response: Response;
+  try {
+    response = await fetchImpl(url, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${guard.accessToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify(requestBody),
+      signal: guard.signal,
+    });
+  } catch (error) {
+    throw xaiCallFailure(guard, 'xAI request failed', error);
   }
-  return [...urls];
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(redactSecrets({ input: `xAI ${response.status}: ${text.slice(0, 240) || 'no body'}` }, { exactSecrets: [guard.accessToken] }));
+  }
+  return response;
+}
+
+async function readXaiJson(response: Response, guard: XaiCallGuard): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch (error) {
+    throw xaiCallFailure(guard, 'xAI response could not be read', error);
+  }
 }
 
 /** Calls xAI's real `POST {searchBaseUrl}/responses` endpoint with the `x_search` native tool, using `accessToken` as the bearer credential. Throws (never a `Result`) on any failure — `xaiSearchRoute.handle` is the one place that converts a thrown error into this package's SEC-005 response shape. Any thrown message is pre-redacted of `accessToken` here so the sink never even logs it unredacted. */
@@ -665,18 +719,10 @@ async function callXaiSearch(resolved: ResolvedXaiHttpDeps, accessToken: string,
   const base = resolved.searchBaseUrl.replace(/\/+$/, '');
   const model = request.model ?? resolved.searchDefaultModel;
 
-  const xSearchTool: Record<string, unknown> = { type: 'x_search' };
-  if (request.allowedXHandles?.length) xSearchTool.allowed_x_handles = request.allowedXHandles;
-  if (request.excludedXHandles?.length) xSearchTool.excluded_x_handles = request.excludedXHandles;
-  if (request.fromDate) xSearchTool.from_date = request.fromDate;
-  if (request.toDate) xSearchTool.to_date = request.toDate;
-  if (request.enableImageUnderstanding === true) xSearchTool.enable_image_understanding = true;
-  if (request.enableVideoUnderstanding === true) xSearchTool.enable_video_understanding = true;
-
   const requestBody = {
     model,
     input: [{ role: 'user', content: request.query }],
-    tools: [xSearchTool],
+    tools: [buildXSearchTool(request)],
     store: false,
   };
 
@@ -687,33 +733,14 @@ async function callXaiSearch(resolved: ResolvedXaiHttpDeps, accessToken: string,
   // does not leave one armed.
   const timeoutController = new AbortController();
   const timeoutHandle = setTimeout(() => timeoutController.abort(), resolved.searchTimeoutMs);
-  const timedOutMessage = `xAI request timed out after ${resolved.searchTimeoutMs}ms`;
+  const guard: XaiCallGuard = {
+    signal: timeoutController.signal,
+    timedOutMessage: `xAI request timed out after ${resolved.searchTimeoutMs}ms`,
+    accessToken,
+  };
   try {
-    let response: Response;
-    try {
-      response = await resolved.fetchImpl(`${base}/responses`, {
-        method: 'POST',
-        headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
-        body: JSON.stringify(requestBody),
-        signal: timeoutController.signal,
-      });
-    } catch (error) {
-      if (timeoutController.signal.aborted) throw new Error(timedOutMessage);
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(redactSecrets({ input: `xAI request failed: ${message}` }, { exactSecrets: [accessToken] }));
-    }
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      throw new Error(redactSecrets({ input: `xAI ${response.status}: ${text.slice(0, 240) || 'no body'}` }, { exactSecrets: [accessToken] }));
-    }
-    let data: unknown;
-    try {
-      data = await response.json();
-    } catch (error) {
-      if (timeoutController.signal.aborted) throw new Error(timedOutMessage);
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(redactSecrets({ input: `xAI response could not be read: ${message}` }, { exactSecrets: [accessToken] }));
-    }
+    const response = await postXaiResponses({ fetchImpl: resolved.fetchImpl, url: `${base}/responses`, requestBody, guard });
+    const data = await readXaiJson(response, guard);
     return { answer: extractAnswerText(data), citations: extractUrlCitations(data), model };
   } finally {
     clearTimeout(timeoutHandle);
