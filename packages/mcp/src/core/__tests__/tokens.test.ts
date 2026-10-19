@@ -39,6 +39,7 @@ import {
   isTokenExpired,
   type StoredMcpToken,
 } from '../tokens.js';
+import type { Clock } from '@jini-ai/core/primitives';
 
 const tmpDirs: string[] = [];
 function tmp(): string {
@@ -116,6 +117,56 @@ describe('sanitizeTokensFile / sanitizeToken', () => {
   });
 });
 
+describe('sanitizeTokensFile boundaries', () => {
+  const fixedClock: Clock = { nowMs: () => 4242 };
+  const OPTIONAL_STRINGS = ['refreshToken', 'scope', 'tokenEndpoint', 'clientId', 'clientSecret', 'authServerIssuer', 'redirectUri', 'resourceUrl'] as const;
+
+  it('trims surrounding whitespace from every string field', () => {
+    const raw: Record<string, unknown> = { accessToken: ' AT ', tokenType: ' DPoP ', savedAt: 1 };
+    for (const key of OPTIONAL_STRINGS) raw[key] = `  ${key}-v  `;
+    const expected: Record<string, unknown> = { accessToken: 'AT', tokenType: 'DPoP', savedAt: 1 };
+    for (const key of OPTIONAL_STRINGS) expected[key] = `${key}-v`;
+    expect(sanitizeTokensFile({ raw: { servers: { s: raw } } }).servers.s).toEqual(expected);
+  });
+
+  it('drops non-string optional string fields and defaults a non-string tokenType', () => {
+    const raw: Record<string, unknown> = { accessToken: 'AT', tokenType: 7, savedAt: 1 };
+    for (const key of OPTIONAL_STRINGS) raw[key] = 7;
+    expect(sanitizeTokensFile({ raw: { servers: { s: raw } } }).servers.s).toEqual({ accessToken: 'AT', tokenType: 'Bearer', savedAt: 1 });
+  });
+
+  it('rejects a non-string or whitespace-only accessToken', () => {
+    const out = sanitizeTokensFile({ raw: { servers: { num: { accessToken: 5 }, blank: { accessToken: '   ' } } } });
+    expect(out).toEqual({ servers: {} });
+  });
+
+  it('keeps a zero expiresAt and drops a non-finite one', () => {
+    const out = sanitizeTokensFile({ raw: { servers: {
+      zero: { accessToken: 'a', expiresAt: 0, savedAt: 1 },
+      inf: { accessToken: 'b', expiresAt: Infinity, savedAt: 1 },
+      nan: { accessToken: 'c', expiresAt: NaN, savedAt: 1 },
+    } } });
+    expect(out.servers.zero).toEqual({ accessToken: 'a', tokenType: 'Bearer', savedAt: 1, expiresAt: 0 });
+    expect(out.servers.inf).toEqual({ accessToken: 'b', tokenType: 'Bearer', savedAt: 1 });
+    expect(out.servers.nan).toEqual({ accessToken: 'c', tokenType: 'Bearer', savedAt: 1 });
+  });
+
+  it('stamps savedAt from the injected clock when missing or non-finite, and keeps a finite one', () => {
+    const out = sanitizeTokensFile({ raw: { servers: {
+      missing: { accessToken: 'a' },
+      inf: { accessToken: 'b', savedAt: -Infinity },
+      kept: { accessToken: 'c', savedAt: 0 },
+    } } }, { clock: fixedClock });
+    expect(out.servers.missing?.savedAt).toBe(4242);
+    expect(out.servers.inf?.savedAt).toBe(4242);
+    expect(out.servers.kept?.savedAt).toBe(0);
+  });
+
+  it('returns an empty store for an array servers value', () => {
+    expect(sanitizeTokensFile({ raw: { servers: [{ accessToken: 'a' }] } })).toEqual({ servers: {} });
+  });
+});
+
 describe('readTokensFile', () => {
   it('returns an empty store when the file is missing', async () => {
     await expect(readTokensFile({ dataDir: tmp() })).resolves.toEqual({ servers: {} });
@@ -128,7 +179,7 @@ describe('readTokensFile', () => {
   it('rethrows unexpected read errors (EISDIR)', async () => {
     const dir = tmp();
     fs.mkdirSync(path.join(dir, 'mcp-tokens.json'));
-    await expect(readTokensFile({ dataDir: dir })).rejects.toThrow();
+    await expect(readTokensFile({ dataDir: dir })).rejects.toMatchObject({ code: 'EISDIR' });
   });
 });
 
