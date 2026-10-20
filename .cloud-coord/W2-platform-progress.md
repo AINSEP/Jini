@@ -41,12 +41,12 @@ toolchain.ts 2 cyc@62:26 cog@62:37
 ## Lot status
 | Lot | Status | Branch | Commits | worst before→after | coverage | verify |
 |---|---|---|---|---|---|---|
-| L026 | running | cloud/w2-platform-L026 | | | | |
+| L026 | REVIEW FIX in progress | cloud/w2-platform-L026 | d90a6582 d8188819 f1ea963e 347edbaa 99b75d01 5f217f73 e68b5d2a ea952781 | all 8 files →≤10 (worst was 25/29) | 100/100/100 all eight (agent-reported; verify at merge) | BLOCKED: e68b5d2a records retiredSource after dir fsync → on fsync EIO rollback deletes target without restoring source. Fresh fix agent dispatched. |
 | L034 | MERGED | cloud/w2-platform-L034 | 9db42c18, e7ea61b5, 00b693a8, 5544c75c, 06768f1a | meta 20/19→9/8; repo.memory 17/17→9/7; service 38/22→10/8; types 21/12→7/8; keyring.env 11→8/5 | 100/100/100 all five | eslint0, tsc0, 314 secrets tests; wire-format pin unchanged; packages/db vault contract 34/34 green vs rebuilt platform dist |
 | L056 | MERGED | cloud/w2-platform-L056 | d6a5ca93, 718e47bf, 51fd1da4, db12b9db | toolchain 26/37→10/9; proxy-env 17/19→10/7; download 15/13→10/10 | 100/100/100 all three | eslint0, tsc0, 179 pass + 3 pre-existing skipIf(root) |
 | L093 | MERGED | cloud/w2-platform-L093 | e85550e1, 5634636b | address 30/41→10/10 (expandIpv6 untouched, isPrivateAddress 4/2); endpoint-policy 14→6/5 | 100/100/100 both | eslint0, tsc0, 265 tests green |
 | L110 | MERGED | cloud/w2-platform-L110 | fe57e091, 63cd031a | client 23/19→≤10; fetch-adapter 17/11→≤10 | 100/100/100 both (was 94%/75% branch) | eslint0, tsc0, 166 tests green |
-| L230 | running | cloud/w2-platform-L230 | | | | |
+| L230 | MERGED | cloud/w2-platform-L230 | 8029339b, d83b96f0 | asset-cache 10/11→≤10/7; blob-storage 9/14→9/9 | 100/100/100 both | eslint0, tsc0, 220 tests |
 | L271 | waiting on L026 | | | | | |
 
 ## Problems / notes
@@ -58,5 +58,7 @@ toolchain.ts 2 cyc@62:26 cog@62:37
 - Container restart ~mid-batch-A: L026/L034/L056 resumed from transcripts; worktrees, pushes and uncommitted edits survived.
 - L056 follow-up (out of scope): packages/platform/vitest.config.ts still has 99% thresholds + a comment about proxy-env catch / acquireLock gaps that are now closed.
 - L034 review note: new tests use `as unknown as` only to feed malformed runtime input to validators (not typed fakes) — accepted.
+- L230 bugs pinned (reported, not fixed), blob-storage: (1) Local listFiles never validates namespace — '..' lists outside root, '' lists all namespaces; (2) Local accepts namespace '.' (writes into root); (3) S3 listFiles('ns1') also returns ns10/* (prefix lacks trailing '/'); (4) Local listFiles returns [] if a subdir vanishes mid-walk; (5) S3 keyFor accepts NUL and '.' namespace; (6) S3 readFile(ns,'/') reads the bare namespace key; (7) S3 statFile NaN mtime on unparseable Last-Modified.
+- L026 bug pinned (reported, not fixed): guarded-reader refuses subpaths under a not-yet-existing root with a misleading 'resolves outside the allowed root through a symbolic link' (fails closed).
 
 ## Next
