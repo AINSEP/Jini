@@ -17,7 +17,7 @@
 | L152b | running | | 15/15 → | | |
 | L104 | running | | 23/26 → | | |
 | L113-L188-L203-L236 | running | | 23/42 → | | |
-| L036a | running | | 13/11 → | | |
+| L036a | MERGED | 23ee2630 | search-enricher 13/0→10/3; github-backend 11/0→4/0; github-client 11/11→6/5 | all 3 files 100/100/100 (my run: 8 files, 133 tests) | eslint 0, tsc 0, tests ok no Errors, guard = base |
 | L036b | running | | 39/25 → | | |
 
 ## Guard baseline
@@ -30,3 +30,9 @@
 - Checks removed: none. Messages changed: none.
 - SECURITY (pinned, reported not fixed): SQL stripper mis-reads Postgres E'\'' strings → `select E'\'', 1; drop table t; --'` gets no confirm card (real bypass); UPDATE without WHERE no card; `list_and_drop_tables` with no hints no card; remove/erase/wipe not in removal list; maxResultBytes NaN disables truncation (operator config, not pinned).
 - Kept: parseFederatedConnectionId (no caller, public, in api.spec), unused writeAllowedToolNames param of refusalForAdmittedToolUnderCurrentGrants.
+### L036a (subagent: ~148k tokens, 55 tool calls)
+- Commits d91a68fb 033adc64 e823184a 7bd78bd9 55d3a89a 23ee2630. NOTE: 033adc64 states 9/0 (actual 10/3, corrected by 7bd78bd9); 23ee2630 states ensurePullRequest before 4/11 (actual 9/11). Mis-measurements corrected in history/report, not rewritten (no force-push).
+- Over-engineering: one private send() replaces 8 request literals; okJson/requireString/repoPath/isOk extracted; redundant `.replace(/\n/g,'')` before base64 decode removed (Node decoder skips newlines; 200k fuzz 0 diffs); dead '' separators in renderPublishBody removed. Temp differential: 378 readManifest + 2458 createPublishPullRequest cases, identical results + request lists.
+- Checks removed: none. Messages changed: none.
+- Bug pinned: JSON `null` body → bare TypeError (2xx readManifest; non-2xx PR creation).
+- SECURITY: github-client encPath lets `..` segments through → manifestPath `../../../../user` resolves to /user on API host with token (PINNED); same for owner/repo `..` via enc/repoPath (not pinned); apiUrl override gets bearer token with no https/host check (host config); no response-size cap (relies on HttpClientPort); PRE-EXISTING literal `EC PRIVATE KEY` PEM in registry src/__tests__/github-backend.test.ts:8-25 (test CA fixture, not added this wave).
