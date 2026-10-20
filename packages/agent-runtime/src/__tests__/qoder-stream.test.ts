@@ -165,6 +165,126 @@ describe('createQoderStreamHandler', () => {
     expect(events).toEqual([]);
   });
 
+  it('emits the malformed line itself as a raw event', () => {
+    const events: Record<string, unknown>[] = [];
+    const handler = createQoderStreamHandler({ onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: '  {bad json  \n' });
+    expect(events).toEqual([{ type: 'raw', line: '{bad json' }]);
+  });
+
+  it('emits a raw event for a system record that is not init', () => {
+    const events = feed([{ type: 'system', subtype: 'heartbeat' }]);
+    expect(events).toEqual([{ type: 'raw', line: JSON.stringify({ type: 'system', subtype: 'heartbeat' }) }]);
+  });
+
+  it('emits a raw event for an assistant record without a message object', () => {
+    const events = feed([{ type: 'assistant', message: 'hi' }]);
+    expect(events).toEqual([{ type: 'raw', line: JSON.stringify({ type: 'assistant', message: 'hi' }) }]);
+  });
+
+  it('ignores an empty thinking block and keeps thinking_start pending for a later one', () => {
+    const events = feed([
+      { type: 'assistant', message: { content: [{ type: 'thinking', thinking: '' }] } },
+      { type: 'assistant', message: { content: [{ type: 'thinking', thinking: 'later' }] } },
+    ]);
+    expect(events).toEqual([{ type: 'thinking_start' }, { type: 'thinking_delta', delta: 'later' }]);
+  });
+
+  it('emits thinking_start only once across separate assistant records', () => {
+    const events = feed([
+      { type: 'assistant', message: { content: [{ type: 'thinking', thinking: 'a' }] } },
+      { type: 'assistant', message: { content: [{ type: 'thinking', thinking: 'b' }] } },
+    ]);
+    expect(events.map((e) => e.type)).toEqual(['thinking_start', 'thinking_delta', 'thinking_delta']);
+  });
+
+  it('interleaves text and thinking blocks in content order', () => {
+    const events = feed([{ type: 'assistant', message: { content: [
+      { type: 'text', text: 'one' }, { type: 'thinking', thinking: 'hmm' }, { type: 'text', text: 'two' },
+    ] } }]);
+    expect(events).toEqual([
+      { type: 'text_delta', delta: 'one' }, { type: 'thinking_start' }, { type: 'thinking_delta', delta: 'hmm' }, { type: 'text_delta', delta: 'two' },
+    ]);
+  });
+
+  it('still reports an assistant error when only thinking was produced', () => {
+    const record = { type: 'assistant', message: { content: [{ type: 'thinking', thinking: 't' }] }, error: 'boom' };
+    const events = feed([record]);
+    expect(events).toEqual([{ type: 'thinking_start' }, { type: 'thinking_delta', delta: 't' }, { type: 'error', message: 'boom', raw: JSON.stringify(record) }]);
+  });
+
+  it('does not report an assistant error when the string content was emitted', () => {
+    const events = feed([{ type: 'assistant', message: { content: 'reply' }, error: 'boom' }]);
+    expect(events).toEqual([{ type: 'text_delta', delta: 'reply' }]);
+  });
+
+  it('ignores a falsy assistant error value', () => {
+    const events = feed([{ type: 'assistant', message: { content: [] }, error: '' }]);
+    expect(events).toEqual([]);
+  });
+
+  it('falls back to "Unknown Qoder error" for an error object without a string message', () => {
+    const record = { type: 'assistant', message: { content: [] }, error: { code: 7 } };
+    expect(feed([record])).toEqual([{ type: 'error', message: 'Unknown Qoder error', raw: JSON.stringify(record) }]);
+  });
+
+  it('carries every result field into the usage event', () => {
+    const events = feed([{ type: 'result', usage: { a: 1 }, modelUsage: { m: {} }, total_cost_usd: 2, duration_ms: 5, stop_reason: 'end' }]);
+    expect(events).toEqual([{ type: 'usage', usage: { a: 1 }, modelUsage: { m: {} }, costUsd: 2, durationMs: 5, stopReason: 'end', isError: false }]);
+  });
+
+  it('marks the usage event as an error for a failed result', () => {
+    const events = feed([{ type: 'result', is_error: true }]);
+    expect(events[0]).toMatchObject({ type: 'usage', isError: true });
+  });
+
+  it('ignores a thinking field on a block that is not thinking-typed', () => {
+    const events = feed([{ type: 'assistant', message: { content: [{ type: 'other', thinking: 'hidden' }] } }]);
+    expect(events).toEqual([]);
+  });
+
+  it('nulls a non-numeric result duration', () => {
+    const events = feed([{ type: 'result', duration_ms: '5' }]);
+    expect(events[0]).toMatchObject({ type: 'usage', durationMs: null });
+  });
+
+  it('skips empty error/message fields when building a failed-result message', () => {
+    const events = feed([{ type: 'result', is_error: 1, error: '', message: '', stop_reason: '' }]);
+    expect(events[1]).toMatchObject({ type: 'error', message: 'Qoder run failed' });
+  });
+
+  it('skips an error object with an empty message and falls through to message', () => {
+    const events = feed([{ type: 'result', is_error: true, error: { message: '' }, message: 'outer' }]);
+    expect(events[1]).toMatchObject({ type: 'error', message: 'outer' });
+  });
+
+  it('prefers a string error over the message field on a failed result', () => {
+    const events = feed([{ type: 'result', is_error: true, error: 'inner', message: 'outer' }]);
+    expect(events[1]).toMatchObject({ type: 'error', message: 'inner' });
+  });
+
+  it('splits multiple records arriving in one chunk and buffers a partial tail', () => {
+    const events: Record<string, unknown>[] = [];
+    const handler = createQoderStreamHandler({ onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: '{"type":"x"}\n{"type":"y"}\n{"type":' });
+    expect(events).toEqual([{ type: 'raw', line: '{"type":"x"}' }, { type: 'raw', line: '{"type":"y"}' }]);
+    handler.feed({ chunk: '"z"}\n' });
+    expect(events[2]).toEqual({ type: 'raw', line: '{"type":"z"}' });
+  });
+
+  it('re-emits a line as raw when the event sink throws while handling it (reported, not fixed)', () => {
+    // handleLine's try/catch wraps the sink call as well as JSON.parse, so a
+    // consumer exception is swallowed and the parsed line is re-reported as raw.
+    const events: Record<string, unknown>[] = [];
+    const handler = createQoderStreamHandler({ onEvent: (event) => {
+      if (event.type === 'text_delta') throw new Error('sink failed');
+      events.push(event);
+    } });
+    const line = JSON.stringify({ type: 'assistant', message: { content: 'hi' } });
+    handler.feed({ chunk: `${line}\n` });
+    expect(events).toEqual([{ type: 'raw', line }]);
+  });
+
   describe('stringifyContent (via feed(chunk: unknown))', () => {
     it('accepts a Buffer chunk and decodes it as utf8', () => {
       const events: Record<string, unknown>[] = [];
