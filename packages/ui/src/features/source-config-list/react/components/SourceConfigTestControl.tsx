@@ -48,18 +48,7 @@ export function SourceConfigTestControl({ running, result, disabled = false, age
           action: 'status',
         })}
       >
-        {running ? (
-          <span className="source-config-test-status is-running" role="status" aria-live="polite">
-            {t('Testing…')}
-          </span>
-        ) : result ? (
-          <span
-            className={result.ok ? 'source-config-test-status is-success' : 'source-config-test-status is-error'}
-            role={result.ok ? 'status' : 'alert'}
-          >
-            {result.message ?? (result.ok ? t('Connection ok.') : t('Connection failed.'))}
-          </span>
-        ) : null}
+        <TestStatusMessage running={running} result={result} />
       </div>
       <button
         type="button"
@@ -68,8 +57,37 @@ export function SourceConfigTestControl({ running, result, disabled = false, age
         onClick={onTest}
         disabled={disabled || running}
       >
-        {running ? t('Testing…') : result && !result.ok ? t('Retry') : t('Test')}
+        {testButtonLabel({ running, t }, { result })}
       </button>
     </div>
   );
+}
+
+type Translate = ReturnType<typeof useT>;
+
+/** The status line's content: "Testing…" while running, the last result once one exists, nothing before the first test. */
+function TestStatusMessage({ running, result }: { running: boolean; result?: SourceTestResult | undefined }) {
+  const t = useT();
+  if (running) {
+    return (
+      <span className="source-config-test-status is-running" role="status" aria-live="polite">
+        {t('Testing…')}
+      </span>
+    );
+  }
+  if (!result) return null;
+  return (
+    <span
+      className={result.ok ? 'source-config-test-status is-success' : 'source-config-test-status is-error'}
+      role={result.ok ? 'status' : 'alert'}
+    >
+      {result.message ?? (result.ok ? t('Connection ok.') : t('Connection failed.'))}
+    </span>
+  );
+}
+
+/** "Testing…" while running, "Retry" after a failed result, otherwise "Test". */
+function testButtonLabel({ running, t }: { running: boolean; t: Translate }, { result }: { result?: SourceTestResult | undefined }): string {
+  if (running) return t('Testing…');
+  return result && !result.ok ? t('Retry') : t('Test');
 }
