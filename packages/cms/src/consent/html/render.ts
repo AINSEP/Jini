@@ -1,6 +1,6 @@
 import { escapeHtml } from '@jini-ai/core/text';
 import { DENIED_CHOICES, type ConsentChoices, type ConsentConfig, type ConsentRecord, type ConsentRegionMode } from '../types.js';
-import { googleConsentSignals, resolveConsentChoices } from '../policy.js';
+import { GOOGLE_CONSENT_SIGNAL_CATEGORIES, resolveConsentChoices } from '../policy.js';
 import { CONSENT_CLIENT } from './client.js';
 import { CONSENT_CSS } from './styles.js';
 
@@ -76,7 +76,7 @@ export function renderConsentHead({ record, gpc, regionMode = 'opt-in' }: { reco
   const choices = resolveConsentChoices({ choices: record?.choices, gpc, regionMode });
   const gpcChoices = resolveConsentChoices({ choices: record?.choices, gpc: true, regionMode });
   const origins: ResourceOrigins = { resourceOrigins: exactOrigins({ values: resourceOrigins }), categoryOrigins: { functional: exactOrigins({ values: categoryOrigins.functional ?? [] }), analytics: exactOrigins({ values: categoryOrigins.analytics ?? [] }) } };
-  const state = JSON.stringify({ resourcePolicies: resourcePolicies({ origins }), choices, gpcChoices, signals: googleConsentSignals({ choices }), gpcSignals: googleConsentSignals({ choices: gpcChoices }), deniedSignals: googleConsentSignals({ choices: DENIED_CHOICES }), hasRecord: record !== null, optOut: regionMode === 'opt-out', gpc }).replace(/</g, '\\u003c');
+  const state = JSON.stringify({ resourcePolicies: resourcePolicies({ origins }), choices, gpcChoices, signalCategories: GOOGLE_CONSENT_SIGNAL_CATEGORIES, hasRecord: record !== null, optOut: regionMode === 'opt-out', gpc }).replace(/</g, '\\u003c');
   // A local stylesheet can import remote CSS/fonts that HTML traversal cannot see.
   // Each choice reloads, so restrictive policy can be removed only after a saved grant.
   const resourcePolicyMeta = choices.marketing ? '' : `<meta http-equiv="Content-Security-Policy" content="${escapeHtml({ text: resourcePolicy({ choices, origins }) })}">`;

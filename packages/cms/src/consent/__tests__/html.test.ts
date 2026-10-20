@@ -6,17 +6,20 @@ import { stripConsentRuntime } from '../html/static.js';
 import { accepted, config } from './fixtures.js';
 
 // Real installed browser emulator, loaded without adding a types dependency to the no-DOM core.
-const { JSDOM, ResourceLoader } = createRequire(import.meta.url)('jsdom');
+const { JSDOM, ResourceLoader, CookieJar, VirtualConsole } = createRequire(import.meta.url)('jsdom');
 const page = '<!doctype html><html><head><link rel="preload" as="script" href="https://tags.example/track.js"><link rel="modulepreload" href="/module.js"><link rel="preconnect" href="https://tags.example"><style>p{color:red}</style><script data-consent-category="necessary">window.runs=[];window.runs.push("necessary")</script></head><body><p>Site</p><script data-consent-category="analytics" src="https://tags.example/track.js"></script><script data-consent-category="analytics">window.runs.push("inline-analytics")</script><script>window.runs.push("functional")</script><script data-consent-category="typo">window.runs.push("invalid")</script><script type="application/ld+json">{"@type":"Site"}</script><template><script>window.runs.push("authored-template")</script></template></body></html>';
 const necessaryScripts = [{ content: 'window.runs=[];window.runs.push("necessary")' }];
 const gate = (record = null as typeof accepted | null, gpc = false) => gateConsentHtml({ html: page, config, record, gpc, regionMode: 'opt-in', endpoint: '/api/site-consent' }, { necessaryScripts });
 
-async function browser(html: string, browserGpc = false) {
+type FetchStub = (url: string, options: { body: { toString(): string } }) => Promise<{ ok: boolean; status?: number; json(): Promise<unknown> }>;
+async function browser(html: string, browserGpc = false, { cookieJar, fetch }: { cookieJar?: unknown; fetch?: FetchStub } = {}) {
   const requests: string[] = [];
   class Loader extends ResourceLoader {
     fetch(url: string) { requests.push(url); return Promise.resolve(Buffer.from('window.runs.push("external-analytics");')); }
   }
-  const dom = new JSDOM(html, { url: 'https://site.example/', runScripts: 'dangerously', resources: new Loader(), beforeParse(window: { navigator: object }) { Object.defineProperty(window.navigator, 'globalPrivacyControl', { value: browserGpc }); } });
+  // jsdom cannot navigate; location.reload() reports "not implemented" to this console only.
+  const virtualConsole = new VirtualConsole();
+  const dom = new JSDOM(html, { url: 'https://site.example/', runScripts: 'dangerously', resources: new Loader(), virtualConsole, ...(cookieJar ? { cookieJar } : {}), beforeParse(window: { navigator: object; fetch?: FetchStub }) { Object.defineProperty(window.navigator, 'globalPrivacyControl', { value: browserGpc }); if (fetch) window.fetch = fetch; } });
   await new Promise<void>(resolve => dom.window.addEventListener('load', () => resolve(), { once: true }));
   await new Promise<void>(resolve => setImmediate(resolve));
   return { dom, requests };
@@ -68,7 +71,7 @@ describe('delivered HTML consent boundary', () => {
     const submissions: unknown[] = [];
     dom.window.fetch = async (url: string, options: { body: { toString(): string } }) => {
       submissions.push({ url, body: options.body.toString() });
-      return { ok: false, json: async () => ({ error: 'Cookie preferences could not be saved. Optional scripts remain paused. Please try again.' }) };
+      return { ok: false, json: async () => ({ error: 'Cookie preferences could not be saved. Your previous choices still apply. Please try again.' }) };
     };
     try {
       const form = dom.window.document.querySelector('#jini-consent form');
@@ -76,7 +79,8 @@ describe('delivered HTML consent boundary', () => {
       form.dispatchEvent(new dom.window.SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: button }));
       await new Promise<void>(resolve => setImmediate(resolve));
       expect(submissions).toEqual([{ url: 'https://site.example/api/site-consent', body: 'policyVersion=1&gpc=0&action=accept' }]);
-      expect(dom.window.document.querySelector('[data-jini-consent-error]').textContent).toBe('Cookie preferences could not be saved. Optional scripts remain paused. Please try again.');
+      expect(dom.window.document.querySelector('[data-jini-consent-error]').textContent).toBe('Cookie preferences could not be saved. Your previous choices still apply. Please try again.');
+      expect(dom.window.document.cookie).toBe('');
       expect(button.disabled).toBe(false); expect(requests).toEqual([]); expect(Array.from(dom.window.runs)).toEqual(['necessary']);
       expect(dom.window.dataLayer.length).toBe(1);
     } finally { dom.window.close(); }
@@ -375,5 +379,70 @@ describe('first-party presentation and category-specific resource policy', () =>
   });
   it('names an invalid category origin and how to fix it', () => {
     expect(() => transform('<html><body></body></html>', null, { categoryOrigins: { analytics: ['https://collect.example/path'] } })).toThrow('Consent resource origin "https://collect.example/path" must be an exact HTTP(S) origin such as https://cdn.example (no path or trailing slash).');
+  });
+});
+
+describe('withdrawal when the save fails', () => {
+  const denied = { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied', functionality_storage: 'denied', personalization_storage: 'denied', security_storage: 'granted' };
+  const settle = () => new Promise<void>(resolve => setTimeout(resolve, 20));
+  async function rejectWith(response: Awaited<ReturnType<FetchStub>> | Error) {
+    const cookieJar = new CookieJar();
+    const { dom } = await browser(gate(accepted), false, { cookieJar, fetch: async () => { if (response instanceof Error) throw response; return response; } });
+    expect(Array.from(dom.window.runs)).toEqual(['necessary', 'external-analytics', 'inline-analytics', 'functional']);
+    const form = dom.window.document.querySelector('#jini-consent form');
+    form.dispatchEvent(new dom.window.SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: form.querySelector('button[value=reject]') }));
+    await settle();
+    return { dom, cookieJar };
+  }
+  it('denies at once, keeps denying on the next page and retries the save there', async () => {
+    const { dom, cookieJar } = await rejectWith(new TypeError('Failed to fetch'));
+    try {
+      expect(Array.from(dom.window.dataLayer.at(-1))).toEqual(['consent', 'update', denied]);
+      expect(dom.window.document.querySelector('[data-jini-consent-error]').textContent).toBe('Your choice applies on this device now, but it could not be saved yet. It will be saved automatically on a later page.');
+      expect(dom.window.document.cookie).toContain('jini_consent_withdrawal=');
+    } finally { dom.window.close(); }
+    const posted: string[] = [];
+    const next = await browser(gate(accepted), false, { cookieJar, fetch: async (_url, options) => { posted.push(options.body.toString()); return { ok: false, status: 503, json: async () => ({ error: 'Unavailable' }) }; } });
+    try {
+      await settle();
+      expect(next.requests).toEqual([]); expect(Array.from(next.dom.window.runs)).toEqual(['necessary']);
+      expect(Array.from(next.dom.window.dataLayer[1])).toEqual(['consent', 'update', denied]);
+      expect(Array.from(next.dom.window.document.querySelectorAll('meta[http-equiv="Content-Security-Policy"]')).length).toBe(1);
+      expect(posted).toEqual(['policyVersion=1&gpc=0&functional=on&analytics=on&marketing=on&action=reject']);
+      expect(next.dom.window.document.querySelector('[data-jini-consent-error]').hidden).toBe(false);
+      expect(next.dom.window.document.cookie).toContain('jini_consent_withdrawal=');
+    } finally { next.dom.window.close(); }
+    const saved = await browser(gate(accepted), false, { cookieJar, fetch: async () => ({ ok: true, status: 200, json: async () => ({ record: { ...accepted, action: 'reject', choices: { necessary: true, functional: false, analytics: false, marketing: false } }, signals: denied }) }) });
+    try {
+      await settle();
+      expect(Array.from(saved.dom.window.runs)).toEqual(['necessary']);
+      expect(saved.dom.window.document.cookie).toBe('');
+      expect(saved.dom.window.document.querySelector('[data-jini-consent-error]').hidden).toBe(true);
+    } finally { saved.dom.window.close(); }
+  });
+  it('a refused withdrawal still applies locally but is not retried', async () => {
+    const { dom, cookieJar } = await rejectWith({ ok: false, status: 400, json: async () => ({ error: 'The privacy policy changed. Reload this page and choose again.' }) });
+    try { expect(dom.window.document.querySelector('[data-jini-consent-error]').textContent).toBe('Your choice applies on this device now, but it could not be saved. Choose again to save it.'); }
+    finally { dom.window.close(); }
+    const posted: string[] = [];
+    const next = await browser(gate(accepted), false, { cookieJar, fetch: async (_url, options) => { posted.push(options.body.toString()); return { ok: true, json: async () => ({}) }; } });
+    try { await settle(); expect(posted).toEqual([]); expect(Array.from(next.dom.window.runs)).toEqual(['necessary']); }
+    finally { next.dom.window.close(); }
+  });
+  it('an unsaved partial withdrawal keeps only the categories both choices allow', async () => {
+    const cookieJar = new CookieJar();
+    const { dom } = await browser(gate(accepted), false, { cookieJar, fetch: async () => { throw new TypeError('offline'); } });
+    try {
+      const form = dom.window.document.querySelector('#jini-consent form');
+      form.querySelector('[name=marketing]').checked = false;
+      form.dispatchEvent(new dom.window.SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: form.querySelector('button[value=save]') }));
+      await settle();
+    } finally { dom.window.close(); }
+    const next = await browser(gate(accepted), false, { cookieJar });
+    try {
+      await settle();
+      expect(Array.from(next.dom.window.runs)).toEqual(['necessary', 'external-analytics', 'inline-analytics', 'functional']);
+      expect(next.dom.window.dataLayer[1][2].ad_storage).toBe('denied'); expect(next.dom.window.dataLayer[1][2].analytics_storage).toBe('granted');
+    } finally { next.dom.window.close(); }
   });
 });

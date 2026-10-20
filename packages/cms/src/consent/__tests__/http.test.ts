@@ -104,7 +104,7 @@ describe('consent HTTP lifecycle', () => {
     const save = await site({ saveFails: true });
     const response = await choose(save.base, 'accept', { accept: 'application/json' });
     expect(response.status).toBe(500); expect(response.headers.get('set-cookie')).toBeNull(); expect(save.records.size).toBe(0);
-    expect(await response.json()).toEqual({ error: 'Cookie preferences could not be saved. Optional scripts remain paused. Please try again.' });
+    expect(await response.json()).toEqual({ error: 'Cookie preferences could not be saved. Your previous choices still apply. Please try again.' });
     expect(save.failures[0]?.operation).toBe('save');
     const read = await site({ readFails: true });
     const denied = await fetch(read.base);

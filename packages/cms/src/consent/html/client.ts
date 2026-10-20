@@ -1,16 +1,26 @@
+import { CONSENT_MAX_AGE_MS } from '../types.js';
+
+/** Readable by this runtime only; it holds a denial that is not yet durable evidence. */
+const WITHDRAWAL_COOKIE = 'jini_consent_withdrawal';
+
 /** Vanilla enhancement: forms remain ordinary POST forms without this script.
  * Signals are queued before any released tag. A changed choice reloads to stop already-running
  * scripts; a new grant is released only after the server durably saved its receipt.
+ * A withdrawal never waits for evidence: when its save fails it applies at once, a client marker
+ * keeps it on later pages (until the receipt lifetime) and the save is retried there.
  * Script release is ordered and each template is consumed once. O(s + l) for s deferred elements and l late listeners. */
 export const CONSENT_CLIENT = String.raw`(function () {
   'use strict';
   var node = document.getElementById('jini-consent-config');
   if (!node) return;
   var state = JSON.parse(node.textContent);
+  var categories = ['functional', 'analytics', 'marketing'];
   var gpc = state.gpc || navigator.globalPrivacyControl === true;
-  var choices = gpc ? state.gpcChoices : state.choices;
-  if (gpc && choices.marketing !== true) {
-    // navigator GPC may be absent from the request headers; enforce resource denial before parsing site styles.
+  var withdrawal = readWithdrawal();
+  var choices = restrict(gpc ? state.gpcChoices : state.choices, withdrawal && withdrawal.choices);
+  if ((gpc || withdrawal) && choices.marketing !== true) {
+    // navigator GPC may be absent from the request headers, and an unsaved withdrawal is unknown to the server;
+    // enforce resource denial before parsing site styles.
     var policy = document.createElement('meta');
     policy.httpEquiv = 'Content-Security-Policy';
     policy.content = state.resourcePolicies[(choices.functional ? '1' : '0') + (choices.analytics ? '1' : '0')];
@@ -21,8 +31,40 @@ export const CONSENT_CLIENT = String.raw`(function () {
     // Google consumes gtag-style Arguments entries, not arbitrary arrays/objects.
     (function () { window.dataLayer.push(arguments); })('consent', command, signals);
   }
-  signal('default', state.deniedSignals);
-  if (state.hasRecord || state.optOut) signal('update', gpc ? state.gpcSignals : state.signals);
+  function signalsFor(values) {
+    var result = {};
+    Object.keys(state.signalCategories).forEach(function (name) { result[name] = values[state.signalCategories[name]] === true ? 'granted' : 'denied'; });
+    return result;
+  }
+  function restrict(current, limit) {
+    // A local limit can only remove grants, never add one.
+    var result = { necessary: true };
+    categories.forEach(function (category) { result[category] = current[category] === true && (!limit || limit[category] === true); });
+    return result;
+  }
+  function readWithdrawal() {
+    var match = document.cookie.match(/(?:^|;\s*)${WITHDRAWAL_COOKIE}=([^;]*)/);
+    if (!match) return null;
+    var limit = {};
+    try {
+      var params = new URLSearchParams(decodeURIComponent(match[1]));
+      categories.forEach(function (category) { limit[category] = params.get(category) === '1'; });
+      return { choices: limit, body: params.get('body'), notice: params.get('notice') === '1' };
+    } catch (failure) {
+      // An unreadable marker still records that something was withdrawn: deny every optional category.
+      return { choices: limit, body: null, notice: false };
+    }
+  }
+  function writeWithdrawal(limit, body, notice) {
+    var params = new URLSearchParams();
+    categories.forEach(function (category) { params.set(category, limit[category] ? '1' : '0'); });
+    if (body) params.set('body', body);
+    if (notice) params.set('notice', '1');
+    document.cookie = '${WITHDRAWAL_COOKIE}=' + encodeURIComponent(params.toString()) + '; Max-Age=${CONSENT_MAX_AGE_MS / 1000}; Path=/; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
+  }
+  function clearWithdrawal() { document.cookie = '${WITHDRAWAL_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax'; }
+  signal('default', signalsFor({ necessary: true }));
+  if (state.hasRecord || state.optOut || withdrawal) signal('update', signalsFor(choices));
   async function release() {
     // Released theme scripts may register DCL listeners after the native event has fired.
     // Replay only listeners added during release, so already-running necessary scripts do not run twice.
@@ -91,6 +133,52 @@ export const CONSENT_CLIENT = String.raw`(function () {
       }
     });
   }
+  async function save(url, body) {
+    var response = await fetch(url, { method: 'POST', credentials: 'same-origin',
+      headers: { 'Accept': 'application/json' }, body: new URLSearchParams(body) });
+    var result = await response.json();
+    if (!response.ok) {
+      var failure = new Error(result.error || 'Cookie preferences could not be saved.');
+      // Only throttling and server faults can succeed later; a refused choice (changed policy) cannot.
+      failure.retry = response.status === 429 || response.status >= 500;
+      throw failure;
+    }
+    return result;
+  }
+  function submittedChoices(form, action) {
+    // Mirrors createConsentRecord; used only to apply the denial part of a choice that failed to save.
+    var result = { necessary: true };
+    categories.forEach(function (category) {
+      var input = form.querySelector('[name=' + category + ']');
+      var fromInput = action === 'save' || (action === 'do-not-sell' && category === 'functional');
+      result[category] = action === 'accept' || (fromInput && Boolean(input && input.checked));
+    });
+    return result;
+  }
+  function withdrawalMessage(retry) {
+    return retry ? 'Your choice applies on this device now, but it could not be saved yet. It will be saved automatically on a later page.'
+      : 'Your choice applies on this device now, but it could not be saved. Choose again to save it.';
+  }
+  function showError(banner, message, open) {
+    var error = banner.querySelector('[data-jini-consent-error]');
+    error.textContent = message;
+    error.hidden = false;
+    if (open) banner.querySelectorAll('details').forEach(function (details) { details.open = true; });
+  }
+  async function reconcile(banner) {
+    var retry = Boolean(withdrawal.body);
+    if (retry) {
+      try {
+        var result = await save(banner.querySelector('form').action, withdrawal.body);
+        clearWithdrawal();
+        // The saved receipt may also grant what the local denial held back.
+        if (categories.some(function (category) { return result.record.choices[category] === true && !choices[category]; })) window.location.reload();
+        return;
+      } catch (failure) { retry = failure.retry !== false; }
+    }
+    writeWithdrawal(withdrawal.choices, retry ? withdrawal.body : '', false);
+    if (withdrawal.notice || retry) showError(banner, withdrawalMessage(retry), withdrawal.notice);
+  }
   document.addEventListener('DOMContentLoaded', function () {
     var banner = document.getElementById('jini-consent');
     if (gpc) {
@@ -114,21 +202,29 @@ export const CONSENT_CLIENT = String.raw`(function () {
       data.set('action', event.submitter.value);
       var buttons = Array.from(form.querySelectorAll('button'));
       buttons.forEach(function (button) { button.disabled = true; });
-      var error = banner.querySelector('[data-jini-consent-error]');
-      error.hidden = true;
+      banner.querySelector('[data-jini-consent-error]').hidden = true;
       try {
-        var response = await fetch(form.action, { method: 'POST', credentials: 'same-origin',
-          headers: { 'Accept': 'application/json' }, body: data });
-        var result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Cookie preferences could not be saved.');
+        var result = await save(form.action, data);
+        clearWithdrawal();
         signal('update', result.signals);
         window.location.reload();
       } catch (failure) {
-        error.textContent = failure.message || 'Cookie preferences could not be saved. Please try again.';
-        error.hidden = false;
+        var next = restrict(choices, submittedChoices(form, event.submitter.value));
+        if (categories.some(function (category) { return choices[category] && !next[category]; })) {
+          // Withdrawal must not depend on durable evidence: deny now, keep denying on later pages,
+          // and reload so optional scripts that already run stop. The save is retried later.
+          var retry = failure.retry !== false;
+          writeWithdrawal(next, retry ? data.toString() : '', true);
+          signal('update', signalsFor(next));
+          showError(banner, withdrawalMessage(retry), false);
+          window.location.reload();
+          return;
+        }
+        showError(banner, failure.message || 'Cookie preferences could not be saved. Please try again.', false);
         buttons.forEach(function (button) { button.disabled = false; });
       }
     });
+    if (withdrawal) reconcile(banner);
     release();
   }, { once: true });
 })();`;

@@ -151,7 +151,7 @@ export function registerConsentHttp({ app, ports }: { app: Express; ports: Conse
       await saveChoice({ request, response, ports }, { cookieName });
     } catch (error) {
       ports.reportError({ operation: 'save', error });
-      respondError(response, 500, 'Cookie preferences could not be saved. Optional scripts remain paused. Please try again.');
+      respondError(response, 500, 'Cookie preferences could not be saved. Your previous choices still apply. Please try again.');
     }
   });
   app.use((request, response, next) => {

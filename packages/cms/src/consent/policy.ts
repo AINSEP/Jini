@@ -61,9 +61,12 @@ export function createConsentRecord({ fields, config, id, timestamp, regionMode,
   return { id, timestamp, policyVersion: config.policyVersion, regionMode, gpc, action: action as ConsentAction, choices: resolveConsentChoices({ choices, gpc }) };
 }
 
-/** All v2 advertising signals map to marketing; this enqueues signals, never loads a Google tag.
- * @complexity O(1). */
-export function googleConsentSignals({ choices }: { choices: ConsentChoices }, _options = {}) {
-  const marketing = choices.marketing ? 'granted' : 'denied';
-  return { ad_storage: marketing, ad_user_data: marketing, ad_personalization: marketing, analytics_storage: choices.analytics ? 'granted' : 'denied', functionality_storage: choices.functional ? 'granted' : 'denied', personalization_storage: marketing, security_storage: 'granted' };
+/** Each Consent Mode v2 signal follows one category; all advertising signals map to marketing.
+ * The browser runtime receives this table so a locally reduced choice signals the same way. */
+export const GOOGLE_CONSENT_SIGNAL_CATEGORIES = Object.freeze({ ad_storage: 'marketing', ad_user_data: 'marketing', ad_personalization: 'marketing', analytics_storage: 'analytics', functionality_storage: 'functional', personalization_storage: 'marketing', security_storage: 'necessary' } as const);
+export type GoogleConsentSignals = Record<keyof typeof GOOGLE_CONSENT_SIGNAL_CATEGORIES, 'granted' | 'denied'>;
+
+/** This enqueues signals, never loads a Google tag. @complexity O(1). */
+export function googleConsentSignals({ choices }: { choices: ConsentChoices }, _options = {}): GoogleConsentSignals {
+  return Object.fromEntries(Object.entries(GOOGLE_CONSENT_SIGNAL_CATEGORIES).map(([signal, category]) => [signal, choices[category] ? 'granted' : 'denied'])) as GoogleConsentSignals;
 }
