@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMediaDispatchEngine, lookupRoute } from '../engine.js';
 import type { Renderer } from '../engine.js';
 import type { MediaGenerationRequest } from '../types.js';
+import type { HttpClientPort } from '@jini-ai/core/primitives';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -306,6 +307,131 @@ describe('createMediaDispatchEngine — stub fallback', () => {
         const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'gpt-image-2' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.usedStubFallback).toBe(false);
         expect(result.bytes.toString('utf8')).toBe('real');
+    });
+});
+
+describe('createMediaDispatchEngine — characterization', () => {
+    const stubEngine = () => createMediaDispatchEngine(...partitionArgs({ allowStubFallback: true }, []));
+    const b64Image = () => new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('img').toString('base64') }] }), { status: 200 });
+
+    it('checks the surface before the model', async () => {
+        await expect(stubEngine().generate(...partitionArgs({ surface: 'bogus' as never, model: '' } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow(/^unsupported surface: bogus$/);
+    });
+    it('rejects a non-string model as "model required"', async () => {
+        // Malformed-input fixture: a number where the type demands a string.
+        await expect(stubEngine().generate(...partitionArgs({ surface: 'image', model: 42 as never } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow(/^model required$/);
+    });
+    it('reports the exact unsupported-audioKind message', async () => {
+        await expect(stubEngine().generate(...partitionArgs({ surface: 'audio', model: 'suno-v5', audioKind: 'bogus' as never } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow(/^unsupported audioKind: bogus\. Allowed: music \| speech \| sfx\.$/);
+    });
+    it('ignores audioKind on a non-audio surface', async () => {
+        const result = await stubEngine().generate(...partitionArgs({ surface: 'video', model: 'kling-2.0', audioKind: 'bogus' as never } satisfies MediaGenerationRequest, ['surface', 'model']));
+        expect(result.usedStubFallback).toBe(true);
+    });
+    it('treats an empty audioKind as the "music" default', async () => {
+        // Malformed-input fixture: '' is not an AudioKind, but is falsy at runtime.
+        const result = await stubEngine().generate(...partitionArgs({ surface: 'audio', model: 'suno-v5', audioKind: '' as never } satisfies MediaGenerationRequest, ['surface', 'model']));
+        expect(result.providerNote).toContain('kind=music');
+    });
+    it('reports the exact unknown-model message', async () => {
+        await expect(stubEngine().generate(...partitionArgs({ surface: 'image', model: 'nope' } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow("unknown model: nope. Pass a model from the registered catalogue (see @jini-ai/integrations/media-providers's modelsForSurface()).");
+    });
+    it('lists the allowed ids in the not-registered message', async () => {
+        await expect(stubEngine().generate(...partitionArgs({ surface: 'video', model: 'gpt-image-2' } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow(/^model "gpt-image-2" is not registered for surface "video"\. Allowed: .*kling-2\.0.*\.$/);
+    });
+    it('clamps a video length to the largest allowed value with the exact warning', async () => {
+        const result = await stubEngine().generate(...partitionArgs({ surface: 'video', model: 'kling-2.0', length: 9999 } satisfies MediaGenerationRequest, ['surface', 'model']));
+        expect(result.warnings).toEqual(['length 9999 clamped to 30 (allowed: 3, 5, 8, 10, 15, 30)']);
+        expect(result.providerNote).toContain('length=30s');
+    });
+    it('breaks a clamp tie toward the first-listed allowed value', async () => {
+        const result = await stubEngine().generate(...partitionArgs({ surface: 'video', model: 'kling-2.0', length: 4 } satisfies MediaGenerationRequest, ['surface', 'model']));
+        expect(result.warnings).toEqual(['length 4 clamped to 3 (allowed: 3, 5, 8, 10, 15, 30)']);
+    });
+    it('drops a non-finite video length without a warning', async () => {
+        const nan = await stubEngine().generate(...partitionArgs({ surface: 'video', model: 'kling-2.0', length: Number.NaN } satisfies MediaGenerationRequest, ['surface', 'model']));
+        const inf = await stubEngine().generate(...partitionArgs({ surface: 'video', model: 'kling-2.0', length: Number.POSITIVE_INFINITY } satisfies MediaGenerationRequest, ['surface', 'model']));
+        expect(nan.warnings).toEqual([]);
+        expect(nan.providerNote).toContain('length=?s');
+        expect(inf.warnings).toEqual([]);
+        expect(inf.providerNote).toContain('length=?s');
+    });
+    it('leaves an absent video length undefined without a warning', async () => {
+        const result = await stubEngine().generate(...partitionArgs({ surface: 'video', model: 'kling-2.0' } satisfies MediaGenerationRequest, ['surface', 'model']));
+        expect(result.warnings).toEqual([]);
+        expect(result.providerNote).toContain('length=?s');
+    });
+    it('clamps an audio duration to the nearest allowed value with the exact warning', async () => {
+        const result = await stubEngine().generate(...partitionArgs({ surface: 'audio', model: 'suno-v5', duration: 7 } satisfies MediaGenerationRequest, ['surface', 'model']));
+        expect(result.warnings).toEqual(['duration 7 clamped to 5 (allowed: 5, 10, 15, 30, 60, 120)']);
+        expect(result.providerNote).toContain('duration=5s');
+    });
+    it('does not clamp duration on a video request nor length on an audio request', async () => {
+        const video = await stubEngine().generate(...partitionArgs({ surface: 'video', model: 'kling-2.0', duration: 9999 } satisfies MediaGenerationRequest, ['surface', 'model']));
+        const audio = await stubEngine().generate(...partitionArgs({ surface: 'audio', model: 'suno-v5', length: 9999 } satisfies MediaGenerationRequest, ['surface', 'model']));
+        expect(video.warnings).toEqual([]);
+        expect(audio.warnings).toEqual([]);
+    });
+    it('does not clamp anything on an image request', async () => {
+        const result = await stubEngine().generate(...partitionArgs({ surface: 'image', model: 'leonardo-phoenix', length: 9999, duration: 9999 } satisfies MediaGenerationRequest, ['surface', 'model']));
+        expect(result.warnings).toEqual([]);
+    });
+    it('carries clamp warnings and the provider id into a stub result', async () => {
+        const result = await stubEngine().generate(...partitionArgs({ surface: 'video', model: 'kling-2.0', length: 9999 } satisfies MediaGenerationRequest, ['surface', 'model']));
+        expect(result.providerId).toBe('kling');
+        expect(result.usedStubFallback).toBe(true);
+        expect(result.warnings).toHaveLength(1);
+    });
+    it('names the exact provider and image route in the no-renderer error', async () => {
+        const engine = createMediaDispatchEngine(...partitionArgs({}, []));
+        await expect(engine.generate(...partitionArgs({ surface: 'image', model: 'leonardo-phoenix' } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow('no renderer configured for provider "leonardo" / surface "image" — pass allowStubFallback: true to get placeholder bytes instead, or wire up a real integration for this pair.');
+    });
+    it('names the audio:<kind> route key in the no-renderer error', async () => {
+        const engine = createMediaDispatchEngine(...partitionArgs({}, []));
+        await expect(engine.generate(...partitionArgs({ surface: 'audio', model: 'doubao-tts', audioKind: 'speech' } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow(/no renderer configured for provider "volcengine" \/ surface "audio:speech"/);
+    });
+    it('does not apply the custom-image override to a non-openai image provider', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => b64Image()));
+        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { grok: { apiKey: 'k' }, 'custom-image': { baseUrl: 'https://custom.example/v1', model: 'grok-imagine-image', apiKey: 'c' } } }, []));
+        const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'grok-imagine-image' } satisfies MediaGenerationRequest, ['surface', 'model']));
+        expect(result.providerId).toBe('grok');
+    });
+    it('uses an injected httpClient for the vendor call', async () => {
+        const fetchMock = vi.fn(async () => b64Image());
+        vi.stubGlobal('fetch', fetchMock);
+        const sent: string[] = [];
+        const httpClient: HttpClientPort = {
+            send: async ({ request }) => {
+                sent.push(request.url);
+                const bodyBytes = new Uint8Array(Buffer.from(JSON.stringify({ data: [{ b64_json: Buffer.from('via-client').toString('base64') }] })));
+                return { status: 200, headers: { 'content-type': 'application/json' }, bodyText: Buffer.from(bodyBytes).toString('utf8'), bodyBytes };
+            },
+        };
+        const engine = createMediaDispatchEngine(...partitionArgs({ httpClient, credentials: { openai: { apiKey: 'k' } } }, []));
+        const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'gpt-image-2' } satisfies MediaGenerationRequest, ['surface', 'model']));
+        expect(result.bytes.toString('utf8')).toBe('via-client');
+        expect(sent).toHaveLength(1);
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+    it('refuses a private-network vendor URL by default', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => b64Image()));
+        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { openai: { apiKey: 'k', baseUrl: 'http://127.0.0.1:9/v1' } } }, []));
+        await expect(engine.generate(...partitionArgs({ surface: 'image', model: 'gpt-image-2' } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow(/^egress to '127\.0\.0\.1' \(127\.0\.0\.1\) r/);
+    });
+    it('allows a private-network vendor URL when allowPrivateNetwork is set', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => b64Image()));
+        const engine = createMediaDispatchEngine(...partitionArgs({ allowPrivateNetwork: true, credentials: { openai: { apiKey: 'k', baseUrl: 'http://127.0.0.1:9/v1' } } }, []));
+        const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'gpt-image-2' } satisfies MediaGenerationRequest, ['surface', 'model']));
+        expect(result.bytes.toString('utf8')).toBe('img');
+    });
+    it('surfaces host-supplied outboundMessages in transport refusals', async () => {
+        const fetchMock = vi.fn(async () => b64Image());
+        vi.stubGlobal('fetch', fetchMock);
+        // Opaque marker object: the outbound layer refuses any dispatcher, so no real undici Dispatcher is needed.
+        const dispatcher = {} as NonNullable<RequestInit['dispatcher']>;
+        const engine = createMediaDispatchEngine(...partitionArgs({ outboundMessages: { dispatcherRefused: 'host says: no dispatcher' }, credentials: { openai: { apiKey: 'k' } } }, []));
+        await expect(engine.generate(...partitionArgs({ surface: 'image', model: 'gpt-image-2', requestInit: { dispatcher } } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow('host says: no dispatcher');
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 });
 

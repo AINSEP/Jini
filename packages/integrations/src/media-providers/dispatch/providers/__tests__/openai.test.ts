@@ -206,6 +206,86 @@ describe('renderOpenAISpeech', () => {
     });
 });
 
+describe('renderOpenAISpeech request shape (pinned before refactor)', () => {
+    function speechCtx(overrides: Partial<RenderContext> = {}): RenderContext {
+        return baseCtx({ surface: 'audio', audioKind: 'speech', model: 'gpt-4o-mini-tts', wireModel: 'gpt-4o-mini-tts', ...overrides });
+    }
+    function captureSpeech(): { calls: Array<{ url: string; body: Record<string, unknown>; headers: Record<string, string> }> } {
+        const calls: Array<{ url: string; body: Record<string, unknown>; headers: Record<string, string> }> = [];
+        vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+            calls.push({ url, body: JSON.parse(init.body as string), headers: init.headers as Record<string, string> });
+            return new Response(Buffer.from('abc'), { status: 200 });
+        }));
+        return { calls };
+    }
+    it('sends the trimmed prompt as input', async () => {
+        const { calls } = captureSpeech();
+        await renderOpenAISpeech({ ctx: speechCtx({ prompt: '  hello there  ' }), credentials: { apiKey: 'k1' } });
+        expect(calls[0]!.body.input).toBe('hello there');
+    });
+    it('defaults the input to "This is a test." when the prompt is whitespace-only', async () => {
+        const { calls } = captureSpeech();
+        await renderOpenAISpeech({ ctx: speechCtx({ prompt: '   ' }), credentials: { apiKey: 'k1' } });
+        expect(calls[0]!.body.input).toBe('This is a test.');
+    });
+    it('treats a whitespace-only voice as no voice: alloy, no instructions, no "styled" note', async () => {
+        const { calls } = captureSpeech();
+        const result = await renderOpenAISpeech({ ctx: speechCtx({ voice: '   ' }), credentials: { apiKey: 'k1' } });
+        expect(calls[0]!.body.voice).toBe('alloy');
+        expect(calls[0]!.body).not.toHaveProperty('instructions');
+        expect(result.providerNote).toBe('openai/gpt-4o-mini-tts · alloy · mp3 · 3 bytes');
+    });
+    it('trims a recognized voice id before matching it', async () => {
+        const { calls } = captureSpeech();
+        await renderOpenAISpeech({ ctx: speechCtx({ voice: ' nova ' }), credentials: { apiKey: 'k1' } });
+        expect(calls[0]!.body.voice).toBe('nova');
+    });
+    it('marks the providerNote "styled" when free-form instructions are sent', async () => {
+        captureSpeech();
+        const result = await renderOpenAISpeech({ ctx: speechCtx({ voice: 'whisper softly' }), credentials: { apiKey: 'k1' } });
+        expect(result.providerNote).toBe('openai/gpt-4o-mini-tts · alloy · styled · mp3 · 3 bytes');
+    });
+    it('drops free-form instructions from the body for a model other than gpt-4o-mini-tts but still notes "styled" (reported, not fixed)', async () => {
+        const { calls } = captureSpeech();
+        const result = await renderOpenAISpeech({ ctx: speechCtx({ voice: 'whisper softly', model: 'tts-1', wireModel: 'tts-1' }), credentials: { apiKey: 'k1' } });
+        expect(calls[0]!.body).not.toHaveProperty('instructions');
+        expect(result.providerNote).toBe('openai/tts-1 · alloy · styled · mp3 · 3 bytes');
+    });
+    it('sends the wire model (not the catalog id) on a non-Azure body, with Bearer auth and no api-key header', async () => {
+        const { calls } = captureSpeech();
+        await renderOpenAISpeech({ ctx: speechCtx({ wireModel: 'my-alias' }), credentials: { apiKey: 'k1' } });
+        expect(calls[0]!.body.model).toBe('my-alias');
+        expect(calls[0]!.headers).toEqual({ authorization: 'Bearer k1', 'content-type': 'application/json', 'User-Agent': 'media-provider' });
+    });
+    it('sends both Bearer and api-key headers to an Azure endpoint', async () => {
+        const { calls } = captureSpeech();
+        await renderOpenAISpeech({ ctx: speechCtx(), credentials: { apiKey: 'k1', baseUrl: 'https://x.openai.azure.com/openai/deployments/tts' } });
+        expect(calls[0]!.headers).toEqual({ authorization: 'Bearer k1', 'content-type': 'application/json', 'api-key': 'k1', 'User-Agent': 'media-provider' });
+    });
+});
+
+describe('renderOpenAIImage request/response shape (pinned before refactor)', () => {
+    it('sends Bearer auth without an api-key header and the full gpt-image body on the standard endpoint', async () => {
+        let seen: { body: Record<string, unknown>; headers: Record<string, string> } | undefined;
+        vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+            seen = { body: JSON.parse(init.body as string), headers: init.headers as Record<string, string> };
+            return new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('ab').toString('base64') }] }), { status: 200 });
+        }));
+        const result = await renderOpenAIImage({ ctx: baseCtx({ prompt: '', aspect: '1:1' }), credentials: { apiKey: 'k1' } });
+        expect(seen!.headers).toEqual({ authorization: 'Bearer k1', 'content-type': 'application/json', 'User-Agent': 'media-provider' });
+        expect(seen!.body).toEqual({ prompt: 'A high-quality reference image.', n: 1, size: '1024x1024', model: 'gpt-image-2', quality: 'high' });
+        expect(result.providerNote).toBe('openai/gpt-image-2 · 1:1 · 2 bytes');
+    });
+    it('throws a TypeError on a JSON null body instead of a tagged error (reported, not fixed)', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response('null', { status: 200 })));
+        await expect(renderOpenAIImage({ ctx: baseCtx(), credentials: { apiKey: 'k1' } })).rejects.toThrow(TypeError);
+    });
+    it('keeps the non-JSON error untagged even for an Azure endpoint', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response('oops', { status: 200 })));
+        await expect(renderOpenAIImage({ ctx: baseCtx(), credentials: { apiKey: 'k1', baseUrl: 'https://x.openai.azure.com/openai/deployments/img' } })).rejects.toThrow(/^openai non-JSON response: oops$/);
+    });
+});
+
 vi.mock('@jini-ai/platform/http/guarded', async (importOriginal) => {
   const original = await importOriginal<typeof import('@jini-ai/platform/http/guarded')>();
   const { testNodeGuardedHttpPorts } = await import('../../__tests__/outbound-fixtures.js');

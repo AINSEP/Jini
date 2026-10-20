@@ -38,28 +38,36 @@ export function withRequestInit(
   };
 }
 
+/**
+ * A magic-byte signature: every `[offset, bytes]` run must match. No separate
+ * minimum-length check is needed: a read past the end of the buffer is
+ * `undefined`, which never equals a magic byte, so a too-short buffer fails.
+ */
+interface ImageSignature {
+  readonly ext: string;
+  readonly runs: ReadonlyArray<readonly [offset: number, magic: readonly number[]]>;
+}
+
+// PNG (`89 50 4E 47`, min 8 bytes) has no entry: it is also the default, so
+// matching it explicitly could never change the result.
+const IMAGE_SIGNATURES: readonly ImageSignature[] = [
+  { ext: '.jpg', runs: [[0, [0xff, 0xd8, 0xff]]] },
+  {
+    ext: '.webp',
+    runs: [
+      [0, [0x52, 0x49, 0x46, 0x46]], // RIFF
+      [8, [0x57, 0x45, 0x42, 0x50]], // WEBP
+    ],
+  },
+];
+
+function matchesSignature(bytes: Buffer, signature: ImageSignature): boolean {
+  return signature.runs.every(([offset, magic]) => magic.every((byte, i) => bytes[offset + i] === byte));
+}
+
 /** Sniffs an image byte buffer's format from its magic bytes (jpg/png/webp), defaulting to `.png`. */
 export function sniffImageExt(bytes: Buffer): string {
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
-    return '.jpg';
-  }
-  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
-    return '.png';
-  }
-  if (
-    bytes.length >= 12 &&
-    bytes[0] === 0x52 &&
-    bytes[1] === 0x49 &&
-    bytes[2] === 0x46 &&
-    bytes[3] === 0x46 &&
-    bytes[8] === 0x57 &&
-    bytes[9] === 0x45 &&
-    bytes[10] === 0x42 &&
-    bytes[11] === 0x50
-  ) {
-    return '.webp';
-  }
-  return '.png';
+  return IMAGE_SIGNATURES.find((signature) => matchesSignature(bytes, signature))?.ext ?? '.png';
 }
 
 export const AZURE_DEFAULT_API_VERSION = '2024-02-01';
@@ -91,58 +99,58 @@ export function normalizeOpenAICompatiblePath(
 ): string {
   const strippedPath = pathname.replace(/\/+$/, '');
   const generationsSuffix = `/${endpoint}/generations`;
-  const editsSuffix = endpoint === 'images' ? '/images/edits' : null;
-  if (strippedPath.endsWith(generationsSuffix)) {
-    if (mode === 'generations') return strippedPath;
-    return endpoint === 'images' ? `${strippedPath.slice(0, -generationsSuffix.length)}${editsSuffix}` : strippedPath;
+  if (endpoint === 'videos') {
+    // Videos have no edits endpoint, so `edits` mode still targets generations.
+    return strippedPath.endsWith(generationsSuffix) ? strippedPath : `${strippedPath}${generationsSuffix}`;
   }
-  if (editsSuffix && strippedPath.endsWith(editsSuffix)) {
-    if (mode === 'edits') return strippedPath;
-    return `${strippedPath.slice(0, -editsSuffix.length)}${generationsSuffix}`;
-  }
-  return mode === 'edits' && editsSuffix ? `${strippedPath}${editsSuffix}` : `${strippedPath}${generationsSuffix}`;
+  const editsSuffix = '/images/edits';
+  const knownSuffix = [generationsSuffix, editsSuffix].find((suffix) => strippedPath.endsWith(suffix));
+  const prefix = knownSuffix ? strippedPath.slice(0, -knownSuffix.length) : strippedPath;
+  return `${prefix}${mode === 'edits' ? editsSuffix : generationsSuffix}`;
 }
 
-/** Builds the full `/{endpoint}/generations` URL, preserving any user-supplied query string. */
-export function buildOpenAICompatibleGenerationUrl(baseUrl: string, endpoint: 'images' | 'videos'): string {
+/** Points `baseUrl`'s path at the given endpoint/mode, keeping any query string; an unparseable base URL is normalized as a bare path. */
+function buildOpenAICompatibleUrl(baseUrl: string, endpoint: 'images' | 'videos', mode: 'generations' | 'edits'): string {
   let parsed: URL;
   try {
     parsed = new URL(baseUrl);
   } catch {
-    const stripped = baseUrl.replace(/\/$/, '');
-    return normalizeOpenAICompatiblePath(stripped, endpoint, 'generations');
+    return normalizeOpenAICompatiblePath(baseUrl, endpoint, mode);
   }
-  parsed.pathname = normalizeOpenAICompatiblePath(parsed.pathname, endpoint, 'generations');
+  parsed.pathname = normalizeOpenAICompatiblePath(parsed.pathname, endpoint, mode);
   return parsed.toString();
+}
+
+/** Appends the default Azure `api-version` when the endpoint is Azure and the caller didn't supply one. */
+function applyDefaultAzureApiVersion(parsed: URL, isAzure: boolean): void {
+  if (isAzure && !parsed.searchParams.has('api-version')) {
+    parsed.searchParams.set('api-version', AZURE_DEFAULT_API_VERSION);
+  }
+}
+
+/** Builds the full `/{endpoint}/generations` URL, preserving any user-supplied query string. */
+export function buildOpenAICompatibleGenerationUrl(baseUrl: string, endpoint: 'images' | 'videos'): string {
+  return buildOpenAICompatibleUrl(baseUrl, endpoint, 'generations');
 }
 
 /** Builds the `/images/generations` URL, appending the default Azure `api-version` when the caller didn't supply one. */
 export function buildOpenAIImageUrl(baseUrl: string, isAzure: boolean): string {
+  const url = buildOpenAICompatibleGenerationUrl(baseUrl, 'images');
   let parsed: URL;
   try {
-    parsed = new URL(buildOpenAICompatibleGenerationUrl(baseUrl, 'images'));
+    parsed = new URL(url);
   } catch {
     // Bad URL — fall back to naive concat so the upstream error is
     // surfaced through the normal HTTP path rather than a parse crash.
-    return buildOpenAICompatibleGenerationUrl(baseUrl, 'images');
+    return url;
   }
-  if (isAzure && !parsed.searchParams.has('api-version')) {
-    parsed.searchParams.set('api-version', AZURE_DEFAULT_API_VERSION);
-  }
+  applyDefaultAzureApiVersion(parsed, isAzure);
   return parsed.toString();
 }
 
 /** Builds the `/images/edits` URL (used when a reference image is present). */
 export function buildOpenAIImageEditUrl(baseUrl: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(baseUrl);
-  } catch {
-    const stripped = baseUrl.replace(/\/$/, '');
-    return normalizeOpenAICompatiblePath(stripped, 'images', 'edits');
-  }
-  parsed.pathname = normalizeOpenAICompatiblePath(parsed.pathname, 'images', 'edits');
-  return parsed.toString();
+  return buildOpenAICompatibleUrl(baseUrl, 'images', 'edits');
 }
 
 /** Builds the `/videos/generations` URL. */
@@ -150,25 +158,31 @@ export function buildOpenAIVideoUrl(baseUrl: string): string {
   return buildOpenAICompatibleGenerationUrl(baseUrl, 'videos');
 }
 
-/** Picks an image `size` string tuned to the model family + requested aspect ratio. */
+// gpt-image-1.5 / gpt-image-2 accept arbitrary sizes up to 4096; concrete
+// sizes tuned to common aspects are picked so the API never negotiates
+// them down silently.
+const GPT_IMAGE_SIZES: ReadonlyMap<string, string> = new Map([
+  ['16:9', '1792x1024'],
+  ['9:16', '1024x1792'],
+  ['4:3', '1408x1056'],
+  ['3:4', '1056x1408'],
+]);
+const DALLE_3_SIZES: ReadonlyMap<string, string> = new Map([
+  ['16:9', '1792x1024'],
+  ['9:16', '1024x1792'],
+]);
+// dall-e-2 only supports 256/512/1024 squares.
+const SQUARE_ONLY_SIZES: ReadonlyMap<string, string> = new Map();
+
+function sizeTableFor(model: string): ReadonlyMap<string, string> {
+  if (model.startsWith('gpt-image-')) return GPT_IMAGE_SIZES;
+  if (model === 'dall-e-3') return DALLE_3_SIZES;
+  return SQUARE_ONLY_SIZES;
+}
+
+/** Picks an image `size` string tuned to the model family + requested aspect ratio, defaulting to the `1024x1024` square. */
 export function openaiSizeFor(model: string, aspect?: string): string {
-  // gpt-image-1.5 / gpt-image-2 accept arbitrary sizes up to 4096; concrete
-  // sizes tuned to common aspects are picked so the API never negotiates
-  // them down silently.
-  if (model.startsWith('gpt-image-')) {
-    if (aspect === '16:9') return '1792x1024';
-    if (aspect === '9:16') return '1024x1792';
-    if (aspect === '4:3') return '1408x1056';
-    if (aspect === '3:4') return '1056x1408';
-    return '1024x1024';
-  }
-  if (model === 'dall-e-3') {
-    if (aspect === '16:9') return '1792x1024';
-    if (aspect === '9:16') return '1024x1792';
-    return '1024x1024';
-  }
-  // dall-e-2 only supports 256/512/1024 squares.
-  return '1024x1024';
+  return sizeTableFor(model).get(aspect ?? '') ?? '1024x1024';
 }
 
 /** Builds the `/audio/speech` URL, appending the default Azure `api-version` when the caller didn't supply one. */
@@ -181,9 +195,7 @@ export function buildOpenAISpeechUrl(baseUrl: string, isAzure: boolean): string 
     return `${stripped}/audio/speech`;
   }
   parsed.pathname = parsed.pathname.replace(/\/+$/, '') + '/audio/speech';
-  if (isAzure && !parsed.searchParams.has('api-version')) {
-    parsed.searchParams.set('api-version', AZURE_DEFAULT_API_VERSION);
-  }
+  applyDefaultAzureApiVersion(parsed, isAzure);
   return parsed.toString();
 }
 
@@ -209,22 +221,35 @@ export async function bytesFromOpenAICompatibleData(
   { data, providerTag }: { data: unknown; providerTag: string },
   { requestInit = {}, ...outbound }: MediaOutboundOptions & { requestInit?: MediaGenerationRequestInit } = {},
 ): Promise<Buffer> {
-  const record = data as { data?: unknown } | null;
-  const entry = record && Array.isArray(record.data) ? (record.data[0] as Record<string, unknown> | undefined) : undefined;
+  const entry = firstDataEntry(data);
   if (!entry) throw new Error(`${providerTag} response had no data[0]`);
-  if (typeof entry.b64_json === 'string' && entry.b64_json) {
-    const raw = entry.b64_json.includes(',') ? entry.b64_json.slice(entry.b64_json.indexOf(',') + 1) : entry.b64_json;
-    return Buffer.from(raw, 'base64');
+  const b64Json = stringOrUndefined(entry.b64_json);
+  if (b64Json) {
+    // A data-URL (`data:<mime>;base64,<payload>`) keeps only what follows its first comma;
+    // with no comma `indexOf` is -1, so the whole string is decoded.
+    return Buffer.from(b64Json.slice(b64Json.indexOf(',') + 1), 'base64');
   }
-  if (typeof entry.url === 'string' && entry.url) {
+  const url = stringOrUndefined(entry.url);
+  if (url) {
     // Downloading already-generated bytes from the vendor's CDN, not waiting on generation itself
     // — UPLOAD-class (2min), not GENERATE-class (10min): see FETCH_TIMEOUT_MS's own doc.
-    const mediaResp = await assertAndFetchExternalAsset({ url: entry.url }, { ...outbound, init: requestInit });
+    const mediaResp = await assertAndFetchExternalAsset({ url }, { ...outbound, init: requestInit });
     if (!mediaResp.ok) {
       throw new Error(`${providerTag} media fetch ${mediaResp.status}`);
     }
-    const arr = await mediaResp.arrayBuffer();
-    return Buffer.from(arr);
+    return Buffer.from(await mediaResp.arrayBuffer());
   }
   throw new Error(`${providerTag} response had neither b64_json nor url`);
+}
+
+/** `data.data[0]` of an OpenAI-compatible response, or `undefined` when the body has no such entry. */
+function firstDataEntry(data: unknown): Record<string, unknown> | undefined {
+  const record = data as { data?: unknown } | null;
+  if (!record || !Array.isArray(record.data)) return undefined;
+  return (record.data[0] as Record<string, unknown> | null | undefined) ?? undefined;
+}
+
+/** Narrows to a string; callers treat an empty string as absent through their own truthiness check. */
+function stringOrUndefined(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
 }

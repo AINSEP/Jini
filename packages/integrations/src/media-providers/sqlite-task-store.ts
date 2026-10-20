@@ -53,35 +53,11 @@ import type {
   MediaTaskStore,
 } from './task-store.js';
 
-const VALID_STATUSES: ReadonlySet<MediaTaskStatus> = new Set([
-  'queued',
-  'running',
-  'done',
-  'failed',
-  'interrupted',
-]);
-const TERMINAL_STATUSES: ReadonlySet<MediaTaskStatus> = new Set(['done', 'failed', 'interrupted']);
-
-// Mirrors task-store.ts's own ALLOWED_TRANSITIONS exactly (CR-013: enum
-// membership alone doesn't prove a transition is legal, e.g. done -> running).
-const ALLOWED_TRANSITIONS: Readonly<Record<MediaTaskStatus, ReadonlySet<MediaTaskStatus>>> = {
-  queued: new Set(['queued', 'running', 'done', 'failed', 'interrupted']),
-  running: new Set(['running', 'done', 'failed', 'interrupted']),
-  done: new Set(['done']),
-  failed: new Set(['failed']),
-  interrupted: new Set(['interrupted']),
-};
-
-const INTERRUPTED_ERROR: MediaTaskError = {
-  message: 'media task interrupted by daemon restart',
-  code: 'DAEMON_RESTART',
-};
-
-function assertValidStatus(status: MediaTaskStatus): void {
-  if (!VALID_STATUSES.has(status)) {
-    throw new RangeError(`Invalid media task status: "${status}"`);
-  }
-}
+// Shared with task-store.ts's in-memory adapter (task-lifecycle.ts), so the
+// two cannot drift: CR-013's transition graph (enum membership alone doesn't
+// prove a transition is legal, e.g. done -> running), duplicate-free status
+// sets, and the create/patch/reconcile row arithmetic all live there once.
+import { applyTaskPatch, assertValidTerminalTtl, buildNewTask, reconcileAction } from './task-lifecycle.js';
 
 interface TaskRow {
   id: string;
@@ -235,24 +211,7 @@ export async function createSqliteMediaTaskStore(
     if (getStmt.get(input.id)) {
       throw new Error(`media task "${input.id}" already exists`);
     }
-    const status = input.status ?? 'queued';
-    assertValidStatus(status);
-    const now = Date.now();
-    const startedAt = input.startedAt ?? now;
-    const task: MediaTask = {
-      id: input.id,
-      ownerRef: input.ownerRef,
-      status,
-      progress: input.progress ? [...input.progress] : [],
-      file: input.file == null ? null : (structuredClone(input.file) as unknown),
-      error: input.error == null ? null : { ...input.error },
-      startedAt,
-      endedAt: null,
-      createdAt: now,
-      updatedAt: now,
-      ...(input.surface !== undefined ? { surface: input.surface } : {}),
-      ...(input.model !== undefined ? { model: input.model } : {}),
-    };
+    const task = buildNewTask(input, Date.now());
     writeRow(task, true);
     return task;
   });
@@ -260,28 +219,7 @@ export async function createSqliteMediaTaskStore(
   const updateTxn = db.transaction((id: string, patch: MediaTaskPatch): MediaTask | null => {
     const row = getStmt.get(id);
     if (!row) return null;
-    const existing = rowToTask(row);
-    const status = patch.status ?? existing.status;
-    assertValidStatus(status);
-    if (!ALLOWED_TRANSITIONS[existing.status].has(status)) {
-      throw new RangeError(`Invalid media task transition: "${existing.status}" -> "${status}"`);
-    }
-    const surface = 'surface' in patch ? (patch.surface ?? undefined) : existing.surface;
-    const model = 'model' in patch ? (patch.model ?? undefined) : existing.model;
-    const next: MediaTask = {
-      id: existing.id,
-      ownerRef: existing.ownerRef,
-      status,
-      progress: patch.progress ? [...patch.progress] : existing.progress,
-      file: 'file' in patch ? (patch.file == null ? null : (structuredClone(patch.file) as unknown)) : existing.file,
-      error: 'error' in patch ? (patch.error == null ? null : { ...patch.error }) : existing.error,
-      startedAt: existing.startedAt,
-      endedAt: 'endedAt' in patch ? (patch.endedAt ?? null) : existing.endedAt,
-      createdAt: existing.createdAt,
-      updatedAt: Date.now(),
-      ...(surface !== undefined ? { surface } : {}),
-      ...(model !== undefined ? { model } : {}),
-    };
+    const next = applyTaskPatch(rowToTask(row), patch, Date.now());
     writeRow(next, false);
     return next;
   });
@@ -293,19 +231,11 @@ export async function createSqliteMediaTaskStore(
     let deleted = 0;
     for (const row of selectAllStmt.all()) {
       const task = rowToTask(row);
-      if (task.status === 'queued' || task.status === 'running') {
-        const next: MediaTask = {
-          ...task,
-          status: 'interrupted',
-          error: INTERRUPTED_ERROR,
-          endedAt: task.endedAt ?? now,
-          updatedAt: now,
-        };
-        writeRow(next, false);
+      const action = reconcileAction(task, now, cutoff);
+      if (action.kind === 'interrupt') {
+        writeRow(action.next, false);
         interrupted += 1;
-        continue;
-      }
-      if (TERMINAL_STATUSES.has(task.status) && (task.endedAt ?? task.updatedAt) < cutoff) {
+      } else if (action.kind === 'delete') {
         deleteStmt.run(task.id);
         deleted += 1;
       }
@@ -338,9 +268,7 @@ export async function createSqliteMediaTaskStore(
     },
 
     async reconcileOnBoot(options: MediaTaskReconcileOptions): Promise<MediaTaskReconcileResult> {
-      if (!Number.isFinite(options.terminalTtlMs) || options.terminalTtlMs < 0) {
-        throw new RangeError(`Invalid terminalTtlMs: ${options.terminalTtlMs} must be a non-negative finite number`);
-      }
+      assertValidTerminalTtl(options.terminalTtlMs);
       return reconcileTxn(options);
     },
 

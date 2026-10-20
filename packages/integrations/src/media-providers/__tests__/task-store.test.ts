@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createInMemoryMediaTaskStore } from '../task-store.js';
+import type { MediaTaskStore } from '../task-store.js';
+import { describeMediaTaskStorePins } from './task-store-pins.js';
 
 describe('createInMemoryMediaTaskStore — lifecycle', () => {
   it('create() defaults status to queued and returns the full row', async () => {
@@ -273,4 +275,12 @@ describe('createInMemoryMediaTaskStore — CR-013 invariants', () => {
     expect(first).not.toBe(second);
     expect(first?.progress).not.toBe(second?.progress);
   });
+});
+
+describe('createInMemoryMediaTaskStore — shared pins', () => {
+  let store: MediaTaskStore;
+  beforeEach(() => {
+    store = createInMemoryMediaTaskStore();
+  });
+  describeMediaTaskStorePins({ label: 'in-memory', getStore: () => store });
 });

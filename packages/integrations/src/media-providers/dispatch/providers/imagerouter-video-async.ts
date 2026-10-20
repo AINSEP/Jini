@@ -33,7 +33,7 @@ import { bytesFromOpenAICompatibleData, parseOpenAICompatibleJson } from '../ope
 import { imageRouterSizeFor } from './imagerouter.js';
 import { withUnsignedRequestInit } from '../polling-adapter.js';
 import type { PollOutcome, PollingVendorAdapter, SubmitOutcome, UnsignedVendorRequest } from '../polling-adapter.js';
-import type { RenderContext } from '../types.js';
+import type { RenderContext, RenderResult } from '../types.js';
 
 const DEFAULT_BASE_URL = 'https://api.imagerouter.io/v1/openai';
 
@@ -64,6 +64,43 @@ function retryAfterMsFrom(resp: Response): number | undefined {
   return Number.isFinite(seconds) && seconds > 0 ? seconds * 1_000 : undefined;
 }
 
+/** The wire model, size and length one request is for — derived from the context, so submit and poll agree. */
+function videoMetaFor({ ctx, config }: { ctx: RenderContext; config: ImageRouterVideoConfig }): ImageRouterVideoMeta {
+  return {
+    wireModel: (config.wireModel || ctx.wireModel).trim(),
+    size: imageRouterSizeFor({ aspect: ctx.aspect, surface: 'video' }),
+    seconds: typeof ctx.length === 'number' ? ctx.length : 'auto',
+  };
+}
+
+/** Decodes an OpenAI-shaped `{ data: [...] }` body into the completed render result. */
+async function completedVideo({ data, ctx, meta }: { data: Record<string, unknown>; ctx: RenderContext; meta: ImageRouterVideoMeta }): Promise<{ kind: 'complete'; result: RenderResult }> {
+  const bytes = await bytesFromOpenAICompatibleData({ data, providerTag: 'imagerouter video' }, ctx);
+  const { wireModel, size, seconds } = meta;
+  return {
+    kind: 'complete',
+    result: {
+      bytes,
+      providerNote: `imagerouter/${wireModel} · ${size} · ${seconds === 'auto' ? 'auto' : `${seconds}s`} · ${bytes.length} bytes`,
+      suggestedExt: '.mp4',
+    },
+  };
+}
+
+/** A vendor-reported terminal failure, or `undefined` while the job is not in a failed state. */
+function failedOutcome(data: Record<string, unknown>): PollOutcome | undefined {
+  const status = typeof data.status === 'string' ? data.status.toLowerCase() : '';
+  if (!TERMINAL_FAILED_STATUSES.has(status)) return undefined;
+  const error = data.error as { message?: unknown } | undefined;
+  const detail = typeof error?.message === 'string' && error.message ? error.message : status;
+  return { kind: 'failed', message: `imagerouter video job failed: ${detail}` };
+}
+
+function retryAfterField(resp: Response): { retryAfterMs?: number } {
+  const retryAfterMs = retryAfterMsFrom(resp);
+  return retryAfterMs !== undefined ? { retryAfterMs } : {};
+}
+
 /**
  * Builds the ImageRouter video polling adapter for a given endpoint configuration.
  *
@@ -71,9 +108,8 @@ function retryAfterMsFrom(resp: Response): number | undefined {
  *   context's own `wireModel`.
  * @complexity O(1) per built request; one vendor round trip per parse.
  */
-export function createImageRouterVideoPollingAdapter(_required: Record<string, never>, optional: ImageRouterVideoConfig = {}
+export function createImageRouterVideoPollingAdapter(_required: Record<string, never>, config: ImageRouterVideoConfig = {}
 ): PollingVendorAdapter<ImageRouterVideoMeta> {
-    const config = optional;
   const baseUrl = trimTrailingSlash((config.baseUrl || DEFAULT_BASE_URL).trim());
 
   return {
@@ -83,24 +119,21 @@ export function createImageRouterVideoPollingAdapter(_required: Record<string, n
     submitIsIdempotent: false,
 
     buildSubmitRequest({ ctx }: { ctx: RenderContext }): UnsignedVendorRequest<ImageRouterVideoMeta> {
-      const wireModel = (config.wireModel || ctx.wireModel).trim();
-      const seconds = typeof ctx.length === 'number' ? ctx.length : 'auto';
-      const size = imageRouterSizeFor({ aspect: ctx.aspect, surface: 'video' });
-
+      const meta = videoMetaFor({ ctx, config });
       return {
         url: `${baseUrl}/videos/generations`,
-        init: withUnsignedRequestInit({ ctx: ctx, init: {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
+        init: withUnsignedRequestInit({ ctx, init: {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
             prompt: ctx.prompt || 'A short cinematic clip.',
-            model: wireModel,
-            size,
-            seconds,
+            model: meta.wireModel,
+            size: meta.size,
+            seconds: meta.seconds,
             response_format: 'b64_json',
-        }),
-    } }),
-        meta: { wireModel, size, seconds },
+          }),
+        } }),
+        meta,
       };
     },
 
@@ -108,23 +141,11 @@ export function createImageRouterVideoPollingAdapter(_required: Record<string, n
     ): Promise<SubmitOutcome> {
       const data = (await parseOpenAICompatibleJson(resp, 'imagerouter video')) as Record<string, unknown>;
 
-      if (Array.isArray(data.data)) {
-        const bytes = await bytesFromOpenAICompatibleData({ data, providerTag: 'imagerouter video' }, ctx);
-        const { wireModel, size, seconds } = request.meta;
-        return {
-          kind: 'complete',
-          result: {
-            bytes,
-            providerNote: `imagerouter/${wireModel} · ${size} · ${seconds === 'auto' ? 'auto' : `${seconds}s`} · ${bytes.length} bytes`,
-            suggestedExt: '.mp4',
-          },
-        };
-      }
+      if (Array.isArray(data.data)) return completedVideo({ data, ctx, meta: request.meta });
 
       if (typeof data.id === 'string' && data.id) {
         // Only the job handle is persisted — no credential, no request body.
-        const retryAfterMs = retryAfterMsFrom(resp);
-        return { kind: 'pending', state: { jobId: data.id }, ...(retryAfterMs !== undefined ? { retryAfterMs } : {}) };
+        return { kind: 'pending', state: { jobId: data.id }, ...retryAfterField(resp) };
       }
 
       throw new Error('imagerouter video submit returned neither generated data nor a job id');
@@ -137,38 +158,17 @@ export function createImageRouterVideoPollingAdapter(_required: Record<string, n
       }
       return {
         url: `${baseUrl}/videos/${encodeURIComponent(jobId)}`,
-        init: withUnsignedRequestInit({ ctx: ctx, init: { method: 'GET', headers: { accept: 'application/json' } } }),
-        meta: { wireModel: (config.wireModel || ctx.wireModel).trim(), size: imageRouterSizeFor({ aspect: ctx.aspect, surface: 'video' }), seconds: typeof ctx.length === 'number' ? ctx.length : 'auto' },
+        init: withUnsignedRequestInit({ ctx, init: { method: 'GET', headers: { accept: 'application/json' } } }),
+        meta: videoMetaFor({ ctx, config }),
       };
     },
 
-    async parsePollResponse({ resp, ctx, state: _state }: { resp: Response; ctx: RenderContext; state: Readonly<Record<string, unknown>> }): Promise<PollOutcome> {
+    async parsePollResponse({ resp, ctx }: { resp: Response; ctx: RenderContext; state: Readonly<Record<string, unknown>> }): Promise<PollOutcome> {
       const data = (await parseOpenAICompatibleJson(resp, 'imagerouter video')) as Record<string, unknown>;
-      const status = typeof data.status === 'string' ? data.status.toLowerCase() : '';
-
-      if (TERMINAL_FAILED_STATUSES.has(status)) {
-        const error = data.error as { message?: unknown } | undefined;
-        const detail = typeof error?.message === 'string' && error.message ? error.message : status;
-        return { kind: 'failed', message: `imagerouter video job failed: ${detail}` };
-      }
-
-      if (Array.isArray(data.data)) {
-        const bytes = await bytesFromOpenAICompatibleData({ data, providerTag: 'imagerouter video' }, ctx);
-        const wireModel = (config.wireModel || ctx.wireModel).trim();
-        const size = imageRouterSizeFor({ aspect: ctx.aspect, surface: 'video' });
-        const seconds = typeof ctx.length === 'number' ? ctx.length : 'auto';
-        return {
-          kind: 'complete',
-          result: {
-            bytes,
-            providerNote: `imagerouter/${wireModel} · ${size} · ${seconds === 'auto' ? 'auto' : `${seconds}s`} · ${bytes.length} bytes`,
-            suggestedExt: '.mp4',
-          },
-        };
-      }
-
-      const retryAfterMs = retryAfterMsFrom(resp);
-      return { kind: 'pending', ...(retryAfterMs !== undefined ? { retryAfterMs } : {}) };
+      const failed = failedOutcome(data);
+      if (failed) return failed;
+      if (Array.isArray(data.data)) return completedVideo({ data, ctx, meta: videoMetaFor({ ctx, config }) });
+      return { kind: 'pending', ...retryAfterField(resp) };
     },
   };
 }

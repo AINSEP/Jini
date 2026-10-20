@@ -31,6 +31,25 @@ export async function fetchMediaOutbound(
   { init = {}, httpClient, allowPrivateNetwork, dns, outboundMessages }: MediaOutboundOptions & { init?: RequestInit; dns?: DnsResolver } = {},
 ): Promise<Response> {
   const messages = { ...defaultMediaOutboundMessages, ...outboundMessages };
+  // Every refusal happens before a client is built or any I/O starts.
+  const { method, body } = validateMediaWireRequest({ init, messages });
+  const client = httpClient ?? createDefaultMediaClient({ allowPrivateNetwork, dns });
+  return guardedFetch({ client, url, timeoutMs }, {
+    method,
+    ...(init.headers === undefined ? {} : { headers: init.headers }),
+    ...(body == null ? {} : { body }),
+    ...(init.signal == null ? {} : { signal: init.signal }),
+    totalDeadlineMs: timeoutMs,
+    redirect: 'error',
+  });
+}
+
+/** Refuse, in this order: a raw dispatcher, a method outside the guarded client's set, a non-text body.
+ * @throws TypeError carrying the matching (possibly host-overridden) message.
+ */
+function validateMediaWireRequest(
+  { init, messages }: { init: RequestInit; messages: typeof defaultMediaOutboundMessages },
+): { method: HttpRequest['method']; body: string | URLSearchParams | null | undefined } {
   if (init.dispatcher !== undefined) throw new TypeError(messages.dispatcherRefused);
   const method = (init.method ?? 'GET').toUpperCase();
   if (!isMediaMethod(method)) throw new TypeError(messages.unsupportedMethod);
@@ -38,7 +57,15 @@ export async function fetchMediaOutbound(
   if (body != null && typeof body !== 'string' && !(body instanceof URLSearchParams)) {
     throw new TypeError(messages.unsupportedBody);
   }
-  const client = httpClient ?? createHttpClient({
+  return { method, body };
+}
+
+/** The default policy client: public http(s) peers only unless the caller explicitly opts into
+ * private-network development, never following redirects. */
+function createDefaultMediaClient(
+  { allowPrivateNetwork, dns }: { allowPrivateNetwork: boolean | undefined; dns: DnsResolver | undefined },
+): HttpClientPort {
+  return createHttpClient({
     ...createNodeGuardedHttpPorts({}),
     ...(dns === undefined ? {} : { dns }),
     userAgent: 'media-provider',
@@ -52,14 +79,6 @@ export async function fetchMediaOutbound(
       maxResponseBytes: 96 * 1024 * 1024,
       maxDecompressedBytes: 96 * 1024 * 1024,
     },
-  });
-  return guardedFetch({ client, url, timeoutMs }, {
-    method,
-    ...(init.headers === undefined ? {} : { headers: init.headers }),
-    ...(body == null ? {} : { body }),
-    ...(init.signal == null ? {} : { signal: init.signal }),
-    totalDeadlineMs: timeoutMs,
-    redirect: 'error',
   });
 }
 

@@ -262,6 +262,54 @@ describe('renderSenseAudioImage', () => {
     });
 });
 
+describe('renderSenseAudioImage response envelope (pinned before refactor)', () => {
+    const PUBLIC_URL = 'http://203.0.113.5/out.png';
+    function imageCtx(): RenderContext {
+        return baseCtx({ surface: 'image', audioKind: undefined, model: 'senseaudio-image-2.0-260319', wireModel: 'senseaudio-image-2.0-260319', prompt: 'a red bicycle' });
+    }
+    function stubEnvelope(envelope: unknown): ReturnType<typeof vi.fn> {
+        const fetchMock = vi.fn(async (url: string) => {
+            if (url === 'https://api.senseaudio.cn/v1/image/sync') return okResponse(envelope);
+            if (url === PUBLIC_URL) return new Response(Buffer.from('img'), { status: 200 });
+            throw new Error(`unexpected fetch: ${url}`);
+        });
+        vi.stubGlobal('fetch', fetchMock);
+        return fetchMock;
+    }
+    it('treats a base_resp without status_code as a failure ("api error undefined")', async () => {
+        stubEnvelope({ base_resp: {}, url: PUBLIC_URL });
+        await expect(renderSenseAudioImage({ ctx: imageCtx(), credentials: { apiKey: 'sa-test' } })).rejects.toThrow(/^senseaudio image api error undefined: unknown$/);
+    });
+    it('reports the base_resp failure ahead of an error_message', async () => {
+        stubEnvelope({ base_resp: { status_code: 7, status_msg: 'bad' }, error_message: 'other' });
+        await expect(renderSenseAudioImage({ ctx: imageCtx(), credentials: { apiKey: 'sa-test' } })).rejects.toThrow(/^senseaudio image api error 7: bad$/);
+    });
+    it('downloads when base_resp is ok and error_message is an empty string', async () => {
+        stubEnvelope({ base_resp: { status_code: 0 }, error_message: '', url: PUBLIC_URL });
+        const result = await renderSenseAudioImage({ ctx: imageCtx(), credentials: { apiKey: 'sa-test' } });
+        expect(result.bytes.toString('utf8')).toBe('img');
+    });
+    it('ignores a non-string error_message', async () => {
+        // Malformed-input fixture: error_message deliberately not a string.
+        stubEnvelope({ error_message: 5, url: PUBLIC_URL });
+        const result = await renderSenseAudioImage({ ctx: imageCtx(), credentials: { apiKey: 'sa-test' } });
+        expect(result.providerNote).toBe('senseaudio/senseaudio-image-2.0-260319 · 1024x1024 · 3 bytes');
+    });
+    it('reports a missing url when url is not a string', async () => {
+        const fetchMock = stubEnvelope({ url: 42 });
+        await expect(renderSenseAudioImage({ ctx: imageCtx(), credentials: { apiKey: 'sa-test' } })).rejects.toThrow(/^senseaudio image response missing url$/);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    it('quotes the truncated body in the non-JSON error', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response('<html>', { status: 200 })));
+        await expect(renderSenseAudioImage({ ctx: imageCtx(), credentials: { apiKey: 'sa-test' } })).rejects.toThrow(/^senseaudio image non-JSON: <html>$/);
+    });
+    it('throws a TypeError on a JSON null body instead of a tagged error (reported, not fixed)', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response('null', { status: 200 })));
+        await expect(renderSenseAudioImage({ ctx: imageCtx(), credentials: { apiKey: 'sa-test' } })).rejects.toThrow(TypeError);
+    });
+});
+
 vi.mock('@jini-ai/platform/http/guarded', async (importOriginal) => {
   const original = await importOriginal<typeof import('@jini-ai/platform/http/guarded')>();
   const { testNodeGuardedHttpPorts } = await import('../../__tests__/outbound-fixtures.js');
