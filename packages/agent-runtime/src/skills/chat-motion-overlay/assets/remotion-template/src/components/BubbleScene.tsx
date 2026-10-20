@@ -27,21 +27,25 @@ const estimateCharWidth = (char: string) => {
   return BUBBLE_FONT_SIZE * 1.02;
 };
 
-const measureTextWidth = (text: string) => {
-  if (typeof document === "undefined") {
-    return Array.from(text).reduce((sum, char) => sum + estimateCharWidth(char), 0);
-  }
+const estimateTextWidth = ({text}: {text: string}) =>
+  Array.from(text).reduce((sum, char) => sum + estimateCharWidth(char), 0);
+
+/** The cached 2d context used to measure bubble text, or null when no canvas is available (SSR, detached document). */
+const measuringContext = () => {
+  if (typeof document === "undefined") return null;
   const win = document.defaultView as (Window & {[CANVAS_CACHE_KEY]?: HTMLCanvasElement}) | null;
-  if (!win) {
-    return Array.from(text).reduce((sum, char) => sum + estimateCharWidth(char), 0);
-  }
+  if (!win) return null;
   const canvas = win[CANVAS_CACHE_KEY] ?? document.createElement("canvas");
   if (!win[CANVAS_CACHE_KEY]) {
     win[CANVAS_CACHE_KEY] = canvas;
   }
-  const context = canvas.getContext("2d");
+  return canvas.getContext("2d");
+};
+
+const measureTextWidth = (text: string) => {
+  const context = measuringContext();
   if (!context) {
-    return Array.from(text).reduce((sum, char) => sum + estimateCharWidth(char), 0);
+    return estimateTextWidth({text});
   }
   context.font = `${BUBBLE_FONT_WEIGHT} ${BUBBLE_FONT_SIZE}px ${FONT_FAMILY}`;
   return context.measureText(text).width;
@@ -84,56 +88,84 @@ const bubbleWidthFor = (text: string, maxTextWidth: number) => {
   return Math.min(maxTextWidth, widestLine + BUBBLE_WIDTH_SAFETY) + BUBBLE_HORIZONTAL_PADDING;
 };
 
+type Container = ChatSpec["sceneConfig"]["container"];
+type Message = ChatSpec["messages"][number];
+
+const SIDE_STYLE = {
+  left: {align: "flex-start", flexDirection: "row", transformOrigin: "left center", slideFrom: -26},
+  right: {align: "flex-end", flexDirection: "row-reverse", transformOrigin: "right center", slideFrom: 26},
+} as const;
+
+const EMPHASIS_STYLE = {
+  highlight: {boxShadow: "0 8px 26px rgba(236,135,120,0.18)", border: "2px solid rgba(235,135,120,0.45)"},
+  plain: {boxShadow: "0 2px 6px rgba(0,0,0,0.05)", border: "1px solid rgba(0,0,0,0.04)"},
+} as const;
+
+/** Wrapped text, rendered width and wrap mode of one bubble's text. */
+const bubbleTextLayout = ({text, container}: {text: string; container: Container}) => {
+  const maxTextWidth = maxTextWidthFor(container);
+  const displayText = wrapMessageText(text, maxTextWidth);
+  const fitsSingleLine = !text.includes("\n") && measureTextWidth(text) + BUBBLE_WIDTH_SAFETY <= maxTextWidth;
+  return {displayText, fitsSingleLine, bubbleWidth: bubbleWidthFor(displayText, maxTextWidth)};
+};
+
+const bubbleColors = ({container, isRight}: {container: Container; isRight: boolean}) => {
+  const theme = CONTAINER_THEME[container];
+  return {
+    background: isRight ? theme.bubbleRight : theme.bubbleLeft,
+    color: container === "messenger" && isRight ? "#FFFFFF" : "#1F1F1F",
+  };
+};
+
+const isNameShown = ({nicknameMode, seenBySpeaker}: {nicknameMode: ChatSpec["sceneConfig"]["nicknameMode"]; seenBySpeaker: boolean}) =>
+  nicknameMode === "always" || (nicknameMode === "first-message-only" && !seenBySpeaker);
+
+/** Entrance animation of a bubble `local` frames after it appears. */
+const bubbleMotion = ({local, fps, slideFrom}: {local: number; fps: number; slideFrom: number}) => ({
+  scale: spring({frame: local, fps, config: {damping: 14, stiffness: 180, mass: 0.7}, durationInFrames: 18}),
+  x: interpolate(local, [0, 12], [slideFrom, 0], {extrapolateRight: "clamp"}),
+  opacity: interpolate(local, [0, 8], [0, 1], {extrapolateRight: "clamp"}),
+});
+
 const Bubble = ({
   message,
   participant,
   chatSpec,
   seenBySpeaker,
 }: {
-  message: ChatSpec["messages"][number];
+  message: Message;
   participant: ChatSpec["participants"][number];
   chatSpec: ChatSpec;
   seenBySpeaker: boolean;
 }) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
-  const theme = CONTAINER_THEME[chatSpec.sceneConfig.container];
+  const {container, nicknameMode} = chatSpec.sceneConfig;
   const isRight = message.side === "right";
   if (frame < message.appearAt) {
     return <div style={{display: "none"}} />;
   }
-  const local = frame - message.appearAt;
-  const scale = spring({frame: local, fps, config: {damping: 14, stiffness: 180, mass: 0.7}, durationInFrames: 18});
-  const x = interpolate(local, [0, 12], [isRight ? 26 : -26, 0], {extrapolateRight: "clamp"});
-  const opacity = interpolate(local, [0, 8], [0, 1], {extrapolateRight: "clamp"});
-  const bubbleBg = isRight ? theme.bubbleRight : theme.bubbleLeft;
-  const textColor = chatSpec.sceneConfig.container === "messenger" && isRight ? "#FFFFFF" : "#1F1F1F";
-  const maxTextWidth = maxTextWidthFor(chatSpec.sceneConfig.container);
-  const displayText = wrapMessageText(message.text, maxTextWidth);
-  const singleLineWidth = measureTextWidth(message.text);
-  const fitsSingleLine = !message.text.includes("\n") && singleLineWidth + BUBBLE_WIDTH_SAFETY <= maxTextWidth;
-  const bubbleWidth = fitsSingleLine
-    ? singleLineWidth + BUBBLE_WIDTH_SAFETY + BUBBLE_HORIZONTAL_PADDING
-    : bubbleWidthFor(displayText, maxTextWidth);
-  const showName =
-    chatSpec.sceneConfig.nicknameMode === "always" ||
-    (chatSpec.sceneConfig.nicknameMode === "first-message-only" && !seenBySpeaker);
+  const side = SIDE_STYLE[isRight ? "right" : "left"];
+  const {scale, x, opacity} = bubbleMotion({local: frame - message.appearAt, fps, slideFrom: side.slideFrom});
+  const colors = bubbleColors({container, isRight});
+  const {displayText, fitsSingleLine, bubbleWidth} = bubbleTextLayout({text: message.text, container});
+  const emphasis = EMPHASIS_STYLE[message.highlight ? "highlight" : "plain"];
   return (
     <div
       style={{
         display: "flex",
         marginBottom: 14,
         opacity,
-        justifyContent: isRight ? "flex-end" : "flex-start",
+        justifyContent: side.align,
       }}
     >
-      <div style={{display: "flex", gap: 12, alignItems: "flex-start", flexDirection: isRight ? "row-reverse" : "row", maxWidth: "86%"}}>
+      <div style={{display: "flex", gap: 12, alignItems: "flex-start", flexDirection: side.flexDirection, maxWidth: "86%"}}>
         <AvatarImage src={avatarSrcFor(participant)} />
-        <div style={{maxWidth: "calc(100% - 76px)", display: "flex", flexDirection: "column", alignItems: isRight ? "flex-end" : "flex-start", gap: 6}}>
-          {showName ? <div style={{fontSize: 18, color: "#7C8490", fontWeight: 700}}>{message.speaker}</div> : null}
+        <div style={{maxWidth: "calc(100% - 76px)", display: "flex", flexDirection: "column", alignItems: side.align, gap: 6}}>
+          {isNameShown({nicknameMode, seenBySpeaker}) ? <div style={{fontSize: 18, color: "#7C8490", fontWeight: 700}}>{message.speaker}</div> : null}
           <div
             style={{
-              background: bubbleBg,
+              background: colors.background,
               display: "block",
               width: Math.ceil(bubbleWidth),
               maxWidth: "100%",
@@ -142,15 +174,15 @@ const Bubble = ({
               fontSize: BUBBLE_FONT_SIZE,
               lineHeight: 1.35,
               fontWeight: BUBBLE_FONT_WEIGHT,
-              color: textColor,
+              color: colors.color,
               fontFamily: FONT_FAMILY,
               whiteSpace: fitsSingleLine ? "nowrap" : "pre-wrap",
               wordBreak: "break-word",
               overflowWrap: "normal",
-              boxShadow: message.highlight ? "0 8px 26px rgba(236,135,120,0.18)" : "0 2px 6px rgba(0,0,0,0.05)",
-              border: message.highlight ? "2px solid rgba(235,135,120,0.45)" : "1px solid rgba(0,0,0,0.04)",
+              boxShadow: emphasis.boxShadow,
+              border: emphasis.border,
               transform: `translateX(${x}px) scale(${scale})`,
-              transformOrigin: isRight ? "right center" : "left center",
+              transformOrigin: side.transformOrigin,
             }}
           >
             {displayText}
@@ -229,7 +261,7 @@ export const BubbleScene = ({chatSpec}: {chatSpec: ChatSpec}) => {
         background: theme.screenBg,
         display: "flex",
         flexDirection: "column",
-        fontFamily: `"PingFang SC", "Alibaba PuHuiTi", "Noto Sans SC", sans-serif`,
+        fontFamily: FONT_FAMILY,
         overflow: "hidden",
       }}
     >
