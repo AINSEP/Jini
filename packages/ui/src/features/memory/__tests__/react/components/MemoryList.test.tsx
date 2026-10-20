@@ -156,4 +156,66 @@ describe('MemoryList', () => {
     expect(screen.getByText('Mémoire enregistrée')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Tout/ })).toBeInTheDocument();
   });
+
+  it('publishes no agent handles when no agentHandle is given', () => {
+    const { container } = renderList({ visibleExtractions: [record()], unifiedMemoryCount: 2 });
+    expect(container.querySelector('[data-agent-element]')).toBeNull();
+  });
+
+  it('publishes the toolbar sub-handles under the agentHandle base', () => {
+    const { container } = renderList({ agentHandle: 'mem', visibleExtractions: [record()], unifiedMemoryCount: 2 });
+    const handles = [...container.querySelectorAll('.library-toolbar [data-agent-element]')].map((el) => el.getAttribute('data-agent-element'));
+    expect(handles).toEqual(['mem-filter-all', 'mem-filter-feedback', 'mem-clear-extractions', 'mem-refresh-extractions']);
+  });
+
+  it('publishes per-row entry and extraction sub-handles under the agentHandle base', () => {
+    const { container } = renderList({
+      agentHandle: 'mem',
+      entries: [entry({ id: 'E1' })],
+      filtered: [entry({ id: 'E1' })],
+      visibleExtractions: [record({ id: 'R1' })],
+      unifiedMemoryCount: 2,
+    });
+    const handles = [...container.querySelectorAll('.memory-unified-list [data-agent-element]')].map((el) => el.getAttribute('data-agent-element'));
+    expect(handles).toContain('mem-entry-e1-preview');
+    expect(handles).toContain('mem-extraction-r1-delete');
+  });
+
+  it('counts every saved entry plus visible extractions on the All pill', () => {
+    const { container } = renderList({
+      entries: [entry({ id: 'a' }), entry({ id: 'b', type: 'rule' })],
+      filtered: [entry({ id: 'a' })],
+      visibleExtractions: [record()],
+      unifiedMemoryCount: 2,
+    });
+    const counts = [...container.querySelectorAll('.filter-pill-count')].map((el) => el.textContent);
+    expect(counts).toEqual(['3', '1', '1']);
+    expect(container.querySelector('.filter-pill.active')?.textContent).toBe('All3');
+  });
+
+  it('marks only the active type pill as active', () => {
+    const { container } = renderList({ filter: 'feedback' });
+    expect([...container.querySelectorAll('.filter-pill.active')].map((el) => el.textContent)).toEqual(['Feedback1']);
+  });
+
+  it('spins the refresh icon only while refreshing', () => {
+    const idle = renderList({ visibleExtractions: [record()], unifiedMemoryCount: 2 });
+    expect(idle.container.querySelector('.memory-refresh-extractions .icon-spin')).toBeNull();
+    idle.unmount();
+    const busy = renderList({ visibleExtractions: [record()], unifiedMemoryCount: 2, isRefreshing: true });
+    expect(busy.container.querySelector('.memory-refresh-extractions .icon-spin')).not.toBeNull();
+  });
+
+  it('routes an extraction row delete to onDeleteExtraction with its id', async () => {
+    const { container, onDeleteExtraction, onDeleteEntry } = renderList({
+      agentHandle: 'mem',
+      visibleExtractions: [record({ id: 'r9' })],
+      unifiedMemoryCount: 2,
+    });
+    const remove = container.querySelector('[data-agent-element="mem-extraction-r9-delete"]');
+    expect(remove).not.toBeNull();
+    await userEvent.click(remove as HTMLElement);
+    expect(onDeleteExtraction).toHaveBeenCalledWith('r9');
+    expect(onDeleteEntry).not.toHaveBeenCalled();
+  });
 });

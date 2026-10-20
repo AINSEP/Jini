@@ -425,4 +425,121 @@ describe('MemoryConnectedPanel', () => {
     expect(screen.getByText('Importer des applications')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Gérer' })).toBeInTheDocument();
   });
+
+  it('prefers the connector lastError over a connect error in the hint', () => {
+    renderPanel({
+      memoryConnectors: [connectedConnector('notion', { status: 'available', lastError: '  stale token  ' })],
+      connectorConnectErrors: { notion: 'network offline' },
+    });
+    expect(screen.getByText('stale token')).toBeInTheDocument();
+    expect(screen.queryByText('network offline')).toBeNull();
+  });
+
+  it('falls through a whitespace-only lastError to the connect error', () => {
+    renderPanel({
+      memoryConnectors: [connectedConnector('notion', { status: 'available', lastError: '   ' })],
+      connectorConnectErrors: { notion: 'network offline' },
+    });
+    expect(screen.getByText('network offline')).toBeInTheDocument();
+  });
+
+  it('does not show checking status once the status map has an entry for the connector', () => {
+    renderPanel({
+      connectorsLoading: true,
+      connectorStatuses: { notion: { status: 'available' } },
+      memoryConnectors: [connectedConnector('notion', { status: 'available' })],
+    });
+    expect(screen.getByText('Connect this app before extraction')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Connect notion' })).toBeEnabled();
+  });
+
+  it('does not show checking status once the connector details have loaded', () => {
+    renderPanel({
+      connectorsLoading: true,
+      connectorIdsWithDetails: new Set(['notion']),
+      memoryConnectors: [connectedConnector('notion', { status: 'available' })],
+    });
+    expect(screen.getByRole('button', { name: 'Connect notion' })).toHaveTextContent('Connect');
+    expect(screen.getByRole('button', { name: 'Connect notion' })).not.toHaveAttribute('aria-busy');
+  });
+
+  it('does not show checking status for a connector with a connect error', () => {
+    renderPanel({
+      connectorsLoading: true,
+      connectorConnectErrors: { notion: 'network offline' },
+      memoryConnectors: [connectedConnector('notion', { status: 'available' })],
+    });
+    expect(screen.getByText('network offline')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Connect notion' })).toBeEnabled();
+  });
+
+  it('shows Checking on the connect button and spins its icon while status is unresolved', () => {
+    const { container } = renderPanel({
+      connectorsLoading: true,
+      memoryConnectors: [connectedConnector('notion', { status: 'available' })],
+    });
+    const button = screen.getByRole('button', { name: 'Connect notion' });
+    expect(button).toHaveTextContent('Checking');
+    expect(button).toHaveClass('memory-connector-connect-button', 'is-loading');
+    expect(container.querySelector('.memory-connector-connect-button .icon-spin')).not.toBeNull();
+  });
+
+  it('labels the connect button Waiting while authorization is pending', () => {
+    renderPanel({
+      memoryConnectors: [connectedConnector('notion', { status: 'error' })],
+      pendingConnectorAuthIds: new Set(['notion']),
+      connectingConnectorIds: new Set(['notion']),
+    });
+    expect(screen.getByRole('button', { name: 'Reconnect notion' })).toHaveTextContent('Waiting');
+  });
+
+  it('labels a reconnecting connector Connecting while its request is in flight', () => {
+    renderPanel({
+      memoryConnectors: [connectedConnector('notion', { status: 'error' })],
+      connectingConnectorIds: new Set(['notion']),
+    });
+    expect(screen.getByRole('button', { name: 'Reconnect notion' })).toHaveTextContent('Connecting');
+  });
+
+  it('never marks a not-connected connector as selected even when its id is selected', () => {
+    const { container } = renderPanel({
+      memoryConnectors: [connectedConnector('notion', { status: 'available' })],
+      selectedConnectorIds: new Set(['notion']),
+    });
+    const row = container.querySelector('[data-memory-connector-id="notion"]');
+    expect(row?.className).toBe('memory-connector-row is-disabled');
+    expect(screen.getByRole('checkbox', { name: 'Use notion for memory extraction' })).not.toBeChecked();
+  });
+
+  it('shows Loading in the summary badge while connectors load', () => {
+    const { container } = renderPanel({ connectorsLoading: true, connectedCount: 3 });
+    expect(container.querySelector('.memory-connected-summary .memory-source-badge')?.textContent).toBe('Loading');
+  });
+
+  it('shows the connected count in the summary badge once loaded', () => {
+    const { container } = renderPanel({ connectedCount: 3 });
+    expect(container.querySelector('.memory-connected-summary .memory-source-badge')?.textContent).toBe('3 connected');
+  });
+
+  it('uses the singular app noun in the run bar for exactly one connected app', () => {
+    const { container } = renderPanel({ connectedCount: 1, selectedConnectedConnectorIds: ['notion'] });
+    expect(container.querySelector('.memory-connector-runbar .hint')?.textContent).toBe('Selected 1 of 1 connected app.');
+  });
+
+  it('disables the scan button while suggestions are saving', () => {
+    renderPanel({ connectorSaving: true, selectedConnectedConnectorIds: ['notion'] });
+    expect(screen.getByRole('button', { name: 'Scan selected apps' })).toBeDisabled();
+  });
+
+  it('renders no description element at all for a suggestion without one', () => {
+    const { container } = renderPanel({ connectorSuggestions: [suggestion('s1', { description: '' })] });
+    expect(container.querySelector('.memory-suggestion-copy small')).toBeNull();
+  });
+
+  it('renders each diagnostic row detail line from the attempt', () => {
+    const { container } = renderPanel({
+      connectorAttempts: [{ connectorId: 'figma', connectorName: 'Figma', status: 'failed', toolTitle: 'Files', error: 'rate limited', summary: 'partial' }],
+    });
+    expect(container.querySelector('.memory-connector-diagnostic-row.is-failed small')?.textContent).toBe('Files · rate limited · partial');
+  });
 });
