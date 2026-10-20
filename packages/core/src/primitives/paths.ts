@@ -1,17 +1,26 @@
-/** Pure lexical normalization of an already absolute path; no cwd, filesystem or symlink access. */
-function normalizeAbsolutePath(value: string, separator: '/' | '\\'): string {
-  const path = separator === '\\' ? value.replace(/\\/g, '/') : value;
-  const drive = separator === '\\' ? /^[A-Za-z]:\//.exec(path)?.[0] : undefined;
-  const unc = separator === '\\' ? /^\/\/[^/]+\/[^/]+(?:\/|$)/.exec(path)?.[0] : undefined;
-  const prefix = drive ?? unc ?? (path.startsWith('/') ? '/' : undefined);
-  if (!prefix) throw new RangeError('pathContains requires resolved absolute paths');
+/** Root of an already `/`-separated Windows path: a drive root (`C:/`) or a UNC share root. */
+function windowsRoot(path: string): string | undefined {
+  return /^[A-Za-z]:\//.exec(path)?.[0] ?? /^\/\/[^/]+\/[^/]+(?:\/|$)/.exec(path)?.[0];
+}
+
+/** Lexically resolve `.` and `..` segments; `..` never climbs above the root. */
+function resolveSegments(rest: string): string[] {
   const segments: string[] = [];
-  for (const segment of path.slice(prefix.length).split('/')) {
+  for (const segment of rest.split('/')) {
     if (!segment || segment === '.') continue;
     if (segment === '..') segments.pop();
     else segments.push(segment);
   }
-  return prefix.replace(/\/+$/, '') + '/' + segments.join('/');
+  return segments;
+}
+
+/** Pure lexical normalization of an already absolute path; no cwd, filesystem or symlink access. */
+function normalizeAbsolutePath(value: string, separator: '/' | '\\'): string {
+  const windows = separator === '\\';
+  const path = windows ? value.replace(/\\/g, '/') : value;
+  const prefix = (windows ? windowsRoot(path) : undefined) ?? (path.startsWith('/') ? '/' : undefined);
+  if (!prefix) throw new RangeError('pathContains requires resolved absolute paths');
+  return prefix.replace(/\/+$/, '') + '/' + resolveSegments(path.slice(prefix.length)).join('/');
 }
 
 /**

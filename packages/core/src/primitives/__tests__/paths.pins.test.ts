@@ -82,6 +82,14 @@ describe('pathContains: Windows normalization', () => {
     expect(pathContains({ root: '\\\\host\\share\\a', target: '\\\\host\\share\\..\\other\\a' }, WIN)).toBe(false);
   });
 
+  it('cannot climb above a UNC share root with ".."', () => {
+    expect(pathContains({ root: '\\\\host\\share', target: '\\\\host\\share\\..\\x' }, WIN)).toBe(true);
+  });
+
+  it('keeps a UNC share distinct from a driveless path with the same names', () => {
+    expect(pathContains({ root: '\\host\\share', target: '\\\\host\\share\\x' }, WIN)).toBe(false);
+  });
+
   it('treats a rootless-drive "\\x" path as relative to the current drive root "/"', () => {
     expect(pathContains({ root: '\\a', target: '\\a\\b' }, WIN)).toBe(true);
   });
