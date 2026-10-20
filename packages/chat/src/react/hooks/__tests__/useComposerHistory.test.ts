@@ -95,3 +95,37 @@ describe('composer history hook', () => {
     expect(result.current.draft).toBe('edited');
   });
 });
+
+
+describe('accepted input history projection', () => {
+  it('honors a caller cap while keeping consecutive duplicate collapse', async () => {
+    const write = vi.fn(async () => {});
+    const messages = [user('a', 'one'), user('b', 'two'), user('c', 'two'), user('d', 'three')];
+    const storage = { read: async () => [], write };
+    const { result } = renderHook(() => useComposer({ historyMessages: messages, historyCap: 2, historyStorage: storage }));
+    await waitFor(() => expect(write).toHaveBeenLastCalledWith({ scope: 'default', entries: ['two', 'three'] }, { cap: 2 }));
+    act(() => { result.current.history?.navigate(up); });
+    expect(result.current.draft).toBe('three');
+    act(() => { result.current.history?.navigate(up); });
+    expect(result.current.draft).toBe('two');
+    act(() => { result.current.history?.navigate(up); });
+    expect(result.current.draft).toBe('two');
+  });
+});
+
+
+it('retains transcript recall when a queued acceptance arrives before history hydration', async () => {
+  let finish!: (entries: readonly string[]) => void;
+  const read = new Promise<readonly string[]>(resolve => { finish = resolve; });
+  const write = vi.fn(async () => {});
+  const storage = { read: () => read, write };
+  const messages = [user('existing', 'current conversation')];
+  const { result } = renderHook(() => useComposer({ historyStorage: storage, historyMessages: messages }));
+  act(() => result.current.history?.record({ inputs: [{ id: 'queued', text: 'accepted queue' }] }));
+  await act(async () => { finish(['earlier conversation']); await read; });
+  await waitFor(() => expect(write).toHaveBeenLastCalledWith({ scope: 'default', entries: ['earlier conversation', 'current conversation', 'accepted queue'] }, {}));
+  act(() => { result.current.history?.navigate(up); });
+  expect(result.current.draft).toBe('accepted queue');
+  act(() => { result.current.history?.navigate(up); });
+  expect(result.current.draft).toBe('current conversation');
+});

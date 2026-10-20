@@ -34,7 +34,7 @@ function Harness({ initial, recall = 'recalled entry text', noHistory = false, p
     return true;
   };
   const { history: _omitted, ...withoutHistory } = base;
-  const composer: UseComposerResult = noHistory ? withoutHistory : { ...base, history: { navigate, edit: () => {} } };
+  const composer: UseComposerResult = noHistory ? withoutHistory : { ...base, history: { navigate, edit: () => {}, record: () => {} } };
   const attached = useRef<HTMLTextAreaElement | null>(null);
   const detached = useRef<HTMLTextAreaElement | null>(null);
   const textareaRef: RefObject<HTMLTextAreaElement | null> = detachRef ? detached : attached;

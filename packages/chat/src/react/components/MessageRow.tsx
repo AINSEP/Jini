@@ -1,3 +1,5 @@
+import { projectAcceptedInputEvents } from '../../core/accepted-input.js';
+import { MidRunUserMessage, MID_RUN_USER_MESSAGE_EXT_EVENT_NAME } from './MidRunUserMessage.js';
 import { terminalMessageNotice, continuingRunNotice } from '../../core/durable-projection.js';
 import type { ChatUsageSummary } from '../../core/turn-usage.js';
 import { usageLayout, usageLineMeetsActions, useMessageUsage, useUsageSummary } from './MessageRow.usage.js';
@@ -51,7 +53,7 @@ import { usageLayout, usageLineMeetsActions, useMessageUsage, useUsageSummary } 
  * not appear until the whole message is done, not merely until its current
  * chunk stopped arriving.
  */
-import React, { memo, type ReactNode } from 'react';
+import React, { memo, useMemo, type ReactNode } from 'react';
 import type { AgentEvent, ChatAttachment, ChatMessage, ChatRunStatus, IsAnsweredCard } from '../../core/index.js';
 import { isAwaitingAnswer, isTerminalRunStatus, splitOnQuestionForms, stripArtifact } from '../../core/index.js';
 import { useToolTimeline, type ToolTimelineRow } from '../hooks/useToolTimeline.js';
@@ -279,8 +281,11 @@ export const MessageRow = memo(function MessageRow({
   questionFormInteractive = false,
   ...props
 }: MessageRowProps) {
-  if (props.message.role === 'user') return <UserMessageRow {...props} />;
-  return <AssistantMessageRow {...props} {...{ showUsageTotal, showUsageLine, toolCallDisplay, showThinking, runStreaming, runSucceeded, questionFormInteractive }} />;
+  const message = useMemo(() => props.message.events === undefined ? props.message : {
+    ...props.message, events: projectAcceptedInputEvents({ events: props.message.events }),
+  }, [props.message]);
+  if (message.role === 'user') return <UserMessageRow {...props} message={message} />;
+  return <AssistantMessageRow {...props} message={message} {...{ showUsageTotal, showUsageLine, toolCallDisplay, showThinking, runStreaming, runSucceeded, questionFormInteractive }} />;
 });
 
 function UserMessageRow({ message, renderAttachment }: Pick<MessageRowProps, 'message' | 'renderAttachment'>) {
@@ -336,7 +341,7 @@ function AssistantMessageRow({
   const messageUsage = useMessageUsage({ message, ...(usageSummary === undefined ? {} : { summary: usageSummary }) });
   const timeline = useToolTimeline({ events: message.events }, { runStreaming, runSucceeded });
   const extGroups = useExtEventGroups({ events: message.events }, { slotOf: (name, data) => registry.slot({ name, data }) });
-  const answeredCards = useAnsweredCards({ slotOf: registry.slot });
+  const answeredCards = useAnsweredCards({ slotOf: registry.slot, events: message.events ?? [], groups: extGroups });
 
   const terminalNotice = terminalMessageNotice({ message }, {});
   const visibleContent = stripArtifact({ content: message.content });
@@ -368,7 +373,9 @@ function AssistantMessageRow({
 
   const renderExtGroup = (group: ExtEventGroup) => {
     const renderer = registry.get({ name: group.name });
+    if (!renderer && group.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME) return <MidRunUserMessage events={group.events} />;
     if (!renderer) return null;
+    const answerText = answeredCards.answerText(group.slot);
     const node = renderer({
       name: group.name,
       events: group.events,
@@ -379,6 +386,9 @@ function AssistantMessageRow({
       ...(group.call === undefined ? {} : { call: group.call }),
       answered: answeredCards.isAnswered(group.slot),
       onAnswered: () => answeredCards.markAnswered(group.slot),
+      onAnswerText: (text) => answeredCards.markAnswered(group.slot, text),
+      ...(answeredCards.isRecorded(group.slot) ? { answerRecorded: true } : {}),
+      ...(answerText === undefined ? {} : { answerText }),
     });
     if (!node) return null;
     return (

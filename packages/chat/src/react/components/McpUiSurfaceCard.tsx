@@ -60,6 +60,8 @@
  * `visible` field in per-element STATE when a caller opts into it — see the regression tests added
  * against the real driver in `@jini-ai/agentic`.
  */
+import { questionAnswerFromResult } from '../../core/question-answer.js';
+import { MidRunUserMessage } from './MidRunUserMessage.js';
 import { Fragment, useMemo } from 'react';
 import {
   McpUiHost,
@@ -174,11 +176,13 @@ function ClosedSurface({ call, label }: { call: ExtEventCall | undefined; label:
 
 /** The live card's answer lifecycle: its deadline and delivery notification, using their existing owners. */
 function surfaceInteraction(
-  { resource, answered, onToolCall, onAnswered }: {
+  { resource, answered, onToolCall, onAnswered, onAnswerText, call }: {
     resource: UIResource | undefined;
     answered: boolean | undefined;
     onToolCall: McpUiToolCallHandler | undefined;
     onAnswered: (() => void) | undefined;
+    onAnswerText: ((answerText: string) => void) | undefined;
+    call: ExtEventCall | undefined;
   },
   _options: Record<string, never> = {},
 ) {
@@ -186,18 +190,18 @@ function surfaceInteraction(
   // answer's work still runs must not relabel it "This question expired".
   const expiresAtMs = resource === undefined || answered === true ? undefined : readExpiresAt(resource);
   // Reports the person's delivered answer to the row, which stops the "Waiting for your answer" line.
-  const toolCall = onToolCall === undefined || onAnswered === undefined ? onToolCall : reportDeliveredAnswer({ onToolCall, onAnswered });
+  const toolCall = onToolCall === undefined || onAnswered === undefined ? onToolCall : reportDeliveredAnswer({ onToolCall, onAnswered, onAnswerText, input: call?.input });
   return { expiresAtMs, toolCall };
 }
 
 /** Registered against `ext-event-renderer-registry.ts`'s `'mcp-ui'` name — see module doc. */
-export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLink, maxHeight, call, runStreaming, expiryClock, answered, onAnswered }: McpUiSurfaceCardProps) {
+export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLink, maxHeight, call, runStreaming, expiryClock, answered, onAnswered, onAnswerText, answerText, answerRecorded }: McpUiSurfaceCardProps) {
   const t = useT();
   const resources = useMemo(() => latestResourcesByUri(events), [events]);
   // One card per slot is the registered shape (`mcpUiSurfaceSlotKey`), so `call` belongs to exactly
   // that card. A group holding several URIs has no single call to judge them by, and stays live.
   const single = resources.length === 1 ? resources[0] : undefined;
-  const { expiresAtMs, toolCall } = surfaceInteraction({ resource: single, answered, onToolCall, onAnswered });
+  const { expiresAtMs, toolCall } = surfaceInteraction({ resource: single, answered, onToolCall, onAnswered, onAnswerText, call });
   const expiry = useSurfaceExpiry(
     { expiresAtMs },
     expiryClock === undefined ? {} : { clock: expiryClock },
@@ -205,6 +209,12 @@ export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLi
   const closed = single === undefined
     ? undefined
     : closedSurfaceLabel({ t, call, runStreaming, documentsForUri: events.length, expired: expiry?.expired === true });
+  const answer = answerText ?? questionAnswerFromResult({ result: call?.result, input: call?.input });
+  // MOVE: The accepted-input receipt owns its bubble; rendering the closed card too duplicates typed answers.
+  if (single !== undefined && answerRecorded) return null;
+  if (single !== undefined && answer !== undefined) {
+    return <MidRunUserMessage events={[{ text: answer === 'Declined' ? t('Declined') : answer }]} />;
+  }
   if (closed !== undefined) return <ClosedSurface call={call} label={closed} />;
 
   if (resources.length === 0) {

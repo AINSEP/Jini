@@ -11,13 +11,13 @@ export function createBrowserComposerHistoryStorage(
     return storage ?? globalThis.localStorage;
   }
   return {
-    async read({ scope }, _optional = {}) {
+    async read({ scope }, { cap = 100 } = {}) {
       try {
         const raw = resolveStorage()?.getItem(prefix + encodeURIComponent(scope));
         if (raw) {
           const parsed: unknown = JSON.parse(raw);
           if (Array.isArray(parsed)) {
-            const entries = normalizeComposerHistory({ entries: parsed.filter((value): value is string => typeof value === 'string') });
+            const entries = normalizeComposerHistory({ entries: parsed.filter((value): value is string => typeof value === 'string') }, { cap });
             memory.set(scope, entries);
             return entries;
           }
@@ -25,10 +25,10 @@ export function createBrowserComposerHistoryStorage(
       } catch {
         // Storage denial/corruption must not disable draft editing or in-memory recall.
       }
-      return memory.get(scope) ?? [];
+      return normalizeComposerHistory({ entries: memory.get(scope) ?? [] }, { cap });
     },
-    async write({ scope, entries }, _optional = {}) {
-      const normalized = normalizeComposerHistory({ entries });
+    async write({ scope, entries }, { cap = 100 } = {}) {
+      const normalized = normalizeComposerHistory({ entries }, { cap });
       memory.set(scope, normalized);
       try {
         resolveStorage()?.setItem(prefix + encodeURIComponent(scope), JSON.stringify(normalized));

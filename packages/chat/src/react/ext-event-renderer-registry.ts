@@ -1,3 +1,4 @@
+import { acceptedInputEvent } from '../core/accepted-input.js';
 /**
  * @module ext-event-renderer-registry
  *
@@ -27,6 +28,8 @@ import type { ReactNode } from 'react';
  * the call is still waiting, or its run ended before it returned.
  */
 export interface ExtEventCall {
+  /** Stable owning tool identity for matching persisted answer receipts. */
+  readonly id?: string;
   readonly name: string;
   readonly input: unknown;
   readonly result?: { readonly content: string; readonly isError: boolean };
@@ -57,6 +60,12 @@ export interface ExtEventRenderProps {
    * the work the answer started, and the run must stop reading as "waiting for your answer".
    */
   onAnswered?: () => void;
+  /** Optional readable answer delivered through the card; emitted before onAnswered. */
+  onAnswerText?: (answerText: string) => void;
+  /** Delivered answer text while the owning tool is still finishing. */
+  answerText?: string;
+  /** A matching user_message receipt already owns the visible bubble. */
+  answerRecorded?: boolean;
 }
 
 /**
@@ -134,7 +143,10 @@ export function createExtEventRendererRegistry(_required: Record<string, never> 
    */
   function slot({ name, data }: { name: string; data: unknown }): string {
     const slotKey = renderers.get(name)?.slotKey;
-    if (!slotKey) return name;
+    if (!slotKey) {
+      const input = acceptedInputEvent({ event: { kind: 'ext', name, data } });
+      return input ? `${name}:${input.data.id}` : name;
+    }
     let key: string | undefined;
     try {
       key = slotKey({ data });

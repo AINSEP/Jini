@@ -760,6 +760,7 @@ export function ChatPane(props: ChatPaneProps) {
     initialDraft: p.initialDraft,
     composerHistoryScope: p.composerHistoryScope,
     composerHistoryStorage: p.composerHistoryStorage,
+    composerHistoryCap: p.composerHistoryCap,
     validateAttachments: p.validateAttachments,
     uploadAttachments: p.uploadAttachments,
     onActivityChange: p.onActivityChange,

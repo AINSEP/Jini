@@ -441,7 +441,7 @@ describe('MessageRow', () => {
       render(<MessageRow message={message} runStreaming runSucceeded={false} />);
       expect(screen.getByTestId('a2ui-rendered')).toHaveTextContent('2 events');
       expect(seen).toEqual([
-        { name: 'a2ui', events: [{ step: 1 }, { step: 2 }], runStreaming: true, runSucceeded: false, awaitingAnswer: false, runId: 'run-123', answered: false, onAnswered: expect.any(Function) },
+        { name: 'a2ui', events: [{ step: 1 }, { step: 2 }], runStreaming: true, runSucceeded: false, awaitingAnswer: false, runId: 'run-123', answered: false, onAnswered: expect.any(Function), onAnswerText: expect.any(Function) },
       ]);
     });
 

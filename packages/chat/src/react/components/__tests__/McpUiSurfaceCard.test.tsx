@@ -46,11 +46,12 @@ describe('McpUiSurfaceCard', () => {
     const card = [resourceEvent('ui://consumer/ask-choice/x/1', '<form>pick one</form>')];
     const askCall = { name: 'assistant_ask_choice', input: { title: 'Pick a plan' } };
 
-    it('shows "Answered" once its tool call has the answer, with no live frame', () => {
-      const { container, getByRole } = render(
+    it('shows the selected answer as a user bubble, with no live frame', () => {
+      const { container } = render(
         <McpUiSurfaceCard {...BASE_PROPS} runStreaming events={card} call={{ ...askCall, result: { content: '{"submitted":true,"choice":"Alpha"}', isError: false } }} />,
       );
-      expect(getByRole('status').textContent).toBe('Pick a plan: Answered');
+      expect(container.querySelector('.jini-message-user .jini-message-content')?.textContent).toBe('Alpha');
+      expect(container.querySelector('.mcpui-surface-card-closed')).toBeNull();
       expect(container.querySelector('iframe')).toBeNull();
     });
 

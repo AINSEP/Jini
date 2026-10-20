@@ -228,6 +228,8 @@ export interface ChatPaneProps extends UserTextRedactionOptions {
   composerHistoryScope?: string;
   /** Optional storage effects; omitted uses bounded browser storage with memory fallback. */
   composerHistoryStorage?: ComposerHistoryStoragePort;
+  /** Recall retention; defaults to 100. */
+  composerHistoryCap?: number;
   /**
    * Confirms which previously staged attachments still exist, so a draft restored after a reload
    * never shows a chip for a file the backend has since garbage-collected — that looks intact and

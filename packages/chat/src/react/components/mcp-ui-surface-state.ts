@@ -5,6 +5,7 @@
  * `McpUiSurfaceCard.tsx` so the component only renders; moved here from that file 2026-10-04 when
  * the card's own deadline (`useSurfaceExpiry`) became a second reason to close it.
  */
+import { questionAnswerText } from '../../core/question-answer.js';
 import type { McpUiToolCallHandler } from '@jini-ai/ui/mcp-ui';
 import type { ExtEventCall } from '../ext-event-renderer-registry.js';
 import type { useT } from '../hooks/context.js';
@@ -69,17 +70,24 @@ export function isDeliveredAnswer(result: unknown): boolean {
 
 /**
  * Wraps a card's tool executor so a delivered answer is reported once it resolves. The result is
- * passed through unchanged, and a rejected call reports nothing (the dialog shows its error and can
- * be answered again).
+ * passed through unchanged; onAnswerText receives readable choice text when available. A rejected call
+ * reports nothing (the dialog shows its error and can be answered again).
  *
- * @complexity O(1) per call, plus `onToolCall`'s own cost.
+ * @complexity O(p + s*m) answer-label mapping, plus `onToolCall`'s own cost (see questionAnswerText).
  */
 export function reportDeliveredAnswer(
-  { onToolCall, onAnswered }: { onToolCall: McpUiToolCallHandler; onAnswered: () => void },
+  { onToolCall, onAnswered, onAnswerText, input }: {
+    onToolCall: McpUiToolCallHandler; onAnswered: () => void;
+    onAnswerText?: ((answerText: string) => void) | undefined; input?: unknown;
+  },
 ): McpUiToolCallHandler {
   return async (call) => {
     const result = await onToolCall(call);
-    if (isDeliveredAnswer(result)) onAnswered();
+    if (isDeliveredAnswer(result)) {
+      const text = questionAnswerText({ answer: call.arguments, input });
+      if (text !== undefined) onAnswerText?.(text);
+      onAnswered();
+    }
     return result;
   };
 }

@@ -1,3 +1,4 @@
+import { acceptedInputUserEvent, projectAcceptedInputEvents, type AcceptedChatInput } from '../../core/accepted-input.js';
 import { redactUserHistory, redactUserMessage, type UserTextRedactionOptions } from '../../core/user-text-redaction.js';
 import { preserveAssistantContent, mergeRunEvents } from '../../core/durable-projection.js';
 /**
@@ -30,6 +31,10 @@ export interface UseConversationOptions extends UserTextRedactionOptions {
 }
 
 export interface SendMessageOptions {
+  /** Queue flushes reuse the input receipts recorded when they were queued. */
+  acceptedInputs?: AcceptedChatInput[];
+  /** Called after transport acceptance; rejection never consumes the draft or recall slot. */
+  onAccepted?: (input: { inputs: AcceptedChatInput[] }) => void;
   /** Non-secret signal from a composer that already sanitized the content before this boundary. */
   secretRedaction?: ChatMessage['secretRedaction'];
   attachments?: ChatAttachment[];
@@ -177,7 +182,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         return {
           ...m,
           ...(nextRunId !== undefined ? { runId: nextRunId } : {}),
-          events: mergeRunEvents({ saved: m.events, incoming: run.events }, {}),
+          events: projectAcceptedInputEvents({ events: mergeRunEvents({ saved: m.events, incoming: run.events }, {}) }),
           // Replayed completion prefixes cannot erase a saved interrupted segment.
           content: preserveAssistantContent({ saved: m.content, incoming: assistantContentFromEvents({ events: run.events }) }, {}),
           runStatus,
@@ -204,6 +209,8 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       const userMessage: ChatMessage = redactUserMessage<ChatMessage>({ message: {
         id: createMessageId(),
         role: 'user',
+        inputPending: true,
+        ...(sendOptions.acceptedInputs ? { events: sendOptions.acceptedInputs.map(input => acceptedInputUserEvent({ input }, { receipt: 'accepted' })) } : {}),
         content,
         createdAt: Date.now(),
         ...(sendOptions.secretRedaction ? { secretRedaction: sendOptions.secretRedaction } : {}),
@@ -229,7 +236,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       // (host stuck-chat investigation, 2026-09-27).
       setMessagesState((prev) => [...prev, userMessage, assistantMessage]);
       setScrollIntent(true);
-      await run.start({
+      const accepted = await run.start({
         assistantMessageId: assistantMessage.id,
         history,
         ...(resolvedAgentId !== undefined ? { agentId: resolvedAgentId } : {}),
@@ -237,6 +244,13 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         ...(sendOptions.attachments !== undefined ? { attachments: sendOptions.attachments } : {}),
         ...(sendOptions.context !== undefined ? { context: sendOptions.context } : {}),
       });
+      if (!accepted) {
+        setMessagesState(prev => prev.filter(message => message.id !== userMessage.id && message.id !== assistantMessage.id));
+        return;
+      }
+      const inputs = sendOptions.acceptedInputs ?? [{ id: userMessage.id, text: userMessage.content }];
+      setMessagesState(prev => prev.map(message => message.id === userMessage.id ? { ...message, inputPending: false } : message));
+      sendOptions.onAccepted?.({ inputs });
     },
     [agentId, conversationId, createMessageId, run, options.redactUserText, options.onSecretRedacted],
   );

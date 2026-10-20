@@ -53,6 +53,8 @@ export interface UseComposerOptions {
   /** Scopes recent prompts across conversations. Hosts with multiple users must supply an id. */
   historyScope?: string;
   historyStorage?: ComposerHistoryStoragePort;
+  /** Recall retention; defaults to 100, with existing duplicate collapse. */
+  historyCap?: number;
   initialAgent?: AgentSelection;
   project?: ProjectContextValue;
   composerSlots?: ComposerSlots;
@@ -222,6 +224,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
   const history = useComposerHistory({ setRecalledDraft: setDraftState }, {
     ...(options.historyMessages === undefined ? {} : { messages: options.historyMessages }),
     ...(options.historyScope === undefined ? {} : { scope: options.historyScope }),
+    ...(options.historyCap === undefined ? {} : { cap: options.historyCap }),
     ...(options.historyStorage === undefined ? {} : { storage: options.historyStorage }),
     ...(conversationId === undefined ? {} : { conversationId }),
   });

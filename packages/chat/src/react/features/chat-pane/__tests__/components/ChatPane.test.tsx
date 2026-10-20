@@ -8,7 +8,7 @@ import { FILE_SYSTEM_READ_ERROR_MESSAGE } from '@jini-ai/ui';
 import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
 import { ChatPane } from '../../components/ChatPane.js';
 import { CHAT_PANE_STYLES } from '../../styles.js';
-import type { ChatPaneActivity, ChatPaneAgent, ChatPaneComposerHandle } from '../../types.js';
+import type { ChatPaneActivity, ChatPaneAgent, ChatPaneComposerHandle, DeliverTypedAnswer } from '../../types.js';
 
 const agents: ChatPaneAgent[] = [{
   id: 'codex',
@@ -1159,4 +1159,80 @@ it('hides prior automatic plugin usage immediately when the host chooses Off', (
   expect(screen.getByText('Using:')).toBeInTheDocument();
   rerender(<ChatPane transport={transport} agents={agents} conversationId="plugins-off-chat" initialMessages={initialMessages} agentPluginsMode="off" />);
   expect(screen.queryByText('Using:')).not.toBeInTheDocument();
+});
+
+
+describe('ChatPane accepted input recording', () => {
+  it.each(['normal', 'answer', 'steer', 'queue', 'interrupt'] as const)(
+    'shows and recalls an accepted %s once, including storage remount', async (path) => {
+      let saved: readonly string[] = [];
+      let transcript: ChatMessage[] = [];
+      const storage = { read: async () => saved, write: async ({ entries }: { entries: readonly string[] }) => { saved = [...entries]; } };
+      const transport = createFakeChatTransport();
+      const answer: DeliverTypedAnswer = Object.assign(vi.fn(async () => 'delivered' as const), { toolName: 'assistant_ask_choice' });
+      const steer = vi.fn(async () => 'delivered' as const);
+      const view = render(<ChatPane transport={transport} agents={agents} initialDraft="first"
+        composerHistoryScope={`accepted-${path}`} composerHistoryStorage={storage}
+        onMessagesChange={messages => { transcript = messages; }}
+        {...(path === 'answer' ? { deliverTypedAnswer: answer } : {})}
+        {...(path === 'steer' ? { deliverMidRunMessage: steer } : {})} />);
+      await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
+      await waitFor(() => expect(saved).toEqual(['first']));
+      if (path === 'normal') act(() => transport.finish());
+      if (path === 'answer') act(() => {
+        transport.emit({ kind: 'tool_use', id: 'ask', name: answer.toolName, input: {} });
+        transport.emit({ kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://ask' } });
+      });
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'accepted text' } });
+      await act(async () => {
+        const event = { key: 'Enter', ...(path === 'interrupt' ? { ctrlKey: true } : {}) };
+        fireEvent.keyDown(screen.getByRole('textbox'), event);
+        fireEvent.keyDown(screen.getByRole('textbox'), event);
+      });
+      await waitFor(() => expect(saved).toEqual(['first', 'accepted text']));
+      expect(screen.getAllByText('accepted text')).toHaveLength(1);
+      if (path === 'answer' || path === 'steer' || path === 'queue') expect(transport.calls).toHaveLength(1);
+      if (path === 'answer') act(() => transport.emit({ kind: 'tool_result', toolUseId: 'ask', content: JSON.stringify({ submitted: true, freeText: 'accepted text' }), isError: false }));
+      if (path === 'steer') act(() => transport.emit({ kind: 'ext', name: 'user_message', data: { id: 'persisted-steer', text: 'accepted text' } }));
+      if (path === 'queue') act(() => transport.finish());
+      await waitFor(() => expect(screen.getAllByText('accepted text')).toHaveLength(1));
+      expect(saved).toEqual(['first', 'accepted text']);
+      fireEvent.keyDown(screen.getByRole('textbox'), { key: 'ArrowUp', selectionStart: 0, selectionEnd: 0 });
+      expect(screen.getByRole('textbox')).toHaveValue('accepted text');
+      act(() => transport.finish());
+      const reloaded = JSON.parse(JSON.stringify(transcript)) as ChatMessage[];
+      view.unmount();
+      const recovered = render(<ChatPane transport={createFakeChatTransport()} agents={agents}
+        composerHistoryScope={`accepted-${path}`} composerHistoryStorage={storage} initialMessages={reloaded} />);
+      await waitFor(() => expect(screen.getAllByText('accepted text')).toHaveLength(1));
+      fireEvent.keyDown(screen.getByRole('textbox'), { key: 'ArrowUp', selectionStart: 0, selectionEnd: 0 });
+      expect(screen.getByRole('textbox')).toHaveValue('accepted text');
+      expect(saved).toEqual(['first', 'accepted text']);
+      recovered.unmount();
+    },
+  );
+
+  it('reconstructs typed answer bubbles and recall from saved tool results alone', () => {
+    render(<ChatPane transport={createFakeChatTransport()} agents={agents} initialMessages={[{
+      id: 'saved-answer', role: 'assistant', content: '', runStatus: 'succeeded', events: [
+        { kind: 'tool_use', id: 'ask-saved', name: 'assistant_ask_choice', input: {} },
+        { kind: 'tool_result', toolUseId: 'ask-saved', content: JSON.stringify({ submitted: true, freeText: 'saved answer' }), isError: false },
+      ],
+    }]} />);
+    expect(screen.getAllByText('saved answer')).toHaveLength(1);
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'ArrowUp', selectionStart: 0, selectionEnd: 0 });
+    expect(screen.getByRole('textbox')).toHaveValue('saved answer');
+  });
+
+  it('keeps a rejected normal draft out of recall and preserves it for retry', async () => {
+    const transport = createFakeChatTransport();
+    transport.startRun = vi.fn(async () => { throw new Error('409 refused'); });
+    let saved: readonly string[] = [];
+    const storage = { read: async () => saved, write: async ({ entries }: { entries: readonly string[] }) => { saved = entries; } };
+    render(<ChatPane transport={transport} agents={agents} composerHistoryStorage={storage} initialDraft="keep this draft" />);
+    await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
+    expect(screen.getByRole('textbox')).toHaveValue('keep this draft');
+    expect(saved).toEqual([]);
+    expect(document.querySelectorAll('.jini-message-user')).toHaveLength(0);
+  });
 });

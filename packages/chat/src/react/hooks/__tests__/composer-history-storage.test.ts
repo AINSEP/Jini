@@ -36,3 +36,14 @@ describe('composer history storage port', () => {
     expect(await adapter.read({ scope: 'bob' }, {})).toEqual([]);
   });
 });
+
+
+it('retains a configured cap above the default across adapter recreation', async () => {
+  const storage = memoryStorage();
+  const entries = Array.from({ length: 130 }, (_, index) => `prompt ${index}`);
+  const first = createBrowserComposerHistoryStorage({}, { storage });
+  await first.write({ scope: 'larger', entries }, { cap: 120 });
+  const reloaded = createBrowserComposerHistoryStorage({}, { storage });
+  expect(await reloaded.read({ scope: 'larger' }, { cap: 120 })).toEqual(entries.slice(-120));
+  expect(await reloaded.read({ scope: 'larger' }, {})).toEqual(entries.slice(-100));
+});

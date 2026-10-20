@@ -822,7 +822,9 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
     { message, conversationId }: { message: ChatMessage; conversationId: string | undefined },
     { persistUserTurn }: { persistUserTurn?: AssistantTransportOptions["persistUserTurn"] },
   ): Promise<void> {
-    if (conversationId === undefined || persistUserTurn === undefined) return;
+    // Pending composer input is persisted by atomic run acceptance. An earlier PUT could save a
+    // rejected (409) draft as a user turn; confirmed/legacy callers retain their existing ordering.
+    if (message.inputPending || conversationId === undefined || persistUserTurn === undefined) return;
     await persistUserTurn({ conversationId, message }, {}).catch(() => undefined);
   }
 

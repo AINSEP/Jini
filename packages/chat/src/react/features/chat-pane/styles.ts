@@ -152,6 +152,9 @@ export const CHAT_PANE_STYLES = `
   padding: 10px 13px;
   width: fit-content;
   max-width: 88%;
+  /* MOVE: Answers may contain long labels or pasted URLs; wrap them within narrow chat panes. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   /* User bubbles share this style at every nesting depth, regardless of message length. */
   background: var(--jini-chat-user-bubble, #1a1b1c);
   color: var(--jini-chat-user-bubble-ink, #fff);

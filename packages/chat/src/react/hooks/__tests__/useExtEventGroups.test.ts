@@ -56,7 +56,7 @@ describe('useExtEventGroups', () => {
         name: 'mcp-ui',
         slot: 'mcp-ui',
         events: ['card'],
-        call: { name: 'assistant_ask_choice', input: { title: 'Card one' }, result: { content: '{"submitted":true}', isError: false } },
+        call: { id: 'inner', name: 'assistant_ask_choice', input: { title: 'Card one' }, result: { content: '{"submitted":true}', isError: false } },
       },
     ]);
   });
@@ -67,7 +67,7 @@ describe('useExtEventGroups', () => {
       { kind: 'ext', name: 'mcp-ui', data: 'card' },
     ];
     const { result } = renderHook(() => useExtEventGroups({ events: events }));
-    expect(result.current[0]?.call).toEqual({ name: 'assistant_ask_choice', input: {} });
+    expect(result.current[0]?.call).toEqual({ id: 'inner', name: 'assistant_ask_choice', input: {} });
   });
 
   it('leaves call unset for a group whose first event arrives after its call already closed', () => {
@@ -90,7 +90,7 @@ describe('useExtEventGroups', () => {
       { kind: 'tool_result', toolUseId: 'second', content: 'two', isError: true },
     ];
     const { result } = renderHook(() => useExtEventGroups({ events: events }));
-    expect(result.current).toEqual([{ name: 'mcp-ui', slot: 'mcp-ui', events: ['a', 'b'], call: { name: 'ask_one', input: 1 } }]);
+    expect(result.current).toEqual([{ name: 'mcp-ui', slot: 'mcp-ui', events: ['a', 'b'], call: { id: 'first', name: 'ask_one', input: 1 } }]);
   });
 
   it('splits one name into separate groups by the slot slotOf returns, passing it the event data', () => {

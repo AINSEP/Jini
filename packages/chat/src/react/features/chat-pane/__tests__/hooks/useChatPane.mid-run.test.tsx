@@ -53,7 +53,7 @@ describe('useChatPane — a message sent mid-run goes to the running agent', () 
   });
 
   it('sends the text next, without stopping the run, when the run is already ending', async () => {
-    for (const outcome of ['not-running', 'failed'] as const) {
+    for (const outcome of ['not-running'] as const) {
       const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => outcome);
       const { result, transport, unmount } = await startStreamingRun(deliver);
 
@@ -66,13 +66,16 @@ describe('useChatPane — a message sent mid-run goes to the running agent', () 
     }
   });
 
-  it('queues the text as the next turn, without stopping the run, when the host delivery throws', async () => {
+  it('keeps a failed delivery in the draft without stopping or queueing a new run', async () => {
     const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => { throw new Error('POST /runs/run-1/messages offline'); });
     const { result, transport } = await startStreamingRun(deliver);
 
     await act(() => result.current.send());
 
-    expect(result.current.queuedPrompt).toBe('also fix the footer');
+    expect(result.current.queuedPrompt).toBeNull();
+    expect(result.current.composer.draft).toBe('also fix the footer');
+    expect(result.current.typedAnswerNotice).toBe('failed');
+    expect(transport.calls).toHaveLength(1);
     expect(transport.stoppedRunIds).toEqual([]);
   });
 
@@ -268,4 +271,61 @@ describe('useChatPane — a message sent mid-run goes to the running agent', () 
     expect(result.current.queuedPrompt).toBe('also fix the footer');
     expect(result.current.attachmentError?.message).toBe('upload failed');
   });
+});
+
+
+describe('accepted queue recall', () => {
+  it.each(['flush', 'cancel'] as const)('records each merged input at acceptance and never again on %s', async (ending) => {
+    let saved: readonly string[] = [];
+    const storage = { read: vi.fn(async () => saved), write: vi.fn(async ({ entries }: { entries: readonly string[] }) => { saved = [...entries]; }) };
+    const { result, transport, unmount } = await startStreamingRun(undefined, { composerHistoryStorage: storage });
+    await act(() => result.current.send());
+    act(() => result.current.composer.setDraft('and check the header'));
+    await act(() => result.current.send());
+    await waitFor(() => expect(saved).toEqual(['first turn', 'also fix the footer', 'and check the header']));
+    if (ending === 'cancel') act(() => result.current.cancelQueued());
+    act(() => transport.finish());
+    await waitFor(() => expect(transport.calls).toHaveLength(ending === 'flush' ? 2 : 1));
+    expect(saved).toEqual(['first turn', 'also fix the footer', 'and check the header']);
+    if (ending === 'flush') expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('also fix the footer\n\nand check the header');
+    act(() => { result.current.composer.history?.navigate({ key: 'ArrowUp', text: '', selectionStart: 0, selectionEnd: 0 }); });
+    expect(result.current.composer.draft).toBe('and check the header');
+    unmount();
+    const previousWrites = storage.write.mock.calls.length;
+    const restored = renderHook(() => useChatPane({ transport: createFakeChatTransport(), agents, composerHistoryStorage: storage }));
+    await waitFor(() => expect(storage.write.mock.calls.length).toBeGreaterThan(previousWrites));
+    act(() => { restored.result.current.composer.history?.navigate({ key: 'ArrowUp', text: '', selectionStart: 0, selectionEnd: 0 }); });
+    expect(restored.result.current.composer.draft).toBe('and check the header');
+    restored.unmount();
+  });
+
+  it('keeps an explicit failed steering result out of history and retains staged attachments', async () => {
+    let saved: readonly string[] = [];
+    const storage = { read: vi.fn(async () => saved), write: vi.fn(async ({ entries }: { entries: readonly string[] }) => { saved = [...entries]; }) };
+    const { result, transport } = await startStreamingRun(async () => 'failed', { composerHistoryStorage: storage });
+    const image = { path: 'attachment:failed', name: 'retry.png', kind: 'image' as const };
+    act(() => result.current.composer.addAttachment(image));
+    await act(() => result.current.send());
+    expect(result.current.composer.draft).toBe('also fix the footer');
+    expect(result.current.composer.attachments).toEqual([image]);
+    expect(result.current.queuedPrompt).toBeNull();
+    expect(saved).toEqual(['first turn']);
+    expect(transport.calls).toHaveLength(1);
+  });
+});
+
+
+it('does not requeue staged attachments on another Enter after history updates', async () => {
+  const { result, transport } = await startStreamingRun(undefined);
+  act(() => {
+    result.current.composer.setDraft('');
+    result.current.composer.addAttachment({ path: 'attachment:once', name: 'once.png', kind: 'image' });
+  });
+  await act(() => result.current.send());
+  await act(() => result.current.send());
+  expect(result.current.queuedPrompt).toBe('Review the attached file(s).');
+  act(() => transport.finish());
+  await waitFor(() => expect(transport.calls).toHaveLength(2));
+  expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('Review the attached file(s).');
+  expect(transport.calls[1]?.input.attachments).toHaveLength(1);
 });

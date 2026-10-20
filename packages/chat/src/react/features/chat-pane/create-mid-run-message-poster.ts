@@ -16,8 +16,8 @@
  * ## Why it resolves an outcome instead of throwing
  *
  * The pane acts differently on each outcome and must never drop the text: `'unsupported'` stops the
- * run for text-only turns, or queues an attachment turn intact; `'not-running'` and `'failed'` queue it behind the run,
- * which is already ending (or may be — never cut short a run the host could not reach). A 404 means
+ * run for text-only turns, or queues an attachment turn intact; `'not-running'` queues behind the
+ * ending run; `'failed'` retains the draft for retry. A 404 means
  * the daemon never saw this run (a host-side run such as a BYOK API turn), so it is `'unsupported'`
  * too: no live process to steer, but an interrupt still works.
  */

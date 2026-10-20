@@ -40,6 +40,8 @@ export interface ChatAttachment {
  * host layers those on top via its own message extension, not this type.
  */
 export interface ChatMessage {
+  /** A normal send stays outside recall until the transport accepts it. */
+  inputPending?: boolean;
   /** Transient safe receipt; storage requires no new column. */
   secretRedaction?: import('./user-text-redaction.js').SecretRedactionSignal;
   id: string;

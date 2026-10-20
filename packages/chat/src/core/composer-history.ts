@@ -6,8 +6,8 @@ export interface ComposerHistoryState {
 }
 
 export interface ComposerHistoryStoragePort {
-  read: (required: { scope: string }, optional: {}) => Promise<readonly string[]>;
-  write: (required: { scope: string; entries: readonly string[] }, optional: {}) => Promise<void>;
+  read: (required: { scope: string }, optional: { cap?: number }) => Promise<readonly string[]>;
+  write: (required: { scope: string; entries: readonly string[] }, optional: { cap?: number }) => Promise<void>;
 }
 
 export interface ComposerHistoryKeyInput {

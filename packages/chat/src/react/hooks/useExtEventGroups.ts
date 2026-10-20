@@ -71,7 +71,7 @@ function attachCalls({ bySlot, ownerOf, results }: GroupingState): ExtEventGroup
     const owner = ownerOf.get(group);
     if (owner === undefined) continue;
     const result = results.get(owner.id);
-    group.call = { name: owner.name, input: owner.input, ...(result === undefined ? {} : { result }) };
+    group.call = { id: owner.id, name: owner.name, input: owner.input, ...(result === undefined ? {} : { result }) };
   }
   return order;
 }

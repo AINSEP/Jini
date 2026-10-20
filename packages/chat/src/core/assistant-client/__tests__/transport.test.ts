@@ -1,3 +1,4 @@
+import { persistableMessages } from '../messages.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentEvent } from '../../events.js';
 import type { ChatMessage } from '../../messages.js';
@@ -667,4 +668,16 @@ describe('stopRun', () => {
     const h = harness({ fetch: async () => new Response('', { status: 500 }) });
     await expect(h.transport().stopRun('run-1')).rejects.toThrow(/^cancelling agent run failed \(500\)$/);
   });
+});
+
+
+it('leaves a refused pending composer input out of both browser persistence paths', async () => {
+  const pending: ChatMessage = { id: 'pending-input', role: 'user', content: 'keep this draft', inputPending: true };
+  const persist = vi.fn(async () => {});
+  const h = harness({ acceptRun: async () => new Response(JSON.stringify({ error: { message: 'slot busy' } }), { status: 409 }) });
+  await expect(h.transport({ persistUserTurn: persist }).startRun(input([pending], { context: { conversationId: 'conv' } }), recorder().handlers)).rejects.toThrow();
+  expect(persist).not.toHaveBeenCalled();
+  expect(persistableMessages({ messages: [pending] })).toEqual([]);
+  expect(persistableMessages({ messages: [{ ...pending, inputPending: false }] })).toEqual([{ ...pending, inputPending: false }]);
+  expect(pending.inputPending).toBe(true);
 });

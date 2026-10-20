@@ -47,3 +47,5 @@ export * from './user-text-redaction.js';
 export * from './history-tool-metadata.js';
 export { turnUsage, conversationUsage, replySegments, isReplyBoundary, MID_RUN_USER_MESSAGE_EVENT_NAME, type ChatUsageSummary } from './turn-usage.js';
 export { formatUsageCost } from './usage-format.js';
+
+export * from './accepted-input.js';

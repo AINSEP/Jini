@@ -1,3 +1,5 @@
+import { acceptedInputsFromMessages, acceptedInputUserEvent, projectAcceptedInputEvents } from '../accepted-input.js';
+import type { AgentEvent } from '../events.js';
 import { describe, expect, it } from 'vitest';
 import { composerHistoryKeyAction, createComposerHistoryState, mergeComposerHistory, normalizeComposerHistory, transitionComposerHistory, type ComposerHistoryState } from '../composer-history.js';
 
@@ -117,4 +119,63 @@ describe('caret-line gating', () => {
     expect(key('Escape', 8)).toBe('restore');
     expect(key('Enter', 0)).toBeNull();
   });
+});
+
+
+describe('accepted input projection for recall and bubbles', () => {
+  it('replaces an optimistic typed answer with its saved result exactly once in either arrival order', () => {
+    const optimistic = acceptedInputUserEvent({ input: { id: 'answer:ask', text: 'typed answer' }, toolUseId: 'ask' });
+    const result: AgentEvent = { kind: 'tool_result', toolUseId: 'ask', content: JSON.stringify({ submitted: true, freeText: 'typed answer' }), isError: false };
+    for (const events of [[optimistic, result], [result, optimistic]]) {
+      const projected = projectAcceptedInputEvents({ events });
+      expect(acceptedInputsFromMessages({ messages: [{ id: 'a', role: 'assistant', content: '', events: projected }] }).map(input => input.text)).toEqual(['typed answer']);
+      expect(projectAcceptedInputEvents({ events: projected })).toEqual(projected);
+      expect(projected.filter(event => event.kind === 'ext' && event.name === 'user_message')).toHaveLength(1);
+    }
+  });
+
+  it('matches only the new steering event when a previous accepted input has identical text', () => {
+    const earlier: AgentEvent = { kind: 'ext', name: 'user_message', data: { id: 'old', text: 'again' } };
+    const wire: AgentEvent = { kind: 'ext', name: 'user_message', data: { id: 'wire', text: 'again' } };
+    const optimistic = acceptedInputUserEvent({ input: { id: 'local', text: 'again' }, afterInputId: 'old' });
+    for (const events of [[earlier, optimistic, wire], [earlier, wire, optimistic]]) {
+      const projected = projectAcceptedInputEvents({ events });
+      const inputs = acceptedInputsFromMessages({ messages: [{ id: 'a', role: 'assistant', content: '', events: projected }] });
+      expect(inputs.map(input => input.id)).toEqual(['old', 'local']);
+      expect(inputs.map(input => input.text)).toEqual(['again', 'again']);
+      expect(inputs[1]?.aliases).toEqual(['wire']);
+      expect(projectAcceptedInputEvents({ events: [...projected, wire] })).toEqual(projected);
+    }
+  });
+
+  it('preserves distinct real receipts and projects constituent queued inputs instead of the merged prompt', () => {
+    const events: AgentEvent[] = ['a', 'b'].map(id => ({ kind: 'ext', name: 'user_message', data: { id, text: 'same text' } }));
+    expect(acceptedInputsFromMessages({ messages: [{ id: 'reply', role: 'assistant', content: '', events }] }).map(input => input.id)).toEqual(['a', 'b']);
+    expect(acceptedInputsFromMessages({ messages: [{ id: 'merged', role: 'user', content: 'first\n\nsecond', events: [
+      acceptedInputUserEvent({ input: { id: 'first', text: 'first' } }, { receipt: 'accepted' }),
+      acceptedInputUserEvent({ input: { id: 'second', text: 'second' } }, { receipt: 'accepted' }),
+    ] }] })).toEqual([{ id: 'first', text: 'first' }, { id: 'second', text: 'second' }]);
+  });
+
+  it('excludes unaccepted sends, declined/error results and malformed result text', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_result', toolUseId: 'declined', content: JSON.stringify({ submitted: false, freeText: 'not accepted' }), isError: false },
+      { kind: 'tool_result', toolUseId: 'error', content: JSON.stringify({ submitted: true, freeText: 'not accepted' }), isError: true },
+      { kind: 'tool_result', toolUseId: 'invalid', content: 'not json', isError: false },
+    ];
+    expect(acceptedInputsFromMessages({ messages: [
+      { id: 'pending', role: 'user', content: 'unaccepted', inputPending: true },
+      { id: 'reply', role: 'assistant', content: '', events },
+    ] })).toEqual([]);
+  });
+});
+
+
+it('reconciles several accepted steers whose wire receipts arrive together later', () => {
+  const first = acceptedInputUserEvent({ input: { id: 'local-first', text: 'again' } });
+  const second = acceptedInputUserEvent({ input: { id: 'local-second', text: 'again' }, afterInputId: 'local-first' });
+  const wire: AgentEvent[] = ['wire-first', 'wire-second'].map(id => ({ kind: 'ext', name: 'user_message', data: { id, text: 'again' } }));
+  const projected = projectAcceptedInputEvents({ events: [first, second, ...wire] });
+  expect(acceptedInputsFromMessages({ messages: [{ id: 'a', role: 'assistant', content: '', events: projected }] }).map(input => input.id)).toEqual(['local-first', 'local-second']);
+  expect(projectAcceptedInputEvents({ events: [...projected, ...wire] })).toEqual(projected);
 });

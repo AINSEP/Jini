@@ -1096,6 +1096,27 @@ describe('useChatPane', () => {
       }
     });
 
+    it('keeps a post-decline answer before and after tool_result until explicitly submitted as a new turn', async () => {
+      const deliverer = fakeDeliverer(async () => 'not-pending');
+      const { result, transport } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+      act(() => result.current.composer.setDraft('use this instead'));
+      await act(() => result.current.send());
+      expect(result.current.typedAnswerNotice).toBe('not-pending');
+      expect(result.current.composer.draft).toBe('use this instead');
+      act(() => transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: JSON.stringify({ submitted: false, reason: 'cancelled' }), isError: false }));
+      await act(() => result.current.send());
+      expect(deliverer.texts).toEqual(['use this instead']);
+      expect(transport.calls).toHaveLength(1);
+      expect(result.current.queuedPrompt).toBeNull();
+      await act(() => result.current.sendAsNewMessage());
+      expect(result.current.queuedPrompt).toBe('use this instead');
+      act(() => { result.current.composer.history?.navigate({ key: 'ArrowUp', text: '', selectionStart: 0, selectionEnd: 0 }); });
+      expect(result.current.composer.draft).toBe('use this instead');
+      act(() => transport.finish());
+      await waitFor(() => expect(transport.calls).toHaveLength(2));
+      expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('use this instead');
+    });
+
     it('queues as before when the host supplies no deliverTypedAnswer', async () => {
       const { result } = await startRunAwaitingAnswer({});
 
@@ -1165,4 +1186,30 @@ describe('useChatPane', () => {
       expect(result.current.queuedPrompt).toBeNull();
     });
   });
+});
+
+
+it('clears the adopted conversation draft only after its first run is accepted', async () => {
+  const transport = createFakeChatTransport();
+  const start = transport.startRun;
+  let accept!: () => void;
+  const accepted = new Promise<void>(resolve => { accept = resolve; });
+  transport.startRun = async (input, handlers) => { const receipt = await start(input, handlers); await accepted; return receipt; };
+  let saved: readonly string[] = [];
+  const storage = { read: async () => saved, write: async ({ entries }: { entries: readonly string[] }) => { saved = [...entries]; } };
+  const hook = renderHook(({ conversationId }: { conversationId: string | null }) => useChatPane({
+    transport, agents, selection: { agentId: 'codex' }, conversationId, initialDraft: 'first accepted prompt', composerHistoryStorage: storage,
+  }), { initialProps: { conversationId: null as string | null } });
+  let sending!: Promise<void>;
+  act(() => { sending = hook.result.current.send(); });
+  hook.rerender({ conversationId: 'adopted-during-acceptance' });
+  expect(hook.result.current.composer.draft).toBe('first accepted prompt');
+  expect(saved).toEqual([]);
+  await act(async () => { accept(); await sending; });
+  expect(hook.result.current.composer.draft).toBe('');
+  await waitFor(() => expect(saved).toEqual(['first accepted prompt']));
+  hook.unmount();
+  const remounted = renderHook(() => useChatPane({ transport: createFakeChatTransport(), agents, conversationId: 'adopted-during-acceptance', composerHistoryStorage: storage }));
+  expect(remounted.result.current.composer.draft).toBe('');
+  remounted.unmount();
 });
