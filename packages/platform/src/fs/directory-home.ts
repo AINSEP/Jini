@@ -16,7 +16,7 @@ export function resolveDirectoryHome(
   return resolveSelected({ selected, homeDir, cwd, paths });
 }
 
-/** Expand a leading `~`, `~/` or `~\\` against the supplied home; anything else resolves from cwd.
+/** Expand a leading `~`, `~/` or `~\` against the supplied home; anything else resolves from cwd.
  * `~user` forms are deliberately not expanded (no shell, no user database lookup).
  */
 function resolveSelected({ selected, homeDir, cwd, paths }: {

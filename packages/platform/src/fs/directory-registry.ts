@@ -41,7 +41,7 @@ export function createDirectoryRegistry(
     const previous = read(), next = change(previous);
     if (JSON.stringify(next) !== JSON.stringify(previous)) file.write({ value: next });
   } });
-  const registry: DirectoryRegistry = {
+  return {
     hasMigration: ({ migration }, _optional = {}) => read().migrations.includes(migration),
     migrations: (_required, _optional = {}) => read().migrations,
     list: (_required, _optional = {}) => {
@@ -65,16 +65,7 @@ export function createDirectoryRegistry(
         if (migration && state.migrations.includes(migration)) { result = state.entries; return state; }
         const byPath = new Map(state.entries.map((entry) => [canonical(entry.path), { ...entry, path: canonical(entry.path) }]));
         const byId = new Map([...byPath.values()].map((entry) => [entry.id, entry.path]));
-        for (const entry of entries) {
-          if (!validRecord(entry)) throw new Error("Cannot register an invalid directory record.");
-          const dir = canonical(entry.path);
-          const previous = byPath.get(dir);
-          if (byId.has(entry.id) && byId.get(entry.id) !== dir) throw new Error(`Directory identity ${entry.id} is already registered at another path.`);
-          // Reopening a site cannot reset who originally created it or its stable identity.
-          const lastOpened = [previous?.lastOpened, entry.lastOpened].filter((at): at is string => typeof at === "string").sort((a, b) => Date.parse(a) - Date.parse(b)).at(-1) ?? null;
-          const next = previous ? { ...previous, name: entry.name, lastOpened } : { ...entry, path: dir };
-          byPath.set(dir, next); byId.set(next.id, dir);
-        }
+        for (const entry of entries) mergeEntry({ entry, byPath, byId }, { canonical });
         result = [...byPath.values()];
         return { ...state, entries: result, migrations: [...new Set([...state.migrations, ...migrations, ...(migration ? [migration] : [])])] };
       });
@@ -95,7 +86,22 @@ export function createDirectoryRegistry(
       });
     },
   };
-  return registry;
+}
+
+/** Fold one incoming record into the canonical path/identity maps of a merge in progress.
+ * Refusals throw before either map changes, so the caller's update writes nothing.
+ */
+function mergeEntry({ entry, byPath, byId }: {
+  entry: DirectoryRecord; byPath: Map<string, DirectoryRecord>; byId: Map<string, string>;
+}, { canonical }: { canonical: (value: string) => string }): void {
+  if (!validRecord(entry)) throw new Error("Cannot register an invalid directory record.");
+  const dir = canonical(entry.path);
+  const previous = byPath.get(dir);
+  if (byId.has(entry.id) && byId.get(entry.id) !== dir) throw new Error(`Directory identity ${entry.id} is already registered at another path.`);
+  // Reopening a site cannot reset who originally created it or its stable identity.
+  const lastOpened = [previous?.lastOpened, entry.lastOpened].filter((at): at is string => typeof at === "string").sort((a, b) => Date.parse(a) - Date.parse(b)).at(-1) ?? null;
+  const next = previous ? { ...previous, name: entry.name, lastOpened } : { ...entry, path: dir };
+  byPath.set(dir, next); byId.set(next.id, dir);
 }
 function validRecord(entry: unknown): entry is DirectoryRecord {
   if (!entry || typeof entry !== "object") return false;
