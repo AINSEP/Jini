@@ -12,15 +12,15 @@ export interface WidgetsLibraryState {
 export function createWidgetsLibraryController({ api }: { api: AdminWidgetsPort }, { t = widgetsEnglish }: { t?: WidgetsTranslate | undefined } = {}) {
   const store = createControllerStore<WidgetsLibraryState>({ initial: { widgets: null, error: null, skippedCount: 0, skippedIds: [], createType: 'text', pendingTrash: null, trashingId: null } });
   let generation = 0;
+  const isLiveRead = ({ ticket }: { ticket: number }) => ticket === generation && !store.signal.aborted;
   async function load(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
     const ticket = ++generation;
     try {
       // No includeInactive: trashed widgets belong to the shared Trash screen.
       const result = await api.listWidgets({}, { signal: store.signal });
-      if (ticket !== generation || store.signal.aborted) return;
-      store.set({ patch: { widgets: result.widgets, skippedCount: result.skippedCount ?? 0, skippedIds: result.skippedIds ?? [] } });
+      if (isLiveRead({ ticket })) store.set({ patch: { widgets: result.widgets, skippedCount: result.skippedCount ?? 0, skippedIds: result.skippedIds ?? [] } });
     } catch (e) {
-      if (ticket === generation && !store.signal.aborted) store.set({ patch: { error: describeApiError({ e: widgetApiError({ error: e }) ?? e, fallback: t('failed to load widgets') }) } });
+      if (isLiveRead({ ticket })) store.set({ patch: { error: describeApiError({ e: widgetApiError({ error: e }) ?? e, fallback: t('failed to load widgets') }) } });
     }
   }
   async function confirmTrash(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
@@ -31,14 +31,20 @@ export function createWidgetsLibraryController({ api }: { api: AdminWidgetsPort 
       await api.trashWidget({ id: widget.id }, { signal: store.signal });
       void load();
     } catch (error) {
-      const e = widgetApiError({ error });
-      if (e?.code === 'NOT_FOUND') void load();
-      else store.set({ patch: { error: e?.code === 'TRASH_VERSION_CHANGED' ? t('This item changed since you loaded it. Reload and try again.') : describeApiError({ e: e ?? error, fallback: t('delete failed') }) } });
+      handleTrashFailure({ error });
     } finally {
-      // A's completion cannot close a newly opened confirmation for B.
-      const current = store.getSnapshot();
-      store.set({ patch: { trashingId: current.trashingId === widget.id ? null : current.trashingId, pendingTrash: current.pendingTrash?.id === widget.id ? null : current.pendingTrash } });
+      settleTrash({ widget });
     }
+  }
+  function handleTrashFailure({ error }: { error: unknown }, _optional: Record<string, never> = {}) {
+    const e = widgetApiError({ error });
+    if (e?.code === 'NOT_FOUND') void load();
+    else store.set({ patch: { error: e?.code === 'TRASH_VERSION_CHANGED' ? t('This item changed since you loaded it. Reload and try again.') : describeApiError({ e: e ?? error, fallback: t('delete failed') }) } });
+  }
+  function settleTrash({ widget }: { widget: AdminWidget }, _optional: Record<string, never> = {}) {
+    // A's completion cannot close a newly opened confirmation for B.
+    const current = store.getSnapshot();
+    store.set({ patch: { trashingId: current.trashingId === widget.id ? null : current.trashingId, pendingTrash: current.pendingTrash?.id === widget.id ? null : current.pendingTrash } });
   }
   return {
     getSnapshot: store.getSnapshot, subscribe: store.subscribe, load, confirmTrash,
