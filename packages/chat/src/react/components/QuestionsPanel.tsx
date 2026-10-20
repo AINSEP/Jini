@@ -33,7 +33,7 @@ export interface QuestionsPanelProps extends UserTextRedactionOptions {
   onSubmit: (text: string, answers: Record<string, string | string[]>) => void;
 }
 
-export function QuestionsPanel({ form, interactive, submitDisabled = false, submittedAnswers, generating = false, onSubmit, redactUserText, onSecretRedacted }: QuestionsPanelProps) {
+export function QuestionsPanel({ form, interactive, submitDisabled, submittedAnswers, generating = false, onSubmit, redactUserText, onSecretRedacted }: QuestionsPanelProps) {
   const t = useT();
   const formRef = useRef<QuestionFormHandle>(null);
   const [ready, setReady] = useState(false);
