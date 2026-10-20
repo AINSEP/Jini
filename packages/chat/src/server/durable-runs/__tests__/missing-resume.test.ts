@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { createDurableRecovery } from '../recover.js';
+import { unusedStoreMethods } from './store-fake.js';
 import type { DurableRun, DurableRunStore, RecoveryPorts } from '../../../core/durable-runs/ports.js';
 
 /** mri: the already-confirmed locator can name a rollout lost during a hard cancel. */
@@ -24,7 +25,8 @@ it('reconstructs a missing Codex rollout once with prior turns and no visible fa
       return true;
     },
     recoveryClock: async () => {},
-  } as unknown as DurableRunStore;
+    ...unusedStoreMethods,
+  } satisfies DurableRunStore;
   const recovery = createDurableRecovery({
     store, now: () => now + 1000, mintRunId: () => 'fresh', probe: async () => 'dead', attach: () => {},
     cancelAttempt: async () => {}, verifyChildDead: async () => true, supportsNativeResume: () => true,

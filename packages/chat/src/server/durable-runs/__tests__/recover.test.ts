@@ -3,6 +3,7 @@ import type { AgentEvent } from "../../../core/index.js";
 import type { DurableRun, DurableRunStore, RecoveryPorts, RunProbe } from "../../../core/durable-runs/ports.js";
 import { translateRunFrame } from "../../../core/run-events/entry.js";
 import { notices } from "../../../core/run-events/__tests__/fixture.js";
+import { unusedStoreMethods } from "./store-fake.js";
 import { AWAITING_ANSWER_NOTICE, createDurableRecovery, EXHAUSTED_NOTICE, RECOVERY_LIMIT, RUN_STALENESS_MS, SAVED_WORK_NOTICE } from "../recover.js";
 
 const TIME = 1_790_000_000_000;
@@ -31,7 +32,8 @@ function harness({ events, probe, content = "", run = {} }: { events: AgentEvent
       return true;
     },
     async recoveryClock() {},
-  } as unknown as DurableRunStore;
+    ...unusedStoreMethods,
+  } satisfies DurableRunStore;
   const ports: RecoveryPorts = {
     store, now: () => TIME + 20_000, mintRunId: () => "next",
     probe: async () => probe, attach: (run) => { attached.push(run.runId); },
