@@ -83,6 +83,10 @@ export function syncStyle(
   }
 }
 
+const NON_ATTRIBUTE_PROPS = new Set([
+  'cacheKey', 'src', 'style', 'children', 'dangerouslySetInnerHTML',
+]);
+
 export function syncIframeProps(
   frame: HTMLIFrameElement,
   props: PooledIframeProps,
@@ -91,14 +95,7 @@ export function syncIframeProps(
 ) {
   const nextAttributes = new Set<string>();
   for (const [name, value] of Object.entries(props)) {
-    if (
-      name === 'cacheKey'
-      || name === 'src'
-      || name === 'style'
-      || name === 'children'
-      || name === 'dangerouslySetInnerHTML'
-      || name.startsWith('on')
-    ) {
+    if (NON_ATTRIBUTE_PROPS.has(name) || name.startsWith('on')) {
       continue;
     }
     const attributeName = propNameToAttributeName(name);
