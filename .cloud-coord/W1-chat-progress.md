@@ -16,7 +16,7 @@ Baseline (unmodified tree): `tsc --noEmit -p packages/chat` clean; temp eslint (
 | L120 | store/legacy | 31/24 (messages.ts arrow) | ≤10/≤10 | 100/100/100 | 2c38e718, 1ca54c5a | merged ✓ (eslint 0, tsc ok, 18 files/186 tests; server legacy-sqlite 68/68 per agent) |
 | L150 | react/hooks | 15/17 | | | | running |
 | L168 | core/run-events | 18/16 (chunkEvent) | 10/10 | 100/100/100 (was 95/81/96) | cb7789da | merged ✓ (eslint 0, tsc ok, 11 files/182 tests) |
-| L184 | server | 14/13 (recover decide) | | | | running |
+| L184 | server | 14/13 (recover decide) | 9/7 | 100/100/100 | 68b5cdd5, 036a7a4a | merged ✓ (eslint 0, tsc ok, 15 files/267 tests; awaitingAnswer rewrite hand-checked equivalent) |
 | L185 | chat-pane (files) | 17/12 (uploadAttachments) | 8/6 | 100/100/100 | fbc0eed7, 7a10af80 | merged ✓ (eslint 0, tsc ok, 3 files/91 tests) |
 
 ## Problems / notes
