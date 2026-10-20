@@ -34,7 +34,7 @@ Lots are file-disjoint; no lot changes a public export, so lots are independent 
 | L111 | MERGED (057659f7) | 1 agent, 45 calls, 130k tok, 11.3 min | 47de0d8c 83cb4cdb a7a0bdb7 bc25286e 49d139bb | FileDropzone 28/21→10/5; Lightbox 17/16→3/1; Grid 12/13→3/1 | 100/100/100 (4 files incl. new FileDropzoneZone.tsx); 66→81 tests | eslint 0, tsc 0, 163 tests green, why-comment moved to FileDropzoneZone |
 | L117 | MERGED (a6a5bc52) | 1 agent, 34 calls, 125k tok, 9 min | f8b3b81a e90842b1 | dom.ts 15/22→8/10; SketchEditor 15/11→9/2 | 100/100/100 both; +28 tests | eslint 0, tsc 0, 196 tests green; comment lines 57→68 / 30→33 |
 | L122 | MERGED (32307e21) | 1 agent, 23 calls, 104k tok, 6 min | 38edb604 | recordNavigation 24/15, mergeHistoryEntry 22/13, normalizeBrowserAddress 13/13 → file worst 9/9 | 100/100/100 (was 98.65% branch); 58→95 tests | eslint 0, tsc 0, 140 tests green; coordinator re-derived equivalence of removed labelFromUrl fallback |
-| L127 | dispatched | | | | | |
+| L127 | MERGED (51d293c0) | 1 agent, 31 calls, 116k tok, 6.7 min | b61c79cb 8960d87b | Codex 11/10→6/5; IntegrationsTab 33/23→10/4 | 100/100/100 both (Tab was 95.74% branch); 18→29 tests | eslint 0, tsc 0, 60 tests green; comment lines grew |
 | L132 | MERGED (259f28e9) | 1 agent, 10 calls, 76k tok, 3 min | 2c2ea6e4 | validateAdminTheme 29/26→6/5 | 100/100/100; new __tests__/theme/validation.test.ts (78 tests, exact messages) | eslint 0, tsc 0, 84 tests green; 400+ input differential (deleted) |
 | L133 | dispatched | | | | | |
 
@@ -45,5 +45,6 @@ Lots are file-disjoint; no lot changes a public export, so lots are independent 
 - L102: KNOWN FOLLOW-UP (deps not behind wired hook) unchanged; new useAssetTreeBrowserController could host it — design decision for owner.
 - L103: rules.ts commit message says 6/6, measured 5/7. aad8a988 had a tsc error fixed in 55e7405f (don't bisect onto it). CommentSidePanel useCommentReorder override prop only used by tests (kept).
 - L117: f8b3b81a subject says 15->5/22->7; measured 8/10. BUG PINNED (reported, not fixed): duplicated allow-list action or duplicate <li> action → 'already ordered' check never passes → menu re-appended every MutationObserver tick. Export toast 5000 vs 2200 ms not pinned.
+- L127: IntegrationsTabProps.serverName doc says 'Required' but prop is optional (public; left). Sibling ClientPicker.tsx (out of scope) has same needless spread.
 
 ## Next
