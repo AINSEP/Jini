@@ -43,10 +43,10 @@ toolchain.ts 2 cyc@62:26 cog@62:37
 |---|---|---|---|---|---|---|
 | L026 | running | cloud/w2-platform-L026 | | | | |
 | L034 | running | cloud/w2-platform-L034 | | | | |
-| L056 | running | cloud/w2-platform-L056 | | | | |
+| L056 | MERGED | cloud/w2-platform-L056 | d6a5ca93, 718e47bf, 51fd1da4, db12b9db | toolchain 26/37→10/9; proxy-env 17/19→10/7; download 15/13→10/10 | 100/100/100 all three | eslint0, tsc0, 179 pass + 3 pre-existing skipIf(root) |
 | L093 | MERGED | cloud/w2-platform-L093 | e85550e1, 5634636b | address 30/41→10/10 (expandIpv6 untouched, isPrivateAddress 4/2); endpoint-policy 14→6/5 | 100/100/100 both | eslint0, tsc0, 265 tests green |
 | L110 | MERGED | cloud/w2-platform-L110 | fe57e091, 63cd031a | client 23/19→≤10; fetch-adapter 17/11→≤10 | 100/100/100 both (was 94%/75% branch) | eslint0, tsc0, 166 tests green |
-| L230 | waiting on L056 | | | | | |
+| L230 | running | cloud/w2-platform-L230 | | | | |
 | L271 | waiting on L026 | | | | | |
 
 ## Problems / notes
@@ -56,5 +56,6 @@ toolchain.ts 2 cyc@62:26 cog@62:37
 - L110 bug pinned (reported, not fixed): classifyAddress is spelling-dependent — ::0.0.0.2 → reserved but ::2 → public; WHATWG URL rewrites [::0.0.0.2] to [::2], so that URL passes the guard as public.
 
 - Container restart ~mid-batch-A: L026/L034/L056 resumed from transcripts; worktrees, pushes and uncommitted edits survived.
+- L056 follow-up (out of scope): packages/platform/vitest.config.ts still has 99% thresholds + a comment about proxy-env catch / acquireLock gaps that are now closed.
 
 ## Next
