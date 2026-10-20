@@ -33,19 +33,22 @@ function isLoopbackIpv4(hostname: string): boolean {
   return Boolean(parts && parts[0] === 127);
 }
 
+/** First-octet / second-octet-range table of the IPv4 space a public caller
+ *  must never be steered into (`a >= 224` is handled separately). */
+const BLOCKED_IPV4_RANGES: ReadonlyArray<readonly [first: number, secondMin: number, secondMax: number]> = [
+  [0, 0, 255], // unspecified / "this" network
+  [100, 64, 127], // CGNAT
+  [169, 254, 254], // link-local (incl. cloud metadata)
+  [10, 0, 255], // RFC1918
+  [192, 168, 168], // RFC1918
+  [172, 16, 31], // RFC1918
+];
+
 function isBlockedIpv4(hostname: string): boolean {
   const parts = parseIpv4(hostname);
   if (!parts) return false;
   const [a, b] = parts;
-  return (
-    a === 0 ||
-    (a === 100 && b >= 64 && b <= 127) ||
-    (a === 169 && b === 254) ||
-    a === 10 ||
-    (a === 192 && b === 168) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    a >= 224
-  );
+  return a >= 224 || BLOCKED_IPV4_RANGES.some(([first, min, max]) => a === first && b >= min && b <= max);
 }
 
 /** `::ffff:10.0.0.1` and `::ffff:a00:1` denote the same address; return dotted form so the v4 rules apply. */
@@ -53,7 +56,7 @@ function ipv4MappedToDotted(hostname: string): string | null {
   const host = normalizeBracketedIpv6(hostname);
   const mapped = /^::ffff:(.+)$/i.exec(host)?.[1];
   if (!mapped) return null;
-  if (parseIpv4(mapped.toLowerCase())) return mapped.toLowerCase();
+  if (parseIpv4(mapped)) return mapped;
   const hexParts = mapped.split(':');
   if (
     hexParts.length !== 2 ||
