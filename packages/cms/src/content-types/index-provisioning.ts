@@ -241,6 +241,17 @@ function assertIndexableForProvisioning(kind: ContentTypeFieldKind): IndexableFi
 }
 
 /**
+ * Whether one side of a field's transition carries a queryable index; an absent field
+ * (newly added on the before side, removed on the after side) never does.
+ *
+ * @complexity O(1).
+ * @overallScore 100
+ */
+function isQueryable(state: FieldIndexState): boolean {
+  return state?.queryable ?? false;
+}
+
+/**
  * — resolves a single field's index transition from ONE before/after comparison of
  * its `(kind, queryable)` pair, never from two independent branches that each assume the other
  * property is unchanged (the bug class this closes: a field whose `kind` AND `queryable` both
@@ -254,16 +265,14 @@ export function resolveFieldIndexTransition(params: {
   before: FieldIndexState;
   after: FieldIndexState;
 }): FieldIndexTransition {
-  const beforeQueryable = params.before?.queryable ?? false;
-  const afterQueryable = params.after?.queryable ?? false;
-
-  if (!beforeQueryable && !afterQueryable) return { action: "none" };
-  if (beforeQueryable && !afterQueryable) return { action: "teardown" };
-  if (!beforeQueryable && afterQueryable) {
-    return { action: "provision", newKind: assertIndexableForProvisioning(params.after!.kind) };
+  const beforeQueryable = isQueryable(params.before);
+  if (!isQueryable(params.after)) return { action: beforeQueryable ? "teardown" : "none" };
+  // `after` is queryable, so it is present.
+  const after = params.after!;
+  if (!beforeQueryable) {
+    return { action: "provision", newKind: assertIndexableForProvisioning(after.kind) };
   }
-  if (params.before!.kind !== params.after!.kind) {
-    return { action: "reprovision", newKind: assertIndexableForProvisioning(params.after!.kind) };
-  }
-  return { action: "none" };
+  // `before` is queryable, so it is present.
+  if (params.before!.kind === after.kind) return { action: "none" };
+  return { action: "reprovision", newKind: assertIndexableForProvisioning(after.kind) };
 }
