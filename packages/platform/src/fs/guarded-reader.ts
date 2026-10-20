@@ -189,7 +189,8 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
             }
         }
         // A target equal to base yields [""] after split, so check leaf length, not array length.
-        const effectiveLeaf = effectiveSegments.at(-1) ?? "";
+        // split always yields at least one element, so the leaf is always defined.
+        const effectiveLeaf = effectiveSegments[effectiveSegments.length - 1]!;
         if (effectiveLeaf.length > 0 && isDeniedFsFileName(effectiveLeaf)) {
             throw new FsFilePathError({ message: `path '${relativePath}' resolves to a denied filename pattern and cannot be accessed` });
         }
@@ -277,8 +278,17 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
             return statSync(target, { throwIfNoEntry: false });
         }
         catch (err) {
-            throw new FsFilePathError({ message: `path '${relativePath}' could not be read: ${err instanceof Error ? err.message : String(err)}` });
+            throw new FsFilePathError({ message: `path '${relativePath}' could not be read: ${errorText(err)}` });
         }
+    }
+    // Both read paths refuse missing and non-regular targets with identical wording.
+    function statRegularFile(target: string, relativePath: string): Stats {
+        const stat = statOrFsPathError(target, relativePath);
+        if (!stat)
+            throw new FsFilePathError({ message: `file '${relativePath}' does not exist` });
+        if (!stat.isFile())
+            throw new FsFilePathError({ message: `path '${relativePath}' is not a regular file` });
+        return stat;
     }
     // A bounded leading-NUL heuristic keeps binary databases/images/archives out of inline UTF-8
     // model input without making type sniffing proportional to the full file size.
@@ -299,16 +309,19 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
         relativePath: string;
     }): ReadFsFileResult {
         const target = resolveFsFilePath(required);
-        const stat = statOrFsPathError(target, required.relativePath);
-        if (!stat)
-            throw new FsFilePathError({ message: `file '${required.relativePath}' does not exist` });
-        if (!stat.isFile())
-            throw new FsFilePathError({ message: `path '${required.relativePath}' is not a regular file` });
+        const stat = statRegularFile(target, required.relativePath);
         if (stat.size > MAX_FS_FILE_BYTES) {
             throw new FsFilePathError({ message: `file '${required.relativePath}' exceeds the ${MAX_FS_FILE_BYTES}-byte readable limit` });
         }
+        const buffer = readBoundedSync(target, required.relativePath);
+        if (looksBinary(buffer)) {
+            throw new FsFilePathError({ message: `file '${required.relativePath}' looks like a binary file and cannot be read as text` });
+        }
+        return { content: buffer.toString("utf8"), bytes: buffer.byteLength };
+    }
+    // Read one byte past the cap so a file that grew after stat is refused rather than clipped.
+    function readBoundedSync(target: string, relativePath: string): Buffer {
         const fd = fs.openSync(target, "r");
-        let buffer: Buffer;
         try {
             const bounded = Buffer.alloc(MAX_FS_FILE_BYTES + 1);
             let count = 0;
@@ -319,16 +332,12 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
                 count += read;
             }
             if (count > MAX_FS_FILE_BYTES)
-                throw new FsFilePathError({ message: `file '${required.relativePath}' exceeds the ${MAX_FS_FILE_BYTES}-byte readable limit` });
-            buffer = bounded.subarray(0, count);
+                throw new FsFilePathError({ message: `file '${relativePath}' exceeds the ${MAX_FS_FILE_BYTES}-byte readable limit` });
+            return bounded.subarray(0, count);
         }
         finally {
             fs.closeSync(fd);
         }
-        if (looksBinary(buffer)) {
-            throw new FsFilePathError({ message: `file '${required.relativePath}' looks like a binary file and cannot be read as text` });
-        }
-        return { content: buffer.toString("utf8"), bytes: buffer.byteLength };
     }
     // A stat-only size check can be bypassed by a growing file: bound the stream independently and
     // reject rather than return a clipped image/video. Destroy the stream on success or failure.
@@ -342,32 +351,19 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
             throw new FsFilePathError({ message: "maxBytes must be a positive safe integer" });
         }
         const target = resolveFsFilePath(required);
-        const stat = statOrFsPathError(target, relativePath);
-        if (!stat)
-            throw new FsFilePathError({ message: `file '${relativePath}' does not exist` });
-        if (!stat.isFile())
-            throw new FsFilePathError({ message: `path '${relativePath}' is not a regular file` });
+        const stat = statRegularFile(target, relativePath);
         if (stat.size > maxBytes) {
             throw new FsFilePathError({ message: `file '${relativePath}' is ${stat.size} bytes and exceeds the ${maxBytes}-byte import limit` });
         }
+        return readBoundedStream(target, { relativePath, maxBytes });
+    }
+    async function readBoundedStream(target: string, { relativePath, maxBytes }: { relativePath: string; maxBytes: number }): Promise<Uint8Array> {
         const stream = fs.createReadStream(target, { highWaterMark: Math.min(64 * 1024, maxBytes + 1) });
-        const chunks: Buffer[] = [];
-        let totalBytes = 0;
         try {
-            for await (const chunk of stream) {
-                const bytes = chunk as Buffer;
-                totalBytes += bytes.byteLength;
-                if (totalBytes > maxBytes) {
-                    throw new FsFilePathError({ message: `file '${relativePath}' is at least ${totalBytes} bytes and exceeds the ${maxBytes}-byte import limit` });
-                }
-                chunks.push(bytes);
-            }
-            return Buffer.concat(chunks, totalBytes);
-        }
-        catch (error) {
-            if (error instanceof FsFilePathError)
-                throw error;
-            throw new FsFilePathError({ message: `path '${relativePath}' could not be read: ${error instanceof Error ? error.message : String(error)}` });
+            // Own refusals pass through; any other stream failure becomes this reader's refusal class.
+            return await collectBoundedChunks(stream, { relativePath, maxBytes }).catch((error: unknown) => Promise.reject(error instanceof FsFilePathError
+                ? error
+                : new FsFilePathError({ message: `path '${relativePath}' could not be read: ${errorText(error)}` })));
         }
         finally {
             stream.destroy();
@@ -381,4 +377,20 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
         isDeniedFileName: ({ fileName }) => isDeniedFsFileName(fileName),
         isDeniedPathSegment: ({ segmentName }) => isDeniedFsPathSegment(segmentName),
     };
+}
+function errorText(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+async function collectBoundedChunks(stream: AsyncIterable<unknown>, { relativePath, maxBytes }: { relativePath: string; maxBytes: number }): Promise<Uint8Array> {
+    const chunks: Buffer[] = [];
+    let totalBytes = 0;
+    for await (const chunk of stream) {
+        const bytes = chunk as Buffer;
+        totalBytes += bytes.byteLength;
+        if (totalBytes > maxBytes) {
+            throw new FsFilePathError({ message: `file '${relativePath}' is at least ${totalBytes} bytes and exceeds the ${maxBytes}-byte import limit` });
+        }
+        chunks.push(bytes);
+    }
+    return Buffer.concat(chunks, totalBytes);
 }
