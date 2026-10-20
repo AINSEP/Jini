@@ -284,6 +284,14 @@ describe('extractRelativeRefs', () => {
       expect(extractRelativeRefs({ text: '<img srcset=" , a.png 1x,,">', fromPath: 'i.html', fromMime: 'text/html' })).toEqual(['a.png']);
     });
 
+    it('drops whitespace-only src and empty srcset parts from a nested file instead of resolving them to its directory', () => {
+      expect(extractRelativeRefs({ text: '<img src="  "><img srcset=" , ">', fromPath: 'p/i.html', fromMime: 'text/html' })).toEqual([]);
+    });
+
+    it('runs CSS patterns when the mime is CSS even though the path is JS-like', () => {
+      expect(extractRelativeRefs({ text: "url(c.png) import x from './m.js'", fromPath: 'a.js', fromMime: 'text/css' })).toEqual(['c.png', 'm.js']);
+    });
+
     it('does not read srcset outside HTML-like files', () => {
       expect(extractRelativeRefs({ text: '<img srcset="a.png 1x">', fromPath: 'a.css', fromMime: 'text/css' })).toEqual([]);
     });
