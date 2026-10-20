@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { OAuthTokenStoreError, parseOAuthTokenVaultMeta, type OAuthTokenStoreErrorCode } from "../index.js";
 import { buildRecordMeta, buildTokenPayload } from "../record.js";
-import { createVaultOAuthTokenStore } from "../vault-token-store.js";
+import { createVaultOAuthTokenStore, type OAuthTokenVaultPort } from "../vault-token-store.js";
 import { KEY, OWNER, SCOPE, createFixture, seed, tokenSet } from "./fixtures.js";
 
 async function refusal(promise: Promise<unknown>): Promise<OAuthTokenStoreError> {
@@ -124,6 +124,68 @@ describe("fencing", () => {
     await seed({ store: connectFlow, tokens: tokenSet({ label: "switched" }) });
     expect(await refresher.tryAcquireRefreshLease({ key: KEY })).toBe(false);
     expect(await connectFlow.load({ key: KEY })).toEqual(tokenSet({ label: "switched" }));
+  });
+});
+
+describe("credential install (sign-in write, no refresh lease)", () => {
+  it("writes freshly issued tokens for the live generation without a lease", async () => {
+    const f = createFixture();
+    await f.store().install({ key: KEY, tokens: tokenSet({ label: "signed-in" }), generation: 1 });
+    expect(await f.store().load({ key: KEY })).toEqual(tokenSet({ label: "signed-in" }));
+  });
+
+  it("keeps rows of two connections that share a connection id apart in one vault scope", async () => {
+    const f = createFixture();
+    const other = { ...OWNER, pluginId: "other-plugin" };
+    await f.store().install({ key: KEY, tokens: tokenSet({ label: "mine" }), generation: 1 });
+    await f.store({ owner: other }).install({ key: "connection-key-2", tokens: tokenSet({ label: "theirs" }), generation: 1 });
+    expect([await f.store().load({ key: KEY }), await f.store({ owner: other }).load({ key: "connection-key-2" })])
+      .toEqual([tokenSet({ label: "mine" }), tokenSet({ label: "theirs" })]);
+  });
+
+  it("refuses an install whose generation was superseded (disconnect, switch or newer attempt) and writes nothing", async () => {
+    const f = createFixture();
+    f.state.generation = 2;
+    const error = await refusal(f.store().install({ key: KEY, tokens: tokenSet({ label: "stale" }), generation: 1 }));
+    expect([error.code, await f.repo.find({ workspaceId: SCOPE.workspaceId, id: KEY })]).toEqual(["stale-generation", null]);
+  });
+
+  it("never overwrites tokens a newer generation installed after the older install checked the generation", async () => {
+    const f = createFixture();
+    let interleave: (() => Promise<void>) | null = async () => {
+      f.state.generation = 2;
+      await f.store().install({ key: KEY, tokens: tokenSet({ label: "newer" }), generation: 2 });
+    };
+    // The older install reads generation 1, then the newer one runs to completion before it opens the row.
+    const older = createVaultOAuthTokenStore({ vault: f.vault, vaultScope: SCOPE, owner: OWNER, clock: f.clock,
+      readGeneration: async () => {
+        const generation = f.state.generation;
+        const run = interleave;
+        interleave = null;
+        await run?.();
+        return generation;
+      } });
+    const error = await refusal(older.install({ key: KEY, tokens: tokenSet({ label: "older" }), generation: 1 }));
+    expect([error.code, await f.store().load({ key: KEY })]).toEqual(["stale-generation", tokenSet({ label: "newer" })]);
+  });
+
+  it("lets the newest install win when an older one writes between its read and its write", async () => {
+    const f = createFixture();
+    f.state.generation = 2;
+    let interleave: (() => Promise<void>) | null = async () => {
+      await f.vault.put({ ...SCOPE, id: KEY, expectedRevision: null, provider: null, label: "conn-1",
+        meta: buildRecordMeta({ meta: { status: "active", leaseHolder: null, leaseExpiresAtMs: null } }),
+        payload: buildTokenPayload({ key: KEY, owner: OWNER, generation: 1, tokens: tokenSet({ label: "older" }) }) });
+    };
+    // The older install's write lands after the newest one opened the row, so its first write conflicts.
+    const racedVault: OAuthTokenVaultPort = {
+      get: input => f.vault.get(input), patchMeta: input => f.vault.patchMeta(input), delete: input => f.vault.delete(input),
+      put: async input => { const run = interleave; interleave = null; await run?.(); return f.vault.put(input); },
+    };
+    const newest = createVaultOAuthTokenStore({ vault: racedVault, vaultScope: SCOPE, owner: OWNER, clock: f.clock,
+      readGeneration: async () => f.state.generation });
+    await newest.install({ key: KEY, tokens: tokenSet({ label: "newest" }), generation: 2 });
+    expect(await f.store().load({ key: KEY })).toEqual(tokenSet({ label: "newest" }));
   });
 });
 

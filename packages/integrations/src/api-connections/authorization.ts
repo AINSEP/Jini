@@ -8,7 +8,7 @@
  */
 import { beginAuthorizationCode, completeAuthorizationCode, OAuthError, type OAuthProviderDescriptor,
   type OAuthTokenSet } from '@jini-ai/oauth';
-import { type ApiConnectionServiceDeps, clientKind } from './deps.js';
+import type { ApiConnectionServiceDeps } from './deps.js';
 import { ApiConnectionError, invalidAttempt } from './errors.js';
 import { attemptOpener, attemptSealer } from './attempt-state.js';
 import { finishAuthorization, type CompletedAuthorization } from './finish-authorization.js';
@@ -79,7 +79,7 @@ export async function startApiConnectionAuthorization(
   const begun = await beginAuthorizationCode({
     provider: providerFor(deps), stateless: attemptSealer(deps, { draft }), randomBytesFn: deps.randomBytesFn, guard: deps.guard,
     options: deps.appOptions, ownerKey, client: deps.client, redirectUri: requiredArgs.redirectUri,
-  }, { scopes: requestedScopes, extraAuthorizationParams: { ...deps.descriptor.authorizationParams[clientKind(deps)], ...startParams } })
+  }, { scopes: requestedScopes, extraAuthorizationParams: { ...deps.descriptor.authorizationParams[deps.clientKind], ...startParams } })
     .catch((error: unknown) => { throw toConnectionError(error); });
   return { connectionRef: key, authorizationUrl: begun.authorizationUrl, expiresAt: begun.expiresAt };
 }

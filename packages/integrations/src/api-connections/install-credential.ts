@@ -24,7 +24,8 @@ export async function installCredential(
   const fenced = await writeRecord(deps, requiredArgs.current, {
     status: 'reconnect-required', generation: requiredArgs.current.generation + 1, staged: null,
   });
-  await deps.tokens.persist({ key: fenced.key, tokens: requiredArgs.tokens });
+  // Fenced on the new generation: a disconnect, switch or newer attempt that moves it first wins.
+  await deps.tokens.install({ key: fenced.key, tokens: requiredArgs.tokens, generation: fenced.generation });
   return writeRecord(deps, fenced, {
     status: 'connected', account: requiredArgs.account, grantedScopes: [...requiredArgs.grantedScopes],
   });

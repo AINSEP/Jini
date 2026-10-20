@@ -18,6 +18,8 @@ export interface AcmeProvider {
   readonly revoked: string[];
   readonly tokenRequests: URLSearchParams[];
   failRevocation: boolean;
+  /** When set, a code exchange whose client_secret differs is refused with `invalid_client`. */
+  expectedClientSecret: string | null;
   close(): Promise<void>;
 }
 
@@ -45,7 +47,7 @@ export async function startAcmeProvider(): Promise<AcmeProvider> {
       ...(withRefresh ? { refresh_token: `acme-rt-${counter}` } : {}) };
   };
   const provider: AcmeProvider = {
-    origin: '', revoked: [], tokenRequests: [], failRevocation: false,
+    origin: '', revoked: [], tokenRequests: [], failRevocation: false, expectedClientSecret: null,
     approve({ authorizationUrl, account, grantScopes, omitRefreshToken = false }) {
       const param = (name: string) => new URL(authorizationUrl).searchParams.get(name) ?? '';
       const code = `acme-code-${codes.size + 1}`;
@@ -62,6 +64,9 @@ export async function startAcmeProvider(): Promise<AcmeProvider> {
   const token = (form: URLSearchParams, response: ServerResponse) => {
     provider.tokenRequests.push(form);
     if (form.get('grant_type') === 'refresh_token') return refresh(form, response);
+    if (provider.expectedClientSecret !== null && form.get('client_secret') !== provider.expectedClientSecret) {
+      return send(response, 401, { error: 'invalid_client' });
+    }
     const code = form.get('code') ?? '';
     const issued = codes.get(code);
     codes.delete(code);

@@ -8,7 +8,7 @@
 import { nowIso } from '@jini-ai/core/primitives';
 import type { OAuthTokenSet } from '@jini-ai/oauth';
 import { ATTEMPT_TTL_MS } from './attempt-state.js';
-import { type ApiConnectionServiceDeps, clientKind } from './deps.js';
+import type { ApiConnectionServiceDeps } from './deps.js';
 import { ApiConnectionError } from './errors.js';
 import { installCredential } from './install-credential.js';
 import { stagedTokenKey } from './keys.js';
@@ -64,7 +64,7 @@ async function currentRecord(deps: ApiConnectionServiceDeps, attempt: ApiConnect
 /** Hosted re-consent for the same account may omit a refresh token; the stored one stays valid. */
 async function keepRefreshToken(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord, tokens: OAuthTokenSet,
   account: ApiConnectionAccount): Promise<OAuthTokenSet> {
-  if (tokens.refreshToken !== null || clientKind(deps) === 'public' || record.account?.accountId !== account.accountId) return tokens;
+  if (tokens.refreshToken !== null || deps.clientKind === 'public' || record.account?.accountId !== account.accountId) return tokens;
   const existing = await deps.tokens.load({ key: record.key });
   return existing?.refreshToken ? { ...tokens, refreshToken: existing.refreshToken } : tokens;
 }
@@ -81,7 +81,7 @@ async function commitConnect(deps: ApiConnectionServiceDeps, record: ApiConnecti
 
 async function stageSwitch(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord, attempt: ApiConnectionAttempt,
   tokens: OAuthTokenSet, account: ApiConnectionAccount, grantedScopes: readonly string[]): Promise<void> {
-  await deps.tokens.persist({ key: stagedTokenKey({ key: record.key }), tokens });
+  await deps.tokens.install({ key: stagedTokenKey({ key: record.key }), tokens, generation: record.generation });
   const expiresAt = new Date(Date.parse(nowIso({ clock: deps.clock })) + ATTEMPT_TTL_MS).toISOString();
   await writeRecord(deps, record, {
     staged: { account, grantedScopes: [...grantedScopes], actorId: attempt.actorId, generation: record.generation, expiresAt },

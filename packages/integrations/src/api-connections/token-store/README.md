@@ -15,7 +15,7 @@ const store = createVaultOAuthTokenStore({
   readGeneration,   // ({ key }) => Promise<number>; the host bumps it on disconnect/switch/reconnect
   clock,            // Clock from @jini-ai/core/primitives
 });
-// store: OAuthTokenStore (all optional lease methods implemented) & { delete({ key }) }
+// store: OAuthTokenStore (all optional lease methods implemented) & { install({ key, tokens, generation }), delete({ key }) }
 const refresher = createTokenRefresher({ clock, sleep, port: { ...store, refresh } });
 ```
 
@@ -24,7 +24,8 @@ Also exported: `parseOAuthTokenVaultMeta` (the vault metadata parser), `OAuthTok
 
 ## How it stores things
 
-- One vault row per connection key (`id = key`) under `vaultScope`.
+- One vault row per connection key (`id = key`, `label = key`) under `vaultScope`. The vault keeps
+  labels unique per scope, and one scope holds main and staged rows of many connections.
 - Sealed payload: `{ format, version, key, owner, generation, tokens | null }`. The key and the
   owner are sealed with the tokens, so a row that belongs to another connection or client is
   refused on read (`owner-mismatch`), on top of the vault's own AAD binding.
@@ -40,6 +41,7 @@ Also exported: `parseOAuthTokenVaultMeta` (the vault metadata parser), `OAuthTok
 | Old-account tokens are never served | `load` returns `null` for a payload sealed under an older generation. A lease is refused when a recent `load` saw a different generation than the live one. |
 | Rotation is durable before the lease is released | `persist` returns only after the vault write; the refresher releases afterwards. |
 | `invalid_grant` → reconnect required | `markNeedsReauth` clears the sealed tokens and sets `status: "reconnect-required"`; the reason string is not stored. |
+| A sign-in install is fenced without a lease | `install({ key, tokens, generation })` refuses (`stale-generation`) when the live generation is not `generation` or the stored payload is from a newer generation; a CAS conflict re-reads and retries up to 3 times (`write-conflict`). Recent loads do not block it, because its tokens are freshly issued rather than derived from a load. |
 | Disconnect clears the secret | `delete` removes the row (retries the CAS up to 3 times, then `write-conflict`). |
 
 ## Host responsibilities
@@ -49,8 +51,9 @@ Also exported: `parseOAuthTokenVaultMeta` (the vault metadata parser), `OAuthTok
    vault kinds each belong to another feature, so a dedicated kind (and its schema check) is the
    expected follow-up; the store never chooses a kind itself.
 2. Own `readGeneration`: increment it **before** disconnect, account switch or reconnect.
-3. Write tokens from a connect flow the same way the refresher does: `tryAcquireRefreshLease`,
-   `persist`, `releaseRefreshLease`.
+3. Write tokens from a connect or switch flow with `install`, passing the generation the flow
+   moved the connection to (the api-connections service does this). `persist` stays the
+   refresher's lease-held write.
 
 ## Extension points
 

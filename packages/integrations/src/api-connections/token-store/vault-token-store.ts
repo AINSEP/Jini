@@ -5,7 +5,9 @@
  * - fencing: a write is refused once the connection's generation moved on (disconnect,
  *   account switch, reconnect) or a newer attempt took the lease, so a late refresh cannot
  *   resurrect tokens;
- * - owner binding: every read must match the expected workspace/plugin/connection/client. */
+ * - owner binding: every read must match the expected workspace/plugin/connection/client.
+ * A sign-in install is not a refresh, so it takes no lease: it is fenced by the generation the
+ * caller moved the connection to, and never overwrites a newer generation's tokens. */
 import { randomUUID } from "node:crypto";
 import type { Clock } from "@jini-ai/core/primitives";
 import type { OAuthTokenSet, OAuthTokenStore } from "@jini-ai/oauth";
@@ -18,8 +20,8 @@ import { buildRecordMeta, buildTokenPayload, parseTokenPayload, parseTokenSet, r
 const LEASE_TTL_MS = 30_000;
 /** Loads older than this cannot belong to a refresh that is about to take the lease. */
 const LOAD_OBSERVATION_WINDOW_MS = 60_000;
-/** Disconnect must win over concurrent lease writes; each retry re-reads the newest revision. */
-const DELETE_ATTEMPTS = 3;
+/** Disconnect and install must win over concurrent lease writes; each retry re-reads the newest revision. */
+const WRITE_ATTEMPTS = 3;
 
 /** The vault operations this store uses; `SecretsVaultService` satisfies it. */
 export type OAuthTokenVaultPort = Pick<SecretsVaultService, "get" | "put" | "patchMeta" | "delete">;
@@ -34,8 +36,10 @@ export interface VaultOAuthTokenStoreDeps {
   readonly readGeneration: ReadConnectionGeneration;
   readonly clock: Clock;
 }
-/** `OAuthTokenStore` plus disconnect. Writes (`persist`, `markNeedsReauth`) require the lease. */
+/** `OAuthTokenStore` plus install and disconnect. Refresh writes (`persist`, `markNeedsReauth`)
+ * require the lease; `install` is fenced by its generation instead. */
 export type VaultOAuthTokenStore = Required<OAuthTokenStore> & {
+  install(requiredArgs: { readonly key: string; readonly tokens: OAuthTokenSet; readonly generation: number }): Promise<void>;
   delete(requiredArgs: { readonly key: string }): Promise<void>;
 };
 
@@ -80,8 +84,10 @@ export function createVaultOAuthTokenStore(
     return recent;
   };
   const writeRecord = async (key: string, required: { record: OpenedRecord | null; meta: OAuthTokenRecordMeta; payload: VaultMeta }): Promise<void> => {
+    // The vault keeps labels unique per scope, and one scope holds several rows per connection
+    // (main and staged keys, other plugins' connections), so the label is the unique, non-secret key.
     await vault.put({ ...identity(key), expectedRevision: required.record?.revision ?? null, provider: null,
-      label: owner.connectionId, meta: buildRecordMeta({ meta: required.meta }), payload: required.payload });
+      label: key, meta: buildRecordMeta({ meta: required.meta }), payload: required.payload });
   };
   // Every token write re-proves the lease and the generation immediately before the CAS write.
   const fencedWrite = async (key: string, required: { status: OAuthConnectionStatus; tokens: OAuthTokenSet | null }): Promise<void> => {
@@ -112,6 +118,22 @@ export function createVaultOAuthTokenStore(
       throw error;
     }
   };
+  // Lease fields are kept: a refresher holding the lease for an older generation is refused by
+  // its own generation check or by this write's revision change, and then releases as usual.
+  const installOnce = async (key: string, required: { tokens: OAuthTokenSet; generation: number }): Promise<boolean> => {
+    if (await readGeneration({ key }) !== required.generation) throw new OAuthTokenStoreError({ code: "stale-generation" });
+    const record = await open(key);
+    // The live generation moved on after the check above and a newer install already landed.
+    if (record !== null && record.payload.generation > required.generation) throw new OAuthTokenStoreError({ code: "stale-generation" });
+    const meta: OAuthTokenRecordMeta = { ...(record?.meta ?? { leaseHolder: null, leaseExpiresAtMs: null }), status: "active" };
+    try {
+      await writeRecord(key, { record, meta, payload: buildTokenPayload({ key, owner, generation: required.generation, tokens: required.tokens }) });
+      return true;
+    } catch (error) {
+      if (isConflict(error)) return false;
+      throw error;
+    }
+  };
   const deleteOnce = async (key: string): Promise<boolean> => {
     const record = await open(key);
     if (record === null) return true;
@@ -135,6 +157,13 @@ export function createVaultOAuthTokenStore(
     },
     async persist({ key, tokens }) {
       await fencedWrite(key, { status: "active", tokens: parseTokenSet({ value: tokens }) });
+    },
+    async install({ key, tokens, generation }) {
+      const parsed = parseTokenSet({ value: tokens });
+      for (let attempt = 0; attempt < WRITE_ATTEMPTS; attempt += 1) {
+        if (await installOnce(key, { tokens: parsed, generation })) return;
+      }
+      throw new OAuthTokenStoreError({ code: "write-conflict" });
     },
     // The reason is not stored: callers may pass provider text, and status must stay secret-free.
     // The refresh token is dead after invalid_grant, so the tokens are cleared with the status change.
@@ -168,7 +197,7 @@ export function createVaultOAuthTokenStore(
     },
     async delete({ key }) {
       loads.delete(key);
-      for (let attempt = 0; attempt < DELETE_ATTEMPTS; attempt += 1) {
+      for (let attempt = 0; attempt < WRITE_ATTEMPTS; attempt += 1) {
         if (await deleteOnce(key)) return;
       }
       throw new OAuthTokenStoreError({ code: "write-conflict" });
