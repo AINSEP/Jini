@@ -222,6 +222,13 @@ interface SessionMetadata {
   killed: boolean;
 }
 
+type DefinedOnly<T> = { [K in keyof T]?: Exclude<T[K], undefined> };
+
+/** Drop undefined-valued keys so an omitted option never overrides the engine's own default. */
+function definedOnly<T extends object>(value: T): DefinedOnly<T> {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as DefinedOnly<T>;
+}
+
 /**
  * Serializes calls made for the same `id` through a per-id promise chain
  * (matching this codebase's `oauth-tokens.ts` `withLock` precedent), so a
@@ -230,13 +237,6 @@ interface SessionMetadata {
  * uncontended, so the map does not grow unbounded across a long-lived
  * daemon process's many short-lived terminal sessions.
  */
-type DefinedOnly<T> = { [K in keyof T]?: Exclude<T[K], undefined> };
-
-/** Drop undefined-valued keys so an omitted option never overrides the engine's own default. */
-function definedOnly<T extends object>(value: T): DefinedOnly<T> {
-  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as DefinedOnly<T>;
-}
-
 async function runExclusive<T>(locks: Map<string, Promise<unknown>>, id: string, fn: () => T): Promise<T> {
   const prior = locks.get(id) ?? Promise.resolve();
   const task = prior.catch(() => undefined).then(fn);
