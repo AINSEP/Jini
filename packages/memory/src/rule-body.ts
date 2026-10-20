@@ -29,6 +29,13 @@ export interface ParsedRuleBody {
 
 const LABELED_LINE_RE = /^([A-Za-z][A-Za-z ]*?):\s*(.*)$/;
 
+const RULE_LABEL_FIELDS = new Map<string, keyof ParsedRuleBody>([
+  ['assertion', 'assertion'],
+  ['check', 'check'],
+  ['verified by', 'rationale'],
+  ['rationale', 'rationale'],
+]);
+
 /**
  * Parse a rule note body's `Assertion:`/`Check:`/`Verified by:`/`Rationale:`
  * labeled lines into `{ assertion, check, rationale }`. Each label is taken
@@ -42,9 +49,7 @@ const LABELED_LINE_RE = /^([A-Za-z][A-Za-z ]*?):\s*(.*)$/;
  *   line when no `Assertion:` line is present.
  */
 export function parseRuleBody({ body }: { body: string }): ParsedRuleBody {
-  let assertion = '';
-  let check = '';
-  let rationale = '';
+  const fields: ParsedRuleBody = { assertion: '', check: '', rationale: '' };
 
   for (const rawLine of body.split(/\r?\n/)) {
     const line = rawLine.trim();
@@ -57,21 +62,16 @@ export function parseRuleBody({ body }: { body: string }): ParsedRuleBody {
     const label = match[1]!.toLowerCase();
     const value = match[2]!.trim();
     if (value.length === 0) continue;
-    if (label === 'assertion' && assertion.length === 0) {
-      assertion = value;
-    } else if (label === 'check' && check.length === 0) {
-      check = value;
-    } else if ((label === 'verified by' || label === 'rationale') && rationale.length === 0) {
-      rationale = value;
-    }
+    const field = RULE_LABEL_FIELDS.get(label);
+    if (field !== undefined && fields[field].length === 0) fields[field] = value;
   }
 
-  if (assertion.length === 0) {
+  if (fields.assertion.length === 0) {
     // `String.prototype.split` always returns a non-empty array (at least
     // one element, `''` at the empty extreme), so index 0 is always
     // defined here — the assertion is TS-required, not reachable-undefined.
-    assertion = body.trim().split(/\r?\n/)[0]!.trim();
+    fields.assertion = body.trim().split(/\r?\n/)[0]!.trim();
   }
 
-  return { assertion, check: check.length > 0 ? check : assertion, rationale };
+  return { ...fields, check: fields.check.length > 0 ? fields.check : fields.assertion };
 }

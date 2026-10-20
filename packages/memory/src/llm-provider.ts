@@ -105,21 +105,34 @@ interface ResolvedLlmCall {
   timeoutMs: number;
 }
 
+function resolveBaseUrl(
+  { provider }: { provider: LlmProviderId },
+  { baseUrl: configuredBaseUrl }: { baseUrl?: string | undefined } = {},
+): string {
+  let baseUrl = (configuredBaseUrl ?? '').trim().replace(/\/+$/, '');
+  if (!baseUrl) {
+    if (provider === 'azure') {
+      throw new Error(
+        'llm-provider: baseUrl is required for the "azure" provider (no public default host exists — supply your resource\'s own https://<resource>.openai.azure.com)',
+      );
+    }
+    baseUrl = DEFAULT_BASE_URLS[provider];
+  }
+
+  return baseUrl;
+}
+
+function resolveTimeout({ timeoutMs }: { timeoutMs: number | undefined }): number {
+  return typeof timeoutMs === 'number' && Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS;
+}
+
 function resolveConfig(config: LlmProviderConfig & LlmProviderOptions): ResolvedLlmCall {
   const apiKey = config.apiKey.trim();
   if (!apiKey) throw new Error('llm-provider: apiKey is required');
   const model = config.model.trim();
   if (!model) throw new Error('llm-provider: model is required');
 
-  let baseUrl = (config.baseUrl ?? '').trim().replace(/\/+$/, '');
-  if (!baseUrl) {
-    if (config.provider === 'azure') {
-      throw new Error(
-        'llm-provider: baseUrl is required for the "azure" provider (no public default host exists — supply your resource\'s own https://<resource>.openai.azure.com)',
-      );
-    }
-    baseUrl = DEFAULT_BASE_URLS[config.provider];
-  }
+  const baseUrl = resolveBaseUrl({ provider: config.provider }, { baseUrl: config.baseUrl });
 
   return {
     fetchFn: config.fetchFn ?? globalThis.fetch,
@@ -131,7 +144,7 @@ function resolveConfig(config: LlmProviderConfig & LlmProviderOptions): Resolved
     apiVersion: (config.apiVersion ?? '').trim(),
     extraHeaders: config.extraHeaders ?? {},
     requestInit: config.requestInit ?? {},
-    timeoutMs: typeof config.timeoutMs === 'number' && Number.isFinite(config.timeoutMs) && config.timeoutMs > 0 ? config.timeoutMs : DEFAULT_TIMEOUT_MS,
+    timeoutMs: resolveTimeout({ timeoutMs: config.timeoutMs }),
   };
 }
 
@@ -176,6 +189,30 @@ function googleCandidateParts(json: unknown): unknown[] | undefined {
   return Array.isArray(parts) ? parts : undefined;
 }
 
+function firstInnerErrorDetail({ errors }: { errors: unknown }): string {
+  if (!Array.isArray(errors)) return '';
+  for (const inner of errors as unknown[]) {
+    const innerObj = inner as { code?: unknown; message?: unknown } | null | undefined;
+    const innerCode = innerObj?.code ? String(innerObj.code) : '';
+    const innerMsg = innerObj?.message ? String(innerObj.message) : '';
+    const candidate = innerCode || innerMsg;
+    if (candidate) return candidate;
+  }
+  return '';
+}
+
+function describeCause({ cause, message }: {
+  cause: { code?: unknown; message?: unknown; errors?: unknown };
+  message: string;
+}): string {
+  const codeRaw = cause.code ? String(cause.code) : '';
+  const msgRaw = cause.message && cause.message !== message ? String(cause.message) : '';
+  if (codeRaw && msgRaw) {
+    return msgRaw.toLowerCase().includes(codeRaw.toLowerCase()) ? codeRaw : `${codeRaw}: ${msgRaw}`;
+  }
+  return codeRaw || msgRaw || firstInnerErrorDetail({ errors: cause.errors });
+}
+
 /**
  * Unwraps `fetch`'s generic `TypeError: fetch failed` (undici tucks the
  * real cause under `err.cause`, a Node error or `AggregateError`) into a
@@ -190,28 +227,7 @@ export function describeFetchError({ err }: { err: unknown }): string {
   if (!cause || typeof cause !== 'object') return message;
   const causeRecord = cause as { code?: unknown; message?: unknown; errors?: unknown };
 
-  const codeRaw = causeRecord.code ? String(causeRecord.code) : '';
-  const msgRaw = causeRecord.message && causeRecord.message !== message ? String(causeRecord.message) : '';
-
-  let detail = '';
-  if (codeRaw && msgRaw) {
-    detail = msgRaw.toLowerCase().includes(codeRaw.toLowerCase()) ? codeRaw : `${codeRaw}: ${msgRaw}`;
-  } else {
-    detail = codeRaw || msgRaw;
-  }
-
-  if (!detail && Array.isArray(causeRecord.errors)) {
-    for (const inner of causeRecord.errors as unknown[]) {
-      const innerObj = inner as { code?: unknown; message?: unknown } | null | undefined;
-      const innerCode = innerObj?.code ? String(innerObj.code) : '';
-      const innerMsg = innerObj?.message ? String(innerObj.message) : '';
-      const candidate = innerCode || innerMsg;
-      if (candidate) {
-        detail = candidate;
-        break;
-      }
-    }
-  }
+  const detail = describeCause({ cause: causeRecord, message });
 
   return detail ? `${message} (${detail})` : message;
 }

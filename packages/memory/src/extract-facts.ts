@@ -188,6 +188,28 @@ function resolveMaxFacts(prompt: ExtractFactsPromptConfig | undefined): number {
   return typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_MAX_FACTS;
 }
 
+async function requestExtractionResponse(
+  { llmConfig, systemPrompt, userPrompt, logging, attemptId }: {
+    llmConfig: LlmProviderConfig;
+    systemPrompt: string;
+    userPrompt: string;
+    logging: ExtractFactsLogOptions | undefined;
+    attemptId: string | undefined;
+  },
+  options: LlmProviderOptions = {},
+): Promise<{ raw: string; parsed: RawExtractionResponse }> {
+  try {
+    const raw = await callLlmProvider({ config: llmConfig, systemPrompt, userPrompt }, options);
+    const parsed = parseStrictJson<RawExtractionResponse | null>({ rawText: raw });
+    // JSON null is valid syntax, but has no facts field; reject it inside the failure-log boundary.
+    if (parsed === null) throw new Error('extract-facts: response must not be null');
+    return { raw, parsed };
+  } catch (err) {
+    if (attemptId !== undefined) logging!.log.markFailed({ id: attemptId, error: err });
+    throw err;
+  }
+}
+
 /**
  * Extracts structured facts from a piece of content by calling an LLM with
  * an extraction-shaped prompt and parsing/validating its strict-JSON
@@ -224,24 +246,10 @@ export async function extractFacts(
     logging!.log.markProvider({ id: attemptId, provider: { kind: llmConfig.provider, model: llmConfig.model } });
   }
 
-  let raw: string;
-  try {
-    raw = await callLlmProvider({ config: llmConfig, systemPrompt, userPrompt }, options.llm);
-  } catch (err) {
-    if (attemptId !== undefined) logging!.log.markFailed({ id: attemptId, error: err });
-    throw err;
-  }
-
-  let parsed: RawExtractionResponse;
-  try {
-    const response = parseStrictJson<RawExtractionResponse | null>({ rawText: raw });
-    // JSON null is valid syntax, but has no facts field; reject it inside the failure-log boundary.
-    if (response === null) throw new Error('extract-facts: response must not be null');
-    parsed = response;
-  } catch (err) {
-    if (attemptId !== undefined) logging!.log.markFailed({ id: attemptId, error: err });
-    throw err;
-  }
+  const { raw, parsed } = await requestExtractionResponse(
+    { llmConfig, systemPrompt, userPrompt, logging, attemptId },
+    options.llm,
+  );
 
   const candidates = Array.isArray(parsed.facts) ? parsed.facts : [];
   const facts = candidates

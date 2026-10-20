@@ -104,6 +104,14 @@ function isValidRowStatus(status: unknown): status is VerifyScorecardRowStatus {
   return status === 'pass' || status === 'fail';
 }
 
+function hasRuleSubstring({ row, text, minimumLength }: {
+  row: string;
+  text: string;
+  minimumLength: number;
+}): boolean {
+  return text.length >= minimumLength && (row.includes(text) || text.includes(row));
+}
+
 /**
  * A scorecard row covers a rule when the row shares enough signal with the
  * rule's name or check: a direct substring containment, or at least two
@@ -119,8 +127,8 @@ function rowCoversRule(rowText: string, rule: ActiveRuleForVerify): boolean {
   if (!row) return false;
   const name = rule.name.toLowerCase().trim();
   const check = (rule.check ?? '').toLowerCase().trim();
-  if (name.length >= 5 && (row.includes(name) || name.includes(row))) return true;
-  if (check.length >= 8 && (row.includes(check) || check.includes(row))) return true;
+  if (hasRuleSubstring({ row, text: name, minimumLength: 5 })) return true;
+  if (hasRuleSubstring({ row, text: check, minimumLength: 8 })) return true;
   const rowWords = significantWords(rowText);
   const ruleWords = significantWords(`${rule.name} ${rule.check ?? ''}`);
   let shared = 0;
@@ -129,6 +137,22 @@ function rowCoversRule(rowText: string, rule: ActiveRuleForVerify): boolean {
     if (shared >= 2) return true;
   }
   return false;
+}
+
+function findUncoveredRules({ activeRules, rows }: {
+  activeRules: ActiveRuleForVerify[];
+  rows: VerifyScorecardRow[];
+}): string[] {
+  // Unique rule-to-row consumption: once a row has been used to cover a
+  // rule, it is removed from the pool for subsequent rules.
+  const usedRowIndices = new Set<number>();
+  const uncoveredRules: string[] = [];
+  for (const rule of activeRules) {
+    const index = rows.findIndex((row, i) => !usedRowIndices.has(i) && rowCoversRule(row.rule, rule));
+    if (index < 0) uncoveredRules.push(rule.name);
+    else usedRowIndices.add(index);
+  }
+  return uncoveredRules;
 }
 
 /**
@@ -176,22 +200,7 @@ export function enforceVerify(input: EnforceVerifyInput): VerifyResult {
   const rows = scorecard.rows;
   const rowsFailed = rows.filter((r) => !isValidRowStatus(r.status) || r.status === 'fail').length;
 
-  // Unique rule-to-row consumption: once a row has been used to cover a
-  // rule, it is removed from the pool for subsequent rules.
-  const usedRowIndices = new Set<number>();
-  const uncoveredRules: string[] = [];
-  for (const rule of activeRules) {
-    let covered = false;
-    for (let i = 0; i < rows.length; i++) {
-      if (usedRowIndices.has(i)) continue;
-      if (rowCoversRule(rows[i]!.rule, rule)) {
-        usedRowIndices.add(i);
-        covered = true;
-        break;
-      }
-    }
-    if (!covered) uncoveredRules.push(rule.name);
-  }
+  const uncoveredRules = findUncoveredRules({ activeRules, rows });
   const rulesCovered = activeRules.length - uncoveredRules.length;
   const status: VerifyStatus = rowsFailed > 0 || uncoveredRules.length > 0 ? 'fail' : 'pass';
 
