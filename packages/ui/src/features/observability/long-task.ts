@@ -66,22 +66,32 @@ export function installLongTaskObserver(options: LongTaskObserverOptions = {}): 
     }
   });
 
-  try {
-    observer.observe({ type: 'longtask', buffered: true });
-  } catch {
-    // Older engines sometimes throw when `buffered` is requested.
-    try {
-      observer.observe({ type: 'longtask' });
-    } catch {
-      observer = null;
-      return () => undefined;
-    }
+  if (!observeLongTasks({ observe: (options) => observer!.observe(options) })) {
+    observer = null;
+    return () => undefined;
   }
 
   return () => {
     observer?.disconnect();
     observer = null;
   };
+}
+
+function observeLongTasks(
+  { observe }: Pick<PerformanceObserver, 'observe'>,
+  _options: Record<string, never> = {},
+): boolean {
+  try {
+    observe({ type: 'longtask', buffered: true });
+  } catch {
+    // Older engines sometimes throw when `buffered` is requested.
+    try {
+      observe({ type: 'longtask' });
+    } catch {
+      return false;
+    }
+  }
+  return true;
 }
 
 function stripUrlQuery(value: string | undefined): string | undefined {
