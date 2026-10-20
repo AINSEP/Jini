@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   codexAgentDef,
   codexNeedsDangerFullAccessSandbox,
   parseCodexDebugModels,
   unionModelReasoningOptions,
 } from '../codex.js';
+import { cliOutputDiscoveryDeps, discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
 describe('codexAgentDef shape', () => {
   it('declares the expected identity and transport fields', () => {
@@ -411,6 +412,16 @@ describe('parseCodexDebugModels — per-model reasoning levels', () => {
     expect(models?.find((m) => m.id === 'm')?.reasoning?.map((r) => r.id)).toEqual(['low', 'high']);
   });
 
+  it('skips an object level whose effort is not a string, and a level of any other type', () => {
+    const models = parseCodexDebugModels({ stdout: JSON.stringify({ models: [{ slug: 'm', supported_reasoning_levels: [{ effort: 5 }, 7, null, 'low'] }] }) });
+    expect(models?.find((m) => m.id === 'm')?.reasoning?.map((r) => r.id)).toEqual(['low']);
+  });
+
+  it('falls back to a capitalized label for an effort token with no spelled-out label', () => {
+    const models = parseCodexDebugModels({ stdout: JSON.stringify({ models: [{ slug: 'm', supported_reasoning_levels: ['turbo'] }] }) });
+    expect(models?.find((m) => m.id === 'm')?.reasoning).toEqual([{ id: 'turbo', label: 'Turbo' }]);
+  });
+
   it('omits `reasoning` entirely for a model that declares no levels', () => {
     const models = parseCodexDebugModels({ stdout: JSON.stringify({ models: [{ slug: 'm' }] }) });
     expect(models?.find((m) => m.id === 'm')).toEqual({ id: 'm', label: 'm' });
@@ -445,5 +456,92 @@ describe('codexAgentDef.deriveReasoningOptions', () => {
     expect(codexAgentDef.deriveReasoningOptions?.({ models: models })?.map((r) => r.id)).toEqual([
       'default', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra',
     ]);
+  });
+});
+
+describe('codexAgentDef.buildArgs — permission and sandbox matrix', () => {
+  const originalPlatform = process.platform;
+  const originalWsl = process.env.WSL_DISTRO_NAME;
+  const originalSandboxMode = process.env.CODEX_SANDBOX_MODE;
+  const LOCKED_FEATURES = [
+    '-c', 'features.shell_tool=false', '-c', 'features.unified_exec=false',
+    '-c', 'features.code_mode=false', '-c', 'features.apply_patch_freeform=false',
+    '-c', 'features.multi_agent=false', '-c', 'features.collab=false', '-c', 'features.plugins=false',
+    '-c', 'approval_policy="never"',
+  ];
+
+  beforeEach(() => {
+    Object.defineProperty(process, 'platform', { value: 'darwin' });
+    delete process.env.WSL_DISTRO_NAME;
+    delete process.env.CODEX_SANDBOX_MODE;
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform });
+    if (originalWsl === undefined) delete process.env.WSL_DISTRO_NAME;
+    else process.env.WSL_DISTRO_NAME = originalWsl;
+    if (originalSandboxMode === undefined) delete process.env.CODEX_SANDBOX_MODE;
+    else process.env.CODEX_SANDBOX_MODE = originalSandboxMode;
+  });
+
+  it('locks a fresh turn to read-only with every shell/patch/agent feature off when native tool access is off', () => {
+    expect(codexAgentDef.buildArgs({ prompt: '', imagePaths: [] }, { options: { nativeToolAccess: false } })).toEqual([
+      'exec', '--json', '--skip-git-repo-check', '-c', 'sandbox_mode="read-only"', ...LOCKED_FEATURES,
+    ]);
+  });
+
+  it('applies the same lock on a resume turn, with the thread id last', () => {
+    expect(codexAgentDef.buildArgs({ prompt: '', imagePaths: [] }, { options: { nativeToolAccess: false }, runtimeContext: { resumeSessionId: 't1' } })).toEqual([
+      'exec', 'resume', '--json', '--skip-git-repo-check', '-c', 'sandbox_mode="read-only"', ...LOCKED_FEATURES, 't1',
+    ]);
+  });
+
+  it('grants danger-full-access and never-approve for a trusted cli-parity bypass fresh turn', () => {
+    expect(codexAgentDef.buildArgs({ prompt: '', imagePaths: [] }, { options: { cliParity: true, permissionMode: 'bypass' } })).toEqual([
+      'exec', '--json', '--skip-git-repo-check', '--sandbox', 'danger-full-access', '-c', 'approval_policy="never"',
+    ]);
+  });
+
+  it('grants danger-full-access via -c on a trusted cli-parity bypass resume turn', () => {
+    expect(codexAgentDef.buildArgs({ prompt: '', imagePaths: [] }, { options: { cliParity: true, permissionMode: 'bypass' }, runtimeContext: { resumeSessionId: 't1' } })).toEqual([
+      'exec', 'resume', '--json', '--skip-git-repo-check', '-c', 'sandbox_mode="danger-full-access"', '-c', 'approval_policy="never"', 't1',
+    ]);
+  });
+
+  it('keeps the read-only lock (no bypass approval) for cli parity when native tool access is off', () => {
+    expect(codexAgentDef.buildArgs({ prompt: '', imagePaths: [] }, { options: { cliParity: true, permissionMode: 'bypass', nativeToolAccess: false } })).toEqual([
+      'exec', '--json', '--skip-git-repo-check', '-c', 'sandbox_mode="read-only"', ...LOCKED_FEATURES,
+    ]);
+  });
+
+  it('keeps workspace-write and approvals for cli parity outside bypass mode', () => {
+    expect(codexAgentDef.buildArgs({ prompt: '', imagePaths: [] }, { options: { cliParity: true, permissionMode: 'default' } })).toEqual([
+      'exec', '--json', '--skip-git-repo-check', '--sandbox', 'workspace-write', '-c', 'sandbox_workspace_write.network_access=true',
+    ]);
+  });
+
+  it('uses a read-only sandbox on resume when only file writes are denied', () => {
+    expect(codexAgentDef.buildArgs({ prompt: '', imagePaths: [] }, { options: { nativeCapabilities: { fileWrite: false } }, runtimeContext: { resumeSessionId: 't1' } })).toEqual([
+      'exec', 'resume', '--json', '--skip-git-repo-check', '-c', 'sandbox_mode="read-only"', '-c', 'features.apply_patch_freeform=false', 't1',
+    ]);
+  });
+
+  it('honors the CODEX_SANDBOX_MODE operator override on a fresh turn', () => {
+    process.env.CODEX_SANDBOX_MODE = 'danger-full-access';
+    expect(codexAgentDef.buildArgs({ prompt: '', imagePaths: [] })).toEqual(['exec', '--json', '--skip-git-repo-check', '--sandbox', 'danger-full-access']);
+  });
+});
+
+describe('codexAgentDef.discoverModels', () => {
+  it('falls back to the def\'s fallbackModels (minus the synthetic default) when the CLI is offline', async () => {
+    const catalog = await codexAgentDef.discoverModels({ context: discoveryContext }, { deps: offlineDiscoveryDeps() });
+    expect(catalog.freshness).toBe('offline-fallback');
+    expect(catalog.models.map((model) => model.id)).toEqual(codexAgentDef.fallbackModels.slice(1).map((model) => model.id));
+  });
+
+  it('parses `codex debug models` output through the def\'s catalog parser', async () => {
+    const catalog = await codexAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps(JSON.stringify({ models: [{ slug: 'gpt-x', display_name: 'GPT X' }] })) });
+    expect(catalog.freshness).toBe('fresh');
+    expect(catalog.models).toEqual([expect.objectContaining({ id: 'gpt-x', label: 'GPT X' })]);
   });
 });
