@@ -34,6 +34,17 @@ describe("search path", () => {
   });
 });
 
+describe("relative parent PATH entries", () => {
+  test("a '.' PATH entry resolves a bare command to a bare name checked against the daemon cwd (reported, not fixed)", () => {
+    // The executable check ran on "./tool" relative to the daemon's cwd, but spawn receives the bare
+    // name "tool" and searches the child's PATH itself, so what runs may not be what was checked.
+    const checked: string[] = [];
+    const resolver = createBundledNodeLaunchResolver(config, { platform: "linux", parentEnv: { PATH: ".:/usr/bin" }, isExecutable: executables(["tool"], checked) });
+    expect(resolver.resolve({ spec: spec("tool") }).command).toBe("tool");
+    expect(checked).toEqual(["/tc/bin/tool", "tool"]);
+  });
+});
+
 describe("node toolchain commands", () => {
   test("npx.cmd is not a toolchain alias off win32; it is searched as a bare command", () => {
     const resolver = createBundledNodeLaunchResolver(config, { platform: "linux", parentEnv: { PATH: "/usr/bin" }, execPath: "/electron", isExecutable: executables(["/usr/bin/npx.cmd"]) });
