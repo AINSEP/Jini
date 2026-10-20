@@ -15,9 +15,9 @@ import type { AdminSurfaceCapabilities } from '../surface-capabilities.js';
 import { createFakeSurfaceHost } from './surface-support.js';
 import { FAKE_TOKEN, installPlugin, WORKSPACE_ID, withWorkspace } from '../../lifecycle/tools/__tests__/support.js';
 import {
-  ADMIN_SURFACE_PLUGIN_DISABLED_MESSAGE, createAdminSurfaceActionDispatcher, createAdminSurfaceHandlerHost, defineAdminSurfaceHandlerContribution, parseAdminSurfacesFile, readAdminSurfaceFile,
-  type AdminSurfaceDescriptor, type AdminSurfaceHandlerModule, type LoadedAdminSurfaceHandlers,
+  createAdminSurfaceActionDispatcher, createAdminSurfaceHandlerHost, defineAdminSurfaceHandlerContribution, parseAdminSurfacesFile, readAdminSurfaceFile, type AdminSurfaceDescriptor, type AdminSurfaceHandlerModule, type LoadedAdminSurfaceHandlers,
 } from '../index.js';
+import { ADMIN_SURFACE_PLUGIN_DISABLED_MESSAGE } from '../surface-handlers.js';
 
 const FILENAME = 'host-admin-surfaces.json';
 const PLUGIN = 'fixture-surface';

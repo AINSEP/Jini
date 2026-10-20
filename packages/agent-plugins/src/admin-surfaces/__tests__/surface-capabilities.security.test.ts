@@ -9,9 +9,9 @@ import { describe, expect, test } from 'vitest';
 import { REVOKED_MESSAGE, createIssuedTokenMemories } from '../../lifecycle/tools/capabilities.js';
 import { FAKE_TOKEN, WORKSPACE_ID } from '../../lifecycle/tools/__tests__/support.js';
 import {
-  ADMIN_SURFACE_ACTION_INTENTS, ADMIN_SURFACE_STATE_LIMITS, createAdminSurfaceActionDispatcher, createAdminSurfaceCallbackInbox, createAdminSurfaceHandlerHost, openAdminSurfaceCapabilitySession,
-  parseAdminSurfacesFile, STATE_CREDENTIAL_MESSAGE, type AdminSurfaceCapabilityDeclarations, type AdminSurfaceDescriptor, type AdminSurfaceHandlerModule,
+  ADMIN_SURFACE_ACTION_INTENTS, ADMIN_SURFACE_STATE_LIMITS, createAdminSurfaceActionDispatcher, createAdminSurfaceCallbackInbox, createAdminSurfaceHandlerHost, parseAdminSurfacesFile, type AdminSurfaceCapabilityDeclarations, type AdminSurfaceDescriptor, type AdminSurfaceHandlerModule,
 } from '../index.js';
+import { openAdminSurfaceCapabilitySession, STATE_CREDENTIAL_MESSAGE } from '../surface-capabilities.js';
 import { createFakeSurfaceHost } from './surface-support.js';
 
 const PLUGIN = 'acme-office';

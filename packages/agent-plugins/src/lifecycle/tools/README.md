@@ -31,7 +31,7 @@ thrown.
 | `createAgentPluginToolProjection({ registry, toolIdFor, capabilities, issuedTokens })` | `sync({ loaded, refusals })` and `describeAffectedResources({ toolId, input })` |
 | `createIssuedTokenMemories()` / `IssuedTokenMemories` | the per-plugin token memory; one per host, passed to the projection and the admin-surface host |
 | `AgentPluginToolCapabilities` / `AgentPluginToolCapabilitiesPort` | the host capability ports |
-| `openCapabilitySession` | the per-call revocation + credential gate (used by the projection) |
+| `WITHHELD_OUTPUT_MESSAGE` | the text a withheld result is replaced with, for hosts that recognize it |
 | `AgentPluginStateReader` / `AgentPluginStateValue` | the read-only view of a plugin's own state (`get` only) |
 
 ## The contribution file

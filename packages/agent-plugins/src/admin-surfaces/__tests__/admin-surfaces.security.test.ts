@@ -10,11 +10,10 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { PackagePathViolation } from '../../lifecycle/package-paths.js';
 import { readTrustedPluginFile } from '../../lifecycle/__tests__/test-support.js';
 import {
-  AdminSurfaceActionError, adminSurfaceBootstrapHeaders, adminSurfaceContentSecurityPolicy, adminSurfaceFileHeaders,
-  adminSurfaceFrameAttributes, createAdminSurfaceActionDispatcher, createAdminSurfaceBootstrap, createAdminSurfaceMount,
-  isAdminSurfaceBootstrapCurrent, parseAdminSurfacesFile, readAdminSurfaceFile, validateAdminSurfaceMessage,
-  type AdminSurfaceDescriptor, type AdminSurfaceMessageEvent, type AdminSurfaceMountRecord,
+  adminSurfaceBootstrapHeaders, adminSurfaceFrameAttributes, createAdminSurfaceActionDispatcher, createAdminSurfaceBootstrap, createAdminSurfaceMount, parseAdminSurfacesFile, readAdminSurfaceFile, validateAdminSurfaceMessage, type AdminSurfaceDescriptor, type AdminSurfaceMessageEvent, type AdminSurfaceMountRecord,
 } from '../index.js';
+import { AdminSurfaceActionError } from '../action-dispatcher.js';
+import { adminSurfaceContentSecurityPolicy, adminSurfaceFileHeaders, isAdminSurfaceBootstrapCurrent } from '../sandbox.js';
 import { createAdminSurfaceClient, type AdminSurfaceIncomingMessage } from '../surface-client.js';
 
 const input = { type: 'object', properties: { name: { type: 'string', maxLength: 20 } }, required: ['name'] } as const;

@@ -81,12 +81,12 @@ a path (`$.rows[2]`), never the value.
 - `adminSurfaceFrameAttributes({ src, title })` → `{ src, title, sandbox: 'allow-scripts', referrerPolicy: 'no-referrer' }`.
   Never add `allow-same-origin`: with `allow-scripts` it lets the frame remove its own sandbox.
 - `readAdminSurfaceFile({ surface, path, readFile })` → `{ ok: true, body, headers }` or `{ ok: false, reason: 'not-declared' }`.
-  `headers` come from `adminSurfaceFileHeaders`: the CSP below, `X-Content-Type-Options: nosniff`,
+  `headers` are always set (internal `adminSurfaceFileHeaders`): the CSP below, `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: no-referrer`, `Cache-Control: no-cache`, and for `.mjs`/`.js` files
   `Access-Control-Allow-Origin: *` (a module script requested by an opaque-origin document is a CORS
   fetch). Surface files are static code fetched without credentials: never put secrets in them; the
   host route that serves them must not depend on a session cookie for script files.
-- `adminSurfaceContentSecurityPolicy({ descriptor })`:
+- The CSP (built internally from the descriptor; not exported):
   `default-src 'none'; script-src 'self' …; style-src 'self' …; img-src 'self' …; font-src 'self' …; connect-src 'none'|…; frame-src 'none'|…; form-action 'none'; base-uri 'none'; frame-ancestors 'self'; sandbox allow-scripts`.
   No inline script or style, no `unsafe-*`, and no network access unless declared.
 

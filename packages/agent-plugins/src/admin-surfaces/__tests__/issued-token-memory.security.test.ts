@@ -10,7 +10,10 @@ import { createIssuedTokenMemories, WITHHELD_OUTPUT_MESSAGE, type AgentPluginToo
 import type { LoadedAgentPluginTool } from '../../lifecycle/tools/definition.js';
 import { createAgentPluginToolProjection } from '../../lifecycle/tools/projection.js';
 import { fakeCapabilities, WORKSPACE_ID } from '../../lifecycle/tools/__tests__/support.js';
-import { createAdminSurfaceHandlerHost, parseAdminSurfacesFile, STATE_CREDENTIAL_MESSAGE, type AdminSurfaceDescriptor, type AdminSurfaceHandlerModule } from '../index.js';
+import {
+  createAdminSurfaceHandlerHost, parseAdminSurfacesFile, type AdminSurfaceDescriptor, type AdminSurfaceHandlerModule,
+} from '../index.js';
+import { STATE_CREDENTIAL_MESSAGE } from '../surface-capabilities.js';
 import { createFakeSurfaceHost } from './surface-support.js';
 
 const PLUGIN = 'acme-office';

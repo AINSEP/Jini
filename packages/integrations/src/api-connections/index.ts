@@ -17,4 +17,8 @@ export type {
   ApiConnectionAccount, ApiConnectionAttempt, ApiConnectionBoundedField, ApiConnectionDescriptor,
   ApiConnectionIntent, ApiConnectionRecord, ApiConnectionStagedSwitch, ApiConnectionStatus,
 } from './types.js';
-export * from './token-store/index.js';
+export {
+  createVaultOAuthTokenStore, parseOAuthTokenVaultMeta,
+  type VaultOAuthTokenStore, type VaultOAuthTokenStoreDeps, type OAuthTokenVaultPort, type ReadConnectionGeneration,
+  type OAuthConnectionOwner, type OAuthConnectionStatus, type OAuthTokenStoreErrorCode,
+} from './token-store/index.js';
