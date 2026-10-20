@@ -20,13 +20,14 @@
 | lot | status | subagent | commits | before→after | coverage | verify |
 |---|---|---|---|---|---|---|
 | L187 | MERGED | 1 | 485464e5 044e2a16 | decodeCursor cyc 23→≤10; toMessage 12/11→≤10; read 11→≤10 | 100/100/100 both (store branch 96.31→100) | eslint 0, tsc 0, store suite 20 files/223 tests green; cursor diff equivalent. NOTE: removed `?? fallback` defaults on schema-NOT-NULL cols (title_source, message_count, msg created_at) — out-of-contract null now yields createdAt:0 / undefined titleSource; flagged, accepted (DDL + ChatDatabase types forbid null) |
-| L208 | running | | | | | |
+| L208 | MERGED | 1 | 7f0cb9f7 dae24c01 d114219f | useChatPane 12/11→≤10; newTabLinkHref cyc 15→≤10; schedule cyc 12→≤10 | 100/100/100 ×3 | eslint 0, tsc 0, 11 files/182 tests green; send-flow rewrite checked line-by-line vs old: equivalent. Tests 88→107 |
 | L222 | MERGED | 1 | 0ba4ede2 dbd21a0c e4830aa0 899b9854 | readAgentPluginChatState cyc 13→7 (commit msg says 13→3, wrong; file worst captureAgentPluginUsage 8/2); dedupeToolUsesById cog 13→6 (cyc 10, at limit); assistantContentFromEvents cog 11→9; mergeRunEvents cog 11→8 | 100/100/100 ×4 | eslint 0, tsc 0, 107 tests green; diff read branch-by-branch: equivalent. Tests 20→86 |
 | L226 | MERGED | 1 | 52cd96d6 | listener cyc 17→8 (worst now serveLocally 8/6) | 100/100/100 (branch 97.14→100) | eslint 0, tsc 0, 51 tests green; removed unreachable caller-signal merge in internal default send (verified only caller passes no signal) |
 | L250 | MERGED | 1 | 0f11b6d2 | continuationRequest cyc 15→8 (worst helper 8/6) | 100/100/100 | eslint 0, tsc 0, 18 tests green, diff read: behaviour-equivalent, why-comments moved |
 | L257 | MERGED | 1 | 58e3a508 | startRun cyc 13→≤9, startByokRun 11→≤9 (file worst 9/7) | 100/100/100 | eslint 0, tsc 0, 8 files/151 tests green; git-mv of 2 loose tests into assistant-client/__tests__; diff read: equivalent (dropped unreachable `userMessage ? : base` fallback since startRun already throws). Stale comment "re-exported here" kept per rule |
 
 ## Problems / notes
+- BUG (L208, pinned not fixed): useChatPaneRuntimeInventory with retryDelaysMs: [] retries failed listAgents after 0 ms → tight loop against an unreachable host.
 - BUG (L222, pinned not fixed): captureAgentPluginUsage stores a state lacking `decision`; next read rejects it and resets, losing exclusions. Test "...(reported, not fixed)" in agent-plugin-chat-state.test.ts.
 
 ## Next
