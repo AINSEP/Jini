@@ -1292,3 +1292,9 @@ test("makeCredentialedRequest: a successful call audits the response status and 
   await makeCredentialedRequest(deps, { ...basicInput, method: "PUT", body: "héllo" });
   assert.deepEqual(audit.entries, [{ label: "basic.example", host: "api.basic.example", method: "PUT", status: 201, bodyBytes: 6, at: FIXED_NOW }]);
 });
+
+test("ConsoleCredentialedRequestAuditLog: a label containing a newline is written raw and splits the audit line (reported, not fixed)", () => {
+  const lines: string[] = [];
+  new ConsoleCredentialedRequestAuditLog({ log: ({ line }) => lines.push(line), prefix: "[audit]" }).record({ entry: { label: "a\nforged status=200", host: "h", method: "GET", status: 0, bodyBytes: 0, at: FIXED_NOW } });
+  assert.equal(lines[0], `[audit] request label=a\nforged status=200 host=h method=GET status=0 bodyBytes=0 at=${FIXED_NOW}`);
+});

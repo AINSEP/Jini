@@ -54,3 +54,7 @@ test("resolveRedactedResponseBody: a complete (not truncated) body keeps a secre
 test("resolveRedactedResponseBody: a truncated body has full secrets and the cut-off tail both redacted", () => {
   assert.equal(resolveRedactedResponseBody("a tok-123456 b tok-1", "tok-123456", ["tok-123456"], true), "a [REDACTED] b [REDACTED]");
 });
+
+test("redactResponseHeaders: a header NAME that reflects a secret is kept, only values are scanned (reported, not fixed)", () => {
+  assert.deepEqual(redactResponseHeaders({ "x-tok-123456": "1" }, ["tok-123456"]), { "x-tok-123456": "1" });
+});
