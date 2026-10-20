@@ -352,6 +352,16 @@ describe('verification history routes', () => {
 });
 
 describe('entry CRUD', () => {
+  it('echoes the store exception text, including a filesystem path, to the client (reported, not fixed)', async () => {
+    // Unlike runs.ts (SEC-005: generic INTERNAL_ERROR + correlation id), memory routes pass the
+    // store's raw message through, so a host-side path in an fs error reaches the HTTP caller.
+    const deps = makeDeps({
+      notes: makeNoteStore({ upsertEntry: vi.fn(async () => { throw new Error("EACCES: permission denied, open '/home/op/.data/notes/x.md'"); }) }),
+    });
+    const result = await memoryCreateEntryRoute.handle({ input: { name: 'n', type: 't' }, deps });
+    expect(result).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: "EACCES: permission denied, open '/home/op/.data/notes/x.md'" } });
+  });
+
   describe('memoryCreateEntryRoute.parse', () => {
     it('malformed: rejects a non-object body', () => {
       expect(memoryCreateEntryRoute.parse({ body: null, query: {}, params: {} }).ok).toBe(false);
