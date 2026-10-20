@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { expect, test } from 'vitest';
 import { buildSourceControlProvider, buildSourceControlProviders, buildSourceControlProviderForApi, findReservedPath, isUnderWorkflowPath, loadSourceControlProviderRegistry, parseSourceControlProvidersFile, pickSourceControlProviderForApi } from '../registry.js';
 import { createSourceControlProviderKit } from '../kit.js';
 import type { CatalogPackage, DescriptorExtensionReader, SourceControlProviderOperations } from '../contracts.js';
@@ -78,4 +78,175 @@ test('kit injects transport/error policy and never follows fetch redirects', asy
   await kit.fetch({ url: 'https://example.test', init: { redirect: 'follow' } });
   assert.equal(seen?.redirect, 'manual');
   assert.deepEqual(kit.describeTransportError({ error: 'test' }), { refusal: 'policy refused', logDetail: 'test' });
+});
+
+// --- Characterization pins (written on the pre-refactor code) ---
+
+const reasonFor = (change: Record<string, unknown>, policy = {}) => {
+  const parsed = parseSourceControlProvidersFile({ raw: text([{ ...descriptor, ...change }]), readExtensions }, policy);
+  return parsed.ok ? 'ok' : parsed.reason;
+};
+
+test.each<[string, Record<string, unknown>, string]>([
+  ['non-string id', { id: 7 }, 'providers[0].id must be a lowercase hyphenated id'],
+  ['id over 64 characters', { id: 'a'.repeat(65) }, 'providers[0].id must be a lowercase hyphenated id'],
+  ['id with inner whitespace', { id: 'a b' }, 'providers[0].id must be a lowercase hyphenated id'],
+  ['id with a double hyphen', { id: 'a--b' }, 'providers[0].id must be a lowercase hyphenated id'],
+  ['id with a trailing newline', { id: 'example\n' }, 'providers[0].id must be a lowercase hyphenated id'],
+  ['non-string label', { label: 3 }, 'providers[0].label must be a non-empty string'],
+  ['blank label', { label: '   ' }, 'providers[0].label must be a non-empty string'],
+  ['label over 100 characters', { label: 'x'.repeat(101) }, 'providers[0].label must be a non-empty string'],
+  ['non-string apiOrigin', { apiOrigin: 1 }, 'providers[0].apiOrigin must be an https origin with no path'],
+  ['unparseable apiOrigin', { apiOrigin: 'not a url' }, 'providers[0].apiOrigin must be an https origin with no path'],
+  ['apiOrigin with trailing slash', { apiOrigin: 'https://example.test/' }, 'providers[0].apiOrigin must be an https origin with no path'],
+  ['string maxFileBytes', { maxFileBytes: '5' }, 'providers[0].maxFileBytes must be a positive integer'],
+  ['fractional maxFileBytes', { maxFileBytes: 1.5 }, 'providers[0].maxFileBytes must be a positive integer'],
+  ['negative maxFileBytes', { maxFileBytes: -1 }, 'providers[0].maxFileBytes must be a positive integer'],
+  ['non-array reservedPaths', { reservedPaths: 'ci' }, 'providers[0].reservedPaths must be a list of at most 20 relative folder paths'],
+  ['non-string reservedPaths entry', { reservedPaths: [1] }, 'providers[0].reservedPaths must be a list of at most 20 relative folder paths'],
+  ['over-long reservedPaths entry', { reservedPaths: ['a'.repeat(201)] }, 'providers[0].reservedPaths must be a list of at most 20 relative folder paths'],
+  ['reservedPaths entry with a colon', { reservedPaths: ['c:ci'] }, 'providers[0].reservedPaths must be a list of at most 20 relative folder paths'],
+  ['reservedPaths entry with an empty segment', { reservedPaths: ['a//b'] }, 'providers[0].reservedPaths must be a list of at most 20 relative folder paths'],
+  ['reservedPaths entry with a dot segment', { reservedPaths: ['a/./b'] }, 'providers[0].reservedPaths must be a list of at most 20 relative folder paths'],
+  ['workflowPaths entry with a backslash', { workflowPaths: ['a\\b'] }, 'providers[0].workflowPaths must be a list of at most 20 relative folder paths'],
+  ['non-string module', { module: 5 }, 'providers[0].module must be a relative path ending in .mjs'],
+  ['module with a control character', { module: 'a\u0001.mjs' }, 'providers[0].module must be a relative path ending in .mjs'],
+  ['module with a dot segment', { module: './a.mjs' }, 'providers[0].module must be a relative path ending in .mjs'],
+  ['module with a colon', { module: 'c:a.mjs' }, 'providers[0].module must be a relative path ending in .mjs'],
+])('descriptor refuses %s with its field named', (_name, change, reason) => {
+  expect(reasonFor(change)).toBe(reason);
+});
+
+test('descriptor boundaries are accepted: 64-char id, 100-char label, port origin, 20 paths of 200 chars', () => {
+  expect(reasonFor({ id: 'a'.repeat(64), label: 'x'.repeat(100), apiOrigin: 'https://example.test:8443', maxFileBytes: 1, reservedPaths: Array(20).fill('b'.repeat(200)), workflowPaths: [] })).toBe('ok');
+});
+
+test('fields are checked in declaration order and the first failure wins', () => {
+  expect(reasonFor({ id: 'BAD', label: '', module: '../x.mjs' })).toBe('providers[0].id must be a lowercase hyphenated id');
+  expect(reasonFor({ label: '', module: '../x.mjs' })).toBe('providers[0].label must be a non-empty string');
+  expect(reasonFor({ reservedPaths: ['..'], workflowPaths: ['..'] })).toBe('providers[0].reservedPaths must be a list of at most 20 relative folder paths');
+});
+
+test('a non-object provider entry is refused with its index', () => {
+  const parsed = parseSourceControlProvidersFile({ raw: JSON.stringify({ schemaVersion: 1, providers: [descriptor, ['x']] }), readExtensions });
+  expect(parsed).toEqual({ ok: false, reason: 'providers[1] must be an object' });
+});
+
+test('file-level refusals name the reason exactly', () => {
+  expect(parseSourceControlProvidersFile({ raw: '{', readExtensions })).toEqual({ ok: false, reason: 'not valid JSON' });
+  expect(parseSourceControlProvidersFile({ raw: 'null', readExtensions })).toEqual({ ok: false, reason: 'schemaVersion must be 1' });
+  expect(parseSourceControlProvidersFile({ raw: JSON.stringify({ schemaVersion: 2, providers: [] }), readExtensions })).toEqual({ ok: false, reason: 'schemaVersion must be 1' });
+  expect(parseSourceControlProvidersFile({ raw: JSON.stringify({ schemaVersion: 1, providers: {} }), readExtensions })).toEqual({ ok: false, reason: 'providers must be an array' });
+  expect(parseSourceControlProvidersFile({ raw: text([descriptor, descriptor]), readExtensions })).toEqual({ ok: false, reason: "providers[1].id 'example' is declared twice" });
+});
+
+test('extension reader refusals are returned verbatim and only run after the generic fields pass', () => {
+  const calls: string[] = [];
+  const refusing: DescriptorExtensionReader = ({ at }) => { calls.push(at); return { ok: false, reason: `${at}.credential is wrong` }; };
+  expect(parseSourceControlProvidersFile({ raw: text([{ ...descriptor, id: 'BAD' }]), readExtensions: refusing })).toEqual({ ok: false, reason: 'providers[0].id must be a lowercase hyphenated id' });
+  expect(calls).toEqual([]);
+  expect(parseSourceControlProvidersFile({ raw: text(), readExtensions: refusing })).toEqual({ ok: false, reason: 'providers[0].credential is wrong' });
+  expect(calls).toEqual(['providers[0]']);
+});
+
+test('extensions are merged but cannot overwrite the generic facts; unknown keys and absent optionals are dropped', () => {
+  const overriding: DescriptorExtensionReader = () => ({ ok: true, extensions: { credential: 'c', id: 'hijack', module: 'x.mjs' } as never });
+  const parsed = parseSourceControlProvidersFile({ raw: text([{ id: 'p', label: 'P', apiOrigin: 'https://p.test', module: 'p.mjs', extra: 1 }]), readExtensions: overriding });
+  expect(parsed).toEqual({ ok: true, descriptors: [{ credential: 'c', id: 'p', label: 'P', apiOrigin: 'https://p.test', module: 'p.mjs' }] });
+});
+
+test('maxFileBytes is kept when valid', () => {
+  const parsed = parseSourceControlProvidersFile({ raw: text([{ ...descriptor, maxFileBytes: 10 }]), readExtensions });
+  expect(parsed.ok && parsed.descriptors[0]!.maxFileBytes).toBe(10);
+});
+
+test('a module policy replaces the relative-path rule but never the .mjs suffix rule', () => {
+  const seen: string[] = [];
+  const policy = { modulePath: ({ path }: { path: string }) => { seen.push(path); return path.startsWith('/trusted/'); } };
+  expect(reasonFor({ module: '/trusted/p.mjs' }, policy)).toBe('ok');
+  expect(reasonFor({ module: '/other/p.mjs' }, policy)).toBe('providers[0].module must be a relative path ending in .mjs');
+  expect(reasonFor({ module: '/trusted/p.js' }, policy)).toBe('providers[0].module must be a relative path ending in .mjs');
+  expect(seen).toEqual(['/trusted/p.mjs', '/other/p.mjs']);
+});
+
+test('a folder policy replaces the relative-path rule but not the count and length limits', () => {
+  const policy = { folderPath: ({ path }: { path: string }) => path !== 'deny' };
+  expect(reasonFor({ reservedPaths: ['../allowed'] }, policy)).toBe('ok');
+  expect(reasonFor({ workflowPaths: ['deny'] }, policy)).toBe('providers[0].workflowPaths must be a list of at most 20 relative folder paths');
+  expect(reasonFor({ reservedPaths: Array(21).fill('ok') }, policy)).toBe('providers[0].reservedPaths must be a list of at most 20 relative folder paths');
+  expect(reasonFor({ reservedPaths: ['a'.repeat(201)] }, policy)).toBe('providers[0].reservedPaths must be a list of at most 20 relative folder paths');
+});
+
+test('a folder policy that answers differently on its second call drops the path list (reported, not fixed)', () => {
+  let calls = 0;
+  const flaky = { folderPath: () => ++calls === 1 };
+  const parsed = parseSourceControlProvidersFile({ raw: text([{ ...descriptor, workflowPaths: undefined, reservedPaths: ['ci'] }]), readExtensions }, flaky);
+  // The list is validated once, then re-validated to decide whether to copy it: a stateful
+  // policy that refuses the second time silently removes the reserved-path protection.
+  expect(parsed.ok && parsed.descriptors[0]!.reservedPaths).toBe(undefined);
+  expect(calls).toBe(2);
+});
+
+const trusted = (pluginId: string, providers: unknown[], importModule: (r: { relativePath: string }) => Promise<unknown>): CatalogPackage => ({ pluginId, state: 'trusted', descriptorText: text(providers), importModule });
+const load = (packages: CatalogPackage[], extensions: DescriptorExtensionReader = readExtensions) => loadSourceControlProviderRegistry({ workspaceId: 'w', descriptorFileName: 'p.json', readExtensions: extensions, describeError: ({ error }) => `described: ${(error as Error).message}`, catalog: { list: async () => packages } });
+
+test('refusals carry the plugin id and, for module faults, the provider id', async () => {
+  const registry = await load([
+    { pluginId: 'r', state: 'refused', reason: 'digest mismatch' },
+    { pluginId: 'bad-json', state: 'trusted', descriptorText: '{', importModule: async () => ({}) },
+    trusted('throws', [{ ...descriptor, id: 'boom' }], async () => { throw new Error('import failed'); }),
+    trusted('val', [{ ...descriptor, id: 'v' }], async () => ({ create: () => operations, validateTarget: 'no' })),
+    trusted('nocreate', [{ ...descriptor, id: 'n' }], async () => null),
+  ]);
+  expect(registry.refusals).toEqual([
+    'bad-json: not valid JSON',
+    'nocreate/n: its module has no create() function',
+    'r: digest mismatch',
+    'throws/boom: described: import failed',
+    "val/v: its module's validateTarget is not a function",
+  ]);
+  expect(registry.list({})).toEqual([]);
+});
+
+test('a throwing extension reader is refused for that plugin only', async () => {
+  const throwing: DescriptorExtensionReader = ({ entry }) => { if (entry.id === 'x') throw new Error('reader crashed'); return { ok: true, extensions: {} }; };
+  const registry = await load([trusted('a', [{ ...descriptor, id: 'x' }], async () => ({ create: () => operations })), trusted('b', [descriptor], async () => ({ create: () => operations }))], throwing);
+  expect(registry.refusals).toEqual(['a: described: reader crashed']);
+  expect(registry.list({}).map(p => p.descriptor.id)).toEqual(['example']);
+});
+
+test('an invalid inactive descriptor is refused rather than switched off', async () => {
+  const registry = await load([{ pluginId: 'off', state: 'inactive', descriptorText: '[]' }]);
+  expect(registry.refusals).toEqual(['off: schemaVersion must be 1']);
+  expect(registry.switchedOff.size).toBe(0);
+});
+
+test('the first inactive plugin in id order owns a switched-off provider id', async () => {
+  const registry = await load([
+    { pluginId: 'z-off', state: 'inactive', descriptorText: text() },
+    { pluginId: 'a-off', state: 'inactive', descriptorText: text() },
+  ]);
+  expect([...registry.switchedOff]).toEqual([['example', 'a-off']]);
+});
+
+test('plugins load in id order regardless of catalog order, and equal ids keep catalog order', async () => {
+  const order: string[] = [];
+  const make = (pluginId: string, id: string) => trusted(pluginId, [{ ...descriptor, id }], async () => { order.push(pluginId + ':' + id); return { create: () => operations }; });
+  const registry = await load([make('b', 'b1'), make('a', 'a1'), make('b', 'b2')]);
+  expect(order).toEqual(['a:a1', 'b:b1', 'b:b2']);
+  expect(registry.get({ providerId: 'b2' })?.pluginId).toBe('b');
+});
+
+test('the same provider id from two trusted plugins is not refused; the first in id order wins get() (reported, not fixed)', async () => {
+  const registry = await load([trusted('b', [descriptor], async () => ({ create: () => operations })), trusted('a', [descriptor], async () => ({ create: () => operations }))]);
+  expect(registry.list({}).map(p => p.pluginId)).toEqual(['a', 'b']);
+  expect(registry.get({ providerId: 'example' })?.pluginId).toBe('a');
+  expect(registry.refusals).toEqual([]);
+});
+
+test('the provider list and refusals are frozen snapshots', async () => {
+  const registry = await load([trusted('a', [descriptor], async () => ({ create: () => operations }))]);
+  expect(Object.isFrozen(registry.list({}))).toBe(true);
+  expect(Object.isFrozen(registry.refusals)).toBe(true);
+  expect(registry.list({})[0]).toMatchObject({ pluginId: 'a', descriptor: { id: 'example' } });
 });
