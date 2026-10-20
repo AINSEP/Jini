@@ -81,12 +81,15 @@ describe('users controller savePanel pins', () => {
     expect(update).not.toHaveBeenCalled();
   });
   it.each([['role'], ['policy']] as const)('refuses an empty %s selection silently', async (kind) => {
-    const { c } = await users();
+    const assign = vi.fn<UsersApiPort['assignRole']>(), attach = vi.fn<UsersApiPort['attachPolicy']>();
+    const { c } = await users({ overrides: { assignRole: assign, attachPolicy: attach } });
     c.toggleExpanded({ principalId: 'alice' });
     // The other kind's selection is set: only the matching field gates the save.
     c.setDraft({ patch: kind === 'role' ? { pendingPolicyId: 'p' } : { pendingRoleId: 'r' } });
     expect(await c.savePanel({ principalId: 'alice', kind })).toBe(false);
     expect(c.getSnapshot({})).toMatchObject({ rowError: null, grantSaving: false });
+    expect(assign).not.toHaveBeenCalled();
+    expect(attach).not.toHaveBeenCalled();
     c.dispose({});
   });
   it('saves the email draft, keeps the email field, reloads and returns true', async () => {
@@ -120,6 +123,16 @@ describe('users controller savePanel pins', () => {
     expect(await c.savePanel({ principalId: 'alice', kind: 'policy' })).toBe(true);
     expect(attach.mock.calls[0]![0]).toEqual({ principalId: 'alice', policyId: 'p' });
     expect(c.getSnapshot({})).toMatchObject({ pendingRoleId: 'r', pendingPolicyId: '' });
+    c.dispose({});
+  });
+  it.each([['role'], ['policy']] as const)('sends the selected %s id from the draft', async (kind) => {
+    const assign = vi.fn<UsersApiPort['assignRole']>(async () => ({ assignment: {} })), attach = vi.fn<UsersApiPort['attachPolicy']>(async () => ({ attachment: {} }));
+    const { c } = await users({ overrides: { assignRole: assign, attachPolicy: attach } });
+    c.toggleExpanded({ principalId: 'alice' });
+    c.setDraft({ patch: { pendingRoleId: 'role-x', pendingPolicyId: 'policy-y' } });
+    expect(await c.savePanel({ principalId: 'alice', kind })).toBe(true);
+    if (kind === 'role') expect(assign.mock.calls[0]![0]).toEqual({ principalId: 'alice', roleId: 'role-x' });
+    else expect(attach.mock.calls[0]![0]).toEqual({ principalId: 'alice', policyId: 'policy-y' });
     c.dispose({});
   });
   it('keeps a selection edited during the save', async () => {
@@ -380,6 +393,15 @@ describe('users controller remaining pins', () => {
     expect(denied.getSnapshot({}).saving).toBe(false);
     c.dispose({}); c2.dispose({}); failing.dispose({}); denied.dispose({});
     expect(await c2.createUser({})).toBe(false);
+  });
+  it('createUser returns false when disposed during the create', async () => {
+    const gate = deferred<{ user: typeof alice }>();
+    const { c } = await users({ overrides: { createUser: () => gate.promise } });
+    c.setDraft({ patch: { username: 'u', password: 'p' } });
+    const pending = c.createUser({});
+    c.dispose({});
+    gate.resolve({ user: alice });
+    expect(await pending).toBe(false);
   });
   it('loadCaller ignores an invalid identity, copies effective permissions and is inert after dispose', async () => {
     for (const user of [undefined, { id: 7, username: 'x' }, { id: '', username: 'x' }]) {
