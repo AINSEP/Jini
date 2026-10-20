@@ -101,6 +101,41 @@ export function createPermissionMigrationRegistry(
 }
 
 /**
+ * One policy's share of the fan-out: for each pair whose `from` the policy holds, write every `to`
+ * it does not hold yet. `held` is updated as rows are written, so a target named by two pairs is
+ * written once; pairs run in list order in a single pass, so a target written here is never then
+ * re-read as a later pair's `from` within this same policy. Additive-only — only `save` is called.
+ *
+ * @returns how many rows were written for this policy.
+ */
+async function grantMissingTargets(required: {
+  deps: MigrateDeprecatedPermissionGrantsDeps;
+  policyId: UUID;
+}): Promise<number> {
+  const { deps, policyId } = required;
+  const existing = await deps.policyPermissions.listByPolicyId({ workspaceId: deps.workspaceId, policyId });
+  const held = new Set(existing.map((row) => row.permission));
+  let written = 0;
+  for (const migration of deps.migrations) {
+    if (!held.has(migration.from)) continue;
+    for (const toPermission of migration.to) {
+      if (held.has(toPermission)) continue;
+      await deps.policyPermissions.save({
+        id: deps.idGen.newId(),
+        workspaceId: deps.workspaceId,
+        policyId,
+        permission: toPermission,
+        resourceType: null,
+        constraintJson: null,
+      });
+      held.add(toPermission);
+      written += 1;
+    }
+  }
+  return written;
+}
+
+/**
  * For every `{from, to}` pair in `deps.migrations`, for every policy in the workspace
  * holding `from`, ensure every string in `to` is also granted — adding only
  * the rows that are missing. Never removes or mutates `from` (or any other
@@ -120,8 +155,7 @@ export function createPermissionMigrationRegistry(
 export async function migrateDeprecatedPermissionGrants(
   deps: MigrateDeprecatedPermissionGrantsDeps
 ): Promise<MigrateDeprecatedPermissionGrantsResult> {
-  const { migrations } = deps;
-  if (migrations.length === 0) return { migratedGrantCount: 0 };
+  if (deps.migrations.length === 0) return { migratedGrantCount: 0 };
 
   return inIdentityTransaction({
     transactions: deps.transactions,
@@ -129,34 +163,9 @@ export async function migrateDeprecatedPermissionGrants(
     execute: async () => {
       const policies = await deps.policies.list({ workspaceId: deps.workspaceId });
       let migratedGrantCount = 0;
-
       for (const policy of policies) {
-        const existing = await deps.policyPermissions.listByPolicyId({
-          workspaceId: deps.workspaceId,
-          policyId: policy.id,
-        });
-        const held = new Set(existing.map((row) => row.permission));
-
-        for (const migration of migrations) {
-          if (!held.has(migration.from)) continue;
-
-          for (const toPermission of migration.to) {
-            if (held.has(toPermission)) continue;
-
-            await deps.policyPermissions.save({
-              id: deps.idGen.newId(),
-              workspaceId: deps.workspaceId,
-              policyId: policy.id,
-              permission: toPermission,
-              resourceType: null,
-              constraintJson: null,
-            });
-            held.add(toPermission);
-            migratedGrantCount += 1;
-          }
-        }
+        migratedGrantCount += await grantMissingTargets({ deps, policyId: policy.id });
       }
-
       return { migratedGrantCount };
     },
   });
