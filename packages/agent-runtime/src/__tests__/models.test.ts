@@ -224,3 +224,82 @@ describe('resolveModelForAgent', () => {
     }
   });
 });
+
+describe('validateRuntimeSelection characterization (pinned before the complexity refactor)', () => {
+  const ready = { id: 'runtime', available: true, authStatus: 'ok' as const, modelsSource: 'live' as const, models: [
+    { id: 'm-reasoning', label: 'R', reasoning: [{ id: 'high', label: 'High' }] },
+    { id: 'm-plain', label: 'P' },
+  ] };
+
+  it('refuses an unknown agent with the exact message listing only available agents', () => {
+    expect(validateRuntimeSelection({ agents: [ready, { ...ready, id: 'off', available: false }], agentId: 'nope' })).toBe("Unknown or unavailable agent 'nope'. Available agents: runtime.");
+  });
+
+  it('refuses unverified credentials with the exact message', () => {
+    expect(validateRuntimeSelection({ agents: [{ ...ready, authStatus: undefined }], agentId: 'runtime' })).toBe("Credentials for 'runtime' are not ready (unverified). Sign in and rescan the chat picker.");
+  });
+
+  it('refuses concrete-selection-incapable agents even with no model or effort', () => {
+    expect(validateRuntimeSelection({ agents: [{ ...ready, supportsConcreteModelSelection: false }], agentId: 'runtime' })).toBe("Agent 'runtime' cannot pin a concrete starting model.");
+  });
+
+  it('accepts no model and no effort on a static fallback catalog', () => {
+    expect(validateRuntimeSelection({ agents: [{ ...ready, modelsSource: 'fallback' as const }], agentId: 'runtime' })).toBeNull();
+  });
+
+  it('refuses an effort-only pick on a static fallback catalog with the exact message', () => {
+    expect(validateRuntimeSelection({ agents: [{ ...ready, modelsSource: 'fallback' as const }], agentId: 'runtime', effort: 'high' })).toBe("Live model catalog for 'runtime' is unavailable. Rescan the chat picker before choosing a model or effort.");
+  });
+
+  it('refuses an unknown model with the exact message', () => {
+    expect(validateRuntimeSelection({ agents: [ready], agentId: 'runtime', modelId: 'zzz' })).toBe("Unknown model 'zzz' for 'runtime'. Available models: m-reasoning, m-plain.");
+  });
+
+  it('accepts the "default" sentinel with no effort even when the default is unresolved', () => {
+    expect(validateRuntimeSelection({ agents: [ready], agentId: 'runtime', modelId: 'default' })).toBeNull();
+  });
+
+  it('refuses effort on an unresolved default with the exact message', () => {
+    expect(validateRuntimeSelection({ agents: [{ ...ready, defaultModelResolution: { status: 'unresolved' as const, reason: 'probe failed' } }], agentId: 'runtime', modelId: 'default', effort: 'high' })).toBe("Default model for 'runtime' is unresolved. Pick a concrete model before choosing effort.");
+  });
+
+  it('falls back to agent-wide reasoning options when the model has none', () => {
+    expect(validateRuntimeSelection({ agents: [{ ...ready, reasoningOptions: [{ id: 'mid', label: 'Mid' }] }], agentId: 'runtime', modelId: 'm-plain', effort: 'mid' })).toBeNull();
+  });
+
+  it('refuses effort with an empty level list when neither the model nor the agent has levels', () => {
+    expect(validateRuntimeSelection({ agents: [ready], agentId: 'runtime', modelId: 'm-plain', effort: 'mid' })).toBe("Unknown effort 'mid' for 'runtime'. Available effort levels:  (empty means Default).");
+  });
+
+  it('refuses any effort for a reasoning-in-model-id runtime even when the model lists the level', () => {
+    expect(validateRuntimeSelection({ agents: [{ ...ready, reasoningInModelId: true }], agentId: 'runtime', modelId: 'm-reasoning', effort: 'high' })).toBe("Unknown effort 'high' for 'runtime'. Available effort levels:  (empty means Default).");
+  });
+});
+
+describe('resolveModelForAgent characterization (pinned before the complexity refactor)', () => {
+  it('trims the defaultModelEnvVar value', () => {
+    const def = makeDef({ defaultModelEnvVar: 'FAKE_DEFAULT_MODEL' });
+    expect(resolveModelForAgent({ def, resolved: 'default' }, { env: { FAKE_DEFAULT_MODEL: '  env-model  ' } })).toBe('env-model');
+  });
+
+  it('lets the env override win over a fallback list that declares "default"', () => {
+    const def = makeDef({ defaultModelEnvVar: 'FAKE_DEFAULT_MODEL', fallbackModels: [DEFAULT_MODEL_OPTION] });
+    expect(resolveModelForAgent({ def, resolved: null }, { env: { FAKE_DEFAULT_MODEL: 'env-model' } })).toBe('env-model');
+  });
+
+  it('ignores an unset defaultModelEnvVar and returns "default" unchanged when the fallback list is empty', () => {
+    const def = makeDef({ id: 'agent-unset-env', defaultModelEnvVar: 'FAKE_DEFAULT_MODEL', fallbackModels: [] });
+    expect(resolveModelForAgent({ def, resolved: 'default' }, { env: {} })).toBe('default');
+  });
+
+  it('replaces the "default" sentinel with the first fallback id', () => {
+    const def = makeDef({ id: 'agent-default-sentinel', fallbackModels: [{ id: 'fb-1', label: 'x' }] });
+    expect(resolveModelForAgent({ def, resolved: 'default' }, { env: {} })).toBe('fb-1');
+  });
+
+  it('skips an empty-string first live id and uses the first fallback', () => {
+    rememberLiveModels({ agentId: 'agent-empty-live', models: [{ id: '', label: 'x' }, { id: 'live-2', label: 'y' }] });
+    const def = makeDef({ id: 'agent-empty-live', fallbackModels: [{ id: 'fb-1', label: 'x' }] });
+    expect(resolveModelForAgent({ def, resolved: null }, { env: {} })).toBe('fb-1');
+  });
+});
