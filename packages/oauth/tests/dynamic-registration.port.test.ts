@@ -53,7 +53,7 @@ test("registration POSTs an RFC 7591 client-metadata document as JSON", async ()
     }
 });
 test("a public client is the default — no client secret is requested and none is required back", async () => {
-    const fixture = await startDiscoveryFixture({ registration: { json: { client_id: "minted-abc" } } });
+    const fixture = await startDiscoveryFixture({ registration: { status: 201, json: { client_id: "minted-abc" } } });
     try {
         const registered = await registerOAuthClientDynamically({
             ...fixturePorts,
@@ -75,7 +75,7 @@ test("a public client is the default — no client secret is requested and none 
 });
 test("a server that volunteers a client secret anyway has it carried back, with the auth method it echoed", async () => {
     const fixture = await startDiscoveryFixture({
-        registration: {
+        registration: { status: 201,
             json: {
                 client_id: "minted-abc",
                 client_secret: "server-chose-a-secret",
@@ -109,7 +109,7 @@ test("a server that volunteers a client secret anyway has it carried back, with 
 });
 test("an echoed token_endpoint_auth_method outside the supported vocabulary falls back to the requested one", async () => {
     const fixture = await startDiscoveryFixture({
-        registration: { json: { client_id: "minted-abc", token_endpoint_auth_method: "private_key_jwt" } },
+        registration: { status: 201, json: { client_id: "minted-abc", token_endpoint_auth_method: "private_key_jwt" } },
     });
     try {
         const registered = await registerOAuthClientDynamically({

@@ -39,7 +39,7 @@ test('browser options stay separate while the pending record preserves resource 
   const clock = createTestClock();
   const pending = createPendingAuthorizationStore({ clock, randomBytesFn: entropy });
   const started = await beginAuthorizationCode({ provider: TEST_PROVIDER, pending, randomBytesFn: entropy, guard, options: identity, ownerKey: 'owner', client: TEST_CLIENT, redirectUri: identity.redirectUris[0]! }, { scopes: ['read'], resource: ['https://api.example.com/a', 'https://api.example.com/b'] });
-  const http = createFetchDouble([{ json: { access_token: 'issued', refresh_token: 'rotated' } }]);
+  const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: 'issued', refresh_token: 'rotated' } }]);
   const tokens = await completeAuthorizationCode({ provider: TEST_PROVIDER, pending, clock, fetchFn: http.fetchFn, guard, ownerKey: 'owner', client: TEST_CLIENT, params: { state: started.state, code: 'one-time' } }, { timeoutMs: 800 });
   expect(tokens.accessToken).toBe('issued');
   expect(http.requests).toHaveLength(1);
@@ -56,7 +56,7 @@ test('provider registry methods and optional operator endpoints use objects', ()
 });
 
 test('registrar options participate in cache identity and invalidate the matching registration only', async () => {
-  const http = createFetchDouble([{ json: { client_id: 'read' } }, { json: { client_id: 'device' } }, { json: { client_id: 'replacement' } }]);
+  const http = createFetchDouble([{ status: 201, json: { client_id: 'read' } }, { status: 201, json: { client_id: 'device' } }, { status: 201, json: { client_id: 'replacement' } }]);
   const cache = createMemoryClientRegistrationCache({});
   const registrar = createOAuthClientRegistrar({ cache, clock: createTestClock(), fetchFn: http.fetchFn, guard, options: identity });
   const input = { issuer: 'https://auth.example.com', registrationEndpoint: 'https://auth.example.com/register', scopes: ['read'] };

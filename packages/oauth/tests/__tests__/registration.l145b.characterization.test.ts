@@ -65,17 +65,17 @@ const AUTH_CASES: readonly {
     expected: OAuthClientAuthMethod;
 }[] = [
     { name: 'absent method and secret', document: {}, expected: 'none' },
-    { name: 'blank secret', document: { client_secret: '  ' }, expected: 'none' },
+    { name: 'blank secret', document: { client_secret_expires_at: 0, client_secret: '  ' }, expected: 'none' },
     { name: 'unknown echo without secret', document: { token_endpoint_auth_method: 'private_key_jwt' }, expected: 'none' },
-    { name: 'echoed none wins over secret', document: { client_secret: 'secret', token_endpoint_auth_method: 'none' }, expected: 'none' },
+    { name: 'echoed none wins over secret', document: { client_secret_expires_at: 0, client_secret: 'secret', token_endpoint_auth_method: 'none' }, expected: 'none' },
     { name: 'echoed Basic wins without secret', document: { token_endpoint_auth_method: 'client_secret_basic' }, expected: 'client_secret_basic' },
     { name: 'trimmed echoed POST wins', document: { token_endpoint_auth_method: ' client_secret_post ' }, expected: 'client_secret_post' },
-    { name: 'explicit request wins over volunteered secret', document: { client_secret: 'secret' }, options: { tokenEndpointAuthMethod: 'client_secret_post' }, expected: 'client_secret_post' },
-    { name: 'absent advertisements default to Basic', document: { client_secret: 'secret' }, expected: 'client_secret_basic' },
-    { name: 'empty advertisements default to Basic', document: { client_secret: 'secret' }, options: { authMethodsSupported: [] }, expected: 'client_secret_basic' },
-    { name: 'Basic wins over POST', document: { client_secret: 'secret' }, options: { authMethodsSupported: ['client_secret_post', 'client_secret_basic'] }, expected: 'client_secret_basic' },
-    { name: 'POST when Basic absent', document: { client_secret: 'secret' }, options: { authMethodsSupported: ['client_secret_post'] }, expected: 'client_secret_post' },
-    { name: 'unsupported secret methods retain none', document: { client_secret: 'secret' }, options: { authMethodsSupported: ['private_key_jwt', 'none'] }, expected: 'none' },
+    { name: 'explicit request wins over volunteered secret', document: { client_secret_expires_at: 0, client_secret: 'secret' }, options: { tokenEndpointAuthMethod: 'client_secret_post' }, expected: 'client_secret_post' },
+    { name: 'absent advertisements default to Basic', document: { client_secret_expires_at: 0, client_secret: 'secret' }, expected: 'client_secret_basic' },
+    { name: 'empty advertisements default to Basic', document: { client_secret_expires_at: 0, client_secret: 'secret' }, options: { authMethodsSupported: [] }, expected: 'client_secret_basic' },
+    { name: 'Basic wins over POST', document: { client_secret_expires_at: 0, client_secret: 'secret' }, options: { authMethodsSupported: ['client_secret_post', 'client_secret_basic'] }, expected: 'client_secret_basic' },
+    { name: 'POST when Basic absent', document: { client_secret_expires_at: 0, client_secret: 'secret' }, options: { authMethodsSupported: ['client_secret_post'] }, expected: 'client_secret_post' },
+    { name: 'unsupported secret methods retain none', document: { client_secret_expires_at: 0, client_secret: 'secret' }, options: { authMethodsSupported: ['private_key_jwt', 'none'] }, expected: 'none' },
 ];
 for (const scenario of AUTH_CASES) {
     test(`registration auth resolution: ${scenario.name}`, async () => {
@@ -88,7 +88,7 @@ for (const scenario of AUTH_CASES) {
 
 test('registration retains nullish auth defaults for runtime JSON options', async () => {
     const options: OAuthOptionalArgs<DynamicClientRegistrationInput> = JSON.parse('{"tokenEndpointAuthMethod":null,"authMethodsSupported":null}');
-    const http = createFetchDouble([{ json: { client_id: 'id', client_secret: 'secret' } }]);
+    const http = createFetchDouble([{ json: { client_secret_expires_at: 0, client_id: 'id', client_secret: 'secret' } }]);
     const client = await registerOAuthClientDynamically({ ...REQUIRED, fetchFn: http.fetchFn }, options);
     assert.equal(client.tokenEndpointAuthMethod, 'client_secret_basic');
 });
@@ -99,19 +99,6 @@ test('registration normalizes non-finite JSON numeric timestamps to null', async
     assert.equal(client.clientIdIssuedAt, null);
     assert.equal(client.clientSecretExpiresAt, null);
 });
-
-for (const [value, expected] of [[123, 123], [0, 0], [-1, -1], [1.5, 1.5], ['123', null], [null, null], [undefined, null]] as const) {
-    test(`registration normalizes optional timestamps ${String(value)} to ${String(expected)}`, async () => {
-        const http = createFetchDouble([{ json: { client_id: 'id', client_secret: ' secret ',
-            registration_client_uri: ' https://auth.example.com/client ', client_id_issued_at: value,
-            client_secret_expires_at: value } }]);
-        const client = await registerOAuthClientDynamically({ ...REQUIRED, fetchFn: http.fetchFn });
-        assert.equal(client.clientSecret, 'secret');
-        assert.equal(client.registrationClientUri, 'https://auth.example.com/client');
-        assert.equal(client.clientIdIssuedAt, expected);
-        assert.equal(client.clientSecretExpiresAt, expected);
-    });
-}
 
 for (const [status, document, suffix, providerErrorCode] of [
     [200, { error: 'invalid_client', client_id: 'id' }, ', invalid_client', 'invalid_client'],

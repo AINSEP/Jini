@@ -531,8 +531,8 @@ for (const rotatedRefresh of [undefined, '', 'fixture-rotated-refresh']) {
 test('concurrent real wire refreshes redeem once and wait for rotation to be persisted', async () => {
     const clock = createTestClock('2026-08-25T12:04:00.000Z');
     const http = createFetchDouble([
-        { json: { access_token: 'fixture-access-one', refresh_token: 'fixture-refresh-one', expires_in: 3600 } },
-        { json: { access_token: 'fixture-access-two', refresh_token: 'fixture-refresh-two', expires_in: 3600 } },
+        { json: { token_type: 'Bearer', access_token: 'fixture-access-one', refresh_token: 'fixture-refresh-one', expires_in: 3600 } },
+        { json: { token_type: 'Bearer', access_token: 'fixture-access-two', refresh_token: 'fixture-refresh-two', expires_in: 3600 } },
     ]);
     const double = makePort({ withLease: false });
     let signalPersist: () => void = () => { throw new Error('fixture not initialized'); };
@@ -575,7 +575,7 @@ test('concurrent real wire refreshes redeem once and wait for rotation to be per
 
 test('a real wire rotation is not returned when persistence fails', async () => {
     const clock = createTestClock('2026-08-25T12:04:00.000Z');
-    const http = createFetchDouble([{ json: { access_token: 'fixture-access', refresh_token: 'fixture-refresh' } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: 'fixture-access', refresh_token: 'fixture-refresh' } }]);
     const double = makePort();
     const failure = new Error('fixture-persistence-failure');
     const refresher = createTokenRefresher({

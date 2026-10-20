@@ -2,9 +2,8 @@ import type { CustomFetch, FetchBody } from 'openid-client';
 import { readBoundedOAuthText, type BoundedJsonMessages } from './bounded-json.js';
 import { OAuthError } from './errors.js';
 import type { OAuthHttpPorts } from './ports.js';
-import { assertOAuthResponseNotRedirect } from './transport-response.js';
+import { assertOAuthResponseNotRedirect } from './endpoint-safety.js';
 
-/** Internal adapter inputs: callers retain their operation's timeout, endpoint label and error copy. */
 interface OAuthCustomFetchDeps extends OAuthHttpPorts {
   readonly timeoutMs: number;
   readonly endpointLabel: string;
@@ -13,17 +12,12 @@ interface OAuthCustomFetchDeps extends OAuthHttpPorts {
 interface OAuthCustomFetchOptions {
   /** Omit for the existing 64 KiB cap; device authorization supplies its tighter 16 KiB cap. */
   readonly maxResponseBytes?: number;
+  readonly unreachable?: { readonly message: string; readonly operatorAction: string; readonly preserveCause?: false };
 }
 
-/** Adapts upstream form/JSON bodies to the host's string-only OAuth HTTP port.
- * @returns A serialized body, or undefined for an absent body (including upstream null).
- * @throws {OAuthError} OAUTH_INVALID_REQUEST for unsupported binary/streaming uploads.
- * @complexity O(n) time and space for a form body of n characters; O(1) for a string.
- */
 function serializeOAuthBody(body: FetchBody): string | undefined {
   if (body == null) return undefined;
-  if (body instanceof URLSearchParams) return body.toString();
-  if (typeof body === 'string') return body;
+  if (body instanceof URLSearchParams || typeof body === 'string') return body.toString();
   // The host contract supports form/JSON strings. Never silently discard an unsupported upload.
   throw new OAuthError({
     code: 'OAUTH_INVALID_REQUEST', message: 'unsupported OAuth request body',
@@ -31,40 +25,42 @@ function serializeOAuthBody(body: FetchBody): string | undefined {
   });
 }
 
-/** Creates the internal openid-client (also oauth4webapi-compatible) customFetch hook.
- * Supply this hook on every upstream HTTP operation, including discovery, JWKS and registration.
- * URL policy and connection-time DNS pinning remain in the supplied host ports; no native fetch
- * fallback is used. The port must honor abort signals through the complete response body read.
- * Upstream HTTP errors pass through for protocol processing; transport/guard errors retain identity
- * so each facade operation can preserve its own existing error mapping and operator copy.
- * @param requiredArgs - Guarded HTTP ports and the operation's deadline, label and overflow copy.
- * @param optionalArgs - The operation's response byte cap, defaulting to the shared OAuth cap.
- * @returns A hook with the upstream positional ABI, hidden from the public facade.
- * @throws {OAuthError} For unsafe endpoints, redirects, oversized responses or unsupported uploads.
- * @complexity O(n) time and space in the request form and bounded response body; one HTTP call.
+/** Every upstream HTTP call uses the host guard, DNS-pinned port and bounded body reader.
+ * Keep the original transport failure: openid-client wraps it, and upstream protocol errors
+ * can carry credentials in their causes. Each operation owns its hook and error mapping.
  */
-export function createOAuthCustomFetch(
-  { fetchFn, guard, timeoutMs, endpointLabel, responseMessages }: OAuthCustomFetchDeps,
-  { maxResponseBytes }: OAuthCustomFetchOptions = {},
-): CustomFetch {
-  // The upstream library owns this positional ABI; it is not a public facade operation.
-  return async (url, options) => {
-    const endpoint = guard.assertSafeUrl({ raw: url, label: endpointLabel });
-    const body = serializeOAuthBody(options.body);
-    const deadline = AbortSignal.timeout(timeoutMs);
-    // A library/caller cancellation and our operation-specific deadline must both remain effective.
-    const signal = options.signal === undefined ? deadline : AbortSignal.any([options.signal, deadline]);
-    signal.throwIfAborted();
-    const response = await fetchFn({ url: endpoint.href }, {
-      method: options.method, headers: { ...options.headers }, redirect: 'error', signal,
-      ...(body === undefined ? {} : { body }),
-    });
-    await assertOAuthResponseNotRedirect({ response });
-    // Bound the stream before upstream's response.json() can buffer it without a size limit.
-    // Buffering also keeps the deadline active through body consumption, not just the headers.
-    const text = await readBoundedOAuthText(response, responseMessages, maxResponseBytes);
-    return new Response(response.body === null ? null : text, {
-      status: response.status, statusText: response.statusText, headers: response.headers,
-    });
+export function createOAuthCustomFetch({ fetchFn, guard, timeoutMs, endpointLabel, responseMessages }: OAuthCustomFetchDeps,
+  { maxResponseBytes, unreachable }: OAuthCustomFetchOptions = {}): CustomFetch & { failure?: { readonly error: unknown }; status?: number } {
+  const fetch: CustomFetch & { failure?: { readonly error: unknown }; status?: number } = async (url, options) => {
+    delete fetch.failure;
+    delete fetch.status;
+    try {
+      const endpoint = guard.assertSafeUrl({ raw: url, label: endpointLabel });
+      const body = serializeOAuthBody(options.body);
+      const deadline = AbortSignal.timeout(timeoutMs);
+      // A library/caller cancellation and our operation-specific deadline must both remain effective.
+      const signal = options.signal === undefined ? deadline : AbortSignal.any([options.signal, deadline]);
+      signal.throwIfAborted();
+      const response = await fetchFn({ url: endpoint.href }, {
+        method: options.method, headers: { ...options.headers }, redirect: 'error', signal,
+        ...(body === undefined ? {} : { body }),
+      }).catch(error => {
+        if (!unreachable || error instanceof OAuthError) throw error;
+        throw new OAuthError({ code: 'OAUTH_PROVIDER_UNREACHABLE', ...unreachable }, unreachable.preserveCause === false ? {} : { cause: error });
+      });
+      fetch.status = response.status;
+      await assertOAuthResponseNotRedirect({ response });
+      // Bound the body before upstream JSON buffering, keeping the deadline active through consumption.
+      const text = await readBoundedOAuthText(response, responseMessages, maxResponseBytes);
+      return new Response(response.body === null ? null : text, {
+        status: response.status, statusText: response.statusText, headers: response.headers,
+      });
+    } catch (error) {
+      const failure = unreachable?.preserveCause === false && !(error instanceof OAuthError)
+        ? new OAuthError({ code: 'OAUTH_PROVIDER_UNREACHABLE', ...unreachable }) : error;
+      fetch.failure = { error: failure };
+      throw failure;
+    }
   };
+  return fetch;
 }

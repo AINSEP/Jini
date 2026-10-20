@@ -1,7 +1,7 @@
 import { isIP, type LookupFunction } from 'node:net';
 import type { OAuthEmptyArgs } from './args.js';
 import type { OAuthFetch, OAuthHttpPorts } from './ports.js';
-import { assertOAuthResponseNotRedirect } from './transport-response.js';
+import { assertOAuthResponseNotRedirect } from './endpoint-safety.js';
 
 export interface OAuthDnsAddress { readonly address: string; readonly family: number }
 // OAuth destinations are supplied by callers or remote metadata. A URL-only precheck can pass a

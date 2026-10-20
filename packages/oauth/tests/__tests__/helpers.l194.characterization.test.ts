@@ -79,7 +79,7 @@ test('discovery fixture serves default metadata, both resource paths, challenge 
 });
 
 test('discovery fixture retains custom paths, empty scopes, dead issuers, metadata overrides and token replies', async () => {
-    const fixture = await startDiscoveryFixture({ resourcePath: '/custom', resourceScopes: [], deadAuthorizationServers: ['https://dead.example'], metadata: { token_endpoint: null, extra: 'retained' }, token: { status: 202, json: { access_token: 'issued' } } });
+    const fixture = await startDiscoveryFixture({ resourcePath: '/custom', resourceScopes: [], deadAuthorizationServers: ['https://dead.example'], metadata: { token_endpoint: null, extra: 'retained' }, token: { status: 202, json: { token_type: 'Bearer', access_token: 'issued' } } });
     try {
         const resource = await fetch(`${fixture.origin}/.well-known/oauth-protected-resource/custom`);
         assert.deepEqual(await resource.json(), { resource: fixture.resourceUrl, authorization_servers: ['https://dead.example', fixture.origin], scopes_supported: [] });
@@ -89,7 +89,7 @@ test('discovery fixture retains custom paths, empty scopes, dead issuers, metada
         assert.deepEqual(metadata.scopes_supported, []);
         const token = await fetch(`${fixture.origin}/oauth2/token?query=ignored`);
         assert.equal(token.status, 202);
-        assert.deepEqual(await token.json(), { access_token: 'issued' });
+        assert.deepEqual(await token.json(), { token_type: 'Bearer', access_token: 'issued' });
         const challenge = await fetch(fixture.resourceUrl);
         assert.equal(challenge.headers.get('www-authenticate'), fixture.wwwAuthenticate);
         assert.equal(fixture.wwwAuthenticate, `Bearer resource_metadata="${fixture.origin}/.well-known/oauth-protected-resource/custom", scope=""`);

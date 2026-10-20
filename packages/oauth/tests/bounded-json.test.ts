@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { parseOAuthJsonObject, readBoundedOAuthJson, readBoundedOAuthText, readOptionalString, readStringArray } from "../src/bounded-json.js";
-import { OAuthError } from "../src/errors.js";
+import { readBoundedOAuthText, readOptionalString, readStringArray } from "../src/bounded-json.js";
 
 const messages = {
   overflowMessage: "fixture body exceeds its limit", overflowOperatorAction: "Reduce the fixture body.",
@@ -41,23 +40,11 @@ test("a read failure stays a read failure even if cancelling the stream also fai
   await assert.rejects(readBoundedOAuthText(new Response(body), messages), (error) => error === failure);
 });
 
-for (const text of ["null", "[]", "[{}]", '"token"', "123", "true", "<html>", ""]) {
-  test(`JSON reader rejects non-object ${JSON.stringify(text)} with the subject's error`, () => {
-    assert.throws(() => parseOAuthJsonObject(text, messages), (error) => {
-      assert.ok(error instanceof OAuthError);
-      assert.equal(error.code, "OAUTH_MALFORMED_RESPONSE");
-      assert.equal(error.message, "fixture requires a JSON object");
-      assert.equal(error.operatorAction, "Return an object.");
-      return true;
-    });
-  });
-}
-
-test("bounded JSON returns the whole object's exact values and uses the supplied cap", async () => {
-  assert.deepEqual(await readBoundedOAuthJson(new Response('{"scope":"read","nested":{"n":7}}'), messages, 40), {
-    scope: "read", nested: { n: 7 },
-  });
-  await assert.rejects(readBoundedOAuthJson(new Response('{"scope":"read"}'), messages, 4), {
+// Keep the transport cap pin after deleting the internal JSON-object parser.
+test("the bounded response preserves exact text and honors a supplied byte cap", async () => {
+  const text = '{"scope":"read","nested":{"n":7}}';
+  assert.equal(await readBoundedOAuthText(new Response(text), messages, 40), text);
+  await assert.rejects(readBoundedOAuthText(new Response(text), messages, 4), {
     code: "OAUTH_MALFORMED_RESPONSE", message: "fixture body exceeds its limit",
   });
 });

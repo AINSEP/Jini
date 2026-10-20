@@ -41,30 +41,6 @@ test("begin returns the user-facing code and URL plus the secret device code", a
     assert.equal(startedRequest.url, "https://auth.example.com/device");
     assert.equal(startedRequest.body.get("scope"), "images:generate");
 });
-test("Google's pre-RFC `verification_url` spelling is accepted rather than reported as missing", async () => {
-    const clock = createTestClock();
-    const { verification_uri: _dropped, ...withoutUri } = DEVICE_RESPONSE;
-    const http = createFetchDouble([{ json: { ...withoutUri, verification_url: "https://auth.example.com/activate" } }]);
-    const started = await beginDeviceAuthorization({
-        ...fixturePorts,
-        provider: TEST_PROVIDER, clock, fetchFn: http.fetchFn,
-        client: TEST_CLIENT
-    });
-    assert.equal(started.verificationUri, "https://auth.example.com/activate");
-});
-for (const field of ["device_code", "user_code"] as const) {
-    for (const value of [undefined, "", null, 42]) {
-        test(`begin refuses ${field}=${String(value)} instead of returning an unusable authorization`, async () => {
-            const http = createFetchDouble([{ json: { ...DEVICE_RESPONSE, [field]: value } }]);
-            const error = await assertOAuthRejects(() => beginDeviceAuthorization({
-                ...fixturePorts,
-                provider: TEST_PROVIDER, clock: createTestClock(), fetchFn: http.fetchFn,
-                client: TEST_CLIENT
-            }), "OAUTH_MALFORMED_RESPONSE");
-            assert.equal(error.message, `the device authorization response is missing '${field}'`);
-        });
-    }
-}
 for (const [expiresIn, expiresAt] of [
     [999999, "2026-08-25T12:30:00.000Z"],
     [1, "2026-08-25T12:00:30.000Z"],
@@ -95,7 +71,7 @@ for (const completeUri of [
 }
 test("a javascript: verification URI is refused — it would be rendered to an operator as a link", async () => {
     const clock = createTestClock();
-    const http = createFetchDouble([{ json: { ...DEVICE_RESPONSE, verification_uri: "javascript:alert(1)", verification_uri_complete: null } }]);
+    const http = createFetchDouble([{ json: { ...DEVICE_RESPONSE, verification_uri: "javascript:alert(1)", verification_uri_complete: undefined } }]);
     const error = await assertOAuthRejects(() => beginDeviceAuthorization({
         ...fixturePorts,
         provider: TEST_PROVIDER, clock, fetchFn: http.fetchFn,
@@ -106,7 +82,7 @@ test("a javascript: verification URI is refused — it would be rendered to an o
 test("a verification URI embedding credentials is refused", async () => {
     const clock = createTestClock();
     const http = createFetchDouble([
-        { json: { ...DEVICE_RESPONSE, verification_uri: "https://auth.example.com@evil.example.net/activate", verification_uri_complete: null } },
+        { json: { ...DEVICE_RESPONSE, verification_uri: "https://auth.example.com@evil.example.net/activate", verification_uri_complete: undefined } },
     ]);
     const error = await assertOAuthRejects(() => beginDeviceAuthorization({
         ...fixturePorts,
@@ -196,7 +172,7 @@ test("access_denied ends the flow — the operator said no, retrying would just 
 test("an expired device authorization is detected locally and costs no outbound request", async () => {
     const clock = createTestClock();
     clock.advance(16 * 60 * 1000);
-    const http = createFetchDouble([{ json: { access_token: "at" } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at" } }]);
     const error = await assertOAuthRejects(() => pollDeviceAuthorizationOnce({
         ...fixturePorts,
         provider: TEST_PROVIDER, clock, fetchFn: http.fetchFn,
@@ -208,7 +184,7 @@ test("an expired device authorization is detected locally and costs no outbound 
 });
 test("an approved poll returns the token set with the RFC 8628 grant type on the wire", async () => {
     const clock = createTestClock();
-    const http = createFetchDouble([{ json: { access_token: "at-1", refresh_token: "rt-1", expires_in: 3600 } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at-1", refresh_token: "rt-1", expires_in: 3600 } }]);
     const tokens = await pollDeviceAuthorizationOnce({
         ...fixturePorts,
         provider: TEST_PROVIDER, clock, fetchFn: http.fetchFn,
@@ -221,25 +197,6 @@ test("an approved poll returns the token set with the RFC 8628 grant type on the
     assert.equal(pollRequest.body.get("grant_type"), "urn:ietf:params:oauth:grant-type:device_code");
     assert.equal(pollRequest.body.get("device_code"), "dev-code-secret");
 });
-
-for (const [expiresIn, interval, expiresAt, intervalSeconds] of [
-    [undefined, undefined, '2026-08-25T12:30:00.000Z', 5],
-    ['12.1', '2.1', '2026-08-25T12:00:30.000Z', 3],
-    [null, null, '2026-08-25T12:00:30.000Z', 1],
-    ['invalid', 'invalid', '2026-08-25T12:30:00.000Z', 5],
-    [900.1, -4, '2026-08-25T12:15:01.000Z', 1],
-] as const) {
-    test(`device compatibility retains lifetime/interval coercion for ${String(expiresIn)}/${String(interval)}`, async () => {
-        const http = createFetchDouble([{ json: { ...DEVICE_RESPONSE, expires_in: expiresIn, interval,
-            verification_uri_complete: null } }]);
-        const result = await beginDeviceAuthorization({ ...fixturePorts, provider: TEST_PROVIDER,
-            clock: createTestClock(), fetchFn: http.fetchFn, client: TEST_CLIENT });
-        assert.equal(result.expiresAt, expiresAt);
-        assert.equal(result.intervalSeconds, intervalSeconds);
-        assert.equal(result.verificationUriComplete, null);
-        assert.equal(http.callCount(), 1);
-    });
-}
 
 test('device initiation preserves resource repetition, redirect refusal and its host request port', async () => {
     const http = createFetchDouble([{ status: 201, json: DEVICE_RESPONSE }]);

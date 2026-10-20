@@ -10,8 +10,8 @@ The existing exports and `(requiredArgs, optionalArgs = {})` contracts remain so
 |---|---|---|
 | Authorization URL, token grants, refresh, device initiation, revocation | `openid-client` | State/PKCE/resource binding, normalization, errors, one-attempt grants and host-owned device polling |
 | Authorization-server discovery | `openid-client` direct-document discovery | Candidate order, explicit origin fallback, original-document issuer policy and endpoint safety |
-| Protected-resource discovery | `oauth4webapi` 3.8.8 request builder; no high-level equivalent in `openid-client` | Candidate selection, optional-field parsing and resource-scope policy |
-| Endpoint-only registration | `oauth4webapi` request/response operations; `openid-client` registration would add issuer discovery | Registration identity, compatibility normalization, auth-method selection and cache lifecycle |
+| Protected-resource discovery | `oauth4webapi` 3.8.8 request builder; no high-level equivalent in `openid-client` | Candidate selection, facade normalization and resource-scope policy |
+| Endpoint-only registration | `oauth4webapi` request/response operations; `openid-client` registration would add issuer discovery | Registration identity, auth-method selection and cache lifecycle |
 | Already received ID-token validation | `oauth4webapi` claim processing and mandatory application signature verification; no standalone high-level equivalent in `openid-client` | Explicit issuer/JWKS/client/nonce trust, guarded retrieval and safe errors |
 
 Every upstream HTTP operation uses a `customFetch` hook backed by the same guarded transport. It checks the actual request URL, serializes form bodies to strings for host adapters, refuses redirects, bounds response bytes (64 KiB, or 16 KiB for device initiation), and applies the operation deadline through body consumption. There is no library fallback to native fetch. The supplied host fetch port still owns connection-time DNS/address policy and must honor cancellation through the body read. Pending/sealed state, registration caching, refresh single-flight, leases, persist-before-return and redaction remain Jini/host responsibilities.
@@ -25,7 +25,7 @@ The migration intentionally tightens these previously permissive cases:
 - Returned redirects are refused even if an injected HTTP port ignores `redirect: 'error'`; this also makes such discovery failures terminal.
 - Invalid dynamic-registration initial-access-token headers are `OAUTH_INVALID_REQUEST` before dispatch; their values are never exposed in facade errors.
 
-Missing/empty token types still default to `Bearer`; absent/empty refresh tokens and unusable lifetimes retain their existing normalization. Provider errors, including device polling signals on HTTP 200, retain the facade error codes and recovery copy. ID-token retention is additive and does not enable identity validation implicitly.
+Upstream validates required token types and optional token fields; missing/empty token types, empty refresh tokens and malformed lifetimes are no longer repaired locally. Provider errors, including device polling signals on HTTP 200, retain the facade error codes and recovery copy. ID-token retention does not enable identity validation implicitly. Device responses must use `verification_uri` and valid lifetimes/intervals; registration responses with secrets must declare a valid secret expiry. Discovery documents must identify their issuer, and protected-resource metadata must identify the requested resource.
 
 ## Composition
 

@@ -6,18 +6,11 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { requestOAuthToken } from "../src/index.js";
 import { assertOAuthRejects, createFetchDouble, createTestClock, TEST_CLIENT } from "./helpers.js";
-/**
- * @file Direct characterization tests for {@link requestOAuthToken}'s field-normalization branches.
- *
- * The higher-level grant tests (`authorization-code.test.ts`, `device-code.test.ts`) exercise this
- * function's error paths thoroughly but never happen to send a `token_type`-less or empty-string
- * response, nor an empty-string `refresh_token`. These compatibility cases stay pinned during the
- * upstream migration; unsupported token types and HTTP statuses are explicit refusals.
- */
+/** Token facade, transport, authentication and grant contracts; wire validation belongs upstream. */
 const TOKEN_ENDPOINT = "https://auth.example.com/token";
 for (const authMethod of ["none", "client_secret_post", "client_secret_basic"] as const) {
     test(`token requests authenticate using ${authMethod}`, async () => {
-        const http = createFetchDouble([{ json: { access_token: "at" } }]);
+        const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at" } }]);
         const client = { clientId: "id: /+", clientSecret: "secret: /+", authMethod };
         await requestOAuthToken({
             ...fixturePorts,
@@ -32,26 +25,6 @@ for (const authMethod of ["none", "client_secret_post", "client_secret_basic"] a
             ? `Basic ${Buffer.from("id%3A+%2F%2B:secret%3A+%2F%2B").toString("base64")}` : undefined);
     });
 }
-test("a missing token_type defaults to Bearer", async () => {
-    const clock = createTestClock();
-    const http = createFetchDouble([{ json: { access_token: "at" } }]);
-    const tokens = await requestOAuthToken({
-        ...fixturePorts,
-        clock, fetchFn: http.fetchFn,
-        tokenEndpoint: TOKEN_ENDPOINT, client: TEST_CLIENT, params: { grant_type: "authorization_code" }
-    });
-    assert.equal(tokens.tokenType, "Bearer");
-});
-test("an empty-string token_type defaults to Bearer rather than being passed through", async () => {
-    const clock = createTestClock();
-    const http = createFetchDouble([{ json: { access_token: "at", token_type: "" } }]);
-    const tokens = await requestOAuthToken({
-        ...fixturePorts,
-        clock, fetchFn: http.fetchFn,
-        tokenEndpoint: TOKEN_ENDPOINT, client: TEST_CLIENT, params: { grant_type: "authorization_code" }
-    });
-    assert.equal(tokens.tokenType, "Bearer");
-});
 test("an unsupported token_type is refused by the upstream token processor", async () => {
     const clock = createTestClock();
     const http = createFetchDouble([{ json: { access_token: "at", token_type: "mac" } }]);
@@ -64,19 +37,9 @@ test("an unsupported token_type is refused by the upstream token processor", asy
     assert.equal(error.cause, undefined, 'upstream errors may retain token response secrets');
     assert.equal(http.callCount(), 1);
 });
-test("an empty-string refresh_token normalizes to null, same as an absent one", async () => {
-    const clock = createTestClock();
-    const http = createFetchDouble([{ json: { access_token: "at", refresh_token: "" } }]);
-    const tokens = await requestOAuthToken({
-        ...fixturePorts,
-        clock, fetchFn: http.fetchFn,
-        tokenEndpoint: TOKEN_ENDPOINT, client: TEST_CLIENT, params: { grant_type: "authorization_code" }
-    });
-    assert.equal(tokens.refreshToken, null);
-});
 test("a non-empty refresh_token passes through unchanged", async () => {
     const clock = createTestClock();
-    const http = createFetchDouble([{ json: { access_token: "at", refresh_token: "rt-1" } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at", refresh_token: "rt-1" } }]);
     const tokens = await requestOAuthToken({
         ...fixturePorts,
         clock, fetchFn: http.fetchFn,
@@ -85,7 +48,7 @@ test("a non-empty refresh_token passes through unchanged", async () => {
     assert.equal(tokens.refreshToken, "rt-1");
 });
 test("HTTP 200 with authorization_pending remains a retryable provider error", async () => {
-    const http = createFetchDouble([{ status: 200, json: { error: "authorization_pending", access_token: "must-not-win" } }]);
+    const http = createFetchDouble([{ status: 200, json: { token_type: 'Bearer', error: "authorization_pending", access_token: "must-not-win" } }]);
     const error = await assertOAuthRejects(() => requestOAuthToken({
         ...fixturePorts,
         clock: createTestClock(), fetchFn: http.fetchFn,
@@ -104,7 +67,7 @@ test("HTTP 200 without an access_token is a malformed response", async () => {
     }), "OAUTH_MALFORMED_RESPONSE");
 });
 test("scope accepts comma and whitespace separators without empty scopes", async () => {
-    const http = createFetchDouble([{ json: { access_token: "at", scope: "  read,write  profile,  email " } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at", scope: "  read,write  profile,  email " } }]);
     const tokens = await requestOAuthToken({
         ...fixturePorts,
         clock: createTestClock(), fetchFn: http.fetchFn,
@@ -112,38 +75,9 @@ test("scope accepts comma and whitespace separators without empty scopes", async
     });
     assert.deepEqual(tokens.scopes, ["read", "write", "profile", "email"]);
 });
-for (const expiresIn of [0, -1, "abc"]) {
-    test(`expires_in ${JSON.stringify(expiresIn)} yields unknown expiry`, async () => {
-        const http = createFetchDouble([{ json: { access_token: "at", expires_in: expiresIn } }]);
-        const tokens = await requestOAuthToken({
-            ...fixturePorts,
-            clock: createTestClock(), fetchFn: http.fetchFn,
-            tokenEndpoint: TOKEN_ENDPOINT, client: TEST_CLIENT, params: { grant_type: "authorization_code" }
-        });
-        assert.equal(tokens.expiresAt, null);
-    });
-}
-
-test('optional token fields retain the facade normalization contract', async () => {
-    const http = createFetchDouble([{ json: {
-        access_token: 'fixture-access', token_type: 42, refresh_token: false, scope: ['read'],
-        expires_in: '60', id_token: 'fixture-unvalidated-id-token',
-    } }]);
-    const result = await requestOAuthToken({
-        ...fixturePorts, clock: createTestClock(), fetchFn: http.fetchFn,
-        tokenEndpoint: TOKEN_ENDPOINT, client: TEST_CLIENT, params: { grant_type: 'authorization_code' },
-    });
-    assert.deepEqual(result, {
-        accessToken: 'fixture-access', refreshToken: null, tokenType: 'Bearer', scopes: [],
-        expiresAt: '2026-08-25T12:01:00.000Z',
-        idToken: 'fixture-unvalidated-id-token',
-    });
-    assert.equal(http.callCount(), 1, 'retained ID tokens must not trigger implicit discovery or JWKS requests');
-});
-
 for (const idToken of [undefined, null, '', 42, false]) {
     test(`an unusable ID token (${String(idToken)}) preserves the OAuth-only result shape`, async () => {
-        const http = createFetchDouble([{ json: { access_token: 'fixture-access', id_token: idToken } }]);
+        const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: 'fixture-access', id_token: idToken } }]);
         const result = await requestOAuthToken({
             ...fixturePorts, clock: createTestClock(), fetchFn: http.fetchFn,
             tokenEndpoint: TOKEN_ENDPOINT, client: TEST_CLIENT, params: { grant_type: 'authorization_code' },
@@ -157,7 +91,7 @@ for (const idToken of [undefined, null, '', 42, false]) {
 
 for (const grantType of ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code']) {
     test(`the ${grantType} processor retains an unvalidated ID token without identity I/O`, async () => {
-        const http = createFetchDouble([{ json: {
+        const http = createFetchDouble([{ json: { token_type: 'Bearer',
             access_token: 'fixture-access', id_token: 'fixture-unvalidated-id-token',
         } }]);
         const result = await requestOAuthToken({
@@ -172,15 +106,6 @@ for (const grantType of ['authorization_code', 'refresh_token', 'urn:ietf:params
         assert.equal(http.callCount(), 1);
     });
 }
-
-test('expiry parsing does not accept a numeric prefix followed by garbage', async () => {
-    const http = createFetchDouble([{ json: { access_token: 'fixture-access', expires_in: '60seconds' } }]);
-    const result = await requestOAuthToken({
-        ...fixturePorts, clock: createTestClock(), fetchFn: http.fetchFn,
-        tokenEndpoint: TOKEN_ENDPOINT, client: TEST_CLIENT, params: { grant_type: 'authorization_code' },
-    });
-    assert.equal(result.expiresAt, null);
-});
 
 for (const status of [200, 400, 503]) {
     test(`HTTP ${status} provider errors retain codes, retry intervals and safe copy`, async () => {
@@ -213,7 +138,7 @@ test('supported token types preserve provider casing after upstream validation',
 });
 
 test('upstream grant requests retain repeated resources and a string-only guarded transport body', async () => {
-    const http = createFetchDouble([{ json: { access_token: 'fixture-access' } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: 'fixture-access' } }]);
     const resources = ['https://api.example.com/one', 'https://api.example.com/two'];
     await requestOAuthToken({
         ...fixturePorts, clock: createTestClock(), fetchFn: async (args, init) => {
@@ -232,7 +157,7 @@ test('upstream grant requests retain repeated resources and a string-only guarde
 });
 
 test('guard refusal prevents the upstream request from reaching the host transport', async () => {
-    const http = createFetchDouble([{ json: { access_token: 'fixture-access' } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: 'fixture-access' } }]);
     await assertOAuthRejects(() => requestOAuthToken({
         ...fixturePorts, clock: createTestClock(), fetchFn: http.fetchFn,
         tokenEndpoint: 'https://192.168.1.9/token', client: TEST_CLIENT, params: { grant_type: 'authorization_code' },
@@ -255,7 +180,7 @@ test('a redirect returned by an injected fetch is refused and its body cancelled
 });
 
 test('oversized responses retain the facade byte-cap error before upstream JSON processing', async () => {
-    const http = createFetchDouble([{ text: JSON.stringify({ access_token: 'x'.repeat(64 * 1024) }) }]);
+    const http = createFetchDouble([{ text: JSON.stringify({ token_type: 'Bearer', access_token: 'x'.repeat(64 * 1024) }) }]);
     const error = await assertOAuthRejects(() => requestOAuthToken({
         ...fixturePorts, clock: createTestClock(), fetchFn: http.fetchFn,
         tokenEndpoint: TOKEN_ENDPOINT, client: TEST_CLIENT, params: { grant_type: 'authorization_code' },
@@ -310,7 +235,7 @@ test('upstream refuses a successful-looking token with HTTP 201', async () => {
     const error = await assertOAuthRejects(() => requestOAuthToken({
         ...fixturePorts, clock: createTestClock(), fetchFn: async () => {
             calls += 1;
-            return Response.json({ access_token: 'fixture-access' }, { status: 201 });
+            return Response.json({ token_type: 'Bearer', access_token: 'fixture-access' }, { status: 201 });
         },
         tokenEndpoint: TOKEN_ENDPOINT, client: TEST_CLIENT, params: { grant_type: 'authorization_code' },
     }), 'OAUTH_MALFORMED_RESPONSE');
@@ -326,7 +251,7 @@ test('a valid JSON token object retains compatibility with a non-JSON media type
     const result = await requestOAuthToken({
         ...fixturePorts, clock: createTestClock(), fetchFn: async () => {
             calls += 1;
-            return new Response(JSON.stringify({ access_token: 'fixture-access', scope: 'read,write', expires_in: '60' }), {
+            return new Response(JSON.stringify({ token_type: 'Bearer', access_token: 'fixture-access', scope: 'read,write', expires_in: '60' }), {
                 headers: { 'content-type': 'text/plain' },
             });
         },
@@ -339,7 +264,7 @@ test('a valid JSON token object retains compatibility with a non-JSON media type
 
 for (const authMethod of ['client_secret_basic', 'client_secret_post'] as const) {
     test(`upstream refuses missing ${authMethod} credentials before sending`, async () => {
-        const http = createFetchDouble([{ json: { access_token: 'fixture-access' } }]);
+        const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: 'fixture-access' } }]);
         const error = await assertOAuthRejects(() => requestOAuthToken({
             ...fixturePorts, clock: createTestClock(), fetchFn: http.fetchFn,
             tokenEndpoint: TOKEN_ENDPOINT, client: { clientId: 'fixture-client', authMethod },
@@ -361,7 +286,7 @@ const invalidGrantInputs: readonly {
 ];
 for (const input of invalidGrantInputs) {
     test(`upstream refuses ${input.label} before sending`, async () => {
-        const http = createFetchDouble([{ json: { access_token: 'fixture-access' } }]);
+        const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: 'fixture-access' } }]);
         const error = await assertOAuthRejects(() => requestOAuthToken({
             ...fixturePorts, clock: createTestClock(), fetchFn: http.fetchFn,
             tokenEndpoint: TOKEN_ENDPOINT, client: input.client, params: input.params,
@@ -396,7 +321,7 @@ describe('exchangeOAuthAuthorizationCode / refreshAccessToken', () => {
 
   // PARITY: the vector survives the shared parser; typed errors replace the unsafe echoed-body error.
   it('includes a resource indicator and confidential-client basic auth when supplied', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(Response.json({ access_token: 'at-2' }));
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ token_type: 'Bearer', access_token: 'at-2' }));
     await exchangeOAuthAuthorizationCode({ fetchFn: ({ url }, init) => fetchMock(url, init), guard: fixtureGuard, clock: createTestClock(),
         tokenEndpoint: 'https://auth.example.com/token',
         client: { clientId: 'client-1', clientSecret: 'secret-1', authMethod: 'client_secret_basic' },
@@ -413,7 +338,7 @@ describe('exchangeOAuthAuthorizationCode / refreshAccessToken', () => {
 
   // PARITY: the vector survives the shared parser; typed errors replace the unsafe echoed-body error.
   it('refreshes an access token via grant_type=refresh_token, including optional scope/resource', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(Response.json({ access_token: 'at-3' }));
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ token_type: 'Bearer', access_token: 'at-3' }));
     await refreshAccessToken({ fetchFn: ({ url }, init) => fetchMock(url, init), guard: fixtureGuard, clock: createTestClock(),
         tokenEndpoint: 'https://auth.example.com/token',
         client: { clientId: 'client-1', authMethod: 'none' },
@@ -430,7 +355,7 @@ describe('exchangeOAuthAuthorizationCode / refreshAccessToken', () => {
 
   // PARITY: the vector survives the shared parser; typed errors replace the unsafe echoed-body error.
   it('accepts a host adapter for global fetch', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(Response.json({ access_token: 'at-4' }));
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ token_type: 'Bearer', access_token: 'at-4' }));
     vi.stubGlobal('fetch', fetchMock);
     await exchangeOAuthAuthorizationCode({ fetchFn: ({ url }, init) => fetch(url, init), guard: fixtureGuard, clock: createTestClock(),
       tokenEndpoint: 'https://auth.example.com/token',

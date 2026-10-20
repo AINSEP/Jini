@@ -168,8 +168,8 @@ test('path-scoped discovery exhausts only path candidates unless the host opts i
     assert.equal(requests.length, 4);
 });
 
-// Migration characterization: these are facade contracts, independent of the library's defaults.
-test('missing issuer, optional fields and mixed arrays retain discovery normalization', async () => {
+// Optional-field normalization remains a facade contract after upstream document processing.
+test('optional fields and mixed arrays retain discovery normalization', async () => {
     const issuer = 'https://auth.example.com/tenant/';
     const requests: string[] = [];
     const discovered = await fetchBoundAuthorizationServerMetadata({
@@ -180,10 +180,10 @@ test('missing issuer, optional fields and mixed arrays retain discovery normaliz
             assert.equal(options?.redirect, 'error');
             assert.equal(new Headers(options?.headers).get('accept'), 'application/json');
             return new Response(JSON.stringify({
-                token_endpoint: 'https://auth.example.com/token',
+                issuer, token_endpoint: 'https://auth.example.com/token',
                 scopes_supported: ['read', '', null, 'write', 'read'],
                 grant_types_supported: 'authorization_code',
-            }), { status: 202 });
+            }), { status: 200, headers: { 'content-type': 'application/json' } });
         },
     });
     assert.deepEqual(discovered, {
@@ -290,32 +290,10 @@ test('a custom metadata-policy failure keeps its identity and never falls back',
     let attempts = 0;
     await assert.rejects(() => fetchBoundAuthorizationServerMetadata({
         issuer: 'https://auth.example.com', guard: fixturePorts.guard,
-        fetchFn: async () => { attempts += 1; return Response.json({ token_endpoint: 'https://auth.example.com/token' }); },
+        fetchFn: async () => { attempts += 1; return Response.json({ issuer: 'https://auth.example.com', token_endpoint: 'https://auth.example.com/token' }); },
     }, { metadataPolicy: { assertMetadata() { throw refusal; } } }), error => error === refusal);
     assert.equal(attempts, 1);
 });
-
-for (const resource of [undefined, 'https://another.example.com/api']) {
-    test(`protected-resource metadata keeps its optional informational resource: ${resource}`, async () => {
-        const { discoverProtectedResourceMetadata } = await import('../src/index.js');
-        const requests: string[] = [];
-        const result = await discoverProtectedResourceMetadata({
-            resourceUrl: 'https://resource.example.com/api/', guard: fixturePorts.guard,
-            fetchFn: async ({ url }, options) => {
-                requests.push(String(url));
-                assert.equal(options?.method, 'GET');
-                assert.equal(options?.redirect, 'error');
-                return Response.json({
-                    resource, authorization_servers: [null, 'https://auth.example.com', ''], scopes_supported: ['read', 1, ''],
-                });
-            },
-        }, { wwwAuthenticate: 'Bearer resource_metadata="https://resource.example.com/custom?tenant=one"' });
-        assert.deepEqual(result, {
-            resource: resource ?? null, authorizationServers: ['https://auth.example.com'], scopesSupported: ['read'],
-        });
-        assert.deepEqual(requests, ['https://resource.example.com/custom?tenant=one']);
-    });
-}
 
 test('a returned protected-resource redirect stops discovery before root or issuer fallback', async () => {
     const requests: string[] = [];

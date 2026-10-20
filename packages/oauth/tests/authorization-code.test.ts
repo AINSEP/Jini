@@ -120,7 +120,7 @@ test("expires_in becomes an absolute expiresAt computed from the injected clock"
         provider, pending,
         ownerKey: "ws:higgs", client: TEST_CLIENT, redirectUri: REDIRECT_URI
     });
-    const http = createFetchDouble([{ json: { access_token: "at", expires_in: 60 } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at", expires_in: 60 } }]);
     const tokens = await completeAuthorizationCode({
         ...fixturePorts,
         provider, pending, clock, fetchFn: http.fetchFn,
@@ -139,7 +139,7 @@ test("a provider that omits expires_in yields a null expiry rather than a fabric
         provider, pending,
         ownerKey: "ws:higgs", client: TEST_CLIENT, redirectUri: REDIRECT_URI
     });
-    const http = createFetchDouble([{ json: { access_token: "at" } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at" } }]);
     const tokens = await completeAuthorizationCode({
         ...fixturePorts,
         provider, pending, clock, fetchFn: http.fetchFn,
@@ -159,7 +159,7 @@ test("a replayed callback is refused and never reaches the token endpoint a seco
         provider, pending,
         ownerKey: "ws:higgs", client: TEST_CLIENT, redirectUri: REDIRECT_URI
     });
-    const http = createFetchDouble([{ json: { access_token: "at" } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at" } }]);
     const deps = { provider, pending, clock, fetchFn: http.fetchFn };
     const params = { state: started.state, code: "c" };
     await completeAuthorizationCode({
@@ -185,7 +185,7 @@ test("a state belonging to another connection is refused before any exchange", a
         provider, pending,
         ownerKey: "ws:higgs", client: TEST_CLIENT, redirectUri: REDIRECT_URI
     });
-    const http = createFetchDouble([{ json: { access_token: "at" } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at" } }]);
     await assertOAuthRejects(() => completeAuthorizationCode({
         ...fixturePorts,
         provider, pending, clock, fetchFn: http.fetchFn,
@@ -195,7 +195,7 @@ test("a state belonging to another connection is refused before any exchange", a
 });
 test("a missing state is refused without contacting the provider", async () => {
     const { clock, pending, provider } = makeFlow();
-    const http = createFetchDouble([{ json: { access_token: "at" } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at" } }]);
     await assertOAuthRejects(() => completeAuthorizationCode({
         ...fixturePorts,
         provider, pending, clock, fetchFn: http.fetchFn,
@@ -214,7 +214,7 @@ test("an oversized authorization code is refused before it is put in a form body
         provider, pending,
         ownerKey: "ws:higgs", client: TEST_CLIENT, redirectUri: REDIRECT_URI
     });
-    const http = createFetchDouble([{ json: { access_token: "at" } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at" } }]);
     const error = await assertOAuthRejects(() => completeAuthorizationCode({
         ...fixturePorts,
         provider, pending, clock, fetchFn: http.fetchFn,
@@ -234,7 +234,7 @@ test("a callback carrying error=access_denied is terminal, not retryable", async
         provider, pending,
         ownerKey: "ws:higgs", client: TEST_CLIENT, redirectUri: REDIRECT_URI
     });
-    const http = createFetchDouble([{ json: { access_token: "at" } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at" } }]);
     const error = await assertOAuthRejects(() => completeAuthorizationCode({
         ...fixturePorts,
         provider, pending, clock, fetchFn: http.fetchFn,
@@ -432,7 +432,7 @@ test("a state minted for a different provider is refused before any exchange", a
         provider, pending,
         ownerKey: "ws:higgs", client: TEST_CLIENT, redirectUri: REDIRECT_URI
     });
-    const http = createFetchDouble([{ json: { access_token: "at" } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at" } }]);
     await assertOAuthRejects(() => completeAuthorizationCode({
         ...fixturePorts,
         provider: { ...provider, providerId: "other-provider" }, pending, clock, fetchFn: http.fetchFn,
@@ -457,7 +457,7 @@ test("PKCE-disabled providers omit challenge and verifier and honor a scope over
     assert.equal(url.searchParams.get("code_challenge"), null);
     assert.equal(url.searchParams.get("code_challenge_method"), null);
     assert.equal(url.searchParams.get("scope"), "custom:read custom:write");
-    const http = createFetchDouble([{ json: { access_token: "at" } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at" } }]);
     await completeAuthorizationCode({
         ...fixturePorts,
         provider, pending, clock, fetchFn: http.fetchFn,
@@ -476,7 +476,7 @@ test("a callback with neither code nor error is refused without an exchange", as
         provider, pending,
         ownerKey: "ws:higgs", client: TEST_CLIENT, redirectUri: REDIRECT_URI
     });
-    const http = createFetchDouble([{ json: { access_token: "at" } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at" } }]);
     await assertOAuthRejects(() => completeAuthorizationCode({
         ...fixturePorts,
         provider, pending, clock, fetchFn: http.fetchFn,
@@ -572,7 +572,7 @@ test('begin replaces endpoint protocol fields and preserves repeated resources t
     assert.equal(params.getAll('code_challenge').length, 1);
     assert.deepEqual(params.getAll('resource'), resource);
     assert.deepEqual(params.getAll('tenant'), ['a', 'b']);
-    const http = createFetchDouble([{ json: { access_token: 'fixture-access' } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: 'fixture-access' } }]);
     await completeAuthorizationCode({ ...fixturePorts, clock, provider, pending, fetchFn: http.fetchFn,
         ownerKey: 'owner', client: TEST_CLIENT, params: { state: started.state, code: 'fixture-code' } });
     assert.deepEqual(http.requests[0]?.body.getAll('resource'), resource);
@@ -599,7 +599,7 @@ test('both code exchange facades send the exact redirect query and exchange only
         options: { ...fixturePorts.options, redirectUris: [redirectUri] }, provider, pending,
         ownerKey: 'owner', client: TEST_CLIENT, redirectUri,
     });
-    const http = createFetchDouble([{ json: { access_token: 'fixture-access', scope: 'read,write',
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: 'fixture-access', scope: 'read,write',
         expires_in: '60', id_token: 'fixture-unvalidated-id-token' } }]);
     const result = await completeAuthorizationCode({ ...fixturePorts, clock, provider, pending, fetchFn: http.fetchFn,
         ownerKey: 'owner', client: TEST_CLIENT, params: { state: started.state, code: 'fixture-code' } });

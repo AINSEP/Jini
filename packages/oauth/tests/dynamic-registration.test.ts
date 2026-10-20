@@ -44,7 +44,7 @@ for (const [supported, expected] of [
     [["none", "private_key_jwt"], "none"],
 ] as const) {
     test(`secret without an echoed method resolves ${JSON.stringify(supported)} to ${expected}`, async () => {
-        const http = createFetchDouble([{ json: { client_id: "issued-id", client_secret: "issued-secret" } }]);
+        const http = createFetchDouble([{ status: 201, json: { client_secret_expires_at: 0, client_id: "issued-id", client_secret: "issued-secret" } }]);
         const registered = await registerOAuthClientDynamically({
             ...fixturePorts,
             options: {
@@ -105,7 +105,7 @@ for (const status of [200, 201, 202]) {
                     token_endpoint_auth_method: 'none', application_type: 'web', scope: 'read write',
                 });
                 return new Response(JSON.stringify({
-                    client_id: ' issued-id ', client_secret: ` ${clientSecret} `,
+                    client_id: 'issued-id', client_secret: clientSecret, client_secret_expires_at: 0,
                     registration_client_uri: ' https://auth.example.com/clients/issued-id ',
                     client_id_issued_at: 'not-a-number',
                 }), { status });
@@ -114,33 +114,21 @@ for (const status of [200, 201, 202]) {
         assert.deepEqual(result, {
             clientId: 'issued-id', clientSecret, tokenEndpointAuthMethod: 'client_secret_basic',
             registrationClientUri: 'https://auth.example.com/clients/issued-id',
-            clientIdIssuedAt: null, clientSecretExpiresAt: null,
+            clientIdIssuedAt: null, clientSecretExpiresAt: 0,
         });
         assert.equal(attempts, 1);
     });
 }
 
-for (const clientSecret of ['', '   ', null, 42]) {
-    test(`unusable optional client secret ${JSON.stringify(clientSecret)} remains absent`, async () => {
-        const http = createFetchDouble([{ json: { client_id: 'issued-id', client_secret: clientSecret } }]);
-        const result = await registerOAuthClientDynamically({
-            ...fixturePorts, fetchFn: http.fetchFn, registrationEndpoint: 'https://auth.example.com/register', scopes: [],
-        });
-        assert.equal(result.clientSecret, null);
-        assert.equal(result.tokenEndpointAuthMethod, 'none');
-        assert.equal(http.callCount(), 1);
-    });
-}
-
 test('finite past secret expiration stays expired instead of becoming a permanent cached secret', async () => {
     const clientSecret = randomBytes(24).toString('base64url');
-    const http = createFetchDouble([{ json: {
-        client_id: 'issued-id', client_secret: clientSecret, client_secret_expires_at: -1, client_id_issued_at: 123,
+    const http = createFetchDouble([{ status: 201, json: {
+        client_id: 'issued-id', client_secret: clientSecret, client_secret_expires_at: 1, client_id_issued_at: 123,
     } }]);
     const result = await registerOAuthClientDynamically({
         ...fixturePorts, fetchFn: http.fetchFn, registrationEndpoint: 'https://auth.example.com/register', scopes: [],
     });
-    assert.equal(result.clientSecretExpiresAt, -1);
+    assert.equal(result.clientSecretExpiresAt, 1);
     assert.equal(result.clientIdIssuedAt, 123);
     assert.equal(result.clientSecret, clientSecret);
 });
@@ -166,7 +154,7 @@ test('registration persists before returning and invalidation waits for an outst
     let signalWriteStarted!: () => void;
     const writeStarted = new Promise<void>(resolve => { signalWriteStarted = resolve; });
     const http = createFetchDouble([
-        { json: { client_id: 'first-id' } }, { json: { client_id: 'replacement-id' } },
+        { status: 201, json: { client_id: 'first-id' } }, { status: 201, json: { client_id: 'replacement-id' } },
     ]);
     const registrar = createOAuthClientRegistrar({
         ...fixturePorts, fetchFn: http.fetchFn,
@@ -213,7 +201,7 @@ test('registration rejects and cancels a returned redirect without retrying or l
 
 test('an invalid initial-token header fails before dispatch and does not expose its value', async () => {
     const marker = randomBytes(24).toString('base64url');
-    const http = createFetchDouble([{ json: { client_id: 'issued-id' } }]);
+    const http = createFetchDouble([{ status: 201, json: { client_id: 'issued-id' } }]);
     const error = await assertOAuthRejects(() => registerOAuthClientDynamically({
         ...fixturePorts, fetchFn: http.fetchFn, registrationEndpoint: 'https://auth.example.com/register', scopes: [],
     }, { initialAccessToken: `${marker}\r\ninjected: value` }), 'OAUTH_INVALID_REQUEST');
@@ -223,11 +211,11 @@ test('an invalid initial-token header fails before dispatch and does not expose 
     assert.equal(http.callCount(), 0);
 });
 
-test('an explicitly empty initial token retains the facade Bearer header', async () => {
-    const http = createFetchDouble([{ json: { client_id: 'issued-id' } }]);
+test('an explicitly empty initial token follows upstream authentication omission', async () => {
+    const http = createFetchDouble([{ status: 201, json: { client_id: 'issued-id' } }]);
     await registerOAuthClientDynamically({
         ...fixturePorts, fetchFn: http.fetchFn, registrationEndpoint: 'https://auth.example.com/register', scopes: [],
     }, { initialAccessToken: '' });
-    assert.equal(http.requests[0]?.headers.authorization, 'Bearer ');
+    assert.equal(http.requests[0]?.headers.authorization, undefined);
     assert.equal(http.callCount(), 1);
 });

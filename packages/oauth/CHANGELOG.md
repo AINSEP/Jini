@@ -15,6 +15,13 @@
 
 ## Unreleased
 
+### Changed — OAuth adapter trim
+
+- Delete local token/device validators, discovery JSON-object parsing, registration response projections and repeated transport-error wrappers; call the pinned upstream processors directly.
+- Retain one facade response adapter for nonstandard error statuses, successful device/registration status normalization, provider token-type casing and opaque ID-token retention; upstream decodes protocol errors and validates fields.
+- Adopt upstream required/optional field validation: no local repair of missing token types, empty token fields, legacy `verification_url`, malformed device timing or incomplete secret-bearing registrations. Discovery requires an issuer and RFC 9728 resource binding.
+- Retain synchronous PKCE hashing with Node crypto because upstream hashing is asynchronous. Transport safety, state/cache lifecycle and refresh coordination remain host-owned.
+
 ### Changed — OAuth protocol library migration
 
 - Use pinned `openid-client` 6.8.8 for authorization URLs, token grants/client authentication, refresh, device initiation, authorization-server discovery and revocation, behind the unchanged `@jini-ai/oauth` facade. Use `oauth4webapi` 3.8.8 only for protected-resource discovery, endpoint-only registration and standalone validation of already received ID tokens, where the high-level API does not fit the facade's contract.
