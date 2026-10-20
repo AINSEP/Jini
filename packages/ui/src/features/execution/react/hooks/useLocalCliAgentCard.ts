@@ -75,47 +75,8 @@ export function useLocalCliAgentCard({
     onReasoningChange: (next) => onReasoningChange(agent.id, next),
   });
 
-  // `modelsSource` is optional in the contract, so an absent value means the
-  // host did not say where the list came from — NOT that it came from a
-  // built-in fallback. Defaulting to 'fallback' rendered "Built-in list" over
-  // a list that may well be live, and told the operator to Rescan to fix a
-  // problem they do not have. Unknown provenance shows no badge and no claim.
-  const source = agent.modelsSource;
-  const sourceLabel = source === 'live' ? t('Live from CLI') : source === 'fallback' ? t('Built-in list') : '';
-  const sourceHint =
-    source === 'live'
-      ? t("Model list comes from this CLI. Default uses the CLI's own config.")
-      : source === 'fallback'
-        ? t('Showing built-in defaults. Click Rescan to pull live models from the CLI.')
-        : '';
-
-  // The test result belongs to whichever agent was probed, so a stale verdict
-  // from a previously-tested CLI never renders under this one.
-  const testing = agentTest.status === 'testing' && agentTest.agentId === agent.id;
-  const result =
-    (agentTest.status === 'ok' || agentTest.status === 'error') && agentTest.agentId === agent.id
-      ? agentTest
-      : null;
-
-  // The "use the binary that actually ran" / "clear the override" repair
-  // affordance — only meaningful when a successful test silently fell back
-  // off a configured override, AND this agent's catalog names which field
-  // that override lives in. See `agentExecutableRepairState`'s doc.
-  //
-  // `AgentTestState`'s 'ok' variant spells success as `status: 'ok'`, not an
-  // `ok: true` field — `agentExecutableRepairState` takes the latter (it
-  // mirrors `ExecutionPort.testAgent`'s raw resolved shape, one layer below
-  // this state union), so the two must be translated explicitly here rather
-  // than passing `result` straight through.
-  const repair =
-    result?.status === 'ok'
-      ? agentExecutableRepairState({
-          ok: true,
-          usedExecutableSource: result.usedExecutableSource,
-          detectedExecutablePath: result.detectedExecutablePath,
-        })
-      : null;
-  const repairField = repair ? binPathEnvField(cliEnvFields, agent.id) : null;
+  const { source, sourceLabel, sourceHint } = modelSourcePresentation({ source: agent.modelsSource, t });
+  const { testing, result, repair, repairField } = agentTestPresentation({ agent, agentTest, cliEnvFields });
 
   const openUrl = (url: string | undefined) => {
     if (!url) return;
@@ -169,4 +130,68 @@ export function useLocalCliAgentCard({
     selectModel,
     selectReasoning,
   };
+}
+
+/** Model-list provenance claims, translated only when the host supplied a source. */
+function modelSourcePresentation(
+  { source, t }: { source: DetectedAgent['modelsSource']; t: Translate },
+  _options = {},
+): Pick<UseLocalCliAgentCardResult, 'source' | 'sourceLabel' | 'sourceHint'> {
+  // `modelsSource` is optional in the contract, so an absent value means the
+  // host did not say where the list came from — NOT that it came from a
+  // built-in fallback. Defaulting to 'fallback' rendered "Built-in list" over
+  // a list that may well be live, and told the operator to Rescan to fix a
+  // problem they do not have. Unknown provenance shows no badge and no claim.
+  switch (source) {
+    case 'live':
+      return {
+        source,
+        sourceLabel: t('Live from CLI'),
+        sourceHint: t("Model list comes from this CLI. Default uses the CLI's own config."),
+      };
+    case 'fallback':
+      return {
+        source,
+        sourceLabel: t('Built-in list'),
+        sourceHint: t('Showing built-in defaults. Click Rescan to pull live models from the CLI.'),
+      };
+    default:
+      return { source, sourceLabel: '', sourceHint: '' };
+  }
+}
+
+/** Scope probe evidence and its executable repair affordance to the card being rendered. */
+function agentTestPresentation(
+  { agent, agentTest, cliEnvFields }: Pick<UseLocalCliAgentCardInput, 'agent' | 'agentTest' | 'cliEnvFields'>,
+  _options = {},
+): Pick<UseLocalCliAgentCardResult, 'testing' | 'result' | 'repair' | 'repairField'> {
+  // The test result belongs to whichever agent was probed, so a stale verdict
+  // from a previously-tested CLI never renders under this one.
+  const testing = agentTest.status === 'testing' && agentTest.agentId === agent.id;
+  const result =
+    (agentTest.status === 'ok' || agentTest.status === 'error') && agentTest.agentId === agent.id
+      ? agentTest
+      : null;
+
+  // The "use the binary that actually ran" / "clear the override" repair
+  // affordance — only meaningful when a successful test silently fell back
+  // off a configured override, AND this agent's catalog names which field
+  // that override lives in. See `agentExecutableRepairState`'s doc.
+  //
+  // `AgentTestState`'s 'ok' variant spells success as `status: 'ok'`, not an
+  // `ok: true` field — `agentExecutableRepairState` takes the latter (it
+  // mirrors `ExecutionPort.testAgent`'s raw resolved shape, one layer below
+  // this state union), so the two must be translated explicitly here rather
+  // than passing `result` straight through.
+  const repair =
+    result?.status === 'ok'
+      ? agentExecutableRepairState({
+          ok: true,
+          usedExecutableSource: result.usedExecutableSource,
+          detectedExecutablePath: result.detectedExecutablePath,
+        })
+      : null;
+  const repairField = repair ? binPathEnvField(cliEnvFields, agent.id) : null;
+
+  return { testing, result, repair, repairField };
 }
