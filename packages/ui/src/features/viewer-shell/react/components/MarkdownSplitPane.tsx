@@ -1,8 +1,8 @@
-import { useRef, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { useRef, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from 'react';
 import { useT } from '../../../i18n/index.js';
 import { SegmentedToggle } from './SegmentedToggle.js';
 import { ViewerShell } from './ViewerShell.js';
-import { useMarkdownScrollSync } from '../hooks/useMarkdownScrollSync.js';
+import { useMarkdownScrollSync, type UseMarkdownScrollSyncResult } from '../hooks/useMarkdownScrollSync.js';
 import type { MarkdownSplitPaneMode } from '../../types.js';
 
 export interface MarkdownSplitPaneProps {
@@ -97,16 +97,13 @@ export function MarkdownSplitPane({
       toolbarLeft={
         <>
           {toolbarLeftExtra}
-          <SegmentedToggle
-            className="markdown-mode-tabs"
-            ariaLabel={modeAriaLabel ?? t('Markdown view mode')}
-            value={mode}
-            onChange={onModeChange}
-            options={[
-              { value: 'source', label: sourceLabel ?? t('Source') },
-              { value: 'split', label: splitLabel ?? t('Split') },
-              { value: 'preview', label: previewLabel ?? t('Preview') },
-            ]}
+          <MarkdownModeTabs
+            mode={mode}
+            onModeChange={onModeChange}
+            sourceLabel={sourceLabel}
+            splitLabel={splitLabel}
+            previewLabel={previewLabel}
+            modeAriaLabel={modeAriaLabel}
           />
         </>
       }
@@ -117,49 +114,140 @@ export function MarkdownSplitPane({
       ) : (
         <>
           {showEditor ? (
-            <section className="markdown-editor-pane" aria-label={editorAriaLabel ?? t('Markdown editor')}>
-              <textarea
-                ref={editorRef}
-                className="markdown-editor"
-                value={sourceText}
-                aria-label={editorAriaLabel ?? t('Markdown editor')}
-                spellCheck
-                onFocus={() => activatePane('editor')}
-                onChange={(event) => {
-                  activatePane('editor');
-                  onSourceChange(event.currentTarget.value);
-                }}
-                onScroll={handleEditorScroll}
-                {...editorTextareaProps}
-              />
-            </section>
+            <MarkdownEditorPane
+              editorRef={editorRef}
+              sourceText={sourceText}
+              onSourceChange={onSourceChange}
+              ariaLabel={editorAriaLabel}
+              onScroll={handleEditorScroll}
+              activatePane={activatePane}
+              textareaProps={editorTextareaProps}
+            />
           ) : null}
           {showPreview ? (
-            <div className="markdown-preview-pane-wrap">
-              <section
-                ref={previewRef}
-                className="markdown-preview-pane"
-                aria-label={previewAriaLabel ?? t('Markdown preview')}
-                onPointerDown={() => activatePane('preview')}
-                onWheel={() => activatePane('preview')}
-                onTouchStart={() => activatePane('preview')}
-                onKeyDown={() => activatePane('preview')}
-                onFocus={() => activatePane('preview')}
-                onScroll={handlePreviewScroll}
-              >
-                {/* Trusting `previewHtml` is the host's responsibility — this
-                    component renders whatever HTML string it's given.
-                    Non-null assertion: `isLoading` (above) is true whenever
-                    `previewHtml === null`, and this JSX only renders in the
-                    `!isLoading` branch — so `previewHtml` is always a string
-                    here. TypeScript can't follow that indirect invariant
-                    through the derived `isLoading` boolean, hence the `!`. */}
-                <article className="markdown-rendered" onClick={onPreviewClick} dangerouslySetInnerHTML={{ __html: previewHtml! }} />
-              </section>
-            </div>
+            <MarkdownPreviewPane
+              previewRef={previewRef}
+              // Non-null assertion: `isLoading` (above) is true whenever
+              // `previewHtml === null`, and this JSX only renders in the
+              // `!isLoading` branch — so `previewHtml` is always a string
+              // here. TypeScript can't follow that indirect invariant
+              // through the derived `isLoading` boolean, hence the `!`.
+              html={previewHtml!}
+              ariaLabel={previewAriaLabel}
+              onScroll={handlePreviewScroll}
+              activatePane={activatePane}
+              onPreviewClick={onPreviewClick}
+            />
           ) : null}
         </>
       )}
     </ViewerShell>
+  );
+}
+
+type ActivatePane = UseMarkdownScrollSyncResult['activatePane'];
+type PaneScrollHandler = UseMarkdownScrollSyncResult['handleEditorScroll'];
+
+function MarkdownModeTabs({
+  mode,
+  onModeChange,
+  sourceLabel,
+  splitLabel,
+  previewLabel,
+  modeAriaLabel,
+}: Pick<
+  MarkdownSplitPaneProps,
+  'mode' | 'onModeChange' | 'sourceLabel' | 'splitLabel' | 'previewLabel' | 'modeAriaLabel'
+>) {
+  const t = useT();
+  return (
+    <SegmentedToggle
+      className="markdown-mode-tabs"
+      ariaLabel={modeAriaLabel ?? t('Markdown view mode')}
+      value={mode}
+      onChange={onModeChange}
+      options={[
+        { value: 'source', label: sourceLabel ?? t('Source') },
+        { value: 'split', label: splitLabel ?? t('Split') },
+        { value: 'preview', label: previewLabel ?? t('Preview') },
+      ]}
+    />
+  );
+}
+
+function MarkdownEditorPane({
+  editorRef,
+  sourceText,
+  onSourceChange,
+  ariaLabel,
+  onScroll,
+  activatePane,
+  textareaProps,
+}: {
+  editorRef: RefObject<HTMLTextAreaElement | null>;
+  sourceText: string;
+  onSourceChange: (text: string) => void;
+  ariaLabel: string | undefined;
+  onScroll: PaneScrollHandler;
+  activatePane: ActivatePane;
+  textareaProps: Record<string, unknown> | undefined;
+}) {
+  const t = useT();
+  const label = ariaLabel ?? t('Markdown editor');
+  return (
+    <section className="markdown-editor-pane" aria-label={label}>
+      <textarea
+        ref={editorRef}
+        className="markdown-editor"
+        value={sourceText}
+        aria-label={label}
+        spellCheck
+        onFocus={() => activatePane('editor')}
+        onChange={(event) => {
+          activatePane('editor');
+          onSourceChange(event.currentTarget.value);
+        }}
+        onScroll={onScroll}
+        {...textareaProps}
+      />
+    </section>
+  );
+}
+
+function MarkdownPreviewPane({
+  previewRef,
+  html,
+  ariaLabel,
+  onScroll,
+  activatePane,
+  onPreviewClick,
+}: {
+  previewRef: RefObject<HTMLElement | null>;
+  html: string;
+  ariaLabel: string | undefined;
+  onScroll: PaneScrollHandler;
+  activatePane: ActivatePane;
+  onPreviewClick: MarkdownSplitPaneProps['onPreviewClick'];
+}) {
+  const t = useT();
+  const activatePreview = () => activatePane('preview');
+  return (
+    <div className="markdown-preview-pane-wrap">
+      <section
+        ref={previewRef}
+        className="markdown-preview-pane"
+        aria-label={ariaLabel ?? t('Markdown preview')}
+        onPointerDown={activatePreview}
+        onWheel={activatePreview}
+        onTouchStart={activatePreview}
+        onKeyDown={activatePreview}
+        onFocus={activatePreview}
+        onScroll={onScroll}
+      >
+        {/* Trusting `previewHtml` is the host's responsibility — this
+            component renders whatever HTML string it's given. */}
+        <article className="markdown-rendered" onClick={onPreviewClick} dangerouslySetInnerHTML={{ __html: html }} />
+      </section>
+    </div>
   );
 }
