@@ -26,6 +26,7 @@ vi.mock('../shared.js', async (importOriginal) => {
 
 import { piAgentDef } from '../pi.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
+import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
 afterEach(() => {
   mockState.execCalls = [];
@@ -164,5 +165,13 @@ describe('piAgentDef shape', () => {
     expect(piAgentDef.promptViaStdin).toBe(true);
     expect(piAgentDef.streamFormat).toBe('pi-rpc');
     expect(piAgentDef.imageDelivery).toBe('native');
+  });
+});
+
+describe('piAgentDef.discoverModels', () => {
+  it('falls back to the def\'s fallbackModels (minus the synthetic default) when pi is offline', async () => {
+    const catalog = await piAgentDef.discoverModels({ context: discoveryContext }, { deps: offlineDiscoveryDeps() });
+    expect(catalog.freshness).toBe('offline-fallback');
+    expect(catalog.models.map((model) => model.id)).toEqual(['anthropic/claude-sonnet-5', 'anthropic/claude-opus-5', 'openai/gpt-5', 'openai/gpt-5.6-terra', 'google/gemini-2.5-pro', 'google/gemini-2.5-flash']);
   });
 });
