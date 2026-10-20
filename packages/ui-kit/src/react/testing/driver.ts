@@ -33,10 +33,18 @@ function check(expectation: ConformanceExpectation, root: HTMLElement, calls: Re
   if (expectation.type === 'absent') return element ? `unexpected ${expectation.selector}` : undefined;
   if (!element) return `missing ${expectation.selector}`;
   if (expectation.type === 'attribute') return element.getAttribute(expectation.name) === expectation.value ? undefined : `${expectation.selector} did not forward ${expectation.name}=${expectation.value}`;
-  if (expectation.type === 'focused') return element === document.activeElement ? undefined : `${expectation.selector} not focused`;
-  if (expectation.type === 'disabled') return element.matches(':disabled') || element.getAttribute('aria-disabled') === 'true' ? undefined : `${expectation.selector} not disabled`;
-  if (expectation.type === 'native-select') return element instanceof HTMLSelectElement ? undefined : 'Select must render HTMLSelectElement';
-  if (expectation.type === 'focusable') return element.matches('button,input,select,textarea,[tabindex]') ? undefined : `${expectation.selector} is not focusable`;
+  return checkElementState({ expectation, element });
+}
+function checkElementState({ expectation, element }: {
+  expectation: Exclude<ConformanceExpectation, { type: 'calls' } | { type: 'attribute' }>;
+  element: HTMLElement;
+}, _optional?: Record<string, never>): string | undefined {
+  switch (expectation.type) {
+    case 'focused': return element === document.activeElement ? undefined : `${expectation.selector} not focused`;
+    case 'disabled': return element.matches(':disabled') || element.getAttribute('aria-disabled') === 'true' ? undefined : `${expectation.selector} not disabled`;
+    case 'native-select': return element instanceof HTMLSelectElement ? undefined : 'Select must render HTMLSelectElement';
+    case 'focusable': return element.matches('button,input,select,textarea,[tabindex]') ? undefined : `${expectation.selector} is not focusable`;
+  }
 }
 export const reactConformanceDriver: KitConformanceDriver = {
   async run({ kit, scenario, agent }) {
@@ -69,12 +77,18 @@ export const reactConformanceDriver: KitConformanceDriver = {
     return errors;
   },
 };
+function resolveConformanceDriver(required: {
+  driver?: KitConformanceDriver; includeBrowser?: boolean;
+}, _optional?: Record<string, never>): KitConformanceDriver {
+  const driver = required.driver ?? reactConformanceDriver;
+  if (required.includeBrowser && driver === reactConformanceDriver) throw new Error('Browser cases require a real browser driver');
+  return driver;
+}
 export async function runKitConformance(required: { kit: ResolvedKit }, optional: {
   driver?: KitConformanceDriver; agent?: AgentAttrsPort; only?: readonly ImplementedComponentName[];
   scenarios?: readonly KitScenario[]; includeBrowser?: boolean;
 } = {}): Promise<readonly KitConformanceResult[]> {
-  const driver = optional.driver ?? reactConformanceDriver;
-  if (optional.includeBrowser && driver === reactConformanceDriver) throw new Error('Browser cases require a real browser driver');
+  const driver = resolveConformanceDriver(optional);
   const results: KitConformanceResult[] = [];
   for (const scenario of optional.scenarios ?? kitConformanceScenarios) {
     if (optional.only && !optional.only.includes(scenario.component)) continue;
