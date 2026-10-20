@@ -107,40 +107,13 @@ export function parseUsageEvent({ payload }: { payload: RunAgentPayload }, _opti
  * cannot fall through to `default` — see below). A lookup table would have to carry those as a
  * parallel structure, one step removed from the code they explain. Left as a `switch`, documented
  * here rather than only in this session's report.
+ *
+ * Superseded (2026-10-20, code-health wave 1; bar is ≤10/≤10): the flat switch is now TWO switches —
+ * the chat-core event types here, and the UI-envelope / dropped / `ext` types in
+ * {@link translateEnvelopePayload} below — so each scope stays under the cyclomatic bar while BOTH
+ * keep what the paragraph above argued for: every case is still a `case` with its own comment
+ * attached, not an entry in a parallel lookup table.
  */
-// Typed media (currently just images) the daemon attached alongside the flattened `content`
-// string — see `@jini-ai/protocol`'s `events.ts` doc on why the wire field is `unknown`
-// rather than a checked type here: the real shape is validated where `ToolCard` renders it.
-// Forwarded verbatim rather than re-validated a second time in this reducer — an
-// `Array.isArray` guard rather than a deep shape check, since a malformed entry inside it
-// is a rendering concern (`ToolCard`'s own `ToolResultMedia` already ignores anything that
-// isn't a recognized block), not a transport one.
-// An MCP content block the daemon withheld from the tool result because it is for the HUMAN,
-// not the model (`@jini-ai/daemon`'s `delegated-tool-bridge.ts` → `tool-result-surfaces.ts`).
-// Explicit rather than left to `default` below because the shapes do not line up: the default
-// passes the WHOLE wire payload as `data`, but `@jini-ai/chat`'s `McpUiSurfaceCard` runs
-// `parseUIResource` over each event's `data` and that requires the bare `EmbeddedResource`
-// (`{type:'resource', resource:{uri,mimeType,text}}`). Handing it the envelope instead fails
-// the `type !== 'resource'` check and renders an empty frame — a silent no-op, which is the
-// worst possible failure for a confirmation dialog. Unwrapping here is what makes the two ends
-// meet. `name` must stay `"mcp-ui"` to match `MCP_UI_EXT_EVENT_NAME`.
-// A2UI's own agent->renderer envelope (`@jini-ai/core`'s `SurfaceEmission` with
-// `channel: "a2ui"`, injected by `@jini-ai/daemon`'s `delegated-tool-bridge.ts` as
-// `{type: "a2ui", message: <AgentToRendererMessage>}`). Unwrapped to the bare `.message` here,
-// not left to the `default` branch below, for the same reason `mcp-ui` above is explicit:
-// `@jini-ai/chat/react`'s `A2uiSurfaceCard` (registered against `'a2ui'` in
-// `AssistantDock.tsx`) runs `extractSurfaceId`/`interpreter.applyAgentMessage` over each event's
-// `data` directly, and both require a bare, spec-shaped envelope — not the `{type, message}`
-// wire wrapper. Mirrors Jini's own reference host's identical `case "a2ui"` in
-// `examples/reference-web/src/daemon-transport.ts`.
-// thinking_start/stage_start/stage_end/surface_request/surface_response: no dedicated
-// chat-core variant. Routed through the `ext` escape hatch rather than dropped, so a future
-// renderer can opt in without a transport change.
-// Streamed tool input (with `--include-partial-messages`): the finished `tool_use` carries the
-// same input whole, and nothing renders the fragments. Kept, they became one no-op `ext` event
-// per chunk in the saved row.
-
-
 /** Reduce one daemon payload; preserve UI envelopes and drop duplicate input fragments. */
 export function translateRunAgentPayload({ payload }: { payload: RunAgentPayload }, _options: Record<string, never> = {}): AgentEvent | null {
   switch (payload.type) {
@@ -153,25 +126,68 @@ export function translateRunAgentPayload({ payload }: { payload: RunAgentPayload
     case "tool_use":
       return { kind: "tool_use", id: wireString(payload.id), name: wireString(payload.name), input: payload.input };
     case "tool_result":
-      return {
-        kind: "tool_result",
-        toolUseId: wireString(payload.toolUseId),
-        content: wireString(payload.content),
-        isError: Boolean(payload.isError),
-        ...(Array.isArray(payload.media) ? { media: payload.media as readonly ToolResultMediaBlock[] } : {}),
-      };
+      return toolResultEvent(payload);
     case "usage":
       return parseUsageEvent({ payload });
     case "raw":
       return { kind: "raw", line: wireString(payload.line) };
+    default:
+      return translateEnvelopePayload(payload);
+  }
+}
+
+function toolResultEvent(payload: RunAgentPayload): AgentEvent {
+  return {
+    kind: "tool_result",
+    toolUseId: wireString(payload.toolUseId),
+    content: wireString(payload.content),
+    isError: Boolean(payload.isError),
+    // Typed media (currently just images) the daemon attached alongside the flattened `content`
+    // string — see `@jini-ai/protocol`'s `events.ts` doc on why the wire field is `unknown`
+    // rather than a checked type here: the real shape is validated where `ToolCard` renders it.
+    // Forwarded verbatim rather than re-validated a second time in this reducer — an
+    // `Array.isArray` guard rather than a deep shape check, since a malformed entry inside it
+    // is a rendering concern (`ToolCard`'s own `ToolResultMedia` already ignores anything that
+    // isn't a recognized block), not a transport one.
+    ...(Array.isArray(payload.media) ? { media: payload.media as readonly ToolResultMediaBlock[] } : {}),
+  };
+}
+
+/** The payload types with no chat-core event of their own: UI envelopes, dropped types, and `ext`. */
+function translateEnvelopePayload(payload: RunAgentPayload): AgentEvent | null {
+  switch (payload.type) {
+    // An MCP content block the daemon withheld from the tool result because it is for the HUMAN,
+    // not the model (`@jini-ai/daemon`'s `delegated-tool-bridge.ts` → `tool-result-surfaces.ts`).
+    // Explicit rather than left to `default` below because the shapes do not line up: the default
+    // passes the WHOLE wire payload as `data`, but `@jini-ai/chat`'s `McpUiSurfaceCard` runs
+    // `parseUIResource` over each event's `data` and that requires the bare `EmbeddedResource`
+    // (`{type:'resource', resource:{uri,mimeType,text}}`). Handing it the envelope instead fails
+    // the `type !== 'resource'` check and renders an empty frame — a silent no-op, which is the
+    // worst possible failure for a confirmation dialog. Unwrapping here is what makes the two ends
+    // meet. `name` must stay `"mcp-ui"` to match `MCP_UI_EXT_EVENT_NAME`.
     case "mcp-ui":
       return { kind: "ext", name: "mcp-ui", data: payload.resource };
+    // A2UI's own agent->renderer envelope (`@jini-ai/core`'s `SurfaceEmission` with
+    // `channel: "a2ui"`, injected by `@jini-ai/daemon`'s `delegated-tool-bridge.ts` as
+    // `{type: "a2ui", message: <AgentToRendererMessage>}`). Unwrapped to the bare `.message` here,
+    // not left to the `default` branch below, for the same reason `mcp-ui` above is explicit:
+    // `@jini-ai/chat/react`'s `A2uiSurfaceCard` (registered against `'a2ui'` in
+    // `AssistantDock.tsx`) runs `extractSurfaceId`/`interpreter.applyAgentMessage` over each event's
+    // `data` directly, and both require a bare, spec-shaped envelope — not the `{type, message}`
+    // wire wrapper. Mirrors Jini's own reference host's identical `case "a2ui"` in
+    // `examples/reference-web/src/daemon-transport.ts`.
     case "a2ui":
       return { kind: "ext", name: "a2ui", data: payload.message };
     case "thinking_start":
       return null;
+    // Streamed tool input (with `--include-partial-messages`): the finished `tool_use` carries the
+    // same input whole, and nothing renders the fragments. Kept, they became one no-op `ext` event
+    // per chunk in the saved row.
     case "tool_input_delta":
       return null;
+    // thinking_start/stage_start/stage_end/surface_request/surface_response: no dedicated
+    // chat-core variant. Routed through the `ext` escape hatch rather than dropped, so a future
+    // renderer can opt in without a transport change.
     default:
       return { kind: "ext", name: payload.type, data: payload };
   }
@@ -246,15 +262,8 @@ function neverStarted(outcome: TerminalOutcome): boolean {
 
 /** Read non-successful daemon classification without throwing on malformed frames. */
 export function readTerminalOutcome({ raw }: { raw: string | undefined }, _options: Record<string, never> = {}): TerminalOutcome | null {
-  if (!raw) return null;
-  let payload: Record<string, unknown>;
-  try {
-    const frame: unknown = JSON.parse(raw);
-    if (!isRecord(frame) || !isRecord(frame.payload)) return null;
-    payload = frame.payload;
-  } catch {
-    return null;
-  }
+  const payload = parseWirePayload(raw);
+  if (!payload) return null;
   const status = payload.status;
   if (status !== "failed" && status !== "canceled") return null;
   return {
@@ -481,11 +490,18 @@ function parseWire(raw: string | undefined): RunProtocolEventWire | null {
   }
 }
 
+/** A wire frame's `payload` when it is a plain object; `null` for an absent, malformed or bare body. */
+function parseWirePayload(raw: string | undefined): Record<string, unknown> | null {
+  const payload: unknown = parseWire(raw)?.payload;
+  return isRecord(payload) ? payload : null;
+}
+
 function parseJsonLine(line: string): Record<string, unknown> | null {
   if (!line.startsWith("{")) return null;
   try {
-    const value: unknown = JSON.parse(line);
-    return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+    // A line starting with `{` either parses to a plain object or throws; it cannot parse to an
+    // array, a scalar or `null`, so no shape check is needed after the parse.
+    return JSON.parse(line) as Record<string, unknown>;
   } catch {
     return null;
   }
@@ -555,28 +571,47 @@ function chunkEvent(raw: string | undefined, channel: string, carry?: RunFrameCa
   if (!frame) return [];
   const chunk = wireString((frame.payload as { chunk?: unknown } | null)?.chunk);
   const open = carry ? (carry.openEchoChannels ??= new Set()) : undefined;
+  const { kept, statuses, droppedAny } = splitChunk({ chunk, channel }, { open });
+  const line = droppedAny ? kept : chunk;
+  return line.length > 0 ? [{ kind: "raw", line }, ...statuses] : statuses;
+}
+
+/** A chunk's non-echo text and heartbeat statuses, and whether any echo piece was dropped. */
+function splitChunk(
+  { chunk, channel }: { chunk: string; channel: string },
+  { open }: { open?: Set<string> | undefined } = {},
+): { kept: string; statuses: AgentEvent[]; droppedAny: boolean } {
   const statuses: AgentEvent[] = [];
   let kept = "";
   let droppedAny = false;
-  let first = true;
-  for (const piece of chunk.split(/(?<=\n)/)) {
-    // Only a chunk's first piece can continue the previous chunk's line; splitting on "\n" starts
-    // every later piece on a fresh line. Channels are tracked apart: stderr can interleave mid-line.
-    const echo = (first && open?.has(channel) === true) || ECHO_LINE.test(piece.trimStart());
-    first = false;
-    if (echo && !piece.endsWith("\n")) open?.add(channel);
-    else open?.delete(channel);
-    if (echo) {
+  chunk.split(/(?<=\n)/).forEach((piece, index) => {
+    if (isEchoPiece({ piece, channel, first: index === 0 }, { open })) {
       droppedAny = true;
-      continue;
+      return;
     }
-    const line = parseJsonLine(piece.trim());
-    const status = line ? heartbeatStatus(line) : null;
+    const status = pieceStatus(piece);
     if (status) statuses.push(status);
     kept += piece;
-  }
-  if (!droppedAny) kept = chunk;
-  return kept.length > 0 ? [{ kind: "raw", line: kept }, ...statuses] : statuses;
+  });
+  return { kept, statuses, droppedAny };
+}
+
+/** Whether a piece belongs to an echo line, updating which channels are mid-way through one. */
+function isEchoPiece(
+  { piece, channel, first }: { piece: string; channel: string; first: boolean },
+  { open }: { open?: Set<string> | undefined } = {},
+): boolean {
+  // Only a chunk's first piece can continue the previous chunk's line; splitting on "\n" starts
+  // every later piece on a fresh line. Channels are tracked apart: stderr can interleave mid-line.
+  const echo = (first && open?.has(channel) === true) || ECHO_LINE.test(piece.trimStart());
+  if (echo && !piece.endsWith("\n")) open?.add(channel);
+  else open?.delete(channel);
+  return echo;
+}
+
+function pieceStatus(piece: string): AgentEvent | null {
+  const line = parseJsonLine(piece.trim());
+  return line ? heartbeatStatus(line) : null;
 }
 // Order matters and matches the browser's `end` listener: the `max_tool_turns` notice first, then
 // the failed/canceled notice, then the failure itself.
@@ -604,34 +639,38 @@ function endOutcome(raw: string | undefined, notices: RunNotices): RunFrameOutco
  *
  * @complexity O(size of the frame).
  */
-// The agent CLI's own output. `stderr` is where a dying CLI says WHY it is dying.
-// Shown AND saved as a status line, not only reported: the error is live-only state, so without
-// the event the saved turn (and a reload) showed a bare "failed" with the reason lost. This is
-// where the daemon's plain pre-spawn reason ("The assistant could not start: ...") and the
-// host's start refusals reach the user.
-
-
 /** Fold one named daemon frame into events, a failure and an optional terminal status. */
 export function translateRunFrame({ kind, raw, notices }: { kind: string; raw: string | undefined; notices: RunNotices }, { carry }: { carry?: RunFrameCarry } = {}): RunFrameOutcome {
   switch (kind) {
-    case "agent": {
-      const frame = parseWire(raw);
-      const translated = frame && isRecord(frame.payload) && typeof frame.payload.type === "string" ? translateRunAgentPayload({ payload: frame.payload as RunAgentPayload }) : null;
-      return { events: translated ? [translated] : [] };
-    }
+    case "agent":
+      return { events: agentFrameEvents(raw) };
+    // The agent CLI's own output. `stderr` is where a dying CLI says WHY it is dying.
     case "stdout":
     case "stderr":
       return { events: chunkEvent(raw, kind, carry) };
-    case "error": {
-      const frame = parseWire(raw);
-      const message = wireString((frame?.payload as { message?: unknown } | null)?.message) || "agent run failed";
-      return { events: [{ kind: "status", label: message }], error: new Error(message) };
-    }
+    case "error":
+      return errorFrameOutcome(raw);
     case "end":
       return endOutcome(raw, notices);
     default:
       return { events: [] };
   }
+}
+
+function agentFrameEvents(raw: string | undefined): AgentEvent[] {
+  const payload = parseWirePayload(raw);
+  const translated = typeof payload?.type === "string" ? translateRunAgentPayload({ payload: payload as RunAgentPayload }) : null;
+  return translated ? [translated] : [];
+}
+
+// Shown AND saved as a status line, not only reported: the error is live-only state, so without
+// the event the saved turn (and a reload) showed a bare "failed" with the reason lost. This is
+// where the daemon's plain pre-spawn reason ("The assistant could not start: ...") and the
+// host's start refusals reach the user.
+function errorFrameOutcome(raw: string | undefined): RunFrameOutcome {
+  const frame = parseWire(raw);
+  const message = wireString((frame?.payload as { message?: unknown } | null)?.message) || "agent run failed";
+  return { events: [{ kind: "status", label: message }], error: new Error(message) };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
