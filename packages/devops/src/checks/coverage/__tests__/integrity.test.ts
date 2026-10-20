@@ -522,3 +522,50 @@ test("real committed baseline: development/scripts/coverage-integrity-baseline.j
     "run1 is the baseline's own capture source -- every path it reports must already be known"
   );
 });
+
+// --- L060b characterization pins: classifyBlock branch boundaries --------------------------------
+
+function wrapperBlock(da: number[], extra: Partial<LcovBlock> = {}): LcovBlock {
+  return { file: "/fixture/src/x.ts", fnda: [{ name: "__toESM", hits: 3 }, { name: "__export", hits: 1 }, { name: "real", hits: 7 }], da, ...extra };
+}
+const BASE_REASON = "2 esbuild CJS-wrapper helper record(s) [__export, __toESM] present in this block's FNDA records -- two coverage images (real ESM + CJS wrapper) were merged here.";
+
+test("classifyBlock pin: 29 matching DA records stay below the SEVERE floor", () => {
+  const verdict = classifyBlock(wrapperBlock(Array.from({ length: 29 }, (_, i) => (i % 2 ? 3 : 1))));
+  assert.deepEqual(verdict, { file: "src/x.ts", status: "contaminated", severe: false, reason: `${BASE_REASON} function coverage for this run is untrustworthy.` });
+});
+
+test("classifyBlock pin: exactly 30 DA records matching wrapper hits (plus zeros) is SEVERE with the exact reason", () => {
+  const da = Array.from({ length: 30 }, (_, i) => [0, 1, 3][i % 3]!);
+  const verdict = classifyBlock(wrapperBlock(da, { fnf: 3, fnh: 3 }));
+  assert.equal(verdict.severe, true);
+  assert.equal(verdict.status, "contaminated");
+  assert.equal(verdict.reason,
+    "2 esbuild CJS-wrapper helper record(s) [__export, __toESM] present in this block's FNDA records -- two coverage images (real ESM + CJS wrapper) were merged here. FNF:3 FNH:3 function coverage for this run is untrustworthy" +
+    ". SEVERE: additionally, every one of this block's 3 distinct DA hit-count value(s) [0, 1, 3] matches a wrapper helper's own FNDA hit-count [1, 3] (or 0) -- the wrapper image also won the line-hit merge, so line coverage for this run is untrustworthy too, regardless of what LH:/LF: report");
+});
+
+test("classifyBlock pin: one DA value outside the wrapper hits blocks SEVERE", () => {
+  const da = [...Array.from({ length: 29 }, () => 3), 7];
+  assert.equal(classifyBlock(wrapperBlock(da)).severe, false);
+});
+
+test("classifyBlock pin: the FNF/FNH summary appears only when both counters are present", () => {
+  assert.doesNotMatch(classifyBlock(wrapperBlock([1], { fnf: 3 })).reason, /FNF:/);
+  assert.doesNotMatch(classifyBlock(wrapperBlock([1], { fnh: 3 })).reason, /FNH:/);
+  assert.match(classifyBlock(wrapperBlock([1], { fnf: 3, fnh: 2 })).reason, /merged here\. FNF:3 FNH:2 function coverage/);
+});
+
+test("classifyBlock pin: source text that is not a barrel does not skip a contaminated block", () => {
+  assert.equal(classifyBlock(wrapperBlock([1]), "export function f() { return 1; }\n").status, "contaminated");
+});
+
+test("classifyBlock pin: a barrel source on a non-first-party path is skipped as non-first-party first", () => {
+  const verdict = classifyBlock({ ...wrapperBlock([1]), file: "/fixture/node_modules/x/index.js" }, 'export { a } from "./a.js";\n');
+  assert.equal(verdict.reason, "not a first-party source path");
+});
+
+test("classifyBlock pin: duplicate wrapper names are counted once", () => {
+  const verdict = classifyBlock({ file: "/fixture/src/x.ts", fnda: [{ name: "__toESM", hits: 1 }, { name: "__toESM", hits: 2 }], da: [1] });
+  assert.match(verdict.reason, /^1 esbuild CJS-wrapper helper record\(s\) \[__toESM\]/);
+});

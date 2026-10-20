@@ -112,3 +112,81 @@ test('diff orchestration filters changed files and reads both supplied coverage 
   expect(result.files).toHaveLength(1);
   expect(result.files[0]?.unit.pctValue).toBe(98);
 });
+
+// --- L060b characterization pins: evaluateFileTiers / resolveBaseRef / checkCoverageDiff ---------
+
+test.each<[string, number]>([
+  ['unit', Number.NaN], ['unit', -0.01], ['unit', 100.01], ['unit', Number.POSITIVE_INFINITY],
+  ['integration', Number.NaN], ['integration', -1], ['integration', 101],
+])('a %s threshold of %s is refused before any record is read', (key, value) => {
+  const bad = { ...thresholds, [key]: value };
+  expect(() => evaluateFileTiers({ file: rec().file, unitRec: undefined, integrationRec: undefined, thresholds: bad }))
+    .toThrow(new RangeError('tier thresholds must be percentages from 0 to 100'));
+});
+
+test('thresholds of exactly 0 and 100 are accepted boundaries', () => {
+  const result = evaluateFileTiers({ file: rec().file, unitRec: rec({ brh: 100 }), integrationRec: rec({ brh: 0 }), thresholds: { unit: 100, integration: 0 } });
+  expect(result).toEqual({
+    file: rec().file, ok: true,
+    unit: { ok: true, pctValue: 100, detail: '100.00% branch' },
+    integration: { ok: true, pctValue: 0, detail: '0.00% branch' },
+  });
+});
+
+test('no record on either tier fails both tiers with one shared detail', () => {
+  const result = evaluateFileTiers({ file: 'f.ts', unitRec: undefined, integrationRec: undefined, thresholds });
+  expect(result).toEqual({
+    file: 'f.ts', ok: false,
+    unit: { ok: false, pctValue: 0, detail: 'no coverage record on either tier' },
+    integration: { ok: false, pctValue: 0, detail: 'no coverage record on either tier' },
+  });
+});
+
+test('inconsistent branch totals fail both tiers with the inconsistency detail', () => {
+  const result = evaluateFileTiers({ file: 'f.ts', unitRec: rec({ brf: 10, brh: 10 }), integrationRec: rec({ brf: 12, brh: 12 }), thresholds });
+  expect(result.integration).toEqual({ ok: false, pctValue: 0, detail: 'inconsistent branch totals between tiers' });
+  expect(result.unit).toEqual({ ok: false, pctValue: 0, detail: 'inconsistent branch totals between tiers' });
+});
+
+test('a branchless file passes both tiers vacuously with distinct result objects', () => {
+  const result = evaluateFileTiers({ file: 'f.ts', unitRec: rec({ brf: 0, brh: 0 }), integrationRec: rec({ brf: 0, brh: 0 }), thresholds });
+  const detail = '0 branches in this file (vacuously passes both tiers)';
+  expect(result).toEqual({ file: 'f.ts', ok: true, unit: { ok: true, pctValue: 100, detail }, integration: { ok: true, pctValue: 100, detail } });
+  expect(result.unit).not.toBe(result.integration);
+});
+
+test('a missing tier record next to a branch-bearing one names the missing tier', () => {
+  expect(evaluateFileTiers({ file: 'f.ts', unitRec: rec(), integrationRec: undefined, thresholds }).integration.detail).toBe('no integration coverage record');
+  expect(evaluateFileTiers({ file: 'f.ts', unitRec: undefined, integrationRec: rec(), thresholds }).unit.detail).toBe('no unit coverage record');
+});
+
+test('a pull-request base that already names a remote is used as-is', () => {
+  expect(resolveBaseRef({ fallbackRef: 'upstream/trunk', remote: 'upstream' }, { pullRequestBase: 'fork/feature' })).toBe('fork/feature');
+});
+
+test('no inputs at all falls back to the supplied ref', () => {
+  expect(resolveBaseRef({ fallbackRef: 'upstream/trunk', remote: 'upstream' })).toBe('upstream/trunk');
+});
+
+test('no measurable changed files passes without reading any coverage artifact', async () => {
+  const reads: string[] = [];
+  const result = await checkCoverageDiff({
+    baseRef: 'b', repoRoot: '/repo', sourceRoots: rules.prefixes, thresholds,
+    unitCoveragePath: '/repo/unit.lcov', integrationCoveragePath: '/repo/integration.lcov', isMeasurable: measurable,
+    diff: { changedFiles: async () => ['README.md'] },
+    reader: { readText: ({ path }) => { reads.push(path); return ''; } },
+  });
+  expect(result).toEqual({ ok: true, files: [] });
+  expect(reads).toEqual([]);
+});
+
+test('a changed file reported twice by the diff is evaluated once', async () => {
+  const result = await checkCoverageDiff({
+    baseRef: 'b', repoRoot: '/repo', sourceRoots: rules.prefixes, thresholds,
+    unitCoveragePath: '/repo/unit.lcov', integrationCoveragePath: '/repo/integration.lcov', isMeasurable: measurable,
+    diff: { changedFiles: async () => [rec().file, rec().file] },
+    reader: { readText: () => `SF:${rec().file}\nBRF:10\nBRH:10\nend_of_record\n` },
+  });
+  expect(result.ok).toBe(true);
+  expect(result.files.map((f) => f.file)).toEqual([rec().file]);
+});
