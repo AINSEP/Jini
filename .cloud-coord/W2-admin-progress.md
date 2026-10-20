@@ -16,5 +16,6 @@ Setup: 140 s (pnpm install + build; integrations build fails as expected). Wave 
 | L282 | media/adapters/memory.ts | pending | 12/≤10 | | | | |
 
 ## Problems / notes
+- Baseline whole-package suite on unmodified tree (01:30 UTC): 144 files / 1689 tests pass, 119 s.
 
 ## Next
