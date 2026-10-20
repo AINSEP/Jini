@@ -161,4 +161,56 @@ describe('createCopilotStreamHandler', () => {
       expect(events[0]).toMatchObject({ content: '7' });
     });
   });
+
+  describe('characterization (pinned before the complexity refactor)', () => {
+    it('reports completed for exitCode 0 without a success flag', () => {
+      expect(feed([{ type: 'result', exitCode: 0 }])).toEqual([{ type: 'usage', usage: null, stopReason: 'completed', durationMs: null }]);
+    });
+
+    it('reports error for a string "0" exitCode and success other than true', () => {
+      expect(feed([{ type: 'result', exitCode: '0', success: 'true' }])[0]).toMatchObject({ stopReason: 'error' });
+    });
+
+    it('passes a non-record usage through and reports a null duration', () => {
+      expect(feed([{ type: 'result', usage: 5, success: true }])).toEqual([{ type: 'usage', usage: 5, stopReason: 'completed', durationMs: null }]);
+    });
+
+    it('treats a non-record data payload as empty', () => {
+      expect(feed([{ type: 'tool.execution_start', data: ['call_1'] }])).toEqual([{ type: 'tool_use', id: null, name: null, input: null }]);
+    });
+
+    it('reports isError only for success === false', () => {
+      expect(feed([{ type: 'tool.execution_complete', data: { result: 'x' } }])).toEqual([{ type: 'tool_result', toolUseId: null, content: 'x', isError: false }]);
+    });
+
+    it('skips session.tools_updated with a falsy model', () => {
+      expect(feed([{ type: 'session.tools_updated', data: { model: '' } }])).toEqual([]);
+    });
+
+    it('ignores prototype-named event types', () => {
+      expect(feed([{ type: 'constructor' }, { type: 'toString' }, { type: '__proto__' }])).toEqual([]);
+    });
+
+    it('reassembles a record split across chunks and handles several records and CRLF in one chunk', () => {
+      const events: unknown[] = [];
+      const handler = createCopilotStreamHandler({ onEvent: (event) => events.push(event) });
+      handler.feed({ chunk: '{"type":"assistant.turn_' });
+      handler.feed({ chunk: 'start"}\r\n{"type":"assistant.message_delta","data":{"deltaContent":"a"}}\n' });
+      expect(events).toEqual([{ type: 'status', label: 'streaming' }, { type: 'text_delta', delta: 'a' }]);
+    });
+
+    it('lets an onEvent exception escape from feed()', () => {
+      const handler = createCopilotStreamHandler({ onEvent: () => { throw new Error('sink failed'); } });
+      expect(() => handler.feed({ chunk: '{"type":"assistant.turn_start"}\n' })).toThrow('sink failed');
+    });
+
+    it('re-emits the flushed line as raw when onEvent throws while flushing a valid record (reported, not fixed)', () => {
+      const events: unknown[] = [];
+      let calls = 0;
+      const handler = createCopilotStreamHandler({ onEvent: (event) => { calls += 1; if (calls === 1) throw new Error('sink failed'); events.push(event); } });
+      handler.feed({ chunk: '{"type":"assistant.turn_start"}' });
+      handler.flush();
+      expect(events).toEqual([{ type: 'raw', line: '{"type":"assistant.turn_start"}' }]);
+    });
+  });
 });

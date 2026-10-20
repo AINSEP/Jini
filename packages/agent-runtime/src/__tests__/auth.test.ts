@@ -401,3 +401,125 @@ describe('probeAgentAuthStatus', () => {
     expect(result?.stdoutTail?.endsWith('TAIL_END')).toBe(true);
   });
 });
+
+describe('auth characterization (pinned before the complexity refactor)', () => {
+  const CLAUDE_PROBE = { id: 'claude', name: 'Claude', authProbe: { args: ['auth', 'status'] } };
+
+  it('isClaudeAuthFailureText lets authenticated:true win over loggedIn:false in JSON', () => {
+    expect(isClaudeAuthFailureText({ text: '{"authenticated": true, "loggedIn": false}' })).toBe(false);
+  });
+
+  it('isClaudeAuthFailureText lets loggedIn:true win over authenticated:false in JSON', () => {
+    expect(isClaudeAuthFailureText({ text: '{"authenticated": false, "loggedIn": true}' })).toBe(false);
+  });
+
+  it('isClaudeAuthFailureText falls back to text matching for a JSON null', () => {
+    expect(isClaudeAuthFailureText({ text: 'null' })).toBe(false);
+  });
+
+  it('isClaudeAuthFailureText falls back to text matching for a JSON string', () => {
+    expect(isClaudeAuthFailureText({ text: '"not authenticated"' })).toBe(true);
+  });
+
+  it('isClaudeAuthFailureText ignores non-boolean JSON values and falls back to text matching', () => {
+    expect(isClaudeAuthFailureText({ text: '{"authenticated": "no"}' })).toBe(false);
+  });
+
+  it('classifyAgentAuthFailure treats a prototype-ish agent id as unrecognized', () => {
+    expect(classifyAgentAuthFailure({ agentId: '__proto__', text: 'not authenticated' })).toBeNull();
+  });
+
+  it('classifyAgentAuthFailure returns exactly status + message for a tailored agent', () => {
+    expect(classifyAgentAuthFailure({ agentId: 'cursor-agent', text: 'not logged in' }, { hostName: 'FakeHost' })).toEqual({
+      status: 'missing',
+      message: cursorAuthGuidance({}, { hostName: 'FakeHost' }),
+    });
+  });
+
+  it('probeAgentAuthStatus does not short-circuit on a whitespace-only API key', async () => {
+    let called = false;
+    mockState.execFileImpl = (_f, _a, _o, cb) => { called = true; cb(null, { stdout: '', stderr: '' }); };
+    await probeAgentAuthStatus({ def: { id: 'codex', name: 'Codex', authProbe: { args: ['login', 'status'] } }, resolvedBin: '/bin/codex', env: { CODEX_API_KEY: '   ' } });
+    expect(called).toBe(true);
+  });
+
+  it('probeAgentAuthStatus does not short-circuit claude on a codex key', async () => {
+    let called = false;
+    mockState.execFileImpl = (_f, _a, _o, cb) => { called = true; cb(null, { stdout: '', stderr: '' }); };
+    await probeAgentAuthStatus({ def: CLAUDE_PROBE, resolvedBin: '/bin/claude', env: { OPENAI_API_KEY: 'fake-key' } });
+    expect(called).toBe(true);
+  });
+
+  it('probeAgentAuthStatus short-circuits claude on ANTHROPIC_API_KEY', async () => {
+    let called = false;
+    mockState.execFileImpl = (_f, _a, _o, cb) => { called = true; cb(null, { stdout: '', stderr: '' }); };
+    const result = await probeAgentAuthStatus({ def: CLAUDE_PROBE, resolvedBin: '/bin/claude', env: { ANTHROPIC_API_KEY: 'fake-key' } });
+    expect(result).toEqual({ status: 'ok' });
+    expect(called).toBe(false);
+  });
+
+  it('probeAgentAuthStatus runs the probe with the resolved bin, args, env, default timeout and 1 MiB buffer', async () => {
+    const seen: { file?: string; args?: string[]; options?: unknown } = {};
+    mockState.execFileImpl = (file, args, options, cb) => { Object.assign(seen, { file, args, options }); cb(null, { stdout: '', stderr: '' }); };
+    const env = { FAKE_ENV: '1' };
+    await probeAgentAuthStatus({ def: CLAUDE_PROBE, resolvedBin: '/bin/claude', env });
+    expect(seen.file).toBe('/bin/claude');
+    expect(seen.args).toEqual(['auth', 'status']);
+    expect(seen.options).toMatchObject({ env, timeout: 5000, maxBuffer: 1024 * 1024 });
+  });
+
+  it('probeAgentAuthStatus returns the full missing result (exitCode 0, null signal, both tails) on a successful exit', async () => {
+    mockState.execFileImpl = (_f, _a, _o, cb) => cb(null, { stdout: ' {"authenticated": false} ', stderr: ' warn ' });
+    const result = await probeAgentAuthStatus({ def: CLAUDE_PROBE, resolvedBin: '/bin/claude', env: {} }, { hostName: 'FakeHost' });
+    expect(result).toEqual({
+      status: 'missing',
+      message: claudeAuthGuidance({}, { hostName: 'FakeHost' }),
+      exitCode: 0,
+      signal: null,
+      stdoutTail: '{"authenticated": false}',
+      stderrTail: 'warn',
+    });
+  });
+
+  it('probeAgentAuthStatus trusts a tailored classifier even when the generic matcher would flag the output', async () => {
+    mockState.execFileImpl = (_f, _a, _o, cb) => cb(null, { stdout: 'HTTP 401', stderr: '' });
+    const result = await probeAgentAuthStatus({ def: { id: 'cursor-agent', name: 'Cursor', authProbe: { args: ['status'] } }, resolvedBin: '/bin/cursor-agent', env: {} });
+    expect(result).toEqual({ status: 'ok' });
+  });
+
+  it('probeAgentAuthStatus returns ok for a generic agent whose output is a non-auth service failure', async () => {
+    mockState.execFileImpl = (_f, _a, _o, cb) => cb(null, { stdout: 'rate limit exceeded', stderr: '' });
+    const result = await probeAgentAuthStatus({ def: { id: 'generic-cli', name: 'Generic', authProbe: { args: ['whoami'] } }, resolvedBin: '/bin/generic', env: {} });
+    expect(result).toEqual({ status: 'ok' });
+  });
+
+  it('probeAgentAuthStatus classifies a generic agent from the rejection message and threads hostName', async () => {
+    mockState.execFileImpl = (_f, _a, _o, cb) => {
+      cb(Object.assign(new Error('HTTP 401 from provider'), { code: 2, signal: null, stdout: 'out', stderr: 'err' }));
+    };
+    const result = await probeAgentAuthStatus({ def: { id: 'generic-cli', name: 'Generic', authProbe: { args: ['whoami'] } }, resolvedBin: '/bin/generic', env: {} }, { hostName: 'FakeHost' });
+    expect(result).toEqual({
+      status: 'missing',
+      message: 'Generic appears to be installed but is not authenticated. Sign in with the CLI in a terminal, then rescan. If FakeHost was launched outside an interactive shell, your shell rc files (e.g. ~/.zshrc) may not be loaded into its environment.',
+      exitCode: 2,
+      signal: null,
+      stdoutTail: 'out',
+      stderrTail: 'err',
+    });
+  });
+
+  it('probeAgentAuthStatus returns the full unknown result with tails, numeric exit and signal on an unclassified rejection', async () => {
+    mockState.execFileImpl = (_f, _a, _o, cb) => {
+      cb(Object.assign(new Error('Command failed'), { code: 3, signal: 'SIGKILL', stdout: 'so', stderr: 'se' }));
+    };
+    const result = await probeAgentAuthStatus({ def: { id: 'generic-cli', name: 'Generic', authProbe: { args: ['auth', 'whoami'] } }, resolvedBin: '/bin/generic', env: {} });
+    expect(result).toEqual({
+      status: 'unknown',
+      message: 'Generic authentication status could not be verified with `generic-cli auth whoami`.',
+      exitCode: 3,
+      signal: 'SIGKILL',
+      stdoutTail: 'so',
+      stderrTail: 'se',
+    });
+  });
+});
