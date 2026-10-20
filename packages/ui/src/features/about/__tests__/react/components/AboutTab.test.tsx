@@ -309,4 +309,54 @@ describe('AboutTab', () => {
     expect(screen.getByText('Version (fr)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Télécharger' })).toBeInTheDocument();
   });
+  it('keeps the update button disabled while the host action is still pending', async () => {
+    const onPerformUpdateAction = vi.fn(() => new Promise<void>(() => {}));
+    renderTab({ onPerformUpdateAction });
+    const button = screen.getByTestId('about-update-action');
+    await userEvent.click(button);
+    expect(button).toBeDisabled();
+  });
+
+  it('honours an empty-string label override instead of falling back to the default', () => {
+    render(
+      <AboutTab
+        appVersionInfo={versionInfo()}
+        updaterModel={model()}
+        onPerformUpdateAction={vi.fn().mockResolvedValue(undefined)}
+        onOpenReleaseLink={vi.fn()}
+        labels={{ packagedLabel: '' }}
+      />,
+    );
+    expect(screen.queryByText('Packaged')).not.toBeInTheDocument();
+    expect(screen.getByText('Runtime')).toBeInTheDocument();
+  });
+
+  it('renders no channel row for an empty-string channel', () => {
+    renderTab({ appVersionInfo: versionInfo({ channel: '' }) });
+    expect(screen.queryByText('Channel')).not.toBeInTheDocument();
+  });
+  it('disables the silent-updates toggle while its write is still pending', async () => {
+    render(
+      <AboutTab
+        appVersionInfo={versionInfo()}
+        updaterModel={model()}
+        onPerformUpdateAction={vi.fn().mockResolvedValue(undefined)}
+        onOpenReleaseLink={vi.fn()}
+        onSilentUpdatePreferenceChange={() => new Promise<void>(() => {})}
+      />,
+    );
+    const toggle = screen.getByTestId('about-silent-updates-toggle');
+    await userEvent.click(toggle);
+    expect(toggle).toBeDisabled();
+  });
+
+  it('runs the action the current state offers, e.g. download when an update is available', async () => {
+    const onPerformUpdateAction = vi.fn().mockResolvedValue(undefined);
+    renderTab({
+      onPerformUpdateAction,
+      updaterModel: model({ status: { state: 'available' }, canDownload: true, availableVersion: '2.0.0' }),
+    });
+    await userEvent.click(screen.getByTestId('about-update-action'));
+    expect(onPerformUpdateAction).toHaveBeenCalledWith('download');
+  });
 });
