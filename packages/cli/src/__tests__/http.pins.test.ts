@@ -89,6 +89,14 @@ describe('http pins: request shape and auth header', () => {
     expect(h.calls[0]?.init.body).toBeUndefined();
   });
 
+  it('reports a POST body JSON.stringify cannot serialize as daemon-not-running without calling fetch (reported, not fixed)', async () => {
+    const h = harness(async () => Response.json({}));
+    await expect(postJsonToDaemon({ base: 'http://h', route: '/r', body: { n: 10n } }, h.options)).rejects.toBeInstanceOf(ExitSentinel);
+    expect(h.calls).toEqual([]);
+    expect(envelope(h).error.code).toBe('daemon-not-running');
+    expect(envelope(h).error.data).toEqual({ diagnostics: ['failed to reach daemon at http://h: Do not know how to serialize a BigInt'] });
+  });
+
   it('GET sends only the caller headers, no content-type and no body key', async () => {
     const h = harness(async () => Response.json({ ok: 1 }), { headers: { authorization: `Bearer ${TOKEN}` } });
     await getJsonFromDaemon({ base: 'http://h', route: '/r' }, h.options);
@@ -253,6 +261,13 @@ describe('http pins: deadline and exit codes', () => {
     await expect(getJsonFromDaemon({ base: 'http://h', route: '/r' }, h.options)).rejects.toBeInstanceOf(ExitSentinel);
     expect(h.exitCodes).toEqual([67]);
     expect(envelope(h).error).toEqual({ code: 'missing-input', message: 'no such run', data: { runId: 'r1', retryable: false } });
+  });
+
+  it('treats a code only the caller exitCodes table knows as recognized, keeping the daemon message and data', async () => {
+    const h = harness(async () => Response.json({ error: { code: 'pack-specific', message: 'pack said no', retryable: true } }, { status: 409 }), { exitCodes: { 'pack-specific': 77 } });
+    await expect(getJsonFromDaemon({ base: 'http://h', route: '/r' }, h.options)).rejects.toBeInstanceOf(ExitSentinel);
+    expect(h.exitCodes).toEqual([77]);
+    expect(envelope(h).error).toEqual({ code: 'pack-specific', message: 'pack said no', data: { retryable: true } });
   });
 
   it('falls back to http-error when the daemon code is not a string', async () => {
