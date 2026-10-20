@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { ResourceBoardView, type ResourceBoardViewProps } from './ResourceBoardView.js';
-import type { ResourceBoardItem } from '../../types.js';
+import { ResourceBoardView, type ResourceBoardViewProps } from '../react/components/ResourceBoardView.js';
+import type { ResourceBoardItem } from '../types.js';
 
 const ITEM_A: ResourceBoardItem = { id: 'a', title: 'Alpha', status: 'running', menuActions: [{ kind: 'delete', label: 'Delete' }] };
 const ITEM_B: ResourceBoardItem = { id: 'b', title: 'Beta', status: 'succeeded' };
@@ -214,5 +214,43 @@ describe('ResourceBoardView', () => {
     expect(screen.getAllByTestId('resource-status-pill')[0]).toHaveClass('tone-active');
     expect(screen.getByRole('menuitem', { name: 't:Delete' })).toBeInTheDocument();
     expect(screen.getByText('body-a')).toBeInTheDocument();
+  });
+
+  it('forwards activeSort to the toolbar so the matching sort option is pressed', () => {
+    render(<ResourceBoardView {...baseProps({ sortOptions: [{ value: 'recent', label: 'Recent' }, { value: 'name', label: 'Name' }], activeSort: 'recent' })} />);
+    expect(screen.getByRole('button', { name: 'Recent' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Name' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('renders no status pill on a grid card whose item has no status', () => {
+    render(<ResourceBoardView {...baseProps({ items: [{ id: 'c', title: 'Gamma' }] })} />);
+    expect(screen.getByText('Gamma')).toBeInTheDocument();
+    expect(screen.queryByTestId('resource-status-pill')).not.toBeInTheDocument();
+  });
+
+  it('attaches menuContainerRef to the open card menu anchor', () => {
+    const menuContainerRef: React.RefObject<HTMLDivElement | null> = { current: null };
+    render(<ResourceBoardView {...baseProps({ openMenuId: 'a', menuContainerRef })} />);
+    expect(menuContainerRef.current).toHaveClass('resource-board-card-menu-anchor');
+  });
+
+  it('shows no empty state alongside a load error, even with zero items', () => {
+    const { container } = render(<ResourceBoardView {...baseProps({ items: [], error: 'down' })} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('down');
+    expect(container.querySelector('.resource-board-empty')).toBeNull();
+  });
+
+  it('adds the is-kanban modifier to the root only in kanban view', () => {
+    const { container, rerender } = render(<ResourceBoardView {...baseProps()} />);
+    expect(container.firstElementChild).not.toHaveClass('is-kanban');
+    rerender(<ResourceBoardView {...baseProps({ viewMode: 'kanban' })} />);
+    expect(container.firstElementChild).toHaveClass('resource-board', 'is-kanban');
+  });
+
+  it('checks only the selected cards in select mode', () => {
+    render(<ResourceBoardView {...baseProps({ selectMode: true, selected: new Set(['b']) })} />);
+    const [first, second] = screen.getAllByTestId('resource-board-card-checkbox');
+    expect(first).not.toHaveClass('checked');
+    expect(second).toHaveClass('checked');
   });
 });
