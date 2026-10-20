@@ -261,3 +261,43 @@ describe('useRootKeyTab', () => {
     expect(view.result.current).toMatchObject({ token: '', confirm: '', result: null });
   });
 });
+
+describe('useRootKeyTab boundaries', () => {
+  it('reads as loading with nothing known before the controller exists', () => {
+    const view = mountRoot();
+    expect(view.first()).toMatchObject({ denied: false, loading: true, saving: false, status: undefined, error: undefined, result: undefined, preview: undefined, token: '', confirm: '', confirming: false, locked: false, canGenerate: false, canConfirm: false });
+  });
+  it('does not offer generation for an active key reported as missing', async () => {
+    const view = mountRoot({ rootKey: createMemoryRootKey({ status: { ...lockedStatus, state: 'missing', active: true } }) });
+    await waitFor(() => expect(view.result.current.status?.active).toBe(true)); expect(view.result.current.canGenerate).toBe(false);
+  });
+  it('falls back to the default scope notice when the host notice is not text', () => {
+    expect(mountRoot({ params: { scopeNotice: 42 } }).result.current.scopeNotice).toBe('This key protects saved credentials. Keep its backup separate from the database.');
+  });
+  it('cannot confirm a typed phrase without a preview', async () => {
+    const view = mountRoot({ rootKey: createMemoryRootKey({ status: lockedStatus }) }); await waitFor(() => expect(view.result.current.locked).toBe(true));
+    act(() => view.result.current.onConfirmText({ value: 'START FRESH' })); expect(view.result.current).toMatchObject({ confirm: 'START FRESH', canConfirm: false });
+  });
+  it('treats a mismatched key as locked', async () => { const view = mountRoot({ rootKey: createMemoryRootKey({ status: { ...lockedStatus, state: 'mismatch' } }) }); await waitFor(() => expect(view.result.current.locked).toBe(true)); });
+});
+
+describe('useAccessTokensTab boundaries', () => {
+  it('matches addable providers by id as well as label', async () => {
+    const securityApi = createMemorySecurityApi({ providers: [{ ...providers[0]!, id: 'forge-7', label: 'Forge' }], rows: [] });
+    const view = mountTokens({ securityApi }); await settled(view);
+    act(() => view.result.current.onQuery({ value: 'forge-7' })); expect(view.result.current.providers.map(p => p.provider.id)).toEqual(['forge-7']);
+  });
+  it('reports busy while another-store write is pending', async () => {
+    let release!: () => void; const otherCredentials = createMemoryOtherCredentials({ rows: others });
+    otherCredentials.replace = () => new Promise<void>(r => { release = r; });
+    const view = mountTokens({ otherCredentials }); await settled(view);
+    act(() => view.result.current.otherRows[0]!.onToken({ value: 'k' }));
+    act(() => { view.result.current.otherRows[0]!.replace(); }); await waitFor(() => expect(view.result.current.saving).toBe(true));
+    await act(async () => { release(); }); await waitFor(() => expect(view.result.current.saving).toBe(false));
+  });
+  it('lists the controller error before store errors', async () => {
+    const view = mountTokens(); await settled(view);
+    act(() => { view.result.current.addCustom(); }); await act(async () => { await view.result.current.controller!.save({}); });
+    expect(view.result.current.errors).toEqual(['Enter a name']);
+  });
+});

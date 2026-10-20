@@ -1,14 +1,27 @@
 import type { CredentialStorePort, SecurityApiPort, OtherCredentialsPort, RootKeyPort } from '../ports.js';
 import type { CredentialSummary, CredentialProvider, CredentialKind, CredentialPatch, OtherCredentialSummary, RootKeyStatus, RootKeyResult, RootKeyPreview } from '../models.js';
 import { START_FRESH_CONFIRMATION } from '../rules.js';
+function customUsernameField({ patch }: { patch: CredentialPatch }, { initial }: { initial?: CredentialSummary | undefined } = {}) {
+  const username = patch.username !== undefined ? patch.username : patch.connection?.username ?? initial?.username;
+  return username ? { username } : {};
+}
+function customHosts({ patch }: { patch: CredentialPatch }, { initial }: { initial?: CredentialSummary | undefined } = {}) { return Object.freeze([...(patch.additionalHosts ?? initial?.additionalHosts ?? [])]); }
+function customProjection({ patch }: { patch: CredentialPatch }, { initial }: { initial?: CredentialSummary | undefined } = {}) {
+  return { category: patch.category ?? initial?.category ?? 'general', baseUrl: patch.baseUrl ?? initial?.baseUrl ?? '', additionalHosts: customHosts({ patch }, { initial }), ...customUsernameField({ patch }, { initial }) };
+}
 /** Fake backend: retains only read models, never credential material. */
 export function createMemorySecurityApi({ providers = [], rows = [] }: { providers?: readonly CredentialProvider[]; rows?: readonly CredentialSummary[] }, _optional = {}): SecurityApiPort {
   let items = rows.map(r => Object.freeze({ ...r })); let sequence = 0;
   function store(kind: CredentialKind): CredentialStorePort {
-    function project(id: string, patch: CredentialPatch, providerId: string, initial?: CredentialSummary): CredentialSummary {
+    function isDefaultFor({ patch, providerId }: { patch: CredentialPatch; providerId: string }, { initial }: { initial?: CredentialSummary | undefined } = {}) {
+      if (kind === 'custom') return false;
+      return patch.isDefault ?? initial?.isDefault ?? !items.some(r => r.kind === kind && r.providerId === providerId);
+    }
+    /** The caller resolves the label: create requires one, update falls back to the saved label. */
+    function project({ id, patch, providerId, label }: { id: string; patch: CredentialPatch; providerId: string; label: string }, { initial }: { initial?: CredentialSummary | undefined } = {}): CredentialSummary {
       const now = new Date().toISOString();
-      return Object.freeze({ kind, id, providerId, label: patch.label ?? initial?.label ?? '', configured: true, isDefault: kind === 'custom' ? false : patch.isDefault ?? initial?.isDefault ?? !items.some(r => r.kind === kind && r.providerId === providerId), createdAt: initial?.createdAt ?? now, updatedAt: now,
-        ...(kind === 'custom' ? { category: patch.category ?? initial?.category ?? 'general', baseUrl: patch.baseUrl ?? initial?.baseUrl ?? '', additionalHosts: Object.freeze([...(patch.additionalHosts ?? initial?.additionalHosts ?? [])]), ...((patch.username !== undefined ? patch.username : patch.connection?.username ?? initial?.username) ? { username: (patch.username !== undefined ? patch.username : patch.connection?.username ?? initial?.username)! } : {}) } : {}),
+      return Object.freeze({ kind, id, providerId, label, configured: true, isDefault: isDefaultFor({ patch, providerId }, { initial }), createdAt: initial?.createdAt ?? now, updatedAt: now,
+        ...(kind === 'custom' ? customProjection({ patch }, { initial }) : {}),
       });
     }
     function check(label: string, providerId: string, id?: string) { if (items.some(r => r.kind === kind && r.id !== id && (kind === 'custom' || r.providerId === providerId) && r.label.toLowerCase() === label.toLowerCase())) throw new Error('Duplicate label'); }
@@ -18,8 +31,8 @@ export function createMemorySecurityApi({ providers = [], rows = [] }: { provide
     }
     return {
       async list(_r, o = {}) { o.signal?.throwIfAborted(); return Object.freeze(items.filter(r => r.kind === kind)); },
-      async create(input, o = {}) { o.signal?.throwIfAborted(); if (!Object.values(input.connection).some(v => v.trim()) || !input.label.trim()) throw new Error('Incomplete credential'); const providerId = kind === 'custom' ? '' : input.connection.providerId ?? ''; check(input.label, providerId); return insert(project(`credential-${++sequence}`, input, providerId)); },
-      async update({ id, patch }, o = {}) { o.signal?.throwIfAborted(); const old = items.find(r => r.id === id && r.kind === kind); if (!old) throw new Error('Credential not found'); check(patch.label ?? old.label, old.providerId, id); return insert(project(id, patch, old.providerId, old)); },
+      async create(input, o = {}) { o.signal?.throwIfAborted(); if (!Object.values(input.connection).some(v => v.trim()) || !input.label.trim()) throw new Error('Incomplete credential'); const providerId = kind === 'custom' ? '' : input.connection.providerId ?? ''; check(input.label, providerId); return insert(project({ id: `credential-${++sequence}`, patch: input, providerId, label: input.label })); },
+      async update({ id, patch }, o = {}) { o.signal?.throwIfAborted(); const old = items.find(r => r.id === id && r.kind === kind); if (!old) throw new Error('Credential not found'); const label = patch.label ?? old.label; check(label, old.providerId, id); return insert(project({ id, patch, providerId: old.providerId, label }, { initial: old })); },
       async remove({ id }, o = {}) { o.signal?.throwIfAborted(); const old = items.find(r => r.id === id && r.kind === kind); items = items.filter(r => !(r.id === id && r.kind === kind)); if (old?.isDefault) { const next = items.filter(r => r.kind === kind && r.providerId === old.providerId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]; if (next) insert(Object.freeze({ ...next, isDefault: true })); } },
     };
   }
