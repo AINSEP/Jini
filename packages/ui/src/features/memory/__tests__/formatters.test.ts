@@ -23,17 +23,14 @@ import {
   memoryTypeLabels,
   parseProviderError,
   providerDisplayName,
-} from '../../../features/memory/formatters.js';
-import type { ConnectorMemoryAttempt, ConnectorMemorySuggestionResponse, MemoryExtractionRecord } from '../../../features/memory/types.js';
+} from '../formatters.js';
+import type { ConnectorMemoryAttempt, ConnectorMemorySuggestionResponse, MemoryExtractionRecord } from '../types.js';
 
 // A key-echo fake with the same interpolation contract as the real
 // `I18nProvider`'s passthrough mode: `t(key)` returns `key`, `t(key, vars)`
 // substitutes `{name}` placeholders.
-const t = ((key: string, vars?: Record<string, unknown>) =>
-  vars ? key.replace(/\{(\w+)\}/g, (_match, name: string) => String(vars[name])) : key) as unknown as (
-  key: string,
-  vars?: Record<string, unknown>,
-) => string;
+const t = (key: string, vars?: Record<string, string | number>): string =>
+  vars ? key.replace(/\{(\w+)\}/g, (_match, name: string) => String(vars[name])) : key;
 
 function record(over: Partial<MemoryExtractionRecord> = {}): MemoryExtractionRecord {
   return { id: 'r', startedAt: 1_000, phase: 'success', userMessagePreview: '', ...over };
@@ -113,6 +110,44 @@ describe('parseProviderError', () => {
 
   it('leaves status null when neither top-level nor error carries one and no 4xx/5xx appears', () => {
     expect(parseProviderError('{"error":{"message":"hmm"}}')).toEqual({ message: 'hmm', code: '', status: null });
+  });
+});
+
+describe('parseProviderError boundaries', () => {
+  it('prefers the nested error message over a top-level message', () => {
+    expect(parseProviderError('{"message":"top","error":{"message":"nested"}}').message).toBe('nested');
+  });
+
+  it('prefers the nested error code over a top-level code', () => {
+    expect(parseProviderError('{"code":"top","error":{"code":"nested"}}').code).toBe('nested');
+  });
+
+  it('prefers the top-level status over the nested error status', () => {
+    expect(parseProviderError('{"status":500,"error":{"status":401}}').status).toBe(500);
+  });
+
+  it('prefers a json status over a 4xx/5xx number in the surrounding text', () => {
+    expect(parseProviderError('HTTP 503 {"status":429}').status).toBe(429);
+  });
+
+  it('falls back to a 4xx/5xx number in the text when the json carries no status', () => {
+    expect(parseProviderError('HTTP 502 {"message":"bad gateway"}')).toEqual({ message: 'bad gateway', code: '', status: 502 });
+  });
+
+  it('ignores non-string message/code and non-number status values', () => {
+    expect(parseProviderError('{"message":5,"code":7,"status":"401"}')).toEqual({
+      message: '{"message":5,"code":7,"status":"401"}',
+      code: '',
+      status: 401,
+    });
+  });
+
+  it('keeps the whole trimmed raw text as the message when there is no json', () => {
+    expect(parseProviderError('  upstream\n  exploded  ')).toEqual({ message: 'upstream exploded', code: '', status: null });
+  });
+
+  it('ignores 3-digit numbers outside the 4xx/5xx range and inside longer numbers', () => {
+    expect(parseProviderError('code 301 id 14041').status).toBeNull();
   });
 });
 
@@ -277,6 +312,104 @@ describe('extractionCardTitle', () => {
     expect(extractionCardTitle(record({ kind: 'connector', phase: 'success', writtenCount: 1 }), t)).toBe('Saved 1 memory');
     expect(extractionCardTitle(record({ kind: 'connector', phase: 'success', writtenCount: 0 }), t)).toBe('No new memories found');
     expect(extractionCardTitle(record({ kind: 'connector', phase: 'deleted' }), t)).toBe('Connected app scan');
+  });
+});
+
+describe('extractionCardTitle boundaries', () => {
+  it('treats a missing kind as llm and uses the preview', () => {
+    expect(extractionCardTitle(record({ kind: undefined, userMessagePreview: 'hello' }), t)).toBe('hello');
+  });
+
+  it('says no new memories for a connector success without a written count', () => {
+    expect(extractionCardTitle(record({ kind: 'connector', phase: 'success', writtenCount: undefined }), t)).toBe('No new memories found');
+  });
+
+  it('says no new memories for a connector success with a negative written count', () => {
+    expect(extractionCardTitle(record({ kind: 'connector', phase: 'success', writtenCount: -1 }), t)).toBe('No new memories found');
+  });
+
+  it('interpolates the exact count and plural label', () => {
+    expect(extractionCardTitle(record({ kind: 'connector', phase: 'success', writtenCount: 7 }), t)).toBe('Saved 7 memories');
+  });
+});
+
+describe('extractionCardMeta boundaries', () => {
+  it('treats a missing kind as llm and returns the timestamp-led line', () => {
+    const out = extractionCardMeta(record({ kind: undefined, startedAt: 0, phase: 'running' }), 1_000, t);
+    expect(out).toBe(`${formatAbsoluteTime(0, 1_000)} · 1s`);
+  });
+
+  it('says checked selected apps for a connector success without a written count', () => {
+    expect(extractionCardMeta(record({ kind: 'connector', startedAt: 0, phase: 'success', writtenCount: undefined }), 30_000, t)).toBe(
+      'Checked selected apps · 30s ago',
+    );
+  });
+
+  it('renders the exact connector failure line with the age', () => {
+    expect(extractionCardMeta(record({ kind: 'connector', startedAt: 0, phase: 'failed' }), 0, t)).toBe('Needs attention · just now');
+  });
+
+  it('renders the exact connector skipped, written, and fallback lines', () => {
+    const meta = (over: Partial<MemoryExtractionRecord>) => extractionCardMeta(record({ kind: 'connector', startedAt: 0, ...over }), 120_000, t);
+    expect(meta({ phase: 'skipped' })).toBe('Skipped · 2m ago');
+    expect(meta({ phase: 'success', writtenCount: 2 })).toBe('From connected apps · 2m ago');
+    expect(meta({ phase: 'deleted' })).toBe('Connected apps · 2m ago');
+  });
+
+  it('includes a zero written count for an llm success but not for an llm failure', () => {
+    const at = formatAbsoluteTime(0, 5_000);
+    expect(extractionCardMeta(record({ kind: 'llm', startedAt: 0, finishedAt: 500, phase: 'success', writtenCount: 0 }), 5_000, t)).toBe(
+      `${at} · 5s · took 500ms · 0 saved`,
+    );
+    expect(extractionCardMeta(record({ kind: 'llm', startedAt: 0, finishedAt: 500, phase: 'failed', writtenCount: 3 }), 5_000, t)).toBe(
+      `${at} · 5s · took 500ms`,
+    );
+  });
+});
+
+describe('describeExtractionFailure boundaries', () => {
+  it('builds the exact auth copy for a keyed provider from a 401 status', () => {
+    expect(describeExtractionFailure(record({ phase: 'failed', error: '{"status":401}', provider: { kind: 'openai' } }))).toEqual({
+      title: 'OpenAI authentication expired',
+      detail: 'Memory extraction could not run for this chat.',
+      action: 'Update the memory extraction model key or sign in again.',
+    });
+  });
+
+  it('classifies auth before quota when both match', () => {
+    expect(describeExtractionFailure(record({ phase: 'failed', error: 'invalid_api_key and quota exceeded' }))?.title).toBe(
+      'Memory model authentication expired',
+    );
+  });
+
+  it('builds the exact quota copy from a 429 status for a connector', () => {
+    expect(describeExtractionFailure(record({ phase: 'failed', kind: 'connector', error: '{"status":429}' }))).toEqual({
+      title: 'Memory model quota or rate limit hit',
+      detail: 'Connected apps were read, but the assistant could not turn that context into memory.',
+      action: 'Try again later or switch the memory extraction model.',
+    });
+  });
+
+  it('builds the exact network copy for a keyed provider', () => {
+    expect(describeExtractionFailure(record({ phase: 'failed', error: 'request timed out', provider: { kind: 'google' } }))).toEqual({
+      title: 'Google Gemini request failed',
+      detail: 'Memory extraction could not run for this chat.',
+      action: 'Check the model provider connection and try again.',
+    });
+  });
+
+  it('matches classification keywords found only in the json code', () => {
+    expect(describeExtractionFailure(record({ phase: 'failed', error: '{"error":{"message":"x","code":"insufficient_quota"}}' }))?.title).toBe(
+      'Memory model quota or rate limit hit',
+    );
+  });
+
+  it('builds the exact generic copy for a keyed provider', () => {
+    expect(describeExtractionFailure(record({ phase: 'failed', error: 'odd' }))).toEqual({
+      title: 'Memory extraction failed',
+      detail: 'odd',
+      action: 'Try again after checking the memory extraction model settings.',
+    });
   });
 });
 

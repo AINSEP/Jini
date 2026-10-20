@@ -64,86 +64,119 @@ export function providerDisplayName(provider: MemoryExtractionRecord['provider']
   }
 }
 
-export function parseProviderError(raw: string): { message: string; code: string; status: number | null } {
+type ProviderErrorFields = { message?: string | undefined; code?: string | undefined; status?: number | undefined };
+
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
+function isNumber(value: unknown): value is number {
+  return typeof value === 'number';
+}
+
+// Reads message/code/status out of the first `{...}` in the raw provider
+// error. The nested `error.*` field wins for message/code; the top-level
+// field wins for status.
+function parseJsonErrorFields(raw: string): ProviderErrorFields {
   const jsonStart = raw.indexOf('{');
-  let message = raw.trim();
-  let code = '';
-  let status: number | null = null;
-
-  if (jsonStart >= 0) {
-    try {
-      const parsed = JSON.parse(raw.slice(jsonStart));
-      const error = parsed?.error;
-      if (typeof error?.message === 'string') message = error.message;
-      else if (typeof parsed?.message === 'string') message = parsed.message;
-      if (typeof error?.code === 'string') code = error.code;
-      else if (typeof parsed?.code === 'string') code = parsed.code;
-      if (typeof parsed?.status === 'number') status = parsed.status;
-      else if (typeof error?.status === 'number') status = error.status;
-    } catch {
-      // Fall through to regex parsing below.
-    }
+  if (jsonStart < 0) return {};
+  try {
+    // Text starting at `{` can only parse to an object, so `parsed` is never null.
+    const parsed = JSON.parse(raw.slice(jsonStart));
+    const error = parsed.error;
+    return {
+      message: [error?.message, parsed.message].find(isString),
+      code: [error?.code, parsed.code].find(isString),
+      status: [parsed.status, error?.status].find(isNumber),
+    };
+  } catch {
+    // Fall through to regex parsing below.
+    return {};
   }
+}
 
+export function parseProviderError(raw: string): { message: string; code: string; status: number | null } {
+  const fields = parseJsonErrorFields(raw);
   const statusMatch = /\b(4\d\d|5\d\d)\b/.exec(raw);
-  if (status === null && statusMatch?.[1]) status = Number(statusMatch[1]);
-
   return {
-    message: message.replace(/\s+/g, ' ').trim(),
-    code,
-    status,
+    message: (fields.message ?? raw.trim()).replace(/\s+/g, ' ').trim(),
+    code: fields.code ?? '',
+    status: fields.status ?? (statusMatch ? Number(statusMatch[1]) : null),
   };
+}
+
+type FailureCategory = 'auth' | 'quota' | 'network' | 'other';
+
+function classifyFailure({ status, haystack }: { status: number | null; haystack: string }): FailureCategory {
+  if (status === 401 || /token[_ -]?expired|authentication token has expired|invalid[_ -]?api[_ -]?key|unauthorized/.test(haystack)) {
+    return 'auth';
+  }
+  if (status === 429 || /rate limit|quota|too many requests|insufficient_quota/.test(haystack)) return 'quota';
+  if (/network|fetch failed|timeout|timed out|econnreset|enotfound/.test(haystack)) return 'network';
+  return 'other';
+}
+
+function failureCopy({
+  category,
+  providerName,
+  usesChatCli,
+  source,
+  message,
+}: {
+  category: FailureCategory;
+  providerName: string;
+  usesChatCli: boolean;
+  source: string;
+  message: string;
+}): FriendlyExtractionFailure {
+  switch (category) {
+    case 'auth':
+      return {
+        title: `${providerName} authentication expired`,
+        detail: source,
+        action: usesChatCli
+          ? 'Sign in to the selected local CLI or choose a different memory model.'
+          : 'Update the memory extraction model key or sign in again.',
+      };
+    case 'quota':
+      return {
+        title: `${providerName} quota or rate limit hit`,
+        detail: source,
+        action: 'Try again later or switch the memory extraction model.',
+      };
+    case 'network':
+      return {
+        title: `${providerName} request failed`,
+        detail: source,
+        action: usesChatCli
+          ? 'Check the selected local CLI and try again.'
+          : 'Check the model provider connection and try again.',
+      };
+    default:
+      return {
+        title: 'Memory extraction failed',
+        detail: message || source,
+        action: usesChatCli
+          ? 'Try again after checking the selected local CLI.'
+          : 'Try again after checking the memory extraction model settings.',
+      };
+  }
 }
 
 export function describeExtractionFailure(record: MemoryExtractionRecord): FriendlyExtractionFailure | null {
   if (record.phase !== 'failed' || !record.error) return null;
-  const providerName = providerDisplayName(record.provider);
-  const usesChatCli = record.provider?.credentialSource === 'chat-cli';
   const parsed = parseProviderError(record.error);
   const haystack = `${parsed.message} ${parsed.code} ${record.error}`.toLowerCase();
-  const source =
-    record.kind === 'connector'
-      ? 'Connected apps were read, but the assistant could not turn that context into memory.'
-      : 'Memory extraction could not run for this chat.';
-
-  if (
-    parsed.status === 401
-    || /token[_ -]?expired|authentication token has expired|invalid[_ -]?api[_ -]?key|unauthorized/.test(haystack)
-  ) {
-    return {
-      title: `${providerName} authentication expired`,
-      detail: source,
-      action: usesChatCli
-        ? 'Sign in to the selected local CLI or choose a different memory model.'
-        : 'Update the memory extraction model key or sign in again.',
-    };
-  }
-
-  if (parsed.status === 429 || /rate limit|quota|too many requests|insufficient_quota/.test(haystack)) {
-    return {
-      title: `${providerName} quota or rate limit hit`,
-      detail: source,
-      action: 'Try again later or switch the memory extraction model.',
-    };
-  }
-
-  if (/network|fetch failed|timeout|timed out|econnreset|enotfound/.test(haystack)) {
-    return {
-      title: `${providerName} request failed`,
-      detail: source,
-      action: usesChatCli
-        ? 'Check the selected local CLI and try again.'
-        : 'Check the model provider connection and try again.',
-    };
-  }
-
-  return {
-    title: 'Memory extraction failed',
-    detail: parsed.message || source,
-    action: usesChatCli
-      ? 'Try again after checking the selected local CLI.'
-      : 'Try again after checking the memory extraction model settings.',
-  };
+  return failureCopy({
+    category: classifyFailure({ status: parsed.status, haystack }),
+    providerName: providerDisplayName(record.provider),
+    usesChatCli: record.provider?.credentialSource === 'chat-cli',
+    source:
+      record.kind === 'connector'
+        ? 'Connected apps were read, but the assistant could not turn that context into memory.'
+        : 'Memory extraction could not run for this chat.',
+    message: parsed.message,
+  });
 }
 
 export function formatConnectorContextBytes(bytes: number): string {
@@ -272,42 +305,58 @@ export function memoryCountLabel(count: number): string {
   return count === 1 ? 'memory' : 'memories';
 }
 
+// The record's written count when it is a positive number, else 0.
+function positiveWrittenCount(record: MemoryExtractionRecord): number {
+  const count = record.writtenCount;
+  return typeof count === 'number' && count > 0 ? count : 0;
+}
+
+function connectorCardTitle({ record, t }: { record: MemoryExtractionRecord; t: Translate }): string {
+  switch (record.phase) {
+    case 'running':
+      return t('Scanning connected apps');
+    case 'failed':
+      return t('Connected app scan failed');
+    case 'skipped':
+      return t('Connected app scan skipped');
+    case 'success': {
+      const writtenCount = positiveWrittenCount(record);
+      if (writtenCount > 0) {
+        return t('Saved {count} {label}', { count: writtenCount, label: memoryCountLabel(writtenCount) });
+      }
+      return t('No new memories found');
+    }
+    default:
+      return t('Connected app scan');
+  }
+}
+
 export function extractionCardTitle(record: MemoryExtractionRecord, t: Translate): string {
   const kind = record.kind ?? 'llm';
   if (kind !== 'connector') {
     return record.userMessagePreview || t('Extraction');
   }
-
-  if (record.phase === 'running') return t('Scanning connected apps');
-  if (record.phase === 'failed') return t('Connected app scan failed');
-  if (record.phase === 'skipped') return t('Connected app scan skipped');
-
-  if (record.phase === 'success') {
-    const writtenCount = typeof record.writtenCount === 'number' ? record.writtenCount : null;
-    if (writtenCount && writtenCount > 0) {
-      return t('Saved {count} {label}', { count: writtenCount, label: memoryCountLabel(writtenCount) });
-    }
-    return t('No new memories found');
-  }
-
-  return t('Connected app scan');
+  return connectorCardTitle({ record, t });
 }
 
-export function extractionCardMeta(record: MemoryExtractionRecord, now: number, t: Translate): string {
-  const kind = record.kind ?? 'llm';
+function connectorCardMeta({ record, now, t }: { record: MemoryExtractionRecord; now: number; t: Translate }): string {
+  if (record.phase === 'running') return t('Checking selected apps');
   const age = formatRelativeTimeAgo(record.startedAt, now);
-  if (kind === 'connector') {
-    if (record.phase === 'running') return t('Checking selected apps');
-    if (record.phase === 'failed') return `${t('Needs attention')} · ${age}`;
-    if (record.phase === 'skipped') return `${t('Skipped')} · ${age}`;
-    if (record.phase === 'success') {
-      const writtenCount = typeof record.writtenCount === 'number' ? record.writtenCount : null;
-      const result = writtenCount && writtenCount > 0 ? t('From connected apps') : t('Checked selected apps');
+  switch (record.phase) {
+    case 'failed':
+      return `${t('Needs attention')} · ${age}`;
+    case 'skipped':
+      return `${t('Skipped')} · ${age}`;
+    case 'success': {
+      const result = positiveWrittenCount(record) > 0 ? t('From connected apps') : t('Checked selected apps');
       return `${result} · ${age}`;
     }
-    return `${t('Connected apps')} · ${age}`;
+    default:
+      return `${t('Connected apps')} · ${age}`;
   }
+}
 
+function modelCardMeta({ record, now, t }: { record: MemoryExtractionRecord; now: number; t: Translate }): string {
   const duration = formatDuration(record);
   const parts = [formatAbsoluteTime(record.startedAt, now), formatRelativeTime(record.startedAt, now)];
   if (duration) parts.push(`${t('took')} ${duration}`);
@@ -315,6 +364,12 @@ export function extractionCardMeta(record: MemoryExtractionRecord, now: number, 
     parts.push(`${record.writtenCount} ${t('saved')}`);
   }
   return parts.join(' · ');
+}
+
+export function extractionCardMeta(record: MemoryExtractionRecord, now: number, t: Translate): string {
+  const kind = record.kind ?? 'llm';
+  if (kind === 'connector') return connectorCardMeta({ record, now, t });
+  return modelCardMeta({ record, now, t });
 }
 
 /** Localized labels for each memory type badge. `t`-only, so callers memoize on
