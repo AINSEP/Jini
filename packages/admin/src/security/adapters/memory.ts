@@ -1,24 +1,24 @@
 import type { CredentialStorePort, SecurityApiPort, OtherCredentialsPort, RootKeyPort } from '../ports.js';
 import type { CredentialSummary, CredentialProvider, CredentialKind, CredentialPatch, OtherCredentialSummary, RootKeyStatus, RootKeyResult, RootKeyPreview } from '../models.js';
 import { START_FRESH_CONFIRMATION } from '../rules.js';
-function customUsernameField({ patch }: { patch: CredentialPatch }, { initial }: { initial?: CredentialSummary } = {}) {
+function customUsernameField({ patch }: { patch: CredentialPatch }, { initial }: { initial?: CredentialSummary | undefined } = {}) {
   const username = patch.username !== undefined ? patch.username : patch.connection?.username ?? initial?.username;
   return username ? { username } : {};
 }
-function customHosts({ patch }: { patch: CredentialPatch }, { initial }: { initial?: CredentialSummary } = {}) { return Object.freeze([...(patch.additionalHosts ?? initial?.additionalHosts ?? [])]); }
-function customProjection({ patch }: { patch: CredentialPatch }, { initial }: { initial?: CredentialSummary } = {}) {
+function customHosts({ patch }: { patch: CredentialPatch }, { initial }: { initial?: CredentialSummary | undefined } = {}) { return Object.freeze([...(patch.additionalHosts ?? initial?.additionalHosts ?? [])]); }
+function customProjection({ patch }: { patch: CredentialPatch }, { initial }: { initial?: CredentialSummary | undefined } = {}) {
   return { category: patch.category ?? initial?.category ?? 'general', baseUrl: patch.baseUrl ?? initial?.baseUrl ?? '', additionalHosts: customHosts({ patch }, { initial }), ...customUsernameField({ patch }, { initial }) };
 }
 /** Fake backend: retains only read models, never credential material. */
 export function createMemorySecurityApi({ providers = [], rows = [] }: { providers?: readonly CredentialProvider[]; rows?: readonly CredentialSummary[] }, _optional = {}): SecurityApiPort {
   let items = rows.map(r => Object.freeze({ ...r })); let sequence = 0;
   function store(kind: CredentialKind): CredentialStorePort {
-    function isDefaultFor({ patch, providerId }: { patch: CredentialPatch; providerId: string }, { initial }: { initial?: CredentialSummary } = {}) {
+    function isDefaultFor({ patch, providerId }: { patch: CredentialPatch; providerId: string }, { initial }: { initial?: CredentialSummary | undefined } = {}) {
       if (kind === 'custom') return false;
       return patch.isDefault ?? initial?.isDefault ?? !items.some(r => r.kind === kind && r.providerId === providerId);
     }
     /** The caller resolves the label: create requires one, update falls back to the saved label. */
-    function project({ id, patch, providerId, label }: { id: string; patch: CredentialPatch; providerId: string; label: string }, { initial }: { initial?: CredentialSummary } = {}): CredentialSummary {
+    function project({ id, patch, providerId, label }: { id: string; patch: CredentialPatch; providerId: string; label: string }, { initial }: { initial?: CredentialSummary | undefined } = {}): CredentialSummary {
       const now = new Date().toISOString();
       return Object.freeze({ kind, id, providerId, label, configured: true, isDefault: isDefaultFor({ patch, providerId }, { initial }), createdAt: initial?.createdAt ?? now, updatedAt: now,
         ...(kind === 'custom' ? customProjection({ patch }, { initial }) : {}),
