@@ -13,7 +13,7 @@ import { comments } from '../index.js';
 import { QueueSection as QueueView } from '../components/QueueSection.js';
 import { SettingsSection as SettingsView } from '../components/SettingsSection.js';
 import { useComments as usePage, useWiredComments as useWiredPage } from '../hooks/use-comments.hooks.js';
-import { useCommentQueue as useQueue } from '../hooks/use-comment-queue.hooks.js';
+import { CommentQueueScopeProvider, useCommentQueue as useQueue } from '../hooks/use-comment-queue.hooks.js';
 import { useCommentSettings as useSettings } from '../hooks/use-comment-settings.hooks.js';
 import { englishComments, type CommentsTranslator } from '../../messages.en.js';
 import type { CommentsEventsPort } from '../../ports.js';
@@ -58,7 +58,7 @@ export function CommentsTestProvider({ children, http = false }: { children: Rea
     const admin = createAdmin({ modules: [module], ports: { commentsApi: api, commentsSession: session, commentsEvents: testEvents } }, { permissions: TEST_GRANTS });
     return { module, admin };
   }, [http]);
-  return createElement(scope.module.react.Provider, { admin: scope.admin, children });
+  return createElement(CommentQueueScopeProvider, { scope: { workspaceId: 'workspace-local', principalId: 'operator' }, children: createElement(scope.module.react.Provider, { admin: scope.admin, children }) });
 }
 
 export function QueueSection({ locale, ...props }: { locale: string } & Omit<Parameters<typeof QueueView>[0], 't'>) {
@@ -103,12 +103,21 @@ export function createFakeCommentQueuePort(options: { items?: AdminComment[]; ne
     async purgeComment(input) { purgeCalls.push(input); if (options.purgeError) throw options.purgeError; },
   };
 }
-export function useCommentQueue({ port, locale }: { port: CommentQueuePort; locale: string }) {
-  const api = useMemo<AdminCommentsPort>(() => ({ ...createMemoryCommentsApi({}),
+const queueApis = new WeakMap<CommentQueuePort, AdminCommentsPort>();
+/** Consumers of one fixture port must share its API identity, like production module consumers. */
+export function commentQueueApi({ port }: { port: CommentQueuePort }): AdminCommentsPort {
+  const existing = queueApis.get(port);
+  if (existing) return existing;
+  const api: AdminCommentsPort = { ...createMemoryCommentsApi({}),
     listCommentsQueue: (_required, options = {}) => port.listCommentsQueue({ ...(options.status ? { status: options.status } : {}), ...(options.cursor ? { cursor: options.cursor } : {}) }),
     moderateComment: input => port.moderateComment(input), purgeComment: input => port.purgeComment(input),
-  }), [port]);
-  return useQueue({ api, permissions: TEST_GRANTS }, { t: fixtureTranslator(locale), events: testEvents });
+  };
+  queueApis.set(port, api);
+  return api;
+}
+export function useCommentQueue({ port, locale }: { port: CommentQueuePort; locale: string }) {
+  const api = useMemo(() => commentQueueApi({ port }), [port]);
+  return useQueue({ api, scope: { workspaceId: 'w1', principalId: 'operator' }, permissions: TEST_GRANTS }, { t: fixtureTranslator(locale), events: testEvents });
 }
 
 export function createFakeCommentSettingsPort(options: { settings?: CommentsSettings; getError?: Error; putError?: Error } = {}) {

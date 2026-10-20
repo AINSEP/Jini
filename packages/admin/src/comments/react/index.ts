@@ -8,7 +8,8 @@ export type { CommentsProps } from './pages/CommentsPage.js';
 export type { QueueSectionProps } from './components/QueueSection.js';
 export type { SettingsSectionProps } from './components/SettingsSection.js';
 export { useComments, useWiredComments } from './hooks/use-comments.hooks.js';
-export { useCommentQueue, useWiredCommentQueue } from './hooks/use-comment-queue.hooks.js';
+export type { CommentQueueScope } from './hooks/use-comment-queue.hooks.js';
+export { CommentQueueScopeProvider, useCommentQueue, useWiredCommentQueue } from './hooks/use-comment-queue.hooks.js';
 export { useCommentSettings, useWiredCommentSettings } from './hooks/use-comment-settings.hooks.js';
 export { useCommentsPorts } from './hooks/CommentsPorts.hooks.js';
 

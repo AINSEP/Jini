@@ -28,7 +28,7 @@ Module `comments`, page `queue` (`comments.queue`), route `/comments`, page perm
 - Every page/section retains its original loading/empty/error states and rendered markup/classes/agent ids/ARIA/English copy. Queue and Settings remain two sections of the same page.
 - Permission reads and queue page one reuse `@jini-ai/ui/fetch-query`; the shared cache owns fixed query identities and stale-key settlements. Headless controllers own visible state, cursor accumulation, row busy/errors, purge selection, settings baseline, notices and validation. `useController` owns creation/disposal after commit.
 - Cursor reads and moderation use synchronous locks. Same-tick calls do not double-submit. A status switch or refreshed page one supersedes old cursor settlement, releases loading, drops accumulated pages, and retry clears the cursor error. Different rows remain independent.
-- Successful moderation/purge invalidates `KEYS.queueRoot`, all cached statuses, and resets accumulated pages. Queue-only host refreshes invalidate the same prefix. Unmount unsubscribes even if another observer still watches the query.
+- Queue reads, cursor pages and invalidation are keyed under `KEYS.queueRoot` plus API identity and the explicit `CommentQueueScope` (`workspaceId`, `principalId`). Successful moderation/purge invalidates only that scope's statuses and resets accumulated pages; queue-only host refreshes invalidate the same scope. The hook replaces its controller and hides the old snapshot during the first render of a scope change, before effect cleanup. Late cursor settlement cannot publish into the new scope. Hosts may keep one `commentsApi` and `FetchQueryProvider` across login/logout; they must update the explicit scope from authenticated identity before rendering the next principal's queue. Unmount unsubscribes even if another observer still watches the query.
 - A settings read seeds the uncontrolled form baseline ONCE. Later background reads never move it. Its own successful save advances the baseline immediately; cache invalidation is not awaited. `buildSettingsPatch` sends only changed fields, blank closeAfterDays is `null`, malformed numeric fields are omitted, spam score is validated before I/O.
 - Purge confirmation remains the shared `ConfirmDialog`, unconditionally mounted and driven by selection. It closes on success/failure; row errors remain localized to the affected row. Current Phase 17 shared native dialog source is reused untouched.
 - Disposed controller stores cannot publish late settlements. Core API cancellation was not widened; host/query transport owns request deadlines and the controller suppresses late updates.
@@ -51,9 +51,39 @@ The host still performs serialization/auth/retries/deadlines/error decoding. Alr
 
 `comments({}, { t })` is the React module factory. Its page loader remains lazy. Its scoped translation provider adds no DOM. Default English uses the 47 exact source keys. For Part B, the host must bind a translator covering the existing comments + common dictionary, navigation labels (`People`, `Comments`, `Settings`) and shared server labels (`pending`, `approved`, `spam`, `trash`). The current comments dictionary alone does not contain the latter sets. Use the existing host translation owners; keep those dictionaries in Tovu. No locale or refresh singleton exists in production Jini code.
 
-Locale/grant updates configure the existing controller rather than reconstructing it, preserving cursor/row state and the uncontrolled-form baseline. API changes still get a fresh instance.
+Locale/grant updates configure the existing controller rather than reconstructing it, preserving cursor/row state and the uncontrolled-form baseline. API or workspace/principal scope changes get a fresh queue controller; API replacement is not required for identity changes.
 
 Part B binding addition: `feature.react.Provider` accepts an optional `t` prop, defaulting to the factory's translator. A host can update that prop from its existing locale hook without recreating the factory/Provider/page identities or losing the settings form's draft and baseline. The Tovu host switch tests exercise this through the actual module. This additive React-only seam requires rebuilding/publishing admin; no core port, universal entry or dependency changes were made.
+
+### Queue cache identity binding (required host follow-up)
+
+The direct `useCommentQueue` input now requires `scope: { workspaceId, principalId }`.
+Wired consumers require `CommentQueueScopeProvider` from `@jini-ai/admin/comments/react`
+above the comments tree. Its `scope` prop must track the authenticated operator and current
+workspace. Missing scope throws `AdminConfigError` before a wired queue reads the cache;
+API identity alone is insufficient because a host may keep its authenticated transport singleton.
+A new scope object with the same field values preserves the controller and shared query keys.
+This is a required React binding change; the universal API/transport contracts are unchanged.
+
+Tovu follow-up (not edited in this fix):
+
+- `apps/admin/src/integrations/jini-admin/comments-ports.ts`: add a typed scope factory
+  `createCommentsQueueScope({ principalId }, { workspaceId = WORKSPACE_ID } = {})` returning
+  `{ workspaceId, principalId }` (`CommentQueueScope` from `@jini-ai/admin/comments/react`).
+  Keep the existing API singleton; never derive the operator from comment authors or grants.
+- `apps/admin/src/main.tsx`: add a session-aware root inside the existing `FetchQueryProvider`.
+  Resolve the existing `useAdminSession` owner once there, and pass that same session to
+  `App` through its existing `useSession` injection. When authenticated, wrap `App` in
+  `CommentQueueScopeProvider` with the factory's current workspace/principal scope; while
+  checking/logged out, render the boot/login App without a queue scope. Retain the existing
+  API and cache provider across this transition. Do not call a second independent session
+  hook, and do not read `AdminBootScopeContext` above `App` (that context is owned inside App).
+  If workspace selection becomes live, supply its current value to the factory on each render.
+
+The same-API tests change only the explicit principal/workspace scope beneath a persistent
+query provider. They populate A's first/cursor pages, switch while another A cursor is pending,
+then assert that every B render excludes A and that B's first/cursor reads reach the same API.
+Existing API-replacement and scope-local invalidation tests remain in place. No tests were run.
 
 No host slots or headerActions are needed for this screen. Part A left Tovu wiring/deletion to the serial Part B job; that host switch is now implemented, with runtime/release acceptance left to the coordinator.
 
