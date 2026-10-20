@@ -3,7 +3,8 @@
  * every implementation (token store, guarded HTTP, limiter, artifact store) and Jini never names a
  * provider. A per-call session wraps them so that (1) every capability stops working the moment the
  * plugin's tools are revoked, even for a module that kept a reference, and (2) an access token the
- * call obtained can never leave through the tool's result or error text.
+ * call obtained can never leave through the tool's result or error text. Those two gates are
+ * `openCapabilityGate`, shared with the admin-surface session so both enforce them identically.
  */
 
 /** Options for guarded HTTP; mirrors `@jini-ai/platform`'s guarded fetch, buffered bodies only. */

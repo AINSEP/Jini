@@ -64,6 +64,8 @@ Rules (any violation refuses the whole file, reported in the loader's `refusals`
 | `input`, `result` | the closed schema subset below |
 | `handlerModule` | optional; same path rule ending in `.mjs`; must not also be listed in `files` (it is server code, never served); requires every action to declare `result` |
 | `bootstrap` | optional schema (same subset) the handler module's bootstrap data must match; only with `handlerModule` |
+| `connections` | optional, only with `handlerModule`; at most 4 `{ id, startParams?, callbackFields? }`: the plugin's own connection ids (`[A-Za-z0-9][A-Za-z0-9._-]{0,63}`, unique) its handlers administer, the per-sign-in parameters they may set and the callback fields they may take (names `[A-Za-z0-9_.-]{1,64}`, at most 8 each) |
+| `publicConfig` | optional, only with `handlerModule`; at most 16 environment-style names (`[A-Z][A-Z0-9_]{0,63}`) the host may hand the handlers; a name containing `SECRET`, `TOKEN`, `PASSWORD`, `PASSWD`, `PRIVATE`, `CREDENTIAL`, `COOKIE`, `SESSION` or `SIGNING` is refused |
 | `csp` | keys only `script-src`, `style-src`, `img-src`, `font-src`, `connect-src`, `frame-src`; values only bare `https://host[:port]` origins with a DNS name (no wildcard, path, IP, keyword, `data:`/`blob:`) |
 
 Action schemas are a small closed subset of JSON Schema: every node declares `type` (`object`,
@@ -156,7 +158,7 @@ export default {
   actions: {
     // input already matched the action's input schema; the result must match its result schema.
     async 'save-selection'({ input, capabilities, context, fail }) {
-      const token = await capabilities.connections.getAccessToken({ connectionRef: input.connectionRef });
+      const token = await capabilities.connections.getAccessToken({ connectionId: context.connectionIds[0] });
       const response = await capabilities.http.fetch({ url: '…' }, { headers: { authorization: `Bearer ${token}` } });
       if (response.status === 401) throw fail({ code: 'reconnect-required', message: 'Reconnect the account and retry.' });
       return { saved: true };                                  // never the token
@@ -176,11 +178,11 @@ export default {
   surface two loaded modules claim. Call it on boot and on every activation change; a surface missing
   from a load loses its handlers, a handler a route already holds answers `plugin-disabled`, and
   capabilities the module kept are revoked.
-- Calls: `capabilities` is the executable-tool port (`../lifecycle/tools/capabilities.ts`:
-  `connections.getAccessToken`, guarded `http.fetch`, `limiter.check`, `artifacts.write`), built per
-  call for the LOADED plugin id and the route's workspace/principal; `context.pluginId`/`surfaceId` are
-  the loaded module's own, whatever the caller passed. A result or error that mentions a token the call
-  obtained is withheld (`action-failed`). `fail({ code, message }, { retryable })` builds a surface-safe
+- Calls: `capabilities` is the admin-surface port (next section), built per call for the LOADED
+  plugin id and the route's workspace/principal; `context.pluginId`/`surfaceId` are the loaded
+  module's own, whatever the caller passed, and `context.connectionIds` lists the surface's declared
+  connection ids (never refs). A result or error that mentions a token the call obtained is withheld
+  (`action-failed`). `fail({ code, message }, { retryable })` builds a surface-safe
   failure; a code that is not lowercase hyphenated becomes `action-failed`, messages are cut at 300 characters.
 - Bootstrap: `bootstrapData({ context })` returns the provider's data (or `null`), refused when it does not
   match the declared `bootstrap` schema. Wrap it with `createAdminSurfaceBootstrap` and serve it with
@@ -199,8 +201,38 @@ createAdminSurfaceActionDispatcher({ descriptor, handlers: surfaceHandlers.handl
 createAdminSurfaceBootstrap({ surfaceId, data: await surfaceHandlers.bootstrapData({ context }), nowMs });
 ```
 
-The host still owns authentication, the workspace and principal in `context`, and the rule that a
-`connectionRef` must belong to the calling plugin and workspace (its capability port enforces it).
+The host still owns authentication and the workspace and principal in `context`; it resolves a
+declared `connectionId` to its own connection for the scope's plugin and workspace, so a plugin can
+never name another plugin's connection.
+
+## Capability ports (`./surface-capabilities.ts`)
+
+`createAdminSurfaceHandlerHost({ capabilities })` takes an `AdminSurfaceCapabilitiesPort`:
+`(scope: { pluginId, workspaceId, principalId? }) => AdminSurfaceCapabilities`. The host implements
+it; Jini wraps each call in `openAdminSurfaceCapabilitySession`, which refuses anything the surface
+did not declare before the host sees it, revokes every port once the plugin is disabled (the same
+gate as executable tools, `openCapabilityGate`), and cuts host answers back to the shapes below.
+
+| port | methods | Jini checks |
+|---|---|---|
+| `http`, `limiter`, `artifacts` | as for executable tools | revocation |
+| `connections` | `getAccessToken({ connectionId })`, `status({ connectionId })` → `{ connectionId, state, accountLabel, grantedScopeSetIds, pendingSwitchAccountLabel }` | declared connection; token noted for the result/error scans |
+| | `begin({ connectionId, action: 'connect' \| 'reconnect' \| 'switch' \| 'add-scopes' }, { scopeSetIds?, startParams? })` → `{ authorizationUrl, attemptId, expiresAt }` | declared connection and start parameters, string values ≤ 2048, ≤ 16 scope-set ids, a signed-in admin (`principalId`) |
+| | `confirmSwitch`, `cancelSwitch` → status; `disconnect` → status + `revocation: 'revoked' \| 'revocation-pending' \| 'not-needed'` | declared connection, a signed-in admin |
+| | `takeCallbackFields({ connectionId, attemptId })` → declared fields or `null` | declared connection, opaque attempt id, undeclared fields dropped |
+| `state` | `get({ key })`, `set({ key, value })`, `delete({ key })` | key `[A-Za-z0-9][A-Za-z0-9._:-]{0,127}`; value plain JSON (depth ≤ 16, ≤ 16 KiB serialized); a value mentioning a token the call obtained is refused; the host stores a checked copy |
+| `publicConfig` | `get({ name })` → string or `null` | declared name only |
+
+Host duties: key `state` by the scope's plugin and workspace (never shared across plugins); map
+`status` scopes to the plugin's scope-set ids; `disconnect` returns `revoked` only when the provider
+confirmed; never return a refresh token or secret from any port; give `publicConfig` only public values.
+
+Callback fields: when a sign-in started by `begin` completes successfully, the host's callback route
+deposits the provider's extra fields into `createAdminSurfaceCallbackInbox({ now })` (in-process,
+consume-once, 10-minute expiry, 256 entries) under `{ workspaceId, pluginId, connectionId, attemptId }`,
+and backs `takeCallbackFields` with its `take` for the scope's workspace and plugin. The `attemptId`
+must be unguessable and known at both ends (for example a digest of the authorization `state`, never
+the state itself). The plugin must still verify the fields through the provider's API before saving.
 
 ## Extension points
 
@@ -209,4 +241,4 @@ The host still owns authentication, the workspace and principal in `context`, an
 - A host adds an action by implementing a handler for a name a plugin declared; undeclared names
   never run, even with a handler.
 - A provider plugin answers its own actions by shipping a `handlerModule`; a second provider uses the
-  same seam with its own module and `connectionRef` values and needs no Jini change.
+  same seam with its own module, its own declared connection ids and config names, and needs no Jini change.
