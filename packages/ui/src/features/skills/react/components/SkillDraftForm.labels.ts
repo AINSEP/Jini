@@ -22,16 +22,26 @@ const DEFAULT_SKILL_DRAFT_FORM_LABELS: Required<SkillDraftFormLabels> = {
   bodyRequiredError: 'Body is required.',
 };
 
+/** `defaults` with each entry replaced by the host's label when it supplied
+ *  one, else by the translated default. `t` runs only for the gaps. Shared by
+ *  every skills component that takes a `labels` override bag. */
+export function resolveLabels<K extends string>(
+  { defaults, t }: { defaults: Record<K, string>; t: (key: string) => string },
+  { labels }: { labels?: Partial<Record<NoInfer<K>, string | undefined>> | undefined },
+): Record<K, string> {
+  const resolved = { ...defaults };
+  for (const key of Object.keys(defaults) as K[]) {
+    resolved[key] = labels?.[key] ?? t(defaults[key]);
+  }
+  return resolved;
+}
+
 /** The form's labels with every gap filled from the translated defaults. */
 export function resolveSkillDraftFormLabels(
   { t }: { t: (key: string) => string },
   { labels }: { labels?: SkillDraftFormLabels | undefined },
 ): Required<SkillDraftFormLabels> {
-  const resolved = { ...DEFAULT_SKILL_DRAFT_FORM_LABELS };
-  for (const key of Object.keys(resolved) as (keyof SkillDraftFormLabels)[]) {
-    resolved[key] = labels?.[key] ?? t(DEFAULT_SKILL_DRAFT_FORM_LABELS[key]);
-  }
-  return resolved;
+  return resolveLabels({ defaults: DEFAULT_SKILL_DRAFT_FORM_LABELS, t }, { labels });
 }
 
 /** Saving wins over everything; then edit (override vs. plain save) vs. create. */
