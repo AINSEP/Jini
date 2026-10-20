@@ -443,3 +443,118 @@ describe('resolveRegistryEntryVersion', () => {
     expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '1.0.0' })).toBeNull();
   });
 });
+
+describe('resolveRegistryEntryVersion characterization pins (odd inputs and ordering boundaries)', () => {
+  function ledger(...versions: string[]): RegistryEntry {
+    return entry({ version: versions[0]!, versions: versions.map((version) => ({ version, source: `s:${version}` })) });
+  }
+
+  it('treats a whitespace-only range as no range and resolves the default version', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.0.0', '1.5.0') }, { requestedRange: '   ' })?.version).toBe('1.0.0');
+  });
+
+  it('treats an explicit "latest" range as the default path even without distTags', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.0.0', '1.5.0') }, { requestedRange: 'latest' })?.version).toBe('1.0.0');
+  });
+
+  it('trims a padded caret range before matching', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.0.0', '1.5.0') }, { requestedRange: '  ^1.0.0 ' })?.version).toBe('1.5.0');
+  });
+
+  it('serves distTags.latest on the default path even when it has no record in the versions ledger (reported, not fixed)', () => {
+    // CR-008 proves exact/dist-tag REQUESTS exist in the ledger, but the
+    // default (no range / "latest") path does not: it returns the top-level
+    // source labelled with a version the ledger never declared.
+    const e = entry({ version: '1.0.0', source: 'top', distTags: { latest: '9.9.9' }, versions: [{ version: '1.0.0', source: 's1' }] });
+    expect(resolveRegistryEntryVersion({ entry: e })).toEqual({ version: '9.9.9', source: 'top' });
+  });
+
+  it('looks a range up as a dist-tag before treating it as a caret range', () => {
+    const e = entry({ version: '1.0.0', distTags: { '^1.0.0': '1.0.0' }, versions: [{ version: '1.0.0', source: 's1' }, { version: '1.9.0', source: 's19' }] });
+    expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '^1.0.0' })?.version).toBe('1.0.0');
+  });
+
+  it('returns null for an Object.prototype key used as a range (inherited "dist-tag" never resolves)', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.0.0') }, { requestedRange: 'constructor' })).toBeNull();
+  });
+
+  it('accepts v-prefixed and +build candidates in a caret range and ignores build metadata for precedence', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('v1.2.0', '1.3.0+build.5', '1.1.0') }, { requestedRange: '^1.0.0' })?.version).toBe('1.3.0+build.5');
+  });
+
+  it('accepts a v-prefixed range base', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.0.0', '1.4.0') }, { requestedRange: '^v1.0.0' })?.version).toBe('1.4.0');
+  });
+
+  it('excludes candidates below the caret base on the same major', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.2.2', '1.2.1') }, { requestedRange: '^1.2.3' })).toBeNull();
+  });
+
+  it('excludes candidates below a 0.x caret base on the same minor', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('0.2.2') }, { requestedRange: '^0.2.3' })).toBeNull();
+  });
+
+  it('excludes a different major from a tilde range', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('2.2.0') }, { requestedRange: '~1.2.0' })).toBeNull();
+  });
+
+  it('excludes a candidate below the tilde base', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.2.0') }, { requestedRange: '~1.2.1' })).toBeNull();
+  });
+
+  it('matches same-tuple prereleases and later releases in a prerelease tilde range, but not other-tuple prereleases', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.2.0-beta.2', '1.2.4-rc.1') }, { requestedRange: '~1.2.0-beta.1' })?.version).toBe('1.2.0-beta.2');
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.2.0-beta.2', '1.2.3') }, { requestedRange: '~1.2.0-beta.1' })?.version).toBe('1.2.3');
+  });
+
+  it('excludes a prerelease of a different tuple from a prerelease caret range while still accepting its release', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.0.1-beta') }, { requestedRange: '^1.0.0-beta' })).toBeNull();
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.0.1-beta', '1.0.1') }, { requestedRange: '^1.0.0-beta' })?.version).toBe('1.0.1');
+  });
+
+  it('excludes a same-tuple prerelease that ranks below the prerelease base', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.0.0-alpha') }, { requestedRange: '^1.0.0-beta' })).toBeNull();
+  });
+
+  it('orders numeric prerelease identifiers numerically, not lexically', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.0.0-alpha.10', '1.0.0-alpha.2') }, { requestedRange: '^1.0.0-alpha.1' })?.version).toBe('1.0.0-alpha.10');
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.0.0-alpha.2', '1.0.0-alpha.10') }, { requestedRange: '^1.0.0-alpha.1' })?.version).toBe('1.0.0-alpha.10');
+  });
+
+  it('ranks an alphanumeric identifier above a numeric one in either list order', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.0.0-1', '1.0.0-a') }, { requestedRange: '^1.0.0-0' })?.version).toBe('1.0.0-a');
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.0.0-a', '1.0.0-1') }, { requestedRange: '^1.0.0-0' })?.version).toBe('1.0.0-a');
+  });
+
+  it('keeps ledger order for candidates with equal precedence (build metadata only differs)', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.0.0-a+1', '1.0.0-a+2') }, { requestedRange: '^1.0.0-a' })?.version).toBe('1.0.0-a+1');
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.0.0-a+2', '1.0.0-a+1') }, { requestedRange: '^1.0.0-a' })?.version).toBe('1.0.0-a+2');
+  });
+
+  it('ranks by major, then minor, then patch', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.9.9', '1.10.0', '1.10.1', '1.2.30') }, { requestedRange: '^1.0.0' })?.version).toBe('1.10.1');
+  });
+
+  it('treats an empty prerelease after "-" as a release', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.0.1-') }, { requestedRange: '^1.0.0' })?.version).toBe('1.0.1-');
+  });
+
+  it('carries deprecated: false through rather than dropping it', () => {
+    const e = entry({ version: '1.0.0', versions: [{ version: '1.0.0', source: 's1', deprecated: false }] });
+    expect(resolveRegistryEntryVersion({ entry: e }, { requestedRange: '1.0.0' })).toEqual({ version: '1.0.0', source: 's1', deprecated: false });
+  });
+
+  it('falls back to the entry-level source and deprecated when the version has no ledger record', () => {
+    const e = entry({ version: '1.0.0', source: 'top', deprecated: 'old' });
+    expect(resolveRegistryEntryVersion({ entry: e })).toEqual({ version: '1.0.0', source: 'top', deprecated: 'old' });
+  });
+
+  it('omits every optional field when neither record nor entry carries one', () => {
+    expect(resolveRegistryEntryVersion({ entry: ledger('1.0.0') }, { requestedRange: '1.0.0' })).toEqual({ version: '1.0.0', source: 's:1.0.0' });
+  });
+
+  it('returns null when nothing names a default version', () => {
+    const e = { name: 'vendor/example', source: 's' } as unknown as RegistryEntry; // malformed fixture: no version at all
+    expect(resolveRegistryEntryVersion({ entry: e })).toBeNull();
+  });
+});
