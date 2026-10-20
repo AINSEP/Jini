@@ -103,105 +103,122 @@ export function upsertMessage({ db, conversationId, m: incoming }: { db: SqliteD
     ? (options.redactUserText ?? redactUserText)({ text: incoming.content })
     : null;
   const m = redaction ? { ...incoming, content: redaction.text } : incoming;
-  const runUpsert = db.transaction(() => {
-    const existing = db
-      .prepare(`SELECT conversation_id AS conversationId, position FROM messages WHERE id = ?`)
-      .get(m.id) as (DbRow & { conversationId: string }) | undefined;
-
-    if (existing && existing.conversationId !== conversationId) {
-      throw new MessageConversationMismatchError({ messageId: m.id, actualConversationId: existing.conversationId, requestedConversationId: conversationId });
-    }
-
-    const now = Date.now();
-    if (existing) {
-      db.prepare(
-        `UPDATE messages
-            SET role = ?, content = ?, agent_id = ?, agent_name = ?,
-                run_id = ?, run_status = ?, last_run_event_id = ?,
-                events_json = ?, attachments_json = ?,
-                session_mode = ?, run_context_json = ?,
-                telemetry_finalized_at = CASE
-                  WHEN ? THEN COALESCE(telemetry_finalized_at, ?)
-                  ELSE telemetry_finalized_at
-                END,
-                started_at = ?, ended_at = ?
-          WHERE id = ? AND conversation_id = ?`,
-      ).run(
-        m.role,
-        m.content,
-        m.agentId ?? null,
-        m.agentName ?? null,
-        m.runId ?? null,
-        m.runStatus ?? null,
-        m.lastRunEventId ?? null,
-        m.events ? JSON.stringify(m.events) : null,
-        m.attachments ? JSON.stringify(m.attachments) : null,
-        normalizeMessageSessionModeForStorage(m.sessionMode),
-        m.runContext ? JSON.stringify(m.runContext) : null,
-        m.telemetryFinalized === true ? 1 : 0,
-        now,
-        m.startedAt ?? null,
-        m.endedAt ?? null,
-        m.id,
-        conversationId,
-      );
-    } else {
-      const max = db
-        .prepare(
-          `SELECT COALESCE(MAX(position), -1) AS m FROM messages WHERE conversation_id = ?`,
-        )
-        .get(conversationId) as DbRow | undefined;
-      const position = (max?.m ?? -1) + 1;
-      const createdAt = typeof m.createdAt === 'number' && Number.isFinite(m.createdAt)
-        ? m.createdAt
-        : now;
-      // 18 values: id, conversation_id, role, content, agent_id, agent_name,
-      // run_id, run_status, last_run_event_id, events_json, attachments_json,
-      // session_mode, run_context_json, telemetry_finalized_at, started_at,
-      // ended_at, position, created_at.
-      db.prepare(
-        `INSERT INTO messages
-           (id, conversation_id, role, content, agent_id, agent_name,
-            run_id, run_status, last_run_event_id, events_json,
-            attachments_json, session_mode, run_context_json,
-            telemetry_finalized_at, started_at, ended_at, position, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        m.id,
-        conversationId,
-        m.role,
-        m.content,
-        m.agentId ?? null,
-        m.agentName ?? null,
-        m.runId ?? null,
-        m.runStatus ?? null,
-        m.lastRunEventId ?? null,
-        m.events ? JSON.stringify(m.events) : null,
-        m.attachments ? JSON.stringify(m.attachments) : null,
-        normalizeMessageSessionModeForStorage(m.sessionMode),
-        m.runContext ? JSON.stringify(m.runContext) : null,
-        m.telemetryFinalized === true ? now : null,
-        m.startedAt ?? null,
-        m.endedAt ?? null,
-        position,
-        createdAt,
-      );
-    }
-    // Bump conversation activity so recency-sorted listings (e.g. `listConversations`) reflect this write.
-    db.prepare(`UPDATE conversations SET updated_at = ? WHERE id = ?`).run(
-      now,
-      conversationId,
-    );
-    const row = db
-      .prepare(`SELECT ${MESSAGE_COLS} FROM messages WHERE id = ? AND conversation_id = ?`)
-      .get(m.id, conversationId) as DbRow | undefined;
-    return row ? normalizeMessage(row) : null;
-  });
-  const saved = runUpsert.immediate();
+  const saved = db.transaction(() => writeMessage({ db, conversationId, m })).immediate();
   if (!saved || !redaction?.secretRedacted) return saved;
   const signal = { secretRedacted: true as const, count: redaction.count };
   options.onSecretRedacted?.(signal);
   return { ...saved, secretRedaction: signal };
+}
+
+/**
+ * @internal `upsertMessage`'s transaction body: mismatch check, insert-or-update, conversation
+ * `updated_at` bump, and re-fetch. Must run inside the caller's `BEGIN IMMEDIATE` transaction.
+ */
+function writeMessage({ db, conversationId, m }: { db: SqliteDb; conversationId: string; m: DbRow }) {
+  const existing = db
+    .prepare(`SELECT conversation_id AS conversationId FROM messages WHERE id = ?`)
+    .get(m.id) as (DbRow & { conversationId: string }) | undefined;
+
+  if (existing && existing.conversationId !== conversationId) {
+    throw new MessageConversationMismatchError({ messageId: m.id, actualConversationId: existing.conversationId, requestedConversationId: conversationId });
+  }
+
+  const now = Date.now();
+  if (existing) updateMessageRow({ db, conversationId, m, now });
+  else insertMessageRow({ db, conversationId, m, now });
+  // Bump conversation activity so recency-sorted listings (e.g. `listConversations`) reflect this write.
+  db.prepare(`UPDATE conversations SET updated_at = ? WHERE id = ?`).run(
+    now,
+    conversationId,
+  );
+  const row = db
+    .prepare(`SELECT ${MESSAGE_COLS} FROM messages WHERE id = ? AND conversation_id = ?`)
+    .get(m.id, conversationId) as DbRow | undefined;
+  return row ? normalizeMessage(row) : null;
+}
+
+/**
+ * @internal Values for the columns both write paths set, in this order: role, content, agent_id,
+ * agent_name, run_id, run_status, last_run_event_id, events_json, attachments_json, session_mode,
+ * run_context_json. JSON sub-fields are stringified; absent values become null.
+ */
+function messageFieldValues(m: DbRow) {
+  return [
+    m.role,
+    m.content,
+    ...[m.agentId, m.agentName, m.runId, m.runStatus, m.lastRunEventId].map(orNull),
+    jsonOrNull(m.events),
+    jsonOrNull(m.attachments),
+    normalizeMessageSessionMode(m.sessionMode) ?? null,
+    jsonOrNull(m.runContext),
+  ];
+}
+
+/** @internal Maps undefined/null to null (SQLite-safe) and keeps every other value. */
+function orNull(value: unknown) {
+  return value ?? null;
+}
+
+/** @internal Stringifies a truthy JSON sub-field; falsy values are stored as null. */
+function jsonOrNull(value: unknown) {
+  return value ? JSON.stringify(value) : null;
+}
+
+/** @internal Rewrites an existing row in place; preserves `telemetry_finalized_at` once set (one-way latch). */
+function updateMessageRow({ db, conversationId, m, now }: { db: SqliteDb; conversationId: string; m: DbRow; now: number }) {
+  db.prepare(
+    `UPDATE messages
+        SET role = ?, content = ?, agent_id = ?, agent_name = ?,
+            run_id = ?, run_status = ?, last_run_event_id = ?,
+            events_json = ?, attachments_json = ?,
+            session_mode = ?, run_context_json = ?,
+            telemetry_finalized_at = CASE
+              WHEN ? THEN COALESCE(telemetry_finalized_at, ?)
+              ELSE telemetry_finalized_at
+            END,
+            started_at = ?, ended_at = ?
+      WHERE id = ? AND conversation_id = ?`,
+  ).run(
+    ...messageFieldValues(m),
+    m.telemetryFinalized === true ? 1 : 0,
+    now,
+    orNull(m.startedAt),
+    orNull(m.endedAt),
+    m.id,
+    conversationId,
+  );
+}
+
+/** @internal Inserts a new row at the end of the conversation's position sequence. */
+function insertMessageRow({ db, conversationId, m, now }: { db: SqliteDb; conversationId: string; m: DbRow; now: number }) {
+  const max = db
+    .prepare(
+      `SELECT COALESCE(MAX(position), -1) AS m FROM messages WHERE conversation_id = ?`,
+    )
+    .get(conversationId) as DbRow | undefined;
+  const position = (max?.m ?? -1) + 1;
+  const createdAt = Number.isFinite(m.createdAt) ? m.createdAt : now;
+  // 18 values: id, conversation_id, role, content, agent_id, agent_name,
+  // run_id, run_status, last_run_event_id, events_json, attachments_json,
+  // session_mode, run_context_json, telemetry_finalized_at, started_at,
+  // ended_at, position, created_at.
+  db.prepare(
+    `INSERT INTO messages
+       (id, conversation_id, role, content, agent_id, agent_name,
+        run_id, run_status, last_run_event_id, events_json,
+        attachments_json, session_mode, run_context_json,
+        telemetry_finalized_at, started_at, ended_at, position, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    m.id,
+    conversationId,
+    ...messageFieldValues(m),
+    m.telemetryFinalized === true ? now : null,
+    orNull(m.startedAt),
+    orNull(m.endedAt),
+    position,
+    createdAt,
+  );
 }
 
 /**
@@ -239,17 +256,12 @@ export function getMessageTelemetryFinalizationState({ db, messageId }: { db: Sq
  * @returns The updated events array, or null if the message does not exist or label is empty.
  */
 export function appendMessageStatusEvent({ db, messageId, event }: { db: SqliteDb; messageId: string; event: DbRow }) {
-  const label = typeof event?.label === 'string' ? event.label.trim() : '';
-  const detail = typeof event?.detail === 'string' ? event.detail.trim() : '';
+  const label = trimmedString(event?.label);
+  const detail = trimmedString(event?.detail);
   if (!label) return null;
-  const row = db
-    .prepare(`SELECT events_json AS eventsJson FROM messages WHERE id = ?`)
-    .get(messageId) as DbRow | undefined;
-  if (!row) return null;
-  const parsed = parseJsonOrUndef(row.eventsJson);
-  const events = Array.isArray(parsed) ? parsed : [];
-  const last = events[events.length - 1];
-  if (last?.kind === 'status' && last.label === label && (last.detail ?? '') === detail) {
+  const events = readStoredEvents({ db, messageId });
+  if (!events) return null;
+  if (isRepeatedStatus(events[events.length - 1], { label, detail })) {
     return events;
   }
   const nextEvent = detail
@@ -259,6 +271,26 @@ export function appendMessageStatusEvent({ db, messageId, event }: { db: SqliteD
   db.prepare(`UPDATE messages SET events_json = ? WHERE id = ?`)
     .run(JSON.stringify(next), messageId);
   return next;
+}
+
+/** @internal Trimmed string value, or '' for anything that is not a string. */
+function trimmedString(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+/** @internal True when `last` is a status event with the same label and (absent-as-empty) detail. */
+function isRepeatedStatus(last: DbRow | undefined, { label, detail }: { label: string; detail: string }) {
+  return last?.kind === 'status' && last.label === label && (last.detail ?? '') === detail;
+}
+
+/** @internal Reads a message's stored events (non-array JSON reads as []), or null when the message does not exist. */
+function readStoredEvents({ db, messageId }: { db: SqliteDb; messageId: string }): DbRow[] | null {
+  const row = db
+    .prepare(`SELECT events_json AS eventsJson FROM messages WHERE id = ?`)
+    .get(messageId) as DbRow | undefined;
+  if (!row) return null;
+  const parsed = parseJsonOrUndef(row.eventsJson);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 /**
@@ -271,15 +303,10 @@ export function appendMessageStatusEvent({ db, messageId, event }: { db: SqliteD
  * @returns The updated events array, or null if the message does not exist or kind is empty.
  */
 export function appendMessageAgentEvent({ db, messageId, event }: { db: SqliteDb; messageId: string; event: DbRow }) {
-  if (!event || typeof event !== 'object') return null;
-  const kind = typeof event.kind === 'string' ? event.kind : '';
+  const kind = agentEventKind(event);
   if (!kind) return null;
-  const row = db
-    .prepare(`SELECT content, events_json AS eventsJson FROM messages WHERE id = ?`)
-    .get(messageId) as DbRow | undefined;
-  if (!row) return null;
-  const parsed = parseJsonOrUndef(row.eventsJson);
-  const events = Array.isArray(parsed) ? parsed : [];
+  const events = readStoredEvents({ db, messageId });
+  if (!events) return null;
   const last = events[events.length - 1];
   if (last && JSON.stringify(last) === JSON.stringify(event)) {
     return events;
@@ -289,6 +316,13 @@ export function appendMessageAgentEvent({ db, messageId, event }: { db: SqliteDb
   db.prepare(`UPDATE messages SET content = COALESCE(content, '') || ?, events_json = ? WHERE id = ?`)
     .run(textDelta, JSON.stringify(next), messageId);
   return next;
+}
+
+/** @internal An agent event's `kind`, or '' when the event is not an object or has no string kind. */
+function agentEventKind(event: unknown): string {
+  if (!event || typeof event !== 'object') return '';
+  const { kind } = event as { kind?: unknown };
+  return typeof kind === 'string' ? kind : '';
 }
 
 /**
@@ -326,7 +360,3 @@ function normalizeMessageSessionMode(value: unknown): ChatSessionMode | undefine
   return value === 'chat' || value === 'design' || value === 'plan' ? value : undefined;
 }
 
-/** @internal Same validation as normalizeMessageSessionMode but returns null (SQLite-safe) for unrecognised values. */
-function normalizeMessageSessionModeForStorage(value: unknown): ChatSessionMode | null {
-  return value === 'chat' || value === 'design' || value === 'plan' ? value : null;
-}
