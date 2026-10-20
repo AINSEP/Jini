@@ -46,9 +46,7 @@ export function LibraryTab(props: TabViewProps, _optional: Record<string, never>
         />
       )}
       <MediaPurgeDialog
-        open={!!vm.snapshot?.pendingPurge}
-        pending={vm.busy}
-        {...(vm.snapshot?.pendingPurge ? { filename: vm.snapshot.pendingPurge.title } : {})}
+        {...vm.purgeDialog}
         onCancel={vm.cancelPurge}
         onConfirm={vm.confirmPurge}
       />
