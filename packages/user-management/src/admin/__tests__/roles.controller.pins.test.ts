@@ -545,6 +545,17 @@ describe('roles controller requestDestructive and remaining pins', () => {
         expect(c.getSnapshot().policyError).toBe('Name is required.');
         c.dispose({});
     });
+    it.each([['createRole'], ['createPolicy']] as const)('%s returns false when disposed during the create', async (method) => {
+        const gate = deferred<void>();
+        const base = memory();
+        const c = createRolesController({ api: { ...base, createRole: async () => { await gate.promise; return { role }; }, createPolicy: async () => { await gate.promise; return { policy }; } } }, MANAGE);
+        await c.load({});
+        c.setDraft({ patch: { roleName: 'New', policyName: 'New' } });
+        const pending = c[method]({});
+        c.dispose({});
+        gate.resolve();
+        expect(await pending).toBe(false);
+    });
     it('saveRole and savePolicy report failures with their fallbacks', async () => {
         const fail = async () => { throw {}; };
         const { c } = await setup({ updateRole: fail, updatePolicy: fail });
