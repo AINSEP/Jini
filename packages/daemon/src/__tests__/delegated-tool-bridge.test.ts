@@ -473,4 +473,22 @@ describe('DelegatedToolBridge', () => {
 
     expect(order).toEqual(['emit:tool_use', 'suspend', 'emit:a2ui', 'emit:tool_result', 'resume']);
   });
+
+  it('honours a transport signal passed inside the first argument object, as the delegated-tools route does', async () => {
+    const registry = createToolRegistry({});
+    const handler = vi.fn(async () => 'must not run');
+    registry.register({ descriptor: { id: 'ok-tool' }, handler, policy: { authorize: () => 'allow' } });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
+    const transport = new AbortController();
+    transport.abort();
+    // Malformed-by-type on purpose: `signal` is declared on the optional object, but the route spreads it into the first.
+    const required = { runId: run.id, toolUseId: 'call-1', toolId: 'ok-tool', principal: { id: 'user-1' }, input: {}, signal: transport.signal };
+
+    const result = await bridge.execute(required);
+
+    expect(result.status).toBe('cancelled');
+    expect(handler).not.toHaveBeenCalled();
+  });
 });
