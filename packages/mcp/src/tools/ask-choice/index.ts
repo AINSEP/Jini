@@ -22,6 +22,31 @@ function describeAnswer(params: Record<string, unknown>, messages: AskChoiceMess
   return { submitted: true, ...(choice === undefined ? {} : { choice }), ...(selections === undefined ? {} : { selections }), note: messages.submitted };
 }
 
+// Classifies a delivered form answer: cancel wins over typed text, typed text wins over picks,
+// and picks must stay inside the offered options and actions.
+function classifyReceived({ params, question, messages }: {
+  params: Record<string, unknown>; question: AskChoiceQuestion; messages: AskChoiceMessages;
+}): Record<string, unknown> {
+  if (params[SURFACE_DISMISSED_PARAM] === true) return { submitted: false, reason: 'cancelled', note: messages.cancelled };
+  const typed = params[SURFACE_TYPED_ANSWER_PARAM];
+  if (typeof typed === 'string' && typed.trim()) return { submitted: true, freeText: typed.trim(), note: messages.typed };
+  const described = describeAnswer(params, messages);
+  if (described.submitted !== true) return described;
+  return withOfferedAction({ described, params, question, messages });
+}
+
+function withOfferedAction({ described, params, question, messages }: {
+  described: Record<string, unknown>; params: Record<string, unknown>; question: AskChoiceQuestion; messages: AskChoiceMessages;
+}): Record<string, unknown> {
+  const invalid = { submitted: false, reason: 'invalid-answer', note: messages.noAnswer };
+  // Live exchanges need the same offered-option boundary as fallback tickets.
+  if (!matchesOptions({ question, params })) return invalid;
+  if (!question.actions) return described;
+  const action = params['__choiceAction'];
+  if (!question.actions.some(offered => offered.id === action)) return invalid;
+  return { ...described, action };
+}
+
 async function waitForAnswer({ exchange, ui, signal, messages, question }: {
   exchange: AskChoiceExchange; ui: unknown; signal: AbortSignal; messages: AskChoiceMessages; question: AskChoiceQuestion;
 }): Promise<Record<string, unknown>> {
@@ -35,16 +60,7 @@ async function waitForAnswer({ exchange, ui, signal, messages, question }: {
     await exchange.send({ emission: { channel: 'mcp-ui', payload: { resource: ui } } });
     const answer = await exchange.receive({});
     if (answer.status !== 'received') return { submitted: false, reason: answer.status, note: messages[answer.status] };
-    if (answer.params[SURFACE_DISMISSED_PARAM] === true) return { submitted: false, reason: 'cancelled', note: messages.cancelled };
-    const typed = answer.params[SURFACE_TYPED_ANSWER_PARAM];
-    if (typeof typed === 'string' && typed.trim()) return { submitted: true, freeText: typed.trim(), note: messages.typed };
-    const described = describeAnswer(answer.params, messages);
-    if (described.submitted !== true) return described;
-    // Live exchanges need the same offered-option boundary as fallback tickets.
-    if (!matchesOptions({ question, params: answer.params })) return { submitted: false, reason: 'invalid-answer', note: messages.noAnswer };
-    const action = answer.params['__choiceAction'];
-    if (question.actions && !question.actions.some(offered => offered.id === action)) return { submitted: false, reason: 'invalid-answer', note: messages.noAnswer };
-    return { ...described, ...(question.actions ? { action } : {}) };
+    return classifyReceived({ params: answer.params, question, messages });
   } finally {
     signal.removeEventListener('abort', close);
     close();
@@ -97,38 +113,54 @@ export function createAskChoiceTool({ toolId, description, permission, policy, p
     async handler({ ctx }: { ctx: AskChoiceCall }): Promise<Record<string, unknown>> {
       await policy.authorize({ ctx, toolId });
       const input = typeof ctx.input === 'object' && ctx.input !== null ? ctx.input as Record<string, unknown> : {};
-      const isAnswer = typeof input['title'] !== 'string' && (typeof input['choice'] === 'string' || Array.isArray(input['selections']));
-      if (isAnswer) {
-        const rawTicket = input[ASK_CHOICE_ANSWER_TICKET_PARAM];
-        const ticket = typeof rawTicket === 'string' ? rawTicket : undefined;
-        if (!pendingQuestions.redeem({ ticket, principalId: ctx.principalId, params: input })) {
-          throw policy.inputError({ message: messages.forgedAnswer });
-        }
-        return describeAnswer(input, messages);
-      }
-      let question;
-      try {
-        question = parseQuestion({ input, toolId });
-      } catch (error) {
-        if (!(error instanceof QuestionShapeError)) throw error;
-        throw policy.shapeError({ message: error.message, toolId, inputSchema: ASK_CHOICE_INPUT_SCHEMA });
-      }
+      if (isAnswerCall(input)) return redeemAnswer({ input, ctx, pendingQuestions, policy, messages });
+      const question = parseOrRefuse({ input, toolId, policy });
       if (ctx.signal.aborted) return { submitted: false, reason: 'abandoned', note: messages.abandoned };
       const exchange = ctx.emitSurface ? surfaceExchanges.open({ toolId, principalId: ctx.principalId, emit: ctx.emitSurface }) : undefined;
       if (exchange) return askChoice({ exchange, question, toolId, principalId: ctx.principalId, presentation, signal: ctx.signal, messages });
-      const ticket = pendingQuestions.mint({ principalId: ctx.principalId, question });
-      const baseParams = { [ASK_CHOICE_ANSWER_TICKET_PARAM]: ticket };
-      let ui;
-      try {
-        ui = presentation.render({
-          toolName: toolId, principalId: ctx.principalId, question, baseParams,
-        });
-        return presentation.buildResult({ modelText: messages.pending, ui });
-      } catch (error) {
-        // A form that was not delivered must not leave a redeemable fallback ticket behind.
-        if (ticket !== undefined) pendingQuestions.redeem({ ticket, principalId: ctx.principalId, params: {} });
-        throw error;
-      }
+      return presentFallback({ question, toolId, principalId: ctx.principalId, pendingQuestions, presentation, messages });
     },
   };
+}
+
+// A second call carrying a pick (and no question title) is an answer to a fallback form.
+function isAnswerCall(input: Record<string, unknown>): boolean {
+  return typeof input['title'] !== 'string' && (typeof input['choice'] === 'string' || Array.isArray(input['selections']));
+}
+
+// The ticket is the only proof the answer came from a rendered form: redeem is fail-closed.
+function redeemAnswer({ input, ctx, pendingQuestions, policy, messages }: {
+  input: Record<string, unknown>; ctx: AskChoiceCall; pendingQuestions: AskChoicePendingStore; policy: AskChoicePolicy; messages: AskChoiceMessages;
+}): Record<string, unknown> {
+  const rawTicket = input[ASK_CHOICE_ANSWER_TICKET_PARAM];
+  const ticket = typeof rawTicket === 'string' ? rawTicket : undefined;
+  if (!pendingQuestions.redeem({ ticket, principalId: ctx.principalId, params: input })) {
+    throw policy.inputError({ message: messages.forgedAnswer });
+  }
+  return describeAnswer(input, messages);
+}
+
+function parseOrRefuse({ input, toolId, policy }: { input: Record<string, unknown>; toolId: string; policy: AskChoicePolicy }): AskChoiceQuestion {
+  try {
+    return parseQuestion({ input, toolId });
+  } catch (error) {
+    if (!(error instanceof QuestionShapeError)) throw error;
+    throw policy.shapeError({ message: error.message, toolId, inputSchema: ASK_CHOICE_INPUT_SCHEMA });
+  }
+}
+
+// No emit seam: return the form itself, bound to a freshly minted single-use ticket.
+function presentFallback({ question, toolId, principalId, pendingQuestions, presentation, messages }: {
+  question: AskChoiceQuestion; toolId: string; principalId: string;
+  pendingQuestions: AskChoicePendingStore; presentation: AskChoicePresentation; messages: AskChoiceMessages;
+}): Record<string, unknown> {
+  const ticket = pendingQuestions.mint({ principalId, question });
+  try {
+    const ui = presentation.render({ toolName: toolId, principalId, question, baseParams: { [ASK_CHOICE_ANSWER_TICKET_PARAM]: ticket } });
+    return presentation.buildResult({ modelText: messages.pending, ui });
+  } catch (error) {
+    // A form that was not delivered must not leave a redeemable fallback ticket behind.
+    pendingQuestions.redeem({ ticket, principalId, params: {} });
+    throw error;
+  }
 }

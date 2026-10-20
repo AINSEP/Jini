@@ -284,3 +284,11 @@ test('the default ticket store always mints a non-empty string ticket', () => {
   expect(typeof ticket).toBe('string');
   expect(ticket.length).toBeGreaterThan(0);
 });
+
+test('an unexpected parse failure propagates as-is instead of being dressed up as a shape error', async () => {
+  const { deps, context } = setup();
+  const boom = new TypeError('singleSelect getter failed');
+  // Malformed-input fixture: a hostile getter stands in for any non-shape failure inside parsing.
+  const input = { title: 'Pick', get singleSelect(): unknown { throw boom; } };
+  await expect(createAskChoiceTool(deps).handler({ ctx: { ...context, input } })).rejects.toBe(boom);
+});
