@@ -666,3 +666,407 @@ describe('codexAppBundleCandidates', () => {
     }
   });
 });
+
+// Characterization pins (L174): every remaining branch of executable
+// resolution, written green against the pre-refactor code and kept unchanged
+// through the refactor so the search order / acceptance rules are provably
+// identical.
+describe('executable resolution characterization', () => {
+  let dir: string;
+  const originalPlatform = process.platform;
+  const bundleSuffix = ['Applications', 'Codex.app', 'Contents', 'Resources', 'codex'];
+
+  function onPlatform(platform: NodeJS.Platform): void {
+    Object.defineProperty(process, 'platform', { value: platform });
+  }
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-exec-char-test-'));
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform });
+    vi.unstubAllEnvs();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  describe('defaults to process.env and the shared default runtime state when no options are passed', () => {
+    beforeEach(() => {
+      vi.stubEnv('PATH', dir);
+      vi.stubEnv('AGENT_RUNTIME_HOME', dir);
+    });
+
+    it('resolveOnPath searches process.env.PATH', () => {
+      makeExecutable(path.join(dir, 'char-default-bin'));
+      expect(resolveOnPath({ bin: 'char-default-bin' })).toBe(path.join(dir, 'char-default-bin'));
+    });
+
+    it('agentSearchDirs starts with the process.env.PATH entries', () => {
+      expect(agentSearchDirs()[0]).toBe(dir);
+    });
+
+    it('userToolchainBinDirs scopes to the process.env agent-home override', () => {
+      expect(userToolchainBinDirs().every((d) => !d.startsWith('/usr/local') && !d.startsWith('/opt/homebrew'))).toBe(true);
+    });
+
+    it('resolveAgentExecutable and inspectAgentExecutableResolution resolve via process.env with no configuredEnv', () => {
+      makeExecutable(path.join(dir, 'char-default-agent'));
+      const def = makeDef({ id: 'char-default-agent', bin: 'char-default-agent' });
+      expect(resolveAgentExecutable({ def })).toBe(path.join(dir, 'char-default-agent'));
+      expect(inspectAgentExecutableResolution({ def })).toEqual({
+        configuredOverridePath: null,
+        pathResolvedPath: path.join(dir, 'char-default-agent'),
+        selectedPath: path.join(dir, 'char-default-agent'),
+      });
+    });
+
+    it('resolveAmrOpenCodeExecutable falls back to PATH via process.env', () => {
+      makeExecutable(path.join(dir, 'opencode'));
+      expect(resolveAmrOpenCodeExecutable({})).toBe(path.join(dir, 'opencode'));
+    });
+
+    it('codexAppBundleCandidates honors the process.env agent-home override on darwin', () => {
+      onPlatform('darwin');
+      expect(codexAppBundleCandidates()).toEqual([path.join(dir, ...bundleSuffix)]);
+    });
+
+    it('configureExecutableResolutionEnv mutates the shared default state when no state is passed', async () => {
+      const { defaultRuntimeState } = await import('../runtime-state.js');
+      const saved = { ...defaultRuntimeState.executable.envNames };
+      try {
+        configureExecutableResolutionEnv({ overrides: { agentHomeEnvVar: 'CHAR_HOME', resourceRootEnvVar: 'CHAR_ROOT' } });
+        expect(defaultRuntimeState.executable.envNames).toEqual({ agentHomeEnvVar: 'CHAR_HOME', resourceRootEnvVar: 'CHAR_ROOT' });
+      } finally {
+        Object.assign(defaultRuntimeState.executable.envNames, saved);
+      }
+    });
+  });
+
+  describe('detection home fallback chain (override → HOME → USERPROFILE → os.homedir)', () => {
+    it('uses USERPROFILE when neither the override nor HOME is set', () => {
+      onPlatform('darwin');
+      const candidates = codexAppBundleCandidates({}, { env: { USERPROFILE: dir }, state });
+      expect(candidates).toEqual([path.join('/Applications', ...bundleSuffix.slice(1)), path.join(dir, ...bundleSuffix)]);
+    });
+
+    it('uses os.homedir() when no home variable is set at all', async () => {
+      onPlatform('darwin');
+      const { homedir } = await import('node:os');
+      const candidates = codexAppBundleCandidates({}, { env: {}, state });
+      expect(candidates).toEqual([path.join('/Applications', ...bundleSuffix.slice(1)), path.join(homedir(), ...bundleSuffix)]);
+    });
+
+    it('lets the agent-home override win over HOME', () => {
+      onPlatform('darwin');
+      const candidates = codexAppBundleCandidates({}, { env: { HOME: '/char/home', AGENT_RUNTIME_HOME: dir }, state });
+      expect(candidates).toEqual([path.join(dir, ...bundleSuffix)]);
+    });
+  });
+
+  describe('custom resource-root env var name', () => {
+    it('resolveAmrOpenCodeExecutable reads the bundled companion under the configured resourceRootEnvVar', () => {
+      configureExecutableResolutionEnv({ overrides: { resourceRootEnvVar: 'CHAR_RESOURCE_ROOT' } }, { state });
+      const companion = path.join(dir, 'bin', 'libexec', 'opencode');
+      mkdirSync(companion, { recursive: true });
+      makeExecutable(path.join(companion, 'opencode'));
+      expect(resolveAmrOpenCodeExecutable({}, { env: { ...env, CHAR_RESOURCE_ROOT: dir }, state })).toBe(path.join(companion, 'opencode'));
+    });
+
+    it('ignores the default AGENT_RUNTIME_RESOURCE_ROOT once a custom name is configured', () => {
+      configureExecutableResolutionEnv({ overrides: { resourceRootEnvVar: 'CHAR_RESOURCE_ROOT' } }, { state });
+      const companion = path.join(dir, 'bin', 'libexec', 'opencode');
+      mkdirSync(companion, { recursive: true });
+      makeExecutable(path.join(companion, 'opencode'));
+      withIsolatedToolchain(dir, () => {
+        expect(resolveAmrOpenCodeExecutable({}, { env: { ...env, AGENT_RUNTIME_RESOURCE_ROOT: dir }, state })).toBeNull();
+      });
+    });
+
+    it('leaves both names unchanged when overrides are empty', () => {
+      configureExecutableResolutionEnv({ overrides: { agentHomeEnvVar: '', resourceRootEnvVar: '' } }, { state });
+      expect(state.executable.envNames).toEqual({ agentHomeEnvVar: 'AGENT_RUNTIME_HOME', resourceRootEnvVar: 'AGENT_RUNTIME_RESOURCE_ROOT' });
+    });
+  });
+
+  describe('PATH search order and acceptance', () => {
+    it('returns the first PATH directory that contains the binary', () => {
+      const first = path.join(dir, 'a');
+      const second = path.join(dir, 'b');
+      mkdirSync(first);
+      mkdirSync(second);
+      makeExecutable(path.join(first, 'char-bin'));
+      makeExecutable(path.join(second, 'char-bin'));
+      env.PATH = [second, first].join(path.delimiter);
+      expect(resolveOnPath({ bin: 'char-bin' }, { env, state })).toBe(path.join(second, 'char-bin'));
+    });
+
+    it('searches PATH entries before the user toolchain dirs', () => {
+      const toolchainBin = path.join(dir, '.local', 'bin');
+      const pathDir = path.join(dir, 'p');
+      mkdirSync(toolchainBin, { recursive: true });
+      mkdirSync(pathDir);
+      makeExecutable(path.join(toolchainBin, 'char-bin'));
+      makeExecutable(path.join(pathDir, 'char-bin'));
+      env.AGENT_RUNTIME_HOME = dir;
+      env.PATH = pathDir;
+      expect(agentSearchDirs({}, { env, state })).toContain(toolchainBin);
+      expect(resolveOnPath({ bin: 'char-bin' }, { env, state })).toBe(path.join(pathDir, 'char-bin'));
+    });
+
+    it('falls back to a user toolchain dir when PATH has no match', () => {
+      const toolchainBin = path.join(dir, '.local', 'bin');
+      mkdirSync(toolchainBin, { recursive: true });
+      makeExecutable(path.join(toolchainBin, 'char-bin'));
+      env.AGENT_RUNTIME_HOME = dir;
+      env.PATH = '';
+      expect(resolveOnPath({ bin: 'char-bin' }, { env, state })).toBe(path.join(toolchainBin, 'char-bin'));
+    });
+
+    it('accepts a non-executable PATH match because only existence is checked (reported, not fixed)', () => {
+      writeFileSync(path.join(dir, 'char-bin'), 'not executable', 'utf8');
+      chmodSync(path.join(dir, 'char-bin'), 0o644);
+      env.PATH = dir;
+      expect(resolveOnPath({ bin: 'char-bin' }, { env, state })).toBe(path.join(dir, 'char-bin'));
+    });
+
+    it('accepts a directory as a PATH match because only existence is checked (reported, not fixed)', () => {
+      mkdirSync(path.join(dir, 'char-bin'));
+      env.PATH = dir;
+      expect(resolveOnPath({ bin: 'char-bin' }, { env, state })).toBe(path.join(dir, 'char-bin'));
+    });
+
+    it('returns a cwd-relative path for a relative PATH entry (reported, not fixed)', () => {
+      const rel = path.relative(process.cwd(), dir);
+      makeExecutable(path.join(dir, 'char-bin'));
+      env.PATH = rel;
+      const resolved = resolveOnPath({ bin: 'char-bin' }, { env, state });
+      expect(resolved).toBe(path.join(rel, 'char-bin'));
+      expect(path.isAbsolute(resolved ?? '')).toBe(false);
+    });
+
+    it('caches the toolchain dirs for an unchanged environment', () => {
+      env.AGENT_RUNTIME_HOME = dir;
+      const firstCall = userToolchainBinDirs({}, { env, state });
+      expect(userToolchainBinDirs({}, { env, state })).toBe(firstCall);
+    });
+
+    it('recomputes the toolchain dirs when a keyed env field changes', () => {
+      env.AGENT_RUNTIME_HOME = dir;
+      const firstCall = userToolchainBinDirs({}, { env, state });
+      expect(userToolchainBinDirs({}, { env: { ...env, FNM_DIR: dir }, state })).not.toBe(firstCall);
+    });
+
+    it('recomputes the toolchain dirs after the 5s cache TTL', () => {
+      env.AGENT_RUNTIME_HOME = dir;
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+      const firstCall = userToolchainBinDirs({}, { env, state });
+      now.mockReturnValue(1_005_000);
+      expect(userToolchainBinDirs({}, { env, state })).not.toBe(firstCall);
+    });
+  });
+
+  describe('win32 extension handling', () => {
+    it('resolveOnPath defaults PATHEXT to .EXE;.CMD;.BAT when unset', () => {
+      onPlatform('win32');
+      makeExecutable(path.join(dir, 'char-bin.BAT'));
+      delete env.PATHEXT;
+      env.PATH = dir;
+      expect(resolveOnPath({ bin: 'char-bin' }, { env, state })).toBe(path.join(dir, 'char-bin.BAT'));
+    });
+
+    it('resolveOnPath does not try .COM under the default PATHEXT', () => {
+      onPlatform('win32');
+      makeExecutable(path.join(dir, 'char-bin.COM'));
+      delete env.PATHEXT;
+      withIsolatedToolchain(dir, () => {
+        expect(resolveOnPath({ bin: 'char-bin' }, { env, state })).toBeNull();
+      });
+    });
+
+    it('resolveOnPath tries extensions in PATHEXT order within one directory', () => {
+      onPlatform('win32');
+      makeExecutable(path.join(dir, 'char-bin.CMD'));
+      makeExecutable(path.join(dir, 'char-bin.EXE'));
+      env.PATHEXT = '.CMD;.EXE';
+      env.PATH = dir;
+      expect(resolveOnPath({ bin: 'char-bin' }, { env, state })).toBe(path.join(dir, 'char-bin.CMD'));
+    });
+
+    it('resolveOnPath does not try the bare name on win32', () => {
+      onPlatform('win32');
+      makeExecutable(path.join(dir, 'char-bin'));
+      env.PATHEXT = '.EXE';
+      withIsolatedToolchain(dir, () => {
+        expect(resolveOnPath({ bin: 'char-bin' }, { env, state })).toBeNull();
+      });
+    });
+
+    it('accepts a configured override against the default PATHEXT when unset', () => {
+      onPlatform('win32');
+      const override = path.join(dir, 'claude.bat');
+      makeExecutable(override);
+      delete env.PATHEXT;
+      const def = makeDef({ id: 'claude', bin: 'claude-not-installed-xyz' });
+      expect(resolveAgentExecutable({ def }, { env, state, configuredEnv: { CLAUDE_BIN: override } })).toBe(override);
+    });
+
+    it('rejects a configured .com override under the default PATHEXT', () => {
+      onPlatform('win32');
+      const override = path.join(dir, 'claude.com');
+      makeExecutable(override);
+      delete env.PATHEXT;
+      const def = makeDef({ id: 'claude', bin: 'claude-not-installed-xyz' });
+      expect(inspectAgentExecutableResolution({ def }, { env, state, configuredEnv: { CLAUDE_BIN: override } }).configuredOverridePath).toBeNull();
+    });
+
+    it('matches PATHEXT case-insensitively and ignores blank / padded entries', () => {
+      onPlatform('win32');
+      const override = path.join(dir, 'claude.exe');
+      makeExecutable(override);
+      env.PATHEXT = ' .Exe ;;';
+      const def = makeDef({ id: 'claude', bin: 'claude-not-installed-xyz' });
+      expect(resolveAgentExecutable({ def }, { env, state, configuredEnv: { CLAUDE_BIN: override } })).toBe(override);
+    });
+
+    it('accepts a win32 override without an execute-permission check', () => {
+      onPlatform('win32');
+      const override = path.join(dir, 'claude.exe');
+      writeFileSync(override, 'stub', 'utf8');
+      chmodSync(override, 0o644);
+      const def = makeDef({ id: 'claude', bin: 'claude-not-installed-xyz' });
+      expect(resolveAgentExecutable({ def }, { env, state, configuredEnv: { CLAUDE_BIN: override } })).toBe(override);
+    });
+  });
+
+  describe('configured *_BIN override acceptance', () => {
+    it('rejects a posix override that is not executable', () => {
+      const override = path.join(dir, 'claude');
+      writeFileSync(override, 'stub', 'utf8');
+      chmodSync(override, 0o644);
+      const def = makeDef({ id: 'claude', bin: 'claude-not-installed-xyz' });
+      expect(inspectAgentExecutableResolution({ def }, { env, state, configuredEnv: { CLAUDE_BIN: override } }).configuredOverridePath).toBeNull();
+    });
+
+    it('rejects an override path that does not exist', () => {
+      const def = makeDef({ id: 'claude', bin: 'claude-not-installed-xyz' });
+      expect(inspectAgentExecutableResolution({ def }, { env, state, configuredEnv: { CLAUDE_BIN: path.join(dir, 'missing') } }).configuredOverridePath).toBeNull();
+    });
+
+    it('trims surrounding whitespace from the override', () => {
+      const override = path.join(dir, 'claude');
+      makeExecutable(override);
+      const def = makeDef({ id: 'claude', bin: 'claude-not-installed-xyz' });
+      expect(resolveAgentExecutable({ def }, { env, state, configuredEnv: { CLAUDE_BIN: `  ${override}  ` } })).toBe(override);
+    });
+
+    it('expands a ~/ override against os.homedir(), not the injected HOME / agent home (reported, not fixed)', () => {
+      // A binary planted in the injected (sandbox) home is NOT found through a
+      // `~/` override: expansion goes to the real host home instead, so a
+      // sandboxed detection run can reach outside its fixture home.
+      makeExecutable(path.join(dir, 'char-tilde-bin-xyz'));
+      const def = makeDef({ id: 'claude', bin: 'claude-not-installed-xyz' });
+      const result = inspectAgentExecutableResolution({ def }, {
+        env: { ...env, HOME: dir, AGENT_RUNTIME_HOME: dir },
+        state,
+        configuredEnv: { CLAUDE_BIN: '~/char-tilde-bin-xyz' },
+      });
+      expect(result.configuredOverridePath).toBeNull();
+    });
+
+    it('reads the override from configuredEnv only, never from the host env', () => {
+      const override = path.join(dir, 'claude');
+      makeExecutable(override);
+      const def = makeDef({ id: 'claude', bin: 'claude-not-installed-xyz' });
+      expect(inspectAgentExecutableResolution({ def }, { env: { ...env, CLAUDE_BIN: override }, state, configuredEnv: {} }).configuredOverridePath).toBeNull();
+    });
+
+    it('reports a PATH match alongside a winning override', () => {
+      const override = path.join(dir, 'override-claude');
+      const pathDir = path.join(dir, 'p');
+      mkdirSync(pathDir);
+      makeExecutable(override);
+      makeExecutable(path.join(pathDir, 'claude'));
+      env.PATH = pathDir;
+      const def = makeDef({ id: 'claude', bin: 'claude' });
+      expect(inspectAgentExecutableResolution({ def }, { env, state, configuredEnv: { CLAUDE_BIN: override } })).toEqual({
+        configuredOverridePath: override,
+        pathResolvedPath: path.join(pathDir, 'claude'),
+        selectedPath: override,
+      });
+    });
+
+    it('tries def.bin before fallbackBins', () => {
+      makeExecutable(path.join(dir, 'claude'));
+      makeExecutable(path.join(dir, 'claude-fork'));
+      env.PATH = dir;
+      const def = makeDef({ id: 'claude', bin: 'claude', fallbackBins: ['claude-fork'] });
+      expect(resolveAgentExecutable({ def }, { env, state, configuredEnv: {} })).toBe(path.join(dir, 'claude'));
+    });
+
+    it('ignores a non-array fallbackBins value', () => {
+      makeExecutable(path.join(dir, 'claude-fork'));
+      withIsolatedToolchain(dir, () => {
+        const def = makeDef({ id: 'claude', bin: 'claude-missing-xyz', fallbackBins: 'claude-fork' as unknown as string[] });
+        expect(resolveAgentExecutable({ def }, { env, state, configuredEnv: {} })).toBeNull();
+      });
+    });
+  });
+
+  describe('selection precedence: override → packaged built-in → PATH → app bundle', () => {
+    function packagedVela(root: string): string {
+      const companion = path.join(root, 'bin', 'libexec', 'opencode');
+      mkdirSync(companion, { recursive: true });
+      makeExecutable(path.join(companion, 'opencode'));
+      makeExecutable(path.join(root, 'bin', 'vela'));
+      return path.join(root, 'bin', 'vela');
+    }
+
+    it('selects the packaged vela binary over a vela match on PATH', () => {
+      const vela = packagedVela(dir);
+      const pathDir = path.join(dir, 'p');
+      mkdirSync(pathDir);
+      makeExecutable(path.join(pathDir, 'vela'));
+      env.PATH = pathDir;
+      const def = makeDef({ id: 'amr', bin: 'vela' });
+      expect(inspectAgentExecutableResolution({ def }, { env: { ...env, AGENT_RUNTIME_RESOURCE_ROOT: dir }, state, configuredEnv: {} })).toEqual({
+        configuredOverridePath: null,
+        pathResolvedPath: path.join(pathDir, 'vela'),
+        selectedPath: vela,
+      });
+    });
+
+    it('selects the configured VELA_BIN override over the packaged vela binary', () => {
+      packagedVela(dir);
+      const override = path.join(dir, 'override-vela');
+      makeExecutable(override);
+      const def = makeDef({ id: 'amr', bin: 'vela-missing-xyz' });
+      expect(resolveAgentExecutable({ def }, { env: { ...env, AGENT_RUNTIME_RESOURCE_ROOT: dir }, state, configuredEnv: { VELA_BIN: override } })).toBe(override);
+    });
+
+    it('lets configuredEnv supply VELA_OPENCODE_BIN for the packaged vela companion check', () => {
+      makeExecutable(path.join(dir, 'opencode-override'));
+      mkdirSync(path.join(dir, 'bin'));
+      makeExecutable(path.join(dir, 'bin', 'vela'));
+      const def = makeDef({ id: 'amr', bin: 'vela-missing-xyz' });
+      expect(resolveAgentExecutable({ def }, {
+        env: { ...env, AGENT_RUNTIME_RESOURCE_ROOT: dir },
+        state,
+        configuredEnv: { VELA_OPENCODE_BIN: path.join(dir, 'opencode-override') },
+      })).toBe(path.join(dir, 'bin', 'vela'));
+    });
+
+    it('selects a PATH match over a darwin app-bundle install', () => {
+      onPlatform('darwin');
+      const bundle = path.join(dir, ...bundleSuffix);
+      mkdirSync(path.dirname(bundle), { recursive: true });
+      makeExecutable(bundle);
+      const pathDir = path.join(dir, 'p');
+      mkdirSync(pathDir);
+      makeExecutable(path.join(pathDir, 'codex'));
+      env.AGENT_RUNTIME_HOME = dir;
+      env.PATH = pathDir;
+      const def = makeDef({ id: 'codex', bin: 'codex' });
+      expect(resolveAgentExecutable({ def }, { env, state, configuredEnv: {} })).toBe(path.join(pathDir, 'codex'));
+    });
+  });
+});
