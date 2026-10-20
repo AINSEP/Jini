@@ -160,6 +160,12 @@ describe('probeMacBundle', () => {
     expect(await probeMacBundle({ name: 'Cursor', probeEnv: env })).toBeNull();
   });
 
+  it.each([['linux'], ['win32'], ['unknown']] as const)('never touches the filesystem on %s, even when a bundle path would exist (resolveEntry relies on this as its only darwin gate)', async (platform) => {
+    const access = vi.fn(async () => {});
+    expect(await probeMacBundle({ name: 'Cursor', probeEnv: probeEnv({ platform, access }) })).toBeNull();
+    expect(access).not.toHaveBeenCalled();
+  });
+
   it('finds a single-name bundle at the first candidate location', async () => {
     const env = probeEnv({ platform: 'darwin', exists: ['/Applications/Cursor.app'] });
     expect(await probeMacBundle({ name: 'Cursor', probeEnv: env })).toEqual({ name: 'Cursor', path: '/Applications/Cursor.app' });

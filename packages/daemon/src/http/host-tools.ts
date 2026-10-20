@@ -25,7 +25,8 @@ import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
 import { validationError } from '@jini-ai/http-kit';
 import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
-import { denyAllWorkspaceRoots, resolveWorkspaceRoot, WorkspaceRootDeniedError, type WorkspaceRootResolver } from './workspace-root.js';
+import { denyAllWorkspaceRoots, type WorkspaceRootResolver } from './workspace-root.js';
+import { isRecord, readOptionalNonEmptyString, resolveResourceRoot, withoutUndefined } from './resource-request.js';
 
 export type RealPlatform = 'darwin' | 'win32' | 'linux';
 export type Platform = RealPlatform | 'unknown';
@@ -192,33 +193,36 @@ type ResolvedEntry =
   | { readonly available: true; readonly resolvedPath: string; readonly launch: { readonly command: string; readonly argsForDir: (requiredArgs: { readonly workingDir: string }) => string[] } }
   | { readonly available: false };
 
+/** The CLI-shim half of {@link resolveEntry}: `null` when the entry has no `command` or it is not found. */
+async function resolveViaCommand({ entry, probeEnv }: { readonly entry: CatalogueEntry; readonly probeEnv: HostToolProbeEnv }): Promise<ResolvedEntry | null> {
+  if (!entry.command) return null;
+  const resolved = await probeCommandOnPath({ command: entry.command, probeEnv });
+  if (!resolved) return null;
+  const commandArgs = entry.commandArgs ?? (({ workingDir }: { workingDir: string }) => [workingDir]);
+  return { available: true, resolvedPath: resolved, launch: { command: resolved, argsForDir: ({ workingDir }) => commandArgs({ workingDir }) } };
+}
+
+/**
+ * The macOS app-bundle half of {@link resolveEntry} (launched via `open -a`): `null` without a
+ * `macOpenBundle` or when no bundle is found. Off darwin it is `null` too: {@link probeMacBundle}
+ * itself returns `null` before any filesystem access on every non-darwin platform, so it is the
+ * single darwin gate (this function used to repeat that check).
+ */
+async function resolveViaMacBundle({ entry, probeEnv }: { readonly entry: CatalogueEntry; readonly probeEnv: HostToolProbeEnv }): Promise<ResolvedEntry | null> {
+  if (!entry.macOpenBundle) return null;
+  const bundle = await probeMacBundle({ name: entry.macOpenBundle, probeEnv });
+  if (!bundle) return null;
+  const macOpenArgs = entry.macOpenArgs ?? (({ bundleName, workingDir }: { bundleName: string; workingDir: string }) => ['-a', bundleName, workingDir]);
+  return {
+    available: true,
+    resolvedPath: bundle.path,
+    launch: { command: await resolveMacOpenCommand(probeEnv), argsForDir: ({ workingDir }) => macOpenArgs({ bundleName: bundle.name, workingDir }) },
+  };
+}
+
+/** Resolves how to launch `entry`: its CLI shim first, then (darwin only) its app bundle, else unavailable. */
 export async function resolveEntry({ entry }: { readonly entry: CatalogueEntry }, { probeEnv = defaultProbeEnv({}) }: { readonly probeEnv?: HostToolProbeEnv | undefined } = {}): Promise<ResolvedEntry> {
-  if (entry.command) {
-    const resolved = await probeCommandOnPath({ command: entry.command, probeEnv });
-    if (resolved) {
-      return {
-        available: true,
-        resolvedPath: resolved,
-        launch: { command: resolved, argsForDir: entry.commandArgs ? ({ workingDir }) => entry.commandArgs!({ workingDir }) : ({ workingDir }) => [workingDir] },
-      };
-    }
-  }
-  if (entry.macOpenBundle && probeEnv.platform === 'darwin') {
-    const bundle = await probeMacBundle({ name: entry.macOpenBundle, probeEnv });
-    if (bundle) {
-      return {
-        available: true,
-        resolvedPath: bundle.path,
-        launch: {
-          command: await resolveMacOpenCommand(probeEnv),
-          argsForDir: entry.macOpenArgs
-            ? ({ workingDir }: { workingDir: string }) => entry.macOpenArgs!({ bundleName: bundle.name, workingDir })
-            : ({ workingDir }: { workingDir: string }) => ['-a', bundle.name, workingDir],
-        },
-      };
-    }
-  }
-  return { available: false };
+  return (await resolveViaCommand({ entry, probeEnv })) ?? (await resolveViaMacBundle({ entry, probeEnv })) ?? { available: false };
 }
 
 export interface HostToolLaunchPlan {
@@ -341,10 +345,6 @@ export interface HostToolsOpenInDeps {
   readonly spawnImpl?: typeof nodeSpawn;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function parseOpenResourceInEditor(input: RouteInputContext): Result<OpenResourceInEditorRequest> {
   const resourceRef = input.params.resourceRef;
   if (typeof resourceRef !== 'string' || resourceRef.length === 0) {
@@ -355,11 +355,33 @@ function parseOpenResourceInEditor(input: RouteInputContext): Result<OpenResourc
   if (typeof editorId !== 'string' || editorId.length === 0) {
     return err({ error: validationError({ message: 'editorId is required' }, { issues: [{ path: 'editorId', message: 'required non-empty string' }] }) });
   }
-  const detail = input.body.detail;
-  if (detail !== undefined && (typeof detail !== 'string' || detail.length === 0)) {
-    return err({ error: validationError({ message: 'detail must be a non-empty string when provided' }) });
+  const detail = readOptionalNonEmptyString({ body: input.body, field: 'detail' });
+  if (!detail.ok) return detail;
+  return ok({ value: { resourceRef, editorId, ...withoutUndefined({ detail: detail.value }) } });
+}
+
+/** Looks `editorId` up in {@link CATALOGUE} and checks it applies to `platform`; both refusals are `BAD_REQUEST`. */
+function selectEditor({ editorId, platform }: { readonly editorId: string; readonly platform: Platform }): Result<CatalogueEntry> {
+  const entry = CATALOGUE.find((c) => c.id === editorId);
+  if (!entry) return err({ error: createApiError({ code: 'BAD_REQUEST', message: `unknown editor: ${editorId}` }) });
+  if (!applicableForPlatform({ entry, platform })) {
+    return err({ error: createApiError({ code: 'BAD_REQUEST', message: `${entry.label} is not available on ${platform}` }) });
   }
-  return ok({ value: { resourceRef, editorId, ...(detail === undefined ? {} : { detail }) } });
+  return ok({ value: entry });
+}
+
+/** Probes `entry` and launches it at `workingDir`: `CONFLICT` when it is not installed, `INTERNAL_ERROR` (with the OS's own reason) when the launch is refused. */
+async function launchEditorAt(
+  { entry, workingDir }: { readonly entry: CatalogueEntry; readonly workingDir: string },
+  { probeEnv, spawnImpl }: { readonly probeEnv: HostToolProbeEnv; readonly spawnImpl: typeof nodeSpawn },
+): Promise<Result<OpenResourceInEditorResponse>> {
+  const probe = await resolveEntry({ entry }, { probeEnv });
+  if (!probe.available) return err({ error: createApiError({ code: 'CONFLICT', message: `${entry.label} is not installed` }) });
+  const launch = await launchHostTool({ command: probe.launch.command, args: probe.launch.argsForDir({ workingDir }) }, { spawnImpl });
+  if (!launch.ok) {
+    return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: `failed to launch ${entry.label}: ${launch.error}` }) });
+  }
+  return ok({ value: { ok: true, editorId: entry.id, path: workingDir } });
 }
 
 /**
@@ -390,33 +412,12 @@ export const openResourceInEditorRoute = defineJsonRoute<
   HostToolsOpenInDeps
 >({
   method: 'post', path: '/api/resources/:resourceRef/open-in', parse: parseOpenResourceInEditor, handle: async ({ input, deps }) => {
-    const entry = CATALOGUE.find((c) => c.id === input.editorId);
-    if (!entry) return err({ error: createApiError({ code: 'BAD_REQUEST', message: `unknown editor: ${input.editorId}` }) });
     const probeEnv = deps.probeEnv ?? defaultProbeEnv({});
-    if (!applicableForPlatform({ entry, platform: probeEnv.platform })) {
-      return err({ error: createApiError({ code: 'BAD_REQUEST', message: `${entry.label} is not available on ${probeEnv.platform}` }) });
-    }
-
-    let resolvedDir: string;
-    try {
-      resolvedDir = await resolveWorkspaceRoot({ request: { resourceRef: input.resourceRef, ...(input.detail === undefined ? {} : { detail: input.detail }) } }, { resolver: deps.resolveRoot ?? denyAllWorkspaceRoots }
-      );
-    } catch (error) {
-      if (error instanceof WorkspaceRootDeniedError) {
-        return err({ error: createApiError({ code: 'NOT_FOUND', message: `resource "${input.resourceRef}" was not found` }) });
-      }
-      throw error;
-    }
-
-    const launchPlan = await resolveHostToolLaunchPlan({ editorId: input.editorId, workingDir: resolvedDir }, { probeEnv });
-    if (!launchPlan.available || !launchPlan.command || !launchPlan.args) {
-      return err({ error: createApiError({ code: 'CONFLICT', message: `${entry.label} is not installed` }) });
-    }
-    const launch = await launchHostTool({ command: launchPlan.command, args: launchPlan.args }, { spawnImpl: deps.spawnImpl ?? nodeSpawn });
-    if (!launch.ok) {
-      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: `failed to launch ${entry.label}: ${launch.error}` }) });
-    }
-    return ok({ value: { ok: true, editorId: input.editorId, path: resolvedDir } });
+    const editor = selectEditor({ editorId: input.editorId, platform: probeEnv.platform });
+    if (!editor.ok) return editor;
+    const root = await resolveResourceRoot({ resourceRef: input.resourceRef, detail: input.detail }, { resolver: deps.resolveRoot ?? denyAllWorkspaceRoots });
+    if (!root.ok) return root;
+    return launchEditorAt({ entry: editor.value, workingDir: root.value }, { probeEnv, spawnImpl: deps.spawnImpl ?? nodeSpawn });
   }
 }, { requireSameOrigin: true });
 
