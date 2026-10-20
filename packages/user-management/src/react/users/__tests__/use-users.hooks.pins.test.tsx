@@ -339,6 +339,16 @@ describe("useUsers pins — dialog guards", () => {
     expect(result.current.resetPasswordFor).toBeNull();
   });
 
+  it("the deep link auto-opens only once, even after the roster reloads", async () => {
+    const port = createFakeUsersPort({}, { users: [CALLER, TARGET], meId: "caller" });
+    const { result } = await mounted(port, { openOwnPasswordReset: true });
+    await waitFor(() => expect(result.current.resetPasswordFor).toEqual(CALLER));
+    act(() => result.current.setResetPasswordFor(null));
+    await act(async () => result.current.onToggleStatus(TARGET));
+    await waitFor(() => expect(result.current.users?.[1]?.status).toBe("disabled"));
+    expect(result.current.resetPasswordFor).toBeNull();
+  });
+
   it("refuses to open the reset dialog while a status toggle is in flight", async () => {
     const port = createFakeUsersPort({}, { users: [TARGET, CALLER], meId: "caller" });
     const write = deferred<{ user: AdminIdentityUser }>();
