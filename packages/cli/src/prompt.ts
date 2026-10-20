@@ -76,18 +76,33 @@ export async function readPromptFromFlags(
   if (typeof promptFile !== 'string' || promptFile.length === 0) {
     return null;
   }
-  const readLimits = { maxBytes: options.maxBytes ?? DEFAULT_MAX_READ_BYTES, ...(options.signal !== undefined ? { signal: options.signal } : {}) };
-  if (promptFile === '-') {
-    const readStdin = options.readStdin ?? ((): Promise<string> => defaultReadStdin(readLimits));
-    return await readStdin();
-  }
-  const readFile = options.readFile ?? (({ path }: { path: string }): Promise<string> => defaultReadFile(path, readLimits));
-  return await readFile({ path: promptFile });
+  return await readFlagSource({ source: promptFile, readDefaultStdin: defaultReadStdin }, options);
 }
 
 interface ReadLimits {
   maxBytes: number;
   signal?: AbortSignal;
+}
+
+/** The reader ports and limits both flag conventions accept; `ReadPromptFromFlagsOptions` and `ReadBodyFromFlagsOptions` are both this shape. */
+type FlagSourceOptions = ReadPromptFromFlagsOptions & ReadBodyFromFlagsOptions;
+
+/**
+ * Reads a `--*-file` flag's value: `-` means stdin (the injected `readStdin`, else
+ * `readDefaultStdin`), anything else is a path (the injected `readFile`, else the bounded
+ * default file reader). The byte cap and signal only reach the default readers.
+ */
+async function readFlagSource(
+  { source, readDefaultStdin }: { source: string; readDefaultStdin: (limits: ReadLimits) => Promise<string> },
+  options: FlagSourceOptions,
+): Promise<string> {
+  const readLimits: ReadLimits = { maxBytes: options.maxBytes ?? DEFAULT_MAX_READ_BYTES, ...(options.signal !== undefined ? { signal: options.signal } : {}) };
+  if (source === '-') {
+    const readStdin = options.readStdin ?? ((): Promise<string> => readDefaultStdin(readLimits));
+    return await readStdin();
+  }
+  const readFile = options.readFile ?? (({ path }: { path: string }): Promise<string> => defaultReadFile(path, readLimits));
+  return await readFile({ path: source });
 }
 
 async function defaultReadFile(path: string, limits: ReadLimits): Promise<string> {
@@ -209,13 +224,7 @@ export async function readBodyFromFlags(
   if (typeof flags.body === 'string') return flags.body;
   const bodyFile = flags['body-file'];
   if (typeof bodyFile !== 'string') return undefined;
-  const readLimits = { maxBytes: options.maxBytes ?? DEFAULT_MAX_READ_BYTES, ...(options.signal !== undefined ? { signal: options.signal } : {}) };
-  if (bodyFile === '-') {
-    const readStdin = options.readStdin ?? ((): Promise<string> => defaultReadBodyStdin(readLimits));
-    return await readStdin();
-  }
-  const readFile = options.readFile ?? (({ path }: { path: string }): Promise<string> => defaultReadFile(path, readLimits));
-  return await readFile({ path: bodyFile });
+  return await readFlagSource({ source: bodyFile, readDefaultStdin: defaultReadBodyStdin }, options);
 }
 
 async function defaultReadBodyStdin(limits: ReadLimits): Promise<string> {

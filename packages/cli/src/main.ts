@@ -105,6 +105,10 @@ function defaultWriteErr({ text }: { text: string }): void {
   process.stderr.write(text);
 }
 
+function defaultExit({ code }: { code: number }): never {
+  return process.exit(code);
+}
+
 /** Name of the environment variable {@link resolveDaemonUrl} checks when `--daemon-url` is absent. */
 const DAEMON_URL_ENV_VAR = 'JINI_DAEMON_URL';
 
@@ -140,31 +144,38 @@ interface PartitionedArgv {
  * failure.
  */
 function partitionGlobalArgv(argv: readonly string[]): PartitionedArgv {
-  const names: ReadonlySet<string> = new Set(GLOBAL_FLAG_NAMES);
   const globals: Partial<Record<GlobalFlagName, string>> = {};
   const rest: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     // Loop is bounded by argv.length, so this index is always in range —
     // noUncheckedIndexedAccess types it as possibly-undefined regardless.
     const token = argv[i]!;
-    if (token.startsWith('--')) {
-      const eq = token.indexOf('=');
-      const key = eq >= 0 ? token.slice(2, eq) : token.slice(2);
-      if (names.has(key)) {
-        if (eq >= 0) {
-          globals[key as GlobalFlagName] = token.slice(eq + 1);
-        } else {
-          const value = argv[i + 1];
-          if (value === undefined) throw new Error(`flag --${key} requires a value`);
-          globals[key as GlobalFlagName] = value;
-          i++;
-        }
-        continue;
-      }
+    const match = matchGlobalFlag(token);
+    if (match === null) {
+      rest.push(token);
+      continue;
     }
-    rest.push(token);
+    if (match.inlineValue !== undefined) {
+      globals[match.key] = match.inlineValue;
+      continue;
+    }
+    const value = argv[i + 1];
+    if (value === undefined) throw new Error(`flag --${match.key} requires a value`);
+    globals[match.key] = value;
+    i++;
   }
   return { globals, rest };
+}
+
+const GLOBAL_FLAG_SET: ReadonlySet<string> = new Set(GLOBAL_FLAG_NAMES);
+
+/** Recognizes `--<global>` / `--<global>=<value>`; `null` for any token that is not one of this binary's own global flags. */
+function matchGlobalFlag(token: string): { key: GlobalFlagName; inlineValue: string | undefined } | null {
+  if (!token.startsWith('--')) return null;
+  const eq = token.indexOf('=');
+  const key = eq >= 0 ? token.slice(2, eq) : token.slice(2);
+  if (!GLOBAL_FLAG_SET.has(key)) return null;
+  return { key: key as GlobalFlagName, inlineValue: eq >= 0 ? token.slice(eq + 1) : undefined };
 }
 
 /** Builds a `resolveDaemonUrl`-backed `resolveBaseUrl` closure from this binary's own parsed global flags. */
@@ -186,6 +197,49 @@ function buildResolveBaseUrl(globals: PartitionedArgv['globals'], env: NodeJS.Pr
     });
 }
 
+/** The resolved write/exit ports {@link main} hands every command it registers. */
+interface ResolvedMainDeps {
+  readonly write: (requiredArgs: { text: string }) => void;
+  readonly writeErr: (requiredArgs: { text: string }) => void;
+  readonly exit: (requiredArgs: { code: number }) => never;
+}
+
+function isRootHelpRequest(argv: readonly string[]): boolean {
+  return argv.length === 0 || argv[0] === '--help' || argv[0] === '-h';
+}
+
+// `--version`/`-v` as the very first token is a plain alias for `jini version` — see this
+// file's own module doc for why there is no separate "this package's own version" surface.
+function expandVersionAlias(argv: readonly string[]): readonly string[] {
+  return argv[0] === '--version' || argv[0] === '-v' ? ['version', ...argv.slice(1)] : argv;
+}
+
+/** Strips the global flags, registers `run`/`daemon`/`version` against a fresh registry and dispatches the remaining argv. */
+async function dispatchArgv(
+  { argv, env }: { argv: readonly string[]; env: NodeJS.ProcessEnv },
+  { ports, fetchImpl }: { ports: ResolvedMainDeps; fetchImpl: typeof fetch | undefined },
+): Promise<CommandDispatchResult> {
+  const { globals, rest } = partitionGlobalArgv(argv);
+  const resolveBaseUrl = buildResolveBaseUrl(globals, env, ({ message }) => ports.writeErr({ text: message }));
+  const registry = new CommandRegistry({});
+  const commandDeps = { ...ports, ...(fetchImpl === undefined ? {} : { fetchImpl }) };
+  registerRunCommands({ registry, resolveBaseUrl }, commandDeps);
+  registerDaemonCommands({ registry, resolveBaseUrl }, commandDeps);
+  registerVersionCommand({ registry, resolveBaseUrl }, commandDeps);
+  return registry.dispatch({ argv: rest });
+}
+
+/** A dispatch that matched no handler: no command at all prints root usage, an unknown one exits `invalid-flag`. */
+function reportUnmatchedDispatch(result: CommandDispatchResult, ports: ResolvedMainDeps): void {
+  if (result.kind === 'empty') {
+    ports.write({ text: `${ROOT_USAGE}\n` });
+    return;
+  }
+  if (result.kind === 'not-found') {
+    exitWithStructuredError({ code: 'invalid-flag', message: `unknown command: "${result.name}". Run "jini --help" for usage.` }, { write: ports.writeErr, exit: ports.exit });
+  }
+}
+
 /**
  * Parse `argv` (already stripped of `node`/script-path, i.e. `process.argv.slice(2)`) and
  * dispatch to the registered `run`/`daemon`/`version` commands. Never throws a raw error to its
@@ -195,17 +249,12 @@ function buildResolveBaseUrl(globals: PartitionedArgv['globals'], env: NodeJS.Pr
 export async function main({ argv }: { argv: readonly string[] }, deps: MainDeps = {}): Promise<void> {
   const write = deps.write ?? defaultWrite;
   const writeErr = deps.writeErr ?? defaultWriteErr;
-  const rawExit = deps.exit ?? (({ code }: { code: number }) => process.exit(code));
-  const env = deps.env ?? process.env;
+  const rawExit = deps.exit ?? defaultExit;
 
-  if (argv.length === 0 || argv[0] === '--help' || argv[0] === '-h') {
+  if (isRootHelpRequest(argv)) {
     write({ text: `${ROOT_USAGE}\n` });
     return;
   }
-
-  // `--version`/`-v` as the very first token is a plain alias for `jini version` — see this
-  // file's own module doc for why there is no separate "this package's own version" surface.
-  const effectiveArgv = argv[0] === '--version' || argv[0] === '-v' ? ['version', ...argv.slice(1)] : argv;
 
   // Tracks whether `exit` was ever invoked, so the catch block below can tell "a nested command
   // already exited cleanly" (re-throw untouched) apart from "a genuinely raw, unhandled throw"
@@ -215,40 +264,18 @@ export async function main({ argv }: { argv: readonly string[] }, deps: MainDeps
     exitCalled = true;
     return rawExit({ code });
   };
+  const ports: ResolvedMainDeps = { write, writeErr, exit };
 
   let result: CommandDispatchResult;
   try {
-    const { globals, rest } = partitionGlobalArgv(effectiveArgv);
-    const resolveBaseUrl = buildResolveBaseUrl(globals, env, ({ message }) => writeErr({ text: message }));
-    const registry = new CommandRegistry({});
-    registerRunCommands({ registry, resolveBaseUrl }, {
-      write, writeErr, exit,
-      ...(deps.fetchImpl === undefined ? {} : { fetchImpl: deps.fetchImpl }),
-    });
-    registerDaemonCommands({ registry, resolveBaseUrl }, {
-      write, writeErr, exit,
-      ...(deps.fetchImpl === undefined ? {} : { fetchImpl: deps.fetchImpl }),
-    });
-    registerVersionCommand({ registry, resolveBaseUrl }, {
-      write, writeErr, exit,
-      ...(deps.fetchImpl === undefined ? {} : { fetchImpl: deps.fetchImpl }),
-    });
-
-    result = await registry.dispatch({ argv: rest });
+    result = await dispatchArgv({ argv: expandVersionAlias(argv), env: deps.env ?? process.env }, { ports, fetchImpl: deps.fetchImpl });
   } catch (error) {
     if (exitCalled) throw error;
     const message = error instanceof Error ? error.message : String(error);
     exitWithStructuredError({ code: 'invalid-flag', message }, { write: writeErr, exit });
     return;
   }
-
-  if (result.kind === 'empty') {
-    write({ text: `${ROOT_USAGE}\n` });
-    return;
-  }
-  if (result.kind === 'not-found') {
-    exitWithStructuredError({ code: 'invalid-flag', message: `unknown command: "${result.name}". Run "jini --help" for usage.` }, { write: writeErr, exit });
-  }
+  reportUnmatchedDispatch(result, ports);
 }
 
 // Only run for real when this module is the actual process entrypoint (`node dist/main.js
