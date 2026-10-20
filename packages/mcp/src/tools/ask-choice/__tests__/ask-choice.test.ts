@@ -375,9 +375,9 @@ test("registers unconditionally, publishing its own catalog schema", () => {
     }>;
   };
   assert.equal(schema.type, "object");
-  assert.deepEqual(schema.required, ["title"]);
+  assert.equal(schema.required, undefined);
   assert.equal(schema.properties.title!.type, "string");
-  assert.deepEqual(schema.anyOf, [{ required: ["singleSelect"] }, { required: ["multiSelect"] }]);
+  assert.deepEqual(schema.anyOf, [{ required: ["question", "options"] }, { required: ["title", "singleSelect"] }, { required: ["title", "multiSelect"] }]);
   for (const field of ["singleSelect", "multiSelect"]) {
     const select = schema.properties[field]!;
     assert.equal(select.type, "object");

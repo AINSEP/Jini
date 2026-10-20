@@ -492,3 +492,16 @@ describe('DelegatedToolBridge', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 });
+
+it('a mixed batch emits a failed tool_result with all per-item evidence', async () => {
+  const output = { batch: true, outcome: 'partial_failure', results: [{ index: 0, ok: true, result: 'edited' }, { index: 1, ok: false, error: 'missing' }] };
+  const registry = createToolRegistry({});
+  registry.register({ descriptor: { id: 'edit_batch' }, policy: { authorize: () => 'allow' }, handler: async () => output });
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+  const { run } = await lifecycle.start({ contextRef: 'batch' });
+  const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
+  await bridge.execute({ runId: run.id, toolUseId: 'batch-1', toolId: 'edit_batch', principal: { id: 'human' }, input: {} });
+  await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+  const events = (await collectEvents(lifecycle, run.id)).filter(event => event.kind === 'agent').map(event => event.payload);
+  expect(events).toContainEqual({ type: 'tool_result', toolUseId: 'batch-1', content: JSON.stringify(output), isError: true });
+});

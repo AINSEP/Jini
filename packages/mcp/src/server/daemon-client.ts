@@ -151,12 +151,12 @@ function safeDiagnostic({ text }: { text: string }, options: DaemonRequestOption
 }
 
 /** Formats a non-2xx daemon response into a message safe to surface as an MCP tool error. */
-function formatDaemonHttpError(status: number, url: string, data: unknown, options: DaemonRequestOptions): string {
+function formatDaemonHttpError({ status, data }: { status: number; data: unknown }, options: DaemonRequestOptions): string {
   const envelope = data as DaemonErrorEnvelope;
   const code = typeof envelope?.error?.code === 'string' ? envelope.error.code : undefined;
   const rawMessage = typeof envelope?.error?.message === 'string' ? envelope.error.message : undefined;
-  const codePrefix = code !== undefined ? `${code}: ` : '';
-  return safeDiagnostic({ text: `daemon ${status} on ${url}: ${codePrefix}${rawMessage ?? `HTTP ${status}`}` }, options);
+  const detail = [code, rawMessage].filter(value => value !== undefined).join(': ');
+  return safeDiagnostic({ text: detail ? `HTTP ${status}: ${detail}` : `HTTP ${status}` }, options);
 }
 
 interface DaemonRequestInit {
@@ -225,7 +225,7 @@ async function requestDaemonJson(
 
     const data = await readBodyOrExplain({ resp, url, maxResponseBytes: options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES }, options);
     if (!resp.ok) {
-      throw new DaemonHttpError({ message: formatDaemonHttpError(resp.status, url, data, options), status: resp.status });
+      throw new DaemonHttpError({ message: formatDaemonHttpError({ status: resp.status, data }, options), status: resp.status });
     }
     return data;
   } finally {

@@ -292,3 +292,34 @@ test('an unexpected parse failure propagates as-is instead of being dressed up a
   const input = { title: 'Pick', get singleSelect(): unknown { throw boom; } };
   await expect(createAskChoiceTool(deps).handler({ ctx: { ...context, input } })).rejects.toBe(boom);
 });
+
+test.each([false, true])('flat model questions preserve the answer contract (multiple=%s)', async multiple => {
+  const { deps, context } = setup();
+  const tool = createAskChoiceTool(deps);
+  const result = await tool.handler({ ctx: { ...context, input: { question: 'Pick a plan', options: [{ label: 'Now', description: 'Start immediately' }, { label: 'Later', value: 'wait' }], multiple } } });
+  const content = result.content as Array<{ resource?: { text: string } }>;
+  const form = JSON.parse(content[1]!.resource!.text) as { question: { title: string; singleSelect?: unknown; multiSelect?: unknown }; baseParams: Record<string, unknown> };
+  const key = multiple ? 'multiSelect' : 'singleSelect';
+  expect(form.question).toEqual({ title: 'Pick a plan', [key]: { label: 'Pick a plan', options: [{ label: 'Now', value: 'Now', description: 'Start immediately' }, { label: 'Later', value: 'wait' }] } });
+  const answer = multiple ? { selections: ['Now', 'wait'] } : { choice: 'Now' };
+  expect(await tool.handler({ ctx: { ...context, input: { ...form.baseParams, ...answer } } }))
+    .toEqual({ submitted: true, ...answer, note: messages.submitted });
+});
+
+test('model schema advertises flat questions and nested aliases without form-generated answers', () => {
+  const { deps } = setup();
+  const schema = createAskChoiceTool(deps).descriptor.inputSchema;
+  expect(schema.properties).toHaveProperty('question');
+  expect(schema.properties).toHaveProperty('options');
+  expect(schema.properties).toHaveProperty('singleSelect');
+  expect(schema.properties).toHaveProperty('multiSelect');
+  for (const field of ['choice', 'selections', '__askChoiceAnswerTicket', '__exchangeId', '__typedAnswer']) {
+    expect(schema.properties).not.toHaveProperty(field);
+  }
+});
+
+test('mixed flat and nested questions fail before rendering or minting a ticket', async () => {
+  const { deps, context, pending } = setup();
+  await expect(createAskChoiceTool(deps).handler({ ctx: { ...context, input: { ...question, question: 'Conflicting question', options: [{ label: 'Now' }] } } })).rejects.toThrow('do not mix');
+  expect(pending.redeem({ ticket: 't-1', principalId: 'human', params: { choice: 'Now' } })).toBe(false);
+});

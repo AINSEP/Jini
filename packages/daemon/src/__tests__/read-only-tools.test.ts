@@ -277,3 +277,11 @@ test('canonical dispatch preflight fails closed for every unverified registratio
   assert.equal(canonical.refuseNonReadOnlyDispatch({ principal: READ_ONLY, toolId: 'verify', registry , messages: canonical.defaultDaemonMessages.readOnly }), null);
   assert.equal(canonical.refuseNonReadOnlyDispatch({ principal: PRINCIPAL, toolId: 'set', registry: undefined , messages: canonical.defaultDaemonMessages.readOnly }), null);
 });
+
+test('read-only catalog search and describe carry live registration metadata', () => {
+  const { registry } = harness();
+  const hit = { id: 'pick', source: 'test', description: 'Read', score: 1 };
+  const visible = filterReadOnlyToolCatalog({ principal: READ_ONLY, registry, catalog: { search: () => [hit], describe: () => hit } });
+  assert.deepEqual(visible.search({ query: 'read' }), [{ ...hit, readOnly: true, sideEffects: 'none' }]);
+  assert.deepEqual(visible.describe({ id: 'pick' }), { ...hit, readOnly: true, sideEffects: 'none' });
+});

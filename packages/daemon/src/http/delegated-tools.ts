@@ -28,7 +28,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
+import { batchOutcomeFor, ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
 import { createDelegatedToolBridge, type RunLifecycle, type ToolExecutionResult, type ToolExecutor } from '../index.js';
 import { defineJsonRoute, err, mountJsonRoute, ok, validationError, type AdapterContext, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 import * as readOnlyTools from '../core/read-only-tools.js';
@@ -55,7 +55,11 @@ export interface DelegatedToolExecuteRequest {
 }
 
 export interface DelegatedToolExecuteResponse {
-  readonly result: ToolExecutionResult;
+  readonly result: Omit<ToolExecutionResult, 'status'> & {
+    readonly status: ToolExecutionResult['status'] | 'partial_failure' | 'error';
+    readonly outcome?: 'completed' | 'partial_failure' | 'error';
+    readonly isError?: true;
+  };
 }
 
 /**
@@ -213,7 +217,8 @@ function parseDelegatedToolExecute(input: RouteInputContext): Result<DelegatedTo
 /**
  * Maps a settled `ToolExecutionResult` to the wire `Result` — the same status mapping
  * `db-ops.ts`'s `toolResultToApiResult` establishes for this identical `ToolExecutionResult`
- * union, kept consistent here rather than reinvented: `completed` → `200 {result}`,
+ * union: `completed` → `200 {result}`; a batch with failed items carries
+ * `partial_failure` or `error` plus its per-item output and isError. Other states map as follows:
  * `denied`/`confirmation-denied` → `403 TOOL_OPERATION_DENIED`, `timed-out`/`cancelled` → a
  * SEC-005-redacted `500 INTERNAL_ERROR` (the real status/error goes to `onInternalError`, never the
  * wire — unless the host supplies `deps.describeInternalError`, whose text then replaces the generic
@@ -235,8 +240,11 @@ function toolExecutionResultToApiResult(
   { runId, toolId, result }: { readonly runId: string; readonly toolId: string; readonly result: ToolExecutionResult },
 ): Result<DelegatedToolExecuteResponse> {
   switch (result.status) {
-    case 'completed':
-      return ok({ value: { result } });
+    case 'completed': {
+      const outcome = batchOutcomeFor({ output: result.output });
+      return ok({ value: { result: outcome === undefined || outcome === 'completed' ? result
+        : { ...result, status: outcome, outcome, isError: true } } });
+    }
     case 'denied':
       return err({ error: createApiError({ code: 'TOOL_OPERATION_DENIED', message: 'this operation was denied by policy' }) });
     case 'confirmation-denied':

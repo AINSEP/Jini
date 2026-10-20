@@ -98,7 +98,7 @@ const DIAGNOSTIC_TOKENS: ReadonlySet<string> = new Set([
   'contentEncoding', 'contentMediaType', 'contentSchema',
 ]);
 
-/** Mask credentials before preserving complete trusted IDs; redact opaque spans everywhere else. */
+/** Mask credentials before preserving complete trusted IDs and UPPER_SNAKE diagnostics; redact opaque spans elsewhere. */
 function redactSecretLike({ text, diagnosticToolIds }: { text: string; diagnosticToolIds: ReadonlySet<string> }): string {
   return redactSecrets({ input: text }, { redactPii: false })
     .replace(LABELED_SECRET_RE, match => match.replace(/([:=]\s*)\S+$/, '$1[redacted]'))

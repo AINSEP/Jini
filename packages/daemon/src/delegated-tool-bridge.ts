@@ -6,7 +6,7 @@
  * enforces Jini's registry policy, confirmation, timeout, cancellation, and
  * audit trail before any registered handler runs.
  */
-import type { Principal, RunRef, SurfaceEmission } from '@jini-ai/core';
+import { batchOutcomeFor, type Principal, type RunRef, type SurfaceEmission } from '@jini-ai/core';
 import type { RunAgentPayload } from '@jini-ai/protocol';
 import type { RunLifecycle } from './run-lifecycle.js';
 import { extractResultMedia } from './tool-result-media.js';
@@ -252,7 +252,7 @@ async function emitExecutedResult({ lifecycle, runId, toolUseId }: DelegatedCall
       type: 'tool_result',
       toolUseId,
       content: resultContent({ result }),
-      ...(result.status === 'completed' ? {} : { isError: true }),
+      ...(result.status === 'completed' && (batchOutcomeFor({ output: result.output }) ?? 'completed') === 'completed' ? {} : { isError: true }),
       ...(media.length > 0 ? { media } : {}),
     },
   } });

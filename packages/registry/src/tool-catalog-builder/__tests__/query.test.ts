@@ -27,7 +27,7 @@ test('seeds enriched entries and timestamp, derives sources, preserves schema an
   const query = buildToolCatalogQuery(f.required);
   expect(f.required.storeFactory.create).toHaveBeenCalledWith({ entries: f.entries(), builtAtIso: '2026-10-01T00:00:00.000Z' });
   expect(f.entries()[0]!.description).toBe(`Creates a human operator.${marker}invite staff account How do I create a password?`);
-  expect(query.describe({ id: 'users_create' })).toEqual({ id: 'users_create', source: 'users', description: 'Creates a human operator.', inputSchema: { type: 'object' } });
+  expect(query.describe({ id: 'users_create' })).toEqual({ id: 'users_create', source: 'users', description: 'Creates a human operator.', readOnly: false, sideEffects: 'unknown', inputSchema: { type: 'object' } });
   expect(query.describe({ id: 'forms_update' })).not.toHaveProperty('inputSchema');
   expect(query.describe({ id: 'missing' })).toBeNull();
 });
@@ -53,7 +53,8 @@ test('live entries agree with describe, strip already-folded text and see later 
   const descriptors: ToolDescriptor[] = [{ id: 'items_read', description: `Reads items.${marker}assets` }];
   const f = fixture(descriptors);
   const query = buildToolCatalogQuery(f.required);
-  expect(listToolCatalogEntries(f.required)).toEqual([query.describe({ id: 'items_read' })]);
+  expect(listToolCatalogEntries(f.required)).toEqual([{ id: 'items_read', source: 'items', description: 'Reads items.' }]);
+  expect(query.describe({ id: 'items_read' })).toEqual({ id: 'items_read', source: 'items', description: 'Reads items.', readOnly: false, sideEffects: 'unknown' });
   descriptors.push({ id: 'media_list' });
   expect(listToolCatalogEntries(f.required).at(-1)).toEqual({ id: 'media_list', source: 'media', description: '' });
   expect(query.describe({ id: 'media_list' })).toBeNull();
@@ -88,4 +89,20 @@ test('enricher preserves untouched descriptions and rejects unusable host polici
   expect(enricher.authoredDescription({ description: 'Plain' })).toBe('Plain');
   expect(() => createSearchEnricher({ marker: '', keywords: {}, questions: {} })).toThrow('marker');
   expect(() => createPrefixSourceClassifier({ separator: '', fallbackSource: 'host' })).toThrow('separator');
+});
+
+test('search and describe project validated readOnly and sideEffects even when the store drops them', () => {
+  const f = fixture([
+    { id: 'page.find_elements', readOnly: true, sideEffects: 'none' },
+    { id: 'page.fill', readOnly: false, sideEffects: 'mutates-durable-state' },
+    { id: 'unclassified' },
+  ]);
+  const query = buildToolCatalogQuery(f.required);
+  const expected = [
+    { id: 'page.find_elements', readOnly: true, sideEffects: 'none' },
+    { id: 'page.fill', readOnly: false, sideEffects: 'mutates-durable-state' },
+    { id: 'unclassified', readOnly: false, sideEffects: 'unknown' },
+  ];
+  expect(query.search({ query: 'page' })).toMatchObject(expected);
+  for (const entry of expected) expect(query.describe({ id: entry.id })).toMatchObject(entry);
 });

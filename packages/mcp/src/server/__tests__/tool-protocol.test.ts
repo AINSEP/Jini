@@ -477,3 +477,15 @@ describe('daemonCallOptions (characterization)', () => {
     expect(options.headers).not.toBe(authHeaders);
   });
 });
+
+it('MCP marks partial and total batch failures as errors while retaining every item', () => {
+  for (const results of [
+    [{ ok: true, result: 'edited' }, { ok: false, error: 'missing' }],
+    [{ ok: false, error: 'missing' }],
+  ]) {
+    const payload = { batch: true, results };
+    expect(okResult({ payload })).toEqual({ isError: true, content: [{ type: 'text', text: JSON.stringify(payload) }] });
+  }
+  const payload = { isError: true, content: [{ type: 'text', text: 'refused' }] };
+  expect(okResult({ payload })).toEqual(payload);
+});

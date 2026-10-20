@@ -1,14 +1,18 @@
 import type { Clock } from '@jini-ai/core/primitives';
-import type { ToolMetadata } from '@jini-ai/core';
+import type { AgentToolSideEffect, ToolMetadata } from '@jini-ai/core';
 /** Structural contracts only: callers choose their registry and search backend. */
 export interface ToolDescriptor {
   readonly metadata?: ToolMetadata;
+  readonly readOnly?: boolean;
+  readonly sideEffects?: AgentToolSideEffect;
   readonly id: string;
   readonly description?: string | undefined;
   readonly inputSchema?: unknown;
 }
 export interface ToolDescriptorSource { list(): readonly ToolDescriptor[] }
 export interface ToolCatalogEntry {
+  readonly readOnly?: boolean;
+  readonly sideEffects?: AgentToolSideEffect | 'unknown';
   readonly id: string;
   readonly source: string;
   readonly description: string;

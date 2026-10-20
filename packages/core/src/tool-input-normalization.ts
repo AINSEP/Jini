@@ -175,7 +175,7 @@ export function canonicalizeToolInputKeys(
  * @complexity Two bounded schema walks plus the optional domain hook's cost.
  */
 export async function normalizeToolInput(
-  { input, registration }: { input: unknown; registration: Pick<ToolRegistration, 'descriptor' | 'normalizeInput'> },
+  { input, registration }: { input: unknown; registration: Pick<ToolRegistration, 'descriptor' | 'normalizeInput' | 'invocationSchema'> },
   _options: Record<string, never> = {},
 ): Promise<NormalizedToolInput> {
   try {
@@ -190,9 +190,9 @@ const isObjectTool = (schema: unknown): boolean => object(schema) && schema.type
 
 /** First pass (open), the optional domain hook, then the final closed-schema pass. */
 async function normalizeWithinGate(
-  { input, registration }: { input: unknown; registration: Pick<ToolRegistration, 'descriptor' | 'normalizeInput'> },
+  { input, registration }: { input: unknown; registration: Pick<ToolRegistration, 'descriptor' | 'normalizeInput' | 'invocationSchema'> },
 ): Promise<NormalizedToolInput> {
-  const schema = registration.descriptor.inputSchema;
+  const schema = registration.invocationSchema ?? registration.descriptor.inputSchema;
   if (isObjectTool(schema) && !object(input)) throw new ToolInputError({ message: `${registration.descriptor.id}: send one input object containing the tool's fields.` });
   const notes: string[] = [];
   let normalized = walkRoot({ input, schema, notes, validateClosed: false, keysOnly: false });

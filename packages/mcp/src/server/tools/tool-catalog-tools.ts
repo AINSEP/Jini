@@ -22,6 +22,8 @@ const READ_ANNOTATIONS = {
 
 interface ToolCatalogSearchResponse {
   readonly hits: ReadonlyArray<{
+    readonly readOnly?: boolean;
+    readonly sideEffects?: string;
     readonly id: string;
     readonly description: string;
     readonly source: string;
@@ -33,7 +35,7 @@ interface ToolCatalogSearchResponse {
 export const searchToolsTool: McpToolDef = {
   name: 'search_tools',
   description:
-    'Search the durable tool catalog. Returns ranked {id, description, source, score} candidates only — no input schemas, so this stays cheap to call broadly. Call describe_tool on the 1-3 candidates that look right before calling execute_delegated_tool. If nothing in the results fits, re-search with a higher limit or different phrasing rather than assuming the tool does not exist.',
+    'Search the durable tool catalog. Returns ranked {id, description, source, score, readOnly, sideEffects} candidates only — no input schemas, so this stays cheap to call broadly. Call describe_tool on the 1-3 candidates that look right before calling execute_delegated_tool. If nothing in the results fits, re-search with a higher limit or different phrasing rather than assuming the tool does not exist.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -95,7 +97,7 @@ export const searchToolsTool: McpToolDef = {
 export const describeToolTool: McpToolDef = {
   name: 'describe_tool',
   description:
-    'Get the full descriptor for one tool id found via search_tools — description and input schema. Supply id (aliases: toolId or name). Paid for only on the candidates that survive search, per the tool catalog\'s staged-discovery design.',
+    'Get the full descriptor for one tool id found via search_tools — description, input schema, readOnly and sideEffects. Use execute_readonly_delegated_tool only when readOnly is true. Supply id (aliases: toolId or name). Paid for only on the candidates that survive search, per the tool catalog\'s staged-discovery design.',
   inputSchema: {
     type: 'object',
     properties: {

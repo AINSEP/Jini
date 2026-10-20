@@ -28,7 +28,7 @@ export type {
   ToolRegistration,
   ToolRegistry,
 } from './tool-registry.js';
-export { createToolRegistrationScope, toolRegistryRevision, createToolRegistry, isReadOnlyTool, ToolInputError } from './tool-registry.js';
+export { createToolRegistrationScope, toolRegistryRevision, createToolRegistry, isReadOnlyTool, toolDiscoveryMetadata, ToolInputError } from './tool-registry.js';
 export * from './tool-tokens.js';
 
 export * from './gated-mutations.js';
@@ -56,4 +56,4 @@ export {
 
 export { evaluateFeatureFlag, type FeatureFlagDecision } from './feature-flags.js';
 export { normalizeToolInput, withNormalizationNotes, ToolInputNormalizationError, type NormalizedToolInput, type ToolInputNormalizer } from './tool-input-normalization.js';
-export { applyBatchInputs, batchDescriptorFor, withBatchInput, DEFAULT_MAX_BATCH_ITEMS, type BatchableTool, type BatchResult, type BatchItemResult } from './batch-tool-inputs.js';
+export { applyBatchInputs, batchOutcomeFor, batchDescriptorFor, withBatchInput, DEFAULT_MAX_BATCH_ITEMS, type BatchableTool, type BatchResult, type BatchItemResult } from './batch-tool-inputs.js';

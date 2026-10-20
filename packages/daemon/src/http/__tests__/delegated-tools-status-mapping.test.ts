@@ -111,3 +111,12 @@ describe('delegated tool route: ToolExecutionResult status mapping', () => {
     expect(onInternalError).not.toHaveBeenCalled();
   });
 });
+
+it.each([
+  { results: [{ index: 0, ok: true, result: 'edited' }, { index: 1, ok: false, error: 'missing path' }], outcome: 'partial_failure' },
+  { results: [{ index: 0, ok: false, error: 'missing path' }], outcome: 'error' },
+])('delegated batches expose $outcome instead of completed and retain all item results', async ({ results, outcome }) => {
+  const output = { batch: true, results };
+  const { response } = await callRoute({ executionId: 'x', status: 'completed', output });
+  expect(response).toEqual({ ok: true, value: { result: { executionId: 'x', status: outcome, outcome, isError: true, output } } });
+});

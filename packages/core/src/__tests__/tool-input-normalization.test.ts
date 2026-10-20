@@ -125,3 +125,13 @@ describe('schema-guided tool input normalization', () => {
     expect(withNormalizationNotes({ output: 'ok', notes: ['region→handle'] })).toBe('ok\nnormalized: region→handle');
   });
 });
+
+it('execution-only callback fields remain closed and do not enter the model-facing descriptor', async () => {
+  const descriptor = { id: 'ask', inputSchema: { type: 'object', additionalProperties: false, properties: { question: { type: 'string' } } } };
+  const callback = { choice: 'Now', ticket: 'bound-ticket' };
+  const invocationSchema = { type: 'object', additionalProperties: false, properties: { question: { type: 'string' }, choice: { type: 'string' }, ticket: { type: 'string' } } };
+  expect(await normalizeToolInput({ input: callback, registration: { descriptor, invocationSchema } })).toEqual({ input: callback, notes: [] });
+  await expect(normalizeToolInput({ input: callback, registration: { descriptor } })).rejects.toThrow("Unknown input 'choice'");
+  await expect(normalizeToolInput({ input: { ...callback, invented: true }, registration: { descriptor, invocationSchema } })).rejects.toThrow("Unknown input 'invented'");
+  expect(descriptor.inputSchema.properties).toEqual({ question: { type: 'string' } });
+});

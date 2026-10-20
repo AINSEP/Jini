@@ -21,15 +21,27 @@ export const DEFAULT_MAX_BATCH_ITEMS = 25;
  *  which the tool already publishes and which would otherwise repeat once per failed item. */
 export type BatchItemResult =
   | { readonly index: number; readonly ok: true; readonly result: unknown }
-  | { readonly index: number; readonly ok: false; readonly error: string };
+  | { readonly index: number; readonly ok: false; readonly error: string; readonly result?: unknown };
 
 /** What a batch call returns. A failed item never stops the ones after it. */
 export interface BatchResult {
   readonly batch: true;
+  readonly outcome: 'completed' | 'partial_failure' | 'error';
+  readonly isError?: true;
   readonly total: number;
   readonly succeeded: number;
   readonly failed: number;
   readonly results: readonly BatchItemResult[];
+}
+
+/** Classify a batch result, including legacy envelopes, without dropping per-item evidence.
+ * @returns Undefined for non-batches; error when every item failed, partial_failure for a mix.
+ * @complexity O(n) in per-item results; no effects.
+ */
+export function batchOutcomeFor({ output }: { output: unknown }, _options = {}): BatchResult['outcome'] | undefined {
+  if (!isPlainObject(output) || output.batch !== true || !Array.isArray(output.results) || output.results.length === 0) return undefined;
+  const failed = output.results.filter(item => isPlainObject(item) && item.ok === false).length;
+  return failed === 0 ? 'completed' : failed === output.results.length ? 'error' : 'partial_failure';
 }
 
 /** A JSON object: not null, not an array. */
@@ -47,7 +59,7 @@ interface ObjectSchema {
 /**
  * The descriptor a batchable tool publishes: its own schema plus an `items` array, its top-level
  * `required` list moved into the `items` description (a batch call sets those per item or once at
- * the top level), and one sentence appended to its description.
+ * the top level through the declared legacy normalization), and batch guidance appended to its description.
  *
  * @param required.descriptor - The tool's registered descriptor.
  * @param required.tool - Its batch settings.
@@ -70,21 +82,22 @@ export function batchDescriptorFor(
   const maxItems = tool.maxItems ?? DEFAULT_MAX_BATCH_ITEMS;
   const requiredFields = schema.required ?? [];
   const { required: _required, ...rest } = schema;
-  const needs = requiredFields.length > 0 ? ` Each item needs ${requiredFields.join(", ")} (here or once at the top level).` : "";
+  const needs = requiredFields.length > 0 ? ` Each item needs ${requiredFields.join(", ")} (inside each item).` : "";
   const items = {
     type: "array",
     minItems: 1,
     maxItems,
     description:
       `Batch: up to ${maxItems} inputs run in ONE call, in order. Each item takes the same fields as a single call; ` +
-      `fields set at the top level apply to every item, and an item's own value wins.${needs}`,
+      `Canonical shape: {items:[{...}, ...]} only. Legacy shared top-level fields are normalized into each item before execution; an item's own value wins.${needs}`,
     items: { type: "object", description: "One item: the same fields as a single call of this tool." },
   };
   return {
     ...descriptor,
     description:
       `${descriptor.description ?? ""} Batch: to do several at once, pass items: [{...}, ...] (up to ${maxItems}) in ONE call instead of one call per item. ` +
-      "Returns { batch: true, total, succeeded, failed, results: [{ index, ok, result | error }] }; one item's failure does not stop the others.",
+      "Canonical shape: {items:[{...}, ...]} only. Legacy shared top-level fields are normalized into each item; item values win. " +
+      "Returns { batch: true, outcome: completed | partial_failure | error, total, succeeded, failed, results: [{ index, ok, result | error }] }; one item's failure does not stop the others.",
     inputSchema: { ...rest, properties: { ...schema.properties, items } },
   };
 }
@@ -183,13 +196,17 @@ export function withBatchInput(
         tool.validateItem?.({ input: normalized.input });
         if (!options?.invokeTool) throw new Error(`${toolId}: batch items require the gated ToolExecutor invocation port`);
         const output = await options.invokeTool({ toolId, input: normalized.input }, { registry: itemRegistry });
-        results.push({ index, ok: true, result: withNormalizationNotes({ output, notes: normalized.notes }) });
+        const outcome = batchOutcomeFor({ output });
+        if (isPlainObject(output) && (output.isError === true || outcome === 'error' || outcome === 'partial_failure')) {
+          results.push({ index, ok: false, error: typeof output.error === 'string' ? output.error : 'item returned an error', result: output });
+        } else results.push({ index, ok: true, result: withNormalizationNotes({ output, notes: normalized.notes }) });
       } catch (error) {
         results.push({ index, ok: false, error: withNormalizationNotes({ output: itemErrorMessage({ error, toolId }), notes }) as string });
       }
     }
     const succeeded = results.filter((result) => result.ok).length;
-    return { batch: true, total: results.length, succeeded, failed: results.length - succeeded, results } satisfies BatchResult;
+    const outcome = succeeded === results.length ? 'completed' : succeeded === 0 ? 'error' : 'partial_failure';
+    return { batch: true, outcome, ...(succeeded === 0 ? { isError: true as const } : {}), total: results.length, succeeded, failed: results.length - succeeded, results } satisfies BatchResult;
   };
   return { ...registration, descriptor, handler,
     // Domain normalization belongs to each merged item, not the incomplete shared layer.

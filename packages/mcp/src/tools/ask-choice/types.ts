@@ -4,7 +4,7 @@ export interface AskChoiceSelect {
   readonly hint?: string;
   /** Host-supplied checked defaults; answers are still validated against offered options. */
   readonly value?: readonly string[];
-  readonly options: ReadonlyArray<{ value: string; label: string }>;
+  readonly options: ReadonlyArray<{ value: string; label: string; description?: string }>;
 }
 
 export interface AskChoiceQuestion {

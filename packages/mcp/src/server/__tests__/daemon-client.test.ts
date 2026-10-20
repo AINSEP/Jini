@@ -122,7 +122,7 @@ describe('getDaemonJson / postDaemonJson', () => {
       new TextEncoder().encode(JSON.stringify({ error: { code: 'NOT_FOUND', message: 'run "x" was not found' } })),
     ]));
     await expect(getDaemonJson({ baseUrl: 'http://d.example', route: '/api/runs/x' }, { fetchImpl })).rejects.toThrow(
-      'daemon 404 on http://d.example/api/runs/x: NOT_FOUND: run "x" was not found',
+      'HTTP 404: NOT_FOUND: run "x" was not found',
     );
   });
 
@@ -130,14 +130,14 @@ describe('getDaemonJson / postDaemonJson', () => {
     const fetchImpl = vi.fn(async () => streamResponse(404, [new TextEncoder().encode('{}')]));
     await expect(getDaemonJson({ baseUrl: 'http://d.example', route: '/api/active' }, { fetchImpl })).rejects.toMatchObject({
       status: 404,
-      message: 'daemon 404 on http://d.example/api/active: HTTP 404',
+      message: 'HTTP 404',
     });
   });
 
   it('falls back to a bare HTTP status when the non-2xx body has no structured message', async () => {
     const fetchImpl = vi.fn(async () => streamResponse(500, [new TextEncoder().encode('{}')]));
     await expect(getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl })).rejects.toThrow(
-      'daemon 500 on http://d.example/api/x: HTTP 500',
+      'HTTP 500',
     );
   });
 
@@ -163,7 +163,7 @@ describe('getDaemonJson / postDaemonJson', () => {
     const message = `${hint}; ${id}_${opaque} api_key=${id} sk-proj-${opaque} ${opaque}`;
     const fetchImpl = vi.fn(async () => streamResponse(400, [new TextEncoder().encode(JSON.stringify({ error: { message } }))]));
     const error = await getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl, diagnosticToolIds: [id] }).catch((error: Error) => error) as Error;
-    expect(error.message).toBe(`daemon 400 on http://d.example/api/x: [redacted] 'missing' was not found — call ${id} without id to list valid ids; content_read.[redacted] api_key=[redacted] [redacted] [redacted]`);
+    expect(error.message).toBe(`HTTP 400: [redacted] 'missing' was not found — call ${id} without id to list valid ids; content_read.[redacted] api_key=[redacted] [redacted] [redacted]`);
   });
 
   it.each([
@@ -177,7 +177,7 @@ describe('getDaemonJson / postDaemonJson', () => {
       new TextEncoder().encode(JSON.stringify({ error: { message: `failed ${token}; use settings_list_definitions; source_control_get_capabilities; additionalProperties` } })),
     ]));
     const error = await getDaemonJson({ baseUrl: 'http://d.example', route: '/api/delegated-tool-calls' }, { fetchImpl, diagnosticToolIds: ['settings_list_definitions', 'source_control_get_capabilities'] }).catch((error: Error) => error) as Error;
-    expect(error.message).toBe('daemon 400 on http://d.example/api/delegated-tool-calls: failed [redacted]; use settings_list_definitions; source_control_get_capabilities; additionalProperties');
+    expect(error.message).toBe('HTTP 400: failed [redacted]; use settings_list_definitions; source_control_get_capabilities; additionalProperties');
     expect(error.message).not.toContain(token);
   });
 
@@ -189,7 +189,7 @@ describe('getDaemonJson / postDaemonJson', () => {
     const message = `${diagnostic} ${id}_${opaque} api_key=${id} ${opaque}`;
     const fetchImpl = vi.fn(async () => streamResponse(400, [new TextEncoder().encode(JSON.stringify({ error: { message } }))]));
     const error = await getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl, diagnosticToolIds: [id] }).catch((error: Error) => error) as Error;
-    expect(error.message).toBe(`daemon 400 on http://d.example/api/x: ${diagnostic} [redacted] api_key=[redacted] [redacted]`);
+    expect(error.message).toBe(`HTTP 400: ${diagnostic} [redacted] api_key=[redacted] [redacted]`);
   });
 
   it('rejects via a declared content-length over the byte cap without reading the body', async () => {
@@ -416,17 +416,17 @@ describe('daemon-client pinned branches (characterization)', () => {
 
   it('formats a non-2xx envelope with a code but no message', async () => {
     const fetchImpl = vi.fn(async () => realStreamResponse([encode('{"error":{"code":"BUSY"}}')], { status: 503 }));
-    await expect(getDaemonJson(BASE, { fetchImpl })).rejects.toThrow(/^daemon 503 on http:\/\/d\.example\/api\/x: BUSY: HTTP 503$/);
+    await expect(getDaemonJson(BASE, { fetchImpl })).rejects.toThrow(/^HTTP 503: BUSY$/);
   });
 
   it('ignores non-string code and message fields in a non-2xx envelope', async () => {
     const fetchImpl = vi.fn(async () => realStreamResponse([encode('{"error":{"code":7,"message":["x"]}}')], { status: 400 }));
-    await expect(getDaemonJson(BASE, { fetchImpl })).rejects.toThrow(/^daemon 400 on http:\/\/d\.example\/api\/x: HTTP 400$/);
+    await expect(getDaemonJson(BASE, { fetchImpl })).rejects.toThrow(/^HTTP 400$/);
   });
 
   it('formats a non-2xx JSON null body as a bare status', async () => {
     const fetchImpl = vi.fn(async () => realStreamResponse([encode('null')], { status: 502 }));
-    await expect(getDaemonJson(BASE, { fetchImpl })).rejects.toMatchObject({ name: 'DaemonHttpError', status: 502, message: 'daemon 502 on http://d.example/api/x: HTTP 502' });
+    await expect(getDaemonJson(BASE, { fetchImpl })).rejects.toMatchObject({ name: 'DaemonHttpError', status: 502, message: 'HTTP 502' });
   });
 
   it('sends GET without a content-type and without a body', async () => {
@@ -447,7 +447,7 @@ describe('daemon-client pinned branches (characterization)', () => {
     const secret = 'Bearer ' + 'tok'.repeat(4);
     const fetchImpl = vi.fn(async () => realStreamResponse([encode('{}')], { status: 401 }));
     const error = await getDaemonJson(BASE, { fetchImpl, headers: { authorization: secret } }).catch((e: Error) => e);
-    expect((error as Error).message).toBe('daemon 401 on http://d.example/api/x: HTTP 401');
+    expect((error as Error).message).toBe('HTTP 401');
   });
 
   it('rejects with the timeout reason naming the route and deadline', async () => {
@@ -494,4 +494,10 @@ describe('daemon-client pinned branches (characterization)', () => {
     const fetchImpl = vi.fn(async () => new Response(stream));
     await expect(getDaemonJson(BASE, { fetchImpl })).rejects.toThrow(/^read http:\/\/d\.example\/x\?q=1 broke$/);
   });
+});
+
+it('returns a model-facing HTTP status and diagnostic code without the daemon URL prefix', async () => {
+  const fetchImpl = vi.fn(async () => streamResponse(403, [new TextEncoder().encode(JSON.stringify({ error: { code: 'TOOL_OPERATION_DENIED', message: 'Use execute_delegated_tool.' } }))]));
+  await expect(postDaemonJson({ baseUrl: 'http://d.example', route: '/api/delegated-tool-calls', body: {} }, { fetchImpl, diagnosticToolIds: ['execute_delegated_tool'] }))
+    .rejects.toMatchObject({ status: 403, message: 'HTTP 403: TOOL_OPERATION_DENIED: Use execute_delegated_tool.' });
 });

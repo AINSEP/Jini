@@ -162,7 +162,7 @@ describe('buildDomainRegistrations', () => {
 
   it('builds a descriptor, handler and allow-all policy, in handler order, with no optional fields by default', async () => {
     const [b, a] = buildDomainRegistrations(base([entry('a'), entry('b', { sideEffects: 'mutates-durable-state' })], { b: handler, a: handler }));
-    expect(b).toEqual({ descriptor: { id: 'b', description: 'b description', inputSchema, readOnly: false }, handler, policy: { authorize: expect.any(Function) } });
+    expect(b).toEqual({ descriptor: { id: 'b', description: 'b description', inputSchema, readOnly: false, sideEffects: 'mutates-durable-state' }, handler, policy: { authorize: expect.any(Function) } });
     expect(a!.descriptor.id).toBe('a');
     expect(await b!.policy.authorize({ principal: { id: 'p' }, run: { id: 'r' }, tool: b!.descriptor, input: {} })).toBe('allow');
   });

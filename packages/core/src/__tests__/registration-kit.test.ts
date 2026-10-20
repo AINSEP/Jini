@@ -234,7 +234,7 @@ describe('buildDomainRegistrations projects sideEffects onto ToolDescriptor.read
 
   it('marks a sideEffects:"none" tool readOnly: true', () => {
     const [registration] = build([{ name: "thing_list", sideEffects: "none" }]);
-    expect(registration!.descriptor).toMatchObject({ id: "thing_list", readOnly: true });
+    expect(registration!.descriptor).toMatchObject({ id: "thing_list", readOnly: true, sideEffects: "none" });
   });
 
   it('marks every state-changing classification readOnly: false — including a delete and a token mint', () => {
@@ -423,4 +423,12 @@ it('retains a recognized non-Error rejection as model-facing text', async () => 
   await expect(withSchemaOnRejection({ toolId: 'x', catalog: new Map(),
     isShapeRejection: () => true, fn: async () => { throw 'missing field'; },
   })).rejects.toThrow('missing field');
+});
+
+it('allows an explicitly empty replacement while still requiring a string and protecting non-empty selectors', () => {
+  expect(requireString({ input: { newString: '' }, key: 'newString' }, { allowEmpty: true })).toBe('');
+  for (const input of [{}, { newString: null }, { newString: 0 }]) {
+    expect(() => requireString({ input, key: 'newString' }, { allowEmpty: true })).toThrow(ToolInputError);
+  }
+  expect(() => requireString({ input: { oldString: '' }, key: 'oldString' })).toThrow('non-empty string');
 });

@@ -278,3 +278,11 @@ describe('createExecuteReadonlyDelegatedToolTool', () => {
     expect(tool.description).toContain('execute_delegated_tool');
   });
 });
+
+it.each(['partial_failure', 'error'] as const)('delegated batches expose %s through MCP without dropping item details', async outcome => {
+  const output = { batch: true, results: outcome === 'error' ? [{ ok: false, error: 'missing' }] : [{ ok: true, result: 'edited' }, { ok: false, error: 'missing' }] };
+  postDaemonJson.mockResolvedValueOnce({ result: { status: 'completed', output } });
+  const tool = createExecuteDelegatedToolTool({ runId: 'r' });
+  const result = await tool.handler({ args: { toolId: 'edit', input: {} }, ctx });
+  expect(result).toEqual({ status: outcome, outcome, isError: true, output });
+});

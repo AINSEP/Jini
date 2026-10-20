@@ -18,6 +18,7 @@
  * gate is still `ToolExecutor`, reached only via `execute_delegated_tool`
  * (`packages/daemon/src/delegated-tool-bridge.ts`) — finding a tool id here grants nothing.
  */
+import type { AgentToolSideEffect } from '@jini-ai/core';
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
@@ -25,6 +26,8 @@ import { validationError } from '@jini-ai/http-kit';
 import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 
 export interface ToolCatalogSearchHit {
+  readonly readOnly?: boolean;
+  readonly sideEffects?: AgentToolSideEffect | 'unknown';
   readonly id: string;
   readonly description: string;
   readonly source: string;
@@ -32,6 +35,8 @@ export interface ToolCatalogSearchHit {
 }
 
 export interface ToolCatalogEntry {
+  readonly readOnly?: boolean;
+  readonly sideEffects?: AgentToolSideEffect | 'unknown';
   readonly id: string;
   readonly description: string;
   readonly inputSchema?: unknown;

@@ -172,3 +172,16 @@ describe('@jini-ai/core — redact — redactSecretsWithCounts', () => {
     expect(counts.credit_card).toBeUndefined();
   });
 });
+
+it('aggressive redaction preserves diagnostic codes and exact registered tool ids after masking credentials', () => {
+  const id = 'content_read.backup_restore_point';
+  const opaque = 'x7Qm2Pz9Vb4Nc8Ld1Rf6Yt3Wk5';
+  const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature123';
+  const text = `TOOL_OPERATION_DENIED DEFINITION_NOT_FOUND ${id} ${id}_${opaque} ${opaque} api_key=TOOL_OPERATION_DENIED Bearer DEFINITION_NOT_FOUND sk-proj-${opaque} ${jwt}`;
+  const result = redactSecrets({ input: text }, { policy: 'aggressive', diagnosticToolIds: [id, `sk-proj-${opaque}`, jwt], redactPii: false });
+  expect(result).toContain(`TOOL_OPERATION_DENIED DEFINITION_NOT_FOUND ${id}`);
+  expect(result).not.toContain(opaque);
+  expect(result).not.toContain(jwt);
+  expect(result).not.toContain('api_key=TOOL_OPERATION_DENIED');
+  expect(result).not.toContain('Bearer DEFINITION_NOT_FOUND');
+});

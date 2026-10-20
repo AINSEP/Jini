@@ -1,4 +1,4 @@
-import { isReadOnlyTool, type Principal, type ToolRegistry } from '@jini-ai/core';
+import { isReadOnlyTool, toolDiscoveryMetadata, type Principal, type ToolRegistry } from '@jini-ai/core';
 import type { ToolExecutor } from '../tool-executor.js';
 import type { IdGenerator } from '@jini-ai/core/primitives';
 import { toolCandidates } from './tool-candidates.js';
@@ -97,16 +97,19 @@ export function filterReadOnlyToolCatalog(
   _optional: Record<string, never> = {},
 ): ToolCatalogQuery {
   if (!principalIsReadOnlyConstrained({ principal: required.principal })) return required.catalog;
-  const allowedIds = () => new Set(required.registry.list({})
-    .filter(descriptor => isReadOnlyTool({ descriptor })).map(descriptor => descriptor.id));
+  const allowedTools = () => new Map(required.registry.list({})
+    .filter(descriptor => isReadOnlyTool({ descriptor })).map(descriptor => [descriptor.id, descriptor]));
   return {
     search(input, { limit = 10 } = {}) {
-      const allowed = allowedIds();
+      const allowed = allowedTools();
       return required.catalog.search(input, { limit: Math.max(limit, required.registry.list({}).length) })
-        .filter(hit => allowed.has(hit.id)).slice(0, limit);
+        .filter(hit => allowed.has(hit.id)).slice(0, limit)
+        .map(hit => ({ ...hit, ...toolDiscoveryMetadata({ descriptor: allowed.get(hit.id) }) }));
     },
     describe(input) {
-      return allowedIds().has(input.id) ? required.catalog.describe(input) : null;
+      const descriptor = allowedTools().get(input.id);
+      const entry = descriptor ? required.catalog.describe(input) : null;
+      return entry ? { ...entry, ...toolDiscoveryMetadata({ descriptor }) } : null;
     },
   };
 }

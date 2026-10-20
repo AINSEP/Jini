@@ -26,6 +26,7 @@
  * `archived provenance ledger` for the 2026-07-29 hardening note.
  */
 import type { Principal } from './principal.js';
+import type { AgentToolSideEffect } from './agent-tools.js';
 import type { ToolMetadata } from './tool-metadata.js';
 import { normalizeToolInput, type ToolInputNormalizer } from './tool-input-normalization.js';
 
@@ -77,6 +78,8 @@ export interface ToolDescriptor {
    * would admit every unclassified write, which is the exact failure the flag exists to prevent.
    */
   readonly readOnly?: boolean;
+  /** Independently checked domain risk, retained for discovery; never grants permission. */
+  readonly sideEffects?: AgentToolSideEffect;
 }
 
 /**
@@ -93,6 +96,18 @@ export interface ToolDescriptor {
  */
 export function isReadOnlyTool({ descriptor }: { descriptor: ToolDescriptor | undefined }): boolean {
   return descriptor?.readOnly === true;
+}
+
+/** Project registration risk for discovery using the same read-only decision as execution.
+ * Missing classification stays unknown; discovery never grants execution authority.
+ * @returns Explicit readOnly and sideEffects fields for a registry descriptor.
+ * @complexity O(1); no effects.
+ */
+export function toolDiscoveryMetadata({ descriptor }: { descriptor: Pick<ToolDescriptor, 'id' | 'readOnly' | 'sideEffects'> | undefined }, _options = {}): {
+  readOnly: boolean; sideEffects: AgentToolSideEffect | 'unknown';
+} {
+  const readOnly = isReadOnlyTool({ descriptor });
+  return { readOnly, sideEffects: descriptor?.sideEffects ?? (readOnly ? 'none' : 'unknown') };
 }
 
 /**
@@ -188,6 +203,9 @@ export interface ToolPolicy {
 }
 
 export interface ToolRegistration {
+  /** Optional execution-only schema, e.g. authenticated form callbacks. Never published by discovery;
+   * the handler must retain callback authentication and authorization. Defaults to descriptor.inputSchema. */
+  readonly invocationSchema?: unknown;
   /** Domain-owned aliases, read by the single execution gate before validation/authorization. */
   readonly normalizeInput?: ToolInputNormalizer;
   readonly descriptor: ToolDescriptor;
@@ -337,7 +355,7 @@ export async function authorizeToolInvocation(
   }
   const { descriptor, handler, policy } = registration;
   // Schema-free tools have nothing to normalize; preserve their authorization/confirmation timing.
-  const normalized = descriptor.inputSchema === undefined && registration.normalizeInput === undefined
+  const normalized = descriptor.inputSchema === undefined && registration.invocationSchema === undefined && registration.normalizeInput === undefined
     ? { input, notes: [] }
     : await normalizeToolInput({ input, registration });
   input = normalized.input;

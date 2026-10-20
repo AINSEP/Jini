@@ -1,3 +1,4 @@
+import { toolDiscoveryMetadata } from '@jini-ai/core';
 import { nowIso } from '@jini-ai/core/primitives';
 import type { CatalogBuilderArgs, ToolCatalogEntry, ToolCatalogQuery } from './ports.js';
 
@@ -31,6 +32,7 @@ export function buildToolCatalogQuery(
     throw new Error('catalog tool IDs must be unique');
   }
   const authored = new Map<string, string>();
+  const effects = new Map(descriptors.map(descriptor => [descriptor.id, toolDiscoveryMetadata({ descriptor })]));
   const entries = descriptors.map(descriptor => {
     const description = descriptor.description ?? '';
     authored.set(descriptor.id, required.enricher.authoredDescription({ description }));
@@ -52,11 +54,11 @@ export function buildToolCatalogQuery(
   return {
     search({ query }, { limit = 10 } = {}) {
       if (!Number.isSafeInteger(limit) || limit < 0) throw new RangeError('catalog limit must be a nonnegative integer');
-      return store.search({ query }, { limit }).map(hit => ({ ...hit, description: descriptionFor(hit) }));
+      return store.search({ query }, { limit }).map(hit => ({ ...hit, ...effects.get(hit.id), description: descriptionFor(hit) }));
     },
     describe({ id }) {
       const entry = store.describe({ id });
-      return entry === null ? null : { ...entry, description: descriptionFor(entry) };
+      return entry === null ? null : { ...entry, ...effects.get(entry.id), description: descriptionFor(entry) };
     },
   };
 }

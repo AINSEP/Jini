@@ -173,6 +173,8 @@ function isLuhnValid(digits: string): boolean {
 export interface SecretRedactionOptions {
   /** Diagnostic text can retain addresses/numbers while using the same credential rules. Default true. */
   redactPii?: boolean;
+  /** Exact trusted registration IDs; credential patterns always take precedence. */
+  diagnosticToolIds?: readonly string[];
   /** Conservative by default; aggressive also masks bare 20+ character opaque runs. */
   policy?: 'conservative' | 'aggressive';
   exactSecrets?: ReadonlyArray<string | undefined | null>;
@@ -182,7 +184,7 @@ export interface SecretRedactionOptions {
 // A labeled credential has its value masked even when too short to have a vendor token shape.
 // Bare long opaque runs are opt-in CLI heuristics: UUIDs, hashes, model IDs and path segments
 // share that alphabet, so the default telemetry policy must leave them readable. Whole
-// correlation IDs and the delegated-tool route stay readable even in aggressive mode;
+// correlation IDs, UPPER_SNAKE diagnostic codes and the delegated-tool route stay readable even in aggressive mode;
 // appending secret characters defeats that exception. The host's ERR-XXXX-XXXX-XXXX-XXXX
 // correlation ID uses uppercase hex and is meant to reach the model and be quoted to an
 // operator; delegated-tool-calls is the route segment named in delegated tool failures.
@@ -190,7 +192,7 @@ export interface SecretRedactionOptions {
 export const LABELED_SECRET_RE =
   /\b(authorization|bearer|api[-_]?key|access[-_]?token|refresh[-_]?token|client[-_]?secret|password|secret|cookie)\b\s*[:=]\s*\S+/gi;
 export const OPAQUE_TOKEN_RE = /[A-Za-z0-9_-]{20,}/g;
-export const NON_SECRET_TOKEN_RE = /^(?:ERR-[0-9A-F]{4}(?:-[0-9A-F]{4}){3}|delegated-tool-calls)$/;
+export const NON_SECRET_TOKEN_RE = /^(?:ERR-[0-9A-F]{4}(?:-[0-9A-F]{4}){3}|delegated-tool-calls|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)$/;
 // Runtime markers must survive a second pass; the bounded sanitizer deliberately retains
 // its historical lowercase marker contract and uses the unmodified lexical vocabulary.
 // Reject a masked header/query value before matching, so a following field's credential
@@ -253,7 +255,9 @@ export function redactSecretsWithCounts({ input }: { input: string }, options: S
   out = applyPatterns({ text: out, marker, patterns: credentialPatterns(options.extraPatterns ?? []) });
   out = redactKeyedCredentials({ text: out, marker });
   if (options.policy === 'aggressive') {
-    out = out.replace(OPAQUE_TOKEN_RE, (match) => NON_SECRET_TOKEN_RE.test(match) ? match : marker('opaque_token'));
+    const trustedIds = new Set(options.diagnosticToolIds);
+    out = out.replace(/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*/g, token => trustedIds.has(token) ? token
+      : token.replace(OPAQUE_TOKEN_RE, match => NON_SECRET_TOKEN_RE.test(match) ? match : marker('opaque_token')));
   }
   if (options.redactPii !== false) out = redactPii({ text: out, marker });
   return { redacted: out, counts };

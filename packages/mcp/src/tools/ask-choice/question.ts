@@ -23,12 +23,36 @@ function readSelect(raw: unknown, field: string, toolId: string): AskChoiceSelec
     if (typeof value !== 'string' || !value || typeof label !== 'string' || !label) {
       throw new QuestionShapeError({ message: `${toolId}: every '${field}' option requires a string 'value' and 'label'.` });
     }
-    return { value, label };
+    return { value, label, ...(typeof option['description'] === 'string' ? { description: option['description'] } : {}) };
   });
   return { label: spec['label'], options, ...(typeof spec['hint'] === 'string' ? { hint: spec['hint'] } : {}) };
 }
 
-export function parseQuestion({ input, toolId }: { input: Record<string, unknown>; toolId: string }): AskChoiceQuestion {
+/** Normalize the flat model question into the existing UI/answer contract.
+ * @throws QuestionShapeError for malformed questions or ambiguous mixed forms.
+ * @complexity O(n) in offered options; no effects.
+ */
+export function parseQuestion({ input, toolId }: { input: Record<string, unknown>; toolId: string }, _options = {}): AskChoiceQuestion {
+  if (input['question'] !== undefined || input['options'] !== undefined || input['multiple'] !== undefined) {
+    if (input['title'] !== undefined || input['singleSelect'] !== undefined || input['multiSelect'] !== undefined) {
+      throw new QuestionShapeError({ message: `${toolId}: use {question, options, multiple?} or the legacy nested selects; do not mix them.` });
+    }
+    const question = input['question'];
+    if (typeof question !== 'string' || !question.trim()) throw new QuestionShapeError({ message: `${toolId}: 'question' is required.` });
+    if (input['multiple'] !== undefined && typeof input['multiple'] !== 'boolean') {
+      throw new QuestionShapeError({ message: `${toolId}: 'multiple' must be a boolean.` });
+    }
+    const rawOptions = input['options'];
+    const options = Array.isArray(rawOptions) ? rawOptions.map(entry => {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return entry;
+      const option = entry as Record<string, unknown>;
+      return { ...option, value: option['value'] === undefined ? option['label'] : option['value'] };
+    }) : rawOptions;
+    const select = { label: question, options };
+    input = { title: question, ...(typeof input['description'] === 'string' ? { description: input['description'] } : {}),
+      ...(typeof input['submitLabel'] === 'string' ? { submitLabel: input['submitLabel'] } : {}),
+      [input['multiple'] === true ? 'multiSelect' : 'singleSelect']: select };
+  }
   const title = input['title'];
   if (typeof title !== 'string' || !title) throw new QuestionShapeError({ message: `${toolId}: 'title' is required.` });
   const singleSelect = readSelect(input['singleSelect'], 'singleSelect', toolId);

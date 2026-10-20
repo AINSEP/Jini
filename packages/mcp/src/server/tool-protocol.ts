@@ -44,6 +44,7 @@
  * responsibility ( Decision 4), not this generic wrapper's.
  * See docs/decisions/DR-002-protocol-resource-boundary.md.
  */
+import { batchOutcomeFor } from '@jini-ai/core';
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
 import { Validator, type Schema } from '@cfworker/json-schema';
 import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -151,7 +152,7 @@ function isMcpContentEnvelope(payload: unknown): payload is { content: readonly 
 }
 
 /**
- * Wraps a successful tool result as an MCP `CallToolResult`.
+ * Wraps a tool result as an MCP `CallToolResult`, preserving explicit errors and failed batch outcomes.
  *
  * A payload that is already a well-formed MCP content envelope (see {@link isMcpContentEnvelope}) is
  * returned with its `content` array verbatim, so a typed block inside it — `image`, `resource`, or any
@@ -161,17 +162,20 @@ function isMcpContentEnvelope(payload: unknown): payload is { content: readonly 
  * JSON-stringified (compact, no indentation) into one.
  *
  * @complexity O(n) in the number of content-array entries, only when `payload` already looks like an
- * envelope; O(1) otherwise.
+ * envelope or batch; O(1) otherwise.
  */
 export function okResult({ payload }: { payload: unknown }): CallToolResult {
+  const outcome = batchOutcomeFor({ output: payload });
+  const isError = (typeof payload === 'object' && payload !== null && 'isError' in payload && payload.isError === true)
+    || outcome === 'partial_failure' || outcome === 'error';
   if (isMcpContentEnvelope(payload)) {
-    return { content: payload.content as CallToolResult['content'] };
+    return { content: payload.content as CallToolResult['content'], ...(isError ? { isError: true } : {}) };
   }
   // Compact on the wire: indentation made nested results ~2.5x larger for the model to read. A view
   // that shows a result to a person re-indents it at render time (`@jini-ai/chat`'s
   // `formatToolOutputForDisplay`).
   const text = typeof payload === 'string' ? payload : JSON.stringify(payload);
-  return { content: [{ type: 'text', text }] };
+  return { content: [{ type: 'text', text }], ...(isError ? { isError: true } : {}) };
 }
 
 /** Wraps a tool failure as an MCP `isError` result. */

@@ -140,3 +140,10 @@ describe('stripControlSequences', () => {
     expect(stripControlSequences({ text: withControls })).toBe('abc');
   });
 });
+
+it('keeps UPPER_SNAKE diagnostic codes but masks credential-shaped and labelled code values', () => {
+  const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature123';
+  const opaque = 'x7Qm2Pz9Vb4Nc8Ld1Rf6Yt3Wk5';
+  const result = sanitizeUntrustedText({ text: `TOOL_OPERATION_DENIED DEFINITION_NOT_FOUND api_key=TOOL_OPERATION_DENIED Bearer DEFINITION_NOT_FOUND AKIAABCDEFGHIJKLMNOP ${jwt} ${opaque}` });
+  expect(result).toBe('TOOL_OPERATION_DENIED DEFINITION_NOT_FOUND api_key=[redacted] Bearer [redacted] [redacted] [redacted] [redacted]');
+});

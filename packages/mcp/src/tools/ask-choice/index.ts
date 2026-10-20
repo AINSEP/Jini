@@ -1,5 +1,5 @@
 import { matchesOptions, parseQuestion, QuestionShapeError } from './question.js';
-import { ASK_CHOICE_INPUT_SCHEMA } from './schema.js';
+import { ASK_CHOICE_INPUT_SCHEMA, ASK_CHOICE_INVOCATION_SCHEMA } from './schema.js';
 import type {
   AskChoiceCall, AskChoiceExchange, AskChoiceExchangeStore, AskChoiceMessages,
   AskChoicePendingStore, AskChoicePolicy, AskChoicePresentation, AskChoiceQuestion,
@@ -110,6 +110,7 @@ export function createAskChoiceTool({ toolId, description, permission, policy, p
   };
   return {
     descriptor,
+    invocationSchema: ASK_CHOICE_INVOCATION_SCHEMA,
     async handler({ ctx }: { ctx: AskChoiceCall }): Promise<Record<string, unknown>> {
       await policy.authorize({ ctx, toolId });
       const input = typeof ctx.input === 'object' && ctx.input !== null ? ctx.input as Record<string, unknown> : {};
@@ -125,7 +126,7 @@ export function createAskChoiceTool({ toolId, description, permission, policy, p
 
 // A second call carrying a pick (and no question title) is an answer to a fallback form.
 function isAnswerCall(input: Record<string, unknown>): boolean {
-  return typeof input['title'] !== 'string' && (typeof input['choice'] === 'string' || Array.isArray(input['selections']));
+  return typeof input['title'] !== 'string' && typeof input['question'] !== 'string' && (typeof input['choice'] === 'string' || Array.isArray(input['selections']));
 }
 
 // The ticket is the only proof the answer came from a rendered form: redeem is fail-closed.

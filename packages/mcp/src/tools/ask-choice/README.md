@@ -58,3 +58,8 @@ The new probes for replacing host identity, policy, presentation, copy and store
 **unproven** until executed. Verification is deferred by the owner directive.
 
 The package integration report records source provenance and the later host adoption ledger.
+
+Model-authored questions use `{ question, options: [{label, value?, description?}], multiple?: boolean }`.
+Omitted option values default to their labels. `title` with `singleSelect` / `multiSelect`
+remains a legacy alias; do not mix the two forms. Form-generated answers and tickets belong
+only to the execution schema, never the model-facing schema. The answer/result contract is unchanged.

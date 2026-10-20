@@ -178,14 +178,14 @@ function requiredFieldError(required: { input: Record<string, unknown>; key: str
 }
 
 /**
- * Reads a required non-empty string, with received-key hints when the field is missing.
- * @throws {ToolInputError} If the field is missing, empty, or not a string.
+ * Reads a required string, non-empty by default; allowEmpty supports literal text deletion.
+ * @throws {ToolInputError} If the field is missing, not a string, or empty without allowEmpty.
  * @complexity O(k) for k input keys on a missing-field rejection; otherwise O(1).
  */
-export function requireString(required: { input: Record<string, unknown>; key: string }, _optional: Record<string, never> = {}): string {
+export function requireString(required: { input: Record<string, unknown>; key: string }, { allowEmpty = false }: { allowEmpty?: boolean } = {}): string {
   const { input, key } = required;
   const value = input[key];
-  if (typeof value !== "string" || value.length === 0) throw requiredFieldError({ input, key, kind: "non-empty string" });
+  if (typeof value !== "string" || (!allowEmpty && value.length === 0)) throw requiredFieldError({ input, key, kind: allowEmpty ? "string" : "non-empty string" });
   return value;
 }
 
@@ -532,6 +532,7 @@ function registrationFor({ spec, id, handler }: { spec: DomainRegistrationSpec; 
       // declaration has been independently corroborated, and a catalog entry cannot make itself
       // read-only by editing one word.
       readOnly: catalogEntry.sideEffects === "none",
+      sideEffects: catalogEntry.sideEffects,
     },
     handler,
     ...(normalizeInput ? { normalizeInput } : {}),

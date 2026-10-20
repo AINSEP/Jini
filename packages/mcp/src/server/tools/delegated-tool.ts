@@ -33,6 +33,7 @@
  * tool that could still reach writes would launder a write past its caller's own safety gate. See
  * {@link createExecuteReadonlyDelegatedToolTool} for the failure that motivated it.
  */
+import { batchOutcomeFor } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
 import { postDaemonJson } from '../daemon-client.js';
 import { daemonCallOptions, requireString, type McpToolDef } from '../tool-protocol.js';
@@ -49,6 +50,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * Unwraps a completed delegated call's `{executionId, status, output, ...}` envelope down to just
  * `output` when — and only when — `output` is itself an MCP content envelope (`{content: [...]}`).
+ * Batches expose partial_failure/error and isError while retaining every item.
  * Every other shape (a non-completed status, a plain JSON `output` like a string or a list, no
  * `output` at all) is returned byte-identical to `result` — this is an additive unwrap, not a new
  * general response shape, so the existing "surfaces the result envelope unchanged" contract for an
@@ -64,8 +66,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * block the bridge already preserved.
  */
 function unwrapMcpContentEnvelope(result: unknown): unknown {
-  if (!isRecord(result) || result['status'] !== 'completed') return result;
+  if (!isRecord(result)) return result;
   const output = result['output'];
+  const outcome = batchOutcomeFor({ output });
+  if (outcome === 'partial_failure' || outcome === 'error') return { ...result, status: outcome, outcome, isError: true };
+  if (result['status'] !== 'completed') return result;
   if (!isRecord(output) || !Array.isArray(output['content'])) return result;
   return output;
 }
