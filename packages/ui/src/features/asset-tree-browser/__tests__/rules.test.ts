@@ -94,6 +94,32 @@ describe('deriveTreeChildren', () => {
     const result = deriveTreeChildren(files, [], '');
     expect(result.dirsAtCurrentDir).toEqual(['alpha', 'zeta']);
   });
+
+  it('lists a directory once when both a file and a persisted folder contribute it', () => {
+    const result = deriveTreeChildren([file('dir/a.txt')], [{ path: 'dir' }, { path: 'dir/sub' }], '');
+    expect(result.dirsAtCurrentDir).toEqual(['dir']);
+  });
+
+  it('excludes a sibling directory that merely shares the current directory name as a prefix', () => {
+    const result = deriveTreeChildren([file('dirx/a.txt')], [{ path: 'dirx/sub' }], 'dir');
+    expect(result).toEqual({ dirsAtCurrentDir: [], filesAtCurrentDir: [] });
+  });
+
+  it('keeps files in their input order (no sorting of filesAtCurrentDir)', () => {
+    const files = [file('dir/z.txt'), file('dir/a.txt')];
+    const result = deriveTreeChildren(files, [], 'dir');
+    expect(result.filesAtCurrentDir.map((f) => f.path)).toEqual(['dir/z.txt', 'dir/a.txt']);
+  });
+
+  it('treats a file whose path equals the root prefix as a root-level file', () => {
+    const result = deriveTreeChildren([file('')], [], '');
+    expect(result).toEqual({ dirsAtCurrentDir: [], filesAtCurrentDir: [file('')] });
+  });
+
+  it('surfaces an empty first segment for a folder path with a doubled slash below the current directory', () => {
+    const result = deriveTreeChildren([], [{ path: 'dir//x' }], 'dir');
+    expect(result.dirsAtCurrentDir).toEqual(['']);
+  });
 });
 
 describe('countFilesUnderDir', () => {
