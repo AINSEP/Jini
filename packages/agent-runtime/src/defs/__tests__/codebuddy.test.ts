@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { agentCapabilities } from '../../capabilities.js';
 import { codebuddyAgentDef } from '../codebuddy.js';
+import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
 afterEach(() => {
   agentCapabilities.delete('codebuddy');
@@ -141,6 +142,19 @@ describe('codebuddyAgentDef.buildArgs', () => {
     expect(args).not.toContain('bypassPermissions');
   });
 
+  it('prefers --resume over --session-id when both ids are present', () => {
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { runtimeContext: { resumeSessionId: 'old', newSessionId: 'new' } });
+    expect(args).toContain('--resume');
+    expect(args).not.toContain('--session-id');
+  });
+
+  it('honors host-scoped options.capabilities over the cached probe', () => {
+    agentCapabilities.set('codebuddy', { partialMessages: true });
+    const args = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: ['/d'], options: { capabilities: { addDir: false } } });
+    expect(args).not.toContain('--include-partial-messages');
+    expect(args).not.toContain('--add-dir');
+  });
+
   it('defaults extraAllowedDirs/options/runtimeContext when omitted entirely', () => {
     expect(() => codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] })).not.toThrow();
   });
@@ -183,5 +197,13 @@ describe('codebuddyAgentDef.buildArgs — staged .mcp.json delivery', () => {
     );
     expect(args).toEqual(expect.arrayContaining(['--model', 'gpt-5.5', '--effort', 'high', '--add-dir', '--resume']));
     expect(args.slice(-3)).toEqual(['--strict-mcp-config', '--mcp-config', '/x/.mcp.json']);
+  });
+});
+
+describe('codebuddyAgentDef.discoverModels', () => {
+  it('falls back to the def\'s fallbackModels (minus the synthetic default) when every probe is offline', async () => {
+    const catalog = await codebuddyAgentDef.discoverModels({ context: discoveryContext }, { deps: offlineDiscoveryDeps() });
+    expect(catalog.freshness).toBe('offline-fallback');
+    expect(catalog.models.map((model) => model.id)).toEqual(codebuddyAgentDef.fallbackModels.slice(1).map((model) => model.id));
   });
 });

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { agentCapabilities } from '../../capabilities.js';
 import { opencodeAgentDef } from '../opencode.js';
 import { DEFAULT_MODEL_OPTION, parseLineSeparatedModels } from '../shared.js';
+import { cliOutputDiscoveryDeps, discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
 afterEach(() => {
   agentCapabilities.delete('opencode');
@@ -14,6 +15,19 @@ describe('opencodeAgentDef.buildArgs', () => {
 
   it('defaults options and runtimeContext to {} when omitted entirely', () => {
     expect(opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] })).toEqual(['run', '--format', 'json']);
+  });
+
+  it('defaults every optional argument when the second argument is omitted', () => {
+    expect(opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] })).toEqual(['run', '--format', 'json']);
+  });
+
+  it('honors host-scoped options.capabilities over an empty compatibility cache', () => {
+    expect(opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { options: { capabilities: { skipPermissions: true } } })).toEqual(['run', '--format', 'json', '--dangerously-skip-permissions']);
+  });
+
+  it('lets host-scoped options.capabilities withhold the flag the compatibility cache would grant', () => {
+    agentCapabilities.set('opencode', { skipPermissions: true });
+    expect(opencodeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { options: { capabilities: { skipPermissions: false } } })).toEqual(['run', '--format', 'json']);
   });
 
   it('adds the skip-permissions flag when the capability is recorded as enabled', () => {
@@ -128,5 +142,19 @@ describe('opencodeAgentDef shape', () => {
     expect(opencodeAgentDef.streamFormat).toBe('json-event-stream');
     expect(opencodeAgentDef.eventParser).toBe('opencode');
     expect(opencodeAgentDef.externalMcpInjection).toBe('opencode-env-content');
+  });
+});
+
+describe('opencodeAgentDef.discoverModels', () => {
+  it('falls back to the def\'s fallbackModels (minus the synthetic default) when the CLI is offline', async () => {
+    const catalog = await opencodeAgentDef.discoverModels({ context: discoveryContext }, { deps: offlineDiscoveryDeps() });
+    expect(catalog.freshness).toBe('offline-fallback');
+    expect(catalog.models.map((model) => model.id)).toEqual(['anthropic/claude-sonnet-5', 'openai/gpt-5', 'google/gemini-2.5-pro']);
+  });
+
+  it('parses `opencode models` output through the def\'s own listModels parser', async () => {
+    const catalog = await opencodeAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps('provider/a\nprovider/a\nprovider/b\n') });
+    expect(catalog.freshness).toBe('fresh');
+    expect(catalog.models.map((model) => model.id)).toEqual(['provider/a', 'provider/b']);
   });
 });
