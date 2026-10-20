@@ -19,48 +19,25 @@ export function parseMentionParts(
   entities: MentionEntity[],
   options: { highlightUnknown?: boolean } = {},
 ): MentionPart[] | null {
-  if (!text) return null;
+  // An empty string never contains '@', so this one check also covers `!text`.
   if (!text.includes('@')) return null;
-  const highlightUnknown = options.highlightUnknown ?? true;
-  const known = getMentionTokenIndex(entities);
+  const scan = {
+    known: getMentionTokenIndex(entities),
+    highlightUnknown: options.highlightUnknown ?? true,
+  };
   const parts: MentionPart[] = [];
-  let scanStart = 0;
   let copiedUntil = 0;
-  let found = false;
+  let start = text.indexOf('@');
 
-  while (scanStart < text.length) {
-    const start = text.indexOf('@', scanStart);
-    if (start === -1) break;
-    if (!isMentionBoundary(text, start)) {
-      scanStart = start + 1;
-      continue;
-    }
-
-    const knownMatch = findKnownMentionAt(text, known, start);
-    const unknownMatch = highlightUnknown ? findUnknownMentionAt(text, start) : null;
-    const match =
-      knownMatch && (!unknownMatch || knownMatch.token.length >= unknownMatch.token.length)
-        ? knownMatch
-        : unknownMatch;
-
-    if (!match) {
-      scanStart = start + 1;
-      continue;
-    }
-
-    if (match.start > copiedUntil) {
-      parts.push({ kind: 'text', text: text.slice(copiedUntil, match.start) });
-    }
-    parts.push({
-      kind: 'mention',
-      entity: match.entity,
-      text: match.token,
-    });
-    found = true;
-    copiedUntil = match.start + match.token.length;
-    scanStart = copiedUntil;
+  while (start !== -1) {
+    const match = findMentionAt(text, { ...scan, start });
+    if (match) copiedUntil = appendMatch(parts, { text, copiedUntil, match });
+    start = text.indexOf('@', match ? copiedUntil : start + 1);
   }
 
+  // Every mention token is at least two characters ('@' plus one more), so
+  // `copiedUntil` only moves off 0 once a mention part has been pushed.
+  if (copiedUntil === 0) return null;
   if (copiedUntil < text.length) {
     parts.push({ kind: 'text', text: text.slice(copiedUntil) });
   }
@@ -74,22 +51,50 @@ export function parseMentionParts(
   // per this package's coverage-driven-refactor policy once the loop proved
   // every branch of that pass was unreachable from this one real call site
   // (Phase 9.5: a dead branch gets refactored out, not padded with a test).
-  return found ? parts : null;
+  return parts;
+}
+
+/**
+ * Pushes the plain text between `copiedUntil` and the match (when non-empty)
+ * followed by the mention part; returns the new `copiedUntil`.
+ */
+function appendMatch(
+  parts: MentionPart[],
+  at: { text: string; copiedUntil: number; match: MentionMatch },
+): number {
+  const { text, copiedUntil, match } = at;
+  if (match.start > copiedUntil) {
+    parts.push({ kind: 'text', text: text.slice(copiedUntil, match.start) });
+  }
+  parts.push({ kind: 'mention', entity: match.entity, text: match.token });
+  return match.start + match.token.length;
+}
+
+/**
+ * The mention starting at `scan.start`, or null. A known (trie) match wins
+ * unless the unknown-mention run at the same position is strictly longer.
+ */
+function findMentionAt(
+  text: string,
+  scan: { known: MentionTrieNode; highlightUnknown: boolean; start: number },
+): MentionMatch | null {
+  if (!isMentionBoundary(text, scan.start)) return null;
+  const knownMatch = findKnownMentionAt(text, scan.known, scan.start);
+  const unknownMatch = scan.highlightUnknown ? findUnknownMentionAt(text, scan.start) : null;
+  return knownMatch && (!unknownMatch || knownMatch.token.length >= unknownMatch.token.length)
+    ? knownMatch
+    : unknownMatch;
 }
 
 interface MentionTrieNode {
   children: Map<string, MentionTrieNode>;
-  entity?: MentionEntity;
-  token?: string;
+  entity?: MentionEntity & { token: string };
 }
 
-interface MentionTokenIndex {
-  root: MentionTrieNode;
-}
+const mentionTokenIndexCache = new WeakMap<MentionEntity[], MentionTrieNode>();
 
-const mentionTokenIndexCache = new WeakMap<MentionEntity[], MentionTokenIndex>();
-
-function getMentionTokenIndex(entities: MentionEntity[]): MentionTokenIndex {
+/** Root of the (cached, per entities-array) trie of every entity's `@token`. */
+function getMentionTokenIndex(entities: MentionEntity[]): MentionTrieNode {
   const cached = mentionTokenIndexCache.get(entities);
   if (cached) return cached;
 
@@ -133,24 +138,21 @@ function getMentionTokenIndex(entities: MentionEntity[]): MentionTokenIndex {
       }
       node = child;
     }
-    if (!node.entity) {
-      node.entity = entity;
-      node.token = token;
-    }
+    // First writer wins: two entities of different kinds can share a token.
+    node.entity ??= entity;
   }
 
-  const index = { root };
-  mentionTokenIndexCache.set(entities, index);
-  return index;
+  mentionTokenIndexCache.set(entities, root);
+  return root;
 }
 
 function findKnownMentionAt(
   text: string,
-  index: MentionTokenIndex,
+  root: MentionTrieNode,
   start: number,
 ): MentionMatch | null {
   let best: MentionMatch | null = null;
-  let node: MentionTrieNode | undefined = index.root;
+  let node: MentionTrieNode | undefined = root;
   for (let i = start; i < text.length; i += 1) {
     // `i < text.length` is the loop condition itself, so `text[i]` is always
     // defined here — the `!` documents that instead of adding an
@@ -158,8 +160,8 @@ function findKnownMentionAt(
     // narrowing a string index read either way).
     node = node.children.get(text[i]!);
     if (!node) break;
-    if (node.entity && node.token && isMentionRightBoundary(text, i + 1)) {
-      best = { start, token: node.token, entity: node.entity };
+    if (node.entity && isMentionRightBoundary(text, i + 1)) {
+      best = { start, token: node.entity.token, entity: node.entity };
     }
   }
   return best;
@@ -273,17 +275,13 @@ export function foldPresentMentions(
 ): MentionEntity[] {
   const result: MentionEntity[] = [...present];
   const seen = new Set(present.map((e) => `${e.kind}:${e.id}`));
-  const parts = parseMentionParts(text, known, { highlightUnknown: false });
-  if (parts) {
-    for (const part of parts) {
-      if (part.kind === 'mention' && part.entity.kind !== 'unknown') {
-        const key = `${part.entity.kind}:${part.entity.id}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          result.push(part.entity);
-        }
-      }
-    }
+  const parts = parseMentionParts(text, known, { highlightUnknown: false }) ?? [];
+  for (const part of parts) {
+    if (part.kind !== 'mention' || part.entity.kind === 'unknown') continue;
+    const key = `${part.entity.kind}:${part.entity.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(part.entity);
   }
   return result;
 }
