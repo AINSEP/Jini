@@ -68,7 +68,7 @@ export function MediaRefField({
   emptyHint,
   inherited = false,
   useField = useWiredMediaRefField,
-}: MediaRefFieldProps, _optional: Record<string, never> = {}) {
+}: MediaRefFieldProps) {
   const t = useSeoCopy();
   const { Picker = MediaPickerBridge } = useMediaRefPresentation({ value });
   const { pickerOpen, openPicker, closePicker, handleSelect, clear, previewUrl, file, accept, onPreviewLoad, onPreviewError } = useField({ value, onChange });
@@ -121,7 +121,7 @@ type MediaRefFileProps = {
 
 /** The chosen file: thumbnail, name (prefixed with its source when inherited) and, for an own
  *  override, its pixel size. With no file, the field's empty hint (if any) takes the slot. */
-function MediaRefFile({ file, emptyHint, label, locale, t, inherited, previewUrl, onPreviewLoad, onPreviewError }: MediaRefFileProps, _optional: Record<string, never> = {}) {
+function MediaRefFile({ file, emptyHint, label, locale, t, inherited, previewUrl, onPreviewLoad, onPreviewError }: MediaRefFileProps) {
   if (!file) return emptyHint ? <span className="jini-media-ref-field-empty">{emptyHint}</span> : null;
   return (
     <span className={inherited ? "jini-media-ref-field-file jini-media-ref-field-file-inherited" : "jini-media-ref-field-file"}>
@@ -150,7 +150,7 @@ type MediaRefActionsProps = Pick<MediaRefFieldController, "openPicker" | "clear"
 };
 
 /** Choose (always) and Remove (only for an own value), grouped so they wrap as one unit. */
-function MediaRefActions({ label, locale, t, base, value, inherited, openPicker, clear }: MediaRefActionsProps, _optional: Record<string, never> = {}) {
+function MediaRefActions({ label, locale, t, base, value, inherited, openPicker, clear }: MediaRefActionsProps) {
   const handleBase = base === undefined ? {} : { base };
   return (
     <span className="jini-media-ref-field-actions">

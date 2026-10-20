@@ -20,7 +20,7 @@ export interface FieldSettingsSectionProps {
  * placeholder (slider, file…) focused the Help text ⓘ, whose tip opened half behind the dialog
  * (Chrome check, 2026-10-11). Focus must land on an input, never on an ⓘ.
  */
-export function FieldSettingsSection({ field, controller, t }: FieldSettingsSectionProps, _optional: Record<string, never> = {}) {
+export function FieldSettingsSection({ field, controller, t }: FieldSettingsSectionProps) {
   const view = useFieldSettingsView({ field, controller, t });
   const { settings } = view;
   return (

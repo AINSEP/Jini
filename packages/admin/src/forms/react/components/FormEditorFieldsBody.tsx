@@ -25,7 +25,7 @@ export interface FormEditorFieldsBodyProps {
   copyFeedback: string | null;
 }
 
-export function FormEditorFieldsBody(props: FormEditorFieldsBodyProps, _optional = {}) {
+export function FormEditorFieldsBody(props: FormEditorFieldsBodyProps) {
   const handlers = useFormFieldsBodyView(props);
   const { name, slug, isNew, t } = props;
 

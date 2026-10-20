@@ -180,7 +180,7 @@ export interface ToolExecutor {
   ): Promise<ToolExecutionResult>;
   /** @throws If `executionId` has no confirmation currently pending (already resumed, never required one, or unknown). */
   resumeConfirmation(args: { readonly executionId: string; readonly decision: ConfirmationDecision }): void;
-  /** Aborts an in-flight handler, or resolves a still-pending confirmation as denied. No-op if `executionId` is already terminal or unknown. */
+  /** Cancels an in-flight execution, unblocking a still-pending confirmation. No-op if `executionId` is already terminal or unknown. */
   cancel(args: { readonly executionId: string }): void;
   getAuditRecord(args: { readonly executionId: string }): ToolExecutionAuditRecord | null;
 }
@@ -491,6 +491,7 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
   /** Everything `runHandler` needs about one authorized (and, if required, confirmed) call. */
   interface AdmittedCall {
     readonly executionId: string;
+    readonly controller: AbortController;
     readonly principal: Principal;
     readonly run: RunRef;
     readonly toolId: string;
@@ -507,24 +508,16 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
    * observes the same tick count as before this was extracted.
    */
   async function runHandler(call: AdmittedCall, { emitSurface }: { emitSurface?: SurfaceEmitter | undefined }): Promise<ToolExecutionResult> {
-    const { executionId, principal, run, input, descriptor, handler, normalizationNotes } = call;
-    const controller = new AbortController();
-    activeControllers.set(executionId, controller);
+    const { executionId, controller, principal, run, input, descriptor, handler, normalizationNotes } = call;
     const guidance = wantsGuidance(descriptor)
       ? await prepareGuidanceSafely({ principal, run, tool: descriptor, signal: controller.signal }, { emitSurface })
       : '';
     if (controller.signal.aborted) {
-      activeControllers.delete(executionId);
       return terminal({ executionId, status: 'cancelled' });
     }
-    // `signal` doesn't need linking here — the listener registered above already reaches this
-    // controller via `cancel()`'s `activeControllers` branch as soon as `activeControllers.set`
-    // ran. A second direct link (this file used to have one, `linkAbortSignal`) was redundant for
-    // this phase and, worse, gave the impression `signal` was fully handled when it was only wired
-    // to the phase after the one that actually needed it — see the confirmation block above.
     const timeout = startTimeout(controller, descriptor.timeoutMs);
 
-    // Cleanup (clear the timeout, drop the abort controller) is repeated at
+    // Cleanup (clear the timeout) is repeated at
     // each return below rather than centralized in a `finally` — a
     // try/finally here produced a synthetic "abrupt completion" branch
     // istanbul/v8 instruments for the finally block itself, which is
@@ -534,7 +527,6 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     // behind instead of writing a contrived test or suppressing it.
     const cleanup = () => {
       if (timeout.handle) clearTimeout(timeout.handle);
-      activeControllers.delete(executionId);
     };
     appendEvent(executionId, 'started');
     try {
@@ -580,7 +572,19 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     // `cancel()` call, a run cancellation, and now a transport disconnect — resolves a pending
     // confirmation and an in-flight handler the exact same way.
     if (signal?.aborted) return terminal({ executionId, status: 'cancelled' });
+    const controller = new AbortController();
+    activeControllers.set(executionId, controller);
+    // `signal` doesn't need linking in `runHandler` — the listener registered here reaches this
+    // controller via `cancel()`'s `activeControllers` branch as soon as `activeControllers.set`
+    // ran. A second direct link (this file used to have one, `linkAbortSignal`) was redundant for
+    // that phase and, worse, gave the impression `signal` was fully handled when it was only wired
+    // to the phase after the one that actually needed it. Register here so cancellation also
+    // survives the microtask gap after confirmation settles and before `runHandler()` starts.
     const detachTransportAbort = watchTransportAbort({ executionId, signal });
+    const cleanupCancellation = () => {
+      detachTransportAbort();
+      activeControllers.delete(executionId);
+    };
 
     // Both gates below can throw on INFRASTRUCTURE failure — a policy that rejects, a confirmation
     // transport that drops. Those throws used to escape `execute` entirely, which cost two things:
@@ -597,15 +601,15 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     try {
       resolved = await authorize({ principal, run, toolId, input, registry: invocationRegistry });
     } catch (error) {
-      detachTransportAbort();
+      cleanupCancellation();
       return authorizationFailure({ executionId, error });
     }
     // `invocationRegistry.has({ toolId })` above already confirmed the tool exists, and `ToolRegistry` is
     // append-only (no unregister — see `createToolRegistry`'s doc), so `authorizeToolInvocation`
     // resolving the same `toolId` against the same `registry` cannot come back `undefined` here.
-    const gate = admitAuthorized({ executionId, resolved: resolved!, signal });
+    const gate = admitAuthorized({ executionId, resolved: resolved!, signal: controller.signal });
     if ('refusal' in gate) {
-      detachTransportAbort();
+      cleanupCancellation();
       return gate.refusal;
     }
     const admitted = gate.allowed;
@@ -613,12 +617,12 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     if (descriptor.requiresConfirmation) {
       const declined = await confirmGate({ executionId, principal, run, tool: descriptor, input: admitted.input });
       if (declined) {
-        detachTransportAbort();
+        cleanupCancellation();
         return declined;
       }
     }
-    const result = await runHandler({ executionId, principal, run, toolId, input: admitted.input, descriptor, handler: admitted.handler, normalizationNotes: admitted.normalizationNotes, invocationRegistry }, { emitSurface });
-    detachTransportAbort();
+    const result = await runHandler({ executionId, controller, principal, run, toolId, input: admitted.input, descriptor, handler: admitted.handler, normalizationNotes: admitted.normalizationNotes, invocationRegistry }, { emitSurface });
+    cleanupCancellation();
     return result;
   }
 
@@ -635,8 +639,8 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     const controller = activeControllers.get(executionId);
     if (controller) {
       controller.abort();
-      return;
     }
+    // The controller also exists while confirmation is pending; aborting must still unblock it.
     const resolve = pendingConfirmations.get(executionId);
     if (resolve) {
       pendingConfirmations.delete(executionId);

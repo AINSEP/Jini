@@ -584,6 +584,38 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     }
   });
 
+  it.each(['external signal', 'cancel()'] as const)('%s cancels after confirmation settles but before the handler starts', async (source) => {
+    let notifyConfirmation!: (request: ToolConfirmationRequest) => void;
+    const confirmationRequested = new Promise<ToolConfirmationRequest>((resolve) => { notifyConfirmation = resolve; });
+    const handler = vi.fn(async () => 'should not run');
+    const registry = registryWith({
+      descriptor: { id: 'confirm-me', requiresConfirmation: true },
+      handler,
+      policy: allowAll(),
+    });
+    const executor = createToolExecutor({ registry }, { delegate: { onConfirm: (request) => { notifyConfirmation(request); } } });
+    const controller = new AbortController();
+    const resultPromise = executor.execute({ principal, run, toolId: 'confirm-me', input: {} }, source === 'external signal' ? { signal: controller.signal } : {});
+    const { executionId } = await confirmationRequested;
+    let phasesAtCancellation: string[] | undefined;
+
+    executor.resumeConfirmation({ executionId, decision: 'confirm' });
+    // confirmGate's continuation runs first; this microtask then cancels before execute resumes.
+    // Previously neither a pending confirmation nor a handler controller existed in that gap.
+    queueMicrotask(() => {
+      phasesAtCancellation = executor.getAuditRecord({ executionId })?.events.map((event) => event.phase);
+      if (source === 'external signal') controller.abort();
+      else executor.cancel({ executionId });
+    });
+
+    const result = await resultPromise;
+    expect(phasesAtCancellation).toEqual(['requested', 'authorized', 'confirmed']);
+    expect(result).toEqual({ executionId, status: 'cancelled' });
+    expect(handler).not.toHaveBeenCalled();
+    expect(executor.getAuditRecord({ executionId })?.events.map((event) => event.phase))
+      .toEqual(['requested', 'authorized', 'confirmed', 'cancelled']);
+  });
+
   it('cancel() is a no-op for an unknown or already-terminal execution id', async () => {
     const registry = registryWith({ descriptor: { id: 'echo' }, handler: async () => 'ok', policy: allowAll() });
     const executor = createToolExecutor({ registry });

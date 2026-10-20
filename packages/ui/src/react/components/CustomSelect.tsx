@@ -514,7 +514,7 @@ export function CustomSelect({
   menuHeader,
   onOpenChange,
   useCustomSelect: useCustomSelectHook = useCustomSelect,
-}: CustomSelectProps, _optional: Record<string, never> = {}) {
+}: CustomSelectProps) {
   const {
     idBase,
     buttonRef,

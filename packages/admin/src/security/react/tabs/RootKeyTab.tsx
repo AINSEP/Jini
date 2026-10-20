@@ -11,7 +11,7 @@ function LockedActions({ vm }: { vm: RootKeyView }) {
 function StartFreshBody({ vm }: { vm: RootKeyView }) {
   return <><p>{vm.preview?.detail}</p><p>{vm.preview?.removes} credentials will be removed.</p>{vm.preview?.affectedWebhooks.map(w => <p key={`${w.label}:${w.targetUrl}`}>{w.label} · {w.targetUrl}</p>)}<TextField label="Type START FRESH" value={vm.confirm} onValueChange={vm.onConfirmText} disabled={vm.saving} /></>;
 }
-export function RootKeyTab(props: TabViewProps, _optional = {}) {
+export function RootKeyTab(props: TabViewProps) {
   const vm = useRootKeyTab(props);
   return vm.denied ? <Notice tone="danger">Permission denied</Notice> : <section aria-label="Root key"><Notice>{vm.scopeNotice}</Notice><RootKeyMessages vm={vm} />
     {vm.status && <p>{vm.status.state} · {vm.status.fingerprint} · {vm.status.source}</p>}{vm.canGenerate && <Button onPress={vm.generate} pending={vm.saving}>Create root key</Button>}

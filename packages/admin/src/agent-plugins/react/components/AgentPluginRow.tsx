@@ -2,7 +2,7 @@ import { Badge, Button, IconButton, Switch } from '@jini-ai/ui-kit/react';
 import type { AgentPluginRowView } from '../hooks/AgentPluginPanel.hooks.js';
 import { useAgentPluginRow } from '../hooks/AgentPluginRow.hooks.js';
 type RowViewModel = ReturnType<typeof useAgentPluginRow>;
-export function AgentPluginRow({ row }: { row: AgentPluginRowView }, _optional = {}) {
+export function AgentPluginRow({ row }: { row: AgentPluginRowView }) {
   const vm = useAgentPluginRow({ row });
   return <li data-jini-part="agent-plugins.row"><span aria-hidden>{vm.glyph}</span><h3>{vm.name} {vm.version && <small>{vm.version}</small>}</h3>
     {vm.description && <p>{vm.description}</p>}
@@ -13,11 +13,11 @@ export function AgentPluginRow({ row }: { row: AgentPluginRowView }, _optional =
     <AgentPluginRowDetails vm={vm} />
   </li>;
 }
-function AgentPluginRowActivation({ vm }: { vm: RowViewModel }, _optional = {}) {
+function AgentPluginRowActivation({ vm }: { vm: RowViewModel }) {
   const disabled = !vm.canWrite || vm.busy;
   return vm.installed ? <Switch label={vm.toggleLabel} checked={vm.enabled} disabled={disabled} onCheckedChange={vm.toggle} /> : <Button attrs={vm.actionAttrs} disabled={disabled} pending={vm.busy} onPress={vm.act}>{vm.actionText}</Button>;
 }
-function AgentPluginRowDetails({ vm }: { vm: RowViewModel }, _optional = {}) {
+function AgentPluginRowDetails({ vm }: { vm: RowViewModel }) {
   return <div id={vm.detailId} hidden={vm.detailHidden}>
       {vm.description && <p>{vm.description}</p>}
       {vm.hasSkills && <section aria-label="Portable components"><h4>Portable components</h4><ul>{vm.skills.map(skill => <li key={skill.name}><strong>{skill.name}</strong><p>{skill.summary}</p></li>)}</ul></section>}

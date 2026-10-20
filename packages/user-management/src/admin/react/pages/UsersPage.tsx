@@ -6,7 +6,7 @@ import type { UsersView } from '../hooks/UsersPage.hooks.js';
 import { usersMessagesEn as m } from '../../messages.en.js';
 import { UsersConfirmation } from '../components/UsersConfirmation.js';
 /** The loaded shell; UsersPage only renders it once the page view and all three lists exist. */
-function UsersShell({ v, view }: { v: ReturnType<typeof useUsersPage>; view: UsersView }, _optional: Record<string, never> = {}) {
+function UsersShell({ v, view }: { v: ReturnType<typeof useUsersPage>; view: UsersView }) {
   return <UsersViewContext.Provider value={view}><div className="page">
     <header><p>People</p><h1>{m.title}</h1><p>{m.description}</p><p>{m.passwordHelp}</p></header>
     {v.readOnly ? <Notice>{m.readOnly}</Notice> : null}<Notice>{m.protected}</Notice>
@@ -16,7 +16,7 @@ function UsersShell({ v, view }: { v: ReturnType<typeof useUsersPage>; view: Use
     <UsersConfirmation/>
   </div></UsersViewContext.Provider>;
 }
-export default function UsersPage(props: UsersPageProps, _optional: Record<string, never> = {}) {
+export default function UsersPage(props: UsersPageProps) {
   const v = useUsersPage(props);
   if (!v.visible) return <Notice>Users administration is unavailable.</Notice>;
   if (!v.state) return <Spinner label={m.loading}/>;

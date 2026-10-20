@@ -266,7 +266,7 @@ type SeoEntryFieldsProps = Pick<SeoEntryPanelController, "fieldValue" | "setFiel
 };
 
 /** Sticky heading row: title, the ⓘ explanation and Save (disabled while saving or with nothing touched). */
-function SeoEntryHead({ locale, t, saving, touched, save }: Pick<SeoEntryPanelController, "saving" | "touched" | "save"> & { locale: string; t: SeoCopy }, _optional: Record<string, never> = {}) {
+function SeoEntryHead({ locale, t, saving, touched, save }: Pick<SeoEntryPanelController, "saving" | "touched" | "save"> & { locale: string; t: SeoCopy }) {
   return (
     <>
       {/* Heading, explanation and Save share one sticky row (2026-10-15, owner: "the UI for
@@ -307,7 +307,7 @@ function SeoEntryHead({ locale, t, saving, touched, save }: Pick<SeoEntryPanelCo
 }
 
 /** "Search appearance": title, description, canonical URL and the two robots checkboxes. */
-function SeoEntrySearchFields({ locale, t, resolved, fieldValue, setField }: SeoEntryFieldsProps, _optional: Record<string, never> = {}) {
+function SeoEntrySearchFields({ locale, t, resolved, fieldValue, setField }: SeoEntryFieldsProps) {
   return (
     <>
       {/* Group names reuse the Site defaults tab's headings, so an operator finds a field under the
@@ -369,7 +369,7 @@ function SeoEntrySearchFields({ locale, t, resolved, fieldValue, setField }: Seo
 }
 
 /** "Social preview": the Open Graph fields plus the optional X/Twitter disclosure. */
-function SeoEntrySocialFields({ locale, t, resolved, fieldValue, setField, ogImageInherited }: SeoEntryFieldsProps & { ogImageInherited: false | "default" | "content" }, _optional: Record<string, never> = {}) {
+function SeoEntrySocialFields({ locale, t, resolved, fieldValue, setField, ogImageInherited }: SeoEntryFieldsProps & { ogImageInherited: false | "default" | "content" }) {
   return (
     <>
       {/* One generic "Social preview" (2026-10-15, owner: "is there a generic preview instead of
@@ -417,7 +417,7 @@ function SeoEntrySocialFields({ locale, t, resolved, fieldValue, setField, ogIma
 }
 
 /** The X/Twitter disclosure inside "Social preview". */
-function SeoEntryXFields({ locale, t, resolved, fieldValue, setField }: SeoEntryFieldsProps, _optional: Record<string, never> = {}) {
+function SeoEntryXFields({ locale, t, resolved, fieldValue, setField }: SeoEntryFieldsProps) {
   return (
     <>
       {/* Closed by default, open on load when an X override is in effect so it is never hidden.
@@ -476,7 +476,7 @@ export interface SeoEntrySectionProps {
  *  and nothing else — the exact regression `deployment/HistoryTab.tsx`'s own comment records
  *  measuring live on its tab. It is also not a duplicate: the tab reads "Pages & posts" (what you
  *  pick from), the heading reads "Per-entry SEO" (what you are editing). */
-export function SeoEntrySection({ locale, useSeoEntrySectionHook = useSeoEntrySection }: SeoEntrySectionProps, _optional: Record<string, never> = {}) {
+export function SeoEntrySection({ locale, useSeoEntrySectionHook = useSeoEntrySection }: SeoEntrySectionProps) {
   const t = useSeoCopy();
   const { entryId, setEntryId } = useSeoEntrySectionHook();
 
@@ -517,7 +517,7 @@ export function SeoEntrySection({ locale, useSeoEntrySectionHook = useSeoEntrySe
  * inline `??`/`||` field reads — same fields, same fallbacks, same payload, just not written in the
  * `.tsx`.
  */
-export function SeoDefaultsTab({ controller }: { controller: SeoTabController }, _optional: Record<string, never> = {}) {
+export function SeoDefaultsTab({ controller }: { controller: SeoTabController }) {
   const t = useSeoCopy();
   const { locale, settings, saving, defaultOgImage, setDefaultOgImage } = controller;
   const { submit } = useSeoDefaults({ save: controller.save });
@@ -675,7 +675,7 @@ export function SeoDefaultsTab({ controller }: { controller: SeoTabController },
  * It also has to exist at all — a `role="tab"` button is not in a screen reader's heading list, so
  * a panel with no `<h2>` leaves that reader nothing but the page `H1`.
  */
-export function SeoSitemapTab({ controller }: { controller: SeoTabController }, _optional: Record<string, never> = {}) {
+export function SeoSitemapTab({ controller }: { controller: SeoTabController }) {
   const t = useSeoCopy();
   const { locale, settings, saving, regenerateSitemap, openSitemapModal } = controller;
 
@@ -737,7 +737,7 @@ export interface SeoProps {
   onTabChange?: ((required: { tab: string }, optional?: Record<string, never>) => void) | undefined;
 }
 
-export function Seo({ tabId, onTabChange, useSeoHook = useWiredSeo }: SeoProps = {}, _optional: Record<string, never> = {}) {
+export function Seo({ tabId, onTabChange, useSeoHook = useWiredSeo }: SeoProps = {}) {
   const t = useSeoCopy();
   const { headerActions } = useSeoOptions();
   const { changeTab } = useSeoPageActions({ onTabChange });

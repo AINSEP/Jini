@@ -6,7 +6,7 @@ import { UploadButton } from '../components/UploadButton.js';
 import { EditMediaPanel } from '../components/EditMediaPanel.js';
 import { MediaLightbox } from '../components/MediaLightbox.js';
 import { MediaPurgeDialog } from '../components/MediaPurgeDialog.js';
-export function LibraryTab(props: TabViewProps, _optional: Record<string, never> = {}) {
+export function LibraryTab(props: TabViewProps) {
   const vm = useLibraryTab(props);
   return (
     <section className="jini-media-library" data-jini-part="media.library">

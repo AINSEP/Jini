@@ -15,7 +15,7 @@ export interface FieldSettingsRowsProps {
 }
 
 /** Placeholder and help-text rows. */
-export function FieldSettingsTextRows({ view, t }: FieldSettingsRowsProps, _optional: Record<string, never> = {}) {
+export function FieldSettingsTextRows({ view, t }: FieldSettingsRowsProps) {
   const { settings, form } = view;
   return (
     <>
@@ -41,7 +41,7 @@ export function FieldSettingsTextRows({ view, t }: FieldSettingsRowsProps, _opti
 }
 
 /** The option list editor of a choice field. */
-export function FieldSettingsOptionsRow({ view, t }: FieldSettingsRowsProps, _optional: Record<string, never> = {}) {
+export function FieldSettingsOptionsRow({ view, t }: FieldSettingsRowsProps) {
   return (
     <div className="field-settings-row field-settings-row--top">
       <span className="field-settings-label">
@@ -83,7 +83,7 @@ export function FieldSettingsOptionsRow({ view, t }: FieldSettingsRowsProps, _op
 }
 
 /** The default-value row: a box, a single-choice select, or a typed input, whichever the type takes. */
-export function FieldSettingsDefaultRows({ view, t }: FieldSettingsRowsProps, _optional: Record<string, never> = {}) {
+export function FieldSettingsDefaultRows({ view, t }: FieldSettingsRowsProps) {
   const { settings, form } = view;
   return (
     <>
@@ -120,7 +120,7 @@ export function FieldSettingsDefaultRows({ view, t }: FieldSettingsRowsProps, _o
 }
 
 /** Length, pattern and range rows. */
-export function FieldSettingsLimitRows({ view, t }: FieldSettingsRowsProps, _optional: Record<string, never> = {}) {
+export function FieldSettingsLimitRows({ view, t }: FieldSettingsRowsProps) {
   const { settings, form } = view;
   return (
     <>
@@ -167,7 +167,7 @@ export function FieldSettingsLimitRows({ view, t }: FieldSettingsRowsProps, _opt
 }
 
 /** Accepted file types and max size of an upload field. */
-export function FieldSettingsUploadRows({ view, t }: FieldSettingsRowsProps, _optional: Record<string, never> = {}) {
+export function FieldSettingsUploadRows({ view, t }: FieldSettingsRowsProps) {
   const { form } = view;
   return (
     <>

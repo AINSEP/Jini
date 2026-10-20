@@ -13,7 +13,7 @@ export interface FormSubmissionsProps {
   answerColumns?: FormAnswerColumn[];
 }
 
-export function FormSubmissions({ formId, useFormSubmissionsHook = useWiredFormSubmissions, t, answerColumns = [] }: FormSubmissionsProps, _optional: Record<string, never> = {}) {
+export function FormSubmissions({ formId, useFormSubmissionsHook = useWiredFormSubmissions, t, answerColumns = [] }: FormSubmissionsProps) {
   const formatDate = useFormSubmissionDate({});
   const controller = useFormSubmissionsHook({ formId });
   const { submissions, nextCursor, error, selectedId, loadingMore } = controller;

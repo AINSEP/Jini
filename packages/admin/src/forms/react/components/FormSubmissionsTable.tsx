@@ -23,7 +23,6 @@ export interface FormSubmissionsTableProps {
 
 export function FormSubmissionsTable(
   { rows, loadMore, error, nextCursor, loadingMore, formatDate, answerColumns, t }: FormSubmissionsTableProps,
-  _optional: Record<string, never> = {},
 ) {
   return (
     <div>

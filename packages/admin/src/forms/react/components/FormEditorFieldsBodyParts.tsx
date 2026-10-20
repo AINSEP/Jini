@@ -13,7 +13,6 @@ type FieldsBodyHandlers = ReturnType<typeof useFormFieldsBodyView>;
 /** Builder/HTML switch plus whichever editor the current mode shows. */
 export function FormEditorModeSwitch(
   { props, handlers }: { props: FormEditorFieldsBodyProps; handlers: FieldsBodyHandlers },
-  _optional: Record<string, never> = {},
 ) {
   const { fields, existingFieldIds, onFieldsChange, t, mode, html } = props;
   return (
@@ -34,7 +33,7 @@ export function FormEditorModeSwitch(
 }
 
 /** Copy embed, copy feedback, Disable/Enable (saved forms only) and Save/Create. */
-export function FormEditorActions({ props }: { props: FormEditorFieldsBodyProps }, _optional: Record<string, never> = {}) {
+export function FormEditorActions({ props }: { props: FormEditorFieldsBodyProps }) {
   const { isNew, form, saving, onStatusToggle, onSave, t, onCopyEmbed, copyFeedback } = props;
   /* `form-actions` is a spacing-only hook layered on top of the shared `.editor-actions`
      flex row. `.editor-actions` sets direction/gap/alignment but no top margin, and this row

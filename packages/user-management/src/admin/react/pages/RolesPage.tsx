@@ -6,7 +6,7 @@ import type { RolesView } from '../hooks/RolesPage.hooks.js';
 import { DestructiveDialog } from '../components/DestructiveDialog.js';
 import { rolesMessagesEn as m } from '../../messages.en.js';
 /** The loaded shell; RolesPage only renders it once the page view and both lists exist. */
-function RolesShell({ v, view }: { v: ReturnType<typeof useRolesPage>; view: RolesView }, _optional: Record<string, never> = {}) {
+function RolesShell({ v, view }: { v: ReturnType<typeof useRolesPage>; view: RolesView }) {
   return <RolesViewContext.Provider value={view}>
     <div className="page"><header><p>{m.people}</p><h1>{m.title}</h1><p>{m.description}</p></header>
       {!v.canManage ? <Notice>{m.readOnly}</Notice> : null}
@@ -19,7 +19,7 @@ function RolesShell({ v, view }: { v: ReturnType<typeof useRolesPage>; view: Rol
     </div>
   </RolesViewContext.Provider>;
 }
-export default function RolesPage(props: RolesPageProps, _optional: Record<string, never> = {}) {
+export default function RolesPage(props: RolesPageProps) {
     const v = useRolesPage(props);
     if (v.hidden)
         return <Notice>Roles administration is unavailable.</Notice>;
