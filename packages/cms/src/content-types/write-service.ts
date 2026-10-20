@@ -122,7 +122,6 @@ export interface ContentTypeWriteServiceDeps {
   reservedKeys?: ReadonlySet<string>;
 }
 
-/** Reserved forever for the legacy `posts` table — an operator Collection can never take these keys. */
 /**
  * Field-name guards shared by register and update, in order: every name passes the identifier
  * grammar (`InvalidFieldNameGrammarError`), THEN no name appears twice
@@ -148,6 +147,7 @@ function fieldNameError(fields: ReadonlyArray<{ name: string }>): Error | null {
   return null;
 }
 
+/** Reserved forever for the legacy `posts` table — an operator Collection can never take these keys. */
 const RESERVED_CONTENT_TYPE_KEYS = new Set(["post", "page"]);
 
 /** Per-type cap on `queryable` fields (queryable-index sprawl mitigation). */
@@ -155,6 +155,97 @@ const QUERYABLE_FIELD_CAP = 20;
 
 function countQueryableFields(fields: ContentTypeFieldDef[]): number {
   return fields.filter((f) => f.queryable).length;
+}
+
+/**
+ * Register-only key guards, in binding order: key grammar (guard 1) -> owner grammar (guard 1b)
+ * -> reserved key (guard 2, legacy then host-reserved). Returns `null` when all pass.
+ *
+ * @complexity O(1) — bounded-length grammar checks and two set lookups.
+ */
+function registerKeyError(
+  required: { key: string; owner: string | undefined },
+  optional: { reservedKeys?: ReadonlySet<string> | undefined } = {},
+): Error | null {
+  const { key, owner } = required;
+  // Guard 1: key grammar.
+  if (!validateIdentifierGrammar({ value: key })) {
+    return new InvalidKeyGrammarError({ message: `content-type key '${key}' fails the identifier grammar gate ^[a-z][a-z0-9_]{0,63}$` });
+  }
+  // Guard 1b: owner grammar, only when one is given. It becomes an object key inside every entry's
+  // `fieldsJson.ext`, so it gets the same identifier gate as the type key.
+  if (owner !== undefined && !validateIdentifierGrammar({ value: owner })) {
+    return new InvalidKeyGrammarError({ message: `content-type owner '${owner}' fails the identifier grammar gate ^[a-z][a-z0-9_]{0,63}$` });
+  }
+  // Guard 2: reserved key.
+  if (RESERVED_CONTENT_TYPE_KEYS.has(key)) {
+    return new ReservedContentTypeKeyError({ message: `key '${key}' is permanently reserved for the legacy 'posts' table` });
+  }
+  if (optional.reservedKeys?.has(key.toLowerCase())) {
+    return new ReservedContentTypeKeyError({ message: `key '${key}' is reserved for a host route` });
+  }
+  return null;
+}
+
+/**
+ * Per-field guards shared by register and update, in binding order and stop-at-first-failure:
+ * field-name grammar then uniqueness (guard 3) -> field-kind (guard 4) -> storage-only-not-
+ * queryable (guard 4b) -> queryable-cap (guard 5). Returns `null` when all pass.
+ *
+ * @complexity O(f) in the number of submitted fields.
+ */
+function fieldSchemaError(required: { key: string; fields: ContentTypeFieldDef[] }): Error | null {
+  const { key, fields } = required;
+  // Guard 3: field-name grammar, then uniqueness (every field, before any kind/cap check).
+  const nameError = fieldNameError(fields);
+  if (nameError) return nameError;
+  // Guard 4: field-kind, closed enum.
+  const badKind = fields.find((field) => !isContentTypeFieldKind({ value: field.kind }));
+  if (badKind) {
+    return new InvalidFieldKindError({ message: `field '${badKind.name}' has kind '${badKind.kind}', not one of the closed field-kind enum` });
+  }
+  // Guard 4b: a storage-only kind cannot be queryable. Placed strictly between guard 4 and guard 5
+  // so a bad kind still reports as a kind error, and a legal-but-unindexable kind is rejected
+  // BEFORE the cap count and long before `resolveFieldIndexTransition` could hand it to the index
+  // provisioner. This is the check that keeps a kind with no CAST target off the DDL path.
+  const storageOnly = fields.find((field) => field.queryable && !isIndexableFieldKind({ value: field.kind }));
+  if (storageOnly) {
+    return new StorageOnlyFieldNotQueryableError({ message: `field '${storageOnly.name}' has storage-only kind '${storageOnly.kind}' and cannot be queryable` });
+  }
+  // Guard 5: queryable-field cap, submitted array alone.
+  if (countQueryableFields(fields) > QUERYABLE_FIELD_CAP) {
+    return new QueryableFieldCapExceededError({ message: `content type '${key}' submits more than ${QUERYABLE_FIELD_CAP} queryable fields` });
+  }
+  return null;
+}
+
+/**
+ * Writes the row and its revision (+ watermark stamp when that port is supplied). Must be called
+ * inside `deps.repo.transaction` so all three land or none do.
+ *
+ * @complexity O(1) — three port calls.
+ */
+async function persistWithRevision(required: {
+  deps: ContentTypeWriteServiceDeps;
+  input: ActorIdentityInput & { workspaceId: string; key: string };
+  op: ContentTypeRevisionInput["op"];
+  row: ContentTypeRecord;
+  recordedAt: string;
+}): Promise<void> {
+  const { deps, input, op, row, recordedAt } = required;
+  await deps.repo.save(row);
+  await deps.repo.appendRevision({
+    contentTypeKey: input.key,
+    workspaceId: input.workspaceId,
+    op,
+    stateJson: row,
+    actorId: input.actorId,
+    principalKind: input.principalKind ?? null,
+    delegatedByWorkspaceId: input.delegatedByWorkspaceId ?? null,
+    delegatedById: input.delegatedById ?? null,
+    recordedAt,
+  });
+  if (deps.watermark) await deps.watermark.stampWatermark({ workspaceId: input.workspaceId });
 }
 
 export interface RegisterContentTypeRequired {
@@ -194,48 +285,10 @@ export async function registerContentType(
     return { ok: false, error: new ForbiddenError({ message: `principal '${input.actorId}' cannot register a content type (${authResult.reason})` }) };
   }
 
-  // Guard 1: key grammar.
-  if (!validateIdentifierGrammar({ value: input.key })) {
-    return { ok: false, error: new InvalidKeyGrammarError({ message: `content-type key '${input.key}' fails the identifier grammar gate ^[a-z][a-z0-9_]{0,63}$` }) };
-  }
-  // Guard 1b: owner grammar, only when one is given. It becomes an object key inside every entry's
-  // `fieldsJson.ext`, so it gets the same identifier gate as the type key.
-  if (input.owner !== undefined && !validateIdentifierGrammar({ value: input.owner })) {
-    return { ok: false, error: new InvalidKeyGrammarError({ message: `content-type owner '${input.owner}' fails the identifier grammar gate ^[a-z][a-z0-9_]{0,63}$` }) };
-  }
-  // Guard 2: reserved key.
-  if (RESERVED_CONTENT_TYPE_KEYS.has(input.key)) {
-    return { ok: false, error: new ReservedContentTypeKeyError({ message: `key '${input.key}' is permanently reserved for the legacy 'posts' table` }) };
-  }
-  if (deps.reservedKeys?.has(input.key.toLowerCase())) {
-    return { ok: false, error: new ReservedContentTypeKeyError({ message: `key '${input.key}' is reserved for a host route` }) };
-  }
-  // Guard 3: field-name grammar, then uniqueness (every field, before any kind/cap check).
-  const nameErrorOnRegister = fieldNameError(input.fields);
-  if (nameErrorOnRegister) return { ok: false, error: nameErrorOnRegister };
-  // Guard 4: field-kind, closed enum.
-  for (const field of input.fields) {
-    if (!isContentTypeFieldKind({ value: field.kind })) {
-      return { ok: false, error: new InvalidFieldKindError({ message: `field '${field.name}' has kind '${field.kind}', not one of the closed field-kind enum` }) };
-    }
-  }
-  // Guard 4b: a storage-only kind cannot be queryable. Placed strictly between guard 4 and guard 5
-  // so a bad kind still reports as a kind error, and a legal-but-unindexable kind is rejected
-  // BEFORE the cap count and long before `resolveFieldIndexTransition` could hand it to the index
-  // provisioner. This is the check that keeps a kind with no CAST target off the DDL path.
-  for (const field of input.fields) {
-    if (field.queryable && !isIndexableFieldKind({ value: field.kind })) {
-      return {
-        ok: false,
-        error: new StorageOnlyFieldNotQueryableError({ message: `field '${field.name}' has storage-only kind '${field.kind}' and cannot be queryable` }
-        ),
-      };
-    }
-  }
-  // Guard 5: queryable-field cap, submitted array alone.
-  if (countQueryableFields(input.fields) > QUERYABLE_FIELD_CAP) {
-    return { ok: false, error: new QueryableFieldCapExceededError({ message: `content type '${input.key}' submits more than ${QUERYABLE_FIELD_CAP} queryable fields` }) };
-  }
+  const keyError = registerKeyError({ key: input.key, owner: input.owner }, { reservedKeys: deps.reservedKeys });
+  if (keyError) return { ok: false, error: keyError };
+  const schemaError = fieldSchemaError({ key: input.key, fields: input.fields });
+  if (schemaError) return { ok: false, error: schemaError };
 
   // Row 7 — a pre-check outside the transaction. Not race-safe by itself (that's the in-tx check
   // below), but it avoids opening a transaction for the overwhelmingly common not-found case.
@@ -265,19 +318,7 @@ export async function registerContentType(
       if (existingInTx) {
         throw new ContentTypeAlreadyExistsError({ key: input.key, tombstoned: existingInTx.status === "tombstone" });
       }
-      await deps.repo.save(contentType);
-      await deps.repo.appendRevision({
-        contentTypeKey: input.key,
-        workspaceId: input.workspaceId,
-        op: "register",
-        stateJson: contentType,
-        actorId: input.actorId,
-        principalKind: input.principalKind ?? null,
-        delegatedByWorkspaceId: input.delegatedByWorkspaceId ?? null,
-        delegatedById: input.delegatedById ?? null,
-        recordedAt: now,
-      });
-      if (deps.watermark) await deps.watermark.stampWatermark({ workspaceId: input.workspaceId });
+      await persistWithRevision({ deps, input, op: "register", row: contentType, recordedAt: now });
     } });
   } catch (err) {
     if (err instanceof ContentTypeAlreadyExistsError) return { ok: false, error: err };
@@ -356,29 +397,8 @@ export async function updateContentTypeFields(
     return { ok: false, error: new ValidationError({ message: `content type '${input.key}' update submitted an empty fields array`, reason: "fields_empty" }) };
   }
 
-  const nameErrorOnUpdate = fieldNameError(input.fields);
-  if (nameErrorOnUpdate) return { ok: false, error: nameErrorOnUpdate };
-  for (const field of input.fields) {
-    if (!isContentTypeFieldKind({ value: field.kind })) {
-      return { ok: false, error: new InvalidFieldKindError({ message: `field '${field.name}' has kind '${field.kind}', not one of the closed field-kind enum` }) };
-    }
-  }
-  // Guard 4b: a storage-only kind cannot be queryable. Placed strictly between guard 4 and guard 5
-  // so a bad kind still reports as a kind error, and a legal-but-unindexable kind is rejected
-  // BEFORE the cap count and long before `resolveFieldIndexTransition` could hand it to the index
-  // provisioner. This is the check that keeps a kind with no CAST target off the DDL path.
-  for (const field of input.fields) {
-    if (field.queryable && !isIndexableFieldKind({ value: field.kind })) {
-      return {
-        ok: false,
-        error: new StorageOnlyFieldNotQueryableError({ message: `field '${field.name}' has storage-only kind '${field.kind}' and cannot be queryable` }
-        ),
-      };
-    }
-  }
-  if (countQueryableFields(input.fields) > QUERYABLE_FIELD_CAP) {
-    return { ok: false, error: new QueryableFieldCapExceededError({ message: `content type '${input.key}' submits more than ${QUERYABLE_FIELD_CAP} queryable fields` }) };
-  }
+  const schemaError = fieldSchemaError({ key: input.key, fields: input.fields });
+  if (schemaError) return { ok: false, error: schemaError };
 
   const before = current.fields;
   const after = input.fields;
@@ -386,19 +406,7 @@ export async function updateContentTypeFields(
   const updated: ContentTypeRecord = { ...current, fields: after, label: input.label ?? current.label, version: current.version + 1 };
 
   await deps.repo.transaction({ fn: async () => {
-    await deps.repo.save(updated);
-    await deps.repo.appendRevision({
-      contentTypeKey: input.key,
-      workspaceId: input.workspaceId,
-      op: "field-change",
-      stateJson: updated,
-      actorId: input.actorId,
-      principalKind: input.principalKind ?? null,
-      delegatedByWorkspaceId: input.delegatedByWorkspaceId ?? null,
-      delegatedById: input.delegatedById ?? null,
-      recordedAt: now,
-    });
-    if (deps.watermark) await deps.watermark.stampWatermark({ workspaceId: input.workspaceId });
+    await persistWithRevision({ deps, input, op: "field-change", row: updated, recordedAt: now });
   } });
 
   await deps.indexProvisioner.applyFieldIndexTransitions({
