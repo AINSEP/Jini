@@ -66,6 +66,20 @@ export interface VersionManagerController<TVersion extends VersionRecord> {
   describeVersion: (version: TVersion) => string;
 }
 
+function seedCurrentVersionContent({
+  currentVersion,
+  currentContent,
+  contentCache,
+}: {
+  currentVersion: VersionRecord | undefined;
+  currentContent: string | null;
+  contentCache: Map<string, string>;
+}) {
+  if (currentVersion && currentContent != null && !contentCache.has(currentVersion.id)) {
+    contentCache.set(currentVersion.id, currentContent);
+  }
+}
+
 /**
  * Owns the whole version-manager state machine: list fetch, selection,
  * content cache/prefetch, search, restore, and viewport choice. Kept as one
@@ -191,9 +205,7 @@ export function useVersionManager<TVersion extends VersionRecord>(
       const nextVersions = sortVersionsDescending(result);
       setVersions(nextVersions);
       const currentVersion = nextVersions.find((version) => version.current);
-      if (currentVersion && currentContent != null && !contentCacheRef.current.has(currentVersion.id)) {
-        contentCacheRef.current.set(currentVersion.id, currentContent);
-      }
+      seedCurrentVersionContent({ currentVersion, currentContent, contentCache: contentCacheRef.current });
       const nextSelected =
         (preferredId ? nextVersions.find((version) => version.id === preferredId) : null) ??
         currentVersion ??
@@ -301,7 +313,7 @@ export function useVersionManager<TVersion extends VersionRecord>(
         // this hook already has.
         contentCacheRef.current.set(restoredVersion.id, selectedContent);
         preserveErrorOnNextSelectionRef.current = true;
-        await loadVersions(result.version?.id ?? selectedVersion.id);
+        await loadVersions(restoredVersion.id);
         setError(result.warning.message);
         return;
       }
