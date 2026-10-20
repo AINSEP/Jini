@@ -198,3 +198,143 @@ describe('resolveDynamicValue — the two paths that broke the never-throws cont
     expect(result.ok ? '' : result.detail).toContain('just a string');
   });
 });
+
+// Characterization pins (code-health wave 3), written before resolveFunctionCall was split.
+function catalogWith(entries: Record<string, FunctionSpec>): Catalog {
+  const base = createLabCatalog({});
+  const functions = new Map<string, FunctionSpec>(base.functions);
+  for (const [name, spec] of Object.entries(entries)) functions.set(name, spec);
+  return { ...base, functions };
+}
+const echo = (args: Record<string, unknown>): unknown => args;
+
+describe('resolveFunctionCall — callableFrom boundary truth table', () => {
+  const table = catalogWith({
+    rOnly: { returnType: 'any', callableFrom: 'rendererOnly', impl: () => 'r' },
+    aOnly: { returnType: 'any', callableFrom: 'agentOnly', impl: () => 'a' },
+    both: { returnType: 'any', callableFrom: 'rendererOrAgent', impl: () => 'b' },
+  });
+  it.each([
+    ['rOnly', 'renderer', true],
+    ['rOnly', 'agent', false],
+    ['aOnly', 'renderer', false],
+    ['aOnly', 'agent', true],
+    ['both', 'renderer', true],
+    ['both', 'agent', true],
+  ] as const)('%s from %s side: allowed=%s', (fn, side, allowed) => {
+    const result = resolveDynamicValue({ value: { call: fn }, ctx: ctx({ catalog: table, side }) });
+    expect(result.ok).toBe(allowed);
+  });
+  it('names the function, its callableFrom and the refused side in the refusal detail', () => {
+    expect(resolveDynamicValue({ value: { call: 'aOnly' }, ctx: ctx({ catalog: table, side: 'renderer' }) })).toEqual({
+      ok: false,
+      reason: 'FUNCTION_NOT_CALLABLE_FROM_SIDE',
+      detail: 'function "aOnly" has callableFrom="agentOnly", not callable from the "renderer" side',
+    });
+  });
+  it.each(['rOnly', 'aOnly'])('an unknown side value is refused for the one-sided function %s', (fn) => {
+    // Malformed-input fixture: a side outside the ResolveSide union, cast on purpose.
+    const result = resolveDynamicValue({ value: { call: fn }, ctx: ctx({ catalog: table, side: 'host' as ResolveContext['side'] }) });
+    expect(result).toMatchObject({ ok: false, reason: 'FUNCTION_NOT_CALLABLE_FROM_SIDE' });
+  });
+  it('an unknown side value is still allowed for a rendererOrAgent function', () => {
+    // Malformed-input fixture: a side outside the ResolveSide union, cast on purpose.
+    expect(resolveDynamicValue({ value: { call: 'both' }, ctx: ctx({ catalog: table, side: 'host' as ResolveContext['side'] }) })).toEqual({ ok: true, value: 'b' });
+  });
+  it('an unknown callableFrom value is refused from both sides', () => {
+    // Malformed-input fixture: a callableFrom outside the CallableFrom union, cast on purpose.
+    const odd = catalogWith({ odd: { returnType: 'any', callableFrom: 'anyone' as FunctionSpec['callableFrom'], impl: () => 1 } });
+    expect(resolveDynamicValue({ value: { call: 'odd' }, ctx: ctx({ catalog: odd, side: 'renderer' }) })).toMatchObject({ ok: false, reason: 'FUNCTION_NOT_CALLABLE_FROM_SIDE' });
+    expect(resolveDynamicValue({ value: { call: 'odd' }, ctx: ctx({ catalog: odd, side: 'agent' }) })).toMatchObject({ ok: false, reason: 'FUNCTION_NOT_CALLABLE_FROM_SIDE' });
+  });
+});
+
+describe('resolveFunctionCall — registration, implementation and argument resolution', () => {
+  it.each(['constructor', '__proto__', 'toString', 'hasOwnProperty'])('treats the prototype-shaped name %s as not registered', (name) => {
+    expect(resolveDynamicValue({ value: { call: name }, ctx: ctx() })).toEqual({
+      ok: false,
+      reason: 'FUNCTION_NOT_REGISTERED',
+      detail: `function "${name}" is not registered in catalog "${catalog.catalogId}"`,
+    });
+  });
+  it('names the function in the not-implemented detail', () => {
+    const noImpl = catalogWith({ registeredOnly: { returnType: 'void', callableFrom: 'rendererOnly' } });
+    expect(resolveDynamicValue({ value: { call: 'registeredOnly' }, ctx: ctx({ catalog: noImpl }) })).toEqual({
+      ok: false,
+      reason: 'FUNCTION_NOT_IMPLEMENTED',
+      detail: 'function "registeredOnly" is registered but this renderer has no implementation for it',
+    });
+  });
+  it('checks the side boundary before the implementation exists', () => {
+    const noImpl = catalogWith({ agentNoImpl: { returnType: 'void', callableFrom: 'agentOnly' } });
+    expect(resolveDynamicValue({ value: { call: 'agentNoImpl' }, ctx: ctx({ catalog: noImpl }) })).toMatchObject({ ok: false, reason: 'FUNCTION_NOT_CALLABLE_FROM_SIDE' });
+  });
+  it('reports a registered name whose map entry is undefined as not implemented', () => {
+    const base = createLabCatalog({});
+    // Malformed-input fixture: a map entry with an undefined spec, which the Catalog type forbids.
+    const functions = new Map<string, FunctionSpec>([['hollow', undefined as unknown as FunctionSpec]]);
+    expect(resolveDynamicValue({ value: { call: 'hollow' }, ctx: ctx({ catalog: { ...base, functions } }) })).toMatchObject({ ok: false, reason: 'FUNCTION_NOT_IMPLEMENTED' });
+  });
+  it('hands the implementation an empty object when args is absent', () => {
+    const cat = catalogWith({ echo: { returnType: 'any', callableFrom: 'rendererOnly', impl: echo } });
+    expect(resolveDynamicValue({ value: { call: 'echo' }, ctx: ctx({ catalog: cat }) })).toEqual({ ok: true, value: {} });
+  });
+  it('resolves every arg (literal, binding, nested call, array) in key order before calling', () => {
+    const cat = catalogWith({ echo: { returnType: 'any', callableFrom: 'rendererOnly', impl: echo } });
+    const result = resolveDynamicValue({
+      value: { call: 'echo', args: { b: 1, a: { path: '/user/name' }, c: { call: 'not', args: { value: true } }, d: [{ path: '/user/active' }, 2] } },
+      ctx: ctx({ catalog: cat }),
+    });
+    expect(result).toEqual({ ok: true, value: { b: 1, a: 'Ada', c: false, d: [true, 2] } });
+    expect(Object.keys(result.ok ? (result.value as object) : {})).toEqual(['b', 'a', 'c', 'd']);
+  });
+  it('does not call the implementation when an arg fails to resolve, and returns the first failure', () => {
+    let calls = 0;
+    const cat = catalogWith({ counted: { returnType: 'any', callableFrom: 'rendererOnly', impl: () => { calls += 1; return 1; } } });
+    const result = resolveDynamicValue({ value: { call: 'counted', args: { x: { path: '/first' }, y: { path: '/second' } } }, ctx: ctx({ catalog: cat }) });
+    expect(result).toEqual({ ok: false, reason: 'PATH_NOT_FOUND', detail: 'no value at "/first" in the current data model' });
+    expect(calls).toBe(0);
+  });
+  it('formats an Error thrown by the implementation with its message', () => {
+    const cat = catalogWith({ boom: { returnType: 'any', callableFrom: 'rendererOnly', impl: () => { throw new Error('bad arg'); } } });
+    expect(resolveDynamicValue({ value: { call: 'boom' }, ctx: ctx({ catalog: cat }) })).toEqual({
+      ok: false,
+      reason: 'FUNCTION_THREW',
+      detail: 'function "boom" threw while evaluating: bad arg',
+    });
+  });
+  it('an agent-sent "__proto__" arg key sets the prototype of the args object handed to the implementation (reported, not fixed)', () => {
+    // Wire args come from JSON.parse, which makes "__proto__" an own key; the resolved-args
+    // object is then built by plain assignment, which fires the inherited __proto__ setter.
+    const cat = catalogWith({ echo: { returnType: 'any', callableFrom: 'rendererOnly', impl: echo } });
+    const args = JSON.parse('{"__proto__": {"isAdmin": true}}') as Record<string, unknown>;
+    const result = resolveDynamicValue({ value: { call: 'echo', args }, ctx: ctx({ catalog: cat }) });
+    const handed = (result.ok ? result.value : {}) as { isAdmin?: unknown };
+    expect(Object.keys(handed)).toEqual([]);
+    expect(handed.isAdmin).toBe(true);
+    expect(({} as { isAdmin?: unknown }).isAdmin).toBeUndefined();
+  });
+});
+
+describe('resolveFunctionCall — @index', () => {
+  const scoped = (index: number): ResolveContext => ctx({ dataModel: { items: [{ n: 2 }], off: 5, s: 'x' }, itemScope: { basePath: '/items', index } });
+  it('defaults the offset to 0 when args has no offset key', () => {
+    expect(resolveDynamicValue({ value: { call: '@index', args: {} }, ctx: scoped(3) }, { itemScope: { basePath: '/items', index: 3 } })).toEqual({ ok: true, value: 3 });
+  });
+  it('resolves an offset given as an absolute binding', () => {
+    expect(resolveDynamicValue({ value: { call: '@index', args: { offset: { path: '/off' } } }, ctx: scoped(1) }, { itemScope: { basePath: '/items', index: 1 } })).toEqual({ ok: true, value: 6 });
+  });
+  it('resolves an offset given as a relative binding inside the item scope', () => {
+    expect(resolveDynamicValue({ value: { call: '@index', args: { offset: { path: 'n' } } }, ctx: scoped(0) }, { itemScope: { basePath: '/items', index: 0 } })).toEqual({ ok: true, value: 2 });
+  });
+  it('treats a string offset as 0', () => {
+    expect(resolveDynamicValue({ value: { call: '@index', args: { offset: { path: '/s' } } }, ctx: scoped(4) }, { itemScope: { basePath: '/items', index: 4 } })).toEqual({ ok: true, value: 4 });
+  });
+  it('ignores the catalog entirely (works with an empty function map)', () => {
+    const empty: Catalog = { ...catalog, functions: new Map() };
+    expect(resolveDynamicValue({ value: { call: '@index' }, ctx: ctx({ catalog: empty }) }, { itemScope: { basePath: '/x', index: 7 } })).toEqual({ ok: true, value: 7 });
+  });
+  it('names the problem in the outside-list detail', () => {
+    expect(resolveDynamicValue({ value: { call: '@index' }, ctx: ctx() })).toEqual({ ok: false, reason: 'INDEX_OUTSIDE_LIST_CONTEXT', detail: '@index used outside a list-template item context' });
+  });
+});
