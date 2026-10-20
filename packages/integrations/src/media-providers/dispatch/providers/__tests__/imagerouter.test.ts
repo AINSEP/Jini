@@ -46,6 +46,20 @@ describe('imageRouterSizeFor', () => {
         expect(imageRouterSizeFor({ aspect: undefined, surface: 'image' })).toBe('1024x1024');
         expect(imageRouterSizeFor({ aspect: undefined, surface: 'video' })).toBe('1024x576');
     });
+    it('maps each surface\'s own default aspect explicitly (1:1 image, 16:9 video)', () => {
+        expect(imageRouterSizeFor({ aspect: '1:1', surface: 'image' })).toBe('1024x1024');
+        expect(imageRouterSizeFor({ aspect: '16:9', surface: 'video' })).toBe('1024x576');
+    });
+    it('treats an unknown aspect string as unrecognized on both surfaces', () => {
+        expect(imageRouterSizeFor({ aspect: '21:9', surface: 'image' })).toBe('1024x1024');
+        expect(imageRouterSizeFor({ aspect: '21:9', surface: 'video' })).toBe('1024x576');
+    });
+    it('never resolves an inherited object key as an aspect', () => {
+        for (const aspect of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+            expect(imageRouterSizeFor({ aspect, surface: 'image' })).toBe('1024x1024');
+            expect(imageRouterSizeFor({ aspect, surface: 'video' })).toBe('1024x576');
+        }
+    });
 });
 
 describe('renderImageRouterImage', () => {
