@@ -1,0 +1,84 @@
+# API connections (`@jini-ai/integrations/api-connections`)
+
+## Purpose
+
+A provider plugin declares an OAuth connection ("sign in to this service"); this module runs the
+generic lifecycle for it: sign-in, status, reconnect, staged account switch, disconnect with
+remote revocation, and short-lived access tokens for the plugin's own API calls. It names no
+provider. Everything provider-specific (endpoints, extra authorization parameters, scope sets,
+reading the signed-in account, revocation) comes from the plugin's descriptor and hooks.
+
+The OAuth mechanics are reused from `@jini-ai/oauth`, not reimplemented:
+`beginAuthorizationCode` / `completeAuthorizationCode` (PKCE S256, redirect allowlist, callback
+error mapping, code exchange), `createTokenRefresher` and `refreshAccessToken`.
+
+## Public API
+
+| Export | What it is |
+|---|---|
+| `parseApiConnectionDescriptor({ value })` | Validates and freezes a plugin's untrusted declaration (ids, endpoints, bounded extra params, allowlisted start params and callback fields; OAuth parameter names are reserved). |
+| `createApiConnectionService(deps)` | One service per declared connection. Returns `start`, `complete`, `confirmSwitchAccount`, `cancelSwitchAccount`, `disconnect`, `getStatus`, `getAccessToken`, `connectionRefFor`, `readGeneration`. |
+| `deriveApiConnectionKey({ workspaceId, pluginId, connectionId })` | The opaque key. It is also the public `connectionRef` and the token-store key. |
+| `createApiConnectionGenerationReader({ records })` | `readGeneration({ key })` for a generation-fenced token store (main and staged keys). |
+| `ApiConnectionError` | Every refusal; branch on `code`, show `message` (it says what to do next and never carries tokens). |
+
+Ports (`ports.ts`), all injected:
+
+- `ApiConnectionTokenStore = OAuthTokenStore & { delete({ key }) }` — secret storage (a vault).
+- `ApiConnectionRecordStore` — non-secret metadata: `read`, `compareAndSet({ key, expectedRevision, record })`,
+  `putAttempt`, `takeAttempt` (atomic consume-once). Attempts hold a short-lived PKCE verifier:
+  keep them out of logs and exports.
+- `ApiConnectionHooks` (the plugin) — `resolveScopes({ scopeSetIds })`, `readAccount({ accessToken })`,
+  `revoke({ token })` (throw unless the provider confirmed).
+
+## How it behaves
+
+- **Attempts** are stored, expire after 10 minutes, are consumed before any check (a probe burns
+  the state it guessed) and are bound to workspace, actor, plugin connection, requested scopes,
+  the exact callback URL and the credential generation. Every mismatch is the same `invalid-attempt`.
+- **Grant check**: every requested scope must be granted, otherwise nothing is stored
+  (`scope-not-granted`). A token response without `scope` means "as requested" (RFC 6749 §5.1).
+- **Credential install** is fenced: the record first moves to a new generation in
+  `reconnect-required`, then tokens are written, then the record becomes `connected`. A crash in
+  between leaves "reconnect required", never a record that disagrees with its token.
+- **Reconnect** (`intent: 'connect'`) keeps the same `connectionRef` and must sign in as the same
+  account (`account-mismatch` otherwise). A confidential (hosted) client keeps the stored refresh
+  token when a same-account exchange omits one; a public (installed) client replaces the set.
+- **Switch account** (`intent: 'switch-account'`) stages the new tokens and identity; nothing
+  changes until the same actor calls `confirmSwitchAccount`. Bindings that froze an account pass
+  `getAccessToken({ connectionRef }, { expectedAccountId })` and get `account-changed` instead of
+  silently using the new account.
+- **Disconnect** stops use first (new generation, `revocation-pending`), calls the revoke hook,
+  and only on success deletes local tokens (`disconnected`, `remoteRevocation: 'confirmed'`). On
+  failure it stays `revocation-pending` with the disabled credential kept; calling `disconnect`
+  again retries. A sign-in is refused while revocation is pending.
+- **Access tokens** are served only for `connected` records; a rejected refresh moves the record
+  to `reconnect-required`.
+
+## How a provider plugin uses it
+
+```ts
+const descriptor = parseApiConnectionDescriptor({ value: plugin.manifest.connection });
+const service = createApiConnectionService({
+  descriptor, client, appOptions: { clientDisplayName, softwareId, redirectUris },
+  hooks: plugin.connectionHooks, records, tokens, fetchFn, guard, clock, randomBytesFn, sleep,
+});
+const { authorizationUrl, connectionRef } = await service.start(
+  { workspaceId, actorId, intent: 'connect', scopeSetIds: enabledModules, redirectUri });
+// ...the browser returns to redirectUri...
+const done = await service.complete({ workspaceId, actorId, redirectUri, callbackParams });
+const accessToken = await service.getAccessToken({ connectionRef });
+```
+
+Descriptor extension points: `authorizationParams.public` / `.confidential` (fixed extra
+parameters per client kind, e.g. a forced consent prompt for installed apps or incremental-grant
+flags for hosted ones), `startParams` (names a caller may set for one sign-in, e.g. a selection
+mode) and `callbackFields` (extra fields a provider returns after consent; returned in
+`complete(...).callbackFields` only after the exchange succeeded, and still to be verified by the
+plugin through the provider's API before being trusted).
+
+## Host responsibilities
+
+Authorize the caller for the `connectionRef`'s workspace before any call (the service checks
+only that the record belongs to its plugin connection), seal tokens at rest, make
+`compareAndSet` and `takeAttempt` atomic, and pass the exact callback URL a request arrived on.
