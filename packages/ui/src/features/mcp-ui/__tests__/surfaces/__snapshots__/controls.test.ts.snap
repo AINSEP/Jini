@@ -1,0 +1,133 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderFieldControl exact markup > boolean, all props 1`] = `
+"<div class="mcpui-field mcpui-field-inline">
+<input class="mcpui-checkbox" type="checkbox" id="mcpui-field-b" name="b" checked required disabled aria-describedby="mcpui-field-b-hint">
+<span><label class="mcpui-label" for="mcpui-field-b">B<span class="mcpui-required" aria-hidden="true">*</span></label>
+<span class="mcpui-hint" id="mcpui-field-b-hint">Help</span></span>
+</div>"
+`;
+
+exports[`renderFieldControl exact markup > boolean, no props 1`] = `
+"<div class="mcpui-field mcpui-field-inline">
+<input class="mcpui-checkbox" type="checkbox" id="mcpui-field-b" name="b">
+<span><label class="mcpui-label" for="mcpui-field-b">B</label></span>
+</div>"
+`;
+
+exports[`renderFieldControl exact markup > enum radio, all props 1`] = `
+"<fieldset class="mcpui-field mcpui-choice-group" aria-describedby="mcpui-field-e-hint">
+<legend class="mcpui-label">E<span class="mcpui-required" aria-hidden="true">*</span></legend>
+<span class="mcpui-hint" id="mcpui-field-e-hint">Help</span>
+<div class="mcpui-choice">
+<input class="mcpui-checkbox" type="radio" id="mcpui-field-e-0" name="e" value="a" disabled>
+<label class="mcpui-choice-label" for="mcpui-field-e-0">A</label>
+</div>
+<div class="mcpui-choice">
+<input class="mcpui-checkbox" type="radio" id="mcpui-field-e-1" name="e" value="b" checked disabled>
+<label class="mcpui-choice-label" for="mcpui-field-e-1">b</label>
+</div>
+</fieldset>"
+`;
+
+exports[`renderFieldControl exact markup > enum radio, no props 1`] = `
+"<fieldset class="mcpui-field mcpui-choice-group">
+<legend class="mcpui-label">E</legend>
+<div class="mcpui-choice">
+<input class="mcpui-checkbox" type="radio" id="mcpui-field-e-0" name="e" value="a">
+<label class="mcpui-choice-label" for="mcpui-field-e-0">A</label>
+</div>
+<div class="mcpui-choice">
+<input class="mcpui-checkbox" type="radio" id="mcpui-field-e-1" name="e" value="b">
+<label class="mcpui-choice-label" for="mcpui-field-e-1">b</label>
+</div>
+</fieldset>"
+`;
+
+exports[`renderFieldControl exact markup > enum select, all props 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-e">E<span class="mcpui-required" aria-hidden="true">*</span></label>
+<span class="mcpui-hint" id="mcpui-field-e-hint">Help</span>
+<select class="mcpui-select" id="mcpui-field-e" name="e" required disabled aria-describedby="mcpui-field-e-hint">
+  <option value="" disabled>p</option>
+  <option value="a">A</option>
+  <option value="b" selected>b</option>
+</select>
+</div>"
+`;
+
+exports[`renderFieldControl exact markup > enum select, no props 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-e">E</label>
+<select class="mcpui-select" id="mcpui-field-e" name="e">
+  <option value="a">A</option>
+  <option value="b">b</option>
+</select>
+</div>"
+`;
+
+exports[`renderFieldControl exact markup > forwards host secret-reveal text to a secret string field 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-s">S</label>
+<textarea class="mcpui-textarea" id="mcpui-field-s" name="s" data-mcpui-secret style="-webkit-text-security: disc;" autocomplete="off" spellcheck="false"></textarea><button type="button" class="mcpui-button" data-mcpui-secret-toggle="mcpui-field-s" data-mcpui-show-secret="Reveal" data-mcpui-hide-secret="Conceal" aria-controls="mcpui-field-s" aria-pressed="false">Reveal</button>
+</div>"
+`;
+
+exports[`renderFieldControl exact markup > multi-enum, all props 1`] = `
+"<fieldset class="mcpui-field mcpui-choice-group" aria-describedby="mcpui-field-m-hint">
+<legend class="mcpui-label">M<span class="mcpui-required" aria-hidden="true">*</span></legend>
+<span class="mcpui-hint" id="mcpui-field-m-hint">Help</span>
+<div class="mcpui-choice">
+<input class="mcpui-checkbox" type="checkbox" id="mcpui-field-m-0" name="m" value="a" checked disabled>
+<label class="mcpui-choice-label" for="mcpui-field-m-0">A</label>
+</div>
+<div class="mcpui-choice">
+<input class="mcpui-checkbox" type="checkbox" id="mcpui-field-m-1" name="m" value="b" checked disabled>
+<label class="mcpui-choice-label" for="mcpui-field-m-1">b</label>
+</div>
+</fieldset>"
+`;
+
+exports[`renderFieldControl exact markup > multi-enum, no props 1`] = `
+"<fieldset class="mcpui-field mcpui-choice-group">
+<legend class="mcpui-label">M</legend>
+<div class="mcpui-choice">
+<input class="mcpui-checkbox" type="checkbox" id="mcpui-field-m-0" name="m" value="a">
+<label class="mcpui-choice-label" for="mcpui-field-m-0">A</label>
+</div>
+<div class="mcpui-choice">
+<input class="mcpui-checkbox" type="checkbox" id="mcpui-field-m-1" name="m" value="b">
+<label class="mcpui-choice-label" for="mcpui-field-m-1">b</label>
+</div>
+</fieldset>"
+`;
+
+exports[`renderFieldControl exact markup > number, all props 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-n">N<span class="mcpui-required" aria-hidden="true">*</span></label>
+<span class="mcpui-hint" id="mcpui-field-n-hint">Help</span>
+<input class="mcpui-input" type="number" id="mcpui-field-n" name="n" placeholder="p" required disabled aria-describedby="mcpui-field-n-hint" value="4" min="1" max="9" step="2">
+</div>"
+`;
+
+exports[`renderFieldControl exact markup > number, no props 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-n">N</label>
+<input class="mcpui-input" type="number" id="mcpui-field-n" name="n">
+</div>"
+`;
+
+exports[`renderFieldControl exact markup > string, all props 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-s">S<span class="mcpui-required" aria-hidden="true">*</span></label>
+<span class="mcpui-hint" id="mcpui-field-s-hint">Help</span>
+<textarea class="mcpui-textarea" id="mcpui-field-s" name="s" placeholder="p" required disabled aria-describedby="mcpui-field-s-hint" rows="3">v</textarea>
+</div>"
+`;
+
+exports[`renderFieldControl exact markup > string, no props 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-s">S</label>
+<input class="mcpui-input" type="text" id="mcpui-field-s" name="s">
+</div>"
+`;
