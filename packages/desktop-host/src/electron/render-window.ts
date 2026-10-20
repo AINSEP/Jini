@@ -26,6 +26,18 @@ function attachResourcePolicy(webContents: ElectronWebContentsLike, policy: Rend
   } });
 }
 
+function createHiddenWindow({ createBrowserWindow, options }: {
+  createBrowserWindow: ElectronBrowserWindowFactory;
+  options: RenderOptions;
+}, _options = {}): ElectronBrowserWindowLike {
+  return createBrowserWindow({}, {
+    show: false,
+    width: options.viewport?.width ?? 1024,
+    height: options.viewport?.height ?? 768,
+    webPreferences: { javascript: options.resourcePolicy?.javascript ?? true },
+  });
+}
+
 /** Allocate, load and consume one hidden window, always destroying it on failure or deadline.
  * @throws RenderServiceError on abort/timeout; native failures propagate to the adapter edge.
  * @complexity O(1) lifecycle work, apart from the injected renderer operation.
@@ -39,12 +51,7 @@ export async function withRenderWindow<T>(
   }, _options = {},
 ): Promise<T> {
   if (options.signal?.aborted) throw new RenderServiceError({ code: 'aborted', message: 'render aborted before starting' });
-  const win = createBrowserWindow({}, {
-    show: false,
-    width: options.viewport?.width ?? 1024,
-    height: options.viewport?.height ?? 768,
-    webPreferences: { javascript: options.resourcePolicy?.javascript ?? true },
-  });
+  const win = createHiddenWindow({ createBrowserWindow, options });
   try {
     const task = (async () => {
       await prepare?.(win);

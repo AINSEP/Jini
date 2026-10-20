@@ -97,21 +97,24 @@ function hasFunction(record: Record<string, unknown>, key: string): boolean {
 // `details`, keeping the parameter here would be untestable dead code, so
 // it's dropped; `JiniHostFailure.details` remains part of the public type
 // for any external implementer that wants to populate it directly.
-function failure(reason: string): JiniHostFailure {
+function failure(reason = 'jini host is not available'): JiniHostFailure {
   return { ok: false, reason };
+}
+
+function isHostClient({ client }: { client: unknown }, _options = {}): boolean {
+  if (!isRecord(client)) return false;
+  const clientTypes: string[] = Object.values(JINI_HOST_CLIENT_TYPES);
+  if (typeof client.type !== 'string' || !clientTypes.includes(client.type)) return false;
+  if (client.platform != null && typeof client.platform !== 'string') return false;
+  if (client.osLocale != null && typeof client.osLocale !== 'string') return false;
+  return true;
 }
 
 export function isJiniHostBridge(requiredArgs: { value: unknown }): requiredArgs is { value: JiniHostBridge } {
   const { value } = requiredArgs;
   if (!isRecord(value)) return false;
   if (value.version !== JINI_HOST_VERSION) return false;
-
-  const client = value.client;
-  if (!isRecord(client)) return false;
-  const clientTypes: string[] = Object.values(JINI_HOST_CLIENT_TYPES);
-  if (typeof client.type !== 'string' || !clientTypes.includes(client.type)) return false;
-  if (client.platform != null && typeof client.platform !== 'string') return false;
-  if (client.osLocale != null && typeof client.osLocale !== 'string') return false;
+  if (!isHostClient({ client: value.client })) return false;
 
   const shell = value.shell;
   if (!isRecord(shell) || !hasFunction(shell, 'openExternal') || !hasFunction(shell, 'openPath')) return false;
@@ -144,38 +147,34 @@ export function detectJiniHostClientType(_requiredArgs: Record<string, never>, {
   return getJiniHost({}, { scope })?.client.type ?? 'web';
 }
 
-function unavailable(reason = 'jini host is not available'): JiniHostFailure {
-  return failure(reason);
-}
-
 export async function openHostExternalUrl({ url }: { url: string }, { scope = globalThis }: { scope?: JiniHostGlobalScope } = {}): Promise<JiniHostActionResult> {
   const host = getJiniHost({}, { scope });
-  if (host == null) return unavailable();
+  if (host == null) return failure();
   try {
     return await host.shell.openExternal({ url });
   } catch (error) {
-    return unavailable(error instanceof Error ? error.message : String(error));
+    return failure(error instanceof Error ? error.message : String(error));
   }
 }
 
 export async function openHostPath({ path }: { path: string }, { scope = globalThis }: { scope?: JiniHostGlobalScope } = {}): Promise<JiniHostActionResult> {
   const host = getJiniHost({}, { scope });
-  if (host == null) return unavailable();
+  if (host == null) return failure();
   try {
     return await host.shell.openPath({ path });
   } catch (error) {
-    return unavailable(error instanceof Error ? error.message : String(error));
+    return failure(error instanceof Error ? error.message : String(error));
   }
 }
 
 export async function checkJiniHostUpdaterAvailability(_requiredArgs: Record<string, never>, { scope = globalThis }: { scope?: JiniHostGlobalScope } = {}
 ): Promise<JiniHostUpdaterAvailability | JiniHostFailure> {
   const host = getJiniHost({}, { scope });
-  if (host == null) return unavailable();
-  if (host.updater == null) return unavailable('host build does not support the updater extension point');
+  if (host == null) return failure();
+  if (host.updater == null) return failure('host build does not support the updater extension point');
   try {
     return await host.updater.checkAvailability();
   } catch (error) {
-    return unavailable(error instanceof Error ? error.message : String(error));
+    return failure(error instanceof Error ? error.message : String(error));
   }
 }

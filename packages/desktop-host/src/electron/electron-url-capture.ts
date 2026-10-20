@@ -59,7 +59,7 @@ export async function captureElectronUrl(
       const finalUrl = page.getURL();
       if (!isCaptureUrlAllowed({ url: finalUrl, allowedOrigins })) throw new RenderServiceError({ code: 'navigation-blocked', message: 'capture redirected off site' });
       const rawHeight = await page.executeJavaScript('Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)');
-      const pageHeight = request.fullPage && typeof rawHeight === 'number' && Number.isFinite(rawHeight) ? Math.max(1, Math.ceil(rawHeight)) : request.viewport.height;
+      const pageHeight = readPageHeight({ request, rawHeight });
       const capturedHeight = Math.min(pageHeight, request.fullPage ? request.maxPageHeightPx : request.viewport.height);
       const png = await capturePixels({ page, request, capturedHeight });
       if (png.byteLength > URL_CAPTURE_MAX_BYTES) throw new RenderServiceError({ code: 'load-failed', message: 'capture exceeds PNG byte limit' });
@@ -69,6 +69,11 @@ export async function captureElectronUrl(
     if (error instanceof RenderServiceError) throw error;
     throw new RenderServiceError({ code: 'load-failed', message: 'native page capture failed' });
   }
+}
+
+function readPageHeight({ request, rawHeight }: { request: UrlCaptureRequest; rawHeight: unknown }, _options = {}): number {
+  return request.fullPage && typeof rawHeight === 'number' && Number.isFinite(rawHeight)
+    ? Math.max(1, Math.ceil(rawHeight)) : request.viewport.height;
 }
 
 /** Reveal lazy content with bounded scrolls, then charge the settle delay to the render deadline. */

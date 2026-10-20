@@ -68,19 +68,17 @@ function scopedNamespaceOf(raw: string): string | null {
 
 function resolveDataRoot(namespaceRoot: string, namespace: string, dataDirOverrideEnvVar: string | undefined, env: NodeJS.ProcessEnv): string {
   const override = dataDirOverrideEnvVar == null ? undefined : env[dataDirOverrideEnvVar]?.trim();
-  if (override != null && override.length > 0) {
-    const expanded = expandHomePrefix(override);
-    const isAbs = process.platform === 'win32' ? win32.isAbsolute(expanded) : isAbsolute(expanded);
-    if (!isAbs) {
-      throw new DesktopHostPathError({ message: `${dataDirOverrideEnvVar} must be an absolute path; got: ${override}` });
-    }
-    const scopedNamespace = scopedNamespaceOf(expanded);
-    if (scopedNamespace != null && scopedNamespace !== namespace) {
-      throw new DesktopHostPathError({ message: `${dataDirOverrideEnvVar} targets namespace "${scopedNamespace}" but the active namespace is "${namespace}"` });
-    }
-    return scopedNamespace != null ? expanded : join(expanded, 'namespaces', namespace, 'data');
+  if (override == null || override.length === 0) return join(namespaceRoot, 'data');
+  const expanded = expandHomePrefix(override);
+  const isAbs = process.platform === 'win32' ? win32.isAbsolute(expanded) : isAbsolute(expanded);
+  if (!isAbs) {
+    throw new DesktopHostPathError({ message: `${dataDirOverrideEnvVar} must be an absolute path; got: ${override}` });
   }
-  return join(namespaceRoot, 'data');
+  const scopedNamespace = scopedNamespaceOf(expanded);
+  if (scopedNamespace != null && scopedNamespace !== namespace) {
+    throw new DesktopHostPathError({ message: `${dataDirOverrideEnvVar} targets namespace "${scopedNamespace}" but the active namespace is "${namespace}"` });
+  }
+  return scopedNamespace != null ? expanded : join(expanded, 'namespaces', namespace, 'data');
 }
 
 export function resolveDesktopHostPathRoots(requiredArgs: Pick<ResolvePathRootsOptions, 'namespace' | 'namespaceBaseRoot'>, optionalArgs: Omit<ResolvePathRootsOptions, 'namespace' | 'namespaceBaseRoot'> = {}): DesktopHostPathRoots {

@@ -78,6 +78,22 @@ export function buildNodeToolchainShims({ electronPath, npmRoot, platform, gener
   };
 }
 
+function publishShim({ filesystem, target, contents, writerPid }: {
+  filesystem: ToolchainFilesystemPort; target: string; contents: string; writerPid: number;
+}, _options = {}): void {
+  const temporary = `${target}.${writerPid}.tmp`;
+  // Same-directory rename publishes a complete executable atomically; a crash must not leave a
+  // half-written executable shim visible to another launcher.
+  try {
+    filesystem.writeFileSync({ path: temporary, data: contents }, { mode: 0o700 });
+    filesystem.chmodSync({ path: temporary, mode: 0o700 });
+    filesystem.renameSync({ oldPath: temporary, newPath: target });
+  } catch (error) {
+    try { filesystem.unlinkSync({ path: temporary }); } catch { /* Preserve the original write error. */ }
+    throw error;
+  }
+}
+
 /** Atomically replace each executable shim in caller-selected directories, with owner-only modes.
  * A transient launch preserves an existing durable launcher or returns null without writing.
  * Filesystem/probe errors propagate; temporary files are cleaned up after a failed replacement.
@@ -101,17 +117,7 @@ export function writeNodeToolchain(input: WriteNodeToolchainInput): NodeToolchai
   filesystem.mkdirSync({ path: paths.npmPrefixDir }, { recursive: true });
   for (const [name, contents] of Object.entries(shims)) {
     const target = joinPath({ parts: [paths.binDir, name] });
-    const temporary = `${target}.${writerPid}.tmp`;
-    // Same-directory rename publishes a complete executable atomically; a crash must not leave a
-    // half-written executable shim visible to another launcher.
-    try {
-      filesystem.writeFileSync({ path: temporary, data: contents }, { mode: 0o700 });
-      filesystem.chmodSync({ path: temporary, mode: 0o700 });
-      filesystem.renameSync({ oldPath: temporary, newPath: target });
-    } catch (error) {
-      try { filesystem.unlinkSync({ path: temporary }); } catch { /* Preserve the original write error. */ }
-      throw error;
-    }
+    publishShim({ filesystem, target, contents, writerPid });
   }
   return paths;
 }
