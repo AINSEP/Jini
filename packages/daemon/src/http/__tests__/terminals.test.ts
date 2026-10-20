@@ -6,6 +6,7 @@ import {
   createToolExecutor,
   TERMINAL_CREATE_TOOL_ID,
   type TerminalSessionManager,
+  type ToolExecutionResult,
   type ToolExecutor,
 } from '../../index.js';
 import type { PtyProcess, PtySpawn } from '@jini-ai/platform';
@@ -754,5 +755,146 @@ describe('registerTerminalEventStream', () => {
     expect(res.write).toHaveBeenCalledWith(expect.stringContaining('event: exit'));
     expect(res.end).toHaveBeenCalledTimes(1);
     void manager;
+  });
+});
+
+/**
+ * Characterization truth table for `parseTerminalCreate` (SEC: its output becomes the spawn
+ * request's cwd lookup key, pty size and shell binary). Pinned on the pre-refactor code so the
+ * complexity split is provably behaviour-identical: every refusal's exact error, the field
+ * precedence (first failing field wins, in resourceRef → detail → cols → rows → shell order),
+ * and which odd inputs are accepted.
+ */
+describe('terminalCreateRoute.parse — characterization', () => {
+  const parse = (body: unknown) => terminalCreateRoute.parse({ body, query: {}, params: {} });
+  const bad = (message: string) => ({ ok: false, error: { code: 'BAD_REQUEST', message } });
+  const resourceRefError = {
+    ok: false,
+    error: {
+      code: 'BAD_REQUEST',
+      message: 'resourceRef is required',
+      details: { kind: 'validation', issues: [{ path: 'resourceRef', message: 'required non-empty string' }] },
+    },
+  };
+
+  it.each([[null], [[]], [['resourceRef']], [42], [undefined]])('rejects a non-object body %j', (body) => {
+    expect(parse(body)).toEqual(bad('body must be a JSON object'));
+  });
+
+  it.each([[{}], [{ resourceRef: '' }], [{ resourceRef: 42 }], [{ resourceRef: null }], [{ resourceRef: ['r1'] }]])(
+    'rejects an invalid resourceRef %j with a structured issue',
+    (body) => {
+      expect(parse(body)).toEqual(resourceRefError);
+    },
+  );
+
+  it.each([[''], [7], [null], [false], [{}]])('rejects detail %j', (detail) => {
+    expect(parse({ resourceRef: 'r1', detail })).toEqual(bad('detail must be a non-empty string when provided'));
+  });
+
+  it.each([['wide'], [null], [true], [[80]]])('rejects cols %j', (cols) => {
+    expect(parse({ resourceRef: 'r1', cols })).toEqual(bad('cols must be a number when provided'));
+  });
+
+  it.each([['tall'], [null], [true], [[24]]])('rejects rows %j', (rows) => {
+    expect(parse({ resourceRef: 'r1', rows })).toEqual(bad('rows must be a number when provided'));
+  });
+
+  it.each([[''], [3], [null], [['/bin/sh']]])('rejects shell %j', (shell) => {
+    expect(parse({ resourceRef: 'r1', shell })).toEqual(bad('shell must be a non-empty string when provided'));
+  });
+
+  it('reports resourceRef before detail when both are invalid', () => {
+    expect(parse({ resourceRef: '', detail: '' })).toEqual(resourceRefError);
+  });
+
+  it('reports detail before cols when both are invalid', () => {
+    expect(parse({ resourceRef: 'r1', detail: '', cols: 'x' })).toEqual(bad('detail must be a non-empty string when provided'));
+  });
+
+  it('reports cols before rows when both are invalid', () => {
+    expect(parse({ resourceRef: 'r1', cols: 'x', rows: 'y' })).toEqual(bad('cols must be a number when provided'));
+  });
+
+  it('reports rows before shell when both are invalid', () => {
+    expect(parse({ resourceRef: 'r1', rows: 'y', shell: '' })).toEqual(bad('rows must be a number when provided'));
+  });
+
+  it('omits explicitly-undefined optional fields rather than carrying them as undefined', () => {
+    const result = parse({ resourceRef: 'r1', detail: undefined, cols: undefined, rows: undefined, shell: undefined });
+    expect(result).toEqual({ ok: true, value: { resourceRef: 'r1' } });
+    expect(result.ok && Object.keys(result.value)).toEqual(['resourceRef']);
+  });
+
+  it('drops unknown body fields (e.g. a caller-supplied cwd or env never reaches the spawn request)', () => {
+    const result = parse({ resourceRef: 'r1', cwd: '/etc', env: { PATH: '/evil' }, shell: '/bin/bash' });
+    expect(result).toEqual({ ok: true, value: { resourceRef: 'r1', shell: '/bin/bash' } });
+  });
+
+  it('keeps cols/rows of 0 (falsy but defined)', () => {
+    expect(parse({ resourceRef: 'r1', cols: 0, rows: 0 })).toEqual({ ok: true, value: { resourceRef: 'r1', cols: 0, rows: 0 } });
+  });
+
+  it('accepts non-finite, negative and fractional cols/rows unchecked (reported, not fixed)', () => {
+    expect(parse({ resourceRef: 'r1', cols: Number.NaN, rows: Number.POSITIVE_INFINITY })).toEqual({
+      ok: true,
+      value: { resourceRef: 'r1', cols: Number.NaN, rows: Number.POSITIVE_INFINITY },
+    });
+    expect(parse({ resourceRef: 'r1', cols: -5, rows: 1.5 })).toEqual({ ok: true, value: { resourceRef: 'r1', cols: -5, rows: 1.5 } });
+  });
+
+  it('accepts any non-empty shell string, including a relative or argument-bearing one (reported, not fixed: only the terminal.create tool policy gates which binary runs)', () => {
+    expect(parse({ resourceRef: 'r1', shell: 'bash -c id' })).toEqual({ ok: true, value: { resourceRef: 'r1', shell: 'bash -c id' } });
+    expect(parse({ resourceRef: 'r1', shell: '../bin/sh' })).toEqual({ ok: true, value: { resourceRef: 'r1', shell: '../bin/sh' } });
+  });
+});
+
+describe('terminalCreateRoute.handle — characterization', () => {
+  /** A typed `ToolExecutor` fake whose `execute` records the call and returns `result`; the other methods are never reached by the create route. */
+  function recordingExecutor(result: ToolExecutionResult): { executor: ToolExecutor; execute: ReturnType<typeof vi.fn<ToolExecutor['execute']>> } {
+    const execute = vi.fn<ToolExecutor['execute']>(async () => result);
+    return { executor: { execute, resumeConfirmation: () => {}, cancel: () => {}, getAuditRecord: () => null }, execute };
+  }
+
+  it('passes no detail key to the resolver when detail is absent', async () => {
+    const resolveRoot = vi.fn<WorkspaceRootResolver>(() => '/work');
+    const { deps } = makeDeps({ resolveRoot });
+    await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
+    expect(Object.keys(resolveRoot.mock.calls[0]![0].request)).toEqual(['resourceRef']);
+  });
+
+  it('never calls the tool executor when the resolver denies', async () => {
+    const { executor, execute } = recordingExecutor({ executionId: 'e1', status: 'denied' });
+    const { deps } = makeDeps({ resolveRoot: () => null, toolExecutor: executor });
+    const result = await terminalCreateRoute.handle({ input: { resourceRef: 'gone' }, deps });
+    expect(result).toEqual({ ok: false, error: { code: 'NOT_FOUND', message: 'resource "gone" was not found' } });
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('sends exactly resourceRef + resolved cwd (+ supplied cols/rows/shell) as the terminal.create tool input', async () => {
+    const { executor, execute } = recordingExecutor({ executionId: 'e1', status: 'denied' });
+    const { deps } = makeDeps({ resolveRoot: () => '/resolved/work', toolExecutor: executor });
+    await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1', detail: 'sub', rows: 30 }, deps });
+    const call = execute.mock.calls[0]![0];
+    expect(call.toolId).toBe(TERMINAL_CREATE_TOOL_ID);
+    expect(call.principal).toBe(alice);
+    expect(call.input).toEqual({ resourceRef: 'proj-1', cwd: '/resolved/work', rows: 30 });
+    expect(Object.keys(call.input as object)).toEqual(['resourceRef', 'cwd', 'rows']);
+  });
+});
+
+describe('terminalResizeRoute.parse — characterization', () => {
+  it('coerces non-number cols/rows through Number() and accepts the result (reported, not fixed)', () => {
+    expect(terminalResizeRoute.parse({ body: { cols: '120', rows: null }, query: {}, params: { id: 't1' } })).toEqual({
+      ok: true,
+      value: { id: 't1', cols: 120, rows: 0 },
+    });
+  });
+
+  it('rejects when rows alone is non-finite', () => {
+    expect(terminalResizeRoute.parse({ body: { cols: 80 }, query: {}, params: { id: 't1' } })).toEqual({
+      ok: false,
+      error: { code: 'BAD_REQUEST', message: 'cols and rows (numbers) are required' },
+    });
   });
 });
