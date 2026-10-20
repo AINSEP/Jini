@@ -2558,3 +2558,314 @@ describe("managed download engine", () => {
     }
   });
 });
+
+describe("managed download engine — refactor pins", () => {
+  const url = "https://example.invalid/pin.bin";
+
+  async function seededBase(label: string): Promise<{ basePath: string; bucket: string; fileName: string }> {
+    const basePath = join(tmpRoot(label), "downloads");
+    const bucket = "updates";
+    const fileName = "installer.bin";
+    await inspectManagedDownload({ basePath, bucket, fileName });
+    return { basePath, bucket, fileName };
+  }
+
+  function validManifest(bucket: string, fileName: string, value: string): Record<string, unknown> {
+    return {
+      bucket,
+      checksum: { algorithm: "sha256", value },
+      createdAt: new Date().toISOString(),
+      fileName,
+      identityDigest: identityDigestFor(url, "sha256", value),
+      kind: "jini-managed-download",
+      schemaVersion: 1,
+      state: "partial",
+      targetKey: targetKey(bucket, fileName),
+      updatedAt: new Date().toISOString(),
+      urlDigest: urlDigestFor(url),
+    };
+  }
+
+  it("inspect reports a missing manifest as \"missing\"", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-inspect-missing");
+    const inspection = await inspectManagedDownload({ basePath, bucket, fileName });
+    expect(inspection).toEqual({ bucket, complete: false, fileName, manifest: "missing", path: join(basePath, bucket, fileName) });
+  });
+
+  it("inspect reports a well-formed manifest by its state", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-inspect-state");
+    writeFileSync(manifestPathFor(basePath, bucket, fileName), JSON.stringify({ ...validManifest(bucket, fileName, sha256("x")), state: "complete" }));
+    const inspection = await inspectManagedDownload({ basePath, bucket, fileName });
+    expect(inspection.manifest).toBe("complete");
+  });
+
+  it("inspect reports corrupt JSON as \"unreadable\"", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-inspect-corrupt");
+    writeFileSync(manifestPathFor(basePath, bucket, fileName), "{nope");
+    const inspection = await inspectManagedDownload({ basePath, bucket, fileName });
+    expect(inspection.manifest).toBe("unreadable");
+  });
+
+  const manifestFieldBreaks: Array<[string, unknown]> = [
+    ["kind", "other-kind"],
+    ["schemaVersion", 2],
+    ["bucket", 1],
+    ["fileName", 1],
+    ["targetKey", 1],
+    ["identityDigest", 1],
+    ["urlDigest", 1],
+    ["checksum", { algorithm: "md5", value: "x" }],
+    ["checksum", { algorithm: "sha256", value: 1 }],
+    ["checksum", ["sha256"]],
+    ["checksum", null],
+    ["state", "done"],
+    ["createdAt", 1],
+    ["updatedAt", 1],
+  ];
+  for (const [field, broken] of manifestFieldBreaks) {
+    it(`inspect treats a manifest with an invalid ${field} (${JSON.stringify(broken)}) as "unreadable"`, async () => {
+      const { basePath, bucket, fileName } = await seededBase("pin-manifest-field");
+      writeFileSync(manifestPathFor(basePath, bucket, fileName), JSON.stringify({ ...validManifest(bucket, fileName, sha256("x")), [field]: broken }));
+      const inspection = await inspectManagedDownload({ basePath, bucket, fileName });
+      expect(inspection.manifest).toBe("unreadable");
+    });
+  }
+
+  it("inspect treats a JSON array manifest as \"unreadable\"", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-manifest-array");
+    writeFileSync(manifestPathFor(basePath, bucket, fileName), "[]");
+    const inspection = await inspectManagedDownload({ basePath, bucket, fileName });
+    expect(inspection.manifest).toBe("unreadable");
+  });
+
+  it("inspect treats a JSON null manifest as \"unreadable\"", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-manifest-null");
+    writeFileSync(manifestPathFor(basePath, bucket, fileName), "null");
+    const inspection = await inspectManagedDownload({ basePath, bucket, fileName });
+    expect(inspection.manifest).toBe("unreadable");
+  });
+
+  it("treats a JSON null lock file as an invalid lock and refuses to clear it", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-lock-null");
+    writeFileSync(lockPath(basePath, bucket, fileName), "null");
+    await expect(
+      managedDownload({ basePath, bucket, fileName, payload: { checksum: { algorithm: "sha256", value: sha256("x") }, url } }),
+    ).rejects.toMatchObject({ code: MANAGED_DOWNLOAD_ERROR_CODES.TARGET_LOCKED, message: `download target is locked: ${bucket}/${fileName}` });
+    expect(readFileSync(lockPath(basePath, bucket, fileName), "utf8")).toBe("null");
+  });
+
+  it("refuses to reset a base whose sentinel reads back as JSON null at reset time", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-sentinel-null");
+    writeFileSync(manifestPathFor(basePath, bucket, fileName), "{not valid json");
+    const sentinelPath = join(basePath, ".jini-download-root.json");
+    const fsPromises = await import("node:fs/promises");
+    const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    let sentinelReads = 0;
+    vi.mocked(fsPromises.readFile).mockImplementation(async (p, options) => {
+      if (p === sentinelPath) {
+        sentinelReads += 1;
+        // Reads 1-2: ensureManagedBase + prune's; read 3: resetOwnedBase's re-check.
+        if (sentinelReads === 3) return "null";
+      }
+      return actual.readFile(p as string, options as never);
+    });
+    try {
+      await expect(
+        managedDownload({ basePath, bucket, fileName, payload: { checksum: { algorithm: "sha256", value: sha256("x") }, url } }),
+      ).rejects.toMatchObject({ code: MANAGED_DOWNLOAD_ERROR_CODES.STORE_NOT_OWNED, message: `download base is not owned: ${basePath}` });
+    } finally {
+      vi.mocked(fsPromises.readFile).mockImplementation(actual.readFile);
+    }
+  });
+
+  it("sends Range, If-Range and caller headers on resume, and accepts a case-insensitive padded content-range", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-resume-headers");
+    const body = Buffer.from("0123456789abcdef");
+    const checksum = { algorithm: "sha256" as const, value: sha256(body) };
+    writeFileSync(partialPathFor(basePath, bucket, fileName), body.subarray(0, 6));
+    writeManifestFile(basePath, bucket, fileName, { checksum, state: "partial", url, validators: { etag: '"e1"' } });
+    const seen: Array<Record<string, string>> = [];
+    const fetchImpl: typeof fetch = async (_input, init) => {
+      seen.push({ ...(init?.headers as Record<string, string>) });
+      return new Response(body.subarray(6), {
+        headers: { "content-range": `  BYTES 6-15/16  `, etag: '"e1"' },
+        status: 206,
+      });
+    };
+    const result = await managedDownload({ basePath, bucket, fileName, fetch: fetchImpl, payload: { checksum, headers: { "X-Token": "t" }, url } });
+    expect(seen).toEqual([{ "If-Range": '"e1"', Range: "bytes=6-", "X-Token": "t" }]);
+    expect(result).toMatchObject({ bytes: 16, resumed: true, reusedComplete: false });
+  });
+
+  it("omits If-Range on resume when the saved manifest has no etag, and records the response validators", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-resume-no-etag");
+    const body = Buffer.from("0123456789abcdef");
+    const checksum = { algorithm: "sha256" as const, value: sha256(body) };
+    writeFileSync(partialPathFor(basePath, bucket, fileName), body.subarray(0, 4));
+    writeManifestFile(basePath, bucket, fileName, { checksum, state: "partial", url });
+    const seen: Array<Record<string, string>> = [];
+    let manifestDuringBody: unknown = null;
+    const manifestPath = manifestPathFor(basePath, bucket, fileName);
+    const fetchImpl: typeof fetch = async (_input, init) => {
+      seen.push({ ...(init?.headers as Record<string, string>) });
+      const stream = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          manifestDuringBody = JSON.parse(readFileSync(manifestPath, "utf8"));
+          controller.enqueue(body.subarray(4));
+          controller.close();
+        },
+      }, { highWaterMark: 0 });
+      return new Response(stream, { headers: { "content-range": "bytes 4-15/16", etag: '"fresh"' }, status: 206 });
+    };
+    await managedDownload({ basePath, bucket, fileName, fetch: fetchImpl, payload: { checksum, url } });
+    expect(seen).toEqual([{ Range: "bytes=4-" }]);
+    expect(manifestDuringBody).toMatchObject({ state: "partial", totalBytes: 16, validators: { etag: '"fresh"' } });
+  });
+
+  it("restarts from zero when the 206 content-range starts at a different offset than the partial", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-resume-offset");
+    const body = Buffer.from("0123456789abcdef");
+    const checksum = { algorithm: "sha256" as const, value: sha256(body) };
+    writeFileSync(partialPathFor(basePath, bucket, fileName), body.subarray(0, 4));
+    writeManifestFile(basePath, bucket, fileName, { checksum, state: "partial", url });
+    const seen: Array<Record<string, string> | undefined> = [];
+    const fetchImpl: typeof fetch = async (_input, init) => {
+      seen.push(init?.headers as Record<string, string> | undefined);
+      if (seen.length === 1) return new Response(body.subarray(5), { headers: { "content-range": "bytes 5-15/16" }, status: 206 });
+      return new Response(body, { status: 200 });
+    };
+    const result = await managedDownload({ basePath, bucket, fileName, fetch: fetchImpl, payload: { checksum, url } });
+    expect(seen).toEqual([{ Range: "bytes=4-" }, undefined]);
+    expect(result.resumed).toBe(false);
+  });
+
+  it("restarts from zero when the resume response is 200 even if it carries a matching content-range", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-resume-200");
+    const body = Buffer.from("0123456789abcdef");
+    const checksum = { algorithm: "sha256" as const, value: sha256(body) };
+    writeFileSync(partialPathFor(basePath, bucket, fileName), body.subarray(0, 4));
+    writeManifestFile(basePath, bucket, fileName, { checksum, state: "partial", url });
+    const seen: Array<Record<string, string> | undefined> = [];
+    const fetchImpl: typeof fetch = async (_input, init) => {
+      seen.push(init?.headers as Record<string, string> | undefined);
+      if (seen.length === 1) return new Response(body.subarray(4), { headers: { "content-range": "bytes 4-15/16" }, status: 200 });
+      return new Response(body, { status: 200 });
+    };
+    const result = await managedDownload({ basePath, bucket, fileName, fetch: fetchImpl, payload: { checksum, url } });
+    expect(seen).toEqual([{ Range: "bytes=4-" }, undefined]);
+    expect(result.resumed).toBe(false);
+  });
+
+  it("keeps a partial across a failed attempt and resumes it on the next attempt", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-retry-resume");
+    const body = Buffer.from("0123456789abcdef");
+    const checksum = { algorithm: "sha256" as const, value: sha256(body) };
+    writeFileSync(partialPathFor(basePath, bucket, fileName), body.subarray(0, 8));
+    writeManifestFile(basePath, bucket, fileName, { checksum, state: "partial", url });
+    let calls = 0;
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1;
+      if (calls === 1) throw new Error("socket hang up");
+      return new Response(body.subarray(8), { headers: { "content-range": "bytes 8-15/16" }, status: 206 });
+    };
+    const result = await managedDownload({ basePath, bucket, fileName, fetch: fetchImpl, payload: { checksum, url } });
+    expect(calls).toBe(2);
+    expect(result.resumed).toBe(true);
+  });
+
+  it("records a partial manifest when a fresh attempt fails after bytes landed, so the next attempt resumes", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-retry-fresh-partial");
+    const body = Buffer.from("0123456789abcdef");
+    const checksum = { algorithm: "sha256" as const, value: sha256(body) };
+    const partialPath = partialPathFor(basePath, bucket, fileName);
+    const seen: Array<Record<string, string> | undefined> = [];
+    const fetchImpl: typeof fetch = async (_input, init) => {
+      seen.push(init?.headers as Record<string, string> | undefined);
+      if (seen.length === 1) {
+        // Simulate bytes landing on disk before the transfer fails.
+        writeFileSync(partialPath, body.subarray(0, 10));
+        throw new Error("connection reset");
+      }
+      return new Response(body.subarray(10), { headers: { "content-range": "bytes 10-15/16" }, status: 206 });
+    };
+    const result = await managedDownload({ basePath, bucket, fileName, fetch: fetchImpl, payload: { checksum, url } });
+    expect(seen).toEqual([undefined, { Range: "bytes=10-" }]);
+    expect(result.resumed).toBe(true);
+  });
+
+  it("reports network-exhausted with the attempt count and last error message", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-exhausted");
+    const fetchImpl: typeof fetch = async () => {
+      throw new Error("offline");
+    };
+    await expect(
+      managedDownload({ basePath, bucket, fileName, fetch: fetchImpl, maxAttempts: 2, payload: { checksum: { algorithm: "sha256", value: sha256("x") }, url } }),
+    ).rejects.toMatchObject({ code: MANAGED_DOWNLOAD_ERROR_CODES.NETWORK_EXHAUSTED, message: "download failed after 2 attempts: offline" });
+  });
+
+  it("with maxAttempts 0 makes no request and reports an undefined last error", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-zero-attempts");
+    let calls = 0;
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1;
+      return new Response("x");
+    };
+    await expect(
+      managedDownload({ basePath, bucket, fileName, fetch: fetchImpl, maxAttempts: 0, payload: { checksum: { algorithm: "sha256", value: sha256("x") }, url } }),
+    ).rejects.toMatchObject({ code: MANAGED_DOWNLOAD_ERROR_CODES.NETWORK_EXHAUSTED, message: "download failed after 0 attempts: undefined" });
+    expect(calls).toBe(0);
+  });
+
+  it("does not delete another live process's lock when re-acquiring after a reset fails", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-reset-relock");
+    writeFileSync(manifestPathFor(basePath, bucket, fileName), "{not valid json");
+    const otherLock = JSON.stringify({ createdAt: new Date().toISOString(), pid: process.ppid });
+    const fsPromises = await import("node:fs/promises");
+    const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    let mkdirBasePathCalls = 0;
+    vi.mocked(fsPromises.mkdir).mockImplementation(async (p, opts) => {
+      const made = await actual.mkdir(p as string, opts as never);
+      if (p === basePath) {
+        mkdirBasePathCalls += 1;
+        // Calls 1-2: initial ensureManagedBase + prune's; call 3: the reset's
+        // sentinel write; call 4: the post-reset `ensureManagedBase`, after the
+        // old lock is released — another process grabs the lock right there.
+        if (mkdirBasePathCalls === 4) writeFileSync(lockPath(basePath, bucket, fileName), otherLock);
+      }
+      return made;
+    });
+    try {
+      await expect(
+        managedDownload({ basePath, bucket, fileName, payload: { checksum: { algorithm: "sha256", value: sha256("x") }, url } }),
+      ).rejects.toMatchObject({ code: MANAGED_DOWNLOAD_ERROR_CODES.TARGET_LOCKED, message: `download target is locked: ${bucket}/${fileName}` });
+      expect(readFileSync(lockPath(basePath, bucket, fileName), "utf8")).toBe(otherLock);
+    } finally {
+      vi.mocked(fsPromises.mkdir).mockImplementation(actual.mkdir);
+    }
+  });
+
+  it("re-reads the lock and retries exactly once after clearing a stale lock", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-stale-retry-once");
+    writeFileSync(lockPath(basePath, bucket, fileName), JSON.stringify({ createdAt: new Date().toISOString(), pid: exitedPid() }));
+    const fsPromises = await import("node:fs/promises");
+    const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    let lockWrites = 0;
+    vi.mocked(fsPromises.writeFile).mockImplementation(async (p, data, opts) => {
+      if (String(p).endsWith(".lock")) {
+        lockWrites += 1;
+        const err = new Error("EEXIST: file already exists") as NodeJS.ErrnoException;
+        err.code = "EEXIST";
+        throw err;
+      }
+      return actual.writeFile(p as string, data as string, opts as never);
+    });
+    try {
+      await expect(
+        managedDownload({ basePath, bucket, fileName, payload: { checksum: { algorithm: "sha256", value: sha256("x") }, url } }),
+      ).rejects.toMatchObject({ code: MANAGED_DOWNLOAD_ERROR_CODES.TARGET_LOCKED });
+      expect(lockWrites).toBe(2);
+    } finally {
+      vi.mocked(fsPromises.writeFile).mockImplementation(actual.writeFile);
+    }
+  });
+});

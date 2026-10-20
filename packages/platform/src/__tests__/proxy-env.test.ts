@@ -234,3 +234,193 @@ describe('@jini-ai/platform — proxy-env — resolveSystemProxyEnv', () => {
     expect(resolveSystemProxyEnv({ platform: 'freebsd', runCommand: () => 'unused' })).toEqual({});
   });
 });
+
+describe('@jini-ai/platform — proxy-env — pinned exact outputs', () => {
+  it('merges sources left-to-right, passes non-proxy keys through, and adds lowercase aliases on POSIX', () => {
+    const merged = mergeProxyAwareEnv(
+      'linux',
+      { HTTPS_PROXY: 'http://first', PATH: '/bin' },
+      { https_proxy: ' http://second ', no_proxy: 'a.example', PATH: '/usr/bin' },
+    );
+    expect(merged).toEqual({
+      HTTPS_PROXY: 'http://second',
+      https_proxy: 'http://second',
+      NODE_USE_ENV_PROXY: '1',
+      NO_PROXY: 'a.example',
+      no_proxy: 'a.example',
+      PATH: '/usr/bin',
+    });
+  });
+
+  it('emits only the uppercase spelling on Windows', () => {
+    const merged = mergeProxyAwareEnv('win32', { all_proxy: 'socks5://s:1' });
+    expect(merged).toEqual({ ALL_PROXY: 'socks5://s:1', NODE_USE_ENV_PROXY: '1' });
+  });
+
+  it('does not add NODE_USE_ENV_PROXY when only NO_PROXY is present', () => {
+    const merged = mergeProxyAwareEnv('linux', { NO_PROXY: 'localhost' });
+    expect(merged).toEqual({ NO_PROXY: 'localhost', no_proxy: 'localhost' });
+  });
+
+  it('keeps a whitespace-only explicit NODE_USE_ENV_PROXY verbatim', () => {
+    const merged = mergeProxyAwareEnv('linux', { NODE_USE_ENV_PROXY: ' ' });
+    expect(merged).toEqual({ NODE_USE_ENV_PROXY: ' ' });
+  });
+
+  it('parses a full scutil dump into the exact env, de-duplicating and normalizing bypass tokens', () => {
+    const stdout = [
+      '<dictionary> {',
+      '  ExceptionsList : <array> {',
+      '    0 : *.corp.example',
+      '    1 : localhost',
+      '    garbage line',
+      '    2 : ::1',
+      '  }',
+      '  ExcludeSimpleHostnames : 1',
+      '  HTTPEnable : 1',
+      '  HTTPPort : 8080',
+      '  HTTPProxy : proxy.example',
+      '  HTTPSEnable : 0',
+      '  HTTPSPort : 8443',
+      '  HTTPSProxy : ignored.example',
+      '  SOCKSEnable : 1',
+      '  SOCKSPort : 1080',
+      '  SOCKSProxy : [fe80::1]',
+      '}',
+    ].join('\r\n');
+    expect(parseMacosScutilProxyOutput(stdout, 'linux')).toEqual({
+      ALL_PROXY: 'socks5://[fe80::1]:1080',
+      all_proxy: 'socks5://[fe80::1]:1080',
+      HTTP_PROXY: 'http://proxy.example:8080',
+      http_proxy: 'http://proxy.example:8080',
+      NODE_USE_ENV_PROXY: '1',
+      NO_PROXY: '.corp.example,localhost,[::1],<local>,127.0.0.1,.local',
+      no_proxy: '.corp.example,localhost,[::1],<local>,127.0.0.1,.local',
+    });
+  });
+
+  it('defaults the macOS parser to darwin (lowercase aliases present)', () => {
+    const env = parseMacosScutilProxyOutput('HTTPEnable : 1\nHTTPProxy : p\nHTTPPort : 1');
+    expect(env.http_proxy).toBe('http://p:1');
+  });
+
+  it('drops exceptions when no proxy endpoint is enabled', () => {
+    const env = parseMacosScutilProxyOutput('ExceptionsList : <array> {\n0 : a.example\n}\nExcludeSimpleHostnames : 1');
+    expect(env).toEqual({});
+  });
+
+  it('parses the per-protocol Windows form exactly, case-insensitively, ignoring unknown kinds', () => {
+    const env = parseWindowsInternetSettingsProxyOutput({
+      proxyEnable: '    ProxyEnable    REG_DWORD    0X1',
+      proxyOverride: '    ProxyOverride    REG_SZ    *.corp;<local>,10.0.0.1;;',
+      proxyServer: '    ProxyServer    REG_SZ    HTTP=h:80; Https =https://s:443;ftp=f:21;socks=::1:1080',
+    });
+    expect(env).toEqual({
+      ALL_PROXY: 'socks5://[::1]:1080',
+      HTTP_PROXY: 'http://h:80',
+      HTTPS_PROXY: 'https://s:443',
+      NODE_USE_ENV_PROXY: '1',
+      NO_PROXY: '.corp,<local>,localhost,127.0.0.1,[::1],.local,10.0.0.1',
+    });
+  });
+
+  it('adds lowercase aliases for the Windows parser when told the platform is POSIX', () => {
+    const env = parseWindowsInternetSettingsProxyOutput(
+      { proxyEnable: 'ProxyEnable REG_DWORD 1', proxyServer: 'ProxyServer REG_SZ p:1' },
+      'linux',
+    );
+    expect(env).toEqual({
+      HTTP_PROXY: 'http://p:1',
+      http_proxy: 'http://p:1',
+      HTTPS_PROXY: 'http://p:1',
+      https_proxy: 'http://p:1',
+      NODE_USE_ENV_PROXY: '1',
+      NO_PROXY: 'localhost,127.0.0.1,[::1]',
+      no_proxy: 'localhost,127.0.0.1,[::1]',
+    });
+  });
+
+  it('collapses NO_PROXY to "*" when the Windows override contains a wildcard', () => {
+    const env = parseWindowsInternetSettingsProxyOutput({
+      proxyEnable: 'ProxyEnable REG_DWORD 1',
+      proxyOverride: 'ProxyOverride REG_SZ a.example; * ',
+      proxyServer: 'ProxyServer REG_SZ p:1',
+    });
+    expect(env.NO_PROXY).toBe('*');
+  });
+
+  it('returns an empty env when every per-protocol segment is unknown or malformed', () => {
+    const env = parseWindowsInternetSettingsProxyOutput({
+      proxyEnable: 'ProxyEnable REG_DWORD 1',
+      proxyServer: 'ProxyServer REG_SZ ftp=f:21;=x;http=',
+    });
+    expect(env).toEqual({});
+  });
+
+  it('returns an empty env when ProxyEnable is 0x0', () => {
+    const env = parseWindowsInternetSettingsProxyOutput({
+      proxyEnable: 'ProxyEnable REG_DWORD 0x0',
+      proxyServer: 'ProxyServer REG_SZ p:1',
+    });
+    expect(env).toEqual({});
+  });
+
+  it('leaves an IPv6-looking authority with a non-numeric port unbracketed', () => {
+    const env = parseWindowsInternetSettingsProxyOutput({
+      proxyEnable: 'ProxyEnable REG_DWORD 1',
+      proxyServer: 'ProxyServer REG_SZ fe80::1:abc',
+    });
+    expect(env.HTTP_PROXY).toBe('http://fe80::1:abc');
+  });
+
+  it('leaves a host:port authority with a colon-free host unbracketed', () => {
+    const env = parseWindowsInternetSettingsProxyOutput({
+      proxyEnable: 'ProxyEnable REG_DWORD 1',
+      proxyServer: 'ProxyServer REG_SZ host:8080',
+    });
+    expect(env.HTTP_PROXY).toBe('http://host:8080');
+  });
+
+  it('issues exactly scutil --proxy on darwin', () => {
+    const calls: Array<[string, string[]]> = [];
+    resolveSystemProxyEnv({
+      platform: 'darwin',
+      runCommand: (command, args) => {
+        calls.push([command, args]);
+        return '';
+      },
+    });
+    expect(calls).toEqual([['scutil', ['--proxy']]]);
+  });
+
+  it('issues the three reg queries in ProxyEnable, ProxyOverride, ProxyServer order on win32', () => {
+    const calls: Array<[string, string[]]> = [];
+    resolveSystemProxyEnv({
+      platform: 'win32',
+      runCommand: (command, args) => {
+        calls.push([command, args]);
+        return '';
+      },
+    });
+    const key = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings';
+    expect(calls).toEqual([
+      ['reg', ['query', key, '/v', 'ProxyEnable']],
+      ['reg', ['query', key, '/v', 'ProxyOverride']],
+      ['reg', ['query', key, '/v', 'ProxyServer']],
+    ]);
+  });
+
+  it('feeds scutil output through the macOS parser with lowercase aliases on darwin', () => {
+    const env = resolveSystemProxyEnv({
+      platform: 'darwin',
+      runCommand: () => 'HTTPEnable : 1\nHTTPProxy : p\nHTTPPort : 1',
+    });
+    expect(env).toEqual({
+      HTTP_PROXY: 'http://p:1',
+      http_proxy: 'http://p:1',
+      NODE_USE_ENV_PROXY: '1',
+      NO_PROXY: 'localhost,127.0.0.1,[::1]',
+      no_proxy: 'localhost,127.0.0.1,[::1]',
+    });
+  });
+});
