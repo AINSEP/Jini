@@ -8,14 +8,14 @@ import {
   getLatestTransformDefinition,
   type MediaRecord,
 } from "../../../media/index.js";
-import { buildWidgetInstanceFieldsJson } from "../../entry-payload.js";
+import { buildWidgetAreaFieldsJson, buildWidgetInstanceFieldsJson } from "../../entry-payload.js";
 import type { PageHtmlEmbedRef } from "../../html/html-embeds.js";
 import type { MediaContentTypeStorePort, PostRecord, PostRepoPort, WidgetHostPorts } from "../../host-ports.js";
 import { InMemoryWidgetRegionBindingRepo } from "../../repo.memory.js";
 import { HTML_EMBED_RESOLVERS, resolvePageWidgets, type ResolveHtmlPageEmbedsDeps } from "../../resolver-service.js";
 import { createContactFormResolver, registerCoreResolver } from "../../resolvers/index.js";
 import type { FormDefinitionReadPort, FormDefinitionView } from "../../resolvers/ports.js";
-import type { WidgetResolveContext } from "../../types.js";
+import type { WidgetPlacementNode, WidgetResolveContext } from "../../types.js";
 
 /**
  * @file Direct coverage for `resolver-service.ts`'s TipTap walkers (`widgetEmbed` and ref-based
@@ -478,5 +478,60 @@ describe("form embed resolution", () => {
   it("deduplicates repeated keys and skips a reference with neither id nor slug", async () => {
     const resolved = await form([ref({ type: "form", id: "form-1" }), ref({ type: "form", id: "form-1" }), ref({ type: "form" })], deps());
     expect([...resolved.keys()]).toEqual(["form-1"]);
+  });
+});
+
+describe("region placements", () => {
+  function areaRow(id: string, placements: WidgetPlacementNode[], extra: Partial<EntryRecord> = {}): EntryRecord {
+    return {
+      ...widgetRow(id, {}), type: "widget_area",
+      fieldsJson: buildWidgetAreaFieldsJson({ payload: { regionKey: "sidebar", doc: { schemaVersion: 1, placements } } }),
+      ...extra,
+    };
+  }
+  const placement = (placementId: string, widgetEntryId: string, extra: Partial<WidgetPlacementNode> = {}): WidgetPlacementNode => ({ placementId, widgetEntryId, enabled: true, ...extra });
+
+  async function resolveRegions(rows: EntryRecord[], bind: Record<string, string>, resolvedRegions = ["sidebar"]) {
+    const bindingRepo = new InMemoryWidgetRegionBindingRepo();
+    for (const [regionKey, areaEntryId] of Object.entries(bind)) await bindingRepo.upsert({ workspaceId: WS, regionKey, areaEntryId, updatedAt: "2026-01-01T00:00:00.000Z" });
+    const { regions } = await resolvePageWidgets({ deps: { bindingRepo, entryRepo: await entryRepoWith(rows) }, input: { workspaceId: WS, resolvedRegions } });
+    return regions;
+  }
+
+  it("resolves a bound region's enabled placements in order, skipping disabled ones", async () => {
+    const regions = await resolveRegions(
+      [areaRow("area-1", [placement("p1", "w2"), placement("p2", "w1", { enabled: false }), placement("p3", "w1")]), widgetRow("w1", { body: "one" }), widgetRow("w2", { body: "two" })],
+      { sidebar: "area-1" },
+    );
+    expect(regions).toEqual({ sidebar: [{ componentId: "text", props: { body: "two" } }, { componentId: "text", props: { body: "one" } }] });
+  });
+
+  it("degrades a placement whose widget is missing to the placeholder IR", async () => {
+    const regions = await resolveRegions([areaRow("area-1", [placement("p1", "missing")])], { sidebar: "area-1" });
+    expect(regions.sidebar).toEqual([{ componentId: "widget-placeholder", props: {} }]);
+  });
+
+  it("applies a placement's content over the saved config for that placement only", async () => {
+    const regions = await resolveRegions(
+      [areaRow("area-1", [placement("p1", "w1", { content: { body: "override" } }), placement("p2", "w1")]), widgetRow("w1", { body: "saved" })],
+      { sidebar: "area-1" },
+    );
+    expect(regions.sidebar).toEqual([{ componentId: "text", props: { body: "override" } }, { componentId: "text", props: { body: "saved" } }]);
+  });
+
+  it("resolves an unbound region to no widgets", async () => {
+    expect(await resolveRegions([], {})).toEqual({ sidebar: [] });
+  });
+
+  it("resolves a region bound to a missing area entry to no widgets", async () => {
+    expect(await resolveRegions([], { sidebar: "area-1" })).toEqual({ sidebar: [] });
+  });
+
+  it("resolves a region bound to an entry that is not a widget_area to no widgets", async () => {
+    expect(await resolveRegions([areaRow("area-1", [placement("p1", "w1")], { type: "widget" }), widgetRow("w1", {})], { sidebar: "area-1" })).toEqual({ sidebar: [] });
+  });
+
+  it("resolves a region whose widget_area payload is malformed to no widgets", async () => {
+    expect(await resolveRegions([areaRow("area-1", [], { fieldsJson: { ext: {} } })], { sidebar: "area-1" })).toEqual({ sidebar: [] });
   });
 });
