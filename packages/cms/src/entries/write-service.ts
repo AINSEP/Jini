@@ -111,6 +111,81 @@ function delegationFields(input: ActorIdentityInput): { delegatedByWorkspaceId: 
   };
 }
 
+/**
+ * Validates `fieldsJson` against an owning type's schema under its `owner` namespace and, on failure,
+ * builds the refusal every write path returns — carrying the complete declared schema so a caller
+ * (an agent especially) can correct the payload in one turn.
+ *
+ * @complexity O(f + k), one field-validation pass.
+ */
+function fieldValidationError(required: {
+  type: string;
+  owner: string | undefined;
+  fields: OwningContentType["fields"];
+  fieldsJson: unknown;
+}): EntryFieldValidationError | null {
+  const { type, owner, fields, fieldsJson } = required;
+  const validation = validateFieldsAgainstSchema({ schema: fields, fieldsJson }, { owner });
+  if (validation.valid) return null;
+  return new EntryFieldValidationError({ fieldErrors: validation.fieldErrors, entitySchema: { type, owner: owner ?? "site", fields } });
+}
+
+/**
+ * Looks up the owning content type and refuses it unless it is owned by THIS workspace — a soft
+ * polymorphic reference, so a same-key type owned by a different workspace must never be silently
+ * accepted. Shared by `createEntry` and `importEntry`, which differ only in the status rule applied after.
+ *
+ * @complexity O(1) plus one content-type read.
+ */
+async function findWorkspaceContentType(required: {
+  contentTypeRepo: ContentTypeLookupPort;
+  workspaceId: string;
+  type: string;
+}): Promise<Result<OwningContentType, Error>> {
+  const { contentTypeRepo, workspaceId, type } = required;
+  const contentType = await contentTypeRepo.findByKey({ workspaceId, key: type });
+  if (!contentType || contentType.workspaceId !== workspaceId) {
+    return { ok: false, error: new ContentTypeNotFoundError({ message: `content type '${type}' was not found in workspace '${workspaceId}'` }) };
+  }
+  return { ok: true, value: contentType };
+}
+
+/**
+ * The body of every entry write's transaction: save the row, append its revision, then the optional
+ * watermark stamp and optional `onWritten` side effect — in that order, all in the caller's
+ * transaction so a failure in any step rolls back the whole write.
+ *
+ * `saveOptions` omitted means an unconditional `save(row)` with no options argument at all
+ * (`createEntry`'s freshly minted id); the versioned paths always pass one.
+ *
+ * @complexity O(1) plus one save, one revision append, and the optional side effects.
+ */
+async function persistEntryWrite(
+  required: {
+    deps: { entryRepo: EntryRepoPort; watermark?: WatermarkPort | undefined };
+    entry: EntryRecord;
+    op: EntryRevisionInput["op"];
+    input: ActorIdentityInput & { workspaceId: string };
+    recordedAt: string;
+  },
+  optional: { saveOptions?: EntrySaveOptions; onWritten?: ((entry: EntryRecord) => Promise<void>) | undefined } = {},
+): Promise<void> {
+  const { deps, entry, op, input, recordedAt } = required;
+  const { saveOptions, onWritten } = optional;
+  await (saveOptions ? deps.entryRepo.save(entry, saveOptions) : deps.entryRepo.save(entry));
+  await deps.entryRepo.appendRevision({
+    entryId: entry.id,
+    workspaceId: input.workspaceId,
+    op,
+    stateJson: entry,
+    actorId: input.actorId,
+    ...delegationFields(input),
+    recordedAt,
+  });
+  if (deps.watermark) await deps.watermark.stampWatermark({ workspaceId: input.workspaceId });
+  if (onWritten) await onWritten(entry);
+}
+
 export interface CreateEntryRequired {
   deps: {
     entryRepo: EntryRepoPort;
@@ -158,10 +233,9 @@ export async function createEntry(required: CreateEntryRequired): Promise<Result
     return { ok: false, error: new ForbiddenError({ message: `principal '${input.actorId}' cannot create an entry (${authResult.reason})` }) };
   }
 
-  const contentType = await deps.contentTypeRepo.findByKey({ workspaceId: input.workspaceId, key: input.type });
-  if (!contentType || contentType.workspaceId !== input.workspaceId) {
-    return { ok: false, error: new ContentTypeNotFoundError({ message: `content type '${input.type}' was not found in workspace '${input.workspaceId}'` }) };
-  }
+  const found = await findWorkspaceContentType({ contentTypeRepo: deps.contentTypeRepo, workspaceId: input.workspaceId, type: input.type });
+  if (!found.ok) return found;
+  const contentType = found.value;
   if (contentType.status !== "active") {
     // See docs/decisions/DR-002-content-lifecycle-and-cleanup.md for the invariant behind this refusal; keep external identifiers out of caller-facing messages.
     return { ok: false, error: new ContentTypeNotActiveError({ message: `content type '${input.type}' is not active; new entries cannot be created` }) };
@@ -171,10 +245,8 @@ export async function createEntry(required: CreateEntryRequired): Promise<Result
   // `input.owner` defaulting to "site": the generic entries route passed none, so a widget-owned
   // type's payload validated under `ext.site` and wrote a row the widgets reader could never parse.
   // The same rule holds in `updateEntry` and `importEntry` below.
-  const validation = validateFieldsAgainstSchema({ schema: contentType.fields, fieldsJson: input.fieldsJson }, { owner: contentType.owner });
-  if (!validation.valid) {
-    return { ok: false, error: new EntryFieldValidationError({ fieldErrors: validation.fieldErrors, entitySchema: { type: contentType.key, owner: contentType.owner ?? "site", fields: contentType.fields } }) };
-  }
+  const fieldError = fieldValidationError({ type: contentType.key, owner: contentType.owner, fields: contentType.fields, fieldsJson: input.fieldsJson });
+  if (fieldError) return { ok: false, error: fieldError };
 
   const existing = await deps.entryRepo.findBySlug({ workspaceId: input.workspaceId, type: input.type, slug: input.slug });
   if (existing) {
@@ -197,20 +269,7 @@ export async function createEntry(required: CreateEntryRequired): Promise<Result
     version: 1,
   };
 
-  await deps.entryRepo.transaction({ fn: async () => {
-    await deps.entryRepo.save(entry);
-    await deps.entryRepo.appendRevision({
-      entryId: entry.id,
-      workspaceId: input.workspaceId,
-      op: "create",
-      stateJson: entry,
-      actorId: input.actorId,
-      ...delegationFields(input),
-      recordedAt: now,
-    });
-    if (deps.watermark) await deps.watermark.stampWatermark({ workspaceId: input.workspaceId });
-    if (deps.onWritten) await deps.onWritten(entry);
-  } });
+  await deps.entryRepo.transaction({ fn: () => persistEntryWrite({ deps, entry, op: "create", input, recordedAt: now }, { onWritten: deps.onWritten }) });
 
   await deps.outbox.enqueue({ name: "entry.created", payload: { workspaceId: input.workspaceId, entryId: entry.id, type: input.type, slug: input.slug } });
 
@@ -329,44 +388,45 @@ export async function updateEntry(required: UpdateEntryRequired): Promise<Result
   if (!resolved.ok) return resolved;
   const { entry: current, contentType } = resolved.value;
 
-  let fieldsJson = current.fieldsJson;
-  if (input.fieldsJson !== undefined) {
-    const validation = validateFieldsAgainstSchema({ schema: contentType?.fields ?? [], fieldsJson: input.fieldsJson }, { owner: contentType?.owner });
-    if (!validation.valid) {
-      return { ok: false, error: new EntryFieldValidationError({ fieldErrors: validation.fieldErrors, entitySchema: { type: current.type, owner: contentType?.owner ?? "site", fields: contentType?.fields ?? [] } }) };
-    }
-    fieldsJson = input.fieldsJson;
-  }
+  const nextFields = nextFieldsJson({ current, contentType, fieldsJson: input.fieldsJson });
+  if (!nextFields.ok) return nextFields;
 
   const now = kernelNowIso({ clock: deps.clock });
   const updated: EntryRecord = {
     ...current,
     title: input.title ?? current.title,
-    fieldsJson,
+    fieldsJson: nextFields.value,
     bodyJson: input.bodyJson !== undefined ? input.bodyJson : current.bodyJson,
     updatedAt: now,
     version: current.version + 1,
   };
 
-  const conflict = await runVersionedWrite(deps.entryRepo, async () => {
-    await deps.entryRepo.save(updated, { expectedVersion: input.expectedVersion });
-    await deps.entryRepo.appendRevision({
-      entryId: current.id,
-      workspaceId: input.workspaceId,
-      op: "update",
-      stateJson: updated,
-      actorId: input.actorId,
-      ...delegationFields(input),
-      recordedAt: now,
-    });
-    if (deps.watermark) await deps.watermark.stampWatermark({ workspaceId: input.workspaceId });
-    if (deps.onWritten) await deps.onWritten(updated);
-  });
+  const conflict = await runVersionedWrite(deps.entryRepo, () =>
+    persistEntryWrite({ deps, entry: updated, op: "update", input, recordedAt: now }, { saveOptions: { expectedVersion: input.expectedVersion }, onWritten: deps.onWritten }),
+  );
   if (conflict) return { ok: false, error: conflict };
 
   await deps.outbox.enqueue({ name: "entry.updated", payload: { workspaceId: input.workspaceId, entryId: current.id } });
 
   return { ok: true, value: { entry: updated } };
+}
+
+/**
+ * `updateEntry`'s `fieldsJson` rule: omitted keeps the current value untouched (and unvalidated);
+ * supplied must validate against the owning type's CURRENT schema, or — when the owning type no
+ * longer exists — against an empty schema under the default `site` namespace.
+ *
+ * @complexity O(1) when omitted; one field-validation pass when supplied.
+ */
+function nextFieldsJson(required: {
+  current: EntryRecord;
+  contentType: OwningContentType | null;
+  fieldsJson: unknown;
+}): Result<unknown, EntryFieldValidationError> {
+  const { current, contentType, fieldsJson } = required;
+  if (fieldsJson === undefined) return { ok: true, value: current.fieldsJson };
+  const fieldError = fieldValidationError({ type: current.type, owner: contentType?.owner, fields: contentType?.fields ?? [], fieldsJson });
+  return fieldError ? { ok: false, error: fieldError } : { ok: true, value: fieldsJson };
 }
 
 export interface ImportEntryRequired {
@@ -428,48 +488,97 @@ export interface ImportEntryRequired {
 export async function importEntry(required: ImportEntryRequired): Promise<Result<{ entry: EntryRecord }, Error>> {
   const { deps, input } = required;
 
+  const target = await resolveImportContentType(required);
+  if (!target.ok) return target;
+  const contentType = target.value;
+
+  const fieldError = fieldValidationError({ type: contentType.key, owner: contentType.owner, fields: contentType.fields, fieldsJson: input.fieldsJson });
+  if (fieldError) return { ok: false, error: fieldError };
+
+  const existing = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.id });
+  const basisError = importBasisError({ existing, input });
+  if (basisError) return { ok: false, error: basisError };
+
+  const now = kernelNowIso({ clock: deps.clock });
+  const entry = buildImportedEntry({ input, existing, now });
+
+  const conflict = await runVersionedWrite(deps.entryRepo, () =>
+    persistEntryWrite(
+      { deps, entry, op: existing ? "update" : "create", input, recordedAt: now },
+      { saveOptions: { expectedVersion: input.expectedVersion ?? null }, onWritten: deps.onWritten },
+    ),
+  );
+  if (conflict) return { ok: false, error: conflict };
+
+  await deps.outbox.enqueue({ name: "entry.imported", payload: { workspaceId: input.workspaceId, entryId: entry.id, type: input.type, slug: input.slug } });
+
+  return { ok: true, value: { entry } };
+}
+
+/**
+ * `importEntry`'s guard step: authorize -> owning type exists AND is owned by this workspace ->
+ * owning type is not `tombstone` (`deprecated` is allowed; see `importEntry`).
+ *
+ * @complexity O(1) plus one authorization call and one content-type read.
+ */
+async function resolveImportContentType(required: ImportEntryRequired): Promise<Result<OwningContentType, Error>> {
+  const { deps, input } = required;
+
   const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId }, { entityType: "entry" });
   if (!authResult.allowed) {
     return { ok: false, error: new ForbiddenError({ message: `principal '${input.actorId}' cannot import entry '${input.id}' (${authResult.reason})` }) };
   }
 
-  const contentType = await deps.contentTypeRepo.findByKey({ workspaceId: input.workspaceId, key: input.type });
-  if (!contentType || contentType.workspaceId !== input.workspaceId) {
-    return { ok: false, error: new ContentTypeNotFoundError({ message: `content type '${input.type}' was not found in workspace '${input.workspaceId}'` }) };
-  }
-  if (contentType.status === "tombstone") {
+  const found = await findWorkspaceContentType({ contentTypeRepo: deps.contentTypeRepo, workspaceId: input.workspaceId, type: input.type });
+  if (!found.ok) return found;
+  if (found.value.status === "tombstone") {
     return { ok: false, error: new ContentTypeNotActiveError({ message: `content type '${input.type}' is tombstoned; entries cannot be imported into it` }) };
   }
+  return found;
+}
 
-  const validation = validateFieldsAgainstSchema({ schema: contentType.fields, fieldsJson: input.fieldsJson }, { owner: contentType.owner });
-  if (!validation.valid) {
-    return { ok: false, error: new EntryFieldValidationError({ fieldErrors: validation.fieldErrors, entitySchema: { type: contentType.key, owner: contentType.owner ?? "site", fields: contentType.fields } }) };
-  }
-
-  const existing = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.id });
+/**
+ * The read-side half of `importEntry`'s three-way CAS contract (see `ImportEntryRequired.input.expectedVersion`):
+ * `undefined` requires no existing row; a number requires an existing row at exactly that version
+ * AND of the same type. Returns the refusal, or `null` when the basis holds.
+ *
+ * @complexity O(1).
+ */
+function importBasisError(required: {
+  existing: EntryRecord | null;
+  input: { workspaceId: string; id: string; type: string; expectedVersion: number | undefined };
+}): VersionConflictError | null {
+  const { existing, input } = required;
   if (input.expectedVersion === undefined) {
     // A create that lands between this read and the save is the save's insert-if-absent below.
-    if (existing) {
-      return { ok: false, error: new VersionConflictError({ message: `entry '${input.id}' already exists in workspace '${input.workspaceId}', but no expectedVersion was supplied for import` }) };
-    }
-  } else {
-    if (!existing) {
-      return { ok: false, error: new VersionConflictError({ message: `expected version ${input.expectedVersion} for entry '${input.id}', but no such entry exists` }) };
-    }
-    // Checked on this read AND by the save's compare-and-set below (wm S3): the record is built from
-    // this read, so a basis that differs from it must not reach a save that could match it.
-    if (existing.version !== input.expectedVersion) {
-      return { ok: false, error: entryVersionConflictError({ id: input.id, expectedVersion: input.expectedVersion, found: existing.version }) };
-    }
-    // Same id, different type means this is not the row the caller's plan was made against; a
-    // silent type move would also dodge the tombstone check on the entry's REAL type. See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
-    if (existing.type !== input.type) {
-      return { ok: false, error: new VersionConflictError({ message: `entry '${input.id}' is of type '${existing.type}', not '${input.type}'; an import cannot change an entry's type` }) };
-    }
+    if (!existing) return null;
+    return new VersionConflictError({ message: `entry '${input.id}' already exists in workspace '${input.workspaceId}', but no expectedVersion was supplied for import` });
   }
+  if (!existing) {
+    return new VersionConflictError({ message: `expected version ${input.expectedVersion} for entry '${input.id}', but no such entry exists` });
+  }
+  // Checked on this read AND by the save's compare-and-set below (wm S3): the record is built from
+  // this read, so a basis that differs from it must not reach a save that could match it.
+  if (existing.version !== input.expectedVersion) {
+    return entryVersionConflictError({ id: input.id, expectedVersion: input.expectedVersion, found: existing.version });
+  }
+  // Same id, different type means this is not the row the caller's plan was made against; a
+  // silent type move would also dodge the tombstone check on the entry's REAL type. See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
+  if (existing.type !== input.type) {
+    return new VersionConflictError({ message: `entry '${input.id}' is of type '${existing.type}', not '${input.type}'; an import cannot change an entry's type` });
+  }
+  return null;
+}
 
-  const now = kernelNowIso({ clock: deps.clock });
-  const entry: EntryRecord = {
+/**
+ * Builds the row `importEntry` writes: the caller's own `id`/`status`/`publishedAt` verbatim; an
+ * existing row's `createdAt` kept and its version bumped, or `createdAt = now` and version 1 for a create.
+ *
+ * @complexity O(1).
+ */
+function buildImportedEntry(required: { input: ImportEntryRequired["input"]; existing: EntryRecord | null; now: string }): EntryRecord {
+  const { input, existing, now } = required;
+  return {
     id: input.id,
     workspaceId: input.workspaceId,
     type: input.type,
@@ -483,26 +592,6 @@ export async function importEntry(required: ImportEntryRequired): Promise<Result
     updatedAt: now,
     version: existing ? existing.version + 1 : 1,
   };
-
-  const conflict = await runVersionedWrite(deps.entryRepo, async () => {
-    await deps.entryRepo.save(entry, { expectedVersion: input.expectedVersion ?? null });
-    await deps.entryRepo.appendRevision({
-      entryId: entry.id,
-      workspaceId: input.workspaceId,
-      op: existing ? "update" : "create",
-      stateJson: entry,
-      actorId: input.actorId,
-      ...delegationFields(input),
-      recordedAt: now,
-    });
-    if (deps.watermark) await deps.watermark.stampWatermark({ workspaceId: input.workspaceId });
-    if (deps.onWritten) await deps.onWritten(entry);
-  });
-  if (conflict) return { ok: false, error: conflict };
-
-  await deps.outbox.enqueue({ name: "entry.imported", payload: { workspaceId: input.workspaceId, entryId: entry.id, type: input.type, slug: input.slug } });
-
-  return { ok: true, value: { entry } };
 }
 
 export interface PublishUnpublishEntryRequired {
@@ -529,19 +618,10 @@ async function transitionEntryStatus(
     version: current.version + 1,
   };
 
-  const conflict = await runVersionedWrite(deps.entryRepo, async () => {
-    await deps.entryRepo.save(updated, { expectedVersion: input.expectedVersion });
-    await deps.entryRepo.appendRevision({
-      entryId: current.id,
-      workspaceId: input.workspaceId,
-      op: target.op,
-      stateJson: updated,
-      actorId: input.actorId,
-      ...delegationFields(input),
-      recordedAt: now,
-    });
-    if (deps.watermark) await deps.watermark.stampWatermark({ workspaceId: input.workspaceId });
-  });
+  // No `onWritten`: a status flip changes neither `fieldsJson` nor `bodyJson`, so there is nothing to re-extract.
+  const conflict = await runVersionedWrite(deps.entryRepo, () =>
+    persistEntryWrite({ deps, entry: updated, op: target.op, input, recordedAt: now }, { saveOptions: { expectedVersion: input.expectedVersion } }),
+  );
   if (conflict) return { ok: false, error: conflict };
 
   await deps.outbox.enqueue({ name: target.eventName, payload: { workspaceId: input.workspaceId, entryId: current.id } });
