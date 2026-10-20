@@ -46,6 +46,17 @@ interface ChartTooltipContentProps {
   readonly payload?: readonly ChartTooltipEntry[];
 }
 
+function resolveTooltipSeries(
+  { config, entry }: { readonly config: ChartConfig; readonly entry: ChartTooltipEntry },
+  _options: Record<string, never> = {},
+): { readonly key: string; readonly series: ChartConfig[string] | undefined } {
+  // Pie names may repeat; its internal key keeps swatches tied to the actual slice.
+  const dataKey = String(entry.dataKey ?? entry.name);
+  const key = Object.hasOwn(config, dataKey) ? dataKey : entry.payload?._jiniChartKey ?? dataKey;
+  const series = Object.hasOwn(config, key) ? config[key] : undefined;
+  return { key, series };
+}
+
 /** Shadcn-style tooltip card; series config owns both labels and swatch colors. */
 export function ChartTooltipContent({ active, label, payload = [] }: ChartTooltipContentProps): ReactElement | null {
   const config = useContext(ChartContext);
@@ -56,10 +67,7 @@ export function ChartTooltipContent({ active, label, payload = [] }: ChartToolti
       {label != null && <div className="jini-chart-tooltip-label">{label}</div>}
       <div className="jini-chart-tooltip-items">
         {entries.map((entry, index) => {
-          // Pie names may repeat; its internal key keeps swatches tied to the actual slice.
-          const dataKey = String(entry.dataKey ?? entry.name);
-          const key = Object.hasOwn(config, dataKey) ? dataKey : entry.payload?._jiniChartKey ?? dataKey;
-          const series = Object.hasOwn(config, key) ? config[key] : undefined;
+          const { key, series } = resolveTooltipSeries({ config, entry });
           return (
             <div className="jini-chart-tooltip-item" key={`${key}-${index}`}>
               <span className="jini-chart-swatch" style={{ backgroundColor: series?.color ?? entry.color ?? CHART_PRIMARY_COLOR }} aria-hidden="true" />

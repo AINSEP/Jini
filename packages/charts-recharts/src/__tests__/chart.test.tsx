@@ -97,4 +97,65 @@ describe('shared chart presentation with real Recharts', () => {
     render(<ChartLegendContent />);
     expect(screen.queryByRole('list')).toBeNull();
   });
+
+  it.each([
+    { entry: { dataKey: 'revenue', name: 'Raw name', value: 7, color: 'red', payload: { _jiniChartKey: 'slice-1' } }, label: 'Revenue', color: 'blue' },
+    { entry: { name: 'revenue', value: 7 }, label: 'Revenue', color: 'blue' },
+    { entry: { dataKey: 'value', name: 'Repeated', value: 7, payload: { _jiniChartKey: 'slice-1' } }, label: 'Slice', color: 'green' },
+    { entry: { dataKey: 'value', name: 'Raw name', value: 7, color: 'red', payload: {} }, label: 'Raw name', color: 'red' },
+    { entry: { dataKey: 'value', name: 'Raw name', value: 7, color: 'red', payload: { _jiniChartKey: 'missing' } }, label: 'Raw name', color: 'red' },
+    { entry: { dataKey: 'constructor', name: 'Raw name', value: 7, payload: { _jiniChartKey: 'slice-1' } }, label: 'Slice', color: 'green' },
+    { entry: { dataKey: 'value', name: 'Raw name', value: 7, payload: { _jiniChartKey: 'constructor' } }, label: 'Raw name', color: 'var(--jini-chart-1, var(--jini-chart-default-1))' },
+    { entry: { dataKey: 'blank', name: 'Raw name', value: 7, color: 'red' }, label: '', color: '' },
+  ])('resolves tooltip identity and presentation for $entry', ({ entry, label, color }) => {
+    render(
+      <ChartContainer config={{
+        revenue: { label: 'Revenue', color: 'blue' },
+        'slice-1': { label: 'Slice', color: 'green' },
+        blank: { label: '', color: '' },
+      }} title="Tooltip lookup" description="Lookup precedence.">
+        <div><ChartTooltipContent active payload={[entry]} /></div>
+      </ChartContainer>,
+    );
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip.querySelector('.jini-chart-tooltip-name')?.textContent).toBe(label);
+    expect(tooltip.querySelector('.jini-chart-swatch')).toHaveStyle({ backgroundColor: color });
+    expect(within(tooltip).getByText('7')).toHaveClass('jini-chart-tooltip-value');
+  });
+
+  it.each([
+    { entry: { name: 0, dataKey: 'ignored', value: 0 }, name: '0' },
+    { entry: { dataKey: 0, value: false }, name: '0' },
+    { entry: { value: 'categorical' }, name: 'Value' },
+    { entry: { name: '', dataKey: 'ignored', value: 1 }, name: '' },
+  ])('preserves nullish rather than truthy name fallbacks for $entry', ({ entry, name }) => {
+    render(<ChartTooltipContent active payload={[entry]} />);
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip.querySelector('.jini-chart-tooltip-name')?.textContent).toBe(name);
+    expect(tooltip.querySelector('.jini-chart-swatch')).toHaveStyle({ backgroundColor: 'var(--jini-chart-1, var(--jini-chart-default-1))' });
+  });
+
+  it('filters only decorative and nullish entries while preserving order and false values', () => {
+    render(<ChartTooltipContent active payload={[
+      { name: 'decorative', value: 10, type: 'none' },
+      { name: 'null', value: null },
+      { name: 'missing' },
+      { name: 'zero', value: 0 },
+      { name: 'false', value: false, type: 'line' },
+      { name: 'empty', value: '' },
+    ]} />);
+    const tooltip = screen.getByRole('tooltip');
+    expect(Array.from(tooltip.querySelectorAll('.jini-chart-tooltip-name'), (node) => node.textContent)).toEqual(['zero', 'false', 'empty']);
+    expect(Array.from(tooltip.querySelectorAll('.jini-chart-tooltip-value'), (node) => node.textContent)).toEqual(['0', 'false', '']);
+  });
+
+  it.each([undefined, null, 0, 'January'])('renders a label only when it is non-nullish: %s', (label) => {
+    render(<ChartTooltipContent active label={label} payload={[{ value: 1 }]} />);
+    const tooltip = screen.getByRole('tooltip');
+    if (label == null) {
+      expect(tooltip.querySelector('.jini-chart-tooltip-label')).toBeNull();
+    } else {
+      expect(tooltip.querySelector('.jini-chart-tooltip-label')).toHaveTextContent(String(label));
+    }
+  });
 });
