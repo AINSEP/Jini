@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Sidebar } from '../../components/Sidebar.js';
+import { Sidebar } from '../Sidebar.js';
 import { buildNav } from '../../../core/manifest/rules.js';
 import type { AdminPanel } from '../../../core/manifest/types.js';
 

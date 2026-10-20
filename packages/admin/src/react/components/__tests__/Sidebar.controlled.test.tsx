@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
-import { Sidebar, type SidebarProps } from '../../components/Sidebar.js';
+import { Sidebar, type SidebarProps } from '../Sidebar.js';
 
 /** Public props must reach the rail owner; controlled toggles must preserve the host preference. */
 it('renders and toggles a controlled rail while leaving its persisted preference intact', () => {
