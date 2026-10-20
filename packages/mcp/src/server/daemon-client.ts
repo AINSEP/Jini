@@ -65,6 +65,39 @@ function parseJsonLoose(text: string): unknown {
   }
 }
 
+/** Rejects up front when a declared `content-length` already exceeds the cap; a missing or non-numeric header defers to the byte-counted read. */
+function assertDeclaredLengthWithinLimit(resp: Response, maxBytes: number): void {
+  // `headers?.get?.` tolerates response-like doubles; a missing header becomes NaN (Number(null) would be 0).
+  const declared = Number(resp.headers?.get?.('content-length') ?? Number.NaN);
+  if (Number.isFinite(declared) && declared > maxBytes) throw new DaemonResponseTooLargeError({ limitBytes: maxBytes });
+}
+
+/** Decodes a body stream chunk by chunk, rejecting as soon as the running byte total passes `maxBytes`. Always releases the reader lock. */
+async function readStreamWithLimit(reader: ReadableStreamDefaultReader<Uint8Array>, maxBytes: number): Promise<string> {
+  const decoder = new TextDecoder();
+  let text = '';
+  let total = 0;
+  try {
+    for (let step = await reader.read(); !step.done; step = await reader.read()) {
+      // A reader double may yield a step without bytes; count it as empty.
+      const chunk = step.value ?? new Uint8Array();
+      total += chunk.byteLength;
+      if (total > maxBytes) throw new DaemonResponseTooLargeError({ limitBytes: maxBytes });
+      text += decoder.decode(chunk, { stream: true });
+    }
+    return text + decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+/** `resp.text()` fallback for response-like doubles with no reader, byte-checked (UTF-8) before it is parsed. */
+async function readTextWithLimit(resp: Response, maxBytes: number): Promise<string> {
+  const text = await resp.text();
+  if (Buffer.byteLength(text, 'utf8') > maxBytes) throw new DaemonResponseTooLargeError({ limitBytes: maxBytes });
+  return text;
+}
+
 /**
  * Read `resp`'s body as JSON without ever buffering past `maxBytes`. Prefers streaming via
  * `resp.body`'s reader (what a real `fetch()` `Response` provides), rejecting mid-stream once the
@@ -74,37 +107,11 @@ function parseJsonLoose(text: string): unknown {
  * surface as a normal non-2xx/shape mismatch to the caller, not an opaque parse exception.
  */
 async function readJsonWithLimit(resp: Response, maxBytes: number): Promise<unknown> {
-  const contentLength = resp.headers?.get?.('content-length');
-  if (contentLength !== null && contentLength !== undefined) {
-    const declared = Number(contentLength);
-    if (Number.isFinite(declared) && declared > maxBytes) throw new DaemonResponseTooLargeError({ limitBytes: maxBytes });
-  }
-
+  assertDeclaredLengthWithinLimit(resp, maxBytes);
   const body = resp.body;
-  if (body != null && typeof body.getReader === 'function') {
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    let text = '';
-    let total = 0;
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value !== undefined) {
-          total += value.byteLength;
-          if (total > maxBytes) throw new DaemonResponseTooLargeError({ limitBytes: maxBytes });
-          text += decoder.decode(value, { stream: true });
-        }
-      }
-      text += decoder.decode();
-    } finally {
-      reader.releaseLock();
-    }
-    return parseJsonLoose(text);
-  }
-
-  const text = await resp.text();
-  if (Buffer.byteLength(text, 'utf8') > maxBytes) throw new DaemonResponseTooLargeError({ limitBytes: maxBytes });
+  const text = body != null && typeof body.getReader === 'function'
+    ? await readStreamWithLimit(body.getReader(), maxBytes)
+    : await readTextWithLimit(resp, maxBytes);
   return parseJsonLoose(text);
 }
 
@@ -126,7 +133,7 @@ function formatConnectionFailure(err: unknown, baseUrl: string, options: DaemonR
  * Even short query tokens are secrets; token-length heuristics cannot protect them.
  * @complexity O(n) in diagnostic text, plus URL parsing for each URL.
  */
-function safeDiagnostic({ text }: { text: string }, options: DaemonRequestOptions = {}): string {
+function safeDiagnostic({ text }: { text: string }, options: DaemonRequestOptions): string {
   const redacted = text.replace(/https?:\/\/[^\s<>"']+/gi, url => {
     try {
       const parsed = new URL(url);
@@ -148,13 +155,48 @@ function formatDaemonHttpError(status: number, url: string, data: unknown, optio
   const envelope = data as DaemonErrorEnvelope;
   const code = typeof envelope?.error?.code === 'string' ? envelope.error.code : undefined;
   const rawMessage = typeof envelope?.error?.message === 'string' ? envelope.error.message : undefined;
-  const detail = rawMessage ?? `HTTP ${status}`;
-  return safeDiagnostic({ text: code !== undefined ? `daemon ${status} on ${url}: ${code}: ${detail}` : `daemon ${status} on ${url}: ${detail}` }, options);
+  const codePrefix = code !== undefined ? `${code}: ` : '';
+  return safeDiagnostic({ text: `daemon ${status} on ${url}: ${codePrefix}${rawMessage ?? `HTTP ${status}`}` }, options);
 }
 
 interface DaemonRequestInit {
   readonly method: 'GET' | 'POST';
   readonly body?: unknown;
+}
+
+/**
+ * Arms the request deadline and combines it with the caller's signal, so either one aborts the
+ * request. `clear` must run once the request settles.
+ */
+function startDeadline({ route, timeoutMs }: { route: string; timeoutMs: number }, { signal }: { signal?: AbortSignal | undefined }): { signal: AbortSignal; clear: () => void } {
+  const timeoutController = new AbortController();
+  const timeoutHandle = setTimeout(() => {
+    timeoutController.abort(new Error(`request to ${route} timed out after ${timeoutMs}ms`));
+  }, timeoutMs);
+  // A stdio server turn shouldn't be kept alive purely by this timer.
+  (timeoutHandle as unknown as { unref?: () => void }).unref?.();
+  return {
+    signal: signal !== undefined ? AbortSignal.any([signal, timeoutController.signal]) : timeoutController.signal,
+    clear: () => clearTimeout(timeoutHandle),
+  };
+}
+
+/** Builds the `fetch` init: POST carries a JSON body (default `{}`) and a content-type the caller's headers may override; GET carries neither. */
+function buildFetchInit(init: DaemonRequestInit, { headers, signal }: { headers: Record<string, string> | undefined; signal: AbortSignal }): RequestInit {
+  if (init.method === 'GET') return { method: 'GET', headers: { ...headers }, signal };
+  return { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(init.body ?? {}), signal };
+}
+
+/** Reads the body under the byte cap, converting a cap overrun into a redacted `Error`; any other read failure propagates unchanged. */
+async function readBodyOrExplain({ resp, url, maxResponseBytes }: { resp: Response; url: string; maxResponseBytes: number }, options: DaemonRequestOptions): Promise<unknown> {
+  try {
+    return await readJsonWithLimit(resp, maxResponseBytes);
+  } catch (err) {
+    if (err instanceof DaemonResponseTooLargeError) {
+      throw new Error(safeDiagnostic({ text: `response from ${url} exceeded the ${err.limitBytes}-byte limit` }, options));
+    }
+    throw err;
+  }
 }
 
 /**
@@ -170,47 +212,24 @@ async function requestDaemonJson(
   options: DaemonRequestOptions = {},
 ): Promise<unknown> {
   const fetchImpl = options.fetchImpl ?? fetch;
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
   const url = `${baseUrl}${route}`;
-
-  const timeoutController = new AbortController();
-  const timeoutHandle = setTimeout(() => {
-    timeoutController.abort(new Error(`request to ${route} timed out after ${timeoutMs}ms`));
-  }, timeoutMs);
-  // A stdio server turn shouldn't be kept alive purely by this timer.
-  (timeoutHandle as unknown as { unref?: () => void }).unref?.();
-  const signal = options.signal !== undefined ? AbortSignal.any([options.signal, timeoutController.signal]) : timeoutController.signal;
+  const deadline = startDeadline({ route, timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS }, { signal: options.signal });
 
   try {
     let resp: Response;
     try {
-      resp = await fetchImpl(url, {
-        method: init.method,
-        headers: init.method === 'POST' ? { 'content-type': 'application/json', ...options.headers } : { ...options.headers },
-        ...(init.method === 'POST' ? { body: JSON.stringify(init.body ?? {}) } : {}),
-        signal,
-      });
+      resp = await fetchImpl(url, buildFetchInit(init, { headers: options.headers, signal: deadline.signal }));
     } catch (err) {
       throw new Error(formatConnectionFailure(err, baseUrl, options));
     }
 
-    let data: unknown;
-    try {
-      data = await readJsonWithLimit(resp, maxResponseBytes);
-    } catch (err) {
-      if (err instanceof DaemonResponseTooLargeError) {
-        throw new Error(safeDiagnostic({ text: `response from ${url} exceeded the ${err.limitBytes}-byte limit` }, options));
-      }
-      throw err;
-    }
-
+    const data = await readBodyOrExplain({ resp, url, maxResponseBytes: options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES }, options);
     if (!resp.ok) {
       throw new DaemonHttpError({ message: formatDaemonHttpError(resp.status, url, data, options), status: resp.status });
     }
     return data;
   } finally {
-    clearTimeout(timeoutHandle);
+    deadline.clear();
   }
 }
 
