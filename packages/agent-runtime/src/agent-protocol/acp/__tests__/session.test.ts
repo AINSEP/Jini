@@ -1591,6 +1591,24 @@ describe('attachAcpSession permission request edge cases', () => {
   });
 });
 
+describe('attachAcpSession offered permission options', () => {
+  it('passes the handler only options with a non-empty optionId and a known ACP kind', async () => {
+    const child = new FakeAcpChild();
+    const onPermissionRequest = vi.fn((_request: AcpPermissionRequest) => ({ outcome: 'cancelled' as const }));
+    attachWith(baseOptions(child, { onPermissionRequest }));
+    handshakeToSessionNew(child);
+    emitPermissionRequest(child, 33, [
+      { optionId: 'allow', kind: 'allow_once' },
+      { optionId: 'weird', kind: 'allow_forever' },
+      { optionId: '', kind: 'reject_once' },
+      { optionId: 'nokind' },
+      'not-an-object',
+    ]);
+    await Promise.resolve();
+    expect(onPermissionRequest.mock.calls[0]?.[0].options).toEqual([{ optionId: 'allow', kind: 'allow_once' }]);
+  });
+});
+
 describe('attachAcpSession null-id model-selection error', () => {
   it('treats a null-id recoverable RPC error before the prompt as a model-selection failure and sends the prompt early (reported, not fixed)', () => {
     // setModelRequestId starts null, so a JSON-RPC error with `id: null`
