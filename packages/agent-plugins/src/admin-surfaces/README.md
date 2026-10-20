@@ -103,7 +103,11 @@ Every message carries `protocol: 'jini.admin-surface'` and `version: 1`.
 1. `createAdminSurfaceMount({ surfaceId })` → `{ mountId }` (128-bit random nonce) and `expectedOrigin: 'null'`.
 2. The host page renders the iframe and, on its first `load`, posts `adminSurfaceInitMessage({ mountId }, { bootstrap })`
    to `frame.contentWindow` with target `'*'` (an opaque origin cannot be targeted by name). If the
-   frame fires `load` again it navigated: unmount it and do not re-send init.
+   frame fires `load` again it navigated: unmount it and do not re-send init. Because the target is
+   `'*'`, whatever document the frame holds when init is posted receives it, bootstrap access token
+   included: the mount nonce protects only the inbound direction. That is why init goes out exactly
+   once, on the frame's FIRST `load` (when it can only hold the host-served, CSP-locked entry page),
+   and why bootstrap data carries only a short-lived access token and public config.
 3. The surface client accepts the first init whose `source` is its parent, remembers the host's
    origin from it, and from then on posts only to that origin.
 4. The host page passes every `message` event to `validateAdminSurfaceMessage({ event, mount })`

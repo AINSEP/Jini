@@ -50,9 +50,9 @@ Also exported: `parseOAuthTokenVaultMeta` (the vault metadata parser), `OAuthTok
 ## Host responsibilities
 
 1. Pick the vault kind for these rows and register the parser for it:
-   `createVaultMetaParsers({}, { parsers: { [kind]: parseOAuthTokenVaultMeta } })`. The existing
-   vault kinds each belong to another feature, so a dedicated kind (and its schema check) is the
-   expected follow-up; the store never chooses a kind itself.
+   `createVaultMetaParsers({}, { parsers: { [kind]: parseOAuthTokenVaultMeta } })`. The platform
+   ships the dedicated `api-connection` vault kind for these rows (not copyable between workspaces);
+   the store never chooses a kind itself.
 2. Own `readGeneration`: increment it **before** disconnect, account switch or reconnect.
 3. Write tokens from a connect or switch flow with `install`, passing the generation the flow
    moved the connection to (the api-connections service does this). `persist` stays the

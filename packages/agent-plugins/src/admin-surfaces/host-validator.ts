@@ -2,7 +2,7 @@
  * @file The host page's gate for messages arriving from a mounted admin surface frame.
  *
  * Why every check is needed: all sandboxed frames share the origin "null", so the origin check only
- * proves "some sandboxed frame or the declared origin"; the window identity proves it is THIS mount's
+ * proves "some sandboxed frame"; the window identity proves it is THIS mount's
  * frame; the nonce proves the frame still runs the document the host initialized (a navigated frame
  * never received it). Action and schema checks here are an early refusal for the person using the
  * surface; the server-side dispatcher repeats them because a host route can be called directly.
