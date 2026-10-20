@@ -7,8 +7,8 @@ import {
   isAboutUpdateActionDisabled,
   resolveSilentUpdatesWriteFailure,
   resolveSilentUpdatesWriteSuccess,
-} from '../../../features/about/rules.js';
-import type { UpdaterModel } from '../../../features/about/types.js';
+} from '../rules.js';
+import type { UpdaterModel } from '../types.js';
 
 /**
  * Every branch of the state machine, asserted on the OUTCOME rather than on
@@ -336,5 +336,165 @@ describe('resolveSilentUpdatesWriteFailure', () => {
   it('rolls back to the given previous value and clears busy', () => {
     expect(resolveSilentUpdatesWriteFailure(true)).toEqual({ allowSilentUpdates: true, busy: false });
     expect(resolveSilentUpdatesWriteFailure(false)).toEqual({ allowSilentUpdates: false, busy: false });
+  });
+});
+
+describe('deriveAboutUpdateControl — complete output shape per state (boundary pins)', () => {
+  it('development: the full control object', () => {
+    expect(deriveAboutUpdateControl(model(), { version: '1', packaged: false })).toEqual({
+      primaryAction: null,
+      primaryLabelKey: null,
+      showReleaseLink: true,
+      statusKey: K.development,
+      statusTone: 'neutral',
+    });
+  });
+
+  it('capability-unsupported and state-unsupported produce the identical object', () => {
+    const expected = {
+      primaryAction: null,
+      primaryLabelKey: null,
+      showReleaseLink: true,
+      statusKey: K.unsupported,
+      statusTone: 'warning',
+    };
+    expect(deriveAboutUpdateControl(model({ enabled: false }), null)).toEqual(expected);
+    expect(deriveAboutUpdateControl(model({ status: { state: 'unsupported' } }), null)).toEqual(expected);
+  });
+
+  it('checking: the full control object', () => {
+    expect(deriveAboutUpdateControl(model({ status: { state: 'checking' } }), null)).toEqual({
+      primaryAction: null,
+      primaryLabelKey: K.checkingLabel,
+      showReleaseLink: true,
+      statusKey: K.checking,
+      statusTone: 'neutral',
+    });
+  });
+
+  it('not-available: the full control object', () => {
+    expect(deriveAboutUpdateControl(model({ status: { state: 'not-available' } }), null)).toEqual({
+      primaryAction: 'check',
+      primaryLabelKey: K.recheck,
+      showReleaseLink: true,
+      statusKey: K.upToDate,
+      statusTone: 'success',
+    });
+  });
+
+  it('available with an empty-string version reads as unknown and carries no statusVars key', () => {
+    const control = deriveAboutUpdateControl(
+      model({ status: { state: 'available' }, availableVersion: '', canDownload: true }),
+      null,
+    );
+    expect(control).toEqual({
+      primaryAction: 'download',
+      primaryLabelKey: K.download,
+      showReleaseLink: true,
+      statusKey: K.availableUnknown,
+      statusTone: 'warning',
+    });
+    expect('statusVars' in control).toBe(false);
+  });
+
+  it('downloading with no downloadProgress object at all carries no statusVars key', () => {
+    const control = deriveAboutUpdateControl(model({ status: { state: 'downloading' } }), null);
+    expect(control).toEqual({
+      primaryAction: null,
+      primaryLabelKey: K.downloadingLabel,
+      showReleaseLink: true,
+      statusKey: K.downloading,
+      statusTone: 'neutral',
+    });
+    expect('statusVars' in control).toBe(false);
+  });
+
+  it('downloaded + installer handed off (installer kind): the full control object', () => {
+    expect(
+      deriveAboutUpdateControl(
+        model({
+          status: { state: 'downloaded' },
+          installerOpened: true,
+          canQuitAfterInstallerOpen: true,
+          availableVersion: '2.0.0',
+        }),
+        null,
+      ),
+    ).toEqual({
+      primaryAction: 'quit',
+      primaryLabelKey: K.quit,
+      showReleaseLink: false,
+      statusKey: K.opening,
+      statusTone: 'neutral',
+    });
+  });
+
+  it('downloaded via in-place apply with a payload kind and a version: the full control object', () => {
+    expect(
+      deriveAboutUpdateControl(
+        model({ status: { state: 'downloaded' }, canApplyInPlace: true, updateKind: 'payload', availableVersion: '3' }),
+        null,
+      ),
+    ).toEqual({
+      primaryAction: 'install',
+      primaryLabelKey: K.installRestart,
+      showReleaseLink: true,
+      statusKey: K.ready,
+      statusTone: 'success',
+      statusVars: { version: '3' },
+    });
+  });
+
+  it('installing: the full control object', () => {
+    expect(deriveAboutUpdateControl(model({ status: { state: 'installing' } }), null)).toEqual({
+      primaryAction: null,
+      primaryLabelKey: K.installingRestart,
+      showReleaseLink: false,
+      statusKey: K.installing,
+      statusTone: 'neutral',
+    });
+  });
+
+  it('error: the full control object', () => {
+    expect(deriveAboutUpdateControl(model({ status: { state: 'error' } }), null)).toEqual({
+      primaryAction: 'check',
+      primaryLabelKey: K.retry,
+      showReleaseLink: true,
+      statusKey: K.failed,
+      statusTone: 'error',
+    });
+  });
+
+  it('error with an empty-string version and canDownload retries download (only null/undefined count as unknown)', () => {
+    const control = deriveAboutUpdateControl(
+      model({ status: { state: 'error' }, availableVersion: '', canDownload: true }),
+      null,
+    );
+    expect(control.primaryAction).toBe('download');
+  });
+
+  it('error with no downloadPath field does not retry install, even when installable', () => {
+    const control = deriveAboutUpdateControl(
+      model({ status: { state: 'error' }, canOpenInstaller: true }),
+      null,
+    );
+    expect(control.primaryAction).toBe('check');
+  });
+
+  it('no status at all: offers a check (the full control object)', () => {
+    expect(deriveAboutUpdateControl(model(), null)).toEqual({
+      primaryAction: 'check',
+      primaryLabelKey: K.check,
+      showReleaseLink: true,
+      statusKey: K.notChecked,
+      statusTone: 'neutral',
+    });
+  });
+
+  it('a state named like an Object.prototype member still falls back to check', () => {
+    // Same `as never` stand-in as the unknown-state case above: a value the
+    // backend may send that the `UpdaterState` union does not admit.
+    const control = deriveAboutUpdateControl(model({ status: { state: 'toString' as never } }), null);
+    expect(control.statusKey).toBe(K.notChecked);
   });
 });

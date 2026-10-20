@@ -32,6 +32,166 @@ export const ABOUT_UPDATE_KEYS = {
   check: 'settings.updateCheck',
 } as const;
 
+type UpdaterStatusState = NonNullable<UpdaterModel['status']>['state'];
+
+const K = ABOUT_UPDATE_KEYS;
+
+/**
+ * Shared by the capability gate and the reported `unsupported` state — one
+ * outcome, since the operator can do nothing about either from this panel.
+ */
+const UNSUPPORTED_CONTROL: AboutUpdateControl = {
+  primaryAction: null,
+  primaryLabelKey: null,
+  showReleaseLink: true,
+  statusKey: K.unsupported,
+  statusTone: 'warning',
+};
+
+const DEVELOPMENT_CONTROL: AboutUpdateControl = {
+  primaryAction: null,
+  primaryLabelKey: null,
+  showReleaseLink: true,
+  statusKey: K.development,
+  statusTone: 'neutral',
+};
+
+/** `{ statusVars: { version } }` when the version is known (truthy), else nothing. */
+function versionVars(model: UpdaterModel): Pick<AboutUpdateControl, 'statusVars'> {
+  return model.availableVersion ? { statusVars: { version: model.availableVersion } } : {};
+}
+
+/** Whether either install route (hand off to an installer, or apply in place) is open. */
+function canInstall(model: UpdaterModel): boolean {
+  return Boolean(model.canOpenInstaller || model.canApplyInPlace);
+}
+
+function deriveAvailable(model: UpdaterModel): AboutUpdateControl {
+  return {
+    primaryAction: model.canDownload ? 'download' : null,
+    primaryLabelKey: model.canDownload ? K.download : null,
+    showReleaseLink: true,
+    statusKey: model.availableVersion ? K.available : K.availableUnknown,
+    statusTone: 'warning',
+    ...versionVars(model),
+  };
+}
+
+function deriveDownloading(model: UpdaterModel): AboutUpdateControl {
+  const percent = model.downloadProgress?.percent;
+  const known = typeof percent === 'number';
+  return {
+    primaryAction: null,
+    primaryLabelKey: K.downloadingLabel,
+    showReleaseLink: true,
+    statusKey: known ? K.downloadingPercent : K.downloading,
+    statusTone: 'neutral',
+    ...(known ? { statusVars: { percent } } : {}),
+  };
+}
+
+function deriveDownloaded(model: UpdaterModel): AboutUpdateControl {
+  const payload = model.updateKind === 'payload';
+  // The installer is already running; the only useful act left is to get
+  // out of its way.
+  if (model.installerOpened && model.canQuitAfterInstallerOpen) {
+    return {
+      primaryAction: 'quit',
+      primaryLabelKey: K.quit,
+      showReleaseLink: false,
+      statusKey: payload ? K.installingRestart : K.opening,
+      statusTone: 'neutral',
+    };
+  }
+  const installable = canInstall(model);
+  return {
+    primaryAction: installable ? 'install' : null,
+    primaryLabelKey: installable ? (payload ? K.installRestart : K.installNow) : null,
+    showReleaseLink: true,
+    statusKey: model.availableVersion ? K.ready : K.readyUnknown,
+    statusTone: 'success',
+    ...versionVars(model),
+  };
+}
+
+/**
+ * Retry the furthest-along step that is still possible: re-install a
+ * download we already have, else re-download a version we know about,
+ * else start over. Sending the operator back to "check" when a finished
+ * download is sitting on disk would throw away the expensive part.
+ */
+function errorRetryAction(model: UpdaterModel): AboutUpdatePrimaryAction {
+  if (model.status?.downloadPath != null && canInstall(model)) return 'install';
+  if (model.availableVersion != null && model.canDownload) return 'download';
+  return 'check';
+}
+
+function deriveError(model: UpdaterModel): AboutUpdateControl {
+  return {
+    primaryAction: errorRetryAction(model),
+    primaryLabelKey: K.retry,
+    showReleaseLink: true,
+    statusKey: K.failed,
+    statusTone: 'error',
+  };
+}
+
+/**
+ * `idle`, and any state a newer backend reports that this build predates.
+ * Falling through to "you can check" is the safe default: it offers the
+ * one action that is valid from any unknown state.
+ */
+const IDLE_CONTROL: AboutUpdateControl = {
+  primaryAction: 'check',
+  primaryLabelKey: K.check,
+  showReleaseLink: true,
+  statusKey: K.notChecked,
+  statusTone: 'neutral',
+};
+
+/**
+ * One deriver per reported state. A `Map` (not an object literal) so a
+ * state string that happens to name an `Object.prototype` member can never
+ * resolve to anything but the idle fallback.
+ */
+const STATE_DERIVERS = new Map<UpdaterStatusState, (model: UpdaterModel) => AboutUpdateControl>([
+  [
+    'checking',
+    () => ({
+      primaryAction: null,
+      primaryLabelKey: K.checkingLabel,
+      showReleaseLink: true,
+      statusKey: K.checking,
+      statusTone: 'neutral',
+    }),
+  ],
+  [
+    'not-available',
+    () => ({
+      primaryAction: 'check',
+      primaryLabelKey: K.recheck,
+      showReleaseLink: true,
+      statusKey: K.upToDate,
+      statusTone: 'success',
+    }),
+  ],
+  ['available', deriveAvailable],
+  ['downloading', deriveDownloading],
+  ['downloaded', deriveDownloaded],
+  [
+    'installing',
+    () => ({
+      primaryAction: null,
+      primaryLabelKey: K.installingRestart,
+      showReleaseLink: false,
+      statusKey: K.installing,
+      statusTone: 'neutral',
+    }),
+  ],
+  ['error', deriveError],
+  ['unsupported', () => ({ ...UNSUPPORTED_CONTROL })],
+]);
+
 /**
  * Derives what the About panel's update row should show.
  *
@@ -48,7 +208,7 @@ export const ABOUT_UPDATE_KEYS = {
  *    build — one shared "unsupported" outcome, since the operator can do
  *    nothing about any of them from this panel.
  *
- * After that it is a switch over the reported state. Two subtleties worth
+ * After that it is a lookup of the reported state in `STATE_DERIVERS`. Two subtleties worth
  * keeping when reading it:
  *
  * - `primaryLabelKey` can be set while `primaryAction` is `null`. That is the
@@ -58,151 +218,16 @@ export const ABOUT_UPDATE_KEYS = {
  *   about to disappear (installing, or quitting to let an installer run).
  *   Offering a navigation there invites a click that cannot complete.
  *
- * @complexity O(1) — a fixed switch, no iteration.
+ * @complexity O(1) — a fixed-size map lookup, no iteration.
  */
 export function deriveAboutUpdateControl(
   model: UpdaterModel,
   appVersionInfo: AppVersionInfo | null,
 ): AboutUpdateControl {
-  const K = ABOUT_UPDATE_KEYS;
-
-  if (appVersionInfo?.packaged === false) {
-    return {
-      primaryAction: null,
-      primaryLabelKey: null,
-      showReleaseLink: true,
-      statusKey: K.development,
-      statusTone: 'neutral',
-    };
-  }
-
-  if (model.environment !== 'desktop' || !model.enabled || !model.supported) {
-    return {
-      primaryAction: null,
-      primaryLabelKey: null,
-      showReleaseLink: true,
-      statusKey: K.unsupported,
-      statusTone: 'warning',
-    };
-  }
-
-  switch (model.status?.state) {
-    case 'checking':
-      return {
-        primaryAction: null,
-        primaryLabelKey: K.checkingLabel,
-        showReleaseLink: true,
-        statusKey: K.checking,
-        statusTone: 'neutral',
-      };
-
-    case 'not-available':
-      return {
-        primaryAction: 'check',
-        primaryLabelKey: K.recheck,
-        showReleaseLink: true,
-        statusKey: K.upToDate,
-        statusTone: 'success',
-      };
-
-    case 'available':
-      return {
-        primaryAction: model.canDownload ? 'download' : null,
-        primaryLabelKey: model.canDownload ? K.download : null,
-        showReleaseLink: true,
-        statusKey: model.availableVersion ? K.available : K.availableUnknown,
-        statusTone: 'warning',
-        ...(model.availableVersion ? { statusVars: { version: model.availableVersion } } : {}),
-      };
-
-    case 'downloading': {
-      const percent = model.downloadProgress?.percent;
-      const known = typeof percent === 'number';
-      return {
-        primaryAction: null,
-        primaryLabelKey: K.downloadingLabel,
-        showReleaseLink: true,
-        statusKey: known ? K.downloadingPercent : K.downloading,
-        statusTone: 'neutral',
-        ...(known ? { statusVars: { percent } } : {}),
-      };
-    }
-
-    case 'downloaded': {
-      // The installer is already running; the only useful act left is to get
-      // out of its way.
-      if (model.installerOpened && model.canQuitAfterInstallerOpen) {
-        return {
-          primaryAction: 'quit',
-          primaryLabelKey: K.quit,
-          showReleaseLink: false,
-          statusKey: model.updateKind === 'payload' ? K.installingRestart : K.opening,
-          statusTone: 'neutral',
-        };
-      }
-      const canInstall = Boolean(model.canOpenInstaller || model.canApplyInPlace);
-      return {
-        primaryAction: canInstall ? 'install' : null,
-        primaryLabelKey: canInstall ? (model.updateKind === 'payload' ? K.installRestart : K.installNow) : null,
-        showReleaseLink: true,
-        statusKey: model.availableVersion ? K.ready : K.readyUnknown,
-        statusTone: 'success',
-        ...(model.availableVersion ? { statusVars: { version: model.availableVersion } } : {}),
-      };
-    }
-
-    case 'installing':
-      return {
-        primaryAction: null,
-        primaryLabelKey: K.installingRestart,
-        showReleaseLink: false,
-        statusKey: K.installing,
-        statusTone: 'neutral',
-      };
-
-    case 'error': {
-      // Retry the furthest-along step that is still possible: re-install a
-      // download we already have, else re-download a version we know about,
-      // else start over. Sending the operator back to "check" when a finished
-      // download is sitting on disk would throw away the expensive part.
-      const canRetryInstall =
-        model.status?.downloadPath != null && Boolean(model.canOpenInstaller || model.canApplyInPlace);
-      const primaryAction: AboutUpdatePrimaryAction = canRetryInstall
-        ? 'install'
-        : model.availableVersion != null && model.canDownload
-          ? 'download'
-          : 'check';
-      return {
-        primaryAction,
-        primaryLabelKey: K.retry,
-        showReleaseLink: true,
-        statusKey: K.failed,
-        statusTone: 'error',
-      };
-    }
-
-    case 'unsupported':
-      return {
-        primaryAction: null,
-        primaryLabelKey: null,
-        showReleaseLink: true,
-        statusKey: K.unsupported,
-        statusTone: 'warning',
-      };
-
-    // `idle`, and any state a newer backend reports that this build predates.
-    // Falling through to "you can check" is the safe default: it offers the
-    // one action that is valid from any unknown state.
-    case 'idle':
-    default:
-      return {
-        primaryAction: 'check',
-        primaryLabelKey: K.check,
-        showReleaseLink: true,
-        statusKey: K.notChecked,
-        statusTone: 'neutral',
-      };
-  }
+  if (appVersionInfo?.packaged === false) return { ...DEVELOPMENT_CONTROL };
+  if (model.environment !== 'desktop' || !model.enabled || !model.supported) return { ...UNSUPPORTED_CONTROL };
+  const derive = model.status ? STATE_DERIVERS.get(model.status.state) : undefined;
+  return derive ? derive(model) : { ...IDLE_CONTROL };
 }
 
 /**
