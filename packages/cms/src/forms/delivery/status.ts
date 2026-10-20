@@ -18,7 +18,11 @@ export interface FormDeliveryJobStatus {
 function stateOf(row: Pick<OutboxRecord, "status" | "attempts">): FormDeliveryState {
   if (row.status === "delivered") return "completed";
   if (row.status === "failed") return "failed";
-  return row.attempts > 0 ? "retrying" : "pending";
+  // `claimPending` counts an attempt when it claims the row, before the attempt runs: a processing
+  // row with attempts 1 is the first try in flight, while a pending row with attempts ≥ 1 has
+  // already failed at least once and is waiting for its next try.
+  const firstTry = row.status === "processing" ? 1 : 0;
+  return row.attempts > firstTry ? "retrying" : "pending";
 }
 
 /**
