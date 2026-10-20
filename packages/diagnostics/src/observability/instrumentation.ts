@@ -23,21 +23,27 @@ function withTable(operation: string, node: unknown): QueryDescription {
  return table ? { operation, table } : { operation };
 }
 
+function withFromTable({ operation, from }: { operation: string; from: NonNullable<NodeLike>['from'] }, _options: Record<string, never> = {}): QueryDescription {
+ return withTable(operation, from?.froms?.[0]);
+}
+
+function describeRawQuery({ sqlFragments }: { sqlFragments: readonly string[] | undefined }, _options: Record<string, never> = {}): QueryDescription {
+ // The keyword must end at a boundary: a fragment that opens with a quoted literal is not one.
+ const keyword = /^\s*([A-Za-z]+)(?![A-Za-z0-9_'"])/.exec(sqlFragments?.[0] ?? '')?.[1];
+ return { operation: keyword ? keyword.toLowerCase() : 'raw' };
+}
+
 /** Operation and table of one Kysely operation node. Reads node kinds and identifiers only — never
  * parameter values or statement text, so the description is safe to export whatever the query binds.
  * A raw statement contributes its leading keyword alone (`pragma`, `select`), or `raw`. */
 export function describeQueryNode({ node }: { node: unknown }): QueryDescription {
  const n = node as NodeLike;
  switch (n?.kind) {
-  case 'SelectQueryNode': return withTable('select', n.from?.froms?.[0]);
+  case 'SelectQueryNode': return withFromTable({ operation: 'select', from: n.from });
   case 'InsertQueryNode': return withTable('insert', n.into);
   case 'UpdateQueryNode': return withTable('update', n.table);
-  case 'DeleteQueryNode': return withTable('delete', n.from?.froms?.[0]);
-  case 'RawNode': {
-   // The keyword must end at a boundary: a fragment that opens with a quoted literal is not one.
-   const keyword = /^\s*([A-Za-z]+)(?![A-Za-z0-9_'"])/.exec(n.sqlFragments?.[0] ?? '')?.[1];
-   return { operation: keyword ? keyword.toLowerCase() : 'raw' };
-  }
+  case 'DeleteQueryNode': return withFromTable({ operation: 'delete', from: n.from });
+  case 'RawNode': return describeRawQuery({ sqlFragments: n.sqlFragments });
   default:
    if (typeof n?.kind !== 'string') return { operation: 'query' };
    return { operation: n.kind.replace(/(Query)?Node$/, '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase() };
