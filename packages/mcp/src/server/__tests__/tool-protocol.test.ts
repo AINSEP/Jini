@@ -342,3 +342,138 @@ describe('handleToolCall', () => {
     expect(result).toEqual(okResult({ payload: 'async-ok' }));
   });
 });
+
+describe('argument normalization and diagnostics (characterization)', () => {
+  /** Registers one echo tool and calls it, so the result shows either the canonical args or the refusal. */
+  async function callEcho(def: Partial<McpToolDef>, rawArgs: Record<string, unknown> | undefined): Promise<{ text: string; isError: boolean }> {
+    const tool: McpToolDef = { name: 'echo', description: 'echo', inputSchema: { type: 'object' }, handler: ({ args }) => args, ...def };
+    const result = await handleToolCall({ name: 'echo', tools: buildToolIndex({ tools: [tool] }), ctx }, { rawArgs });
+    return { text: (result.content[0] as { text: string }).text, isError: result.isError === true };
+  }
+  const flat = { type: 'object', properties: { id: { type: 'string' }, limit: { type: 'number' } }, additionalProperties: false } as const;
+  const wrapper = { type: 'object', properties: { id: { type: 'string' }, input: { type: 'object' } }, additionalProperties: false } as const;
+
+  it('refuses non-object arguments with a replace instruction', async () => {
+    // Malformed-input fixture: the wire type promises a record, an array arrives anyway.
+    const rawArgs = [] as unknown as Record<string, unknown>;
+    expect(await callEcho({}, rawArgs)).toEqual({ isError: true, text: 'invalid arguments for echo: replace `arguments` with a JSON object' });
+  });
+
+  it('accepts a schema without properties and passes extra keys through', async () => {
+    expect(await callEcho({}, { a: 1 })).toEqual({ isError: false, text: '{"a":1}' });
+  });
+
+  it('renames an alias to its canonical key', async () => {
+    expect(await callEcho({ inputSchema: flat, argumentNormalization: { aliases: { name: 'id' } } }, { name: 'x' })).toEqual({ isError: false, text: '{"id":"x"}' });
+  });
+
+  it('collapses an alias that repeats the canonical value', async () => {
+    expect(await callEcho({ inputSchema: flat, argumentNormalization: { aliases: { name: 'id' } } }, { id: 'x', name: 'x' })).toEqual({ isError: false, text: '{"id":"x"}' });
+  });
+
+  it('refuses an alias that contradicts the canonical value', async () => {
+    expect(await callEcho({ inputSchema: flat, argumentNormalization: { aliases: { name: 'id' } } }, { id: 'x', name: 'y' })).toEqual({
+      isError: true, text: 'invalid arguments for echo: rename `name` to `id` and supply only one value for `id`',
+    });
+  });
+
+  it('leaves arguments alone when the alias is absent', async () => {
+    expect(await callEcho({ inputSchema: flat, argumentNormalization: { aliases: { name: 'id' } } }, { id: 'x' })).toEqual({ isError: false, text: '{"id":"x"}' });
+  });
+
+  it('folds stray keys into a missing input object', async () => {
+    expect(await callEcho({ inputSchema: wrapper, argumentNormalization: { foldIntoInput: true } }, { id: 'x', q: 1 })).toEqual({ isError: false, text: '{"id":"x","input":{"q":1}}' });
+  });
+
+  it('folds stray keys into an existing input object', async () => {
+    expect(await callEcho({ inputSchema: wrapper, argumentNormalization: { foldIntoInput: true } }, { input: { a: 1 }, q: 2 })).toEqual({ isError: false, text: '{"input":{"a":1,"q":2}}' });
+  });
+
+  it('refuses folding into a non-object input', async () => {
+    expect(await callEcho({ inputSchema: wrapper, argumentNormalization: { foldIntoInput: true } }, { input: 'x', q: 1 })).toEqual({
+      isError: true, text: "invalid arguments for echo: put the tool's own arguments inside `input`; replace `input` with a JSON object",
+    });
+  });
+
+  it('refuses folding a key that input already holds', async () => {
+    expect(await callEcho({ inputSchema: wrapper, argumentNormalization: { foldIntoInput: true } }, { input: { q: 1 }, q: 2 })).toEqual({
+      isError: true, text: "invalid arguments for echo: put the tool's own arguments inside `input`",
+    });
+  });
+
+  it('does not fold when there are no stray keys, then validates normally', async () => {
+    expect(await callEcho({ inputSchema: wrapper, argumentNormalization: { foldIntoInput: true } }, { input: { id: 'x' } })).toEqual({ isError: false, text: '{"input":{"id":"x"}}' });
+  });
+
+  it('tells a flat strict tool to move a nested known key to the top level', async () => {
+    expect(await callEcho({ inputSchema: flat }, { input: { id: 'x' } })).toEqual({ isError: true, text: 'invalid arguments for echo: move `input.id` to top-level `id`' });
+  });
+
+  it('reports the unknown input key when the nested object holds no known key', async () => {
+    expect(await callEcho({ inputSchema: flat }, { input: { other: 1 } })).toEqual({ isError: true, text: 'invalid arguments for echo: remove unknown argument `input`' });
+  });
+
+  it('reports the unknown input key when input is not an object', async () => {
+    expect(await callEcho({ inputSchema: flat }, { input: 'id' })).toEqual({ isError: true, text: 'invalid arguments for echo: remove unknown argument `input`' });
+  });
+
+  it('skips the move hint when the schema declares patternProperties', async () => {
+    const schema = { ...flat, patternProperties: { '^x-': {} } };
+    expect(await callEcho({ inputSchema: schema }, { input: { id: 'x' } })).toEqual({ isError: true, text: 'invalid arguments for echo: remove unknown argument `input`' });
+  });
+
+  it('skips the move hint when the schema allows additional properties', async () => {
+    const schema = { type: 'object', properties: { id: { type: 'string' } } } as const;
+    expect(await callEcho({ inputSchema: schema }, { input: { id: 'x' } })).toEqual({ isError: false, text: '{"input":{"id":"x"}}' });
+  });
+
+  it('refuses an explicitly undefined argument value', async () => {
+    expect(await callEcho({}, { a: undefined })).toEqual({ isError: true, text: 'invalid arguments for echo: remove `a` or supply a JSON value instead of undefined' });
+  });
+
+  it('names a missing required argument at the top level', async () => {
+    expect(await callEcho({ inputSchema: { ...flat, required: ['id'] } }, {})).toEqual({ isError: true, text: 'invalid arguments for echo: supply required argument `id`' });
+  });
+
+  it('names a missing required argument inside a nested object by its dotted path', async () => {
+    const schema = { type: 'object', properties: { opts: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } } } as const;
+    expect(await callEcho({ inputSchema: schema }, { opts: {} })).toEqual({ isError: true, text: 'invalid arguments for echo: supply required argument `opts.id`' });
+  });
+
+  it('names an unknown nested argument by its dotted path', async () => {
+    const schema = { type: 'object', properties: { opts: { type: 'object', properties: {}, additionalProperties: false } } } as const;
+    expect(await callEcho({ inputSchema: schema }, { opts: { z: 1 } })).toEqual({ isError: true, text: 'invalid arguments for echo: remove unknown argument `opts.z`' });
+  });
+
+  it('decodes JSON-pointer escapes in a mistyped field path', async () => {
+    const schema = { type: 'object', properties: { 'a/b~c': { type: 'number' } } } as const;
+    expect(await callEcho({ inputSchema: schema }, { 'a/b~c': 'x' })).toEqual({ isError: true, text: 'invalid arguments for echo: change `a/b~c`: Instance type "string" is invalid. Expected "number".' });
+  });
+
+  it('stringifies a non-Error thrown while reading the arguments', async () => {
+    // Malformed-input fixture: a getter that throws a bare string, which JSON-RPC input never carries.
+    const rawArgs = Object.defineProperty({}, 'a', { enumerable: true, get: () => { throw 'getter blew up'; } }) as Record<string, unknown>;
+    expect(await callEcho({}, rawArgs)).toEqual({ isError: true, text: 'invalid arguments for echo: getter blew up' });
+  });
+
+  it('describes a root-level violation as `arguments`', async () => {
+    const schema = { type: 'object', minProperties: 1 } as const;
+    expect(await callEcho({ inputSchema: schema }, {})).toEqual({ isError: true, text: 'invalid arguments for echo: change `arguments`: Instance does not have at least 1 properties.' });
+  });
+});
+
+describe('daemonCallOptions (characterization)', () => {
+  it('maps a bare context to only the injected fetch', async () => {
+    const { daemonCallOptions } = await import('../tool-protocol.js');
+    expect(daemonCallOptions({ ctx })).toEqual({ fetchImpl: fetch });
+  });
+
+  it('copies auth headers, diagnostic IDs and the cancellation signal when present', async () => {
+    const { daemonCallOptions } = await import('../tool-protocol.js');
+    const signal = new AbortController().signal;
+    const authHeaders = { Authorization: 'Bearer ' + 'x'.repeat(8) };
+    const options = daemonCallOptions({ ctx: { ...ctx, authHeaders, diagnosticToolIds: ['t'], signal } });
+    expect(options).toEqual({ fetchImpl: fetch, diagnosticToolIds: ['t'], headers: authHeaders, signal });
+    expect(options.headers).not.toBe(authHeaders);
+  });
+});

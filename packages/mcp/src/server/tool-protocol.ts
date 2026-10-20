@@ -45,9 +45,10 @@
  * See docs/decisions/DR-002-protocol-resource-boundary.md.
  */
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
-import { Validator, type OutputUnit, type Schema } from '@cfworker/json-schema';
+import { Validator, type Schema } from '@cfworker/json-schema';
 import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
+import { argumentShapeMessage, isRecord, normalizeToolArguments } from './tool-arguments.js';
 
 /** What every tool handler receives alongside its parsed arguments. */
 export interface McpToolContext {
@@ -117,10 +118,6 @@ export interface McpToolDef<Args extends Record<string, unknown> = Record<string
     readonly foldIntoInput?: true;
   };
   readonly handler: (requiredArgs: { args: Args; ctx: McpToolContext }) => Promise<unknown> | unknown;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -222,76 +219,6 @@ function validatorForTool(tool: McpToolDef): Validator {
   const validator = new Validator(tool.inputSchema as Schema, '2020-12', true);
   compiledValidators.set(tool, validator);
   return validator;
-}
-
-/**
- * Copies caller arguments into their canonical wrapper shape before schema validation.
- * @param requiredArgs - Tool contract and untrusted arguments; neither is mutated.
- * @param _options - Reserved normalization options.
- * @returns Canonical arguments; nested tool input is copied only when fields are folded.
- * @throws Error naming an ambiguous alias, duplicate input key, or invalid wrapper field.
- * @complexity O(k + a + i) time and space for k argument keys, a aliases, and i input keys.
- */
-function normalizeToolArguments(
-  { tool, rawArgs }: { tool: McpToolDef; rawArgs: unknown },
-  _options: Record<string, never> = {},
-): Record<string, unknown> {
-  if (!isRecord(rawArgs)) throw new Error('replace `arguments` with a JSON object');
-  const args = { ...rawArgs };
-  const properties = tool.inputSchema.properties ?? {};
-  for (const [alias, canonical] of Object.entries(tool.argumentNormalization?.aliases ?? {})) {
-    if (!Object.hasOwn(args, alias)) continue;
-    if (Object.hasOwn(args, canonical) && args[canonical] !== args[alias]) {
-      throw new Error(`rename \`${alias}\` to \`${canonical}\` and supply only one value for \`${canonical}\``);
-    }
-    args[canonical] = args[alias];
-    delete args[alias];
-  }
-  const extraKeys = Object.keys(args).filter((key) => !Object.hasOwn(properties, key));
-  if (tool.argumentNormalization?.foldIntoInput && extraKeys.length > 0) {
-    const input = Object.hasOwn(args, 'input') ? args.input : {};
-    if (!isRecord(input)) {
-      throw new Error("put the tool's own arguments inside `input`; replace `input` with a JSON object");
-    }
-    if (extraKeys.some((key) => Object.hasOwn(input, key))) {
-      throw new Error("put the tool's own arguments inside `input`");
-    }
-    args.input = { ...input, ...Object.fromEntries(extraKeys.map((key) => [key, args[key]])) };
-    for (const key of extraKeys) delete args[key];
-  } else if (tool.inputSchema.additionalProperties === false && !tool.inputSchema.patternProperties) {
-    if (isRecord(args.input) && !Object.hasOwn(properties, 'input')) {
-      const misplaced = Object.keys(args.input).find((key) => Object.hasOwn(properties, key));
-      if (misplaced !== undefined) throw new Error(`move \`input.${misplaced}\` to top-level \`${misplaced}\``);
-    }
-  }
-  const undefinedKey = Object.keys(args).find((key) => args[key] === undefined);
-  if (undefinedKey !== undefined) throw new Error(`remove \`${undefinedKey}\` or supply a JSON value instead of undefined`);
-  return args;
-}
-
-/**
- * Formats structured validation errors as field-specific recovery instructions.
- * @param requiredArgs - Validator errors, including JSON Pointer locations and keywords.
- * @param _options - Reserved formatting options.
- * @returns One actionable diagnostic; no schema-location trace.
- * @complexity O(e + p) for e errors and p characters in the selected field path.
- */
-function argumentShapeMessage(
-  { errors }: { errors: readonly OutputUnit[] },
-  _options: Record<string, never> = {},
-): string {
-  // Keep the additionalProperties diagnostic ahead of its generic false-schema child.
-  const error = errors.find((entry) => entry.keyword === 'required' || entry.keyword === 'additionalProperties' || entry.instanceLocation !== '#') ?? errors[0];
-  if (error === undefined) return 'supply arguments matching the declared input schema';
-  const path = error.instanceLocation.replace(/^#\/?/, '').split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~')).join('.');
-  if (error.keyword === 'required' || error.keyword === 'additionalProperties') {
-    const field = error.error.match(/"(.*)"/)?.[1];
-    if (field !== undefined) {
-      const key = path ? `${path}.${field}` : field;
-      return error.keyword === 'required' ? `supply required argument \`${key}\`` : `remove unknown argument \`${key}\``;
-    }
-  }
-  return `change \`${path || 'arguments'}\`: ${error.error}`;
 }
 
 /**
