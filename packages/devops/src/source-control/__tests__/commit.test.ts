@@ -192,3 +192,11 @@ test('preview reports an export failure with the first failed route', async () =
   f.report.routes.failed.push({ path: '/broken', kind: 'page', reason: 'expected 200, got 500' }, { path: '/b2', kind: 'page', reason: 'x' });
   assert.deepEqual(await previewCommitExport(f.args), { ok: false, code: 'EXPORT_FAILED', message: "refused to commit: 2 route(s) failed to export (first: '/broken' — expected 200, got 500)" });
 });
+
+test('a describeError that throws while reporting an export fault propagates and still cleans up', async () => {
+  const f = fixture();
+  f.args.files.export = async () => { throw new Error('export'); };
+  f.args.describeError = () => { throw new Error('describer crashed'); };
+  await assert.rejects(commitSiteToSourceControl(f.args), /describer crashed/);
+  assert.deepEqual(f.events, ['credential', 'cleanup:/artifacts/run-1']);
+});

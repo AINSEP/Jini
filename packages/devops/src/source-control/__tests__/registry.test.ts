@@ -250,3 +250,54 @@ test('the provider list and refusals are frozen snapshots', async () => {
   expect(Object.isFrozen(registry.refusals)).toBe(true);
   expect(registry.list({})[0]).toMatchObject({ pluginId: 'a', descriptor: { id: 'example' } });
 });
+
+test('a catalog item with an unknown state is imported like a trusted one (reported, not fixed)', async () => {
+  const imported: string[] = [];
+  // Malformed-input fixture: the catalog port's type only allows refused/inactive/trusted.
+  const odd = { pluginId: 'odd', state: 'active', descriptorText: text(), importModule: async ({ relativePath }: { relativePath: string }) => { imported.push(relativePath); return { create: () => operations }; } } as unknown as CatalogPackage;
+  const registry = await load([odd]);
+  expect(imported).toEqual(['source/provider.mjs']);
+  expect(registry.list({}).map(p => p.pluginId)).toEqual(['odd']);
+});
+
+const unusedKit = () => createSourceControlProviderKit({ httpClient: { send: async () => { throw new Error('unused'); } }, fetch: async () => { throw new Error('unused'); }, describeTransportError: () => ({ refusal: undefined, logDetail: 'safe' }) });
+
+test('a built provider carries declared facts and the module validateTarget, and omits absent optionals', async () => {
+  const validateTarget = () => 'nope';
+  const registry = await load([
+    trusted('a', [{ id: 'bare', label: 'Bare', apiOrigin: 'https://bare.test', module: 'b.mjs' }], async () => ({ create: () => ({ ...operations, id: 'hijack' }) })),
+    trusted('b', [{ ...descriptor, maxFileBytes: 9 }], async () => ({ create: () => operations, validateTarget })),
+  ]);
+  const built = await buildSourceControlProviders({ workspaceId: 'w', kit: unusedKit(), load: async () => registry, noProviderMessage: () => 'none' });
+  const [bare, full] = built.providers;
+  expect(bare!.id).toBe('bare');
+  expect('maxFileBytes' in bare! || 'reservedPaths' in bare! || 'workflowPaths' in bare! || 'validateTarget' in bare!).toBe(false);
+  expect(full).toMatchObject({ id: 'example', maxFileBytes: 9, reservedPaths: ['.ci'], workflowPaths: ['.ci/jobs'] });
+  expect(full!.validateTarget).toBe(validateTarget);
+});
+
+test('building a provider that is not loaded returns the host message and the registry refusals', async () => {
+  const registry = await load([{ pluginId: 'r', state: 'refused', reason: 'digest mismatch' }]);
+  const seen: unknown[] = [];
+  const built = await buildSourceControlProvider({ workspaceId: 'w', providerId: 'missing', kit: unusedKit(), load: async () => registry, noProviderMessage: ({ providerId }) => { seen.push(providerId); return 'no provider ' + providerId; } });
+  expect(built).toEqual({ ok: false, message: 'no provider missing', refusals: ['r: digest mismatch'] });
+  expect(seen).toEqual(['missing']);
+});
+
+test('API selection failure carries the registry refusals', async () => {
+  const registry = await load([{ pluginId: 'r', state: 'refused', reason: 'digest mismatch' }]);
+  const built = await buildSourceControlProviderForApi({ workspaceId: 'w', kit: unusedKit(), load: async () => registry, noProviderMessage: () => 'none enabled', baseUrl: 'https://x.test' });
+  expect(built).toEqual({ ok: false, message: 'none enabled', refusals: ['r: digest mismatch'] });
+});
+
+test('ambiguous API selection uses the default message, falling back to the raw URL when it is malformed', () => {
+  const providers = [{ apiOrigin: 'https://a.test' }, { apiOrigin: 'https://b.test' }];
+  expect(pickSourceControlProviderForApi({ providers, baseUrl: 'https://c.test/api', noProviderMessage: 'none' })).toEqual({ ok: false, message: 'No enabled provider supplies source control for https://c.test.' });
+  expect(pickSourceControlProviderForApi({ providers, baseUrl: 'not a url', noProviderMessage: 'none' })).toEqual({ ok: false, message: 'No enabled provider supplies source control for not a url.' });
+  expect(pickSourceControlProviderForApi({ providers, baseUrl: 'not a url', noProviderMessage: 'none' }, { missingProviderMessage: ({ origin, baseUrl }) => `custom ${String(origin)} ${baseUrl}` })).toEqual({ ok: false, message: 'custom undefined not a url' });
+});
+
+test('without declared paths nothing is reserved and nothing is a workflow', () => {
+  expect(findReservedPath({ folder: '.ci' })).toBe(undefined);
+  expect(isUnderWorkflowPath({ filePath: '.ci/jobs/a.yml' })).toBe(false);
+});
