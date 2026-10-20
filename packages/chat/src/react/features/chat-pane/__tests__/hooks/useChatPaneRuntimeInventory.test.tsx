@@ -427,3 +427,77 @@ it('stops pending retries when a slow response outlives the discovery deadline',
   expect(listAgents).toHaveBeenCalledTimes(5);
   unmount();
 });
+
+it('waits for the host cache refresh deadline when it is later than the pending backoff step', async () => {
+  vi.useFakeTimers();
+  const listAgents = vi.fn<ChatPaneRuntimeAccess['listAgents']>()
+    .mockResolvedValueOnce([{ id: 'codex', name: 'Codex', discoveryPending: true }])
+    .mockResolvedValue([{ id: 'codex', name: 'Codex' }]);
+  const access = runtimeAccess({ listAgents, getAgentsRefreshAt: () => Date.now() + 500 });
+  const { unmount } = renderHook(() => useChatPaneRuntimeInventory({ access, retryDelaysMs: [20] }));
+  await act(async () => {});
+  await act(async () => vi.advanceTimersByTime(499));
+  expect(listAgents).toHaveBeenCalledTimes(1);
+  await act(async () => vi.advanceTimersByTime(1));
+  expect(listAgents).toHaveBeenCalledTimes(2);
+  unmount();
+});
+
+it('schedules no pending retry when the host cache refresh deadline falls past the discovery window', async () => {
+  vi.useFakeTimers();
+  const listAgents = vi.fn(async (): Promise<readonly ChatPaneAgent[]> => [
+    { id: 'codex', name: 'Codex', discoveryPending: true },
+  ]);
+  const access = runtimeAccess({ listAgents, getAgentsRefreshAt: () => Date.now() + 16 * 60_000 });
+  const { unmount } = renderHook(() => useChatPaneRuntimeInventory({ access, retryDelaysMs: [20] }));
+  await act(async () => {});
+  await act(async () => vi.advanceTimersByTime(20 * 60_000));
+  expect(listAgents).toHaveBeenCalledTimes(1);
+  unmount();
+});
+
+it('schedules no pending-discovery retry when retryDelaysMs is empty', async () => {
+  vi.useFakeTimers();
+  const listAgents = vi.fn(async (): Promise<readonly ChatPaneAgent[]> => [
+    { id: 'codex', name: 'Codex', discoveryPending: true },
+  ]);
+  const access = runtimeAccess({ listAgents });
+  const { unmount } = renderHook(() => useChatPaneRuntimeInventory({ access, retryDelaysMs: [] }));
+  await act(async () => {});
+  await act(async () => vi.advanceTimersByTime(20 * 60_000));
+  expect(listAgents).toHaveBeenCalledTimes(1);
+  unmount();
+});
+
+it('retries a failed load after 0ms when retryDelaysMs is empty, so an unreachable host is retried in a tight loop (reported, not fixed)', async () => {
+  vi.useFakeTimers();
+  const listAgents = vi.fn<ChatPaneRuntimeAccess['listAgents']>()
+    .mockRejectedValueOnce(new Error('GET /api/agents answered 500'))
+    .mockResolvedValue([{ id: 'codex', name: 'Codex' }]);
+  const access = runtimeAccess({ listAgents });
+  const { result, unmount } = renderHook(() => useChatPaneRuntimeInventory({ access, retryDelaysMs: [] }));
+  await act(async () => {});
+  expect(result.current.connectingAgents).toBe(true);
+  await act(async () => vi.advanceTimersByTime(0));
+  expect(listAgents).toHaveBeenCalledTimes(2);
+  expect(result.current.agents).toEqual([{ id: 'codex', name: 'Codex' }]);
+  unmount();
+});
+
+it('ignores a window focus while the tab is hidden', async () => {
+  const listAgents = vi.fn<ChatPaneRuntimeAccess['listAgents']>().mockRejectedValue(new Error('GET /api/agents answered 500'));
+  const daemonOnline = vi.fn(async () => true);
+  const access = runtimeAccess({ listAgents, daemonOnline });
+  const { unmount } = renderHook(() => useChatPaneRuntimeInventory({
+    access,
+    retryDelaysMs: [60_000],
+  }));
+  await act(async () => {});
+  setVisibility('hidden', false);
+  await act(async () => {
+    window.dispatchEvent(new Event('focus'));
+  });
+  expect(listAgents).toHaveBeenCalledTimes(1);
+  expect(daemonOnline).toHaveBeenCalledTimes(1);
+  unmount();
+});

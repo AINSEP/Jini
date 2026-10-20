@@ -30,6 +30,31 @@ function openInNewTabDefault(url: string): void {
 }
 
 /**
+ * Whether the click is a plain primary click nobody has handled yet: modified or non-primary
+ * clicks are left to the browser, which already opens those however the user asked.
+ *
+ * @param input.event - The native click.
+ * @returns `true` when the guard may take the click over.
+ */
+function isPlainPrimaryClick({ event }: { event: MouseEvent }): boolean {
+  if (event.defaultPrevented || event.button !== 0) return false;
+  return !(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey);
+}
+
+/**
+ * Whether an anchor is an ordinary in-tab web link the guard should redirect to a new tab — not
+ * one already opening elsewhere, a download, an action styled as a link, or a `#` same-document jump.
+ *
+ * @param input.link - An anchor matched by `a[href]`, so its `href` attribute is present.
+ * @returns `true` when following the link would navigate the chat's own tab to an http(s) page.
+ */
+function isInTabWebLink({ link }: { link: HTMLAnchorElement }): boolean {
+  if (link.target === '_blank' || link.hasAttribute('download') || link.getAttribute('role') === 'button') return false;
+  if (link.getAttribute('href')!.startsWith('#')) return false;
+  return NEW_TAB_PROTOCOLS.has(link.protocol);
+}
+
+/**
  * Decides whether a click inside the pane should open a link in a new tab.
  *
  * @param input.event - The click, native (React's `nativeEvent` or a DOM listener's own).
@@ -38,15 +63,11 @@ function openInNewTabDefault(url: string): void {
  * @complexity O(d) for `closest` over the target's ancestor depth d.
  */
 export function newTabLinkHref({ event, root }: { event: MouseEvent; root: Element }): string | null {
-  if (event.defaultPrevented || event.button !== 0) return null;
-  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
   const target = event.target;
-  if (!(target instanceof Element)) return null;
+  if (!isPlainPrimaryClick({ event }) || !(target instanceof Element)) return null;
   const link = target.closest('a[href]');
   if (!(link instanceof HTMLAnchorElement) || !root.contains(link)) return null;
-  if (link.target === '_blank' || link.hasAttribute('download') || link.getAttribute('role') === 'button') return null;
-  if (link.getAttribute('href')!.startsWith('#')) return null;
-  return NEW_TAB_PROTOCOLS.has(link.protocol) ? link.href : null;
+  return isInTabWebLink({ link }) ? link.href : null;
 }
 
 /**

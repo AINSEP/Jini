@@ -55,7 +55,6 @@ export interface UseChatPaneRuntimeInventoryResult {
  * `pollIntervalMs` forever), and never overlaps a status call still in flight.
  *
  * @complexity Time: O(n) per inventory response; space: O(n) for the snapshot.
- * @overallScore 100/100
  */
 export function useChatPaneRuntimeInventory({
   access,
@@ -260,6 +259,16 @@ function useInventoryRetry(delaysMs: readonly number[]): InventoryRetry {
       pendingStepRef.current = 0;
       pendingDeadlineRef.current = undefined;
     };
+    const schedulePending = (attempt: () => void, nextRefreshAt: number): void => {
+      const now = Date.now();
+      pendingDeadlineRef.current ??= now + PENDING_DISCOVERY_WINDOW_MS;
+      const delay = pendingRetryDelayMs({
+        delaysMs: delaysRef.current, step: pendingStepRef.current, now, deadline: pendingDeadlineRef.current, nextRefreshAt,
+      });
+      if (delay === null) return;
+      pendingStepRef.current += 1;
+      timerRef.current = window.setTimeout(attempt, delay);
+    };
     return {
       hasAnswer: () => answeredRef.current,
       answered: ({ pending }) => {
@@ -268,20 +277,11 @@ function useInventoryRetry(delaysMs: readonly number[]): InventoryRetry {
       },
       schedule: (attempt, { pending = false, nextRefreshAt = 0 } = {}) => {
         cancel();
-        const delays = delaysRef.current;
         if (pending) {
-          const now = Date.now();
-          pendingDeadlineRef.current ??= now + PENDING_DISCOVERY_WINDOW_MS;
-          const lastDelay = delays[delays.length - 1];
-          const step = pendingStepRef.current;
-          if (lastDelay === undefined || step >= PENDING_DISCOVERY_RETRY_LIMIT || now >= pendingDeadlineRef.current) return;
-          const delay = delays[step] ?? lastDelay * 2 ** (step - delays.length + 1);
-          const refreshAt = Math.max(nextRefreshAt, Math.min(now + delay, pendingDeadlineRef.current));
-          if (refreshAt > pendingDeadlineRef.current) return;
-          pendingStepRef.current += 1;
-          timerRef.current = window.setTimeout(attempt, refreshAt - now);
+          schedulePending(attempt, nextRefreshAt);
           return;
         }
+        const delays = delaysRef.current;
         const delay = delays[Math.min(stepRef.current, delays.length - 1)] ?? 0;
         stepRef.current += 1;
         timerRef.current = window.setTimeout(attempt, delay);
@@ -301,4 +301,30 @@ function useInventoryRetry(delaysMs: readonly number[]): InventoryRetry {
     };
   });
   return retry;
+}
+
+/**
+ * The wait before the next pending-discovery retry: the backoff step (doubling the final step once
+ * the list runs out), pushed out to the host cache's next eligible refresh, capped at the window.
+ *
+ * @param input.delaysMs - Failure backoff steps; empty means no pending retries at all.
+ * @param input.step - Pending retries already made in this discovery window.
+ * @param input.now - Current epoch ms.
+ * @param input.deadline - Epoch ms the finite discovery window closes.
+ * @param input.nextRefreshAt - Earliest epoch ms the host cache can refresh.
+ * @returns Milliseconds to wait, or `null` when the retry budget or window is spent.
+ * @complexity O(1).
+ */
+function pendingRetryDelayMs({ delaysMs, step, now, deadline, nextRefreshAt }: {
+  delaysMs: readonly number[];
+  step: number;
+  now: number;
+  deadline: number;
+  nextRefreshAt: number;
+}): number | null {
+  const lastDelay = delaysMs[delaysMs.length - 1];
+  if (lastDelay === undefined || step >= PENDING_DISCOVERY_RETRY_LIMIT || now >= deadline) return null;
+  const delay = delaysMs[step] ?? lastDelay * 2 ** (step - delaysMs.length + 1);
+  const refreshAt = Math.max(nextRefreshAt, Math.min(now + delay, deadline));
+  return refreshAt > deadline ? null : refreshAt - now;
 }
