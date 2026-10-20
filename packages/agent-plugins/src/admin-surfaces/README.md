@@ -1,0 +1,150 @@
+# Admin surfaces (`@jini-ai/agent-plugins/admin-surfaces`)
+
+A plugin can ship its own small admin UI (a settings screen, a resource picker, a mapping editor)
+without getting any access to the host's pages, cookies or server. The host renders the plugin's
+static files in a sandboxed iframe, and the plugin asks the host to do things through a small
+`postMessage` protocol. The host decides what runs: only actions the plugin declared, only with
+input that matches the declared schema, and only through handlers the host itself provides.
+
+## How it fits
+
+```
+plugin package (bundled, trusted)          host page (admin)                    host server
+  <host-named surfaces file>.json  ──load──▶ loadPluginContributions ─────────▶ (registry of surfaces)
+  surface/index.html, app.mjs      ◀─serve── readAdminSurfaceFile + headers
+                                             <iframe sandbox="allow-scripts">
+  surface client ── action-request ────────▶ validateAdminSurfaceMessage ──POST──▶ dispatcher.dispatch
+                 ◀─ action-response ──────── adminSurfaceActionResponse ◀──────── host handler
+```
+
+- Loading reuses the plugin contribution loader (`../lifecycle/contribution-loader.ts`) and its trust
+  gate (`../lifecycle/trusted-plugin-files.ts`): the plugin must be active and be the build's own
+  shipped digest. Surfaces are a **data** contribution: nothing is imported into the server process.
+- File reads reuse the lifecycle's `readTrustedPluginFile`, which resolves symlinks and refuses any
+  path outside the package root.
+- The host owns routes, authentication and the action handlers. Jini owns the values that form the
+  security boundary, so every host applies the same ones.
+
+## Contribution file
+
+The **host** chooses the filename (for example `<product>-admin-surfaces.json`) and passes it to
+`defineAdminSurfaceContribution({ filename })`. Jini never hardcodes a product prefix.
+
+```json
+{
+  "schemaVersion": 1,
+  "surfaces": [
+    {
+      "id": "connection-settings",
+      "title": "Connection settings",
+      "entry": "surface/index.html",
+      "files": ["surface/app.mjs", "surface/app.css"],
+      "actions": [
+        {
+          "name": "save-selection",
+          "input":  { "type": "object", "properties": { "resourceId": { "type": "string", "maxLength": 128 } }, "required": ["resourceId"] },
+          "result": { "type": "object", "properties": { "saved": { "type": "boolean" } }, "required": ["saved"] }
+        }
+      ],
+      "csp": { "connect-src": ["https://api.example.com"], "script-src": ["https://cdn.example.com"] }
+    }
+  ]
+}
+```
+
+Rules (any violation refuses the whole file, reported in the loader's `refusals`):
+
+| field | rule |
+|---|---|
+| `id`, action `name` | lowercase hyphenated, at most 64 characters, unique in the file / surface |
+| `entry` | plain relative path ending in `.html`; no `..`, `.`, leading `/`, `\`, `%`, empty or dot-leading segments |
+| `files` | same path rule, ending in `.mjs`, `.js`, `.css` or `.json`; only `entry` and `files` are ever served |
+| `input`, `result` | the closed schema subset below |
+| `csp` | keys only `script-src`, `style-src`, `img-src`, `font-src`, `connect-src`, `frame-src`; values only bare `https://host[:port]` origins with a DNS name (no wildcard, path, IP, keyword, `data:`/`blob:`) |
+
+Action schemas are a small closed subset of JSON Schema: every node declares `type` (`object`,
+`array`, `string`, `number`, `integer`, `boolean`, `null`); objects use `properties`, `required` and
+optionally `additionalProperties: false` (objects are always closed); arrays use `items` and
+`maxItems` (default cap 1000); strings use `minLength`, `maxLength`, `enum`; numbers use `minimum`,
+`maximum`; `title`/`description` are allowed annotations. Any other keyword refuses the file, so a
+plugin can never rely on a constraint that would silently not be enforced. Violation messages name
+a path (`$.rows[2]`), never the value.
+
+## Rendering and serving
+
+- `adminSurfaceFrameAttributes({ src, title })` → `{ src, title, sandbox: 'allow-scripts', referrerPolicy: 'no-referrer' }`.
+  Never add `allow-same-origin`: with `allow-scripts` it lets the frame remove its own sandbox.
+- `readAdminSurfaceFile({ surface, path, readFile })` → `{ ok: true, body, headers }` or `{ ok: false, reason: 'not-declared' }`.
+  `headers` come from `adminSurfaceFileHeaders`: the CSP below, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: no-referrer`, `Cache-Control: no-cache`, and for `.mjs`/`.js` files
+  `Access-Control-Allow-Origin: *` (a module script requested by an opaque-origin document is a CORS
+  fetch). Surface files are static code fetched without credentials: never put secrets in them; the
+  host route that serves them must not depend on a session cookie for script files.
+- `adminSurfaceContentSecurityPolicy({ descriptor })`:
+  `default-src 'none'; script-src 'self' …; style-src 'self' …; img-src 'self' …; font-src 'self' …; connect-src 'none'|…; frame-src 'none'|…; form-action 'none'; base-uri 'none'; frame-ancestors 'self'; sandbox allow-scripts`.
+  No inline script or style, no `unsafe-*`, and no network access unless declared.
+
+## Message protocol
+
+Every message carries `protocol: 'jini.admin-surface'` and `version: 1`.
+
+| kind | direction | fields |
+|---|---|---|
+| `init` | host page → frame, once per mount after the frame loads | `mountId`, optional `bootstrap` |
+| `action-request` | frame → host page | `mountId`, `requestId` (`[A-Za-z0-9_-]{1,64}`), `action`, `payload` |
+| `action-response` | host page → frame | `mountId`, `requestId`, then `ok: true, result` or `ok: false, error: { code, message, retryable }` |
+
+1. `createAdminSurfaceMount({ surfaceId })` → `{ mountId }` (128-bit random nonce) and `expectedOrigin: 'null'`.
+2. The host page renders the iframe and, on its first `load`, posts `adminSurfaceInitMessage({ mountId }, { bootstrap })`
+   to `frame.contentWindow` with target `'*'` (an opaque origin cannot be targeted by name). If the
+   frame fires `load` again it navigated: unmount it and do not re-send init.
+3. The surface client accepts the first init whose `source` is its parent, remembers the host's
+   origin from it, and from then on posts only to that origin.
+4. The host page passes every `message` event to `validateAdminSurfaceMessage({ event, mount })`
+   (mount = `{ mountId, frame: iframe.contentWindow, descriptor }`). Verdicts:
+   `ignored` (wrong origin, wrong window, not a request, wrong nonce: drop silently),
+   `refused` (undeclared action, payload too large or outside the schema: post the given `response` back),
+   or `ok` with the request.
+5. The host page forwards `{ action, payload }` to its own authenticated server route, which calls
+   `createAdminSurfaceActionDispatcher({ descriptor, handlers }).dispatch({ action, payload, context })`.
+   The dispatcher re-checks the action and schema (the route can be called directly), runs the
+   host handler, checks a declared `result` schema, and turns any throw into a surface-safe failure
+   (`AdminSurfaceActionError` keeps its code and message; anything else becomes `action-failed`
+   with a generic message, and the raw error goes to `onHandlerError` for the server log).
+6. The host page posts `adminSurfaceActionResponse({ request, outcome })` back to the frame.
+
+Dispatcher error codes: `action-undeclared`, `action-unavailable` (no host handler),
+`invalid-payload`, `invalid-result`, `action-failed`, or a handler's own `AdminSurfaceActionError` code.
+The surface client adds `timeout` and `closed`.
+
+### Bootstrap data
+
+Data a surface needs to start (for example a short-lived, narrowly scoped access token plus public
+config) is issued by a host server route with `createAdminSurfaceBootstrap({ surfaceId, data, nowMs }, { ttlMs })`
+(default 60 s, at most 5 minutes) and served with `adminSurfaceBootstrapHeaders()`
+(`Cache-Control: no-store`, `Pragma: no-cache`, `nosniff`). The host page passes it inside `init`;
+the client's `bootstrap()` returns `data` only until `expiresAt`. Never put a refresh token or any
+long-lived secret in bootstrap data.
+
+## Surface side
+
+```js
+import { createAdminSurfaceClient } from '@jini-ai/agent-plugins/admin-surfaces/client';
+// or copy dist/admin-surfaces/surface-client.js next to the entry: it has no imports.
+const client = createAdminSurfaceClient({
+  parent: window.parent,
+  listen: (handler) => { addEventListener('message', handler); return () => removeEventListener('message', handler); },
+});
+await client.ready;
+const config = client.bootstrap();
+const result = await client.call({ action: 'save-selection', payload: { resourceId } });
+```
+
+`call` rejects with `AdminSurfaceCallError` (`code`, `message`, `retryable`).
+
+## Extension points
+
+- A second provider plugin adds a surface by shipping the host's surfaces file and static files;
+  no Jini change is needed.
+- A host adds an action by implementing a handler for a name a plugin declared; undeclared names
+  never run, even with a handler.
