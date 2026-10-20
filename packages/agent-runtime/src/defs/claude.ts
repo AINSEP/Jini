@@ -6,12 +6,12 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * buildArgs then grants --add-dir access so the CLI can read them itself. Native-delivery defs
  * must not also receive this augmentation; see RuntimeAgentDef.imageDelivery for that contract.
  */
-import { agentCapabilities } from '../capabilities.js';
+import { addDirArgs, nonDefaultFlag, permissionModeArgs, resolveCapabilities, sessionArgs } from './claude-compatible-args.js';
 import { buildClaudeMcpConfigArgs, DEFAULT_MODEL_OPTION } from './shared.js';
 import { loadMmdRouteModels } from '../mmd-routes.js';
 import { loadAnthropicLiveModels, mergeLiveModels } from '../anthropic-live-models.js';
 import { loadClaudeCodeModels } from '../claude-code-models.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeCapabilityMap } from '../types.js';
 
 /**
  * The levels `claude --effort` accepts, as the CLI itself reports them when
@@ -73,6 +73,46 @@ const CLAUDE_FALLBACK_MODELS = [
   { id: 'claude-opus-4-5', label: 'claude-opus-4-5' },
   { id: 'claude-sonnet-4-5', label: 'claude-sonnet-4-5' },
 ];
+
+// `--effort` is newer than `--model`, so it gets the same probe gate as
+// `--include-partial-messages`: an older build rejects an unknown option
+// with exit 1, which kills the chat rather than degrading it.
+function claudeEffortArgs({ options, caps }: { options: RuntimeBuildOptions; caps: RuntimeCapabilityMap }): string[] {
+  const reasoning = options.reasoning;
+  return caps.effort && typeof reasoning === 'string' && CLAUDE_EFFORT_LEVELS.has(reasoning) ? ['--effort', reasoning] : [];
+}
+
+// Finding 2 (SEC-assistant-env-isolation-2026-09-07): `RuntimeBuildOptions.disallowedTools`/
+// `allowedTools` are a `@jini-ai/agent-runtime`-level *mechanism* only — no product policy is
+// baked in here (see `types.ts`'s own doc on those fields). Verified against installed Claude
+// Code 2.1.263's own `-p --help`: `--disallowedTools, --disallowed-tools <tools...>` /
+// `--allowedTools, --allowed-tools <tools...>`. Placed last, after every other flag, so an
+// omitted (default) value is a true no-op — every existing call site that never passes these
+// options sees byte-identical argv to before this change.
+function claudeToolPolicyArgs(options: RuntimeBuildOptions): string[] {
+  const deniedTools = resolveNativeCapabilityDenies({
+    ...(options.nativeCapabilities !== undefined ? { capabilities: options.nativeCapabilities } : {}),
+    denied: resolveNativeToolDenies({ enabled: options.nativeToolAccess,
+      ...(options.disallowedTools !== undefined ? { denied: options.disallowedTools } : {}) }, {}) }, {});
+  const allowedTools = options.allowedTools ?? [];
+  return [
+    ...(deniedTools.length > 0 ? ['--disallowedTools', ...deniedTools] : []),
+    ...(allowedTools.length > 0 ? ['--allowedTools', ...allowedTools] : []),
+  ];
+}
+
+// See `RuntimeBuildOptions.settingSources`. Probe-gated like `--effort`: an older build
+// rejects an unknown option with exit 1, which would kill the chat rather than degrade it.
+function claudeSettingSourcesArgs({ options, caps }: { options: RuntimeBuildOptions; caps: RuntimeCapabilityMap }): string[] {
+  if (options.nativeCapabilities?.userSettings === false) {
+    // This is an explicit restriction, not an optional enhancement: do not probe it away.
+    return ['--setting-sources', '', '--disable-slash-commands'];
+  }
+  if (options.settingSources !== undefined && caps.settingSources) {
+    return ['--setting-sources', options.settingSources.join(',')];
+  }
+  return [];
+}
 
 export const claudeAgentDef = {
   ...createAgentModelDiscovery('claude', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => claudeAgentDef.fallbackModels }),
@@ -160,99 +200,45 @@ export const claudeAgentDef = {
     // prompt reads the prompt from stdin under `--input-format text` (the
     // default), which has no length cap. Mirrors the codex/opencode/
     // cursor/qwen entries below.
-    buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}) => {
-      const caps = (options.capabilities ?? agentCapabilities.get('claude')) || {};
-      // `--input-format stream-json` lets the daemon stream multiple JSONL
-      // messages into stdin instead of closing it after the initial prompt,
-      // keeping the turn open so the daemon can stream further user messages
-      // mid-conversation. Paired with `--output-format stream-json` so the
-      // adapter parses structured events (see claude-stream.ts).
-      const args = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose'];
-      // `--include-partial-messages` lands richer streaming events but only
-      // exists in newer Claude Code builds. Older installs reject it with
-      // "unknown option" and exit 1, killing the chat. Gate on the probe.
-      if (caps.partialMessages) {
-        args.push('--include-partial-messages');
-      }
-      if (options.model && options.model !== 'default') {
-        args.push('--model', options.model);
-      }
-      // `--effort` is newer than `--model`, so it gets the same probe gate as
-      // `--include-partial-messages`: an older build rejects an unknown option
-      // with exit 1, which kills the chat rather than degrading it.
-      if (
-        caps.effort
-        && typeof options.reasoning === 'string'
-        && CLAUDE_EFFORT_LEVELS.has(options.reasoning)
-      ) {
-        args.push('--effort', options.reasoning);
-      }
-      const dirs = (extraAllowedDirs || []).filter(
-        (d) => typeof d === 'string' && d.length > 0,
-      );
-      // `--add-dir` is older but still gate it for symmetry — old/forked
-      // builds may lack it.
-      if (dirs.length > 0 && caps.addDir !== false) {
-        args.push('--add-dir', ...dirs);
-      }
-      // `--append-system-prompt` delivery now lives outside this function — see
-      // `systemPromptDelivery` below and `@jini-ai/daemon`'s `resolveSystemPromptOverlayDelivery`
-      // (the single dispatch point for every def, not just this one). The probe-gate reasoning
-      // (an older build rejects an unknown option with exit 1, which kills the chat rather than
-      // degrading it) is preserved there via `capabilityKey: 'appendSystemPrompt'`, read from the
-      // same `capabilityFlags` probe above — moving the *call site* changed nothing about the gate
-      // itself.
-      // Continue Claude's own CLI session across turns so it keeps its
-      // working memory (files read, edits made, tool history) instead of
-      // re-deriving everything from the rendered transcript each turn.
-      // `--resume <id>` continues a stored session; `--session-id <uuid>`
-      // starts a new one with an id the daemon controls and persists.
-      if (typeof runtimeContext.resumeSessionId === 'string' && runtimeContext.resumeSessionId) {
-        args.push('--resume', runtimeContext.resumeSessionId);
-      } else if (typeof runtimeContext.newSessionId === 'string' && runtimeContext.newSessionId) {
-        args.push('--session-id', runtimeContext.newSessionId);
-      }
-      // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
-      // behavior) unless a caller explicitly opts into a restricted run.
-      if (options.permissionMode !== 'restricted') {
-        args.push('--permission-mode', 'bypassPermissions');
-      }
-      // Explicit `--strict-mcp-config --mcp-config <path>` instead of relying on Claude Code's
-      // auto-discovery of `.mcp.json` from cwd. Shared with every other `'claude-mcp-json'` def —
-      // see `buildClaudeMcpConfigArgs`'s own doc for why explicit, why strict, and why this is one
-      // implementation rather than a copy per def. A no-op (`[]`) whenever the caller staged no
-      // file, so a host that never configured MCP injection sees no argv change.
-      args.push(...buildClaudeMcpConfigArgs(runtimeContext, options));
-      // Finding 2 (SEC-assistant-env-isolation-2026-09-07): `RuntimeBuildOptions.disallowedTools`/
-      // `allowedTools` are a `@jini-ai/agent-runtime`-level *mechanism* only — no product policy is
-      // baked in here (see `types.ts`'s own doc on those fields). Verified against installed Claude
-      // Code 2.1.263's own `-p --help`: `--disallowedTools, --disallowed-tools <tools...>` /
-      // `--allowedTools, --allowed-tools <tools...>`. Placed last, after every other flag, so an
-      // omitted (default) value is a true no-op — every existing call site that never passes these
-      // options sees byte-identical argv to before this change.
-      const deniedTools = resolveNativeCapabilityDenies({
-        ...(options.nativeCapabilities !== undefined ? { capabilities: options.nativeCapabilities } : {}),
-        denied: resolveNativeToolDenies({ enabled: options.nativeToolAccess,
-          ...(options.disallowedTools !== undefined ? { denied: options.disallowedTools } : {}) }, {}) }, {});
-      if (deniedTools.length > 0) {
-        args.push('--disallowedTools', ...deniedTools);
-      }
-      if (options.allowedTools && options.allowedTools.length > 0) {
-        args.push('--allowedTools', ...options.allowedTools);
-      }
-      // See `RuntimeBuildOptions.settingSources`. Probe-gated like `--effort`: an older build
-      // rejects an unknown option with exit 1, which would kill the chat rather than degrade it.
-      if (options.nativeCapabilities?.userSettings === false) {
-        // This is an explicit restriction, not an optional enhancement: do not probe it away.
-        args.push('--setting-sources', '', '--disable-slash-commands');
-      } else if (options.settingSources !== undefined && caps.settingSources) {
-        args.push('--setting-sources', options.settingSources.join(','));
-      }
-      // See `RuntimeBuildOptions.settings`. Not probe-gated: `--settings` long predates `--setting-sources`.
-      if (options.settings) {
-        args.push('--settings', options.settings);
-      }
-      return args;
+    buildArgs: (_requiredArgs, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}) => {
+      const caps = resolveCapabilities({ agentId: 'claude', options });
+      return [
+        // `--input-format stream-json` lets the daemon stream multiple JSONL
+        // messages into stdin instead of closing it after the initial prompt,
+        // keeping the turn open so the daemon can stream further user messages
+        // mid-conversation. Paired with `--output-format stream-json` so the
+        // adapter parses structured events (see claude-stream.ts).
+        '-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose',
+        // `--include-partial-messages` lands richer streaming events but only
+        // exists in newer Claude Code builds. Older installs reject it with
+        // "unknown option" and exit 1, killing the chat. Gate on the probe.
+        ...(caps.partialMessages ? ['--include-partial-messages'] : []),
+        ...nonDefaultFlag({ flag: '--model', value: options.model }),
+        ...claudeEffortArgs({ options, caps }),
+        // `--add-dir` is older but still gate it for symmetry — old/forked
+        // builds may lack it.
+        ...addDirArgs({ extraAllowedDirs, caps }),
+        // `--append-system-prompt` delivery now lives outside this function — see
+        // `systemPromptDelivery` below and `@jini-ai/daemon`'s `resolveSystemPromptOverlayDelivery`
+        // (the single dispatch point for every def, not just this one). The probe-gate reasoning
+        // (an older build rejects an unknown option with exit 1, which kills the chat rather than
+        // degrading it) is preserved there via `capabilityKey: 'appendSystemPrompt'`, read from the
+        // same `capabilityFlags` probe above — moving the *call site* changed nothing about the gate
+        // itself.
+        // Continue Claude's own CLI session across turns (see `sessionArgs`).
+        ...sessionArgs(runtimeContext),
+        ...permissionModeArgs(options),
+        // Explicit `--strict-mcp-config --mcp-config <path>` instead of relying on Claude Code's
+        // auto-discovery of `.mcp.json` from cwd. Shared with every other `'claude-mcp-json'` def —
+        // see `buildClaudeMcpConfigArgs`'s own doc for why explicit, why strict, and why this is one
+        // implementation rather than a copy per def. A no-op (`[]`) whenever the caller staged no
+        // file, so a host that never configured MCP injection sees no argv change.
+        ...buildClaudeMcpConfigArgs(runtimeContext, options),
+        ...claudeToolPolicyArgs(options),
+        ...claudeSettingSourcesArgs({ options, caps }),
+        // See `RuntimeBuildOptions.settings`. Not probe-gated: `--settings` long predates `--setting-sources`.
+        ...(options.settings ? ['--settings', options.settings] : []),
+      ];
     },
     promptViaStdin: true,
     promptInputFormat: 'stream-json',
