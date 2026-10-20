@@ -77,22 +77,21 @@ const DEFAULT_APP: BridgeScriptSpec = { appName: 'jini-mcp-ui-form', appVersion:
 /** The form element's id, fixed so the emitted script can find it without a fragile selector. */
 const FORM_ELEMENT_ID = 'mcpui-form';
 
-/**
- * Renders the form dialog as a complete, self-contained HTML document.
- *
- * @param spec - See {@link FormSurfaceSpec}.
- * @returns The full HTML string.
- * @complexity O(n) in the number of fields plus the rendered length.
- */
-export function renderFormDocument(spec: FormSurfaceSpec): string {
-  // A base param with a secret field's name would leak the same value through the emitted script,
-  // even though the collected value overrides it at submit time. Reject that hidden prefill too.
+type FormText = SurfaceStatusText & SecretInputText;
+
+/** A base param with a secret field's name would leak the same value through the emitted script,
+ * even though the collected value overrides it at submit time. Reject that hidden prefill too.
+ * @complexity O(n) in the field count. @throws Error with fixed text, never the field name or value. */
+function assertNoSecretBaseParam(spec: FormSurfaceSpec): void {
   for (const field of spec.fields) {
     if (field.kind === 'string' && field.secret === true && spec.baseParams?.[field.name] !== undefined) {
       throw new Error('Secret fields cannot have a pre-filled value. Omit value.');
     }
   }
-  const text = { ...DEFAULT_SURFACE_STATUS_TEXT, ...DEFAULT_SECRET_INPUT_TEXT, ...spec.text };
+}
+
+/** Submit, any alternative submits, then cancel. @complexity O(a) in the action count. */
+function formActions(spec: FormSurfaceSpec): SurfaceAction[] {
   // Not `type: 'submit'` — see the runtime script below for why a submit-typed button inside this
   // particular `<form>` cannot work at all in production.
   const actions: SurfaceAction[] = [
@@ -100,28 +99,38 @@ export function renderFormDocument(spec: FormSurfaceSpec): string {
   ];
   for (const action of spec.additionalSubmitActions ?? []) actions.push({ id: `submit:${action.id}`, label: action.label, variant: 'neutral' });
   if (spec.cancel !== undefined) actions.push({ id: 'cancel', label: spec.cancel.label, variant: 'neutral' });
+  return actions;
+}
 
+/** Header, context, the `<form>` itself and the status region. @complexity O(n) in the rendered length. */
+function formBodyHtml(spec: FormSurfaceSpec, text: FormText): string {
   const controls = spec.fields
     .map((field) => renderFieldControl(field, { showSecret: text.showSecret, hideSecret: text.hideSecret }))
     .join('\n');
   const warning = spec.warning === undefined ? '' : `<p class="mcpui-warning">${escapeHtml(spec.warning)}</p>`;
-  const bodyHtml = [
+  return [
     renderSurfaceHeader(
       spec.description === undefined ? { title: spec.title } : { title: spec.title, description: spec.description },
     ),
     renderDetailList(spec.details ?? []),
-    `<form id="${FORM_ELEMENT_ID}" novalidate>\n<fieldset class="mcpui-fields">\n${controls}\n</fieldset>\n${warning}\n${renderActions(actions)}\n</form>`,
+    `<form id="${FORM_ELEMENT_ID}" novalidate>\n<fieldset class="mcpui-fields">\n${controls}\n</fieldset>\n${warning}\n${renderActions(formActions(spec))}\n</form>`,
     renderStatusRegion(),
   ]
     .filter((fragment) => fragment !== '')
     .join('\n');
+}
 
-  const cancelPlan =
-    spec.cancel?.toolName === undefined
-      ? null
-      : { toolName: spec.cancel.toolName, params: spec.cancel.params ?? {} };
+/** The cancel tool call, or null for a cancel that only tears the surface down. @complexity O(1). */
+function cancelPlanOf(spec: FormSurfaceSpec): { toolName: string; params: Readonly<Record<string, unknown>> } | null {
+  return spec.cancel?.toolName === undefined
+    ? null
+    : { toolName: spec.cancel.toolName, params: spec.cancel.params ?? {} };
+}
 
-  const script = `(function () {
+/** The inline runtime script that reads, validates and submits the fields. @complexity O(n) in the field count plus the script length. */
+function formScript(spec: FormSurfaceSpec, text: FormText): string {
+  const cancelPlan = cancelPlanOf(spec);
+  return `(function () {
   "use strict";
 ${SURFACE_SCRIPT_PRELUDE}
   var FIELDS = ${escapeJsValue(toFieldReadSpecs(spec.fields))};
@@ -310,11 +319,22 @@ ${SURFACE_SCRIPT_PRELUDE}
     });
   }
 }());`;
+}
 
+/**
+ * Renders the form dialog as a complete, self-contained HTML document.
+ *
+ * @param spec - See {@link FormSurfaceSpec}.
+ * @returns The full HTML string.
+ * @complexity O(n) in the number of fields plus the rendered length.
+ */
+export function renderFormDocument(spec: FormSurfaceSpec): string {
+  assertNoSecretBaseParam(spec);
+  const text = { ...DEFAULT_SURFACE_STATUS_TEXT, ...DEFAULT_SECRET_INPUT_TEXT, ...spec.text };
   return renderSurfaceDocument({
     title: spec.title,
-    bodyHtml,
-    script,
+    bodyHtml: formBodyHtml(spec, text),
+    script: formScript(spec, text),
     app: spec.app ?? DEFAULT_APP,
     ...(spec.lang === undefined ? {} : { lang: spec.lang }),
     ...(spec.tokens === undefined ? {} : { tokens: spec.tokens }),

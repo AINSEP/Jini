@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import { buildFormSurface, renderFormDocument, type FormSurfaceSpec } from '../../surfaces/form.js';
 import { MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
 import { SURFACE_NOT_PENDING_ERROR_CODE } from '../../surfaces/document.js';
@@ -523,4 +524,33 @@ it('an alternative submit action collects checked fields and carries its own act
   expect(surface.calls[0]?.params).toEqual({ pluginAction: 'auto', selections: ['theme'] });
   surface.asUser(() => button.dispatchEvent(new Event('click', { bubbles: true })));
   expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+});
+
+// Exact-output pins: sha256 of whole documents/resources captured on the pre-refactor code, so a
+// refactor that moves one byte of markup, inline script or routing params fails here.
+describe('renderFormDocument exact output', () => {
+  const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  const cases: ReadonlyArray<readonly [string, FormSurfaceSpec, string]> = [
+    ['shared spec with an untargeted cancel', SPEC, 'd6f2939607184095c29d108707668f110c5d2686a621cf046a8b355fdba5a526'],
+    ['minimal spec with no cancel', { title: 'T', fields: [], submitLabel: 'Go', toolName: 'tool' }, 'cea276136613ddba217e7939a0ca06a0300e71e1a957533bc88334c517ffe896'],
+    ['every option, with a tool-routed cancel', {
+      ...SPEC, warning: 'Careful <now>', danger: true,
+      fields: [...SPEC.fields, { kind: 'string', name: 'key', label: 'Key', secret: true, multiline: true }],
+      additionalSubmitActions: [{ id: 'later', label: 'Later', params: { when: 'later' } }],
+      cancel: { label: 'Stop', toolName: 'cancel_tool', params: { reason: 'x' } },
+      text: { working: 'W', showSecret: 'Reveal' }, app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#000' },
+    }, 'acce221dc13f25223cd0265757a06248d4b76959cc8149e99ffac77426e81c67'],
+    ['a cancel tool with no params', { ...SPEC, cancel: { label: 'Stop', toolName: 'cancel_tool' } }, '5e7c602a0aa4ce472882c871635b2c71218ae270afc1e9eae88e692d5406d06f'],
+  ];
+  it.each(cases)('%s', (_name, spec, expected) => {
+    expect(digest(renderFormDocument(spec))).toBe(expected);
+  });
+
+  it('pins the framed resource wrapper', () => {
+    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/1', preferredFrameSize: ['1px', '2px'] }))).toBe('18950938d511a8abcbc46484b0a3015cbc4f49f65a2876200f931bf36c41cf48');
+  });
+
+  it('pins the unframed resource wrapper', () => {
+    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/2' }))).toBe('97959b00169765ee131c704cb33ffafddec9337c2dba5ef8af2a339fea997f01');
+  });
 });
