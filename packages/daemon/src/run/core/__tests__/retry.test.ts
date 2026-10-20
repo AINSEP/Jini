@@ -123,6 +123,13 @@ describe('decideSafeRunRetry — suppression paths', () => {
     const decision = decideSafeRunRetry({ result: 'failed', attemptCount: 0 }, { failure: transient(), sideEffects: { [flag]: true } });
     expect(decision).toMatchObject({ shouldRetry: false, retrySuppressedReason: reason });
   });
+
+  it('suppresses on a non-boolean truthy side-effect flag (malformed input)', () => {
+    const sideEffects = { toolCallSeen: 1 } as unknown as RunRetrySideEffectState; // malformed-on-purpose: untyped JSON state
+    const decision = decideSafeRunRetry({ result: 'failed', attemptCount: 0 }, { failure: transient(), sideEffects });
+    expect(decision.shouldRetry).toBe(false);
+    expect(decision.retrySuppressedReason).toBe('tool_call_seen');
+  });
 });
 
 describe('decideSafeRunRetry — transient category/detail/stage matrix', () => {

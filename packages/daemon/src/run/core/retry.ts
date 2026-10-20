@@ -246,7 +246,7 @@ const SIDE_EFFECT_SUPPRESSIONS: ReadonlyArray<
 ];
 
 function sideEffectSuppressedReason(sideEffects: RunRetrySideEffectState): RunRetrySuppressedReason | null {
-  const observed = SIDE_EFFECT_SUPPRESSIONS.find(([flag]) => sideEffects[flag] === true);
+  const observed = SIDE_EFFECT_SUPPRESSIONS.find(([flag]) => Boolean(sideEffects[flag]));
   return observed === undefined ? null : observed[1];
 }
 
