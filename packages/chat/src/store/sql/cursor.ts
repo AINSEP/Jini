@@ -24,29 +24,52 @@ export function encodeCursor({ kind, scope, conversation, anchor }: { kind: Read
   return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 }
 
-/** Validate version, exact structure, scope and read bindings before a query can run. */
-export function decodeCursor({ cursor, kind, scope, conversation }: { cursor: string | undefined; kind: ReadKind; scope: ChatOwnerScope; conversation: string | null }): Anchor | undefined {
-  if (cursor === undefined) return undefined;
-  if (typeof cursor !== 'string' || cursor.length === 0 || cursor.length > 8192 || !/^[A-Za-z0-9_-]+$/.test(cursor)) {
-    throw new ChatStoreError({ code: 'invalid-cursor' });
-  }
-  let value: unknown;
+/** Every structural failure is the same refusal; callers never learn which check rejected it. */
+function invalidCursor(): never {
+  throw new ChatStoreError({ code: 'invalid-cursor' });
+}
+
+/** Shape check before decoding: a non-empty, bounded base64url string. Carries no cause. */
+function assertCursorText({ cursor }: { cursor: string }): void {
+  if (typeof cursor !== 'string' || cursor.length === 0 || cursor.length > 8192 || !/^[A-Za-z0-9_-]+$/.test(cursor)) invalidCursor();
+}
+
+/** base64url -> strict UTF-8 -> JSON; any decode failure is wrapped with its cause attached. */
+function decodeBody({ cursor }: { cursor: string }): unknown {
   try {
     const binary = atob(cursor.replaceAll('-', '+').replaceAll('_', '/'));
     const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
-    value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
   }
   catch (cause) { throw new ChatStoreError({ code: 'invalid-cursor' }, { cause }); }
-  if (!Array.isArray(value) || value.length !== 5 || value[0] !== 1 || value[1] !== kind || value[3] !== conversation) {
-    throw new ChatStoreError({ code: 'invalid-cursor' });
-  }
-  const owner = value[2], anchor = value[4];
-  if (!Array.isArray(owner) || owner.length !== 3 || owner.some((part, i) => part !== ownerTuple(scope)[i])) {
-    throw new ChatStoreError({ code: 'invalid-cursor' });
-  }
+}
+
+/** Version, exact length, read kind and conversation binding. */
+function readEnvelope({ value, kind, conversation }: { value: unknown; kind: ReadKind; conversation: string | null }): unknown[] {
+  if (!Array.isArray(value) || value.length !== 5 || value[0] !== 1 || value[1] !== kind || value[3] !== conversation) invalidCursor();
+  return value;
+}
+
+/** The cursor must carry exactly this scope's owner tuple. */
+function assertOwner({ owner, scope }: { owner: unknown; scope: ChatOwnerScope }): void {
+  const expected = ownerTuple(scope);
+  if (!Array.isArray(owner) || owner.length !== 3 || owner.some((part, i) => part !== expected[i])) invalidCursor();
+}
+
+/** A [finite number, string] pair; message positions must also be non-negative safe integers. */
+function readAnchor({ anchor, kind }: { anchor: unknown; kind: ReadKind }): Anchor {
   if (!Array.isArray(anchor) || anchor.length !== 2 || typeof anchor[0] !== 'number' || !Number.isFinite(anchor[0]) || typeof anchor[1] !== 'string') {
-    throw new ChatStoreError({ code: 'invalid-cursor' });
+    invalidCursor();
   }
-  if (kind === 'messages' && (!Number.isSafeInteger(anchor[0]) || anchor[0] < 0)) throw new ChatStoreError({ code: 'invalid-cursor' });
+  if (kind === 'messages' && (!Number.isSafeInteger(anchor[0]) || anchor[0] < 0)) invalidCursor();
   return [anchor[0], anchor[1]];
+}
+
+/** Validate version, exact structure, scope and read bindings before a query can run. */
+export function decodeCursor({ cursor, kind, scope, conversation }: { cursor: string | undefined; kind: ReadKind; scope: ChatOwnerScope; conversation: string | null }): Anchor | undefined {
+  if (cursor === undefined) return undefined;
+  assertCursorText({ cursor });
+  const envelope = readEnvelope({ value: decodeBody({ cursor }), kind, conversation });
+  assertOwner({ owner: envelope[2], scope });
+  return readAnchor({ anchor: envelope[4], kind });
 }

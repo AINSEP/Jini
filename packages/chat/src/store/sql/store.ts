@@ -50,7 +50,7 @@ interface MessageRow {
   attachments_json: string | null;
   run_id: string | null;
   run_status: string | null;
-  created_at: number | null;
+  created_at: number;
   started_at: number | null;
   ended_at: number | null;
 }
@@ -58,9 +58,10 @@ interface MessageRow {
 function toConversation(row: ConversationRow): ChatConversation {
   return {
     id: row.id,
-    title: row.title ?? null,
-    titleSource: (row.title_source ?? "fallback") as ChatTitleSource,
-    messageCount: Number(row.message_count ?? 0),
+    title: row.title,
+    titleSource: row.title_source as ChatTitleSource,
+    // COUNT(*) never yields null; Number() also maps a driver's string/bigint count.
+    messageCount: Number(row.message_count),
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
     ...(row.expires_at === null ? {} : { expiresAt: Number(row.expires_at) }),
@@ -79,6 +80,11 @@ function safeParse(value: string): any {
   }
 }
 
+/** A NULL (or empty) JSON column is absent; anything else goes through {@link safeParse}. */
+function parseJsonColumn(value: string | null): any {
+  return value ? safeParse(value) : undefined;
+}
+
 /** Project only existing ai_* fields: resumable and lastRunEventId belong to run state. */
 // Both fields disappear on a transcript round trip today. Adding columns alone would let the
 // browser persist claims about a run it does not own. First associate the run with its conversation
@@ -87,19 +93,65 @@ function safeParse(value: string): any {
 // evidence that this projection preserves it. A schema extension also needs host-owned follow-up
 // migrations, because changing the DDL constant cannot update databases already migrated.
 function toMessage(row: MessageRow): ChatMessage {
-  const events = row.events_json ? safeParse(row.events_json) : undefined;
-  const attachments = row.attachments_json ? safeParse(row.attachments_json) : undefined;
   return {
     id: row.id, role: row.role as ChatMessage['role'], content: row.content,
-    ...(row.agent_id ? { agentId: row.agent_id } : {}),
-    ...(row.agent_name ? { agentName: row.agent_name } : {}),
-    ...(events === undefined ? {} : { events }),
-    ...(attachments === undefined ? {} : { attachments }),
-    ...(row.run_id ? { runId: row.run_id } : {}),
-    ...(row.run_status ? { runStatus: row.run_status as NonNullable<ChatMessage['runStatus']> } : {}),
-    ...(row.created_at === null ? {} : { createdAt: Number(row.created_at) }),
+    ...agentFields(row),
+    ...jsonFields(row),
+    ...runFields(row),
+    createdAt: Number(row.created_at),
     ...(row.started_at === null ? {} : { startedAt: Number(row.started_at) }),
     ...(row.ended_at === null ? {} : { endedAt: Number(row.ended_at) }),
+  };
+}
+
+/** Empty agent columns are omitted, not projected as empty strings. */
+function agentFields(row: MessageRow): Pick<ChatMessage, 'agentId' | 'agentName'> {
+  return {
+    ...(row.agent_id ? { agentId: row.agent_id } : {}),
+    ...(row.agent_name ? { agentName: row.agent_name } : {}),
+  };
+}
+
+/** Unparseable or absent JSON columns are omitted rather than failing the read. */
+function jsonFields(row: MessageRow): Pick<ChatMessage, 'events' | 'attachments'> {
+  const events = parseJsonColumn(row.events_json);
+  const attachments = parseJsonColumn(row.attachments_json);
+  return {
+    ...(events === undefined ? {} : { events }),
+    ...(attachments === undefined ? {} : { attachments }),
+  };
+}
+
+/** Empty run columns are omitted. */
+function runFields(row: MessageRow): Pick<ChatMessage, 'runId' | 'runStatus'> {
+  return {
+    ...(row.run_id ? { runId: row.run_id } : {}),
+    ...(row.run_status ? { runStatus: row.run_status as NonNullable<ChatMessage['runStatus']> } : {}),
+  };
+}
+
+/** The bounded history reader's projection: no attachment, agent or run column is selected. */
+interface HistoryRow {
+  id: string;
+  role: string;
+  content: string;
+  position: number;
+  created_at: number;
+  events_json: string | null;
+}
+
+/** Reject an unbounded or malformed history read before any query runs. */
+function assertHistoryReadBounds({ limit, fromPosition }: { limit: number; fromPosition: number | undefined }): void {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100 || (fromPosition !== undefined && (!Number.isSafeInteger(fromPosition) || fromPosition < 0))) {
+    throw new ChatStoreError({ code: 'invalid-input' });
+  }
+}
+
+/** Project one history row; `events` is present (possibly undefined) only when tool events were asked for. */
+function toHistoryMessage(row: HistoryRow, { includeToolEvents }: { includeToolEvents: boolean }) {
+  return { id: row.id, role: row.role as ChatMessage['role'], content: row.content,
+    position: Number(row.position), createdAt: Number(row.created_at),
+    ...(includeToolEvents ? { events: parseJsonColumn(row.events_json) } : {}),
   };
 }
 
@@ -296,9 +348,7 @@ export function createSqlChatStore<DB extends ChatDatabase>(
       },
       /** No attachment column is read. O(limit) rows; default tail is reversed into position order. */
       async read({ chatId }, { fromPosition, limit = 50, includeToolEvents = false } = {}) {
-        if (!Number.isInteger(limit) || limit < 1 || limit > 100 || (fromPosition !== undefined && (!Number.isSafeInteger(fromPosition) || fromPosition < 0))) {
-          throw new ChatStoreError({ code: 'invalid-input' });
-        }
+        assertHistoryReadBounds({ limit, fromPosition });
         const rows = await run(db => {
           let statement = ownedMessages(db, chatId).clearSelect().select([
             'm.id', 'm.role', 'm.content', 'm.position', 'm.created_at',
@@ -309,10 +359,7 @@ export function createSqlChatStore<DB extends ChatDatabase>(
         });
         const page = rows.slice(0, limit);
         if (fromPosition === undefined) page.reverse();
-        return { messages: page.map(row => ({ id: row.id, role: row.role as ChatMessage['role'], content: row.content,
-          position: Number(row.position), createdAt: Number(row.created_at),
-          ...(includeToolEvents ? { events: row.events_json ? safeParse(row.events_json) : undefined } : {}),
-        })), hasMore: rows.length > limit };
+        return { messages: page.map(row => toHistoryMessage(row, { includeToolEvents })), hasMore: rows.length > limit };
       },
     },
     async list() {
