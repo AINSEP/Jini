@@ -13,7 +13,9 @@ export function consentPolicyHref({ url }: { url: string }, _options = {}): stri
 }
 
 /** Render one accessible progressive form. Config text is always text, never trusted HTML.
- * Necessary cookies/default rejection work without JS. @complexity O(config text length). */
+ * Necessary cookies/default rejection work without JS. After a choice the form sits inside a
+ * closed disclosure whose summary is a small corner control, so withdrawal stays one click away
+ * (also without JS) without a box at the top of every page. @complexity O(config text length). */
 export function renderConsentUi({ config, record, regionMode, gpc, endpoint }: { config: ConsentConfig; record: ConsentRecord | null; regionMode: ConsentRegionMode; gpc: boolean; endpoint: string }, _options = {}): string {
   const e = (text: string) => escapeHtml({ text });
   const choices = resolveConsentChoices({ choices: record?.choices, gpc, regionMode });
@@ -22,8 +24,9 @@ export function renderConsentUi({ config, record, regionMode, gpc, endpoint }: {
     const locked = category === 'necessary' || (gpc && (category === 'analytics' || category === 'marketing'));
     return `<label class="jini-consent-category"><input type="checkbox" name="${category}"${choices[category] ? ' checked' : ''}${locked ? ' disabled' : ''}>${category[0]!.toUpperCase() + category.slice(1)}${category === 'necessary' ? ' (always on)' : ''}</label>`;
   }).join('');
+  const manage = record === null ? ['', ''] : [`<details class="jini-consent-manage"><summary class="jini-consent-pill">${e(config.preferencesLabel)}</summary><div class="jini-consent-panel">`, '</div></details>'];
   return `<section id="jini-consent" class="jini-consent" data-has-record="${record !== null}" aria-label="Cookie preferences">
-<div class="jini-consent-initial"><h2>${e(config.title)}</h2><p>${e(config.message)}</p>
+${manage[0]}<div class="jini-consent-initial"><h2>${e(config.title)}</h2><p>${e(config.message)}</p>
 <p>${regionMode === 'opt-out' ? 'You may opt out of optional cookies at any time.' : 'Optional cookies and scripts stay paused until you agree.'}</p></div>
 ${href ? `<a href="${e(href)}">Privacy policy</a> · ` : ''}<a href="#jini-consent-preferences" data-jini-do-not-sell>Do Not Sell or Share</a>
 <p data-jini-gpc-note${gpc ? '' : ' hidden'}>Global Privacy Control is on. Analytics and marketing are disabled.</p>
@@ -31,8 +34,8 @@ ${href ? `<a href="${e(href)}">Privacy policy</a> · ` : ''}<a href="#jini-conse
 <p role="alert" data-jini-consent-error hidden></p>
 <div class="jini-consent-actions jini-consent-initial"><button name="action" value="reject">${e(config.rejectLabel)}</button><button name="action" value="accept">${e(config.acceptLabel)}</button></div>
 <button id="jini-consent-do-not-sell" name="action" value="do-not-sell" data-jini-do-not-sell-button>Do Not Sell or Share</button>
-<details id="jini-consent-preferences"><summary>${e(config.preferencesLabel)}</summary><fieldset><legend>Cookie categories</legend>${categories}</fieldset>
-<div class="jini-consent-actions"><button name="action" value="save">Save preferences</button><button name="action" value="reject">${e(config.rejectLabel)}</button></div></details></form></section>`;
+<details id="jini-consent-preferences"${record === null ? '' : ' open'}><summary>${e(config.preferencesLabel)}</summary><fieldset><legend>Cookie categories</legend>${categories}</fieldset>
+<div class="jini-consent-actions"><button name="action" value="save">Save preferences</button><button name="action" value="reject">${e(config.rejectLabel)}</button></div></details></form>${manage[1]}</section>`;
 }
 
 /** Host-reviewed origins of resources a granted category may reach (an analytics collector,

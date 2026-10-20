@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { gateConsentHtml, renderConsentUi, renderConsentHead, consentPolicyHref } from '../html/index.js';
 import { CONSENT_CLIENT } from '../html/client.js';
 import { stripConsentRuntime } from '../html/static.js';
+import { CONSENT_CSS } from '../html/styles.js';
 import { accepted, config } from './fixtures.js';
 
 // Real installed browser emulator, loaded without adding a types dependency to the no-DOM core.
@@ -444,5 +445,25 @@ describe('withdrawal when the save fails', () => {
       expect(Array.from(next.dom.window.runs)).toEqual(['necessary', 'external-analytics', 'inline-analytics', 'functional']);
       expect(next.dom.window.dataLayer[1][2].ad_storage).toBe('denied'); expect(next.dom.window.dataLayer[1][2].analytics_storage).toBe('granted');
     } finally { next.dom.window.close(); }
+  });
+});
+
+describe('after a choice the banner collapses to a settings control', () => {
+  const ui = (record: typeof accepted | null) => renderConsentUi({ config: { ...config, preferencesLabel: 'Cookie settings' }, record, regionMode: 'opt-in', gpc: false, endpoint: '/api/site-consent' });
+  it('renders a closed disclosure whose summary reopens the preferences, only once a choice exists', async () => {
+    expect(ui(null)).not.toContain('jini-consent-manage');
+    const { dom } = await browser(gateConsentHtml({ html: '<html><body><p>Site</p></body></html>', config: { ...config, preferencesLabel: 'Cookie settings' }, record: accepted, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }));
+    try {
+      const banner = dom.window.document.getElementById('jini-consent');
+      const manage = banner.firstElementChild;
+      expect(manage.matches('details.jini-consent-manage')).toBe(true); expect(manage.open).toBe(false);
+      expect(manage.querySelector(':scope > summary').textContent).toBe('Cookie settings');
+      expect(manage.querySelector('#jini-consent-preferences').open).toBe(true);
+      expect(manage.querySelector('form button[value=save]')).not.toBeNull();
+    } finally { dom.window.close(); }
+  });
+  it('pins the control to a corner instead of leaving a static box at the top of the page', () => {
+    expect(CONSENT_CSS).not.toContain('position:static');
+    expect(CONSENT_CSS).toMatch(/\.jini-consent\[data-has-record="true"\]\{[^}]*inset:auto auto 1rem 1rem/);
   });
 });
