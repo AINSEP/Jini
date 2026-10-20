@@ -23,8 +23,8 @@
 | L208 | running | | | | | |
 | L222 | running | | | | | |
 | L226 | running | | | | | |
-| L250 | running | | | | | |
-| L257 | queued | | | | | |
+| L250 | MERGED | 1 | 0f11b6d2 | continuationRequest cyc 15→8 (worst helper 8/6) | 100/100/100 | eslint 0, tsc 0, 18 tests green, diff read: behaviour-equivalent, why-comments moved |
+| L257 | running (dispatched 01:36Z) | | | | | |
 
 ## Problems / notes
 
