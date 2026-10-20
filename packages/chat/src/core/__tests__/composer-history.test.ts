@@ -66,6 +66,15 @@ describe('composer history', () => {
     expect(normalizeComposerHistory({ entries: many }, { cap: 2 })).toEqual(['prompt 118', 'prompt 119']);
   });
 
+  it('restores an empty draft when a browsing state carries no stashed draft', () => {
+    const state: ComposerHistoryState = { entries: ['a'], index: 0, draft: null };
+    expect(transitionComposerHistory({ state, action: 'restore', text: 'a', entries })).toEqual({
+      state: { entries: [], index: null, draft: null },
+      text: '',
+      handled: true,
+    });
+  });
+
   it('merges the active transcript without repeating the overlap with recent sends', () => {
     expect(mergeComposerHistory({ recent: ['other', 'a', 'b'], current: ['a', 'b', 'c'] })).toEqual(['other', 'a', 'b', 'c']);
     expect(mergeComposerHistory({ recent: ['a', 'b'], current: [] })).toEqual(['a', 'b']);
@@ -88,6 +97,10 @@ describe('caret-line gating', () => {
     expect(key('ArrowUp', 0, 5)).toBe('previous');
     expect(key('ArrowUp', 0, 8)).toBeNull();
     expect(key('ArrowDown', 8, text.length)).toBeNull();
+  });
+  it('treats a backwards selection the same as a forwards one', () => {
+    expect(key('ArrowUp', 5, 0)).toBe('previous');
+    expect(key('ArrowUp', 8, 0)).toBeNull();
   });
   it('honors visual soft-wrap boundaries supplied by a DOM host', () => {
     expect(key('ArrowUp', 3, 3, { firstLine: false })).toBeNull();
