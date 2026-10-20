@@ -9,7 +9,7 @@ import type {
   LocalCliConfig,
 } from '../../types.js';
 import { LocalCliAgentCard } from './LocalCliAgentCard.js';
-import { useLocalCliAgentList } from '../hooks/useLocalCliAgentList.js';
+import { useLocalCliAgentList, type UseLocalCliAgentListResult } from '../hooks/useLocalCliAgentList.js';
 
 export interface LocalCliAgentListProps {
   agents: readonly DetectedAgent[];
@@ -110,7 +110,7 @@ export function LocalCliAgentList({
             className="jini-btn jini-local-cli-rescan"
             disabled={scan.status === 'scanning'}
             onClick={onRescan}
-            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'rescan', role: 'button', label: t('Rescan') }) })}
+            {...agentHandleProps({}, { base: agentHandle, action: 'rescan', role: 'button', label: t('Rescan') })}
           >
             {scan.status === 'scanning' ? t('Scanning…') : t('↻ Rescan')}
           </button>
@@ -129,36 +129,50 @@ export function LocalCliAgentList({
         </p>
       ) : null}
 
-      {scan.status === 'scanning' ? (
-        <div className="jini-agent-scan-card" role="status" aria-live="polite">
-          <span className="jini-agent-scan-ring" aria-hidden="true" />
-          <strong>{t('Scanning for installed agents…')}</strong>
-        </div>
-      ) : agents.length === 0 ? (
-        scan.status === 'error' ? null : (
-          <div className="jini-empty-card">{t('No agent CLIs detected.')}</div>
-        )
-      ) : (
-        <>
-          <div className="jini-agent-grid">{list.visible.map(renderCard)}</div>
-          {list.collapsed.length > 0 ? (
-            <>
-              <button
-                type="button"
-                className="jini-btn jini-local-cli-more"
-                aria-expanded={list.showCollapsed}
-                onClick={list.toggleCollapsed}
-                {...agentHandleProps({}, { base: agentHandle, ...({ action: 'toggle-not-installed', role: 'button', label: t('Show not-installed CLIs') }) })}
-              >
-                {list.showCollapsed
-                  ? t('Hide not installed')
-                  : t('Show {count} not installed').replace('{count}', String(list.collapsed.length))}
-              </button>
-              {list.showCollapsed ? <div className="jini-agent-grid">{list.collapsed.map(renderCard)}</div> : null}
-            </>
-          ) : null}
-        </>
-      )}
+      <LocalCliAgentGrid agents={agents} scan={scan} list={list} renderCard={renderCard} agentHandle={agentHandle} />
     </section>
+  );
+}
+
+/** Scan-state precedence and the not-installed disclosure belong to one grid. */
+function LocalCliAgentGrid({ agents, scan, list, renderCard, agentHandle }: {
+  agents: readonly DetectedAgent[];
+  scan: AgentScanState;
+  list: UseLocalCliAgentListResult;
+  renderCard: (agent: DetectedAgent) => ReactNode;
+  agentHandle?: string | undefined;
+}) {
+  const t = useT();
+  if (scan.status === 'scanning') {
+    return (
+      <div className="jini-agent-scan-card" role="status" aria-live="polite">
+        <span className="jini-agent-scan-ring" aria-hidden="true" />
+        <strong>{t('Scanning for installed agents…')}</strong>
+      </div>
+    );
+  }
+  if (agents.length === 0) {
+    return scan.status === 'error' ? null : <div className="jini-empty-card">{t('No agent CLIs detected.')}</div>;
+  }
+  return (
+    <>
+      <div className="jini-agent-grid">{list.visible.map(renderCard)}</div>
+      {list.collapsed.length > 0 ? (
+        <>
+          <button
+            type="button"
+            className="jini-btn jini-local-cli-more"
+            aria-expanded={list.showCollapsed}
+            onClick={list.toggleCollapsed}
+            {...agentHandleProps({}, { base: agentHandle, action: 'toggle-not-installed', role: 'button', label: t('Show not-installed CLIs') })}
+          >
+            {list.showCollapsed
+              ? t('Hide not installed')
+              : t('Show {count} not installed').replace('{count}', String(list.collapsed.length))}
+          </button>
+          {list.showCollapsed ? <div className="jini-agent-grid">{list.collapsed.map(renderCard)}</div> : null}
+        </>
+      ) : null}
+    </>
   );
 }

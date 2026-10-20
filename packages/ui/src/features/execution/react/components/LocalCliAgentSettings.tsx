@@ -32,8 +32,26 @@ export function LocalCliAgentSettings({
   onEnvChange,
   agentHandle,
 }: LocalCliAgentSettingsProps) {
+  return (
+    <div
+      className="jini-agent-settings"
+      role="group"
+      aria-label={agent.label}
+      data-testid={`jini-agent-settings-${agent.id}`}
+    >
+      <LocalCliAgentModelControls agent={agent} card={card} onModelChange={onModelChange} agentHandle={agentHandle} />
+      <LocalCliAgentFeedback agent={agent} card={card} onEnvChange={onEnvChange} />
+
+      <AgentCliEnvFields agentId={agent.id} fields={cliEnvFields} config={config} onChange={onEnvChange} />
+    </div>
+  );
+}
+
+/** Model, custom-id and effort controls share the hook's resolved model state. */
+function LocalCliAgentModelControls({ agent, card, onModelChange, agentHandle }:
+  Pick<LocalCliAgentSettingsProps, 'agent' | 'card' | 'onModelChange' | 'agentHandle'>) {
   const t = useT();
-  const { reasoning, source, sourceLabel, sourceHint, result, repair, repairField } = card;
+  const { reasoning, source, sourceLabel, sourceHint } = card;
   const {
     hasModels,
     hasReasoning,
@@ -46,78 +64,82 @@ export function LocalCliAgentSettings({
     selectValue,
     customModelInputValue,
   } = reasoning;
+  const additionalOptions = allowCustomModel ? [{ value: CUSTOM_MODEL_SENTINEL, label: t('Custom…') }] : undefined;
 
   return (
-    <div
-      className="jini-agent-settings"
-      role="group"
-      aria-label={agent.label}
-      data-testid={`jini-agent-settings-${agent.id}`}
-    >
-      <div className="jini-agent-settings-row">
-        {hasModels ? (
-          <div className="jini-agent-settings-field jini-agent-settings-model">
-            <div className="jini-agent-settings-label">
-              <span className="jini-field-label">{t('Model')}</span>
-              {sourceLabel ? (
-                <span className={`jini-agent-model-source ${source}`}>{sourceLabel}</span>
-              ) : null}
-            </div>
-            <SearchableModelSelect
-              className="jini-input jini-agent-model-select"
-              ariaLabel={t('Model')}
-              searchPlaceholder={t('Search models')}
-              testId={`jini-agent-model-${agent.id}`}
-              searchInputTestId={`jini-agent-model-search-${agent.id}`}
-              {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'model' }) } : {})}
-              value={selectValue}
-              models={modelChoices}
-              additionalOptions={allowCustomModel ? [{ value: CUSTOM_MODEL_SENTINEL, label: t('Custom…') }] : undefined}
-              onChange={card.selectModel}
-            />
-            {sourceHint ? <p className="jini-field-hint">{sourceHint}</p> : null}
+    <div className="jini-agent-settings-row">
+      {hasModels ? (
+        <div className="jini-agent-settings-field jini-agent-settings-model">
+          <div className="jini-agent-settings-label">
+            <span className="jini-field-label">{t('Model')}</span>
+            {sourceLabel ? (
+              <span className={`jini-agent-model-source ${source}`}>{sourceLabel}</span>
+            ) : null}
           </div>
-        ) : null}
+          <SearchableModelSelect
+            className="jini-input jini-agent-model-select"
+            ariaLabel={t('Model')}
+            searchPlaceholder={t('Search models')}
+            testId={`jini-agent-model-${agent.id}`}
+            searchInputTestId={`jini-agent-model-search-${agent.id}`}
+            {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'model' }) } : {})}
+            value={selectValue}
+            models={modelChoices}
+            additionalOptions={additionalOptions}
+            onChange={card.selectModel}
+          />
+          {sourceHint ? <p className="jini-field-hint">{sourceHint}</p> : null}
+        </div>
+      ) : null}
 
-        {customActive ? (
-          <label className="jini-agent-settings-field">
-            <span className="jini-field-label">{t('Custom model id')}</span>
-            <input
-              className="jini-input jini-agent-settings-custom"
-              type="text"
-              data-testid={`jini-agent-model-custom-${agent.id}`}
-              value={customModelInputValue}
-              placeholder={t('e.g. my-fine-tuned-model')}
-              spellCheck={false}
-              onChange={(event) => onModelChange(agent.id, event.target.value.trim())}
-              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'custom-model', role: 'field', label: t('Custom model id') }) })}
-            />
-          </label>
-        ) : null}
+      {customActive ? (
+        <label className="jini-agent-settings-field">
+          <span className="jini-field-label">{t('Custom model id')}</span>
+          <input
+            className="jini-input jini-agent-settings-custom"
+            type="text"
+            data-testid={`jini-agent-model-custom-${agent.id}`}
+            value={customModelInputValue}
+            placeholder={t('e.g. my-fine-tuned-model')}
+            spellCheck={false}
+            onChange={(event) => onModelChange(agent.id, event.target.value.trim())}
+            {...agentHandleProps({}, { base: agentHandle, action: 'custom-model', role: 'field', label: t('Custom model id') })}
+          />
+        </label>
+      ) : null}
 
-        {/* Effort follows the model controls; Test belongs to the card header
-            so it stays separate from both field interactions. */}
-        {hasReasoning ? (
-          <label className="jini-agent-settings-field">
-            <span className="jini-field-label">{t('Reasoning effort')}</span>
-            <select
-              className="jini-input jini-agent-settings-reasoning"
-              data-testid={`jini-agent-reasoning-${agent.id}`}
-              value={reasoningValue}
-              disabled={reasoningDisabled}
-              onChange={(event) => card.selectReasoning(event.target.value)}
-              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'reasoning', role: 'field', label: t('Reasoning effort') }) })}
-            >
-              {reasoningOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-      </div>
+      {/* Effort follows the model controls; Test belongs to the card header
+          so it stays separate from both field interactions. */}
+      {hasReasoning ? (
+        <label className="jini-agent-settings-field">
+          <span className="jini-field-label">{t('Reasoning effort')}</span>
+          <select
+            className="jini-input jini-agent-settings-reasoning"
+            data-testid={`jini-agent-reasoning-${agent.id}`}
+            value={reasoningValue}
+            disabled={reasoningDisabled}
+            onChange={(event) => card.selectReasoning(event.target.value)}
+            {...agentHandleProps({}, { base: agentHandle, action: 'reasoning', role: 'field', label: t('Reasoning effort') })}
+          >
+            {reasoningOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+    </div>
+  );
+}
 
+/** Probe evidence and repair actions stay together beneath the model controls. */
+function LocalCliAgentFeedback({ agent, card, onEnvChange }:
+  Pick<LocalCliAgentSettingsProps, 'agent' | 'card' | 'onEnvChange'>) {
+  const t = useT();
+  const { result, repair, repairField } = card;
+  return (
+    <>
       {result ? (
         <p
           className={'jini-agent-card-test-result is-' + result.status}
@@ -162,8 +184,6 @@ export function LocalCliAgentSettings({
           </div>
         </div>
       ) : null}
-
-      <AgentCliEnvFields agentId={agent.id} fields={cliEnvFields} config={config} onChange={onEnvChange} />
-    </div>
+    </>
   );
 }
