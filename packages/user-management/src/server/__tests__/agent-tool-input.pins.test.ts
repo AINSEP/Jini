@@ -225,3 +225,24 @@ describe("input verdicts (Result, never throws)", () => {
     expect(rejection(SCHEMA, { principalId: [secretish] })).not.toContain(secretish);
   });
 });
+
+describe("inherited schema members (reported, not fixed)", () => {
+  // The interpreter validates only OWN `properties`/`required` (absent ones count as empty), but
+  // the parse step reads them through ordinary property access, so members inherited from the
+  // schema's prototype are enforced without ever having been validated. Catalog schemas are object
+  // literals, so this only matters to an external caller of the exported parser.
+  function inheritedSchema(members: Record<string, unknown>): Record<string, unknown> {
+    return Object.assign(Object.create(members) as Record<string, unknown>, { type: "object", additionalProperties: false });
+  }
+
+  it("parses against inherited properties that were never validated (reported, not fixed)", () => {
+    const schema = inheritedSchema({ properties: { a: { type: "number", minLength: 3 } } });
+    expect(parse(schema, { a: "abc" })).toEqual({ ok: true, value: { a: "abc" } });
+    expect(rejection(schema, { a: "ab" })).toBe("'a' must contain at least 3 Unicode code point(s)");
+  });
+
+  it("enforces inherited required keys that were never validated (reported, not fixed)", () => {
+    const schema = inheritedSchema({ required: ["a"], properties: { a: { type: "string" } } });
+    expect(rejection(schema, {})).toBe("'a' is required");
+  });
+});
