@@ -14,12 +14,14 @@ Baseline (unmodified tree): `tsc --noEmit -p packages/chat` clean; temp eslint (
 | L081 | chat-pane/components | 32/22 (ChatPane / AgentRuntimePicker) | ≤10/≤10 | 100/100/100 (ChatPane needs hooks/__tests__/secret-redaction.test.tsx in run) | faa0e0d4, a455b3ef, 6e770ec8, eb03d2a3 | merged ✓ (eslint 0, tsc ok, 96 tests; 1 pre-existing skipped bench) |
 | L098 | react (files) | 27/35 (message-blocks interleaveMessageBlocks) | 10/10 | 100/100/100 | b3dcd5c9, 028d8986 | merged ✓ (eslint 0, tsc ok, 41 tests) |
 | L120 | store/legacy | 31/24 (messages.ts arrow) | ≤10/≤10 | 100/100/100 | 2c38e718, 1ca54c5a | merged ✓ (eslint 0, tsc ok, 18 files/186 tests; server legacy-sqlite 68/68 per agent) |
-| L150 | react/hooks | 15/17 | | | | running |
+| L150 | react/hooks | 15/17 | 9/8 | 100/100/100 | 84e7101e, 91a5887e, fe5ba7b7, 0d14137d, aae3c5a7 | merged ✓ (eslint 0, tsc ok, 10 files/220 tests) |
 | L168 | core/run-events | 18/16 (chunkEvent) | 10/10 | 100/100/100 (was 95/81/96) | cb7789da | merged ✓ (eslint 0, tsc ok, 11 files/182 tests) |
 | L184 | server | 14/13 (recover decide) | 9/7 | 100/100/100 | 68b5cdd5, 036a7a4a | merged ✓ (eslint 0, tsc ok, 15 files/267 tests; awaitingAnswer rewrite hand-checked equivalent) |
 | L185 | chat-pane (files) | 17/12 (uploadAttachments) | 8/6 | 100/100/100 | fbc0eed7, 7a10af80 | merged ✓ (eslint 0, tsc ok, 3 files/91 tests) |
 
 ## Problems / notes
+- BUG pinned (L150, root cause in core/util/strip.ts `splitStreamingArtifact`, outside lot): a still-open artifact following a closed one is reported complete, not streaming.
+- BUG pinned (L150): composer-draft-cache resurrects cleared attachments from storage when `removeItem` throws (drafts likely same, not pinned).
 - L185 (out of scope, flagged): `rules.ts findMidRunMessageRunId` accepts an `attachmentCount` it never uses; only caller `hooks/useChatPane.hooks.ts`. Pinned (not a bug): selected-but-unavailable agent returns `agent-unavailable` even when API mode is configured.
 - L081: removed unused `conversationError` prop of internal ChatPaneStatusMessages and never-passed `useTip` prop of internal RuntimeDropUp. Markup proven identical with temp old-vs-new tests (deleted).
 - L120: `getConversation` now reuses the list summary SQL filtered by id (1 query instead of 3); output values identical, object key order now `totalDurationMs` before `latestRun` (same as list).
@@ -28,4 +30,4 @@ Baseline (unmodified tree): `tsc --noEmit -p packages/chat` clean; temp eslint (
 - L046 commit 4b45c6d0 message has estimated numbers (16→7/6→5); measured composer-history is 16→10 cyc, 9→6 cog. Not amended (no force-push).
 
 ## Next
-Wait for running lots; verify + merge each; start queued lots as slots free (≤5 parallel).
+All 10 lots merged. Remaining: `pnpm --filter @jini-ai/chat build`, whole chat suite + tsc, compare failures with origin/general-work (baseline run in /home/user/wt-base).
