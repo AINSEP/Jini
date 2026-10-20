@@ -12,7 +12,7 @@ Started 2026-10-19 23:59 UTC. Setup 23:59:40→00:02:28 (2m48s); integrations bu
 | L054 | react | 24/19 | running (wave A) | | | | |
 | L069 | security (sensitive) | 32/14 | running (wave A) | | | | |
 | L087 | seo | 28/24 | running (wave A) | | | | |
-| L107 | agent-plugins | 23/13 | pending | | | | |
+| L107 | agent-plugins | 23/13 | running | | | | |
 | L144 | comments | 22/≤10 | pending | | | | |
 | L157 | widgets | 15/≤10 | pending | | | | |
 | L192 | forms/conformance | 20/15 | pending | | | | |
