@@ -256,3 +256,72 @@ describe('createGenUiEncoder — context/base-field handling', () => {
     expect(resultB).toMatchObject({ toolName: 'unknown' });
   });
 });
+
+// Characterization pins (code-health wave 3), written before encodeAgentPayload was split.
+describe('createGenUiEncoder — field edge cases', () => {
+  it.each(['stage_start', 'stage_end'] as const)('%s keeps an iteration of 0 and drops the label', (type) => {
+    const encoder = createGenUiEncoder({ clock: { nowMs: () => 0 } });
+    const result = encoder.encode({ event: agentEvent({ type, stageId: 's', label: 'L', iteration: 0 }), runId: RUN_ID }, { now: () => 1 });
+    expect(result).toEqual({
+      kind: 'run.lifecycle',
+      status: type === 'stage_start' ? 'pipeline_stage_started' : 'pipeline_stage_completed',
+      stageId: 's',
+      iteration: 0,
+      runId: RUN_ID,
+      ts: 1,
+    });
+  });
+
+  it('includes a seq of 0', () => {
+    const encoder = createGenUiEncoder({ clock: { nowMs: () => 0 } });
+    expect(encoder.encode({ event: runEvent('start', { runId: RUN_ID, contextRef: 'c' }), runId: RUN_ID }, { seq: 0 })).toEqual({ kind: 'run.lifecycle', status: 'started', runId: RUN_ID, ts: 0, seq: 0 });
+  });
+
+  it('stamps the runId argument, not the event\'s own runId', () => {
+    const encoder = createGenUiEncoder({ clock: { nowMs: () => 0 } });
+    expect(encoder.encode({ event: runEvent('start', { runId: RUN_ID, contextRef: 'c' }), runId: 'other' })).toMatchObject({ runId: 'other' });
+  });
+
+  it('a tool_use whose input was undefined correlates to null args on its result', () => {
+    const encoder = createGenUiEncoder({ clock: { nowMs: () => 0 } });
+    encoder.encode({ event: agentEvent({ type: 'tool_use', id: 't', name: 'n', input: undefined }), runId: RUN_ID });
+    expect(encoder.encode({ event: agentEvent({ type: 'tool_result', toolUseId: 't', content: 'c', isError: false }), runId: RUN_ID })).toEqual({
+      kind: 'tool_call', toolName: 'n', args: null, callId: 't', status: 'completed', result: 'c', runId: RUN_ID, ts: 0,
+    });
+  });
+
+  it('a tool_result consumes its correlation entry, so a repeat of the same id falls back to unknown', () => {
+    const encoder = createGenUiEncoder({ clock: { nowMs: () => 0 } });
+    encoder.encode({ event: agentEvent({ type: 'tool_use', id: 't', name: 'n', input: 1 }), runId: RUN_ID });
+    encoder.encode({ event: agentEvent({ type: 'tool_result', toolUseId: 't', content: 'c' }), runId: RUN_ID });
+    expect(encoder.encode({ event: agentEvent({ type: 'tool_result', toolUseId: 't', content: 'c' }), runId: RUN_ID })).toMatchObject({ toolName: 'unknown', args: null });
+  });
+});
+
+describe('createGenUiEncoder — clock reads', () => {
+  function countingClock(): { clock: { nowMs: () => number }; reads: () => number } {
+    let reads = 0;
+    return { clock: { nowMs: () => { reads += 1; return 5; } }, reads: () => reads };
+  }
+
+  it('reads the factory clock once for a dropped agent payload (base fields are built before the type switch)', () => {
+    const { clock, reads } = countingClock();
+    const encoder = createGenUiEncoder({ clock });
+    expect(encoder.encode({ event: agentEvent({ type: 'status', label: 'x' }), runId: RUN_ID })).toBeNull();
+    expect(reads()).toBe(1);
+  });
+
+  it('does not read the clock for a dropped kernel event kind', () => {
+    const { clock, reads } = countingClock();
+    const encoder = createGenUiEncoder({ clock });
+    expect(encoder.encode({ event: runEvent('stdout', { chunk: 'x' }), runId: RUN_ID })).toBeNull();
+    expect(reads()).toBe(0);
+  });
+
+  it('prefers the per-event clock and never reads the factory clock when one is given', () => {
+    const { clock, reads } = countingClock();
+    const encoder = createGenUiEncoder({ clock });
+    expect(encoder.encode({ event: agentEvent({ type: 'text_delta', delta: 'hi' }), runId: RUN_ID }, { now: () => 9 })).toEqual({ kind: 'agent.message', text: 'hi', runId: RUN_ID, ts: 9 });
+    expect(reads()).toBe(0);
+  });
+});

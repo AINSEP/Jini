@@ -42,6 +42,17 @@ export interface RenderNode {
  */
 export const MAX_RENDER_NODES = 50_000;
 
+/** A node still to visit, or the marker that closes one and leaves its subtree. */
+type Frame = { readonly id: string; readonly depth: number } | { readonly leave: string };
+
+/** Pushes `childIds` onto the walk's stack at `depth`. */
+function pushChildren(stack: Frame[], childIds: readonly string[], depth: number): void {
+  // Pushed in reverse so the first child is popped first, preserving pre-order.
+  for (let index = childIds.length - 1; index >= 0; index -= 1) {
+    stack.push({ id: childIds[index]!, depth });
+  }
+}
+
 /**
  * @param components The full component map (id -> instance).
  * @param rootId The id to start walking from (typically `'root'`, but not assumed — a surface
@@ -71,8 +82,6 @@ export function flattenRenderTree<C extends ComponentLike>({ components, rootId,
   const output: RenderNode[] = [];
   /** Ids on the path from the root to the node being visited — the recursive walk's `ancestors`. */
   const ancestors = new Set<string>();
-  /** A node still to visit, or the marker that closes one and leaves its subtree. */
-  type Frame = { readonly id: string; readonly depth: number } | { readonly leave: string };
   const stack: Frame[] = [{ id: rootId, depth: 0 }];
 
   while (stack.length > 0) {
@@ -98,11 +107,7 @@ export function flattenRenderTree<C extends ComponentLike>({ components, rootId,
     output.push({ id, depth, status: 'ok' });
     ancestors.add(id);
     stack.push({ leave: id });
-    // Pushed in reverse so the first child is popped first, preserving pre-order.
-    const childIds = getChildIds({ component });
-    for (let index = childIds.length - 1; index >= 0; index -= 1) {
-      stack.push({ id: childIds[index]!, depth: depth + 1 });
-    }
+    pushChildren(stack, getChildIds({ component }), depth + 1);
   }
 
   return output;

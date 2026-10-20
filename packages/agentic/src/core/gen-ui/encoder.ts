@@ -51,6 +51,22 @@ export interface GenUiEncoder {
   encode(required: { event: RunProtocolEvent; runId: string }, optional?: { seq?: number | undefined; now?: ((required: Record<string, never>) => number) | undefined }): GenUiEvent | null;
 }
 
+/** The fields every produced event carries (see `GenUiEncodeContext`). */
+type BaseFields = { runId: string; ts: number; seq?: number };
+
+type StagePayload = Extract<RunAgentPayload, { type: 'stage_start' | 'stage_end' }>;
+
+/** `stage_start` / `stage_end` share one shape; `iteration` is omitted entirely (not set to `undefined`) when absent. */
+function encodeStage(payload: StagePayload, base: BaseFields): GenUiEvent {
+  return {
+    ...base,
+    kind: 'run.lifecycle',
+    status: payload.type === 'stage_start' ? 'pipeline_stage_started' : 'pipeline_stage_completed',
+    stageId: payload.stageId,
+    ...(payload.iteration !== undefined ? { iteration: payload.iteration } : {}),
+  };
+}
+
 /**
  * Creates a fresh `GenUiEncoder` with its own, empty tool-call correlation map.
  * @complexity `encode` is O(1) per call (one `Map` get/set/delete); memory is O(k) in the number
@@ -60,9 +76,28 @@ export interface GenUiEncoder {
 export function createGenUiEncoder({ clock }: { clock: Clock }, _optional: Record<string, never> = {}): GenUiEncoder {
   const pendingToolCalls = new Map<string, PendingToolCall>();
 
-  function baseFields(ctx: GenUiEncodeContext): { runId: string; ts: number; seq?: number } {
+  function baseFields(ctx: GenUiEncodeContext): BaseFields {
     const ts = ctx.now ? ctx.now({}) : clock.nowMs();
     return ctx.seq !== undefined ? { runId: ctx.runId, ts, seq: ctx.seq } : { runId: ctx.runId, ts };
+  }
+
+  /** Resolves a `tool_result` against (and removes) its correlated `tool_use`. */
+  function encodeToolResult(payload: Extract<RunAgentPayload, { type: 'tool_result' }>, base: BaseFields): GenUiEvent {
+    const pending = pendingToolCalls.get(payload.toolUseId);
+    pendingToolCalls.delete(payload.toolUseId);
+    return {
+      ...base,
+      kind: 'tool_call',
+      // A tool_result with no matching prior tool_use (never observed, or already resolved/
+      // cleared — e.g. after a run-ending 'end' event, see below) falls back to an 'unknown'
+      // name and null args rather than throwing: the result itself is still real and worth
+      // relaying even when its originating call wasn't captured.
+      toolName: pending?.toolName ?? 'unknown',
+      args: pending?.args ?? null,
+      callId: payload.toolUseId,
+      status: payload.isError ? 'failed' : 'completed',
+      result: payload.content,
+    };
   }
 
   function encodeAgentPayload(payload: RunAgentPayload, ctx: GenUiEncodeContext): GenUiEvent | null {
@@ -78,43 +113,15 @@ export function createGenUiEncoder({ clock }: { clock: Clock }, _optional: Recor
         pendingToolCalls.set(payload.id, { toolName: payload.name, args: payload.input });
         return { ...base, kind: 'tool_call', toolName: payload.name, args: payload.input, callId: payload.id, status: 'started' };
 
-      case 'tool_result': {
-        const pending = pendingToolCalls.get(payload.toolUseId);
-        pendingToolCalls.delete(payload.toolUseId);
-        return {
-          ...base,
-          kind: 'tool_call',
-          // A tool_result with no matching prior tool_use (never observed, or already resolved/
-          // cleared — e.g. after a run-ending 'end' event, see below) falls back to an 'unknown'
-          // name and null args rather than throwing: the result itself is still real and worth
-          // relaying even when its originating call wasn't captured.
-          toolName: pending?.toolName ?? 'unknown',
-          args: pending?.args ?? null,
-          callId: payload.toolUseId,
-          status: payload.isError ? 'failed' : 'completed',
-          result: payload.content,
-        };
-      }
+      case 'tool_result':
+        return encodeToolResult(payload, base);
 
       // Generalization (see archived provenance ledger): pipeline_stage_started/completed generalized into a
       // named-stage boundary any multi-step driver can emit, flowing through the same 'agent'
       // channel as tool_use/tool_result.
       case 'stage_start':
-        return {
-          ...base,
-          kind: 'run.lifecycle',
-          status: 'pipeline_stage_started',
-          stageId: payload.stageId,
-          ...(payload.iteration !== undefined ? { iteration: payload.iteration } : {}),
-        };
       case 'stage_end':
-        return {
-          ...base,
-          kind: 'run.lifecycle',
-          status: 'pipeline_stage_completed',
-          stageId: payload.stageId,
-          ...(payload.iteration !== undefined ? { iteration: payload.iteration } : {}),
-        };
+        return encodeStage(payload, base);
 
       // Generalization (see archived provenance ledger): genui_surface_request/response generalized into a
       // generic human-in-the-loop ask/answer pair.

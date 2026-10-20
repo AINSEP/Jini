@@ -167,3 +167,167 @@ describe('prototype chain — a pointer addresses the document, never what it in
     expect(Object.getPrototypeOf(setAtPointer({ doc: { a: 1 }, pointer: '/__proto__', value: null }))).toBe(Object.prototype);
   });
 });
+
+// Characterization pins (code-health wave 3): the edge cases an agent-authored pointer can reach,
+// pinned before json-pointer.ts was split into smaller helpers.
+describe('getAtPointer — escapes, array-index edge cases and malformed pointers', () => {
+  it('decodes ~01 as the literal text ~1 (decode ~1 first, then ~0)', () => {
+    expect(getAtPointer({ doc: { 'a~1': 'tilde-one' }, pointer: '/a~01' })).toEqual({ found: true, value: 'tilde-one' });
+  });
+  it('decodes ~1 into a key that contains a slash', () => {
+    expect(getAtPointer({ doc: { '/': 'slash' }, pointer: '/~1' })).toEqual({ found: true, value: 'slash' });
+  });
+  it('resolves an empty-string key through a trailing slash', () => {
+    expect(getAtPointer({ doc: { a: { '': 'empty' } }, pointer: '/a/' })).toEqual({ found: true, value: 'empty' });
+  });
+  it('resolves an empty-string key on the root via "//"-style pointers', () => {
+    expect(getAtPointer({ doc: { '': { '': 2 } }, pointer: '//' })).toEqual({ found: true, value: 2 });
+  });
+  it.each(['-', '01', '00', '+1', '1e0', ' 1', '1.0', '', 'length', '-1'])('reports not-found for array token %j', (token) => {
+    expect(getAtPointer({ doc: { list: ['x', 'y'] }, pointer: `/list/${token}` })).toEqual({ found: false, value: undefined });
+  });
+  it('resolves index 0', () => {
+    expect(getAtPointer({ doc: ['x'], pointer: '/0' })).toEqual({ found: true, value: 'x' });
+  });
+  it('reports not-found for an index equal to the length', () => {
+    expect(getAtPointer({ doc: ['x'], pointer: '/1' })).toEqual({ found: false, value: undefined });
+  });
+  it('reports not-found for an index past Number.MAX_SAFE_INTEGER', () => {
+    expect(getAtPointer({ doc: ['x'], pointer: '/9007199254740993' })).toEqual({ found: false, value: undefined });
+  });
+  it('reports found with undefined for an in-range array hole', () => {
+    // eslint-disable-next-line no-sparse-arrays
+    expect(getAtPointer({ doc: [, 'b'], pointer: '/0' })).toEqual({ found: true, value: undefined });
+  });
+  it('reports found with undefined for an own key whose value is undefined', () => {
+    expect(getAtPointer({ doc: { a: undefined }, pointer: '/a' })).toEqual({ found: true, value: undefined });
+  });
+  it('reports not-found when the document itself is null', () => {
+    expect(getAtPointer({ doc: null, pointer: '/a' })).toEqual({ found: false, value: undefined });
+  });
+  it('reports not-found when descending through a null intermediate', () => {
+    expect(getAtPointer({ doc: { a: null }, pointer: '/a/b' })).toEqual({ found: false, value: undefined });
+  });
+  it('reports not-found when descending into a string (no character indexing)', () => {
+    expect(getAtPointer({ doc: { s: 'abc' }, pointer: '/s/0' })).toEqual({ found: false, value: undefined });
+  });
+  it('reports not-found when descending into a function value', () => {
+    expect(getAtPointer({ doc: { f: Object.assign(() => 1, { k: 1 }) }, pointer: '/f/k' })).toEqual({ found: false, value: undefined });
+  });
+  it.each(['/prototype', '/constructor/prototype', '/__proto__/constructor'])('reports not-found for %s on an empty object', (pointer) => {
+    expect(getAtPointer({ doc: {}, pointer })).toEqual({ found: false, value: undefined });
+  });
+  it('resolves an own "prototype" key', () => {
+    expect(getAtPointer({ doc: { prototype: 1 }, pointer: '/prototype' })).toEqual({ found: true, value: 1 });
+  });
+  it('resolves array own-index only, never Array.prototype members', () => {
+    expect(getAtPointer({ doc: { list: [] }, pointer: '/list/map' })).toEqual({ found: false, value: undefined });
+  });
+  it.each(['a', '~1', '#/a', ' /a'])('reports not-found for the malformed pointer %j', (pointer) => {
+    expect(getAtPointer({ doc: { a: 1 }, pointer })).toEqual({ found: false, value: undefined });
+  });
+});
+
+describe('setAtPointer — escapes, array-index edge cases and malformed pointers', () => {
+  it('writes a key decoded from ~0 and ~1 escapes', () => {
+    expect(setAtPointer({ doc: {}, pointer: '/a~1b/c~0d', value: 1 })).toEqual({ 'a/b': { 'c~d': 1 } });
+  });
+  it('writes an empty-string final key through a trailing slash', () => {
+    expect(setAtPointer({ doc: { a: {} }, pointer: '/a/', value: 1 })).toEqual({ a: { '': 1 } });
+  });
+  it('an empty-string intermediate token on an array is a no-op that keeps the same array', () => {
+    const list = [1];
+    const result = setAtPointer({ doc: { list }, pointer: '/list//x', value: 2 }) as { list: unknown };
+    expect(result).toEqual({ list: [1] });
+    expect(result.list).toBe(list);
+  });
+  it.each(['-', '01', '+1', '1e0', 'length'])('a final array token %j is a no-op that keeps the same array (no append for "-")', (token) => {
+    const list = [1, 2];
+    const result = setAtPointer({ doc: { list }, pointer: `/list/${token}`, value: 9 }) as { list: unknown };
+    expect(result).toEqual({ list: [1, 2] });
+    expect(result.list).toBe(list);
+  });
+  it.each(['-', '01'])('an intermediate array token %j is a no-op that keeps the same array', (token) => {
+    const list = [{ a: 1 }];
+    const result = setAtPointer({ doc: { list }, pointer: `/list/${token}/a`, value: 9 }) as { list: unknown };
+    expect(result.list).toBe(list);
+  });
+  it('a malformed final array token with value null is a no-op', () => {
+    expect(setAtPointer({ doc: { list: [1, 2] }, pointer: '/list/01', value: null })).toEqual({ list: [1, 2] });
+  });
+  it('deleting an out-of-range array index returns an unchanged copy', () => {
+    const list = [1, 2];
+    const result = setAtPointer({ doc: { list }, pointer: '/list/5', value: null }) as { list: unknown[] };
+    expect(result.list).toEqual([1, 2]);
+    expect(result.list).not.toBe(list);
+  });
+  it('writing past the end of an array leaves holes', () => {
+    const result = setAtPointer({ doc: { list: [1] }, pointer: '/list/3', value: 'x' }) as { list: unknown[] };
+    expect(result.list.length).toBe(4);
+    expect(1 in result.list).toBe(false);
+    expect(result.list[3]).toBe('x');
+  });
+  it('an agent-chosen index sets the array length arbitrarily (reported, not fixed)', () => {
+    // No upper bound on the index: one small message can make the stored array's length huge.
+    const result = setAtPointer({ doc: { list: [] }, pointer: '/list/1000000', value: 1 }) as { list: unknown[] };
+    expect(result.list.length).toBe(1_000_001);
+  });
+  it('writes through an existing array element, keeping its other keys', () => {
+    expect(setAtPointer({ doc: { list: [{ name: 'b', keep: 1 }] }, pointer: '/list/0/name', value: 'c' })).toEqual({ list: [{ name: 'c', keep: 1 }] });
+  });
+  it('writes through an array-hole intermediate by creating an object', () => {
+    // eslint-disable-next-line no-sparse-arrays
+    expect(setAtPointer({ doc: { list: [, 1] }, pointer: '/list/0/a', value: 2 })).toEqual({ list: [{ a: 2 }, 1] });
+  });
+  it('writes into a root array document', () => {
+    expect(setAtPointer({ doc: [1, 2], pointer: '/0', value: 5 })).toEqual([5, 2]);
+  });
+  it('creates an object when the document is null', () => {
+    expect(setAtPointer({ doc: null, pointer: '/a', value: 1 })).toEqual({ a: 1 });
+  });
+  it('deleting under a primitive intermediate replaces it with an empty object', () => {
+    expect(setAtPointer({ doc: { a: 5 }, pointer: '/a/b', value: null })).toEqual({ a: {} });
+  });
+  it('deleting a key that is absent returns an equal copy, not the same object', () => {
+    const doc = { a: 1 };
+    const result = setAtPointer({ doc, pointer: '/b', value: null });
+    expect(result).toEqual({ a: 1 });
+    expect(result).not.toBe(doc);
+  });
+  it('replaces a function intermediate with a fresh object', () => {
+    expect(setAtPointer({ doc: { f: () => 1 }, pointer: '/f/k', value: 1 })).toEqual({ f: { k: 1 } });
+  });
+  it('writes undefined as an own key (only null deletes)', () => {
+    const result = setAtPointer({ doc: { a: 1 }, pointer: '/a', value: undefined }) as Record<string, unknown>;
+    expect(Object.prototype.hasOwnProperty.call(result, 'a')).toBe(true);
+    expect(result.a).toBeUndefined();
+  });
+  it('writes /constructor/prototype/x as own keys without touching Object.prototype', () => {
+    const result = setAtPointer({ doc: {}, pointer: '/constructor/prototype/x', value: 1 });
+    expect(result).toEqual({ constructor: { prototype: { x: 1 } } });
+    expect(({} as { x?: unknown }).x).toBeUndefined();
+    expect({}.constructor).toBe(Object);
+  });
+  it('deletes an own __proto__ key that a previous write defined', () => {
+    const withKey = setAtPointer({ doc: {}, pointer: '/__proto__', value: 1 });
+    const result = setAtPointer({ doc: withKey, pointer: '/__proto__', value: null }) as object;
+    expect(Object.keys(result)).toEqual([]);
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+  });
+  it('keeps the original document when the pointer is malformed even with value null', () => {
+    const doc = { a: 1 };
+    expect(setAtPointer({ doc, pointer: '~1', value: null })).toBe(doc);
+  });
+});
+
+describe('joinPointer — base parsing', () => {
+  it('throws for a base pointer missing its leading slash', () => {
+    expect(() => joinPointer({ base: 'users', tokens: ['0'] })).toThrow(/invalid JSON Pointer \(must start with "\/"\): "users"/);
+  });
+  it('decodes then re-escapes the base tokens', () => {
+    expect(joinPointer({ base: '/a~1b', tokens: [] })).toBe('/a~1b');
+  });
+  it('joins an empty token list onto root as "/"', () => {
+    expect(joinPointer({ base: '', tokens: [] })).toBe('/');
+  });
+});
