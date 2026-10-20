@@ -3,14 +3,15 @@
  *
  * Exists to bind the OAuth core's browser grant to a plugin connection: start records an
  * expiring single-use attempt bound to workspace, actor, plugin connection, requested scopes,
- * callback URI and credential generation; complete redeems it exactly once, exchanges the code,
- * and hands the token set to `finishAuthorization` for the grant, identity and commit checks.
+ * callback URI, credential generation and the starting browser; complete redeems it exactly once,
+ * exchanges the code, and hands the token set to `finishAuthorization` for the grant, identity and
+ * commit checks.
  */
 import { beginAuthorizationCode, completeAuthorizationCode, generateOAuthState, OAuthError, type OAuthProviderDescriptor,
   type OAuthTokenSet } from '@jini-ai/oauth';
 import type { ApiConnectionServiceDeps } from './deps.js';
 import { ApiConnectionError, invalidAttempt } from './errors.js';
-import { attemptOpener, attemptSealer } from './attempt-state.js';
+import { attemptOpener, attemptSealer, BROWSER_BINDING_BYTES, hashBrowserBinding } from './attempt-state.js';
 import { finishAuthorization, type CompletedAuthorization } from './finish-authorization.js';
 import { deriveApiConnectionKey } from './keys.js';
 import { assertId, checkCallbackParams, checkScopes, checkStartParams, pickBoundedFields, requestInvalid } from './request-checks.js';
@@ -27,6 +28,12 @@ export interface StartApiConnectionResult {
   readonly state: string;
   /** Opaque, random id of this sign-in; `complete` returns the same id (e.g. to key callback fields). */
   readonly attemptId: string;
+  /**
+   * Host-only: proof that a callback arrives in the browser that started this sign-in. Hand it to
+   * that browser (see the README's host contract) and pass it back to `complete`; never to plugin
+   * code, a frame, logs or the authorization URL. Only its hash is stored.
+   */
+  readonly browserBinding: string;
   readonly expiresAt: string;
 }
 
@@ -90,25 +97,29 @@ export async function startApiConnectionAuthorization(
   const requestedScopes = checkScopes(await deps.hooks.resolveScopes({ scopeSetIds: [...requiredArgs.scopeSetIds] }));
   const ownerKey = ownerKeyFor(deps, { workspaceId, actorId });
   const attemptId = generateOAuthState({ randomBytesFn: deps.randomBytesFn }, { stateBytes: ATTEMPT_ID_BYTES });
-  const draft = { key, attemptId, ownerKey, workspaceId, actorId, pluginId: deps.descriptor.pluginId,
+  const browserBinding = generateOAuthState({ randomBytesFn: deps.randomBytesFn }, { stateBytes: BROWSER_BINDING_BYTES });
+  const draft = { key, attemptId, ownerKey, browserBindingHash: hashBrowserBinding(browserBinding), workspaceId, actorId, pluginId: deps.descriptor.pluginId,
     connectionId: deps.descriptor.connectionId, intent, requestedScopes, generation: record?.generation ?? 0 };
   const begun = await beginAuthorizationCode({
     provider: providerFor(deps), stateless: attemptSealer(deps, { draft }), randomBytesFn: deps.randomBytesFn, guard: deps.guard,
     options: deps.appOptions, ownerKey, client: deps.client, redirectUri: requiredArgs.redirectUri,
   }, { scopes: requestedScopes, extraAuthorizationParams: { ...deps.descriptor.authorizationParams[deps.clientKind], ...startParams } })
     .catch((error: unknown) => { throw toConnectionError(error); });
-  return { connectionRef: key, authorizationUrl: begun.authorizationUrl, state: begun.state, attemptId, expiresAt: begun.expiresAt };
+  return { connectionRef: key, authorizationUrl: begun.authorizationUrl, state: begun.state, attemptId, browserBinding,
+    expiresAt: begun.expiresAt };
 }
 
 /**
  * Redeem the callback. `redirectUri` is the exact callback URL this request arrived on and the
  * identities are the host's authenticated session, never values read from the callback itself.
+ * `browserBinding` is what the callback's browser carried back (`''` when it carried none); a
+ * missing or different binding burns the attempt with the same `invalid-attempt`.
  */
 export async function completeApiConnectionAuthorization(
   deps: ApiConnectionServiceDeps,
   requiredArgs: {
     readonly workspaceId: string; readonly actorId: string; readonly redirectUri: string;
-    readonly callbackParams: Readonly<Record<string, string>>;
+    readonly callbackParams: Readonly<Record<string, string>>; readonly browserBinding: string;
   },
 ): Promise<CompletedAuthorization> {
   assertId(requiredArgs.workspaceId, 'workspaceId');
@@ -118,7 +129,7 @@ export async function completeApiConnectionAuthorization(
   const callbackFields = pickBoundedFields(deps.descriptor.callbackFields, requiredArgs.callbackParams, 'callback field');
   let attempt: ApiConnectionAttempt | undefined;
   const tokens: OAuthTokenSet = await completeAuthorizationCode({
-    provider: providerFor(deps), stateless: attemptOpener(deps, { onOpen: opened => { attempt = opened.attempt; } }),
+    provider: providerFor(deps), stateless: attemptOpener(deps, { browserBinding: requiredArgs.browserBinding, onOpen: opened => { attempt = opened.attempt; } }),
     redirectUri: new URL(requiredArgs.redirectUri).href, ownerKey: ownerKeyFor(deps, requiredArgs), client: deps.client, params,
     fetchFn: deps.fetchFn, guard: deps.guard, clock: deps.clock,
   }).catch((error: unknown) => { throw toConnectionError(error); });

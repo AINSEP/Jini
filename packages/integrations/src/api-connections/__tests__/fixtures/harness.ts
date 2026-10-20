@@ -71,6 +71,8 @@ export interface Harness<Tokens extends ApiConnectionTokenStore = ReturnType<typ
   records: ReturnType<typeof memoryRecordStore>;
   tokens: Tokens;
   clock: { now: number; nowMs(): number };
+  /** The starting browser's binding cookie per attempt state, as a host would set and read it back. */
+  browser: Map<string, string>;
 }
 
 interface HarnessOptions {
@@ -102,7 +104,7 @@ function buildWith<Tokens extends ApiConnectionTokenStore>(provider: AcmeProvide
     guard: createOAuthUrlGuard({ assertAllowed: () => undefined }, { allowLoopbackHttp: true }),
     randomBytesFn: ({ byteLength }) => randomBytes(byteLength), sleep: async () => undefined,
   });
-  return { service, records, tokens, clock };
+  return { service, records, tokens, clock, browser: new Map() };
 }
 
 export function buildHarness(provider: AcmeProvider, options: HarnessOptions = {}): Harness {
@@ -130,10 +132,16 @@ export function buildVaultHarness(provider: AcmeProvider, options: HarnessOption
   return { ...harness, vault };
 }
 
+/** The binding the browser that started this callback's attempt carries; '' when it carries none. */
+export function browserBindingOf(h: Pick<Harness<ApiConnectionTokenStore>, 'browser'>, callbackParams: Record<string, string>): string {
+  return h.browser.get(callbackParams.state ?? '') ?? '';
+}
+
 /** Start a connect for `actor` in workspace ws-1 and approve it at the fake provider. */
 export async function signIn(h: Harness<ApiConnectionTokenStore>, provider: AcmeProvider, { account = 'alice', actorId = 'actor-1', intent = 'connect' as ApiConnectionIntent,
   grantScopes = undefined as string[] | undefined, omitRefreshToken = false } = {}) {
   const started = await h.service.start({ workspaceId: 'ws-1', actorId, intent, scopeSetIds: ['files'], redirectUri: CALLBACK });
+  h.browser.set(started.state, started.browserBinding);
   const callbackParams = provider.approve({ authorizationUrl: started.authorizationUrl, account, omitRefreshToken,
     ...(grantScopes ? { grantScopes } : {}) });
   return { started, callbackParams };

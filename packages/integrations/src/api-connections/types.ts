@@ -77,6 +77,8 @@ export interface ApiConnectionAttempt {
   readonly attemptId: string;
   readonly key: string;
   readonly ownerKey: string;
+  /** SHA-256 (base64url) of the host-only binding the starting browser carries; never the binding itself. */
+  readonly browserBindingHash: string;
   readonly workspaceId: string;
   readonly actorId: string;
   readonly pluginId: string;

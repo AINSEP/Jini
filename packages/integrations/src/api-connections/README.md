@@ -60,7 +60,8 @@ client with `authMethod: 'none'` is refused at construction (`configuration-inva
 
 - **Attempts** are stored, expire after 10 minutes, are consumed before any check (a probe burns
   the state it guessed) and are bound to workspace, actor, plugin connection, requested scopes,
-  the exact callback URL and the credential generation. Every mismatch is the same `invalid-attempt`.
+  the exact callback URL, the credential generation and the starting browser (`browserBinding`,
+  below). Every mismatch is the same `invalid-attempt`.
 - **Grant check**: every requested scope must be granted, otherwise nothing is stored
   (`scope-not-granted`). A token response without `scope` means "as requested" (RFC 6749 §5.1).
 - **Credential install** is fenced: the record first moves to a new generation in
@@ -106,11 +107,12 @@ const service = createApiConnectionService({
   descriptor, client, clientKind: runtime === 'desktop' ? 'public' : 'confidential', appOptions: { clientDisplayName, softwareId, redirectUris },
   hooks: plugin.connectionHooks, records, tokens, fetchFn, guard, clock, randomBytesFn, sleep,
 });
-// `state` is host-only (e.g. arming a loopback receiver); `attemptId` is what plugin code may hold.
-const { authorizationUrl, connectionRef, state, attemptId } = await service.start(
+// `state` and `browserBinding` are host-only; `attemptId` is what plugin code may hold.
+const { authorizationUrl, connectionRef, state, attemptId, browserBinding } = await service.start(
   { workspaceId, actorId, intent: 'connect', scopeSetIds: enabledModules, redirectUri });
-// ...the browser returns to redirectUri...
-const done = await service.complete({ workspaceId, actorId, redirectUri, callbackParams }); // done.attemptId === attemptId
+// ...hand browserBinding to the starting browser (see "Browser binding"); it returns to redirectUri...
+const done = await service.complete({ workspaceId, actorId, redirectUri, callbackParams,
+  browserBinding: bindingTheCallbackBrowserCarried ?? '' }); // done.attemptId === attemptId
 const accessToken = await service.getAccessToken({ connectionRef, workspaceId });
 ```
 
@@ -120,6 +122,26 @@ flags for hosted ones), `startParams` (names a caller may set for one sign-in, e
 mode) and `callbackFields` (extra fields a provider returns after consent; returned in
 `complete(...).callbackFields` only after the exchange succeeded, and still to be verified by the
 plugin through the provider's API before being trusted).
+
+## Browser binding (host contract)
+
+`start` returns `browserBinding`: 32 random bytes, base64url (43 characters). The attempt stores
+only its SHA-256, and `complete` requires the value back and compares it in constant time; a
+missing (`''`) or different binding burns the attempt with `invalid-attempt`. It stops a forwarded
+authorization URL: without it, anyone able to start a sign-in could send their URL to someone
+else, and that person's consent would land in the starter's workspace, because a callback route
+that cannot read the session learns the workspace and actor from the attempt itself.
+
+- **Hosted (the session cookie is not sent on the provider's redirect, e.g. `SameSite=Strict`):**
+  the response that starts the sign-in sets the binding as the host's own cookie,
+  `HttpOnly; Secure; SameSite=Lax; Path=<the callback path>; Max-Age=600` (the attempt's 10
+  minutes). `Lax` is sent on the provider's top-level cross-site GET redirect; `Strict` is not.
+  The callback route reads that cookie and passes it as `browserBinding` (`''` when absent), then
+  clears it. Use one cookie name per attempt, or one name whose newest value wins, so two tabs
+  signing in at once fail closed, never across attempts.
+- **Desktop loopback:** the host that starts the sign-in is the one whose receiver gets the
+  callback, so it keeps the binding in memory next to `state` and passes it straight back.
+- Never put it in the authorization URL, a frame, plugin code, logs, status or an error message.
 
 ## Host responsibilities
 

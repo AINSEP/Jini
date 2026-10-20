@@ -19,7 +19,7 @@ it('connects, serves and refreshes an access token, then disconnects with confir
     url.searchParams.get('code_challenge_method')]).toEqual(['acme.files', 'consent', 'one', 'S256']);
 
   const callback = provider.approve({ authorizationUrl: started.authorizationUrl, account: 'alice' });
-  const completed = await h.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK,
+  const completed = await h.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, browserBinding: started.browserBinding,
     callbackParams: { ...callback, picked: 'file-7', undeclared: 'dropped' } });
   expect(completed).toEqual({ connectionRef: started.connectionRef, attemptId: started.attemptId, outcome: 'connected',
     account: { accountId: 'alice', displayName: 'alice at acme' }, grantedScopes: ['acme.files'], callbackFields: { picked: 'file-7' } });

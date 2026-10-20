@@ -9,15 +9,17 @@ import type { OAuthClient } from '@jini-ai/oauth';
 import { createApiConnectionService, parseApiConnectionDescriptor, type ApiConnectionServiceDeps, type VaultOAuthTokenStore } from '../index.js';
 import { startAcmeProvider, type AcmeProvider } from './fixtures/acme-provider.js';
 import { buildRecordMeta } from '../token-store/record.js';
-import { buildHarness, buildVaultHarness, CALLBACK, signIn, VAULT_SCOPE, type Harness } from './fixtures/harness.js';
+import { browserBindingOf, buildHarness, buildVaultHarness, CALLBACK, signIn, VAULT_SCOPE, type Harness } from './fixtures/harness.js';
 
 let provider: AcmeProvider;
 let h: Harness;
 beforeEach(async () => { provider = await startAcmeProvider(); h = buildHarness(provider); });
 afterEach(async () => { await provider.close(); });
 
-const complete = (callbackParams: Record<string, string>, over: Partial<{ workspaceId: string; actorId: string; redirectUri: string }> = {}) =>
-  h.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams, ...over });
+const complete = (callbackParams: Record<string, string>,
+  over: Partial<{ workspaceId: string; actorId: string; redirectUri: string; browserBinding: string }> = {}) =>
+  h.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams,
+    browserBinding: browserBindingOf(h, callbackParams), ...over });
 
 async function connect(account = 'alice') {
   const { started, callbackParams } = await signIn(h, provider, { account });
@@ -58,6 +60,31 @@ describe('attempt binding and lifetime', () => {
     const newer = await signIn(h, provider);
     await complete(newer.callbackParams);
     await expect(complete(older.callbackParams)).rejects.toMatchObject({ code: 'attempt-superseded' });
+  });
+});
+
+describe('browser binding (a hosted callback carries no session, so the starting browser must prove itself)', () => {
+  it('refuses a callback from a browser that carries no binding, burns the attempt and installs nothing', async () => {
+    const { callbackParams } = await signIn(h, provider);
+    await expect(complete(callbackParams, { browserBinding: '' })).rejects.toMatchObject({ code: 'invalid-attempt' });
+    expect([h.records.attempts.size, h.tokens.entries.size, provider.tokenRequests.length]).toEqual([0, 0, 0]);
+  });
+  it("refuses a callback from a browser that carries another sign-in's binding", async () => {
+    const victim = await signIn(h, provider);
+    const own = await signIn(h, provider);
+    await expect(complete(victim.callbackParams, { browserBinding: own.started.browserBinding }))
+      .rejects.toMatchObject({ code: 'invalid-attempt' });
+  });
+  it('returns a 32-byte random binding separate from state and attempt id', async () => {
+    const { started } = await signIn(h, provider);
+    const { browserBinding, state, attemptId } = started;
+    expect([/^[A-Za-z0-9_-]{43}$/.test(browserBinding), browserBinding !== state, browserBinding !== attemptId]).toEqual([true, true, true]);
+  });
+  it('stores only a hash of the binding in the attempt', async () => {
+    const { started } = await signIn(h, provider);
+    const stored = h.records.attempts.get(started.state);
+    expect([JSON.stringify(stored).includes(started.browserBinding),
+      stored?.browserBindingHash === createHash('sha256').update(started.browserBinding).digest('base64url')]).toEqual([false, true]);
   });
 });
 
@@ -155,13 +182,13 @@ describe('credential install into the vault token store (no host-held lease)', (
   it('connects and serves the new token', async () => {
     const v = buildVaultHarness(provider);
     const { started, callbackParams } = await signIn(v, provider);
-    await v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams });
+    await v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams, browserBinding: browserBindingOf(v, callbackParams) });
     expect(await v.service.getAccessToken({ connectionRef: started.connectionRef, workspaceId: 'ws-1' })).toBe('acme-at-1');
   });
   it('stages and confirms an account switch', async () => {
     const v = buildVaultHarness(provider);
     const finish = (callbackParams: Record<string, string>) =>
-      v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams });
+      v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams, browserBinding: browserBindingOf(v, callbackParams) });
     const { started, callbackParams } = await signIn(v, provider, { account: 'alice' });
     await finish(callbackParams);
     await finish((await signIn(v, provider, { account: 'bob', intent: 'switch-account' })).callbackParams);
@@ -172,7 +199,7 @@ describe('credential install into the vault token store (no host-held lease)', (
     const v = buildVaultHarness(provider, { client: { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' },
       clientKind: 'confidential' });
     const finish = (callbackParams: Record<string, string>) =>
-      v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams });
+      v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams, browserBinding: browserBindingOf(v, callbackParams) });
     const { started, callbackParams } = await signIn(v, provider, { account: 'alice' });
     await finish(callbackParams);
     expect(await v.service.getAccessToken({ connectionRef: started.connectionRef, workspaceId: 'ws-1' })).toBe('acme-at-1');
@@ -362,7 +389,7 @@ describe('characterization: account actions that must keep their behaviour (pinn
 describe('revocation honesty against the real vault token store', () => {
   let v: ReturnType<typeof buildVaultHarness>;
   const finish = (callbackParams: Record<string, string>) =>
-    v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams });
+    v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams, browserBinding: browserBindingOf(v, callbackParams) });
   async function vaultConnect(account = 'alice') {
     const { started, callbackParams } = await signIn(v, provider, { account });
     await finish(callbackParams);
@@ -496,7 +523,7 @@ describe('a changed OAuth client or an unreadable stored credential never locks 
   let after: ReturnType<typeof buildVaultHarness>;
   let ref: string;
   const finishOn = (x: Harness<VaultOAuthTokenStore>, callbackParams: Record<string, string>) =>
-    x.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams });
+    x.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams, browserBinding: browserBindingOf(x, callbackParams) });
   const storedRow = () => before.vault.get({ ...VAULT_SCOPE, id: ref });
   beforeEach(async () => {
     before = buildVaultHarness(provider);
