@@ -69,6 +69,15 @@ describe('PKCE', () => {
   });
 });
 
+describe('client kind', () => {
+  it('sends the hosted extra parameters, not the installed-app ones, for a hosted client', async () => {
+    h = buildHarness(provider, { client: { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' } });
+    const { started } = await signIn(h, provider);
+    const params = new URL(started.authorizationUrl).searchParams;
+    expect([params.get('include_granted'), params.get('prompt')]).toEqual(['true', null]);
+  });
+});
+
 describe('granted scopes', () => {
   it('stores nothing when the account granted fewer scopes than requested', async () => {
     const { started, callbackParams } = await signIn(h, provider, { grantScopes: ['acme.other'] });
@@ -148,6 +157,12 @@ describe('account rules', () => {
     const { callbackParams } = await signIn(h, provider, { account: 'alice', omitRefreshToken: true });
     await complete(callbackParams);
     expect((await h.tokens.load({ key: ref }))?.refreshToken).toBe('acme-rt-1');
+  });
+  it('replaces the whole token set when an installed-app same-account exchange omits a refresh token', async () => {
+    const ref = await connect('alice');
+    const { callbackParams } = await signIn(h, provider, { account: 'alice', omitRefreshToken: true });
+    await complete(callbackParams);
+    expect((await h.tokens.load({ key: ref }))?.refreshToken).toBeNull();
   });
   it('stages a switch without changing the live account until confirmed', async () => {
     const ref = await connect('alice');
