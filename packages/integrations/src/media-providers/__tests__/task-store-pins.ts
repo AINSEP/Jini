@@ -38,6 +38,17 @@ export function describeMediaTaskStorePins({ label, getStore }: MediaTaskStorePi
       expect((await getStore().get('a'))?.file).toEqual({ url: 'u', meta: { n: 1 } });
     });
 
+    it('create() and update() snapshot the error object (later caller mutation does not leak in)', async () => {
+      const createError: { message: string } = { message: 'first' };
+      await getStore().create({ id: 'a', ownerRef: 'o', error: createError });
+      createError.message = 'mutated';
+      expect((await getStore().get('a'))?.error).toEqual({ message: 'first' });
+      const patchError: { message: string } = { message: 'second' };
+      await getStore().update('a', { error: patchError });
+      patchError.message = 'mutated';
+      expect((await getStore().get('a'))?.error).toEqual({ message: 'second' });
+    });
+
     it('update() checks the status enum before the transition graph', async () => {
       await getStore().create({ id: 'a', ownerRef: 'o', status: 'done' });
       await expect(getStore().update('a', { status: 'bogus' as never })).rejects.toThrow('Invalid media task status: "bogus"');
