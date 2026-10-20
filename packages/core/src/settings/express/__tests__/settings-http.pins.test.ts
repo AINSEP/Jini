@@ -83,7 +83,7 @@ describe("authorization refusals", () => {
     ["DELETE", "/prefs/value", { body: { namespace: "preferences", key: "color", scope: "global" } }, "prefs.global"],
     ["POST", "/prefs/reset", { body: { namespace: "preferences", scope: "user" } }, "reset.self"],
     ["GET", "/prefs/events", {}, "prefs.read"],
-  ] as const)("%s %s without %s is a 403 and touches no service", async (method, route, fields, permission) => {
+  ] as const)("%s %s %j without %s is a 403 and touches no service", async (method, route, fields, permission) => {
     const f = fixture(); vi.mocked(f.deps.authorize).mockImplementation(deny(permission)); registerSettingsRoutes(f.deps);
     const { capture } = await f.invoke(method, route, fields);
     expect(capture.statusCode).toBe(403);
@@ -254,6 +254,18 @@ describe("event stream registration", () => {
     expect(capture.frames).toBe("");
     expect(f.scheduled.size).toBe(0);
     mounted.dispose();
+  });
+  test("a dispose that lands between the stream opening and its registration still closes the stream", async () => {
+    const f = fixture(); const every = f.deps.scheduler.every; let mounted: { dispose(): void } | undefined;
+    f.deps.scheduler = { every: (input) => {
+      // Queued while the stream is still opening, so it runs before the route registers the closer.
+      if (f.scheduled.size === 0) queueMicrotask(() => { mounted?.dispose(); });
+      return every(input);
+    } };
+    mounted = registerSettingsRoutes(f.deps);
+    const { res } = await f.invoke("GET", "/prefs/events");
+    expect(res.writableEnded).toBe(true);
+    expect(f.scheduled.size).toBe(0);
   });
   test("disposing after a stream opened closes it and cancels its schedules", async () => {
     const f = fixture(); const mounted = registerSettingsRoutes(f.deps);
