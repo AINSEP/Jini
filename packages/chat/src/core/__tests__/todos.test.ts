@@ -172,8 +172,9 @@ describe('todos: boundaries', () => {
   });
 
   it('ignores a non-tool_use event that shares a plan-tool name', () => {
+    const plan: AgentEvent = { kind: 'tool_use', id: 't', name: 'TodoWrite', input: { todos: [{ content: 'real' }] } };
     const ext: AgentEvent = { kind: 'ext', name: 'TodoWrite', data: { todos: [{ content: 'x' }] } };
-    expect(latestTodosFromEvents({ events: [ext] })).toEqual([]);
+    expect(latestTodosFromEvents({ events: [plan, ext] }).map((todo) => todo.content)).toEqual(['real']);
   });
 
   it('pinned card reads only the newest message holding a plan, ignoring older terminal ones', () => {
