@@ -14,7 +14,7 @@ import { isUnreadableTokenRecord } from './token-store/errors.js';
 import { stagedTokenKey } from './keys.js';
 import { loadOwnedRecord, writeRecord, type OwnedRecordArgs } from './records.js';
 import { toStatusView, type ApiConnectionStatusView } from './status.js';
-import type { ApiConnectionRecord } from './types.js';
+import type { ApiConnectionRecord, ApiConnectionRevocationFailure } from './types.js';
 
 /**
  * `not-needed` when no credential existed locally, so nothing could be revoked. `pending` with
@@ -27,6 +27,21 @@ export type ApiConnectionRemoteRevocation = 'confirmed' | 'pending' | 'not-neede
 
 /** `abandoned`: the credential was unreadable and deleted locally; reported to callers as `pending`. */
 type CredentialRevocation = ApiConnectionRemoteRevocation | 'abandoned';
+
+interface RevocationResult {
+  readonly outcome: CredentialRevocation;
+  readonly failure: ApiConnectionRevocationFailure | null;
+}
+
+/** Classifications a revoke hook may put on its error's `code`; anything else is `unclassified`. */
+const HOOK_FAILURE_CODES: ReadonlySet<unknown> = new Set<ApiConnectionRevocationFailure>(['provider-unreachable', 'provider-refused']);
+
+/** Read only the hook's `code`, and only when it is a known classification: its message may echo provider bodies. */
+function hookFailureOf(error: unknown): ApiConnectionRevocationFailure {
+  // A hook may throw anything, `undefined` included.
+  const code = (error as { readonly code?: unknown } | null | undefined)?.code;
+  return HOOK_FAILURE_CODES.has(code) ? code as ApiConnectionRevocationFailure : 'unclassified';
+}
 
 export interface ApiConnectionDisconnectResult extends ApiConnectionStatusView {
   readonly remoteRevocation: ApiConnectionRemoteRevocation;
@@ -55,7 +70,7 @@ function stagedSwitchUsable(record: ApiConnectionRecord, actorId: string, nowMs:
  * hook returned. The read ignores the generation fence: a disconnect has already disabled the
  * credential, and these tokens go to the revoke hook only.
  */
-async function revokeStoredCredential(deps: ApiConnectionServiceDeps, key: string): Promise<CredentialRevocation> {
+async function revokeStoredCredential(deps: ApiConnectionServiceDeps, key: string): Promise<RevocationResult> {
   const tokens = await deps.tokens.loadForRevocation({ key }).catch((error: unknown) => {
     if (isUnreadableTokenRecord(error)) return 'unreadable' as const;
     throw error;
@@ -63,24 +78,29 @@ async function revokeStoredCredential(deps: ApiConnectionServiceDeps, key: strin
   // Nothing can ever revoke with an unreadable row; keeping it would block every later sign-in.
   if (tokens === 'unreadable') {
     await deps.tokens.delete({ key });
-    return 'abandoned';
+    return { outcome: 'abandoned', failure: 'credential-unreadable' };
   }
-  if (tokens === null) return 'not-needed';
+  if (tokens === null) return { outcome: 'not-needed', failure: null };
   try {
     await deps.hooks.revoke({ token: tokens.refreshToken ?? tokens.accessToken });
-  } catch {
-    // The hook's error may echo provider bodies; the outcome, not the detail, is what callers get.
-    // The credential stays (disabled) so a retry can still revoke the grant.
-    return 'pending';
+  } catch (error: unknown) {
+    // The hook's error may echo provider bodies; the outcome and a fixed code, not the detail, is
+    // what callers and the record get. The credential stays (disabled) so a retry can still revoke.
+    return { outcome: 'pending', failure: hookFailureOf(error) };
   }
   await deps.tokens.delete({ key });
-  return 'confirmed';
+  return { outcome: 'confirmed', failure: null };
 }
 
 /** One outcome for several credentials: any pending (or abandoned) wins, then any confirmed. */
 function combineRevocations(outcomes: readonly CredentialRevocation[]): ApiConnectionRemoteRevocation {
   if (outcomes.includes('pending') || outcomes.includes('abandoned')) return 'pending';
   return outcomes.includes('confirmed') ? 'confirmed' : 'not-needed';
+}
+
+/** The first failure among several credentials (the live one is revoked first), or null. */
+function firstFailure(results: readonly RevocationResult[]): ApiConnectionRevocationFailure | null {
+  return results.find(result => result.failure !== null)?.failure ?? null;
 }
 
 export async function confirmSwitchAccount(
@@ -110,9 +130,10 @@ export async function cancelSwitchAccount(
   // Without a staged record the slot can only hold a confirmed switch's copy of the live grant
   // (or a credential a pending disconnect owns): revoking it here would cut off the live account.
   if (record.staged === null) return { ...toStatusView(record), remoteRevocation: 'not-needed' };
-  const outcome = await revokeStoredCredential(deps, stagedTokenKey({ key: record.key }));
-  const updated = outcome === 'pending' ? record : await writeRecord(deps, record, { staged: null });
-  return { ...toStatusView(updated), remoteRevocation: combineRevocations([outcome]) };
+  const result = await revokeStoredCredential(deps, stagedTokenKey({ key: record.key }));
+  const updated = await writeRecord(deps, record, result.outcome === 'pending'
+    ? { revocationFailure: result.failure } : { staged: null, revocationFailure: result.failure });
+  return { ...toStatusView(updated), remoteRevocation: combineRevocations([result.outcome]) };
 }
 
 /** Disconnect and revoke the live and any staged credential; call again to retry a `pending` revocation. */
@@ -124,13 +145,15 @@ export async function disconnectApiConnection(
   // Stop use before any network call: no token is served or refreshed once the generation moves.
   const stopped = record.status === 'revocation-pending' ? record
     : await writeRecord(deps, record, { status: 'revocation-pending', generation: record.generation + 1, staged: null });
-  const outcomes = [
+  const results = [
     await revokeStoredCredential(deps, record.key),
     await revokeStoredCredential(deps, stagedTokenKey({ key: record.key })),
   ];
+  const outcomes = results.map(result => result.outcome);
   const remoteRevocation = combineRevocations(outcomes);
+  const revocationFailure = firstFailure(results);
   // Only a kept credential can be retried; an abandoned one leaves nothing to wait for locally.
-  if (outcomes.includes('pending')) return { ...toStatusView(stopped), remoteRevocation };
-  const cleared = await writeRecord(deps, stopped, { status: 'disconnected', account: null, grantedScopes: [] });
+  if (outcomes.includes('pending')) return { ...toStatusView(await writeRecord(deps, stopped, { revocationFailure })), remoteRevocation };
+  const cleared = await writeRecord(deps, stopped, { status: 'disconnected', account: null, grantedScopes: [], revocationFailure });
   return { ...toStatusView(cleared), remoteRevocation };
 }

@@ -98,7 +98,11 @@ client with `authMethod: 'none'` is refused at construction (`configuration-inva
   deleting each only after the hook returned. All confirmed (or nothing stored) → `disconnected`.
   Any failure → stays `revocation-pending` with the disabled credential kept, `remoteRevocation:
   'pending'` (show "Disconnected locally; revocation pending" and the provider's account-access
-  page); calling `disconnect` again retries. `not-needed` means no credential was stored. A sign-in
+  page); calling `disconnect` again retries. `not-needed` means no credential was stored.
+  A failure is recorded as a fixed diagnostic code, `revocationFailure` on the record and the status
+  view (`provider-unreachable` / `provider-refused` when the revoke hook's error carries that
+  `code`, `unclassified` otherwise, `credential-unreadable` for the case below); hook and provider
+  text is never stored. A confirmed revocation, a successful cancel or a new sign-in clears it. A sign-in
   is refused while revocation is pending. A stored credential this host can no longer read (it was
   sealed for another OAuth client id, or is malformed) is deleted locally and reported `pending`
   with status `disconnected`: nothing is left to retry with, so the person removes the access on

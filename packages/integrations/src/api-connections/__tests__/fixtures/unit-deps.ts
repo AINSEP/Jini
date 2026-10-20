@@ -67,7 +67,7 @@ export function attempt(over: Partial<ApiConnectionAttempt> = {}): ApiConnection
 
 export function connectedRecord(over: Partial<ApiConnectionRecord> = {}): ApiConnectionRecord {
   return { key: KEY, workspaceId: 'ws-1', pluginId: 'acme-office', connectionId: 'account', status: 'connected', revision: 1,
-    generation: 1, account: { accountId: 'alice', displayName: 'Alice' }, grantedScopes: ['acme.files'], staged: null,
+    generation: 1, account: { accountId: 'alice', displayName: 'Alice' }, grantedScopes: ['acme.files'], staged: null, revocationFailure: null,
     updatedAt: '2026-10-20T10:00:00.000Z', ...over };
 }
 

@@ -11,7 +11,7 @@ import { ApiConnectionError } from './errors.js';
 import type { ApiConnectionRecord } from './types.js';
 
 type RecordDeps = Pick<ApiConnectionServiceDeps, 'records' | 'clock' | 'descriptor'>;
-export type RecordPatch = Partial<Pick<ApiConnectionRecord, 'status' | 'generation' | 'account' | 'grantedScopes' | 'staged'>>;
+export type RecordPatch = Partial<Pick<ApiConnectionRecord, 'status' | 'generation' | 'account' | 'grantedScopes' | 'staged' | 'revocationFailure'>>;
 
 export function connectionNotFound(): ApiConnectionError {
   return new ApiConnectionError({
@@ -44,7 +44,7 @@ export function blankRecord(deps: RecordDeps, requiredArgs: { readonly key: stri
   return {
     key: requiredArgs.key, workspaceId: requiredArgs.workspaceId,
     pluginId: deps.descriptor.pluginId, connectionId: deps.descriptor.connectionId,
-    status: 'disconnected', revision: 0, generation: 0, account: null, grantedScopes: [], staged: null,
+    status: 'disconnected', revision: 0, generation: 0, account: null, grantedScopes: [], staged: null, revocationFailure: null,
     updatedAt: nowIso({ clock: deps.clock }),
   };
 }

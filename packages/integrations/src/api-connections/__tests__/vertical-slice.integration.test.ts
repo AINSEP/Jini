@@ -24,7 +24,7 @@ it('connects, serves and refreshes an access token, then disconnects with confir
   expect(completed).toEqual({ connectionRef: started.connectionRef, attemptId: started.attemptId, outcome: 'connected',
     account: { accountId: 'alice', displayName: 'alice at acme' }, grantedScopes: ['acme.files'], callbackFields: { picked: 'file-7' } });
   expect(await h.service.getStatus({ connectionRef: started.connectionRef, workspaceId: 'ws-1' })).toEqual({ connectionRef: started.connectionRef,
-    status: 'connected', account: completed.account, grantedScopes: ['acme.files'], pendingSwitch: null });
+    status: 'connected', account: completed.account, grantedScopes: ['acme.files'], pendingSwitch: null, revocationFailure: null });
 
   expect(await h.service.getAccessToken({ connectionRef: started.connectionRef, workspaceId: 'ws-1' })).toBe('acme-at-1');
   h.clock.now += 3600_000;

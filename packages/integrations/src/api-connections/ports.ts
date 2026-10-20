@@ -46,7 +46,10 @@ export interface ApiConnectionHooks {
   readAccount(requiredArgs: { readonly accessToken: string }): Promise<ApiConnectionAccount>;
   /**
    * Revoke the grant remotely. Throw when the provider did not confirm revocation. A retry may
-   * send a token the provider already revoked: report that as success, not as a failure.
+   * send a token the provider already revoked: report that as success, not as a failure. To
+   * classify a failure for operators, give the thrown error `code: 'provider-unreachable'` (no
+   * answer) or `code: 'provider-refused'` (an answer that was not a confirmation); the engine
+   * records only that code (anything else is `unclassified`) and never reads the message.
    */
   revoke(requiredArgs: { readonly token: string }): Promise<void>;
 }

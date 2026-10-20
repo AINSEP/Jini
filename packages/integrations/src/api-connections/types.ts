@@ -48,6 +48,14 @@ export interface ApiConnectionDescriptor {
   readonly callbackFields: readonly ApiConnectionBoundedField[];
 }
 
+/**
+ * Why the last remote revocation was not confirmed: a fixed code, never hook or provider text.
+ * `provider-unreachable` / `provider-refused` are the revoke hook's own classification (an error
+ * whose `code` is one of them); `unclassified` is any other hook failure; `credential-unreadable`
+ * means the stored credential could not be read, so it was removed locally without revoking.
+ */
+export type ApiConnectionRevocationFailure = 'provider-unreachable' | 'provider-refused' | 'unclassified' | 'credential-unreadable';
+
 /** A switch-account result held aside until the person confirms it. */
 export interface ApiConnectionStagedSwitch {
   readonly account: ApiConnectionAccount;
@@ -70,6 +78,8 @@ export interface ApiConnectionRecord {
   readonly account: ApiConnectionAccount | null;
   readonly grantedScopes: readonly string[];
   readonly staged: ApiConnectionStagedSwitch | null;
+  /** Set by a disconnect or cancel whose revocation was not confirmed; cleared by the next confirmed one or sign-in. */
+  readonly revocationFailure: ApiConnectionRevocationFailure | null;
   readonly updatedAt: string;
 }
 
