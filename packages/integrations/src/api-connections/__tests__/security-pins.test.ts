@@ -245,6 +245,14 @@ describe('account rules', () => {
     expect((await complete(callbackParams)).outcome).toBe('staged');
     expect(await h.service.getAccessToken({ connectionRef: ref }, { expectedAccountId: 'alice' })).toBe('acme-at-1');
   });
+  it('refuses a switch to the account already connected, staging nothing and revoking nothing', async () => {
+    const ref = await connect('alice');
+    const { callbackParams } = await signIn(h, provider, { account: 'alice', intent: 'switch-account' });
+    await expect(complete(callbackParams)).rejects.toMatchObject({ code: 'account-unchanged' });
+    expect([(await h.service.getStatus({ connectionRef: ref })).pendingSwitch, h.tokens.entries.has(`${ref}#staged`), provider.revoked])
+      .toEqual([null, false, []]);
+    expect(await h.service.getAccessToken({ connectionRef: ref }, { expectedAccountId: 'alice' })).toBe('acme-at-1');
+  });
   it('refuses a switch confirmation from a different actor', async () => {
     const ref = await connect('alice');
     await complete((await signIn(h, provider, { account: 'bob', intent: 'switch-account' })).callbackParams);

@@ -74,7 +74,9 @@ client with `authMethod: 'none'` is refused at construction (`configuration-inva
   `getAccessToken({ connectionRef }, { expectedAccountId })` and get `account-changed` instead of
   silently using the new account. While a switch is staged every new sign-in is refused
   (`switch-in-progress`), so a consented staged credential is never overwritten or orphaned
-  unrevoked; the record claims the staged slot before its tokens are written.
+  unrevoked; the record claims the staged slot before its tokens are written. Signing in as the
+  account already connected is refused (`account-unchanged`, "use reconnect"): the staged copy
+  would share the live grant, so cancelling it would revoke the live credential.
 - **Confirmed switch** returns `previousAccountRevocation: 'not-attempted'`: the previous account's
   grant is left at the provider (revoking it could cut off the same account connected elsewhere
   through the same client) and its local tokens are replaced. Hosts say so and link the provider's
@@ -87,7 +89,10 @@ client with `authMethod: 'none'` is refused at construction (`configuration-inva
   Any failure → stays `revocation-pending` with the disabled credential kept, `remoteRevocation:
   'pending'` (show "Disconnected locally; revocation pending" and the provider's account-access
   page); calling `disconnect` again retries. `not-needed` means no credential was stored. A sign-in
-  is refused while revocation is pending.
+  is refused while revocation is pending. A stored credential this host can no longer read (it was
+  sealed for another OAuth client id, or is malformed) is deleted locally and reported `pending`
+  with status `disconnected`: nothing is left to retry with, so the person removes the access on
+  the provider's account page, and a new sign-in is allowed.
 - **Access tokens** are served only for `connected` records; a rejected refresh moves the record
   to `reconnect-required`.
 

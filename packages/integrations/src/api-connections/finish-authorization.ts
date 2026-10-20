@@ -91,6 +91,12 @@ async function stageSwitch(deps: ApiConnectionServiceDeps, record: ApiConnection
     throw new ApiConnectionError({ code: 'switch-in-progress',
       message: 'Another account switch was staged while this sign-in ran. Confirm or cancel it, then switch again.' });
   }
+  // The provider usually holds one grant per client and account, so a staged copy of the live
+  // account would share its grant: cancelling the switch would then revoke the live credential.
+  if (record.account?.accountId === account.accountId) {
+    throw new ApiConnectionError({ code: 'account-unchanged',
+      message: 'This is the account already connected. Use reconnect instead of switching accounts.' });
+  }
   const expiresAt = new Date(Date.parse(nowIso({ clock: deps.clock })) + ATTEMPT_TTL_MS).toISOString();
   // Claim the staged slot on the record first: of two concurrent switches only the compare-and-set
   // winner writes tokens, so the slot can never hold one account while the record names another.
