@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildRenderContext } from '../context.js';
-import type { MediaGenerationRequest } from '../types.js';
+import type { MediaGenerationRequest, MediaGenerationRequestInit } from '../types.js';
 
 function baseRequest(overrides: Partial<MediaGenerationRequest> = {}): MediaGenerationRequest {
   return { surface: 'image', model: 'gpt-image-2', ...overrides };
@@ -73,6 +73,29 @@ describe('buildRenderContext', () => {
             const explicit = [{ dataUrl: 'data:image/png;base64,A=' }, { dataUrl: 'data:image/png;base64,B=' }];
             const ctx = buildRenderContext({ request: baseRequest({ imageRef: primary, imageRefs: explicit }), resolvedAudioKind: undefined, length: undefined, duration: undefined });
             expect(ctx.imageRefs).toBe(explicit);
+        });
+    });
+    describe('pass-through and fallback edges', () => {
+        const none = { resolvedAudioKind: undefined, length: undefined, duration: undefined };
+        it('copies surface, model, audioKind and onProgress through unchanged', () => {
+            const onProgress = (): void => undefined;
+            const ctx = buildRenderContext({ request: baseRequest({ surface: 'audio', model: 'm', onProgress }), resolvedAudioKind: 'speech', length: undefined, duration: 12 });
+            expect(ctx).toMatchObject({ surface: 'audio', model: 'm', audioKind: 'speech', duration: 12 });
+            expect(ctx.onProgress).toBe(onProgress);
+        });
+        it('defaults requestInit to an empty object and passes a supplied one through by identity', () => {
+            expect(buildRenderContext({ request: baseRequest(), ...none }).requestInit).toEqual({});
+            const requestInit: MediaGenerationRequestInit = {};
+            expect(buildRenderContext({ request: baseRequest({ requestInit }), ...none }).requestInit).toBe(requestInit);
+        });
+        it('keeps an empty-string wireModel (only null/undefined fall back to model)', () => {
+            expect(buildRenderContext({ request: baseRequest({ wireModel: '' }), ...none }).wireModel).toBe('');
+        });
+        it('treats an empty-string aspect as absent and falls back to the surface default', () => {
+            expect(buildRenderContext({ request: baseRequest({ surface: 'video', aspect: '' }), ...none }).aspect).toBe('16:9');
+        });
+        it('keeps a zero promptInfluence (finite, falsy)', () => {
+            expect(buildRenderContext({ request: baseRequest({ promptInfluence: 0 }), ...none }).promptInfluence).toBe(0);
         });
     });
 });

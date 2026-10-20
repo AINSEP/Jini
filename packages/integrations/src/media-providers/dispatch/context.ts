@@ -19,6 +19,16 @@ function defaultAspectFor(surface: MediaSurface): string | undefined {
   return undefined;
 }
 
+/** Never forward a non-finite number (NaN/Infinity) to a provider. */
+function finiteOrUndefined(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+/** An explicit `imageRefs` wins; otherwise derive a one-element list from `imageRef`. */
+function resolveImageRefs(request: MediaGenerationRequest): RenderContext['imageRefs'] {
+  return request.imageRefs ?? (request.imageRef ? [request.imageRef] : []);
+}
+
 /**
  * @param request The caller's original request.
  * @param resolvedAudioKind Already resolved by the caller (defaults to `'music'` for an audio surface with no explicit `audioKind`).
@@ -39,9 +49,9 @@ export function buildRenderContext({ request, resolvedAudioKind, length, duratio
     audioKind: resolvedAudioKind,
     language: request.language || '',
     loop: request.loop === true,
-    promptInfluence: typeof request.promptInfluence === 'number' && Number.isFinite(request.promptInfluence) ? request.promptInfluence : undefined,
+    promptInfluence: finiteOrUndefined(request.promptInfluence),
     imageRef: request.imageRef ?? null,
-    imageRefs: request.imageRefs ?? (request.imageRef ? [request.imageRef] : []),
+    imageRefs: resolveImageRefs(request),
     requestInit: request.requestInit || {},
     speechFormat: resolveSpeechFormat(request.speechFormat),
     onProgress: request.onProgress,

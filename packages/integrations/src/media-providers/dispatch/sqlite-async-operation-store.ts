@@ -35,9 +35,10 @@ import { loadMediaSqliteOpener } from '../sqlite-driver.adapter.js';
 import {
   ASYNC_OPERATION_SCHEMA_VERSION,
   ASYNC_OPERATION_STATUSES,
-  assertNoCredentialMaterial,
-  assertTransition,
+  assertValidCreateInput,
   hydrateAsyncOperationRecord,
+  isFencedOut,
+  mergeAsyncOperationPatch,
   TERMINAL_STATUSES,
 } from './async-operation-store.js';
 import type {
@@ -209,24 +210,19 @@ export async function createSqliteAsyncOperationStore(
     RETURNING *
   `);
 
-  function stateJson(state: Readonly<Record<string, unknown>> | null | undefined): string | null {
-    return state == null ? null : JSON.stringify(state);
+  /** A nullable JSON column: `null`/`undefined` store SQL NULL, anything else its JSON text. */
+  function jsonOrNull(value: object | null | undefined): string | null {
+    return value == null ? null : JSON.stringify(value);
   }
 
   const createTxn = db.transaction((input: AsyncOperationCreateInput): AsyncOperationRecord => {
     if (getStmt.get(input.id)) {
         throw new Error(`async operation "${input.id}" already exists`);
     }
-    if (!Number.isFinite(input.maxAttempts) || input.maxAttempts < 1) {
-        throw new RangeError(`Invalid maxAttempts: ${input.maxAttempts} must be a finite number >= 1`);
-    }
-    if (!Number.isFinite(input.deadlineAt)) {
-        throw new RangeError(`Invalid deadlineAt: ${input.deadlineAt} must be a finite epoch-ms timestamp`);
-    }
-    assertNoCredentialMaterial({ state: input.state });
+    assertValidCreateInput({ input });
     const now = Date.now();
     const status: AsyncOperationStatus = input.status ?? 'submitted';
-    insertStmt.run(input.id, input.providerId, input.routeKey, input.ownerRef, status, 0, input.maxAttempts, input.deadlineAt, input.nextPollAt ?? now, stateJson(input.state), ASYNC_OPERATION_SCHEMA_VERSION, now, now);
+    insertStmt.run(input.id, input.providerId, input.routeKey, input.ownerRef, status, 0, input.maxAttempts, input.deadlineAt, input.nextPollAt ?? now, jsonOrNull(input.state), ASYNC_OPERATION_SCHEMA_VERSION, now, now);
     return rowToOperation(getStmt.get(input.id)!);
 });
 
@@ -237,25 +233,9 @@ export async function createSqliteAsyncOperationStore(
     const existing = rowToOperation(existingRow);
     // Fenced exactly like `releaseLease` and the in-memory store: a caller writing against a
     // lease it no longer holds gets the row back unchanged, not an overwrite.
-    if (options?.leaseOwner !== undefined && existing.leaseOwner !== options.leaseOwner) {
-        return existing;
-    }
-    if ('state' in patch)
-        assertNoCredentialMaterial({ state: patch.state });
-    const status = patch.status ?? existing.status;
-    assertTransition(existing.status, status);
-    const next = {
-        status,
-        attempts: patch.attempts ?? existing.attempts,
-        nextPollAt: patch.nextPollAt ?? existing.nextPollAt,
-        state: 'state' in patch ? (patch.state ?? null) : existing.state,
-        result: 'result' in patch ? (patch.result ?? null) : existing.result,
-        error: 'error' in patch ? (patch.error ?? null) : existing.error,
-        leaseOwner: 'leaseOwner' in patch ? (patch.leaseOwner ?? null) : existing.leaseOwner,
-        leaseExpiresAt: 'leaseExpiresAt' in patch ? (patch.leaseExpiresAt ?? null) : existing.leaseExpiresAt,
-        updatedAt: Date.now(),
-    };
-    updateStmt.run(next.status, next.attempts, next.nextPollAt, stateJson(next.state), next.result === null ? null : JSON.stringify(next.result), next.error === null ? null : JSON.stringify(next.error), next.leaseOwner, next.leaseExpiresAt, next.updatedAt, id);
+    if (isFencedOut({ existing, options })) return existing;
+    const next = mergeAsyncOperationPatch({ existing, patch }, { now: Date.now() });
+    updateStmt.run(next.status, next.attempts, next.nextPollAt, jsonOrNull(next.state), jsonOrNull(next.result), jsonOrNull(next.error), next.leaseOwner, next.leaseExpiresAt, next.updatedAt, id);
     return rowToOperation(getStmt.get(id)!);
 });
 
