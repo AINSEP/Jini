@@ -7,7 +7,7 @@ function record(value: unknown): value is Record<string, unknown> { return value
 interface CodexStreamState { completed: boolean; lastMessage: string | undefined; usage: unknown; readonly errors: string[] }
 type CodexEventHandler = (state: CodexStreamState, event: Record<string, unknown>) => void;
 /** Keyed by event type in a Map, so a `type` such as `constructor` never reaches a prototype member. */
-const CODEX_EVENT_HANDLERS = new Map<unknown, CodexEventHandler>([
+const CODEX_EVENT_HANDLERS: ReadonlyMap<unknown, CodexEventHandler> = new Map<unknown, CodexEventHandler>([
   ['turn.completed', (state, event) => { state.completed = true; state.usage = event.usage ?? null; }],
   ['turn.failed', (state, event) => { state.errors.push(`turn.failed: ${JSON.stringify(event.error ?? event)}`); }],
   ['error', (state, event) => { state.errors.push(`error: ${event.message ?? JSON.stringify(event)}`); }],
