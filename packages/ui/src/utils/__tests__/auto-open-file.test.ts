@@ -110,6 +110,119 @@ describe('decideAutoOpenAfterWrite', () => {
   });
 });
 
+describe('decideAutoOpenAfterWrite boundaries', () => {
+  it('declines a basename-fallback candidate that is a module file', () => {
+    const files = [{ name: 'App.jsx', path: 'src/App.jsx' }];
+    expect(decideAutoOpenAfterWrite('App.jsx', files, { moduleFileNames: new Set(['App.jsx']) })).toEqual({
+      shouldOpen: false,
+      fileName: null,
+    });
+  });
+
+  it('opens with a module set that does not contain the resolved name', () => {
+    const files = [{ name: 'App.jsx', path: 'src/App.jsx' }];
+    expect(decideAutoOpenAfterWrite('src/App.jsx', files, { moduleFileNames: new Set(['Other.jsx']) })).toEqual({
+      shouldOpen: true,
+      fileName: 'App.jsx',
+    });
+  });
+
+  it('returns the matched file name, not its path', () => {
+    const files = [{ name: 'Display Name', path: 'pages/home.html' }];
+    expect(decideAutoOpenAfterWrite('/abs/pages/home.html', files)).toEqual({ shouldOpen: true, fileName: 'Display Name' });
+  });
+
+  it('uses an empty path as-is instead of falling back to name, so it never matches', () => {
+    const files = [{ name: 'App.jsx', path: '' }];
+    expect(decideAutoOpenAfterWrite('App.jsx', files)).toEqual({ shouldOpen: false, fileName: null });
+  });
+
+  it('declines a filePath that only ends with the rel path without a slash boundary', () => {
+    const files = [{ name: 'App.jsx', path: 'App.jsx' }];
+    expect(decideAutoOpenAfterWrite('MyApp.jsx', files)).toEqual({ shouldOpen: false, fileName: null });
+  });
+
+  it('declines when nextFiles is empty', () => {
+    expect(decideAutoOpenAfterWrite('App.jsx', [])).toEqual({ shouldOpen: false, fileName: null });
+  });
+});
+
+describe('selectAutoOpenProducedArtifact boundaries', () => {
+  it('ranks a file whose kind is html as a page even without an .html extension', () => {
+    const files = [
+      { name: 'notes.md', mtime: 9 },
+      { name: 'page', kind: 'html', mtime: 1 },
+    ];
+    expect(selectAutoOpenProducedArtifact(files)).toBe('page');
+  });
+
+  it('matches .htm and upper-case .HTML extensions as pages', () => {
+    expect(selectAutoOpenProducedArtifact([{ name: 'notes.md', mtime: 9 }, { name: 'a.htm' }])).toBe('a.htm');
+    expect(selectAutoOpenProducedArtifact([{ name: 'notes.md', mtime: 9 }, { name: 'B.HTML' }])).toBe('B.HTML');
+  });
+
+  it('matches .markdown and upper-case .MD as markdown but leaves .txt alone', () => {
+    expect(selectAutoOpenProducedArtifact([{ name: 'a.txt', mtime: 9 }, { name: 'doc.markdown' }])).toBe('doc.markdown');
+    expect(selectAutoOpenProducedArtifact([{ name: 'a.txt', mtime: 9 }, { name: 'DOC.MD' }])).toBe('DOC.MD');
+  });
+
+  it('uses path over name when classifying a file', () => {
+    expect(selectAutoOpenProducedArtifact([{ name: 'page.html', path: 'page.txt' }])).toBeNull();
+  });
+
+  it('keeps an earlier newer file over a later older one at the same rank', () => {
+    const files = [
+      { name: 'b.html', mtime: 5 },
+      { name: 'a.html', mtime: 1 },
+    ];
+    expect(selectAutoOpenProducedArtifact(files)).toBe('b.html');
+  });
+
+  it('with preferSiteEntry, keeps an earlier newer entry over a later older one at the same depth', () => {
+    const files = [
+      { name: 'newer', path: 'index.html', mtime: 5 },
+      { name: 'older', path: 'index.html', mtime: 1 },
+    ];
+    expect(selectAutoOpenProducedArtifact(files, { preferSiteEntry: true })).toBe('newer');
+  });
+
+  it('with preferSiteEntry, matches an upper-case Index.HTM entry', () => {
+    const files = [
+      { name: 'page', path: 'page.html', mtime: 9 },
+      { name: 'entry', path: 'docs/Index.HTM', mtime: 1 },
+    ];
+    expect(selectAutoOpenProducedArtifact(files, { preferSiteEntry: true })).toBe('entry');
+  });
+
+  it('with preferSiteEntry, does not treat myindex.html as a site entry', () => {
+    const files = [
+      { name: 'myindex', path: 'myindex.html', mtime: 1 },
+      { name: 'page', path: 'page.html', mtime: 9 },
+    ];
+    expect(selectAutoOpenProducedArtifact(files, { preferSiteEntry: true })).toBe('page');
+  });
+
+  it('ignores preferSiteEntry when it is false', () => {
+    const files = [
+      { name: 'root', path: 'index.html', mtime: 1 },
+      { name: 'page', path: 'page.html', mtime: 9 },
+    ];
+    expect(selectAutoOpenProducedArtifact(files, { preferSiteEntry: false })).toBe('page');
+  });
+
+  it('lets an earlier file with a positive finite mtime beat a later non-finite one', () => {
+    const files = [
+      { name: 'a.html', mtime: 5 },
+      { name: 'b.html', mtime: Number.NaN },
+    ];
+    expect(selectAutoOpenProducedArtifact(files)).toBe('a.html');
+  });
+
+  it('returns null for an empty list', () => {
+    expect(selectAutoOpenProducedArtifact([], { preferSiteEntry: true })).toBeNull();
+  });
+});
+
 describe('selectAutoOpenProducedArtifact', () => {
   it('returns null when nothing is previewable', () => {
     expect(selectAutoOpenProducedArtifact([{ name: 'data.json' }])).toBeNull();
