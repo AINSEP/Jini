@@ -185,6 +185,16 @@ describe('ToolExecutor.execute — advisory guidance', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
+  it('returns the handler output with no guidance at all when prepareGuidance rejects', async () => {
+    const executor = createToolExecutor({ registry: registryWith(tool('w', async () => ({ saved: true }), { metadata: { guidanceCapabilities: ['x'] } })) }, {
+      prepareGuidance: async () => { throw new Error('guidance store offline'); },
+    });
+
+    const result = await executor.execute({ principal, run, toolId: 'w', input: {} });
+
+    expect(result).toEqual({ executionId: result.executionId, status: 'completed', output: { saved: true }, truncated: false });
+  });
+
   it('appends guidance to a string output', async () => {
     const executor = createToolExecutor({ registry: registryWith(tool('w', async () => 'saved', { metadata: { guidanceCapabilities: ['x'] } })) }, { prepareGuidance: async () => 'G' });
     expect((await executor.execute({ principal, run, toolId: 'w', input: {} })).output).toBe('saved\n\nG');
