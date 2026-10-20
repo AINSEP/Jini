@@ -70,3 +70,24 @@ it('retains server order when replacing the defensive first-row default', async 
   const controller = createSourceControlController({ api, permissions }); await controller.load({}); controller.setToken({ providerId: 'git', value: 'replacement' }); controller.setField({ providerId: 'git', name: 'username', value: 'person' }); expect(await controller.save({ providerId: 'git' })).toBe(true);
   expect(controller.getSnapshot().credentials.map(r => r.id)).toEqual(['saved', 'second']);
 });
+it('refuses to save while saved connections failed to load, even with the catalog present', async () => {
+  const api = createMemorySourceControlApi({ providers }); const create = vi.spyOn(api, 'create'); vi.spyOn(api, 'list').mockRejectedValue(new Error('down'));
+  const controller = createSourceControlController({ api, permissions }); await controller.load({}); controller.setToken({ providerId: 'other', value: 'secret' });
+  expect(controller.getSnapshot().providers).toEqual(providers);
+  expect(await controller.save({ providerId: 'other' })).toBe(false); expect(create).not.toHaveBeenCalled(); expect(controller.getSnapshot().drafts.other?.saving).toBe(false);
+});
+it('refuses to save a provider that is neither in the catalog nor saved', async () => {
+  const api = createMemorySourceControlApi({ providers }); const create = vi.spyOn(api, 'create');
+  const controller = createSourceControlController({ api, permissions }); await controller.load({}); controller.setToken({ providerId: 'unknown', value: 'secret' });
+  expect(await controller.save({ providerId: 'unknown' })).toBe(false); expect(create).not.toHaveBeenCalled();
+});
+it('appends a newly created connection after the rows already loaded', async () => {
+  const api = createMemorySourceControlApi({ providers, credentials: [row] }); const controller = createSourceControlController({ api, permissions }); await controller.load({});
+  controller.setToken({ providerId: 'other', value: 'fresh' }); expect(await controller.save({ providerId: 'other' })).toBe(true);
+  expect(controller.getSnapshot().credentials.map(r => r.providerId)).toEqual(['git', 'other']); expect(Object.isFrozen(controller.getSnapshot().credentials)).toBe(true);
+});
+it('refuses to save a listed provider nobody has typed into, without calling the API', async () => {
+  const api = createMemorySourceControlApi({ providers }); const create = vi.spyOn(api, 'create');
+  const controller = createSourceControlController({ api, permissions }); await controller.load({});
+  expect(await controller.save({ providerId: 'other' })).toBe(false); expect(create).not.toHaveBeenCalled(); expect(controller.getSnapshot().drafts).toEqual({});
+});
