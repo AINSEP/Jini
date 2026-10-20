@@ -320,7 +320,9 @@ describe("UserResetPasswordDialog", () => {
     renderWith(statefulResetHook());
     const [newToggle] = revealToggles();
     expect(newToggle).toHaveAttribute("aria-pressed", "false");
+    // EyeIcon while hidden: the eye outline path plus its pupil circle.
     expect(newToggle!.querySelectorAll("svg path")).toHaveLength(1);
+    expect(newToggle!.querySelectorAll("svg circle")).toHaveLength(1);
     fireEvent.click(newToggle!);
     expect(newPasswordField()).toHaveAttribute("type", "text");
     expect(newPasswordField()).toHaveAttribute("autocomplete", "new-password");
