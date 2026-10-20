@@ -6,6 +6,8 @@ export const isCopyableKind: Readonly<Record<VaultKind, boolean>> = Object.freez
   "site-assistant": true, "personal-execution": false, "media-provider": true, custom: false,
   "publish-peer": true, "database-destination": true, vendor: true, "source-control": true,
   "mcp-env": false, "mcp-auth": false,
+  // A plugin API connection's tokens and attempts are bound to one workspace's sign-in.
+  "api-connection": false,
 });
 
 type Field = "string" | "number" | "strings" | "object";
@@ -19,6 +21,8 @@ const FIELDS: Record<VaultKind, Record<string, Field>> = {
   vendor: { accountLabel: "string", credentialType: "string", worksFor: "strings", category: "string",
     baseUrl: "string", additionalHosts: "strings", username: "string" }, "source-control": { accountLabel: "string" },
   "mcp-env": {}, "mcp-auth": {},
+  // Hosts register the owning feature's parser (e.g. parseOAuthTokenVaultMeta); no default fields.
+  "api-connection": {},
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {
