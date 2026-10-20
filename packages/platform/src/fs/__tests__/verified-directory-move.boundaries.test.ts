@@ -137,3 +137,22 @@ test("POSIX moves flush the source/target parent and the EXDEV backup folder", (
   moveDirectoryVerified({ from, to, commit() {} }, { filesystem, platform: "linux", backupId: () => "fixture" });
   expect(opened).toEqual([path.join(root, ".relocation-fixture-backup"), root]);
 });
+test("an EXDEV backup-folder fsync failure restores the retired source before removing the copy", () => {
+  const { root, from, to } = fixture();
+  const backupRoot = path.join(root, ".relocation-fixture-backup");
+  const descriptors = new Map<number, string>();
+  let committed = false;
+  const filesystem = crossDevice(from, to, {
+    openSync: ((file: fs.PathLike, flags: fs.OpenMode) => { const fd = fs.openSync(file, flags); descriptors.set(fd, String(file)); return fd; }) as typeof fs.openSync,
+    fsyncSync: (fd: number) => { if (descriptors.get(fd) === backupRoot) throw coded("EIO"); fs.fsyncSync(fd); },
+  });
+  let caught: unknown;
+  try { moveDirectoryVerified({ from, to, commit: () => { committed = true; } }, { filesystem, platform: "linux", backupId: () => "fixture" }); }
+  catch (error) { caught = error; }
+  expect(caught).toMatchObject({ code: "EIO" });
+  expect(fs.readFileSync(path.join(from, "content.db"), "utf8")).toBe("database bytes");
+  expect(fs.readdirSync(from)).toEqual(["content.db"]);
+  expect(fs.existsSync(to)).toBe(false);
+  expect(fs.readdirSync(backupRoot)).toEqual([]);
+  expect(committed).toBe(false);
+});

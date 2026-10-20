@@ -71,7 +71,7 @@ export function moveDirectoryVerified(
   try {
     if (directoryFingerprint({ dir: target }, { excluded, filesystem }) !== before) throw new Error("Moved directory verification failed.");
     progress.staged = stageRelocation({ source, target, copied }, resolved);
-    if (copied) progress.retiredSource = retireCopiedSource({ source }, resolved);
+    if (copied) retireCopiedSource({ source, progress }, resolved);
     // Where supported, persist directory-name changes for same-filesystem renames as well as EXDEV retirement.
     for (const directory of new Set([path.dirname(source), path.dirname(target)])) syncDirectory({ directory }, resolved);
     commit();
@@ -109,7 +109,9 @@ function stageRelocation({ source, target, copied }: { source: string; target: s
   if (!verifyFile) throw new Error("File relocation requires a verification port.");
   return stageVerifiedFileRelocation({ groups: relocateFiles({ source, target }), verify: verifyFile }, { filesystem, backupId, platform, backupCovered: ({ from }) => copied && path.resolve(from).startsWith(target + path.sep) });
 }
-function retireCopiedSource({ source }: { source: string }, resolved: ResolvedMoveOptions): string {
+/** Records the retired path in `progress` right after the rename, before the directory sync, so a
+ * failed fsync still lets rollback restore the source before it removes the copied target. */
+function retireCopiedSource({ source, progress }: { source: string; progress: { retiredSource?: string } }, resolved: ResolvedMoveOptions): void {
   const { filesystem, backupId } = resolved;
   const backupRoot = path.join(path.dirname(source), `.relocation-${backupId()}-backup`);
   const backup = path.join(backupRoot, path.basename(source));
@@ -117,9 +119,8 @@ function retireCopiedSource({ source }: { source: string }, resolved: ResolvedMo
   // The EXDEV original becomes a recovery folder before catalog commit, never a second live
   // site at the old path if cleanup fails. An interrupted apply leaves explicit backups.
   filesystem.mkdirSync(backupRoot);
-  filesystem.renameSync(source, backup);
+  filesystem.renameSync(source, backup); progress.retiredSource = backup;
   syncDirectory({ directory: backupRoot }, resolved);
-  return backup;
 }
 function syncDirectory({ directory }: { directory: string }, { filesystem, platform }: ResolvedMoveOptions): void {
   syncDirectoryBestEffort({ directory, open: filesystem.openSync, sync: filesystem.fsyncSync, close: filesystem.closeSync }, { platform });
