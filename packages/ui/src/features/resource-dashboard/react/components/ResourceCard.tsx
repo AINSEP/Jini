@@ -1,5 +1,5 @@
 import type { ReactNode, RefObject } from 'react';
-import { StatusPill } from './StatusPill.js';
+import { isCardActivationKey, resourceCardClassName, ResourceCardMenu, ResourceCardMeta } from './ResourceCardParts.js';
 import type { ResourceBoardItem, ResourceStatusToneMap } from '../../types.js';
 
 export interface ResourceCardProps<TBody = unknown> {
@@ -53,17 +53,17 @@ export function ResourceCard<TBody = unknown>({
     if (selectMode) onToggleSelected();
     else onOpen();
   };
-  const hasMenu = !selectMode && item.menuActions && item.menuActions.length > 0;
+  const menuActions = selectMode ? [] : (item.menuActions ?? []);
 
   return (
     <div
-      className={`resource-board-card${selected ? ' is-selected' : ''}${selectMode ? ' select-mode' : ''}`}
+      className={resourceCardClassName({ selected, selectMode })}
       role="button"
       tabIndex={0}
       data-testid="resource-board-card"
       onClick={handleActivate}
       onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
+        if (isCardActivationKey(event)) {
           event.preventDefault();
           handleActivate();
         }
@@ -71,62 +71,23 @@ export function ResourceCard<TBody = unknown>({
     >
       {selectMode ? (
         <span className={`resource-board-card-checkbox${selected ? ' checked' : ''}`} aria-hidden data-testid="resource-board-card-checkbox" />
-      ) : hasMenu ? (
-        <div className="resource-board-card-menu-anchor" ref={menuOpen ? menuContainerRef : undefined}>
-          <button
-            type="button"
-            className="resource-board-card-more"
-            aria-label={moreLabel}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={(event) => {
-              event.stopPropagation();
-              onToggleMenu();
-            }}
-            // `stopPropagation` on `onClick` above only stops the CLICK the
-            // browser synthesizes from an Enter/Space keydown — the raw
-            // keydown event itself still bubbles to the outer card's own
-            // `onKeyDown` (a separate event), which would otherwise ALSO
-            // treat that same keypress as "activate the card" and open/
-            // toggle-select it at the same time this button's own action
-            // runs. Stop it here too.
-            onKeyDown={(event) => event.stopPropagation()}
-          >
-            {moreLabel}
-          </button>
-          {menuOpen ? (
-            <div
-              className="resource-board-card-menu"
-              role="menu"
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => event.stopPropagation()}
-            >
-              {item.menuActions!.map((action) => (
-                <button
-                  key={action.kind}
-                  type="button"
-                  role="menuitem"
-                  className={action.danger ? 'danger' : undefined}
-                  disabled={busy}
-                  onClick={() => onAction(action.kind)}
-                >
-                  {menuActionLabel ? menuActionLabel(action.kind, action.label) : action.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
+      ) : null}
+      {menuActions.length > 0 ? (
+        <ResourceCardMenu
+          menuActions={menuActions}
+          menuOpen={menuOpen}
+          busy={busy}
+          moreLabel={moreLabel}
+          menuContainerRef={menuContainerRef}
+          menuActionLabel={menuActionLabel}
+          onToggleMenu={onToggleMenu}
+          onAction={onAction}
+        />
       ) : null}
 
       <div className="resource-board-card-body">{renderBody ? renderBody(item) : null}</div>
 
-      <div className="resource-board-card-meta">
-        <div className="resource-board-card-title" title={item.title}>
-          {item.title}
-        </div>
-        {item.subtitle ? <div className="resource-board-card-subtitle">{item.subtitle}</div> : null}
-        {item.status && statusLabel ? <StatusPill status={item.status} label={statusLabel} {...(toneMap ? { toneMap } : {})} /> : null}
-      </div>
+      <ResourceCardMeta item={item} statusLabel={statusLabel} toneMap={toneMap} />
     </div>
   );
 }
