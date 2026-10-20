@@ -347,6 +347,24 @@ describe('revocation honesty against the real vault token store', () => {
     const result = await v.service.disconnect({ connectionRef: ref });
     expect([result.remoteRevocation, [...provider.revoked].sort()]).toEqual(['confirmed', ['acme-rt-1', 'acme-rt-2']]);
   });
+  it('revokes with the access token when the stored credential has no refresh token', async () => {
+    const { started, callbackParams } = await signIn(v, provider, { omitRefreshToken: true });
+    await finish(callbackParams);
+    const result = await v.service.disconnect({ connectionRef: started.connectionRef });
+    expect([result.remoteRevocation, provider.revoked]).toEqual(['confirmed', ['acme-at-1']]);
+  });
+  it('refuses a new sign-in while a revocation is pending, so the kept credential is not orphaned', async () => {
+    const ref = await vaultConnect();
+    provider.failRevocation = true;
+    await v.service.disconnect({ connectionRef: ref });
+    await expect(signIn(v, provider)).rejects.toMatchObject({ code: 'revocation-pending' });
+  });
+  it('cancelling with no staged switch never calls the revoke hook and keeps the live account', async () => {
+    const ref = await vaultConnect();
+    const result = await v.service.cancelSwitchAccount({ connectionRef: ref });
+    expect([result.remoteRevocation, result.status, provider.revoked]).toEqual(['not-needed', 'connected', []]);
+    expect(await v.service.getAccessToken({ connectionRef: ref })).toBe('acme-at-1');
+  });
   it('keeps a staged switch for a retry when cancelling cannot revoke it', async () => {
     const ref = await vaultConnect('alice');
     await finish((await signIn(v, provider, { account: 'bob', intent: 'switch-account' })).callbackParams);
@@ -380,6 +398,17 @@ describe('paths that would discard a consented credential', () => {
     h.records.compareAndSet = async () => false;
     await expect(complete(callbackParams)).rejects.toMatchObject({ code: 'storage-conflict' });
     expect(h.tokens.entries.has(`${ref}#staged`)).toBe(false);
+  });
+  it('cancelling never revokes a staged copy a confirmed switch left behind (it is the live grant)', async () => {
+    const ref = await connect('alice');
+    await complete((await signIn(h, provider, { account: 'bob', intent: 'switch-account' })).callbackParams);
+    const realDelete = h.tokens.delete;
+    h.tokens.delete = async () => { throw new Error('simulated crash before the staged copy was removed'); };
+    await expect(h.service.confirmSwitchAccount({ connectionRef: ref, actorId: 'actor-1' })).rejects.toThrow('simulated crash');
+    h.tokens.delete = realDelete;
+    const result = await h.service.cancelSwitchAccount({ connectionRef: ref });
+    expect([result.remoteRevocation, provider.revoked]).toEqual(['not-needed', []]);
+    expect(await h.service.getAccessToken({ connectionRef: ref }, { expectedAccountId: 'bob' })).toBe('acme-at-2');
   });
   it('says the previous account was not revoked at the provider when a switch is confirmed', async () => {
     const ref = await connect('alice');
