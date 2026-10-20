@@ -1,5 +1,3 @@
-
-
 export interface CredentialSchemeRule {
   readonly id: string;
   readonly prefix: string;
@@ -62,12 +60,16 @@ export function parseCredentialSchemesFile(required: { raw: string }): { readonl
 function parseRule(entry: unknown, at: string): CredentialSchemeRule | string {
   if (!isPlainObject(entry)) return `${at} must be an object`;
   const { id, prefix, scheme } = entry;
-  if (typeof id !== "string" || id.length > MAX_FIELD_LENGTH || !RULE_ID_PATTERN.test(id)) return `${at}.id must be a lowercase hyphenated id`;
-  if (typeof prefix !== "string" || prefix.length === 0 || prefix.length > MAX_FIELD_LENGTH || !HTTP_TOKEN_PATTERN.test(prefix)) {
-    return `${at}.prefix must be a non-empty run of HTTP token characters`;
-  }
-  if (typeof scheme !== "string" || scheme.length > MAX_FIELD_LENGTH || !HTTP_TOKEN_PATTERN.test(scheme)) return `${at}.scheme must be an HTTP auth-scheme name`;
+  if (!isBoundedMatch(id, RULE_ID_PATTERN)) return `${at}.id must be a lowercase hyphenated id`;
+  // HTTP_TOKEN_PATTERN's `+` quantifier already refuses an empty prefix, so "non-empty" needs no separate test.
+  if (!isBoundedMatch(prefix, HTTP_TOKEN_PATTERN)) return `${at}.prefix must be a non-empty run of HTTP token characters`;
+  if (!isBoundedMatch(scheme, HTTP_TOKEN_PATTERN)) return `${at}.scheme must be an HTTP auth-scheme name`;
   return { id, prefix, scheme };
+}
+
+// Every rule field shares one shape check: a string no longer than MAX_FIELD_LENGTH matching its pattern.
+function isBoundedMatch(value: unknown, pattern: RegExp): value is string {
+  return typeof value === "string" && value.length <= MAX_FIELD_LENGTH && pattern.test(value);
 }
 
 function isPlainObject(value: unknown): value is Readonly<Record<string, unknown>> {

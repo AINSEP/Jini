@@ -1133,3 +1133,168 @@ for (const fixture of [
     assert.deepEqual(httpClient.calls[0]!.headers, { Authorization: fixture.header });
   });
 }
+
+// ---- Characterization pins (before the makeCredentialedRequest complexity refactor) ----
+// Every refusal, transport and redaction branch the refactor touches, asserted by exact value.
+const BASIC_URL = "https://api.basic.example/v4/domains";
+const basicInput = { workspaceId: WORKSPACE, label: "basic.example", method: "GET", url: BASIC_URL };
+
+async function rejectsWith(promise: Promise<unknown>, type: abstract new (...args: never[]) => Error, message: string): Promise<void> {
+  await assert.rejects(promise, (err: unknown) => {
+    assert.ok(err instanceof type, `expected ${type.name}, got ${String(err)}`);
+    assert.equal(err.message, message);
+    return true;
+  });
+}
+
+for (const label of [undefined, 7, "", "   "]) {
+  test(`makeCredentialedRequest: label ${JSON.stringify(label)} is refused before any lookup or network call`, async () => {
+    const writeDeps = await seedBasicAndBearer();
+    const httpClient = new FakeHttpClient();
+    await rejectsWith(makeCredentialedRequest(makeDeps({ httpClient }, writeDeps), { ...basicInput, label }), CredentialedRequestValidationError, "label must be a non-empty string");
+    assert.equal(writeDeps.repo.resolveCalls, 0);
+    assert.equal(httpClient.calls.length, 0);
+  });
+}
+
+test("verifyCustomCredential: a blank label is refused with the label message", async () => {
+  const writeDeps = await seedBasicAndBearer();
+  await rejectsWith(verifyCustomCredential(makeDeps({ httpClient: new FakeHttpClient() }, writeDeps), { workspaceId: WORKSPACE, label: " " }), CredentialedRequestValidationError, "label must be a non-empty string");
+});
+
+test("resolveRequestTarget: a blank label is refused with the label message before describe runs", async () => {
+  const writeDeps = await seedBasicAndBearer();
+  await rejectsWith(resolveRequestTarget({ repo: writeDeps.repo }, { workspaceId: WORKSPACE, label: "", url: BASIC_URL }), CredentialedRequestValidationError, "label must be a non-empty string");
+  assert.equal(writeDeps.repo.describeCalls, 0);
+});
+
+for (const method of [undefined, 1, "get", "HEAD", "OPTIONS"]) {
+  test(`makeCredentialedRequest: method ${JSON.stringify(method)} is refused`, async () => {
+    const writeDeps = await seedBasicAndBearer();
+    await rejectsWith(makeCredentialedRequest(makeDeps({ httpClient: new FakeHttpClient() }, writeDeps), { ...basicInput, method }), CredentialedRequestValidationError, "method must be one of GET, POST, PUT, PATCH, DELETE");
+  });
+}
+
+for (const headers of [null, [], "X-A: b", 5]) {
+  test(`makeCredentialedRequest: headers ${JSON.stringify(headers)} (not a plain object) are refused`, async () => {
+    const writeDeps = await seedBasicAndBearer();
+    await rejectsWith(makeCredentialedRequest(makeDeps({ httpClient: new FakeHttpClient() }, writeDeps), { ...basicInput, headers }), CredentialedRequestValidationError, "headers must be an object of string values");
+  });
+}
+
+test("makeCredentialedRequest: a non-string header value is refused, naming the header", async () => {
+  const writeDeps = await seedBasicAndBearer();
+  const httpClient = new FakeHttpClient();
+  await rejectsWith(makeCredentialedRequest(makeDeps({ httpClient }, writeDeps), { ...basicInput, headers: { "X-Count": 3 } }), CredentialedRequestValidationError, "header 'X-Count' must be a string value");
+  assert.equal(httpClient.calls.length, 0);
+});
+
+test("makeCredentialedRequest: an empty headers object sends only the injected Authorization, with the 10s timeout", async () => {
+  const writeDeps = await seedBasicAndBearer();
+  const httpClient = new FakeHttpClient();
+  await makeCredentialedRequest(makeDeps({ httpClient }, writeDeps), { ...basicInput, label: "token.example", url: "https://api.token.example/x", headers: {} });
+  assert.deepEqual(httpClient.calls[0], { method: "GET", url: "https://api.token.example/x", headers: { Authorization: "Bearer bearer-secret-token" }, timeoutMs: 10_000 });
+});
+
+test("makeCredentialedRequest: a thrown non-Error value is stringified into the transport error and redacted", async () => {
+  const writeDeps = await seedBasicAndBearer();
+  const httpClient: HttpClientPort = { send: async () => { throw "socket hang up near bearer-secret-token"; } };
+  await rejectsWith(makeCredentialedRequest(makeDeps({ httpClient }, writeDeps), { ...basicInput, label: "token.example", url: "https://api.token.example/x" }), CredentialedRequestTransportError, "request to 'token.example' failed: socket hang up near [REDACTED]");
+});
+
+test("makeCredentialedRequest: with no errorPolicy at all, every transport failure is wrapped and audited without an egressRefusal key", async () => {
+  const writeDeps = await seedBasicAndBearer();
+  const audit = new InMemoryCredentialedRequestAuditLog();
+  const deps = makeDeps({ httpClient: new FakeHttpClient([new EgressRefusedError("refused 10.0.0.1")]), audit }, writeDeps);
+  await rejectsWith(request({ deps, input: basicInput }), CredentialedRequestTransportError, "request to 'basic.example' failed: refused 10.0.0.1");
+  assert.deepEqual(audit.entries, [{ label: "basic.example", host: "api.basic.example", method: "GET", status: 0, bodyBytes: 0, at: FIXED_NOW }]);
+});
+
+test("makeCredentialedRequest: an egress refusal is audited with the policy's description and rethrown as the same object", async () => {
+  const writeDeps = await seedBasicAndBearer();
+  const audit = new InMemoryCredentialedRequestAuditLog();
+  const refusal = new EgressRefusedError("raw refusal");
+  const deps = makeDeps({ httpClient: new FakeHttpClient([refusal]), audit }, writeDeps);
+  const errorPolicy = { isEgressRefusal: ({ error }: { error: unknown }) => error === refusal, describeEgressRefusal: () => "described refusal" };
+  await assert.rejects(request({ deps, input: { ...basicInput, method: "POST" } }, { body: "abc", errorPolicy }), (err: unknown) => err === refusal);
+  assert.deepEqual(audit.entries, [{ label: "basic.example", host: "api.basic.example", method: "POST", status: 0, bodyBytes: 3, at: FIXED_NOW, egressRefusal: "described refusal" }]);
+});
+
+test("makeCredentialedRequest: a non-refusal transport failure under an errorPolicy is audited without an egressRefusal key", async () => {
+  const writeDeps = await seedBasicAndBearer();
+  const audit = new InMemoryCredentialedRequestAuditLog();
+  const deps = makeDeps({ httpClient: new FakeHttpClient([new Error("ETIMEDOUT")]), audit }, writeDeps);
+  await rejectsWith(makeCredentialedRequest(deps, basicInput), CredentialedRequestTransportError, "request to 'basic.example' failed: ETIMEDOUT");
+  assert.equal("egressRefusal" in audit.entries[0]!, false);
+});
+
+test("makeCredentialedRequest: a transport error under a token shorter than 8 characters withholds the whole error detail", async () => {
+  const writeDeps = makeWriteDeps();
+  await createCustomCredential(writeDeps, { workspaceId: WORKSPACE, label: "short", category: "general", baseUrl: "https://api.short.example", connection: { token: "ab" } });
+  const deps = makeDeps({ httpClient: new FakeHttpClient([new Error("ENOTFOUND api.short.example")]) }, writeDeps);
+  await rejectsWith(makeCredentialedRequest(deps, { workspaceId: WORKSPACE, label: "short", method: "GET", url: "https://api.short.example/" }), CredentialedRequestTransportError, "request to 'short' failed: [body withheld: credential too short to redact safely]");
+});
+
+test("makeCredentialedRequest: a token of exactly 8 characters is long enough to redact instead of withholding", async () => {
+  const writeDeps = makeWriteDeps();
+  await createCustomCredential(writeDeps, { workspaceId: WORKSPACE, label: "eight", category: "general", baseUrl: "https://api.eight.example", connection: { token: "abcdefgh" } });
+  const deps = makeDeps({ httpClient: new FakeHttpClient([{ status: 200, headers: {}, bodyText: "echo abcdefgh end" }]) }, writeDeps);
+  const result = await makeCredentialedRequest(deps, { workspaceId: WORKSPACE, label: "eight", method: "GET", url: "https://api.eight.example/" });
+  assert.equal(result.bodyText, "echo [REDACTED] end");
+});
+
+for (const [tail, expected] of [
+  ["no secret here", "no secret here"],
+  ["ends with bea", "ends with bea"],
+  ["ends with bear", "ends with [REDACTED]"],
+  ["ends with Bearer bearer-se", "ends with [REDACTED]"],
+] as const) {
+  test(`makeCredentialedRequest: a truncated body ending ${JSON.stringify(tail.slice(-6))} becomes ${JSON.stringify(expected)}`, async () => {
+    const writeDeps = await seedBasicAndBearer();
+    const deps = makeDeps({ httpClient: new FakeHttpClient([{ status: 200, headers: {}, bodyText: tail, bodyTruncated: true }]) }, writeDeps);
+    const result = await makeCredentialedRequest(deps, { ...basicInput, label: "token.example", url: "https://api.token.example/x" });
+    assert.equal(result.bodyText, expected);
+  });
+}
+
+test("makeCredentialedRequest: bodyTruncated:false behaves as a complete body — a secret-prefix tail is kept", async () => {
+  const writeDeps = await seedBasicAndBearer();
+  const deps = makeDeps({ httpClient: new FakeHttpClient([{ status: 200, headers: {}, bodyText: "ends with bear", bodyTruncated: false }]) }, writeDeps);
+  const result = await makeCredentialedRequest(deps, { ...basicInput, label: "token.example", url: "https://api.token.example/x" });
+  assert.equal(result.bodyText, "ends with bear");
+});
+
+for (const status of [200, 302, 404, 500]) {
+  test(`makeCredentialedRequest: status ${status} carries no authDiagnostic key and the mapper is not consulted`, async () => {
+    const writeDeps = await seedBasicAndBearer();
+    let mapped = 0;
+    const deps = makeDeps({ httpClient: new FakeHttpClient([{ status, headers: {}, bodyText: "" }]) }, writeDeps);
+    const result = await request({ deps, input: basicInput }, { diagnosticMapper: ({ diagnostic }) => { mapped++; return diagnostic; } });
+    assert.equal("authDiagnostic" in result, false);
+    assert.equal(result.status, status);
+    assert.equal(mapped, 0);
+  });
+}
+
+for (const status of [401, 403] as const) {
+  test(`makeCredentialedRequest: status ${status} attaches the mapper's diagnostic`, async () => {
+    const writeDeps = await seedBasicAndBearer();
+    const deps = makeDeps({ httpClient: new FakeHttpClient([{ status, headers: {}, bodyText: "" }]) }, writeDeps);
+    const result = await request({ deps, input: basicInput }, { diagnosticMapper: ({ diagnostic, status: seen }) => ({ ...diagnostic, remedyToolId: `remedy-${seen}` }) });
+    assert.deepEqual(result.authDiagnostic, { schemeSent: "Basic", usernameStored: true, remedyToolId: `remedy-${status}` });
+  });
+}
+
+test("makeCredentialedRequest: a successful call audits the response status and body byte size", async () => {
+  const writeDeps = await seedBasicAndBearer();
+  const audit = new InMemoryCredentialedRequestAuditLog();
+  const deps = makeDeps({ httpClient: new FakeHttpClient([{ status: 201, headers: {}, bodyText: "" }]), audit }, writeDeps);
+  await makeCredentialedRequest(deps, { ...basicInput, method: "PUT", body: "héllo" });
+  assert.deepEqual(audit.entries, [{ label: "basic.example", host: "api.basic.example", method: "PUT", status: 201, bodyBytes: 6, at: FIXED_NOW }]);
+});
+
+test("ConsoleCredentialedRequestAuditLog: a label containing a newline is written raw and splits the audit line (reported, not fixed)", () => {
+  const lines: string[] = [];
+  new ConsoleCredentialedRequestAuditLog({ log: ({ line }) => lines.push(line), prefix: "[audit]" }).record({ entry: { label: "a\nforged status=200", host: "h", method: "GET", status: 0, bodyBytes: 0, at: FIXED_NOW } });
+  assert.equal(lines[0], `[audit] request label=a\nforged status=200 host=h method=GET status=0 bodyBytes=0 at=${FIXED_NOW}`);
+});
