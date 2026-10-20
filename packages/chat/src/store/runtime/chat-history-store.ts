@@ -9,6 +9,17 @@ import type { ChatDatabase, ChatKernel } from "./kernel.js";
 import { chatKernelTables } from "../sql/boundary.js";
 import type { ChatMessage } from "../../core/index.js";
 
+function isOrphanDaemonAnswer(
+  { previous, answer, isDaemonRunId }: { previous: ChatMessage | undefined; answer: ChatMessage; isDaemonRunId: RunIdPolicy }, _optional = {},
+): boolean {
+  return previous?.role !== "user" && answer.role === "assistant" && Boolean(answer.runId && isDaemonRunId({ runId: answer.runId }));
+}
+
+function isEarlierOrEqualQuestion({ question, answer }: { question: ChatMessage; answer: ChatMessage }, _optional = {}): boolean {
+  return question.role === "user" && question.createdAt !== undefined && answer.createdAt !== undefined
+    && question.createdAt <= answer.createdAt;
+}
+
 function repairLegacyTurnOrder({ messages, isDaemonRunId }: { messages: ChatMessage[]; isDaemonRunId: RunIdPolicy }, _optional = {}): ChatMessage[] {
   const ordered: ChatMessage[] = [];
   for (let index = 0; index < messages.length; index++) {
@@ -17,9 +28,8 @@ function repairLegacyTurnOrder({ messages, isDaemonRunId }: { messages: ChatMess
     // Legacy acceptance saved no question ID. Repair only an orphan daemon answer immediately
     // followed by an earlier/equal-clock user row; a preceding question already owns its answer.
     // A global timestamp sort would reorder valid follow-ups when browser/server clocks disagree.
-    if (ordered.at(-1)?.role !== "user" && answer.role === "assistant" && answer.runId && isDaemonRunId({ runId: answer.runId })
-      && question?.role === "user" && question.createdAt !== undefined && answer.createdAt !== undefined
-      && question.createdAt <= answer.createdAt) {
+    if (isOrphanDaemonAnswer({ previous: ordered.at(-1), answer, isDaemonRunId }) && question !== undefined
+      && isEarlierOrEqualQuestion({ question, answer })) {
       ordered.push(question, answer);
       index++;
     } else ordered.push(answer);

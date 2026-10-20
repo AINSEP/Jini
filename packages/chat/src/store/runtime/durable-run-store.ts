@@ -6,6 +6,8 @@ import type { Selectable } from "kysely";
 import { hasUnknownToolCall, CONTINUATION_DIVIDER } from "../../core/durable-runs/continuation.js";
 import { RECOVERY_WINDOW_MS } from "../../core/durable-runs/policies.js";
 import type { DurableRun, DurableRunStore } from "../../core/durable-runs/ports.js";
+import type { RunRef } from "../../core/durable-runs/ledger-contracts.js";
+import type { ChatStore } from "../ports.js";
 import { createChatHistoryStore } from "./chat-history-store.js";
 import { runLockKey } from "../../core/durable-runs/run-lock.js";
 import { runContentFromEvents } from "../../core/run-events/entry.js";
@@ -16,6 +18,17 @@ export class RunSlotBusyError extends Error { constructor() { super(RUN_SLOT_BUS
 type RunRow = Selectable<ChatDatabase["ai_chat_messages"]> & { owner_id: string; owner_kind: string; scope_id: string };
 type Metadata = ChatDatabase["assistant_run_attempts"] | undefined;
 
+function isAcceptedUserShape({ message }: { message: ChatMessage }, _optional = {}): boolean {
+  return Boolean(message) && typeof message.id === "string" && Boolean(message.id) && message.role === "user" && typeof message.content === "string"
+    && (message.createdAt === undefined || Number.isFinite(message.createdAt));
+}
+
+function areAcceptedAttachments({ attachments }: { attachments: unknown }, _optional = {}): boolean {
+  return Array.isArray(attachments) && attachments.every((attachment) =>
+    attachment && typeof attachment.path === "string" && typeof attachment.name === "string"
+    && (attachment.kind === "file" || attachment.kind === "image"));
+}
+
 function acceptedUserMessage(
   { request, now }: { request: DurableRun["request"]; now: number }, _optional = {},
 ): ChatMessage | null {
@@ -23,11 +36,8 @@ function acceptedUserMessage(
   // Older clients supplied only a prompt; never invent a user identity from that transcript.
   const message = context.userMessage;
   if (message === undefined) return null;
-  if (!message || typeof message.id !== "string" || !message.id || message.role !== "user" || typeof message.content !== "string"
-    || (message.createdAt !== undefined && !Number.isFinite(message.createdAt))) throw new Error("Invalid accepted user message");
-  if (message.attachments !== undefined && (!Array.isArray(message.attachments) || !message.attachments.every((attachment) =>
-    attachment && typeof attachment.path === "string" && typeof attachment.name === "string"
-    && (attachment.kind === "file" || attachment.kind === "image")))) throw new Error("Invalid accepted user attachments");
+  if (!isAcceptedUserShape({ message }, {})) throw new Error("Invalid accepted user message");
+  if (message.attachments !== undefined && !areAcceptedAttachments({ attachments: message.attachments }, {})) throw new Error("Invalid accepted user attachments");
   // User input cannot claim an assistant run's status/events. Keep the same identity and payload
   // as its browser PUT, including the original clock and attachment order.
   return { id: message.id, role: "user", content: message.content, createdAt: message.createdAt ?? now,
@@ -35,9 +45,10 @@ function acceptedUserMessage(
 }
 
 function recoveryFields({ row, metadata }: { row: RunRow; metadata: Metadata }, _optional = {}) {
-  return { recoveryCount: metadata?.recovery_count ?? 0, recoveryDeadline: metadata?.recovery_deadline ?? null,
-    attemptStartedAt: metadata?.attempt_started_at ?? 0, lastProgressAt: metadata?.last_progress_at ?? row.started_at ?? row.created_at,
-    cancelReason: metadata?.cancel_reason ?? null };
+  const saved: Partial<NonNullable<Metadata>> = metadata ?? {};
+  return { recoveryCount: saved.recovery_count ?? 0, recoveryDeadline: saved.recovery_deadline ?? null,
+    attemptStartedAt: saved.attempt_started_at ?? 0, lastProgressAt: saved.last_progress_at ?? row.started_at ?? row.created_at,
+    cancelReason: saved.cancel_reason ?? null };
 }
 
 function sessionFields({ metadata }: { metadata: Metadata }, _optional = {}) {
@@ -69,33 +80,45 @@ export function savedRunEvents({ json }: { json: string | null }, _optional = {}
   catch { return []; }
 }
 
+/** Index of the latest matching event, or -1. */
+function lastIndexOf(
+  { events, matches }: { events: readonly AgentEvent[]; matches: (event: AgentEvent) => boolean }, _optional = {},
+): number {
+  // Scan backward to keep the latest match without requiring ES2023 array methods.
+  for (let index = events.length - 1; index >= 0; index--) if (matches(events[index]!)) return index;
+  return -1;
+}
+
+/** Saved projection, with legacy content restored as text when no text event carries it. */
+function savedProjection({ current }: { current: DurableRun }, _optional = {}): AgentEvent[] {
+  const saved = [...(current.message.events ?? [])];
+  if (!saved.some((event) => event.kind === "text") && current.message.content) saved.unshift({ kind: "text", text: current.message.content });
+  return saved;
+}
+
 function continuationEvents(
   { current, incoming }: { current: DurableRun; incoming: readonly AgentEvent[] }, _optional = {},
 ): readonly AgentEvent[] {
-  let separator = -1;
-  // Scan backward to keep the latest separator without requiring ES2023 array methods.
-  for (let index = incoming.length - 1; index >= 0; index--) {
-    const event = incoming[index]!;
-    if (event.kind === "text" && event.text === CONTINUATION_DIVIDER) { separator = index; break; }
-  }
-  const saved = [...(current.message.events ?? [])];
-  if (!saved.some((event) => event.kind === "text") && current.message.content) saved.unshift({ kind: "text", text: current.message.content });
+  const separator = lastIndexOf({ events: incoming, matches: (event) => event.kind === "text" && event.text === CONTINUATION_DIVIDER });
+  const saved = savedProjection({ current });
   // A trailing checkpoint/tool barrier may land after the recovery probe but before its CAS.
   // Build the continuation segment from the projection inside the transaction, never that probe.
   if (separator >= 0) return [...saved, ...incoming.slice(separator)];
   // Empty startup retries have a recovery marker but no divider. Rebase their saved work under
   // the same lock too: a checkpoint may have arrived since the recovery probe.
-  let marker = -1;
-  for (let index = incoming.length - 1; index >= 0; index--) {
-    const event = incoming[index]!;
-    if (event.kind === "status" && event.code === "run_recovering") { marker = index; break; }
-  }
+  const marker = lastIndexOf({ events: incoming, matches: (event) => event.kind === "status" && event.code === "run_recovering" });
   if (marker >= 0) {
     const event = incoming[marker]!;
     const notice = event.kind === 'status' && event.label === '' ? 'silent' : 'visible';
     return [...recoveredRunEvents({ saved }, { notice }), ...incoming.slice(marker + 1)];
   }
   return runContentFromEvents({ events: incoming }).length >= current.message.content.length ? incoming : saved;
+}
+
+function sameOwner(
+  { run, required }: { run: DurableRun; required: { principalId: string; conversationId: string } }, _optional = {},
+): boolean {
+  return run.principalId === required.principalId && run.conversationId === required.conversationId;
 }
 
 /** Same kernel and message lock as checkpoint/settle. Claim changes run_id before any spawn;
@@ -142,36 +165,58 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
     return principalId !== undefined && run?.principalId !== principalId ? null : run;
   }
 
+  /** Slot and run locks, then the owner-scoped conversation; null when the caller does not own it. */
+  async function lockOwnedConversation(
+    { required }: { required: RunRef & { principalId: string; workspaceId: string } }, _options = {},
+  ): Promise<ChatStore | null> {
+    await kernel.lockKey(`chat-slot:${required.conversationId}`);
+    await kernel.lockKey(runLockKey(required));
+    const history = createChatHistoryStore({ kernel, isDaemonRunId, scope: { scopeId: required.workspaceId, ownerKind: "user", ownerId: required.principalId } }, {});
+    return await history.get({ id: required.conversationId }) ? history : null;
+  }
+
+  async function assertSlotFree({ conversationId }: { conversationId: string }, _options = {}): Promise<void> {
+    const occupied = await kernel.run((db) => db.selectFrom("ai_chat_messages").select("id")
+      .where("conversation_id", "=", conversationId).where("role", "=", "assistant")
+      .where("run_status", "in", ["queued", "running"]).executeTakeFirst());
+    if (occupied) throw new RunSlotBusyError();
+  }
+
+  async function appendAcceptedQuestion(
+    { history, required, userMessage }: { history: ChatStore; required: Parameters<DurableRunStore["accept"]>[0]; userMessage: ChatMessage }, _options = {},
+  ): Promise<void> {
+    if (userMessage.id === required.messageId) throw new Error("User and assistant messages must have different IDs");
+    // A pending/failed browser PUT must never let the assistant take the first position.
+    // Nested appends join this transaction and retain the conversation lock through both
+    // writes, so either arrival order of the idempotent PUT yields user then assistant.
+    const saved = await history.appendMessage({ conversationId: required.conversationId, message: userMessage });
+    if (!saved || saved.role !== "user") throw new Error("Accepted user message could not be persisted");
+  }
+
+  /** @returns false when the answer id collides and no question was written. */
+  async function appendQueuedAnswer(
+    { history, required, hasQuestion }: { history: ChatStore; required: Parameters<DurableRunStore["accept"]>[0]; hasQuestion: boolean }, _options = {},
+  ): Promise<boolean> {
+    const message: ChatMessage = { id: required.messageId, role: "assistant", content: "", events: [],
+      runId: required.runId, runStatus: "queued", createdAt: required.now, startedAt: required.now,
+      ...(required.request.agentId ? { agentId: required.request.agentId } : {}) };
+    const savedMessage = await history.appendMessage({ conversationId: required.conversationId, message });
+    if (savedMessage?.role === "assistant") return true;
+    // Returning null here would commit the question alone after an ID collision.
+    if (hasQuestion) throw new Error("Accepted assistant message could not be persisted");
+    return false;
+  }
+
   async function accept(required: Parameters<DurableRunStore["accept"]>[0], _options = {}): Promise<DurableRun | null> {
     return kernel.transaction(async () => {
-      await kernel.lockKey(`chat-slot:${required.conversationId}`);
-      await kernel.lockKey(runLockKey(required));
-      const history = createChatHistoryStore({ kernel, isDaemonRunId, scope: { scopeId: required.workspaceId, ownerKind: "user", ownerId: required.principalId } }, {});
-      if (!await history.get({ id: required.conversationId })) return null;
+      const history = await lockOwnedConversation({ required });
+      if (!history) return null;
       const existing = await load({ messageId: required.messageId }, {});
-      if (existing) return existing.principalId === required.principalId && existing.conversationId === required.conversationId ? existing : null;
-      const occupied = await kernel.run((db) => db.selectFrom("ai_chat_messages").select("id")
-        .where("conversation_id", "=", required.conversationId).where("role", "=", "assistant")
-        .where("run_status", "in", ["queued", "running"]).executeTakeFirst());
-      if (occupied) throw new RunSlotBusyError();
+      if (existing) return sameOwner({ run: existing, required }) ? existing : null;
+      await assertSlotFree({ conversationId: required.conversationId });
       const userMessage = acceptedUserMessage({ request: required.request, now: required.now }, {});
-      if (userMessage) {
-        if (userMessage.id === required.messageId) throw new Error("User and assistant messages must have different IDs");
-        // A pending/failed browser PUT must never let the assistant take the first position.
-        // Nested appends join this transaction and retain the conversation lock through both
-        // writes, so either arrival order of the idempotent PUT yields user then assistant.
-        const saved = await history.appendMessage({ conversationId: required.conversationId, message: userMessage });
-        if (!saved || saved.role !== "user") throw new Error("Accepted user message could not be persisted");
-      }
-      const message: ChatMessage = { id: required.messageId, role: "assistant", content: "", events: [],
-        runId: required.runId, runStatus: "queued", createdAt: required.now, startedAt: required.now,
-        ...(required.request.agentId ? { agentId: required.request.agentId } : {}) };
-      const savedMessage = await history.appendMessage({ conversationId: required.conversationId, message });
-      if (!savedMessage || savedMessage.role !== "assistant") {
-        // Returning null here would commit the question alone after an ID collision.
-        if (userMessage) throw new Error("Accepted assistant message could not be persisted");
-        return null;
-      }
+      if (userMessage) await appendAcceptedQuestion({ history, required, userMessage });
+      if (!await appendQueuedAnswer({ history, required, hasQuestion: userMessage !== null })) return null;
       await kernel.run((db) => db.insertInto("assistant_run_attempts").values({
         message_id: required.messageId, engine: "daemon", accepted_json: JSON.stringify(required.request),
         recovery_count: 0, recovery_deadline: null, last_progress_at: required.now, cancel_reason: null,
@@ -208,12 +253,21 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
     });
   }
 
+  /** Probe without the run lock, take it, then re-read: a run deleted in the gap reads as gone.
+   * @returns The probe and the locked re-read, or null when the run is unknown or vanished. */
+  async function lockedRun({ runId }: { runId: string }, _options = {}): Promise<{ before: DurableRun; run: DurableRun } | null> {
+    const before = await find({ runId }, {});
+    if (!before) return null;
+    await kernel.lockKey(runLockKey(before));
+    const run = await find({ runId }, {});
+    return run ? { before, run } : null;
+  }
+
   async function cancel({ runId, reason }: Parameters<DurableRunStore["cancel"]>[0], _options = {}): Promise<void> {
     await kernel.transaction(async () => {
-      const run = await find({ runId }, {});
-      if (!run) return;
-      await kernel.lockKey(runLockKey(run));
-      if (!await find({ runId }, {})) return;
+      const locked = await lockedRun({ runId });
+      if (!locked) return;
+      const run = locked.before;
       await kernel.run((db) => db.insertInto("assistant_run_attempts").values({ ...metadataForRun({ run }, {}), cancel_reason: reason })
         .onConflict((oc) => oc.column("message_id").doUpdateSet({ cancel_reason: reason })).execute());
     });
@@ -221,13 +275,11 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
 
   async function cancelPending(required: Parameters<DurableRunStore["cancelPending"]>[0], _options = {}): Promise<DurableRun | null> {
     return kernel.transaction(async () => {
-      await kernel.lockKey(`chat-slot:${required.conversationId}`);
-      await kernel.lockKey(runLockKey(required));
-      const history = createChatHistoryStore({ kernel, isDaemonRunId, scope: { scopeId: required.workspaceId, ownerKind: "user", ownerId: required.principalId } }, {});
-      if (!await history.get({ id: required.conversationId })) return null;
+      const history = await lockOwnedConversation({ required });
+      if (!history) return null;
       const existing = await load({ messageId: required.messageId }, {});
       if (existing) {
-        if (existing.principalId !== required.principalId || existing.conversationId !== required.conversationId) return null;
+        if (!sameOwner({ run: existing, required })) return null;
         await cancel({ runId: existing.runId, reason: "user-stop" }, {}); return load({ messageId: existing.messageId }, {});
       }
       // Stop may beat acceptance or its response. A terminal tombstone for the same logical
@@ -240,11 +292,9 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
 
   async function captureSession({ runId, sessionId, child, confirmed = true }: Parameters<DurableRunStore["captureSession"]>[0], _options = {}): Promise<boolean> {
     return kernel.transaction(async () => {
-      const run = await find({ runId }, {});
-      if (!run) return false;
-      await kernel.lockKey(runLockKey(run));
-      const current = await find({ runId }, {});
-      if (!attemptCanExecute({ run: current }, {}) || !current) return false;
+      const locked = await lockedRun({ runId });
+      if (!locked || !attemptCanExecute({ run: locked.run }, {})) return false;
+      const { before: run, run: current } = locked;
       const fields = { session_id: sessionId, session_confirmed: confirmed ? 1 : 0, ...(child ? { child_pid: child.pid, child_started_at: child.startedAt } : {}) };
       await kernel.run((db) => db.insertInto("assistant_run_attempts").values({ ...metadataForRun({ run: current }, {}), ...fields })
         .onConflict((oc) => oc.column("message_id").doUpdateSet(fields)).execute());
@@ -259,10 +309,7 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
 
   async function clearSession({ runId, sessionId }: Parameters<DurableRunStore["clearSession"]>[0], _options = {}): Promise<void> {
     await kernel.transaction(async () => {
-      const before = await find({ runId }, {});
-      if (!before) return;
-      await kernel.lockKey(runLockKey(before));
-      const run = await find({ runId }, {});
+      const run = (await lockedRun({ runId }))?.run;
       if (!run) return;
       await kernel.run((db) => db.deleteFrom("assistant_agent_sessions").where("conversation_id", "=", run.conversationId)
         .where("agent_id", "=", run.request.agentId ?? "claude").where("session_id", "=", sessionId).execute());
@@ -273,12 +320,8 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
 
   async function guardTool(required: Parameters<DurableRunStore["guardTool"]>[0], _options = {}): Promise<"allowed" | "unknown" | "stale"> {
     return kernel.transaction(async () => {
-      const before = await find({ runId: required.runId }, {});
-      if (!before) return "stale";
-      await kernel.lockKey(runLockKey(before));
-      const run = await find({ runId: required.runId }, {});
-      if (!attemptCanExecute({ run }, {})) return "stale";
-      if (!run) return "stale";
+      const run = (await lockedRun({ runId: required.runId }))?.run;
+      if (!run || !attemptCanExecute({ run }, {})) return "stale";
       const events = run.message.events ?? [];
       const canonical = events.filter((event) => event.kind !== "tool_use" || event.name === required.toolId);
       if (hasUnknownToolCall({ ...required, events: run.attemptBase }, {}) || hasUnknownToolCall({ ...required, events: canonical }, {})) return "unknown";
@@ -297,20 +340,15 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
 
   async function completeTool({ runId, toolUseId, content }: Parameters<DurableRunStore["completeTool"]>[0], _options = {}): Promise<void> {
     await kernel.transaction(async () => {
-      const before = await find({ runId }, {});
-      if (!before) return;
-      await kernel.lockKey(runLockKey(before));
-      const run = await find({ runId }, {});
+      const run = (await lockedRun({ runId }))?.run;
       if (run) await writeToolEvent(run, { kind: "tool_result", toolUseId, content, isError: false });
     });
   }
 
   async function recoveryClock({ runId, now, active }: Parameters<DurableRunStore["recoveryClock"]>[0], _options = {}): Promise<void> {
     await kernel.transaction(async () => {
-      const run = await find({ runId }, {});
+      const run = (await lockedRun({ runId }))?.before;
       if (!run) return;
-      await kernel.lockKey(runLockKey(run));
-      if (!await find({ runId }, {})) return;
       const row = await kernel.run((db) => db.selectFrom("assistant_run_attempts").selectAll().where("message_id", "=", run.messageId).executeTakeFirst())
         ?? metadataForRun({ run }, {});
       let deadline = row.recovery_deadline;

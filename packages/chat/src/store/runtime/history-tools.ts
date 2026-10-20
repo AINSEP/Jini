@@ -1,8 +1,8 @@
 /** Model-facing history tools over an authenticated owner-scoped store; no database handles. */
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, ToolInputError,
-  type AgentToolDefinition, type AgentToolSideEffect, type ToolRegistration } from '@jini-ai/core';
+  type AgentToolDefinition, type AgentToolSideEffect, type ToolExecutionContext, type ToolRegistration } from '@jini-ai/core';
 import { redactUserText, type RedactUserText } from '../../core/user-text-redaction.js';
-import type { ChatHistoryStore } from '../ports.js';
+import type { ChatHistoryReader, ChatHistoryStore } from '../ports.js';
 import type { AgentEvent } from '../../core/events.js';
 import { assistantHistoryToolMetadata } from '../../core/history-tool-metadata.js';
 
@@ -52,23 +52,38 @@ function capMessage({ view }: { view: HistoryMessageView }, _options = {}): Hist
   return view;
 }
 
+function toolOutcome({ isError }: { isError: unknown }, _options = {}): ToolSummary['outcome'] {
+  if (isError === true) return 'failed';
+  return isError === false ? 'succeeded' : 'unknown';
+}
+
+/** Outcome per tool-use id; malformed historical events are ignored. */
+function toolOutcomes({ events }: { events: readonly unknown[] }, _options = {}): Map<string, ToolSummary['outcome']> {
+  const outcomes = new Map<string, ToolSummary['outcome']>();
+  for (const raw of events) {
+    const event = raw as Partial<Extract<AgentEvent, { kind: 'tool_result' }>> | null;
+    if (event?.kind === 'tool_result' && typeof event.toolUseId === 'string') outcomes.set(event.toolUseId, toolOutcome({ isError: event.isError }));
+  }
+  return outcomes;
+}
+
+/** Well-formed tool-use events in stored order; malformed historical events are ignored. */
+function toolUses({ events }: { events: readonly unknown[] }, _options = {}): { name: string; id?: string }[] {
+  return events.filter((raw): raw is { name: string; id?: string } => {
+    const event = raw as Partial<Extract<AgentEvent, { kind: 'tool_use' }>> | null;
+    return event?.kind === 'tool_use' && typeof event.name === 'string';
+  });
+}
+
 /** Only bounded names and status cross this boundary; malformed historical events are ignored.
  * @complexity O(e) time/space in persisted events; output is capped at 50 summaries.
  */
 function summarizeTools({ events, redact }: { events: unknown; redact: RedactUserText }, _options = {}): { items: ToolSummary[]; truncated: boolean } {
   if (!Array.isArray(events)) return { items: [], truncated: false };
-  const outcomes = new Map<string, ToolSummary['outcome']>();
-  for (const raw of events) {
-    const event = raw as Partial<Extract<AgentEvent, { kind: 'tool_result' }>> | null;
-    if (event?.kind === 'tool_result' && typeof event.toolUseId === 'string') {
-      outcomes.set(event.toolUseId, event.isError === true ? 'failed' : event.isError === false ? 'succeeded' : 'unknown');
-    }
-  }
+  const outcomes = toolOutcomes({ events });
   const items: ToolSummary[] = [];
   let truncated = false;
-  for (const raw of events) {
-    const event = raw as Partial<Extract<AgentEvent, { kind: 'tool_use' }>> | null;
-    if (event?.kind !== 'tool_use' || typeof event.name !== 'string') continue;
+  for (const event of toolUses({ events })) {
     if (items.length === TOOL_EVENT_CAP) { truncated = true; break; }
     const name = redact({ text: event.name }).text;
     if (name.length > 120) truncated = true;
@@ -93,6 +108,112 @@ function inputRecord({ input, keys }: { input: unknown; keys: readonly string[] 
   return record;
 }
 
+/** The scoped store's bounded reader; hosts without one fail closed for both tools. */
+async function openHistory(
+  { ports, principalId }: { ports: AssistantHistoryToolPorts; principalId: string }, _options = {},
+): Promise<{ store: ChatHistoryStore; history: ChatHistoryReader }> {
+  const store = await ports.getStore({ principalId }, {});
+  if (!store.history) throw new ToolInputError({ message: 'Chat history is unavailable on this site.' });
+  return { store, history: store.history };
+}
+
+function listInput({ input: raw }: { input: unknown }, _options = {}): { query?: string; limit: number } {
+  const input = inputRecord({ input: raw, keys: ['query', 'limit'] });
+  if (input.query !== undefined && (typeof input.query !== 'string' || input.query.length > 200)) throw new ToolInputError({ message: 'query must be a string of at most 200 characters.' });
+  const limit = integerOption({ input, key: 'limit', fallback: 20, max: 50 });
+  return { ...(input.query === undefined ? {} : { query: input.query }), limit };
+}
+
+type ChatListRow = Awaited<ReturnType<ChatHistoryReader['list']>>[number];
+interface ChatListView { id: string; title: string; updatedAt: number; messageCount: number; firstUserLine: string }
+
+function projectChatRow({ row, redact }: { row: ChatListRow; redact: RedactUserText }, _options = {}): { chat: ChatListView; truncated: boolean } {
+  // Redact BEFORE slicing: a cap must not turn a credential into an undetectable fragment.
+  const title = redact({ text: row.title ?? '' }).text;
+  const first = redact({ text: row.firstUserLine }).text.split(/\r?\n/, 1)[0]!;
+  const truncated = title.length > 300 || first.length > 500 || row.id.length > 128;
+  return { truncated, chat: { id: redact({ text: row.id }).text.slice(0, 128), title: title.slice(0, 300), updatedAt: row.updatedAt,
+    messageCount: row.messageCount, firstUserLine: first.slice(0, 500) } };
+}
+
+async function listChats(
+  { ports, redact, ctx }: { ports: AssistantHistoryToolPorts; redact: RedactUserText; ctx: ToolExecutionContext }, _options = {},
+): Promise<{ chats: ChatListView[]; truncated: boolean }> {
+  const options = listInput({ input: ctx.input });
+  const { history } = await openHistory({ ports, principalId: ctx.principal.id });
+  const projected = (await history.list({}, options)).map(row => projectChatRow({ row, redact }));
+  const chats = projected.map(item => item.chat);
+  let truncated = projected.some(item => item.truncated);
+  // List is bounded too; serialized escaping can make text larger than its character count.
+  while (JSON.stringify({ chats, truncated }).length > HISTORY_TOTAL_CHAR_CAP) { chats.pop(); truncated = true; }
+  return { chats, truncated };
+}
+
+interface ReadInput { chatId: string; limit: number; fromPosition?: number; includeToolEvents: boolean }
+
+function readInput({ input: raw }: { input: unknown }, _options = {}): ReadInput {
+  const input = inputRecord({ input: raw, keys: ['chatId', 'fromPosition', 'limit', 'includeToolEvents'] });
+  if (typeof input.chatId !== 'string' || !input.chatId.trim() || input.chatId.length > 128) throw new ToolInputError({ message: 'chatId must be an id returned by assistant_chats_list.' });
+  const limit = integerOption({ input, key: 'limit', fallback: 50, max: 100 });
+  const fromPosition = input.fromPosition === undefined ? undefined : integerOption({ input, key: 'fromPosition', fallback: 0, max: Number.MAX_SAFE_INTEGER, min: 0 });
+  if (input.includeToolEvents !== undefined && typeof input.includeToolEvents !== 'boolean') throw new ToolInputError({ message: 'includeToolEvents must be boolean.' });
+  return { chatId: input.chatId, limit, ...(fromPosition === undefined ? {} : { fromPosition }), includeToolEvents: input.includeToolEvents === true };
+}
+
+type HistoryRow = Awaited<ReturnType<ChatHistoryReader['read']>>['messages'][number];
+
+function projectMessage({ row, includeToolEvents, redact }: { row: HistoryRow; includeToolEvents: boolean; redact: RedactUserText }, _options = {}): HistoryMessageView {
+  const content = redact({ text: row.content }).text;
+  const tools = includeToolEvents ? summarizeTools({ events: row.events, redact }) : undefined;
+  return capMessage({ view: { id: redact({ text: row.id }).text.slice(0, 128), role: row.role === 'user' ? 'user' : 'assistant', position: row.position,
+    content: content.slice(0, HISTORY_MESSAGE_CHAR_CAP), truncated: content.length > HISTORY_MESSAGE_CHAR_CAP || row.id.length > 128 || tools?.truncated === true,
+    ...(tools ? { toolEvents: tools.items } : {}) } });
+}
+
+/** Fill the serialized page budget in candidate order; the first row always fits. */
+function fillPage(
+  { candidates, project }: { candidates: readonly HistoryRow[]; project: (row: HistoryRow) => HistoryMessageView }, _options = {},
+): { messages: HistoryMessageView[]; truncated: boolean } {
+  const messages: HistoryMessageView[] = [];
+  let truncated = false;
+  // Reserve result envelope/continuation space; measure serialized messages, including escapes.
+  let remaining = HISTORY_TOTAL_CHAR_CAP - 512;
+  for (const row of candidates) {
+    const view = project(row);
+    if (JSON.stringify(view).length > remaining && messages.length > 0) { truncated = true; break; }
+    // Advance only over returned positions; the next page must include the omitted row.
+    messages.push(view); remaining -= JSON.stringify(view).length + 1;
+    if (view.truncated) truncated = true;
+  }
+  return { messages, truncated };
+}
+
+async function readChat(
+  { ports, redact, ctx }: { ports: AssistantHistoryToolPorts; redact: RedactUserText; ctx: ToolExecutionContext }, _options = {},
+) {
+  const { chatId, limit, fromPosition, includeToolEvents } = readInput({ input: ctx.input });
+  const { store, history } = await openHistory({ ports, principalId: ctx.principal.id });
+  if (!await store.get({ id: chatId }, {})) throw new ToolInputError({ message: 'Chat is unavailable to this caller. Choose an id from assistant_chats_list.' });
+  const tail = fromPosition === undefined;
+  const page = await history.read({ chatId }, { ...(tail ? {} : { fromPosition }), limit, includeToolEvents });
+  const filled = fillPage({ candidates: tail ? [...page.messages].reverse() : page.messages, project: row => projectMessage({ row, includeToolEvents, redact }) });
+  return pageResult({ chatId: redact({ text: chatId }).text, tail, page, filled });
+}
+
+/** Continuation envelope: positions come only from returned rows, so no row is ever skipped. */
+function pageResult(
+  { chatId, tail, page, filled }: { chatId: string; tail: boolean; page: { messages: readonly HistoryRow[]; hasMore: boolean }; filled: { messages: HistoryMessageView[]; truncated: boolean } },
+  _options = {},
+) {
+  const messages = tail ? filled.messages.reverse() : filled.messages;
+  const last = messages.at(-1), first = messages.at(0);
+  const more = messages.length < page.messages.length || page.hasMore;
+  return { chatId, messages, truncated: page.hasMore || filled.truncated, hasMore: !tail && more,
+    ...(last ? { nextPosition: last.position + 1 } : {}),
+    ...(first ? { firstPosition: first.position } : {}),
+    hasMoreBefore: tail && more };
+}
+
 /** Build both history registrations, using the existing catalog/risk/metadata contract.
  * @param ports Authenticated scoped-store port; denied/missing history must fail closed.
  * @param options Optional stricter redaction policy (the secret-card policy is the default).
@@ -105,61 +226,8 @@ export function buildAssistantHistoryRegistrations(
   return buildDomainRegistrations({ domain: 'assistant-history', catalogModule: 'chat/store/runtime/history-tools', catalog: assistantHistoryToolCatalog,
     derivedRisk: assistantHistoryDerivedRisk, metadata: assistantHistoryToolMetadata,
     handlers: {
-      assistant_chats_list: async ctx => {
-        const input = inputRecord({ input: ctx.input, keys: ['query', 'limit'] });
-        if (input.query !== undefined && (typeof input.query !== 'string' || input.query.length > 200)) throw new ToolInputError({ message: 'query must be a string of at most 200 characters.' });
-        const limit = integerOption({ input, key: 'limit', fallback: 20, max: 50 });
-        const store = await ports.getStore({ principalId: ctx.principal.id }, {});
-        if (!store.history) throw new ToolInputError({ message: 'Chat history is unavailable on this site.' });
-        const rows = await store.history.list({}, { ...(input.query === undefined ? {} : { query: input.query }), limit });
-        let truncated = false;
-        const chats = rows.map(row => {
-          // Redact BEFORE slicing: a cap must not turn a credential into an undetectable fragment.
-          const title = redact({ text: row.title ?? '' }).text;
-          const first = redact({ text: row.firstUserLine }).text.split(/\r?\n/, 1)[0]!;
-          if (title.length > 300 || first.length > 500 || row.id.length > 128) truncated = true;
-          return { id: redact({ text: row.id }).text.slice(0, 128), title: title.slice(0, 300), updatedAt: row.updatedAt,
-            messageCount: row.messageCount, firstUserLine: first.slice(0, 500) };
-        });
-        // List is bounded too; serialized escaping can make text larger than its character count.
-        while (JSON.stringify({ chats, truncated }).length > HISTORY_TOTAL_CHAR_CAP) { chats.pop(); truncated = true; }
-        return { chats, truncated };
-      },
-      assistant_chat_read: async ctx => {
-        const input = inputRecord({ input: ctx.input, keys: ['chatId', 'fromPosition', 'limit', 'includeToolEvents'] });
-        if (typeof input.chatId !== 'string' || !input.chatId.trim() || input.chatId.length > 128) throw new ToolInputError({ message: 'chatId must be an id returned by assistant_chats_list.' });
-        const limit = integerOption({ input, key: 'limit', fallback: 50, max: 100 });
-        const fromPosition = input.fromPosition === undefined ? undefined : integerOption({ input, key: 'fromPosition', fallback: 0, max: Number.MAX_SAFE_INTEGER, min: 0 });
-        if (input.includeToolEvents !== undefined && typeof input.includeToolEvents !== 'boolean') throw new ToolInputError({ message: 'includeToolEvents must be boolean.' });
-        const store = await ports.getStore({ principalId: ctx.principal.id }, {});
-        if (!store.history) throw new ToolInputError({ message: 'Chat history is unavailable on this site.' });
-        if (!await store.get({ id: input.chatId }, {})) throw new ToolInputError({ message: 'Chat is unavailable to this caller. Choose an id from assistant_chats_list.' });
-        const page = await store.history.read({ chatId: input.chatId }, { ...(fromPosition === undefined ? {} : { fromPosition }), limit, includeToolEvents: input.includeToolEvents === true });
-        const messages: HistoryMessageView[] = [];
-        let truncated = page.hasMore;
-        // Reserve result envelope/continuation space; measure serialized messages, including escapes.
-        let remaining = HISTORY_TOTAL_CHAR_CAP - 512;
-        const candidates = fromPosition === undefined ? [...page.messages].reverse() : page.messages;
-        for (const row of candidates) {
-          const content = redact({ text: row.content }).text;
-          const tools = input.includeToolEvents === true ? summarizeTools({ events: row.events, redact }) : undefined;
-          const view = capMessage({ view: { id: redact({ text: row.id }).text.slice(0, 128), role: row.role === 'user' ? 'user' : 'assistant', position: row.position,
-            content: content.slice(0, HISTORY_MESSAGE_CHAR_CAP), truncated: content.length > HISTORY_MESSAGE_CHAR_CAP || row.id.length > 128 || tools?.truncated === true,
-            ...(tools ? { toolEvents: tools.items } : {}) } });
-          if (JSON.stringify(view).length > remaining && messages.length > 0) { truncated = true; break; }
-          // Advance only over returned positions; the next page must include the omitted row.
-          messages.push(view); remaining -= JSON.stringify(view).length + 1;
-          if (view.truncated) truncated = true;
-        }
-        if (fromPosition === undefined) messages.reverse();
-        const last = messages.at(-1), first = messages.at(0);
-        const omitted = messages.length < page.messages.length;
-        const hasMore = fromPosition !== undefined && (omitted || page.hasMore);
-        return { chatId: redact({ text: input.chatId }).text, messages, truncated, hasMore,
-          ...(last ? { nextPosition: last.position + 1 } : {}),
-          ...(first ? { firstPosition: first.position } : {}),
-          hasMoreBefore: fromPosition === undefined && (omitted || page.hasMore) };
-      },
+      assistant_chats_list: ctx => listChats({ ports, redact, ctx }),
+      assistant_chat_read: ctx => readChat({ ports, redact, ctx }),
     },
   });
 }
