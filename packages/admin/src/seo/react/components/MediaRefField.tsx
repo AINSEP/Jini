@@ -3,6 +3,7 @@ import { interpolate } from "@jini-ai/ui/i18n";
 import { MediaPickerBridge } from "./MediaPickerBridge.js";
 import { useSeoCopy } from "../hooks/SeoPorts.hooks.js";
 import { useWiredMediaRefField, useMediaRefPresentation, handleSpread } from "../hooks/MediaRefField.hooks.js";
+import type { MediaRefFieldController } from "../hooks/MediaRefField.hooks.js";
 
 
 /**
@@ -92,42 +93,85 @@ export function MediaRefField({
         aria-labelledby={labelId}
         {...(base ? agentHandle({ handle: base }, { role: "region", label }) : {})}
       >
-        {file ? (
-          <span className={inherited ? "jini-media-ref-field-file jini-media-ref-field-file-inherited" : "jini-media-ref-field-file"}>
-            {previewUrl ? <img key={previewUrl} className="jini-media-ref-field-preview" src={previewUrl} alt={`${label} preview`} onLoad={onPreviewLoad} onError={onPreviewError} /> : null}
-            <span className="jini-media-ref-field-name" title={file.name}>
-              {inherited ? interpolate({ template: t({ locale: locale, key: inherited === 'content' ? "Using image from page content: {name}" : "Using site default: {name}", vars: { name: file.name } }), vars: { name: file.name } }) : file.name}
-            </span>
-            {file.size && !inherited ? <span className="jini-media-ref-field-size">{file.size}</span> : null}
-          </span>
-        ) : (
-          emptyHint && <span className="jini-media-ref-field-empty">{emptyHint}</span>
-        )}
+        <MediaRefFile file={file} emptyHint={emptyHint} label={label} locale={locale} t={t} inherited={inherited} previewUrl={previewUrl} onPreviewLoad={onPreviewLoad} onPreviewError={onPreviewError} />
         {name ? <input type="hidden" id={id} name={name} value={value} /> : null}
-        <span className="jini-media-ref-field-actions">
-          <button
-            type="button"
-            className="jini-btn jini-btn-secondary"
-            onClick={openPicker}
-            {...handleSpread({ ...(base === undefined ? {} : { base }), suffix: "choose", label: `Choose an image for: ${label}` })}
-          >
-            {t({ locale: locale, key: "Choose image" })}
-          </button>
-          {value && !inherited ? (
-            <button
-              type="button"
-              className="jini-btn jini-btn-secondary"
-              onClick={clear}
-              {...handleSpread({ ...(base === undefined ? {} : { base }), suffix: "clear", label: `Remove the selected image for: ${label}` })}
-            >
-              {t({ locale: locale, key: "Remove" })}
-            </button>
-          ) : null}
-        </span>
+        <MediaRefActions label={label} locale={locale} t={t} base={base} value={value} inherited={inherited} openPicker={openPicker} clear={clear} />
       </div>
       {pickerOpen ? (
         <Picker onSelect={handleSelect} onCancel={closePicker} accept={accept} agentHandle={base ? `${base}-dialog` : undefined} />
       ) : null}
     </div>
+  );
+}
+
+/** The translator `useSeoCopy` hands back, threaded to the row's parts. */
+type SeoCopy = ReturnType<typeof useSeoCopy>;
+
+type MediaRefFileProps = {
+  previewUrl: string | null;
+  onPreviewLoad: MediaRefFieldController["onPreviewLoad"] | undefined;
+  onPreviewError: MediaRefFieldController["onPreviewError"] | undefined;
+  file: MediaRefFieldController["file"];
+  emptyHint: string | undefined;
+  label: string;
+  locale: string;
+  t: SeoCopy;
+  inherited: false | "default" | "content";
+};
+
+/** The chosen file: thumbnail, name (prefixed with its source when inherited) and, for an own
+ *  override, its pixel size. With no file, the field's empty hint (if any) takes the slot. */
+function MediaRefFile({ file, emptyHint, label, locale, t, inherited, previewUrl, onPreviewLoad, onPreviewError }: MediaRefFileProps, _optional: Record<string, never> = {}) {
+  if (!file) return emptyHint ? <span className="jini-media-ref-field-empty">{emptyHint}</span> : null;
+  return (
+    <span className={inherited ? "jini-media-ref-field-file jini-media-ref-field-file-inherited" : "jini-media-ref-field-file"}>
+      {previewUrl ? <img key={previewUrl} className="jini-media-ref-field-preview" src={previewUrl} alt={`${label} preview`} onLoad={onPreviewLoad} onError={onPreviewError} /> : null}
+      <span className="jini-media-ref-field-name" title={file.name}>
+        {inherited ? inheritedFileName({ name: file.name, inherited, locale, t }) : file.name}
+      </span>
+      {file.size && !inherited ? <span className="jini-media-ref-field-size">{file.size}</span> : null}
+    </span>
+  );
+}
+
+/** "Using site default: {name}" or "Using image from page content: {name}", translated. */
+function inheritedFileName({ name, inherited, locale, t }: { name: string; inherited: "default" | "content"; locale: string; t: SeoCopy }, _optional: Record<string, never> = {}): string {
+  const key = inherited === "content" ? "Using image from page content: {name}" : "Using site default: {name}";
+  return interpolate({ template: t({ locale, key, vars: { name } }), vars: { name } });
+}
+
+type MediaRefActionsProps = Pick<MediaRefFieldController, "openPicker" | "clear"> & {
+  label: string;
+  locale: string;
+  t: SeoCopy;
+  base: string | undefined;
+  value: string;
+  inherited: false | "default" | "content";
+};
+
+/** Choose (always) and Remove (only for an own value), grouped so they wrap as one unit. */
+function MediaRefActions({ label, locale, t, base, value, inherited, openPicker, clear }: MediaRefActionsProps, _optional: Record<string, never> = {}) {
+  const handleBase = base === undefined ? {} : { base };
+  return (
+    <span className="jini-media-ref-field-actions">
+      <button
+        type="button"
+        className="jini-btn jini-btn-secondary"
+        onClick={openPicker}
+        {...handleSpread({ ...handleBase, suffix: "choose", label: `Choose an image for: ${label}` })}
+      >
+        {t({ locale, key: "Choose image" })}
+      </button>
+      {value && !inherited ? (
+        <button
+          type="button"
+          className="jini-btn jini-btn-secondary"
+          onClick={clear}
+          {...handleSpread({ ...handleBase, suffix: "clear", label: `Remove the selected image for: ${label}` })}
+        >
+          {t({ locale, key: "Remove" })}
+        </button>
+      ) : null}
+    </span>
   );
 }
