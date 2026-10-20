@@ -22,7 +22,7 @@
 | L187 | running (dispatched 01:33Z) | | | | | |
 | L208 | running | | | | | |
 | L222 | running | | | | | |
-| L226 | running | | | | | |
+| L226 | MERGED | 1 | 52cd96d6 | listener cyc 17→8 (worst now serveLocally 8/6) | 100/100/100 (branch 97.14→100) | eslint 0, tsc 0, 51 tests green; removed unreachable caller-signal merge in internal default send (verified only caller passes no signal) |
 | L250 | MERGED | 1 | 0f11b6d2 | continuationRequest cyc 15→8 (worst helper 8/6) | 100/100/100 | eslint 0, tsc 0, 18 tests green, diff read: behaviour-equivalent, why-comments moved |
 | L257 | running (dispatched 01:36Z) | | | | | |
 
