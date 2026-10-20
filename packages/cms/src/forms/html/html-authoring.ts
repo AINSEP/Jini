@@ -5,11 +5,10 @@ import { parseFragment, serialize, type DefaultTreeAdapterMap } from "parse5";
 import { FormFieldValidationError } from "../errors.js";
 import type { FieldDescriptor } from "../types.js";
 import { FIELD_TYPE_REGISTRY } from "../field-registry.js";
+export { decodeFormFields, encodeFormFields, type FormAuthoring, type HtmlFormDefinitionRecord } from "../fields-json.js";
 
 type Node = DefaultTreeAdapterMap["childNode"];
 type Element = DefaultTreeAdapterMap["element"];
-import type { FormAuthoring, HtmlFormDefinitionRecord } from "../fields-json.js";
-export { decodeFormFields, encodeFormFields, type FormAuthoring, type HtmlFormDefinitionRecord } from "../fields-json.js";
 
 function invalid(reason: string): never {
   throw new FormFieldValidationError({ message: reason, fieldErrors: [{ field: "html", reason }] });
@@ -56,7 +55,7 @@ function labelText(node: Element): string {
 /** Read only the nearest fieldset's direct legend; blank/missing text keeps control-label fallback.
  * No I/O or mutation; O(d + c + t) time for ancestor depth, fieldset children and legend text,
  * with labelText's O(t) traversal space. */
-function groupLabel({ element }: { element: Element }, _optional = {}): string | undefined {
+function groupLabel({ element }: { element: Element }): string | undefined {
   for (let parent = element.parentNode; parent && "tagName" in parent; parent = parent.parentNode) {
     if (parent.tagName !== "fieldset") continue;
     const legend = parent.childNodes.find((child): child is Element => "tagName" in child && child.tagName === "legend");
@@ -239,8 +238,7 @@ function describeControl({ element, inputType, name, labels }: { element: Elemen
 
 /** Derives the submission allowlist at save time and removes server-owned transport overrides.
  * Parsing normalizes HTML syntax; scripts and authored styling remain unsanitized.
- * @complexity O(n * l) for n elements and l labels (label lookup per control); O(n) space. 
- * */
+ * @complexity O(n * l) for n elements and l labels (label lookup per control); O(n) space. */
 export function deriveHtmlForm(
   { html }: { html: string },
   _optional: Record<string, never> = {},

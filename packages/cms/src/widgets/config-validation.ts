@@ -168,11 +168,27 @@ export function validateWidgetConfig(
 /** Pushes each declared free-text string under `schema` (recursion into declared `properties` and
  *  `items` only). @complexity O(n) over the config's declared nodes. */
 function collectStrings(value: unknown, schema: WidgetConfigJsonSchema, out: string[]): void {
+  if (schema.type === "string") collectString(value, schema, out);
+  else if (schema.type === "array") collectArrayStrings(value, schema, out);
+  else if (schema.type === "object") collectObjectStrings(value, schema, out);
+}
+
+/** A declared string counts unless it is a ref field (`x-ref-target` names other content by id). */
+function collectString(value: unknown, schema: WidgetConfigJsonSchema, out: string[]): void {
+  if (typeof value === "string" && schema["x-ref-target"] === undefined) out.push(value);
+}
+
+/** Recurses into each item of an array value, only when the schema declares `items`. */
+function collectArrayStrings(value: unknown, schema: WidgetConfigJsonSchema, out: string[]): void {
+  if (!Array.isArray(value) || !schema.items) return;
+  for (const item of value) collectStrings(item, schema.items, out);
+}
+
+/** Recurses into each declared property of a (non-array) record value. */
+function collectObjectStrings(value: unknown, schema: WidgetConfigJsonSchema, out: string[]): void {
   const record = { value };
-  if (schema.type === "string" && typeof value === "string" && schema["x-ref-target"] === undefined) out.push(value);
-  else if (schema.type === "array" && Array.isArray(value) && schema.items) for (const item of value) collectStrings(item, schema.items, out);
-  else if (schema.type === "object" && isNonArrayRecord(record))
-    for (const [key, propSchema] of Object.entries(schema.properties ?? {})) collectStrings(record.value[key], propSchema, out);
+  if (!isNonArrayRecord(record)) return;
+  for (const [key, propSchema] of Object.entries(schema.properties ?? {})) collectStrings(record.value[key], propSchema, out);
 }
 
 /**

@@ -101,27 +101,39 @@ interface InlineEmbedRef {
   content?: JsonObject;
 }
 
+/** Pre-order visit of every non-array record node in a TipTap-shaped tree, kept off the call stack. */
+function forEachDocNode(root: unknown, visit: (node: Record<string, unknown>) => void): void {
+  const stack: unknown[] = [root];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (Array.isArray(node)) {
+      for (let i = node.length - 1; i >= 0; i--) stack.push(node[i]);
+      continue;
+    }
+    const candidate = { value: node };
+    if (!isNonArrayRecord(candidate)) continue;
+    visit(candidate.value);
+    if (Array.isArray(candidate.value.content)) stack.push(candidate.value.content);
+  }
+}
+
+/** The inline ref a `widgetEmbed` node carries, or `undefined` for any other node or malformed attrs. */
+function inlineEmbedRef(node: Record<string, unknown>): InlineEmbedRef | undefined {
+  const attrs = { value: node.type === "widgetEmbed" ? node.attrs : undefined };
+  if (!isNonArrayRecord(attrs) || typeof attrs.value.widgetEntryId !== "string" || typeof attrs.value.placementId !== "string") return undefined;
+  return { placementId: attrs.value.placementId, widgetEntryId: attrs.value.widgetEntryId, ...(isNonArrayRecord({ value: attrs.value.content }) ? { content: attrs.value.content as JsonObject } : {}) };
+}
+
 /** Walks a TipTap-shaped bodyJson tree collecting every `widgetEmbed` node (REQ-21) — same shape `core/entry-refs/extractor.ts` walks, kept separate since this module has no dependency on `core/entry-refs`. */
 function collectWidgetEmbeds(root: unknown, out: InlineEmbedRef[]): void {
   // An explicit stack, not recursion: a stored document's nesting depth is attacker/import-controlled
   // and a 5000-deep list overflowed the call stack here (GET /:slug -> 500) before `render.ts`'s own
   // MAX_RENDER_DEPTH placeholder could ever apply. Children are pushed in reverse so the walk stays
   // pre-order, the same visit order the recursive version had.
-  const stack: unknown[] = [root];
-  while (stack.length > 0) {
-    const node = stack.pop();
-    const candidate = { value: node };
-    const attrs = { value: isNonArrayRecord(candidate) && candidate.value.type === "widgetEmbed" ? candidate.value.attrs : undefined };
-    if (Array.isArray(node)) {
-      for (let i = node.length - 1; i >= 0; i--) stack.push(node[i]);
-      continue;
-    }
-    if (!isNonArrayRecord(candidate)) continue;
-    if (isNonArrayRecord(attrs) && typeof attrs.value.widgetEntryId === "string" && typeof attrs.value.placementId === "string") {
-      out.push({ placementId: attrs.value.placementId, widgetEntryId: attrs.value.widgetEntryId, ...(isNonArrayRecord({ value: attrs.value.content }) ? { content: attrs.value.content as JsonObject } : {}) });
-    }
-    if (Array.isArray(candidate.value.content)) stack.push(candidate.value.content);
-  }
+  forEachDocNode(root, (node) => {
+    const embed = inlineEmbedRef(node);
+    if (embed) out.push(embed);
+  });
 }
 
 /**
@@ -669,6 +681,50 @@ async function buildMediaImageIr(
   };
 }
 
+/** The marker's asset record: a slug-only marker is looked up by slug, anything else by id-or-slug. */
+function findMediaEmbedRecord({ ref, refAssetId, mediaRepo, context, host }: {
+  ref: PageHtmlEmbedRef;
+  refAssetId: string;
+  mediaRepo: MediaRepoPort;
+  context: WidgetResolveContext;
+  host: Pick<WidgetHostPorts, "media">;
+}): Promise<ResolvedMediaRecord | null> {
+  return ref.id === null && ref.slug !== null
+    ? mediaRepo.findBySlug({ workspaceId: context.workspaceId, slug: ref.slug })
+    : host.media.findMediaByIdOrSlug({ deps: { mediaRepo }, input: { workspaceId: context.workspaceId, idOrSlug: refAssetId } });
+}
+
+/** The recorded content type of `record`'s bytes, or `undefined` with no store or no recorded type. */
+async function lookupMediaContentType(
+  { record, context }: { record: ResolvedMediaRecord; context: WidgetResolveContext },
+  { mediaContentTypeStore }: { mediaContentTypeStore?: MediaContentTypeStorePort | undefined } = {},
+): Promise<string | undefined> {
+  if (!mediaContentTypeStore) return undefined;
+  const types = await mediaContentTypeStore.getMany({ workspaceId: context.workspaceId, sha256s: [record.source.sha256] });
+  return types.get(record.source.sha256);
+}
+
+/** Video and audio render through the native player, never the image-transform pipeline. */
+function isPlayerContentType(contentType: string | undefined): contentType is string {
+  return contentType?.startsWith("video/") === true || contentType?.startsWith("audio/") === true;
+}
+
+function playerMediaIr({ canonicalAssetId, record, contentType }: { canonicalAssetId: string; record: ResolvedMediaRecord; contentType: string }): WidgetRenderIR {
+  return {
+    componentId: "media-image",
+    props: {
+      assetId: canonicalAssetId,
+      slug: mediaIrSlug(record),
+      contentType,
+      alt: record.alt,
+      width: record.width,
+      height: record.height,
+      cssClass: record.cssClass,
+      htmlAttributes: record.htmlAttributes,
+    },
+  };
+}
+
 /** One media ref's resolved id + IR, or `undefined` when it could not be resolved — extracted so
  *  {@link resolveMediaTypeEmbeds}'s own `Promise.all` callback is a thin per-ref dispatch, never the
  *  decision itself. `mediaRepo`/`transformRepo` are passed non-optional here: the caller has already
@@ -695,9 +751,7 @@ async function resolveOneMediaEmbed(
   // value; now it is `media_slug_history` (S2a/S2b) keeping the OLD slug resolving too.
   const { assetId: refAssetId, transformName } = parsed;
 
-  const record = ref.id === null && ref.slug !== null
-    ? await mediaRepo.findBySlug({ workspaceId: context.workspaceId, slug: ref.slug })
-    : await host.media.findMediaByIdOrSlug({ deps: { mediaRepo }, input: { workspaceId: context.workspaceId, idOrSlug: refAssetId } });
+  const record = await findMediaEmbedRecord({ ref, refAssetId, mediaRepo, context, host });
   if (!record || record.status !== "active") {
     console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "media" reference — no such asset', {
       workspaceId: context.workspaceId,
@@ -707,32 +761,13 @@ async function resolveOneMediaEmbed(
   }
   const canonicalAssetId = record.id;
 
-  const contentType = mediaContentTypeStore
-    ? (await mediaContentTypeStore.getMany({ workspaceId: context.workspaceId, sha256s: [record.source.sha256] })).get(
-        record.source.sha256
-      )
-    : undefined;
-  if (contentType?.startsWith("video/") || contentType?.startsWith("audio/")) {
+  const contentType = await lookupMediaContentType({ record, context }, { mediaContentTypeStore });
+  if (isPlayerContentType(contentType)) {
     // Video/audio need no image transform lookup: the shared native-player renderer points at
     // `/m/{assetId}/original` (the byte-passthrough route — see that route's own doc for why
     // video can't go through the image-transform pipeline below), so `transformName`/`version`
     // would be unused props for this IR.
-    return {
-      assetId: refAssetId,
-      ir: {
-        componentId: "media-image",
-        props: {
-          assetId: canonicalAssetId,
-          slug: mediaIrSlug(record),
-          contentType,
-          alt: record.alt,
-          width: record.width,
-          height: record.height,
-          cssClass: record.cssClass,
-          htmlAttributes: record.htmlAttributes,
-        },
-      },
-    };
+    return { assetId: refAssetId, ir: playerMediaIr({ canonicalAssetId, record, contentType }) };
   }
 
   const ir = await buildMediaImageIr(canonicalAssetId, transformName, transformRepo, record, context, host);
@@ -796,22 +831,9 @@ function isRefBasedMediaNode(obj: Record<string, unknown>): obj is Record<string
 
 function collectMediaRefAssetIds(root: unknown, out: Set<string>): void {
   // Iterative for the same reason as {@link collectWidgetEmbeds} (a 5000-deep post overflowed here).
-  const stack: unknown[] = [root];
-  while (stack.length > 0) {
-    const node = stack.pop();
-    if (Array.isArray(node)) {
-      for (let i = node.length - 1; i >= 0; i--) stack.push(node[i]);
-      continue;
-    }
-    if (typeof node !== "object" || node === null) continue;
-
-    const obj = node as Record<string, unknown>;
-    if (isRefBasedMediaNode(obj)) {
-      const assetId = obj.attrs.assetId;
-      if (typeof assetId === "string") out.add(assetId);
-    }
-    if (Array.isArray(obj.content)) stack.push(obj.content);
-  }
+  forEachDocNode(root, (node) => {
+    if (isRefBasedMediaNode(node) && typeof node.attrs.assetId === "string") out.add(node.attrs.assetId);
+  });
 }
 
 /**
@@ -977,7 +999,7 @@ async function resolvePostContentRenderContext(
  * ONE id-else-slug lookup, via the identical visibility guard ({@link findPublishedPostById}/
  * {@link findPublishedPostBySlug}), rather than two copies that could drift apart.
  *
- * Non-throwing: `null` means "not found, not visible, or the ref carries neither key" — the same
+ * Non-throwing: `null` means "not found or not visible" — the same
  * REQ-27 degrade-to-placeholder contract every resolver in this registry follows.
  *
  * @complexity O(1) — one guarded repo lookup (by id or by slug, never both), no iteration.
@@ -991,10 +1013,9 @@ async function findPublishedPostByRef(
   if (ref.id !== null) {
     return host.posts.findPublishedPostById({ deps: { repo: postRepo }, input: { workspaceId: context.workspaceId, id: ref.id } });
   }
-  if (ref.slug !== null) {
-    return host.posts.findPublishedPostBySlug({ deps: { repo: postRepo }, input: { workspaceId: context.workspaceId, slug: ref.slug } });
-  }
-  return null;
+  // `slug` is non-null here: both callers (`resolvePostTypeEmbeds`, `resolveOneContentEmbed`) return
+  // before calling this when `ref.id ?? ref.slug` is null, so an id-less ref always carries a slug.
+  return host.posts.findPublishedPostBySlug({ deps: { repo: postRepo }, input: { workspaceId: context.workspaceId, slug: ref.slug! } });
 }
 
 /**
@@ -1064,6 +1085,87 @@ async function resolvePostTypeEmbeds(
   );
 
   return resolved;
+}
+
+/** Whether the preview override stands in for `ref`: by id when the ref carries one, else by slug. */
+function matchesPendingOverride(
+  ref: Pick<PageHtmlEmbedRef, "id" | "slug">,
+  override: NonNullable<ResolveHtmlPageEmbedsDeps["pendingContentOverride"]>,
+): boolean {
+  return ref.id !== null ? ref.id === override.id : ref.slug === override.slug;
+}
+
+/** The `"post-content"` IR for one post body source (a saved post or the preview override). */
+async function postContentIr({ source, ref, deps, context }: {
+  source: Pick<PostRecord, "title" | "slug" | "updatedAt" | "bodyJson"> & { readonly publishAt?: string | null | undefined };
+  ref: PageHtmlEmbedRef;
+  deps: ResolveHtmlPageEmbedsDeps;
+  context: WidgetResolveContext;
+}): Promise<WidgetRenderIR> {
+  const renderContext = await resolvePostContentRenderContext(deps, source.bodyJson, context);
+  return {
+    componentId: "post-content",
+    props: {
+      title: source.title,
+      slug: source.slug,
+      updatedAt: source.updatedAt,
+      publishAt: source.publishAt ?? null,
+      bodyJson: source.bodyJson,
+      header: ref.header,
+      ...renderContext,
+    },
+  };
+}
+
+/** Resolves one `"content"` ref into `resolved` (keyed by its id, else slug), or logs why it stays unresolved. */
+async function resolveOneContentEmbed({ ref, deps, context, resolved }: {
+  ref: PageHtmlEmbedRef;
+  deps: ResolveHtmlPageEmbedsDeps;
+  context: WidgetResolveContext;
+  resolved: Map<string, WidgetRenderIR>;
+}): Promise<void> {
+  const { postRepo, pendingContentOverride } = deps;
+  const key = ref.id ?? ref.slug;
+  if (key === null) {
+    console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "content" reference — missing or invalid "id"/"slug" in data-embed-config', {
+      workspaceId: context.workspaceId,
+    });
+    return;
+  }
+
+  // Preview override, checked BEFORE any DB call (see `pendingContentOverride`'s own doc):
+  // the operator's pending, unsaved body for this exact row, never a fetch. Matches by `id` when
+  // the ref carries one (id authoritative, same order `findPublishedPostByRef` uses below), by
+  // `slug` only for a slug-only ref. Routes through the identical `"post-content"` IR/props shape
+  // the DB branch below builds, so this substitutes only the DATA SOURCE — every downstream
+  // render/sanitization step (`render.ts`'s `renderWidgetPostContent` -> `renderDocNode`) is the
+  // SAME code the saved-body path runs, never a second, parallel render path with its own
+  // escaping rules.
+  if (pendingContentOverride && matchesPendingOverride(ref, pendingContentOverride)) {
+    resolved.set(key, await postContentIr({ source: pendingContentOverride, ref, deps, context }));
+    return;
+  }
+
+  // No DB source for this ref (postRepo absent) and it didn't match the override above: nothing
+  // safe to do but leave it unresolved — degrades to the REQ-28 placeholder like any other miss.
+  if (!postRepo) return;
+
+  const entity = await findPublishedPostByRef(postRepo, ref, context, deps.host);
+  if (!entity) {
+    console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "content" reference — no such published entity', {
+      workspaceId: context.workspaceId,
+      entityId: key,
+    });
+    return;
+  }
+  if (entity.bodyFormat === "html") {
+    console.warn(
+      '[widgets] resolveHtmlPageEmbeds: unresolved "content" reference — html-format entity reached the registry resolver instead of the recursive pre-splice pass (depth/budget guard, or a direct reference outside a template render)',
+      { workspaceId: context.workspaceId, entityId: key }
+    );
+    return;
+  }
+  resolved.set(key, await postContentIr({ source: entity, ref, deps, context }));
 }
 
 /**
@@ -1151,75 +1253,7 @@ async function resolveContentTypeEmbeds(
     return resolved;
   }
 
-  await Promise.all(
-    refs.map(async (ref) => {
-      const key = ref.id ?? ref.slug;
-      if (key === null) {
-        console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "content" reference — missing or invalid "id"/"slug" in data-embed-config', {
-          workspaceId: context.workspaceId,
-        });
-        return;
-      }
-
-      // Preview override, checked BEFORE any DB call (see `pendingContentOverride`'s own doc):
-      // the operator's pending, unsaved body for this exact row, never a fetch. Matches by `id` when
-      // the ref carries one (id authoritative, same order `findPublishedPostByRef` uses below), by
-      // `slug` only for a slug-only ref. Routes through the identical `"post-content"` IR/props shape
-      // the DB branch below builds, so this substitutes only the DATA SOURCE — every downstream
-      // render/sanitization step (`render.ts`'s `renderWidgetPostContent` -> `renderDocNode`) is the
-      // SAME code the saved-body path runs, never a second, parallel render path with its own
-      // escaping rules.
-      if (pendingContentOverride && (ref.id !== null ? ref.id === pendingContentOverride.id : ref.slug === pendingContentOverride.slug)) {
-        const renderContext = await resolvePostContentRenderContext(deps, pendingContentOverride.bodyJson, context);
-        resolved.set(key, {
-          componentId: "post-content",
-          props: {
-            title: pendingContentOverride.title,
-            slug: pendingContentOverride.slug,
-            updatedAt: pendingContentOverride.updatedAt,
-            publishAt: pendingContentOverride.publishAt ?? null,
-            bodyJson: pendingContentOverride.bodyJson,
-            header: ref.header,
-            ...renderContext,
-          },
-        });
-        return;
-      }
-
-      // No DB source for this ref (postRepo absent) and it didn't match the override above: nothing
-      // safe to do but leave it unresolved — degrades to the REQ-28 placeholder like any other miss.
-      if (!postRepo) return;
-
-      const entity = await findPublishedPostByRef(postRepo, ref, context, deps.host);
-      if (!entity) {
-        console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "content" reference — no such published entity', {
-          workspaceId: context.workspaceId,
-          entityId: key,
-        });
-        return;
-      }
-      if (entity.bodyFormat === "html") {
-        console.warn(
-          '[widgets] resolveHtmlPageEmbeds: unresolved "content" reference — html-format entity reached the registry resolver instead of the recursive pre-splice pass (depth/budget guard, or a direct reference outside a template render)',
-          { workspaceId: context.workspaceId, entityId: key }
-        );
-        return;
-      }
-      const renderContext = await resolvePostContentRenderContext(deps, entity.bodyJson, context);
-      resolved.set(key, {
-        componentId: "post-content",
-        props: {
-          title: entity.title,
-          slug: entity.slug,
-          updatedAt: entity.updatedAt,
-          publishAt: entity.publishAt ?? null,
-          bodyJson: entity.bodyJson,
-          header: ref.header,
-          ...renderContext,
-        },
-      });
-    })
-  );
+  await Promise.all(refs.map((ref) => resolveOneContentEmbed({ ref, deps, context, resolved })));
 
   return resolved;
 }

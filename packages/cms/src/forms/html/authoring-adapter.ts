@@ -2,7 +2,7 @@
  * Stores derived fields and markup in the SAME mutation; never a follow-up unaudited write. */
 import { ForbiddenError } from "../../core/index.js";
 import { FormFieldValidationError } from "../errors.js";
-import type { FormDefinitionRepoPort } from "../ports.js";
+import type { FormAuthoringPort, FormDefinitionRepoPort } from "../ports.js";
 import { deriveHtmlForm, type FormAuthoring, type HtmlFormDefinitionRecord } from "./html-authoring.js";
 import type { FormWriteServiceDeps } from "../write-service.js";
 
@@ -70,7 +70,7 @@ export function withFormAuthoring(
 export function createFormAuthoring(
   { permission }: { permission: string },
   _optional: Record<string, never> = {},
-): import("../ports.js").FormAuthoringPort {
+): FormAuthoringPort {
   return {
     prepare: (required, optional = {}) => prepareFormAuthoring({ ...required, permission }, optional),
     with: withFormAuthoring,

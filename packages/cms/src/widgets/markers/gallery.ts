@@ -50,6 +50,25 @@ function validRatio(value: unknown): value is string {
   return value.split('/').every(part => Number.isFinite(Number(part)) && Number(part) > 0);
 }
 
+const ASPECT_RATIO_ERROR = 'aspectRatio must be a positive number or ratio such as 16/9';
+const LEGACY_LAYOUTS: readonly string[] = ['grid', 'carousel', 'masonry'];
+const MEDIA_LAYOUTS: readonly string[] = ['single', ...LEGACY_LAYOUTS];
+
+/** `${path}.alt`/`${path}.caption` (or bare `${key}` with no path) type errors for optional text fields. */
+function stringFieldErrors({ record, keys }: { record: Record<string, unknown>; keys: readonly string[] }, { path }: { path?: string } = {}): string[] {
+  return keys.filter(key => record[key] !== undefined && typeof record[key] !== 'string')
+    .map(key => `${path === undefined ? '' : `${path}.`}${key} must be a string`);
+}
+
+/** Columns are optional; when present they must be an integer in [min, 6]. */
+function invalidColumns({ columns }: { columns: unknown }, { min }: { min: number }): boolean {
+  return columns !== undefined && (!Number.isInteger(columns) || Number(columns) < min || Number(columns) > 6);
+}
+
+function invalidAspectRatio(value: unknown): boolean {
+  return value !== undefined && !validRatio(value);
+}
+
 /** Validate one image independently so a bad sibling never hides another image's diagnostics. */
 function imageErrors(value: unknown, index: number): string[] {
   const path = `images[${index}]`;
@@ -58,9 +77,25 @@ function imageErrors(value: unknown, index: number): string[] {
   if ((value.mediaId !== undefined) === (value.src !== undefined)) errors.push(`${path} requires exactly one of mediaId or src`);
   if (value.mediaId !== undefined && !validMediaId(value.mediaId)) errors.push(`${path}.mediaId must be a nonempty media id of at most 200 characters, without slashes or whitespace`);
   if (value.src !== undefined && !validSource(value.src)) errors.push(`${path}.src must be an HTTP(S) image URL without credentials, at most 2048 characters`);
-  for (const key of ['alt', 'caption'] as const) {
-    if (value[key] !== undefined && typeof value[key] !== 'string') errors.push(`${path}.${key} must be a string`);
-  }
+  errors.push(...stringFieldErrors({ record: value, keys: ['alt', 'caption'] }, { path }));
+  return errors;
+}
+
+function missingAltWarnings(images: readonly unknown[]): string[] {
+  return images.flatMap((image, index) => isRecord(image) && image.alt === undefined
+    ? [`images[${index}].alt is missing; supply alt text or an explicit empty string for a decorative image`] : []);
+}
+
+function validImageCount(images: unknown, { allowEmpty }: { allowEmpty: boolean }): images is unknown[] {
+  return Array.isArray(images) && (allowEmpty || images.length > 0) && images.length <= MAX_GALLERY_IMAGES;
+}
+
+function legacyOptionErrors(config: Record<string, unknown>): string[] {
+  const errors: string[] = [];
+  if (typeof config.layout !== 'string' || !LEGACY_LAYOUTS.includes(config.layout)) errors.push('layout must be grid, carousel or masonry');
+  if (invalidColumns({ columns: config.columns }, { min: 2 })) errors.push('columns must be an integer between 2 and 6');
+  if (invalidAspectRatio(config.aspectRatio)) errors.push(ASPECT_RATIO_ERROR);
+  if (config.lightbox !== undefined && typeof config.lightbox !== 'boolean') errors.push('lightbox must be a boolean');
   return errors;
 }
 
@@ -75,18 +110,20 @@ export function parseGalleryConfig({ config }: { config: unknown }, { allowEmpty
 } {
   if (!isRecord(config)) return { errors: ['gallery config must be an object'], warnings: [] };
   if (config.mode !== undefined || config.items !== undefined || config.html !== undefined) return parseMediaContent({ config });
-  if (!Array.isArray(config.images) || (!allowEmpty && config.images.length === 0) || config.images.length > MAX_GALLERY_IMAGES) {
+  const images = config.images;
+  if (!validImageCount(images, { allowEmpty })) {
     return { errors: [`images must contain between 1 and ${MAX_GALLERY_IMAGES} images`], warnings: [] };
   }
-  const errors = config.images.flatMap(imageErrors);
-  const warnings = config.images.flatMap((image, index) => isRecord(image) && image.alt === undefined
-    ? [`images[${index}].alt is missing; supply alt text or an explicit empty string for a decorative image`] : []);
-  if (typeof config.layout !== 'string' || !['grid', 'carousel', 'masonry'].includes(config.layout)) errors.push('layout must be grid, carousel or masonry');
-  if (config.columns !== undefined && (!Number.isInteger(config.columns) || Number(config.columns) < 2 || Number(config.columns) > 6)) errors.push('columns must be an integer between 2 and 6');
-  if (config.aspectRatio !== undefined && !validRatio(config.aspectRatio)) errors.push('aspectRatio must be a positive number or ratio such as 16/9');
-  if (config.lightbox !== undefined && typeof config.lightbox !== 'boolean') errors.push('lightbox must be a boolean');
+  const errors = [...images.flatMap(imageErrors), ...legacyOptionErrors(config)];
+  const warnings = missingAltWarnings(images);
   if (errors.length > 0) return { errors, warnings };
   return { config: config as unknown as GalleryConfig, errors, warnings };
+}
+
+/** Authored items, else legacy images, else nothing. */
+function authoredItems(config: Record<string, unknown>): readonly unknown[] {
+  if (Array.isArray(config.items)) return config.items;
+  return Array.isArray(config.images) ? config.images : [];
 }
 
 /** References describe authored intent even when another config field is invalid. Do not gate
@@ -97,10 +134,8 @@ export function parseGalleryConfig({ config }: { config: unknown }, { allowEmpty
 export function galleryMediaReferences({ config }: { config: unknown }, _optional: Record<string, never> = {}): readonly { mediaId: string; index: number }[] {
   if (!isRecord(config)) return [];
   const refs: { mediaId: string; index: number }[] = [];
-  const items = Array.isArray(config.items) ? config.items : Array.isArray(config.images) ? config.images : [];
-  for (const [index, item] of items.slice(0, MAX_GALLERY_IMAGES).entries()) {
-    if (!isRecord(item)) continue;
-    const key = item.slug ?? item.mediaId;
+  for (const [index, item] of authoredItems(config).slice(0, MAX_GALLERY_IMAGES).entries()) {
+    const key = isRecord(item) ? item.slug ?? item.mediaId : undefined;
     if (validMediaId(key)) refs.push({ mediaId: key, index });
   }
   if (typeof config.html === 'string') {
@@ -110,38 +145,47 @@ export function galleryMediaReferences({ config }: { config: unknown }, _optiona
   return refs;
 }
 
+function mediaItemErrors(item: unknown, index: number): string[] {
+  const path = `items[${index}]`;
+  if (!isRecord(item)) return [`${path} must be an object`];
+  const errors: string[] = [];
+  if (!validMediaId(item.slug)) errors.push(`${path}.slug must be a nonempty slug of at most 200 characters without slashes or whitespace`);
+  if (item.src !== undefined || item.mediaId !== undefined) errors.push(`${path} uses slug, never src or mediaId`);
+  errors.push(...stringFieldErrors({ record: item, keys: ['alt', 'caption'] }, { path }));
+  return errors;
+}
+
+function mediaOptionErrors(config: Record<string, unknown>): string[] {
+  const errors: string[] = [];
+  if (!MEDIA_LAYOUTS.includes(config.layout as string ?? 'single')) errors.push('layout must be single, grid, carousel or masonry');
+  if (invalidColumns({ columns: config.columns }, { min: 1 })) errors.push('columns must be an integer between 1 and 6');
+  if (invalidAspectRatio(config.aspectRatio)) errors.push(ASPECT_RATIO_ERROR);
+  return errors;
+}
+
+function parseHtmlContent({ config, errors }: { config: Record<string, unknown>; errors: string[] }): ReturnType<typeof parseGalleryConfig> {
+  if (typeof config.html !== 'string' || config.html.length > 65536) errors.push('html must be a string of at most 65536 characters');
+  return errors.length ? { errors, warnings: [] } : { config: { ...config, mode: 'html', images: [], layout: 'single' }, errors, warnings: [] };
+}
+
+function parseMediaItems({ config, errors }: { config: Record<string, unknown>; errors: string[] }): ReturnType<typeof parseGalleryConfig> {
+  const items = config.items;
+  if (!Array.isArray(items) || items.length > MAX_GALLERY_IMAGES) return { errors: ['items must be an array of at most 50 slug items'], warnings: [] };
+  errors.push(...items.flatMap(mediaItemErrors), ...mediaOptionErrors(config));
+  if (errors.length) return { errors, warnings: [] };
+  // Validated above: every item is a record and the layout is one of MEDIA_LAYOUTS.
+  const layout = (config.layout ?? 'single') as GalleryConfig['layout'];
+  const normalized: GalleryConfig = { ...config, mode: 'media', images: [...items] as GalleryImage[], layout };
+  return { config: normalized, errors, warnings: [] };
+}
+
 /** Normalize the new slug-first content into the existing gallery render contract. Legacy images
  * remain read-only compatibility input; authored media items never accept raw URLs. O(n), n<=50. */
 function parseMediaContent({ config }: { config: Record<string, unknown> }): ReturnType<typeof parseGalleryConfig> {
-  const errors: string[] = [];
   const mode = config.mode ?? (config.html !== undefined ? 'html' : 'media');
-  if (mode !== 'media' && mode !== 'html') errors.push('mode must be media or html');
-  for (const key of ['htmlAttributes', 'cssClass'] as const) if (config[key] !== undefined && typeof config[key] !== 'string') errors.push(`${key} must be a string`);
-  if (mode === 'html') {
-    if (typeof config.html !== 'string' || config.html.length > 65536) errors.push('html must be a string of at most 65536 characters');
-    return errors.length ? { errors, warnings: [] } : { config: { ...config, mode, images: [], layout: 'single' }, errors, warnings: [] };
-  }
-  if (!Array.isArray(config.items) || config.items.length > MAX_GALLERY_IMAGES) return { errors: ['items must be an array of at most 50 slug items'], warnings: [] };
-  const images: GalleryImage[] = [];
-  config.items.forEach((item, index) => {
-    if (!isRecord(item)) { errors.push(`items[${index}] must be an object`); return; }
-    if (!validMediaId(item.slug)) errors.push(`items[${index}].slug must be a nonempty slug of at most 200 characters without slashes or whitespace`);
-    if (item.src !== undefined || item.mediaId !== undefined) errors.push(`items[${index}] uses slug, never src or mediaId`);
-    for (const key of ['alt', 'caption'] as const) if (item[key] !== undefined && typeof item[key] !== 'string') errors.push(`items[${index}].${key} must be a string`);
-    images.push(item as GalleryImage);
-  });
-  const requestedLayout = config.layout ?? 'single';
-  let layout: GalleryConfig['layout'] = 'single';
-  if (requestedLayout === 'single' || requestedLayout === 'grid' || requestedLayout === 'carousel' || requestedLayout === 'masonry') {
-    layout = requestedLayout;
-  } else {
-    errors.push('layout must be single, grid, carousel or masonry');
-  }
-  if (config.columns !== undefined && (!Number.isInteger(config.columns) || Number(config.columns) < 1 || Number(config.columns) > 6)) errors.push('columns must be an integer between 1 and 6');
-  if (config.aspectRatio !== undefined && !validRatio(config.aspectRatio)) errors.push('aspectRatio must be a positive number or ratio such as 16/9');
-  if (errors.length) return { errors, warnings: [] };
-  const normalized: GalleryConfig = { ...config, mode: 'media', images, layout };
-  return { config: normalized, errors, warnings: [] };
+  const errors = mode === 'media' || mode === 'html' ? [] : ['mode must be media or html'];
+  errors.push(...stringFieldErrors({ record: config, keys: ['htmlAttributes', 'cssClass'] }));
+  return mode === 'html' ? parseHtmlContent({ config, errors }) : parseMediaItems({ config, errors });
 }
 
 /** Authored slug references, independent of render validity. Tokens and quoted data attributes
@@ -153,7 +197,8 @@ export function mediaHtmlSlugs({ html }: { html: string }, _optional: Record<str
     if (validMediaId(key)) keys.push(key);
   }
   for (const match of html.matchAll(/\bdata-media-slug\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
-    const key = decodeMarkerHtmlAttribute({ value: match[1] ?? match[2] ?? match[3] ?? '' });
+    // Exactly one of the three value alternatives (double-quoted, single-quoted, bare) always matches.
+    const key = decodeMarkerHtmlAttribute({ value: (match[1] ?? match[2] ?? match[3])! });
     if (validMediaId(key)) keys.push(key);
   }
   return keys;

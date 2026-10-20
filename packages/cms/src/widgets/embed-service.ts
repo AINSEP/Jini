@@ -86,31 +86,48 @@ export interface EmbedServiceDeps {
   maxEmbedsPerDocument?: number;
 }
 
+/** The `attrs` record of a `widgetEmbed` node, or `undefined` for any other node (or non-record attrs). */
+function widgetEmbedAttrs(node: unknown): Record<string, unknown> | undefined {
+  const candidate = { value: node };
+  const attrs = { value: isNonArrayRecord(candidate) && candidate.value.type === "widgetEmbed" ? candidate.value.attrs : undefined };
+  return isNonArrayRecord(attrs) ? attrs.value : undefined;
+}
+
+/** A record node's `content` array, or `undefined` when it has none. */
+function contentOf(node: unknown): unknown[] | undefined {
+  const candidate = { value: node };
+  return isNonArrayRecord(candidate) && Array.isArray(candidate.value.content) ? candidate.value.content : undefined;
+}
+
+/** Pre-order walk over every non-array node, stopping as soon as `visit` returns true. */
+function someNode({ root, visit }: { root: unknown; visit: (node: unknown) => boolean }, _optional = {}): boolean {
+  const stack: unknown[] = [root];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (Array.isArray(node)) {
+      for (let i = node.length - 1; i >= 0; i--) stack.push(node[i]);
+      continue;
+    }
+    if (visit(node)) return true;
+    const content = contentOf(node);
+    if (content) stack.push(content);
+  }
+  return false;
+}
+
 /** Walks a TipTap-shaped `bodyJson` tree collecting every `widgetEmbed` node, in document order. */
 function collectEmbeds(root: unknown, out: WidgetEmbedNode[]): void {
   // An explicit stack, not recursion: a host body's nesting depth is caller/import-controlled and a
   // 5000-deep body overflowed the call stack here on every embed save (same class as f646ba397's
   // GET-path walkers). Children are pushed in reverse so the walk stays pre-order — document order,
   // which `reorderWidgetEmbeds` relies on.
-  const stack: unknown[] = [root];
-  while (stack.length > 0) {
-    const node = stack.pop();
-    const candidate = { value: node };
-    const attrs = { value: isNonArrayRecord(candidate) && candidate.value.type === "widgetEmbed" ? candidate.value.attrs : undefined };
-    if (Array.isArray(node)) {
-      for (let i = node.length - 1; i >= 0; i--) stack.push(node[i]);
-      continue;
+  someNode({ root, visit: (node) => {
+    const attrs = widgetEmbedAttrs(node);
+    if (attrs && typeof attrs.placementId === "string" && typeof attrs.widgetEntryId === "string") {
+      out.push({ type: "widgetEmbed", placementId: attrs.placementId, widgetEntryId: attrs.widgetEntryId });
     }
-    if (!isNonArrayRecord(candidate)) continue;
-    if (
-      isNonArrayRecord(attrs) &&
-      typeof attrs.value.placementId === "string" &&
-      typeof attrs.value.widgetEntryId === "string"
-    ) {
-      out.push({ type: "widgetEmbed", placementId: attrs.value.placementId, widgetEntryId: attrs.value.widgetEntryId });
-    }
-    if (Array.isArray(candidate.value.content)) stack.push(candidate.value.content);
-  }
+    return false;
+  } });
 }
 
 function widgetEmbedNode(placementId: UUID, widgetEntryId: UUID): JsonValue {
@@ -132,55 +149,61 @@ function appendEmbed(bodyJson: unknown, placementId: UUID, widgetEntryId: UUID):
 /** Removes every `widgetEmbed` node matching `placementId`, at any depth, preserving every other
  * node's position — mirrors the tree-shape-preserving discipline `reorderEmbeds` below also uses. */
 function isEmbedWithPlacementId(node: unknown, placementId: UUID): boolean {
-  const candidate = { value: node };
-  const attrs = { value: isNonArrayRecord(candidate) && candidate.value.type === "widgetEmbed" ? candidate.value.attrs : undefined };
-  return isNonArrayRecord(candidate) && isNonArrayRecord(attrs) && attrs.value.placementId === placementId;
+  return widgetEmbedAttrs(node)?.placementId === placementId;
 }
 
 /** Whether `removeEmbedByPlacementId` would remove anything — same match, so the two never disagree. */
 function containsEmbedWithPlacementId({ node: root, placementId }: { node: unknown; placementId: UUID }, _optional = {}): boolean {
   // Stored/imported nesting is unbounded; keep the complete walk off the JavaScript call stack.
-  const stack: unknown[] = [root];
-  while (stack.length > 0) {
-    const node = stack.pop();
-    const candidate = { value: node };
-    if (Array.isArray(node)) {
-      for (let i = node.length - 1; i >= 0; i--) stack.push(node[i]);
-    } else if (isEmbedWithPlacementId(node, placementId)) {
-      return true;
-    } else if (isNonArrayRecord(candidate) && Array.isArray(candidate.value.content)) {
-      stack.push(candidate.value.content);
-    }
-  }
-  return false;
+  return someNode({ root, visit: (node) => isEmbedWithPlacementId(node, placementId) });
 }
 
-function removeEmbedByPlacementId({ node: root, placementId }: { node: unknown; placementId: UUID }, _optional = {}): unknown {
+type RewriteTask = { node: unknown; assign: (value: unknown) => void };
+
+/** Queues a copy of `children` (assigned to its parent now, filled in as each child's task runs). */
+function pushArrayCopy(stack: RewriteTask[], children: unknown[], assign: (value: unknown) => void): void {
+  const copy: unknown[] = new Array(children.length);
+  assign(copy);
+  // Reverse push preserves pre-order, including new placement-id allocation order.
+  for (let i = children.length - 1; i >= 0; i--) {
+    stack.push({ node: children[i], assign: (value) => { copy[i] = value; } });
+  }
+}
+
+/** A shallow copy of a record node whose `content` is queued for rewriting, or the node itself. */
+function copyWithContent(stack: RewriteTask[], node: unknown): unknown {
+  const candidate = { value: node };
+  if (!isNonArrayRecord(candidate) || !Array.isArray(candidate.value.content)) return node;
+  const copy = { ...candidate.value };
+  stack.push({ node: candidate.value.content, assign: (value) => { copy.content = value; } });
+  return copy;
+}
+
+/**
+ * Rebuilds `root` as a copy: array children failing `keepChild` are dropped, and a non-array node
+ * for which `replace` returns a value is swapped for it (anything else is copied, descending into
+ * its `content`).
+ */
+function rewriteTree({ root }: { root: unknown }, { keepChild = () => true, replace = () => undefined }: {
+  keepChild?: (child: unknown) => boolean;
+  replace?: (node: unknown) => JsonValue | undefined;
+} = {}): unknown {
   let result: unknown;
   // Each task assigns one transformed child to its copied parent; no recursive reconstruction
   // or mutation of the original document (which is also the write's inverse/revision state).
-  const stack: Array<{ node: unknown; assign: (value: unknown) => void }> = [
+  const stack: RewriteTask[] = [
     { node: root, assign: (value) => { result = value; } },
   ];
   while (stack.length > 0) {
     const { node, assign } = stack.pop()!;
-    const candidate = { value: node };
-    if (Array.isArray(node)) {
-      const children = node.filter((child) => !isEmbedWithPlacementId(child, placementId));
-      const copy: unknown[] = new Array(children.length);
-      assign(copy);
-      for (let i = children.length - 1; i >= 0; i--) {
-        stack.push({ node: children[i], assign: (value) => { copy[i] = value; } });
-      }
-    } else if (isNonArrayRecord(candidate) && Array.isArray(candidate.value.content)) {
-      const copy = { ...candidate.value };
-      assign(copy);
-      stack.push({ node: candidate.value.content, assign: (value) => { copy.content = value; } });
-    } else {
-      assign(node);
-    }
+    if (Array.isArray(node)) pushArrayCopy(stack, node.filter(keepChild), assign);
+    else assign(replace(node) ?? copyWithContent(stack, node));
   }
   return result;
+}
+
+function removeEmbedByPlacementId({ node: root, placementId }: { node: unknown; placementId: UUID }, _optional = {}): unknown {
+  return rewriteTree({ root }, { keepChild: (child) => !isEmbedWithPlacementId(child, placementId) });
 }
 
 /** Reassigns which widget occupies which EXISTING embed slot, in document order, per
@@ -194,34 +217,11 @@ function reorderEmbedSlots({ node: root, newIds, orderedWidgetEntryIds }: {
   newIds: () => UUID;
   orderedWidgetEntryIds: readonly UUID[];
 }, _optional = {}): unknown {
-  let result: unknown;
   let index = 0;
-  const stack: Array<{ node: unknown; assign: (value: unknown) => void }> = [
-    { node: root, assign: (value) => { result = value; } },
-  ];
-  while (stack.length > 0) {
-    const { node, assign } = stack.pop()!;
-    const candidate = { value: node };
-    const attrs = { value: isNonArrayRecord(candidate) && candidate.value.type === "widgetEmbed" ? candidate.value.attrs : undefined };
-    if (Array.isArray(node)) {
-      const copy: unknown[] = new Array(node.length);
-      assign(copy);
-      // Reverse push preserves pre-order, including new placement-id allocation order.
-      for (let i = node.length - 1; i >= 0; i--) {
-        stack.push({ node: node[i], assign: (value) => { copy[i] = value; } });
-      }
-    } else if (isNonArrayRecord(candidate) && isNonArrayRecord(attrs)) {
-      // reorderWidgetEmbeds validates one supplied id per existing embed slot.
-      assign(widgetEmbedNode(newIds(), orderedWidgetEntryIds[index++]!));
-    } else if (isNonArrayRecord(candidate) && Array.isArray(candidate.value.content)) {
-      const copy = { ...candidate.value };
-      assign(copy);
-      stack.push({ node: candidate.value.content, assign: (value) => { copy.content = value; } });
-    } else {
-      assign(node);
-    }
-  }
-  return result;
+  return rewriteTree({ root }, {
+    // reorderWidgetEmbeds validates one supplied id per existing embed slot.
+    replace: (node) => (widgetEmbedAttrs(node) ? widgetEmbedNode(newIds(), orderedWidgetEntryIds[index++]!) : undefined),
+  });
 }
 
 async function extractAndStoreEmbedRefs(
@@ -473,6 +473,18 @@ async function writePostHostBody(
   }
 }
 
+/** Writes `nextBodyJson` through the chokepoint of whichever table the host lives in. */
+function writeEmbedHost({ deps, input, host, nextBodyJson }: {
+  deps: EmbedServiceDeps;
+  input: { workspaceId: UUID; actor: { principalId: UUID; kind: string }; baseVersion: number };
+  host: EmbedHost;
+  nextBodyJson: unknown;
+}, _optional: Record<string, never> = {}): Promise<EntryRecord | PostRecord> {
+  return host.kind === "entry"
+    ? writeHostBody(deps, input.workspaceId, input.actor, host.record, input.baseVersion, nextBodyJson)
+    : writePostHostBody(deps, input.workspaceId, input.actor, host.record, input.baseVersion, nextBodyJson);
+}
+
 export interface InsertWidgetEmbedInput {
   readonly workspaceId: UUID;
   readonly actor: { readonly principalId: UUID; readonly kind: string };
@@ -505,10 +517,7 @@ export async function insertWidgetEmbed(required: InsertWidgetEmbedRequired, _op
     const placementId = deps.ids.newId();
     const nextBodyJson = appendEmbed(host.record.bodyJson, placementId, input.widgetEntryId);
     assertGuardrails(deps, hostBodyType(host), nextBodyJson);
-    const entry =
-      host.kind === "entry"
-        ? await writeHostBody(deps, input.workspaceId, input.actor, host.record, input.baseVersion, nextBodyJson)
-        : await writePostHostBody(deps, input.workspaceId, input.actor, host.record, input.baseVersion, nextBodyJson);
+    const entry = await writeEmbedHost({ deps, input, host, nextBodyJson });
     return { entry, placementId };
   } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }
@@ -548,10 +557,7 @@ export async function removeWidgetEmbed(required: RemoveWidgetEmbedRequired, _op
     }
     const nextBodyJson = removeEmbedByPlacementId({ node: host.record.bodyJson, placementId: input.placementId });
     assertGuardrails(deps, hostBodyType(host), nextBodyJson);
-    const entry =
-      host.kind === "entry"
-        ? await writeHostBody(deps, input.workspaceId, input.actor, host.record, input.baseVersion, nextBodyJson)
-        : await writePostHostBody(deps, input.workspaceId, input.actor, host.record, input.baseVersion, nextBodyJson);
+    const entry = await writeEmbedHost({ deps, input, host, nextBodyJson });
     return { entry };
   } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }
@@ -620,10 +626,7 @@ export async function reorderWidgetEmbeds(required: ReorderWidgetEmbedsRequired,
 
     const nextBodyJson = reorderEmbedSlots({ node: host.record.bodyJson, newIds: () => deps.ids.newId(), orderedWidgetEntryIds: input.orderedWidgetEntryIds });
     assertGuardrails(deps, hostBodyType(host), nextBodyJson);
-    const entry =
-      host.kind === "entry"
-        ? await writeHostBody(deps, input.workspaceId, input.actor, host.record, input.baseVersion, nextBodyJson)
-        : await writePostHostBody(deps, input.workspaceId, input.actor, host.record, input.baseVersion, nextBodyJson);
+    const entry = await writeEmbedHost({ deps, input, host, nextBodyJson });
     return { entry };
   } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }

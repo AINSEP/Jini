@@ -4,21 +4,21 @@ type MarkerEdit = { start: number; end: number; replacement: string };
 
 /** JSON escapes keep an id containing a quote/ampersand literal inside a single-quoted
  * attribute. The shared scanner reads that quoting verbatim, without HTML decoding. */
-function widgetMarkerConfig({ node }: { node: DefaultTreeAdapterMap["element"] }): string {
+function widgetMarkerConfig({ node }: { node: DefaultTreeAdapterMap["element"] }, _optional: Record<string, never> = {}): string {
   const id = node.attrs.find((attr) => attr.name === "data-embed-id")?.value;
   return JSON.stringify({ type: "widget", ...(id !== undefined ? { id } : {}) })
     .replace(/'/g, "\\u0027").replace(/&/g, "\\u0026");
 }
 
 /** Remove the obsolete id together with its separating whitespace. */
-function widgetIdEdit({ html, startOffset, endOffset }: { html: string; startOffset: number; endOffset: number }): MarkerEdit {
+function widgetIdEdit({ html, startOffset, endOffset }: { html: string; startOffset: number; endOffset: number }, _optional: Record<string, never> = {}): MarkerEdit {
   let start = startOffset;
   while (start > 0 && /\s/.test(html[start - 1]!)) start -= 1;
   return { start, end: endOffset, replacement: "" };
 }
 
 /** Plan compatibility edits for one parsed element; unrelated/configured markers keep their contract. */
-function widgetMarkerEdits({ html, node }: { html: string; node: DefaultTreeAdapterMap["element"] }): MarkerEdit[] {
+function widgetMarkerEdits({ html, node }: { html: string; node: DefaultTreeAdapterMap["element"] }, _optional: Record<string, never> = {}): MarkerEdit[] {
   const type = node.attrs.find((attr) => attr.name === "data-embed-type");
   if (type?.value.toLowerCase() !== "widget") return [];
   const locations = node.sourceCodeLocation?.attrs;
@@ -36,7 +36,7 @@ function widgetMarkerEdits({ html, node }: { html: string; node: DefaultTreeAdap
  * parse5 can reconstruct formatting elements with identical source locations.
  * @complexity O(e log e) time for sorting e edits, plus source-splicing costs.
  */
-function applyMarkerEdits({ html, edits }: { html: string; edits: MarkerEdit[] }): string {
+function applyMarkerEdits({ html, edits }: { html: string; edits: MarkerEdit[] }, _optional: Record<string, never> = {}): string {
   const unique = new Map(edits.map((edit) => [`${edit.start}:${edit.end}`, edit]));
   let boundary = html.length;
   let output = html;

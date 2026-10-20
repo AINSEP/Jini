@@ -32,14 +32,12 @@ import {
   FormRateLimitExceededError,
   FormSubmissionValidationError,
 } from "./errors.js";
-import { isHoneypotTripped, validateSubmissionPayload } from "./forms.js";
+import { HONEYPOT_KEY, isHoneypotTripped, validateSubmissionPayload, type SubmissionValidationResult } from "./forms.js";
 import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js";
 import type { FormDefinitionViewPort } from "./ports.js";
 import { assertSubmissionEmails } from "./submission-email-validation.js";
 import { DUPLICATE_ATTEMPT, FORM_ATTEMPT_FIELD, type SubmissionAttempts } from "./submission-attempts.js";
-import { FORM_SUBMISSION_RECEIVED_EVENT, type FormSubmissionRecord, type FormFileStoragePort, type FormFileReference } from "./types.js";
-
-const HONEYPOT_KEY = "_hp";
+import { FORM_SUBMISSION_RECEIVED_EVENT, type FormDefinitionRecord, type FormSubmissionRecord, type FormFileStoragePort, type FormFileReference, type FormFileInput } from "./types.js";
 
 export interface SubmitFormDeps {
   definitionRepo: FormDefinitionRepoPort;
@@ -88,21 +86,8 @@ export interface SubmitFormRequired {
  */
 export async function submitForm(required: SubmitFormRequired, optional: SubmitFormOptional = {}): Promise<{ status: "accepted" }> {
   const { deps } = required;
-  let attemptToken: unknown;
-  let input = required.input;
-  if (optional.attempts) {
-    const { [FORM_ATTEMPT_FIELD]: token, ...body } = input.body;
-    attemptToken = token;
-    input = { ...input, body };
-  }
-
-  // Missing and disabled slugs are deliberately indistinguishable to public callers.
-  const stored = await deps.definitionRepo.findBySlug({ workspaceId: input.workspaceId, slug: input.slug });
-  const definition = stored && optional.definitionView ? optional.definitionView({ definition: stored, body: input.body }) : stored;
-  if (definition && optional.validateEmails) assertSubmissionEmails({ definition, body: input.body });
-  if (!definition || definition.status !== "active") {
-    throw new FormDefinitionNotFoundError({ message: `form '${input.slug}' was not found` });
-  }
+  const { input, attemptToken } = splitAttemptToken({ input: required.input }, optional);
+  const definition = await resolveActiveDefinition({ deps, input }, optional);
 
   // Discard before validation, rate limiting or writes; a bot sees the same accepted response
   // without consuming capacity or creating a submission/event.
@@ -110,71 +95,11 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
     return { status: "accepted" };
   }
 
-  const validation = validateSubmissionPayload({ definition, body: input.body }, deps.files ? { files: deps.files } : {});
-  if (!validation.valid) {
-    throw new FormSubmissionValidationError({ message: "submission failed field validation", fieldErrors: validation.fieldErrors });
-  }
+  const validation = assertValidSubmission({ deps, definition, body: input.body });
+  await assertWithinRateLimit({ deps, input, definition });
 
-  if (validation.files && !deps.transaction) {
-    // Without rollback, a failed outbox write would leave a stored row pointing at compensated
-    // files. Existing scalar-only hosts retain their legacy optional-transaction contract.
-    throw new FormSubmissionValidationError({ message: "file submissions require transactional storage", fieldErrors: Object.keys(validation.files).map((field) => ({ field, reason: "file_storage_unavailable" })) });
-  }
-
-  // Scope by both IP and form so one client's different forms cannot cross-throttle each other.
-  const rateLimitKey = buildFormsRateLimitKey({ sourceIp: input.sourceIp, formDefinitionId: definition.id });
-  const rateLimitResult = await deps.rateLimiter.check({ key: rateLimitKey });
-  if (!rateLimitResult.allowed) {
-    throw new FormRateLimitExceededError({ message: `rate limit exceeded for form '${definition.id}'`, retryAfterSeconds: rateLimitResult.retryAfterSeconds });
-  }
-
-  const now = kernelNowIso({ clock: deps.clock });
-  const submissionId = deps.idGen.newId();
-  const submission: FormSubmissionRecord = {
-    id: submissionId,
-    workspaceId: input.workspaceId,
-    formDefinitionId: definition.id,
-    data: validation.data,
-    sourceIp: input.sourceIp,
-    submittedAt: now,
-  };
-  const event = {
-    id: deps.idGen.newId(),
-    name: FORM_SUBMISSION_RECEIVED_EVENT,
-    occurredAt: now,
-    workspaceId: input.workspaceId,
-    aggregateId: submissionId,
-    payload: { workspaceId: input.workspaceId, formDefinitionId: definition.id, submissionId },
-  };
-  // Only a persisted accepted submission gets this event; honeypot discards emit nothing. Row and
-  // event commit together: a failed enqueue must not leave a stored submission nobody is told about.
-  const transaction: SubmissionTransactionPort = deps.transaction ?? ((work) => work());
-  const persist = async () => {
-    // Blob backends cannot participate in a SQL transaction. Store within the dedupe claim,
-    // then compensate only this attempt's new media assets when any upload/row/event write fails.
-    // Byte buffers never reach data_json, notifications or the outbox payload.
-    const uploaded: FormFileReference[] = [];
-    try {
-      for (const [fieldId, file] of Object.entries(validation.files ?? {})) {
-        const reference = await deps.files!.store({ workspaceId: input.workspaceId, submissionId, fieldId, file });
-        uploaded.push(reference);
-        submission.data[fieldId] = reference;
-      }
-      await transaction(async () => {
-        await deps.submissionRepo.create(submission);
-        await deps.outbox.enqueue(event);
-      });
-    } catch (error) {
-      for (const reference of uploaded) {
-        try { await deps.files!.discard({ workspaceId: input.workspaceId, reference }); }
-        catch (cleanupError) {
-          // Retain the original submission failure; a failed cleanup is visible to operators.
-          try { deps.logger.warn({ message: "form upload cleanup failed" }, { error: cleanupError }); } catch { /* Logging cannot replace the original error. */ }
-        }
-      }
-      throw error;
-    }
-  };
+  const records = buildSubmissionRecords({ deps, input, definition, data: validation.data });
+  const persist = () => persistSubmission({ deps, input, ...records, files: validation.files ?? {} });
   if (optional.attempts) {
     // The attempt is claimed only where persistence begins, after validation and rate limiting.
     // A copy waits outside the database transaction; failed first copies free the claim for retry.
@@ -188,14 +113,140 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
     await persist();
   }
 
+  dispatchInBackground({ deps }, optional);
+  return { status: "accepted" };
+}
+
+type AcceptedSubmission = Extract<SubmissionValidationResult, { valid: true }>;
+
+// Only hosts that opted into attempt dedupe send the token; elsewhere `_attempt` stays in the
+// body and is validated like any other key.
+function splitAttemptToken(
+  { input }: { input: SubmitFormInput },
+  { attempts }: Pick<SubmitFormOptional, "attempts"> = {},
+): { input: SubmitFormInput; attemptToken: unknown } {
+  if (!attempts) return { input, attemptToken: undefined };
+  const { [FORM_ATTEMPT_FIELD]: attemptToken, ...body } = input.body;
+  return { input: { ...input, body }, attemptToken };
+}
+
+async function resolveActiveDefinition(
+  { deps, input }: { deps: SubmitFormDeps; input: SubmitFormInput },
+  { definitionView, validateEmails }: Pick<SubmitFormOptional, "definitionView" | "validateEmails"> = {},
+): Promise<FormDefinitionRecord> {
+  // Missing and disabled slugs are deliberately indistinguishable to public callers.
+  const stored = await deps.definitionRepo.findBySlug({ workspaceId: input.workspaceId, slug: input.slug });
+  const definition = stored && definitionView ? definitionView({ definition: stored, body: input.body }) : stored;
+  if (!definition || definition.status !== "active") {
+    throw new FormDefinitionNotFoundError({ message: `form '${input.slug}' was not found` });
+  }
+  if (validateEmails) assertSubmissionEmails({ definition, body: input.body });
+  return definition;
+}
+
+function assertValidSubmission(
+  { deps, definition, body }: { deps: SubmitFormDeps; definition: FormDefinitionRecord; body: Record<string, unknown> },
+  _optional: Record<string, never> = {},
+): AcceptedSubmission {
+  const validation = validateSubmissionPayload({ definition, body }, deps.files ? { files: deps.files } : {});
+  if (!validation.valid) {
+    throw new FormSubmissionValidationError({ message: "submission failed field validation", fieldErrors: validation.fieldErrors });
+  }
+
+  if (validation.files && !deps.transaction) {
+    // Without rollback, a failed outbox write would leave a stored row pointing at compensated
+    // files. Existing scalar-only hosts retain their legacy optional-transaction contract.
+    throw new FormSubmissionValidationError({ message: "file submissions require transactional storage", fieldErrors: Object.keys(validation.files).map((field) => ({ field, reason: "file_storage_unavailable" })) });
+  }
+  return validation;
+}
+
+async function assertWithinRateLimit(
+  { deps, input, definition }: { deps: SubmitFormDeps; input: SubmitFormInput; definition: FormDefinitionRecord },
+  _optional: Record<string, never> = {},
+): Promise<void> {
+  // Scope by both IP and form so one client's different forms cannot cross-throttle each other.
+  const rateLimitKey = buildFormsRateLimitKey({ sourceIp: input.sourceIp, formDefinitionId: definition.id });
+  const rateLimitResult = await deps.rateLimiter.check({ key: rateLimitKey });
+  if (!rateLimitResult.allowed) {
+    throw new FormRateLimitExceededError({ message: `rate limit exceeded for form '${definition.id}'`, retryAfterSeconds: rateLimitResult.retryAfterSeconds });
+  }
+}
+
+type SubmissionEvent = Parameters<FormOutboxPort["enqueue"]>[0];
+
+function buildSubmissionRecords(
+  { deps, input, definition, data }: { deps: SubmitFormDeps; input: SubmitFormInput; definition: FormDefinitionRecord; data: AcceptedSubmission["data"] },
+  _optional: Record<string, never> = {},
+): { submission: FormSubmissionRecord; event: SubmissionEvent } {
+  const now = kernelNowIso({ clock: deps.clock });
+  const submissionId = deps.idGen.newId();
+  const submission: FormSubmissionRecord = {
+    id: submissionId,
+    workspaceId: input.workspaceId,
+    formDefinitionId: definition.id,
+    data,
+    sourceIp: input.sourceIp,
+    submittedAt: now,
+  };
+  const event = {
+    id: deps.idGen.newId(),
+    name: FORM_SUBMISSION_RECEIVED_EVENT,
+    occurredAt: now,
+    workspaceId: input.workspaceId,
+    aggregateId: submissionId,
+    payload: { workspaceId: input.workspaceId, formDefinitionId: definition.id, submissionId },
+  };
+  return { submission, event };
+}
+
+async function persistSubmission(
+  { deps, input, submission, event, files }: { deps: SubmitFormDeps; input: SubmitFormInput; submission: FormSubmissionRecord; event: SubmissionEvent; files: Record<string, FormFileInput> },
+  _optional: Record<string, never> = {},
+): Promise<void> {
+  // Only a persisted accepted submission gets this event; honeypot discards emit nothing. Row and
+  // event commit together: a failed enqueue must not leave a stored submission nobody is told about.
+  const transaction: SubmissionTransactionPort = deps.transaction ?? ((work) => work());
+  // Blob backends cannot participate in a SQL transaction. Store within the dedupe claim,
+  // then compensate only this attempt's new media assets when any upload/row/event write fails.
+  // Byte buffers never reach data_json, notifications or the outbox payload.
+  const uploaded: FormFileReference[] = [];
+  try {
+    for (const [fieldId, file] of Object.entries(files)) {
+      const reference = await deps.files!.store({ workspaceId: input.workspaceId, submissionId: submission.id, fieldId, file });
+      uploaded.push(reference);
+      submission.data[fieldId] = reference;
+    }
+    await transaction(async () => {
+      await deps.submissionRepo.create(submission);
+      await deps.outbox.enqueue(event);
+    });
+  } catch (error) {
+    await discardUploads({ deps, input, uploaded });
+    throw error;
+  }
+}
+
+async function discardUploads(
+  { deps, input, uploaded }: { deps: SubmitFormDeps; input: SubmitFormInput; uploaded: FormFileReference[] },
+  _optional: Record<string, never> = {},
+): Promise<void> {
+  for (const reference of uploaded) {
+    try { await deps.files!.discard({ workspaceId: input.workspaceId, reference }); }
+    catch (cleanupError) {
+      // Retain the original submission failure; a failed cleanup is visible to operators.
+      try { deps.logger.warn({ message: "form upload cleanup failed" }, { error: cleanupError }); } catch { /* Logging cannot replace the original error. */ }
+    }
+  }
+}
+
+function dispatchInBackground({ deps }: { deps: SubmitFormDeps }, { dispatch }: Pick<SubmitFormOptional, "dispatch"> = {}): void {
   // Dispatch failures cannot affect an accepted submission or create an unhandled rejection.
   // Never await delivery here: a subscriber sends mail, so awaiting it would reintroduce the
   // response-blocking bug. Persistence/enqueue are awaited; outbox drainage remains background work.
-  void Promise.resolve().then(() => (optional.dispatch ?? deps.dispatcher.dispatch.bind(deps.dispatcher))({})).catch((error: unknown) => {
+  void Promise.resolve().then(() => (dispatch ?? deps.dispatcher.dispatch.bind(deps.dispatcher))({})).catch((error: unknown) => {
     try { deps.logger.warn({ message: "form outbox dispatch failed" }, { error }); } catch { /* Logging must not reject background work. */ }
   });
-
-  return { status: "accepted" };
 }
 
 /** All extensions are opt-in: omitted options preserve the original package submission behavior. */
