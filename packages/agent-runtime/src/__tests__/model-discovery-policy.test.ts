@@ -174,8 +174,12 @@ describe('createAgentModelDiscovery default selection', () => {
     expect(await selectionFor('claude', { ...live, defaultSelectionId: 'native' }, { ANTHROPIC_MODEL: 'cfg' })).toBe('cfg');
   });
 
-  it('always lets grok-build native metadata win', async () => {
-    expect(await selectionFor('grok-build', { ...live, source: 'cli', defaultSelectionId: 'native' })).toBe('native');
+  it('always lets grok-build native metadata win over its config file', async () => {
+    const deps = hostDeps();
+    deps.fs.read = async (path) => (path === '/fixture/.grok/config.toml' ? '[models]\nmodel = "cfg"\n' : null);
+    const probe = (result: ModelProbeResult) => createAgentModelDiscovery({ agentId: 'grok-build', configuration, deps, probes: hostProbes({ catalog: async () => result }) });
+    expect((await probe(withoutDefault).discoverModels({ context })).defaultSelectionId).toBe('cfg');
+    expect((await probe({ ...live, source: 'cli', defaultSelectionId: 'native' }).discoverModels({ context }, { force: true })).defaultSelectionId).toBe('native');
   });
 
   it('lets the launch model outrank every other source', async () => {
@@ -296,14 +300,34 @@ describe('createAgentModelDiscovery catalog lifecycle', () => {
     expect(calls).toBe(2);
   });
 
-  it('re-probes a host-seeded retry time that has no failure snapshot', async () => {
+  it('serves the good catalog when a host-seeded retry time has no failure snapshot', async () => {
     let calls = 0; const deps = hostDeps();
     const port = createAgentModelDiscovery({ agentId: 'host', configuration, deps, probes: hostProbes({ catalog: async () => { calls++; return live; } }) });
+    const good = await port.discoverModels({ context });
+    [...deps.cache.values()][0]!.retryAt = 10;
+    expect(await port.discoverModels({ context })).toBe(good);
+    expect(calls).toBe(1);
+  });
+
+  it('clears the failure cooldown once a forced refresh succeeds', async () => {
+    let calls = 0;
+    const port = createAgentModelDiscovery({ agentId: 'host', configuration, deps: hostDeps(), probes: hostProbes({
+      catalog: async () => { calls++; if (calls === 1) throw new ModelProbeError('auth-missing'); return live; },
+    }) });
     await port.discoverModels({ context });
-    const entry = [...deps.cache.values()][0]!;
-    entry.retryAt = 10; delete entry.good;
-    await port.discoverModels({ context });
-    expect(calls).toBe(2);
+    const recovered = await port.discoverModels({ context }, { force: true });
+    expect(await port.discoverModels({ context })).toBe(recovered);
+    expect(recovered.freshness).toBe('fresh');
+  });
+
+  it('surfaces a throwing fallback provider without wedging the scope in flight', async () => {
+    const deps = hostDeps();
+    const broken = { fallbackModels: (): never => { throw new Error('fallback list unavailable'); } };
+    const port = createAgentModelDiscovery({ agentId: 'host', configuration: broken, deps, probes: hostProbes({
+      catalog: async () => { throw new ModelProbeError('auth-missing'); },
+    }) });
+    await expect(port.discoverModels({ context })).rejects.toThrow('fallback list unavailable');
+    expect([...deps.cache.values()][0]!.pending).toBeUndefined();
   });
 
   it('evicts settled scopes beyond 128 while keeping in-flight ones', async () => {
@@ -356,6 +380,26 @@ describe('createAgentModelDiscovery disk catalog', () => {
     liveGate.resolve(live);
     expect(await swr).toEqual(await live2);
     expect((await swr).source).toBe('rpc');
+  });
+
+  it('returns the disk catalog when a refresh starts during the disk read of a host-seeded empty entry', async () => {
+    const diskGate = deferred<ModelProbeResult>(); const liveGate = deferred<ModelProbeResult>(); const deps = hostDeps(); let calls = 0;
+    const port = createAgentModelDiscovery({ agentId: 'codex', configuration, deps, probes: hostProbes({
+      catalog: async () => { calls++; return calls === 1 ? live : liveGate.promise; },
+      cliCache: () => diskGate.promise,
+    }) });
+    await port.discoverModels({ context });
+    const key = [...deps.cache.keys()][0]!;
+    deps.cache.set(key, {});
+    const swr = port.discoverModels({ context }, { staleWhileRevalidate: true });
+    await tick();
+    const forced = port.discoverModels({ context }, { force: true });
+    await tick();
+    diskGate.resolve(disk);
+    await tick();
+    liveGate.resolve(live);
+    expect((await swr).source).toBe('cli-cache');
+    expect((await forced).source).toBe('rpc');
   });
 
   it('returns the prior failure when a forced refresh starts during the disk read', async () => {
@@ -457,10 +501,17 @@ describe('createAgentModelDiscovery resolveDefaultModel', () => {
     expect(await port().resolveDefaultModel({ context: scope, catalog })).toEqual({ status: 'unresolved', reason: 'Resumed session model metadata is required.' });
   });
 
-  it('resolves a resumed session to its recorded model', async () => {
-    const scope = { ...context, resumeSessionId: 's', resumedModelId: 'host-model' };
-    const catalog = await catalogFor(scope);
-    expect(await port().resolveDefaultModel({ context: scope, catalog })).toMatchObject({ status: 'resolved', id: 'host-model', selectionId: 'host-model', source: 'rpc' });
+  it('resolves a resumed session to its recorded model over the catalog default', async () => {
+    const scope = { ...context, resumeSessionId: 's', resumedModelId: 'other-model' };
+    const base = await catalogFor(scope);
+    const catalog = { ...base, models: [...base.models, { id: 'other-model', label: 'Other', identityKind: 'concrete' as const }] };
+    expect(await port().resolveDefaultModel({ context: scope, catalog })).toMatchObject({ status: 'resolved', id: 'other-model', selectionId: 'other-model', source: 'rpc' });
+  });
+
+  it('refuses an alias row whose own id merely looks concrete', async () => {
+    const base = await catalogFor(context);
+    const catalog = { ...base, defaultSelectionId: 'team-pick', models: [{ id: 'team-pick', label: 'Team Pick', identityKind: 'alias' as const }] };
+    expect(await port().resolveDefaultModel({ context, catalog })).toMatchObject({ status: 'unresolved', selectionId: 'team-pick' });
   });
 
   it('refuses when nothing names a default', async () => {
