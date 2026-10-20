@@ -17,7 +17,9 @@ export function buildPluginContributionToolRegistrations(required: PluginToolCon
     return {
       descriptor: {
         id: pluginToolIdFor({ pluginId: snapshot.pluginId, name: tool.name }), description: tool.description,
-        inputSchema: tool.inputSchema, readOnly: false, requiresConfirmation: required.metadata.approval?.confirmation !== 'direct',
+        // A self-declared effect may only add confirmation, never remove it: `read` stays not-read-only.
+        inputSchema: tool.inputSchema, readOnly: false,
+        requiresConfirmation: tool.effect === 'destructive' || required.metadata.approval?.confirmation !== 'direct',
         timeoutMs: 30000, maxOutputBytes: 65536, metadata: required.metadata,
       },
       policy: { authorize: async ctx => {

@@ -77,3 +77,15 @@ it('registrations attach to a real registry under the namespaced id', () => {
   for (const registration of buildPluginContributionToolRegistrations(ports)) registry.register(registration);
   expect(registry.has({ toolId: 'p_pin_sample__echo' })).toBe(true);
 });
+
+it('security pin: a destructive effect forces confirmation over direct host approval; read never claims read-only', () => {
+  const contributions = createPluginContributionRegistry({});
+  const capture = createPluginContributionCapture({ manifest: { ...manifest, contributes: { tools: ['wipe', 'look'] } } });
+  capture.tools.add({ name: 'wipe', description: 'wipe', inputSchema: { type: 'object' }, effect: 'destructive', handler: () => null });
+  capture.tools.add({ name: 'look', description: 'look', inputSchema: { type: 'object' }, effect: 'read', handler: () => null });
+  contributions.replace({ contributions: capture.seal({ sdk }) });
+  const [wipe, look] = buildPluginContributionToolRegistrations({ contributions, isEnabled: async () => true, resolveAuth: async () => null,
+    metadata: { approval: { class: 'edit', confirmation: 'direct' } } });
+  expect([wipe!.descriptor.requiresConfirmation, wipe!.descriptor.readOnly]).toEqual([true, false]);
+  expect([look!.descriptor.requiresConfirmation, look!.descriptor.readOnly]).toEqual([false, false]);
+});
