@@ -113,6 +113,54 @@ function notFound(runId: string, stream: boolean): AccessDecision {
   return { allowed: false, status: 404, body: { error: { code: 'NOT_FOUND', message: stream ? 'run was not found' : `run "${runId}" was not found` } } };
 }
 
+type Refusal = Exclude<AccessDecision, { allowed: true }>;
+type PresentedCredential = { kind: 'proxy' } | { kind: 'run'; caller: RunScopedCaller } | undefined;
+type GateRequest = Parameters<typeof authorizeDaemonRequest>[0]['request'];
+
+/** A presented bearer is the proxy token or a live run credential; anything else, including a
+ * malformed header, is no credential and is never offered to the run resolver. */
+function presentedCredential({ authorization, expected, crypto, runScopedCallers }: {
+  authorization: string | undefined; expected: string; crypto: Pick<CredentialCryptoPort, 'tokensMatch'>; runScopedCallers: RunScopedCallerResolver | undefined;
+}): PresentedCredential {
+  const token = bearerPattern.exec(authorization ?? '')?.[1];
+  if (token === undefined) return undefined;
+  if (crypto.tokensMatch({ presented: token, expected })) return { kind: 'proxy' };
+  const caller = runScopedCallers?.resolveCaller({ token });
+  return caller === undefined ? undefined : { kind: 'run', caller };
+}
+
+/** Bind a run bearer to its own run before any route allowlisting; undefined means no refusal. */
+function refuseForeignRun({ path, caller, routes }: { path: string; caller: RunScopedCaller; routes: RouteAccessPolicy }): AccessDecision | undefined {
+  let target: string | undefined;
+  try { target = routes.targetRun({ path }); }
+  catch (error) {
+    if (!(error instanceof URIError)) throw error;
+    return { allowed: false, status: 400, body: { error: { code: 'BAD_REQUEST', message: 'runId is not valid URL encoding' } } };
+  }
+  if (target !== undefined && target !== caller.runId) return notFound(target, routes.isEventStream({ path }));
+  return undefined;
+}
+
+function bodyRunId(body: unknown): unknown {
+  return body !== null && typeof body === 'object' ? (body as Record<string, unknown>)['runId'] : undefined;
+}
+
+function authorizeRunScopedCaller({ request, caller, routes, principalHeaderName, validateDelegatedRunId }: {
+  request: GateRequest; caller: RunScopedCaller; routes: RouteAccessPolicy; principalHeaderName: string; validateDelegatedRunId: boolean;
+}): AccessDecision {
+  const foreign = refuseForeignRun({ path: request.path, caller, routes });
+  if (foreign !== undefined) return foreign;
+  if (!routes.allowsRunScoped(request)) return { allowed: false, status: 403, body: { error: `a run-scoped credential cannot call ${request.method} ${request.path}`, code: 'FORBIDDEN' } };
+  if (validateDelegatedRunId && routes.isDelegatedCall(request) && bodyRunId(request.body) !== caller.runId) {
+    return { allowed: false, status: 403, body: { error: 'a run-scoped credential requires body.runId to match its own run', code: 'FORBIDDEN' } };
+  }
+  return { allowed: true, principalHeader: { name: principalHeaderName, value: caller.principalId } };
+}
+
+function unconfigured(envVarName: string): Refusal {
+  return { allowed: false, status: 503, body: { error: `the agent daemon is not configured: ${envVarName} is unset`, code: 'AGENT_DAEMON_UNCONFIGURED' } };
+}
+
 /** Transport-independent bearer gate. Apply principalHeader only after an allowed decision. */
 /** Loopback is not authentication: another local process can reach the daemon. No peer-address
  * exemption is allowed. Missing configuration refuses service (503); bad credentials receive 401.
@@ -130,26 +178,11 @@ export function authorizeDaemonRequest({ request, env, envVarName, principalHead
   const authorization = request.headers[authorizationHeaderName];
   if (exemptPaths.includes(request.path) && authorization === undefined) return { allowed: true };
   const expected = env[envVarName];
-  if (typeof expected !== 'string' || expected.length === 0) return {
-    allowed: false, status: 503, body: { error: `the agent daemon is not configured: ${envVarName} is unset`, code: 'AGENT_DAEMON_UNCONFIGURED' },
-  };
-  const token = bearerPattern.exec(authorization ?? '')?.[1];
-  if (token !== undefined && crypto.tokensMatch({ presented: token, expected })) return { allowed: true };
-  const caller = token === undefined ? undefined : runScopedCallers?.resolveCaller({ token });
-  if (caller === undefined) return { allowed: false, status: 401, body: { error: `Authorization: Bearer <${envVarName}> is required`, code: 'UNAUTHENTICATED' } };
-  let target: string | undefined;
-  try { target = routes.targetRun({ path: request.path }); }
-  catch (error) {
-    if (!(error instanceof URIError)) throw error;
-    return { allowed: false, status: 400, body: { error: { code: 'BAD_REQUEST', message: 'runId is not valid URL encoding' } } };
-  }
-  if (target !== undefined && target !== caller.runId) return notFound(target, routes.isEventStream({ path: request.path }));
-  if (!routes.allowsRunScoped(request)) return { allowed: false, status: 403, body: { error: `a run-scoped credential cannot call ${request.method} ${request.path}`, code: 'FORBIDDEN' } };
-  if (validateDelegatedRunId && routes.isDelegatedCall(request)) {
-    const bodyRunId = request.body !== null && typeof request.body === 'object' ? (request.body as Record<string, unknown>)['runId'] : undefined;
-    if (bodyRunId !== caller.runId) return { allowed: false, status: 403, body: { error: 'a run-scoped credential requires body.runId to match its own run', code: 'FORBIDDEN' } };
-  }
-  return { allowed: true, principalHeader: { name: principalHeaderName, value: caller.principalId } };
+  if (typeof expected !== 'string' || expected.length === 0) return unconfigured(envVarName);
+  const credential = presentedCredential({ authorization, expected, crypto, runScopedCallers });
+  if (credential === undefined) return { allowed: false, status: 401, body: { error: `Authorization: Bearer <${envVarName}> is required`, code: 'UNAUTHENTICATED' } };
+  if (credential.kind === 'proxy') return { allowed: true };
+  return authorizeRunScopedCaller({ request, caller: credential.caller, routes, principalHeaderName, validateDelegatedRunId });
 }
 
 /** Ownership survives terminal transition until the run record expires; live-principal mappings

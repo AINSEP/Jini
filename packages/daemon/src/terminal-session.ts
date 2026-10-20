@@ -222,6 +222,13 @@ interface SessionMetadata {
   killed: boolean;
 }
 
+type DefinedOnly<T> = { [K in keyof T]?: Exclude<T[K], undefined> };
+
+/** Drop undefined-valued keys so an omitted option never overrides the engine's own default. */
+function definedOnly<T extends object>(value: T): DefinedOnly<T> {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as DefinedOnly<T>;
+}
+
 /**
  * Serializes calls made for the same `id` through a per-id promise chain
  * (matching this codebase's `oauth-tokens.ts` `withLock` precedent), so a
@@ -247,20 +254,21 @@ async function runExclusive<T>(locks: Map<string, Promise<unknown>>, id: string,
  * the kill/write/resize lock, and (via {@link createTerminalToolRegistrations})
  * `ToolExecutor` gating for creation. See module doc for the full design.
  */
-export function createTerminalSessionManager(requiredArgs: Record<string, never>, optionalArgs: Pick<CreateTerminalSessionManagerOptions, "terminalService" | "loadSpawnPty" | "maxEvents" | "maxBufferBytes" | "exitTailBytes" | "flushIntervalMs" | "flushThresholdBytes" | "ttlMs" | "shutdownGraceMs"> = {}
+export function createTerminalSessionManager(_requiredArgs: Record<string, never>, options: Pick<CreateTerminalSessionManagerOptions, "terminalService" | "loadSpawnPty" | "maxEvents" | "maxBufferBytes" | "exitTailBytes" | "flushIntervalMs" | "flushThresholdBytes" | "ttlMs" | "shutdownGraceMs"> = {}
 ): TerminalSessionManager {
-  const options: CreateTerminalSessionManagerOptions = { ...requiredArgs, ...optionalArgs };
   const terminalService =
     options.terminalService ??
     createTerminalService({
       loadSpawnPty: options.loadSpawnPty ?? (() => loadRealSpawnPty({})),
-      ...(options.maxEvents !== undefined ? { maxEvents: options.maxEvents } : {}),
-      ...(options.maxBufferBytes !== undefined ? { maxBufferBytes: options.maxBufferBytes } : {}),
-      ...(options.exitTailBytes !== undefined ? { exitTailBytes: options.exitTailBytes } : {}),
-      ...(options.flushIntervalMs !== undefined ? { flushIntervalMs: options.flushIntervalMs } : {}),
-      ...(options.flushThresholdBytes !== undefined ? { flushThresholdBytes: options.flushThresholdBytes } : {}),
-      ...(options.ttlMs !== undefined ? { ttlMs: options.ttlMs } : {}),
-      ...(options.shutdownGraceMs !== undefined ? { shutdownGraceMs: options.shutdownGraceMs } : {}),
+      ...definedOnly({
+        maxEvents: options.maxEvents,
+        maxBufferBytes: options.maxBufferBytes,
+        exitTailBytes: options.exitTailBytes,
+        flushIntervalMs: options.flushIntervalMs,
+        flushThresholdBytes: options.flushThresholdBytes,
+        ttlMs: options.ttlMs,
+        shutdownGraceMs: options.shutdownGraceMs,
+      }),
     });
 
   const metadata = new Map<string, SessionMetadata>();
@@ -294,9 +302,7 @@ export function createTerminalSessionManager(requiredArgs: Record<string, never>
   async function create({ principal, options: createOptions }: { readonly principal: Principal; readonly options: CreateTerminalSessionOptions }): Promise<TerminalSessionInfo> {
     const session = await terminalService.create({
       cwd: createOptions.cwd,
-      ...(createOptions.cols !== undefined ? { cols: createOptions.cols } : {}),
-      ...(createOptions.rows !== undefined ? { rows: createOptions.rows } : {}),
-      ...(createOptions.shell !== undefined ? { shell: createOptions.shell } : {}),
+      ...definedOnly({ cols: createOptions.cols, rows: createOptions.rows, shell: createOptions.shell }),
     });
     const resourceRef = createOptions.resourceRef ?? null;
     metadata.set(session.id, { principalId: principal.id, resourceRef, killed: false });
@@ -325,7 +331,8 @@ export function createTerminalSessionManager(requiredArgs: Record<string, never>
     return session ? toSessionInfo(session, resourceRef) : null;
   }
 
-  async function write({ principal, id, input }: { readonly principal: Principal; readonly id: string; readonly input: string }): Promise<TerminalSessionActionResult> {
+  /** Shared write/resize path: ownership check, then the per-session lock, then the killed flag. */
+  async function unlessKilled(principal: Principal, id: string, act: () => boolean): Promise<TerminalSessionActionResult> {
     const found = checkOwnership(principal, id);
     if (!found) return { status: 'not-found' };
     return runExclusive(locks, id, () => {
@@ -335,22 +342,17 @@ export function createTerminalSessionManager(requiredArgs: Record<string, never>
       if (!meta || meta.killed) {
         return { status: 'ok' as const, ok: false, session: currentSnapshot(id, meta?.resourceRef ?? null) };
       }
-      const ok = terminalService.write(id, input);
+      const ok = act();
       return { status: 'ok' as const, ok, session: currentSnapshot(id, meta.resourceRef) };
     });
   }
 
+  async function write({ principal, id, input }: { readonly principal: Principal; readonly id: string; readonly input: string }): Promise<TerminalSessionActionResult> {
+    return unlessKilled(principal, id, () => terminalService.write(id, input));
+  }
+
   async function resize({ principal, id, cols, rows }: { readonly principal: Principal; readonly id: string; readonly cols: number; readonly rows: number }): Promise<TerminalSessionActionResult> {
-    const found = checkOwnership(principal, id);
-    if (!found) return { status: 'not-found' };
-    return runExclusive(locks, id, () => {
-      const meta = metadata.get(id);
-      if (!meta || meta.killed) {
-        return { status: 'ok' as const, ok: false, session: currentSnapshot(id, meta?.resourceRef ?? null) };
-      }
-      const ok = terminalService.resize(id, cols, rows);
-      return { status: 'ok' as const, ok, session: currentSnapshot(id, meta.resourceRef) };
-    });
+    return unlessKilled(principal, id, () => terminalService.resize(id, cols, rows));
   }
 
   async function kill({ principal, id }: { readonly principal: Principal; readonly id: string }, { signal }: { readonly signal?: string } = {}): Promise<TerminalSessionActionResult> {
@@ -411,12 +413,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 export function createTerminalToolRegistrations(requiredArgs: Pick<CreateTerminalToolRegistrationsOptions, "manager">, optionalArgs: Pick<CreateTerminalToolRegistrationsOptions, "policy" | "requiresConfirmation" | "timeoutMs"> = {}
 ): TerminalToolRegistrations {
-  const options: CreateTerminalToolRegistrationsOptions = { ...requiredArgs, ...optionalArgs };
-  const { manager, policy = denyAllTerminalCreatePolicy, requiresConfirmation, timeoutMs } = options;
-  const descriptorExtras = {
-    ...(requiresConfirmation !== undefined ? { requiresConfirmation } : {}),
-    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-  };
+  const { manager } = requiredArgs;
+  const { policy = denyAllTerminalCreatePolicy, requiresConfirmation, timeoutMs } = optionalArgs;
+  const descriptorExtras = definedOnly({ requiresConfirmation, timeoutMs });
 
   return {
     create: {
@@ -440,8 +439,7 @@ export function createTerminalToolRegistrations(requiredArgs: Pick<CreateTermina
         return manager.create({ principal: ctx.principal, options: {
           resourceRef,
           cwd,
-          ...(cols !== undefined ? { cols } : {}),
-          ...(rows !== undefined ? { rows } : {}),
+          ...definedOnly({ cols, rows }),
           shell,
         } });
       },

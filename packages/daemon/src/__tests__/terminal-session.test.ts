@@ -8,6 +8,7 @@ import type {
   PtySpawnOptions,
   TerminalSseSink,
 } from '@jini-ai/platform';
+import { createTerminalService } from '@jini-ai/platform';
 import { createToolExecutor, type ToolExecutor } from '../tool-executor.js';
 import {
   createTerminalSessionManager,
@@ -26,6 +27,8 @@ import {
 // filesystem by default in tests" convention (see `agent-executor.ts`'s injectable `spawn`).
 const spawnHelperCandidatePathsMock = vi.fn<typeof SpawnHelperCandidatePathsFn>(() => ['/fake/candidate/spawn-helper']);
 const ensureSpawnHelperExecutableMock = vi.fn<typeof EnsureSpawnHelperExecutableFn>();
+// Records the options each manager hands the real engine, so knob forwarding is asserted, not assumed.
+const createTerminalServiceOptions: Array<Parameters<typeof import('@jini-ai/platform').createTerminalService>[0]> = [];
 vi.mock('@jini-ai/platform', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@jini-ai/platform')>();
   return {
@@ -34,6 +37,10 @@ vi.mock('@jini-ai/platform', async (importOriginal) => {
       spawnHelperCandidatePathsMock(...args),
     ensureSpawnHelperExecutable: (...args: Parameters<typeof actual.ensureSpawnHelperExecutable>) =>
       ensureSpawnHelperExecutableMock(...args),
+    createTerminalService: (...args: Parameters<typeof actual.createTerminalService>) => {
+      createTerminalServiceOptions.push(args[0]);
+      return actual.createTerminalService(...args);
+    },
   };
 });
 
@@ -208,6 +215,32 @@ describe('createTerminalSessionManager — create/get/list', () => {
     const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
     expect(session.status).toBe('running');
     expect(nodePtySpawnMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards exactly the tuning knobs that were supplied to the engine, and only those', () => {
+    createTerminalServiceOptions.length = 0;
+    const loadSpawnPty = async (): Promise<PtySpawn> => fakeSpawnPty().spawnPty;
+    createTerminalSessionManager({}, { loadSpawnPty });
+    createTerminalSessionManager({}, { loadSpawnPty, maxEvents: 1, maxBufferBytes: 2, exitTailBytes: 3, flushIntervalMs: 4, flushThresholdBytes: 5, ttlMs: 6, shutdownGraceMs: 7 });
+    createTerminalSessionManager({}, { loadSpawnPty, maxEvents: 9 });
+    expect(createTerminalServiceOptions).toEqual([
+      { loadSpawnPty },
+      { loadSpawnPty, maxEvents: 1, maxBufferBytes: 2, exitTailBytes: 3, flushIntervalMs: 4, flushThresholdBytes: 5, ttlMs: 6, shutdownGraceMs: 7 },
+      { loadSpawnPty, maxEvents: 9 },
+    ]);
+    expect(Object.keys(createTerminalServiceOptions[2]!)).toEqual(['loadSpawnPty', 'maxEvents']);
+  });
+
+  it('uses an injected terminalService instead of building one', async () => {
+    createTerminalServiceOptions.length = 0;
+    const { spawnPty } = fakeSpawnPty();
+    const terminalService = createTerminalService({ loadSpawnPty: async () => spawnPty });
+    createTerminalServiceOptions.length = 0;
+    const manager = createTerminalSessionManager({}, { terminalService, maxEvents: 1 });
+    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
+    expect(createTerminalServiceOptions).toEqual([]);
+    expect(terminalService.get(session.id)?.id).toBe(session.id);
+    await manager.shutdownActive({ graceMs: 0 });
   });
 
   it('get() returns not-found for an unknown id', () => {
