@@ -26,7 +26,7 @@ Branch: `cloud/w3-user-management` (from origin/general-work). Brief: `origin/cl
 | L182a | MERGED cecbc9ef | cloud/w3-user-management-L182a | yes | 6ed390c0,7e0a494f |
 | L182c | MERGED 8b952d6c | cloud/w3-user-management-L182c | yes | 329b2756,7055fa49,78fddb94,de16cc2f |
 | L182b | MERGED e14dc212 | cloud/w3-user-management-L182b | yes | 51aa0b60,4bfead36 |
-| L154-L272 | REJECTED once (new HW3 guard line), fix subagent running | cloud/w3-user-management-L154-L272 | yes | 2c053b61,00b5be9a,9d9918a8,a28864fa,7885c2d0 |
+| L154-L272 | MERGED dbc7e899 (2nd attempt) | cloud/w3-user-management-L154-L272 | yes | 2c053b61,00b5be9a,9d9918a8,a28864fa,7885c2d0,2c76e58d |
 | L205 | MERGED 393cb657 | cloud/w3-user-management-L205 | yes | 18e790cb,e347d0cd,a9ceeaf6,093b5ac8,c4cdebcc,38915e09 |
 
 ## Merges / verification
@@ -87,8 +87,13 @@ Verify = coordinator eslint (cyc/cog 10) on lot files + new helpers, tsc, lot te
 - Markup identity: temp old-vs-new innerHTML over 768/1024/2048 combos + hook return/call-log diff over 384 cases, deleted.
 - Removed: repeated tab-id slice → tabKey; 4 push lines → rowActions table; duplicate option builder → grantOptions; ternaries → maps/early returns. Checks removed: none. Bugs/security: none seen.
 
-### L154-L272 — people.rules / rules / memory adapter (REJECTED at first merge, not pushed)
+### L154-L272 — people.rules / rules / memory adapter (rejected once, then merged dbc7e899)
 - First merge attempt: eslint 0, tsc 0, 25 files / 344 tests, coverage 100% on all 4 files incl. new error-copy.ts — but `pnpm guard` added `HW3-module-state packages/user-management/src/admin/people.rules.ts` (module-level `new Map` ACTION_RULES without ReadonlyMap type). Merge dropped locally (was never pushed); fresh fix subagent dispatched.
+- Fix subagent pushed 2c76e58d (`ACTION_RULES: ReadonlyMap<…>`). Re-merge: eslint 0 (incl. error-copy.ts), tsc 0, 25 files / 344 tests, guard no new lines; coordinator coverage (314 tests) error-copy/people.rules/rules/memory all 100/100/100/100.
+- Coordinator SEC read: old vs new userActionAllowed compared rule by rule (ownership gate, delete/disable/enable/reset/grants/email, unknown→user.manage, caller-null first): logically identical, same evaluation order. Subagent proof: committed 6,912-combination truth table + temp 200k-input differential (deleted).
+- Removed: duplicated error-code/message extraction → error-copy.ts; canManageRoles/issuer check → hasAdminGrant; memory: 3 seeding loops → inWorkspace(), 4 abort checks → check(), 2 ownership ternaries → ownership(), 2 last-owner guards → keepAnotherActiveOwner(). Checks removed: none.
+- BUG pinned (reported): describeRolesError resolves inherited keys ("constructor" → Object fn).
+- SEC pinned (reported, memory fake only): users `write()` checks existence/Trash before permission (id enumeration by an ungranted caller); members fake serves listMembers/getMember (emails) without member.manage.
 - Commit messages 00b5be9a/9d9918a8/a28864fa carry pre-measurement (wrong) figures; empty commit 7885c2d0 records measured ones: userActionAllowed 27/17→5/1, describeRolesError 12/12→5/3, createMemoryRolesApi 13/0→4/0.
 
 ## Next steps
