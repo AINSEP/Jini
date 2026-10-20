@@ -131,6 +131,15 @@ export function findFieldReadRefusal({ field }: { field: FieldDescriptor }, _opt
   const type = field.type?.toLowerCase();
   if (type !== undefined && DENIED_TYPES.has(type)) return 'denied-type';
 
+  if (hasDeniedAutocomplete({ field })) return 'denied-autocomplete';
+  if (hasSuspiciousFieldName({ field })) return 'suspicious-name';
+  return null;
+}
+
+function hasDeniedAutocomplete(
+  { field }: { field: FieldDescriptor },
+  _optional: Record<string, never> = {},
+): boolean {
   const autocomplete = field.autocomplete?.toLowerCase();
   if (autocomplete !== undefined) {
     // The real grammar is space-separated tokens, but a comma-joined value
@@ -139,11 +148,18 @@ export function findFieldReadRefusal({ field }: { field: FieldDescriptor }, _opt
     // whitespace alone turned the whole string into one unrecognized token, so the field still
     // worked as a plain text input while looking unguarded.
     for (const token of autocomplete.split(/[\s,]+/)) {
-      if (DENIED_AUTOCOMPLETE.has(token)) return 'denied-autocomplete';
+      if (DENIED_AUTOCOMPLETE.has(token)) return true;
     }
   }
 
-  if (
+  return false;
+}
+
+function hasSuspiciousFieldName(
+  { field }: { field: FieldDescriptor },
+  _optional: Record<string, never> = {},
+): boolean {
+  return (
     SUSPICIOUS_NAME.test(squashSeparators(field.name ?? ''))
     || SUSPICIOUS_NAME.test(squashSeparators(field.id ?? ''))
     // `name`/`id` are the *machine* names; a form builder or CMS that emits `name="field_47"`
@@ -154,10 +170,7 @@ export function findFieldReadRefusal({ field }: { field: FieldDescriptor }, _opt
     // their boundary ("Address" + "Snapshot" -> "addresssnapshot", which contains "ssn"). This
     // guard is deliberately over-inclusive, but not at the cost of matching text no page wrote.
     || (field.accessibleLabels ?? []).some((label) => SUSPICIOUS_NAME.test(squashSeparators(label)))
-  ) {
-    return 'suspicious-name';
-  }
-  return null;
+  );
 }
 
 /**

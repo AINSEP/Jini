@@ -12,8 +12,8 @@
  * browser: "does it refuse to type into a password box" is a unit test, not an integration test.
  */
 import {
+  findCapability,
   findCapabilityInputError,
-  type CapabilityDef,
 } from './capability.js';
 import {
   AGENT_ELEMENT_ROLES,
@@ -141,20 +141,37 @@ export function projectElementState({ raw }: { raw: AgentElementRawState }, _opt
   // ontology for no reduction in what actually leaks.
   const refusal = raw.field !== undefined ? findFieldReadRefusal({ field: raw.field }) : null;
 
-  // The one element whose `text` is NOT page-authored chrome: an editable region, whose contents
-  // are the user's data and whose driver has no `value` to report them as. It is gated by exactly
-  // the rules `value` is gated by below, including the "arrived with nothing to check it against"
-  // one — an unverifiable secret is withheld, not trusted.
-  const withheldText = raw.textIsValue !== true
-    ? undefined
-    : raw.field === undefined
-      ? 'this element reported contents without the attributes needed to check them for secrets'
-      : refusal !== null ? describeFieldReadRefusal({ refusal }) : undefined;
+  const withheldText = findWithheldText({ raw, refusal });
 
   const base: AgentElementState = {
     text: withheldText === undefined ? text.text : '',
     textTruncated: withheldText === undefined ? text.truncated : false,
     ...(withheldText !== undefined ? { textWithheld: withheldText } : {}),
+    ...projectOptionalState({ raw, refusal }),
+  };
+  return projectFieldValue({ raw, refusal, base });
+}
+
+function findWithheldText(
+  { raw, refusal }: { raw: AgentElementRawState; refusal: ReturnType<typeof findFieldReadRefusal> },
+  _optional: Record<string, never> = {},
+): string | undefined {
+  // The one element whose `text` is NOT page-authored chrome: an editable region, whose contents
+  // are the user's data and whose driver has no `value` to report them as. It is gated by exactly
+  // the rules `value` is gated by below, including the "arrived with nothing to check it against"
+  // one — an unverifiable secret is withheld, not trusted.
+  return raw.textIsValue !== true
+    ? undefined
+    : raw.field === undefined
+      ? 'this element reported contents without the attributes needed to check them for secrets'
+      : refusal !== null ? describeFieldReadRefusal({ refusal }) : undefined;
+}
+
+function projectOptionalState(
+  { raw, refusal }: { raw: AgentElementRawState; refusal: ReturnType<typeof findFieldReadRefusal> },
+  _optional: Record<string, never> = {},
+): Partial<AgentElementState> {
+  return {
     ...(raw.checked !== undefined && refusal === null ? { checked: raw.checked } : {}),
     ...(raw.disabled !== undefined ? { disabled: raw.disabled } : {}),
     ...(raw.visible !== undefined ? { visible: raw.visible } : {}),
@@ -164,7 +181,12 @@ export function projectElementState({ raw }: { raw: AgentElementRawState }, _opt
       ? { options: raw.options.map((option) => normalizeAgentLabel({ raw: option }).text) }
       : {}),
   };
+}
 
+function projectFieldValue(
+  { raw, refusal, base }: { raw: AgentElementRawState; refusal: ReturnType<typeof findFieldReadRefusal>; base: AgentElementState },
+  _optional: Record<string, never> = {},
+): AgentElementState {
   if (raw.value === undefined) return base;
   if (raw.field === undefined) {
     return {
@@ -268,69 +290,11 @@ async function summarizePage(driver: PageDriver): Promise<PageActivitySnapshot> 
  */
 export async function executePageCapability({ driver, capabilityId, input }: { driver: PageDriver; capabilityId: string; input: Record<string, unknown> }, _optional: Record<string, never> = {}
 ): Promise<unknown> {
-  const capability: CapabilityDef | undefined =
-    PAGE_CAPABILITIES.find((entry) => entry.id === capabilityId);
-  if (capability === undefined) throw new Error(`unknown page capability: ${capabilityId}`);
-
-  const inputError = findCapabilityInputError({ capability, input });
-  if (inputError !== null) {
-    // The schema rides along with the refusal rather than making a caller spend a second
-    // round trip on describe_tool to learn what it already tried to guess — ai-control-plane.md
-    // §29.4's "schema-on-error" requirement, empirically forced by a real run: page.fill was
-    // called with `handle` instead of the argument's old name, `element`, twice before the caller
-    // gave up and looked the schema up separately. One JSON-Schema object, embedded once, turned
-    // that into a same-turn self-correction for every page.* verb this gate guards, not just the
-    // one that got measured — self-correction is why that mismatch was survivable at all, given
-    // every verb here needs a handle from `page.find_elements`, whose own response has always
-    // called this same value `handle` (`AgentElementDescriptor.handle`). The argument itself was
-    // later renamed from `element` to `handle` to match, closing the gap this comment describes
-    // rather than merely papering over it turn by turn.
-    throw new Error(`${capabilityId}: ${inputError}. Expected input: ${JSON.stringify(capability.inputSchema)}`);
-  }
+  validatePageCapability({ capabilityId, input });
 
   switch (capabilityId) {
-    case 'page.find_elements': {
-      const role = input['role'];
-      // The schema's enum check has already run; this narrows the type for the driver.
-      const filter = {
-        ...(isAgentElementRole(role) ? { role } : {}),
-        ...(typeof input['query'] === 'string' ? { query: input['query'] } : {}),
-      };
-      const [found, rawPages] = await Promise.all([driver.findElements({}, filter), driver.listPages({})]);
-      const withState = input['withState'] === true;
-      const observing = withState && driver.describeState !== undefined;
-
-      const elements = await Promise.all(found.map(async (element, index): Promise<PageElementResult> => {
-        const label = normalizeAgentLabel({ raw: element.label });
-        const base: PageElementResult = {
-          handle: element.handle,
-          role: element.role,
-          label: label.text,
-          labelTruncated: label.truncated,
-          page: element.page,
-        };
-        if (!observing || index >= MAX_STATEFUL_ELEMENTS) return base;
-        const state = await observeElement(driver, element.handle);
-        return state === undefined ? base : { ...base, state };
-      }));
-      // `label` is page-authored the same way an element's is — bounded here for the same reason
-      // `page.navigate`'s refusal message bounds it below, rather than trusting a host to have kept
-      // every `data-agent-page` label short and clean.
-      const pages: readonly PageSummary[] = rawPages.map((page) => ({
-        id: page.id,
-        label: normalizeAgentLabel({ raw: page.label }).text,
-      }));
-
-      return {
-        elements,
-        pages,
-        untrustedFields: observing
-          ? ['elements[].label', 'elements[].state.text', 'elements[].state.value', 'pages[].label']
-          : ['elements[].label', 'pages[].label'],
-        ...(withState && !observing ? { stateUnavailable: true } : {}),
-        ...(observing && found.length > MAX_STATEFUL_ELEMENTS ? { stateTruncated: true } : {}),
-      } satisfies FindElementsResult;
-    }
+    case 'page.find_elements':
+      return findPageElements({ driver, input });
 
     case 'page.highlight': {
       const handle = requireHandle(input, 'handle');
@@ -351,24 +315,8 @@ export async function executePageCapability({ driver, capabilityId, input }: { d
       return { clicked: handle, ...observation };
     }
 
-    case 'page.fill': {
-      const handle = requireHandle(input, 'handle');
-      // Declared required and typed `string` in the manifest, and `findCapabilityInputError`
-      // enforced both above — re-checking here would be an unreachable branch, not a safeguard.
-      const text = input['text'] as string;
-
-      // Ask the page what this field actually is before writing to it. A handle proves the page
-      // published the element; it says nothing about whether it holds a password.
-      const field = await driver.describeField({ handle });
-      if (field === null) throw new Error(`"${handle}" is not a fillable field`);
-      const refusal = findFieldFillRefusal({ field });
-      if (refusal !== null) {
-        throw new Error(`refusing to fill "${handle}": ${describeFieldRefusal({ refusal })}`);
-      }
-
-      const observation = await observeWrite(driver, handle, () => driver.fill({ handle, text }));
-      return { filled: handle, ...observation };
-    }
+    case 'page.fill':
+      return fillPageField({ driver, input });
 
     case 'page.select_option': {
       const handle = requireHandle(input, 'handle');
@@ -376,7 +324,7 @@ export async function executePageCapability({ driver, capabilityId, input }: { d
       const option = input['option'] as string;
       // Optional and boolean-typed by the manifest; absent means "select it", same as before this
       // argument existed.
-      const selected = input['selected'] === false ? false : true;
+      const selected = input['selected'] !== false;
       // No field guard: a dropdown's options are authored by the page, so choosing one reveals
       // nothing the page had not already published, and none of the credential field types this
       // surface refuses can be a `<select>`.
@@ -386,40 +334,138 @@ export async function executePageCapability({ driver, capabilityId, input }: { d
       return { selected: handle, option, optionSelected: selected, ...observation };
     }
 
-    case 'page.navigate': {
-      // Required and string-typed by the manifest, already enforced above. See page.fill.
-      const page = input['page'] as string;
-      const pages = await driver.listPages({});
-      if (!pages.some((candidate) => candidate.id === page)) {
-        // Every other piece of page-authored (or, here, caller-authored-but-page-shaped) text
-        // this system hands to a model goes through normalizeAgentLabel first — bounded, control-
-        // and bidi-stripped. This refusal was the one path that skipped it: the raw `page`
-        // argument, and the `pages` this host actually publishes (itself read verbatim off
-        // `data-agent-page` attributes with no length bound), were interpolated straight into the
-        // thrown message. A 5000+-char bidi payload survived verbatim as a result. The lookup
-        // above still runs on the raw values — only the text that reaches the message is bounded.
-        //
-        // `id (label)`, not just the id: a refusal is the one moment a caller that guessed wrong
-        // is looking straight at the real menu, so it is worth spending the label here even though
-        // `page.find_elements` already carries the same information — a caller that jumped
-        // straight to `page.navigate` without calling that first still lands on the right id.
-        const safePage = normalizeAgentLabel({ raw: page }).text;
-        const safePages = pages.map(
-          (candidate) => `${normalizeAgentLabel({ raw: candidate.id }).text} (${normalizeAgentLabel({ raw: candidate.label }).text})`,
-        );
-        throw new Error(
-          `"${safePage}" is not a published page. Available: ${safePages.length > 0 ? safePages.join(', ') : '(none)'}`,
-        );
-      }
-      const before = await summarizePage(driver);
-      await driver.navigate({ page });
-      if (driver.settle !== undefined) await driver.settle({});
-      const after = await summarizePage(driver);
-      return { navigatedTo: page, before, after };
-    }
+    case 'page.navigate':
+      return navigatePage({ driver, input });
 
     /* c8 ignore next 2 -- unreachable: the id was matched against PAGE_CAPABILITIES above. */
     default:
       throw new Error(`unhandled page capability: ${capabilityId}`);
   }
+}
+
+function validatePageCapability(
+  { capabilityId, input }: { capabilityId: string; input: Record<string, unknown> },
+  _optional: Record<string, never> = {},
+): void {
+  const capability = findCapability({ capabilities: PAGE_CAPABILITIES, id: capabilityId });
+  if (capability === undefined) throw new Error(`unknown page capability: ${capabilityId}`);
+
+  const inputError = findCapabilityInputError({ capability, input });
+  if (inputError !== null) {
+    // The schema rides along with the refusal rather than making a caller spend a second
+    // round trip on describe_tool to learn what it already tried to guess — ai-control-plane.md
+    // §29.4's "schema-on-error" requirement, empirically forced by a real run: page.fill was
+    // called with `handle` instead of the argument's old name, `element`, twice before the caller
+    // gave up and looked the schema up separately. One JSON-Schema object, embedded once, turned
+    // that into a same-turn self-correction for every page.* verb this gate guards, not just the
+    // one that got measured — self-correction is why that mismatch was survivable at all, given
+    // every verb here needs a handle from `page.find_elements`, whose own response has always
+    // called this same value `handle` (`AgentElementDescriptor.handle`). The argument itself was
+    // later renamed from `element` to `handle` to match, closing the gap this comment describes
+    // rather than merely papering over it turn by turn.
+    throw new Error(`${capabilityId}: ${inputError}. Expected input: ${JSON.stringify(capability.inputSchema)}`);
+  }
+}
+
+async function findPageElements(
+  { driver, input }: { driver: PageDriver; input: Record<string, unknown> },
+  _optional: Record<string, never> = {},
+): Promise<FindElementsResult> {
+  const role = input['role'];
+  // The schema's enum check has already run; this narrows the type for the driver.
+  const filter = {
+    ...(isAgentElementRole(role) ? { role } : {}),
+    ...(typeof input['query'] === 'string' ? { query: input['query'] } : {}),
+  };
+  const [found, rawPages] = await Promise.all([driver.findElements({}, filter), driver.listPages({})]);
+  const withState = input['withState'] === true;
+  const observing = withState && driver.describeState !== undefined;
+
+  const elements = await Promise.all(found.map(async (element, index): Promise<PageElementResult> => {
+    const label = normalizeAgentLabel({ raw: element.label });
+    const base: PageElementResult = {
+      handle: element.handle,
+      role: element.role,
+      label: label.text,
+      labelTruncated: label.truncated,
+      page: element.page,
+    };
+    if (!observing || index >= MAX_STATEFUL_ELEMENTS) return base;
+    const state = await observeElement(driver, element.handle);
+    return state === undefined ? base : { ...base, state };
+  }));
+  // `label` is page-authored the same way an element's is — bounded here for the same reason
+  // `page.navigate`'s refusal message bounds it below, rather than trusting a host to have kept
+  // every `data-agent-page` label short and clean.
+  const pages: readonly PageSummary[] = rawPages.map((page) => ({
+    id: page.id,
+    label: normalizeAgentLabel({ raw: page.label }).text,
+  }));
+
+  return {
+    elements,
+    pages,
+    untrustedFields: observing
+      ? ['elements[].label', 'elements[].state.text', 'elements[].state.value', 'pages[].label']
+      : ['elements[].label', 'pages[].label'],
+    ...(withState && !observing ? { stateUnavailable: true } : {}),
+    ...(observing && found.length > MAX_STATEFUL_ELEMENTS ? { stateTruncated: true } : {}),
+  };
+}
+
+async function fillPageField(
+  { driver, input }: { driver: PageDriver; input: Record<string, unknown> },
+  _optional: Record<string, never> = {},
+): Promise<unknown> {
+  const handle = requireHandle(input, 'handle');
+  // Declared required and typed `string` in the manifest, and `findCapabilityInputError`
+  // enforced both above — re-checking here would be an unreachable branch, not a safeguard.
+  const text = input['text'] as string;
+
+  // Ask the page what this field actually is before writing to it. A handle proves the page
+  // published the element; it says nothing about whether it holds a password.
+  const field = await driver.describeField({ handle });
+  if (field === null) throw new Error(`"${handle}" is not a fillable field`);
+  const refusal = findFieldFillRefusal({ field });
+  if (refusal !== null) {
+    throw new Error(`refusing to fill "${handle}": ${describeFieldRefusal({ refusal })}`);
+  }
+
+  const observation = await observeWrite(driver, handle, () => driver.fill({ handle, text }));
+  return { filled: handle, ...observation };
+}
+
+async function navigatePage(
+  { driver, input }: { driver: PageDriver; input: Record<string, unknown> },
+  _optional: Record<string, never> = {},
+): Promise<unknown> {
+  // Required and string-typed by the manifest, already enforced above. See page.fill.
+  const page = input['page'] as string;
+  const pages = await driver.listPages({});
+  if (!pages.some((candidate) => candidate.id === page)) {
+    // Every other piece of page-authored (or, here, caller-authored-but-page-shaped) text
+    // this system hands to a model goes through normalizeAgentLabel first — bounded, control-
+    // and bidi-stripped. This refusal was the one path that skipped it: the raw `page`
+    // argument, and the `pages` this host actually publishes (itself read verbatim off
+    // `data-agent-page` attributes with no length bound), were interpolated straight into the
+    // thrown message. A 5000+-char bidi payload survived verbatim as a result. The lookup
+    // above still runs on the raw values — only the text that reaches the message is bounded.
+    //
+    // `id (label)`, not just the id: a refusal is the one moment a caller that guessed wrong
+    // is looking straight at the real menu, so it is worth spending the label here even though
+    // `page.find_elements` already carries the same information — a caller that jumped
+    // straight to `page.navigate` without calling that first still lands on the right id.
+    const safePage = normalizeAgentLabel({ raw: page }).text;
+    const safePages = pages.map(
+      (candidate) => `${normalizeAgentLabel({ raw: candidate.id }).text} (${normalizeAgentLabel({ raw: candidate.label }).text})`,
+    );
+    throw new Error(
+      `"${safePage}" is not a published page. Available: ${safePages.length > 0 ? safePages.join(', ') : '(none)'}`,
+    );
+  }
+  const before = await summarizePage(driver);
+  await driver.navigate({ page });
+  if (driver.settle !== undefined) await driver.settle({});
+  const after = await summarizePage(driver);
+  return { navigatedTo: page, before, after };
 }

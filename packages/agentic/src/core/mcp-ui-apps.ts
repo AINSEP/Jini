@@ -232,14 +232,10 @@ function isJsonRpcErrorObject(value: unknown): value is JsonRpcError {
 export function isJsonRpcMessage(required: { value: unknown }, _optional: Record<string, never> = {}): required is { value: JsonRpcMessage } {
   const { value } = required;
   if (!isRecord(value) || value['jsonrpc'] !== '2.0') return false;
-  if ('id' in value && typeof value['id'] !== 'number' && typeof value['id'] !== 'string') return false;
+  if (!hasValidJsonRpcId({ value })) return false;
 
   if ('method' in value) {
-    // Request or notification: `id` present or not, but never a response's members alongside.
-    return typeof value['method'] === 'string'
-      && hasValidParams(value)
-      && !('result' in value)
-      && !('error' in value);
+    return isJsonRpcCallShape({ value });
   }
 
   // Response: correlated by `id`, carrying exactly one of `result` / `error`.
@@ -248,6 +244,24 @@ export function isJsonRpcMessage(required: { value: unknown }, _optional: Record
   const hasError = 'error' in value;
   if (hasResult === hasError) return false;
   return hasResult || isJsonRpcErrorObject(value['error']);
+}
+
+function hasValidJsonRpcId(
+  { value }: { value: Record<string, unknown> },
+  _optional: Record<string, never> = {},
+): boolean {
+  return !('id' in value) || typeof value['id'] === 'number' || typeof value['id'] === 'string';
+}
+
+function isJsonRpcCallShape(
+  { value }: { value: Record<string, unknown> },
+  _optional: Record<string, never> = {},
+): boolean {
+  // Request or notification: `id` present or not, but never a response's members alongside.
+  return typeof value['method'] === 'string'
+    && hasValidParams(value)
+    && !('result' in value)
+    && !('error' in value);
 }
 
 /** Whether a validated message expects a response (as opposed to being a notification). */

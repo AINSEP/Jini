@@ -83,20 +83,36 @@ export function findCapabilityInputError({ capability, input }: { capability: Ca
   }
 
   if (additionalProperties === false) {
-    // `key in properties` walks the whole prototype chain, so a key that happens to be inherited
-    // from Object.prototype (`__proto__`, `constructor`, `toString`, `valueOf`, …) reads as
-    // "known" regardless of whether the schema actually lists it — `'constructor' in {}` is
-    // true even on an empty object. `JSON.parse('{"__proto__":...}')` creates a real own data
-    // property (not the accessor), so this was a live way for such a key to escape the
-    // "unknown argument" refusal entirely. hasOwnProperty ignores the prototype chain, so only
-    // keys the schema actually declares count as known.
-    const unknown = Object.keys(input)
-      .filter((key) => !Object.prototype.hasOwnProperty.call(properties, key));
-    if (unknown.length > 0) {
-      return `unknown ${unknown.length === 1 ? 'argument' : 'arguments'}: ${unknown.sort().join(', ')}`;
-    }
+    const unknownError = findUnknownArgumentError({ properties, input });
+    if (unknownError !== null) return unknownError;
+  }
+  return findPropertyInputError({ properties, input });
+}
+
+function findUnknownArgumentError(
+  { properties, input }: { properties: CapabilityInputSchema['properties']; input: Record<string, unknown> },
+  _optional: Record<string, never> = {},
+): string | null {
+  // `key in properties` walks the whole prototype chain, so a key that happens to be inherited
+  // from Object.prototype (`__proto__`, `constructor`, `toString`, `valueOf`, …) reads as
+  // "known" regardless of whether the schema actually lists it — `'constructor' in {}` is
+  // true even on an empty object. `JSON.parse('{"__proto__":...}')` creates a real own data
+  // property (not the accessor), so this was a live way for such a key to escape the
+  // "unknown argument" refusal entirely. hasOwnProperty ignores the prototype chain, so only
+  // keys the schema actually declares count as known.
+  const unknown = Object.keys(input)
+    .filter((key) => !Object.prototype.hasOwnProperty.call(properties, key));
+  if (unknown.length > 0) {
+    return `unknown ${unknown.length === 1 ? 'argument' : 'arguments'}: ${unknown.sort().join(', ')}`;
   }
 
+  return null;
+}
+
+function findPropertyInputError(
+  { properties, input }: { properties: CapabilityInputSchema['properties']; input: Record<string, unknown> },
+  _optional: Record<string, never> = {},
+): string | null {
   for (const [name, schema] of Object.entries(properties)) {
     const value = input[name];
     if (value === undefined) continue;
