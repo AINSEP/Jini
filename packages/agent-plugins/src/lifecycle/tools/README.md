@@ -105,6 +105,10 @@ The host passes `capabilities: ({ pluginId, workspaceId, principalId?, signal? }
 
 Per call, the projection wraps these so that every capability stops working once the plugin's tools
 are withdrawn, and a result or error that contains a token the call obtained is withheld.
+Those two gates are `openCapabilityGate({ isLive })` in `capabilities.ts`; the admin-surface session
+(`../../admin-surfaces/surface-capabilities.ts`) reuses it, so surface handlers revoke and scan the
+same way. Account actions (connect, switch, disconnect), plugin state and public config exist only on
+the admin-surface port: they are admin actions, never something an agent tool can do.
 
 ## Host wiring
 

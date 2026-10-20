@@ -8,7 +8,8 @@
 import { expect, test } from 'vitest';
 import { createPluginContributionLoader } from '../../lifecycle/contribution-loader.js';
 import { findTrustedPluginPackages, importContainedModule, readTrustedPluginFile } from '../../lifecycle/__tests__/test-support.js';
-import { fakeCapabilities, FAKE_TOKEN, installPlugin, WORKSPACE_ID, withWorkspace, type FakeCapabilityLog } from '../../lifecycle/tools/__tests__/support.js';
+import { FAKE_TOKEN, installPlugin, WORKSPACE_ID, withWorkspace } from '../../lifecycle/tools/__tests__/support.js';
+import { createFakeSurfaceHost } from './surface-support.js';
 import {
   createAdminSurfaceActionDispatcher, createAdminSurfaceBootstrap, createAdminSurfaceHandlerHost,
   defineAdminSurfaceContribution, defineAdminSurfaceHandlerContribution, readAdminSurfaceFile,
@@ -18,21 +19,21 @@ const FILENAME = 'host-admin-surfaces.json';
 const HANDLERS = `export default {
   actions: {
     async 'save-selection'({ input, capabilities, context }) {
-      const token = await capabilities.connections.getAccessToken({ connectionRef: input.connectionRef });
+      const token = await capabilities.connections.getAccessToken({ connectionId: context.connectionIds[0] });
       const response = await capabilities.http.fetch({ url: 'https://api.example.test/files/' + input.resourceId },
         { method: 'GET', headers: { authorization: 'Bearer ' + token } });
       return { saved: response.status === 200, workspace: context.workspaceId };
     },
   },
   async bootstrap({ capabilities }) {
-    return { accessToken: await capabilities.connections.getAccessToken({ connectionRef: 'conn-1' }), appId: 'public-app-id' };
+    return { accessToken: await capabilities.connections.getAccessToken({ connectionId: 'conn-1' }), appId: 'public-app-id' };
   },
 };
 `;
 const SURFACES = JSON.stringify({ schemaVersion: 1, surfaces: [{
-  id: 'resource-chooser', title: 'Choose a file', entry: 'surface/index.html', files: ['surface/app.mjs'], handlerModule: 'server/handlers.mjs',
+  id: 'resource-chooser', title: 'Choose a file', entry: 'surface/index.html', files: ['surface/app.mjs'], handlerModule: 'server/handlers.mjs', connections: [{ id: 'conn-1' }],
   actions: [{ name: 'save-selection',
-    input: { type: 'object', properties: { connectionRef: { type: 'string' }, resourceId: { type: 'string', maxLength: 128 } }, required: ['connectionRef', 'resourceId'] },
+    input: { type: 'object', properties: { resourceId: { type: 'string', maxLength: 128 } }, required: ['resourceId'] },
     result: { type: 'object', properties: { saved: { type: 'boolean' }, workspace: { type: 'string' } }, required: ['saved'] } }],
   bootstrap: { type: 'object', properties: { accessToken: { type: 'string' }, appId: { type: 'string' } }, required: ['accessToken', 'appId'] },
 }] });
@@ -47,8 +48,8 @@ test('an acme-style plugin surface runs its own handler and bootstrap provider t
       readFile: ({ plugin, filename }) => readTrustedPluginFile(plugin, filename),
       importModule: ({ plugin, modulePath }) => importContainedModule(plugin, modulePath),
     });
-    const log: FakeCapabilityLog = { tokenRequests: [], requests: [] };
-    const host = createAdminSurfaceHandlerHost({ capabilities: () => fakeCapabilities(log) });
+    const { log, port } = createFakeSurfaceHost();
+    const host = createAdminSurfaceHandlerHost({ capabilities: port });
 
     const surfaces = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition: defineAdminSurfaceContribution({ filename: FILENAME }) });
     const handlerLoad = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition: defineAdminSurfaceHandlerContribution({ filename: FILENAME }) });
@@ -62,7 +63,7 @@ test('an acme-style plugin surface runs its own handler and bootstrap provider t
     expect(bootstrap).toEqual({ surfaceId: 'resource-chooser', issuedAt: 1_000, expiresAt: 61_000, data: { accessToken: FAKE_TOKEN, appId: 'public-app-id' } });
 
     const dispatcher = createAdminSurfaceActionDispatcher({ descriptor: surface.descriptor, handlers: host.handlersFor({ pluginId: 'acme-office', surfaceId: 'resource-chooser' }) });
-    expect(await dispatcher.dispatch({ action: 'save-selection', payload: { connectionRef: 'conn-1', resourceId: 'file-42' }, context }))
+    expect(await dispatcher.dispatch({ action: 'save-selection', payload: { resourceId: 'file-42' }, context }))
       .toEqual({ ok: true, result: { saved: true, workspace: WORKSPACE_ID } });
     expect(log.tokenRequests).toEqual(['conn-1', 'conn-1']);
     expect(log.requests).toEqual([{ url: 'https://api.example.test/files/file-42', headers: { authorization: `Bearer ${FAKE_TOKEN}` } }]);
