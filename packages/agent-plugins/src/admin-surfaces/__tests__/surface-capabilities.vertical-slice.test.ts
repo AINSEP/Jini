@@ -4,12 +4,14 @@
  * its handler module admitted by the real loader. Through the host dispatcher it reads connection
  * status, starts a sign-in with a declared start parameter, takes the callback field the host's
  * callback route deposited after a completed sign-in, verifies it through guarded HTTP, saves the
- * selection in plugin state, and reads declared public config for its bootstrap. No network.
+ * selection in plugin state, and reads declared public config for its bootstrap. A second test
+ * extends the slice to the plugin's agent tools: a product flag its surface writes is what its tool
+ * reads, through the same host store, so turning the product off blocks the tool. No network.
  */
 import { expect, test } from 'vitest';
 import { createPluginContributionLoader } from '../../lifecycle/contribution-loader.js';
 import { findTrustedPluginPackages, importContainedModule, readTrustedPluginFile } from '../../lifecycle/__tests__/test-support.js';
-import { FAKE_TOKEN, installPlugin, WORKSPACE_ID, withWorkspace } from '../../lifecycle/tools/__tests__/support.js';
+import { createHarness, FAKE_TOKEN, fakeCapabilities, installPlugin, toolsFile, TOOLS_FILENAME, WORKSPACE_ID, withWorkspace } from '../../lifecycle/tools/__tests__/support.js';
 import { createAdminSurfaceActionDispatcher, createAdminSurfaceHandlerHost, defineAdminSurfaceContribution, defineAdminSurfaceHandlerContribution } from '../index.js';
 import { createFakeSurfaceHost } from './surface-support.js';
 
@@ -91,5 +93,60 @@ test('an acme-style surface administers its own connection, takes a callback fie
       'acme-office:begin:{"connectionId":"account","action":"add-scopes","scopeSetIds":["files"],"startParams":{"selection-mode":"one"}}',
       'acme-office:state.set:{"key":"selection"}',
     ]);
+  });
+});
+
+const PRODUCT_HANDLERS = `export default {
+  actions: {
+    async 'set-product'({ input, capabilities }) {
+      await capabilities.state.set({ key: 'products', value: { tables: input.on } });
+      return { on: input.on };
+    },
+  },
+};
+`;
+const OFF_MESSAGE = "Tables is turned off in this plugin's settings; turn it on and retry.";
+const LIST_TABLES = `export default {
+  async invoke({ capabilities }) {
+    const products = await capabilities.state.get({ key: 'products' });
+    if (products?.tables !== true) throw new Error(${JSON.stringify(OFF_MESSAGE)});
+    return { tables: ['leads'] };
+  },
+};
+`;
+const PRODUCT_SURFACES = JSON.stringify({ schemaVersion: 1, surfaces: [{
+  id: 'products', title: 'Products', entry: 'surface/index.html', handlerModule: 'server/handlers.mjs',
+  actions: [{ name: 'set-product', input: object({ on: { type: 'boolean' } }, ['on']), result: object({ on: { type: 'boolean' } }, ['on']) }],
+}] });
+
+test('a product flag the surface writes is what the same plugin\'s tool reads: turning it off blocks the tool', async () => {
+  await withWorkspace(async (workspaceRoot) => {
+    await installPlugin({ workspaceRoot, pluginId: 'acme-office', files: {
+      [FILENAME]: PRODUCT_SURFACES, 'surface/index.html': '<!doctype html>', 'server/handlers.mjs': PRODUCT_HANDLERS,
+      [TOOLS_FILENAME]: toolsFile([{ name: 'list_tables', description: 'List tables.', effect: 'read', module: 'tools/list-tables.mjs', inputSchema: object({}) }]),
+      'tools/list-tables.mjs': LIST_TABLES,
+    } });
+    const loader = createPluginContributionLoader({
+      findPackages: (query) => findTrustedPluginPackages(query),
+      readFile: ({ plugin, filename }) => readTrustedPluginFile(plugin, filename),
+      importModule: ({ plugin, modulePath }) => importContainedModule(plugin, modulePath),
+    });
+    const fake = createFakeSurfaceHost();
+    const surfaceHost = createAdminSurfaceHandlerHost({ capabilities: fake.port });
+    const surfaces = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition: defineAdminSurfaceContribution({ filename: FILENAME }) });
+    const handlerLoad = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition: defineAdminSurfaceHandlerContribution({ filename: FILENAME }) });
+    expect([...surfaces.refusals, ...surfaceHost.sync({ loaded: handlerLoad.items, refusals: handlerLoad.refusals }).refusals]).toEqual([]);
+    // The host builds the tool port over the same store its surface port uses, scoped the same way.
+    const tools = createHarness({ capabilities: (scope) => ({ ...fakeCapabilities(fake.log), state: fake.port(scope).state }) });
+    expect(await tools.refresh()).toEqual([]);
+    const dispatcher = createAdminSurfaceActionDispatcher({ descriptor: surfaces.items[0]!.descriptor, handlers: surfaceHost.handlersFor({ pluginId: 'acme-office', surfaceId: 'products' }) });
+    const setProduct = (on: boolean) => dispatcher.dispatch({ action: 'set-product', payload: { on }, context: { workspaceId: WORKSPACE_ID, principalId: 'admin-1', pluginId: 'acme-office', surfaceId: 'products' } });
+
+    await expect(tools.invoke('p_acme_office__list_tables', {})).rejects.toThrow(OFF_MESSAGE);
+    expect(await setProduct(true)).toEqual({ ok: true, result: { on: true } });
+    expect(await tools.invoke('p_acme_office__list_tables', {})).toEqual({ tables: ['leads'] });
+    expect(await setProduct(false)).toEqual({ ok: true, result: { on: false } });
+    await expect(tools.invoke('p_acme_office__list_tables', {})).rejects.toThrow(OFF_MESSAGE);
+    expect(fake.log.calls).toEqual(['acme-office:state.set:{"key":"products"}', 'acme-office:state.set:{"key":"products"}']);
   });
 });

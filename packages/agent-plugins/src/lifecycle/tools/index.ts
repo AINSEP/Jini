@@ -8,7 +8,7 @@ export { defineAgentPluginToolContribution, type AgentPluginToolModule, type Loa
 export {
   openCapabilitySession, REVOKED_MESSAGE, WITHHELD_OUTPUT_MESSAGE, WITHHELD_ERROR_MESSAGE,
   type AgentPluginToolCapabilities, type AgentPluginToolCapabilitiesPort, type AgentPluginToolCapabilityScope,
-  type AgentPluginHttpOptions, type AgentPluginLimitResult,
+  type AgentPluginHttpOptions, type AgentPluginLimitResult, type AgentPluginStateReader, type AgentPluginStateValue,
 } from './capabilities.js';
 export {
   createAgentPluginToolProjection, type AgentPluginToolDisclosure, type AgentPluginToolProjectionPorts,

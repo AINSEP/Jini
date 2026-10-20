@@ -5,6 +5,9 @@
  * plugin's tools are revoked, even for a module that kept a reference, and (2) an access token the
  * call obtained can never leave through the tool's result or error text. Those two gates are
  * `openCapabilityGate`, shared with the admin-surface session so both enforce them identically.
+ *
+ * Plugin state reaches a tool read-only: the plugin's admin surface writes its settings (for example
+ * which of its products are on), and its tools must honor them, but an agent tool never changes them.
  */
 
 /** Options for guarded HTTP; mirrors `@jini-ai/platform`'s guarded fetch, buffered bodies only. */
@@ -18,6 +21,18 @@ export interface AgentPluginHttpOptions {
 /** Mirrors `@jini-ai/http-kit`'s `RateLimitResult`, so a host can pass its limiter straight through. */
 export type AgentPluginLimitResult = { readonly allowed: true } | { readonly allowed: false; readonly retryAfterSeconds: number };
 
+/** Plain JSON a plugin keeps in its plugin- and workspace-scoped state. */
+export type AgentPluginStateValue = null | boolean | number | string | readonly AgentPluginStateValue[] | { readonly [key: string]: AgentPluginStateValue };
+
+/**
+ * The read-only view of a plugin's own state: what its tools get, and what a host hands any other
+ * plugin execution context (form delivery, for example) that must honor the plugin's settings. A
+ * host handing it elsewhere passes an object with `get` only, never its whole store.
+ */
+export interface AgentPluginStateReader {
+  get(required: { readonly key: string }, optional?: Record<string, never>): Promise<AgentPluginStateValue | null>;
+}
+
 export interface AgentPluginToolCapabilities {
   /** Resolves a fresh access token for a connection the host has scoped to this plugin and workspace.
    *  Never a refresh token. The host refuses a connectionRef the calling plugin does not own. */
@@ -28,6 +43,9 @@ export interface AgentPluginToolCapabilities {
   readonly limiter: { check(required: { readonly key: string }, optional?: Record<string, never>): Promise<AgentPluginLimitResult> };
   /** Stores a file the run can hand to the user; returns an opaque reference, never a path. */
   readonly artifacts: { write(required: { readonly name: string; readonly mediaType: string; readonly content: string | Uint8Array }, optional?: Record<string, never>): Promise<{ readonly artifactRef: string }> };
+  /** The SAME store the plugin's admin-surface state writes, keyed by the same plugin and workspace
+   *  scope. Read-only here: the session exposes `get` alone whatever object the host passes. */
+  readonly state: AgentPluginStateReader;
 }
 
 /** Context the host uses to scope capabilities: which plugin, which workspace/principal, which call. */
@@ -41,6 +59,9 @@ export interface AgentPluginToolCapabilityScope {
 /** Host port: builds the capabilities for one call. Called once per invocation. */
 export type AgentPluginToolCapabilitiesPort = (required: AgentPluginToolCapabilityScope, optional?: Record<string, never>) => AgentPluginToolCapabilities;
 
+/** One limit for every reader and writer of plugin state; the admin-surface limits reuse it. */
+export const PLUGIN_STATE_MAX_KEY_LENGTH = 128;
+const STATE_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 export const REVOKED_MESSAGE = 'This plugin tool was disabled; its capabilities are revoked. Re-enable the plugin and retry.';
 export const WITHHELD_OUTPUT_MESSAGE = 'The plugin tool result was withheld because it contained a connection credential.';
 export const WITHHELD_ERROR_MESSAGE = 'The plugin tool failed and its error was withheld because it contained a connection credential.';
@@ -113,6 +134,23 @@ export function guardSharedCapabilities(
   };
 }
 
+/** The key shape every plugin state call shares, so a key never reaches the host as a path or a scope. */
+export function checkedStateKey(required: { readonly key: unknown }, _optional: Record<string, never> = {}): string {
+  const { key } = required;
+  if (typeof key !== 'string' || !STATE_KEY_PATTERN.test(key)) throw new Error(`A settings key must be a short name of at most ${PLUGIN_STATE_MAX_KEY_LENGTH} characters.`);
+  return key;
+}
+
+/**
+ * The read-only state view a session hands out: `get` alone, the key checked and passed on by itself
+ * (so plugin code cannot add a scope the host might honor), revoked with the session's gate.
+ * @complexity O(1) plus the key check.
+ */
+export function guardStateReader(required: { readonly gate: AgentPluginCapabilityGate; readonly state: AgentPluginStateReader }, _optional: Record<string, never> = {}): AgentPluginStateReader {
+  const { gate, state } = required;
+  return Object.freeze({ get: gate.guard(({ key }: { readonly key: string }) => state.get({ key: checkedStateKey({ key }) })) });
+}
+
 /**
  * Opens the capability session for one tool call.
  * @param required.capabilities - The host's capabilities for this call.
@@ -127,6 +165,7 @@ export function openCapabilitySession(required: { readonly capabilities: AgentPl
     connections: Object.freeze({ getAccessToken: gate.guard(async (input: { readonly connectionRef: string }) =>
       gate.noteToken({ token: await host.connections.getAccessToken({ connectionRef: input.connectionRef }) })) }),
     ...guardSharedCapabilities({ gate, host }),
+    state: guardStateReader({ gate, state: host.state }),
   });
   return { capabilities, release: gate.release, sanitize: gate.sanitize };
 }

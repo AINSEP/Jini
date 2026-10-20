@@ -16,7 +16,7 @@ import {
   recordBundledAgentPluginDigests, resolveAgentPluginLayout, setAgentPluginActivation,
 } from '../../__tests__/test-support.js';
 import { forceRemove } from '../../__tests__/fixtures/force-remove.js';
-import type { AgentPluginToolCapabilities } from '../capabilities.js';
+import type { AgentPluginToolCapabilities, AgentPluginToolCapabilitiesPort } from '../capabilities.js';
 import { defineAgentPluginToolContribution } from '../definition.js';
 import { createAgentPluginToolProjection } from '../projection.js';
 
@@ -73,11 +73,13 @@ export function fakeCapabilities(log: FakeCapabilityLog): AgentPluginToolCapabil
     } },
     limiter: { check: async () => ({ allowed: true }) },
     artifacts: { write: async ({ name }) => ({ artifactRef: `artifact:${name}` }) },
+    state: { get: async () => null },
   };
 }
 
-/** Loader + projection + real ToolRegistry, wired the way a host composes them. */
-export function createHarness() {
+/** Loader + projection + real ToolRegistry, wired the way a host composes them. `capabilities`
+ *  replaces the default fakes (a slice that shares one host store with the plugin's surfaces). */
+export function createHarness(optional: { readonly capabilities?: AgentPluginToolCapabilitiesPort } = {}) {
   const log: FakeCapabilityLog = { tokenRequests: [], requests: [] };
   const loader = createPluginContributionLoader({
     findPackages: query => findTrustedPluginPackages(query),
@@ -91,7 +93,7 @@ export function createHarness() {
   const ports: PluginToolContributionPorts = { contributions, isEnabled: async ({ pluginId }) => enabled.has(pluginId),
     resolveAuth: async ({ principalId }) => ({ access: 'member', workspaceId: WORKSPACE_ID, principalId }), metadata: { approval: { class: 'edit', confirmation: 'direct' } } };
   attachPluginContributionTools({ ...ports, registry: tools });
-  const projection = createAgentPluginToolProjection({ registry: contributions, toolIdFor: pluginToolIdFor, capabilities: () => fakeCapabilities(log) });
+  const projection = createAgentPluginToolProjection({ registry: contributions, toolIdFor: pluginToolIdFor, capabilities: optional.capabilities ?? (() => fakeCapabilities(log)) });
   /** Loads from the installed packages and projects; returns every refusal line. */
   async function refresh(): Promise<readonly string[]> {
     const load = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition }, { orderByPluginId: true });

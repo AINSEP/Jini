@@ -15,7 +15,8 @@
  * token the call obtained; it also refuses to persist such a token in plugin state.
  */
 import {
-  guardSharedCapabilities, openCapabilityGate, type AgentPluginCapabilityGate, type AgentPluginToolCapabilities, type AgentPluginToolCapabilityScope,
+  checkedStateKey, guardSharedCapabilities, guardStateReader, openCapabilityGate, PLUGIN_STATE_MAX_KEY_LENGTH,
+  type AgentPluginCapabilityGate, type AgentPluginStateReader, type AgentPluginStateValue, type AgentPluginToolCapabilities, type AgentPluginToolCapabilityScope,
 } from '../lifecycle/tools/capabilities.js';
 import type { AdminSurfaceCapabilityDeclarations, AdminSurfaceConnectionDeclaration } from './capability-declarations.js';
 
@@ -60,11 +61,11 @@ export interface AdminSurfaceConnections {
   takeCallbackFields(required: { readonly connectionId: string; readonly attemptId: string }, optional?: Record<string, never>): Promise<Readonly<Record<string, string>> | null>;
 }
 
-export type AdminSurfaceStateValue = null | boolean | number | string | readonly AdminSurfaceStateValue[] | { readonly [key: string]: AdminSurfaceStateValue };
+export type AdminSurfaceStateValue = AgentPluginStateValue;
 
-/** Plugin- and workspace-scoped JSON values (the host keys them by the session's scope). */
-export interface AdminSurfaceState {
-  get(required: { readonly key: string }, optional?: Record<string, never>): Promise<AdminSurfaceStateValue | null>;
+/** Plugin- and workspace-scoped JSON values (the host keys them by the session's scope). The plugin's
+ *  tools read the same store through the read-only `AgentPluginStateReader`; only surfaces write. */
+export interface AdminSurfaceState extends AgentPluginStateReader {
   set(required: { readonly key: string; readonly value: AdminSurfaceStateValue }, optional?: Record<string, never>): Promise<void>;
   delete(required: { readonly key: string }, optional?: Record<string, never>): Promise<void>;
 }
@@ -83,10 +84,9 @@ export type AdminSurfaceCapabilities = Pick<AgentPluginToolCapabilities, 'http' 
 /** Host port: builds one call's capabilities for the loaded plugin, workspace and admin principal. */
 export type AdminSurfaceCapabilitiesPort = (required: AgentPluginToolCapabilityScope, optional?: Record<string, never>) => AdminSurfaceCapabilities;
 
-export const ADMIN_SURFACE_STATE_LIMITS = Object.freeze({ maxKeyLength: 128, maxValueBytes: 16 * 1024, maxDepth: 16 });
+export const ADMIN_SURFACE_STATE_LIMITS = Object.freeze({ maxKeyLength: PLUGIN_STATE_MAX_KEY_LENGTH, maxValueBytes: 16 * 1024, maxDepth: 16 });
 export const STATE_CREDENTIAL_MESSAGE = 'The plugin tried to save a connection credential in its settings; nothing was saved.';
 const ACTIONS: readonly string[] = ['connect', 'reconnect', 'switch', 'add-scopes'];
-const STATE_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const SCOPE_SET_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const ATTEMPT_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const MAX_SCOPE_SETS = 16;
@@ -200,11 +200,6 @@ function isStateValue(value: unknown, depth: number): boolean {
   return (prototype === Object.prototype || prototype === null) && Object.values(value as object).every((item) => isStateValue(item, depth + 1));
 }
 
-function checkedStateKey(key: unknown): string {
-  if (typeof key !== 'string' || !STATE_KEY_PATTERN.test(key)) throw new Error(`A settings key must be a short name of at most ${ADMIN_SURFACE_STATE_LIMITS.maxKeyLength} characters.`);
-  return key;
-}
-
 /**
  * The value the host stores: serialized once, scanned and size-checked on that text, then parsed
  * back, so what is stored is exactly what was checked (the plugin cannot change it afterwards).
@@ -220,9 +215,9 @@ function storedStateValue(gate: AgentPluginCapabilityGate, value: unknown): Admi
 
 function guardState(gate: AgentPluginCapabilityGate, host: AdminSurfaceState): AdminSurfaceState {
   return Object.freeze({
-    get: gate.guard(({ key }: { readonly key: string }) => host.get({ key: checkedStateKey(key) })),
-    set: gate.guard(async ({ key, value }: { readonly key: string; readonly value: AdminSurfaceStateValue }) => host.set({ key: checkedStateKey(key), value: storedStateValue(gate, value) })),
-    delete: gate.guard(({ key }: { readonly key: string }) => host.delete({ key: checkedStateKey(key) })),
+    ...guardStateReader({ gate, state: host }),
+    set: gate.guard(async ({ key, value }: { readonly key: string; readonly value: AdminSurfaceStateValue }) => host.set({ key: checkedStateKey({ key }), value: storedStateValue(gate, value) })),
+    delete: gate.guard(({ key }: { readonly key: string }) => host.delete({ key: checkedStateKey({ key }) })),
   });
 }
 
