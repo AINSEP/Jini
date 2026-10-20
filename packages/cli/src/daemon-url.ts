@@ -52,33 +52,40 @@ export interface ResolveDaemonUrlOptions {
  */
 export async function resolveDaemonUrl(_requiredArgs: Record<string, never>, options: ResolveDaemonUrlOptions = {}): Promise<string> {
   const env = options.env ?? process.env;
-  const warn = options.warn ?? ((): void => {});
-
-  const report = (url: string): string => {
-    const warning = daemonUrlPolicyWarning({ url });
-    if (warning !== null) warn({ message: warning });
-    return url;
-  };
-
-  const flagUrl = options.flagUrl ?? null;
-  if (flagUrl !== null && flagUrl.length > 0) return report(flagUrl);
-
-  if (options.envVarName !== undefined) {
-    const envUrl = env[options.envVarName];
-    if (envUrl !== undefined && envUrl.length > 0) return report(envUrl);
+  // `??` short-circuits, so discover() is only probed when flag and env both came up empty.
+  // defaultUrl is taken as-is (even `''`): only `undefined` skips it.
+  const url =
+    nonEmpty(options.flagUrl ?? null) ??
+    envCandidate({ env }, options) ??
+    (await discoverCandidate({ env }, options)) ??
+    options.defaultUrl;
+  if (url === undefined) {
+    throw new Error(
+      'no daemon URL resolved: pass flagUrl, set envVarName on a populated env var, ' +
+        'supply a discover() probe, or provide defaultUrl.',
+    );
   }
+  const warning = daemonUrlPolicyWarning({ url });
+  if (warning !== null) options.warn?.({ message: warning });
+  return url;
+}
 
-  if (options.discover !== undefined) {
-    const discovered = await options.discover({ env }, { timeoutMs: options.timeoutMs ?? 800 });
-    if (discovered !== null && discovered.length > 0) return report(discovered);
-  }
+/** `value` when it is a non-empty string, else `undefined` (`null` and `''` both mean "unset"). */
+function nonEmpty(value: string | null): string | undefined {
+  return value !== null && value.length > 0 ? value : undefined;
+}
 
-  if (options.defaultUrl !== undefined) return report(options.defaultUrl);
+/** The env step: `env[envVarName]`, skipped entirely when no `envVarName` was given. */
+function envCandidate({ env }: { env: NodeJS.ProcessEnv }, { envVarName }: ResolveDaemonUrlOptions): string | undefined {
+  return envVarName === undefined ? undefined : nonEmpty(env[envVarName] ?? null);
+}
 
-  throw new Error(
-    'no daemon URL resolved: pass flagUrl, set envVarName on a populated env var, ' +
-      'supply a discover() probe, or provide defaultUrl.',
-  );
+/** The discovery step: one `discover()` probe with the caller timeout (default 800ms), when a probe was given. */
+async function discoverCandidate(
+  { env }: { env: NodeJS.ProcessEnv },
+  { discover, timeoutMs }: ResolveDaemonUrlOptions,
+): Promise<string | undefined> {
+  return discover === undefined ? undefined : nonEmpty(await discover({ env }, { timeoutMs: timeoutMs ?? 800 }));
 }
 
 // Matches a scheme + userinfo prefix (`scheme://user:pass@`) on a URL string that failed to
