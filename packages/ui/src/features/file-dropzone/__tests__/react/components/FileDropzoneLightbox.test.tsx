@@ -59,6 +59,38 @@ describe('FileDropzoneLightbox', () => {
     expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-popups');
   });
 
+  it('labels the image stage with the file name', () => {
+    const f = file('a.png', 'image/png');
+    const previews: FileDropzonePreviewState = { ...EMPTY_PREVIEWS, previewUrls: new Map([[f, 'blob:img']]) };
+    render(<FileDropzoneLightbox file={f} previews={previews} onClose={vi.fn()} />);
+    expect(screen.getByRole('img', { name: 'a.png' })).toBeInTheDocument();
+  });
+
+  it('gives the video stage native controls', () => {
+    const f = file('a.mp4', 'video/mp4');
+    const previews: FileDropzonePreviewState = { ...EMPTY_PREVIEWS, previewUrls: new Map([[f, 'blob:vid']]) };
+    render(<FileDropzoneLightbox file={f} previews={previews} onClose={vi.fn()} />);
+    expect(document.querySelector('video')).toHaveAttribute('controls');
+  });
+
+  it('titles the pdf iframe with the file name', () => {
+    const f = file('a.pdf', 'application/pdf');
+    const previews: FileDropzonePreviewState = { ...EMPTY_PREVIEWS, previewUrls: new Map([[f, 'blob:pdf']]) };
+    render(<FileDropzoneLightbox file={f} previews={previews} onClose={vi.fn()} />);
+    expect(document.querySelector('iframe')).toHaveAttribute('title', 'a.pdf');
+  });
+
+  it.each([
+    ['a.png', 'image/png'],
+    ['a.mp4', 'video/mp4'],
+    ['a.mp3', 'audio/mpeg'],
+    ['a.pdf', 'application/pdf'],
+    ['a.html', 'text/html'],
+  ])('falls back to the name/size card for %s while its preview URL has not resolved', (name, type) => {
+    render(<FileDropzoneLightbox file={file(name, type)} previews={EMPTY_PREVIEWS} onClose={vi.fn()} />);
+    expect(screen.getByText('No inline preview for this file type.')).toBeInTheDocument();
+  });
+
   it('renders a font specimen + pangram scale when a family has loaded', () => {
     const f = file('brand.woff2', 'font/woff2');
     const previews: FileDropzonePreviewState = { ...EMPTY_PREVIEWS, fontFamilies: new Map([[f, 'my-family']]) };
