@@ -149,6 +149,13 @@ describe.each(factories)('%s store contract pins', (_name, make) => {
       expect(row).toMatchObject({ state: null, result: null, error: null, leaseOwner: null, leaseExpiresAt: null });
     });
 
+    it('stores a private copy of a patched state, so later caller mutation does not reach the row', async () => {
+      const state: Record<string, unknown> = { jobId: 'j2' };
+      await store.update({ id: 'op-1', patch: { state } });
+      state.jobId = 'mutated';
+      expect((await store.get({ id: 'op-1' }))?.state).toEqual({ jobId: 'j2' });
+    });
+
     it('refuses credential material in a patched state and leaves the row unchanged', async () => {
       await expect(store.update({ id: 'op-1', patch: { state: { token: 'x' } } })).rejects.toThrow(CREDENTIAL_IN_STATE_MESSAGE);
       expect((await store.get({ id: 'op-1' }))?.state).toEqual({ jobId: 'j1' });
@@ -264,6 +271,19 @@ describe.each(factories)('%s store contract pins', (_name, make) => {
       expect(await byId('live-lease')).toMatchObject({ leaseOwner: 'x', leaseExpiresAt: 101 });
       expect(await byId('orphan-expiry')).toMatchObject({ leaseOwner: null, leaseExpiresAt: 5 });
     });
+  });
+});
+
+describe('in-memory store aliasing', () => {
+  it('keeps a reference to a patched result object (reported, not fixed)', async () => {
+    // Unlike `state`, `result`/`error` are stored by reference: mutating the caller's patch object
+    // afterwards changes the stored row. The sqlite store serializes, so it does not share this.
+    const store = createInMemoryAsyncOperationStore();
+    await store.create(BASE);
+    const result = { bytesBase64: 'QQ==', providerNote: 'n' };
+    await store.update({ id: 'op-1', patch: { result } });
+    Object.assign(result, { providerNote: 'mutated' });
+    expect((await store.get({ id: 'op-1' }))?.result?.providerNote).toBe('mutated');
   });
 });
 
