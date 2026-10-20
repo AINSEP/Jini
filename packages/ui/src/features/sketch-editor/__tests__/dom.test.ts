@@ -544,3 +544,163 @@ describe('handleSketchPortalCommandEnter', () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 });
+
+describe('dom.ts boundary pins', () => {
+  function commandEnter(target: Element, options: Partial<KeyboardEventInit> = {}): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true, cancelable: true, ...options });
+    Object.defineProperty(event, 'target', { value: target, enumerable: true });
+    return event;
+  }
+
+  function mountMermaidPortal(html: string): { textarea: HTMLTextAreaElement; onClick: ReturnType<typeof vi.fn> } {
+    const host = document.createElement('div');
+    host.innerHTML = html;
+    document.body.appendChild(host);
+    const onClick = vi.fn();
+    host.querySelector('button')?.addEventListener('click', onClick);
+    return { textarea: host.querySelector('textarea')!, onClick };
+  }
+
+  const MERMAID_PORTAL =
+    '<div class="jini-sketch-modal"><div class="Modal__content">Mermaid<textarea></textarea><button>Insert</button></div></div>';
+
+  it('Ctrl+Enter (no Meta) also submits the Mermaid Insert button', () => {
+    const { textarea, onClick } = mountMermaidPortal(MERMAID_PORTAL);
+    handleSketchPortalCommandEnter(commandEnter(textarea, { metaKey: false, ctrlKey: true }), INSERT_PATTERN);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('a submitted Command+Enter is prevented from reaching the editor', () => {
+    const { textarea } = mountMermaidPortal(MERMAID_PORTAL);
+    const event = commandEnter(textarea);
+    handleSketchPortalCommandEnter(event, INSERT_PATTERN);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('Cmd+Alt+Enter is ignored', () => {
+    const { textarea, onClick } = mountMermaidPortal(MERMAID_PORTAL);
+    handleSketchPortalCommandEnter(commandEnter(textarea, { altKey: true }), INSERT_PATTERN);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('a non-Enter key with Meta held is ignored', () => {
+    const { textarea, onClick } = mountMermaidPortal(MERMAID_PORTAL);
+    handleSketchPortalCommandEnter(commandEnter(textarea, { key: 'a' }), INSERT_PATTERN);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('is ignored when the .Modal__content sits outside (around) the .jini-sketch-modal', () => {
+    const { textarea, onClick } = mountMermaidPortal(
+      '<div class="Modal__content">Mermaid<button>Insert</button><div class="jini-sketch-modal"><textarea></textarea></div></div>',
+    );
+    handleSketchPortalCommandEnter(commandEnter(textarea), INSERT_PATTERN);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('is ignored inside a modal whose content is not a Mermaid dialog', () => {
+    const { textarea, onClick } = mountMermaidPortal(
+      '<div class="jini-sketch-modal"><div class="Modal__content">Other<textarea></textarea><button>Insert</button></div></div>',
+    );
+    handleSketchPortalCommandEnter(commandEnter(textarea), INSERT_PATTERN);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('applySketchEditorTooltips skips a "closest-label" trigger that has no <label> ancestor', () => {
+    const root = document.createElement('div');
+    root.innerHTML = '<input class="probe" />';
+    applySketchEditorTooltips(root, labels, [{ selector: '.probe', label: 'hand', target: 'closest-label' }]);
+    expect(root.innerHTML).toBe('<input class="probe">');
+  });
+
+  it('clampSketchContextPopover falls back to the measured rect when no inline left/top is set', () => {
+    const viewport = document.createElement('div');
+    const popover = document.createElement('div');
+    vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 100, 100));
+    vi.spyOn(popover, 'getBoundingClientRect').mockReturnValue(new DOMRect(90, 20, 30, 30));
+    clampSketchContextPopover(popover, viewport);
+    expect([popover.style.left, popover.style.top]).toEqual(['62px', '20px']);
+  });
+
+  it('clampSketchContextPopover leaves an in-bounds axis that already matches its inline value untouched', () => {
+    const viewport = document.createElement('div');
+    const popover = document.createElement('div');
+    popover.style.left = '90px';
+    popover.style.top = '20px';
+    vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 100, 100));
+    vi.spyOn(popover, 'getBoundingClientRect').mockReturnValue(new DOMRect(90, 20, 30, 30));
+    clampSketchContextPopover(popover, viewport);
+    expect([popover.style.left, popover.style.top]).toEqual(['62px', '20px']);
+  });
+
+  it('applySketchContextMenuSimplification keeps an earlier duplicate action <li> in front of the reordered survivors', () => {
+    const root = document.createElement('div');
+    root.innerHTML =
+      '<div class="popover"><ul class="context-menu"><li data-testid="paste">a</li><li data-testid="copy">b</li><li data-testid="paste">c</li></ul></div>';
+    document.body.appendChild(root);
+    applySketchContextMenuSimplification(root, document.body, ['copy', 'paste'], ['copy']);
+    expect(root.querySelector('ul')!.textContent).toBe('abc');
+  });
+
+  it('applySketchContextMenuSimplification orders by the LAST occurrence of a duplicated allow-list entry', () => {
+    const root = document.createElement('div');
+    root.innerHTML =
+      '<div class="popover"><ul class="context-menu"><li data-testid="paste">p</li><li data-testid="copy">c</li></ul></div>';
+    document.body.appendChild(root);
+    applySketchContextMenuSimplification(root, document.body, ['copy', 'paste', 'copy'], ['copy']);
+    expect(root.querySelector('ul')!.textContent).toBe('pc');
+  });
+
+  it('applySketchContextMenuSimplification re-appends items on every call when an allow-list entry is duplicated (reported, not fixed)', () => {
+    // The "already ordered" check compares lengths, and a duplicated allow-list
+    // entry makes the expected list longer than the menu, so the reorder (and
+    // the MutationObserver churn the source comment warns about) never settles.
+    const root = document.createElement('div');
+    root.innerHTML =
+      '<div class="popover"><ul class="context-menu"><li data-testid="paste">p</li><li data-testid="copy">c</li></ul></div>';
+    document.body.appendChild(root);
+    applySketchContextMenuSimplification(root, document.body, ['copy', 'paste', 'copy'], ['copy']);
+    const menu = root.querySelector('ul')!;
+    const append = vi.spyOn(menu, 'appendChild');
+    applySketchContextMenuSimplification(root, document.body, ['copy', 'paste', 'copy'], ['copy']);
+    expect(append).toHaveBeenCalledTimes(3);
+  });
+
+  it('applySketchDomTextOverrides rewrites the root element\'s own attribute and skips empty attributes', () => {
+    const root = document.createElement('div');
+    root.setAttribute('title', 'Close');
+    root.innerHTML = '<span aria-label="">Close</span>';
+    applySketchDomTextOverrides(root, { Close: 'Fermer' });
+    expect(root.outerHTML).toBe('<div title="Fermer"><span aria-label="">Fermer</span></div>');
+  });
+
+  it('applySketchDomTextOverrides performs no DOM write when an override maps a value to itself', () => {
+    const root = document.createElement('div');
+    root.setAttribute('title', 'Close');
+    root.textContent = 'Close';
+    const observer = new MutationObserver(() => {});
+    observer.observe(root, { attributes: true, characterData: true, subtree: true });
+    applySketchDomTextOverrides(root, { Close: 'Close' });
+    expect(observer.takeRecords()).toHaveLength(0);
+    observer.disconnect();
+  });
+
+  it('applySketchContextMenuSimplification appends nothing when the menu is already in allow-list order', () => {
+    const root = document.createElement('div');
+    root.innerHTML =
+      '<div class="popover"><ul class="context-menu"><li data-testid="copy">c</li><li data-testid="paste">p</li></ul></div>';
+    document.body.appendChild(root);
+    const menu = root.querySelector('ul')!;
+    const append = vi.spyOn(menu, 'appendChild');
+    applySketchContextMenuSimplification(root, document.body, ['copy', 'paste'], ['copy']);
+    expect(append).not.toHaveBeenCalled();
+  });
+
+  it('a disabled Insert button leaves Command+Enter unhandled (not prevented)', () => {
+    const { textarea } = mountMermaidPortal(
+      '<div class="jini-sketch-modal"><div class="Modal__content">Mermaid<textarea></textarea><button disabled>Insert</button></div></div>',
+    );
+    const event = commandEnter(textarea);
+    handleSketchPortalCommandEnter(event, INSERT_PATTERN);
+    expect(event.defaultPrevented).toBe(false);
+  });
+});
