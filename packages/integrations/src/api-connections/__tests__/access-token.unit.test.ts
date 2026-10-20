@@ -10,6 +10,7 @@ import { ApiConnectionError } from '../errors.js';
 import { createApiConnectionAccessTokens } from '../access-token.js';
 import type { ApiConnectionTokenStore } from '../ports.js';
 import { memoryTokenStore } from './fixtures/harness.js';
+import type { ApiConnectionRecord } from '../types.js';
 import { KEY, connectedRecord, seedRecord, tokens, unitDeps, type UnitDeps } from './fixtures/unit-deps.js';
 
 const owned = { connectionRef: KEY, workspaceId: 'ws-1' };
@@ -112,5 +113,36 @@ describe('refresher failures', () => {
     await seedRecord(deps, connectedRecord());
     expect(await caught(served(deps))).toMatchObject({ code: 'reconnect-required' });
     expect((await deps.records.read({ key: KEY }))?.status).toBe('revocation-pending');
+  });
+});
+
+describe('a credential change that lands while the token is read', () => {
+  /** A store whose token read lets `change` rewrite the record first, as a concurrent confirm/disconnect would. */
+  async function changedDuringRead(change: Partial<ApiConnectionRecord>): Promise<UnitDeps> {
+    const store = memoryTokenStore();
+    store.entries.set(KEY, tokens('live'));
+    const deps: UnitDeps = unitDeps({ tokens: { ...store, load: async args => {
+      const current = (await deps.records.read({ key: KEY }))!;
+      await deps.records.compareAndSet({ key: KEY, expectedRevision: current.revision,
+        record: { ...current, ...change, revision: current.revision + 1 } });
+      return store.load(args);
+    } } });
+    await seedRecord(deps, connectedRecord());
+    return deps;
+  }
+
+  it('refuses a frozen job when a confirmed switch to another account landed in between', async () => {
+    const deps = await changedDuringRead({ generation: 2, account: { accountId: 'bob', displayName: 'Bob' } });
+    expect(await caught(served(deps, { expectedAccountId: 'alice' }))).toMatchObject({ code: 'account-changed' });
+  });
+
+  it('refuses when a disconnect landed in between', async () => {
+    const deps = await changedDuringRead({ generation: 2, status: 'revocation-pending' });
+    expect(await caught(served(deps))).toMatchObject({ code: 'revocation-pending' });
+  });
+
+  it('refuses with storage-conflict when only the credential generation moved (a reconnect)', async () => {
+    const deps = await changedDuringRead({ generation: 2 });
+    expect(await caught(served(deps, { expectedAccountId: 'alice' }))).toMatchObject({ code: 'storage-conflict' });
   });
 });

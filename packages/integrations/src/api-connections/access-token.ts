@@ -3,7 +3,8 @@
  *
  * Exists so plugin tool and delivery code never touch refresh tokens: they ask for an access
  * token by `connectionRef` immediately before an HTTP call. Only `connected` records are served,
- * an optional frozen account id stops a binding from silently following an account switch, and a
+ * an optional frozen account id stops a binding from silently following an account switch (checked
+ * again after the token is read, so a switch landing in between cannot leak through), and a
  * rejected refresh moves the record to `reconnect-required`.
  */
 import { createTokenRefresher, OAuthError, refreshAccessToken, type TokenRefreshPort } from '@jini-ai/oauth';
@@ -39,6 +40,22 @@ async function markReconnectRequired(deps: ApiConnectionServiceDeps, key: string
   if (record?.status === 'connected') await writeRecord(deps, record, { status: 'reconnect-required' });
 }
 
+/**
+ * The token store reads the live generation, so a confirmed switch, disconnect or reconnect that
+ * landed between the record check and the token read could hand over another credential: refuse
+ * unless the record still serves the same generation. A retry reads the new state consistently.
+ */
+async function assertUnchangedSince(deps: ApiConnectionServiceDeps, requiredArgs: OwnedRecordArgs & {
+  readonly checked: ApiConnectionRecord; readonly expectedAccountId: string | undefined;
+}): Promise<void> {
+  const current = await loadOwnedRecord(deps, requiredArgs);
+  assertServable(current, requiredArgs.expectedAccountId);
+  if (current.generation !== requiredArgs.checked.generation) {
+    throw new ApiConnectionError({ code: 'storage-conflict',
+      message: 'This connection changed while the request was running. Reload its status and try again.' });
+  }
+}
+
 function refreshPort(deps: ApiConnectionServiceDeps): TokenRefreshPort {
   const { tokens } = deps;
   return {
@@ -59,14 +76,17 @@ export function createApiConnectionAccessTokens(deps: ApiConnectionServiceDeps):
   const refresher = createTokenRefresher({ clock: deps.clock, sleep: deps.sleep, port: refreshPort(deps) });
   return {
     async getAccessToken(requiredArgs, optionalArgs = {}) {
+      const { expectedAccountId } = optionalArgs;
       const record = await loadOwnedRecord(deps, requiredArgs);
-      assertServable(record, optionalArgs.expectedAccountId);
-      return refresher.getAccessToken({ key: record.key }).catch((error: unknown) => {
+      assertServable(record, expectedAccountId);
+      const accessToken = await refresher.getAccessToken({ key: record.key }).catch((error: unknown) => {
         if (error instanceof OAuthError && error.code === 'OAUTH_INVALID_GRANT') {
           throw new ApiConnectionError(REFUSALS['reconnect-required'], { cause: error });
         }
         throw error;
       });
+      await assertUnchangedSince(deps, { ...requiredArgs, checked: record, expectedAccountId });
+      return accessToken;
     },
   };
 }

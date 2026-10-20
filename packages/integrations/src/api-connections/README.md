@@ -104,7 +104,9 @@ client with `authMethod: 'none'` is refused at construction (`configuration-inva
   with status `disconnected`: nothing is left to retry with, so the person removes the access on
   the provider's account page, and a new sign-in is allowed.
 - **Access tokens** are served only for `connected` records; a rejected refresh moves the record
-  to `reconnect-required`.
+  to `reconnect-required`. The record is read again after the token: a switch, disconnect or
+  reconnect that landed in between refuses the call (`account-changed`, the status code, or
+  `storage-conflict`; a retry sees the new state) instead of serving another credential.
 
 ## How a provider plugin uses it
 
